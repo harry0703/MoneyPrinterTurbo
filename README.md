@@ -7,25 +7,20 @@
 ### 竖屏 9:16
 
 #### 视频演示
+▶️ 《如何增加生活的乐趣》
 
-[▶️ 竖屏 9:16 Demo1 ](docs/demo-portrait-1.mp4)
+https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/a84d33d5-27a2-4aba-8fd0-9fb2bd91c6a6
 
-[▶️ 竖屏 9:16 Demo2 ](docs/demo-portrait-2.mp4)
+▶️ 《生命的意义是什么》
 
-#### 图片预览
-
-<img src="docs/demo-portrait-1.jpg" width="300">
-<img src="docs/demo-portrait-2.jpg" width="300">
+https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/112c9564-d52b-4472-99ad-970b75f66476
 
 ### 横屏 16:9
 
 #### 视频演示
+▶️《生命的意义是什么》
 
-[▶️ 横屏 16:9](docs/demo-landscape.mp4)
-
-#### 图片预览
-
-<img src="docs/demo-landscape.jpg" width="600">
+https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/346ebb15-c55f-47a9-a653-114f08bb8073
 
 ## 安装 📥
 
@@ -96,7 +91,7 @@ python main.py
     - 如果有更新和优化，我也会在抖音上面 **及时通知**。
     - 有问题也可以在抖音上面 **留言**，我会 **尽快回复**。
 
-<img src="docs/douyin.jpg" width="500">
+<img src="docs/douyin.jpg" width="300">
 
 ## 感谢 🙏
 
