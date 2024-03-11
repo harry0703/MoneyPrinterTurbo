@@ -1,0 +1,33 @@
+[app]
+    # Pexels API Key
+    # Register at https://www.pexels.com/api/ to get your API key.
+    # You can use multiple keys to avoid rate limits.
+    pexels_api_keys = []
+
+    # OpenAI API Key
+    # Visit https://openai.com/api/ for details on obtaining an API key.
+    openai_api_key = ""
+    openai_base_url=""
+    openai_model_name = "gpt-4-turbo-preview"
+
+    # Subtitle Provider, "edge" or "whisper"
+    # If empty, the subtitle will not be generated
+    subtitle_provider = "edge"
+
+[whisper]
+    # Only effective when subtitle_provider is "whisper"
+
+    # Run on GPU with FP16
+    # model = WhisperModel(model_size, device="cuda", compute_type="float16")
+
+    # Run on GPU with INT8
+    # model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
+
+    # Run on CPU with INT8
+    # model = WhisperModel(model_size, device="cpu", compute_type="int8")
+
+    # recommended model_size: "large-v3"
+    model_size="large-v3"
+    # if you want to use GPU, set device="cuda"
+    device="CPU"
+    compute_type="int8"

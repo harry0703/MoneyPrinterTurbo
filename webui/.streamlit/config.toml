@@ -1,0 +1,2 @@
+[browser]
+gatherUsageStats = false

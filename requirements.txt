@@ -1,0 +1,14 @@
+requests~=2.31.0
+moviepy~=1.0.3
+openai~=1.13.3
+faster-whisper~=1.0.1
+edge_tts~=6.1.10
+uvicorn~=0.27.1
+fastapi~=0.110.0
+tomli~=2.0.1
+streamlit~=1.32.0
+loguru~=0.7.2
+aiohttp~=3.9.3
+urllib3~=2.2.1
+pillow~=10.2.0
+pydantic~=2.6.3
