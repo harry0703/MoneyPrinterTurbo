@@ -6,8 +6,8 @@
 
 - [x] 完整的 **MVC架构**，代码 **结构清晰**，易于维护，支持API和Web界面
 - [x] 支持多种 **高清视频** 尺寸
-  - [x] 竖屏 9:16，`1080x1920`
-  - [x] 横屏 16:9，`1920x1080`
+    - [x] 竖屏 9:16，`1080x1920`
+    - [x] 横屏 16:9，`1920x1080`
 - [x] 支持 **中文** 和 **英文** 视频文案
 - [x] 支持 **多种语音** 合成
 - [x] 支持 **字幕生成**，可以调整字体、颜色、大小，同时支持字幕描边设置
@@ -15,6 +15,7 @@
 - [x] 视频素材来源 **无版权** 问题
 
 ### 后期计划 🚀
+
 - [ ] 完善异步API接口，进度显示
 - [ ] 优化语音合成，利用大模型，使其合成的声音，更加自然，情绪更加丰富
 - [ ] 增加视频转场效果，使其看起来更加的流畅
@@ -42,7 +43,6 @@ https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/346ebb15-c55f-47a9
 ▶️《为什么要运动》
 
 https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/271f2fae-8283-44a0-8aa0-0ed8f9a6fa87
-
 
 ## 安装部署 📥
 
@@ -107,13 +107,16 @@ python main.py
 
 ## 反馈建议 📢
 
-- 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) 或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。
-- 也可以关注我的抖音号：`@网旭哈瑞.AI`
+- 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues)
+  或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。
+- 也可以关注我的 **抖音** 或 **视频号**：`网旭哈瑞.AI`
     - 我会在上面发布一些 **使用教程** 和 **纯技术** 分享。
-    - 如果有更新和优化，我也会在抖音上面 **及时通知**。
-    - 有问题也可以在抖音上面 **留言**，我会 **尽快回复**。
+    - 如果有更新和优化，我也会在上面 **及时通知**。
+    - 有问题也可以在上面 **留言**，我会 **尽快回复**。
 
-<img src="docs/douyin.jpg" width="300">
+|                   抖音                    |              |                     视频号                     |
+|:---------------------------------------:|:------------:|:-------------------------------------------:|
+| <img src="docs/douyin.jpg" width="180"> |              | <img src="docs/shipinghao.jpg" width="200"> |
 
 ## 特别感谢 🙏
 
