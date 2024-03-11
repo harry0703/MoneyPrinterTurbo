@@ -1,6 +1,25 @@
 # MoneyPrinterTurbo 💸
 
-本地自动创建短视频，只需要提供一个视频主题或关键词，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，最后生成一个短视频。
+只需提供一个视频 **主题** 或 **关键词** ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
+
+## 功能特性 🎯
+
+- [x] 完整的 **MVC架构**，代码 **结构清晰**，易于维护，支持API和Web界面
+- [x] 支持多种 **高清视频** 尺寸
+  - [x] 竖屏 9:16，`1080x1920`
+  - [x] 横屏 16:9，`1920x1080`
+- [x] 支持 **中文** 和 **英文** 视频文案
+- [x] 支持 **多种语音** 合成
+- [x] 支持 **字幕生成**，可以调整字体、颜色、大小，同时支持字幕描边设置
+- [x] 支持 **背景音乐**，随机或者指定音乐文件
+- [x] 视频素材来源 **无版权** 问题
+
+### 后期计划 🚀
+- [ ] 完善异步API接口，进度显示
+- [ ] 优化语音合成，利用大模型，使其合成的声音，更加自然，情绪更加丰富
+- [ ] 增加视频转场效果，使其看起来更加的流畅
+- [ ] 优化字幕效果
+- [ ] 优化视频素材的匹配度
 
 ## 视频演示 📺
 
@@ -25,7 +44,7 @@ https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/346ebb15-c55f-47a9
 https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/271f2fae-8283-44a0-8aa0-0ed8f9a6fa87
 
 
-## 安装 📥
+## 安装部署 📥
 
 建议使用 [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html) 创建 python 虚拟环境
 
@@ -41,7 +60,7 @@ cp config.example.toml config.toml
 
 需要先配置 `config.toml` 中的参数
 
-## 使用 🚀
+## 快速使用 🚀
 
 完整的使用演示视频，可以查看：https://v.douyin.com/iFhnwsKY/
 
@@ -62,7 +81,7 @@ sh webui.sh
 python main.py
 ```
 
-启动后，可以查看 `API文档` http://127.0.0.1:8080/docs
+启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 直接在线调试接口，快速体验。
 ![](docs/api.jpg)
 
 ## 语音合成 🗣
@@ -86,7 +105,7 @@ python main.py
 
 用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
 
-## 反馈和建议 📢
+## 反馈建议 📢
 
 - 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) 或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。
 - 也可以关注我的抖音号：`@网旭哈瑞.AI`
@@ -96,12 +115,12 @@ python main.py
 
 <img src="docs/douyin.jpg" width="300">
 
-## 感谢 🙏
+## 特别感谢 🙏
 
 该项目基于 https://github.com/FujiwaraChoki/MoneyPrinter 重构而来，做了大量的优化，增加了更多的功能。
 感谢原作者的开源精神。
 
-## License 📝
+## 许可证 📝
 
 点击查看 [`LICENSE`](LICENSE) 文件
 
