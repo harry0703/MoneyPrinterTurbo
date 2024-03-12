@@ -2,6 +2,7 @@
     # Pexels API Key
     # Register at https://www.pexels.com/api/ to get your API key.
     # You can use multiple keys to avoid rate limits.
+    # For example: pexels_api_keys = ["123456789","abcdefghi"]
     pexels_api_keys = []
 
     # OpenAI API Key
