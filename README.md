@@ -54,19 +54,33 @@ cd MoneyPrinterTurbo
 conda create -n MoneyPrinterTurbo python=3.10
 conda activate MoneyPrinterTurbo
 pip install -r requirements.txt
-
-cp config.example.toml config.toml
 ```
-
-需要先配置 `config.toml` 中的参数
 
 ## 快速使用 🚀
 
 完整的使用演示视频，可以查看：https://v.douyin.com/iFhnwsKY/
 
-请先确认你按照 `config.toml` 文件中的说明，配置好了 `openai_api_key` 和 `pexels_api_keys`。否则项目无法正常运行。
+### 前提
+
+1. 将 `config.example.toml` 文件重命名为 `config.toml`
+2. 按照 `config.toml` 文件中的说明，配置好 `openai_api_key` 和 `pexels_api_keys`
+3. 安装好 ImageMagick
+    - Windows:
+        - 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe 并按照（不要修改安装路径）
+        - 修改配置文件 `config.toml` 中的 `imagemagick_path` 为你的实际安装路径
+    - MacOS: `brew install imagemagick`
 
 ### 启动Web界面
+
+注意需要到 MoneyPrinterTurbo 项目 `根目录` 下执行以下命令
+
+#### Windows
+
+```bat
+webui.bat
+```
+
+#### MacOS or Linux
 
 ```shell
 sh webui.sh
