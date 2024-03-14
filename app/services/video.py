@@ -17,9 +17,7 @@ def get_bgm_file(bgm_name: str = "random"):
     if bgm_name == "random":
         suffix = "*.mp3"
         song_dir = utils.song_dir()
-        # 使用glob.glob获取指定扩展名的文件列表
         files = glob.glob(os.path.join(song_dir, suffix))
-        # 使用random.choice从列表中随机选择一个文件
         return random.choice(files)
 
     file = os.path.join(utils.song_dir(), bgm_name)
@@ -154,11 +152,12 @@ def generate_video(video_path: str,
     if not font_name:
         font_name = "STHeitiMedium.ttc"
     font_path = os.path.join(utils.font_dir(), font_name)
+    if os.name == 'nt':
+        font_path = font_path.replace("\\", "/")
+
     logger.info(f"using font: {font_path}")
 
-    # 自定义的生成器函数，包含换行逻辑
     def generator(txt):
-        # 应用自动换行
         wrapped_txt = wrap_text(txt, max_width=video_width - 100,
                                 font=font_path,
                                 fontsize=fontsize)  # 调整max_width以适应你的视频
@@ -179,16 +178,14 @@ def generate_video(video_path: str,
 
     clips = [
         VideoFileClip(video_path),
-        # subtitles.set_position(lambda _t: ('center', position_height))
     ]
-    # Burn the subtitles into the video
+
     if subtitle_path and os.path.exists(subtitle_path):
-        subtitles = SubtitlesClip(subtitle_path, generator)
+        subtitles = SubtitlesClip(subtitles=subtitle_path, make_textclip=generator, encoding='utf-8')
         clips.append(subtitles.set_position(lambda _t: ('center', position_height)))
 
     result = CompositeVideoClip(clips)
 
-    # Add the audio
     audio = AudioFileClip(audio_path)
     result = result.set_audio(audio)
 
@@ -210,10 +207,10 @@ def generate_video(video_path: str,
         video_clip = video_clip.set_audio(comp_audio)
         video_clip = video_clip.set_fps(30)
         video_clip = video_clip.set_duration(original_duration)
-    # 编码为aac，否则iPhone里面无法播放
+
     logger.info(f"encoding audio codec to aac")
     video_clip.write_videofile(output_file, audio_codec="aac", threads=threads)
-    # delete the temp file
+
     os.remove(temp_output_file)
     logger.success(f"completed")
 

@@ -1,5 +1,5 @@
 requests~=2.31.0
-moviepy~=1.0.3
+moviepy~=2.0.0.dev2
 openai~=1.13.3
 faster-whisper~=1.0.1
 edge_tts~=6.1.10

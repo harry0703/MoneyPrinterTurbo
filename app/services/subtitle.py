@@ -6,14 +6,14 @@ from timeit import default_timer as timer
 from loguru import logger
 
 from app.config import config
-from app.models import const
 from app.utils import utils
 
 model_size = config.whisper.get("model_size", "large-v3")
 device = config.whisper.get("device", "cpu")
 compute_type = config.whisper.get("compute_type", "int8")
 
-model = WhisperModel(model_size_or_path=model_size, device=device, compute_type=compute_type)
+if config.app.get("subtitle_provider") == "whisper":
+    model = WhisperModel(model_size_or_path=model_size, device=device, compute_type=compute_type)
 
 
 def create(audio_file, subtitle_file: str = ""):
