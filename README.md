@@ -58,7 +58,9 @@ pip install -r requirements.txt
 
 ## 快速使用 🚀
 
-完整的使用演示视频，可以查看：https://v.douyin.com/iFhnwsKY/
+### 视频教程
+- 完整的使用演示：https://v.douyin.com/iFhnwsKY/
+- 如何在Windows上部署：https://v.douyin.com/iFyjoW3M
 
 ### 前提
 
@@ -66,8 +68,8 @@ pip install -r requirements.txt
 2. 按照 `config.toml` 文件中的说明，配置好 `openai_api_key` 和 `pexels_api_keys`
 3. 安装好 ImageMagick
     - Windows:
-        - 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe 并按照（不要修改安装路径）
-        - 修改配置文件 `config.toml` 中的 `imagemagick_path` 为你的实际安装路径
+        - 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe 并安装（不要修改安装路径）
+        - 修改配置文件 `config.toml` 中的 `imagemagick_path` 为你的实际安装路径（如果安装的时候没有修改路径，直接取消注释即可）
     - MacOS: `brew install imagemagick`
 
 ### 启动Web界面
