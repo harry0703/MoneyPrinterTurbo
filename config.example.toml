@@ -5,11 +5,25 @@
     # For example: pexels_api_keys = ["123456789","abcdefghi"]
     pexels_api_keys = []
 
+    llm_provider="openai" # "openai" or "moonshot" or "oneapi"
+
     # OpenAI API Key
     # Visit https://openai.com/api/ for details on obtaining an API key.
     openai_api_key = ""
-    openai_base_url=""
+    openai_base_url = ""
     openai_model_name = "gpt-4-turbo-preview"
+
+    # Moonshot API Key
+    # Visit https://platform.moonshot.cn/console/api-keys to get your API key.
+    moonshot_api_key=""
+    moonshot_base_url = "https://api.moonshot.cn/v1"
+    moonshot_model_name = "moonshot-v1-8k"
+
+    # OneAPI API Key
+    # Visit https://github.com/songquanpeng/one-api to get your API key
+    oneapi_api_key=""
+    oneapi_base_url=""
+    oneapi_model_name=""
 
     # Subtitle Provider, "edge" or "whisper"
     # If empty, the subtitle will not be generated

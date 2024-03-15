@@ -4,7 +4,7 @@ from loguru import logger
 
 from app.config import config
 from app.models.schema import VideoParams, VoiceNames
-from app.services import gpt, material, voice, video, subtitle
+from app.services import llm, material, voice, video, subtitle
 from app.utils import utils
 
 
@@ -42,10 +42,10 @@ def start(task_id, params: VideoParams):
     n_threads = params.n_threads
 
     logger.info("\n\n## generating video script")
-    script = gpt.generate_script(video_subject=video_subject, language=language, paragraph_number=paragraph_number)
+    script = llm.generate_script(video_subject=video_subject, language=language, paragraph_number=paragraph_number)
 
     logger.info("\n\n## generating video terms")
-    search_terms = gpt.generate_terms(video_subject=video_subject, video_script=script, amount=5)
+    search_terms = llm.generate_terms(video_subject=video_subject, video_script=script, amount=5)
 
     script_file = path.join(utils.task_dir(task_id), f"script.json")
     script_data = {

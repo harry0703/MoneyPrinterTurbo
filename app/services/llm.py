@@ -1,32 +1,45 @@
 import logging
 import re
 import json
-import openai
 from typing import List
 from loguru import logger
+from openai import OpenAI
 
 from app.config import config
 
-openai_api_key = config.app.get("openai_api_key")
-if not openai_api_key:
-    raise ValueError("openai_api_key is not set, please set it in the config.toml file.")
-
-openai_model_name = config.app.get("openai_model_name")
-if not openai_model_name:
-    raise ValueError("openai_model_name is not set, please set it in the config.toml file.")
-
-openai_base_url = config.app.get("openai_base_url")
-
-openai.api_key = openai_api_key
-openai_model_name = openai_model_name
-if openai_base_url:
-    openai.base_url = openai_base_url
-
 
 def _generate_response(prompt: str) -> str:
-    model_name = openai_model_name
+    llm_provider = config.app.get("llm_provider")
+    if llm_provider == "moonshot":
+        api_key = config.app.get("moonshot_api_key")
+        model_name = config.app.get("moonshot_model_name")
+        base_url = "https://api.moonshot.cn/v1"
+    elif llm_provider == "openai":
+        api_key = config.app.get("openai_api_key")
+        model_name = config.app.get("openai_model_name")
+        base_url = config.app.get("openai_base_url", "")
+        if not base_url:
+            base_url = "https://api.openai.com/v1"
+    elif llm_provider == "oneapi":
+        api_key = config.app.get("oneapi_api_key")
+        model_name = config.app.get("oneapi_model_name")
+        base_url = config.app.get("oneapi_base_url", "")
+    else:
+        raise ValueError("llm_provider is not set, please set it in the config.toml file.")
 
-    response = openai.chat.completions.create(
+    if not api_key:
+        raise ValueError(f"{llm_provider}: api_key is not set, please set it in the config.toml file.")
+    if not model_name:
+        raise ValueError(f"{llm_provider}: model_name is not set, please set it in the config.toml file.")
+    if not base_url:
+        raise ValueError(f"{llm_provider}: base_url is not set, please set it in the config.toml file.")
+
+    client = OpenAI(
+        api_key=api_key,
+        base_url=base_url,
+    )
+
+    response = client.chat.completions.create(
         model=model_name,
         messages=[{"role": "user", "content": prompt}],
     ).choices[0].message.content
