@@ -63,14 +63,14 @@ pip install -r requirements.txt
 - 如何在Windows上部署：https://v.douyin.com/iFyjoW3M
 
 ### 前提
-
-1. 将 `config.example.toml` 文件重命名为 `config.toml`
-2. 按照 `config.toml` 文件中的说明，配置好 `openai_api_key` 和 `pexels_api_keys`
-3. 安装好 ImageMagick
+1. 安装好 ImageMagick
     - Windows:
         - 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe 并安装（不要修改安装路径）
         - 修改配置文件 `config.toml` 中的 `imagemagick_path` 为你的实际安装路径（如果安装的时候没有修改路径，直接取消注释即可）
     - MacOS: `brew install imagemagick`
+2. 将 `config.example.toml` 文件重命名为 `config.toml`
+3. 按照 `config.toml` 文件中的说明，配置好 `pexels_api_keys` 和 llm 相关的 api key
+4. 如果没有OpenAI的API Key，可以使用到 [月之暗面](https://platform.moonshot.cn/console/api-keys) 申请。注册就送 15元体验金，可以对话1500次左右。然后设置 `llm_provider="moonshot"` 和 `moonshot_api_key`。感谢 [@jerryblues](https://github.com/harry0703/MoneyPrinterTurbo/issues/8) 的建议
 
 ### 启动Web界面
 
