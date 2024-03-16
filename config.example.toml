@@ -53,6 +53,7 @@
     compute_type="int8"
 
 [pexels]
+    video_concat_mode="sequential" # "random" or "sequential"
     [pexels.proxies]
         ### Use a proxy to access the Pexels API
         ### Format: "http://<username>:<password>@<proxy>:<port>"

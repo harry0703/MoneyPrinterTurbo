@@ -1,3 +1,4 @@
+import random
 import time
 
 import requests
@@ -85,6 +86,9 @@ def download_videos(task_id: str,
                     minimum_duration: int = 5
                     ) -> List[str]:
     valid_video_urls = []
+
+    video_concat_mode = config.pexels.get("video_concat_mode", "")
+
     for search_term in search_terms:
         # logger.info(f"searching videos for '{search_term}'")
         video_urls = search_videos(search_term=search_term,
@@ -92,13 +96,18 @@ def download_videos(task_id: str,
                                    minimum_duration=minimum_duration,
                                    video_aspect=video_aspect)
         logger.info(f"found {len(video_urls)} videos for '{search_term}'")
+
         i = 0
         for url in video_urls:
+            if video_concat_mode == "random":
+                url = random.choice(video_urls)
+
             if url not in valid_video_urls:
                 valid_video_urls.append(url)
                 i += 1
-                if i >= 3:
-                    break
+
+            if i >= 3:
+                break
 
     logger.info(f"downloading videos: {len(valid_video_urls)}")
     video_paths = []
