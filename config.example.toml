@@ -51,3 +51,12 @@
     # if you want to use GPU, set device="cuda"
     device="CPU"
     compute_type="int8"
+
+[pexels]
+    [pexels.proxies]
+        ### Use a proxy to access the Pexels API
+        ### Format: "http://<username>:<password>@<proxy>:<port>"
+        ### Example: "http://user:pass@proxy:1234"
+        ### Doc: https://requests.readthedocs.io/en/latest/user/advanced/#proxies
+        # http = "http://10.10.1.10:3128"
+        # https = "http://10.10.1.10:1080"

@@ -33,12 +33,12 @@ def search_videos(search_term: str,
     headers = {
         "Authorization": round_robin_api_key()
     }
-
+    proxies = config.pexels.get("proxies", None)
     # Build URL
     query_url = f"https://api.pexels.com/videos/search?query={search_term}&per_page=15&orientation={video_orientation}&locale={locale}"
-    logger.info(f"searching videos: {query_url}")
+    logger.info(f"searching videos: {query_url}, with proxies: {proxies}")
     # Send the request
-    r = requests.get(query_url, headers=headers)
+    r = requests.get(query_url, headers=headers, proxies=proxies, verify=False)
 
     # Parse the response
     response = r.json()
@@ -71,8 +71,9 @@ def search_videos(search_term: str,
 def save_video(video_url: str, save_dir: str) -> str:
     video_id = f"vid-{str(int(time.time() * 1000))}"
     video_path = f"{save_dir}/{video_id}.mp4"
+    proxies = config.pexels.get("proxies", None)
     with open(video_path, "wb") as f:
-        f.write(requests.get(video_url).content)
+        f.write(requests.get(video_url, proxies=proxies, verify=False).content)
 
     return video_path
 

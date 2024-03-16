@@ -12,6 +12,8 @@ with open(config_file, mode="rb") as fp:
 
 app = _cfg.get("app", {})
 whisper = _cfg.get("whisper", {})
+pexels = _cfg.get("pexels", {})
+
 hostname = socket.gethostname()
 
 log_level = _cfg.get("log_level", "DEBUG")
