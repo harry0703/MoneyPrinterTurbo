@@ -9,7 +9,7 @@ from app.config import config
 
 
 def _generate_response(prompt: str) -> str:
-    llm_provider = config.app.get("llm_provider")
+    llm_provider = config.app.get("llm_provider", "openai")
     if llm_provider == "moonshot":
         api_key = config.app.get("moonshot_api_key")
         model_name = config.app.get("moonshot_model_name")
