@@ -26,7 +26,7 @@ async def create_video(request: Request, body: TaskVideoRequest):
         }
         body_dict = body.dict()
         task.update(body_dict)
-        result = tm.start(task_id=task_id, params=body)
+        result = await tm.start(task_id=task_id, params=body)
         task["result"] = result
         logger.success(f"video created: {utils.to_json(task)}")
         return utils.get_response(200, task)

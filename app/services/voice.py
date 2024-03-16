@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from xml.sax.saxutils import unescape
 from edge_tts.submaker import mktimestamp
 from loguru import logger
@@ -7,7 +8,7 @@ import edge_tts
 from app.utils import utils
 
 
-def tts(text: str, voice_name: str, voice_file: str) -> SubMaker:
+async def tts(text: str, voice_name: str, voice_file: str) -> SubMaker:
     logger.info(f"start, voice name: {voice_name}")
 
     async def _do() -> SubMaker:
@@ -21,7 +22,7 @@ def tts(text: str, voice_name: str, voice_file: str) -> SubMaker:
                     sub_maker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
         return sub_maker
 
-    sub_maker = asyncio.run(_do())
+    sub_maker = await _do()
     logger.info(f"completed, output file: {voice_file}")
     return sub_maker
 
@@ -78,24 +79,33 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
 
 
 if __name__ == "__main__":
-    temp_dir = utils.storage_dir("temp")
 
-    voice_names = [
-        # 女性
-        "zh-CN-XiaoxiaoNeural",
-        "zh-CN-XiaoyiNeural",
-        # 男性
-        "zh-CN-YunyangNeural",
-        "zh-CN-YunxiNeural",
-    ]
-    text = """
-预计未来3天深圳冷空气活动频繁，未来两天持续阴天有小雨，出门带好雨具；
-10-11日持续阴天有小雨，日温差小，气温在13-17℃之间，体感阴凉；
-12日天气短暂好转，早晚清凉；
-    """
+    async def _do():
+        temp_dir = utils.storage_dir("temp")
 
-    for voice_name in voice_names:
-        voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
-        subtitle_file = f"{temp_dir}/tts.mp3.srt"
-        sub_maker = tts(text=text, voice_name=voice_name, voice_file=voice_file)
-        create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
+        voice_names = [
+            # 女性
+            "zh-CN-XiaoxiaoNeural",
+            "zh-CN-XiaoyiNeural",
+            # 男性
+            "zh-CN-YunyangNeural",
+            "zh-CN-YunxiNeural",
+        ]
+        text = """
+        预计未来3天深圳冷空气活动频繁，未来两天持续阴天有小雨，出门带好雨具；
+        10-11日持续阴天有小雨，日温差小，气温在13-17℃之间，体感阴凉；
+        12日天气短暂好转，早晚清凉；
+            """
+
+        for voice_name in voice_names:
+            voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
+            subtitle_file = f"{temp_dir}/tts.mp3.srt"
+            sub_maker = await tts(text=text, voice_name=voice_name, voice_file=voice_file)
+            create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
+
+
+    loop = asyncio.get_event_loop_policy().get_event_loop()
+    try:
+        loop.run_until_complete(_do())
+    finally:
+        loop.close()

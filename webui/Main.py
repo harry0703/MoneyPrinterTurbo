@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import os
 from uuid import uuid4
@@ -150,4 +151,4 @@ if start_button:
 
     logger.info("开始生成视频")
 
-    tm.start(task_id=task_id, params=cfg)
+    asyncio.run(tm.start(task_id=task_id, params=cfg))
