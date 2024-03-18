@@ -1,3 +1,4 @@
+import os.path
 from os import path
 
 from loguru import logger
@@ -64,9 +65,14 @@ def start(task_id, params: VideoParams):
 
     subtitle_provider = config.app.get("subtitle_provider", "").strip().lower()
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
+    subtitle_fallback = False
     if subtitle_provider == "edge":
         voice.create_subtitle(text=script, sub_maker=sub_maker, subtitle_file=subtitle_path)
-    if subtitle_provider == "whisper":
+        if not os.path.exists(subtitle_path):
+            subtitle_fallback = True
+            logger.warning("subtitle file not found, fallback to whisper")
+
+    if subtitle_provider == "whisper" or subtitle_fallback:
         subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
         logger.info("\n\n## correcting subtitle")
         subtitle.correct(subtitle_file=subtitle_path, video_script=script)

@@ -11,12 +11,15 @@ from app.utils import utils
 model_size = config.whisper.get("model_size", "large-v3")
 device = config.whisper.get("device", "cpu")
 compute_type = config.whisper.get("compute_type", "int8")
-
-if config.app.get("subtitle_provider") == "whisper":
-    model = WhisperModel(model_size_or_path=model_size, device=device, compute_type=compute_type)
+model = None
 
 
 def create(audio_file, subtitle_file: str = ""):
+    global model
+    if not model:
+        logger.info(f"loading model: {model_size}, device: {device}, compute_type: {compute_type}")
+        model = WhisperModel(model_size_or_path=model_size, device=device, compute_type=compute_type)
+
     logger.info(f"start, output file: {subtitle_file}")
     if not subtitle_file:
         subtitle_file = f"{audio_file}.srt"
