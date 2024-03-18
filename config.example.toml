@@ -5,7 +5,7 @@
     # For example: pexels_api_keys = ["123456789","abcdefghi"]
     pexels_api_keys = []
 
-    llm_provider="openai" # "openai" or "moonshot" or "oneapi"
+    llm_provider="openai" # "openai" or "moonshot" or "oneapi" or "g4f"
 
     # OpenAI API Key
     # Visit https://openai.com/api/ for details on obtaining an API key.
@@ -24,6 +24,11 @@
     oneapi_api_key=""
     oneapi_base_url=""
     oneapi_model_name=""
+
+    # G4F
+    # Visit https://github.com/xtekky/gpt4free to get more details
+    # Supported model list: https://github.com/xtekky/gpt4free/blob/main/g4f/models.py
+    g4f_model_name = "gpt-3.5-turbo-16k-0613"
 
     # Subtitle Provider, "edge" or "whisper"
     # If empty, the subtitle will not be generated

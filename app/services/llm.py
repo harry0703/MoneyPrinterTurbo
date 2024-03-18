@@ -2,6 +2,7 @@ import logging
 import re
 import json
 from typing import List
+import g4f
 from loguru import logger
 from openai import OpenAI
 
@@ -9,41 +10,57 @@ from app.config import config
 
 
 def _generate_response(prompt: str) -> str:
+    content = ""
     llm_provider = config.app.get("llm_provider", "openai")
-    if llm_provider == "moonshot":
-        api_key = config.app.get("moonshot_api_key")
-        model_name = config.app.get("moonshot_model_name")
-        base_url = "https://api.moonshot.cn/v1"
-    elif llm_provider == "openai":
-        api_key = config.app.get("openai_api_key")
-        model_name = config.app.get("openai_model_name")
-        base_url = config.app.get("openai_base_url", "")
-        if not base_url:
-            base_url = "https://api.openai.com/v1"
-    elif llm_provider == "oneapi":
-        api_key = config.app.get("oneapi_api_key")
-        model_name = config.app.get("oneapi_model_name")
-        base_url = config.app.get("oneapi_base_url", "")
+    logger.info(f"llm provider: {llm_provider}")
+    if llm_provider == "g4f":
+        model_name = config.app.get("g4f_model_name", "")
+        if not model_name:
+            model_name = "gpt-3.5-turbo-16k-0613"
+
+        content = g4f.ChatCompletion.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+        )
     else:
-        raise ValueError("llm_provider is not set, please set it in the config.toml file.")
+        if llm_provider == "moonshot":
+            api_key = config.app.get("moonshot_api_key")
+            model_name = config.app.get("moonshot_model_name")
+            base_url = "https://api.moonshot.cn/v1"
+        elif llm_provider == "openai":
+            api_key = config.app.get("openai_api_key")
+            model_name = config.app.get("openai_model_name")
+            base_url = config.app.get("openai_base_url", "")
+            if not base_url:
+                base_url = "https://api.openai.com/v1"
+        elif llm_provider == "oneapi":
+            api_key = config.app.get("oneapi_api_key")
+            model_name = config.app.get("oneapi_model_name")
+            base_url = config.app.get("oneapi_base_url", "")
+            model_name = config.app.get("g4f_model_name")
+        else:
+            raise ValueError("llm_provider is not set, please set it in the config.toml file.")
 
-    if not api_key:
-        raise ValueError(f"{llm_provider}: api_key is not set, please set it in the config.toml file.")
-    if not model_name:
-        raise ValueError(f"{llm_provider}: model_name is not set, please set it in the config.toml file.")
-    if not base_url:
-        raise ValueError(f"{llm_provider}: base_url is not set, please set it in the config.toml file.")
+        if not api_key:
+            raise ValueError(f"{llm_provider}: api_key is not set, please set it in the config.toml file.")
+        if not model_name:
+            raise ValueError(f"{llm_provider}: model_name is not set, please set it in the config.toml file.")
+        if not base_url:
+            raise ValueError(f"{llm_provider}: base_url is not set, please set it in the config.toml file.")
 
-    client = OpenAI(
-        api_key=api_key,
-        base_url=base_url,
-    )
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+        )
 
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[{"role": "user", "content": prompt}],
-    ).choices[0].message.content
-    return response
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        if response:
+            content = response.choices[0].message.content
+
+    return content
 
 
 def generate_script(video_subject: str, language: str = "zh-CN", paragraph_number: int = 1) -> str:
@@ -160,6 +177,6 @@ if __name__ == "__main__":
     script = generate_script(video_subject=video_subject, language="zh-CN", paragraph_number=1)
     # print("######################")
     # print(script)
-    search_terms = generate_terms(video_subject=video_subject, video_script=script, amount=5)
+    # search_terms = generate_terms(video_subject=video_subject, video_script=script, amount=5)
     # print("######################")
     # print(search_terms)
