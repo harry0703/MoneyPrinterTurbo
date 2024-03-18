@@ -8,7 +8,7 @@ import edge_tts
 from app.utils import utils
 
 
-async def tts(text: str, voice_name: str, voice_file: str) -> SubMaker:
+def tts(text: str, voice_name: str, voice_file: str) -> SubMaker:
     logger.info(f"start, voice name: {voice_name}")
 
     async def _do() -> SubMaker:
@@ -22,7 +22,7 @@ async def tts(text: str, voice_name: str, voice_file: str) -> SubMaker:
                     sub_maker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
         return sub_maker
 
-    sub_maker = await _do()
+    sub_maker = asyncio.run(_do())
     logger.info(f"completed, output file: {voice_file}")
     return sub_maker
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         for voice_name in voice_names:
             voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
             subtitle_file = f"{temp_dir}/tts.mp3.srt"
-            sub_maker = await tts(text=text, voice_name=voice_name, voice_file=voice_file)
+            sub_maker = tts(text=text, voice_name=voice_name, voice_file=voice_file)
             create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
 
 

@@ -37,7 +37,6 @@ def _generate_response(prompt: str) -> str:
             api_key = config.app.get("oneapi_api_key")
             model_name = config.app.get("oneapi_model_name")
             base_url = config.app.get("oneapi_base_url", "")
-            model_name = config.app.get("g4f_model_name")
         else:
             raise ValueError("llm_provider is not set, please set it in the config.toml file.")
 

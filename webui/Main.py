@@ -151,4 +151,4 @@ if start_button:
 
     logger.info("开始生成视频")
 
-    asyncio.run(tm.start(task_id=task_id, params=cfg))
+    tm.start(task_id=task_id, params=cfg)

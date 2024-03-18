@@ -21,7 +21,7 @@ def _parse_voice(name: str):
     return _voice, _lang
 
 
-async def start(task_id, params: VideoParams):
+def start(task_id, params: VideoParams):
     """
     {
         "video_subject": "",
@@ -60,7 +60,7 @@ async def start(task_id, params: VideoParams):
     subtitle_path = path.join(utils.task_dir(task_id), f"subtitle.srt")
 
     logger.info("\n\n## generating audio")
-    sub_maker =await voice.tts(text=script, voice_name=voice_name, voice_file=audio_file)
+    sub_maker = voice.tts(text=script, voice_name=voice_name, voice_file=audio_file)
 
     subtitle_provider = config.app.get("subtitle_provider", "").strip().lower()
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
