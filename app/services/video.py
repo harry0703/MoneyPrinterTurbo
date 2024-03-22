@@ -7,22 +7,22 @@ from moviepy.editor import *
 from moviepy.video.fx.crop import crop
 from moviepy.video.tools.subtitles import SubtitlesClip
 
-from app.models.schema import VideoAspect
+from app.models.schema import VideoAspect, VideoParams, VideoConcatMode
 from app.utils import utils
 
 
-def get_bgm_file(bgm_name: str = "random"):
-    if not bgm_name:
+def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
+    if not bgm_type:
         return ""
-    if bgm_name == "random":
+    if bgm_type == "random":
         suffix = "*.mp3"
         song_dir = utils.song_dir()
         files = glob.glob(os.path.join(song_dir, suffix))
         return random.choice(files)
 
-    file = os.path.join(utils.song_dir(), bgm_name)
-    if os.path.exists(file):
-        return file
+    if os.path.exists(bgm_file):
+        return bgm_file
+
     return ""
 
 
@@ -30,6 +30,7 @@ def combine_videos(combined_video_path: str,
                    video_paths: List[str],
                    audio_file: str,
                    video_aspect: VideoAspect = VideoAspect.portrait,
+                   video_concat_mode: VideoConcatMode = VideoConcatMode.random,
                    max_clip_duration: int = 5,
                    threads: int = 2,
                    ) -> str:
@@ -48,6 +49,10 @@ def combine_videos(combined_video_path: str,
     tot_dur = 0
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     while tot_dur < max_duration:
+        # random video_paths order
+        if video_concat_mode.value == VideoConcatMode.random.value:
+            random.shuffle(video_paths)
+
         for video_path in video_paths:
             clip = VideoFileClip(video_path)
             clip = clip.without_audio()
@@ -127,20 +132,9 @@ def generate_video(video_path: str,
                    audio_path: str,
                    subtitle_path: str,
                    output_file: str,
-                   video_aspect: VideoAspect = VideoAspect.portrait,
-
-                   threads: int = 2,
-
-                   font_name: str = "",
-                   fontsize: int = 60,
-                   stroke_color: str = "#000000",
-                   stroke_width: float = 1.5,
-                   text_fore_color: str = "white",
-                   text_background_color: str = "transparent",
-
-                   bgm_file: str = "",
+                   params: VideoParams,
                    ):
-    aspect = VideoAspect(video_aspect)
+    aspect = VideoAspect(params.video_aspect)
     video_width, video_height = aspect.to_resolution()
 
     logger.info(f"start, video size: {video_width} x {video_height}")
@@ -149,31 +143,33 @@ def generate_video(video_path: str,
     logger.info(f"  ③ subtitle: {subtitle_path}")
     logger.info(f"  ④ output: {output_file}")
 
-    if not font_name:
-        font_name = "STHeitiMedium.ttc"
-    font_path = os.path.join(utils.font_dir(), font_name)
-    if os.name == 'nt':
-        font_path = font_path.replace("\\", "/")
+    font_path = ""
+    if params.subtitle_enabled:
+        if not params.font_name:
+            params.font_name = "STHeitiMedium.ttc"
+        font_path = os.path.join(utils.font_dir(), params.font_name)
+        if os.name == 'nt':
+            font_path = font_path.replace("\\", "/")
 
-    logger.info(f"using font: {font_path}")
+        logger.info(f"using font: {font_path}")
 
     def generator(txt):
         wrapped_txt = wrap_text(txt, max_width=video_width - 100,
                                 font=font_path,
-                                fontsize=fontsize)  # 调整max_width以适应你的视频
+                                fontsize=params.font_size)  # 调整max_width以适应你的视频
         return TextClip(
             wrapped_txt,
             font=font_path,
-            fontsize=fontsize,
-            color=text_fore_color,
-            bg_color=text_background_color,
-            stroke_color=stroke_color,
-            stroke_width=stroke_width,
+            fontsize=params.font_size,
+            color=params.text_fore_color,
+            bg_color=params.text_background_color,
+            stroke_color=params.stroke_color,
+            stroke_width=params.stroke_width,
             print_cmd=False,
         )
 
     position_height = video_height - 200
-    if video_aspect == VideoAspect.landscape:
+    if params.video_aspect == VideoAspect.landscape:
         position_height = video_height - 100
 
     clips = [
@@ -191,9 +187,11 @@ def generate_video(video_path: str,
 
     temp_output_file = f"{output_file}.temp.mp4"
     logger.info(f"writing to temp file: {temp_output_file}")
-    result.write_videofile(temp_output_file, threads=threads or 2)
+    result.write_videofile(temp_output_file, threads=params.n_threads or 2)
 
     video_clip = VideoFileClip(temp_output_file)
+
+    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
     if bgm_file:
         logger.info(f"adding background music: {bgm_file}")
         # Add song to video at 30% volume using moviepy
@@ -209,35 +207,7 @@ def generate_video(video_path: str,
         video_clip = video_clip.set_duration(original_duration)
 
     logger.info(f"encoding audio codec to aac")
-    video_clip.write_videofile(output_file, audio_codec="aac", threads=threads)
+    video_clip.write_videofile(output_file, audio_codec="aac", threads=params.n_threads or 2)
 
     os.remove(temp_output_file)
     logger.success(f"completed")
-
-
-if __name__ == "__main__":
-    txt = "hello 幸福经常被描述为最终人生目标和人类追求的核心 但它通常涉及对个人生活中意义和目的的深刻感悟"
-    font = utils.resource_dir() + "/fonts/STHeitiMedium.ttc"
-    t = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
-    print(t)
-
-    task_id = "c12fd1e6-4b0a-4d65-a075-c87abe35a072"
-    task_dir = utils.task_dir(task_id)
-    video_file = f"{task_dir}/combined.mp4"
-    audio_file = f"{task_dir}/audio.mp3"
-    subtitle_file = f"{task_dir}/subtitle.srt"
-    output_file = f"{task_dir}/final.mp4"
-    generate_video(video_path=video_file,
-                   audio_path=audio_file,
-                   subtitle_path=subtitle_file,
-                   output_file=output_file,
-                   video_aspect=VideoAspect.portrait,
-                   threads=2,
-                   font_name="STHeitiMedium.ttc",
-                   fontsize=60,
-                   stroke_color="#000000",
-                   stroke_width=1.5,
-                   text_fore_color="white",
-                   text_background_color="transparent",
-                   bgm_file=""
-                   )

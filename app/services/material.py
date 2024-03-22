@@ -1,12 +1,13 @@
 import random
 import time
+from urllib.parse import urlencode
 
 import requests
 from typing import List
 from loguru import logger
 
 from app.config import config
-from app.models.schema import VideoAspect
+from app.models.schema import VideoAspect, VideoConcatMode, MaterialInfo
 from app.utils import utils
 
 requested_count = 0
@@ -22,11 +23,9 @@ def round_robin_api_key():
 
 
 def search_videos(search_term: str,
-                  wanted_count: int,
                   minimum_duration: int,
                   video_aspect: VideoAspect = VideoAspect.portrait,
-                  locale: str = "zh-CN"
-                  ) -> List[str]:
+                  ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
     video_orientation = aspect.name
     video_width, video_height = aspect.to_resolution()
@@ -36,37 +35,45 @@ def search_videos(search_term: str,
     }
     proxies = config.pexels.get("proxies", None)
     # Build URL
-    query_url = f"https://api.pexels.com/videos/search?query={search_term}&per_page=15&orientation={video_orientation}&locale={locale}"
+    params = {
+        "query": search_term,
+        "per_page": 20,
+        "orientation": video_orientation
+    }
+    query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {proxies}")
-    # Send the request
-    r = requests.get(query_url, headers=headers, proxies=proxies, verify=False)
-
-    # Parse the response
-    response = r.json()
-    video_urls = []
 
     try:
-        videos_count = min(len(response["videos"]), wanted_count)
+        r = requests.get(query_url, headers=headers, proxies=proxies, verify=False)
+        response = r.json()
+        video_items = []
+        if "videos" not in response:
+            logger.error(f"search videos failed: {response}")
+            return video_items
+        videos = response["videos"]
         # loop through each video in the result
-        for i in range(videos_count):
+        for v in videos:
+            duration = v["duration"]
             # check if video has desired minimum duration
-            if response["videos"][i]["duration"] < minimum_duration:
+            if duration < minimum_duration:
                 continue
-            video_files = response["videos"][i]["video_files"]
+            video_files = v["video_files"]
             # loop through each url to determine the best quality
             for video in video_files:
-                # Check if video has a valid download link
-                # if ".com/external" in video["link"]:
                 w = int(video["width"])
                 h = int(video["height"])
                 if w == video_width and h == video_height:
-                    video_urls.append(video["link"])
+                    item = MaterialInfo()
+                    item.provider = "pexels"
+                    item.url = video["link"]
+                    item.duration = duration
+                    video_items.append(item)
                     break
-
+        return video_items
     except Exception as e:
         logger.error(f"search videos failed: {e}")
 
-    return video_urls
+    return []
 
 
 def save_video(video_url: str, save_dir: str) -> str:
@@ -82,41 +89,46 @@ def save_video(video_url: str, save_dir: str) -> str:
 def download_videos(task_id: str,
                     search_terms: List[str],
                     video_aspect: VideoAspect = VideoAspect.portrait,
-                    wanted_count: int = 15,
-                    minimum_duration: int = 5
+                    video_contact_mode: VideoConcatMode = VideoConcatMode.random,
+                    audio_duration: float = 0.0,
+                    max_clip_duration: int = 5,
                     ) -> List[str]:
+    valid_video_items = []
     valid_video_urls = []
-
-    video_concat_mode = config.pexels.get("video_concat_mode", "")
-
+    found_duration = 0.0
     for search_term in search_terms:
         # logger.info(f"searching videos for '{search_term}'")
-        video_urls = search_videos(search_term=search_term,
-                                   wanted_count=wanted_count,
-                                   minimum_duration=minimum_duration,
-                                   video_aspect=video_aspect)
-        logger.info(f"found {len(video_urls)} videos for '{search_term}'")
+        video_items = search_videos(search_term=search_term,
+                                    minimum_duration=max_clip_duration,
+                                    video_aspect=video_aspect)
+        logger.info(f"found {len(video_items)} videos for '{search_term}'")
 
-        i = 0
-        for url in video_urls:
-            if video_concat_mode == "random":
-                url = random.choice(video_urls)
+        for item in video_items:
+            if item.url not in valid_video_urls:
+                valid_video_items.append(item)
+                valid_video_urls.append(item.url)
+                found_duration += item.duration
 
-            if url not in valid_video_urls:
-                valid_video_urls.append(url)
-                i += 1
-
-            if i >= 3:
-                break
-
-    logger.info(f"downloading videos: {len(valid_video_urls)}")
+    logger.info(
+        f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds")
     video_paths = []
     save_dir = utils.task_dir(task_id)
-    for video_url in valid_video_urls:
+
+    if video_contact_mode.value == VideoConcatMode.random.value:
+        random.shuffle(valid_video_items)
+
+    total_duration = 0.0
+    for item in valid_video_items:
         try:
-            saved_video_path = save_video(video_url, save_dir)
+            logger.info(f"downloading video: {item.url}")
+            saved_video_path = save_video(item.url, save_dir)
             video_paths.append(saved_video_path)
+            seconds = min(max_clip_duration, item.duration)
+            total_duration += seconds
+            if total_duration > audio_duration:
+                logger.info(f"total duration of downloaded videos: {total_duration} seconds, skip downloading more")
+                break
         except Exception as e:
-            logger.error(f"failed to download video: {video_url}, {e}")
+            logger.error(f"failed to download video: {item}, {e}")
     logger.success(f"downloaded {len(video_paths)} videos")
     return video_paths

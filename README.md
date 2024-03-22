@@ -63,6 +63,8 @@ pip install -r requirements.txt
 - 如何在Windows上部署：https://v.douyin.com/iFyjoW3M
 
 ### 前提
+> 注意，尽量不要使用 **中文路径**，避免出现一些无法预料的问题
+
 1. 安装好 ImageMagick
     - Windows:
         - 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe 并安装（不要修改安装路径）

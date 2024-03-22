@@ -106,7 +106,7 @@ def create(audio_file, subtitle_file: str = ""):
             idx += 1
 
     sub = "\n".join(lines)
-    with open(subtitle_file, "w") as f:
+    with open(subtitle_file, "w", encoding="utf-8") as f:
         f.write(sub)
     logger.info(f"subtitle file created: {subtitle_file}")
 
@@ -116,7 +116,7 @@ def file_to_subtitles(filename):
     current_times = None
     current_text = ""
     index = 0
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding="utf-8") as f:
         for line in f:
             times = re.findall("([0-9]*:[0-9]*:[0-9]*,[0-9]*)", line)
             if times:
@@ -145,7 +145,7 @@ def correct(subtitle_file, video_script):
                 corrected = True
 
     if corrected:
-        with open(subtitle_file, "w") as fd:
+        with open(subtitle_file, "w", encoding="utf-8") as fd:
             for item in subtitle_items:
                 fd.write(f"{item[0]}\n{item[1]}\n{item[2]}\n\n")
         logger.info(f"subtitle corrected")

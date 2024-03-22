@@ -8,23 +8,26 @@ import edge_tts
 from app.utils import utils
 
 
-def tts(text: str, voice_name: str, voice_file: str) -> SubMaker:
+def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
     logger.info(f"start, voice name: {voice_name}")
+    try:
+        async def _do() -> SubMaker:
+            communicate = edge_tts.Communicate(text, voice_name)
+            sub_maker = edge_tts.SubMaker()
+            with open(voice_file, "wb") as file:
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        file.write(chunk["data"])
+                    elif chunk["type"] == "WordBoundary":
+                        sub_maker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
+            return sub_maker
 
-    async def _do() -> SubMaker:
-        communicate = edge_tts.Communicate(text, voice_name)
-        sub_maker = edge_tts.SubMaker()
-        with open(voice_file, "wb") as file:
-            async for chunk in communicate.stream():
-                if chunk["type"] == "audio":
-                    file.write(chunk["data"])
-                elif chunk["type"] == "WordBoundary":
-                    sub_maker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
+        sub_maker = asyncio.run(_do())
+        logger.info(f"completed, output file: {voice_file}")
         return sub_maker
-
-    sub_maker = asyncio.run(_do())
-    logger.info(f"completed, output file: {voice_file}")
-    return sub_maker
+    except Exception as e:
+        logger.error(f"failed, error: {e}")
+        return None
 
 
 def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str):
@@ -78,6 +81,15 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
         file.write("\n".join(sub_items))
 
 
+def get_audio_duration(sub_maker: submaker.SubMaker):
+    """
+    获取音频时长
+    """
+    if not sub_maker.offset:
+        return 0.0
+    return sub_maker.offset[-1][1] / 10000000
+
+
 if __name__ == "__main__":
 
     async def _do():
@@ -102,6 +114,8 @@ if __name__ == "__main__":
             subtitle_file = f"{temp_dir}/tts.mp3.srt"
             sub_maker = tts(text=text, voice_name=voice_name, voice_file=voice_file)
             create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
+            audio_duration = get_audio_duration(sub_maker)
+            print(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
 
     loop = asyncio.get_event_loop_policy().get_event_loop()

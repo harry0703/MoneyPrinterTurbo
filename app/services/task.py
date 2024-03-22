@@ -1,4 +1,5 @@
 import os.path
+import re
 from os import path
 
 from loguru import logger
@@ -41,77 +42,101 @@ def start(task_id, params: VideoParams):
     voice_name, language = _parse_voice(params.voice_name)
     paragraph_number = params.paragraph_number
     n_threads = params.n_threads
+    max_clip_duration = params.video_clip_duration
 
     logger.info("\n\n## generating video script")
-    script = llm.generate_script(video_subject=video_subject, language=language, paragraph_number=paragraph_number)
+    video_script = params.video_script.strip()
+    if not video_script:
+        video_script = llm.generate_script(video_subject=video_subject, language=language,
+                                           paragraph_number=paragraph_number)
+    else:
+        logger.debug(f"video script: \n{video_script}")
 
     logger.info("\n\n## generating video terms")
-    search_terms = llm.generate_terms(video_subject=video_subject, video_script=script, amount=5)
+    video_terms = params.video_terms
+    if not video_terms:
+        video_terms = llm.generate_terms(video_subject=video_subject, video_script=video_script, amount=5)
+    else:
+        video_terms = [term.strip() for term in re.split(r'[,，]', video_terms)]
+        logger.debug(f"video terms: {utils.to_json(video_terms)}")
 
     script_file = path.join(utils.task_dir(task_id), f"script.json")
     script_data = {
-        "script": script,
-        "search_terms": search_terms
+        "script": video_script,
+        "search_terms": video_terms
     }
 
-    with open(script_file, "w") as f:
+    with open(script_file, "w", encoding="utf-8") as f:
         f.write(utils.to_json(script_data))
 
-    audio_file = path.join(utils.task_dir(task_id), f"audio.mp3")
-    subtitle_path = path.join(utils.task_dir(task_id), f"subtitle.srt")
-
     logger.info("\n\n## generating audio")
-    sub_maker = voice.tts(text=script, voice_name=voice_name, voice_file=audio_file)
+    audio_file = path.join(utils.task_dir(task_id), f"audio.mp3")
+    sub_maker = voice.tts(text=video_script, voice_name=voice_name, voice_file=audio_file)
+    if sub_maker is None:
+        logger.error(
+            "failed to generate audio, maybe the network is not available. if you are in China, please use a VPN.")
+        return
 
-    subtitle_provider = config.app.get("subtitle_provider", "").strip().lower()
-    logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
-    subtitle_fallback = False
-    if subtitle_provider == "edge":
-        voice.create_subtitle(text=script, sub_maker=sub_maker, subtitle_file=subtitle_path)
-        if not os.path.exists(subtitle_path):
-            subtitle_fallback = True
-            logger.warning("subtitle file not found, fallback to whisper")
+    audio_duration = voice.get_audio_duration(sub_maker)
+    subtitle_path = ""
+    if params.subtitle_enabled:
+        subtitle_path = path.join(utils.task_dir(task_id), f"subtitle.srt")
+        subtitle_provider = config.app.get("subtitle_provider", "").strip().lower()
+        logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
+        subtitle_fallback = False
+        if subtitle_provider == "edge":
+            voice.create_subtitle(text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path)
+            if not os.path.exists(subtitle_path):
+                subtitle_fallback = True
+                logger.warning("subtitle file not found, fallback to whisper")
+            else:
+                subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
+                if not subtitle_lines:
+                    logger.warning(f"subtitle file is invalid: {subtitle_path}")
+                    subtitle_fallback = True
 
-    if subtitle_provider == "whisper" or subtitle_fallback:
-        subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
-        logger.info("\n\n## correcting subtitle")
-        subtitle.correct(subtitle_file=subtitle_path, video_script=script)
+        if subtitle_provider == "whisper" or subtitle_fallback:
+            subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
+            logger.info("\n\n## correcting subtitle")
+            subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
+
+        subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
+        if not subtitle_lines:
+            logger.warning(f"subtitle file is invalid: {subtitle_path}")
+            subtitle_path = ""
 
     logger.info("\n\n## downloading videos")
-    video_paths = material.download_videos(task_id=task_id, search_terms=search_terms, video_aspect=params.video_aspect,
-                                           wanted_count=20,
-                                           minimum_duration=5)
+    downloaded_videos = material.download_videos(task_id=task_id,
+                                                 search_terms=video_terms,
+                                                 video_aspect=params.video_aspect,
+                                                 video_contact_mode=params.video_concat_mode,
+                                                 audio_duration=audio_duration,
+                                                 max_clip_duration=max_clip_duration,
+                                                 )
+    if not downloaded_videos:
+        logger.error(
+            "failed to download videos, maybe the network is not available. if you are in China, please use a VPN.")
+        return
 
     logger.info("\n\n## combining videos")
     combined_video_path = path.join(utils.task_dir(task_id), f"combined.mp4")
     video.combine_videos(combined_video_path=combined_video_path,
-                         video_paths=video_paths,
+                         video_paths=downloaded_videos,
                          audio_file=audio_file,
                          video_aspect=params.video_aspect,
-                         max_clip_duration=5,
+                         video_concat_mode=params.video_concat_mode,
+                         max_clip_duration=max_clip_duration,
                          threads=n_threads)
 
     final_video_path = path.join(utils.task_dir(task_id), f"final.mp4")
 
-    bgm_file = video.get_bgm_file(bgm_name=params.bgm_name)
     logger.info("\n\n## generating video")
     # Put everything together
     video.generate_video(video_path=combined_video_path,
                          audio_path=audio_file,
                          subtitle_path=subtitle_path,
                          output_file=final_video_path,
-
-                         video_aspect=params.video_aspect,
-
-                         threads=n_threads,
-
-                         font_name=params.font_name,
-                         fontsize=params.font_size,
-                         text_fore_color=params.text_fore_color,
-                         stroke_color=params.stroke_color,
-                         stroke_width=params.stroke_width,
-
-                         bgm_file=bgm_file
+                         params=params,
                          )
     logger.start(f"task {task_id} finished")
     return {
