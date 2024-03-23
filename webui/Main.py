@@ -1,16 +1,23 @@
-import asyncio
+import streamlit as st
+
+st.set_page_config(page_title="MoneyPrinterTurbo", page_icon="🤖", layout="wide",
+                   initial_sidebar_state="auto")
 import sys
 import os
-import time
 from uuid import uuid4
-import streamlit as st
+
 from loguru import logger
 from app.models.schema import VideoParams, VideoAspect, VoiceNames, VideoConcatMode
 from app.services import task as tm, llm
 
-st.set_page_config(page_title="MoneyPrinterTurbo", page_icon="🤖", layout="wide",
-                   initial_sidebar_state="auto")
+hide_streamlit_style = """
+<style>#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 st.title("MoneyPrinterTurbo")
+st.write(
+    "⚠️ 先在 **config.toml** 中设置 `pexels_api_keys` 和 `llm_provider` 参数，根据不同的 llm_provider，配置对应的 **API KEY**"
+)
 
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 font_dir = os.path.join(root_dir, "resource", "fonts")
@@ -99,7 +106,7 @@ with left_panel:
         cfg.video_script = st.text_area(
             "视频文案（:blue[①可不填，使用AI生成  ②合理使用标点断句，有助于生成字幕]）",
             value=st.session_state['video_script'],
-            height=190
+            height=280
         )
         if st.button("点击使用AI根据**文案**生成【视频关键词】", key="auto_generate_terms"):
             if not cfg.video_script:
@@ -114,14 +121,14 @@ with left_panel:
         cfg.video_terms = st.text_area(
             "视频关键词（:blue[①可不填，使用AI生成 ②用**英文逗号**分隔，只支持英文]）",
             value=st.session_state['video_terms'],
-            height=40)
+            height=50)
 
 with middle_panel:
     with st.container(border=True):
         st.write("**视频设置**")
         video_concat_modes = [
             ("顺序拼接", "sequential"),
-            ("随机拼接", "random"),
+            ("随机拼接（推荐）", "random"),
         ]
         selected_index = st.selectbox("视频拼接模式",
                                       index=1,
@@ -141,8 +148,8 @@ with middle_panel:
                                       )
         cfg.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
 
-        cfg.video_clip_duration = st.slider("视频片段最大时长(秒)", 2, 5, 3)
-
+        cfg.video_clip_duration = st.selectbox("视频片段最大时长(秒)", options=[2, 3, 4, 5, 6], index=1)
+        cfg.video_count = st.selectbox("同时生成视频数量", options=[1, 2, 3, 4, 5], index=0)
     with st.container(border=True):
         st.write("**音频设置**")
         # 创建一个映射字典，将原始值映射到友好名称
@@ -179,6 +186,8 @@ with middle_panel:
             if custom_bgm_file and os.path.exists(custom_bgm_file):
                 cfg.bgm_file = custom_bgm_file
                 # st.write(f":red[已选择自定义背景音乐]：**{custom_bgm_file}**")
+        cfg.bgm_volume = st.selectbox("背景音乐音量（0.2表示20%，背景声音不宜过高）",
+                                      options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], index=2)
 
 with right_panel:
     with st.container(border=True):
@@ -186,6 +195,19 @@ with right_panel:
         cfg.subtitle_enabled = st.checkbox("生成字幕（若取消勾选，下面的设置都将不生效）", value=True)
         font_names = get_all_fonts()
         cfg.font_name = st.selectbox("字体", font_names)
+
+        subtitle_positions = [
+            ("顶部（top）", "top"),
+            ("居中（center）", "center"),
+            ("底部（bottom，推荐）", "bottom"),
+        ]
+        selected_index = st.selectbox("字幕位置",
+                                      index=2,
+                                      options=range(len(subtitle_positions)),  # 使用索引作为内部选项值
+                                      format_func=lambda x: subtitle_positions[x][0]  # 显示给用户的是标签
+                                      )
+        cfg.subtitle_position = subtitle_positions[selected_index][1]
+
         font_cols = st.columns([0.3, 0.7])
         with font_cols[0]:
             cfg.text_fore_color = st.color_picker("字幕颜色", "#FFFFFF")

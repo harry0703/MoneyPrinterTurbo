@@ -28,9 +28,9 @@ imagemagick_path = app.get("imagemagick_path", "")
 if imagemagick_path and os.path.isfile(imagemagick_path):
     os.environ["IMAGEMAGICK_BINARY"] = imagemagick_path
 
-__cfg = {
-    "hostname": hostname,
-    "listen_host": listen_host,
-    "listen_port": listen_port,
-}
-logger.info(__cfg)
+# __cfg = {
+#     "hostname": hostname,
+#     "listen_host": listen_host,
+#     "listen_port": listen_port,
+# }
+# logger.info(__cfg)

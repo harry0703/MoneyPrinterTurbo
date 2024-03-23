@@ -93,12 +93,14 @@ class VideoParams:
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_clip_duration: Optional[int] = 5
-
+    video_count: Optional[int] = 1
     voice_name: Optional[str] = VoiceNames[0]
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
-
+    bgm_volume: Optional[float] = 0.2
+    
     subtitle_enabled: Optional[bool] = True
+    subtitle_position: Optional[str] = "bottom"  # top, bottom, center
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Optional[str] = "transparent"

@@ -78,7 +78,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
             sub_line = ""
 
     with open(subtitle_file, "w", encoding="utf-8") as file:
-        file.write("\n".join(sub_items))
+        file.write("\n".join(sub_items) + "\n")
 
 
 def get_audio_duration(sub_maker: submaker.SubMaker):

@@ -1,3 +1,4 @@
+import math
 import os.path
 import re
 from os import path
@@ -5,7 +6,7 @@ from os import path
 from loguru import logger
 
 from app.config import config
-from app.models.schema import VideoParams, VoiceNames
+from app.models.schema import VideoParams, VoiceNames, VideoConcatMode
 from app.services import llm, material, voice, video, subtitle
 from app.utils import utils
 
@@ -78,6 +79,8 @@ def start(task_id, params: VideoParams):
         return
 
     audio_duration = voice.get_audio_duration(sub_maker)
+    audio_duration = math.ceil(audio_duration)
+
     subtitle_path = ""
     if params.subtitle_enabled:
         subtitle_path = path.join(utils.task_dir(task_id), f"subtitle.srt")
@@ -110,7 +113,7 @@ def start(task_id, params: VideoParams):
                                                  search_terms=video_terms,
                                                  video_aspect=params.video_aspect,
                                                  video_contact_mode=params.video_concat_mode,
-                                                 audio_duration=audio_duration,
+                                                 audio_duration=audio_duration * params.video_count,
                                                  max_clip_duration=max_clip_duration,
                                                  )
     if not downloaded_videos:
@@ -118,27 +121,37 @@ def start(task_id, params: VideoParams):
             "failed to download videos, maybe the network is not available. if you are in China, please use a VPN.")
         return
 
-    logger.info("\n\n## combining videos")
-    combined_video_path = path.join(utils.task_dir(task_id), f"combined.mp4")
-    video.combine_videos(combined_video_path=combined_video_path,
-                         video_paths=downloaded_videos,
-                         audio_file=audio_file,
-                         video_aspect=params.video_aspect,
-                         video_concat_mode=params.video_concat_mode,
-                         max_clip_duration=max_clip_duration,
-                         threads=n_threads)
+    final_video_paths = []
+    video_concat_mode = params.video_concat_mode
+    if params.video_count > 1:
+        video_concat_mode = VideoConcatMode.random
 
-    final_video_path = path.join(utils.task_dir(task_id), f"final.mp4")
+    for i in range(params.video_count):
+        index = i + 1
+        combined_video_path = path.join(utils.task_dir(task_id), f"combined-{index}.mp4")
+        logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
+        video.combine_videos(combined_video_path=combined_video_path,
+                             video_paths=downloaded_videos,
+                             audio_file=audio_file,
+                             video_aspect=params.video_aspect,
+                             video_concat_mode=video_concat_mode,
+                             max_clip_duration=max_clip_duration,
+                             threads=n_threads)
 
-    logger.info("\n\n## generating video")
-    # Put everything together
-    video.generate_video(video_path=combined_video_path,
-                         audio_path=audio_file,
-                         subtitle_path=subtitle_path,
-                         output_file=final_video_path,
-                         params=params,
-                         )
-    logger.start(f"task {task_id} finished")
+        final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
+
+        logger.info(f"\n\n## generating video: {index} => {final_video_path}")
+        # Put everything together
+        video.generate_video(video_path=combined_video_path,
+                             audio_path=audio_file,
+                             subtitle_path=subtitle_path,
+                             output_file=final_video_path,
+                             params=params,
+                             )
+        final_video_paths.append(final_video_path)
+
+    logger.success(f"task {task_id} finished, generated {len(final_video_paths)} videos.")
+
     return {
-        "video_file": final_video_path,
+        "videos": final_video_paths,
     }

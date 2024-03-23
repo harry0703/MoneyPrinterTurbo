@@ -105,7 +105,7 @@ def create(audio_file, subtitle_file: str = ""):
             lines.append(utils.text_to_srt(idx, text, subtitle.get("start_time"), subtitle.get("end_time")))
             idx += 1
 
-    sub = "\n".join(lines)
+    sub = "\n".join(lines) + "\n"
     with open(subtitle_file, "w", encoding="utf-8") as f:
         f.write(sub)
     logger.info(f"subtitle file created: {subtitle_file}")
