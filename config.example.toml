@@ -3,8 +3,10 @@
     # Register at https://www.pexels.com/api/ to get your API key.
     # You can use multiple keys to avoid rate limits.
     # For example: pexels_api_keys = ["123456789","abcdefghi"]
+    # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
     pexels_api_keys = []
 
+    # 如果你没有 OPENAI API Key，可以使用 g4f 代替，或者使用国内的 Moonshot API
     llm_provider="openai" # "openai" or "moonshot" or "oneapi" or "g4f"
 
     # OpenAI API Key
