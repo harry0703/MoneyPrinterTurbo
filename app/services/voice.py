@@ -57,6 +57,8 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     sub_index = 0
 
     script_lines = utils.split_string_by_punctuations(text)
+    # remove space in every word
+    script_lines_without_space = [line.replace(" ", "") for line in script_lines]
 
     sub_line = ""
     for _, (offset, sub) in enumerate(zip(sub_maker.offset, sub_maker.subs)):
@@ -66,14 +68,17 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
 
         sub = unescape(sub)
         sub_line += sub
-        if sub_line == script_lines[sub_index]:
+        if sub_line == script_lines[sub_index] or sub_line == script_lines_without_space[sub_index]:
+            sub_text = script_lines[sub_index]
             sub_index += 1
-            sub_items.append(formatter(
+            line = formatter(
                 idx=sub_index,
                 start_time=start_time,
                 end_time=end_time,
-                sub_text=sub_line,
-            ))
+                sub_text=sub_text,
+            )
+            # logger.debug(line.strip())
+            sub_items.append(line)
             start_time = -1.0
             sub_line = ""
 

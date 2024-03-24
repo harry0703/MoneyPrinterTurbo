@@ -58,7 +58,13 @@ def start(task_id, params: VideoParams):
     if not video_terms:
         video_terms = llm.generate_terms(video_subject=video_subject, video_script=video_script, amount=5)
     else:
-        video_terms = [term.strip() for term in re.split(r'[,，]', video_terms)]
+        if isinstance(video_terms, str):
+            video_terms = [term.strip() for term in re.split(r'[,，]', video_terms)]
+        elif isinstance(video_terms, list):
+            video_terms = [term.strip() for term in video_terms]
+        else:
+            raise ValueError("video_terms must be a string or a list of strings.")
+
         logger.debug(f"video terms: {utils.to_json(video_terms)}")
 
     script_file = path.join(utils.task_dir(task_id), f"script.json")
@@ -95,7 +101,7 @@ def start(task_id, params: VideoParams):
             else:
                 subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
                 if not subtitle_lines:
-                    logger.warning(f"subtitle file is invalid: {subtitle_path}")
+                    logger.warning(f"subtitle file is invalid, fallback to whisper : {subtitle_path}")
                     subtitle_fallback = True
 
         if subtitle_provider == "whisper" or subtitle_fallback:

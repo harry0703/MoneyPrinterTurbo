@@ -89,7 +89,7 @@ class VideoParams:
     """
     video_subject: str
     video_script: str = ""  # 用于生成视频的脚本
-    video_terms: str = ""  # 用于生成视频的关键词
+    video_terms: Optional[str | list] = None  # 用于生成视频的关键词
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_clip_duration: Optional[int] = 5
@@ -98,7 +98,7 @@ class VideoParams:
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
-    
+
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = "bottom"  # top, bottom, center
     font_name: Optional[str] = "STHeitiMedium.ttc"
