@@ -36,10 +36,33 @@
     # If empty, the subtitle will not be generated
     subtitle_provider = "edge"
 
+    #
+    # ImageMagick
+    #
     # Once you have installed it, ImageMagick will be automatically detected, except on Windows!
     # On Windows, for example "C:\Program Files (x86)\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
     # Download from https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
+
     # imagemagick_path = "C:\\Program Files (x86)\\ImageMagick-7.1.1-Q16\\magick.exe"
+
+
+    #
+    # FFMPEG
+    #
+    # 通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
+    # 但是如果你的环境有问题，无法自动下载，可能会遇到如下错误：
+    #   RuntimeError: No ffmpeg exe could be found.
+    #   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
+    # 此时你可以手动下载 ffmpeg 并设置 ffmpeg_path，下载地址：https://www.gyan.dev/ffmpeg/builds/
+
+    # Under normal circumstances, ffmpeg is downloaded automatically and detected automatically.
+    # However, if there is an issue with your environment that prevents automatic downloading, you might encounter the following error:
+    #   RuntimeError: No ffmpeg exe could be found.
+    #   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
+    # In such cases, you can manually download ffmpeg and set the ffmpeg_path, download link: https://www.gyan.dev/ffmpeg/builds/
+
+    # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
+    #########################################################################################
 
 [whisper]
     # Only effective when subtitle_provider is "whisper"

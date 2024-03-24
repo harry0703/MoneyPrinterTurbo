@@ -28,6 +28,10 @@ imagemagick_path = app.get("imagemagick_path", "")
 if imagemagick_path and os.path.isfile(imagemagick_path):
     os.environ["IMAGEMAGICK_BINARY"] = imagemagick_path
 
+ffmpeg_path = app.get("ffmpeg_path", "")
+if ffmpeg_path and os.path.isfile(ffmpeg_path):
+    os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
+
 # __cfg = {
 #     "hostname": hostname,
 #     "listen_host": listen_host,
