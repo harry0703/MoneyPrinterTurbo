@@ -102,6 +102,7 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
     font = ImageFont.truetype(font, fontsize)
 
     def get_text_size(inner_text):
+        inner_text = inner_text.strip()
         left, top, right, bottom = font.getbbox(inner_text)
         return right - left, bottom - top
 
@@ -110,13 +111,36 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
         return text
 
     logger.warning(f"wrapping text, max_width: {max_width}, text_width: {width}, text: {text}")
-    _wrapped_lines_ = []
-    # 使用textwrap尝试分行，然后检查每行是否符合宽度限制
 
+    processed = True
+
+    _wrapped_lines_ = []
+    words = text.split(" ")
+    _txt_ = ''
+    for word in words:
+        _before = _txt_
+        _txt_ += f"{word} "
+        _width, _height = get_text_size(_txt_)
+        if _width <= max_width:
+            continue
+        else:
+            if _txt_.strip() == word.strip():
+                processed = False
+                break
+            _wrapped_lines_.append(_before)
+            _txt_ = f"{word} "
+    _wrapped_lines_.append(_txt_)
+    if processed:
+        _wrapped_lines_ = [line.strip() for line in _wrapped_lines_]
+        result = '\n'.join(_wrapped_lines_).strip()
+        logger.warning(f"wrapped text: {result}")
+        return result
+
+    _wrapped_lines_ = []
     chars = list(text)
     _txt_ = ''
-    for char in chars:
-        _txt_ += char
+    for word in chars:
+        _txt_ += word
         _width, _height = get_text_size(_txt_)
         if _width <= max_width:
             continue
@@ -124,7 +148,9 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
             _wrapped_lines_.append(_txt_)
             _txt_ = ''
     _wrapped_lines_.append(_txt_)
-    return '\n'.join(_wrapped_lines_).strip()
+    result = '\n'.join(_wrapped_lines_).strip()
+    logger.warning(f"wrapped text: {result}")
+    return result
 
 
 def generate_video(video_path: str,
@@ -223,10 +249,12 @@ def generate_video(video_path: str,
 
 
 if __name__ == "__main__":
-    txt = "hello 幸福经常被描述为最终人生目标和人类追求的核心 但它通常涉及对个人生活中意义和目的的深刻感悟"
+    txt_en = "Here's your guide to travel hacks for budget-friendly adventures"
+    txt_zh = "测试长字段这是您的旅行技巧指南帮助您进行预算友好的冒险"
     font = utils.resource_dir() + "/fonts/STHeitiMedium.ttc"
-    t = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
-    print(t)
+    for txt in [txt_en, txt_zh]:
+        t = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
+        print(t)
 
     task_id = "69232dfa-f6c5-4b5e-80ba-be3098d3f930"
     task_dir = utils.task_dir(task_id)
