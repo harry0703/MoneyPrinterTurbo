@@ -4,6 +4,16 @@
 
 ![](docs/webui.jpg)
 
+## 特别感谢 🙏
+由于该项目的 **部署** 和 **使用**，对于一些小白用户来说，还是 **有一定的门槛**，在此特别感谢 
+
+**录咖（AI智能 多媒体服务平台）** 网站基于该项目，提供的免费`AI视频生成器`服务，可以不用部署，直接在线使用，非常方便。
+
+- 中文版：https://reccloud.cn
+- 英文版：https://reccloud.com
+
+![reccloud.png](docs/reccloud.jpg)
+
 ## 功能特性 🎯
 
 - [x] 完整的 **MVC架构**，代码 **结构清晰**，易于维护，支持API和Web界面
@@ -15,11 +25,11 @@
 - [x] 支持 **视频片段时长**设置，方便调节素材切换频率
 - [x] 支持 **中文** 和 **英文** 视频文案
 - [x] 支持 **多种语音** 合成
-- [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、颜色`、`大小`，同时支持`字幕描边`设置
+- [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、`颜色`、`大小`，同时支持`字幕描边`设置
 - [x] 支持 **背景音乐**，随机或者指定音乐文件，可设置`背景音乐音量`
-- [x] 视频素材来源 **无版权** 问题
+- [x] 视频素材来源 **高清**，而且 **无版权**
 
-### 后期计划 🚀
+### 后期计划 📅
 
 - [ ] 优化语音合成，利用大模型，使其合成的声音，更加自然，情绪更加丰富
 - [ ] 增加视频转场效果，使其看起来更加的流畅
@@ -111,7 +121,7 @@ sudo yum install ImageMagick
   15元体验金，可以对话1500次左右。然后设置 `llm_provider="moonshot"` 和 `moonshot_api_key`
   。感谢 [@jerryblues](https://github.com/harry0703/MoneyPrinterTurbo/issues/8) 的建议
 
-### 启动Web界面
+### 启动Web界面 🌐
 
 注意需要到 MoneyPrinterTurbo 项目 `根目录` 下执行以下命令
 
@@ -134,7 +144,7 @@ sh webui.sh
 效果如下图：
 ![](docs/webui.jpg)
 
-### 启动API服务
+### 启动API服务 🚀
 
 ```shell
 python main.py
@@ -166,6 +176,21 @@ python main.py
 
 用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
 
+## 常见问题 🤔
+### RuntimeError: No ffmpeg exe could be found
+通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
+但是如果你的环境有问题，无法自动下载，可能会遇到如下错误：
+```
+RuntimeError: No ffmpeg exe could be found.
+Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
+```
+此时你可以从 https://www.gyan.dev/ffmpeg/builds/ 下载ffmpeg，解压后，设置 `ffmpeg_path` 为你的实际安装路径即可。
+```toml
+[app]
+    # 请根据你的实际路径设置，注意 Windows 路径分隔符为 \\
+    ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
+```
+
 ## 反馈建议 📢
 
 - 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues)
@@ -179,7 +204,7 @@ python main.py
 |:---------------------------------------:|:------------:|:-------------------------------------------:|
 | <img src="docs/douyin.jpg" width="180"> |              | <img src="docs/shipinghao.jpg" width="200"> |
 
-## 特别感谢 🙏
+## 参考项目 📚
 
 该项目基于 https://github.com/FujiwaraChoki/MoneyPrinter 重构而来，做了大量的优化，增加了更多的功能。
 感谢原作者的开源精神。
