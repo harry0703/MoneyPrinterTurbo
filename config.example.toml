@@ -12,7 +12,7 @@
     ########## OpenAI API Key
     # Visit https://openai.com/api/ for details on obtaining an API key.
     openai_api_key = ""
-    openai_base_url = ""
+    openai_base_url = "" # no need to set it unless you want to use your own proxy
     openai_model_name = "gpt-4-turbo-preview"
 
     ########## Moonshot API Key
