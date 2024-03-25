@@ -7,30 +7,39 @@
     pexels_api_keys = []
 
     # 如果你没有 OPENAI API Key，可以使用 g4f 代替，或者使用国内的 Moonshot API
-    llm_provider="openai" # "openai" or "moonshot" or "oneapi" or "g4f"
+    llm_provider="openai" # "openai" or "moonshot" or "oneapi" or "g4f" or "azure"
 
-    # OpenAI API Key
+    ########## OpenAI API Key
     # Visit https://openai.com/api/ for details on obtaining an API key.
     openai_api_key = ""
     openai_base_url = ""
     openai_model_name = "gpt-4-turbo-preview"
 
-    # Moonshot API Key
+    ########## Moonshot API Key
     # Visit https://platform.moonshot.cn/console/api-keys to get your API key.
     moonshot_api_key=""
     moonshot_base_url = "https://api.moonshot.cn/v1"
     moonshot_model_name = "moonshot-v1-8k"
 
-    # OneAPI API Key
+    ########## OneAPI API Key
     # Visit https://github.com/songquanpeng/one-api to get your API key
     oneapi_api_key=""
     oneapi_base_url=""
     oneapi_model_name=""
 
-    # G4F
+    ########## G4F
     # Visit https://github.com/xtekky/gpt4free to get more details
     # Supported model list: https://github.com/xtekky/gpt4free/blob/main/g4f/models.py
     g4f_model_name = "gpt-3.5-turbo-16k-0613"
+
+    ########## Azure API Key
+    # Visit https://learn.microsoft.com/zh-cn/azure/ai-services/openai/ to get more details
+    # API documentation: https://learn.microsoft.com/zh-cn/azure/ai-services/openai/reference
+    azure_api_key = ""
+    azure_base_url=""
+    azure_model_name="gpt-35-turbo" # replace with your model deployment name
+    azure_api_version = "2024-02-15-preview"
+
 
     # Subtitle Provider, "edge" or "whisper"
     # If empty, the subtitle will not be generated
