@@ -103,7 +103,7 @@ with left_panel:
             video_languages.append((lang, lang))
 
         selected_index = st.selectbox("生成视频脚本的语言（:blue[一般情况AI会自动根据你输入的主题语言输出]）",
-                                      index=1,
+                                      index=0,
                                       options=range(len(video_languages)),  # 使用索引作为内部选项值
                                       format_func=lambda x: video_languages[x][0]  # 显示给用户的是标签
                                       )
