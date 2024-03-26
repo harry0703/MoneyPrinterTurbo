@@ -95,9 +95,26 @@ with left_panel:
         st.write("**文案设置**")
         cfg.video_subject = st.text_input("视频主题（给定一个关键词，:red[AI自动生成]视频文案）",
                                           value=st.session_state['video_subject']).strip()
+
+        video_languages = [
+            ("自动判断（Auto detect）", ""),
+        ]
+        for lang in ["zh-CN", "zh-TW", "en-US"]:
+            video_languages.append((lang, lang))
+
+        selected_index = st.selectbox("生成视频脚本的语言（:blue[一般情况AI会自动根据你输入的主题语言输出]）",
+                                      index=1,
+                                      options=range(len(video_languages)),  # 使用索引作为内部选项值
+                                      format_func=lambda x: video_languages[x][0]  # 显示给用户的是标签
+                                      )
+        cfg.video_language = video_languages[selected_index][1]
+
+        if cfg.video_language:
+            st.write(f"设置AI输出文案语言为: **:red[{cfg.video_language}]**")
+
         if st.button("点击使用AI根据**主题**生成 【视频文案】 和 【视频关键词】", key="auto_generate_script"):
             with st.spinner("AI正在生成视频文案和关键词..."):
-                script = llm.generate_script(cfg.video_subject)
+                script = llm.generate_script(video_subject=cfg.video_subject, language=cfg.video_language)
                 terms = llm.generate_terms(cfg.video_subject, script)
                 st.toast('AI生成成功')
                 st.session_state['video_script'] = script
@@ -106,7 +123,7 @@ with left_panel:
         cfg.video_script = st.text_area(
             "视频文案（:blue[①可不填，使用AI生成  ②合理使用标点断句，有助于生成字幕]）",
             value=st.session_state['video_script'],
-            height=280
+            height=230
         )
         if st.button("点击使用AI根据**文案**生成【视频关键词】", key="auto_generate_terms"):
             if not cfg.video_script:

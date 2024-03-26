@@ -26,7 +26,7 @@ def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
         logger.info(f"completed, output file: {voice_file}")
         return sub_maker
     except Exception as e:
-        logger.error(f"failed, error: {e}")
+        logger.error(f"failed, error: {str(e)}")
         return None
 
 
@@ -61,29 +61,34 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     script_lines_without_space = [line.replace(" ", "") for line in script_lines]
 
     sub_line = ""
-    for _, (offset, sub) in enumerate(zip(sub_maker.offset, sub_maker.subs)):
-        _start_time, end_time = offset
-        if start_time < 0:
-            start_time = _start_time
 
-        sub = unescape(sub)
-        sub_line += sub
-        if sub_line == script_lines[sub_index] or sub_line == script_lines_without_space[sub_index]:
-            sub_text = script_lines[sub_index]
-            sub_index += 1
-            line = formatter(
-                idx=sub_index,
-                start_time=start_time,
-                end_time=end_time,
-                sub_text=sub_text,
-            )
-            # logger.debug(line.strip())
-            sub_items.append(line)
-            start_time = -1.0
-            sub_line = ""
+    try:
+        for _, (offset, sub) in enumerate(zip(sub_maker.offset, sub_maker.subs)):
+            _start_time, end_time = offset
+            if start_time < 0:
+                start_time = _start_time
 
-    with open(subtitle_file, "w", encoding="utf-8") as file:
-        file.write("\n".join(sub_items) + "\n")
+            sub = unescape(sub)
+            sub_line += sub
+            if sub_line == script_lines[sub_index] or sub_line == script_lines_without_space[sub_index]:
+                sub_text = script_lines[sub_index]
+                sub_index += 1
+                line = formatter(
+                    idx=sub_index,
+                    start_time=start_time,
+                    end_time=end_time,
+                    sub_text=sub_text,
+                )
+                # logger.debug(line.strip())
+                sub_items.append(line)
+                start_time = -1.0
+                sub_line = ""
+
+        with open(subtitle_file, "w", encoding="utf-8") as file:
+            file.write("\n".join(sub_items) + "\n")
+
+    except Exception as e:
+        logger.error(f"failed, error: {str(e)}")
 
 
 def get_audio_duration(sub_maker: submaker.SubMaker):

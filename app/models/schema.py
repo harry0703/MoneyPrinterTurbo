@@ -94,6 +94,9 @@ class VideoParams:
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_clip_duration: Optional[int] = 5
     video_count: Optional[int] = 1
+
+    video_language: Optional[str] = ""  # auto detect
+
     voice_name: Optional[str] = VoiceNames[0]
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""

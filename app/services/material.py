@@ -71,7 +71,7 @@ def search_videos(search_term: str,
                     break
         return video_items
     except Exception as e:
-        logger.error(f"search videos failed: {e}")
+        logger.error(f"search videos failed: {str(e)}")
 
     return []
 
@@ -81,7 +81,7 @@ def save_video(video_url: str, save_dir: str) -> str:
     video_path = f"{save_dir}/{video_id}.mp4"
     proxies = config.pexels.get("proxies", None)
     with open(video_path, "wb") as f:
-        f.write(requests.get(video_url, proxies=proxies, verify=False).content)
+        f.write(requests.get(video_url, proxies=proxies, verify=False, timeout=(10, 180)).content)
 
     return video_path
 
@@ -129,6 +129,6 @@ def download_videos(task_id: str,
                 logger.info(f"total duration of downloaded videos: {total_duration} seconds, skip downloading more")
                 break
         except Exception as e:
-            logger.error(f"failed to download video: {item}, {e}")
+            logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
     logger.success(f"downloaded {len(video_paths)} videos")
     return video_paths

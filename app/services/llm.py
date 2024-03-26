@@ -72,10 +72,10 @@ def _generate_response(prompt: str) -> str:
         if response:
             content = response.choices[0].message.content
 
-    return content
+    return content.replace("\n", "")
 
 
-def generate_script(video_subject: str, language: str = "zh-CN", paragraph_number: int = 1) -> str:
+def generate_script(video_subject: str, language: str = "", paragraph_number: int = 1) -> str:
     prompt = f"""
 # Role: Video Script Generator
 
@@ -92,13 +92,12 @@ Generate a script for a video, depending on the subject of the video.
 7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
 8. respond in the same language as the video subject.
 
-## Output Example:
-What is the meaning of life. This question has puzzled philosophers.
-
 # Initialization:
 - video subject: {video_subject}
 - number of paragraphs: {paragraph_number}
 """.strip()
+    if language:
+        prompt += f"\n- language: {language}"
 
     final_script = ""
     logger.info(f"subject: {video_subject}")
