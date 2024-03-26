@@ -186,7 +186,7 @@ python main.py
 
 ## 常见问题 🤔
 
-### RuntimeError: No ffmpeg exe could be found
+### ❓RuntimeError: No ffmpeg exe could be found
 
 通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
 但是如果你的环境有问题，无法自动下载，可能会遇到如下错误：
@@ -204,7 +204,7 @@ Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variabl
 ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 ```
 
-### 生成音频时报错或下载视频报错
+### ❓生成音频时报错或下载视频报错
 
 [issue 56](https://github.com/harry0703/MoneyPrinterTurbo/issues/56)
 
@@ -222,13 +222,19 @@ if you are in China, please use a VPN.
 
 这个大概率是网络原因，无法访问境外的服务，请使用VPN解决。
 
-### ImageMagick is not installed on your computer
+### ❓ImageMagick is not installed on your computer
 
 [issue 33](https://github.com/harry0703/MoneyPrinterTurbo/issues/33)
 
 1. 按照 `示例配置` 里面提供的 `下载地址`
    ，安装 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe, 用静态库
 2. 不要安装在中文路径里面，避免出现一些无法预料的问题
+
+[issue 54](https://github.com/harry0703/MoneyPrinterTurbo/issues/54#issuecomment-2017842022)
+
+如果是linux系统，可以手动安装，参考 https://cn.linux-console.net/?p=16978
+
+感谢 [@wangwenqiao666](https://github.com/wangwenqiao666)的研究探索
 
 ## 反馈建议 📢
 
