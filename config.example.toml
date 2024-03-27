@@ -7,7 +7,7 @@
     pexels_api_keys = []
 
     # 如果你没有 OPENAI API Key，可以使用 g4f 代替，或者使用国内的 Moonshot API
-    llm_provider="openai" # "openai" or "moonshot" or "oneapi" or "g4f" or "azure"
+    llm_provider="openai" # "openai" or "moonshot" or "oneapi" or "g4f" or "azure" or "qwen"
 
     ########## OpenAI API Key
     # Visit https://openai.com/api/ for details on obtaining an API key.
@@ -39,6 +39,11 @@
     azure_base_url=""
     azure_model_name="gpt-35-turbo" # replace with your model deployment name
     azure_api_version = "2024-02-15-preview"
+
+    ########## qwen API Key, you need to pip install dashscope firstly
+    # Visit https://tongyi.aliyun.com/qianwen/ to get more details
+    qwen_api_key = ""
+    qwen_model_name = "qwen-max" 
 
 
     # Subtitle Provider, "edge" or "whisper"

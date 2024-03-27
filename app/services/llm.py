@@ -9,6 +9,7 @@ from openai import AzureOpenAI
 from app.config import config
 
 
+
 def _generate_response(prompt: str) -> str:
     content = ""
     llm_provider = config.app.get("llm_provider", "openai")
@@ -43,6 +44,10 @@ def _generate_response(prompt: str) -> str:
             model_name = config.app.get("azure_model_name")
             base_url = config.app.get("azure_base_url", "")
             api_version = config.app.get("azure_api_version", "2024-02-15-preview")
+        elif llm_provider == "qwen":
+            api_key = config.app.get("qwen_api_key")
+            model_name = config.app.get("qwen_model_name")
+            base_url = "***"
         else:
             raise ValueError("llm_provider is not set, please set it in the config.toml file.")
 
@@ -52,6 +57,20 @@ def _generate_response(prompt: str) -> str:
             raise ValueError(f"{llm_provider}: model_name is not set, please set it in the config.toml file.")
         if not base_url:
             raise ValueError(f"{llm_provider}: base_url is not set, please set it in the config.toml file.")
+        
+
+        import dashscope 
+
+        if llm_provider == "qwen":
+            dashscope.api_key = api_key
+            response = dashscope.Generation.call(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}]  
+            )
+            content=response["output"]["text"]
+            print(content)
+            return content.replace("\n", "")
+
 
         if llm_provider == "azure":
             client = AzureOpenAI(
