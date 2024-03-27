@@ -1,5 +1,7 @@
 # MoneyPrinterTurbo 💸
 
+[English](README-en.md)
+
 只需提供一个视频 **主题** 或 **关键词** ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
 
 ![](docs/webui.jpg)
@@ -13,7 +15,7 @@
 - 中文版：https://reccloud.cn
 - 英文版：https://reccloud.com
 
-![](docs/reccloud.jpg)
+![](docs/reccloud.cn.jpg)
 
 ## 功能特性 🎯
 
@@ -37,6 +39,7 @@
 - [ ] 优化语音合成，利用大模型，使其合成的声音，更加自然，情绪更加丰富
 - [ ] 增加视频转场效果，使其看起来更加的流畅
 - [ ] 优化视频素材的匹配度
+- [ ] OLLAMA 支持
 
 ## 视频演示 📺
 
