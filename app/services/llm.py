@@ -169,6 +169,8 @@ Generate {amount} search terms for stock videos, depending on the subject of a v
 
 ### Video Script
 {video_script}
+
+Please note that you must use English for generating video search terms; Chinese is not accepted.
 """.strip()
 
     logger.info(f"subject: {video_subject}")
