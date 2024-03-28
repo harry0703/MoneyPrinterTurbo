@@ -189,6 +189,12 @@ python main.py
 
 ## 常见问题 🤔
 
+### ❓AttributeError: 'str' object has no attribute 'choices'`
+这个问题是由于 OpenAI 或者其他 LLM，没有返回正确的回复导致的。
+
+大概率是网络原因， 使用 **VPN**，或者设置 `openai_base_url` 为你的代理 ，应该就可以解决了。
+
+
 ### ❓RuntimeError: No ffmpeg exe could be found
 
 通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
@@ -248,6 +254,7 @@ if you are in China, please use a VPN.
 修改包含`pattern="@"`的条目，将`rights="none"`更改为`rights="read|write"`以允许对文件的读写操作。
 
 感谢 [@chenhengzh](https://github.com/chenhengzh)的研究探索
+
 
 ## 反馈建议 📢
 
