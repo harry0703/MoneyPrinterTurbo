@@ -239,6 +239,16 @@ if you are in China, please use a VPN.
 
 感谢 [@wangwenqiao666](https://github.com/wangwenqiao666)的研究探索
 
+### ❓ImageMagick的安全策略阻止了与临时文件@/tmp/tmpur5hyyto.txt相关的操作
+
+[issue 92](https://github.com/harry0703/MoneyPrinterTurbo/issues/92)
+
+可以在ImageMagick的配置文件policy.xml中找到这些策略。
+这个文件通常位于 /etc/ImageMagick-`X`/ 或 ImageMagick 安装目录的类似位置。
+修改包含`pattern="@"`的条目，将`rights="none"`更改为`rights="read|write"`以允许对文件的读写操作。
+
+感谢 [@chenhengzh](https://github.com/chenhengzh)的研究探索
+
 ## 反馈建议 📢
 
 - 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues)
