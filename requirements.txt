@@ -13,3 +13,4 @@ urllib3~=2.2.1
 pillow~=9.5.0
 pydantic~=2.6.3
 g4f~=0.2.5.4
+dashscope~=1.15.0

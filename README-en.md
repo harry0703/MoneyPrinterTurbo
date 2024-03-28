@@ -38,7 +38,8 @@ https://reccloud.com
   supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**
-- [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**,
+- [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**, *
+  *qianwen**
   and more
 
 ### Future Plans 📅
@@ -258,7 +259,8 @@ Thanks to [@wangwenqiao666](https://github.com/wangwenqiao666) for their researc
 
 ## Feedback & Suggestions 📢
 
-- You can submit an [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) or a [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls).
+- You can submit an [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) or
+  a [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls).
 
 ## Reference Projects 📚
 
