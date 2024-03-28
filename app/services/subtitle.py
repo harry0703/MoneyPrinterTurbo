@@ -18,7 +18,10 @@ def create(audio_file, subtitle_file: str = ""):
     global model
     if not model:
         logger.info(f"loading model: {model_size}, device: {device}, compute_type: {compute_type}")
-        model = WhisperModel(model_size_or_path=model_size, device=device, compute_type=compute_type)
+        model = WhisperModel(model_size_or_path=model_size,
+                             device=device,
+                             compute_type=compute_type,
+                             local_files_only=True)
 
     logger.info(f"start, output file: {subtitle_file}")
     if not subtitle_file:
