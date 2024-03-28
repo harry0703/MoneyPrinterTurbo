@@ -1,19 +1,26 @@
 # MoneyPrinterTurbo 💸
 
-Simply provide a **topic** or **keyword** for a video, and it will automatically generate the video copy, video materials, video subtitles, and video background music before synthesizing a high-definition short video.
+[Chinese 简体中文](README.md)
+
+> Thanks to [RootFTW](https://github.com/Root-FTW) for the translation
+
+
+Simply provide a **topic** or **keyword** for a video, and it will automatically generate the video copy, video
+materials, video subtitles, and video background music before synthesizing a high-definition short video.
 
 ![](docs/webui.jpg)
 
 ## Special Thanks 🙏
 
-Due to the **deployment** and **usage** of this project, there is a certain threshold for some beginner users. We would like to express our special thanks to
+Due to the **deployment** and **usage** of this project, there is a certain threshold for some beginner users. We would
+like to express our special thanks to
 
-**LuKa (AI Intelligent Multimedia Service Platform)** for providing a free `AI Video Generator` service based on this project. It allows for online use without deployment, which is very convenient.
+**LuKa (AI Intelligent Multimedia Service Platform)** for providing a free `AI Video Generator` service based on this
+project. It allows for online use without deployment, which is very convenient.
 
-- Chinese version: https://reccloud.cn
-- English version: https://reccloud.com
+https://reccloud.com
 
-![](docs/reccloud.jpg)
+![](docs/reccloud.com.jpg)
 
 ## Features 🎯
 
@@ -22,14 +29,18 @@ Due to the **deployment** and **usage** of this project, there is a certain thre
 - [x] Supports various **high-definition video** sizes
     - [x] Portrait 9:16, `1080x1920`
     - [x] Landscape 16:9, `1920x1080`
-- [x] Supports **batch video generation**, allowing the creation of multiple videos at once, then selecting the most satisfactory one
+- [x] Supports **batch video generation**, allowing the creation of multiple videos at once, then selecting the most
+  satisfactory one
 - [x] Supports setting the **duration of video clips**, facilitating adjustments to material switching frequency
 - [x] Supports video copy in both **Chinese** and **English**
 - [x] Supports **multiple voice** synthesis
-- [x] Supports **subtitle generation**, with adjustable `font`, `position`, `color`, `size`, and also supports `subtitle outlining`
+- [x] Supports **subtitle generation**, with adjustable `font`, `position`, `color`, `size`, and also
+  supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**
-- [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**, and more
+- [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**, *
+  *qianwen**
+  and more
 
 ### Future Plans 📅
 
@@ -37,32 +48,34 @@ Due to the **deployment** and **usage** of this project, there is a certain thre
 - [ ] Optimize voice synthesis using large models to make the synthesized voice sound more natural and emotionally rich
 - [ ] Add video transition effects to make the viewing experience smoother
 - [ ] Optimize the relevance of video materials
+- [ ] OLLAMA support
 
 ## Video Demos 📺
 
 ### Portrait 9:16
 
-▶️ “How to Add Fun to Your Life”
+▶️ How to Add Fun to Your Life
 
 https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/a84d33d5-27a2-4aba-8fd0-9fb2bd91c6a6
 
-▶️ “What is the Meaning of Life”
+▶️ What is the Meaning of Life
 
 https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/112c9564-d52b-4472-99ad-970b75f66476
 
 ### Landscape 16:9
 
-▶️ “What is the Meaning of Life”
+▶️ What is the Meaning of Life
 
 https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/346ebb15-c55f-47a9-a653-114f08bb8073
 
-▶️ “Why Exercise”
+▶️ Why Exercise
 
 https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/271f2fae-8283-44a0-8aa0-0ed8f9a6fa87
 
 ## Installation & Deployment 📥
 
-It is recommended to create a Python virtual environment using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
+It is recommended to create a Python virtual environment
+using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
@@ -112,13 +125,18 @@ sudo yum install ImageMagick
 #### ② Modify the Configuration File
 
 - Copy the `config.example.toml` file and rename it to `config.toml`
-- Follow the instructions in the `config.toml` file to configure `pexels_api_keys` and `llm_provider`, and according to the llm_provider's service provider, set up the corresponding API Key
-- If it's a `Windows` system, `imagemagick_path` is your actual installation path (if you didn't change the path during installation, just uncomment it)
+- Follow the instructions in the `config.toml` file to configure `pexels_api_keys` and `llm_provider`, and according to
+  the llm_provider's service provider, set up the corresponding API Key
+- If it's a `Windows` system, `imagemagick_path` is your actual installation path (if you didn't change the path during
+  installation, just uncomment it)
 
 #### ③ Configure Large Language Models (LLM)
 
-- To use `GPT-4.0` or `GPT-3.5`, you need an `API Key` from `OpenAI`. If you don't have one, you can set `llm_provider` to `g4f` (a free-to-use GPT library https://github.com/xtekky/gpt4free)
-- Alternatively, you can apply at [Moonshot](https://platform.moonshot.cn/console/api-keys). Register to get 15 yuan of trial money, which allows for about 1500 conversations. Then set `llm_provider="moonshot"` and `moonshot_api_key`. Thanks to [@jerryblues](https://github.com/harry0703/MoneyPrinterTurbo/issues/8) for the suggestion
+- To use `GPT-4.0` or `GPT-3.5`, you need an `API Key` from `OpenAI`. If you don't have one, you can set `llm_provider`
+  to `g4f` (a free-to-use GPT library https://github.com/xtekky/gpt4free)
+- Alternatively, you can apply at [Moonshot](https://platform.moonshot.cn/console/api-keys). Register to get 15 yuan of
+  trial money, which allows for about 1500 conversations. Then set `llm_provider="moonshot"` and `moonshot_api_key`.
+  Thanks to [@jerryblues](https://github.com/harry0703/MoneyPrinterTurbo/issues/8) for the suggestion
 
 ### Launch the Web Interface 🌐
 
@@ -149,7 +167,8 @@ The effect is shown in the following image:
 python main.py
 ```
 
-After launching, you can view the `API documentation` at http://127.0.0.1:8080/docs and directly test the interface online for a quick experience.
+After launching, you can view the `API documentation` at http://127.0.0.1:8080/docs and directly test the interface
+online for a quick experience.
 
 The effect is shown in the following image:
 ![](docs/api.jpg)
@@ -162,23 +181,28 @@ A list of all supported voices can be viewed here: [Voice List](./docs/voice-lis
 
 Currently, there are 2 ways to generate subtitles:
 
-- edge: Faster generation speed, better performance, no specific requirements for computer configuration, but the quality may be unstable
-- whisper: Slower generation speed, poorer performance, specific requirements for computer configuration, but more reliable quality
+- edge: Faster generation speed, better performance, no specific requirements for computer configuration, but the
+  quality may be unstable
+- whisper: Slower generation speed, poorer performance, specific requirements for computer configuration, but more
+  reliable quality
 
 You can switch between them by modifying the `subtitle_provider` in the `config.toml` configuration file
 
-It is recommended to use `edge` mode, and switch to `whisper` mode if the quality of the subtitles generated is not satisfactory.
+It is recommended to use `edge` mode, and switch to `whisper` mode if the quality of the subtitles generated is not
+satisfactory.
 
 > If left blank, it means no subtitles will be generated.
 
 ## Background Music 🎵
 
 Background music for videos is located in the project's `resource/songs` directory.
-> The current project includes some default music from YouTube videos. If there are copyright issues, please delete them.
+> The current project includes some default music from YouTube videos. If there are copyright issues, please delete
+> them.
 
 ## Subtitle Fonts 🅰
 
-Fonts for rendering video subtitles are located in the project's `resource/fonts` directory, and you can also add your own fonts.
+Fonts for rendering video subtitles are located in the project's `resource/fonts` directory, and you can also add your
+own fonts.
 
 ## Common Questions 🤔
 
@@ -192,7 +216,8 @@ RuntimeError: No ffmpeg exe could be found.
 Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
 ```
 
-In this case, you can download ffmpeg from https://www.gyan.dev/ffmpeg/builds/, unzip it, and set `ffmpeg_path` to your actual installation path.
+In this case, you can download ffmpeg from https://www.gyan.dev/ffmpeg/builds/, unzip it, and set `ffmpeg_path` to your
+actual installation path.
 
 ```toml
 [app]
@@ -222,7 +247,8 @@ This is likely due to network issues preventing access to foreign services. Plea
 
 [issue 33](https://github.com/harry0703/MoneyPrinterTurbo/issues/33)
 
-1. Follow the `example configuration` provided `download address` to install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe, using the static library
+1. Follow the `example configuration` provided `download address` to
+   install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe, using the static library
 2. Do not install in a path with Chinese characters to avoid unpredictable issues
 
 [issue 54](https://github.com/harry0703/MoneyPrinterTurbo/issues/54#issuecomment-2017842022)
@@ -233,19 +259,13 @@ Thanks to [@wangwenqiao666](https://github.com/wangwenqiao666) for their researc
 
 ## Feedback & Suggestions 📢
 
-- You can submit an [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) or a [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls).
-- You can also follow my **TikTok** or **Video Account**: `Wang Xu Harry.AI`
-    - I will post some **usage tutorials** and **pure technical** shares there.
-    - If there are updates and optimizations, I will **notify promptly** there.
-    - You can also **leave messages** there, and I will **reply as soon as possible**.
-
-|                   TikTok                   |              |                     Video Account                     |
-|:-----------------------------------------:|:------------:|:----------------------------------------------------:|
-| <img src="docs/douyin.jpg" width="180"> |              | <img src="docs/shipinghao.jpg" width="200"> |
+- You can submit an [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) or
+  a [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls).
 
 ## Reference Projects 📚
 
-This project is based on https://github.com/FujiwaraChoki/MoneyPrinter and has been refactored with a lot of optimizations and added functionalities. Thanks to the original author for their spirit of open source.
+This project is based on https://github.com/FujiwaraChoki/MoneyPrinter and has been refactored with a lot of
+optimizations and added functionalities. Thanks to the original author for their spirit of open source.
 
 ## License 📝
 

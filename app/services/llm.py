@@ -2,7 +2,6 @@ import logging
 import re
 import json
 from typing import List
-import g4f
 from loguru import logger
 from openai import OpenAI
 from openai import AzureOpenAI
@@ -17,7 +16,7 @@ def _generate_response(prompt: str) -> str:
         model_name = config.app.get("g4f_model_name", "")
         if not model_name:
             model_name = "gpt-3.5-turbo-16k-0613"
-
+        import g4f
         content = g4f.ChatCompletion.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
@@ -43,6 +42,10 @@ def _generate_response(prompt: str) -> str:
             model_name = config.app.get("azure_model_name")
             base_url = config.app.get("azure_base_url", "")
             api_version = config.app.get("azure_api_version", "2024-02-15-preview")
+        elif llm_provider == "qwen":
+            api_key = config.app.get("qwen_api_key")
+            model_name = config.app.get("qwen_model_name")
+            base_url = "***"
         else:
             raise ValueError("llm_provider is not set, please set it in the config.toml file.")
 
@@ -52,6 +55,16 @@ def _generate_response(prompt: str) -> str:
             raise ValueError(f"{llm_provider}: model_name is not set, please set it in the config.toml file.")
         if not base_url:
             raise ValueError(f"{llm_provider}: base_url is not set, please set it in the config.toml file.")
+
+        if llm_provider == "qwen":
+            import dashscope
+            dashscope.api_key = api_key
+            response = dashscope.Generation.call(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            content = response["output"]["text"]
+            return content.replace("\n", "")
 
         if llm_provider == "azure":
             client = AzureOpenAI(
