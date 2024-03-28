@@ -10,6 +10,6 @@ streamlit~=1.32.0
 loguru~=0.7.2
 aiohttp~=3.9.3
 urllib3~=2.2.1
-pillow~=10.2.0
+pillow~=9.5.0
 pydantic~=2.6.3
 g4f~=0.2.5.4
