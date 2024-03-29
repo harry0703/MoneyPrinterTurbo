@@ -44,7 +44,7 @@ def get_application() -> FastAPI:
     # instance.mount("/", StaticFiles(directory=utils.public_dir(), html=True), name="")
 
     instance.include_router(root_api_router)
-    # instance.add_exception_handler(HttpException, exception_handler)
+    instance.add_exception_handler(HttpException, exception_handler)
     instance.add_exception_handler(RequestValidationError, validation_exception_handler)
     return instance
 
