@@ -19,7 +19,7 @@ def _parse_voice(name: str):
 
     parts = name.split("-")
     _lang = f"{parts[1]}-{parts[2]}"
-    _voice = f"{_lang}-{parts[3]}"
+    _voice = '-'.join(parts[1:])
 
     return _voice, _lang
 
