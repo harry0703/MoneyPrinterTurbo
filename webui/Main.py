@@ -326,7 +326,7 @@ with right_panel:
 
         subtitle_positions = [
             (tr("Top"), "top"),
-            (tr("Middle"), "center"),
+            (tr("Center"), "center"),
             (tr("Bottom"), "bottom"),
         ]
         selected_index = st.selectbox(tr("Position"),
