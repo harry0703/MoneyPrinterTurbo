@@ -41,8 +41,8 @@ def get_application() -> FastAPI:
         debug=False,
     )
 
-    instance.mount("/", StaticFiles(directory=utils.public_dir(), html=True), name="")
-    instance.mount("/videos", StaticFiles(directory=utils.videos_dir()), name="videos")
+    # instance.mount("/", StaticFiles(directory=utils.public_dir(), html=True), name="")
+    # instance.mount("/videos", StaticFiles(directory=utils.videos_dir()), name="videos")
 
     instance.include_router(root_api_router)
     instance.add_exception_handler(HttpException, exception_handler)
