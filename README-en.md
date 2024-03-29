@@ -1,6 +1,15 @@
-# MoneyPrinterTurbo 💸
+<div align="center">
+<h1 align="center">MoneyPrinterTurbo 💸</h1>
 
-[Chinese 简体中文](README.md)
+<p align="center">
+  <a href="https://github.com/harry0703/MoneyPrinterTurbo/stargazers"><img src="https://img.shields.io/github/stars/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Stargazers"></a>
+  <a href="https://github.com/harry0703/MoneyPrinterTurbo/issues"><img src="https://img.shields.io/github/issues/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Issues"></a>
+  <a href="https://github.com/harry0703/MoneyPrinterTurbo/network/members"><img src="https://img.shields.io/github/forks/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Forks"></a>
+  <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
+</p>
+
+English | [简体中文](README.md)
+
 
 > Thanks to [RootFTW](https://github.com/Root-FTW) for the translation
 
@@ -8,7 +17,8 @@
 Simply provide a **topic** or **keyword** for a video, and it will automatically generate the video copy, video
 materials, video subtitles, and video background music before synthesizing a high-definition short video.
 
-![](docs/webui.jpg)
+![](docs/webui-en.jpg)
+</div>
 
 ## Special Thanks 🙏
 
@@ -38,8 +48,8 @@ https://reccloud.com
   supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**
-- [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**, *
-  *qianwen**
+- [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**,
+  **qianwen**
   and more
 
 ### Future Plans 📅
@@ -86,11 +96,6 @@ pip install -r requirements.txt
 ```
 
 ## Quick Start 🚀
-
-### Video Tutorials
-
-- Complete usage demonstration: https://v.douyin.com/iFhnwsKY/
-- How to deploy on Windows: https://v.douyin.com/iFyjoW3M
 
 ### Prerequisites
 
@@ -159,7 +164,7 @@ sh webui.sh
 After launching, the browser will open automatically
 
 The effect is shown in the following image:
-![](docs/webui.jpg)
+![](docs/webui-en.jpg)
 
 ### Launch the API Service 🚀
 
