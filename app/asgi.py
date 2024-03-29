@@ -48,8 +48,9 @@ def get_application() -> FastAPI:
 app = get_application()
 public_dir = utils.public_dir()
 video_dir = utils.videos_dir()
-app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
+
 app.mount("/videos", StaticFiles(directory=video_dir), name="videos")
+app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
 
 
 @app.on_event("shutdown")
