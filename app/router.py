@@ -10,6 +10,6 @@ from fastapi import APIRouter
 
 from app.controllers.v1 import video
 
-root_api_router = APIRouter()
+root_api_router = APIRouter(prefix='/pages/')
 # v1
 root_api_router.include_router(video.router)
