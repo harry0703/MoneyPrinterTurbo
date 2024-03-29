@@ -102,17 +102,24 @@ def song_dir(sub_dir: str = ""):
         os.makedirs(d)
     return d
 
-
 def public_dir(sub_dir: str = ""):
-    d = resource_dir(f"public")
+    d = os.path.join(root_dir(), "public")
     if sub_dir:
         d = os.path.join(d, sub_dir)
     if not os.path.exists(d):
         os.makedirs(d)
     return d
 
-def videos_dir(sub_dir: str = ""):
-    d = resource_dir(f"videos")
+# def public_dir(sub_dir: str = ""):
+#     d = resource_dir(f"public")
+#     if sub_dir:
+#         d = os.path.join(d, sub_dir)
+#     if not os.path.exists(d):
+#         os.makedirs(d)
+#     return d
+
+def video_dir(sub_dir: str = ""):
+    d = os.path.join(root_dir(), "videos")
     if sub_dir:
         d = os.path.join(d, sub_dir)
     if not os.path.exists(d):

@@ -1,10 +1,11 @@
 """Application implementation - ASGI."""
 
+from os import path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
-# from fastapi.staticfiles import StaticFiles
+from fastapi.staticfiles import StaticFiles
 # from starlette.routing import Router
 from app.config import config
 from app.models.exception import HttpException
@@ -41,7 +42,6 @@ def get_application() -> FastAPI:
     )
 
     # instance.mount("/", StaticFiles(directory=utils.public_dir(), html=True), name="")
-    # instance.mount("/videos", StaticFiles(directory=utils.videos_dir()), name="videos")
 
     instance.include_router(root_api_router)
     instance.add_exception_handler(HttpException, exception_handler)
@@ -49,6 +49,8 @@ def get_application() -> FastAPI:
     return instance
 
 app = get_application()
+app.mount("/videos", StaticFiles(directory=utils.videos_dir()), name="videos")
+
 @app.on_event("shutdown")
 def shutdown_event():
     logger.info("shutdown event")
