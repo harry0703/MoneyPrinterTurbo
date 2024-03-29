@@ -51,7 +51,7 @@ def get_application() -> FastAPI:
 app = get_application()
 video_dir = utils.videos_dir()
 static_router = Router()
-static_router.mount("/videos", StaticFiles(directory=video_dir), name="videos")
+static_router.mount("/v", StaticFiles(directory=video_dir), name="videos")
 
 @app.on_event("shutdown")
 def shutdown_event():
