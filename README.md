@@ -190,10 +190,10 @@ python main.py
 ## 常见问题 🤔
 
 ### ❓AttributeError: 'str' object has no attribute 'choices'`
+
 这个问题是由于 OpenAI 或者其他 LLM，没有返回正确的回复导致的。
 
 大概率是网络原因， 使用 **VPN**，或者设置 `openai_base_url` 为你的代理 ，应该就可以解决了。
-
 
 ### ❓RuntimeError: No ffmpeg exe could be found
 
@@ -255,6 +255,44 @@ if you are in China, please use a VPN.
 
 感谢 [@chenhengzh](https://github.com/chenhengzh)的研究探索
 
+### ❓OSError: [Errno 24] Too many open files
+
+[issue 100](https://github.com/harry0703/MoneyPrinterTurbo/issues/100)
+
+这个问题是由于系统打开文件数限制导致的，可以通过修改系统的文件打开数限制来解决。
+
+查看当前限制
+
+```shell
+ulimit -n
+```
+
+如果过低，可以调高一些，比如
+
+```shell
+ulimit -n 10240
+```
+
+### ❓AttributeError: module 'PIL.Image' has no attribute 'ANTIALIAS'
+
+[issue 101](https://github.com/harry0703/MoneyPrinterTurbo/issues/101),
+[issue 83](https://github.com/harry0703/MoneyPrinterTurbo/issues/83),
+[issue 70](https://github.com/harry0703/MoneyPrinterTurbo/issues/70)
+
+先看下当前的 Pillow 版本是多少
+
+```shell
+pip list |grep Pillow
+```
+
+如果是 10.x 的版本，可以尝试下降级看看，有用户反馈降级后正常
+
+```shell
+pip uninstall Pillow
+pip install Pillow==9.5.0
+# 或者降级到 8.4.0
+pip install Pillow==8.4.0
+```
 
 ## 反馈建议 📢
 
