@@ -50,8 +50,7 @@ def get_application() -> FastAPI:
 
 app = get_application()
 sub_app = FastAPI()
-video_dir = utils.videos_dir()
-logger.info("video_dir:" + video_dir)
+video_dir = utils.video_dir()
 sub_app.mount("/videos", StaticFiles(directory=video_dir), name="videos")
 app.mount("/subapp", sub_app)
 
