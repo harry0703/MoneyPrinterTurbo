@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from fastapi.staticfiles import StaticFiles
 
+from starlette.routing import Router
 from app.config import config
 from app.models.exception import HttpException
 from app.router import root_api_router
@@ -40,8 +41,8 @@ def get_application() -> FastAPI:
         debug=False,
     )
 
-
-    instance.mount("/videos", StaticFiles(directory=video_dir), name="videos")
+    instance.mount("/", StaticFiles(directory=utils.public_dir(), html=True), name="")
+    instance.mount("/videos", StaticFiles(directory=utils.videos_dir()), name="videos")
 
     instance.include_router(root_api_router)
     instance.add_exception_handler(HttpException, exception_handler)
@@ -50,12 +51,6 @@ def get_application() -> FastAPI:
 
 
 app = get_application()
-public_dir = utils.public_dir()
-video_dir = utils.videos_dir()
-
-app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
-
-
 @app.on_event("shutdown")
 def shutdown_event():
     logger.info("shutdown event")
