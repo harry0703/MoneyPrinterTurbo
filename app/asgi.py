@@ -4,9 +4,8 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
-from fastapi.staticfiles import StaticFiles
-
-from starlette.routing import Router
+# from fastapi.staticfiles import StaticFiles
+# from starlette.routing import Router
 from app.config import config
 from app.models.exception import HttpException
 from app.router import root_api_router
@@ -48,7 +47,6 @@ def get_application() -> FastAPI:
     instance.add_exception_handler(HttpException, exception_handler)
     instance.add_exception_handler(RequestValidationError, validation_exception_handler)
     return instance
-
 
 app = get_application()
 @app.on_event("shutdown")
