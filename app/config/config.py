@@ -5,6 +5,13 @@ from loguru import logger
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 config_file = f"{root_dir}/config.toml"
+if not os.path.isfile(config_file):
+    example_file = f"{root_dir}/config.example.toml"
+    if os.path.isfile(example_file):
+        import shutil
+        shutil.copyfile(example_file, config_file)
+        logger.info(f"copy config.example.toml to config.toml")
+
 logger.info(f"load config from file: {config_file}")
 
 with open(config_file, mode="rb") as fp:

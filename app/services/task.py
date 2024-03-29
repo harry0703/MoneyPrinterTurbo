@@ -6,7 +6,7 @@ from os import path
 from loguru import logger
 
 from app.config import config
-from app.models.schema import VideoParams, VoiceNames, VideoConcatMode
+from app.models.schema import VideoParams, VideoConcatMode
 from app.services import llm, material, voice, video, subtitle
 from app.utils import utils
 
@@ -40,7 +40,7 @@ def start(task_id, params: VideoParams):
     """
     logger.info(f"start task: {task_id}")
     video_subject = params.video_subject
-    voice_name, language = _parse_voice(params.voice_name)
+    voice_name = voice.parse_voice_name(params.voice_name)
     paragraph_number = params.paragraph_number
     n_threads = params.n_threads
     max_clip_duration = params.video_clip_duration
