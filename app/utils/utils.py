@@ -111,6 +111,14 @@ def public_dir(sub_dir: str = ""):
         os.makedirs(d)
     return d
 
+def videos_dir(sub_dir: str = ""):
+    d = resource_dir(f"videos")
+    if sub_dir:
+        d = os.path.join(d, sub_dir)
+    if not os.path.exists(d):
+        os.makedirs(d)
+    return d
+
 
 def run_in_background(func, *args, **kwargs):
     def run():
