@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="MoneyPrinterTurbo", page_icon="🤖", layout="wide",
+st.set_page_config(page_title="Text to Video", page_icon="🤖", layout="wide",
                    initial_sidebar_state="auto")
 import sys
 import os
@@ -16,7 +16,7 @@ hide_streamlit_style = """
 <style>#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}</style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-st.title("MoneyPrinterTurbo")
+st.title("Text to Video")
 
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 font_dir = os.path.join(root_dir, "resource", "fonts")
