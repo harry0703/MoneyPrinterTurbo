@@ -7,4 +7,4 @@ router = APIRouter()
 async def static_files(
     rest_of_path: str,
 ):
-    return FileResponse(f"app/video/{rest_of_path}")
+    return FileResponse(f"/videos/{rest_of_path}")
