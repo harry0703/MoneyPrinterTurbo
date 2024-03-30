@@ -4,7 +4,7 @@
     "Video Script Settings": "**Video Einstellungen**",
     "Video Subject": "Worum soll es in dem Video gehen? (Geben Sie ein Keyword an, :red[Dank KI wird automatisch ein Drehbuch generieren])",
     "Script Language": "Sprache zum Generieren von Drehbüchern (KI gibt automatisch basierend auf der Sprache Ihres Keywords aus)",
-    "Generate Video Script and Keywords": "Klicken Sie hier, um mithilfe von KI ein „Drehbuch“ und „Video-Keywords“ basierend auf dem **Keyword** zu generieren.",
+    "Generate Video Script and Keywords": "Klicken Sie hier, um mithilfe von KI ein 【Video Drehbuch】 und 【Video Keywords】 basierend auf dem **Keyword** zu generieren.",
     "Auto Detect": "Automatisch erkennen",
     "Video Script": "Drehbuch (:blue[① Optional, AI generated  ② Proper punctuation helps with subtitle generation])",
     "Generate Video Keywords": "Klicken Sie, um KI zum Generieren zu verwenden 【Video Keywords】basierend auf dem **Drehbuch**",
