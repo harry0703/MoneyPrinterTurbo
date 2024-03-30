@@ -1,4 +1,5 @@
 import asyncio
+import re
 from xml.sax.saxutils import unescape
 from edge_tts.submaker import mktimestamp
 from loguru import logger
@@ -987,6 +988,7 @@ def parse_voice_name(name: str):
 
 
 def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
+    text = text.strip()
     logger.info(f"start, voice name: {voice_name}")
     try:
         async def _do() -> SubMaker:
@@ -1015,6 +1017,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     2. 逐行匹配字幕文件中的文本
     3. 生成新的字幕文件
     """
+    text = text.strip()
 
     def formatter(idx: int, start_time: float, end_time: float, sub_text: str) -> str:
         """
@@ -1035,8 +1038,26 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     sub_index = 0
 
     script_lines = utils.split_string_by_punctuations(text)
-    # remove space in every word
-    script_lines_without_space = [line.replace(" ", "") for line in script_lines]
+
+    def match_line(_sub_line: str, _sub_index: int):
+        if len(script_lines) <= _sub_index:
+            return ""
+
+        _line = script_lines[_sub_index]
+        if _sub_line == _line:
+            return script_lines[_sub_index]
+
+        _sub_line_ = re.sub(r"[^\w\s]", "", _sub_line)
+        _line_ = re.sub(r"[^\w\s]", "", _line)
+        if _sub_line_ == _line_:
+            return _line_
+
+        _sub_line_ = re.sub(r"\W+", "", _sub_line)
+        _line_ = re.sub(r"\W+", "", _line)
+        if _sub_line_ == _line_:
+            return _line
+
+        return ""
 
     sub_line = ""
 
@@ -1048,8 +1069,8 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
 
             sub = unescape(sub)
             sub_line += sub
-            if sub_line == script_lines[sub_index] or sub_line == script_lines_without_space[sub_index]:
-                sub_text = script_lines[sub_index]
+            sub_text = match_line(sub_line, sub_index)
+            if sub_text:
                 sub_index += 1
                 line = formatter(
                     idx=sub_index,
@@ -1057,13 +1078,15 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
                     end_time=end_time,
                     sub_text=sub_text,
                 )
-                # logger.debug(line.strip())
                 sub_items.append(line)
                 start_time = -1.0
                 sub_line = ""
 
-        with open(subtitle_file, "w", encoding="utf-8") as file:
-            file.write("\n".join(sub_items) + "\n")
+        if len(sub_items) == len(script_lines):
+            with open(subtitle_file, "w", encoding="utf-8") as file:
+                file.write("\n".join(sub_items) + "\n")
+        else:
+            logger.warning(f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}")
 
     except Exception as e:
         logger.error(f"failed, error: {str(e)}")
@@ -1096,10 +1119,18 @@ if __name__ == "__main__":
             "zh-CN-YunxiNeural",
         ]
         text = """
-        预计未来3天深圳冷空气活动频繁，未来两天持续阴天有小雨，出门带好雨具；
-        10-11日持续阴天有小雨，日温差小，气温在13-17℃之间，体感阴凉；
-        12日天气短暂好转，早晚清凉；
+        静夜思是唐代诗人李白创作的一首五言古诗。这首诗描绘了诗人在寂静的夜晚，看到窗前的明月，不禁想起远方的家乡和亲人，表达了他对家乡和亲人的深深思念之情。全诗内容是：“床前明月光，疑是地上霜。举头望明月，低头思故乡。”在这短短的四句诗中，诗人通过“明月”和“思故乡”的意象，巧妙地表达了离乡背井人的孤独与哀愁。首句“床前明月光”设景立意，通过明亮的月光引出诗人的遐想；“疑是地上霜”增添了夜晚的寒冷感，加深了诗人的孤寂之情；“举头望明月”和“低头思故乡”则是情感的升华，展现了诗人内心深处的乡愁和对家的渴望。这首诗简洁明快，情感真挚，是中国古典诗歌中非常著名的一首，也深受后人喜爱和推崇。
             """
+
+        text = """
+        What is the meaning of life? This question has puzzled philosophers, scientists, and thinkers of all kinds for centuries. Throughout history, various cultures and individuals have come up with their interpretations and beliefs around the purpose of life. Some say it's to seek happiness and self-fulfillment, while others believe it's about contributing to the welfare of others and making a positive impact in the world. Despite the myriad of perspectives, one thing remains clear: the meaning of life is a deeply personal concept that varies from one person to another. It's an existential inquiry that encourages us to reflect on our values, desires, and the essence of our existence.
+        """
+
+        text = """
+               预计未来3天深圳冷空气活动频繁，未来两天持续阴天有小雨，出门带好雨具；
+               10-11日持续阴天有小雨，日温差小，气温在13-17℃之间，体感阴凉；
+               12日天气短暂好转，早晚清凉；
+                   """
 
         for voice_name in voice_names:
             voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
