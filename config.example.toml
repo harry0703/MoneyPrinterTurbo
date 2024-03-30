@@ -19,9 +19,11 @@
     llm_provider="openai"
 
     ########## OpenAI API Key
-    # Visit https://openai.com/api/ for details on obtaining an API key.
+    # Get your API key at https://platform.openai.com/api-keys
     openai_api_key = ""
-    openai_base_url = "" # no need to set it unless you want to use your own proxy
+    # No need to set it unless you want to use your own proxy
+    openai_base_url = ""
+    # Check your available models at https://platform.openai.com/account/limits
     openai_model_name = "gpt-4-turbo-preview"
 
     ########## Moonshot API Key
