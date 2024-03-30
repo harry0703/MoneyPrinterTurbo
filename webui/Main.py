@@ -204,7 +204,7 @@ with left_panel:
         video_languages = [
             (tr("Auto Detect"), ""),
         ]
-        for code in ["zh-CN", "zh-TW", "en-US"]:
+        for code in ["zh-CN", "zh-TW", "de-DE", "en-US"]:
             video_languages.append((code, code))
 
         selected_index = st.selectbox(tr("Script Language"),
@@ -269,7 +269,7 @@ with middle_panel:
                                           index=0)
     with st.container(border=True):
         st.write(tr("Audio Settings"))
-        voices = voice.get_all_voices(filter_locals=["zh-CN", "zh-HK", "zh-TW", "en-US"])
+        voices = voice.get_all_voices(filter_locals=["zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US"])
         friendly_names = {
             voice: voice.
             replace("Female", tr("Female")).
@@ -326,7 +326,7 @@ with right_panel:
 
         subtitle_positions = [
             (tr("Top"), "top"),
-            (tr("Middle"), "center"),
+            (tr("Center"), "center"),
             (tr("Bottom"), "bottom"),
         ]
         selected_index = st.selectbox(tr("Position"),
