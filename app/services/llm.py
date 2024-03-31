@@ -45,7 +45,7 @@ def _generate_response(prompt: str) -> str:
         elif llm_provider == "gemini":
             api_key = config.app.get("gemini_api_key")
             model_name = config.app.get("gemini_model_name")
-            base_url = ""
+            base_url = "***"
         elif llm_provider == "qwen":
             api_key = config.app.get("qwen_api_key")
             model_name = config.app.get("qwen_model_name")
