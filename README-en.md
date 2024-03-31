@@ -49,8 +49,7 @@ https://reccloud.com
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**
 - [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**,
-  **qianwen**
-  and more
+  **qianwen**, **Google Gemini** and more
 
 ### Future Plans 📅
 
