@@ -16,6 +16,7 @@
     #   g4f
     #   azure
     #   qwen (通义千问)
+    #   gemini
     llm_provider="openai"
 
     ########## OpenAI API Key
