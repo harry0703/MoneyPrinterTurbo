@@ -5,8 +5,8 @@ from typing import List
 from loguru import logger
 from openai import OpenAI
 from openai import AzureOpenAI
+import google.generativeai as genai
 from app.config import config
-
 
 def _generate_response(prompt: str) -> str:
     content = ""
@@ -42,6 +42,10 @@ def _generate_response(prompt: str) -> str:
             model_name = config.app.get("azure_model_name")
             base_url = config.app.get("azure_base_url", "")
             api_version = config.app.get("azure_api_version", "2024-02-15-preview")
+        elif llm_provider == "gemini":
+            api_key = config.app.get("gemini_api_key")
+            model_name = config.app.get("gemini_model_name")
+            base_url = "***"
         elif llm_provider == "qwen":
             api_key = config.app.get("qwen_api_key")
             model_name = config.app.get("qwen_model_name")
@@ -65,6 +69,44 @@ def _generate_response(prompt: str) -> str:
             )
             content = response["output"]["text"]
             return content.replace("\n", "")
+
+        if llm_provider == "gemini":
+            genai.configure(api_key=api_key)
+
+            generation_config = {
+            "temperature": 0.5,
+            "top_p": 1,
+            "top_k": 1,
+            "max_output_tokens": 2048,
+            }
+
+            safety_settings = [
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_ONLY_HIGH"
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_ONLY_HIGH"
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_ONLY_HIGH"
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_ONLY_HIGH"
+            },
+            ]
+
+            model = genai.GenerativeModel(model_name=model_name,
+                                        generation_config=generation_config,
+                                        safety_settings=safety_settings)
+
+            convo = model.start_chat(history=[])
+
+            convo.send_message(prompt)
+            return convo.last.text
 
         if llm_provider == "azure":
             client = AzureOpenAI(
