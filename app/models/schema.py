@@ -136,7 +136,6 @@ class TaskQueryRequest(BaseModel):
 class TaskResponse(BaseResponse):
     class TaskResponseData(BaseModel):
         task_id: str
-        task_type: str = ""
 
     data: TaskResponseData
 

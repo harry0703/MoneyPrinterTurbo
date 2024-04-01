@@ -97,6 +97,20 @@
     # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
     #########################################################################################
 
+    # 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口
+    # 比如 http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+    # 如果你需要使用域名对外提供服务（一般会用nginx做代理），则可以设置为你的域名
+    # 比如 https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+    # endpoint="https://xxxx.com"
+
+    # When the video is successfully generated, the API service provides a download endpoint for the video, defaulting to the service's current address and listening port.
+    # For example, http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+    # If you need to provide the service externally using a domain name (usually done with nginx as a proxy), you can set it to your domain name.
+    # For example, https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+    # endpoint="https://xxxx.com"
+    endpoint=""
+
+
 [whisper]
     # Only effective when subtitle_provider is "whisper"
 

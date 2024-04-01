@@ -46,6 +46,10 @@ def get_application() -> FastAPI:
 
 
 app = get_application()
+
+task_dir = utils.task_dir()
+app.mount("/tasks", StaticFiles(directory=task_dir, html=True, follow_symlink=True), name="")
+
 public_dir = utils.public_dir()
 app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
 
