@@ -8,7 +8,7 @@
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
 </p>
 
-<h3>English | [简体中文](README.md)</h3>
+<h3>English | <a href="README.md">简体中文</a></h3>
 
 
 > Thanks to [RootFTW](https://github.com/Root-FTW) for the translation
