@@ -8,7 +8,7 @@
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
 </p>
 
-[English](README-en.md) | 简体中文
+<h3>[English](README-en.md)  | 简体中文</h3>
 
 只需提供一个视频 **主题** 或 **关键词** ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
 
@@ -29,7 +29,7 @@
 
 ## 功能特性 🎯
 
-- [x] 完整的 **MVC架构**，代码 **结构清晰**，易于维护，支持API和Web界面
+- [x] 完整的 **MVC架构**，代码 **结构清晰**，易于维护，支持 `API` 和 `Web界面`
 - [x] 支持视频文案 **AI自动生成**，也可以**自定义文案**
 - [x] 支持多种 **高清视频** 尺寸
     - [x] 竖屏 9:16，`1080x1920`
@@ -188,7 +188,7 @@ sh webui.sh
 python main.py
 ```
 
-启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 直接在线调试接口，快速体验。
+启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc 直接在线调试接口，快速体验。
 
 效果如下图：
 ![](docs/api.jpg)

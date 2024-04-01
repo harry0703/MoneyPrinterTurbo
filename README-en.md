@@ -8,7 +8,7 @@
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
 </p>
 
-English | [简体中文](README.md)
+<h3>English | [简体中文](README.md)</h3>
 
 
 > Thanks to [RootFTW](https://github.com/Root-FTW) for the translation
@@ -34,7 +34,8 @@ https://reccloud.com
 
 ## Features 🎯
 
-- [x] Complete **MVC architecture**, **clearly structured** code, easy to maintain, supports both API and Web interface
+- [x] Complete **MVC architecture**, **clearly structured** code, easy to maintain, supports both `API`
+  and `Web interface`
 - [x] Supports **AI-generated** video copy, as well as **customized copy**
 - [x] Supports various **high-definition video** sizes
     - [x] Portrait 9:16, `1080x1920`
