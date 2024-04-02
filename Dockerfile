@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
     imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
+# Fix security policy for ImageMagick
+RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
+
 # Copy the current directory contents into the container at /usr/src/app
 COPY . .
 
