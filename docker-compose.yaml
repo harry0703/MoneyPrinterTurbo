@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  base:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    image: moneyprinterturbo-base:latest
+
+  app:
+    build:
+      context: .
+      dockerfile: ./app/Dockerfile
+    volumes:
+      - ./config.toml:/app/config.toml  # Update this path
+    ports:
+      - "8080:8080"
+    networks:
+      - moneyprinternet
+
+  webui:
+    build:
+      context: .
+      dockerfile: ./webui/Dockerfile
+    volumes:
+      - ./config.toml:/app/config.toml  # Update this path
+    ports:
+      - "8008:8008"
+    networks:
+      - moneyprinternet
+    depends_on:
+      - app
+
+networks:
+  moneyprinternet:
+    driver: bridge
