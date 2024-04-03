@@ -7,12 +7,18 @@
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/network/members"><img src="https://img.shields.io/github/forks/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Forks"></a>
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
 </p>
-
+<br>
 <h3><a href="README-en.md">English</a>  | 简体中文</h3>
-
+<br>
 只需提供一个视频 **主题** 或 **关键词** ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
 
+> Web界面
+
 ![](docs/webui.jpg)
+
+> API文档
+
+![](docs/api.jpg)
 
 </div>
 
@@ -51,7 +57,6 @@
 - [ ] 增加更多视频素材来源，优化视频素材和文案的匹配度
 - [ ] OLLAMA 支持
 - [ ] 增加视频长度选项：短、中、长
-- [ ] 制作Docker镜像，方便部署
 - [ ] 打包成一键启动包（Windows，macOS），方便使用
 - [ ] 增加免费网络代理，让访问OpenAI和素材下载不再受限
 - [ ] 可以使用自己的素材
@@ -97,51 +102,15 @@
 
 ## 安装部署 📥
 
-建议使用 [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html) 创建 python 虚拟环境
-
-```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
-cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.10
-conda activate MoneyPrinterTurbo
-pip install -r requirements.txt
-```
-
-## 快速使用 🚀
-
-### 视频教程
-
-- 完整的使用演示：https://v.douyin.com/iFhnwsKY/
-- 如何在Windows上部署：https://v.douyin.com/iFyjoW3M
-
-### 前提
+> 前提
 
 - 尽量不要使用 **中文路径**，避免出现一些无法预料的问题
 - 请确保你的 **网络** 是正常的，即可以正常访问境外网站
 
-#### ① 安装好 ImageMagick
-
-##### Windows:
-
-- 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
-- 安装下载好的 ImageMagick，注意不要修改安装路径
-
-##### MacOS:
+#### ① 克隆代码
 
 ```shell
-brew install imagemagick
-````
-
-##### Ubuntu
-
-```shell
-sudo apt-get install imagemagick
-```
-
-##### CentOS
-
-```shell
-sudo yum install ImageMagick
+git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 ```
 
 #### ② 修改配置文件
@@ -159,39 +128,99 @@ sudo yum install ImageMagick
   15元体验金，可以对话1500次左右。然后设置 `llm_provider="moonshot"` 和 `moonshot_api_key`
   。感谢 [@jerryblues](https://github.com/harry0703/MoneyPrinterTurbo/issues/8) 的建议
 
-### 启动Web界面 🌐
+### Docker部署 🚀
+
+#### ① 启动Docker
+
+如果未安装 Docker，请先安装 https://www.docker.com/products/docker-desktop/
+
+如果是Windows系统，参考文档：
+1. https://learn.microsoft.com/zh-cn/windows/wsl/install
+2. https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers
+
+```shell
+cd MoneyPrinterTurbo
+docker-compose up
+```
+
+#### ② 访问Web界面
+
+打开浏览器，访问 http://0.0.0.0:8501
+
+#### ③ 访问API文档
+
+打开浏览器，访问 http://0.0.0.0:8080/docs 或者 http://0.0.0.0:8080/redoc
+
+### 手动部署 🚀
+
+> 视频教程
+
+- 完整的使用演示：https://v.douyin.com/iFhnwsKY/
+- 如何在Windows上部署：https://v.douyin.com/iFyjoW3M
+
+#### ① 创建虚拟环境
+
+建议使用 [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html) 创建 python 虚拟环境
+
+```shell
+git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+cd MoneyPrinterTurbo
+conda create -n MoneyPrinterTurbo python=3.10
+conda activate MoneyPrinterTurbo
+pip install -r requirements.txt
+```
+
+#### ② 安装好 ImageMagick
+
+###### Windows:
+
+- 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
+- 安装下载好的 ImageMagick，注意不要修改安装路径
+
+###### MacOS:
+
+```shell
+brew install imagemagick
+````
+
+###### Ubuntu
+
+```shell
+sudo apt-get install imagemagick
+```
+
+###### CentOS
+
+```shell
+sudo yum install ImageMagick
+```
+
+#### ③ 启动Web界面 🌐
 
 注意需要到 MoneyPrinterTurbo 项目 `根目录` 下执行以下命令
 
-#### Windows
+###### Windows
 
 ```bat
 conda activate MoneyPrinterTurbo
 webui.bat
 ```
 
-#### MacOS or Linux
+###### MacOS or Linux
 
 ```shell
 conda activate MoneyPrinterTurbo
 sh webui.sh
 ```
-
 启动后，会自动打开浏览器
 
-效果如下图：
-![](docs/webui.jpg)
-
-### 启动API服务 🚀
+#### ④ 启动API服务 🚀
 
 ```shell
 python main.py
 ```
 
 启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc 直接在线调试接口，快速体验。
-
-效果如下图：
-![](docs/api.jpg)
 
 ## 语音合成 🗣
 
