@@ -223,7 +223,7 @@ def generate_video(video_path: str,
 
     temp_output_file = f"{output_file}.temp.mp4"
     logger.info(f"writing to temp file: {temp_output_file}")
-    result.write_videofile(temp_output_file, threads=params.n_threads or 2)
+    result.write_videofile(temp_output_file, threads=params.n_threads or 2, logger=None)
 
     video_clip = VideoFileClip(temp_output_file)
 
@@ -243,7 +243,7 @@ def generate_video(video_path: str,
         video_clip = video_clip.set_duration(original_duration)
 
     logger.info(f"encoding audio codec to aac")
-    video_clip.write_videofile(output_file, audio_codec="aac", threads=params.n_threads or 2)
+    video_clip.write_videofile(output_file, audio_codec="aac", threads=params.n_threads or 2, logger=None)
 
     os.remove(temp_output_file)
     logger.success(f"completed")
