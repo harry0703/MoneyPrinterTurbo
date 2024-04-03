@@ -10,13 +10,14 @@
 <br>
 <h3><a href="README-en.md">English</a>  | 简体中文</h3>
 <br>
-只需提供一个视频 **主题** 或 **关键词** ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
+只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
+<br>
 
-> Web界面
+<h4>Web界面</h4>
 
 ![](docs/webui.jpg)
 
-> API文档
+<h4>API界面</h4>
 
 ![](docs/api.jpg)
 
@@ -102,10 +103,8 @@
 
 ## 安装部署 📥
 
-> 前提
-
 - 尽量不要使用 **中文路径**，避免出现一些无法预料的问题
-- 请确保你的 **网络** 是正常的，即可以正常访问境外网站
+- 请确保你的 **网络** 是正常的，VPN需要打开`全局流量`模式
 
 #### ① 克隆代码
 
@@ -118,15 +117,14 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 - 将 `config.example.toml` 文件复制一份，命名为 `config.toml`
 - 按照 `config.toml` 文件中的说明，配置好 `pexels_api_keys` 和 `llm_provider`，并根据 llm_provider 对应的服务商，配置相关的
   API Key
-- 如果是`Windows`系统，`imagemagick_path` 为你的实际安装路径（如果安装的时候没有修改路径，直接取消注释即可）
 
 #### ③ 配置大模型(LLM)
 
 - 如果要使用 `GPT-4.0` 或 `GPT-3.5`，需要有 `OpenAI` 的 `API Key`，如果没有，可以将 `llm_provider` 设置为 `g4f` (
-  一个免费使用GPT的开源库 https://github.com/xtekky/gpt4free)
+  一个免费使用GPT的开源库 https://github.com/xtekky/gpt4free ，但是该免费的服务，稳定性较差，有时候可以用，有时候用不了)
 - 或者可以使用到 [月之暗面](https://platform.moonshot.cn/console/api-keys) 申请。注册就送
   15元体验金，可以对话1500次左右。然后设置 `llm_provider="moonshot"` 和 `moonshot_api_key`
-  。感谢 [@jerryblues](https://github.com/harry0703/MoneyPrinterTurbo/issues/8) 的建议
+- 也可以使用 通义千问，具体请看配置文件里面的注释说明
 
 ### Docker部署 🚀
 
@@ -134,7 +132,7 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 
 如果未安装 Docker，请先安装 https://www.docker.com/products/docker-desktop/
 
-如果是Windows系统，参考文档：
+如果是Windows系统，请参考微软的文档：
 1. https://learn.microsoft.com/zh-cn/windows/wsl/install
 2. https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers
 
@@ -176,6 +174,7 @@ pip install -r requirements.txt
 
 - 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
 - 安装下载好的 ImageMagick，注意不要修改安装路径
+- 修改 `配置文件 config.toml` 中的 `imagemagick_path` 为你的实际安装路径（如果安装的时候没有修改路径，直接取消注释即可）
 
 ###### MacOS:
 
@@ -231,13 +230,15 @@ python main.py
 当前支持2种字幕生成方式：
 
 - edge: 生成速度更快，性能更好，对电脑配置没有要求，但是质量可能不稳定
-- whisper: 生成速度较慢，性能较差，对电脑配置有一定要求，但是质量更可靠
+- whisper: 生成速度较慢，性能较差，对电脑配置有一定要求，但是质量更可靠。
 
 可以修改 `config.toml` 配置文件中的 `subtitle_provider` 进行切换
 
 建议使用 `edge` 模式，如果生成的字幕质量不好，再切换到 `whisper` 模式
 
-> 如果留空，表示不生成字幕。
+> 注意：
+1. whisper 模式下需要到 HuggingFace 下载一个模型文件，大约 3GB 左右，请确保网络通畅
+2. 如果留空，表示不生成字幕。
 
 ## 背景音乐 🎵
 
