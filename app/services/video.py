@@ -64,24 +64,34 @@ def combine_videos(combined_video_path: str,
             clip = clip.set_fps(30)
 
             # Not all videos are same size, so we need to resize them
-            # logger.info(f"{video_path}: size is {clip.w} x {clip.h}, expected {video_width} x {video_height}")
-            if clip.w != video_width or clip.h != video_height:
-                if round((clip.w / clip.h), 4) < 0.5625:
-                    clip = crop(clip,
-                                width=clip.w,
-                                height=round(clip.w / 0.5625),
-                                x_center=clip.w / 2,
-                                y_center=clip.h / 2
-                                )
+            clip_w, clip_h = clip.size
+            if clip_w != video_width or clip_h != video_height:
+                clip_ratio = clip.w / clip.h
+                video_ratio = video_width / video_height
+
+                if clip_ratio == video_ratio:
+                    # 等比例缩放
+                    clip = clip.resize((video_width, video_height))
                 else:
-                    clip = crop(clip,
-                                width=round(0.5625 * clip.h),
-                                height=clip.h,
-                                x_center=clip.w / 2,
-                                y_center=clip.h / 2
-                                )
-                logger.info(f"resizing video to {video_width} x {video_height}, clip size: {clip.w} x {clip.h}")
-                clip = clip.resize((video_width, video_height))
+                    # 等比缩放视频
+                    if clip_ratio > video_ratio:
+                        # 按照目标宽度等比缩放
+                        scale_factor = video_width / clip_w
+                    else:
+                        # 按照目标高度等比缩放
+                        scale_factor = video_height / clip_h
+
+                    new_width = int(clip_w * scale_factor)
+                    new_height = int(clip_h * scale_factor)
+                    clip_resized = clip.resize(newsize=(new_width, new_height))
+
+                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0))
+                    clip = CompositeVideoClip([
+                        background.set_duration(clip.duration),
+                        clip_resized.set_position("center")
+                    ])
+
+                logger.info(f"resizing video to {video_width} x {video_height}, clip size: {clip_w} x {clip_h}")
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclip(0, max_clip_duration)
@@ -263,6 +273,20 @@ if __name__ == "__main__":
     audio_file = f"{task_dir}/audio.mp3"
     subtitle_file = f"{task_dir}/subtitle.srt"
     output_file = f"{task_dir}/final.mp4"
+
+    video_paths = []
+    for file in os.listdir(utils.storage_dir("test")):
+        if file.endswith(".mp4"):
+            video_paths.append(os.path.join(task_dir, file))
+
+    combine_videos(combined_video_path=video_file,
+                   audio_file=audio_file,
+                   video_paths=video_paths,
+                   video_aspect=VideoAspect.portrait,
+                   video_concat_mode=VideoConcatMode.random,
+                   max_clip_duration=5,
+                   threads=2)
+
     cfg = VideoParams()
     cfg.video_aspect = VideoAspect.portrait
     cfg.font_name = "STHeitiMedium.ttc"
