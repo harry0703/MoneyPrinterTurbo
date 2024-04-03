@@ -80,7 +80,7 @@ def combine_videos(combined_video_path: str,
                                 x_center=clip.w / 2,
                                 y_center=clip.h / 2
                                 )
-                logger.info(f"resizing video to {video_width} x {video_height}")
+                logger.info(f"resizing video to {video_width} x {video_height}, clip size: {clip.w} x {clip.h}")
                 clip = clip.resize((video_width, video_height))
 
             if clip.duration > max_clip_duration:
