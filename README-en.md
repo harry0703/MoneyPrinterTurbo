@@ -186,6 +186,14 @@ The effect is shown in the following image:
 python main.py
 ```
 
+### Use Docker Compose to launch both Web Interface and API Service
+
+```shell
+docker-compose up
+```
+
+> To stop and remove the containers, networks, and volumes created by up, you can run: `docker-compose down`
+
 After launching, you can view the `API documentation` at http://127.0.0.1:8080/docs and directly test the interface
 online for a quick experience.
 

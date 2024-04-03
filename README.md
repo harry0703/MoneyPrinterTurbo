@@ -193,6 +193,14 @@ python main.py
 效果如下图：
 ![](docs/api.jpg)
 
+### 使用Docker Compose同时启动Web界面和API服务
+
+```shell
+docker-compose up
+```
+
+> 要停止并删除 up 创建的容器、网络和卷，您可以运行：`docker-compose down`
+
 ## 语音合成 🗣
 
 所有支持的声音列表，可以查看：[声音列表](./docs/voice-list.txt)
