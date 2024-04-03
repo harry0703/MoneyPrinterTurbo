@@ -8,7 +8,7 @@
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
 </p>
 <br>
-<h3><a href="README-en.md">English</a>  | 简体中文</h3>
+<h3>简体中文 | <a href="README-en.md">English</a></h3>
 <br>
 只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
 <br>
@@ -126,7 +126,7 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
   15元体验金，可以对话1500次左右。然后设置 `llm_provider="moonshot"` 和 `moonshot_api_key`
 - 也可以使用 通义千问，具体请看配置文件里面的注释说明
 
-### Docker部署 🚀
+### Docker部署 🐳
 
 #### ① 启动Docker
 
@@ -149,7 +149,7 @@ docker-compose up
 
 打开浏览器，访问 http://0.0.0.0:8080/docs 或者 http://0.0.0.0:8080/redoc
 
-### 手动部署 🚀
+### 手动部署 📦
 
 > 视频教程
 
