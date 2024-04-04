@@ -63,7 +63,8 @@ def start(task_id, params: VideoParams):
     script_file = path.join(utils.task_dir(task_id), f"script.json")
     script_data = {
         "script": video_script,
-        "search_terms": video_terms
+        "search_terms": video_terms,
+        "params": params,
     }
 
     with open(script_file, "w", encoding="utf-8") as f:
