@@ -322,3 +322,7 @@ optimizations and added functionalities. Thanks to the original author for their
 ## License 📝
 
 Click to view the [`LICENSE`](LICENSE) file
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date)
