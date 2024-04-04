@@ -196,6 +196,9 @@ class TaskQueryResponse(BaseResponse):
                     "progress": 100,
                     "videos": [
                         "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/final-1.mp4"
+                    ],
+                    "combined_videos": [
+                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/combined-1.mp4"
                     ]
                 }
             },
@@ -222,7 +225,39 @@ class VideoTermsResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "video_terms": []
+                    "video_terms": ["sky", "tree"]
+                }
+            },
+        }
+
+
+class BgmListResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "bgm_list": [
+                        {
+                            "filename": "output000.mp3",
+                            "size": 2249517,
+                            "filepath": "C:\\Users\\cathy\\Desktop\\MoneyPrinterTurbo\\resource\\songs\\output000.mp3"
+                        }
+                    ]
+                }
+            },
+        }
+
+
+class BgmUploadResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "uploaded_path": "/root/home/MoneyPrinterTurbo/resource/songs/example.mp3"
                 }
             },
         }
