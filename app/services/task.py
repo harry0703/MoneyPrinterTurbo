@@ -127,6 +127,7 @@ def start(task_id, params: VideoParams):
     sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
     final_video_paths = []
+    combined_video_paths = []
     video_concat_mode = params.video_concat_mode
     if params.video_count > 1:
         video_concat_mode = VideoConcatMode.random
@@ -162,11 +163,13 @@ def start(task_id, params: VideoParams):
         sm.update_task(task_id, progress=_progress)
 
         final_video_paths.append(final_video_path)
+        combined_video_paths.append(combined_video_path)
 
     logger.success(f"task {task_id} finished, generated {len(final_video_paths)} videos.")
 
     kwargs = {
         "videos": final_video_paths,
+        "combined_videos": combined_video_paths
     }
     sm.update_task(task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs)
     return kwargs
