@@ -6,22 +6,11 @@ from os import path
 from loguru import logger
 
 from app.config import config
-from app.models.schema import VideoParams, VoiceNames, VideoConcatMode
+from app.models import const
+from app.models.schema import VideoParams, VideoConcatMode
 from app.services import llm, material, voice, video, subtitle
+from app.services import state as sm
 from app.utils import utils
-
-
-def _parse_voice(name: str):
-    # "female-zh-CN-XiaoxiaoNeural",
-    # remove first part split by "-"
-    if name not in VoiceNames:
-        name = VoiceNames[0]
-
-    parts = name.split("-")
-    _lang = f"{parts[1]}-{parts[2]}"
-    _voice = f"{_lang}-{parts[3]}"
-
-    return _voice, _lang
 
 
 def start(task_id, params: VideoParams):
@@ -39,8 +28,10 @@ def start(task_id, params: VideoParams):
     }
     """
     logger.info(f"start task: {task_id}")
+    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+
     video_subject = params.video_subject
-    voice_name, language = _parse_voice(params.voice_name)
+    voice_name = voice.parse_voice_name(params.voice_name)
     paragraph_number = params.paragraph_number
     n_threads = params.n_threads
     max_clip_duration = params.video_clip_duration
@@ -52,6 +43,8 @@ def start(task_id, params: VideoParams):
                                            paragraph_number=paragraph_number)
     else:
         logger.debug(f"video script: \n{video_script}")
+
+    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
 
     logger.info("\n\n## generating video terms")
     video_terms = params.video_terms
@@ -70,22 +63,28 @@ def start(task_id, params: VideoParams):
     script_file = path.join(utils.task_dir(task_id), f"script.json")
     script_data = {
         "script": video_script,
-        "search_terms": video_terms
+        "search_terms": video_terms,
+        "params": params,
     }
 
     with open(script_file, "w", encoding="utf-8") as f:
         f.write(utils.to_json(script_data))
 
+    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
+
     logger.info("\n\n## generating audio")
     audio_file = path.join(utils.task_dir(task_id), f"audio.mp3")
     sub_maker = voice.tts(text=video_script, voice_name=voice_name, voice_file=audio_file)
     if sub_maker is None:
+        sm.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error(
             "failed to generate audio, maybe the network is not available. if you are in China, please use a VPN.")
         return
 
     audio_duration = voice.get_audio_duration(sub_maker)
     audio_duration = math.ceil(audio_duration)
+
+    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
 
     subtitle_path = ""
     if params.subtitle_enabled:
@@ -98,11 +97,6 @@ def start(task_id, params: VideoParams):
             if not os.path.exists(subtitle_path):
                 subtitle_fallback = True
                 logger.warning("subtitle file not found, fallback to whisper")
-            else:
-                subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
-                if not subtitle_lines:
-                    logger.warning(f"subtitle file is invalid, fallback to whisper : {subtitle_path}")
-                    subtitle_fallback = True
 
         if subtitle_provider == "whisper" or subtitle_fallback:
             subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
@@ -114,6 +108,8 @@ def start(task_id, params: VideoParams):
             logger.warning(f"subtitle file is invalid: {subtitle_path}")
             subtitle_path = ""
 
+    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
+
     logger.info("\n\n## downloading videos")
     downloaded_videos = material.download_videos(task_id=task_id,
                                                  search_terms=video_terms,
@@ -123,15 +119,19 @@ def start(task_id, params: VideoParams):
                                                  max_clip_duration=max_clip_duration,
                                                  )
     if not downloaded_videos:
+        sm.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error(
             "failed to download videos, maybe the network is not available. if you are in China, please use a VPN.")
         return
+
+    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
     final_video_paths = []
     video_concat_mode = params.video_concat_mode
     if params.video_count > 1:
         video_concat_mode = VideoConcatMode.random
 
+    _progress = 50
     for i in range(params.video_count):
         index = i + 1
         combined_video_path = path.join(utils.task_dir(task_id), f"combined-{index}.mp4")
@@ -144,6 +144,9 @@ def start(task_id, params: VideoParams):
                              max_clip_duration=max_clip_duration,
                              threads=n_threads)
 
+        _progress += 50 / params.video_count / 2
+        sm.update_task(task_id, progress=_progress)
+
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
@@ -154,10 +157,16 @@ def start(task_id, params: VideoParams):
                              output_file=final_video_path,
                              params=params,
                              )
+
+        _progress += 50 / params.video_count / 2
+        sm.update_task(task_id, progress=_progress)
+
         final_video_paths.append(final_video_path)
 
     logger.success(f"task {task_id} finished, generated {len(final_video_paths)} videos.")
 
-    return {
+    kwargs = {
         "videos": final_video_paths,
     }
+    sm.update_task(task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs)
+    return kwargs

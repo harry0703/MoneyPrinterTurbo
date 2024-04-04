@@ -17,6 +17,10 @@ if not pexels_api_keys:
 
 
 def round_robin_api_key():
+    # if only one key is provided, return it
+    if isinstance(pexels_api_keys, str):
+        return pexels_api_keys
+
     global requested_count
     requested_count += 1
     return pexels_api_keys[requested_count % len(pexels_api_keys)]

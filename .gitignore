@@ -1,3 +1,10 @@
+.DS_Store
 /config.toml
 /storage/
 /.idea/
+/app/services/__pycache__
+/app/__pycache__/
+/app/config/__pycache__/
+/app/models/__pycache__/
+/app/utils/__pycache__/
+/*/__pycache__/*
