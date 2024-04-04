@@ -96,11 +96,6 @@ def start(task_id, params: VideoParams):
             if not os.path.exists(subtitle_path):
                 subtitle_fallback = True
                 logger.warning("subtitle file not found, fallback to whisper")
-            else:
-                subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
-                if not subtitle_lines:
-                    logger.warning(f"subtitle file is invalid, fallback to whisper : {subtitle_path}")
-                    subtitle_fallback = True
 
         if subtitle_provider == "whisper" or subtitle_fallback:
             subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)

@@ -1,10 +1,13 @@
 import asyncio
+import os
 import re
 from xml.sax.saxutils import unescape
 from edge_tts.submaker import mktimestamp
 from loguru import logger
 from edge_tts import submaker, SubMaker
 import edge_tts
+from moviepy.video.tools import subtitles
+
 from app.utils import utils
 
 
@@ -989,25 +992,31 @@ def parse_voice_name(name: str):
 
 def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
     text = text.strip()
-    logger.info(f"start, voice name: {voice_name}")
-    try:
-        async def _do() -> SubMaker:
-            communicate = edge_tts.Communicate(text, voice_name)
-            sub_maker = edge_tts.SubMaker()
-            with open(voice_file, "wb") as file:
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        file.write(chunk["data"])
-                    elif chunk["type"] == "WordBoundary":
-                        sub_maker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
-            return sub_maker
+    for i in range(3):
+        try:
+            logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
 
-        sub_maker = asyncio.run(_do())
-        logger.info(f"completed, output file: {voice_file}")
-        return sub_maker
-    except Exception as e:
-        logger.error(f"failed, error: {str(e)}")
-        return None
+            async def _do() -> SubMaker:
+                communicate = edge_tts.Communicate(text, voice_name)
+                sub_maker = edge_tts.SubMaker()
+                with open(voice_file, "wb") as file:
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            file.write(chunk["data"])
+                        elif chunk["type"] == "WordBoundary":
+                            sub_maker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
+                return sub_maker
+
+            sub_maker = asyncio.run(_do())
+            if not sub_maker or not sub_maker.subs:
+                logger.warning(f"failed, sub_maker is None or sub_maker.subs is None")
+                continue
+
+            logger.info(f"completed, output file: {voice_file}")
+            return sub_maker
+        except Exception as e:
+            logger.error(f"failed, error: {str(e)}")
+    return None
 
 
 def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str):
@@ -1017,6 +1026,13 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     2. 逐行匹配字幕文件中的文本
     3. 生成新的字幕文件
     """
+    text = text.replace("\n", " ")
+    text = text.replace("[", " ")
+    text = text.replace("]", " ")
+    text = text.replace("(", " ")
+    text = text.replace(")", " ")
+    text = text.replace("{", " ")
+    text = text.replace("}", " ")
     text = text.strip()
 
     def formatter(idx: int, start_time: float, end_time: float, sub_text: str) -> str:
@@ -1045,17 +1061,17 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
 
         _line = script_lines[_sub_index]
         if _sub_line == _line:
-            return script_lines[_sub_index]
+            return script_lines[_sub_index].strip()
 
         _sub_line_ = re.sub(r"[^\w\s]", "", _sub_line)
         _line_ = re.sub(r"[^\w\s]", "", _line)
         if _sub_line_ == _line_:
-            return _line_
+            return _line_.strip()
 
         _sub_line_ = re.sub(r"\W+", "", _sub_line)
         _line_ = re.sub(r"\W+", "", _line)
         if _sub_line_ == _line_:
-            return _line
+            return _line.strip()
 
         return ""
 
@@ -1085,6 +1101,13 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
         if len(sub_items) == len(script_lines):
             with open(subtitle_file, "w", encoding="utf-8") as file:
                 file.write("\n".join(sub_items) + "\n")
+            try:
+                sbs = subtitles.file_to_subtitles(subtitle_file)
+                duration = max([tb for ((ta, tb), txt) in sbs])
+                logger.info(f"completed, subtitle file created: {subtitle_file}, duration: {duration}")
+            except Exception as e:
+                logger.error(f"failed, error: {str(e)}")
+                os.remove(subtitle_file)
         else:
             logger.warning(f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}")
 
@@ -1132,6 +1155,7 @@ if __name__ == "__main__":
                12日天气短暂好转，早晚清凉；
                    """
 
+        text = "[Opening scene: A sunny day in a suburban neighborhood. A young boy named Alex, around 8 years old, is playing in his front yard with his loyal dog, Buddy.]\n\n[Camera zooms in on Alex as he throws a ball for Buddy to fetch. Buddy excitedly runs after it and brings it back to Alex.]\n\nAlex: Good boy, Buddy! You're the best dog ever!\n\n[Buddy barks happily and wags his tail.]\n\n[As Alex and Buddy continue playing, a series of potential dangers loom nearby, such as a stray dog approaching, a ball rolling towards the street, and a suspicious-looking stranger walking by.]\n\nAlex: Uh oh, Buddy, look out!\n\n[Buddy senses the danger and immediately springs into action. He barks loudly at the stray dog, scaring it away. Then, he rushes to retrieve the ball before it reaches the street and gently nudges it back towards Alex. Finally, he stands protectively between Alex and the stranger, growling softly to warn them away.]\n\nAlex: Wow, Buddy, you're like my superhero!\n\n[Just as Alex and Buddy are about to head inside, they hear a loud crash from a nearby construction site. They rush over to investigate and find a pile of rubble blocking the path of a kitten trapped underneath.]\n\nAlex: Oh no, Buddy, we have to help!\n\n[Buddy barks in agreement and together they work to carefully move the rubble aside, allowing the kitten to escape unharmed. The kitten gratefully nuzzles against Buddy, who responds with a friendly lick.]\n\nAlex: We did it, Buddy! We saved the day again!\n\n[As Alex and Buddy walk home together, the sun begins to set, casting a warm glow over the neighborhood.]\n\nAlex: Thanks for always being there to watch over me, Buddy. You're not just my dog, you're my best friend.\n\n[Buddy barks happily and nuzzles against Alex as they disappear into the sunset, ready to face whatever adventures tomorrow may bring.]\n\n[End scene.]"
         for voice_name in voice_names:
             voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
             subtitle_file = f"{temp_dir}/tts.mp3.srt"
