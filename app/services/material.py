@@ -13,7 +13,8 @@ from app.utils import utils
 requested_count = 0
 pexels_api_keys = config.app.get("pexels_api_keys")
 if not pexels_api_keys:
-    raise ValueError(f"\n\n##### pexels_api_keys is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n{utils.to_json(config.app)}")
+    raise ValueError(
+        f"\n\n##### pexels_api_keys is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n{utils.to_json(config.app)}")
 
 
 def round_robin_api_key():
@@ -93,7 +94,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     video_path = f"{save_dir}/{video_id}.mp4"
 
     # if video already exists, return the path
-    if os.path.exists(video_path):
+    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
         logger.info(f"video already exists: {video_path}")
         return video_path
 
@@ -102,7 +103,9 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     with open(video_path, "wb") as f:
         f.write(requests.get(video_url, proxies=proxies, verify=False, timeout=(60, 240)).content)
 
-    return video_path
+    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        return video_path
+    return ""
 
 
 def download_videos(task_id: str,
@@ -146,13 +149,14 @@ def download_videos(task_id: str,
         try:
             logger.info(f"downloading video: {item.url}")
             saved_video_path = save_video(video_url=item.url, save_dir=material_directory)
-            logger.info(f"video saved: {saved_video_path}")
-            video_paths.append(saved_video_path)
-            seconds = min(max_clip_duration, item.duration)
-            total_duration += seconds
-            if total_duration > audio_duration:
-                logger.info(f"total duration of downloaded videos: {total_duration} seconds, skip downloading more")
-                break
+            if saved_video_path:
+                logger.info(f"video saved: {saved_video_path}")
+                video_paths.append(saved_video_path)
+                seconds = min(max_clip_duration, item.duration)
+                total_duration += seconds
+                if total_duration > audio_duration:
+                    logger.info(f"total duration of downloaded videos: {total_duration} seconds, skip downloading more")
+                    break
         except Exception as e:
             logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
     logger.success(f"downloaded {len(video_paths)} videos")
