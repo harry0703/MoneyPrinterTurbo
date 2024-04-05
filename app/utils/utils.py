@@ -70,8 +70,6 @@ def storage_dir(sub_dir: str = ""):
     d = os.path.join(root_dir(), "storage")
     if sub_dir:
         d = os.path.join(d, sub_dir)
-    if not os.path.exists(d):
-        os.makedirs(d)
     return d
 
 

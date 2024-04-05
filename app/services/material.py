@@ -84,6 +84,9 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
 
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
     url_without_query = video_url.split("?")[0]
     url_hash = utils.md5(url_without_query)
     video_id = f"vid-{url_hash}"
