@@ -15,8 +15,14 @@ if not os.path.isfile(config_file):
 
 logger.info(f"load config from file: {config_file}")
 
-with open(config_file, mode="rb") as fp:
-    _cfg = tomli.load(fp)
+try:
+    with open(config_file, mode="rb") as fp:
+        _cfg = tomli.load(fp)
+except Exception as e:
+    logger.warning(f"load config failed: {str(e)}, try to load as utf-8-sig")
+    with open(config_file, mode="r", encoding='utf-8-sig') as fp:
+        _cfg_content = fp.read()
+        _cfg = tomli.loads(_cfg_content)
 
 app = _cfg.get("app", {})
 whisper = _cfg.get("whisper", {})
