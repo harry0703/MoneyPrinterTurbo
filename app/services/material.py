@@ -13,7 +13,7 @@ from app.utils import utils
 requested_count = 0
 pexels_api_keys = config.app.get("pexels_api_keys")
 if not pexels_api_keys:
-    raise ValueError("pexels_api_keys is not set, please set it in the config.toml file.")
+    raise ValueError(f"\n\n##### pexels_api_keys is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n{utils.to_json(config.app)}")
 
 
 def round_robin_api_key():
