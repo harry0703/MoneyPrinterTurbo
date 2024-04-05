@@ -27,6 +27,13 @@ def _generate_response(prompt: str) -> str:
             api_key = config.app.get("moonshot_api_key")
             model_name = config.app.get("moonshot_model_name")
             base_url = "https://api.moonshot.cn/v1"
+        elif llm_provider == "ollama":
+            # api_key = config.app.get("openai_api_key")
+            api_key = "ollama" # any string works but you are required to have one
+            model_name = config.app.get("ollama_model_name")
+            base_url = config.app.get("ollama_base_url", "")
+            if not base_url:
+                base_url = "http://localhost:11434/v1"
         elif llm_provider == "openai":
             api_key = config.app.get("openai_api_key")
             model_name = config.app.get("openai_model_name")

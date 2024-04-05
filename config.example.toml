@@ -19,6 +19,12 @@
     #   gemini
     llm_provider="openai"
 
+    ########## Ollama Settings
+    # No need to set it unless you want to use your own proxy
+    ollama_base_url = ""
+    # Check your available models at https://platform.openai.com/account/limits
+    ollama_model_name = "qwen:0.5b"
+
     ########## OpenAI API Key
     # Get your API key at https://platform.openai.com/api-keys
     openai_api_key = ""
