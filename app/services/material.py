@@ -100,7 +100,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     # if video does not exist, download it
     proxies = config.pexels.get("proxies", None)
     with open(video_path, "wb") as f:
-        f.write(requests.get(video_url, proxies=proxies, verify=False, timeout=(10, 180)).content)
+        f.write(requests.get(video_url, proxies=proxies, verify=False, timeout=(60, 240)).content)
 
     return video_path
 
