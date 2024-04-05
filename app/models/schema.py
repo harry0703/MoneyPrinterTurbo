@@ -98,6 +98,7 @@ class VideoParams:
     video_language: Optional[str] = ""  # auto detect
 
     voice_name: Optional[str] = ""
+    voice_volume: Optional[float] = 1.0
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
@@ -231,18 +232,18 @@ class VideoTermsResponse(BaseResponse):
         }
 
 
-class BgmListResponse(BaseResponse):
+class BgmRetrieveResponse(BaseResponse):
     class Config:
         json_schema_extra = {
             "example": {
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "bgm_list": [
+                    "files": [
                         {
-                            "filename": "output000.mp3",
-                            "size": 2249517,
-                            "filepath": "C:\\Users\\cathy\\Desktop\\MoneyPrinterTurbo\\resource\\songs\\output000.mp3"
+                            "name": "output013.mp3",
+                            "size": 1891269,
+                            "file": "/MoneyPrinterTurbo/resource/songs/output013.mp3"
                         }
                     ]
                 }
@@ -257,7 +258,7 @@ class BgmUploadResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "uploaded_path": "/root/home/MoneyPrinterTurbo/resource/songs/example.mp3"
+                    "file": "/MoneyPrinterTurbo/resource/songs/example.mp3"
                 }
             },
         }

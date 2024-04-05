@@ -229,6 +229,11 @@ def generate_video(video_path: str,
     result = CompositeVideoClip(clips)
 
     audio = AudioFileClip(audio_path)
+    try:
+        audio = audio.volumex(params.voice_volume)
+    except Exception as e:
+        logger.warning(f"failed to set audio volume: {e}")
+
     result = result.set_audio(audio)
 
     temp_output_file = f"{output_file}.temp.mp4"
@@ -301,6 +306,8 @@ if __name__ == "__main__":
     cfg.subtitle_position = "bottom"
     cfg.n_threads = 2
     cfg.paragraph_number = 1
+
+    cfg.voice_volume = 3.0
 
     generate_video(video_path=video_file,
                    audio_path=audio_file,

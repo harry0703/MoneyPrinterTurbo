@@ -23,6 +23,7 @@
     "Number of Videos Generated Simultaneously": "Number of Videos Generated Simultaneously",
     "Audio Settings": "**Audio Settings**",
     "Speech Synthesis": "Speech Synthesis Voice",
+    "Speech Volume": "Speech Volume (1.0 represents 100%)",
     "Male": "Male",
     "Female": "Female",
     "Background Music": "Background Music",
@@ -46,6 +47,7 @@
     "Video Script and Subject Cannot Both Be Empty": "Video Subject and Video Script cannot both be empty",
     "Generating Video": "Generating video, please wait...",
     "Start Generating Video": "Start Generating Video",
-    "Video Generation Completed": "Video Generation Completed"
+    "Video Generation Completed": "Video Generation Completed",
+    "You can download the generated video from the following links": "You can download the generated video from the following links"
   }
 }

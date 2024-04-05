@@ -23,6 +23,7 @@
     "Number of Videos Generated Simultaneously": "Anzahl der parallel generierten Videos",
     "Audio Settings": "**Audio Einstellungen**",
     "Speech Synthesis": "Sprachausgabe",
+    "Speech Volume": "Lautstärke der Sprachausgabe",
     "Male": "Männlich",
     "Female": "Weiblich",
     "Background Music": "Hintergrundmusik",
@@ -46,6 +47,7 @@
     "Video Script and Subject Cannot Both Be Empty": "Das Video-Thema und Drehbuch dürfen nicht beide leer sein",
     "Generating Video": "Video wird erstellt, bitte warten...",
     "Start Generating Video": "Beginne mit der Generierung",
-    "Video Generation Completed": "Video erfolgreich generiert"
+    "Video Generation Completed": "Video erfolgreich generiert",
+    "You can download the generated video from the following links": "Sie können das generierte Video über die folgenden Links herunterladen"
   }
 }

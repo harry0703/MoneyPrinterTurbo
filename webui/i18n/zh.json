@@ -22,7 +22,8 @@
     "Clip Duration": "视频片段最大时长(秒)",
     "Number of Videos Generated Simultaneously": "同时生成视频数量",
     "Audio Settings": "**音频设置**",
-    "Speech Synthesis": "朗读声音",
+    "Speech Synthesis": "朗读声音（:red[尽量与文案语言保持一致]）",
+    "Speech Volume": "朗读音量（1.0表示100%）",
     "Male": "男性",
     "Female": "女性",
     "Background Music": "背景音乐",
@@ -46,6 +47,7 @@
     "Video Script and Subject Cannot Both Be Empty": "视频主题 和 视频文案，不能同时为空",
     "Generating Video": "正在生成视频，请稍候...",
     "Start Generating Video": "开始生成视频",
-    "Video Generation Completed": "视频生成完成"
+    "Video Generation Completed": "视频生成完成",
+    "You can download the generated video from the following links": "你可以从以下链接下载生成的视频"
   }
 }
