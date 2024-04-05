@@ -8,8 +8,8 @@ from app.config import config
 from app.controllers import base
 from app.controllers.v1.base import new_router
 from app.models.exception import HttpException
-from app.models.schema import TaskVideoRequest, TaskQueryResponse, TaskResponse, TaskQueryRequest, BgmListResponse, \
-    BgmUploadResponse
+from app.models.schema import TaskVideoRequest, TaskQueryResponse, TaskResponse, TaskQueryRequest, \
+    BgmUploadResponse, BgmRetrieveResponse
 from app.services import task as tm
 from app.services import state as sm
 from app.utils import utils
@@ -69,7 +69,7 @@ def get_task(request: Request, task_id: str = Path(..., description="Task ID"),
     raise HttpException(task_id=task_id, status_code=404, message=f"{request_id}: task not found")
 
 
-@router.get("/get_bgm_list", response_model=BgmListResponse, summary="get local bgm file list")
+@router.get("/musics", response_model=BgmRetrieveResponse, summary="Retrieve local BGM files")
 def get_bgm_list(request: Request):
     suffix = "*.mp3"
     song_dir = utils.song_dir()
@@ -77,17 +77,17 @@ def get_bgm_list(request: Request):
     bgm_list = []
     for file in files:
         bgm_list.append({
-            "filename": os.path.basename(file),
+            "name": os.path.basename(file),
             "size": os.path.getsize(file),
-            "filepath": file,
+            "file": file,
         })
     response = {
-        "bgm_list": bgm_list
+        "files": bgm_list
     }
     return utils.get_response(200, response)
 
 
-@router.post("/upload_bgm_file", response_model=BgmUploadResponse, summary="upload bgm file to songs directory")
+@router.post("/musics", response_model=BgmUploadResponse, summary="Upload the BGM file to the songs directory")
 def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
     # check file ext
@@ -100,7 +100,7 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
             file.file.seek(0)
             buffer.write(file.file.read())
         response = {
-            "uploaded_path": save_path
+            "file": save_path
         }
         return utils.get_response(200, response)
 
