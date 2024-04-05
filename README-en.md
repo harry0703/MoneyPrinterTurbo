@@ -57,7 +57,7 @@ https://reccloud.com
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**
 - [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**,
-  **qianwen**, **Google Gemini** and more
+  **qianwen**, **Google Gemini**, **Ollama** and more
 
 ### Future Plans 📅
 
@@ -65,12 +65,11 @@ https://reccloud.com
 - [ ] Enhance voice synthesis with large models for a more natural and emotionally resonant voice output
 - [ ] Incorporate video transition effects to ensure a smoother viewing experience
 - [ ] Improve the relevance of video content
-- [ ] Implement OLLAMA support
 - [ ] Add options for video length: short, medium, long
 - [ ] Package the application into a one-click launch bundle for Windows and macOS for ease of use
 - [ ] Enable the use of custom materials
 - [ ] Offer voiceover and background music options with real-time preview
-- [ ] Support a wider range of voice synthesis providers, such as OpenAI TTS
+- [ ] Support a wider range of voice synthesis providers, such as OpenAI TTS, Azure TTS
 - [ ] Automate the upload process to the YouTube platform
 
 ## Video Demos 📺
