@@ -8,7 +8,7 @@ from app.utils import utils
 
 
 def __init_logger():
-    _log_file = utils.storage_dir("logs/server.log")
+    # _log_file = utils.storage_dir("logs/server.log")
     _lvl = config.log_level
     root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -36,16 +36,16 @@ def __init_logger():
         colorize=True,
     )
 
-    logger.add(
-        _log_file,
-        level=_lvl,
-        format=format_record,
-        rotation="00:00",
-        retention="3 days",
-        backtrace=True,
-        diagnose=True,
-        enqueue=True,
-    )
+    # logger.add(
+    #     _log_file,
+    #     level=_lvl,
+    #     format=format_record,
+    #     rotation="00:00",
+    #     retention="3 days",
+    #     backtrace=True,
+    #     diagnose=True,
+    #     enqueue=True,
+    # )
 
 
 __init_logger()
