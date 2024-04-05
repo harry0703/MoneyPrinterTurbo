@@ -1,4 +1,5 @@
 import os
+import platform
 import threading
 from typing import Any
 from loguru import logger
@@ -23,32 +24,35 @@ def get_response(status: int, data: Any = None, message: str = ""):
 
 
 def to_json(obj):
-    # 定义一个辅助函数来处理不同类型的对象
-    def serialize(o):
-        # 如果对象是可序列化类型，直接返回
-        if isinstance(o, (int, float, bool, str)) or o is None:
-            return o
-        # 如果对象是二进制数据，转换为base64编码的字符串
-        elif isinstance(o, bytes):
-            return "*** binary data ***"
-        # 如果对象是字典，递归处理每个键值对
-        elif isinstance(o, dict):
-            return {k: serialize(v) for k, v in o.items()}
-        # 如果对象是列表或元组，递归处理每个元素
-        elif isinstance(o, (list, tuple)):
-            return [serialize(item) for item in o]
-        # 如果对象是自定义类型，尝试返回其__dict__属性
-        elif hasattr(o, '__dict__'):
-            return serialize(o.__dict__)
-        # 其他情况返回None（或者可以选择抛出异常）
-        else:
-            return None
+    try:
+        # 定义一个辅助函数来处理不同类型的对象
+        def serialize(o):
+            # 如果对象是可序列化类型，直接返回
+            if isinstance(o, (int, float, bool, str)) or o is None:
+                return o
+            # 如果对象是二进制数据，转换为base64编码的字符串
+            elif isinstance(o, bytes):
+                return "*** binary data ***"
+            # 如果对象是字典，递归处理每个键值对
+            elif isinstance(o, dict):
+                return {k: serialize(v) for k, v in o.items()}
+            # 如果对象是列表或元组，递归处理每个元素
+            elif isinstance(o, (list, tuple)):
+                return [serialize(item) for item in o]
+            # 如果对象是自定义类型，尝试返回其__dict__属性
+            elif hasattr(o, '__dict__'):
+                return serialize(o.__dict__)
+            # 其他情况返回None（或者可以选择抛出异常）
+            else:
+                return None
 
-    # 使用serialize函数处理输入对象
-    serialized_obj = serialize(obj)
+        # 使用serialize函数处理输入对象
+        serialized_obj = serialize(obj)
 
-    # 序列化处理后的对象为JSON字符串
-    return json.dumps(serialized_obj, ensure_ascii=False, indent=4)
+        # 序列化处理后的对象为JSON字符串
+        return json.dumps(serialized_obj, ensure_ascii=False, indent=4)
+    except Exception as e:
+        return None
 
 
 def get_uuid(remove_hyphen: bool = False):
