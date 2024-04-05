@@ -111,6 +111,19 @@
     endpoint=""
 
 
+    # Video material storage location
+    # material_directory = ""                    # Indicates that video materials will be downloaded to the default folder, the default folder is ./storage/cache_videos under the current project
+    # material_directory = "/user/harry/videos"  # Indicates that video materials will be downloaded to a specified folder
+    # material_directory = "task"                # Indicates that video materials will be downloaded to the current task's folder, this method does not allow sharing of already downloaded video materials
+
+    # 视频素材存放位置
+    # material_directory = ""                    #表示将视频素材下载到默认的文件夹，默认文件夹为当前项目下的 ./storage/cache_videos
+    # material_directory = "/user/harry/videos"  #表示将视频素材下载到指定的文件夹中
+    # material_directory = "task"                #表示将视频素材下载到当前任务的文件夹中，这种方式无法共享已经下载的视频素材
+
+    material_directory = ""
+
+
 [whisper]
     # Only effective when subtitle_provider is "whisper"
 

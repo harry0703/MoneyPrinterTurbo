@@ -70,6 +70,8 @@ def storage_dir(sub_dir: str = ""):
     d = os.path.join(root_dir(), "storage")
     if sub_dir:
         d = os.path.join(d, sub_dir)
+    if not os.path.exists(d):
+        os.makedirs(d)
     return d
 
 
@@ -169,3 +171,8 @@ def split_string_by_punctuations(s):
             result.append(txt.strip())
             txt = ""
     return result
+
+
+def md5(text):
+    import hashlib
+    return hashlib.md5(text.encode('utf-8')).hexdigest()
