@@ -48,21 +48,27 @@ def get_task(request: Request, task_id: str = Path(..., description="Task ID"),
     request_id = base.get_task_id(request)
     task = sm.get_task(task_id)
     if task:
+        task_dir = utils.task_dir()
+
+        def file_to_uri(file):
+            if not file.startswith(endpoint):
+                _uri_path = v.replace(task_dir, "tasks").replace("\\", "/")
+                _uri_path = f"{endpoint}/{_uri_path}"
+            else:
+                _uri_path = file
+            return _uri_path
+
         if "videos" in task:
             videos = task["videos"]
-            task_dir = utils.task_dir()
             urls = []
             for v in videos:
-                uri_path = v.replace(task_dir, "tasks")
-                urls.append(f"{endpoint}/{uri_path}")
+                urls.append(file_to_uri(v))
             task["videos"] = urls
         if "combined_videos" in task:
             combined_videos = task["combined_videos"]
-            task_dir = utils.task_dir()
             urls = []
             for v in combined_videos:
-                uri_path = v.replace(task_dir, "tasks")
-                urls.append(f"{endpoint}/{uri_path}")
+                urls.append(file_to_uri(v))
             task["combined_videos"] = urls
         return utils.get_response(200, task)
 
