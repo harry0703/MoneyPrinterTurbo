@@ -59,6 +59,9 @@ https://reccloud.com
 - [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**,
   **qianwen**, **Google Gemini**, **Ollama** and more
 
+ ❓[How to Use the Free OpenAI GPT-3.5 Model?](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#common-questions-)
+
+
 ### Future Plans 📅
 
 - [ ] Introduce support for GPT-SoVITS dubbing
@@ -256,6 +259,20 @@ Fonts for rendering video subtitles are located in the project's `resource/fonts
 own fonts.
 
 ## Common Questions 🤔
+
+### ❓How to Use the Free OpenAI GPT-3.5 Model?
+[OpenAI has announced that ChatGPT with 3.5 is now free](https://openai.com/blog/start-using-chatgpt-instantly), and developers have wrapped it into an API for direct usage.
+
+**Ensure you have Docker installed and running**. Execute the following command to start the Docker service:
+```shell
+docker run -p 3040:3040 missuo/freegpt35
+```
+Once successfully started, modify the `config.toml` configuration as follows:
+
+- Set `llm_provider` to `openai`
+- Fill in `openai_api_key` with any value, for example, '123456'
+- Change `openai_base_url` to `http://localhost:3040/v1/`
+- Set `openai_model_name` to `gpt-3.5-turbo`
 
 ### ❓RuntimeError: No ffmpeg exe could be found
 
