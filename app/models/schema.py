@@ -34,43 +34,43 @@ class MaterialInfo:
     duration: int = 0
 
 
-VoiceNames = [
-    # zh-CN
-    "female-zh-CN-XiaoxiaoNeural",
-    "female-zh-CN-XiaoyiNeural",
-    "female-zh-CN-liaoning-XiaobeiNeural",
-    "female-zh-CN-shaanxi-XiaoniNeural",
-
-    "male-zh-CN-YunjianNeural",
-    "male-zh-CN-YunxiNeural",
-    "male-zh-CN-YunxiaNeural",
-    "male-zh-CN-YunyangNeural",
-
-    # "female-zh-HK-HiuGaaiNeural",
-    # "female-zh-HK-HiuMaanNeural",
-    # "male-zh-HK-WanLungNeural",
-    #
-    # "female-zh-TW-HsiaoChenNeural",
-    # "female-zh-TW-HsiaoYuNeural",
-    # "male-zh-TW-YunJheNeural",
-
-    # en-US
-
-    "female-en-US-AnaNeural",
-    "female-en-US-AriaNeural",
-    "female-en-US-AvaNeural",
-    "female-en-US-EmmaNeural",
-    "female-en-US-JennyNeural",
-    "female-en-US-MichelleNeural",
-
-    "male-en-US-AndrewNeural",
-    "male-en-US-BrianNeural",
-    "male-en-US-ChristopherNeural",
-    "male-en-US-EricNeural",
-    "male-en-US-GuyNeural",
-    "male-en-US-RogerNeural",
-    "male-en-US-SteffanNeural",
-]
+# VoiceNames = [
+#     # zh-CN
+#     "female-zh-CN-XiaoxiaoNeural",
+#     "female-zh-CN-XiaoyiNeural",
+#     "female-zh-CN-liaoning-XiaobeiNeural",
+#     "female-zh-CN-shaanxi-XiaoniNeural",
+#
+#     "male-zh-CN-YunjianNeural",
+#     "male-zh-CN-YunxiNeural",
+#     "male-zh-CN-YunxiaNeural",
+#     "male-zh-CN-YunyangNeural",
+#
+#     # "female-zh-HK-HiuGaaiNeural",
+#     # "female-zh-HK-HiuMaanNeural",
+#     # "male-zh-HK-WanLungNeural",
+#     #
+#     # "female-zh-TW-HsiaoChenNeural",
+#     # "female-zh-TW-HsiaoYuNeural",
+#     # "male-zh-TW-YunJheNeural",
+#
+#     # en-US
+#
+#     "female-en-US-AnaNeural",
+#     "female-en-US-AriaNeural",
+#     "female-en-US-AvaNeural",
+#     "female-en-US-EmmaNeural",
+#     "female-en-US-JennyNeural",
+#     "female-en-US-MichelleNeural",
+#
+#     "male-en-US-AndrewNeural",
+#     "male-en-US-BrianNeural",
+#     "male-en-US-ChristopherNeural",
+#     "male-en-US-EricNeural",
+#     "male-en-US-GuyNeural",
+#     "male-en-US-RogerNeural",
+#     "male-en-US-SteffanNeural",
+# ]
 
 
 class VideoParams:
@@ -97,7 +97,8 @@ class VideoParams:
 
     video_language: Optional[str] = ""  # auto detect
 
-    voice_name: Optional[str] = VoiceNames[0]
+    voice_name: Optional[str] = ""
+    voice_volume: Optional[float] = 1.0
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
@@ -115,6 +116,32 @@ class VideoParams:
     paragraph_number: Optional[int] = 1
 
 
+class VideoScriptParams:
+    """
+    {
+      "video_subject": "春天的花海",
+      "video_language": "",
+      "paragraph_number": 1
+    }
+    """
+    video_subject: Optional[str] = "春天的花海"
+    video_language: Optional[str] = ""
+    paragraph_number: Optional[int] = 1
+
+
+class VideoTermsParams:
+    """
+    {
+      "video_subject": "",
+      "video_script": "",
+      "amount": 5
+    }
+    """
+    video_subject: Optional[str] = "春天的花海"
+    video_script: Optional[str] = "春天的花海，如诗如画般展现在眼前。万物复苏的季节里，大地披上了一袭绚丽多彩的盛装。金黄的迎春、粉嫩的樱花、洁白的梨花、艳丽的郁金香……"
+    amount: Optional[int] = 5
+
+
 class BaseResponse(BaseModel):
     status: int = 200
     message: Optional[str] = 'success'
@@ -129,6 +156,14 @@ class TaskQueryRequest(BaseModel):
     pass
 
 
+class VideoScriptRequest(VideoScriptParams, BaseModel):
+    pass
+
+
+class VideoTermsRequest(VideoTermsParams, BaseModel):
+    pass
+
+
 ######################################################################################################
 ######################################################################################################
 ######################################################################################################
@@ -136,10 +171,94 @@ class TaskQueryRequest(BaseModel):
 class TaskResponse(BaseResponse):
     class TaskResponseData(BaseModel):
         task_id: str
-        task_type: str = ""
 
     data: TaskResponseData
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "task_id": "6c85c8cc-a77a-42b9-bc30-947815aa0558"
+                }
+            },
+        }
+
 
 class TaskQueryResponse(BaseResponse):
-    pass
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "state": 1,
+                    "progress": 100,
+                    "videos": [
+                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/final-1.mp4"
+                    ],
+                    "combined_videos": [
+                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/combined-1.mp4"
+                    ]
+                }
+            },
+        }
+
+
+class VideoScriptResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "video_script": "春天的花海，是大自然的一幅美丽画卷。在这个季节里，大地复苏，万物生长，花朵争相绽放，形成了一片五彩斑斓的花海..."
+                }
+            },
+        }
+
+
+class VideoTermsResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "video_terms": ["sky", "tree"]
+                }
+            },
+        }
+
+
+class BgmRetrieveResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "files": [
+                        {
+                            "name": "output013.mp3",
+                            "size": 1891269,
+                            "file": "/MoneyPrinterTurbo/resource/songs/output013.mp3"
+                        }
+                    ]
+                }
+            },
+        }
+
+
+class BgmUploadResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "file": "/MoneyPrinterTurbo/resource/songs/example.mp3"
+                }
+            },
+        }

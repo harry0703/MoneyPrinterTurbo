@@ -1,5 +1,5 @@
+import os
 import random
-import time
 from urllib.parse import urlencode
 
 import requests
@@ -13,10 +13,15 @@ from app.utils import utils
 requested_count = 0
 pexels_api_keys = config.app.get("pexels_api_keys")
 if not pexels_api_keys:
-    raise ValueError("pexels_api_keys is not set, please set it in the config.toml file.")
+    raise ValueError(
+        f"\n\n##### pexels_api_keys is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n{utils.to_json(config.app)}")
 
 
 def round_robin_api_key():
+    # if only one key is provided, return it
+    if isinstance(pexels_api_keys, str):
+        return pexels_api_keys
+
     global requested_count
     requested_count += 1
     return pexels_api_keys[requested_count % len(pexels_api_keys)]
@@ -76,14 +81,31 @@ def search_videos(search_term: str,
     return []
 
 
-def save_video(video_url: str, save_dir: str) -> str:
-    video_id = f"vid-{str(int(time.time() * 1000))}"
+def save_video(video_url: str, save_dir: str = "") -> str:
+    if not save_dir:
+        save_dir = utils.storage_dir("cache_videos")
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    url_without_query = video_url.split("?")[0]
+    url_hash = utils.md5(url_without_query)
+    video_id = f"vid-{url_hash}"
     video_path = f"{save_dir}/{video_id}.mp4"
+
+    # if video already exists, return the path
+    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        logger.info(f"video already exists: {video_path}")
+        return video_path
+
+    # if video does not exist, download it
     proxies = config.pexels.get("proxies", None)
     with open(video_path, "wb") as f:
-        f.write(requests.get(video_url, proxies=proxies, verify=False, timeout=(10, 180)).content)
+        f.write(requests.get(video_url, proxies=proxies, verify=False, timeout=(60, 240)).content)
 
-    return video_path
+    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        return video_path
+    return ""
 
 
 def download_videos(task_id: str,
@@ -112,7 +134,12 @@ def download_videos(task_id: str,
     logger.info(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds")
     video_paths = []
-    save_dir = utils.task_dir(task_id)
+
+    material_directory = config.app.get("material_directory", "").strip()
+    if material_directory == "task":
+        material_directory = utils.task_dir(task_id)
+    elif material_directory and not os.path.isdir(material_directory):
+        material_directory = ""
 
     if video_contact_mode.value == VideoConcatMode.random.value:
         random.shuffle(valid_video_items)
@@ -121,14 +148,20 @@ def download_videos(task_id: str,
     for item in valid_video_items:
         try:
             logger.info(f"downloading video: {item.url}")
-            saved_video_path = save_video(item.url, save_dir)
-            video_paths.append(saved_video_path)
-            seconds = min(max_clip_duration, item.duration)
-            total_duration += seconds
-            if total_duration > audio_duration:
-                logger.info(f"total duration of downloaded videos: {total_duration} seconds, skip downloading more")
-                break
+            saved_video_path = save_video(video_url=item.url, save_dir=material_directory)
+            if saved_video_path:
+                logger.info(f"video saved: {saved_video_path}")
+                video_paths.append(saved_video_path)
+                seconds = min(max_clip_duration, item.duration)
+                total_duration += seconds
+                if total_duration > audio_duration:
+                    logger.info(f"total duration of downloaded videos: {total_duration} seconds, skip downloading more")
+                    break
         except Exception as e:
             logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
     logger.success(f"downloaded {len(video_paths)} videos")
     return video_paths
+
+
+if __name__ == "__main__":
+    download_videos("test123", ["cat"], audio_duration=100)

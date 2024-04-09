@@ -2,17 +2,35 @@
     # Pexels API Key
     # Register at https://www.pexels.com/api/ to get your API key.
     # You can use multiple keys to avoid rate limits.
-    # For example: pexels_api_keys = ["123456789","abcdefghi"]
+    # For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
     # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
     pexels_api_keys = []
 
     # 如果你没有 OPENAI API Key，可以使用 g4f 代替，或者使用国内的 Moonshot API
-    llm_provider="openai" # "openai" or "moonshot" or "oneapi" or "g4f" or "azure" or "qwen"
+    # If you don't have an OPENAI API Key, you can use g4f instead
+
+    # 支持的提供商 (Supported providers):
+    #   openai
+    #   moonshot (月之暗面)
+    #   oneapi
+    #   g4f
+    #   azure
+    #   qwen (通义千问)
+    #   gemini
+    llm_provider="openai"
+
+    ########## Ollama Settings
+    # No need to set it unless you want to use your own proxy
+    ollama_base_url = ""
+    # Check your available models at https://ollama.com/library
+    ollama_model_name = ""
 
     ########## OpenAI API Key
-    # Visit https://openai.com/api/ for details on obtaining an API key.
+    # Get your API key at https://platform.openai.com/api-keys
     openai_api_key = ""
-    openai_base_url = "" # no need to set it unless you want to use your own proxy
+    # No need to set it unless you want to use your own proxy
+    openai_base_url = ""
+    # Check your available models at https://platform.openai.com/account/limits
     openai_model_name = "gpt-4-turbo-preview"
 
     ########## Moonshot API Key
@@ -40,8 +58,15 @@
     azure_model_name="gpt-35-turbo" # replace with your model deployment name
     azure_api_version = "2024-02-15-preview"
 
-    ########## qwen API Key, you need to pip install dashscope firstly
-    # Visit https://tongyi.aliyun.com/qianwen/ to get more details
+    ########## Gemini API Key
+    gemini_api_key=""
+    gemini_model_name = "gemini-1.0-pro"
+
+    ########## Qwen API Key
+    # Visit https://dashscope.console.aliyun.com/apiKey to get your API key
+    # Visit below links to get more details
+    # https://tongyi.aliyun.com/qianwen/
+    # https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction
     qwen_api_key = ""
     qwen_model_name = "qwen-max" 
 
@@ -77,6 +102,33 @@
 
     # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
     #########################################################################################
+
+    # 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口
+    # 比如 http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+    # 如果你需要使用域名对外提供服务（一般会用nginx做代理），则可以设置为你的域名
+    # 比如 https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+    # endpoint="https://xxxx.com"
+
+    # When the video is successfully generated, the API service provides a download endpoint for the video, defaulting to the service's current address and listening port.
+    # For example, http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+    # If you need to provide the service externally using a domain name (usually done with nginx as a proxy), you can set it to your domain name.
+    # For example, https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+    # endpoint="https://xxxx.com"
+    endpoint=""
+
+
+    # Video material storage location
+    # material_directory = ""                    # Indicates that video materials will be downloaded to the default folder, the default folder is ./storage/cache_videos under the current project
+    # material_directory = "/user/harry/videos"  # Indicates that video materials will be downloaded to a specified folder
+    # material_directory = "task"                # Indicates that video materials will be downloaded to the current task's folder, this method does not allow sharing of already downloaded video materials
+
+    # 视频素材存放位置
+    # material_directory = ""                    #表示将视频素材下载到默认的文件夹，默认文件夹为当前项目下的 ./storage/cache_videos
+    # material_directory = "/user/harry/videos"  #表示将视频素材下载到指定的文件夹中
+    # material_directory = "task"                #表示将视频素材下载到当前任务的文件夹中，这种方式无法共享已经下载的视频素材
+
+    material_directory = ""
+
 
 [whisper]
     # Only effective when subtitle_provider is "whisper"
