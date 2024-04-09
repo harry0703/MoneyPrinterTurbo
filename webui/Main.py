@@ -1,7 +1,18 @@
+import sys
+import os
+
+# Add the root directory of the project to the system path to allow importing modules from the project
+root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
+    print("******** sys.path ********")
+    print(sys.path)
+    print("")
+
 import json
 import locale
 import streamlit as st
-import sys
+
 import os
 from uuid import uuid4
 import platform
@@ -31,7 +42,6 @@ hide_streamlit_style = """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 st.title("MoneyPrinterTurbo")
 
-root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 font_dir = os.path.join(root_dir, "resource", "fonts")
 song_dir = os.path.join(root_dir, "resource", "songs")
 i18n_dir = os.path.join(root_dir, "webui", "i18n")
