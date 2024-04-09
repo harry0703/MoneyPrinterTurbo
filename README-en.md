@@ -316,7 +316,7 @@ This is likely due to network issues preventing access to foreign services. Plea
 [issue 33](https://github.com/harry0703/MoneyPrinterTurbo/issues/33)
 
 1. Follow the `example configuration` provided `download address` to
-   install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe, using the static library
+   install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-30-Q16-x64-static.exe, using the static library
 2. Do not install in a path with Chinese characters to avoid unpredictable issues
 
 [issue 54](https://github.com/harry0703/MoneyPrinterTurbo/issues/54#issuecomment-2017842022)
