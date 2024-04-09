@@ -50,6 +50,8 @@
 - [x] 视频素材来源 **高清**，而且 **无版权**
 - [x] 支持 **OpenAI**、**moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama** 等多种模型接入
 
+ ❓[如何使用免费的 **OpenAI GPT-3.5** 模型?](https://github.com/harry0703/MoneyPrinterTurbo?tab=readme-ov-file#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98-)
+
 ### 后期计划 📅
 
 - [ ] GPT-SoVITS 配音支持
@@ -249,6 +251,20 @@ python main.py
 用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
 
 ## 常见问题 🤔
+
+### ❓如何使用免费的OpenAI GPT-3.5模型?
+[OpenAI宣布ChatGPT里面3.5已经免费了](https://openai.com/blog/start-using-chatgpt-instantly)，有开发者将其封装成了API，可以直接调用
+
+**确保你安装和启动了docker服务**，执行以下命令启动docker服务
+```shell
+docker run -p 3040:3040 missuo/freegpt35
+```
+启动成功后，修改 `config.toml` 中的配置
+- `llm_provider` 设置为 `openai`
+- `openai_api_key` 随便填写一个即可，比如 '123456'
+- `openai_base_url` 改为 `http://localhost:3040/v1/`
+- `openai_model_name` 改为 `gpt-3.5-turbo`
+
 
 ### ❓AttributeError: 'str' object has no attribute 'choices'`
 
