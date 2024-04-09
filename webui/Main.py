@@ -143,6 +143,8 @@ def tr(key):
     return loc.get("Translation", {}).get(key, key)
 
 
+st.write(tr("Get Help"))
+
 with st.expander(tr("Basic Settings"), expanded=False):
     config_panels = st.columns(3)
     left_config_panel = config_panels[0]
@@ -184,7 +186,6 @@ with st.expander(tr("Basic Settings"), expanded=False):
         llm_provider = st.selectbox(tr("LLM Provider"), options=llm_providers, index=saved_llm_provider_index)
         llm_provider = llm_provider.lower()
         config.app["llm_provider"] = llm_provider
-        st.write(f"**{tr('LLM Provider')}:** {llm_provider}")
 
         llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
         llm_base_url = config.app.get(f"{llm_provider}_base_url", "")
