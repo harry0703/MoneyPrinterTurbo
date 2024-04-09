@@ -1,6 +1,6 @@
 import os
 import socket
-import tomli
+import toml
 from loguru import logger
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -16,17 +16,17 @@ if not os.path.isfile(config_file):
 logger.info(f"load config from file: {config_file}")
 
 try:
-    with open(config_file, mode="rb") as fp:
-        _cfg = tomli.load(fp)
+    _cfg = toml.load(config_file)
 except Exception as e:
     logger.warning(f"load config failed: {str(e)}, try to load as utf-8-sig")
     with open(config_file, mode="r", encoding='utf-8-sig') as fp:
         _cfg_content = fp.read()
-        _cfg = tomli.loads(_cfg_content)
+        _cfg = toml.loads(_cfg_content)
 
 app = _cfg.get("app", {})
 whisper = _cfg.get("whisper", {})
 pexels = _cfg.get("pexels", {})
+ui = _cfg.get("ui", {})
 
 hostname = socket.gethostname()
 
@@ -47,9 +47,18 @@ ffmpeg_path = app.get("ffmpeg_path", "")
 if ffmpeg_path and os.path.isfile(ffmpeg_path):
     os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
 
+
 # __cfg = {
 #     "hostname": hostname,
 #     "listen_host": listen_host,
 #     "listen_port": listen_port,
 # }
 # logger.info(__cfg)
+
+
+def save_config():
+    with open(config_file, "w", encoding="utf-8") as f:
+        _cfg["app"] = app
+        _cfg["whisper"] = whisper
+        _cfg["pexels"] = pexels
+        f.write(toml.dumps(_cfg))

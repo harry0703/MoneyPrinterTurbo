@@ -48,6 +48,15 @@
     "Generating Video": "Video wird erstellt, bitte warten...",
     "Start Generating Video": "Beginne mit der Generierung",
     "Video Generation Completed": "Video erfolgreich generiert",
-    "You can download the generated video from the following links": "Sie können das generierte Video über die folgenden Links herunterladen"
+    "You can download the generated video from the following links": "Sie können das generierte Video über die folgenden Links herunterladen",
+    "Basic Settings": "**Grunde Instellungen**",
+    "Pexels API Key": "Pexels API Key (:red[Required] [Get API Key](https://www.pexels.com/api/))",
+    "Language": "Language",
+    "LLM Provider": "LLM Provider",
+    "API Key": "API Key (:red[Required])",
+    "Base Url": "Base Url",
+    "Model Name": "Model Name",
+    "Please Enter the LLM API Key": "Please Enter the **LLM API Key**",
+    "Please Enter the Pexels API Key": "Please Enter the **Pexels API Key**"
   }
 }
