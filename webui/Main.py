@@ -202,10 +202,15 @@ with st.expander(tr("Basic Settings"), expanded=False):
         config.save_config()
 
     with right_config_panel:
-        pexels_api_key = config.app.get("pexels_api_keys", "")
+        pexels_api_keys = config.app.get("pexels_api_keys", [])
+        if isinstance(pexels_api_keys, str):
+            pexels_api_keys = [pexels_api_keys]
+        pexels_api_key = ", ".join(pexels_api_keys)
+
         pexels_api_key = st.text_input(tr("Pexels API Key"), value=pexels_api_key, type="password")
+        pexels_api_key = pexels_api_key.replace(" ", "")
         if pexels_api_key:
-            config.app["pexels_api_keys"] = pexels_api_key
+            config.app["pexels_api_keys"] = pexels_api_key.split(",")
             config.save_config()
 
 panel = st.columns(3)
