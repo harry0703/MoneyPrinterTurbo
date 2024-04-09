@@ -143,7 +143,7 @@ def tr(key):
     return loc.get("Translation", {}).get(key, key)
 
 
-with st.expander(tr("Basic Settings"), expanded=True):
+with st.expander(tr("Basic Settings"), expanded=False):
     config_panels = st.columns(3)
     left_config_panel = config_panels[0]
     middle_config_panel = config_panels[1]
