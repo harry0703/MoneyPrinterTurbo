@@ -1,5 +1,7 @@
 import os
 import glob
+import shutil
+
 from fastapi import Request, Depends, Path, BackgroundTasks, UploadFile
 from fastapi.params import File
 from loguru import logger
@@ -9,7 +11,7 @@ from app.controllers import base
 from app.controllers.v1.base import new_router
 from app.models.exception import HttpException
 from app.models.schema import TaskVideoRequest, TaskQueryResponse, TaskResponse, TaskQueryRequest, \
-    BgmUploadResponse, BgmRetrieveResponse
+    BgmUploadResponse, BgmRetrieveResponse, TaskDeletionResponse
 from app.services import task as tm
 from app.services import state as sm
 from app.utils import utils
@@ -70,6 +72,23 @@ def get_task(request: Request, task_id: str = Path(..., description="Task ID"),
             for v in combined_videos:
                 urls.append(file_to_uri(v))
             task["combined_videos"] = urls
+        return utils.get_response(200, task)
+
+    raise HttpException(task_id=task_id, status_code=404, message=f"{request_id}: task not found")
+
+
+@router.delete("/tasks/{task_id}", response_model=TaskDeletionResponse, summary="Delete a generated short video task")
+def create_video(request: Request, task_id: str = Path(..., description="Task ID")):
+    request_id = base.get_task_id(request)
+    task = sm.state.get_task(task_id)
+    if task:
+        tasks_dir = utils.task_dir()
+        current_task_dir = os.path.join(tasks_dir, task_id)
+        if os.path.exists(current_task_dir):
+            shutil.rmtree(current_task_dir)
+
+        sm.state.delete_task(task_id)
+        logger.success(f"video deleted: {utils.to_json(task)}")
         return utils.get_response(200, task)
 
     raise HttpException(task_id=task_id, status_code=404, message=f"{request_id}: task not found")

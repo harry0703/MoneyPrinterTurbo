@@ -38,6 +38,10 @@ class MemoryState(BaseState):
     def get_task(self, task_id: str):
         return self._tasks.get(task_id, None)
 
+    def delete_task(self, task_id: str):
+        if task_id in self._tasks:
+            del self._tasks[task_id]
+
 
 # Redis state management
 class RedisState(BaseState):
@@ -66,6 +70,9 @@ class RedisState(BaseState):
 
         task = {key.decode('utf-8'): self._convert_to_original_type(value) for key, value in task_data.items()}
         return task
+
+    def delete_task(self, task_id: str):
+        self._redis.delete(task_id)
 
     @staticmethod
     def _convert_to_original_type(value):
