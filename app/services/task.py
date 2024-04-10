@@ -28,7 +28,7 @@ def start(task_id, params: VideoParams):
     }
     """
     logger.info(f"start task: {task_id}")
-    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
     video_subject = params.video_subject
     voice_name = voice.parse_voice_name(params.voice_name)
@@ -44,7 +44,7 @@ def start(task_id, params: VideoParams):
     else:
         logger.debug(f"video script: \n{video_script}")
 
-    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
 
     logger.info("\n\n## generating video terms")
     video_terms = params.video_terms
@@ -70,13 +70,13 @@ def start(task_id, params: VideoParams):
     with open(script_file, "w", encoding="utf-8") as f:
         f.write(utils.to_json(script_data))
 
-    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
     logger.info("\n\n## generating audio")
     audio_file = path.join(utils.task_dir(task_id), f"audio.mp3")
     sub_maker = voice.tts(text=video_script, voice_name=voice_name, voice_file=audio_file)
     if sub_maker is None:
-        sm.update_task(task_id, state=const.TASK_STATE_FAILED)
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error(
             "failed to generate audio, maybe the network is not available. if you are in China, please use a VPN.")
         return
@@ -84,7 +84,7 @@ def start(task_id, params: VideoParams):
     audio_duration = voice.get_audio_duration(sub_maker)
     audio_duration = math.ceil(audio_duration)
 
-    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
 
     subtitle_path = ""
     if params.subtitle_enabled:
@@ -108,7 +108,7 @@ def start(task_id, params: VideoParams):
             logger.warning(f"subtitle file is invalid: {subtitle_path}")
             subtitle_path = ""
 
-    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     logger.info("\n\n## downloading videos")
     downloaded_videos = material.download_videos(task_id=task_id,
@@ -119,12 +119,12 @@ def start(task_id, params: VideoParams):
                                                  max_clip_duration=max_clip_duration,
                                                  )
     if not downloaded_videos:
-        sm.update_task(task_id, state=const.TASK_STATE_FAILED)
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error(
             "failed to download videos, maybe the network is not available. if you are in China, please use a VPN.")
         return
 
-    sm.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
     final_video_paths = []
     combined_video_paths = []
@@ -146,7 +146,7 @@ def start(task_id, params: VideoParams):
                              threads=n_threads)
 
         _progress += 50 / params.video_count / 2
-        sm.update_task(task_id, progress=_progress)
+        sm.state.update_task(task_id, progress=_progress)
 
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
@@ -160,7 +160,7 @@ def start(task_id, params: VideoParams):
                              )
 
         _progress += 50 / params.video_count / 2
-        sm.update_task(task_id, progress=_progress)
+        sm.state.update_task(task_id, progress=_progress)
 
         final_video_paths.append(final_video_path)
         combined_video_paths.append(combined_video_path)
@@ -171,5 +171,5 @@ def start(task_id, params: VideoParams):
         "videos": final_video_paths,
         "combined_videos": combined_video_paths
     }
-    sm.update_task(task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs)
+    sm.state.update_task(task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs)
     return kwargs
