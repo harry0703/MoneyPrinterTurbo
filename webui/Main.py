@@ -396,7 +396,7 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if not config.app.get(f"{llm_provider}_api_key", ""):
+    if llm_provider != 'g4f' and not config.app.get(f"{llm_provider}_api_key", ""):
         st.error(tr("Please Enter the LLM API Key"))
         scroll_to_bottom()
         st.stop()
