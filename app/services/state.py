@@ -1,7 +1,5 @@
 import ast
-import json
 from abc import ABC, abstractmethod
-import redis
 from app.config import config
 from app.models import const
 
@@ -47,6 +45,7 @@ class MemoryState(BaseState):
 class RedisState(BaseState):
 
     def __init__(self, host='localhost', port=6379, db=0):
+        import redis
         self._redis = redis.StrictRedis(host=host, port=port, db=db)
 
     def update_task(self, task_id: str, state: int = const.TASK_STATE_PROCESSING, progress: int = 0, **kwargs):
