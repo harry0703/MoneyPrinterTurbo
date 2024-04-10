@@ -130,7 +130,7 @@
     material_directory = ""
 
     # Used for state management of the task
-    enable_redis = true
+    enable_redis = false
     redis_host = "localhost"
     redis_port = 6379
     redis_db = 0
