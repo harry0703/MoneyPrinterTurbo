@@ -29,7 +29,7 @@ def create_video(background_tasks: BackgroundTasks, request: Request, body: Task
             "request_id": request_id,
             "params": body.dict(),
         }
-        sm.update_task(task_id)
+        sm.state.update_task(task_id)
         background_tasks.add_task(tm.start, task_id=task_id, params=body)
         logger.success(f"video created: {utils.to_json(task)}")
         return utils.get_response(200, task)
@@ -46,7 +46,7 @@ def get_task(request: Request, task_id: str = Path(..., description="Task ID"),
     endpoint = endpoint.rstrip("/")
 
     request_id = base.get_task_id(request)
-    task = sm.get_task(task_id)
+    task = sm.state.get_task(task_id)
     if task:
         task_dir = utils.task_dir()
 

@@ -11,13 +11,14 @@ from app.models.schema import VideoAspect, VideoConcatMode, MaterialInfo
 from app.utils import utils
 
 requested_count = 0
-pexels_api_keys = config.app.get("pexels_api_keys")
-if not pexels_api_keys:
-    raise ValueError(
-        f"\n\n##### pexels_api_keys is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n{utils.to_json(config.app)}")
 
 
 def round_robin_api_key():
+    pexels_api_keys = config.app.get("pexels_api_keys")
+    if not pexels_api_keys:
+        raise ValueError(
+            f"\n\n##### pexels_api_keys is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n{utils.to_json(config.app)}")
+
     # if only one key is provided, return it
     if isinstance(pexels_api_keys, str):
         return pexels_api_keys
