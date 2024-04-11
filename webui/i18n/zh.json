@@ -55,6 +55,7 @@
     "LLM Provider": "大模型提供商",
     "API Key": "API Key (:red[必填，需要到大模型提供商的后台申请])",
     "Base Url": "Base Url (可选)",
+    "Account ID": "账户ID (Cloudflare的dash面板url中获取)",
     "Model Name": "模型名称 (:blue[需要到大模型提供商的后台确认被授权的模型名称])",
     "Please Enter the LLM API Key": "请先填写大模型 **API Key**",
     "Please Enter the Pexels API Key": "请先填写 **Pexels API Key**",
