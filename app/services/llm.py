@@ -5,6 +5,8 @@ from typing import List
 from loguru import logger
 from openai import OpenAI
 from openai import AzureOpenAI
+from openai.types.chat import ChatCompletion
+
 from app.config import config
 
 
@@ -133,7 +135,15 @@ def _generate_response(prompt: str) -> str:
             messages=[{"role": "user", "content": prompt}]
         )
         if response:
-            content = response.choices[0].message.content
+            if isinstance(response, ChatCompletion):
+                content = response.choices[0].message.content
+            else:
+                raise Exception(
+                    f"[{llm_provider}] returned an invalid response: \"{response}\", please check your network "
+                    f"connection and try again.")
+        else:
+            raise Exception(
+                f"[{llm_provider}] returned an empty response, please check your network connection and try again.")
 
     return content.replace("\n", "")
 

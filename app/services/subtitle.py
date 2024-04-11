@@ -1,4 +1,5 @@
 import json
+import os.path
 import re
 
 from faster_whisper import WhisperModel
@@ -17,8 +18,13 @@ model = None
 def create(audio_file, subtitle_file: str = ""):
     global model
     if not model:
-        logger.info(f"loading model: {model_size}, device: {device}, compute_type: {compute_type}")
-        model = WhisperModel(model_size_or_path=model_size,
+        model_path = f"{utils.root_dir()}/models/whisper-{model_size}"
+        model_bin_file = f"{model_path}/model.bin"
+        if not os.path.isdir(model_path) or not os.path.isfile(model_bin_file):
+            model_path = model_size
+
+        logger.info(f"loading model: {model_path}, device: {device}, compute_type: {compute_type}")
+        model = WhisperModel(model_size_or_path=model_path,
                              device=device,
                              compute_type=compute_type)
 
