@@ -10,3 +10,5 @@
 /*/__pycache__/*
 .vscode
 /**/.streamlit
+__pycache__
+logs/

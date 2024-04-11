@@ -55,6 +55,7 @@
     "LLM Provider": "LLM Provider",
     "API Key": "API Key (:red[Required])",
     "Base Url": "Base Url",
+    "Account ID": "Account ID (Get from Cloudflare dashboard)",
     "Model Name": "Model Name",
     "Please Enter the LLM API Key": "Please Enter the **LLM API Key**",
     "Please Enter the Pexels API Key": "Please Enter the **Pexels API Key**",

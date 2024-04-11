@@ -57,6 +57,11 @@ def _generate_response(prompt: str) -> str:
             api_key = config.app.get("qwen_api_key")
             model_name = config.app.get("qwen_model_name")
             base_url = "***"
+        elif llm_provider == "cloudflare":
+            api_key = config.app.get("cloudflare_api_key")
+            model_name = config.app.get("cloudflare_model_name")
+            account_id = config.app.get("cloudflare_account_id")
+            base_url = "***"
         else:
             raise ValueError("llm_provider is not set, please set it in the config.toml file.")
 
@@ -115,6 +120,22 @@ def _generate_response(prompt: str) -> str:
 
             convo.send_message(prompt)
             return convo.last.text
+        
+        if llm_provider == "cloudflare":
+            import requests
+            response = requests.post(
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_name}",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                "messages": [
+                    {"role": "system", "content": "You are a friendly assistant"},
+                    {"role": "user", "content": prompt}
+                ]
+                }
+            )
+            result = response.json()
+            logger.info(result)
+            return result["result"]["response"]
 
         if llm_provider == "azure":
             client = AzureOpenAI(

@@ -175,7 +175,7 @@ with st.expander(tr("Basic Settings"), expanded=False):
         #   qwen (通义千问)
         #   gemini
         #   ollama
-        llm_providers = ['OpenAI', 'Moonshot', 'Azure', 'Qwen', 'Gemini', 'Ollama', 'G4f', 'OneAPI']
+        llm_providers = ['OpenAI', 'Moonshot', 'Azure', 'Qwen', 'Gemini', 'Ollama', 'G4f', 'OneAPI', "Cloudflare"]
         saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
         saved_llm_provider_index = 0
         for i, provider in enumerate(llm_providers):
@@ -190,6 +190,7 @@ with st.expander(tr("Basic Settings"), expanded=False):
         llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
         llm_base_url = config.app.get(f"{llm_provider}_base_url", "")
         llm_model_name = config.app.get(f"{llm_provider}_model_name", "")
+        llm_account_id = config.app.get(f"{llm_provider}_account_id", "")
         st_llm_api_key = st.text_input(tr("API Key"), value=llm_api_key, type="password")
         st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
         st_llm_model_name = st.text_input(tr("Model Name"), value=llm_model_name)
@@ -199,6 +200,11 @@ with st.expander(tr("Basic Settings"), expanded=False):
             config.app[f"{llm_provider}_base_url"] = st_llm_base_url
         if st_llm_model_name:
             config.app[f"{llm_provider}_model_name"] = st_llm_model_name
+
+        if llm_provider == 'cloudflare':
+            st_llm_account_id = st.text_input(tr("Account ID"), value=llm_account_id)
+            if st_llm_account_id:
+                config.app[f"{llm_provider}_account_id"] = st_llm_account_id
 
         config.save_config()
 
