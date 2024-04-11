@@ -124,7 +124,7 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
 
     width, height = get_text_size(text)
     if width <= max_width:
-        return text
+        return text, height
 
     logger.warning(f"wrapping text, max_width: {max_width}, text_width: {width}, text: {text}")
 
@@ -149,8 +149,9 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
     if processed:
         _wrapped_lines_ = [line.strip() for line in _wrapped_lines_]
         result = '\n'.join(_wrapped_lines_).strip()
+        height = len(_wrapped_lines_) * height
         logger.warning(f"wrapped text: {result}")
-        return result
+        return result, height
 
     _wrapped_lines_ = []
     chars = list(text)
@@ -165,8 +166,9 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
             _txt_ = ''
     _wrapped_lines_.append(_txt_)
     result = '\n'.join(_wrapped_lines_).strip()
+    height = len(_wrapped_lines_) * height
     logger.warning(f"wrapped text: {result}")
-    return result
+    return result, height
 
 
 def generate_video(video_path: str,
@@ -199,23 +201,15 @@ def generate_video(video_path: str,
 
         logger.info(f"using font: {font_path}")
 
-    if params.subtitle_position == "top":
-        position_height = video_height * 0.1
-    elif params.subtitle_position == "bottom":
-        position_height = video_height * 0.9
-    else:
-        position_height = "center"
-
-    def generator(txt, **kwargs):
+    def create_text_clip(subtitle_item):
+        phrase = subtitle_item[1]
         max_width = video_width * 0.9
-        # logger.debug(f"rendering text: {txt}")
-        wrapped_txt = wrap_text(txt,
-                                max_width=max_width,
-                                font=font_path,
-                                fontsize=params.font_size
-                                )  # 调整max_width以适应你的视频
-
-        clip = TextClip(
+        wrapped_txt, txt_height = wrap_text(phrase,
+                                            max_width=max_width,
+                                            font=font_path,
+                                            fontsize=params.font_size
+                                            )
+        _clip = TextClip(
             wrapped_txt,
             font=font_path,
             fontsize=params.font_size,
@@ -225,15 +219,28 @@ def generate_video(video_path: str,
             stroke_width=params.stroke_width,
             print_cmd=False,
         )
-        return clip
+        duration = subtitle_item[0][1] - subtitle_item[0][0]
+        _clip = _clip.set_start(subtitle_item[0][0])
+        _clip = _clip.set_end(subtitle_item[0][1])
+        _clip = _clip.set_duration(duration)
+        if params.subtitle_position == "bottom":
+            _clip = _clip.set_position(('center', video_height * 0.95 - _clip.h))
+        elif params.subtitle_position == "top":
+            _clip = _clip.set_position(('center', video_height * 0.1))
+        else:
+            _clip = _clip.set_position(('center', 'center'))
+        return _clip
 
     video_clip = VideoFileClip(video_path)
     audio_clip = AudioFileClip(audio_path).volumex(params.voice_volume)
 
     if subtitle_path and os.path.exists(subtitle_path):
-        sub = SubtitlesClip(subtitles=subtitle_path, make_textclip=generator, encoding='utf-8')
-        sub_clip = sub.set_position(lambda _t: ('center', position_height))
-        video_clip = CompositeVideoClip([video_clip, sub_clip])
+        sub = SubtitlesClip(subtitles=subtitle_path, encoding='utf-8')
+        text_clips = []
+        for item in sub.subtitles:
+            clip = create_text_clip(subtitle_item=item)
+            text_clips.append(clip)
+        video_clip = CompositeVideoClip([video_clip, *text_clips])
 
     bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
     if bgm_file:
@@ -258,7 +265,7 @@ if __name__ == "__main__":
     txt_zh = "测试长字段这是您的旅行技巧指南帮助您进行预算友好的冒险"
     font = utils.resource_dir() + "/fonts/STHeitiMedium.ttc"
     for txt in [txt_en, txt_zh]:
-        t = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
+        t, h = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
         print(t)
 
     task_id = "aa563149-a7ea-49c2-b39f-8c32cc225baf"

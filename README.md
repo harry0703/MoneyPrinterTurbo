@@ -66,6 +66,9 @@
 - [ ] 支持更多的语音合成服务商，比如 OpenAI TTS, Azure TTS
 - [ ] 自动上传到YouTube平台
 
+## 交流讨论 💬
+<img src="docs/wechat-01.jpg" width="300">
+
 ## 视频演示 📺
 
 ### 竖屏 9:16
@@ -102,8 +105,17 @@
 </tbody>
 </table>
 
+## 配置要求 📦
+- 建议最低 CPU 4核或以上，内存 8G 或以上，显卡非必须
+- Windows 10 或 MacOS 11.0 以上系统
+
 ## 安装部署 📥
 
+> 不想部署的可以直接下载安装包，解压直接使用
+- **Windows** 版本下载地址
+  - 百度网盘: https://pan.baidu.com/s/1BB3SGtAFTytzFLS5t2d8Gg?pwd=5bry
+
+### 前提条件
 - 尽量不要使用 **中文路径**，避免出现一些无法预料的问题
 - 请确保你的 **网络** 是正常的，VPN需要打开`全局流量`模式
 
@@ -375,14 +387,6 @@ pip install Pillow==8.4.0
 
 - 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues)
   或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。
-- 也可以关注我的 **抖音** 或 **视频号**：`网旭哈瑞.AI`
-    - 我会在上面发布一些 **使用教程** 和 **纯技术** 分享。
-    - 如果有更新和优化，我也会在上面 **及时通知**。
-    - 有问题也可以在上面 **留言**，我会 **尽快回复**。
-
-|                   抖音                    |              |                     视频号                     |
-|:---------------------------------------:|:------------:|:-------------------------------------------:|
-| <img src="docs/douyin.jpg" width="180"> |              | <img src="docs/shipinghao.jpg" width="200"> |
 
 ## 参考项目 📚
 
