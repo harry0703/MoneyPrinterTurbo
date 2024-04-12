@@ -79,7 +79,7 @@ def _generate_response(prompt: str) -> str:
             from dashscope.api_entities.dashscope_response import GenerationResponse
             dashscope.api_key = api_key
             response = dashscope.Generation.call(
-                model=model_name + "dd",
+                model=model_name,
                 messages=[{"role": "user", "content": prompt}]
             )
             if response:
