@@ -3,6 +3,7 @@ import glob
 import shutil
 
 from fastapi import Request, Depends, Path, BackgroundTasks, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.params import File
 from loguru import logger
 
@@ -78,7 +79,7 @@ def get_task(request: Request, task_id: str = Path(..., description="Task ID"),
 
 
 @router.delete("/tasks/{task_id}", response_model=TaskDeletionResponse, summary="Delete a generated short video task")
-def create_video(request: Request, task_id: str = Path(..., description="Task ID")):
+def delete_video(request: Request, task_id: str = Path(..., description="Task ID")):
     request_id = base.get_task_id(request)
     task = sm.state.get_task(task_id)
     if task:
@@ -130,3 +131,13 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
         return utils.get_response(200, response)
 
     raise HttpException('', status_code=400, message=f"{request_id}: Only *.mp3 files can be uploaded")
+
+
+@router.get("/stream/{file_path:path}")
+async def stream_video(request: Request, file_path: str):
+    tasks_dir = utils.task_dir()
+    video_path = os.path.join(tasks_dir, file_path)
+    if os.path.isfile(video_path):
+        return FileResponse(video_path, media_type="video/mp4", filename=file_path)
+    else:
+        return {"message": "File not found."}

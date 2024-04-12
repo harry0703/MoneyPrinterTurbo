@@ -21,3 +21,4 @@ __pycache__/
 .svn/
 
 storage/
+config.toml

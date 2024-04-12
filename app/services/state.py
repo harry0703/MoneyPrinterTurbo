@@ -44,9 +44,9 @@ class MemoryState(BaseState):
 # Redis state management
 class RedisState(BaseState):
 
-    def __init__(self, host='localhost', port=6379, db=0):
+    def __init__(self, host='localhost', port=6379, db=0, password=None):
         import redis
-        self._redis = redis.StrictRedis(host=host, port=port, db=db)
+        self._redis = redis.StrictRedis(host=host, port=port, db=db, password=password)
 
     def update_task(self, task_id: str, state: int = const.TASK_STATE_PROCESSING, progress: int = 0, **kwargs):
         progress = int(progress)
@@ -98,5 +98,6 @@ _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
 _redis_port = config.app.get("redis_port", 6379)
 _redis_db = config.app.get("redis_db", 0)
+_redis_password = config.app.get("redis_password", None)
 
-state = RedisState(host=_redis_host, port=_redis_port, db=_redis_db) if _enable_redis else MemoryState()
+state = RedisState(host=_redis_host, port=_redis_port, db=_redis_db, password=_redis_password) if _enable_redis else MemoryState()
