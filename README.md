@@ -67,7 +67,7 @@
 - [ ] 自动上传到YouTube平台
 
 ## 交流讨论 💬
-<img src="docs/wechat-01.jpg" width="300">
+<img src="docs/wechat-02.jpg" width="300">
 
 ## 视频演示 📺
 
