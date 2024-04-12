@@ -76,13 +76,27 @@ def _generate_response(prompt: str) -> str:
 
         if llm_provider == "qwen":
             import dashscope
+            from dashscope.api_entities.dashscope_response import GenerationResponse
             dashscope.api_key = api_key
             response = dashscope.Generation.call(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}]
             )
-            content = response["output"]["text"]
-            return content.replace("\n", "")
+            if response:
+                if isinstance(response, GenerationResponse):
+                    status_code = response.status_code
+                    if status_code != 200:
+                        raise Exception(
+                            f"[{llm_provider}] returned an error response: \"{response}\"")
+
+                    content = response["output"]["text"]
+                    return content.replace("\n", "")
+                else:
+                    raise Exception(
+                        f"[{llm_provider}] returned an invalid response: \"{response}\"")
+            else:
+                raise Exception(
+                    f"[{llm_provider}] returned an empty response")
 
         if llm_provider == "gemini":
             import google.generativeai as genai
@@ -122,17 +136,17 @@ def _generate_response(prompt: str) -> str:
 
             convo.send_message(prompt)
             return convo.last.text
-        
+
         if llm_provider == "cloudflare":
             import requests
             response = requests.post(
-            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_name}",
+                f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_name}",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={
-                "messages": [
-                    {"role": "system", "content": "You are a friendly assistant"},
-                    {"role": "user", "content": prompt}
-                ]
+                    "messages": [
+                        {"role": "system", "content": "You are a friendly assistant"},
+                        {"role": "user", "content": prompt}
+                    ]
                 }
             )
             result = response.json()
