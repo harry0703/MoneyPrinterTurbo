@@ -108,6 +108,7 @@ def combine_videos(combined_video_path: str,
                                logger=None,
                                temp_audiofile_path=output_dir,
                                audio_codec="aac",
+                               fps=30,
                                )
     logger.success(f"completed")
     return combined_video_path
@@ -255,7 +256,9 @@ def generate_video(video_path: str,
                                audio_codec="aac",
                                temp_audiofile_path=output_dir,
                                threads=params.n_threads or 2,
-                               logger=None)
+                               logger=None,
+                               fps=30,
+                               )
 
     logger.success(f"completed")
 
