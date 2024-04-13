@@ -13,14 +13,15 @@ from app.utils import utils
 def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if not bgm_type:
         return ""
+
+    if bgm_file and os.path.exists(bgm_file):
+        return bgm_file
+
     if bgm_type == "random":
         suffix = "*.mp3"
         song_dir = utils.song_dir()
         files = glob.glob(os.path.join(song_dir, suffix))
         return random.choice(files)
-
-    if os.path.exists(bgm_file):
-        return bgm_file
 
     return ""
 
@@ -127,7 +128,7 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
     if width <= max_width:
         return text, height
 
-    logger.warning(f"wrapping text, max_width: {max_width}, text_width: {width}, text: {text}")
+    # logger.warning(f"wrapping text, max_width: {max_width}, text_width: {width}, text: {text}")
 
     processed = True
 
@@ -151,7 +152,7 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
         _wrapped_lines_ = [line.strip() for line in _wrapped_lines_]
         result = '\n'.join(_wrapped_lines_).strip()
         height = len(_wrapped_lines_) * height
-        logger.warning(f"wrapped text: {result}")
+        # logger.warning(f"wrapped text: {result}")
         return result, height
 
     _wrapped_lines_ = []
@@ -168,7 +169,7 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
     _wrapped_lines_.append(_txt_)
     result = '\n'.join(_wrapped_lines_).strip()
     height = len(_wrapped_lines_) * height
-    logger.warning(f"wrapped text: {result}")
+    # logger.warning(f"wrapped text: {result}")
     return result, height
 
 
@@ -245,12 +246,15 @@ def generate_video(video_path: str,
 
     bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
     if bgm_file:
-        bgm_clip = (AudioFileClip(bgm_file)
-                    .set_duration(video_clip.duration)
-                    .volumex(params.bgm_volume)
-                    .audio_fadeout(3))
+        try:
+            bgm_clip = (AudioFileClip(bgm_file)
+                        .volumex(params.bgm_volume)
+                        .audio_fadeout(3))
+            bgm_clip = afx.audio_loop(bgm_clip, duration=video_clip.duration)
+            audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
+        except Exception as e:
+            logger.error(f"failed to add bgm: {str(e)}")
 
-        audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
     video_clip = video_clip.set_audio(audio_clip)
     video_clip.write_videofile(output_file,
                                audio_codec="aac",
