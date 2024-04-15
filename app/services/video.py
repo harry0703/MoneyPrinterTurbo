@@ -100,17 +100,18 @@ def combine_videos(combined_video_path: str,
             clips.append(clip)
             video_duration += clip.duration
 
-    final_clip = concatenate_videoclips(clips)
-    final_clip = final_clip.set_fps(30)
+    video_clip = concatenate_videoclips(clips)
+    video_clip = video_clip.set_fps(30)
     logger.info(f"writing")
     # https://github.com/harry0703/MoneyPrinterTurbo/issues/111#issuecomment-2032354030
-    final_clip.write_videofile(filename=combined_video_path,
+    video_clip.write_videofile(filename=combined_video_path,
                                threads=threads,
                                logger=None,
                                temp_audiofile_path=output_dir,
                                audio_codec="aac",
                                fps=30,
                                )
+    video_clip.close()
     logger.success(f"completed")
     return combined_video_path
 
@@ -263,7 +264,7 @@ def generate_video(video_path: str,
                                logger=None,
                                fps=30,
                                )
-
+    video_clip.close()
     logger.success(f"completed")
 
 
