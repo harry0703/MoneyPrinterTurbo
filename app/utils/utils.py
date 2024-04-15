@@ -168,6 +168,11 @@ def split_string_by_punctuations(s):
     next_char = ""
     for i in range(len(s)):
         char = s[i]
+        if char == "\n":
+            result.append(txt.strip())
+            txt = ""
+            continue
+
         if i > 0:
             previous_char = s[i - 1]
         if i < len(s) - 1:
@@ -184,6 +189,8 @@ def split_string_by_punctuations(s):
             result.append(txt.strip())
             txt = ""
 
+    # filter empty string
+    result = list(filter(None, result))
     return result
 
 
