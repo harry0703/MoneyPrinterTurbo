@@ -1,5 +1,6 @@
 import os
 import glob
+import pathlib
 import shutil
 
 from fastapi import Request, Depends, Path, BackgroundTasks, UploadFile
@@ -171,3 +172,22 @@ async def stream_video(request: Request, file_path: str):
     response.status_code = 206  # Partial Content
 
     return response
+
+
+@router.get("/download/{file_path:path}")
+async def download_video(_: Request, file_path: str):
+    """
+    download video
+    :param _: Request request
+    :param file_path: video file path, eg: /cd1727ed-3473-42a2-a7da-4faafafec72b/final-1.mp4
+    :return: video file
+    """
+    tasks_dir = utils.task_dir()
+    video_path = os.path.join(tasks_dir, file_path)
+    file_path = pathlib.Path(video_path)
+    filename = file_path.stem
+    extension = file_path.suffix
+    headers = {
+        "Content-Disposition": f"attachment; filename={filename}{extension}"
+    }
+    return FileResponse(path=video_path, headers=headers, filename=f"{filename}{extension}", media_type=f'video/{extension[1:]}')
