@@ -91,7 +91,7 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
 
         sm.state.delete_task(task_id)
         logger.success(f"video deleted: {utils.to_json(task)}")
-        return utils.get_response(200, task)
+        return utils.get_response(200)
 
     raise HttpException(task_id=task_id, status_code=404, message=f"{request_id}: task not found")
 
@@ -190,4 +190,5 @@ async def download_video(_: Request, file_path: str):
     headers = {
         "Content-Disposition": f"attachment; filename={filename}{extension}"
     }
-    return FileResponse(path=video_path, headers=headers, filename=f"{filename}{extension}", media_type=f'video/{extension[1:]}')
+    return FileResponse(path=video_path, headers=headers, filename=f"{filename}{extension}",
+                        media_type=f'video/{extension[1:]}')
