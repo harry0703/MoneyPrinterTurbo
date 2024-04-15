@@ -23,6 +23,8 @@
     "Number of Videos Generated Simultaneously": "同时生成视频数量",
     "Audio Settings": "**音频设置**",
     "Speech Synthesis": "朗读声音（:red[尽量与文案语言保持一致]）",
+    "Speech Region": "服务区域(:red[必填，[点击获取](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
+    "Speech Key": "API Key(:red[必填，[点击获取](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "朗读音量（1.0表示100%）",
     "Male": "男性",
     "Female": "女性",

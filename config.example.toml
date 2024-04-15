@@ -162,3 +162,9 @@
         ### Doc: https://requests.readthedocs.io/en/latest/user/advanced/#proxies
         # http = "http://10.10.1.10:3128"
         # https = "http://10.10.1.10:1080"
+
+[azure]
+    # Azure Speech API Key
+    # Get your API key at https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices
+    speech_key=""
+    speech_region=""

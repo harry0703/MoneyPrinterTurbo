@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+from datetime import datetime
 from xml.sax.saxutils import unescape
 from edge_tts.submaker import mktimestamp
 from loguru import logger
@@ -8,10 +9,11 @@ from edge_tts import submaker, SubMaker
 import edge_tts
 from moviepy.video.tools import subtitles
 
+from app.config import config
 from app.utils import utils
 
 
-def get_all_voices(filter_locals=None) -> list[str]:
+def get_all_azure_voices(filter_locals=None) -> list[str]:
     if filter_locals is None:
         filter_locals = ["zh-CN", "en-US", "zh-HK", "zh-TW"]
     voices_str = """
@@ -956,6 +958,34 @@ Gender: Female
 
 Name: zu-ZA-ThembaNeural
 Gender: Male
+
+
+Name: en-US-AvaMultilingualNeural-V2
+Gender: Female
+
+Name: en-US-AndrewMultilingualNeural-V2
+Gender: Male
+
+Name: en-US-EmmaMultilingualNeural-V2
+Gender: Female
+
+Name: en-US-BrianMultilingualNeural-V2
+Gender: Male
+
+Name: de-DE-FlorianMultilingualNeural-V2
+Gender: Male
+
+Name: de-DE-SeraphinaMultilingualNeural-V2
+Gender: Female
+
+Name: fr-FR-RemyMultilingualNeural-V2
+Gender: Male
+
+Name: fr-FR-VivienneMultilingualNeural-V2
+Gender: Female
+
+Name: zh-CN-XiaoxiaoMultilingualNeural-V2
+Gender: Female
     """.strip()
     voices = []
     name = ''
@@ -986,11 +1016,26 @@ Gender: Male
 def parse_voice_name(name: str):
     # zh-CN-XiaoyiNeural-Female
     # zh-CN-YunxiNeural-Male
+    # zh-CN-XiaoxiaoMultilingualNeural-V2-Female
     name = name.replace("-Female", "").replace("-Male", "").strip()
     return name
 
 
+def is_azure_v2_voice(voice_name: str):
+    voice_name = parse_voice_name(voice_name)
+    print(voice_name)
+    if voice_name.endswith("-V2"):
+        return voice_name.replace("-V2", "").strip()
+    return ""
+
+
 def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
+    if is_azure_v2_voice(voice_name):
+        return azure_tts_v2(text, voice_name, voice_file)
+    return azure_tts_v1(text, voice_name, voice_file)
+
+
+def azure_tts_v1(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
     text = text.strip()
     for i in range(3):
         try:
@@ -1014,6 +1059,80 @@ def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
 
             logger.info(f"completed, output file: {voice_file}")
             return sub_maker
+        except Exception as e:
+            logger.error(f"failed, error: {str(e)}")
+    return None
+
+
+def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
+    voice_name = is_azure_v2_voice(voice_name)
+    if not voice_name:
+        logger.error(f"invalid voice name: {voice_name}")
+        raise ValueError(f"invalid voice name: {voice_name}")
+    text = text.strip()
+
+    def _format_duration_to_offset(duration) -> int:
+        if isinstance(duration, str):
+            time_obj = datetime.strptime(duration, "%H:%M:%S.%f")
+            milliseconds = (time_obj.hour * 3600000) + (time_obj.minute * 60000) + (time_obj.second * 1000) + (
+                    time_obj.microsecond // 1000)
+            return milliseconds * 10000
+
+        if isinstance(duration, int):
+            return duration
+
+        return 0
+
+    for i in range(3):
+        try:
+            logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
+
+            import azure.cognitiveservices.speech as speechsdk
+
+            sub_maker = SubMaker()
+
+            def speech_synthesizer_word_boundary_cb(evt: speechsdk.SessionEventArgs):
+                # print('WordBoundary event:')
+                # print('\tBoundaryType: {}'.format(evt.boundary_type))
+                # print('\tAudioOffset: {}ms'.format((evt.audio_offset + 5000)))
+                # print('\tDuration: {}'.format(evt.duration))
+                # print('\tText: {}'.format(evt.text))
+                # print('\tTextOffset: {}'.format(evt.text_offset))
+                # print('\tWordLength: {}'.format(evt.word_length))
+
+                duration = _format_duration_to_offset(str(evt.duration))
+                offset = _format_duration_to_offset(evt.audio_offset)
+                sub_maker.subs.append(evt.text)
+                sub_maker.offset.append((offset, offset + duration))
+
+            # Creates an instance of a speech config with specified subscription key and service region.
+            speech_key = config.azure.get("speech_key", "")
+            service_region = config.azure.get("speech_region", "")
+            audio_config = speechsdk.audio.AudioOutputConfig(filename=voice_file, use_default_speaker=True)
+            speech_config = speechsdk.SpeechConfig(subscription=speech_key,
+                                                   region=service_region)
+            speech_config.speech_synthesis_voice_name = voice_name
+            # speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_RequestSentenceBoundary,
+            #                            value='true')
+            speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_RequestWordBoundary,
+                                       value='true')
+
+            speech_config.set_speech_synthesis_output_format(
+                speechsdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3)
+            speech_synthesizer = speechsdk.SpeechSynthesizer(audio_config=audio_config,
+                                                             speech_config=speech_config)
+            speech_synthesizer.synthesis_word_boundary.connect(speech_synthesizer_word_boundary_cb)
+
+            result = speech_synthesizer.speak_text_async(text).get()
+            if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                logger.success(f"azure v2 speech synthesis succeeded: {voice_file}")
+                return sub_maker
+            elif result.reason == speechsdk.ResultReason.Canceled:
+                cancellation_details = result.cancellation_details
+                logger.error(f"azure v2 speech synthesis canceled: {cancellation_details.reason}")
+                if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                    logger.error(f"azure v2 speech synthesis error: {cancellation_details.error_details}")
+            logger.info(f"completed, output file: {voice_file}")
         except Exception as e:
             logger.error(f"failed, error: {str(e)}")
     return None
@@ -1131,8 +1250,12 @@ def get_audio_duration(sub_maker: submaker.SubMaker):
 
 
 if __name__ == "__main__":
-    voices = get_all_voices()
-    print(voices)
+    voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
+    voice_name = parse_voice_name(voice_name)
+    voice_name = is_azure_v2_voice(voice_name)
+    print(voice_name)
+
+    voices = get_all_azure_voices()
     print(len(voices))
 
 
@@ -1140,6 +1263,7 @@ if __name__ == "__main__":
         temp_dir = utils.storage_dir("temp")
 
         voice_names = [
+            "zh-CN-XiaoxiaoMultilingualNeural",
             # 女性
             "zh-CN-XiaoxiaoNeural",
             "zh-CN-XiaoyiNeural",
@@ -1174,6 +1298,7 @@ if __name__ == "__main__":
 业绩解读
 利润方面，2023全年贵州茅台，>归母净利润增速为19%，其中营业收入正贡献18%，营业成本正贡献百分之一，管理费用正贡献百分之一点四。(注：归母净利润增速值=营业收入增速+各科目贡献，展示贡献/拖累的前四名科目，且要求贡献值/净利润增速>15%)
 """
+        text = "静夜思是唐代诗人李白创作的一首五言古诗。这首诗描绘了诗人在寂静的夜晚，看到窗前的明月，不禁想起远方的家乡和亲人"
 
         text = _format_text(text)
         lines = utils.split_string_by_punctuations(text)
@@ -1182,7 +1307,7 @@ if __name__ == "__main__":
         for voice_name in voice_names:
             voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
             subtitle_file = f"{temp_dir}/tts.mp3.srt"
-            sub_maker = tts(text=text, voice_name=voice_name, voice_file=voice_file)
+            sub_maker = azure_tts_v2(text=text, voice_name=voice_name, voice_file=voice_file)
             create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
             audio_duration = get_audio_duration(sub_maker)
             print(f"voice: {voice_name}, audio duration: {audio_duration}s")
