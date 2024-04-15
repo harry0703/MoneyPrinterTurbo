@@ -62,6 +62,7 @@ def get_all_fonts():
         for file in files:
             if file.endswith(".ttf") or file.endswith(".ttc"):
                 fonts.append(file)
+    fonts.sort()
     return fonts
 
 

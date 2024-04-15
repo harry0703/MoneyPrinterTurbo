@@ -63,3 +63,5 @@ if imagemagick_path and os.path.isfile(imagemagick_path):
 ffmpeg_path = app.get("ffmpeg_path", "")
 if ffmpeg_path and os.path.isfile(ffmpeg_path):
     os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
+
+logger.info(f"{project_name} v{project_version}")
