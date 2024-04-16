@@ -23,6 +23,8 @@
     "Number of Videos Generated Simultaneously": "Number of Videos Generated Simultaneously",
     "Audio Settings": "**Audio Settings**",
     "Speech Synthesis": "Speech Synthesis Voice",
+    "Speech Region": "Region(:red[Required，[Get Region](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
+    "Speech Key": "API Key(:red[Required，[Get API Key](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "Speech Volume (1.0 represents 100%)",
     "Male": "Male",
     "Female": "Female",

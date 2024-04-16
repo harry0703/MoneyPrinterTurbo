@@ -188,7 +188,7 @@ def split_string_by_punctuations(s):
         else:
             result.append(txt.strip())
             txt = ""
-
+    result.append(txt.strip())
     # filter empty string
     result = list(filter(None, result))
     return result

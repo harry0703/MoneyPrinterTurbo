@@ -36,6 +36,8 @@ def save_config():
         _cfg["app"] = app
         _cfg["whisper"] = whisper
         _cfg["pexels"] = pexels
+        _cfg["azure"] = azure
+        _cfg["ui"] = ui
         f.write(toml.dumps(_cfg))
 
 
@@ -43,6 +45,7 @@ _cfg = load_config()
 app = _cfg.get("app", {})
 whisper = _cfg.get("whisper", {})
 pexels = _cfg.get("pexels", {})
+azure = _cfg.get("azure", {})
 ui = _cfg.get("ui", {})
 
 hostname = socket.gethostname()
@@ -53,7 +56,7 @@ listen_port = _cfg.get("listen_port", 8080)
 project_name = _cfg.get("project_name", "MoneyPrinterTurbo")
 project_description = _cfg.get("project_description",
                                "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>")
-project_version = _cfg.get("project_version", "1.1.1")
+project_version = _cfg.get("project_version", "1.1.2")
 reload_debug = False
 
 imagemagick_path = app.get("imagemagick_path", "")
