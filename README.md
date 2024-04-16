@@ -9,6 +9,9 @@
 </p>
 <br>
 <h3>简体中文 | <a href="README-en.md">English</a></h3>
+<div align="center">
+  <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</div>
 <br>
 只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
 <br>
@@ -26,13 +29,20 @@
 ## 特别感谢 🙏
 
 由于该项目的 **部署** 和 **使用**，对于一些小白用户来说，还是 **有一定的门槛**，在此特别感谢
-
 **录咖（AI智能 多媒体服务平台）** 网站基于该项目，提供的免费`AI视频生成器`服务，可以不用部署，直接在线使用，非常方便。
 
 - 中文版：https://reccloud.cn
 - 英文版：https://reccloud.com
 
 ![](docs/reccloud.cn.jpg)
+
+## 感谢赞助 🙏
+
+感谢佐糖 https://picwish.cn 对该项目的支持和赞助，使得该项目能够持续的更新和维护。
+
+佐糖专注于**图像处理领域**，提供丰富的**图像处理工具**，将复杂操作极致简化，真正实现让图像处理更简单。
+
+![picwish.jpg](docs/picwish.jpg)
 
 ## 功能特性 🎯
 
@@ -50,7 +60,8 @@
 - [x] 视频素材来源 **高清**，而且 **无版权**
 - [x] 支持 **OpenAI**、**moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama** 等多种模型接入
 
- ❓[如何使用免费的 **OpenAI GPT-3.5** 模型?](https://github.com/harry0703/MoneyPrinterTurbo?tab=readme-ov-file#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98-)
+  ❓[如何使用免费的 **OpenAI GPT-3.5
+  ** 模型?](https://github.com/harry0703/MoneyPrinterTurbo?tab=readme-ov-file#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98-)
 
 ### 后期计划 📅
 
@@ -59,12 +70,25 @@
 - [ ] 增加视频转场效果，使其看起来更加的流畅
 - [ ] 增加更多视频素材来源，优化视频素材和文案的匹配度
 - [ ] 增加视频长度选项：短、中、长
-- [ ] 打包成一键启动包（Windows，macOS），方便使用
 - [ ] 增加免费网络代理，让访问OpenAI和素材下载不再受限
 - [ ] 可以使用自己的素材
 - [ ] 朗读声音和背景音乐，提供实时试听
-- [ ] 支持更多的语音合成服务商，比如 OpenAI TTS, Azure TTS
+- [ ] 支持更多的语音合成服务商，比如 OpenAI TTS
 - [ ] 自动上传到YouTube平台
+
+## 交流讨论 💬
+
+<img src="docs/wechat-03.jpg" width="150">
+
+## 更新日志
+
+### 2024-04-16 v1.1.2
+
+- 支持azure新发布的9种语音合成声音（需要配置API
+  KEY） [9个更真实的AI对话声音](https://techcommunity.microsoft.com/t5/ai-azure-ai-services-blog/9-more-realistic-ai-voices-for-conversations-now-generally/ba-p/4099471)
+- 优化字幕显示
+- 修复内存泄露问题
+- 一些其他的bug修复和优化
 
 ## 视频演示 📺
 
@@ -74,12 +98,14 @@
 <thead>
 <tr>
 <th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《如何增加生活的乐趣》</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《金钱的作用》<br>更真实的合成声音</th>
 <th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《生命的意义是什么》</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/a84d33d5-27a2-4aba-8fd0-9fb2bd91c6a6"></video></td>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/af2f3b0b-002e-49fe-b161-18ba91c055e8"></video></td>
 <td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/112c9564-d52b-4472-99ad-970b75f66476"></video></td>
 </tr>
 </tbody>
@@ -102,7 +128,27 @@
 </tbody>
 </table>
 
+## 配置要求 📦
+
+- 建议最低 CPU 4核或以上，内存 8G 或以上，显卡非必须
+- Windows 10 或 MacOS 11.0 以上系统
+
+## 快速开始 🚀
+
+下载一键启动包，解压直接使用
+
+### Windows
+
+- 百度网盘: https://pan.baidu.com/s/1bpGjgQVE5sADZRn3A6F87w?pwd=xt16 提取码: xt16
+     
+下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动Web界面
+
+### 其他系统
+还没有制作一键启动包，看下面的 **安装部署** 部分，建议使用 **docker** 部署，更加方便。
+
 ## 安装部署 📥
+
+### 前提条件
 
 - 尽量不要使用 **中文路径**，避免出现一些无法预料的问题
 - 请确保你的 **网络** 是正常的，VPN需要打开`全局流量`模式
@@ -134,6 +180,7 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 如果未安装 Docker，请先安装 https://www.docker.com/products/docker-desktop/
 
 如果是Windows系统，请参考微软的文档：
+
 1. https://learn.microsoft.com/zh-cn/windows/wsl/install
 2. https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers
 
@@ -212,6 +259,7 @@ webui.bat
 conda activate MoneyPrinterTurbo
 sh webui.sh
 ```
+
 启动后，会自动打开浏览器
 
 #### ④ 启动API服务 🚀
@@ -226,20 +274,44 @@ python main.py
 
 所有支持的声音列表，可以查看：[声音列表](./docs/voice-list.txt)
 
+2024-04-16 v1.1.2 新增了9种Azure的语音合成声音，需要配置API KEY，该声音合成的更加真实。
+
 ## 字幕生成 📜
 
 当前支持2种字幕生成方式：
 
-- edge: 生成速度更快，性能更好，对电脑配置没有要求，但是质量可能不稳定
-- whisper: 生成速度较慢，性能较差，对电脑配置有一定要求，但是质量更可靠。
+- **edge**: 生成`速度快`，性能更好，对电脑配置没有要求，但是质量可能不稳定
+- **whisper**: 生成`速度慢`，性能较差，对电脑配置有一定要求，但是`质量更可靠`。
 
 可以修改 `config.toml` 配置文件中的 `subtitle_provider` 进行切换
 
 建议使用 `edge` 模式，如果生成的字幕质量不好，再切换到 `whisper` 模式
 
 > 注意：
+
 1. whisper 模式下需要到 HuggingFace 下载一个模型文件，大约 3GB 左右，请确保网络通畅
 2. 如果留空，表示不生成字幕。
+
+> 由于国内无法访问 HuggingFace，可以使用以下方法下载 `whisper-large-v3` 的模型文件
+
+下载地址：
+
+- 百度网盘: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
+- 夸克网盘：https://pan.quark.cn/s/3ee3d991d64b
+
+模型下载后解压，整个目录放到 `.\MoneyPrinterTurbo\models` 里面，
+最终的文件路径应该是这样: `.\MoneyPrinterTurbo\models\whisper-large-v3`
+
+```
+MoneyPrinterTurbo  
+  ├─models
+  │   └─whisper-large-v3
+  │          config.json
+  │          model.bin
+  │          preprocessor_config.json
+  │          tokenizer.json
+  │          vocabulary.json
+```
 
 ## 背景音乐 🎵
 
@@ -253,18 +325,21 @@ python main.py
 ## 常见问题 🤔
 
 ### ❓如何使用免费的OpenAI GPT-3.5模型?
+
 [OpenAI宣布ChatGPT里面3.5已经免费了](https://openai.com/blog/start-using-chatgpt-instantly)，有开发者将其封装成了API，可以直接调用
 
 **确保你安装和启动了docker服务**，执行以下命令启动docker服务
+
 ```shell
 docker run -p 3040:3040 missuo/freegpt35
 ```
+
 启动成功后，修改 `config.toml` 中的配置
+
 - `llm_provider` 设置为 `openai`
 - `openai_api_key` 随便填写一个即可，比如 '123456'
 - `openai_base_url` 改为 `http://localhost:3040/v1/`
 - `openai_model_name` 改为 `gpt-3.5-turbo`
-
 
 ### ❓AttributeError: 'str' object has no attribute 'choices'`
 
@@ -375,14 +450,6 @@ pip install Pillow==8.4.0
 
 - 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues)
   或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。
-- 也可以关注我的 **抖音** 或 **视频号**：`网旭哈瑞.AI`
-    - 我会在上面发布一些 **使用教程** 和 **纯技术** 分享。
-    - 如果有更新和优化，我也会在上面 **及时通知**。
-    - 有问题也可以在上面 **留言**，我会 **尽快回复**。
-
-|                   抖音                    |              |                     视频号                     |
-|:---------------------------------------:|:------------:|:-------------------------------------------:|
-| <img src="docs/douyin.jpg" width="180"> |              | <img src="docs/shipinghao.jpg" width="200"> |
 
 ## 参考项目 📚
 
@@ -392,7 +459,6 @@ pip install Pillow==8.4.0
 ## 许可证 📝
 
 点击查看 [`LICENSE`](LICENSE) 文件
-
 
 ## Star History
 

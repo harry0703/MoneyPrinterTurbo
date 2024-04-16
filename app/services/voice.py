@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+from datetime import datetime
 from xml.sax.saxutils import unescape
 from edge_tts.submaker import mktimestamp
 from loguru import logger
@@ -8,10 +9,11 @@ from edge_tts import submaker, SubMaker
 import edge_tts
 from moviepy.video.tools import subtitles
 
+from app.config import config
 from app.utils import utils
 
 
-def get_all_voices(filter_locals=None) -> list[str]:
+def get_all_azure_voices(filter_locals=None) -> list[str]:
     if filter_locals is None:
         filter_locals = ["zh-CN", "en-US", "zh-HK", "zh-TW"]
     voices_str = """
@@ -956,6 +958,34 @@ Gender: Female
 
 Name: zu-ZA-ThembaNeural
 Gender: Male
+
+
+Name: en-US-AvaMultilingualNeural-V2
+Gender: Female
+
+Name: en-US-AndrewMultilingualNeural-V2
+Gender: Male
+
+Name: en-US-EmmaMultilingualNeural-V2
+Gender: Female
+
+Name: en-US-BrianMultilingualNeural-V2
+Gender: Male
+
+Name: de-DE-FlorianMultilingualNeural-V2
+Gender: Male
+
+Name: de-DE-SeraphinaMultilingualNeural-V2
+Gender: Female
+
+Name: fr-FR-RemyMultilingualNeural-V2
+Gender: Male
+
+Name: fr-FR-VivienneMultilingualNeural-V2
+Gender: Female
+
+Name: zh-CN-XiaoxiaoMultilingualNeural-V2
+Gender: Female
     """.strip()
     voices = []
     name = ''
@@ -986,11 +1016,26 @@ Gender: Male
 def parse_voice_name(name: str):
     # zh-CN-XiaoyiNeural-Female
     # zh-CN-YunxiNeural-Male
+    # zh-CN-XiaoxiaoMultilingualNeural-V2-Female
     name = name.replace("-Female", "").replace("-Male", "").strip()
     return name
 
 
+def is_azure_v2_voice(voice_name: str):
+    voice_name = parse_voice_name(voice_name)
+    print(voice_name)
+    if voice_name.endswith("-V2"):
+        return voice_name.replace("-V2", "").strip()
+    return ""
+
+
 def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
+    if is_azure_v2_voice(voice_name):
+        return azure_tts_v2(text, voice_name, voice_file)
+    return azure_tts_v1(text, voice_name, voice_file)
+
+
+def azure_tts_v1(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
     text = text.strip()
     for i in range(3):
         try:
@@ -1019,14 +1064,82 @@ def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
     return None
 
 
-def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str):
-    """
-    优化字幕文件
-    1. 将字幕文件按照标点符号分割成多行
-    2. 逐行匹配字幕文件中的文本
-    3. 生成新的字幕文件
-    """
-    text = text.replace("\n", " ")
+def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
+    voice_name = is_azure_v2_voice(voice_name)
+    if not voice_name:
+        logger.error(f"invalid voice name: {voice_name}")
+        raise ValueError(f"invalid voice name: {voice_name}")
+    text = text.strip()
+
+    def _format_duration_to_offset(duration) -> int:
+        if isinstance(duration, str):
+            time_obj = datetime.strptime(duration, "%H:%M:%S.%f")
+            milliseconds = (time_obj.hour * 3600000) + (time_obj.minute * 60000) + (time_obj.second * 1000) + (
+                    time_obj.microsecond // 1000)
+            return milliseconds * 10000
+
+        if isinstance(duration, int):
+            return duration
+
+        return 0
+
+    for i in range(3):
+        try:
+            logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
+
+            import azure.cognitiveservices.speech as speechsdk
+
+            sub_maker = SubMaker()
+
+            def speech_synthesizer_word_boundary_cb(evt: speechsdk.SessionEventArgs):
+                # print('WordBoundary event:')
+                # print('\tBoundaryType: {}'.format(evt.boundary_type))
+                # print('\tAudioOffset: {}ms'.format((evt.audio_offset + 5000)))
+                # print('\tDuration: {}'.format(evt.duration))
+                # print('\tText: {}'.format(evt.text))
+                # print('\tTextOffset: {}'.format(evt.text_offset))
+                # print('\tWordLength: {}'.format(evt.word_length))
+
+                duration = _format_duration_to_offset(str(evt.duration))
+                offset = _format_duration_to_offset(evt.audio_offset)
+                sub_maker.subs.append(evt.text)
+                sub_maker.offset.append((offset, offset + duration))
+
+            # Creates an instance of a speech config with specified subscription key and service region.
+            speech_key = config.azure.get("speech_key", "")
+            service_region = config.azure.get("speech_region", "")
+            audio_config = speechsdk.audio.AudioOutputConfig(filename=voice_file, use_default_speaker=True)
+            speech_config = speechsdk.SpeechConfig(subscription=speech_key,
+                                                   region=service_region)
+            speech_config.speech_synthesis_voice_name = voice_name
+            # speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_RequestSentenceBoundary,
+            #                            value='true')
+            speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_RequestWordBoundary,
+                                       value='true')
+
+            speech_config.set_speech_synthesis_output_format(
+                speechsdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3)
+            speech_synthesizer = speechsdk.SpeechSynthesizer(audio_config=audio_config,
+                                                             speech_config=speech_config)
+            speech_synthesizer.synthesis_word_boundary.connect(speech_synthesizer_word_boundary_cb)
+
+            result = speech_synthesizer.speak_text_async(text).get()
+            if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                logger.success(f"azure v2 speech synthesis succeeded: {voice_file}")
+                return sub_maker
+            elif result.reason == speechsdk.ResultReason.Canceled:
+                cancellation_details = result.cancellation_details
+                logger.error(f"azure v2 speech synthesis canceled: {cancellation_details.reason}")
+                if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                    logger.error(f"azure v2 speech synthesis error: {cancellation_details.error_details}")
+            logger.info(f"completed, output file: {voice_file}")
+        except Exception as e:
+            logger.error(f"failed, error: {str(e)}")
+    return None
+
+
+def _format_text(text: str) -> str:
+    # text = text.replace("\n", " ")
     text = text.replace("[", " ")
     text = text.replace("]", " ")
     text = text.replace("(", " ")
@@ -1034,6 +1147,18 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     text = text.replace("{", " ")
     text = text.replace("}", " ")
     text = text.strip()
+    return text
+
+
+def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str):
+    """
+    优化字幕文件
+    1. 将字幕文件按照标点符号分割成多行
+    2. 逐行匹配字幕文件中的文本
+    3. 生成新的字幕文件
+    """
+
+    text = _format_text(text)
 
     def formatter(idx: int, start_time: float, end_time: float, sub_text: str) -> str:
         """
@@ -1125,8 +1250,12 @@ def get_audio_duration(sub_maker: submaker.SubMaker):
 
 
 if __name__ == "__main__":
-    voices = get_all_voices()
-    print(voices)
+    voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
+    voice_name = parse_voice_name(voice_name)
+    voice_name = is_azure_v2_voice(voice_name)
+    print(voice_name)
+
+    voices = get_all_azure_voices()
     print(len(voices))
 
 
@@ -1134,6 +1263,7 @@ if __name__ == "__main__":
         temp_dir = utils.storage_dir("temp")
 
         voice_names = [
+            "zh-CN-XiaoxiaoMultilingualNeural",
             # 女性
             "zh-CN-XiaoxiaoNeural",
             "zh-CN-XiaoyiNeural",
@@ -1156,10 +1286,28 @@ if __name__ == "__main__":
                    """
 
         text = "[Opening scene: A sunny day in a suburban neighborhood. A young boy named Alex, around 8 years old, is playing in his front yard with his loyal dog, Buddy.]\n\n[Camera zooms in on Alex as he throws a ball for Buddy to fetch. Buddy excitedly runs after it and brings it back to Alex.]\n\nAlex: Good boy, Buddy! You're the best dog ever!\n\n[Buddy barks happily and wags his tail.]\n\n[As Alex and Buddy continue playing, a series of potential dangers loom nearby, such as a stray dog approaching, a ball rolling towards the street, and a suspicious-looking stranger walking by.]\n\nAlex: Uh oh, Buddy, look out!\n\n[Buddy senses the danger and immediately springs into action. He barks loudly at the stray dog, scaring it away. Then, he rushes to retrieve the ball before it reaches the street and gently nudges it back towards Alex. Finally, he stands protectively between Alex and the stranger, growling softly to warn them away.]\n\nAlex: Wow, Buddy, you're like my superhero!\n\n[Just as Alex and Buddy are about to head inside, they hear a loud crash from a nearby construction site. They rush over to investigate and find a pile of rubble blocking the path of a kitten trapped underneath.]\n\nAlex: Oh no, Buddy, we have to help!\n\n[Buddy barks in agreement and together they work to carefully move the rubble aside, allowing the kitten to escape unharmed. The kitten gratefully nuzzles against Buddy, who responds with a friendly lick.]\n\nAlex: We did it, Buddy! We saved the day again!\n\n[As Alex and Buddy walk home together, the sun begins to set, casting a warm glow over the neighborhood.]\n\nAlex: Thanks for always being there to watch over me, Buddy. You're not just my dog, you're my best friend.\n\n[Buddy barks happily and nuzzles against Alex as they disappear into the sunset, ready to face whatever adventures tomorrow may bring.]\n\n[End scene.]"
+
+        text = "大家好，我是乔哥，一个想帮你把信用卡全部还清的家伙！\n今天我们要聊的是信用卡的取现功能。\n你是不是也曾经因为一时的资金紧张，而拿着信用卡到ATM机取现？如果是，那你得好好看看这个视频了。\n现在都2024年了，我以为现在不会再有人用信用卡取现功能了。前几天一个粉丝发来一张图片，取现1万。\n信用卡取现有三个弊端。\n一，信用卡取现功能代价可不小。会先收取一个取现手续费，比如这个粉丝，取现1万，按2.5%收取手续费，收取了250元。\n二，信用卡正常消费有最长56天的免息期，但取现不享受免息期。从取现那一天开始，每天按照万5收取利息，这个粉丝用了11天，收取了55元利息。\n三，频繁的取现行为，银行会认为你资金紧张，会被标记为高风险用户，影响你的综合评分和额度。\n那么，如果你资金紧张了，该怎么办呢？\n乔哥给你支一招，用破思机摩擦信用卡，只需要少量的手续费，而且还可以享受最长56天的免息期。\n最后，如果你对玩卡感兴趣，可以找乔哥领取一本《卡神秘籍》，用卡过程中遇到任何疑惑，也欢迎找乔哥交流。\n别忘了，关注乔哥，回复用卡技巧，免费领取《2024用卡技巧》，让我们一起成为用卡高手！"
+
+        text = """
+        2023全年业绩速览
+公司全年累计实现营业收入1476.94亿元，同比增长19.01%，归母净利润747.34亿元，同比增长19.16%。EPS达到59.49元。第四季度单季，营业收入444.25亿元，同比增长20.26%，环比增长31.86%；归母净利润218.58亿元，同比增长19.33%，环比增长29.37%。这一阶段
+的业绩表现不仅突显了公司的增长动力和盈利能力，也反映出公司在竞争激烈的市场环境中保持了良好的发展势头。
+2023年Q4业绩速览
+第四季度，营业收入贡献主要增长点；销售费用高增致盈利能力承压；税金同比上升27%，扰动净利率表现。
+业绩解读
+利润方面，2023全年贵州茅台，>归母净利润增速为19%，其中营业收入正贡献18%，营业成本正贡献百分之一，管理费用正贡献百分之一点四。(注：归母净利润增速值=营业收入增速+各科目贡献，展示贡献/拖累的前四名科目，且要求贡献值/净利润增速>15%)
+"""
+        text = "静夜思是唐代诗人李白创作的一首五言古诗。这首诗描绘了诗人在寂静的夜晚，看到窗前的明月，不禁想起远方的家乡和亲人"
+
+        text = _format_text(text)
+        lines = utils.split_string_by_punctuations(text)
+        print(lines)
+
         for voice_name in voice_names:
             voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
             subtitle_file = f"{temp_dir}/tts.mp3.srt"
-            sub_maker = tts(text=text, voice_name=voice_name, voice_file=voice_file)
+            sub_maker = azure_tts_v2(text=text, voice_name=voice_name, voice_file=voice_file)
             create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
             audio_duration = get_audio_duration(sub_maker)
             print(f"voice: {voice_name}, audio duration: {audio_duration}s")

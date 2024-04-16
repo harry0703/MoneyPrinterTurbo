@@ -4,7 +4,6 @@ from typing import List
 from PIL import ImageFont
 from loguru import logger
 from moviepy.editor import *
-from moviepy.video.fx.crop import crop
 from moviepy.video.tools.subtitles import SubtitlesClip
 
 from app.models.schema import VideoAspect, VideoParams, VideoConcatMode
@@ -14,14 +13,15 @@ from app.utils import utils
 def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if not bgm_type:
         return ""
+
+    if bgm_file and os.path.exists(bgm_file):
+        return bgm_file
+
     if bgm_type == "random":
         suffix = "*.mp3"
         song_dir = utils.song_dir()
         files = glob.glob(os.path.join(song_dir, suffix))
         return random.choice(files)
-
-    if os.path.exists(bgm_file):
-        return bgm_file
 
     return ""
 
@@ -41,6 +41,7 @@ def combine_videos(combined_video_path: str,
     req_dur = audio_duration / len(video_paths)
     req_dur = max_clip_duration
     logger.info(f"each clip will be maximum {req_dur} seconds long")
+    output_dir = os.path.dirname(combined_video_path)
 
     aspect = VideoAspect(video_aspect)
     video_width, video_height = aspect.to_resolution()
@@ -99,11 +100,18 @@ def combine_videos(combined_video_path: str,
             clips.append(clip)
             video_duration += clip.duration
 
-    final_clip = concatenate_videoclips(clips)
-    final_clip = final_clip.set_fps(30)
+    video_clip = concatenate_videoclips(clips)
+    video_clip = video_clip.set_fps(30)
     logger.info(f"writing")
     # https://github.com/harry0703/MoneyPrinterTurbo/issues/111#issuecomment-2032354030
-    final_clip.write_videofile(combined_video_path, threads=threads, logger=None)
+    video_clip.write_videofile(filename=combined_video_path,
+                               threads=threads,
+                               logger=None,
+                               temp_audiofile_path=output_dir,
+                               audio_codec="aac",
+                               fps=30,
+                               )
+    video_clip.close()
     logger.success(f"completed")
     return combined_video_path
 
@@ -119,9 +127,9 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
 
     width, height = get_text_size(text)
     if width <= max_width:
-        return text
+        return text, height
 
-    logger.warning(f"wrapping text, max_width: {max_width}, text_width: {width}, text: {text}")
+    # logger.warning(f"wrapping text, max_width: {max_width}, text_width: {width}, text: {text}")
 
     processed = True
 
@@ -144,8 +152,9 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
     if processed:
         _wrapped_lines_ = [line.strip() for line in _wrapped_lines_]
         result = '\n'.join(_wrapped_lines_).strip()
-        logger.warning(f"wrapped text: {result}")
-        return result
+        height = len(_wrapped_lines_) * height
+        # logger.warning(f"wrapped text: {result}")
+        return result, height
 
     _wrapped_lines_ = []
     chars = list(text)
@@ -160,8 +169,9 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
             _txt_ = ''
     _wrapped_lines_.append(_txt_)
     result = '\n'.join(_wrapped_lines_).strip()
-    logger.warning(f"wrapped text: {result}")
-    return result
+    height = len(_wrapped_lines_) * height
+    # logger.warning(f"wrapped text: {result}")
+    return result, height
 
 
 def generate_video(video_path: str,
@@ -179,6 +189,11 @@ def generate_video(video_path: str,
     logger.info(f"  ③ subtitle: {subtitle_path}")
     logger.info(f"  ④ output: {output_file}")
 
+    # https://github.com/harry0703/MoneyPrinterTurbo/issues/217
+    # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'final-1.mp4.tempTEMP_MPY_wvf_snd.mp3'
+    # write into the same directory as the output file
+    output_dir = os.path.dirname(output_file)
+
     font_path = ""
     if params.subtitle_enabled:
         if not params.font_name:
@@ -189,23 +204,15 @@ def generate_video(video_path: str,
 
         logger.info(f"using font: {font_path}")
 
-    if params.subtitle_position == "top":
-        position_height = video_height * 0.1
-    elif params.subtitle_position == "bottom":
-        position_height = video_height * 0.9
-    else:
-        position_height = "center"
-
-    def generator(txt, **kwargs):
+    def create_text_clip(subtitle_item):
+        phrase = subtitle_item[1]
         max_width = video_width * 0.9
-        # logger.debug(f"rendering text: {txt}")
-        wrapped_txt = wrap_text(txt,
-                                max_width=max_width,
-                                font=font_path,
-                                fontsize=params.font_size
-                                )  # 调整max_width以适应你的视频
-
-        clip = TextClip(
+        wrapped_txt, txt_height = wrap_text(phrase,
+                                            max_width=max_width,
+                                            font=font_path,
+                                            fontsize=params.font_size
+                                            )
+        _clip = TextClip(
             wrapped_txt,
             font=font_path,
             fontsize=params.font_size,
@@ -215,52 +222,49 @@ def generate_video(video_path: str,
             stroke_width=params.stroke_width,
             print_cmd=False,
         )
-        return clip
+        duration = subtitle_item[0][1] - subtitle_item[0][0]
+        _clip = _clip.set_start(subtitle_item[0][0])
+        _clip = _clip.set_end(subtitle_item[0][1])
+        _clip = _clip.set_duration(duration)
+        if params.subtitle_position == "bottom":
+            _clip = _clip.set_position(('center', video_height * 0.95 - _clip.h))
+        elif params.subtitle_position == "top":
+            _clip = _clip.set_position(('center', video_height * 0.1))
+        else:
+            _clip = _clip.set_position(('center', 'center'))
+        return _clip
 
-    clips = [
-        VideoFileClip(video_path),
-    ]
+    video_clip = VideoFileClip(video_path)
+    audio_clip = AudioFileClip(audio_path).volumex(params.voice_volume)
 
     if subtitle_path and os.path.exists(subtitle_path):
-        sub = SubtitlesClip(subtitles=subtitle_path, make_textclip=generator, encoding='utf-8')
-        sub_clip = sub.set_position(lambda _t: ('center', position_height))
-        clips.append(sub_clip)
-
-    result = CompositeVideoClip(clips)
-
-    audio = AudioFileClip(audio_path)
-    try:
-        audio = audio.volumex(params.voice_volume)
-    except Exception as e:
-        logger.warning(f"failed to set audio volume: {e}")
-
-    result = result.set_audio(audio)
-
-    temp_output_file = f"{output_file}.temp.mp4"
-    logger.info(f"writing to temp file: {temp_output_file}")
-    result.write_videofile(temp_output_file, threads=params.n_threads or 2, logger=None)
-
-    video_clip = VideoFileClip(temp_output_file)
+        sub = SubtitlesClip(subtitles=subtitle_path, encoding='utf-8')
+        text_clips = []
+        for item in sub.subtitles:
+            clip = create_text_clip(subtitle_item=item)
+            text_clips.append(clip)
+        video_clip = CompositeVideoClip([video_clip, *text_clips])
 
     bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
     if bgm_file:
-        logger.info(f"adding background music: {bgm_file}")
-        # Add song to video at 30% volume using moviepy
-        original_duration = video_clip.duration
-        original_audio = video_clip.audio
-        song_clip = AudioFileClip(bgm_file).set_fps(44100)
-        # Set the volume of the song to 10% of the original volume
-        song_clip = song_clip.volumex(params.bgm_volume)
-        # Add the song to the video
-        comp_audio = CompositeAudioClip([original_audio, song_clip])
-        video_clip = video_clip.set_audio(comp_audio)
-        video_clip = video_clip.set_fps(30)
-        video_clip = video_clip.set_duration(original_duration)
+        try:
+            bgm_clip = (AudioFileClip(bgm_file)
+                        .volumex(params.bgm_volume)
+                        .audio_fadeout(3))
+            bgm_clip = afx.audio_loop(bgm_clip, duration=video_clip.duration)
+            audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
+        except Exception as e:
+            logger.error(f"failed to add bgm: {str(e)}")
 
-    logger.info(f"encoding audio codec to aac")
-    video_clip.write_videofile(output_file, audio_codec="aac", threads=params.n_threads or 2, logger=None)
-
-    os.remove(temp_output_file)
+    video_clip = video_clip.set_audio(audio_clip)
+    video_clip.write_videofile(output_file,
+                               audio_codec="aac",
+                               temp_audiofile_path=output_dir,
+                               threads=params.n_threads or 2,
+                               logger=None,
+                               fps=30,
+                               )
+    video_clip.close()
     logger.success(f"completed")
 
 
@@ -269,28 +273,28 @@ if __name__ == "__main__":
     txt_zh = "测试长字段这是您的旅行技巧指南帮助您进行预算友好的冒险"
     font = utils.resource_dir() + "/fonts/STHeitiMedium.ttc"
     for txt in [txt_en, txt_zh]:
-        t = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
+        t, h = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
         print(t)
 
-    task_id = "69232dfa-f6c5-4b5e-80ba-be3098d3f930"
+    task_id = "aa563149-a7ea-49c2-b39f-8c32cc225baf"
     task_dir = utils.task_dir(task_id)
     video_file = f"{task_dir}/combined-1.mp4"
     audio_file = f"{task_dir}/audio.mp3"
     subtitle_file = f"{task_dir}/subtitle.srt"
     output_file = f"{task_dir}/final.mp4"
 
-    video_paths = []
-    for file in os.listdir(utils.storage_dir("test")):
-        if file.endswith(".mp4"):
-            video_paths.append(os.path.join(task_dir, file))
-
-    combine_videos(combined_video_path=video_file,
-                   audio_file=audio_file,
-                   video_paths=video_paths,
-                   video_aspect=VideoAspect.portrait,
-                   video_concat_mode=VideoConcatMode.random,
-                   max_clip_duration=5,
-                   threads=2)
+    # video_paths = []
+    # for file in os.listdir(utils.storage_dir("test")):
+    #     if file.endswith(".mp4"):
+    #         video_paths.append(os.path.join(utils.storage_dir("test"), file))
+    #
+    # combine_videos(combined_video_path=video_file,
+    #                audio_file=audio_file,
+    #                video_paths=video_paths,
+    #                video_aspect=VideoAspect.portrait,
+    #                video_concat_mode=VideoConcatMode.random,
+    #                max_clip_duration=5,
+    #                threads=2)
 
     cfg = VideoParams()
     cfg.video_aspect = VideoAspect.portrait
@@ -300,14 +304,15 @@ if __name__ == "__main__":
     cfg.stroke_width = 1.5
     cfg.text_fore_color = "#FFFFFF"
     cfg.text_background_color = "transparent"
+    cfg.bgm_type = "random"
     cfg.bgm_file = ""
-    cfg.bgm_volume = 0.2
+    cfg.bgm_volume = 1.0
     cfg.subtitle_enabled = True
     cfg.subtitle_position = "bottom"
     cfg.n_threads = 2
     cfg.paragraph_number = 1
 
-    cfg.voice_volume = 3.0
+    cfg.voice_volume = 1.0
 
     generate_video(video_path=video_file,
                    audio_path=audio_file,

@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 # Add the root directory of the project to the system path to allow importing modules from the project
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -38,7 +39,7 @@ hide_streamlit_style = """
 <style>#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}</style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-st.title("MoneyPrinterTurbo")
+st.title(f"MoneyPrinterTurbo v{config.project_version}")
 
 font_dir = os.path.join(root_dir, "resource", "fonts")
 song_dir = os.path.join(root_dir, "resource", "songs")
@@ -62,6 +63,7 @@ def get_all_fonts():
         for file in files:
             if file.endswith(".ttf") or file.endswith(".ttc"):
                 fonts.append(file)
+    fonts.sort()
     return fonts
 
 
@@ -164,7 +166,6 @@ with st.expander(tr("Basic Settings"), expanded=False):
             code = selected_language.split(" - ")[0].strip()
             st.session_state['ui_language'] = code
             config.ui['language'] = code
-            config.save_config()
 
     with middle_config_panel:
         #   openai
@@ -175,7 +176,7 @@ with st.expander(tr("Basic Settings"), expanded=False):
         #   qwen (通义千问)
         #   gemini
         #   ollama
-        llm_providers = ['OpenAI', 'Moonshot', 'Azure', 'Qwen', 'Gemini', 'Ollama', 'G4f', 'OneAPI']
+        llm_providers = ['OpenAI', 'Moonshot', 'Azure', 'Qwen', 'Gemini', 'Ollama', 'G4f', 'OneAPI', "Cloudflare"]
         saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
         saved_llm_provider_index = 0
         for i, provider in enumerate(llm_providers):
@@ -190,6 +191,7 @@ with st.expander(tr("Basic Settings"), expanded=False):
         llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
         llm_base_url = config.app.get(f"{llm_provider}_base_url", "")
         llm_model_name = config.app.get(f"{llm_provider}_model_name", "")
+        llm_account_id = config.app.get(f"{llm_provider}_account_id", "")
         st_llm_api_key = st.text_input(tr("API Key"), value=llm_api_key, type="password")
         st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
         st_llm_model_name = st.text_input(tr("Model Name"), value=llm_model_name)
@@ -200,7 +202,10 @@ with st.expander(tr("Basic Settings"), expanded=False):
         if st_llm_model_name:
             config.app[f"{llm_provider}_model_name"] = st_llm_model_name
 
-        config.save_config()
+        if llm_provider == 'cloudflare':
+            st_llm_account_id = st.text_input(tr("Account ID"), value=llm_account_id)
+            if st_llm_account_id:
+                config.app[f"{llm_provider}_account_id"] = st_llm_account_id
 
     with right_config_panel:
         pexels_api_keys = config.app.get("pexels_api_keys", [])
@@ -212,7 +217,6 @@ with st.expander(tr("Basic Settings"), expanded=False):
         pexels_api_key = pexels_api_key.replace(" ", "")
         if pexels_api_key:
             config.app["pexels_api_keys"] = pexels_api_key.split(",")
-            config.save_config()
 
 panel = st.columns(3)
 left_panel = panel[0]
@@ -295,20 +299,20 @@ with middle_panel:
                                           index=0)
     with st.container(border=True):
         st.write(tr("Audio Settings"))
-        voices = voice.get_all_voices(filter_locals=["zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US"])
+        voices = voice.get_all_azure_voices(filter_locals=["zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US", "fr-FR"])
         friendly_names = {
-            voice: voice.
+            v: v.
             replace("Female", tr("Female")).
             replace("Male", tr("Male")).
             replace("Neural", "") for
-            voice in voices}
+            v in voices}
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
         if saved_voice_name in friendly_names:
             saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
         else:
-            for i, voice in enumerate(voices):
-                if voice.lower().startswith(st.session_state['ui_language'].lower()):
+            for i, v in enumerate(voices):
+                if v.lower().startswith(st.session_state['ui_language'].lower()):
                     saved_voice_name_index = i
                     break
 
@@ -319,7 +323,13 @@ with middle_panel:
         voice_name = list(friendly_names.keys())[list(friendly_names.values()).index(selected_friendly_name)]
         params.voice_name = voice_name
         config.ui['voice_name'] = voice_name
-        config.save_config()
+        if voice.is_azure_v2_voice(voice_name):
+            saved_azure_speech_region = config.azure.get(f"speech_region", "")
+            saved_azure_speech_key = config.azure.get(f"speech_key", "")
+            azure_speech_region = st.text_input(tr("Speech Region"), value=saved_azure_speech_region)
+            azure_speech_key = st.text_input(tr("Speech Key"), value=saved_azure_speech_key, type="password")
+            config.azure["speech_region"] = azure_speech_region
+            config.azure["speech_key"] = azure_speech_key
 
         params.voice_volume = st.selectbox(tr("Speech Volume"),
                                            options=[0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 4.0, 5.0], index=2)
@@ -356,7 +366,6 @@ with right_panel:
             saved_font_name_index = font_names.index(saved_font_name)
         params.font_name = st.selectbox(tr("Font"), font_names, index=saved_font_name_index)
         config.ui['font_name'] = params.font_name
-        config.save_config()
 
         subtitle_positions = [
             (tr("Top"), "top"),
@@ -439,3 +448,5 @@ if start_button:
     open_task_folder(task_id)
     logger.info(tr("Video Generation Completed"))
     scroll_to_bottom()
+
+config.save_config()
