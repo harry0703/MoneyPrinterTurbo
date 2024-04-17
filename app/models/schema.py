@@ -73,7 +73,7 @@ class MaterialInfo:
 # ]
 
 
-class VideoParams:
+class VideoParams(BaseModel):
     """
     {
       "video_subject": "",
