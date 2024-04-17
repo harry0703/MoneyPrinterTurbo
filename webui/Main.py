@@ -234,7 +234,7 @@ with left_panel:
         video_languages = [
             (tr("Auto Detect"), ""),
         ]
-        for code in ["zh-CN", "zh-TW", "de-DE", "en-US"]:
+        for code in ["zh-CN", "zh-TW", "de-DE", "en-US", "vi-VN"]:
             video_languages.append((code, code))
 
         selected_index = st.selectbox(tr("Script Language"),
@@ -299,7 +299,7 @@ with middle_panel:
                                           index=0)
     with st.container(border=True):
         st.write(tr("Audio Settings"))
-        voices = voice.get_all_azure_voices(filter_locals=["zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US", "fr-FR"])
+        voices = voice.get_all_azure_voices(filter_locals=["zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US", "fr-FR", "vi-VN"])
         friendly_names = {
             v: v.
             replace("Female", tr("Female")).
