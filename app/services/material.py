@@ -51,7 +51,7 @@ def search_videos(search_term: str,
     logger.info(f"searching videos: {query_url}, with proxies: {proxies}")
 
     try:
-        r = requests.get(query_url, headers=headers, proxies=proxies, verify=False)
+        r = requests.get(query_url, headers=headers, proxies=proxies, verify=False, timeout=(30, 60))
         response = r.json()
         video_items = []
         if "videos" not in response:
