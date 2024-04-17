@@ -1,3 +1,6 @@
+listen_host = "127.0.0.1"
+listen_port = 8502
+
 [app]
     # Pexels API Key
     # Register at https://www.pexels.com/api/ to get your API key.
@@ -134,6 +137,10 @@
     redis_host = "localhost"
     redis_port = 6379
     redis_db = 0
+    redis_password = ""
+
+    # 文生视频时的最大并发任务数
+    max_concurrent_tasks = 5
 
 [whisper]
     # Only effective when subtitle_provider is "whisper"
