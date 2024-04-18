@@ -1,0 +1,24 @@
+{
+  "name": "MoneyPrinterTurbo",
+  "version": "1.1.2",
+  "description": "利用AI大模型，一键生成高清短视频 Generate short videos with one click using AI LLM.",
+  "main": "index.js",
+  "repository": "https://github.com/harry0703/MoneyPrinterTurbo",
+  "author": "harry0703",
+  "license": "MIT",
+  "devDependencies": {
+    "@vue/tsconfig": "^0.1.3",
+    "@vuepress/bundler-vite": "2.0.0-rc.9",
+    "@vuepress/theme-default": "2.0.0-rc.25",
+    "gh-pages": "^6.1.1",
+    "vue": "^3.4.23",
+    "vue-router": "^4.3.1",
+    "vuepress": "2.0.0-rc.9"
+  },
+  "scripts": {
+    "docs:dev": "vuepress dev docs",
+    "docs:build": "vuepress build docs",
+    "predeploy": "pnpm docs:build",
+    "deploy": "gh-pages -d docs/.vuepress/dist"
+  }
+}
