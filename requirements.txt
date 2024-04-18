@@ -23,3 +23,4 @@ opencv-python
 # for azure speech
 # https://techcommunity.microsoft.com/t5/ai-azure-ai-services-blog/9-more-realistic-ai-voices-for-conversations-now-generally/ba-p/4099471
 azure-cognitiveservices-speech~=1.37.0
+git-changelog~=2.5.2
