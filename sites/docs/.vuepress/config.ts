@@ -2,9 +2,7 @@ import { viteBundler } from "@vuepress/bundler-vite";
 import { defaultTheme } from "@vuepress/theme-default";
 import { defineUserConfig } from "vuepress";
 
-const __dirname = process.cwd();
-
-const base = "money-printer-turbo";
+const base = "MoneyPrinterTurbo";
 const isProd = process.env.NODE_ENV === "production";
 
 export default defineUserConfig({
