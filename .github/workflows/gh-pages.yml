@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'sites/**'
 
 jobs:
   build-deploy:
