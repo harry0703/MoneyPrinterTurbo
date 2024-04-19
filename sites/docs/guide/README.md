@@ -1,5 +1,16 @@
 ## Installation & Deployment 📥
 
+Simply provide a <b>topic</b> or <b>keyword</b> for a video, and it will automatically generate the video copy, video
+materials, video subtitles, and video background music before synthesizing a high-definition short video.
+
+### WebUI
+
+![](/webui-en.jpg)
+
+### API Interface
+
+![](/api.jpg)
+
 - Try to avoid using **Chinese paths** to prevent unpredictable issues
 - Ensure your **network** is stable, meaning you can access foreign websites normally
 
@@ -113,3 +124,11 @@ python main.py
 
 After launching, you can view the `API documentation` at http://127.0.0.1:8080/docs and directly test the interface
 online for a quick experience.
+
+## License 📝
+
+Click to view the [`LICENSE`](LICENSE) file
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date)

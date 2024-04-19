@@ -10,23 +10,44 @@ export default defineUserConfig({
   base: `/${base}/`,
   bundler: viteBundler(),
   theme: defaultTheme({
-    repo: "harry0703/MoneyPrinterTurbo/sites",
-    docsDir: "docs",
-    colorModeSwitch: false,
+    repo: "harry0703/MoneyPrinterTurbo",
+    docsDir: "sites/docs",
+    colorModeSwitch: true,
     locales: {
       "/": {
         // navbar
         navbar: [
           { text: "Guide", link: "/guide/" },
-          { text: "Components", link: "/components/" },
+          // { text: "Components", link: "/components/" },
         ],
         selectLanguageText: "Languages",
         selectLanguageName: "English",
         selectLanguageAriaLabel: "Select language",
         // sidebar
         sidebar: {
-          "/guide/": getGuideSidebar("Guide", "Advanced"),
-          "/components/": getComponentsSidebar("Components", "Advanced"),
+          "/guide/": [
+            {
+              text: "Guide",
+              children: [
+                { text: "Get Started", link: "/guide/README.md" }, 
+                { text: "Video Demonstration", link: "/guide/video-demonstration.md" },
+                { text: "Features", link: "/guide/features.md" },
+                { text: "Speech Synthesis", link: "/guide/speech-synthesis.md" },
+                { text: "Subtitle Generation", link: "/guide/subtitle-generation.md" },
+                { text: "Background Music", link: "/guide/background-music.md" },
+                { text: "Subtitle Font", link: "/guide/subtitle-font.md" },
+              ],
+            },
+            {
+              text: "Others",
+              children: [
+                { text: "FAQ", link: "/guide/faq.md" },
+                { text: "Feedback", link: "/guide/feedback.md" },
+                { text: "Reference Project", link: "/guide/reference-project.md" },
+              ],
+            },
+          ],
+          // "/components/": getComponentsSidebar("Components", "Advanced"),
         },
         // page meta
         editLinkText: "Edit this page on GitHub",
@@ -35,15 +56,39 @@ export default defineUserConfig({
         // navbar
         navbar: [
           { text: "指南", link: "/zh/guide/" },
-          { text: "组件", link: "/zh/components/" },
+          // { text: "组件", link: "/zh/components/" },
         ],
         selectLanguageText: "选择语言",
         selectLanguageName: "简体中文",
         selectLanguageAriaLabel: "选择语言",
         // sidebar
         sidebar: {
-          "/zh/guide/": getGuideSidebar("指南", "深入"),
-          "/zh/components/": getComponentsSidebar("组件", "高级"),
+          "/zh/guide/": [
+            {
+              text: "指南",
+              children: [
+                { text: "快速开始", link: "/zh/guide/README.md" }, 
+                { text: "配置要求", link: "/zh/guide/configuration-requirements.md" },
+                { text: "视频演示", link: "/zh/guide/video-demonstration.md" },
+                { text: "功能", link: "/zh/guide/features.md" },
+                { text: "语音合成", link: "/zh/guide/speech-synthesis.md" },
+                { text: "字幕生成", link: "/zh/guide/subtitle-generation.md" },
+                { text: "背景音乐", link: "/zh/guide/background-music.md" },
+                { text: "字幕字体", link: "/zh/guide/subtitle-font.md" },
+              ],
+            },
+            {
+              text: "其他",
+              children: [
+                { text: "常见问题", link: "/zh/guide/faq.md" },
+                { text: "反馈建议", link: "/zh/guide/feedback.md" },
+                { text: "参考项目", link: "/zh/guide/reference-project.md" },
+                { text: "特别感谢", link: "/zh/guide/special-thanks.md" }, 
+                { text: "感谢赞助", link: "/zh/guide/thanks-for-sponsoring" },
+              ],
+            },
+          ],
+          // "/zh/others/": getComponentsSidebar("组件", "高级"),
         },
         // page meta
         editLinkText: "在 GitHub 上编辑此页",
@@ -140,7 +185,7 @@ function getGuideSidebar(groupA: string, groupB: string) {
   return [
     {
       text: groupA,
-      children: ["README.md", "1.md", "2.md"],
+      children: ["README.md", { text: "特别感谢", link: "/zh/guide/special-thanks.md" }, "2.md"],
     },
     {
       text: groupB,
