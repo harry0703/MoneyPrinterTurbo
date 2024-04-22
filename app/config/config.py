@@ -56,7 +56,7 @@ listen_port = _cfg.get("listen_port", 8080)
 project_name = _cfg.get("project_name", "MoneyPrinterTurbo")
 project_description = _cfg.get("project_description",
                                "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>")
-project_version = _cfg.get("project_version", "1.1.3")
+project_version = _cfg.get("project_version", "1.1.4")
 reload_debug = False
 
 imagemagick_path = app.get("imagemagick_path", "")
