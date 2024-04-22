@@ -213,7 +213,7 @@ Generate a script for a video, depending on the subject of the video.
 
     final_script = ""
     logger.info(f"subject: {video_subject}")
-    logger.debug(f"prompt: \n{prompt}")
+    # logger.debug(f"prompt: \n{prompt}")
     response = _generate_response(prompt=prompt)
 
     # Return the generated script
@@ -240,6 +240,10 @@ Generate a script for a video, depending on the subject of the video.
         # logger.info(f"number of paragraphs used: {len(selected_paragraphs)}")
     else:
         logging.error("gpt returned an empty response")
+
+    # g4f may return an error message
+    if final_script and "当日额度已消耗完" in final_script:
+        raise ValueError(final_script)
 
     logger.success(f"completed: \n{final_script}")
     return final_script
@@ -273,7 +277,7 @@ Please note that you must use English for generating video search terms; Chinese
 """.strip()
 
     logger.info(f"subject: {video_subject}")
-    logger.debug(f"prompt: \n{prompt}")
+    # logger.debug(f"prompt: \n{prompt}")
     response = _generate_response(prompt)
     search_terms = []
 
