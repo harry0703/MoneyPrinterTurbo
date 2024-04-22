@@ -78,7 +78,11 @@ def start(task_id, params: VideoParams):
     if sub_maker is None:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error(
-            "failed to generate audio, maybe the network is not available. if you are in China, please use a VPN.")
+            """failed to generate audio:
+1. check if the language of the voice matches the language of the video script.
+2. check if the network is available. If you are in China, it is recommended to use a VPN and enable the global traffic mode.
+        """.strip()
+        )
         return
 
     audio_duration = voice.get_audio_duration(sub_maker)
@@ -173,7 +177,6 @@ def start(task_id, params: VideoParams):
     }
     sm.state.update_task(task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs)
     return kwargs
-
 
 # def start_test(task_id, params: VideoParams):
 #     print(f"start task {task_id} \n")
