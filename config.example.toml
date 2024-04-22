@@ -34,7 +34,7 @@ listen_port = 8502
     # No need to set it unless you want to use your own proxy
     openai_base_url = ""
     # Check your available models at https://platform.openai.com/account/limits
-    openai_model_name = "gpt-4-turbo-preview"
+    openai_model_name = "gpt-4-turbo"
 
     ########## Moonshot API Key
     # Visit https://platform.moonshot.cn/console/api-keys to get your API key.
@@ -51,7 +51,7 @@ listen_port = 8502
     ########## G4F
     # Visit https://github.com/xtekky/gpt4free to get more details
     # Supported model list: https://github.com/xtekky/gpt4free/blob/main/g4f/models.py
-    g4f_model_name = "gpt-3.5-turbo-16k-0613"
+    g4f_model_name = "gpt-3.5-turbo"
 
     ########## Azure API Key
     # Visit https://learn.microsoft.com/zh-cn/azure/ai-services/openai/ to get more details
