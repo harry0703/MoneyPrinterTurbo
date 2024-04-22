@@ -50,6 +50,7 @@
     "Generating Video": "Generating video, please wait...",
     "Start Generating Video": "Start Generating Video",
     "Video Generation Completed": "Video Generation Completed",
+    "Video Generation Failed": "Video Generation Failed",
     "You can download the generated video from the following links": "You can download the generated video from the following links",
     "Pexels API Key": "Pexels API Key (:red[Required] [Get API Key](https://www.pexels.com/api/))",
     "Basic Settings": "**Basic Settings** (:blue[Click to expand])",

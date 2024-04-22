@@ -41,11 +41,14 @@ hide_streamlit_style = """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 st.title(f"MoneyPrinterTurbo v{config.project_version}")
 
+support_locales = ["zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US", "fr-FR", "vi-VN", "th-TH"]
+
 font_dir = os.path.join(root_dir, "resource", "fonts")
 song_dir = os.path.join(root_dir, "resource", "songs")
 i18n_dir = os.path.join(root_dir, "webui", "i18n")
 config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
 system_locale = utils.get_system_locale()
+# print(f"******** system locale: {system_locale} ********")
 
 if 'video_subject' not in st.session_state:
     st.session_state['video_subject'] = ''
@@ -185,6 +188,7 @@ with st.expander(tr("Basic Settings"), expanded=False):
                 break
 
         llm_provider = st.selectbox(tr("LLM Provider"), options=llm_providers, index=saved_llm_provider_index)
+        llm_helper = st.container()
         llm_provider = llm_provider.lower()
         config.app["llm_provider"] = llm_provider
 
@@ -192,9 +196,97 @@ with st.expander(tr("Basic Settings"), expanded=False):
         llm_base_url = config.app.get(f"{llm_provider}_base_url", "")
         llm_model_name = config.app.get(f"{llm_provider}_model_name", "")
         llm_account_id = config.app.get(f"{llm_provider}_account_id", "")
+
+        tips = ""
+        if llm_provider == 'ollama':
+            if not llm_model_name:
+                llm_model_name = "qwen:7b"
+            if not llm_base_url:
+                llm_base_url = "http://localhost:11434/v1"
+
+            with llm_helper:
+                tips = """
+                       ##### Ollama配置说明
+                       - **API Key**: 随便填写，比如 123
+                       - **Base Url**: 一般为 http://localhost:11434/v1
+                       - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
+                       """
+
+        if llm_provider == 'openai':
+            if not llm_model_name:
+                llm_model_name = "gpt-3.5-turbo"
+            with llm_helper:
+                tips = """
+                       ##### OpenAI 配置说明
+                       > 需要VPN开启全局流量模式
+                       - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
+                       - **Base Url**: 可以留空
+                       - **Model Name**: 填写**有权限**的模型，[点击查看模型列表](https://platform.openai.com/settings/organization/limits)
+                       """
+
+        if llm_provider == 'moonshot':
+            if not llm_model_name:
+                llm_model_name = "moonshot-v1-8k"
+            with llm_helper:
+                tips = """
+                       ##### Moonshot 配置说明
+                       - **API Key**: [点击到官网申请](https://platform.moonshot.cn/console/api-keys)
+                       - **Base Url**: 固定为 https://api.moonshot.cn/v1
+                       - **Model Name**: 比如 moonshot-v1-8k，[点击查看模型列表](https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8)
+                       """
+
+        if llm_provider == 'qwen':
+            if not llm_model_name:
+                llm_model_name = "qwen-max"
+            with llm_helper:
+                tips = """
+                       ##### 通义千问Qwen 配置说明
+                       - **API Key**: [点击到官网申请](https://dashscope.console.aliyun.com/apiKey)
+                       - **Base Url**: 留空
+                       - **Model Name**: 比如 qwen-max，[点击查看模型列表](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction#3ef6d0bcf91wy)
+                       """
+
+        if llm_provider == 'g4f':
+            if not llm_model_name:
+                llm_model_name = "gpt-3.5-turbo"
+            with llm_helper:
+                tips = """
+                       ##### gpt4free 配置说明
+                       > [GitHub开源项目](https://github.com/xtekky/gpt4free)，可以免费使用GPT模型，但是**稳定性较差**
+                       - **API Key**: 随便填写，比如 123
+                       - **Base Url**: 留空
+                       - **Model Name**: 比如 gpt-3.5-turbo，[点击查看模型列表](https://github.com/xtekky/gpt4free/blob/main/g4f/models.py#L308)
+                       """
+        if llm_provider == 'azure':
+            with llm_helper:
+                tips = """
+                       ##### Azure 配置说明
+                       > [点击查看如何部署模型](https://learn.microsoft.com/zh-cn/azure/ai-services/openai/how-to/create-resource)
+                       - **API Key**: [点击到Azure后台创建](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)
+                       - **Base Url**: 留空
+                       - **Model Name**: 填写你实际的部署名
+                       """
+
+        if llm_provider == 'gemini':
+            if not llm_model_name:
+                llm_model_name = "gemini-1.0-pro"
+
+            with llm_helper:
+                tips = """
+                        ##### Gemini 配置说明
+                        > 需要VPN开启全局流量模式
+                       - **API Key**: [点击到官网申请](https://ai.google.dev/)
+                       - **Base Url**: 留空
+                       - **Model Name**: 比如 gemini-1.0-pro
+                       """
+
+        if tips and config.ui['language'] == 'zh':
+            st.info(tips)
+
         st_llm_api_key = st.text_input(tr("API Key"), value=llm_api_key, type="password")
         st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
         st_llm_model_name = st.text_input(tr("Model Name"), value=llm_model_name)
+
         if st_llm_api_key:
             config.app[f"{llm_provider}_api_key"] = st_llm_api_key
         if st_llm_base_url:
@@ -234,7 +326,7 @@ with left_panel:
         video_languages = [
             (tr("Auto Detect"), ""),
         ]
-        for code in ["zh-CN", "zh-TW", "de-DE", "en-US", "vi-VN"]:
+        for code in support_locales:
             video_languages.append((code, code))
 
         selected_index = st.selectbox(tr("Script Language"),
@@ -300,7 +392,7 @@ with middle_panel:
     with st.container(border=True):
         st.write(tr("Audio Settings"))
         voices = voice.get_all_azure_voices(
-            filter_locals=["zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US", "fr-FR", "vi-VN"])
+            filter_locals=support_locales)
         friendly_names = {
             v: v.
             replace("Female", tr("Female")).
@@ -313,7 +405,7 @@ with middle_panel:
             saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
         else:
             for i, v in enumerate(voices):
-                if v.lower().startswith(st.session_state['ui_language'].lower()):
+                if v.lower().startswith(st.session_state['ui_language'].lower()) and "V2" not in v:
                     saved_voice_name_index = i
                     break
 
@@ -324,6 +416,7 @@ with middle_panel:
         voice_name = list(friendly_names.keys())[list(friendly_names.values()).index(selected_friendly_name)]
         params.voice_name = voice_name
         config.ui['voice_name'] = voice_name
+
         if voice.is_azure_v2_voice(voice_name):
             saved_azure_speech_region = config.azure.get(f"speech_region", "")
             saved_azure_speech_key = config.azure.get(f"speech_key", "")
@@ -434,12 +527,16 @@ if start_button:
     scroll_to_bottom()
 
     result = tm.start(task_id=task_id, params=params)
+    if not result or "videos" not in result:
+        st.error(tr("Video Generation Failed"))
+        logger.error(tr("Video Generation Failed"))
+        scroll_to_bottom()
+        st.stop()
 
     video_files = result.get("videos", [])
     st.success(tr("Video Generation Completed"))
     try:
         if video_files:
-            # center the video player
             player_cols = st.columns(len(video_files) * 2 + 1)
             for i, url in enumerate(video_files):
                 player_cols[i * 2 + 1].video(url)
