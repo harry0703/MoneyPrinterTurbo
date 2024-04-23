@@ -1,5 +1,17 @@
 ## 快速开始 🚀
 
+<br>
+只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
+<br>
+
+<h4>Web界面</h4>
+
+![](/webui.jpg)
+
+<h4>API界面</h4>
+
+![](/api.jpg)
+
 下载一键启动包，解压直接使用
 
 ### Windows
@@ -135,3 +147,11 @@ python main.py
 ```
 
 启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc 直接在线调试接口，快速体验。
+
+## 许可证 📝
+
+点击查看 [`LICENSE`](LICENSE) 文件
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date)

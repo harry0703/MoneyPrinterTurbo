@@ -2,7 +2,7 @@
 home: true
 heroImage: /hero.png
 actions:
-  - text: Get Started Test changes →
+  - text: Get Started →
     link: /guide/
     type: primary
 features:
