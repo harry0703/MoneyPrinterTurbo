@@ -220,7 +220,7 @@ pip install -r requirements.txt
 
 ###### Windows:
 
-- 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-30-Q16-x64-static.exe
+- 下载 https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-31-Q16-x64-static.exe
 - 安装下载好的 ImageMagick，注意不要修改安装路径
 - 修改 `配置文件 config.toml` 中的 `imagemagick_path` 为你的实际安装路径（如果安装的时候没有修改路径，直接取消注释即可）
 
