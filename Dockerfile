@@ -4,6 +4,9 @@ FROM python:3.10-slim-bullseye
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
 
+# 设置/MoneyPrinterTurbo目录权限为777
+RUN chmod 777 /MoneyPrinterTurbo
+
 ENV PYTHONPATH="/MoneyPrinterTurbo"
 
 # Install system dependencies
