@@ -256,7 +256,7 @@ satisfactory.
 - Please ensure a good internet connectivity
 - `whisper` model can be downloaded from HuggingFace: https://huggingface.co/openai/whisper-large-v3/tree/main
 
-After downloading the model to local machine，copy the whole folder and put it into the following path: `.\MoneyPrinterTurbo\models`
+After downloading the model to local machine, copy the whole folder and put it into the following path: `.\MoneyPrinterTurbo\models`
 
 This is what the final path should look like: `.\MoneyPrinterTurbo\models\whisper-large-v3`
 
