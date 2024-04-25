@@ -250,7 +250,7 @@ It is recommended to use `edge` mode, and switch to `whisper` mode if the qualit
 satisfactory.
 
 > Note:
-> 1. If left blank, it means no subtitles will be generated.
+> If left blank, it means no subtitles will be generated.
 
 **Download whisper**
 - Please ensure a good internet connectivity
