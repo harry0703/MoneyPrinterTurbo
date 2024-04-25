@@ -113,7 +113,7 @@ https://reccloud.com
 ## System Requirements 📦
 
 - Recommended minimum 4 CPU cores or more, 8G of memory or more, GPU is not required
-- Windows 10 or MacOS 11.0, and those above
+- Windows 10 or MacOS 11.0, and their later versions
 
 ## Installation & Deployment 📥
 
