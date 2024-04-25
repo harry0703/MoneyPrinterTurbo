@@ -110,6 +110,11 @@ https://reccloud.com
 </tbody>
 </table>
 
+## System Requirements 📦
+
+- Recommended minimum 4 CPU cores or more, 8G of memory or more, GPU is not required
+- Windows 10 or MacOS 11.0, and those above
+
 ## Installation & Deployment 📥
 
 - Try to avoid using **Chinese paths** to prevent unpredictable issues
@@ -244,7 +249,26 @@ You can switch between them by modifying the `subtitle_provider` in the `config.
 It is recommended to use `edge` mode, and switch to `whisper` mode if the quality of the subtitles generated is not
 satisfactory.
 
-> If left blank, it means no subtitles will be generated.
+> Note:
+> 1. If left blank, it means no subtitles will be generated.
+
+**Download whisper**
+- `whisper` model can be downloaded from HuggingFace: https://huggingface.co/openai/whisper-large-v3/tree/main
+
+After downloading the model to local machine，copy the whole folder and put it into the following path: `.\MoneyPrinterTurbo\models`
+
+This is what the final path should look like: `.\MoneyPrinterTurbo\models\whisper-large-v3`
+
+```
+MoneyPrinterTurbo  
+  ├─models
+  │   └─whisper-large-v3
+  │          config.json
+  │          model.bin
+  │          preprocessor_config.json
+  │          tokenizer.json
+  │          vocabulary.json
+```
 
 ## Background Music 🎵
 
