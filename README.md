@@ -78,7 +78,7 @@
 
 ## 交流讨论 💬
 
-<img src="docs/wechat-04.jpg" width="150">
+<img src="docs/wechat.jpg" width="250">
 
 ## 更新日志
 
