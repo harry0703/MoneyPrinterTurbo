@@ -253,6 +253,7 @@ satisfactory.
 > 1. If left blank, it means no subtitles will be generated.
 
 **Download whisper**
+- Please ensure a good internet connectivity
 - `whisper` model can be downloaded from HuggingFace: https://huggingface.co/openai/whisper-large-v3/tree/main
 
 After downloading the model to local machine，copy the whole folder and put it into the following path: `.\MoneyPrinterTurbo\models`
