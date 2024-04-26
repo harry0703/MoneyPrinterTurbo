@@ -142,6 +142,11 @@ listen_port = 8502
     # 文生视频时的最大并发任务数
     max_concurrent_tasks = 5
 
+    # webui界面是否显示配置项
+    # webui hide baisc config panel
+    hide_config = false
+
+
 [whisper]
     # Only effective when subtitle_provider is "whisper"
 
