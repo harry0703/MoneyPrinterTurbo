@@ -425,26 +425,17 @@ ulimit -n
 ulimit -n 10240
 ```
 
-### ❓AttributeError: module 'PIL.Image' has no attribute 'ANTIALIAS'
+### ❓Whisper 模型下载失败，出现如下错误
+LocalEntryNotfoundEror: Cannot find an appropriate cached snapshotfolderfor the specified revision on the local disk and outgoing trafic has been disabled. 
+To enablerepo look-ups and downloads online, pass 'local files only=False' as input.
 
-[issue 101](https://github.com/harry0703/MoneyPrinterTurbo/issues/101),
-[issue 83](https://github.com/harry0703/MoneyPrinterTurbo/issues/83),
-[issue 70](https://github.com/harry0703/MoneyPrinterTurbo/issues/70)
+或者 
 
-先看下当前的 Pillow 版本是多少
+An error occured while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
+An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.
+Trying to load the model directly from the local cache, if it exists.
 
-```shell
-pip list |grep Pillow
-```
-
-如果是 10.x 的版本，可以尝试下降级看看，有用户反馈降级后正常
-
-```shell
-pip uninstall Pillow
-pip install Pillow==9.5.0
-# 或者降级到 8.4.0
-pip install Pillow==8.4.0
-```
+解决方法：[点击查看如何从网盘手动下载模型](#%E5%AD%97%E5%B9%95%E7%94%9F%E6%88%90-)
 
 ## 反馈建议 📢
 
