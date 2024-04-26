@@ -24,9 +24,18 @@ def create(audio_file, subtitle_file: str = ""):
             model_path = model_size
 
         logger.info(f"loading model: {model_path}, device: {device}, compute_type: {compute_type}")
-        model = WhisperModel(model_size_or_path=model_path,
-                             device=device,
-                             compute_type=compute_type)
+        try:
+            model = WhisperModel(model_size_or_path=model_path,
+                                 device=device,
+                                 compute_type=compute_type)
+        except Exception as e:
+            logger.error(f"failed to load model: {e} \n\n"
+                         f"********************************************\n"
+                         f"this may be caused by network issue. \n"
+                         f"please download the model manually and put it in the 'models' folder. \n"
+                         f"see [README.md FAQ](https://github.com/harry0703/MoneyPrinterTurbo) for more details.\n"
+                         f"********************************************\n\n")
+            return None
 
     logger.info(f"start, output file: {subtitle_file}")
     if not subtitle_file:
@@ -120,6 +129,9 @@ def create(audio_file, subtitle_file: str = ""):
 
 
 def file_to_subtitles(filename):
+    if not filename or not os.path.isfile(filename):
+        return []
+
     times_texts = []
     current_times = None
     current_text = ""
