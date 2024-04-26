@@ -209,6 +209,8 @@ with st.expander(tr("Basic Settings"), expanded=False):
                        ##### Ollama配置说明
                        - **API Key**: 随便填写，比如 123
                        - **Base Url**: 一般为 http://localhost:11434/v1
+                          - 如果 `MoneyPrinterTurbo` 和 `Ollama` **不在同一台机器上**，需要填写 `Ollama` 机器的IP地址
+                          - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`
                        - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
                        """
 
