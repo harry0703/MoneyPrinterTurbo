@@ -62,6 +62,11 @@
     "Model Name": "模型名称 (:blue[需要到大模型提供商的后台确认被授权的模型名称])",
     "Please Enter the LLM API Key": "请先填写大模型 **API Key**",
     "Please Enter the Pexels API Key": "请先填写 **Pexels API Key**",
-    "Get Help": "有任何问题或建议，可以加入 **微信群** 求助或讨论：https://harryai.cc"
+    "Get Help": "有任何问题或建议，可以加入 **微信群** 求助或讨论：https://harryai.cc",
+    "Video Source": "视频来源",
+    "TikTok": "抖音 (TikTok 支持中，敬请期待)",
+    "Bilibili": "哔哩哔哩 (Bilibili 支持中，敬请期待)",
+    "Xiaohongshu": "小红书 (Xiaohongshu 支持中，敬请期待)",
+    "Local file": "本地文件"
   }
 }

@@ -30,10 +30,11 @@ st.set_page_config(page_title="MoneyPrinterTurbo",
                                 "video.\n\nhttps://github.com/harry0703/MoneyPrinterTurbo"
                    })
 
-from app.models.schema import VideoParams, VideoAspect, VideoConcatMode
+from app.models.schema import VideoParams, VideoAspect, VideoConcatMode, MaterialInfo
 from app.services import task as tm, llm, voice
 from app.utils import utils
 from app.config import config
+from app.models.const import FILE_TYPE_VIDEOS, FILE_TYPE_IMAGES
 
 hide_streamlit_style = """
 <style>#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}</style>
@@ -149,6 +150,8 @@ def tr(key):
 
 
 st.write(tr("Get Help"))
+
+llm_provider = config.app.get("llm_provider", "").lower()
 
 if not config.app.get("hide_config", False):
     with st.expander(tr("Basic Settings"), expanded=False):
@@ -319,6 +322,7 @@ middle_panel = panel[1]
 right_panel = panel[2]
 
 params = VideoParams(video_subject="")
+uploaded_files = []
 
 with left_panel:
     with st.container(border=True):
@@ -372,6 +376,24 @@ with middle_panel:
             (tr("Sequential"), "sequential"),
             (tr("Random"), "random"),
         ]
+        video_sources = [
+            (tr("Pexels"), "pexels"),
+            (tr("Local file"), "local"),
+            (tr("TikTok"), "douyin"),
+            (tr("Bilibili"), "bilibili"),
+            (tr("Xiaohongshu"), "xiaohongshu"),
+        ]
+        selected_index = st.selectbox(tr("Video Source"),
+                                      options=range(len(video_sources)),  # 使用索引作为内部选项值
+                                      format_func=lambda x: video_sources[x][0]  # 显示给用户的是标签
+                                      )
+        params.video_source = video_sources[selected_index][1]
+        if params.video_source == 'local':
+            _supported_types = FILE_TYPE_VIDEOS + FILE_TYPE_IMAGES
+            uploaded_files = st.file_uploader("Upload Local Files",
+                                              type=["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"],
+                                              accept_multiple_files=True)
+
         selected_index = st.selectbox(tr("Video Concat Mode"),
                                       index=1,
                                       options=range(len(video_concat_modes)),  # 使用索引作为内部选项值
@@ -511,6 +533,19 @@ if start_button:
         st.error(tr("Please Enter the Pexels API Key"))
         scroll_to_bottom()
         st.stop()
+
+    if uploaded_files:
+        local_videos_dir = utils.storage_dir("local_videos", create=True)
+        for file in uploaded_files:
+            file_path = os.path.join(local_videos_dir, f"{file.file_id}_{file.name}")
+            with open(file_path, "wb") as f:
+                f.write(file.getbuffer())
+                m = MaterialInfo()
+                m.provider = "local"
+                m.url = file_path
+                if not params.video_materials:
+                    params.video_materials = []
+                params.video_materials.append(m)
 
     log_container = st.empty()
     log_records = []

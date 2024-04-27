@@ -62,6 +62,11 @@
     "Model Name": "Tên Mô Hình",
     "Please Enter the LLM API Key": "Vui lòng Nhập **Khóa API LLM**",
     "Please Enter the Pexels API Key": "Vui lòng Nhập **Khóa API Pexels**",
-    "Get Help": "Nếu bạn cần giúp đỡ hoặc có bất kỳ câu hỏi nào, bạn có thể tham gia discord để được giúp đỡ: https://harryai.cc"
+    "Get Help": "Nếu bạn cần giúp đỡ hoặc có bất kỳ câu hỏi nào, bạn có thể tham gia discord để được giúp đỡ: https://harryai.cc",
+    "Video Source": "Video Source",
+    "TikTok": "TikTok (TikTok support is coming soon)",
+    "Bilibili": "Bilibili (Bilibili support is coming soon)",
+    "Xiaohongshu": "Xiaohongshu (Xiaohongshu support is coming soon)",
+    "Local file": "Local file"
   }
 }

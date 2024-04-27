@@ -114,14 +114,28 @@ def start(task_id, params: VideoParams):
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
-    logger.info("\n\n## downloading videos")
-    downloaded_videos = material.download_videos(task_id=task_id,
-                                                 search_terms=video_terms,
-                                                 video_aspect=params.video_aspect,
-                                                 video_contact_mode=params.video_concat_mode,
-                                                 audio_duration=audio_duration * params.video_count,
-                                                 max_clip_duration=max_clip_duration,
-                                                 )
+    downloaded_videos = []
+    if params.video_source == "local":
+        logger.info("\n\n## preprocess local materials")
+        materials = video.preprocess_video(materials=params.video_materials, clip_duration=max_clip_duration)
+        print(materials)
+
+        if not materials:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("no valid materials found, please check the materials and try again.")
+            return
+        for material_info in materials:
+            print(material_info)
+            downloaded_videos.append(material_info.url)
+    else:
+        logger.info("\n\n## downloading videos")
+        downloaded_videos = material.download_videos(task_id=task_id,
+                                                     search_terms=video_terms,
+                                                     video_aspect=params.video_aspect,
+                                                     video_contact_mode=params.video_concat_mode,
+                                                     audio_duration=audio_duration * params.video_count,
+                                                     max_clip_duration=max_clip_duration,
+                                                     )
     if not downloaded_videos:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error(
