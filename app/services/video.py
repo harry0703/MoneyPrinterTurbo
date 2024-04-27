@@ -1,12 +1,13 @@
 import glob
 import random
 from typing import List
-from PIL import ImageFont
+from PIL import ImageFont, Image
 from loguru import logger
 from moviepy.editor import *
 from moviepy.video.tools.subtitles import SubtitlesClip
 
-from app.models.schema import VideoAspect, VideoParams, VideoConcatMode
+from app.models import const
+from app.models.schema import VideoAspect, VideoParams, VideoConcatMode, MaterialInfo
 from app.utils import utils
 
 
@@ -268,55 +269,101 @@ def generate_video(video_path: str,
     logger.success(f"completed")
 
 
+def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
+    for material in materials:
+        if not material.url:
+            continue
+
+        ext = utils.parse_extension(material.url)
+        try:
+            clip = VideoFileClip(material.url)
+        except Exception as e:
+            clip = ImageClip(material.url)
+
+        width = clip.size[0]
+        height = clip.size[1]
+        if width < 480 or height < 480:
+            logger.warning(f"video is too small, width: {width}, height: {height}")
+            continue
+
+        if ext in const.FILE_TYPE_IMAGES:
+            logger.info(f"processing image: {material.url}")
+            # 创建一个图片剪辑，并设置持续时间为3秒钟
+            clip = ImageClip(material.url).set_duration(clip_duration).set_position("center")
+            # 使用resize方法来添加缩放效果。这里使用了lambda函数来使得缩放效果随时间变化。
+            # 假设我们想要从原始大小逐渐放大到120%的大小。
+            # t代表当前时间，clip.duration为视频总时长，这里是3秒。
+            # 注意：1 表示100%的大小，所以1.2表示120%的大小
+            zoom_clip = clip.resize(lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration))
+
+            # 如果需要，可以创建一个包含缩放剪辑的复合视频剪辑
+            # （这在您想要在视频中添加其他元素时非常有用）
+            final_clip = CompositeVideoClip([zoom_clip])
+
+            # 输出视频
+            video_file = f"{material.url}.mp4"
+            final_clip.write_videofile(video_file, fps=30, logger=None)
+            final_clip.close()
+            material.url = video_file
+            logger.success(f"completed: {video_file}")
+    return materials
+
+
 if __name__ == "__main__":
-    txt_en = "Here's your guide to travel hacks for budget-friendly adventures"
-    txt_zh = "测试长字段这是您的旅行技巧指南帮助您进行预算友好的冒险"
-    font = utils.resource_dir() + "/fonts/STHeitiMedium.ttc"
-    for txt in [txt_en, txt_zh]:
-        t, h = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
-        print(t)
+    m = MaterialInfo()
+    m.url = "/Users/harry/Downloads/IMG_2915.JPG"
+    m.provider = "local"
+    materials = preprocess_video([m], clip_duration=4)
+    print(materials)
 
-    task_id = "aa563149-a7ea-49c2-b39f-8c32cc225baf"
-    task_dir = utils.task_dir(task_id)
-    video_file = f"{task_dir}/combined-1.mp4"
-    audio_file = f"{task_dir}/audio.mp3"
-    subtitle_file = f"{task_dir}/subtitle.srt"
-    output_file = f"{task_dir}/final.mp4"
-
-    # video_paths = []
-    # for file in os.listdir(utils.storage_dir("test")):
-    #     if file.endswith(".mp4"):
-    #         video_paths.append(os.path.join(utils.storage_dir("test"), file))
+    # txt_en = "Here's your guide to travel hacks for budget-friendly adventures"
+    # txt_zh = "测试长字段这是您的旅行技巧指南帮助您进行预算友好的冒险"
+    # font = utils.resource_dir() + "/fonts/STHeitiMedium.ttc"
+    # for txt in [txt_en, txt_zh]:
+    #     t, h = wrap_text(text=txt, max_width=1000, font=font, fontsize=60)
+    #     print(t)
     #
-    # combine_videos(combined_video_path=video_file,
-    #                audio_file=audio_file,
-    #                video_paths=video_paths,
-    #                video_aspect=VideoAspect.portrait,
-    #                video_concat_mode=VideoConcatMode.random,
-    #                max_clip_duration=5,
-    #                threads=2)
-
-    cfg = VideoParams()
-    cfg.video_aspect = VideoAspect.portrait
-    cfg.font_name = "STHeitiMedium.ttc"
-    cfg.font_size = 60
-    cfg.stroke_color = "#000000"
-    cfg.stroke_width = 1.5
-    cfg.text_fore_color = "#FFFFFF"
-    cfg.text_background_color = "transparent"
-    cfg.bgm_type = "random"
-    cfg.bgm_file = ""
-    cfg.bgm_volume = 1.0
-    cfg.subtitle_enabled = True
-    cfg.subtitle_position = "bottom"
-    cfg.n_threads = 2
-    cfg.paragraph_number = 1
-
-    cfg.voice_volume = 1.0
-
-    generate_video(video_path=video_file,
-                   audio_path=audio_file,
-                   subtitle_path=subtitle_file,
-                   output_file=output_file,
-                   params=cfg
-                   )
+    # task_id = "aa563149-a7ea-49c2-b39f-8c32cc225baf"
+    # task_dir = utils.task_dir(task_id)
+    # video_file = f"{task_dir}/combined-1.mp4"
+    # audio_file = f"{task_dir}/audio.mp3"
+    # subtitle_file = f"{task_dir}/subtitle.srt"
+    # output_file = f"{task_dir}/final.mp4"
+    #
+    # # video_paths = []
+    # # for file in os.listdir(utils.storage_dir("test")):
+    # #     if file.endswith(".mp4"):
+    # #         video_paths.append(os.path.join(utils.storage_dir("test"), file))
+    # #
+    # # combine_videos(combined_video_path=video_file,
+    # #                audio_file=audio_file,
+    # #                video_paths=video_paths,
+    # #                video_aspect=VideoAspect.portrait,
+    # #                video_concat_mode=VideoConcatMode.random,
+    # #                max_clip_duration=5,
+    # #                threads=2)
+    #
+    # cfg = VideoParams()
+    # cfg.video_aspect = VideoAspect.portrait
+    # cfg.font_name = "STHeitiMedium.ttc"
+    # cfg.font_size = 60
+    # cfg.stroke_color = "#000000"
+    # cfg.stroke_width = 1.5
+    # cfg.text_fore_color = "#FFFFFF"
+    # cfg.text_background_color = "transparent"
+    # cfg.bgm_type = "random"
+    # cfg.bgm_file = ""
+    # cfg.bgm_volume = 1.0
+    # cfg.subtitle_enabled = True
+    # cfg.subtitle_position = "bottom"
+    # cfg.n_threads = 2
+    # cfg.paragraph_number = 1
+    #
+    # cfg.voice_volume = 1.0
+    #
+    # generate_video(video_path=video_file,
+    #                audio_path=audio_file,
+    #                subtitle_path=subtitle_file,
+    #                output_file=output_file,
+    #                params=cfg
+    #                )

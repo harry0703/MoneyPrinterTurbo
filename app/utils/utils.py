@@ -67,10 +67,13 @@ def root_dir():
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 
-def storage_dir(sub_dir: str = ""):
+def storage_dir(sub_dir: str = "", create: bool = False):
     d = os.path.join(root_dir(), "storage")
     if sub_dir:
         d = os.path.join(d, sub_dir)
+    if create and not os.path.exists(d):
+        os.makedirs(d)
+
     return d
 
 
@@ -219,3 +222,7 @@ def load_locales(i18n_dir):
                 with open(os.path.join(root, file), "r", encoding="utf-8") as f:
                     _locales[lang] = json.loads(f.read())
     return _locales
+
+
+def parse_extension(filename):
+    return os.path.splitext(filename)[1].strip().lower().replace(".", "")

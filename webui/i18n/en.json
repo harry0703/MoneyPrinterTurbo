@@ -62,6 +62,11 @@
     "Model Name": "Model Name",
     "Please Enter the LLM API Key": "Please Enter the **LLM API Key**",
     "Please Enter the Pexels API Key": "Please Enter the **Pexels API Key**",
-    "Get Help": "If you need help, or have any questions, you can join discord for help: https://harryai.cc"
+    "Get Help": "If you need help, or have any questions, you can join discord for help: https://harryai.cc",
+    "Video Source": "Video Source",
+    "TikTok": "TikTok (TikTok support is coming soon)",
+    "Bilibili": "Bilibili (Bilibili support is coming soon)",
+    "Xiaohongshu": "Xiaohongshu (Xiaohongshu support is coming soon)",
+    "Local file": "Local file"
   }
 }
