@@ -76,10 +76,8 @@
 - [ ] 自动上传到YouTube平台
 
 ## 交流讨论 💬
-> 由于微信群二维码有 **时间** 和 **人数** 限制，太麻烦了。请先加我微信：`harryaicc`，再拉你进群。
-请备注：**github**
 
-<img src="docs/wechat.jpg" width="250">
+<img src="docs/wechat-group.jpg" width="250">
 
 ## 视频演示 📺
 
