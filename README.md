@@ -76,18 +76,9 @@
 - [ ] 自动上传到YouTube平台
 
 ## 交流讨论 💬
+> 由于微信群二维码有 **时间** 和 **人数** 限制，太麻烦了。请先加我微信：`harryaicc`，再拉你进群。
 
 <img src="docs/wechat.jpg" width="250">
-
-## 更新日志
-
-### 2024-04-16 v1.1.2
-
-- 支持azure新发布的9种语音合成声音（需要配置API
-  KEY） [9个更真实的AI对话声音](https://techcommunity.microsoft.com/t5/ai-azure-ai-services-blog/9-more-realistic-ai-voices-for-conversations-now-generally/ba-p/4099471)
-- 优化字幕显示
-- 修复内存泄露问题
-- 一些其他的bug修复和优化
 
 ## 视频演示 📺
 
