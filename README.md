@@ -128,7 +128,7 @@
 
 ### Windows
 
-- 百度网盘: https://pan.baidu.com/s/1bpGjgQVE5sADZRn3A6F87w?pwd=xt16 提取码: xt16
+- 百度网盘: https://pan.baidu.com/s/1jKF1mgsjfN8fBk6uTEHArQ?pwd=jrp7 提取码: jrp7
      
 下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动Web界面
 
