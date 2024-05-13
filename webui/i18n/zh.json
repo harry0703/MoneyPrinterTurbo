@@ -67,6 +67,10 @@
     "TikTok": "抖音 (TikTok 支持中，敬请期待)",
     "Bilibili": "哔哩哔哩 (Bilibili 支持中，敬请期待)",
     "Xiaohongshu": "小红书 (Xiaohongshu 支持中，敬请期待)",
-    "Local file": "本地文件"
+    "Local file": "本地文件",
+    "Play Voice": "试听语音合成",
+    "Voice Example": "这是一段测试语音合成的示例文本",
+    "Synthesizing Voice": "语音合成中，请稍候...",
+    "TTS Provider": "语音合成提供商"
   }
 }

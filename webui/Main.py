@@ -416,6 +416,10 @@ with middle_panel:
                                           index=0)
     with st.container(border=True):
         st.write(tr("Audio Settings"))
+
+        # tts_providers = ['edge', 'azure']
+        # tts_provider = st.selectbox(tr("TTS Provider"), tts_providers)
+
         voices = voice.get_all_azure_voices(
             filter_locals=support_locales)
         friendly_names = {
@@ -441,6 +445,26 @@ with middle_panel:
         voice_name = list(friendly_names.keys())[list(friendly_names.values()).index(selected_friendly_name)]
         params.voice_name = voice_name
         config.ui['voice_name'] = voice_name
+
+        if st.button(tr("Play Voice")):
+            play_content = params.video_subject
+            if not play_content:
+                play_content = params.video_script
+            if not play_content:
+                play_content = tr("Voice Example")
+            with st.spinner(tr("Synthesizing Voice")):
+                temp_dir = utils.storage_dir("temp", create=True)
+                audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
+                sub_maker = voice.tts(text=play_content, voice_name=voice_name, voice_file=audio_file)
+                # if the voice file generation failed, try again with a default content.
+                if not sub_maker:
+                    play_content = "This is a example voice. if you hear this, the voice synthesis failed with the original content."
+                    sub_maker = voice.tts(text=play_content, voice_name=voice_name, voice_file=audio_file)
+
+                if sub_maker and os.path.exists(audio_file):
+                    st.audio(audio_file, format="audio/mp3")
+                    if os.path.exists(audio_file):
+                        os.remove(audio_file)
 
         if voice.is_azure_v2_voice(voice_name):
             saved_azure_speech_region = config.azure.get(f"speech_region", "")
