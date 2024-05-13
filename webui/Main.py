@@ -183,7 +183,8 @@ if not config.app.get("hide_config", False):
             #   qwen (通义千问)
             #   gemini
             #   ollama
-            llm_providers = ['OpenAI', 'Moonshot', 'Azure', 'Qwen', 'Gemini', 'Ollama', 'G4f', 'OneAPI', "Cloudflare"]
+            llm_providers = ['OpenAI', 'Moonshot', 'Azure', 'Qwen', 'DeepSeek', 'Gemini', 'Ollama', 'G4f', 'OneAPI',
+                             "Cloudflare"]
             saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
             saved_llm_provider_index = 0
             for i, provider in enumerate(llm_providers):
@@ -284,6 +285,19 @@ if not config.app.get("hide_config", False):
                            - **API Key**: [点击到官网申请](https://ai.google.dev/)
                            - **Base Url**: 留空
                            - **Model Name**: 比如 gemini-1.0-pro
+                           """
+
+            if llm_provider == 'deepseek':
+                if not llm_model_name:
+                    llm_model_name = "deepseek-chat"
+                if not llm_base_url:
+                    llm_base_url = "https://api.deepseek.com"
+                with llm_helper:
+                    tips = """
+                           ##### DeepSeek 配置说明
+                           - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
+                           - **Base Url**: 固定为 https://api.deepseek.com
+                           - **Model Name**: 固定为 deepseek-chat
                            """
 
             if tips and config.ui['language'] == 'zh':

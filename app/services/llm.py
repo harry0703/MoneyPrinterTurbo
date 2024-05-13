@@ -64,6 +64,12 @@ def _generate_response(prompt: str) -> str:
             model_name = config.app.get("cloudflare_model_name")
             account_id = config.app.get("cloudflare_account_id")
             base_url = "***"
+        elif llm_provider == "deepseek":
+            api_key = config.app.get("deepseek_api_key")
+            model_name = config.app.get("deepseek_model_name")
+            base_url = config.app.get("deepseek_base_url")
+            if not base_url:
+                base_url = "https://api.deepseek.com"
         else:
             raise ValueError("llm_provider is not set, please set it in the config.toml file.")
 
