@@ -67,6 +67,10 @@
     "TikTok": "TikTok (TikTok support is coming soon)",
     "Bilibili": "Bilibili (Bilibili support is coming soon)",
     "Xiaohongshu": "Xiaohongshu (Xiaohongshu support is coming soon)",
-    "Local file": "Local file"
+    "Local file": "Local file",
+    "Play Voice": "Play Voice",
+    "Voice Example": "This is an example text for testing speech synthesis",
+    "Synthesizing Voice": "Synthesizing voice, please wait...",
+    "TTS Provider": "Select the voice synthesis provider"
   }
 }
