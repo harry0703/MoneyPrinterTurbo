@@ -71,6 +71,12 @@
     qwen_model_name = "qwen-max" 
 
 
+    ########## DeepSeek API Key
+    # Visit https://platform.deepseek.com/api_keys to get your API key
+    deepseek_api_key = ""
+    deepseek_base_url = "https://api.deepseek.com"
+    deepseek_model_name = "deepseek-chat"
+
     # Subtitle Provider, "edge" or "whisper"
     # If empty, the subtitle will not be generated
     subtitle_provider = "edge"

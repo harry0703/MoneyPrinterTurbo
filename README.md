@@ -58,7 +58,7 @@
 - [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、`颜色`、`大小`，同时支持`字幕描边`设置
 - [x] 支持 **背景音乐**，随机或者指定音乐文件，可设置`背景音乐音量`
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
-- [x] 支持 **OpenAI**、**moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama** 等多种模型接入
+- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek** 等多种模型接入
 
   ❓[如何使用免费的 **OpenAI GPT-3.5
   ** 模型?](https://github.com/harry0703/MoneyPrinterTurbo?tab=readme-ov-file#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98-)
