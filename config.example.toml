@@ -1,10 +1,19 @@
 [app]
+
+    video_source = "pexels"  # "pexels" or "pixabay"
     # Pexels API Key
     # Register at https://www.pexels.com/api/ to get your API key.
     # You can use multiple keys to avoid rate limits.
     # For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
     # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
     pexels_api_keys = []
+
+    # Pixabay API Key
+    # Register at https://pixabay.com/api/docs/ to get your API key.
+    # You can use multiple keys to avoid rate limits.
+    # For example: pixabay_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+    # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+    pixabay_api_keys = []
 
     # 如果你没有 OPENAI API Key，可以使用 g4f 代替，或者使用国内的 Moonshot API
     # If you don't have an OPENAI API Key, you can use g4f instead
@@ -68,7 +77,7 @@
     # https://tongyi.aliyun.com/qianwen/
     # https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction
     qwen_api_key = ""
-    qwen_model_name = "qwen-max" 
+    qwen_model_name = "qwen-max"
 
 
     ########## DeepSeek API Key
@@ -168,15 +177,15 @@
     device="CPU"
     compute_type="int8"
 
-[pexels]
-    video_concat_mode="sequential" # "random" or "sequential"
-    [pexels.proxies]
-        ### Use a proxy to access the Pexels API
-        ### Format: "http://<username>:<password>@<proxy>:<port>"
-        ### Example: "http://user:pass@proxy:1234"
-        ### Doc: https://requests.readthedocs.io/en/latest/user/advanced/#proxies
-        # http = "http://10.10.1.10:3128"
-        # https = "http://10.10.1.10:1080"
+
+[proxy]
+    ### Use a proxy to access the Pexels API
+    ### Format: "http://<username>:<password>@<proxy>:<port>"
+    ### Example: "http://user:pass@proxy:1234"
+    ### Doc: https://requests.readthedocs.io/en/latest/user/advanced/#proxies
+
+    # http = "http://10.10.1.10:3128"
+    # https = "http://10.10.1.10:1080"
 
 [azure]
     # Azure Speech API Key
