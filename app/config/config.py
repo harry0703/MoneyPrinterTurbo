@@ -34,8 +34,6 @@ def load_config():
 def save_config():
     with open(config_file, "w", encoding="utf-8") as f:
         _cfg["app"] = app
-        _cfg["whisper"] = whisper
-        _cfg["pexels"] = pexels
         _cfg["azure"] = azure
         _cfg["ui"] = ui
         f.write(toml.dumps(_cfg))
@@ -44,7 +42,7 @@ def save_config():
 _cfg = load_config()
 app = _cfg.get("app", {})
 whisper = _cfg.get("whisper", {})
-pexels = _cfg.get("pexels", {})
+proxy = _cfg.get("proxy", {})
 azure = _cfg.get("azure", {})
 ui = _cfg.get("ui", {})
 

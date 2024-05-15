@@ -44,6 +44,11 @@ def start(task_id, params: VideoParams):
     else:
         logger.debug(f"video script: \n{video_script}")
 
+    if not video_script:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("failed to generate video script.")
+        return
+
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
 
     logger.info("\n\n## generating video terms")
@@ -59,6 +64,11 @@ def start(task_id, params: VideoParams):
             raise ValueError("video_terms must be a string or a list of strings.")
 
         logger.debug(f"video terms: {utils.to_json(video_terms)}")
+
+    if not video_terms:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("failed to generate video terms.")
+        return
 
     script_file = path.join(utils.task_dir(task_id), f"script.json")
     script_data = {
@@ -128,9 +138,10 @@ def start(task_id, params: VideoParams):
             print(material_info)
             downloaded_videos.append(material_info.url)
     else:
-        logger.info("\n\n## downloading videos")
+        logger.info(f"\n\n## downloading videos from {params.video_source}")
         downloaded_videos = material.download_videos(task_id=task_id,
                                                      search_terms=video_terms,
+                                                     source=params.video_source,
                                                      video_aspect=params.video_aspect,
                                                      video_contact_mode=params.video_concat_mode,
                                                      audio_duration=audio_duration * params.video_count,
