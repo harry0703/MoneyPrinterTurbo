@@ -501,10 +501,10 @@ with middle_panel:
                                       format_func=lambda x: bgm_options[x][0]  # 显示给用户的是标签
                                       )
         # 获取选择的背景音乐类型
-        bgm_type = bgm_options[selected_index][1]
+        params.bgm_type = bgm_options[selected_index][1]
 
         # 根据选择显示或隐藏组件
-        if bgm_type == "custom":
+        if params.bgm_type == "custom":
             custom_bgm_file = st.text_input(tr("Custom Background Music File"))
             if custom_bgm_file and os.path.exists(custom_bgm_file):
                 params.bgm_file = custom_bgm_file
