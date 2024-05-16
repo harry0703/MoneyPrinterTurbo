@@ -49,26 +49,28 @@ def combine_videos(combined_video_path: str,
 
     clips = []
     video_duration = 0
-    
+
     raw_clips = []
     for video_path in video_paths:
         clip = VideoFileClip(video_path).without_audio()
         clip_duration = clip.duration
         start_time = 0
-        
+
         while start_time < clip_duration:
             end_time = min(start_time + max_clip_duration, clip_duration)
             split_clip = clip.subclip(start_time, end_time)
             raw_clips.append(split_clip)
             # logger.info(f"splitting from {start_time:.2f} to {end_time:.2f}, clip duration {clip_duration:.2f}, split_clip duration {split_clip.duration:.2f}")
             start_time = end_time
+            if video_concat_mode.value == VideoConcatMode.sequential.value:
+                break
+
+    # random video_paths order
+    if video_concat_mode.value == VideoConcatMode.random.value:
+        random.shuffle(raw_clips)
+
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     while video_duration < audio_duration:
-        # random video_paths order
-        if video_concat_mode.value == VideoConcatMode.random.value:
-            random.shuffle(raw_clips)
-
-
         for clip in raw_clips:
             # Check if clip is longer than the remaining audio
             if (audio_duration - video_duration) < clip.duration:
