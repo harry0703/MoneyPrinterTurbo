@@ -301,6 +301,8 @@ if not config.app.get("hide_config", False):
                            """
 
             if tips and config.ui['language'] == 'zh':
+                st.warning(
+                    "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用")
                 st.info(tips)
 
             st_llm_api_key = st.text_input(tr("API Key"), value=llm_api_key, type="password")
