@@ -58,8 +58,9 @@
 - [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、`颜色`、`大小`，同时支持`字幕描边`设置
 - [x] 支持 **背景音乐**，随机或者指定音乐文件，可设置`背景音乐音量`
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
-- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、*
-  *DeepSeek** 等多种模型接入
+- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、
+  **DeepSeek** 等多种模型接入
+    - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
 
 ### 后期计划 📅
 
@@ -320,9 +321,11 @@ docker run -p 3040:3040 missuo/freegpt35
 
 ### ❓AttributeError: 'str' object has no attribute 'choices'`
 
-这个问题是由于 OpenAI 或者其他 LLM，没有返回正确的回复导致的。
+这个问题是由于大模型没有返回正确的回复导致的。
 
 大概率是网络原因， 使用 **VPN**，或者设置 `openai_base_url` 为你的代理 ，应该就可以解决了。
+
+同时建议使用 **Moonshot** 或 **DeepSeek** 作为大模型提供商，这两个服务商在国内访问速度更快，更加稳定。
 
 ### ❓RuntimeError: No ffmpeg exe could be found
 
