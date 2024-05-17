@@ -125,7 +125,7 @@
 
 ### Windows
 
-- 百度网盘: https://pan.baidu.com/s/1jKF1mgsjfN8fBk6uTEHArQ?pwd=jrp7 提取码: jrp7
+- 百度网盘: https://pan.baidu.com/s/1MzBmcLTmVWohPEp9ohvvzA?pwd=pdcu 提取码: pdcu
 
 下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
 
