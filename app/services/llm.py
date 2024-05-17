@@ -295,6 +295,7 @@ Please note that you must use English for generating video search terms; Chinese
     logger.info(f"subject: {video_subject}")
 
     search_terms = []
+    response = ""
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
@@ -304,12 +305,15 @@ Please note that you must use English for generating video search terms; Chinese
                 continue
 
         except Exception as e:
-            match = re.search(r'\[.*]', response)
-            if match:
-                try:
-                    search_terms = json.loads(match.group())
-                except json.JSONDecodeError:
-                    pass
+            logger.warning(f"failed to generate video terms: {str(e)}")
+            if response:
+                match = re.search(r'\[.*]', response)
+                if match:
+                    try:
+                        search_terms = json.loads(match.group())
+                    except Exception as e:
+                        logger.warning(f"failed to generate video terms: {str(e)}")
+                        pass
 
         if search_terms and len(search_terms) > 0:
             break
