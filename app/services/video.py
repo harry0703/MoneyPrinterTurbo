@@ -273,6 +273,8 @@ def generate_video(video_path: str,
             logger.error(f"failed to add bgm: {str(e)}")
 
     video_clip = video_clip.set_audio(audio_clip)
+    # Apply fade in and fade out effects
+    video_clip = video_clip.fadein(1).fadeout(1)
     video_clip.write_videofile(output_file,
                                audio_codec="aac",
                                temp_audiofile_path=output_dir,
