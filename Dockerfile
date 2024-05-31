@@ -9,6 +9,11 @@ RUN chmod 777 /MoneyPrinterTurbo
 
 ENV PYTHONPATH="/MoneyPrinterTurbo"
 
+# 改成国内的镜像, 避免连不上: deb.debian.org
+RUN echo "deb http://mirrors.aliyun.com/debian/ bullseye main" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian-security/ bullseye-security main" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian/ bullseye-updates main" >> /etc/apt/sources.list
+    
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
