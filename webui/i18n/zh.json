@@ -73,6 +73,7 @@
     "Play Voice": "试听语音合成",
     "Voice Example": "这是一段测试语音合成的示例文本",
     "Synthesizing Voice": "语音合成中，请稍候...",
-    "TTS Provider": "语音合成提供商"
+    "TTS Provider": "语音合成提供商",
+    "Hide Log": "隐藏日志"
   }
 }
