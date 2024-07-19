@@ -32,6 +32,7 @@ def start(task_id, params: VideoParams):
 
     video_subject = params.video_subject
     voice_name = voice.parse_voice_name(params.voice_name)
+    voice_rate = params.voice_rate
     paragraph_number = params.paragraph_number
     n_threads = params.n_threads
     max_clip_duration = params.video_clip_duration
@@ -84,7 +85,7 @@ def start(task_id, params: VideoParams):
 
     logger.info("\n\n## generating audio")
     audio_file = path.join(utils.task_dir(task_id), f"audio.mp3")
-    sub_maker = voice.tts(text=video_script, voice_name=voice_name, voice_file=audio_file)
+    sub_maker = voice.tts(text=video_script, voice_name=voice_name, voice_rate=voice_rate, voice_file=audio_file)
     if sub_maker is None:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error(

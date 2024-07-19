@@ -1028,21 +1028,32 @@ def is_azure_v2_voice(voice_name: str):
     return ""
 
 
-def tts(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
+def tts(text: str, voice_name: str, voice_rate: float, voice_file: str) -> [SubMaker, None]:
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
-    return azure_tts_v1(text, voice_name, voice_file)
+    return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
-def azure_tts_v1(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
+def convert_rate_to_percent(rate: float) -> str:
+    if rate == 1.0:
+        return "+0%"
+    percent = round((rate - 1.0) * 100)
+    if percent > 0:
+        return f"+{percent}%"
+    else:
+        return f"{percent}%"
+    
+
+def azure_tts_v1(text: str, voice_name: str, voice_rate: float, voice_file: str) -> [SubMaker, None]:
     voice_name = parse_voice_name(voice_name)
     text = text.strip()
+    rate_str = convert_rate_to_percent(voice_rate)
     for i in range(3):
         try:
             logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
 
             async def _do() -> SubMaker:
-                communicate = edge_tts.Communicate(text, voice_name)
+                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str)
                 sub_maker = edge_tts.SubMaker()
                 with open(voice_file, "wb") as file:
                     async for chunk in communicate.stream():

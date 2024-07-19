@@ -26,6 +26,7 @@
     "Speech Region": "Vùng(:red[Bắt Buộc，[Lấy Vùng](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Key": "Khóa API(:red[Bắt Buộc，[Lấy Khóa API](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "Âm Lượng Giọng Đọc (1.0 đại diện cho 100%)",
+    "Speech Rate": "Tốc độ đọc (1.0 biểu thị tốc độ gốc)",
     "Male": "Nam",
     "Female": "Nữ",
     "Background Music": "Âm Nhạc Nền",

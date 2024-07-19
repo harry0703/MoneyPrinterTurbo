@@ -26,6 +26,7 @@
     "Speech Region": "Region(:red[Required，[Get Region](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Key": "API Key(:red[Required，[Get API Key](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "Lautstärke der Sprachausgabe",
+    "Speech Rate": "Lesegeschwindigkeit (1,0 bedeutet 1x)",
     "Male": "Männlich",
     "Female": "Weiblich",
     "Background Music": "Hintergrundmusik",
