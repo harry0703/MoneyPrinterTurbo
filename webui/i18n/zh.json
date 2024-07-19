@@ -26,6 +26,7 @@
     "Speech Region": "服务区域 (:red[必填，[点击获取](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Key": "API Key (:red[必填，密钥1 或 密钥2 均可 [点击获取](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "朗读音量（1.0表示100%）",
+    "Speech Rate": "朗读速度（1.0表示1倍速）",
     "Male": "男性",
     "Female": "女性",
     "Background Music": "背景音乐",
