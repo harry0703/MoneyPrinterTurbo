@@ -20,3 +20,6 @@ node_modules
 /sites/docs/.vuepress/.cache
 # VuePress 默认构建生成的静态文件目录
 /sites/docs/.vuepress/dist
+# 模型目录
+/models/
+./models/*

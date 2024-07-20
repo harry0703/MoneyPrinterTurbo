@@ -150,27 +150,93 @@ def file_to_subtitles(filename):
     return times_texts
 
 
+def levenshtein_distance(s1, s2):
+    if len(s1) < len(s2):
+        return levenshtein_distance(s2, s1)
+
+    if len(s2) == 0:
+        return len(s1)
+
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    
+    return previous_row[-1]
+
+def similarity(a, b):
+    distance = levenshtein_distance(a.lower(), b.lower())
+    max_length = max(len(a), len(b))
+    return 1 - (distance / max_length)
+
+
 def correct(subtitle_file, video_script):
     subtitle_items = file_to_subtitles(subtitle_file)
     script_lines = utils.split_string_by_punctuations(video_script)
 
     corrected = False
-    if len(subtitle_items) == len(script_lines):
-        for i in range(len(script_lines)):
-            script_line = script_lines[i].strip()
-            subtitle_line = subtitle_items[i][2]
-            if script_line != subtitle_line:
-                logger.warning(f"line {i + 1}, script: {script_line}, subtitle: {subtitle_line}")
-                subtitle_items[i] = (subtitle_items[i][0], subtitle_items[i][1], script_line)
+    new_subtitle_items = []
+    script_index = 0
+    subtitle_index = 0
+
+    while script_index < len(script_lines) and subtitle_index < len(subtitle_items):
+        script_line = script_lines[script_index].strip()
+        subtitle_line = subtitle_items[subtitle_index][2].strip()
+
+        if script_line == subtitle_line:
+            new_subtitle_items.append(subtitle_items[subtitle_index])
+            script_index += 1
+            subtitle_index += 1
+        else:
+            combined_subtitle = subtitle_line
+            start_time = subtitle_items[subtitle_index][1].split(' --> ')[0]
+            end_time = subtitle_items[subtitle_index][1].split(' --> ')[1]
+            next_subtitle_index = subtitle_index + 1
+
+            while next_subtitle_index < len(subtitle_items):
+                next_subtitle = subtitle_items[next_subtitle_index][2].strip()
+                if similarity(script_line, combined_subtitle + " " + next_subtitle) > similarity(script_line, combined_subtitle):
+                    combined_subtitle += " " + next_subtitle
+                    end_time = subtitle_items[next_subtitle_index][1].split(' --> ')[1]
+                    next_subtitle_index += 1
+                else:
+                    break
+
+            if similarity(script_line, combined_subtitle) > 0.8:
+                logger.warning(f"Merged/Corrected - Script: {script_line}, Subtitle: {combined_subtitle}")
+                new_subtitle_items.append((len(new_subtitle_items) + 1, f"{start_time} --> {end_time}", script_line))
                 corrected = True
+            else:
+                logger.warning(f"Mismatch - Script: {script_line}, Subtitle: {combined_subtitle}")
+                new_subtitle_items.append((len(new_subtitle_items) + 1, f"{start_time} --> {end_time}", script_line))
+                corrected = True
+
+            script_index += 1
+            subtitle_index = next_subtitle_index
+
+    # 处理剩余的脚本行
+    while script_index < len(script_lines):
+        logger.warning(f"Extra script line: {script_lines[script_index]}")
+        if subtitle_index < len(subtitle_items):
+            new_subtitle_items.append((len(new_subtitle_items) + 1, subtitle_items[subtitle_index][1], script_lines[script_index]))
+            subtitle_index += 1
+        else:
+            new_subtitle_items.append((len(new_subtitle_items) + 1, "00:00:00,000 --> 00:00:00,000", script_lines[script_index]))
+        script_index += 1
+        corrected = True
 
     if corrected:
         with open(subtitle_file, "w", encoding="utf-8") as fd:
-            for item in subtitle_items:
-                fd.write(f"{item[0]}\n{item[1]}\n{item[2]}\n\n")
-        logger.info(f"subtitle corrected")
+            for i, item in enumerate(new_subtitle_items):
+                fd.write(f"{i + 1}\n{item[1]}\n{item[2]}\n\n")
+        logger.info("Subtitle corrected")
     else:
-        logger.success(f"subtitle is correct")
+        logger.success("Subtitle is correct")
 
 
 if __name__ == "__main__":
