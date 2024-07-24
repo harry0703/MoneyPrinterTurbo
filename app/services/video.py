@@ -1,13 +1,14 @@
 import glob
 import random
 from typing import List
-from PIL import ImageFont, Image
+
 from loguru import logger
 from moviepy.editor import *
 from moviepy.video.tools.subtitles import SubtitlesClip
+from PIL import ImageFont
 
 from app.models import const
-from app.models.schema import VideoAspect, VideoParams, VideoConcatMode, MaterialInfo
+from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode, VideoParams
 from app.utils import utils
 
 
@@ -27,14 +28,15 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     return ""
 
 
-def combine_videos(combined_video_path: str,
-                   video_paths: List[str],
-                   audio_file: str,
-                   video_aspect: VideoAspect = VideoAspect.portrait,
-                   video_concat_mode: VideoConcatMode = VideoConcatMode.random,
-                   max_clip_duration: int = 5,
-                   threads: int = 2,
-                   ) -> str:
+def combine_videos(
+    combined_video_path: str,
+    video_paths: List[str],
+    audio_file: str,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+    video_concat_mode: VideoConcatMode = VideoConcatMode.random,
+    max_clip_duration: int = 5,
+    threads: int = 2,
+) -> str:
     audio_clip = AudioFileClip(audio_file)
     audio_duration = audio_clip.duration
     logger.info(f"max duration of audio: {audio_duration} seconds")
@@ -102,13 +104,19 @@ def combine_videos(combined_video_path: str,
                     new_height = int(clip_h * scale_factor)
                     clip_resized = clip.resize(newsize=(new_width, new_height))
 
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0))
-                    clip = CompositeVideoClip([
-                        background.set_duration(clip.duration),
-                        clip_resized.set_position("center")
-                    ])
+                    background = ColorClip(
+                        size=(video_width, video_height), color=(0, 0, 0)
+                    )
+                    clip = CompositeVideoClip(
+                        [
+                            background.set_duration(clip.duration),
+                            clip_resized.set_position("center"),
+                        ]
+                    )
 
-                logger.info(f"resizing video to {video_width} x {video_height}, clip size: {clip_w} x {clip_h}")
+                logger.info(
+                    f"resizing video to {video_width} x {video_height}, clip size: {clip_w} x {clip_h}"
+                )
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclip(0, max_clip_duration)
@@ -118,21 +126,22 @@ def combine_videos(combined_video_path: str,
 
     video_clip = concatenate_videoclips(clips)
     video_clip = video_clip.set_fps(30)
-    logger.info(f"writing")
+    logger.info("writing")
     # https://github.com/harry0703/MoneyPrinterTurbo/issues/111#issuecomment-2032354030
-    video_clip.write_videofile(filename=combined_video_path,
-                               threads=threads,
-                               logger=None,
-                               temp_audiofile_path=output_dir,
-                               audio_codec="aac",
-                               fps=30,
-                               )
+    video_clip.write_videofile(
+        filename=combined_video_path,
+        threads=threads,
+        logger=None,
+        temp_audiofile_path=output_dir,
+        audio_codec="aac",
+        fps=30,
+    )
     video_clip.close()
-    logger.success(f"completed")
+    logger.success("completed")
     return combined_video_path
 
 
-def wrap_text(text, max_width, font='Arial', fontsize=60):
+def wrap_text(text, max_width, font="Arial", fontsize=60):
     # 创建字体对象
     font = ImageFont.truetype(font, fontsize)
 
@@ -151,7 +160,7 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
 
     _wrapped_lines_ = []
     words = text.split(" ")
-    _txt_ = ''
+    _txt_ = ""
     for word in words:
         _before = _txt_
         _txt_ += f"{word} "
@@ -167,14 +176,14 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
     _wrapped_lines_.append(_txt_)
     if processed:
         _wrapped_lines_ = [line.strip() for line in _wrapped_lines_]
-        result = '\n'.join(_wrapped_lines_).strip()
+        result = "\n".join(_wrapped_lines_).strip()
         height = len(_wrapped_lines_) * height
         # logger.warning(f"wrapped text: {result}")
         return result, height
 
     _wrapped_lines_ = []
     chars = list(text)
-    _txt_ = ''
+    _txt_ = ""
     for word in chars:
         _txt_ += word
         _width, _height = get_text_size(_txt_)
@@ -182,20 +191,21 @@ def wrap_text(text, max_width, font='Arial', fontsize=60):
             continue
         else:
             _wrapped_lines_.append(_txt_)
-            _txt_ = ''
+            _txt_ = ""
     _wrapped_lines_.append(_txt_)
-    result = '\n'.join(_wrapped_lines_).strip()
+    result = "\n".join(_wrapped_lines_).strip()
     height = len(_wrapped_lines_) * height
     # logger.warning(f"wrapped text: {result}")
     return result, height
 
 
-def generate_video(video_path: str,
-                   audio_path: str,
-                   subtitle_path: str,
-                   output_file: str,
-                   params: VideoParams,
-                   ):
+def generate_video(
+    video_path: str,
+    audio_path: str,
+    subtitle_path: str,
+    output_file: str,
+    params: VideoParams,
+):
     aspect = VideoAspect(params.video_aspect)
     video_width, video_height = aspect.to_resolution()
 
@@ -215,7 +225,7 @@ def generate_video(video_path: str,
         if not params.font_name:
             params.font_name = "STHeitiMedium.ttc"
         font_path = os.path.join(utils.font_dir(), params.font_name)
-        if os.name == 'nt':
+        if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
         logger.info(f"using font: {font_path}")
@@ -223,11 +233,9 @@ def generate_video(video_path: str,
     def create_text_clip(subtitle_item):
         phrase = subtitle_item[1]
         max_width = video_width * 0.9
-        wrapped_txt, txt_height = wrap_text(phrase,
-                                            max_width=max_width,
-                                            font=font_path,
-                                            fontsize=params.font_size
-                                            )
+        wrapped_txt, txt_height = wrap_text(
+            phrase, max_width=max_width, font=font_path, fontsize=params.font_size
+        )
         _clip = TextClip(
             wrapped_txt,
             font=font_path,
@@ -243,18 +251,26 @@ def generate_video(video_path: str,
         _clip = _clip.set_end(subtitle_item[0][1])
         _clip = _clip.set_duration(duration)
         if params.subtitle_position == "bottom":
-            _clip = _clip.set_position(('center', video_height * 0.95 - _clip.h))
+            _clip = _clip.set_position(("center", video_height * 0.95 - _clip.h))
         elif params.subtitle_position == "top":
-            _clip = _clip.set_position(('center', video_height * 0.1))
-        else:
-            _clip = _clip.set_position(('center', 'center'))
+            _clip = _clip.set_position(("center", video_height * 0.05))
+        elif params.subtitle_position == "custom":
+            # 确保字幕完全在屏幕内
+            margin = 10  # 额外的边距，单位为像素
+            max_y = video_height - _clip.h - margin
+            min_y = margin
+            custom_y = (video_height - _clip.h) * (params.custom_position / 100)
+            custom_y = max(min_y, min(custom_y, max_y))  # 限制 y 值在有效范围内
+            _clip = _clip.set_position(("center", custom_y))
+        else:  # center
+            _clip = _clip.set_position(("center", "center"))
         return _clip
 
     video_clip = VideoFileClip(video_path)
     audio_clip = AudioFileClip(audio_path).volumex(params.voice_volume)
 
     if subtitle_path and os.path.exists(subtitle_path):
-        sub = SubtitlesClip(subtitles=subtitle_path, encoding='utf-8')
+        sub = SubtitlesClip(subtitles=subtitle_path, encoding="utf-8")
         text_clips = []
         for item in sub.subtitles:
             clip = create_text_clip(subtitle_item=item)
@@ -264,24 +280,25 @@ def generate_video(video_path: str,
     bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
     if bgm_file:
         try:
-            bgm_clip = (AudioFileClip(bgm_file)
-                        .volumex(params.bgm_volume)
-                        .audio_fadeout(3))
+            bgm_clip = (
+                AudioFileClip(bgm_file).volumex(params.bgm_volume).audio_fadeout(3)
+            )
             bgm_clip = afx.audio_loop(bgm_clip, duration=video_clip.duration)
             audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
         except Exception as e:
             logger.error(f"failed to add bgm: {str(e)}")
 
     video_clip = video_clip.set_audio(audio_clip)
-    video_clip.write_videofile(output_file,
-                               audio_codec="aac",
-                               temp_audiofile_path=output_dir,
-                               threads=params.n_threads or 2,
-                               logger=None,
-                               fps=30,
-                               )
+    video_clip.write_videofile(
+        output_file,
+        audio_codec="aac",
+        temp_audiofile_path=output_dir,
+        threads=params.n_threads or 2,
+        logger=None,
+        fps=30,
+    )
     video_clip.close()
-    logger.success(f"completed")
+    logger.success("completed")
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
@@ -292,7 +309,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
         ext = utils.parse_extension(material.url)
         try:
             clip = VideoFileClip(material.url)
-        except Exception as e:
+        except Exception:
             clip = ImageClip(material.url)
 
         width = clip.size[0]
@@ -304,12 +321,18 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
         if ext in const.FILE_TYPE_IMAGES:
             logger.info(f"processing image: {material.url}")
             # 创建一个图片剪辑，并设置持续时间为3秒钟
-            clip = ImageClip(material.url).set_duration(clip_duration).set_position("center")
+            clip = (
+                ImageClip(material.url)
+                .set_duration(clip_duration)
+                .set_position("center")
+            )
             # 使用resize方法来添加缩放效果。这里使用了lambda函数来使得缩放效果随时间变化。
             # 假设我们想要从原始大小逐渐放大到120%的大小。
             # t代表当前时间，clip.duration为视频总时长，这里是3秒。
             # 注意：1 表示100%的大小，所以1.2表示120%的大小
-            zoom_clip = clip.resize(lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration))
+            zoom_clip = clip.resize(
+                lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+            )
 
             # 如果需要，可以创建一个包含缩放剪辑的复合视频剪辑
             # （这在您想要在视频中添加其他元素时非常有用）

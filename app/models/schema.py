@@ -119,6 +119,7 @@ class VideoParams(BaseModel):
 
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = "bottom"  # top, bottom, center
+    custom_position: float = 70.0
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Optional[str] = "transparent"

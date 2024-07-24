@@ -42,6 +42,7 @@
     "Top": "Top",
     "Center": "Center",
     "Bottom": "Bottom (Recommended)",
+    "Custom": "Custom position (70, indicating 70% down from the top)",
     "Font Size": "Subtitle Font Size",
     "Font Color": "Subtitle Font Color",
     "Stroke Color": "Subtitle Outline Color",

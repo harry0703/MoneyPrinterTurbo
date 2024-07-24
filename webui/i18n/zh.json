@@ -42,6 +42,7 @@
     "Top": "顶部",
     "Center": "中间",
     "Bottom": "底部（推荐）",
+    "Custom": "自定义位置（70，表示离顶部70%的位置）",
     "Font Size": "字幕大小",
     "Font Color": "字幕颜色",
     "Stroke Color": "描边颜色",
