@@ -697,7 +697,7 @@ with right_panel:
 
         if params.subtitle_position == "custom":
             custom_position = st.text_input(
-                tr("Custom Position (% from top)"), value="50"
+                tr("Custom Position (% from top)"), value="70.0"
             )
             try:
                 params.custom_position = float(custom_position)
