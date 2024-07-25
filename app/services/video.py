@@ -298,6 +298,7 @@ def generate_video(
         fps=30,
     )
     video_clip.close()
+    del video_clip
     logger.success("completed")
 
 
@@ -342,6 +343,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             video_file = f"{material.url}.mp4"
             final_clip.write_videofile(video_file, fps=30, logger=None)
             final_clip.close()
+            del final_clip
             material.url = video_file
             logger.success(f"completed: {video_file}")
     return materials
