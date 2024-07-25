@@ -162,7 +162,7 @@ def generate_final_videos(
     final_video_paths = []
     combined_video_paths = []
     video_concat_mode = (
-        params.video_concat_mode if params.video_count > 1 else VideoConcatMode.random
+        params.video_concat_mode if params.video_count == 1 else VideoConcatMode.random
     )
 
     _progress = 50
