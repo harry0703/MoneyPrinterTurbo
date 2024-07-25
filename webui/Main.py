@@ -542,7 +542,7 @@ with middle_panel:
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
 
         params.video_clip_duration = st.selectbox(
-            tr("Clip Duration"), options=[2, 3, 4, 5, 6], index=1
+            tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10], index=1
         )
         params.video_count = st.selectbox(
             tr("Number of Videos Generated Simultaneously"),

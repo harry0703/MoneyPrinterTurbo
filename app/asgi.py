@@ -1,4 +1,5 @@
 """Application implementation - ASGI."""
+
 import os
 
 from fastapi import FastAPI, Request
@@ -24,7 +25,9 @@ def exception_handler(request: Request, e: HttpException):
 def validation_exception_handler(request: Request, e: RequestValidationError):
     return JSONResponse(
         status_code=400,
-        content=utils.get_response(status=400, data=e.errors(), message='field required'),
+        content=utils.get_response(
+            status=400, data=e.errors(), message="field required"
+        ),
     )
 
 
@@ -61,7 +64,9 @@ app.add_middleware(
 )
 
 task_dir = utils.task_dir()
-app.mount("/tasks", StaticFiles(directory=task_dir, html=True, follow_symlink=True), name="")
+app.mount(
+    "/tasks", StaticFiles(directory=task_dir, html=True, follow_symlink=True), name=""
+)
 
 public_dir = utils.public_dir()
 app.mount("/", StaticFiles(directory=public_dir, html=True), name="")

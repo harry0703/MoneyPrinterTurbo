@@ -19,7 +19,8 @@ def get_api_key(cfg_key: str):
     if not api_keys:
         raise ValueError(
             f"\n\n##### {cfg_key} is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n"
-            f"{utils.to_json(config.app)}")
+            f"{utils.to_json(config.app)}"
+        )
 
     # if only one key is provided, return it
     if isinstance(api_keys, str):
@@ -30,28 +31,29 @@ def get_api_key(cfg_key: str):
     return api_keys[requested_count % len(api_keys)]
 
 
-def search_videos_pexels(search_term: str,
-                         minimum_duration: int,
-                         video_aspect: VideoAspect = VideoAspect.portrait,
-                         ) -> List[MaterialInfo]:
+def search_videos_pexels(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
     video_orientation = aspect.name
     video_width, video_height = aspect.to_resolution()
     api_key = get_api_key("pexels_api_keys")
-    headers = {
-        "Authorization": api_key
-    }
+    headers = {"Authorization": api_key}
     # Build URL
-    params = {
-        "query": search_term,
-        "per_page": 20,
-        "orientation": video_orientation
-    }
+    params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
 
     try:
-        r = requests.get(query_url, headers=headers, proxies=config.proxy, verify=False, timeout=(30, 60))
+        r = requests.get(
+            query_url,
+            headers=headers,
+            proxies=config.proxy,
+            verify=False,
+            timeout=(30, 60),
+        )
         response = r.json()
         video_items = []
         if "videos" not in response:
@@ -83,10 +85,11 @@ def search_videos_pexels(search_term: str,
     return []
 
 
-def search_videos_pixabay(search_term: str,
-                          minimum_duration: int,
-                          video_aspect: VideoAspect = VideoAspect.portrait,
-                          ) -> List[MaterialInfo]:
+def search_videos_pixabay(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
 
     video_width, video_height = aspect.to_resolution()
@@ -97,13 +100,15 @@ def search_videos_pixabay(search_term: str,
         "q": search_term,
         "video_type": "all",  # Accepted values: "all", "film", "animation"
         "per_page": 50,
-        "key": api_key
+        "key": api_key,
     }
     query_url = f"https://pixabay.com/api/videos/?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
 
     try:
-        r = requests.get(query_url, proxies=config.proxy, verify=False, timeout=(30, 60))
+        r = requests.get(
+            query_url, proxies=config.proxy, verify=False, timeout=(30, 60)
+        )
         response = r.json()
         video_items = []
         if "hits" not in response:
@@ -155,7 +160,11 @@ def save_video(video_url: str, save_dir: str = "") -> str:
 
     # if video does not exist, download it
     with open(video_path, "wb") as f:
-        f.write(requests.get(video_url, proxies=config.proxy, verify=False, timeout=(60, 240)).content)
+        f.write(
+            requests.get(
+                video_url, proxies=config.proxy, verify=False, timeout=(60, 240)
+            ).content
+        )
 
     if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
         try:
@@ -174,14 +183,15 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     return ""
 
 
-def download_videos(task_id: str,
-                    search_terms: List[str],
-                    source: str = "pexels",
-                    video_aspect: VideoAspect = VideoAspect.portrait,
-                    video_contact_mode: VideoConcatMode = VideoConcatMode.random,
-                    audio_duration: float = 0.0,
-                    max_clip_duration: int = 5,
-                    ) -> List[str]:
+def download_videos(
+    task_id: str,
+    search_terms: List[str],
+    source: str = "pexels",
+    video_aspect: VideoAspect = VideoAspect.portrait,
+    video_contact_mode: VideoConcatMode = VideoConcatMode.random,
+    audio_duration: float = 0.0,
+    max_clip_duration: int = 5,
+) -> List[str]:
     valid_video_items = []
     valid_video_urls = []
     found_duration = 0.0
@@ -190,9 +200,11 @@ def download_videos(task_id: str,
         search_videos = search_videos_pixabay
 
     for search_term in search_terms:
-        video_items = search_videos(search_term=search_term,
-                                    minimum_duration=max_clip_duration,
-                                    video_aspect=video_aspect)
+        video_items = search_videos(
+            search_term=search_term,
+            minimum_duration=max_clip_duration,
+            video_aspect=video_aspect,
+        )
         logger.info(f"found {len(video_items)} videos for '{search_term}'")
 
         for item in video_items:
@@ -202,7 +214,8 @@ def download_videos(task_id: str,
                 found_duration += item.duration
 
     logger.info(
-        f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds")
+        f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
+    )
     video_paths = []
 
     material_directory = config.app.get("material_directory", "").strip()
@@ -218,14 +231,18 @@ def download_videos(task_id: str,
     for item in valid_video_items:
         try:
             logger.info(f"downloading video: {item.url}")
-            saved_video_path = save_video(video_url=item.url, save_dir=material_directory)
+            saved_video_path = save_video(
+                video_url=item.url, save_dir=material_directory
+            )
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
                 video_paths.append(saved_video_path)
                 seconds = min(max_clip_duration, item.duration)
                 total_duration += seconds
                 if total_duration > audio_duration:
-                    logger.info(f"total duration of downloaded videos: {total_duration} seconds, skip downloading more")
+                    logger.info(
+                        f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
+                    )
                     break
         except Exception as e:
             logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
@@ -234,4 +251,6 @@ def download_videos(task_id: str,
 
 
 if __name__ == "__main__":
-    download_videos("test123", ["Money Exchange Medium"], audio_duration=100, source="pixabay")
+    download_videos(
+        "test123", ["Money Exchange Medium"], audio_duration=100, source="pixabay"
+    )

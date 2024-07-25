@@ -988,7 +988,7 @@ Name: zh-CN-XiaoxiaoMultilingualNeural-V2
 Gender: Female
     """.strip()
     voices = []
-    name = ''
+    name = ""
     for line in voices_str.split("\n"):
         line = line.strip()
         if not line:
@@ -1008,7 +1008,7 @@ Gender: Female
                             voices.append(f"{name}-{gender}")
                 else:
                     voices.append(f"{name}-{gender}")
-                name = ''
+                name = ""
     voices.sort()
     return voices
 
@@ -1028,7 +1028,9 @@ def is_azure_v2_voice(voice_name: str):
     return ""
 
 
-def tts(text: str, voice_name: str, voice_rate: float, voice_file: str) -> [SubMaker, None]:
+def tts(
+    text: str, voice_name: str, voice_rate: float, voice_file: str
+) -> [SubMaker, None]:
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
@@ -1042,9 +1044,11 @@ def convert_rate_to_percent(rate: float) -> str:
         return f"+{percent}%"
     else:
         return f"{percent}%"
-    
 
-def azure_tts_v1(text: str, voice_name: str, voice_rate: float, voice_file: str) -> [SubMaker, None]:
+
+def azure_tts_v1(
+    text: str, voice_name: str, voice_rate: float, voice_file: str
+) -> [SubMaker, None]:
     voice_name = parse_voice_name(voice_name)
     text = text.strip()
     rate_str = convert_rate_to_percent(voice_rate)
@@ -1060,7 +1064,9 @@ def azure_tts_v1(text: str, voice_name: str, voice_rate: float, voice_file: str)
                         if chunk["type"] == "audio":
                             file.write(chunk["data"])
                         elif chunk["type"] == "WordBoundary":
-                            sub_maker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
+                            sub_maker.create_sub(
+                                (chunk["offset"], chunk["duration"]), chunk["text"]
+                            )
                 return sub_maker
 
             sub_maker = asyncio.run(_do())
@@ -1085,8 +1091,12 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> [SubMaker, None
     def _format_duration_to_offset(duration) -> int:
         if isinstance(duration, str):
             time_obj = datetime.strptime(duration, "%H:%M:%S.%f")
-            milliseconds = (time_obj.hour * 3600000) + (time_obj.minute * 60000) + (time_obj.second * 1000) + (
-                    time_obj.microsecond // 1000)
+            milliseconds = (
+                (time_obj.hour * 3600000)
+                + (time_obj.minute * 60000)
+                + (time_obj.second * 1000)
+                + (time_obj.microsecond // 1000)
+            )
             return milliseconds * 10000
 
         if isinstance(duration, int):
@@ -1119,20 +1129,29 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> [SubMaker, None
             # Creates an instance of a speech config with specified subscription key and service region.
             speech_key = config.azure.get("speech_key", "")
             service_region = config.azure.get("speech_region", "")
-            audio_config = speechsdk.audio.AudioOutputConfig(filename=voice_file, use_default_speaker=True)
-            speech_config = speechsdk.SpeechConfig(subscription=speech_key,
-                                                   region=service_region)
+            audio_config = speechsdk.audio.AudioOutputConfig(
+                filename=voice_file, use_default_speaker=True
+            )
+            speech_config = speechsdk.SpeechConfig(
+                subscription=speech_key, region=service_region
+            )
             speech_config.speech_synthesis_voice_name = voice_name
             # speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_RequestSentenceBoundary,
             #                            value='true')
-            speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceResponse_RequestWordBoundary,
-                                       value='true')
+            speech_config.set_property(
+                property_id=speechsdk.PropertyId.SpeechServiceResponse_RequestWordBoundary,
+                value="true",
+            )
 
             speech_config.set_speech_synthesis_output_format(
-                speechsdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3)
-            speech_synthesizer = speechsdk.SpeechSynthesizer(audio_config=audio_config,
-                                                             speech_config=speech_config)
-            speech_synthesizer.synthesis_word_boundary.connect(speech_synthesizer_word_boundary_cb)
+                speechsdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3
+            )
+            speech_synthesizer = speechsdk.SpeechSynthesizer(
+                audio_config=audio_config, speech_config=speech_config
+            )
+            speech_synthesizer.synthesis_word_boundary.connect(
+                speech_synthesizer_word_boundary_cb
+            )
 
             result = speech_synthesizer.speak_text_async(text).get()
             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
@@ -1140,9 +1159,13 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> [SubMaker, None
                 return sub_maker
             elif result.reason == speechsdk.ResultReason.Canceled:
                 cancellation_details = result.cancellation_details
-                logger.error(f"azure v2 speech synthesis canceled: {cancellation_details.reason}")
+                logger.error(
+                    f"azure v2 speech synthesis canceled: {cancellation_details.reason}"
+                )
                 if cancellation_details.reason == speechsdk.CancellationReason.Error:
-                    logger.error(f"azure v2 speech synthesis error: {cancellation_details.error_details}")
+                    logger.error(
+                        f"azure v2 speech synthesis error: {cancellation_details.error_details}"
+                    )
             logger.info(f"completed, output file: {voice_file}")
         except Exception as e:
             logger.error(f"failed, error: {str(e)}")
@@ -1179,11 +1202,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
         """
         start_t = mktimestamp(start_time).replace(".", ",")
         end_t = mktimestamp(end_time).replace(".", ",")
-        return (
-            f"{idx}\n"
-            f"{start_t} --> {end_t}\n"
-            f"{sub_text}\n"
-        )
+        return f"{idx}\n" f"{start_t} --> {end_t}\n" f"{sub_text}\n"
 
     start_time = -1.0
     sub_items = []
@@ -1240,12 +1259,16 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
             try:
                 sbs = subtitles.file_to_subtitles(subtitle_file, encoding="utf-8")
                 duration = max([tb for ((ta, tb), txt) in sbs])
-                logger.info(f"completed, subtitle file created: {subtitle_file}, duration: {duration}")
+                logger.info(
+                    f"completed, subtitle file created: {subtitle_file}, duration: {duration}"
+                )
             except Exception as e:
                 logger.error(f"failed, error: {str(e)}")
                 os.remove(subtitle_file)
         else:
-            logger.warning(f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}")
+            logger.warning(
+                f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}"
+            )
 
     except Exception as e:
         logger.error(f"failed, error: {str(e)}")
@@ -1268,7 +1291,6 @@ if __name__ == "__main__":
 
     voices = get_all_azure_voices()
     print(len(voices))
-
 
     async def _do():
         temp_dir = utils.storage_dir("temp")
@@ -1318,11 +1340,12 @@ if __name__ == "__main__":
         for voice_name in voice_names:
             voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
             subtitle_file = f"{temp_dir}/tts.mp3.srt"
-            sub_maker = azure_tts_v2(text=text, voice_name=voice_name, voice_file=voice_file)
+            sub_maker = azure_tts_v2(
+                text=text, voice_name=voice_name, voice_file=voice_file
+            )
             create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
             audio_duration = get_audio_duration(sub_maker)
             print(f"voice: {voice_name}, audio duration: {audio_duration}s")
-
 
     loop = asyncio.get_event_loop_policy().get_event_loop()
     try:

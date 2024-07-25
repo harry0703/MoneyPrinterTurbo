@@ -12,6 +12,6 @@ build_and_render(
     parse_refs=False,
     sections=["build", "deps", "feat", "fix", "refactor"],
     versioning="pep440",
-    bump="1.1.2",   # 指定bump版本
+    bump="1.1.2",  # 指定bump版本
     in_place=True,
 )
