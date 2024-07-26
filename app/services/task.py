@@ -3,6 +3,7 @@ import os.path
 import re
 from os import path
 
+from edge_tts import SubMaker
 from loguru import logger
 
 from app.config import config
@@ -87,10 +88,10 @@ def generate_audio(task_id, params, video_script):
 2. check if the network is available. If you are in China, it is recommended to use a VPN and enable the global traffic mode.
         """.strip()
         )
-        return None, None
+        return None, None, None
 
     audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
-    return audio_file, audio_duration
+    return audio_file, audio_duration, sub_maker
 
 
 def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
@@ -157,7 +158,7 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
 
 
 def generate_final_videos(
-    task_id, params, downloaded_videos, audio_file, subtitle_path
+        task_id, params, downloaded_videos, audio_file, subtitle_path
 ):
     final_video_paths = []
     combined_video_paths = []
@@ -209,6 +210,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
+    if type(params.video_concat_mode) is str:
+        params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
+        
     # 1. Generate script
     video_script = generate_script(task_id, params)
     if not video_script:
@@ -242,7 +246,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
     # 3. Generate audio
-    audio_file, audio_duration = generate_audio(task_id, params, video_script)
+    audio_file, audio_duration, sub_maker = generate_audio(task_id, params, video_script)
     if not audio_file:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
@@ -259,7 +263,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"audio_file": audio_file, "audio_duration": audio_duration}
 
     # 4. Generate subtitle
-    subtitle_path = generate_subtitle(task_id, params, video_script, None, audio_file)
+    subtitle_path = generate_subtitle(task_id, params, video_script, sub_maker, audio_file)
 
     if stop_at == "subtitle":
         sm.state.update_task(
@@ -318,3 +322,14 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
     )
     return kwargs
+
+
+if __name__ == "__main__":
+    task_id = "task_id"
+    params = VideoParams(
+        video_subject="金钱的作用",
+        voice_name="zh-CN-XiaoyiNeural-Female",
+        voice_rate=1.0,
+
+    )
+    start(task_id, params, stop_at="video")
