@@ -152,6 +152,8 @@ cd MoneyPrinterTurbo
 docker-compose up
 ```
 
+> Note：The latest version of docker will automatically install docker compose in the form of a plug-in, and the start command is adjusted to `docker compose up `
+
 #### ② Access the Web Interface
 
 Open your browser and visit http://0.0.0.0:8501
