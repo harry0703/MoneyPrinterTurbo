@@ -161,11 +161,15 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         logger.info(f"video already exists: {video_path}")
         return video_path
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    }
+
     # if video does not exist, download it
     with open(video_path, "wb") as f:
         f.write(
             requests.get(
-                video_url, proxies=config.proxy, verify=False, timeout=(60, 240)
+                video_url, headers=headers, proxies=config.proxy, verify=False, timeout=(60, 240)
             ).content
         )
 
