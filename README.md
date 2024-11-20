@@ -169,6 +169,8 @@ cd MoneyPrinterTurbo
 docker-compose up
 ```
 
+> 注意：最新版的docker安装时会自动以插件的形式安装docker compose，启动命令调整为docker compose up
+
 #### ② 访问Web界面
 
 打开浏览器，访问 http://0.0.0.0:8501
