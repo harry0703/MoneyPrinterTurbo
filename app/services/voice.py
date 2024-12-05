@@ -302,20 +302,32 @@ Gender: Female
 Name: en-US-AnaNeural
 Gender: Female
 
+Name: en-US-AndrewMultilingualNeural
+Gender: Male
+
 Name: en-US-AndrewNeural
 Gender: Male
 
 Name: en-US-AriaNeural
 Gender: Female
 
+Name: en-US-AvaMultilingualNeural
+Gender: Female
+
 Name: en-US-AvaNeural
 Gender: Female
+
+Name: en-US-BrianMultilingualNeural
+Gender: Male
 
 Name: en-US-BrianNeural
 Gender: Male
 
 Name: en-US-ChristopherNeural
 Gender: Male
+
+Name: en-US-EmmaMultilingualNeural
+Gender: Female
 
 Name: en-US-EmmaNeural
 Gender: Female
@@ -602,11 +614,23 @@ Gender: Male
 Name: it-IT-ElsaNeural
 Gender: Female
 
-Name: it-IT-GiuseppeNeural
+Name: it-IT-GiuseppeMultilingualNeural
 Gender: Male
 
 Name: it-IT-IsabellaNeural
 Gender: Female
+
+Name: iu-Cans-CA-SiqiniqNeural
+Gender: Female
+
+Name: iu-Cans-CA-TaqqiqNeural
+Gender: Male
+
+Name: iu-Latn-CA-SiqiniqNeural
+Gender: Female
+
+Name: iu-Latn-CA-TaqqiqNeural
+Gender: Male
 
 Name: ja-JP-KeitaNeural
 Gender: Male
@@ -644,7 +668,7 @@ Gender: Male
 Name: kn-IN-SapnaNeural
 Gender: Female
 
-Name: ko-KR-HyunsuNeural
+Name: ko-KR-HyunsuMultilingualNeural
 Gender: Male
 
 Name: ko-KR-InJoonNeural
@@ -758,7 +782,7 @@ Gender: Male
 Name: pt-BR-FranciscaNeural
 Gender: Female
 
-Name: pt-BR-ThalitaNeural
+Name: pt-BR-ThalitaMultilingualNeural
 Gender: Female
 
 Name: pt-PT-DuarteNeural

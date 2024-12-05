@@ -479,7 +479,7 @@ with left_panel:
                 st.session_state["video_terms"] = ", ".join(terms)
 
         params.video_terms = st.text_area(
-            tr("Video Keywords"), value=st.session_state["video_terms"], height=50
+            tr("Video Keywords"), value=st.session_state["video_terms"]
         )
 
 with middle_panel:
