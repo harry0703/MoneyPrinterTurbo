@@ -1,6 +1,6 @@
 import warnings
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 import pydantic
 from pydantic import BaseModel
@@ -122,7 +122,7 @@ class VideoParams(BaseModel):
     custom_position: float = 70.0
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
-    text_background_color: Optional[str] = "transparent"
+    text_background_color: Union[bool, str] = True
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
@@ -143,7 +143,7 @@ class SubtitleRequest(BaseModel):
     subtitle_position: Optional[str] = "bottom"
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
-    text_background_color: Optional[str] = "transparent"
+    text_background_color: Union[bool, str] = True
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5

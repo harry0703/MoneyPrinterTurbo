@@ -172,7 +172,7 @@ using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.10
+conda create -n MoneyPrinterTurbo python=3.11
 conda activate MoneyPrinterTurbo
 pip install -r requirements.txt
 ```

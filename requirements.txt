@@ -1,26 +1,14 @@
-requests~=2.31.0
-moviepy==2.0.0.dev2
-openai~=1.13.3
-faster-whisper~=1.0.1
-edge_tts~=6.1.10
-uvicorn~=0.27.1
-fastapi~=0.110.0
-tomli~=2.0.1
-streamlit~=1.33.0
-loguru~=0.7.2
-aiohttp~=3.9.3
-urllib3~=2.2.1
-pillow~=10.3.0
-pydantic~=2.6.3
-g4f~=0.3.0.4
-dashscope~=1.15.0
-google.generativeai~=0.4.1
-python-multipart~=0.0.9
-redis==5.0.3
-# if you use pillow~=10.3.0, you will get "PIL.Image' has no attribute 'ANTIALIAS'" error when resize video
-# please install opencv-python to fix "PIL.Image' has no attribute 'ANTIALIAS'" error
-opencv-python~=4.9.0.80
-# for azure speech
-# https://techcommunity.microsoft.com/t5/ai-azure-ai-services-blog/9-more-realistic-ai-voices-for-conversations-now-generally/ba-p/4099471
-azure-cognitiveservices-speech~=1.37.0
-git-changelog~=2.5.2
+moviepy==2.1.1
+streamlit==1.40.2
+edge_tts==6.1.19
+fastapi==0.115.6
+uvicorn==0.32.1
+openai==1.56.1
+faster-whisper==1.1.0
+loguru==0.7.2
+google.generativeai==0.8.3
+dashscope==1.20.14
+g4f==0.3.8.1
+azure-cognitiveservices-speech==1.41.1
+redis==5.2.0
+python-multipart==0.0.19
