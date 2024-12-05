@@ -11,3 +11,4 @@ dashscope==1.20.14
 g4f==0.3.8.1
 azure-cognitiveservices-speech==1.41.1
 redis==5.2.0
+python-multipart==0.0.19
