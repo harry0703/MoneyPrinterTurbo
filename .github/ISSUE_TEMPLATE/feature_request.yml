@@ -1,0 +1,38 @@
+name: ✨ 增加功能
+description: 为此项目提出一个新想法
+title: "请在此处填写标题"
+labels:
+  - enhancement
+
+body:
+  - type: checkboxes
+    attributes:
+      label: 是否已存在类似的功能请求？
+      description: 请确保此功能请求是否重复。
+      options:
+        - label: 我已搜索现有的功能请求
+          required: true
+  - type: textarea
+    attributes:
+      label: 痛点
+      description: 请解释您的功能请求。
+      placeholder: 我希望可以实现这一点
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 建议的解决方案
+      description: 请描述您能想到的解决方案。
+      placeholder: 您可以添加这个功能 / 更改这个流程 / 使用某种方法
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 有用的资源
+      description: 请提供一些有助于实现您建议的资源。
+  - type: textarea
+    attributes:
+      label: 其他信息
+      description: 您还有什么其他想补充的信息吗？例如问题的截图或视频记录。
+    validations:
+      required: false
