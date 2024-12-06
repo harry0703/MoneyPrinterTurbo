@@ -1,5 +1,5 @@
 name: 🐛 Bug
-description: 出现错误或未按预期工作的问题
+description: 出现错误或未按预期工作
 title: "请在此处填写标题"
 labels:
   - bug
@@ -43,11 +43,6 @@ body:
     attributes:
       label: 重现步骤
       description: 描述重现问题的步骤。描述的越详细，越有助于定位和修复问题。
-      value: |
-        <details>
-        <summary>重现步骤</summary>
-        
-        </details>
     validations:
       required: true
   - type: textarea
@@ -55,14 +50,6 @@ body:
       label: 堆栈追踪/日志
       description: |
         如果您有任何堆栈追踪或日志，请将它们粘贴在此处。（注意不要包含敏感信息）
-      value: |
-        <details>
-        <summary>堆栈追踪/日志</summary>
-        
-        ```
-        <将此行替换为粘贴您的堆栈追踪或日志>
-        ```
-        </details>
     validations:
       required: true
   - type: input
@@ -72,11 +59,10 @@ body:
       placeholder: v3.13.0, v3.10.0 等
     validations:
       required: true
-  - type: textarea
+  - type: input
     attributes:
       label: 操作系统
-      description: |
-        您使用 MoneyPrinterTurbo 遇到问题时的操作系统信息。
+      description: 您使用 MoneyPrinterTurbo 遇到问题时的操作系统信息。
       placeholder: macOS 14.1, Windows 11 等
     validations:
       required: true
