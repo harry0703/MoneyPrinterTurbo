@@ -2,11 +2,13 @@ import asyncio
 import os
 import re
 from datetime import datetime
+from typing import Union
 from xml.sax.saxutils import unescape
+
+import edge_tts
+from edge_tts import SubMaker, submaker
 from edge_tts.submaker import mktimestamp
 from loguru import logger
-from edge_tts import submaker, SubMaker
-import edge_tts
 from moviepy.video.tools import subtitles
 
 from app.config import config
@@ -1054,7 +1056,7 @@ def is_azure_v2_voice(voice_name: str):
 
 def tts(
     text: str, voice_name: str, voice_rate: float, voice_file: str
-) -> [SubMaker, None]:
+) -> Union[SubMaker, None]:
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
@@ -1072,7 +1074,7 @@ def convert_rate_to_percent(rate: float) -> str:
 
 def azure_tts_v1(
     text: str, voice_name: str, voice_rate: float, voice_file: str
-) -> [SubMaker, None]:
+) -> Union[SubMaker, None]:
     voice_name = parse_voice_name(voice_name)
     text = text.strip()
     rate_str = convert_rate_to_percent(voice_rate)
@@ -1095,7 +1097,7 @@ def azure_tts_v1(
 
             sub_maker = asyncio.run(_do())
             if not sub_maker or not sub_maker.subs:
-                logger.warning(f"failed, sub_maker is None or sub_maker.subs is None")
+                logger.warning("failed, sub_maker is None or sub_maker.subs is None")
                 continue
 
             logger.info(f"completed, output file: {voice_file}")
@@ -1105,7 +1107,7 @@ def azure_tts_v1(
     return None
 
 
-def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> [SubMaker, None]:
+def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:
     voice_name = is_azure_v2_voice(voice_name)
     if not voice_name:
         logger.error(f"invalid voice name: {voice_name}")

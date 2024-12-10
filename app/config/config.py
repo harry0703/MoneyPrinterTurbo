@@ -1,7 +1,8 @@
 import os
-import socket
-import toml
 import shutil
+import socket
+
+import toml
 from loguru import logger
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -17,7 +18,7 @@ def load_config():
         example_file = f"{root_dir}/config.example.toml"
         if os.path.isfile(example_file):
             shutil.copyfile(example_file, config_file)
-            logger.info(f"copy config.example.toml to config.toml")
+            logger.info("copy config.example.toml to config.toml")
 
     logger.info(f"load config from file: {config_file}")
 

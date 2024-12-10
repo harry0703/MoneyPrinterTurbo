@@ -1,5 +1,6 @@
 import ast
 from abc import ABC, abstractmethod
+
 from app.config import config
 from app.models import const
 

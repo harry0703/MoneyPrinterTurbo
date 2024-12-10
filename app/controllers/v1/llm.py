@@ -1,15 +1,16 @@
 from fastapi import Request
+
 from app.controllers.v1.base import new_router
 from app.models.schema import (
-    VideoScriptResponse,
     VideoScriptRequest,
-    VideoTermsResponse,
+    VideoScriptResponse,
     VideoTermsRequest,
+    VideoTermsResponse,
 )
 from app.services import llm
 from app.utils import utils
 
-# 认证依赖项
+# authentication dependency
 # router = new_router(dependencies=[Depends(base.verify_token)])
 router = new_router()
 

@@ -11,7 +11,7 @@ class HttpException(Exception):
         self.message = message
         self.status_code = status_code
         self.data = data
-        # 获取异常堆栈信息
+        # Retrieve the exception stack trace information.
         tb_str = traceback.format_exc().strip()
         if not tb_str or tb_str == "NoneType: None":
             msg = f"HttpException: {status_code}, {task_id}, {message}"

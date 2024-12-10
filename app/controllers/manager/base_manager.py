@@ -1,5 +1,5 @@
 import threading
-from typing import Callable, Any, Dict
+from typing import Any, Callable, Dict
 
 
 class TaskManager:
@@ -33,7 +33,7 @@ class TaskManager:
         try:
             with self.lock:
                 self.current_tasks += 1
-            func(*args, **kwargs)  # 在这里调用函数，传递*args和**kwargs
+            func(*args, **kwargs)  # call the function here, passing *args and **kwargs.
         finally:
             self.task_done()
 

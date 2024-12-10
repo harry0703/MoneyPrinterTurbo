@@ -1,9 +1,9 @@
 import json
 import os.path
 import re
+from timeit import default_timer as timer
 
 from faster_whisper import WhisperModel
-from timeit import default_timer as timer
 from loguru import logger
 
 from app.config import config
@@ -88,7 +88,7 @@ def create(audio_file, subtitle_file: str = ""):
                     is_segmented = True
 
                 seg_end = word.end
-                # 如果包含标点,则断句
+                # If it contains punctuation, then break the sentence.
                 seg_text += word.word
 
                 if utils.str_contains_punctuation(word.word):
@@ -246,7 +246,7 @@ def correct(subtitle_file, video_script):
             script_index += 1
             subtitle_index = next_subtitle_index
 
-    # 处理剩余的脚本行
+    # Process the remaining lines of the script.
     while script_index < len(script_lines):
         logger.warning(f"Extra script line: {script_lines[script_index]}")
         if subtitle_index < len(subtitle_items):
