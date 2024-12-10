@@ -98,15 +98,15 @@ class VideoParams(BaseModel):
     """
 
     video_subject: str
-    video_script: str = ""  # 用于生成视频的脚本
-    video_terms: Optional[str | list] = None  # 用于生成视频的关键词
+    video_script: str = ""  # Script used to generate the video
+    video_terms: Optional[str | list] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_clip_duration: Optional[int] = 5
     video_count: Optional[int] = 1
 
     video_source: Optional[str] = "pexels"
-    video_materials: Optional[List[MaterialInfo]] = None  # 用于生成视频的素材
+    video_materials: Optional[List[MaterialInfo]] = None  # Materials used to generate the video
 
     video_language: Optional[str] = ""  # auto detect
 

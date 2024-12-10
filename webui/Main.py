@@ -1,5 +1,17 @@
 import os
+import platform
 import sys
+from uuid import uuid4
+
+import streamlit as st
+from loguru import logger
+
+from app.config import config
+from app.models.const import FILE_TYPE_IMAGES, FILE_TYPE_VIDEOS
+from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode, VideoParams
+from app.services import llm, voice
+from app.services import task as tm
+from app.utils import utils
 
 # Add the root directory of the project to the system path to allow importing modules from the project
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -8,13 +20,6 @@ if root_dir not in sys.path:
     print("******** sys.path ********")
     print(sys.path)
     print("")
-
-import os
-import platform
-from uuid import uuid4
-
-import streamlit as st
-from loguru import logger
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -30,12 +35,6 @@ st.set_page_config(
     },
 )
 
-from app.config import config
-from app.models.const import FILE_TYPE_IMAGES, FILE_TYPE_VIDEOS
-from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode, VideoParams
-from app.services import llm, voice
-from app.services import task as tm
-from app.utils import utils
 
 hide_streamlit_style = """
 <style>#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}</style>
@@ -734,7 +733,11 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if llm_provider != "g4f" and llm_provider != 'ollama' and not config.app.get(f"{llm_provider}_api_key", ""):
+    if (
+        llm_provider != "g4f"
+        and llm_provider != "ollama"
+        and not config.app.get(f"{llm_provider}_api_key", "")
+    ):
         st.error(tr("Please Enter the LLM API Key"))
         scroll_to_bottom()
         st.stop()

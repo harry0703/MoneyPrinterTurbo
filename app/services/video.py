@@ -4,7 +4,17 @@ import random
 from typing import List
 
 from loguru import logger
-from moviepy import *
+from moviepy import (
+    AudioFileClip,
+    ColorClip,
+    CompositeAudioClip,
+    CompositeVideoClip,
+    ImageClip,
+    TextClip,
+    VideoFileClip,
+    afx,
+    concatenate_videoclips,
+)
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import ImageFont
 
@@ -90,15 +100,15 @@ def combine_videos(
                 video_ratio = video_width / video_height
 
                 if clip_ratio == video_ratio:
-                    # 等比例缩放
+                    # Resize proportionally
                     clip = clip.resized((video_width, video_height))
                 else:
-                    # 等比缩放视频
+                    # Resize proportionally
                     if clip_ratio > video_ratio:
-                        # 按照目标宽度等比缩放
+                        # Resize proportionally based on the target width
                         scale_factor = video_width / clip_w
                     else:
-                        # 按照目标高度等比缩放
+                        # Resize proportionally based on the target height
                         scale_factor = video_height / clip_h
 
                     new_width = int(clip_w * scale_factor)
@@ -143,7 +153,7 @@ def combine_videos(
 
 
 def wrap_text(text, max_width, font="Arial", fontsize=60):
-    # 创建字体对象
+    # Create ImageFont
     font = ImageFont.truetype(font, fontsize)
 
     def get_text_size(inner_text):
@@ -257,12 +267,14 @@ def generate_video(
         elif params.subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
         elif params.subtitle_position == "custom":
-            # 确保字幕完全在屏幕内
-            margin = 10  # 额外的边距，单位为像素
+            # Ensure the subtitle is fully within the screen bounds
+            margin = 10  # Additional margin, in pixels
             max_y = video_height - _clip.h - margin
             min_y = margin
             custom_y = (video_height - _clip.h) * (params.custom_position / 100)
-            custom_y = max(min_y, min(custom_y, max_y))  # 限制 y 值在有效范围内
+            custom_y = max(
+                min_y, min(custom_y, max_y)
+            )  # Constrain the y value within the valid range
             _clip = _clip.with_position(("center", custom_y))
         else:  # center
             _clip = _clip.with_position(("center", "center"))
@@ -273,14 +285,16 @@ def generate_video(
         [afx.MultiplyVolume(params.voice_volume)]
     )
 
-    if subtitle_path and os.path.exists(subtitle_path):
-        generator = lambda text: TextClip(
+    def make_textclip(text):
+        return TextClip(
             text=text,
             font=font_path,
             font_size=params.font_size,
         )
+
+    if subtitle_path and os.path.exists(subtitle_path):
         sub = SubtitlesClip(
-            subtitles=subtitle_path, encoding="utf-8", make_textclip=generator
+            subtitles=subtitle_path, encoding="utf-8", make_textclip=make_textclip
         )
         text_clips = []
         for item in sub.subtitles:
@@ -335,25 +349,26 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
 
         if ext in const.FILE_TYPE_IMAGES:
             logger.info(f"processing image: {material.url}")
-            # 创建一个图片剪辑，并设置持续时间为3秒钟
+            # Create an image clip and set its duration to 3 seconds
             clip = (
                 ImageClip(material.url)
                 .with_duration(clip_duration)
                 .with_position("center")
             )
-            # 使用resize方法来添加缩放效果。这里使用了lambda函数来使得缩放效果随时间变化。
-            # 假设我们想要从原始大小逐渐放大到120%的大小。
-            # t代表当前时间，clip.duration为视频总时长，这里是3秒。
-            # 注意：1 表示100%的大小，所以1.2表示120%的大小
+            # Apply a zoom effect using the resize method.
+            # A lambda function is used to make the zoom effect dynamic over time.
+            # The zoom effect starts from the original size and gradually scales up to 120%.
+            # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
+            # Note: 1 represents 100% size, so 1.2 represents 120% size.
             zoom_clip = clip.resized(
                 lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
             )
 
-            # 如果需要，可以创建一个包含缩放剪辑的复合视频剪辑
-            # （这在您想要在视频中添加其他元素时非常有用）
+            # Optionally, create a composite video clip containing the zoomed clip.
+            # This is useful when you want to add other elements to the video.
             final_clip = CompositeVideoClip([zoom_clip])
 
-            # 输出视频
+            # Output the video to a file.
             video_file = f"{material.url}.mp4"
             final_clip.write_videofile(video_file, fps=30, logger=None)
             final_clip.close()

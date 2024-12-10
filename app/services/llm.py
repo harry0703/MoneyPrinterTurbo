@@ -1,10 +1,10 @@
+import json
 import logging
 import re
-import json
 from typing import List
+
 from loguru import logger
-from openai import OpenAI
-from openai import AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
 from app.config import config
@@ -295,7 +295,7 @@ Generate a script for a video, depending on the subject of the video.
         paragraphs = response.split("\n\n")
 
         # Select the specified number of paragraphs
-        selected_paragraphs = paragraphs[:paragraph_number]
+        # selected_paragraphs = paragraphs[:paragraph_number]
 
         # Join the selected paragraphs into a single string
         return "\n\n".join(paragraphs)

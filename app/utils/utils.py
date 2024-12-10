@@ -1,12 +1,12 @@
+import json
 import locale
 import os
-import platform
 import threading
 from typing import Any
-from loguru import logger
-import json
 from uuid import uuid4
+
 import urllib3
+from loguru import logger
 
 from app.models import const
 
@@ -26,33 +26,33 @@ def get_response(status: int, data: Any = None, message: str = ""):
 
 def to_json(obj):
     try:
-        # 定义一个辅助函数来处理不同类型的对象
+        # Define a helper function to handle different types of objects
         def serialize(o):
-            # 如果对象是可序列化类型，直接返回
+            # If the object is a serializable type, return it directly
             if isinstance(o, (int, float, bool, str)) or o is None:
                 return o
-            # 如果对象是二进制数据，转换为base64编码的字符串
+            # If the object is binary data, convert it to a base64-encoded string
             elif isinstance(o, bytes):
                 return "*** binary data ***"
-            # 如果对象是字典，递归处理每个键值对
+            # If the object is a dictionary, recursively process each key-value pair
             elif isinstance(o, dict):
                 return {k: serialize(v) for k, v in o.items()}
-            # 如果对象是列表或元组，递归处理每个元素
+            # If the object is a list or tuple, recursively process each element
             elif isinstance(o, (list, tuple)):
                 return [serialize(item) for item in o]
-            # 如果对象是自定义类型，尝试返回其__dict__属性
+            # If the object is a custom type, attempt to return its __dict__ attribute
             elif hasattr(o, "__dict__"):
                 return serialize(o.__dict__)
-            # 其他情况返回None（或者可以选择抛出异常）
+            # Return None for other cases (or choose to raise an exception)
             else:
                 return None
 
-        # 使用serialize函数处理输入对象
+        # Use the serialize function to process the input object
         serialized_obj = serialize(obj)
 
-        # 序列化处理后的对象为JSON字符串
+        # Serialize the processed object into a JSON string
         return json.dumps(serialized_obj, ensure_ascii=False, indent=4)
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -94,7 +94,7 @@ def task_dir(sub_dir: str = ""):
 
 
 def font_dir(sub_dir: str = ""):
-    d = resource_dir(f"fonts")
+    d = resource_dir("fonts")
     if sub_dir:
         d = os.path.join(d, sub_dir)
     if not os.path.exists(d):
@@ -103,7 +103,7 @@ def font_dir(sub_dir: str = ""):
 
 
 def song_dir(sub_dir: str = ""):
-    d = resource_dir(f"songs")
+    d = resource_dir("songs")
     if sub_dir:
         d = os.path.join(d, sub_dir)
     if not os.path.exists(d):
@@ -112,7 +112,7 @@ def song_dir(sub_dir: str = ""):
 
 
 def public_dir(sub_dir: str = ""):
-    d = resource_dir(f"public")
+    d = resource_dir("public")
     if sub_dir:
         d = os.path.join(d, sub_dir)
     if not os.path.exists(d):
@@ -182,7 +182,7 @@ def split_string_by_punctuations(s):
             next_char = s[i + 1]
 
         if char == "." and previous_char.isdigit() and next_char.isdigit():
-            # 取现1万，按2.5%收取手续费, 2.5 中的 . 不能作为换行标记
+            # # In the case of "withdraw 10,000, charged at 2.5% fee", the dot in "2.5" should not be treated as a line break marker
             txt += char
             continue
 
@@ -210,7 +210,7 @@ def get_system_locale():
         # en_US, en_GB return en
         language_code = loc[0].split("_")[0]
         return language_code
-    except Exception as e:
+    except Exception:
         return "en"
 
 
