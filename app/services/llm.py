@@ -179,7 +179,10 @@ def _generate_response(prompt: str) -> str:
                     headers={"Authorization": f"Bearer {api_key}"},
                     json={
                         "messages": [
-                            {"role": "system", "content": "You are a friendly assistant"},
+                            {
+                                "role": "system",
+                                "content": "You are a friendly assistant",
+                            },
                             {"role": "user", "content": prompt},
                         ]
                     },
@@ -197,7 +200,9 @@ def _generate_response(prompt: str) -> str:
                     "client_secret": secret_key,
                 }
                 access_token = (
-                    requests.post("https://aip.baidubce.com/oauth/2.0/token", params=params)
+                    requests.post(
+                        "https://aip.baidubce.com/oauth/2.0/token", params=params
+                    )
                     .json()
                     .get("access_token")
                 )
