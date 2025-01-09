@@ -18,6 +18,15 @@ class VideoConcatMode(str, Enum):
     sequential = "sequential"
 
 
+class VideoTransitionMode(str, Enum):
+    none = None
+    shuffle = "Shuffle"
+    fade_in = "FadeIn"
+    fade_out = "FadeOut"
+    slide_in = "SlideIn"
+    slide_out = "SlideOut"
+
+
 class VideoAspect(str, Enum):
     landscape = "16:9"
     portrait = "9:16"
@@ -44,44 +53,6 @@ class MaterialInfo:
     duration: int = 0
 
 
-# VoiceNames = [
-#     # zh-CN
-#     "female-zh-CN-XiaoxiaoNeural",
-#     "female-zh-CN-XiaoyiNeural",
-#     "female-zh-CN-liaoning-XiaobeiNeural",
-#     "female-zh-CN-shaanxi-XiaoniNeural",
-#
-#     "male-zh-CN-YunjianNeural",
-#     "male-zh-CN-YunxiNeural",
-#     "male-zh-CN-YunxiaNeural",
-#     "male-zh-CN-YunyangNeural",
-#
-#     # "female-zh-HK-HiuGaaiNeural",
-#     # "female-zh-HK-HiuMaanNeural",
-#     # "male-zh-HK-WanLungNeural",
-#     #
-#     # "female-zh-TW-HsiaoChenNeural",
-#     # "female-zh-TW-HsiaoYuNeural",
-#     # "male-zh-TW-YunJheNeural",
-#
-#     # en-US
-#     "female-en-US-AnaNeural",
-#     "female-en-US-AriaNeural",
-#     "female-en-US-AvaNeural",
-#     "female-en-US-EmmaNeural",
-#     "female-en-US-JennyNeural",
-#     "female-en-US-MichelleNeural",
-#
-#     "male-en-US-AndrewNeural",
-#     "male-en-US-BrianNeural",
-#     "male-en-US-ChristopherNeural",
-#     "male-en-US-EricNeural",
-#     "male-en-US-GuyNeural",
-#     "male-en-US-RogerNeural",
-#     "male-en-US-SteffanNeural",
-# ]
-
-
 class VideoParams(BaseModel):
     """
     {
@@ -102,11 +73,14 @@ class VideoParams(BaseModel):
     video_terms: Optional[str | list] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
+    video_transition_mode: Optional[VideoTransitionMode] = None
     video_clip_duration: Optional[int] = 5
     video_count: Optional[int] = 1
 
     video_source: Optional[str] = "pexels"
-    video_materials: Optional[List[MaterialInfo]] = None  # Materials used to generate the video
+    video_materials: Optional[List[MaterialInfo]] = (
+        None  # Materials used to generate the video
+    )
 
     video_language: Optional[str] = ""  # auto detect
 
