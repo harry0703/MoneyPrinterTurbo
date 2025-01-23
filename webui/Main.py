@@ -8,7 +8,13 @@ from loguru import logger
 
 from app.config import config
 from app.models.const import FILE_TYPE_IMAGES, FILE_TYPE_VIDEOS
-from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode, VideoParams
+from app.models.schema import (
+    MaterialInfo,
+    VideoAspect,
+    VideoConcatMode,
+    VideoParams,
+    VideoTransitionMode,
+)
 from app.services import llm, voice
 from app.services import task as tm
 from app.utils import utils
@@ -542,6 +548,25 @@ with middle_panel:
         )
         params.video_concat_mode = VideoConcatMode(
             video_concat_modes[selected_index][1]
+        )
+
+        # 视频转场模式
+        video_transition_modes = [
+            (tr("None"), VideoTransitionMode.none.value),
+            (tr("Shuffle"), VideoTransitionMode.shuffle.value),
+            (tr("FadeIn"), VideoTransitionMode.fade_in.value),
+            (tr("FadeOut"), VideoTransitionMode.fade_out.value),
+            (tr("SlideIn"), VideoTransitionMode.slide_in.value),
+            (tr("SlideOut"), VideoTransitionMode.slide_out.value),
+        ]
+        selected_index = st.selectbox(
+            tr("Video Transition Mode"),
+            options=range(len(video_transition_modes)),
+            format_func=lambda x: video_transition_modes[x][0],
+            index=0,
+        )
+        params.video_transition_mode = VideoTransitionMode(
+            video_transition_modes[selected_index][1]
         )
 
         video_aspect_ratios = [

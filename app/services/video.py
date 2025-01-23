@@ -19,7 +19,14 @@ from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import ImageFont
 
 from app.models import const
-from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode, VideoParams
+from app.models.schema import (
+    MaterialInfo,
+    VideoAspect,
+    VideoConcatMode,
+    VideoParams,
+    VideoTransitionMode,
+)
+from app.services.utils import video_effects
 from app.utils import utils
 
 
@@ -45,6 +52,7 @@ def combine_videos(
     audio_file: str,
     video_aspect: VideoAspect = VideoAspect.portrait,
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
+    video_transition_mode: VideoTransitionMode = None,
     max_clip_duration: int = 5,
     threads: int = 2,
 ) -> str:
@@ -129,12 +137,34 @@ def combine_videos(
                     f"resizing video to {video_width} x {video_height}, clip size: {clip_w} x {clip_h}"
                 )
 
+            shuffle_side = random.choice(["left", "right", "top", "bottom"])
+            logger.info(f"Using transition mode: {video_transition_mode}")
+            if video_transition_mode.value == VideoTransitionMode.none.value:
+                clip = clip
+            elif video_transition_mode.value == VideoTransitionMode.fade_in.value:
+                clip = video_effects.fadein_transition(clip, 1)
+            elif video_transition_mode.value == VideoTransitionMode.fade_out.value:
+                clip = video_effects.fadeout_transition(clip, 1)
+            elif video_transition_mode.value == VideoTransitionMode.slide_in.value:
+                clip = video_effects.slidein_transition(clip, 1, shuffle_side)
+            elif video_transition_mode.value == VideoTransitionMode.slide_out.value:
+                clip = video_effects.slideout_transition(clip, 1, shuffle_side)
+            elif video_transition_mode.value == VideoTransitionMode.shuffle.value:
+                transition_funcs = [
+                    lambda c: video_effects.fadein_transition(c, 1),
+                    lambda c: video_effects.fadeout_transition(c, 1),
+                    lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
+                    lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
+                ]
+                shuffle_transition = random.choice(transition_funcs)
+                clip = shuffle_transition(clip)
+
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
 
             clips.append(clip)
             video_duration += clip.duration
-
+    clips = [CompositeVideoClip([clip]) for clip in clips]
     video_clip = concatenate_videoclips(clips)
     video_clip = video_clip.with_fps(30)
     logger.info("writing")
