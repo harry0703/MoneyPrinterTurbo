@@ -72,10 +72,6 @@
 - [ ] 支持更多的语音合成服务商，比如 OpenAI TTS
 - [ ] 自动上传到YouTube平台
 
-## 交流讨论 💬
-
-<img src="docs/wechat-group.jpg" width="250">
-
 ## 视频演示 📺
 
 ### 竖屏 9:16
