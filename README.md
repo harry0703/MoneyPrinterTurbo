@@ -85,7 +85,39 @@
 </tr>
 </thead>
 <tbody>
-<tr>
+<tr             
+              
+# Get the diff from the PR
+diff = GithubGetDiffAction.new(repo: repo, pr_number: pr_number).call
+
+# Get the contents of the library repository and docs repository
+code_context = GetContextAction.new(path: code_repo_path).call
+doc_context = GetContextAction.new(path: doc_repo_path).call
+
+# Use Gemini 1.5 Pro to decide whether this PR requires a documentation update
+result = DocUpdateNecessityGenerator.new(
+  code_context: code_context,
+  doc_context: doc_context,
+  diff: diff
+).generate
+
+# Use Gemini 1.5 Pro to generate suggested changes to the documentation
+doc_update_suggestions = DocUpdateSuggestionGenerator.new(
+  code_context: code_context,
+  doc_context: doc_context,
+  context_ignore_list: context_ignore_list,
+    diff: diff
+).generate">
+
+# Use Gemini 1.5 Pro to generate the changes to the suggested files
+file_updates = DocUpdateGenerator.new(
+  code_context: code_context,
+  suggestions: suggestions,
+  doc_context: doc_context,
+  context_ignore_list: context_ignore_list
+).generate
+
+# Update each of the files returned by Gemini 1.5 Pro and create a new PR}
 <td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/a84d33d5-27a2-4aba-8fd0-9fb2bd91c6a6"></video></td>
 <td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/af2f3b0b-002e-49fe-b161-18ba91c055e8"></video></td>
 <td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/112c9564-d52b-4472-99ad-970b75f66476"></video></td>
