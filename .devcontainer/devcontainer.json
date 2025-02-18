@@ -1,0 +1,299 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {'Ssh-rsa-lhai63633@openssh.com/features.md](https://github.com/user-attachments/files/18845760/features.md)
+[faq.md](https://github.com/user-attachments/files/18845761/faq.md)
+[configuration-requirements.md](https://github.com/user-attachments/files/18845763/configuration-requirements.md)
+[feedback.md](https://github.com/user-attachments/files/18845764/feedback.md)
+[reference-project.md](https://github.com/user-attachments/files/18845765/reference-project.md)
+[special-thanks.md](https://github.com/user-attachments/files/18845766/special-thanks.md)
+[speech-synthesis.md](https://github.com/user-attachments/files/18845767/speech-synthesis.md)
+[subtitle-font.md](https://github.com/user-attachments/files/18845768/subtitle-font.md)
+[video-demonstration.md](https://github.com/user-attachments/files/18845770/video-demonstration.md)
+[subtitle-generation.md](https://github.com/user-attachments/files/18845771/subtitle-generation.md)
+[thanks-for-sponsoring.md](https://github.com/user-attachments/files/18845772/thanks-for-sponsoring.md)but bad implementation.
+* 40 >  50 (Decent)         : With some improvements, this games could become a good games.
+* 50 >  60 (Not Good Enough): Averagely good games.
+* 60 >  70 (Passable)       : Passable games.
+* 70 >  80 (Good)           : Good games.
+* 80 >  90 (Very Good)      : Great games, almost perfect.
+* 90 > 100 (Best Games)     : Best published games.
+                              Some of them are not graphically impeccable, but the idea or playability have made them immortal.
+
+
+Number of Assigning Scores:
+---------------------------
+*   0 >  10 :   18
+*  10 >  20 :   89
+*  20 >  30 :   33
+*  30 >  40 :  328
+*  40 >  50 :  112  (+  2)
+*  50 >  60 : 1021  (+  3)
+*  60 >  70 :  273  (+  8)<?xml version="1.0"?>
+<!DOCTYPE softwarelist SYSTEM "softwarelist.dtd">
+<!--
+license:CC0-1.0
+-->
+<softwarelist name="vector06_flop" description="Vector-06C disk images">
+
+	<software name="ost34">
+		<description>MicroDOS v3.1 BIOS T-34</description>
+		<year>19??</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="os-t34.fdd" size="839680" crc="6405dafa" sha1="c3b0503c06b541641ae7501ff1123758a7e7d8ab"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="ost72">
+		<description>MicroDOS v3.1M BIOS T-72</description>
+		<year>19??</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="os-t72.fdd" size="839680" crc="cbb25106" sha1="ca2d3fa54cebe2fe29fb9b4bcd9bf7a54977ee50"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="card"><!-- pressing space now and then kicks things along, but really need instructions -->
+		<description>Card Game</description>
+		<year>1994</year>
+		<publisher>S.E.S., VM Group</publisher>
+		<info name="usage" value="Press F12. Press Space then Enter. Select 3 players by using arrows and Space." />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="card.fdd" size="839680" crc="334e1379" sha1="2c15dac696942b0f3abe051a30bd954169344ad7"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="cdpacman">
+		<description>CD-Pacman</description>
+		<year>1995</year>
+		<publisher>&lt;unknown&gt;</publisher>
+	<!--- title music plays too fast because of unemulated RAM access latency -->
+		<info name="usage" value="Press F12, then Left-Alt, then 2" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+interface interface_identifier { /* interface_members... */ };
+partial interface interface_identifier { /* interface_members... */ };
+namespace namespace_identifier { /* namespace_members... */ };
+partial namespace namespace_identifier { /* namespace_members... */ };
+dictionary dictionary_identifier { /* dictionary_members... */ };
+partial dictionary dictionary_identifier { /* dictionary_members... */ };
+enum enumeration_identifier { "enum", "values" /* , ... */ };
+callback callback_identifier = return_type (/* arguments... */);
+callback interface callback_interface_identifier { /* interface_members... */ };				<rom name="cdpacman.fdd" size="839680" crc="c429fa01" sha1="4513907202e22e795eb6c6af7eb9a4795795275e"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="game15">
+		<description>Game 15 Part 1</description>
+		<year>19??</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12, and hold CTRL until it has finished starting up." />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="game-15.fdd" size="839680" crc="259fcb8e" sha1="4cec8e06d147b74a43784c7389ed86ba02bdf952"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="komrab">
+		<description>Kombat Rabbits</description>
+		<year>1995</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12, then KOMRAB for player vs computer, or KOMRABD for 2 players." />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="komrab.fdd" size="839680" crc="59f8d7ee" sha1="ba95d78add7bf0cda05694763f0c72abcc6737de"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="lemmings"><!-- lemmings die more easily than in the PC version -->
+		<description>Lemmings</description>
+		<year>1996</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="lemmings.fdd" size="839680" crc="06ac97ba" sha1="3c6e7e226ae5dc7fd57bdf48bda17a50f5c21943"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="lines">
+		<description>Color Lines</description>
+		<year>19??</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="lines.fdd" size="839680" crc="d21ed39f" sha1="2a073ab4dd6cb3bc587dd50c1ec3a40fb1be1632"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="mreversi">
+		<description>Reversi Master</description>
+		<year>19??</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12. Press N, Space, right-arrow, right-arrow, Space, Space, Esc, left-arrow, Space." />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="mreversi.fdd" size="839680" crc="0175f570" sha1="c13eed04a92da8dd814dae0bc3079c2689c8cbb3"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="puzznic">
+		<description>Puzznic</description>
+		<year>1996</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12. In the menu, press Space to start." />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="puzznic.fdd" size="839680" crc="5c228353" sha1="8ab681e04045af9a5614f09546b281e73576730a"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="robocop">
+		<description>Robocop</description>
+		<year>1995</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="robocop.fdd" size="839680" crc="52dcfa15" sha1="ed2dd0a48a2cdbfc08c1036d62ac48fb8ae69b11"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="tet3d">
+		<description>Tetris 3D</description>
+		<year>1996</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="tet3d.fdd" size="839680" crc="1d17f27f" sha1="47f2ffb350650974de0a1e992b6eda5346e81426"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="zoo" supported="partial"><!-- unreadable dark blue screen -->
+		<description>Zoo</description>
+		<year>19??</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="zoo.fdd" size="839680" crc="7def2d07" sha1="80b8103b2c349d7993e5365453ca88c7685753d7"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="gt">
+		<description>Great Battle Super Tank</description>
+		<year>2000</year>
+		<publisher>gDW</publisher>
+		<info name="usage" value="Press F12. When A&gt; shows, enter GT then Y" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="gt.fdd" size="839680" crc="2f439145" sha1="1889cf5e9ac50af752be3159280dd135e729a464"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="incubus">
+		<description>Incubus</description>
+		<year>19??</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12" />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="incubus.fdd" size="839680" crc="04b01bf7" sha1="5ad6b4787aa2baa1412f9db38fb6a1051e8e45ae"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="rpm">
+		<description>Real Player demo</description>
+		<year>1997</year>
+		<publisher>&lt;unknown&gt;</publisher>
+		<info name="usage" value="Press F12, arrows to choose track, Enter to play it." />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="rpm.fdd" size="839680" crc="f3712988" sha1="99709cff59e185cbe9cf0f0d84a8af17afd220d3"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="trex">
+		<description>T.Rex 0.5: Take One</description>
+		<year>19??</year>
+		<publisher>S.E.S.</publisher>
+		<info name="usage" value="Press F12. Press Space. Space performs most in-game actions." />
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="839680">
+				<rom name="t-rex-05.fdd" size="839680" crc="e090320d" sha1="822d4fc3537e4c4a86d46c349f8fac88bb08cfc1"/>
+			</dataarea>
+		</part>
+	</software>
+
+</softwarelist>
+IDL Index
+typedef (Int8Array or Int16Array or Int32Array or
+         Uint8Array or Uint16Array or Uint32Array or Uint8ClampedArray or
+         BigInt64Array or BigUint64Array or
+         Float16Array or Float32Array or Float64Array or DataView) ArrayBufferView;
+
+typedef (ArrayBufferView or ArrayBuffer) BufferSource;
+typedef (ArrayBuffer or SharedArrayBuffer or [AllowShared] ArrayBufferView) AllowSharedBufferSource;
+[Exposed=*,
+ Serializable]
+interface DOMException { // but see below note about JavaScript binding
+  constructor(optional DOMString message = "", optional DOMString name = "Error");
+  readonly attribute DOMString name;
+  readonly attribute DOMString message;
+  readonly attribute unsigned short code;
+
+  const unsigned short INDEX_SIZE_ERR = 1;
+  const unsigned short DOMSTRING_SIZE_ERR = 2;
+  const unsigned short HIERARCHY_REQUEST_ERR = 3;
+  const unsigned short WRONG_DOCUMENT_ERR = 4;
+  const unsigned short INVALID_CHARACTER_ERR = 5;
+  const unsigned short NO_DATA_ALLOWED_ERR = 6;
+  const unsigned short NO_MODIFICATION_ALLOWED_ERR = 7;
+  const unsigned short NOT_FOUND_ERR = 8;
+  const unsigned short NOT_SUPPORTED_ERR = 9;
+  const unsigned short INUSE_ATTRIBUTE_ERR = 10;
+  const unsigned short INVALID_STATE_ERR = 11;
+  const unsigned short SYNTAX_ERR = 12;
+  const unsigned short INVALID_MODIFICATION_ERR = 13;
+  const unsigned short NAMESPACE_ERR = 14;
+  const unsigned short INVALID_ACCESS_ERR = 15;
+  const unsigned short VALIDATION_ERR = 16;
+  const unsigned short TYPE_MISMATCH_ERR = 17;
+  const unsigned short SECURITY_ERR = 18;
+  const unsigned short NETWORK_ERR = 19;
+  const unsigned short ABORT_ERR = 20;
+  const unsigned short URL_MISMATCH_ERR = 21;
+  const unsigned short QUOTA_EXCEEDED_ERR = 22;
+  const unsigned short TIMEOUT_ERR = 23;
+  const unsigned short INVALID_NODE_TYPE_ERR = 24;
+  const unsigned short DATA_CLONE_ERR = 25;
+};
+
+callback Function = any (any... arguments);
+callback VoidFunction = undefined ();https://fetch.spec.whatwg.org/#cross-origin-resource-policy-check
+
+  }
+}
