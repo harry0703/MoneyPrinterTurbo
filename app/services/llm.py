@@ -7,6 +7,8 @@ import g4f
 from loguru import logger
 from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
+from ollama import Client as ollamaClient
+from ollama import ChatResponse as ollamaChatResponse
 
 from app.config import config
 
@@ -39,6 +41,19 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.app.get("ollama_base_url", "")
                 if not base_url:
                     base_url = "http://localhost:11434/v1"
+                
+
+                client = ollamaClient(host=base_url)
+                response: ollamaChatResponse = client.chat(model=model_name, messages=[
+                    {
+                        'role': 'user',
+                        'content': prompt,
+                    },
+                ])
+
+                return response.message.content.strip().split("</think>").pop().strip();
+
+                print(response['message']['content'])
             elif llm_provider == "openai":
                 api_key = config.app.get("openai_api_key")
                 model_name = config.app.get("openai_model_name")
