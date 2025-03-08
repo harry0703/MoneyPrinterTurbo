@@ -94,6 +94,22 @@ def create_task(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
         )
 
+from fastapi import Query
+
+@router.get("/tasks", response_model=TaskQueryResponse, summary="Get all tasks")
+def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
+    request_id = base.get_task_id(request)
+    tasks, total = sm.state.get_all_tasks(page, page_size)
+
+    response = {
+        "tasks": tasks,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+    return utils.get_response(200, response)
+
+
 
 @router.get(
     "/tasks/{task_id}", response_model=TaskQueryResponse, summary="Query task status"
