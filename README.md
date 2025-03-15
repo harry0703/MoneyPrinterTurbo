@@ -8,7 +8,7 @@
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
 </p>
 <br>
-<h3>简体中文 | <a href="README-en.md">English</a></h3>
+<h3>简体中文 | <a href="README-en.md">English</a> | <a href="README-es.md">Español</a></h3>
 <div align="center">
   <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
