@@ -25,30 +25,16 @@ jobs:
     - name: Configure Docker for Google Cloud
       run: gcloud auth configure-docker
 
-    - name: Build Docker image for webui
-      run: docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo-webui:$GITHUB_SHA -f Dockerfile .
+    - name: Build Docker image
+      run: docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo:$GITHUB_SHA .
 
-    - name: Push Docker image for webui
-      run: docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo-webui:$GITHUB_SHA
+    - name: Push Docker image
+      run: docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo:$GITHUB_SHA
 
-    - name: Build Docker image for api
-      run: docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo-api:$GITHUB_SHA -f Dockerfile .
-
-    - name: Push Docker image for api
-      run: docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo-api:$GITHUB_SHA
-
-    - name: Deploy webui to Cloud Run
+    - name: Deploy to Cloud Run
       run: |
-        gcloud run deploy moneyprinterturbo-webui \
-          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo-webui:$GITHUB_SHA \
-          --platform managed \
-          --region ${{ secrets.GCP_REGION }} \
-          --allow-unauthenticated
-
-    - name: Deploy api to Cloud Run
-      run: |
-        gcloud run deploy moneyprinterturbo-api \
-          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo-api:$GITHUB_SHA \
+        gcloud run deploy moneyprinterturbo \
+          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/moneyprinterturbo:$GITHUB_SHA \
           --platform managed \
           --region ${{ secrets.GCP_REGION }} \
           --allow-unauthenticated
