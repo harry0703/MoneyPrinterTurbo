@@ -1,0 +1,44 @@
+name: Deploy Google Cloud Function
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r function/requirements.txt
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Deploy Google Cloud Function
+      run: |
+        gcloud functions deploy moneyprinterturbo \
+          --runtime python310 \
+          --trigger-http \
+          --entry-point main \
+          --source function \
+          --region ${{ secrets.GCP_REGION }} \
+          --set-env-vars API_URL=${{ secrets.API_URL }},VIDEO_SUBJECT=${{ vars.VIDEO_SUBJECT }},VIDEO_DESCRIPTION=${{ vars.VIDEO_DESCRIPTION }},ACCOUNT_NAME=${{ vars.ACCOUNT_NAME }}, TIME_BEFORE_DOWNLOAD=${{ vars.TIME_BEFORE_DOWNLOAD }}
+
+    - name: Upload music.mp3 to Google Cloud Storage
+      run: |
+        gsutil cp function/music.mp3 gs://${{ secrets.GCP_BUCKET_NAME }}/music.mp3
