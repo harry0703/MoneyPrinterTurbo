@@ -36,10 +36,11 @@ bgm_volume = 0.2
 
 @functions_framework.http
 def main(request=None):
+    print("api url:" + api_base_url)
     upload_music_url = f"{api_base_url}/musics"
     files = {'file': open(song_file_path, 'rb')}
     try:
-        response = requests.post(upload_music_url, files=files)
+        response = requests.post(upload_music_url, files=files, headers=headers)
         response.raise_for_status()
         bgm_file = response.json()['data']['file']
     except requests.exceptions.RequestException as e:
