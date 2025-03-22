@@ -3,6 +3,7 @@ import requests
 import json
 import time
 from tiktokautouploader import upload_tiktok
+import functions_framework
 
 api_base_url = os.getenv("API_URL")
 headers = {"Content-Type": "application/json"}
@@ -28,7 +29,8 @@ song_file_path = "./music.mp3"
 bgm_file_path = "../resource/songs/music.mp3"
 bgm_volume = 0.2
 
-def main(request):
+@functions_framework.http
+def main(request=None):
 
     upload_music_url = f"{api_base_url}/musics"
     files = {'file': open(song_file_path, 'rb')}
