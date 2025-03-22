@@ -31,7 +31,7 @@ jobs:
 
     - name: Deploy Google Cloud Function
       run: |
-        gcloud functions deploy moneyprinterturbo \
+        gcloud functions deploy moneyprinterturbo-function \
           --runtime python310 \
           --trigger-http \
           --entry-point main \
