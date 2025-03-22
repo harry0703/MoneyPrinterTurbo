@@ -28,7 +28,7 @@ song_file_path = "./music.mp3"
 bgm_file_path = "../resource/songs/music.mp3"
 bgm_volume = 0.2
 
-def function(request):
+def main(request):
 
     upload_music_url = f"{api_base_url}/musics"
     files = {'file': open(song_file_path, 'rb')}
