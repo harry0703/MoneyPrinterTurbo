@@ -38,6 +38,7 @@ jobs:
           --source function \
           --region ${{ secrets.GCP_REGION }} \
           --set-env-vars API_URL="${{ secrets.API_URL }}",VIDEO_SUBJECT="${{ vars.VIDEO_SUBJECT }}",VIDEO_DESCRIPTION="${{ vars.VIDEO_DESCRIPTION }}",ACCOUNT_NAME="${{ vars.ACCOUNT_NAME }}",TIME_BEFORE_DOWNLOAD="${{ vars.TIME_BEFORE_DOWNLOAD }}"
+          --memory 512MB
 
     - name: Upload music.mp3 to Google Cloud Storage
       uses: google-github-actions/upload-cloud-storage@v2
