@@ -35,7 +35,12 @@ def main(request=None):
     upload_music_url = f"{api_base_url}/musics"
     files = {'file': open(song_file_path, 'rb')}
     response = requests.post(upload_music_url, files=files)
-    bgm_file = response.json()['data']['file']
+    if response.status_code != 200:
+        return f"Error uploading music: {response.status_code}", 500
+    try:
+        bgm_file = response.json()['data']['file']
+    except json.JSONDecodeError:
+        return "Error decoding JSON response from music upload", 500
 
     generate_script_url = f"{api_base_url}/scripts"
     script_payload = {
@@ -44,7 +49,12 @@ def main(request=None):
         "paragraph_number": 1
     }
     response = requests.post(generate_script_url, headers=headers, data=json.dumps(script_payload))
-    video_script = response.json()['data']['video_script']
+    if response.status_code != 200:
+        return f"Error generating script: {response.status_code}", 500
+    try:
+        video_script = response.json()['data']['video_script']
+    except json.JSONDecodeError:
+        return "Error decoding JSON response from script generation", 500
 
     generate_keywords_url = f"{api_base_url}/terms"
     keywords_payload = {
@@ -53,7 +63,12 @@ def main(request=None):
         "amount": 5
     }
     response = requests.post(generate_keywords_url, headers=headers, data=json.dumps(keywords_payload))
-    video_terms = response.json()['data']['video_terms']
+    if response.status_code != 200:
+        return f"Error generating keywords: {response.status_code}", 500
+    try:
+        video_terms = response.json()['data']['video_terms']
+    except json.JSONDecodeError:
+        return "Error decoding JSON response from keywords generation", 500
 
     generate_video_url = f"{api_base_url}/videos"
     video_payload = {
@@ -77,14 +92,19 @@ def main(request=None):
     }
 
     response = requests.post(generate_video_url, headers=headers, data=json.dumps(video_payload))
-    print(response.json())
-
-    task_id = response.json()['data']['task_id']
+    if response.status_code != 200:
+        return f"Error generating video: {response.status_code}", 500
+    try:
+        task_id = response.json()['data']['task_id']
+    except json.JSONDecodeError:
+        return "Error decoding JSON response from video generation", 500
 
     time.sleep(float(os.getenv("TIME_BEFORE_DOWNLOAD")))
 
     download_url = f"{api_base_url}/download/{task_id}/final-1.mp4"
     response = requests.get(download_url, headers=headers)
+    if response.status_code != 200:
+        return f"Error downloading video: {response.status_code}", 500
     with open('output_video.mp4', 'wb') as f:
         f.write(response.content)
 
