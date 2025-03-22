@@ -27,7 +27,7 @@ jobs:
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v1
       with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        credentials_json: "${{ secrets.GCP_SA_KEY }}"
 
     - name: Deploy Google Cloud Function
       run: |
@@ -36,9 +36,10 @@ jobs:
           --trigger-http \
           --entry-point main \
           --source function \
-          --region ${{ secrets.GCP_REGION }} \
+          --region "${{ secrets.GCP_REGION }}" \
           --set-env-vars API_URL="${{ secrets.API_URL }}",VIDEO_SUBJECT="${{ vars.VIDEO_SUBJECT }}",VIDEO_DESCRIPTION="${{ vars.VIDEO_DESCRIPTION }}",ACCOUNT_NAME="${{ vars.ACCOUNT_NAME }}",TIME_BEFORE_DOWNLOAD="${{ vars.TIME_BEFORE_DOWNLOAD }}"
 
     - name: Upload music.mp3 to Google Cloud Storage
       run: |
-        gsutil cp function/music.mp3 gs://${{ vars.GCP_BUCKET_NAME }}/music.mp3
+        gcloud auth activate-service-account --key-file="${{ secrets.GCP_SA_KEY }}"
+        gsutil cp function/music.mp3 gs://"${{ vars.GCP_BUCKET_NAME }}"/music.mp3
