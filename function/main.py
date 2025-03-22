@@ -32,16 +32,6 @@ bgm_volume = 0.2
 @functions_framework.http
 def main(request=None):
 
-    upload_music_url = f"{api_base_url}/musics"
-    files = {'file': open(song_file_path, 'rb')}
-    response = requests.post(upload_music_url, files=files)
-    if response.status_code != 200:
-        return f"Error uploading music: {response.status_code}", 500
-    try:
-        bgm_file = response.json()['data']['file']
-    except json.JSONDecodeError:
-        return "Error decoding JSON response from music upload", 500
-
     generate_script_url = f"{api_base_url}/scripts"
     script_payload = {
         "video_subject": video_subject,
