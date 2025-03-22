@@ -41,4 +41,4 @@ jobs:
 
     - name: Upload music.mp3 to Google Cloud Storage
       run: |
-        gsutil cp function/music.mp3 gs://${{ secrets.GCP_BUCKET_NAME }}/music.mp3
+        gsutil cp function/music.mp3 gs://${{ vars.GCP_BUCKET_NAME }}/music.mp3
