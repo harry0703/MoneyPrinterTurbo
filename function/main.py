@@ -1,13 +1,13 @@
 import os
 
-import google
 import requests
 import json
 import time
 import logging
+
+from google.oauth2 import id_token
 from tiktokautouploader import upload_tiktok
 import functions_framework
-from google.auth import jwt
 from google.auth.transport import requests as google_requests
 
 # Configure logging
@@ -40,10 +40,9 @@ bgm_volume = 0.2
 
 
 def get_cloud_run_token():
-    audience = os.getenv("CLOUD_RUN_URL")
-    credentials, project = google.auth.default()
+    audience = os.getenv("API_URL")
     auth_req = google_requests.Request()
-    token = jwt.encode(credentials, audience=audience, request=auth_req)
+    token = id_token.fetch_id_token(auth_req, audience)
     return token
 
 
@@ -65,7 +64,7 @@ def main(request=None):
         logger.error(f"Error uploading music: {e}")
         return f"Error uploading music: {e}", 500
     except json.JSONDecodeError as e:
-        logger.error(f"Error decoding JSON response from music upload: {e}")
+        logger.error(f"Error decoding JSON response from music  upload: {e}")
         return "Error decoding JSON response from music upload", 500
 
     try:
