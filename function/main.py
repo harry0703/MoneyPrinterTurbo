@@ -1,10 +1,14 @@
 import os
+
+import google
 import requests
 import json
 import time
 import logging
 from tiktokautouploader import upload_tiktok
 import functions_framework
+from google.auth import jwt
+from google.auth.transport import requests as google_requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,11 +38,25 @@ song_file_path = "./music.mp3"
 bgm_file_path = "../resource/songs/music.mp3"
 bgm_volume = 0.2
 
+
+def get_cloud_run_token():
+    audience = os.getenv("CLOUD_RUN_URL")
+    credentials, project = google.auth.default()
+    auth_req = google_requests.Request()
+    token = jwt.encode(credentials, audience=audience, request=auth_req)
+    return token
+
+
 @functions_framework.http
 def main(request=None):
     print("api url:" + api_base_url)
     upload_music_url = f"{api_base_url}/musics"
     files = {'file': open(song_file_path, 'rb')}
+
+    # Get the Cloud Run token
+    token = get_cloud_run_token()
+    headers["Authorization"] = f"Bearer {token}"
+
     try:
         response = requests.post(upload_music_url, files=files, headers=headers)
         response.raise_for_status()
