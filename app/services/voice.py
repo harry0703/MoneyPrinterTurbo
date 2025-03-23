@@ -1014,27 +1014,20 @@ Name: zh-CN-XiaoxiaoMultilingualNeural-V2
 Gender: Female
     """.strip()
     voices = []
-    name = ""
-    for line in voices_str.split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        if line.startswith("Name: "):
-            name = line[6:].strip()
-        if line.startswith("Gender: "):
-            gender = line[8:].strip()
-            if name and gender:
-                # voices.append({
-                #     "name": name,
-                #     "gender": gender,
-                # })
-                if filter_locals:
-                    for filter_local in filter_locals:
-                        if name.lower().startswith(filter_local.lower()):
-                            voices.append(f"{name}-{gender}")
-                else:
-                    voices.append(f"{name}-{gender}")
-                name = ""
+    # 定义正则表达式模式，用于匹配 Name 和 Gender 行
+    pattern = re.compile(r"Name:\s*(.+)\s*Gender:\s*(.+)\s*", re.MULTILINE)
+    # 使用正则表达式查找所有匹配项
+    matches = pattern.findall(voices_str)
+
+    for name, gender in matches:
+        # 应用过滤条件
+        if filter_locals and any(
+            name.lower().startswith(fl.lower()) for fl in filter_locals
+        ):
+            voices.append(f"{name}-{gender}")
+        elif not filter_locals:
+            voices.append(f"{name}-{gender}")
+
     voices.sort()
     return voices
 
