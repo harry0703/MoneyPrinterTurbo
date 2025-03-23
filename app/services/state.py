@@ -15,11 +15,22 @@ class BaseState(ABC):
     def get_task(self, task_id: str):
         pass
 
+    @abstractmethod
+    def get_all_tasks(self, page: int, page_size: int):
+        pass
+
 
 # Memory state management
 class MemoryState(BaseState):
     def __init__(self):
         self._tasks = {}
+
+    def get_all_tasks(self, page: int, page_size: int):
+        start = (page - 1) * page_size
+        end = start + page_size
+        tasks = list(self._tasks.values())
+        total = len(tasks)
+        return tasks[start:end], total
 
     def update_task(
         self,
@@ -33,6 +44,7 @@ class MemoryState(BaseState):
             progress = 100
 
         self._tasks[task_id] = {
+            "task_id": task_id,
             "state": state,
             "progress": progress,
             **kwargs,
@@ -53,6 +65,28 @@ class RedisState(BaseState):
 
         self._redis = redis.StrictRedis(host=host, port=port, db=db, password=password)
 
+    def get_all_tasks(self, page: int, page_size: int):
+        start = (page - 1) * page_size
+        end = start + page_size
+        tasks = []
+        cursor = 0
+        total = 0
+        while True:
+            cursor, keys = self._redis.scan(cursor, count=page_size)
+            total += len(keys)
+            if total > start:
+                for key in keys[max(0, start - total):end - total]:
+                    task_data = self._redis.hgetall(key)
+                    task = {
+                        k.decode("utf-8"): self._convert_to_original_type(v) for k, v in task_data.items()
+                    }
+                    tasks.append(task)
+                    if len(tasks) >= page_size:
+                        break
+            if cursor == 0 or len(tasks) >= page_size:
+                break
+        return tasks, total
+
     def update_task(
         self,
         task_id: str,
@@ -65,6 +99,7 @@ class RedisState(BaseState):
             progress = 100
 
         fields = {
+            "task_id": task_id,
             "state": state,
             "progress": progress,
             **kwargs,
