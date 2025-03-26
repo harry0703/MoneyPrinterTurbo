@@ -279,6 +279,9 @@ def generate_video(
         wrapped_txt, txt_height = wrap_text(
             phrase, max_width=max_width, font=font_path, fontsize=params.font_size
         )
+        interline = int(params.font_size * 0.25)
+        size=(int(max_width), int(txt_height + params.font_size * 0.25 + (interline * (wrapped_txt.count("\n") + 1))))
+
         _clip = TextClip(
             text=wrapped_txt,
             font=font_path,
@@ -287,6 +290,8 @@ def generate_video(
             bg_color=params.text_background_color,
             stroke_color=params.stroke_color,
             stroke_width=params.stroke_width,
+            interline=interline,
+            size=size,
         )
         duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.with_start(subtitle_item[0][0])
