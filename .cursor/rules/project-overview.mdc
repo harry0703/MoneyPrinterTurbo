@@ -1,0 +1,26 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 项目概述
+
+MoneyPrinterTurbo是一个自动化视频生成工具，只需提供一个视频主题或关键词，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
+
+## 主要功能
+
+- 支持视频文案AI自动生成，也可以自定义文案
+- 支持多种高清视频尺寸（竖屏9:16，横屏16:9）
+- 支持批量视频生成
+- 支持视频片段时长设置
+- 支持多种语音合成
+- 支持字幕生成和自定义
+- 支持背景音乐
+- 支持多种AI模型（OpenAI、Moonshot、Azure等）
+
+## 项目架构
+
+- [main.py](mdc:main.py) - 项目主入口文件
+- [app/](mdc:app) - 后端API服务目录
+- [webui/](mdc:webui) - 前端Web界面目录
+- [config.toml](mdc:config.toml) - 配置文件

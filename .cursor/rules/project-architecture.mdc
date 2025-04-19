@@ -1,0 +1,26 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# 项目架构
+
+MoneyPrinterTurbo采用MVC架构，代码结构清晰，易于维护，同时支持API和Web界面。
+
+## 主要目录结构
+
+- [main.py](mdc:main.py) - 项目API服务入口文件
+- [webui.bat](mdc:webui.bat)/[webui.sh](mdc:webui.sh) - Web界面启动脚本
+- [app/](mdc:app) - 后端API服务目录
+  - [app/asgi.py](mdc:app/asgi.py) - ASGI应用程序入口
+  - [app/router.py](mdc:app/router.py) - API路由定义
+  - [app/controllers/](mdc:app/controllers) - 控制器目录
+  - [app/models/](mdc:app/models) - 数据模型目录
+  - [app/services/](mdc:app/services) - 业务服务目录
+  - [app/utils/](mdc:app/utils) - 工具函数目录
+  - [app/config/](mdc:app/config) - 配置目录
+- [webui/](mdc:webui) - 前端Web界面目录
+  - [webui/Main.py](mdc:webui/Main.py) - Web界面主程序
+  - [webui/i18n/](mdc:webui/i18n) - 国际化资源目录
+- [config.toml](mdc:config.toml) - 配置文件
+- [requirements.txt](mdc:requirements.txt) - 项目依赖

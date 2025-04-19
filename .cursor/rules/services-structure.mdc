@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 服务组件结构
+
+MoneyPrinterTurbo的核心功能实现主要在服务组件中，这些组件负责处理具体的业务逻辑。
+
+## 主要服务组件
+
+- [app/services/llm.py](mdc:app/services/llm.py) - 大语言模型服务，负责文案生成
+- [app/services/voice.py](mdc:app/services/voice.py) - 语音合成服务，将文本转换为语音
+- [app/services/subtitle.py](mdc:app/services/subtitle.py) - 字幕生成服务，创建视频字幕
+- [app/services/video.py](mdc:app/services/video.py) - 视频处理服务，处理视频合成
+- [app/services/material.py](mdc:app/services/material.py) - 素材处理服务，获取视频素材
+- [app/services/task.py](mdc:app/services/task.py) - 任务管理服务，管理视频生成任务
+- [app/services/state.py](mdc:app/services/state.py) - 状态管理服务，跟踪任务状态
+
+## 工作流程
+
+1. 用户提供视频主题或关键词
+2. 大语言模型生成视频文案
+3. 语音合成将文案转换为语音
+4. 素材服务获取相关的视频素材
+5. 字幕服务生成视频字幕
+6. 视频服务将语音、素材和字幕合成为最终视频
+7. 任务和状态服务全程跟踪和管理整个过程

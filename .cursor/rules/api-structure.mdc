@@ -1,0 +1,27 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# API结构
+
+MoneyPrinterTurbo提供了一系列API端点，用于视频生成、字幕生成、音频合成等功能。
+
+## 主要API端点
+
+- `POST /api/v1/videos` - 生成短视频
+- `POST /api/v1/subtitle` - 仅生成字幕
+- `POST /api/v1/audio` - 仅生成音频
+- `GET /api/v1/tasks` - 获取所有任务列表
+- `GET /api/v1/tasks/{task_id}` - 查询特定任务状态
+- `DELETE /api/v1/tasks/{task_id}` - 删除任务
+- `GET /api/v1/musics` - 获取本地背景音乐列表
+- `POST /api/v1/musics` - 上传背景音乐文件
+- `GET /api/v1/stream/{file_path}` - 视频流式播放
+- `GET /api/v1/download/{file_path}` - 下载视频文件
+
+## 相关文件
+
+- [app/router.py](mdc:app/router.py) - API路由配置
+- [app/controllers/v1/video.py](mdc:app/controllers/v1/video.py) - 视频相关API控制器
+- [app/controllers/v1/llm.py](mdc:app/controllers/v1/llm.py) - 大语言模型相关API控制器
