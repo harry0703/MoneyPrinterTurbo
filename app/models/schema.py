@@ -98,6 +98,22 @@ class VideoParams(BaseModel):
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
 
+    # 艺术字体相关参数
+    art_font_enabled: Optional[bool] = False
+    art_font_type: Optional[str] = "normal"  # normal, shadow, outline, 3d, etc.
+    art_font_background: Optional[str] = "none"  # none, red, blue, etc.
+
+    # 标题贴纸相关参数
+    title_sticker_enabled: Optional[bool] = False
+    title_sticker_text: Optional[str] = ""
+    title_sticker_font: Optional[str] = "STHeitiMedium.ttc"
+    title_sticker_font_size: Optional[int] = 80
+    title_sticker_style: Optional[str] = "rainbow"  # rainbow, neon, gradient, etc.
+    title_sticker_background: Optional[str] = "rounded_rect"  # none, rounded_rect, rect, etc.
+    title_sticker_background_color: Optional[str] = "#000000"
+    title_sticker_border: Optional[bool] = True
+    title_sticker_border_color: Optional[str] = "#FFFFFF"
+
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
@@ -123,6 +139,11 @@ class SubtitleRequest(BaseModel):
     stroke_width: float = 1.5
     video_source: Optional[str] = "local"
     subtitle_enabled: Optional[str] = "true"
+
+    # 艺术字体相关参数
+    art_font_enabled: Optional[bool] = False
+    art_font_type: Optional[str] = "normal"  # normal, shadow, outline, 3d, etc.
+    art_font_background: Optional[str] = "none"  # none, red, blue, etc.
 
 
 class AudioRequest(BaseModel):

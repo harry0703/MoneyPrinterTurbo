@@ -773,6 +773,199 @@ with right_panel:
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
 
+        # 艺术字体设置
+        st.write(tr("Art Font Settings"))
+        params.art_font_enabled = st.checkbox(tr("Enable Art Font"), value=False)
+
+        if params.art_font_enabled:
+            art_font_types = [
+                (tr("Normal"), "normal"),
+                (tr("Shadow"), "shadow"),
+                (tr("Outline"), "outline"),
+                (tr("3D"), "3d"),
+                (tr("Neon"), "neon"),
+                (tr("Metallic"), "metallic"),
+            ]
+            selected_index = st.selectbox(
+                tr("Art Font Type"),
+                index=0,
+                options=range(len(art_font_types)),
+                format_func=lambda x: art_font_types[x][0],
+            )
+            params.art_font_type = art_font_types[selected_index][1]
+
+            art_font_backgrounds = [
+                (tr("None"), "none"),
+                (tr("Red"), "red"),
+                (tr("Blue"), "blue"),
+                (tr("Green"), "green"),
+                (tr("Yellow"), "yellow"),
+                (tr("Purple"), "purple"),
+                (tr("Orange"), "orange"),
+                (tr("Custom"), "custom"),
+            ]
+            selected_index = st.selectbox(
+                tr("Art Font Background"),
+                index=0,
+                options=range(len(art_font_backgrounds)),
+                format_func=lambda x: art_font_backgrounds[x][0],
+            )
+            params.art_font_background = art_font_backgrounds[selected_index][1]
+
+            if params.art_font_background == "custom":
+                params.art_font_background = st.color_picker(tr("Custom Background Color"), "#FF0000")
+
+            # 预览效果
+            st.write(tr("Preview"))
+            preview_text = tr("Art Font Preview")
+
+            # 根据选择的艺术字体类型生成不同的CSS样式
+            font_style = ""
+            bg_style = "background-color: #333;"
+
+            # 设置背景颜色
+            if params.art_font_background != "none":
+                if params.art_font_background == "red":
+                    bg_style = "background-color: rgba(255, 0, 0, 0.7);"
+                elif params.art_font_background == "blue":
+                    bg_style = "background-color: rgba(0, 0, 255, 0.7);"
+                elif params.art_font_background == "green":
+                    bg_style = "background-color: rgba(0, 128, 0, 0.7);"
+                elif params.art_font_background == "yellow":
+                    bg_style = "background-color: rgba(255, 255, 0, 0.7);"
+                elif params.art_font_background == "purple":
+                    bg_style = "background-color: rgba(128, 0, 128, 0.7);"
+                elif params.art_font_background == "orange":
+                    bg_style = "background-color: rgba(255, 165, 0, 0.7);"
+                elif params.art_font_background.startswith("#"):
+                    # 处理自定义颜色
+                    bg_style = f"background-color: {params.art_font_background}aa;"
+
+            # 设置字体样式
+            if params.art_font_type == "normal":
+                font_style = f"color: {params.text_fore_color}; font-weight: bold;"
+            elif params.art_font_type == "shadow":
+                font_style = f"color: {params.text_fore_color}; font-weight: bold; text-shadow: 3px 3px 5px #000;"
+            elif params.art_font_type == "outline":
+                font_style = f"color: {params.text_fore_color}; font-weight: bold; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;"
+            elif params.art_font_type == "3d":
+                font_style = f"color: {params.text_fore_color}; font-weight: bold; text-shadow: 0px 1px 0px #999, 0px 2px 0px #888, 0px 3px 0px #777, 0px 4px 0px #666, 0px 5px 0px #555, 0px 6px 0px #444, 0px 7px 0px #333, 0px 8px 7px #001135;"
+            elif params.art_font_type == "neon":
+                font_style = f"color: {params.text_fore_color}; font-weight: bold; text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #0073e6, 0 0 20px #0073e6, 0 0 25px #0073e6, 0 0 30px #0073e6, 0 0 35px #0073e6;"
+            elif params.art_font_type == "metallic":
+                font_style = f"color: {params.text_fore_color}; font-weight: bold; background: -webkit-linear-gradient(#eee, #333); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
+
+            # 生成HTML预览
+            preview_html = f"""
+            <div style='{bg_style} padding: 15px; border-radius: 10px; text-align: center;'>
+                <span style='{font_style} font-size: {params.font_size//1.5}px;'>{preview_text}</span>
+            </div>
+            """
+
+            st.markdown(preview_html, unsafe_allow_html=True)
+
+        # 标题贴纸设置
+        st.write(tr("Title Sticker Settings"))
+        params.title_sticker_enabled = st.checkbox(tr("Enable Title Sticker"), value=False)
+
+        if params.title_sticker_enabled:
+            params.title_sticker_text = st.text_input(tr("Title Text"), value="")
+
+            # 标题贴纸字体选择
+            title_font_names = get_all_fonts()
+            saved_title_font_name = config.ui.get("title_sticker_font", params.font_name)
+            saved_title_font_index = 0
+            if saved_title_font_name in title_font_names:
+                saved_title_font_index = title_font_names.index(saved_title_font_name)
+            params.title_sticker_font = st.selectbox(
+                tr("Title Font"), title_font_names, index=saved_title_font_index, key="title_font_select"
+            )
+            config.ui["title_sticker_font"] = params.title_sticker_font
+
+            # 标题贴纸字体大小
+            saved_title_font_size = config.ui.get("title_sticker_font_size", 80)
+            params.title_sticker_font_size = st.slider(tr("Title Font Size"), 40, 200, saved_title_font_size, key="title_font_size")
+            config.ui["title_sticker_font_size"] = params.title_sticker_font_size
+
+            # 标题贴纸样式
+            title_sticker_styles = [
+                (tr("Rainbow"), "rainbow"),
+                (tr("Neon"), "neon"),
+                (tr("Gradient"), "gradient"),
+                (tr("Normal"), "normal"),
+            ]
+            selected_style_index = st.selectbox(
+                tr("Title Style"),
+                index=0,
+                options=range(len(title_sticker_styles)),
+                format_func=lambda x: title_sticker_styles[x][0],
+                key="title_style_select"
+            )
+            params.title_sticker_style = title_sticker_styles[selected_style_index][1]
+
+            # 标题贴纸背景
+            title_sticker_backgrounds = [
+                (tr("None"), "none"),
+                (tr("Rounded Rectangle"), "rounded_rect"),
+                (tr("Rectangle"), "rect"),
+            ]
+            selected_bg_index = st.selectbox(
+                tr("Title Background"),
+                index=1,
+                options=range(len(title_sticker_backgrounds)),
+                format_func=lambda x: title_sticker_backgrounds[x][0],
+                key="title_bg_select"
+            )
+            params.title_sticker_background = title_sticker_backgrounds[selected_bg_index][1]
+
+            # 标题贴纸背景颜色
+            if params.title_sticker_background != "none":
+                params.title_sticker_background_color = st.color_picker(tr("Title Background Color"), "#000000", key="title_bg_color")
+
+            # 标题贴纸边框
+            params.title_sticker_border = st.checkbox(tr("Enable Title Border"), value=True, key="title_border")
+            if params.title_sticker_border:
+                params.title_sticker_border_color = st.color_picker(tr("Title Border Color"), "#FFFFFF", key="title_border_color")
+
+            # 预览效果
+            st.write(tr("Title Sticker Preview"))
+            title_preview_text = params.title_sticker_text or tr("Title Sticker Preview")
+
+            # 生成标题贴纸预览样式
+            title_font_style = ""
+            title_bg_style = ""
+
+            # 设置背景样式
+            if params.title_sticker_background != "none":
+                if params.title_sticker_background == "rounded_rect":
+                    title_bg_style = f"background-color: {params.title_sticker_background_color}; border-radius: 15px;"
+                else:
+                    title_bg_style = f"background-color: {params.title_sticker_background_color};"
+
+            # 设置边框
+            border_style = ""
+            if params.title_sticker_border:
+                border_style = f"border: 2px solid {params.title_sticker_border_color};"
+
+            # 设置文字样式
+            if params.title_sticker_style == "rainbow":
+                title_font_style = "background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold;"
+            elif params.title_sticker_style == "neon":
+                title_font_style = "color: #FF4500; font-weight: bold; text-shadow: 0 0 5px #FFFF00, 0 0 10px #FFFF00, 0 0 15px #FF4500, 0 0 20px #FF4500;"
+            elif params.title_sticker_style == "gradient":
+                title_font_style = "background: linear-gradient(to bottom, #ff0000, #0000ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold;"
+            else:  # normal
+                title_font_style = "color: #FFFFFF; font-weight: bold;"
+
+            # 生成HTML预览
+            title_preview_html = f"""
+            <div style='{title_bg_style} {border_style} padding: 15px; text-align: center; display: inline-block; margin: 0 auto;'>
+                <span style='{title_font_style} font-size: {params.title_sticker_font_size//2}px;'>{title_preview_text}</span>
+            </div>
+            """
+
+            st.markdown(f"<div style='text-align: center;'>{title_preview_html}</div>", unsafe_allow_html=True)
+
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:
     config.save_config()
