@@ -287,6 +287,9 @@ def generate_video(
             bg_color=params.text_background_color,
             stroke_color=params.stroke_color,
             stroke_width=params.stroke_width,
+            size=(video_width, None),
+            method='caption',
+            text_align='center'
         )
         duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.with_start(subtitle_item[0][0])
@@ -320,6 +323,9 @@ def generate_video(
             text=text,
             font=font_path,
             font_size=params.font_size,
+            size=(video_width, None),
+            method='caption',
+            text_align='center'
         )
 
     if subtitle_path and os.path.exists(subtitle_path):

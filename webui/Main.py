@@ -122,7 +122,8 @@ def scroll_to_bottom():
         scroll(1);
     </script>
     """
-    st.components.v1.html(js, height=0, width=0)
+    # 使用st.markdown代替st.components.v1.html
+    st.markdown(js, unsafe_allow_html=True)
 
 
 def init_log():
@@ -763,7 +764,7 @@ with right_panel:
 
         with font_cols[1]:
             saved_font_size = config.ui.get("font_size", 60)
-            params.font_size = st.slider(tr("Font Size"), 30, 100, saved_font_size)
+            params.font_size = st.slider(tr("Font Size"), 30, 150, saved_font_size)
             config.ui["font_size"] = params.font_size
 
         stroke_cols = st.columns([0.3, 0.7])

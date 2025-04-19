@@ -952,6 +952,9 @@ Gender: Male
 Name: zh-CN-YunxiaNeural
 Gender: Male
 
+Name: zh-CN-YunzeNeural-V2
+Gender: Male
+
 Name: zh-CN-YunyangNeural
 Gender: Male
 
@@ -1012,6 +1015,7 @@ Gender: Female
 
 Name: zh-CN-XiaoxiaoMultilingualNeural-V2
 Gender: Female
+
     """.strip()
     voices = []
     # 定义正则表达式模式，用于匹配 Name 和 Gender 行
@@ -1106,6 +1110,27 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
         logger.error(f"invalid voice name: {voice_name}")
         raise ValueError(f"invalid voice name: {voice_name}")
     text = text.strip()
+    # 根据不同的声音使用不同的 SSML
+    if voice_name == "zh-CN-YunzeNeural":
+        print(f"DEBUG: Using SeniorMale role and calm style with styledegree=2 for voice {voice_name}")
+        ssml = f"""
+        <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="zh-CN">
+            <voice name="{voice_name}">
+                <mstts:express-as role="SeniorMale" style="calm" styledegree="2">
+                    {text}
+                </mstts:express-as>
+            </voice>
+        </speak>
+        """
+    else:
+        print(f"DEBUG: Using standard SSML for voice {voice_name} (no special role or style)")
+        ssml = f"""
+        <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="zh-CN">
+            <voice name="{voice_name}">
+                {text}
+            </voice>
+        </speak>
+        """
 
     def _format_duration_to_offset(duration) -> int:
         if isinstance(duration, str):
@@ -1172,7 +1197,9 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
                 speech_synthesizer_word_boundary_cb
             )
 
-            result = speech_synthesizer.speak_text_async(text).get()
+            #result = speech_synthesizer.speak_text_async(text).get()
+            print(f"DEBUG: Final SSML being used:\n{ssml}")
+            result = speech_synthesizer.speak_ssml_async(ssml).get()  # 修改这一行
             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
                 logger.success(f"azure v2 speech synthesis succeeded: {voice_file}")
                 return sub_maker
