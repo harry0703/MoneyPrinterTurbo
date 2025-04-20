@@ -46,6 +46,7 @@ hide_streamlit_style = """
 <style>#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}</style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 st.title(f"MoneyPrinterTurbo v{config.project_version}")
 
 support_locales = [
@@ -66,15 +67,6 @@ config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
 system_locale = utils.get_system_locale()
 # print(f"******** system locale: {system_locale} ********")
 
-if "video_subject" not in st.session_state:
-    st.session_state["video_subject"] = ""
-if "video_script" not in st.session_state:
-    st.session_state["video_script"] = ""
-if "video_terms" not in st.session_state:
-    st.session_state["video_terms"] = ""
-if "ui_language" not in st.session_state:
-    st.session_state["ui_language"] = config.ui.get("language", system_locale)
-
 
 def get_all_fonts():
     fonts = []
@@ -84,6 +76,16 @@ def get_all_fonts():
                 fonts.append(file)
     fonts.sort()
     return fonts
+
+
+if "video_subject" not in st.session_state:
+    st.session_state["video_subject"] = ""
+if "video_script" not in st.session_state:
+    st.session_state["video_script"] = ""
+if "video_terms" not in st.session_state:
+    st.session_state["video_terms"] = ""
+if "ui_language" not in st.session_state:
+    st.session_state["ui_language"] = config.ui.get("language", system_locale)
 
 
 def get_all_songs():
@@ -124,6 +126,21 @@ def scroll_to_bottom():
     """
     # 使用st.markdown代替st.components.v1.html
     st.markdown(js, unsafe_allow_html=True)
+
+
+def load_font_css():
+    """Load all fonts from the font directory and create CSS for them"""
+    css = "<style>\n"
+    for font_file in get_all_fonts():
+        font_name = font_file.split('.')[0]  # Remove file extension
+        font_path = os.path.join(font_dir, font_file)
+        # Convert font path to relative path for CSS
+        css += f"@font-face {{\n"
+        css += f"  font-family: '{font_name}';\n"
+        css += f"  src: url('file://{font_path}') format('truetype');\n"
+        css += f"}}\n"
+    css += "</style>"
+    return css
 
 
 def init_log():
@@ -586,7 +603,7 @@ with middle_panel:
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
 
         params.video_clip_duration = st.selectbox(
-            tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10], index=1
+            tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10], index=3
         )
         params.video_count = st.selectbox(
             tr("Number of Videos Generated Simultaneously"),
@@ -737,7 +754,7 @@ with right_panel:
         ]
         selected_index = st.selectbox(
             tr("Position"),
-            index=2,
+            index=3,  # 默认选择自定义位置
             options=range(len(subtitle_positions)),
             format_func=lambda x: subtitle_positions[x][0],
         )
@@ -745,7 +762,7 @@ with right_panel:
 
         if params.subtitle_position == "custom":
             custom_position = st.text_input(
-                tr("Custom Position (% from top)"), value="70.0"
+                tr("Custom Position (% from top)"), value="65.0"
             )
             try:
                 params.custom_position = float(custom_position)
@@ -769,13 +786,13 @@ with right_panel:
 
         stroke_cols = st.columns([0.3, 0.7])
         with stroke_cols[0]:
-            params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
+            params.stroke_color = st.color_picker(tr("Stroke Color"), "#FFFFFF")
         with stroke_cols[1]:
-            params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+            params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 4.0)
 
         # 艺术字体设置
         st.write(tr("Art Font Settings"))
-        params.art_font_enabled = st.checkbox(tr("Enable Art Font"), value=False)
+        params.art_font_enabled = st.checkbox(tr("Enable Art Font"), value=True)
 
         if params.art_font_enabled:
             art_font_types = [
@@ -788,7 +805,7 @@ with right_panel:
             ]
             selected_index = st.selectbox(
                 tr("Art Font Type"),
-                index=0,
+                index=2,  # 默认选择3D立体
                 options=range(len(art_font_types)),
                 format_func=lambda x: art_font_types[x][0],
             )
@@ -855,18 +872,11 @@ with right_panel:
             elif params.art_font_type == "metallic":
                 font_style = f"color: {params.text_fore_color}; font-weight: bold; background: -webkit-linear-gradient(#eee, #333); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
 
-            # 生成HTML预览
-            preview_html = f"""
-            <div style='{bg_style} padding: 15px; border-radius: 10px; text-align: center;'>
-                <span style='{font_style} font-size: {params.font_size//1.5}px;'>{preview_text}</span>
-            </div>
-            """
-
-            st.markdown(preview_html, unsafe_allow_html=True)
+            # 不再需要单独的预览代码，因为我们使用了统一预览区域
 
         # 标题贴纸设置
         st.write(tr("Title Sticker Settings"))
-        params.title_sticker_enabled = st.checkbox(tr("Enable Title Sticker"), value=False)
+        params.title_sticker_enabled = st.checkbox(tr("Enable Title Sticker"), value=True)
 
         if params.title_sticker_enabled:
             params.title_sticker_text = st.text_input(tr("Title Text"), value="")
@@ -884,7 +894,7 @@ with right_panel:
 
             # 标题贴纸字体大小
             saved_title_font_size = config.ui.get("title_sticker_font_size", 80)
-            params.title_sticker_font_size = st.slider(tr("Title Font Size"), 40, 200, saved_title_font_size, key="title_font_size")
+            params.title_sticker_font_size = st.slider(tr("Title Font Size"), 40, 200, 160, key="title_font_size")
             config.ui["title_sticker_font_size"] = params.title_sticker_font_size
 
             # 标题贴纸样式
@@ -893,34 +903,67 @@ with right_panel:
                 (tr("Neon"), "neon"),
                 (tr("Gradient"), "gradient"),
                 (tr("Normal"), "normal"),
+                (tr("3D"), "3d"),
+                (tr("Metallic"), "metallic"),
+                (tr("Shadow"), "shadow"),
+                (tr("Outline"), "outline"),
             ]
             selected_style_index = st.selectbox(
                 tr("Title Style"),
-                index=0,
+                index=5,  # 默认选择金属质感
                 options=range(len(title_sticker_styles)),
                 format_func=lambda x: title_sticker_styles[x][0],
                 key="title_style_select"
             )
             params.title_sticker_style = title_sticker_styles[selected_style_index][1]
 
-            # 标题贴纸背景
-            title_sticker_backgrounds = [
-                (tr("None"), "none"),
-                (tr("Rounded Rectangle"), "rounded_rect"),
-                (tr("Rectangle"), "rect"),
+            # 标题贴纸位置
+            title_sticker_positions = [
+                (tr("Upper Middle"), "upper_middle"),
+                (tr("Middle"), "middle"),
+                (tr("Lower Middle"), "lower_middle"),
+                (tr("Custom"), "custom"),
             ]
-            selected_bg_index = st.selectbox(
-                tr("Title Background"),
-                index=1,
-                options=range(len(title_sticker_backgrounds)),
-                format_func=lambda x: title_sticker_backgrounds[x][0],
-                key="title_bg_select"
+            selected_pos_index = st.selectbox(
+                tr("Title Position"),
+                index=3,  # 默认选择自定义位置
+                options=range(len(title_sticker_positions)),
+                format_func=lambda x: title_sticker_positions[x][0],
+                key="title_pos_select"
             )
-            params.title_sticker_background = title_sticker_backgrounds[selected_bg_index][1]
+            params.title_sticker_position = title_sticker_positions[selected_pos_index][1]
 
-            # 标题贴纸背景颜色
-            if params.title_sticker_background != "none":
+            # 如果选择自定义位置，显示位置设置滑块
+            if params.title_sticker_position == "custom":
+                params.title_sticker_custom_position = st.slider(
+                    tr("Custom Position (% from top)"),
+                    0.0, 100.0, 15.0, 1.0,
+                    key="title_custom_pos"
+                )
+
+            # 标题贴纸背景启用选项
+            params.title_sticker_background_enabled = st.checkbox(tr("Enable Title Background"), value=True, key="title_bg_enabled")
+
+            if params.title_sticker_background_enabled:
+                # 标题贴纸背景类型
+                title_sticker_backgrounds = [
+                    (tr("Rounded Rectangle"), "rounded_rect"),
+                    (tr("Rectangle"), "rect"),
+                ]
+                selected_bg_index = st.selectbox(
+                    tr("Title Background Type"),
+                    index=0,
+                    options=range(len(title_sticker_backgrounds)),
+                    format_func=lambda x: title_sticker_backgrounds[x][0],
+                    key="title_bg_select"
+                )
+                params.title_sticker_background = title_sticker_backgrounds[selected_bg_index][1]
+
+                # 标题贴纸背景颜色
                 params.title_sticker_background_color = st.color_picker(tr("Title Background Color"), "#000000", key="title_bg_color")
+            else:
+                # 如果不启用背景，设置为无背景
+                params.title_sticker_background = "none"
 
             # 标题贴纸边框
             params.title_sticker_border = st.checkbox(tr("Enable Title Border"), value=True, key="title_border")
@@ -936,7 +979,7 @@ with right_panel:
             title_bg_style = ""
 
             # 设置背景样式
-            if params.title_sticker_background != "none":
+            if params.title_sticker_background_enabled and params.title_sticker_background != "none":
                 if params.title_sticker_background == "rounded_rect":
                     title_bg_style = f"background-color: {params.title_sticker_background_color}; border-radius: 15px;"
                 else:
@@ -954,17 +997,84 @@ with right_panel:
                 title_font_style = "color: #FF4500; font-weight: bold; text-shadow: 0 0 5px #FFFF00, 0 0 10px #FFFF00, 0 0 15px #FF4500, 0 0 20px #FF4500;"
             elif params.title_sticker_style == "gradient":
                 title_font_style = "background: linear-gradient(to bottom, #ff0000, #0000ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold;"
+            elif params.title_sticker_style == "3d":
+                title_font_style = "color: #FFFFFF; font-weight: bold; text-shadow: 0px 1px 0px #999, 0px 2px 0px #888, 0px 3px 0px #777, 0px 4px 0px #666, 0px 5px 0px #555, 0px 6px 0px #444, 0px 7px 0px #333, 0px 8px 7px #001135;"
+            elif params.title_sticker_style == "metallic":
+                title_font_style = "color: #D4AF37; font-weight: bold; background: -webkit-linear-gradient(#eee, #D4AF37); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
+            elif params.title_sticker_style == "shadow":
+                title_font_style = "color: #FFFFFF; font-weight: bold; text-shadow: 3px 3px 5px #000;"
+            elif params.title_sticker_style == "outline":
+                title_font_style = "color: #FFFFFF; font-weight: bold; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;"
             else:  # normal
                 title_font_style = "color: #FFFFFF; font-weight: bold;"
 
-            # 生成HTML预览
-            title_preview_html = f"""
-            <div style='{title_bg_style} {border_style} padding: 15px; text-align: center; display: inline-block; margin: 0 auto;'>
-                <span style='{title_font_style} font-size: {params.title_sticker_font_size//2}px;'>{title_preview_text}</span>
-            </div>
-            """
+            # 不再需要单独的预览代码，因为我们使用了统一预览区域
 
-            st.markdown(f"<div style='text-align: center;'>{title_preview_html}</div>", unsafe_allow_html=True)
+# 添加统一预览区域
+# 在生成视频按钮之前显示统一预览区域
+with st.container(border=True):
+    st.write(tr("Video Preview"))
+
+    # 准备字幕参数
+    subtitle_params = None
+    if params.subtitle_enabled:
+        # 获取字幕字体路径
+        subtitle_font_path = os.path.join(font_dir, params.font_name)
+
+        # 准备字幕参数
+        subtitle_params = {
+            "enabled": params.subtitle_enabled,
+            "text": "字幕预览",
+            "font_path": subtitle_font_path,
+            "font_size": params.font_size,
+            "style": params.art_font_type if params.art_font_enabled else "normal",
+            "background": "rounded_rect" if params.art_font_background != "none" else "none",
+            "background_color": params.art_font_background if params.art_font_background != "none" else "#000000",
+            "border": True,
+            "border_color": params.stroke_color,
+            "position": params.subtitle_position,
+            "custom_position": params.custom_position,
+            "background_enabled": params.art_font_background != "none"
+        }
+
+    # 准备标题参数
+    title_params = None
+    if params.title_sticker_enabled:
+        # 获取标题字体路径
+        title_font_path = os.path.join(font_dir, params.title_sticker_font)
+
+        # 准备标题参数
+        title_params = {
+            "enabled": params.title_sticker_enabled,
+            "text": params.title_sticker_text or "标题预览",
+            "font_path": title_font_path,
+            "font_size": params.title_sticker_font_size,
+            "style": params.title_sticker_style,
+            "background": params.title_sticker_background,
+            "background_color": params.title_sticker_background_color,
+            "border": params.title_sticker_border,
+            "border_color": params.title_sticker_border_color,
+            "position": params.title_sticker_position,
+            "custom_position": params.title_sticker_custom_position,
+            "background_enabled": params.title_sticker_background_enabled
+        }
+
+    # 生成预览图像
+    from app.services.video import create_unified_preview
+    preview_img_path = create_unified_preview(
+        video_aspect=params.video_aspect,
+        subtitle_params=subtitle_params,
+        title_params=title_params
+    )
+
+    # 显示预览图像
+    st.image(preview_img_path, use_column_width=True)
+
+    # 删除临时文件
+    try:
+        os.remove(preview_img_path)
+    except Exception as e:
+        logger.warning(f"Failed to remove temporary preview image file: {e}")
 
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:

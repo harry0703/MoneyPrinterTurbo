@@ -183,7 +183,7 @@ def combine_videos(
     return combined_video_path
 
 
-def create_title_sticker(text, font, font_size, style, background, background_color, border, border_color, size):
+def create_title_sticker(text, font, font_size, style, background, background_color, border, border_color, size, background_enabled=True):
     """
     创建标题贴纸
 
@@ -196,6 +196,7 @@ def create_title_sticker(text, font, font_size, style, background, background_co
     :param border: 是否有边框
     :param border_color: 边框颜色
     :param size: 视频尺寸
+    :param background_enabled: 是否启用背景
     :return: ImageClip对象
     """
     if not text:
@@ -224,8 +225,8 @@ def create_title_sticker(text, font, font_size, style, background, background_co
     img = Image.new('RGBA', (sticker_width, sticker_height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # 绘制背景
-    if background != "none":
+    # 绘制背景（如果启用了背景）
+    if background != "none" and background_enabled:
         # 确保背景颜色完全不透明
         if background_color.startswith('#') and len(background_color) == 7:
             bg_color = background_color + 'ff'  # 添加不透明度
@@ -719,15 +720,33 @@ def generate_video(
             background_color=params.title_sticker_background_color,
             border=params.title_sticker_border,
             border_color=params.title_sticker_border_color,
-            size=(video_width, video_height)
+            size=(video_width, video_height),
+            background_enabled=params.title_sticker_background_enabled
         )
 
-        # 设置标题贴纸位置（顶部中间）
+        # 设置标题贴纸位置
         if title_sticker:
-            title_sticker = title_sticker.with_position(("center", video_height * 0.05))
+            # 根据用户选择的位置设置标题贴纸位置
+            if params.title_sticker_position == "upper_middle":
+                # 上方中间
+                title_sticker = title_sticker.with_position(("center", video_height * 0.10))
+            elif params.title_sticker_position == "middle":
+                # 正中间
+                title_sticker = title_sticker.with_position(("center", "center"))
+            elif params.title_sticker_position == "lower_middle":
+                # 下方中间
+                title_sticker = title_sticker.with_position(("center", video_height * 0.80))
+            elif params.title_sticker_position == "custom":
+                # 自定义位置
+                custom_y = video_height * (params.title_sticker_custom_position / 100)
+                title_sticker = title_sticker.with_position(("center", custom_y))
+            else:
+                # 默认位置（上方中间）
+                title_sticker = title_sticker.with_position(("center", video_height * 0.10))
+
             title_sticker = title_sticker.with_duration(video_clip.duration)
             video_elements.append(title_sticker)
-            logger.info(f"Added title sticker: {params.title_sticker_text}")
+            logger.info(f"Added title sticker: {params.title_sticker_text} at position {params.title_sticker_position}")
 
     # 添加字幕
     if subtitle_path and os.path.exists(subtitle_path):
@@ -817,6 +836,344 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             material.url = video_file
             logger.success(f"completed: {video_file}")
     return materials
+
+
+def create_preview_image(text, font_path, font_size, style, background_type, background_color, border, border_color, background_enabled=True, is_title=False):
+    """
+    创建预览图像
+
+    :param text: 文本内容
+    :param font_path: 字体路径
+    :param font_size: 字体大小
+    :param style: 样式（normal, shadow, outline, 3d, neon, metallic, rainbow, gradient）
+    :param background_type: 背景类型（none, rounded_rect, rect等）
+    :param background_color: 背景颜色
+    :param border: 是否有边框
+    :param border_color: 边框颜色
+    :param background_enabled: 是否启用背景
+    :param is_title: 是否是标题（影响样式处理）
+    :return: 临时图像文件路径
+    """
+    # 设置预览图像宽度
+    preview_width = 400
+
+    # 创建字体对象
+    font_obj = ImageFont.truetype(font_path, font_size)
+
+    # 计算文本尺寸
+    left, top, right, bottom = font_obj.getbbox(text)
+    text_width = right - left
+    text_height = bottom - top
+
+    # 设置图像尺寸（比文本略大）
+    padding_x = int(text_width * 0.3)
+    padding_y = int(text_height * 0.5)
+    img_width = min(preview_width, text_width + padding_x * 2)
+    img_height = text_height + padding_y * 2
+
+    # 确保文本在背景中垂直居中
+    text_y_position = (img_height - text_height) // 2
+
+    # 创建透明背景图像
+    img = Image.new('RGBA', (img_width, img_height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    # 绘制背景（如果启用了背景）
+    if background_type != "none" and background_enabled:
+        # 确保背景颜色完全不透明
+        if background_color.startswith('#') and len(background_color) == 7:
+            bg_color = background_color + 'ff'  # 添加不透明度
+        else:
+            bg_color = background_color
+
+        if background_type == "rounded_rect":
+            # 绘制圆角矩形
+            radius = int(img_height * 0.3)  # 圆角半径
+            draw.rounded_rectangle(
+                [(0, 0), (img_width, img_height)],
+                radius=radius,
+                fill=bg_color
+            )
+        elif background_type == "rect":
+            # 绘制矩形
+            draw.rectangle(
+                [(0, 0), (img_width, img_height)],
+                fill=bg_color
+            )
+
+    # 根据样式绘制文本
+    if is_title and style == "rainbow":
+        # 彩虹渐变文字
+        rainbow_colors = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#9400D3"]
+        # 创建渐变色文本
+        gradient_img = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
+        gradient_draw = ImageDraw.Draw(gradient_img)
+
+        # 计算每个字符的颜色
+        for i, char in enumerate(text):
+            color_idx = i % len(rainbow_colors)
+            char_width = font_obj.getbbox(char)[2] - font_obj.getbbox(char)[0]
+            gradient_draw.text((left + i * char_width, 0), char, font=font_obj, fill=rainbow_colors[color_idx])
+
+        # 添加描边
+        if border:
+            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+
+        # 将渐变文本粘贴到主图像
+        img.paste(gradient_img, (padding_x, text_y_position), gradient_img)
+
+    elif is_title and style == "neon":
+        # 霓虹灯效果
+        glow_color = "#FF4500"  # 橙红色
+        outer_glow_color = "#FFFF00"  # 黄色外发光
+
+        # 添加外发光效果
+        for offset in range(3, 0, -1):
+            alpha = 100 - offset * 30
+            glow_alpha = max(0, alpha)
+            glow_color_with_alpha = glow_color[0:7] + format(glow_alpha, '02x')
+            for dx, dy in [(ox, oy) for ox in range(-offset, offset+1) for oy in range(-offset, offset+1)]:
+                draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=glow_color_with_alpha)
+
+        # 添加内发光
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill=outer_glow_color)
+
+        # 添加主文本
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill=glow_color)
+
+        # 应用模糊效果增强霓虹感
+        img = img.filter(ImageFilter.GaussianBlur(1))
+
+    elif is_title and style == "gradient":
+        # 渐变效果
+        start_color = (255, 0, 0)  # 红色
+        end_color = (0, 0, 255)  # 蓝色
+
+        # 创建渐变色文本
+        gradient_img = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
+        gradient_draw = ImageDraw.Draw(gradient_img)
+
+        # 绘制渐变背景
+        for y in range(text_height):
+            r = int(start_color[0] + (end_color[0] - start_color[0]) * y / text_height)
+            g = int(start_color[1] + (end_color[1] - start_color[1]) * y / text_height)
+            b = int(start_color[2] + (end_color[2] - start_color[2]) * y / text_height)
+            gradient_draw.line([(0, y), (text_width, y)], fill=(r, g, b, 255))
+
+        # 创建文本蒙版
+        mask = Image.new('L', (text_width, text_height), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.text((0, 0), text, font=font_obj, fill=255)
+
+        # 应用蒙版到渐变图像
+        gradient_text = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
+        gradient_text.paste(gradient_img, (0, 0), mask)
+
+        # 添加描边
+        if border:
+            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+
+        # 将渐变文本粘贴到主图像
+        img.paste(gradient_text, (padding_x, text_y_position), gradient_text)
+
+    elif style == "shadow":
+        # 阴影效果
+        shadow_offset = max(2, font_size // 20)  # 阴影偏移量
+        draw.text((padding_x + shadow_offset, text_y_position + shadow_offset), text, font=font_obj, fill=(0, 0, 0, 160))
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+
+    elif style == "outline":
+        # 描边效果
+        outline_size = max(2, font_size // 25)  # 描边大小
+        # 绘制描边（四个方向）
+        for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1), (-outline_size,0), (outline_size,0), (0,-outline_size), (0,outline_size)]:
+            draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=(0, 0, 0, 200))
+        # 绘制主文本
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+
+    elif style == "3d":
+        # 3D立体效果
+        depth = max(3, font_size // 15)  # 3D深度
+        for i in range(depth, 0, -1):
+            alpha = 100 + (155 * i // depth)  # 渐变透明度
+            shadow_color = (0, 0, 0, alpha)
+            draw.text((padding_x - i, text_y_position + i), text, font=font_obj, fill=shadow_color)
+        # 绘制主文本
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+
+    elif style == "metallic":
+        # 金属效果
+        # 金属渐变色
+        metallic_base = (212, 175, 55, 255)  # 金色基色
+
+        # 绘制金属效果的底色
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill=metallic_base)
+
+        # 添加高光效果
+        highlight_offset = max(1, font_size // 30)
+        draw.text((padding_x - highlight_offset, text_y_position - highlight_offset),
+                 text, font=font_obj, fill=(255, 255, 255, 100))
+
+        # 添加阴影增强金属感
+        shadow_offset = max(1, font_size // 25)
+        draw.text((padding_x + shadow_offset, text_y_position + shadow_offset),
+                 text, font=font_obj, fill=(100, 100, 100, 100))
+
+    else:  # normal
+        # 添加描边
+        if border:
+            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+
+        # 绘制主文本
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+
+    # 保存为临时文件
+    temp_img_path = os.path.join(utils.storage_dir("temp", create=True), f"preview_{str(uuid.uuid4())}.png")
+    img.save(temp_img_path, format="PNG")
+
+    return temp_img_path
+
+
+def create_unified_preview(video_aspect, subtitle_params=None, title_params=None):
+    """
+    创建统一预览图像
+
+    :param video_aspect: 视频宽高比
+    :param subtitle_params: 字幕参数字典
+    :param title_params: 标题参数字典
+    :return: 临时图像文件路径
+    """
+    # 获取视频尺寸
+    aspect = VideoAspect(video_aspect)
+    video_width, video_height = aspect.to_resolution()
+
+    # 计算预览区域的尺寸，保持原始宽高比
+    preview_width = 400  # 固定宽度
+    preview_height = int(preview_width * video_height / video_width)
+
+    # 创建背景图像
+    bg_img = Image.new('RGB', (preview_width, preview_height), (51, 51, 51))  # #333333 背景色
+
+    # 如果有字幕参数，创建字幕预览
+    if subtitle_params and subtitle_params.get("enabled", False):
+        # 获取字幕参数
+        text = subtitle_params.get("text", "字幕预览")
+        font_path = subtitle_params.get("font_path")
+        font_size = subtitle_params.get("font_size", 60)
+        style = subtitle_params.get("style", "normal")
+        background = subtitle_params.get("background", "none")
+        background_color = subtitle_params.get("background_color", "#000000")
+        border = subtitle_params.get("border", True)
+        border_color = subtitle_params.get("border_color", "#FFFFFF")
+        position = subtitle_params.get("position", "bottom")
+        custom_position = subtitle_params.get("custom_position", 85.0)
+        background_enabled = subtitle_params.get("background_enabled", True)
+
+        # 创建字幕预览图像
+        subtitle_img_path = create_preview_image(
+            text=text,
+            font_path=font_path,
+            font_size=font_size,
+            style=style,
+            background_type=background,
+            background_color=background_color,
+            border=border,
+            border_color=border_color,
+            background_enabled=background_enabled,
+            is_title=False
+        )
+
+        # 加载字幕图像
+        subtitle_img = Image.open(subtitle_img_path)
+
+        # 计算字幕位置
+        if position == "top":
+            subtitle_y = int(preview_height * 0.05)
+        elif position == "center":
+            subtitle_y = int(preview_height * 0.5 - subtitle_img.height / 2)
+        elif position == "bottom":
+            subtitle_y = int(preview_height * 0.95 - subtitle_img.height)
+        elif position == "custom":
+            subtitle_y = int(preview_height * custom_position / 100 - subtitle_img.height / 2)
+        else:
+            subtitle_y = int(preview_height * 0.95 - subtitle_img.height)
+
+        # 计算水平居中位置
+        subtitle_x = int(preview_width / 2 - subtitle_img.width / 2)
+
+        # 将字幕图像粘贴到背景图像上
+        bg_img.paste(subtitle_img, (subtitle_x, subtitle_y), subtitle_img)
+
+        # 删除临时文件
+        try:
+            os.remove(subtitle_img_path)
+        except Exception as e:
+            logger.warning(f"Failed to remove temporary subtitle image file: {e}")
+
+    # 如果有标题参数，创建标题预览
+    if title_params and title_params.get("enabled", False):
+        # 获取标题参数
+        text = title_params.get("text", "标题预览")
+        font_path = title_params.get("font_path")
+        font_size = title_params.get("font_size", 80)
+        style = title_params.get("style", "rainbow")
+        background = title_params.get("background", "rounded_rect")
+        background_color = title_params.get("background_color", "#000000")
+        border = title_params.get("border", True)
+        border_color = title_params.get("border_color", "#FFFFFF")
+        position = title_params.get("position", "upper_middle")
+        custom_position = title_params.get("custom_position", 15.0)
+        background_enabled = title_params.get("background_enabled", True)
+
+        # 创建标题预览图像
+        title_img_path = create_preview_image(
+            text=text,
+            font_path=font_path,
+            font_size=font_size,
+            style=style,
+            background_type=background,
+            background_color=background_color,
+            border=border,
+            border_color=border_color,
+            background_enabled=background_enabled,
+            is_title=True
+        )
+
+        # 加载标题图像
+        title_img = Image.open(title_img_path)
+
+        # 计算标题位置
+        if position == "upper_middle":
+            title_y = int(preview_height * 0.10 - title_img.height / 2)
+        elif position == "middle":
+            title_y = int(preview_height * 0.5 - title_img.height / 2)
+        elif position == "lower_middle":
+            title_y = int(preview_height * 0.80 - title_img.height / 2)
+        elif position == "custom":
+            title_y = int(preview_height * custom_position / 100 - title_img.height / 2)
+        else:
+            title_y = int(preview_height * 0.10 - title_img.height / 2)
+
+        # 计算水平居中位置
+        title_x = int(preview_width / 2 - title_img.width / 2)
+
+        # 将标题图像粘贴到背景图像上
+        bg_img.paste(title_img, (title_x, title_y), title_img)
+
+        # 删除临时文件
+        try:
+            os.remove(title_img_path)
+        except Exception as e:
+            logger.warning(f"Failed to remove temporary title image file: {e}")
+
+    # 保存最终预览图像
+    preview_img_path = os.path.join(utils.storage_dir("temp", create=True), f"unified_preview_{str(uuid.uuid4())}.png")
+    bg_img.save(preview_img_path, format="PNG")
+
+    return preview_img_path
 
 
 if __name__ == "__main__":

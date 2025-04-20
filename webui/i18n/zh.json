@@ -113,12 +113,22 @@
     "Rainbow": "彩虹",
     "Neon": "霓虹灯",
     "Gradient": "渐变",
+    "Title Position": "标题位置",
+    "Upper Middle": "上方中间",
+    "Middle": "正中间",
+    "Lower Middle": "下方中间",
+    "Custom": "自定义",
+    "Custom Position (% from top)": "自定义位置（距离顶部百分比）",
+    "Enable Title Background": "启用标题背景",
+    "Title Background Type": "标题背景类型",
     "Title Background": "标题背景",
     "Rounded Rectangle": "圆角矩形",
     "Rectangle": "矩形",
     "Title Background Color": "标题背景颜色",
     "Enable Title Border": "启用标题边框",
     "Title Border Color": "标题边框颜色",
-    "Title Sticker Preview": "标题贴纸预览"
+    "Title Sticker Preview": "标题贴纸预览",
+    "Font Preview": "字体预览",
+    "Video Preview": "视频预览"
   }
 }
