@@ -897,6 +897,11 @@ with right_panel:
             params.title_sticker_font_size = st.slider(tr("Title Font Size"), 40, 200, 160, key="title_font_size")
             config.ui["title_sticker_font_size"] = params.title_sticker_font_size
 
+            # 标题文字颜色选择器
+            saved_title_text_color = config.ui.get("title_sticker_text_color", "#FF0000")
+            params.title_sticker_text_color = st.color_picker(tr("Title Text Color"), saved_title_text_color, key="title_text_color")
+            config.ui["title_sticker_text_color"] = params.title_sticker_text_color
+
             # 标题贴纸样式
             title_sticker_styles = [
                 (tr("Rainbow"), "rainbow"),
@@ -907,6 +912,7 @@ with right_panel:
                 (tr("Metallic"), "metallic"),
                 (tr("Shadow"), "shadow"),
                 (tr("Outline"), "outline"),
+                (tr("Chinese Style"), "chinese_style"),
             ]
             selected_style_index = st.selectbox(
                 tr("Title Style"),
@@ -1056,7 +1062,8 @@ with st.container(border=True):
             "border_color": params.title_sticker_border_color,
             "position": params.title_sticker_position,
             "custom_position": params.title_sticker_custom_position,
-            "background_enabled": params.title_sticker_background_enabled
+            "background_enabled": params.title_sticker_background_enabled,
+            "text_color": params.title_sticker_text_color
         }
 
     # 生成预览图像
@@ -1068,7 +1075,7 @@ with st.container(border=True):
     )
 
     # 显示预览图像
-    st.image(preview_img_path, use_column_width=True)
+    st.image(preview_img_path, use_container_width=True)
 
     # 删除临时文件
     try:

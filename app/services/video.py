@@ -183,20 +183,21 @@ def combine_videos(
     return combined_video_path
 
 
-def create_title_sticker(text, font, font_size, style, background, background_color, border, border_color, size, background_enabled=True):
+def create_title_sticker(text, font, font_size, style, background, background_color, border, border_color, size, background_enabled=True, text_color="#FFFFFF"):
     """
     创建标题贴纸
 
     :param text: 标题文本
     :param font: 字体路径
     :param font_size: 字体大小
-    :param style: 标题样式（rainbow, neon, gradient等）
+    :param style: 标题样式（rainbow, neon, gradient, chinese_style等）
     :param background: 背景类型（none, rounded_rect, rect等）
     :param background_color: 背景颜色
     :param border: 是否有边框
     :param border_color: 边框颜色
     :param size: 视频尺寸
     :param background_enabled: 是否启用背景
+    :param text_color: 文字颜色
     :return: ImageClip对象
     """
     if not text:
@@ -249,7 +250,32 @@ def create_title_sticker(text, font, font_size, style, background, background_co
             )
 
     # 根据样式绘制文本
-    if style == "rainbow":
+    if style == "chinese_style":
+        # 中国风格效果：红色填充+黄色粗描边
+        # 解析文字颜色
+        try:
+            if text_color.startswith('#'):
+                hex_color = text_color.lstrip('#')
+                r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                fill_color = (r, g, b, 255)
+            else:
+                fill_color = (255, 0, 0, 255)  # 默认红色
+        except Exception:
+            fill_color = (255, 0, 0, 255)  # 默认红色
+
+        # 描边颜色（默认黄色）
+        stroke_color = border_color if border else "#FFD700"
+
+        # 绘制粗描边（多层描边增强效果）
+        stroke_width = max(4, font_size // 15)  # 描边宽度
+        for offset in range(stroke_width, 0, -1):
+            for dx, dy in [(ox, oy) for ox in range(-offset, offset+1, max(1, offset//2)) for oy in range(-offset, offset+1, max(1, offset//2))]:
+                draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=stroke_color)
+
+        # 绘制主文本（红色填充）
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill=fill_color)
+
+    elif style == "rainbow":
         # 彩虹渐变文字
         rainbow_colors = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#9400D3"]
         # 创建渐变色文本
@@ -721,7 +747,8 @@ def generate_video(
             border=params.title_sticker_border,
             border_color=params.title_sticker_border_color,
             size=(video_width, video_height),
-            background_enabled=params.title_sticker_background_enabled
+            background_enabled=params.title_sticker_background_enabled,
+            text_color=getattr(params, 'title_sticker_text_color', '#FF0000')
         )
 
         # 设置标题贴纸位置
@@ -838,7 +865,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
     return materials
 
 
-def create_preview_image(text, font_path, font_size, style, background_type, background_color, border, border_color, background_enabled=True, is_title=False):
+def create_preview_image(text, font_path, font_size, style, background_type, background_color, border, border_color, background_enabled=True, is_title=False, text_color="#FF0000"):
     """
     创建预览图像
 
@@ -857,8 +884,24 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
     # 设置预览图像宽度
     preview_width = 400
 
+    # 计算字体大小缩放比例
+    # 实际视频宽度为1080或1920，预览宽度为400
+    # 根据是否为标题使用不同的缩放比例
+    if is_title:
+        # 标题通常在竖屏视频中，宽度为1080
+        scale_factor = preview_width / 1080
+    else:
+        # 字幕可能在横屏或竖屏，取一个中间值
+        scale_factor = preview_width / 1500
+
+    # 缩放字体大小
+    scaled_font_size = int(font_size * scale_factor)
+
+    # 确保字体大小不会太小
+    scaled_font_size = max(scaled_font_size, 12)
+
     # 创建字体对象
-    font_obj = ImageFont.truetype(font_path, font_size)
+    font_obj = ImageFont.truetype(font_path, scaled_font_size)
 
     # 计算文本尺寸
     left, top, right, bottom = font_obj.getbbox(text)
@@ -902,7 +945,21 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
             )
 
     # 根据样式绘制文本
-    if is_title and style == "rainbow":
+    if style == "chinese_style":
+        # 中国风格效果：红色填充+黄色粗描边
+        # 描边颜色（默认黄色）
+        stroke_color = border_color if border else "#FFD700"
+
+        # 绘制粗描边（多层描边增强效果）
+        stroke_width = max(3, scaled_font_size // 10)  # 描边宽度
+        for offset in range(stroke_width, 0, -1):
+            for dx, dy in [(ox, oy) for ox in range(-offset, offset+1, max(1, offset//2)) for oy in range(-offset, offset+1, max(1, offset//2))]:
+                draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=stroke_color)
+
+        # 绘制主文本（使用指定的文字颜色）
+        draw.text((padding_x, text_y_position), text, font=font_obj, fill=text_color)
+
+    elif is_title and style == "rainbow":
         # 彩虹渐变文字
         rainbow_colors = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#9400D3"]
         # 创建渐变色文本
@@ -1128,6 +1185,9 @@ def create_unified_preview(video_aspect, subtitle_params=None, title_params=None
         custom_position = title_params.get("custom_position", 15.0)
         background_enabled = title_params.get("background_enabled", True)
 
+        # 获取文字颜色
+        text_color = title_params.get("text_color", "#FF0000")
+
         # 创建标题预览图像
         title_img_path = create_preview_image(
             text=text,
@@ -1139,7 +1199,8 @@ def create_unified_preview(video_aspect, subtitle_params=None, title_params=None
             border=border,
             border_color=border_color,
             background_enabled=background_enabled,
-            is_title=True
+            is_title=True,
+            text_color=text_color
         )
 
         # 加载标题图像

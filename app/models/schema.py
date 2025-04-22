@@ -111,6 +111,7 @@ class VideoParams(BaseModel):
     title_sticker_font: Optional[str] = "STHeitiMedium.ttc"
     title_sticker_font_size: Optional[int] = 160
     title_sticker_style: Optional[str] = "metallic"  # rainbow, neon, gradient, metallic, etc.
+    title_sticker_text_color: Optional[str] = "#FF0000"  # 标题文字颜色
     title_sticker_background_enabled: Optional[bool] = True  # 是否启用背景
     title_sticker_background: Optional[str] = "rounded_rect"  # none, rounded_rect, rect, etc.
     title_sticker_background_color: Optional[str] = "#000000"
