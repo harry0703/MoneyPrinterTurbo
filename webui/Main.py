@@ -879,8 +879,7 @@ with right_panel:
         params.title_sticker_enabled = st.checkbox(tr("Enable Title Sticker"), value=True)
 
         if params.title_sticker_enabled:
-            params.title_sticker_text = st.text_input(tr("Title Text (Line 1)"), value="")
-            params.title_sticker_text_line2 = st.text_input(tr("Title Text (Line 2)"), value="")
+            params.title_sticker_text = st.text_input(tr("Title Text"), value="")
 
             # 标题贴纸字体选择
             title_font_names = get_all_fonts()
@@ -902,17 +901,6 @@ with right_panel:
             saved_title_text_color = config.ui.get("title_sticker_text_color", "#FF0000")
             params.title_sticker_text_color = st.color_picker(tr("Title Text Color"), saved_title_text_color, key="title_text_color")
             config.ui["title_sticker_text_color"] = params.title_sticker_text_color
-
-            # 标题描边颜色和粗细
-            title_stroke_cols = st.columns([0.3, 0.7])
-            with title_stroke_cols[0]:
-                saved_title_stroke_color = config.ui.get("title_sticker_stroke_color", "#FFFFFF")
-                params.title_sticker_stroke_color = st.color_picker(tr("Title Stroke Color"), saved_title_stroke_color, key="title_stroke_color")
-                config.ui["title_sticker_stroke_color"] = params.title_sticker_stroke_color
-            with title_stroke_cols[1]:
-                saved_title_stroke_width = config.ui.get("title_sticker_stroke_width", 4)
-                params.title_sticker_stroke_width = st.slider(tr("Title Stroke Width"), 0, 10, saved_title_stroke_width, key="title_stroke_width")
-                config.ui["title_sticker_stroke_width"] = params.title_sticker_stroke_width
 
             # 标题贴纸样式
             title_sticker_styles = [
@@ -1065,7 +1053,6 @@ with st.container(border=True):
         title_params = {
             "enabled": params.title_sticker_enabled,
             "text": params.title_sticker_text or "标题预览",
-            "text_line2": params.title_sticker_text_line2 or "",
             "font_path": title_font_path,
             "font_size": params.title_sticker_font_size,
             "style": params.title_sticker_style,
@@ -1076,9 +1063,7 @@ with st.container(border=True):
             "position": params.title_sticker_position,
             "custom_position": params.title_sticker_custom_position,
             "background_enabled": params.title_sticker_background_enabled,
-            "text_color": params.title_sticker_text_color,
-            "stroke_color": params.title_sticker_stroke_color,
-            "stroke_width": params.title_sticker_stroke_width
+            "text_color": params.title_sticker_text_color
         }
 
     # 生成预览图像
