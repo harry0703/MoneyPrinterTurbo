@@ -107,11 +107,14 @@ class VideoParams(BaseModel):
 
     # 标题贴纸相关参数
     title_sticker_enabled: Optional[bool] = True
-    title_sticker_text: Optional[str] = ""
+    title_sticker_text: Optional[str] = ""  # 标题第一行文本
+    title_sticker_text_line2: Optional[str] = ""  # 标题第二行文本
     title_sticker_font: Optional[str] = "STHeitiMedium.ttc"
     title_sticker_font_size: Optional[int] = 160
     title_sticker_style: Optional[str] = "metallic"  # rainbow, neon, gradient, metallic, etc.
     title_sticker_text_color: Optional[str] = "#FF0000"  # 标题文字颜色
+    title_sticker_stroke_color: Optional[str] = "#FFFFFF"  # 标题描边颜色
+    title_sticker_stroke_width: Optional[int] = 4  # 标题描边粗细
     title_sticker_background_enabled: Optional[bool] = True  # 是否启用背景
     title_sticker_background: Optional[str] = "rounded_rect"  # none, rounded_rect, rect, etc.
     title_sticker_background_color: Optional[str] = "#000000"

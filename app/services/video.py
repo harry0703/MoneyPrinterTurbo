@@ -183,11 +183,11 @@ def combine_videos(
     return combined_video_path
 
 
-def create_title_sticker(text, font, font_size, style, background, background_color, border, border_color, size, background_enabled=True, text_color="#FFFFFF"):
+def create_title_sticker(text, font, font_size, style, background, background_color, border, border_color, size, background_enabled=True, text_color="#FFFFFF", text_line2="", stroke_color="#FFFFFF", stroke_width=4):
     """
     创建标题贴纸
 
-    :param text: 标题文本
+    :param text: 标题第一行文本
     :param font: 字体路径
     :param font_size: 字体大小
     :param style: 标题样式（rainbow, neon, gradient, chinese_style等）
@@ -198,9 +198,12 @@ def create_title_sticker(text, font, font_size, style, background, background_co
     :param size: 视频尺寸
     :param background_enabled: 是否启用背景
     :param text_color: 文字颜色
+    :param text_line2: 标题第二行文本
+    :param stroke_color: 描边颜色
+    :param stroke_width: 描边粗细
     :return: ImageClip对象
     """
-    if not text:
+    if not text and not text_line2:
         return None
 
     video_width, video_height = size
@@ -208,19 +211,48 @@ def create_title_sticker(text, font, font_size, style, background, background_co
     # 创建字体对象
     font_obj = ImageFont.truetype(font, font_size)
 
-    # 计算文本尺寸
-    left, top, right, bottom = font_obj.getbbox(text)
-    text_width = right - left
-    text_height = bottom - top
+    # 计算第一行文本尺寸
+    if text:
+        left1, top1, right1, bottom1 = font_obj.getbbox(text)
+        text_width1 = right1 - left1
+        text_height1 = bottom1 - top1
+    else:
+        text_width1, text_height1 = 0, 0
+
+    # 计算第二行文本尺寸
+    if text_line2:
+        left2, top2, right2, bottom2 = font_obj.getbbox(text_line2)
+        text_width2 = right2 - left2
+        text_height2 = bottom2 - top2
+    else:
+        text_width2, text_height2 = 0, 0
+
+    # 取两行中最宽的作为贴纸宽度基准
+    text_width = max(text_width1, text_width2)
+
+    # 计算总高度（如果有两行文本，则加上行间距）
+    line_spacing = int(font_size * 0.3)  # 行间距为字体大小的30%
+    if text and text_line2:
+        total_text_height = text_height1 + text_height2 + line_spacing
+    else:
+        total_text_height = max(text_height1, text_height2)
 
     # 设置贴纸尺寸（比文本略大）
     padding_x = int(text_width * 0.3)
-    padding_y = int(text_height * 0.5)
+    padding_y = int(total_text_height * 0.5)
     sticker_width = text_width + padding_x * 2
-    sticker_height = text_height + padding_y * 2
+    sticker_height = total_text_height + padding_y * 2
 
-    # 确保文本在背景中垂直居中
-    text_y_position = (sticker_height - text_height) // 2
+    # 计算文本在背景中的垂直位置
+    if text and text_line2:  # 两行文本
+        text1_y_position = (sticker_height - total_text_height) // 2
+        text2_y_position = text1_y_position + text_height1 + line_spacing
+    elif text:  # 只有第一行
+        text1_y_position = (sticker_height - text_height1) // 2
+        text2_y_position = 0  # 不使用
+    else:  # 只有第二行
+        text2_y_position = (sticker_height - text_height2) // 2
+        text1_y_position = 0  # 不使用
 
     # 创建透明背景图像
     img = Image.new('RGBA', (sticker_width, sticker_height), (0, 0, 0, 0))
@@ -263,57 +295,110 @@ def create_title_sticker(text, font, font_size, style, background, background_co
         except Exception:
             fill_color = (255, 0, 0, 255)  # 默认红色
 
-        # 描边颜色（默认黄色）
-        stroke_color = border_color if border else "#FFD700"
+        # 使用指定的描边颜色和粗细
+        stroke_color_value = stroke_color
+        stroke_width_value = stroke_width
 
-        # 绘制粗描边（多层描边增强效果）
-        stroke_width = max(4, font_size // 15)  # 描边宽度
-        for offset in range(stroke_width, 0, -1):
-            for dx, dy in [(ox, oy) for ox in range(-offset, offset+1, max(1, offset//2)) for oy in range(-offset, offset+1, max(1, offset//2))]:
-                draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=stroke_color)
+        # 绘制第一行文本（如果有）
+        if text:
+            # 绘制粗描边（多层描边增强效果）
+            for offset in range(stroke_width_value, 0, -1):
+                for dx, dy in [(ox, oy) for ox in range(-offset, offset+1, max(1, offset//2)) for oy in range(-offset, offset+1, max(1, offset//2))]:
+                    draw.text((padding_x + dx, text1_y_position + dy), text, font=font_obj, fill=stroke_color_value)
 
-        # 绘制主文本（红色填充）
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill=fill_color)
+            # 绘制主文本
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=fill_color)
+
+        # 绘制第二行文本（如果有）
+        if text_line2:
+            # 绘制粗描边（多层描边增强效果）
+            for offset in range(stroke_width_value, 0, -1):
+                for dx, dy in [(ox, oy) for ox in range(-offset, offset+1, max(1, offset//2)) for oy in range(-offset, offset+1, max(1, offset//2))]:
+                    draw.text((padding_x + dx, text2_y_position + dy), text_line2, font=font_obj, fill=stroke_color_value)
+
+            # 绘制主文本
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=fill_color)
 
     elif style == "rainbow":
         # 彩虹渐变文字
         rainbow_colors = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#9400D3"]
-        # 创建渐变色文本
-        gradient_img = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
-        gradient_draw = ImageDraw.Draw(gradient_img)
 
-        # 计算每个字符的颜色
-        for i, char in enumerate(text):
-            color_idx = i % len(rainbow_colors)
-            char_width = font_obj.getbbox(char)[2] - font_obj.getbbox(char)[0]
-            gradient_draw.text((left + i * char_width, 0), char, font=font_obj, fill=rainbow_colors[color_idx])
+        # 处理第一行文本（如果有）
+        if text:
+            # 创建渐变色文本
+            gradient_img1 = Image.new('RGBA', (text_width1, text_height1), (0, 0, 0, 0))
+            gradient_draw1 = ImageDraw.Draw(gradient_img1)
 
-        # 添加白色描边
-        if border:
-            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+            # 计算每个字符的颜色
+            for i, char in enumerate(text):
+                color_idx = i % len(rainbow_colors)
+                char_width = font_obj.getbbox(char)[2] - font_obj.getbbox(char)[0]
+                gradient_draw1.text((i * char_width, 0), char, font=font_obj, fill=rainbow_colors[color_idx])
 
-        # 将渐变文本粘贴到主图像
-        img.paste(gradient_img, (padding_x, text_y_position), gradient_img)
+            # 添加描边（使用指定的描边颜色）
+            if border:
+                for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    draw.text((padding_x + offset_x, text1_y_position + offset_y), text, font=font_obj, fill=stroke_color)
+
+            # 将渐变文本粘贴到主图像
+            img.paste(gradient_img1, (padding_x, text1_y_position), gradient_img1)
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 创建渐变色文本
+            gradient_img2 = Image.new('RGBA', (text_width2, text_height2), (0, 0, 0, 0))
+            gradient_draw2 = ImageDraw.Draw(gradient_img2)
+
+            # 计算每个字符的颜色
+            for i, char in enumerate(text_line2):
+                color_idx = i % len(rainbow_colors)
+                char_width = font_obj.getbbox(char)[2] - font_obj.getbbox(char)[0]
+                gradient_draw2.text((i * char_width, 0), char, font=font_obj, fill=rainbow_colors[color_idx])
+
+            # 添加描边（使用指定的描边颜色）
+            if border:
+                for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    draw.text((padding_x + offset_x, text2_y_position + offset_y), text_line2, font=font_obj, fill=stroke_color)
+
+            # 将渐变文本粘贴到主图像
+            img.paste(gradient_img2, (padding_x, text2_y_position), gradient_img2)
 
     elif style == "neon":
         # 霓虹灯效果
         glow_color = "#FF4500"  # 橙红色
         outer_glow_color = "#FFFF00"  # 黄色外发光
 
-        # 添加外发光效果
-        for offset in range(3, 0, -1):
-            alpha = 100 - offset * 30
-            glow_alpha = max(0, alpha)
-            glow_color_with_alpha = glow_color[0:7] + format(glow_alpha, '02x')
-            for dx, dy in [(ox, oy) for ox in range(-offset, offset+1) for oy in range(-offset, offset+1)]:
-                draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=glow_color_with_alpha)
+        # 处理第一行文本（如果有）
+        if text:
+            # 添加外发光效果
+            for offset in range(3, 0, -1):
+                alpha = 100 - offset * 30
+                glow_alpha = max(0, alpha)
+                glow_color_with_alpha = glow_color[0:7] + format(glow_alpha, '02x')
+                for dx, dy in [(ox, oy) for ox in range(-offset, offset+1) for oy in range(-offset, offset+1)]:
+                    draw.text((padding_x + dx, text1_y_position + dy), text, font=font_obj, fill=glow_color_with_alpha)
 
-        # 添加内发光
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill=outer_glow_color)
+            # 添加内发光
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=outer_glow_color)
 
-        # 添加主文本
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill=glow_color)
+            # 添加主文本
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=glow_color)
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 添加外发光效果
+            for offset in range(3, 0, -1):
+                alpha = 100 - offset * 30
+                glow_alpha = max(0, alpha)
+                glow_color_with_alpha = glow_color[0:7] + format(glow_alpha, '02x')
+                for dx, dy in [(ox, oy) for ox in range(-offset, offset+1) for oy in range(-offset, offset+1)]:
+                    draw.text((padding_x + dx, text2_y_position + dy), text_line2, font=font_obj, fill=glow_color_with_alpha)
+
+            # 添加内发光
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=outer_glow_color)
+
+            # 添加主文本
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=glow_color)
 
         # 应用模糊效果增强霓虹感
         img = img.filter(ImageFilter.GaussianBlur(1))
@@ -323,42 +408,98 @@ def create_title_sticker(text, font, font_size, style, background, background_co
         start_color = (255, 0, 0)  # 红色
         end_color = (0, 0, 255)  # 蓝色
 
-        # 创建渐变色文本
-        gradient_img = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
-        gradient_draw = ImageDraw.Draw(gradient_img)
+        # 处理第一行文本（如果有）
+        if text:
+            # 创建渐变色文本
+            gradient_img1 = Image.new('RGBA', (text_width1, text_height1), (0, 0, 0, 0))
+            gradient_draw1 = ImageDraw.Draw(gradient_img1)
 
-        # 绘制渐变背景
-        for y in range(text_height):
-            r = int(start_color[0] + (end_color[0] - start_color[0]) * y / text_height)
-            g = int(start_color[1] + (end_color[1] - start_color[1]) * y / text_height)
-            b = int(start_color[2] + (end_color[2] - start_color[2]) * y / text_height)
-            gradient_draw.line([(0, y), (text_width, y)], fill=(r, g, b, 255))
+            # 绘制渐变背景
+            for y in range(text_height1):
+                r = int(start_color[0] + (end_color[0] - start_color[0]) * y / text_height1)
+                g = int(start_color[1] + (end_color[1] - start_color[1]) * y / text_height1)
+                b = int(start_color[2] + (end_color[2] - start_color[2]) * y / text_height1)
+                gradient_draw1.line([(0, y), (text_width1, y)], fill=(r, g, b, 255))
 
-        # 创建文本蒙版
-        mask = Image.new('L', (text_width, text_height), 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.text((0, 0), text, font=font_obj, fill=255)
+            # 创建文本蒙版
+            mask1 = Image.new('L', (text_width1, text_height1), 0)
+            mask_draw1 = ImageDraw.Draw(mask1)
+            mask_draw1.text((0, 0), text, font=font_obj, fill=255)
 
-        # 应用蒙版到渐变图像
-        gradient_text = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
-        gradient_text.paste(gradient_img, (0, 0), mask)
+            # 应用蒙版到渐变图像
+            gradient_text1 = Image.new('RGBA', (text_width1, text_height1), (0, 0, 0, 0))
+            gradient_text1.paste(gradient_img1, (0, 0), mask1)
 
-        # 添加描边
-        if border:
-            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+            # 添加描边（使用指定的描边颜色）
+            if border:
+                for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    draw.text((padding_x + offset_x, text1_y_position + offset_y), text, font=font_obj, fill=stroke_color)
 
-        # 将渐变文本粘贴到主图像
-        img.paste(gradient_text, (padding_x, text_y_position), gradient_text)
+            # 将渐变文本粘贴到主图像
+            img.paste(gradient_text1, (padding_x, text1_y_position), gradient_text1)
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 创建渐变色文本
+            gradient_img2 = Image.new('RGBA', (text_width2, text_height2), (0, 0, 0, 0))
+            gradient_draw2 = ImageDraw.Draw(gradient_img2)
+
+            # 绘制渐变背景
+            for y in range(text_height2):
+                r = int(start_color[0] + (end_color[0] - start_color[0]) * y / text_height2)
+                g = int(start_color[1] + (end_color[1] - start_color[1]) * y / text_height2)
+                b = int(start_color[2] + (end_color[2] - start_color[2]) * y / text_height2)
+                gradient_draw2.line([(0, y), (text_width2, y)], fill=(r, g, b, 255))
+
+            # 创建文本蒙版
+            mask2 = Image.new('L', (text_width2, text_height2), 0)
+            mask_draw2 = ImageDraw.Draw(mask2)
+            mask_draw2.text((0, 0), text_line2, font=font_obj, fill=255)
+
+            # 应用蒙版到渐变图像
+            gradient_text2 = Image.new('RGBA', (text_width2, text_height2), (0, 0, 0, 0))
+            gradient_text2.paste(gradient_img2, (0, 0), mask2)
+
+            # 添加描边（使用指定的描边颜色）
+            if border:
+                for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    draw.text((padding_x + offset_x, text2_y_position + offset_y), text_line2, font=font_obj, fill=stroke_color)
+
+            # 将渐变文本粘贴到主图像
+            img.paste(gradient_text2, (padding_x, text2_y_position), gradient_text2)
 
     else:  # 默认样式
-        # 添加描边
-        if border:
-            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+        # 处理第一行文本（如果有）
+        if text:
+            # 添加描边（使用指定的描边颜色和粗细）
+            if border:
+                # 计算描边偏移量基于描边粗细
+                stroke_offsets = []
+                for i in range(1, stroke_width + 1):
+                    stroke_offsets.extend([(i, 0), (-i, 0), (0, i), (0, -i)])
 
-        # 绘制主文本
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+                # 绘制描边
+                for offset_x, offset_y in stroke_offsets:
+                    draw.text((padding_x + offset_x, text1_y_position + offset_y), text, font=font_obj, fill=stroke_color)
+
+            # 绘制主文本（使用指定的文字颜色）
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=text_color)
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 添加描边（使用指定的描边颜色和粗细）
+            if border:
+                # 计算描边偏移量基于描边粗细
+                stroke_offsets = []
+                for i in range(1, stroke_width + 1):
+                    stroke_offsets.extend([(i, 0), (-i, 0), (0, i), (0, -i)])
+
+                # 绘制描边
+                for offset_x, offset_y in stroke_offsets:
+                    draw.text((padding_x + offset_x, text2_y_position + offset_y), text_line2, font=font_obj, fill=stroke_color)
+
+            # 绘制主文本（使用指定的文字颜色）
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=text_color)
 
     # 保存为临时文件
     temp_img_path = os.path.join(utils.storage_dir("temp", create=True), f"title_sticker_{str(uuid.uuid4())}.png")
@@ -748,7 +889,10 @@ def generate_video(
             border_color=params.title_sticker_border_color,
             size=(video_width, video_height),
             background_enabled=params.title_sticker_background_enabled,
-            text_color=getattr(params, 'title_sticker_text_color', '#FF0000')
+            text_color=getattr(params, 'title_sticker_text_color', '#FF0000'),
+            text_line2=getattr(params, 'title_sticker_text_line2', ''),
+            stroke_color=getattr(params, 'title_sticker_stroke_color', '#FFFFFF'),
+            stroke_width=getattr(params, 'title_sticker_stroke_width', 4)
         )
 
         # 设置标题贴纸位置
@@ -773,7 +917,11 @@ def generate_video(
 
             title_sticker = title_sticker.with_duration(video_clip.duration)
             video_elements.append(title_sticker)
-            logger.info(f"Added title sticker: {params.title_sticker_text} at position {params.title_sticker_position}")
+            log_text = f"Added title sticker: {params.title_sticker_text}"
+            if hasattr(params, 'title_sticker_text_line2') and params.title_sticker_text_line2:
+                log_text += f" / {params.title_sticker_text_line2}"
+            log_text += f" at position {params.title_sticker_position}"
+            logger.info(log_text)
 
     # 添加字幕
     if subtitle_path and os.path.exists(subtitle_path):
@@ -865,11 +1013,11 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
     return materials
 
 
-def create_preview_image(text, font_path, font_size, style, background_type, background_color, border, border_color, background_enabled=True, is_title=False, text_color="#FF0000"):
+def create_preview_image(text, font_path, font_size, style, background_type, background_color, border, border_color, background_enabled=True, is_title=False, text_color="#FF0000", text_line2="", stroke_color="#FFFFFF", stroke_width=4):
     """
     创建预览图像
 
-    :param text: 文本内容
+    :param text: 第一行文本内容
     :param font_path: 字体路径
     :param font_size: 字体大小
     :param style: 样式（normal, shadow, outline, 3d, neon, metallic, rainbow, gradient）
@@ -879,6 +1027,10 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
     :param border_color: 边框颜色
     :param background_enabled: 是否启用背景
     :param is_title: 是否是标题（影响样式处理）
+    :param text_color: 文字颜色
+    :param text_line2: 第二行文本内容
+    :param stroke_color: 描边颜色
+    :param stroke_width: 描边粗细
     :return: 临时图像文件路径
     """
     # 设置预览图像宽度
@@ -903,19 +1055,48 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
     # 创建字体对象
     font_obj = ImageFont.truetype(font_path, scaled_font_size)
 
-    # 计算文本尺寸
-    left, top, right, bottom = font_obj.getbbox(text)
-    text_width = right - left
-    text_height = bottom - top
+    # 计算第一行文本尺寸
+    if text:
+        left1, top1, right1, bottom1 = font_obj.getbbox(text)
+        text_width1 = right1 - left1
+        text_height1 = bottom1 - top1
+    else:
+        text_width1, text_height1 = 0, 0
+
+    # 计算第二行文本尺寸
+    if text_line2:
+        left2, top2, right2, bottom2 = font_obj.getbbox(text_line2)
+        text_width2 = right2 - left2
+        text_height2 = bottom2 - top2
+    else:
+        text_width2, text_height2 = 0, 0
+
+    # 取两行中最宽的作为图像宽度基准
+    text_width = max(text_width1, text_width2)
+
+    # 计算总高度（如果有两行文本，则加上行间距）
+    line_spacing = int(scaled_font_size * 0.3)  # 行间距为字体大小的30%
+    if text and text_line2:
+        total_text_height = text_height1 + text_height2 + line_spacing
+    else:
+        total_text_height = max(text_height1, text_height2)
 
     # 设置图像尺寸（比文本略大）
     padding_x = int(text_width * 0.3)
-    padding_y = int(text_height * 0.5)
+    padding_y = int(total_text_height * 0.5)
     img_width = min(preview_width, text_width + padding_x * 2)
-    img_height = text_height + padding_y * 2
+    img_height = total_text_height + padding_y * 2
 
-    # 确保文本在背景中垂直居中
-    text_y_position = (img_height - text_height) // 2
+    # 计算文本在背景中的垂直位置
+    if text and text_line2:  # 两行文本
+        text1_y_position = (img_height - total_text_height) // 2
+        text2_y_position = text1_y_position + text_height1 + line_spacing
+    elif text:  # 只有第一行
+        text1_y_position = (img_height - text_height1) // 2
+        text2_y_position = 0  # 不使用
+    else:  # 只有第二行
+        text2_y_position = (img_height - text_height2) // 2
+        text1_y_position = 0  # 不使用
 
     # 创建透明背景图像
     img = Image.new('RGBA', (img_width, img_height), (0, 0, 0, 0))
@@ -947,57 +1128,110 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
     # 根据样式绘制文本
     if style == "chinese_style":
         # 中国风格效果：红色填充+黄色粗描边
-        # 描边颜色（默认黄色）
-        stroke_color = border_color if border else "#FFD700"
+        # 使用指定的描边颜色和粗细
+        stroke_color_value = stroke_color if border else "#FFD700"
+        stroke_width_value = max(3, scaled_font_size // 10)  # 描边宽度
 
-        # 绘制粗描边（多层描边增强效果）
-        stroke_width = max(3, scaled_font_size // 10)  # 描边宽度
-        for offset in range(stroke_width, 0, -1):
-            for dx, dy in [(ox, oy) for ox in range(-offset, offset+1, max(1, offset//2)) for oy in range(-offset, offset+1, max(1, offset//2))]:
-                draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=stroke_color)
+        # 绘制第一行文本（如果有）
+        if text:
+            # 绘制粗描边（多层描边增强效果）
+            for offset in range(stroke_width_value, 0, -1):
+                for dx, dy in [(ox, oy) for ox in range(-offset, offset+1, max(1, offset//2)) for oy in range(-offset, offset+1, max(1, offset//2))]:
+                    draw.text((padding_x + dx, text1_y_position + dy), text, font=font_obj, fill=stroke_color_value)
 
-        # 绘制主文本（使用指定的文字颜色）
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill=text_color)
+            # 绘制主文本
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=text_color)
+
+        # 绘制第二行文本（如果有）
+        if text_line2:
+            # 绘制粗描边（多层描边增强效果）
+            for offset in range(stroke_width_value, 0, -1):
+                for dx, dy in [(ox, oy) for ox in range(-offset, offset+1, max(1, offset//2)) for oy in range(-offset, offset+1, max(1, offset//2))]:
+                    draw.text((padding_x + dx, text2_y_position + dy), text_line2, font=font_obj, fill=stroke_color_value)
+
+            # 绘制主文本
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=text_color)
 
     elif is_title and style == "rainbow":
         # 彩虹渐变文字
         rainbow_colors = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#9400D3"]
-        # 创建渐变色文本
-        gradient_img = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
-        gradient_draw = ImageDraw.Draw(gradient_img)
 
-        # 计算每个字符的颜色
-        for i, char in enumerate(text):
-            color_idx = i % len(rainbow_colors)
-            char_width = font_obj.getbbox(char)[2] - font_obj.getbbox(char)[0]
-            gradient_draw.text((left + i * char_width, 0), char, font=font_obj, fill=rainbow_colors[color_idx])
+        # 处理第一行文本（如果有）
+        if text:
+            # 创建渐变色文本
+            gradient_img1 = Image.new('RGBA', (text_width1, text_height1), (0, 0, 0, 0))
+            gradient_draw1 = ImageDraw.Draw(gradient_img1)
 
-        # 添加描边
-        if border:
-            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+            # 计算每个字符的颜色
+            for i, char in enumerate(text):
+                color_idx = i % len(rainbow_colors)
+                char_width = font_obj.getbbox(char)[2] - font_obj.getbbox(char)[0]
+                gradient_draw1.text((i * char_width, 0), char, font=font_obj, fill=rainbow_colors[color_idx])
 
-        # 将渐变文本粘贴到主图像
-        img.paste(gradient_img, (padding_x, text_y_position), gradient_img)
+            # 添加描边（使用指定的描边颜色）
+            if border:
+                for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    draw.text((padding_x + offset_x, text1_y_position + offset_y), text, font=font_obj, fill=stroke_color)
+
+            # 将渐变文本粘贴到主图像
+            img.paste(gradient_img1, (padding_x, text1_y_position), gradient_img1)
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 创建渐变色文本
+            gradient_img2 = Image.new('RGBA', (text_width2, text_height2), (0, 0, 0, 0))
+            gradient_draw2 = ImageDraw.Draw(gradient_img2)
+
+            # 计算每个字符的颜色
+            for i, char in enumerate(text_line2):
+                color_idx = i % len(rainbow_colors)
+                char_width = font_obj.getbbox(char)[2] - font_obj.getbbox(char)[0]
+                gradient_draw2.text((i * char_width, 0), char, font=font_obj, fill=rainbow_colors[color_idx])
+
+            # 添加描边（使用指定的描边颜色）
+            if border:
+                for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    draw.text((padding_x + offset_x, text2_y_position + offset_y), text_line2, font=font_obj, fill=stroke_color)
+
+            # 将渐变文本粘贴到主图像
+            img.paste(gradient_img2, (padding_x, text2_y_position), gradient_img2)
 
     elif is_title and style == "neon":
         # 霓虹灯效果
         glow_color = "#FF4500"  # 橙红色
         outer_glow_color = "#FFFF00"  # 黄色外发光
 
-        # 添加外发光效果
-        for offset in range(3, 0, -1):
-            alpha = 100 - offset * 30
-            glow_alpha = max(0, alpha)
-            glow_color_with_alpha = glow_color[0:7] + format(glow_alpha, '02x')
-            for dx, dy in [(ox, oy) for ox in range(-offset, offset+1) for oy in range(-offset, offset+1)]:
-                draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=glow_color_with_alpha)
+        # 处理第一行文本（如果有）
+        if text:
+            # 添加外发光效果
+            for offset in range(3, 0, -1):
+                alpha = 100 - offset * 30
+                glow_alpha = max(0, alpha)
+                glow_color_with_alpha = glow_color[0:7] + format(glow_alpha, '02x')
+                for dx, dy in [(ox, oy) for ox in range(-offset, offset+1) for oy in range(-offset, offset+1)]:
+                    draw.text((padding_x + dx, text1_y_position + dy), text, font=font_obj, fill=glow_color_with_alpha)
 
-        # 添加内发光
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill=outer_glow_color)
+            # 添加内发光
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=outer_glow_color)
 
-        # 添加主文本
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill=glow_color)
+            # 添加主文本
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=glow_color)
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 添加外发光效果
+            for offset in range(3, 0, -1):
+                alpha = 100 - offset * 30
+                glow_alpha = max(0, alpha)
+                glow_color_with_alpha = glow_color[0:7] + format(glow_alpha, '02x')
+                for dx, dy in [(ox, oy) for ox in range(-offset, offset+1) for oy in range(-offset, offset+1)]:
+                    draw.text((padding_x + dx, text2_y_position + dy), text_line2, font=font_obj, fill=glow_color_with_alpha)
+
+            # 添加内发光
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=outer_glow_color)
+
+            # 添加主文本
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=glow_color)
 
         # 应用模糊效果增强霓虹感
         img = img.filter(ImageFilter.GaussianBlur(1))
@@ -1007,85 +1241,187 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
         start_color = (255, 0, 0)  # 红色
         end_color = (0, 0, 255)  # 蓝色
 
-        # 创建渐变色文本
-        gradient_img = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
-        gradient_draw = ImageDraw.Draw(gradient_img)
+        # 处理第一行文本（如果有）
+        if text:
+            # 创建渐变色文本
+            gradient_img1 = Image.new('RGBA', (text_width1, text_height1), (0, 0, 0, 0))
+            gradient_draw1 = ImageDraw.Draw(gradient_img1)
 
-        # 绘制渐变背景
-        for y in range(text_height):
-            r = int(start_color[0] + (end_color[0] - start_color[0]) * y / text_height)
-            g = int(start_color[1] + (end_color[1] - start_color[1]) * y / text_height)
-            b = int(start_color[2] + (end_color[2] - start_color[2]) * y / text_height)
-            gradient_draw.line([(0, y), (text_width, y)], fill=(r, g, b, 255))
+            # 绘制渐变背景
+            for y in range(text_height1):
+                r = int(start_color[0] + (end_color[0] - start_color[0]) * y / text_height1)
+                g = int(start_color[1] + (end_color[1] - start_color[1]) * y / text_height1)
+                b = int(start_color[2] + (end_color[2] - start_color[2]) * y / text_height1)
+                gradient_draw1.line([(0, y), (text_width1, y)], fill=(r, g, b, 255))
 
-        # 创建文本蒙版
-        mask = Image.new('L', (text_width, text_height), 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.text((0, 0), text, font=font_obj, fill=255)
+            # 创建文本蒙版
+            mask1 = Image.new('L', (text_width1, text_height1), 0)
+            mask_draw1 = ImageDraw.Draw(mask1)
+            mask_draw1.text((0, 0), text, font=font_obj, fill=255)
 
-        # 应用蒙版到渐变图像
-        gradient_text = Image.new('RGBA', (text_width, text_height), (0, 0, 0, 0))
-        gradient_text.paste(gradient_img, (0, 0), mask)
+            # 应用蒙版到渐变图像
+            gradient_text1 = Image.new('RGBA', (text_width1, text_height1), (0, 0, 0, 0))
+            gradient_text1.paste(gradient_img1, (0, 0), mask1)
 
-        # 添加描边
-        if border:
-            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+            # 添加描边（使用指定的描边颜色）
+            if border:
+                for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    draw.text((padding_x + offset_x, text1_y_position + offset_y), text, font=font_obj, fill=stroke_color)
 
-        # 将渐变文本粘贴到主图像
-        img.paste(gradient_text, (padding_x, text_y_position), gradient_text)
+            # 将渐变文本粘贴到主图像
+            img.paste(gradient_text1, (padding_x, text1_y_position), gradient_text1)
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 创建渐变色文本
+            gradient_img2 = Image.new('RGBA', (text_width2, text_height2), (0, 0, 0, 0))
+            gradient_draw2 = ImageDraw.Draw(gradient_img2)
+
+            # 绘制渐变背景
+            for y in range(text_height2):
+                r = int(start_color[0] + (end_color[0] - start_color[0]) * y / text_height2)
+                g = int(start_color[1] + (end_color[1] - start_color[1]) * y / text_height2)
+                b = int(start_color[2] + (end_color[2] - start_color[2]) * y / text_height2)
+                gradient_draw2.line([(0, y), (text_width2, y)], fill=(r, g, b, 255))
+
+            # 创建文本蒙版
+            mask2 = Image.new('L', (text_width2, text_height2), 0)
+            mask_draw2 = ImageDraw.Draw(mask2)
+            mask_draw2.text((0, 0), text_line2, font=font_obj, fill=255)
+
+            # 应用蒙版到渐变图像
+            gradient_text2 = Image.new('RGBA', (text_width2, text_height2), (0, 0, 0, 0))
+            gradient_text2.paste(gradient_img2, (0, 0), mask2)
+
+            # 添加描边（使用指定的描边颜色）
+            if border:
+                for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    draw.text((padding_x + offset_x, text2_y_position + offset_y), text_line2, font=font_obj, fill=stroke_color)
+
+            # 将渐变文本粘贴到主图像
+            img.paste(gradient_text2, (padding_x, text2_y_position), gradient_text2)
 
     elif style == "shadow":
         # 阴影效果
         shadow_offset = max(2, font_size // 20)  # 阴影偏移量
-        draw.text((padding_x + shadow_offset, text_y_position + shadow_offset), text, font=font_obj, fill=(0, 0, 0, 160))
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+
+        # 处理第一行文本（如果有）
+        if text:
+            draw.text((padding_x + shadow_offset, text1_y_position + shadow_offset), text, font=font_obj, fill=(0, 0, 0, 160))
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill="#FFFFFF")
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            draw.text((padding_x + shadow_offset, text2_y_position + shadow_offset), text_line2, font=font_obj, fill=(0, 0, 0, 160))
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill="#FFFFFF")
 
     elif style == "outline":
         # 描边效果
         outline_size = max(2, font_size // 25)  # 描边大小
-        # 绘制描边（四个方向）
-        for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1), (-outline_size,0), (outline_size,0), (0,-outline_size), (0,outline_size)]:
-            draw.text((padding_x + dx, text_y_position + dy), text, font=font_obj, fill=(0, 0, 0, 200))
-        # 绘制主文本
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+
+        # 处理第一行文本（如果有）
+        if text:
+            # 绘制描边（四个方向）
+            for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1), (-outline_size,0), (outline_size,0), (0,-outline_size), (0,outline_size)]:
+                draw.text((padding_x + dx, text1_y_position + dy), text, font=font_obj, fill=(0, 0, 0, 200))
+            # 绘制主文本
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill="#FFFFFF")
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 绘制描边（四个方向）
+            for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1), (-outline_size,0), (outline_size,0), (0,-outline_size), (0,outline_size)]:
+                draw.text((padding_x + dx, text2_y_position + dy), text_line2, font=font_obj, fill=(0, 0, 0, 200))
+            # 绘制主文本
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill="#FFFFFF")
 
     elif style == "3d":
         # 3D立体效果
         depth = max(3, font_size // 15)  # 3D深度
-        for i in range(depth, 0, -1):
-            alpha = 100 + (155 * i // depth)  # 渐变透明度
-            shadow_color = (0, 0, 0, alpha)
-            draw.text((padding_x - i, text_y_position + i), text, font=font_obj, fill=shadow_color)
-        # 绘制主文本
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+
+        # 处理第一行文本（如果有）
+        if text:
+            for i in range(depth, 0, -1):
+                alpha = 100 + (155 * i // depth)  # 渐变透明度
+                shadow_color = (0, 0, 0, alpha)
+                draw.text((padding_x - i, text1_y_position + i), text, font=font_obj, fill=shadow_color)
+            # 绘制主文本
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill="#FFFFFF")
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            for i in range(depth, 0, -1):
+                alpha = 100 + (155 * i // depth)  # 渐变透明度
+                shadow_color = (0, 0, 0, alpha)
+                draw.text((padding_x - i, text2_y_position + i), text_line2, font=font_obj, fill=shadow_color)
+            # 绘制主文本
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill="#FFFFFF")
 
     elif style == "metallic":
         # 金属效果
         # 金属渐变色
         metallic_base = (212, 175, 55, 255)  # 金色基色
-
-        # 绘制金属效果的底色
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill=metallic_base)
-
-        # 添加高光效果
         highlight_offset = max(1, font_size // 30)
-        draw.text((padding_x - highlight_offset, text_y_position - highlight_offset),
-                 text, font=font_obj, fill=(255, 255, 255, 100))
-
-        # 添加阴影增强金属感
         shadow_offset = max(1, font_size // 25)
-        draw.text((padding_x + shadow_offset, text_y_position + shadow_offset),
-                 text, font=font_obj, fill=(100, 100, 100, 100))
+
+        # 处理第一行文本（如果有）
+        if text:
+            # 绘制金属效果的底色
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=metallic_base)
+
+            # 添加高光效果
+            draw.text((padding_x - highlight_offset, text1_y_position - highlight_offset),
+                     text, font=font_obj, fill=(255, 255, 255, 100))
+
+            # 添加阴影增强金属感
+            draw.text((padding_x + shadow_offset, text1_y_position + shadow_offset),
+                     text, font=font_obj, fill=(100, 100, 100, 100))
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 绘制金属效果的底色
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=metallic_base)
+
+            # 添加高光效果
+            draw.text((padding_x - highlight_offset, text2_y_position - highlight_offset),
+                     text_line2, font=font_obj, fill=(255, 255, 255, 100))
+
+            # 添加阴影增强金属感
+            draw.text((padding_x + shadow_offset, text2_y_position + shadow_offset),
+                     text_line2, font=font_obj, fill=(100, 100, 100, 100))
 
     else:  # normal
-        # 添加描边
-        if border:
-            for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+        # 处理第一行文本（如果有）
+        if text:
+            # 添加描边（使用指定的描边颜色和粗细）
+            if border:
+                # 计算描边偏移量基于描边粗细
+                stroke_offsets = []
+                for i in range(1, stroke_width + 1):
+                    stroke_offsets.extend([(i, 0), (-i, 0), (0, i), (0, -i)])
 
-        # 绘制主文本
-        draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
+                # 绘制描边
+                for offset_x, offset_y in stroke_offsets:
+                    draw.text((padding_x + offset_x, text1_y_position + offset_y), text, font=font_obj, fill=stroke_color)
+
+            # 绘制主文本（使用指定的文字颜色）
+            draw.text((padding_x, text1_y_position), text, font=font_obj, fill=text_color)
+
+        # 处理第二行文本（如果有）
+        if text_line2:
+            # 添加描边（使用指定的描边颜色和粗细）
+            if border:
+                # 计算描边偏移量基于描边粗细
+                stroke_offsets = []
+                for i in range(1, stroke_width + 1):
+                    stroke_offsets.extend([(i, 0), (-i, 0), (0, i), (0, -i)])
+
+                # 绘制描边
+                for offset_x, offset_y in stroke_offsets:
+                    draw.text((padding_x + offset_x, text2_y_position + offset_y), text_line2, font=font_obj, fill=stroke_color)
+
+            # 绘制主文本（使用指定的文字颜色）
+            draw.text((padding_x, text2_y_position), text_line2, font=font_obj, fill=text_color)
 
     # 保存为临时文件
     temp_img_path = os.path.join(utils.storage_dir("temp", create=True), f"preview_{str(uuid.uuid4())}.png")
@@ -1174,6 +1510,7 @@ def create_unified_preview(video_aspect, subtitle_params=None, title_params=None
     if title_params and title_params.get("enabled", False):
         # 获取标题参数
         text = title_params.get("text", "标题预览")
+        text_line2 = title_params.get("text_line2", "")  # 获取第二行文本
         font_path = title_params.get("font_path")
         font_size = title_params.get("font_size", 80)
         style = title_params.get("style", "rainbow")
@@ -1185,8 +1522,10 @@ def create_unified_preview(video_aspect, subtitle_params=None, title_params=None
         custom_position = title_params.get("custom_position", 15.0)
         background_enabled = title_params.get("background_enabled", True)
 
-        # 获取文字颜色
+        # 获取文字颜色和描边参数
         text_color = title_params.get("text_color", "#FF0000")
+        stroke_color = title_params.get("stroke_color", "#FFFFFF")
+        stroke_width = title_params.get("stroke_width", 4)
 
         # 创建标题预览图像
         title_img_path = create_preview_image(
@@ -1200,7 +1539,10 @@ def create_unified_preview(video_aspect, subtitle_params=None, title_params=None
             border_color=border_color,
             background_enabled=background_enabled,
             is_title=True,
-            text_color=text_color
+            text_color=text_color,
+            text_line2=text_line2,
+            stroke_color=stroke_color,
+            stroke_width=stroke_width
         )
 
         # 加载标题图像
