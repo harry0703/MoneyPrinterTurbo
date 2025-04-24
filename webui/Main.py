@@ -581,7 +581,7 @@ with middle_panel:
             tr("Video Transition Mode"),
             options=range(len(video_transition_modes)),
             format_func=lambda x: video_transition_modes[x][0],
-            index=0,
+            index=1,  # 默认选择随机转场
         )
         params.video_transition_mode = VideoTransitionMode(
             video_transition_modes[selected_index][1]
@@ -786,13 +786,25 @@ with right_panel:
 
         stroke_cols = st.columns([0.3, 0.7])
         with stroke_cols[0]:
-            params.stroke_color = st.color_picker(tr("Stroke Color"), "#FFFFFF")
+            # 添加随机描边颜色选项
+            stroke_color_options = [
+                (tr("White"), "#FFFFFF"),
+                (tr("Black"), "#000000"),
+                (tr("Random"), "random"),
+            ]
+            selected_stroke_index = st.selectbox(
+                tr("Stroke Color"),
+                options=range(len(stroke_color_options)),
+                format_func=lambda x: stroke_color_options[x][0],
+                index=0,
+            )
+            params.stroke_color = stroke_color_options[selected_stroke_index][1]
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 4.0)
 
         # 艺术字体设置
         st.write(tr("Art Font Settings"))
-        params.art_font_enabled = st.checkbox(tr("Enable Art Font"), value=True)
+        params.art_font_enabled = st.checkbox(tr("Enable Art Font"), value=False)
 
         if params.art_font_enabled:
             art_font_types = [
@@ -916,7 +928,7 @@ with right_panel:
             ]
             selected_style_index = st.selectbox(
                 tr("Title Style"),
-                index=5,  # 默认选择金属质感
+                index=8,  # 默认选择Chinese Style
                 options=range(len(title_sticker_styles)),
                 format_func=lambda x: title_sticker_styles[x][0],
                 key="title_style_select"
@@ -948,7 +960,7 @@ with right_panel:
                 )
 
             # 标题贴纸背景启用选项
-            params.title_sticker_background_enabled = st.checkbox(tr("Enable Title Background"), value=True, key="title_bg_enabled")
+            params.title_sticker_background_enabled = st.checkbox(tr("Enable Title Background"), value=False, key="title_bg_enabled")
 
             if params.title_sticker_background_enabled:
                 # 标题贴纸背景类型
@@ -972,7 +984,7 @@ with right_panel:
                 params.title_sticker_background = "none"
 
             # 标题贴纸边框
-            params.title_sticker_border = st.checkbox(tr("Enable Title Border"), value=True, key="title_border")
+            params.title_sticker_border = st.checkbox(tr("Enable Title Border"), value=False, key="title_border")
             if params.title_sticker_border:
                 params.title_sticker_border_color = st.color_picker(tr("Title Border Color"), "#FFFFFF", key="title_border_color")
 

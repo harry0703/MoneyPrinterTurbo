@@ -73,7 +73,7 @@ class VideoParams(BaseModel):
     video_terms: Optional[str | list] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
-    video_transition_mode: Optional[VideoTransitionMode] = None
+    video_transition_mode: Optional[VideoTransitionMode] = VideoTransitionMode.shuffle.value
     video_clip_duration: Optional[int] = 5
     video_count: Optional[int] = 1
 
@@ -92,30 +92,28 @@ class VideoParams(BaseModel):
     bgm_volume: Optional[float] = 0.2
 
     subtitle_enabled: Optional[bool] = True
-    subtitle_position: Optional[str] = "bottom"  # top, bottom, center
+    subtitle_position: Optional[str] = "custom"  # top, bottom, center, custom
     custom_position: float = 70.0
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
 
     # 艺术字体相关参数
-    art_font_enabled: Optional[bool] = True
+    art_font_enabled: Optional[bool] = False
     art_font_type: Optional[str] = "3d"  # normal, shadow, outline, 3d, etc.
     art_font_background: Optional[str] = "none"  # none, red, blue, etc.
-    subtitle_position: Optional[str] = "custom"  # top, bottom, center, custom
-    custom_position: float = 65.0
 
     # 标题贴纸相关参数
     title_sticker_enabled: Optional[bool] = True
     title_sticker_text: Optional[str] = ""
     title_sticker_font: Optional[str] = "STHeitiMedium.ttc"
     title_sticker_font_size: Optional[int] = 160
-    title_sticker_style: Optional[str] = "metallic"  # rainbow, neon, gradient, metallic, etc.
+    title_sticker_style: Optional[str] = "chinese_style"  # rainbow, neon, gradient, metallic, chinese_style, etc.
     title_sticker_text_color: Optional[str] = "#FF0000"  # 标题文字颜色
-    title_sticker_background_enabled: Optional[bool] = True  # 是否启用背景
+    title_sticker_background_enabled: Optional[bool] = False  # 是否启用背景
     title_sticker_background: Optional[str] = "rounded_rect"  # none, rounded_rect, rect, etc.
     title_sticker_background_color: Optional[str] = "#000000"
-    title_sticker_border: Optional[bool] = True
+    title_sticker_border: Optional[bool] = False
     title_sticker_border_color: Optional[str] = "#FFFFFF"
     title_sticker_position: Optional[str] = "custom"  # upper_middle, middle, lower_middle, custom
     title_sticker_custom_position: Optional[float] = 15.0  # 自定义位置，表示离顶部的百分比

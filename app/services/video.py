@@ -662,13 +662,21 @@ def generate_video(
             )
         else:
             # 使用普通字幕
+            # 处理随机描边颜色
+            stroke_color = params.stroke_color
+            if stroke_color == "random":
+                # 随机生成一个颜色
+                random_color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+                stroke_color = random_color
+                logger.info(f"Using random stroke color: {stroke_color}")
+
             _clip = TextClip(
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
                 color=params.text_fore_color,
                 bg_color=params.text_background_color,
-                stroke_color=params.stroke_color,
+                stroke_color=stroke_color,
                 stroke_width=params.stroke_width,
                 size=(video_width, None),
                 method='caption',
@@ -948,7 +956,11 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
     if style == "chinese_style":
         # 中国风格效果：红色填充+黄色粗描边
         # 描边颜色（默认黄色）
-        stroke_color = border_color if border else "#FFD700"
+        if border_color == "random":
+            # 随机生成一个颜色
+            stroke_color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+        else:
+            stroke_color = border_color if border else "#FFD700"
 
         # 绘制粗描边（多层描边增强效果）
         stroke_width = max(3, scaled_font_size // 10)  # 描边宽度
@@ -974,8 +986,15 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
 
         # 添加描边
         if border:
+            # 处理随机描边颜色
+            if border_color == "random":
+                # 随机生成一个颜色
+                stroke_color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+            else:
+                stroke_color = border_color
+
             for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=stroke_color)
 
         # 将渐变文本粘贴到主图像
         img.paste(gradient_img, (padding_x, text_y_position), gradient_img)
@@ -1029,8 +1048,15 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
 
         # 添加描边
         if border:
+            # 处理随机描边颜色
+            if border_color == "random":
+                # 随机生成一个颜色
+                stroke_color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+            else:
+                stroke_color = border_color
+
             for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=stroke_color)
 
         # 将渐变文本粘贴到主图像
         img.paste(gradient_text, (padding_x, text_y_position), gradient_text)
@@ -1081,8 +1107,15 @@ def create_preview_image(text, font_path, font_size, style, background_type, bac
     else:  # normal
         # 添加描边
         if border:
+            # 处理随机描边颜色
+            if border_color == "random":
+                # 随机生成一个颜色
+                stroke_color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+            else:
+                stroke_color = border_color
+
             for offset_x, offset_y in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=border_color)
+                draw.text((padding_x + offset_x, text_y_position + offset_y), text, font=font_obj, fill=stroke_color)
 
         # 绘制主文本
         draw.text((padding_x, text_y_position), text, font=font_obj, fill="#FFFFFF")
