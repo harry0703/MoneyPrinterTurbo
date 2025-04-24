@@ -58,6 +58,11 @@ def pulse_animation(clip: ImageClip, speed: float = 1.0) -> ImageClip:
     :param speed: 动画速度
     :return: 应用了动画效果的剪辑
     """
+    # 确保剪辑有持续时间
+    if not hasattr(clip, 'duration') or clip.duration is None:
+        logger.warning("Clip has no duration, using default duration of 5 seconds")
+        clip = clip.with_duration(5)
+
     # 应用整体缩放效果
     return clip.resized(lambda t: 1 + 0.1 * np.sin(speed * 2 * np.pi * t))
 
@@ -70,6 +75,11 @@ def whole_bounce_animation(clip: ImageClip, speed: float = 1.0) -> ImageClip:
     :param speed: 动画速度
     :return: 应用了动画效果的剪辑
     """
+    # 确保剪辑有持续时间
+    if not hasattr(clip, 'duration') or clip.duration is None:
+        logger.warning("Clip has no duration, using default duration of 5 seconds")
+        clip = clip.with_duration(5)
+
     # 获取原始位置
     original_position = clip.pos
 
@@ -129,10 +139,13 @@ def light_sweep_animation(clip: ImageClip, duration: float, speed: float = 1.0) 
     # 创建一个白色光照剪辑
     light_clip = ColorClip(size=clip.size, color=(255, 255, 255))
     light_clip = light_clip.with_mask(light_mask)
+    light_clip = light_clip.with_duration(duration)
 
     # 合成原始剪辑和光照剪辑
     # 由于 ColorClip 没有 with_blend 方法，我们直接使用 CompositeVideoClip
-    return CompositeVideoClip([clip, light_clip])
+    composite_clip = CompositeVideoClip([clip, light_clip])
+    composite_clip = composite_clip.with_duration(duration)
+    return composite_clip
 
 
 def fade_animation(clip: ImageClip, speed: float = 1.0) -> ImageClip:
@@ -143,6 +156,11 @@ def fade_animation(clip: ImageClip, speed: float = 1.0) -> ImageClip:
     :param speed: 动画速度
     :return: 应用了动画效果的剪辑
     """
+    # 确保剪辑有持续时间
+    if not hasattr(clip, 'duration') or clip.duration is None:
+        logger.warning("Clip has no duration, using default duration of 5 seconds")
+        clip = clip.with_duration(5)
+
     # 创建一个函数，根据时间返回不透明度
     def make_frame_opacity(t):
         # 计算总时长
@@ -191,6 +209,11 @@ def wave_animation(clip: ImageClip, speed: float = 1.0) -> ImageClip:
     :param speed: 动画速度
     :return: 应用了动画效果的剪辑
     """
+    # 确保剪辑有持续时间
+    if not hasattr(clip, 'duration') or clip.duration is None:
+        logger.warning("Clip has no duration, using default duration of 5 seconds")
+        clip = clip.with_duration(5)
+
     # 获取原始位置
     original_position = clip.pos
 
@@ -220,6 +243,11 @@ def bounce_animation(clip: ImageClip, speed: float = 1.0) -> ImageClip:
     :param speed: 动画速度
     :return: 应用了动画效果的剪辑
     """
+    # 确保剪辑有持续时间
+    if not hasattr(clip, 'duration') or clip.duration is None:
+        logger.warning("Clip has no duration, using default duration of 5 seconds")
+        clip = clip.with_duration(5)
+
     # 注意：这个函数需要对每个字符单独处理
     # 但由于我们已经将文本渲染为图像，无法直接操作单个字符
     # 这里我们实现一个模拟效果，通过对图像应用波浪变形来模拟字符跳动
@@ -235,8 +263,13 @@ def bounce_animation(clip: ImageClip, speed: float = 1.0) -> ImageClip:
         # 获取原始帧
         frame = clip.get_frame(t)
 
-        # 创建一个新的帧
+        # 创建一个新的帧，保持透明通道
+        # 使用与原始帧相同的数据类型和形状，但初始化为透明
         new_frame = np.zeros_like(frame)
+
+        # 如果有alpha通道（RGBA），将所有像素设置为完全透明
+        if frame.shape[2] == 4:
+            new_frame[:, :, 3] = 0  # 设置alpha通道为0（完全透明）
 
         # 对每一列应用不同的垂直偏移，创造波浪效果
         for x in range(w):
