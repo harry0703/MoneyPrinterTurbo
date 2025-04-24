@@ -988,6 +988,36 @@ with right_panel:
             if params.title_sticker_border:
                 params.title_sticker_border_color = st.color_picker(tr("Title Border Color"), "#FFFFFF", key="title_border_color")
 
+            # 标题动画特效
+            st.write(tr("Title Animation Effects"))
+            title_animation_types = [
+                (tr("None"), "none"),
+                (tr("Bounce (Character)"), "bounce"),
+                (tr("Pulse (Character)"), "pulse"),
+                (tr("Whole Bounce"), "whole_bounce"),
+                (tr("Light Sweep"), "light_sweep"),
+                (tr("Rotate"), "rotate"),
+                (tr("Blink"), "blink"),
+                (tr("Wave"), "wave"),
+                (tr("Random"), "random"),
+            ]
+            selected_animation_index = st.selectbox(
+                tr("Title Animation"),
+                index=0,  # 默认选择无动画
+                options=range(len(title_animation_types)),
+                format_func=lambda x: title_animation_types[x][0],
+                key="title_animation_select"
+            )
+            params.title_sticker_animation = title_animation_types[selected_animation_index][1]
+
+            # 如果选择了动画，显示动画速度设置
+            if params.title_sticker_animation != "none":
+                params.title_sticker_animation_speed = st.slider(
+                    tr("Animation Speed"),
+                    0.5, 2.0, 1.0, 0.1,
+                    key="title_animation_speed"
+                )
+
             # 预览效果
             st.write(tr("Title Sticker Preview"))
             title_preview_text = params.title_sticker_text or tr("Title Sticker Preview")
@@ -1075,7 +1105,9 @@ with st.container(border=True):
             "position": params.title_sticker_position,
             "custom_position": params.title_sticker_custom_position,
             "background_enabled": params.title_sticker_background_enabled,
-            "text_color": params.title_sticker_text_color
+            "text_color": params.title_sticker_text_color,
+            "animation": getattr(params, "title_sticker_animation", "none"),
+            "animation_speed": getattr(params, "title_sticker_animation_speed", 1.0)
         }
 
     # 生成预览图像

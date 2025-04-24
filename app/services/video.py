@@ -28,6 +28,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services.utils import video_effects
+from app.services.utils import title_animations
 from app.utils import utils
 
 
@@ -779,7 +780,23 @@ def generate_video(
                 # 默认位置（上方中间）
                 title_sticker = title_sticker.with_position(("center", video_height * 0.10))
 
+            # 设置标题贴纸持续时间
             title_sticker = title_sticker.with_duration(video_clip.duration)
+
+            # 应用动画效果
+            if hasattr(params, 'title_sticker_animation') and params.title_sticker_animation != "none":
+                # 获取动画速度
+                animation_speed = getattr(params, 'title_sticker_animation_speed', 1.0)
+
+                # 应用动画效果
+                title_sticker = title_animations.apply_animation(
+                    clip=title_sticker,
+                    animation_type=params.title_sticker_animation,
+                    duration=video_clip.duration,
+                    speed=animation_speed
+                )
+                logger.info(f"Applied animation effect: {params.title_sticker_animation} with speed {animation_speed}")
+
             video_elements.append(title_sticker)
             logger.info(f"Added title sticker: {params.title_sticker_text} at position {params.title_sticker_position}")
 
@@ -1217,6 +1234,11 @@ def create_unified_preview(video_aspect, subtitle_params=None, title_params=None
         position = title_params.get("position", "upper_middle")
         custom_position = title_params.get("custom_position", 15.0)
         background_enabled = title_params.get("background_enabled", True)
+        animation = title_params.get("animation", "none")
+
+        # 如果有动画效果，在文本中添加提示
+        if animation != "none":
+            text = f"{text} [动画: {animation}]"
 
         # 获取文字颜色
         text_color = title_params.get("text_color", "#FF0000")

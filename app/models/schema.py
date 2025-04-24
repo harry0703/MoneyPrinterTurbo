@@ -117,6 +117,8 @@ class VideoParams(BaseModel):
     title_sticker_border_color: Optional[str] = "#FFFFFF"
     title_sticker_position: Optional[str] = "custom"  # upper_middle, middle, lower_middle, custom
     title_sticker_custom_position: Optional[float] = 15.0  # 自定义位置，表示离顶部的百分比
+    title_sticker_animation: Optional[str] = "none"  # none, bounce, pulse, whole_bounce, light_sweep, rotate, blink, wave, random
+    title_sticker_animation_speed: Optional[float] = 1.0  # 动画速度
 
     font_size: int = 60
     stroke_color: Optional[str] = "#FFFFFF"
