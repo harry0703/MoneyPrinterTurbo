@@ -1,6 +1,14 @@
 {
   "Language": "English",
   "Translation": {
+    "Login Required": "Login Required",
+    "Please login to access settings": "Please login to access settings",
+    "Username": "Username",
+    "Password": "Password",
+    "Login": "Login",
+    "Login Error": "Login Error",
+    "Incorrect username or password": "Incorrect username or password",
+    "Please enter your username and password": "Please enter your username and password",
     "Video Script Settings": "**Video Script Settings**",
     "Video Subject": "Video Subject (Provide a keyword, :red[AI will automatically generate] video script)",
     "Script Language": "Language for Generating Video Script (AI will automatically output based on the language of your subject)",
@@ -16,7 +24,7 @@
     "Video Concat Mode": "Video Concatenation Mode",
     "Random": "Random Concatenation (Recommended)",
     "Sequential": "Sequential Concatenation",
-    "Video Transition Mode": "Video Transition Mode", 
+    "Video Transition Mode": "Video Transition Mode",
     "None": "None",
     "Shuffle": "Shuffle",
     "FadeIn": "FadeIn",

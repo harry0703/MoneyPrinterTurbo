@@ -1,6 +1,15 @@
 [app]
 
     video_source = "pexels"  # "pexels" or "pixabay"
+
+    # 是否隐藏配置面板
+    # hide_config = false
+
+[user]
+    # 管理员用户名和密码，用于访问基础设置
+    username = "admin"
+    password = "admin"
+    email = "admin@example.com"  # 添加email字段，用于身份验证
     # Pexels API Key
     # Register at https://www.pexels.com/api/ to get your API key.
     # You can use multiple keys to avoid rate limits.

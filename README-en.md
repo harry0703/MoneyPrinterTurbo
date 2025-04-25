@@ -35,9 +35,18 @@ like to express our special thanks to
 **RecCloud (AI-Powered Multimedia Service Platform)** for providing a free `AI Video Generator` service based on this
 project. It allows for online use without deployment, which is very convenient.
 
-https://reccloud.com
+- Chinese version: https://reccloud.cn
+- English version: https://reccloud.com
 
-![](docs/reccloud.com.jpg)
+![](docs/reccloud.cn.jpg)
+
+## Thanks for Sponsorship 🙏
+
+Thanks to Picwish https://picwish.cn for supporting and sponsoring this project, enabling continuous updates and maintenance.
+
+Picwish focuses on the **image processing field**, providing a rich set of **image processing tools** that extremely simplify complex operations, truly making image processing easier.
+
+![picwish.jpg](docs/picwish.jpg)
 
 ## Features 🎯
 
@@ -51,28 +60,26 @@ https://reccloud.com
   satisfactory one
 - [x] Supports setting the **duration of video clips**, facilitating adjustments to material switching frequency
 - [x] Supports video copy in both **Chinese** and **English**
-- [x] Supports **multiple voice** synthesis
+- [x] Supports **multiple voice** synthesis, with **real-time preview** of effects
 - [x] Supports **subtitle generation**, with adjustable `font`, `position`, `color`, `size`, and also
   supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
-- [x] Video material sources are **high-definition** and **royalty-free**
-- [x] Supports integration with various models such as **OpenAI**, **moonshot**, **Azure**, **gpt4free**, **one-api**,
-  **qianwen**, **Google Gemini**, **Ollama** and more
+- [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
+- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**,
+  **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **ERNIE** and more
+    - For users in China, it is recommended to use **DeepSeek** or **Moonshot** as the large model provider (directly accessible in China, no VPN needed. Free credits upon registration, generally sufficient for use)
 
 ❓[How to Use the Free OpenAI GPT-3.5 Model?](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#common-questions-)
 
 ### Future Plans 📅
 
-- [ ] Introduce support for GPT-SoVITS dubbing
-- [ ] Enhance voice synthesis with large models for a more natural and emotionally resonant voice output
-- [ ] Incorporate video transition effects to ensure a smoother viewing experience
-- [ ] Improve the relevance of video content
-- [ ] Add options for video length: short, medium, long
-- [ ] Package the application into a one-click launch bundle for Windows and macOS for ease of use
-- [ ] Enable the use of custom materials
-- [ ] Offer voiceover and background music options with real-time preview
-- [ ] Support a wider range of voice synthesis providers, such as OpenAI TTS, Azure TTS
-- [ ] Automate the upload process to the YouTube platform
+- [ ] GPT-SoVITS dubbing support
+- [ ] Optimize voice synthesis using large models for more natural and emotionally rich voice output
+- [ ] Add video transition effects for a smoother viewing experience
+- [ ] Add more video material sources, improve the matching between video materials and script
+- [ ] Add video length options: short, medium, long
+- [ ] Support more voice synthesis providers, such as OpenAI TTS
+- [ ] Automate upload to YouTube platform
 
 ## Video Demos 📺
 
@@ -115,10 +122,27 @@ https://reccloud.com
 - Recommended minimum 4 CPU cores or more, 8G of memory or more, GPU is not required
 - Windows 10 or MacOS 11.0, and their later versions
 
+## Quick Start 🚀
+
+Download the one-click startup package, extract and use directly (the path should not contain **Chinese characters**, **special characters**, or **spaces**)
+
+### Windows
+- Baidu Netdisk (1.2.1 latest version): https://pan.baidu.com/s/1pSNjxTYiVENulTLm6zieMQ?pwd=g36q Extraction code: g36q
+
+After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
+
+After launching, the browser will open automatically (if it opens blank, it is recommended to use **Chrome** or **Edge**)
+
+### Other Systems
+
+One-click startup packages have not been created yet. See the **Installation & Deployment** section below. It is recommended to use **docker** for deployment, which is more convenient.
+
 ## Installation & Deployment 📥
 
+### Prerequisites
+
 - Try to avoid using **Chinese paths** to prevent unpredictable issues
-- Ensure your **network** is stable, meaning you can access foreign websites normally
+- Ensure your **network** is stable, VPN needs to be in `global traffic` mode
 
 #### ① Clone the Project
 
@@ -131,11 +155,6 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 - Copy the `config.example.toml` file and rename it to `config.toml`
 - Follow the instructions in the `config.toml` file to configure `pexels_api_keys` and `llm_provider`, and according to
   the llm_provider's service provider, set up the corresponding API Key
-
-#### ③ Configure Large Language Models (LLM)
-
-- To use `GPT-4.0` or `GPT-3.5`, you need an `API Key` from `OpenAI`. If you don't have one, you can set `llm_provider`
-  to `g4f` (a free-to-use GPT library https://github.com/xtekky/gpt4free)
 
 ### Docker Deployment 🐳
 
@@ -164,27 +183,28 @@ Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redo
 
 ### Manual Deployment 📦
 
-#### ① Create a Python Virtual Environment
+> Video tutorials
+>
+> - Complete usage demonstration: https://v.douyin.com/iFhnwsKY/
+> - How to deploy on Windows: https://v.douyin.com/iFyjoW3M
 
-It is recommended to create a Python virtual environment
-using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
+#### ① Install Dependencies
+
+It is recommended to use [pdm](https://pdm-project.org/en/latest/#installation)
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.11
-conda activate MoneyPrinterTurbo
-pip install -r requirements.txt
+pdm sync
 ```
 
 #### ② Install ImageMagick
 
 ###### Windows:
 
-- Download https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
+- Download https://imagemagick.org/script/download.php Choose the Windows version, make sure to select the **static library** version, such as ImageMagick-7.1.1-32-Q16-x64-**static**.exe
 - Install the downloaded ImageMagick, **do not change the installation path**
-- Modify the `config.toml` configuration file, set `imagemagick_path` to your actual installation path (if you didn't
-  change the path during installation, just uncomment it)
+- Modify the `config.toml` configuration file, set `imagemagick_path` to your actual installation path
 
 ###### MacOS:
 
@@ -211,14 +231,12 @@ Note that you need to execute the following commands in the `root directory` of 
 ###### Windows
 
 ```bat
-conda activate MoneyPrinterTurbo
 webui.bat
 ```
 
 ###### MacOS or Linux
 
 ```shell
-conda activate MoneyPrinterTurbo
 sh webui.sh
 ```
 
@@ -237,13 +255,15 @@ online for a quick experience.
 
 A list of all supported voices can be viewed here: [Voice List](./docs/voice-list.txt)
 
+2024-04-16 v1.1.2 Added 9 new Azure voice synthesis voices that require API KEY configuration. These voices sound more realistic.
+
 ## Subtitle Generation 📜
 
 Currently, there are 2 ways to generate subtitles:
 
-- edge: Faster generation speed, better performance, no specific requirements for computer configuration, but the
+- **edge**: Faster generation speed, better performance, no specific requirements for computer configuration, but the
   quality may be unstable
-- whisper: Slower generation speed, poorer performance, specific requirements for computer configuration, but more
+- **whisper**: Slower generation speed, poorer performance, specific requirements for computer configuration, but more
   reliable quality
 
 You can switch between them by modifying the `subtitle_provider` in the `config.toml` configuration file
@@ -252,18 +272,22 @@ It is recommended to use `edge` mode, and switch to `whisper` mode if the qualit
 satisfactory.
 
 > Note:
-> If left blank, it means no subtitles will be generated.
+>
+> 1. In whisper mode, you need to download a model file from HuggingFace, about 3GB in size, please ensure good internet connectivity
+> 2. If left blank, it means no subtitles will be generated.
 
-**Download whisper**
-- Please ensure a good internet connectivity
-- `whisper` model can be downloaded from HuggingFace: https://huggingface.co/openai/whisper-large-v3/tree/main
+> Since HuggingFace is not accessible in China, you can use the following methods to download the `whisper-large-v3` model file
 
-After downloading the model to local machine, copy the whole folder and put it into the following path: `.\MoneyPrinterTurbo\models`
+Download links:
 
-This is what the final path should look like: `.\MoneyPrinterTurbo\models\whisper-large-v3`
+- Baidu Netdisk: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
+- Quark Netdisk: https://pan.quark.cn/s/3ee3d991d64b
+
+After downloading the model, extract it and place the entire directory in `.\MoneyPrinterTurbo\models`,
+The final file path should look like this: `.\MoneyPrinterTurbo\models\whisper-large-v3`
 
 ```
-MoneyPrinterTurbo  
+MoneyPrinterTurbo
   ├─models
   │   └─whisper-large-v3
   │          config.json
@@ -304,6 +328,16 @@ Once successfully started, modify the `config.toml` configuration as follows:
 - Change `openai_base_url` to `http://localhost:3040/v1/`
 - Set `openai_model_name` to `gpt-3.5-turbo`
 
+> Note: This method may be unstable
+
+### ❓AttributeError: 'str' object has no attribute 'choices'
+
+This issue is caused by the large language model not returning a correct response.
+
+It's likely a network issue. Use a **VPN**, or set `openai_base_url` to your proxy, which should solve the problem.
+
+At the same time, it is recommended to use **Moonshot** or **DeepSeek** as the large model provider, as these service providers have faster access and are more stable in China.
+
 ### ❓RuntimeError: No ffmpeg exe could be found
 
 Normally, ffmpeg will be automatically downloaded and detected.
@@ -328,14 +362,14 @@ ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 [issue 56](https://github.com/harry0703/MoneyPrinterTurbo/issues/56)
 
 ```
-failed to generate audio, maybe the network is not available. 
+failed to generate audio, maybe the network is not available.
 if you are in China, please use a VPN.
 ```
 
 [issue 44](https://github.com/harry0703/MoneyPrinterTurbo/issues/44)
 
 ```
-failed to download videos, maybe the network is not available. 
+failed to download videos, maybe the network is not available.
 if you are in China, please use a VPN.
 ```
 
@@ -354,6 +388,43 @@ This is likely due to network issues preventing access to foreign services. Plea
 For Linux systems, you can manually install it, refer to https://cn.linux-console.net/?p=16978
 
 Thanks to [@wangwenqiao666](https://github.com/wangwenqiao666) for their research and exploration
+
+### ❓ImageMagick's security policy prevents operations related to temporary file @/tmp/tmpur5hyyto.txt
+
+You can find these policies in ImageMagick's configuration file policy.xml.
+This file is usually located in /etc/ImageMagick-`X`/ or a similar location in the ImageMagick installation directory.
+Modify the entry containing `pattern="@"`, change `rights="none"` to `rights="read|write"` to allow read and write operations on files.
+
+### ❓OSError: [Errno 24] Too many open files
+
+This issue is caused by the system's limit on the number of open files. You can solve it by modifying the system's file open limit.
+
+Check the current limit:
+
+```shell
+ulimit -n
+```
+
+If it's too low, you can increase it, for example:
+
+```shell
+ulimit -n 10240
+```
+
+### ❓Whisper model download failed, with the following error
+
+LocalEntryNotfoundEror: Cannot find an appropriate cached snapshotfolderfor the specified revision on the local disk and
+outgoing trafic has been disabled.
+To enablerepo look-ups and downloads online, pass 'local files only=False' as input.
+
+or
+
+An error occured while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
+An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the
+specified revision on the local disk. Please check your internet connection and try again.
+Trying to load the model directly from the local cache, if it exists.
+
+Solution: [Click to see how to manually download the model from netdisk](#subtitle-generation-)
 
 ## Feedback & Suggestions 📢
 
