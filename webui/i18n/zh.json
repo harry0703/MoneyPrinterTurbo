@@ -1,6 +1,14 @@
 {
   "Language": "简体中文",
   "Translation": {
+    "Login Required": "需要登录",
+    "Please login to access settings": "请登录后访问配置设置",
+    "Username": "用户名",
+    "Password": "密码",
+    "Login": "登录",
+    "Login Error": "登录错误",
+    "Incorrect username or password": "用户名或密码不正确",
+    "Please enter your username and password": "请输入用户名和密码",
     "Video Script Settings": "**文案设置**",
     "Video Subject": "视频主题（给定一个关键词，:red[AI自动生成]视频文案）",
     "Script Language": "生成视频脚本的语言（一般情况AI会自动根据你输入的主题语言输出）",

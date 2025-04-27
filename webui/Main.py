@@ -4,6 +4,7 @@ import sys
 from uuid import uuid4
 
 import streamlit as st
+import streamlit_authenticator as stauth
 from loguru import logger
 
 # Add the root directory of the project to the system path to allow importing modules from the project
@@ -15,7 +16,6 @@ if root_dir not in sys.path:
     print("")
 
 from app.config import config
-from app.models.const import FILE_TYPE_IMAGES, FILE_TYPE_VIDEOS
 from app.models.schema import (
     MaterialInfo,
     VideoAspect,
@@ -46,7 +46,41 @@ hide_streamlit_style = """
 <style>#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}</style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-st.title(f"MoneyPrinterTurbo v{config.project_version}")
+# 定义资源目录
+font_dir = os.path.join(root_dir, "resource", "fonts")
+song_dir = os.path.join(root_dir, "resource", "songs")
+i18n_dir = os.path.join(root_dir, "webui", "i18n")
+config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
+system_locale = utils.get_system_locale()
+
+# 加载语言文件
+locales = utils.load_locales(i18n_dir)
+
+# 创建一个顶部栏，包含标题和语言选择
+title_col, lang_col = st.columns([3, 1])
+
+with title_col:
+    st.title(f"MoneyPrinterTurbo v{config.project_version}")
+
+with lang_col:
+    display_languages = []
+    selected_index = 0
+    for i, code in enumerate(locales.keys()):
+        display_languages.append(f"{code} - {locales[code].get('Language')}")
+        if code == st.session_state.get("ui_language", ""):
+            selected_index = i
+
+    selected_language = st.selectbox(
+        "Language / 语言",
+        options=display_languages,
+        index=selected_index,
+        key="top_language_selector",
+        label_visibility="collapsed",
+    )
+    if selected_language:
+        code = selected_language.split(" - ")[0].strip()
+        st.session_state["ui_language"] = code
+        config.ui["language"] = code
 
 support_locales = [
     "zh-CN",
@@ -59,11 +93,6 @@ support_locales = [
     "th-TH",
 ]
 
-font_dir = os.path.join(root_dir, "resource", "fonts")
-song_dir = os.path.join(root_dir, "resource", "songs")
-i18n_dir = os.path.join(root_dir, "webui", "i18n")
-config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
-system_locale = utils.get_system_locale()
 # print(f"******** system locale: {system_locale} ********")
 
 if "video_subject" not in st.session_state:
@@ -167,269 +196,361 @@ def tr(key):
     return loc.get("Translation", {}).get(key, key)
 
 
+# 加载用户认证配置
+# 确保用户配置存在并包含所有必需的字段
+if "user" not in config._cfg:
+    config._cfg["user"] = {
+        "username": "admin",
+        "password": "admin",
+        "email": "admin@example.com",
+    }
+    config.save_config()
+elif "email" not in config._cfg["user"]:
+    # 如果用户配置存在但没有email字段，添加默认email
+    config._cfg["user"]["email"] = f"{config._cfg['user']['username']}@example.com"
+    config.save_config()
+
+# 创建认证对象
+authenticator = None
+auth_status = False
+
+# 检查是否需要身份验证才能访问配置
+if not config.app.get("hide_config", False):
+    # 创建认证配置
+    credentials = {
+        "usernames": {
+            config._cfg["user"]["username"]: {
+                "name": config._cfg["user"]["username"],
+                "password": config._cfg["user"]["password"],
+                "email": config._cfg["user"]["email"],
+            }
+        }
+    }
+
+    cookie_name = "mpt_auth_cookie"
+    cookie_key = "mpt_auth_key_123"
+    cookie_expiry_days = 30
+
+    authenticator = stauth.Authenticate(
+        credentials, cookie_name, cookie_key, cookie_expiry_days
+    )
+
+    # 从 session_state 获取认证状态
+    auth_status = st.session_state.get("authentication_status")
+
 st.write(tr("Get Help"))
 
 llm_provider = config.app.get("llm_provider", "").lower()
 
 if not config.app.get("hide_config", False):
+    # 创建基础设置折叠框
     with st.expander(tr("Basic Settings"), expanded=False):
-        config_panels = st.columns(3)
-        left_config_panel = config_panels[0]
-        middle_config_panel = config_panels[1]
-        right_config_panel = config_panels[2]
-        with left_config_panel:
-            display_languages = []
-            selected_index = 0
-            for i, code in enumerate(locales.keys()):
-                display_languages.append(f"{code} - {locales[code].get('Language')}")
-                if code == st.session_state["ui_language"]:
-                    selected_index = i
+        # 检查用户是否已登录
+        if not auth_status:
+            # 用户未登录，显示登录表单
+            st.warning(tr("Please login to access settings"))
 
-            selected_language = st.selectbox(
-                tr("Language"), options=display_languages, index=selected_index
-            )
-            if selected_language:
-                code = selected_language.split(" - ")[0].strip()
-                st.session_state["ui_language"] = code
-                config.ui["language"] = code
+            # 显示登录表单
+            try:
+                # 自定义登录表单文本，使用我们的翻译系统
+                login_form_fields = {
+                    "Form name": tr("Login"),
+                    "Username": tr("Username"),
+                    "Password": tr("Password"),
+                    "Login": tr("Login"),
+                }
 
-            # 是否禁用日志显示
-            hide_log = st.checkbox(
-                tr("Hide Log"), value=config.app.get("hide_log", False)
-            )
-            config.ui["hide_log"] = hide_log
+                authenticator.login(location="main", fields=login_form_fields)
 
-        with middle_config_panel:
-            #   openai
-            #   moonshot (月之暗面)
-            #   oneapi
-            #   g4f
-            #   azure
-            #   qwen (通义千问)
-            #   gemini
-            #   ollama
-            llm_providers = [
-                "OpenAI",
-                "Moonshot",
-                "Azure",
-                "Qwen",
-                "DeepSeek",
-                "Gemini",
-                "Ollama",
-                "G4f",
-                "OneAPI",
-                "Cloudflare",
-                "ERNIE",
-            ]
-            saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
-            saved_llm_provider_index = 0
-            for i, provider in enumerate(llm_providers):
-                if provider.lower() == saved_llm_provider:
-                    saved_llm_provider_index = i
-                    break
+                # 从 session_state 获取认证状态
+                auth_status = st.session_state.get("authentication_status")
 
-            llm_provider = st.selectbox(
-                tr("LLM Provider"),
-                options=llm_providers,
-                index=saved_llm_provider_index,
-            )
-            llm_helper = st.container()
-            llm_provider = llm_provider.lower()
-            config.app["llm_provider"] = llm_provider
+                if auth_status is False:
+                    st.error(tr("Incorrect username or password"))
+                elif auth_status is None:
+                    st.info(tr("Please enter your username and password"))
 
-            llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
-            llm_secret_key = config.app.get(
-                f"{llm_provider}_secret_key", ""
-            )  # only for baidu ernie
-            llm_base_url = config.app.get(f"{llm_provider}_base_url", "")
-            llm_model_name = config.app.get(f"{llm_provider}_model_name", "")
-            llm_account_id = config.app.get(f"{llm_provider}_account_id", "")
+                # 如果用户登录成功，刷新页面以显示配置面板
+                if auth_status:
+                    st.rerun()
+            except Exception as e:
+                st.error(f"{tr('Login Error')}: {e}")
 
-            tips = ""
-            if llm_provider == "ollama":
-                if not llm_model_name:
-                    llm_model_name = "qwen:7b"
-                if not llm_base_url:
-                    llm_base_url = "http://localhost:11434/v1"
+        # 只有在用户已登录时才显示配置面板
+        if auth_status:
+            config_panels = st.columns(3)
+            left_config_panel = config_panels[0]
+            middle_config_panel = config_panels[1]
+            right_config_panel = config_panels[2]
 
-                with llm_helper:
-                    tips = """
-                           ##### Ollama配置说明
-                           - **API Key**: 随便填写，比如 123
-                           - **Base Url**: 一般为 http://localhost:11434/v1
-                              - 如果 `MoneyPrinterTurbo` 和 `Ollama` **不在同一台机器上**，需要填写 `Ollama` 机器的IP地址
-                              - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`
-                           - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
-                           """
+            # 左侧面板 - 日志设置
+            with left_config_panel:
+                # 是否禁用日志显示
+                hide_log = st.checkbox(
+                    tr("Hide Log"), value=config.app.get("hide_log", False)
+                )
+                config.ui["hide_log"] = hide_log
 
-            if llm_provider == "openai":
-                if not llm_model_name:
-                    llm_model_name = "gpt-3.5-turbo"
-                with llm_helper:
-                    tips = """
-                           ##### OpenAI 配置说明
-                           > 需要VPN开启全局流量模式
-                           - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
-                           - **Base Url**: 可以留空
-                           - **Model Name**: 填写**有权限**的模型，[点击查看模型列表](https://platform.openai.com/settings/organization/limits)
-                           """
+            # 中间面板 - LLM 设置
+            with middle_config_panel:
+                #   openai
+                #   moonshot (月之暗面)
+                #   oneapi
+                #   g4f
+                #   azure
+                #   qwen (通义千问)
+                #   gemini
+                #   ollama
+                llm_providers = [
+                    "OpenAI",
+                    "Moonshot",
+                    "Azure",
+                    "Qwen",
+                    "DeepSeek",
+                    "Gemini",
+                    "Ollama",
+                    "G4f",
+                    "OneAPI",
+                    "Cloudflare",
+                    "ERNIE",
+                ]
+                saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
+                saved_llm_provider_index = 0
+                for i, provider in enumerate(llm_providers):
+                    if provider.lower() == saved_llm_provider:
+                        saved_llm_provider_index = i
+                        break
 
-            if llm_provider == "moonshot":
-                if not llm_model_name:
-                    llm_model_name = "moonshot-v1-8k"
-                with llm_helper:
-                    tips = """
-                           ##### Moonshot 配置说明
-                           - **API Key**: [点击到官网申请](https://platform.moonshot.cn/console/api-keys)
-                           - **Base Url**: 固定为 https://api.moonshot.cn/v1
-                           - **Model Name**: 比如 moonshot-v1-8k，[点击查看模型列表](https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8)
-                           """
-            if llm_provider == "oneapi":
-                if not llm_model_name:
-                    llm_model_name = (
-                        "claude-3-5-sonnet-20240620"  # 默认模型，可以根据需要调整
+                llm_provider = st.selectbox(
+                    tr("LLM Provider"),
+                    options=llm_providers,
+                    index=saved_llm_provider_index,
+                )
+                llm_helper = st.container()
+                llm_provider = llm_provider.lower()
+                config.app["llm_provider"] = llm_provider
+
+                llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
+                llm_secret_key = config.app.get(
+                    f"{llm_provider}_secret_key", ""
+                )  # only for baidu ernie
+                llm_base_url = config.app.get(f"{llm_provider}_base_url", "")
+                llm_model_name = config.app.get(f"{llm_provider}_model_name", "")
+                llm_account_id = config.app.get(f"{llm_provider}_account_id", "")
+
+                tips = ""
+                if llm_provider == "ollama":
+                    if not llm_model_name:
+                        llm_model_name = "qwen:7b"
+                    if not llm_base_url:
+                        llm_base_url = "http://localhost:11434/v1"
+
+                    with llm_helper:
+                        tips = """
+                               ##### Ollama配置说明
+                               - **API Key**: 随便填写，比如 123
+                               - **Base Url**: 一般为 http://localhost:11434/v1
+                                  - 如果 `MoneyPrinterTurbo` 和 `Ollama` **不在同一台机器上**，需要填写 `Ollama` 机器的IP地址
+                                  - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`
+                               - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
+                               """
+
+                if llm_provider == "openai":
+                    if not llm_model_name:
+                        llm_model_name = "gpt-3.5-turbo"
+                    with llm_helper:
+                        tips = """
+                               ##### OpenAI 配置说明
+                               > 需要VPN开启全局流量模式
+                               - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
+                               - **Base Url**: 可以留空
+                               - **Model Name**: 填写**有权限**的模型，[点击查看模型列表](https://platform.openai.com/settings/organization/limits)
+                               """
+
+                if llm_provider == "moonshot":
+                    if not llm_model_name:
+                        llm_model_name = "moonshot-v1-8k"
+                    with llm_helper:
+                        tips = """
+                               ##### Moonshot 配置说明
+                               - **API Key**: [点击到官网申请](https://platform.moonshot.cn/console/api-keys)
+                               - **Base Url**: 固定为 https://api.moonshot.cn/v1
+                               - **Model Name**: 比如 moonshot-v1-8k，[点击查看模型列表](https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8)
+                               """
+                if llm_provider == "oneapi":
+                    if not llm_model_name:
+                        llm_model_name = (
+                            "claude-3-5-sonnet-20240620"  # 默认模型，可以根据需要调整
+                        )
+                    with llm_helper:
+                        tips = """
+                            ##### OneAPI 配置说明
+                            - **API Key**: 填写您的 OneAPI 密钥
+                            - **Base Url**: 填写 OneAPI 的基础 URL
+                            - **Model Name**: 填写您要使用的模型名称，例如 claude-3-5-sonnet-20240620
+                            """
+
+                if llm_provider == "qwen":
+                    if not llm_model_name:
+                        llm_model_name = "qwen-max"
+                    with llm_helper:
+                        tips = """
+                               ##### 通义千问Qwen 配置说明
+                               - **API Key**: [点击到官网申请](https://dashscope.console.aliyun.com/apiKey)
+                               - **Base Url**: 留空
+                               - **Model Name**: 比如 qwen-max，[点击查看模型列表](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction#3ef6d0bcf91wy)
+                               """
+
+                if llm_provider == "g4f":
+                    if not llm_model_name:
+                        llm_model_name = "gpt-3.5-turbo"
+                    with llm_helper:
+                        tips = """
+                               ##### gpt4free 配置说明
+                               > [GitHub开源项目](https://github.com/xtekky/gpt4free)，可以免费使用GPT模型，但是**稳定性较差**
+                               - **API Key**: 随便填写，比如 123
+                               - **Base Url**: 留空
+                               - **Model Name**: 比如 gpt-3.5-turbo，[点击查看模型列表](https://github.com/xtekky/gpt4free/blob/main/g4f/models.py#L308)
+                               """
+                if llm_provider == "azure":
+                    with llm_helper:
+                        tips = """
+                               ##### Azure 配置说明
+                               > [点击查看如何部署模型](https://learn.microsoft.com/zh-cn/azure/ai-services/openai/how-to/create-resource)
+                               - **API Key**: [点击到Azure后台创建](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)
+                               - **Base Url**: 留空
+                               - **Model Name**: 填写你实际的部署名
+                               """
+
+                if llm_provider == "gemini":
+                    if not llm_model_name:
+                        llm_model_name = "gemini-1.0-pro"
+
+                    with llm_helper:
+                        tips = """
+                                ##### Gemini 配置说明
+                                > 需要VPN开启全局流量模式
+                               - **API Key**: [点击到官网申请](https://ai.google.dev/)
+                               - **Base Url**: 留空
+                               - **Model Name**: 比如 gemini-1.0-pro
+                               """
+
+                if llm_provider == "deepseek":
+                    if not llm_model_name:
+                        llm_model_name = "deepseek-chat"
+                    if not llm_base_url:
+                        llm_base_url = "https://api.deepseek.com"
+                    with llm_helper:
+                        tips = """
+                               ##### DeepSeek 配置说明
+                               - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
+                               - **Base Url**: 固定为 https://api.deepseek.com
+                               - **Model Name**: 固定为 deepseek-chat
+                               """
+
+                if llm_provider == "ernie":
+                    with llm_helper:
+                        tips = """
+                               ##### 百度文心一言 配置说明
+                               - **API Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
+                               - **Secret Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
+                               - **Base Url**: 填写 **请求地址** [点击查看文档](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)
+                               """
+
+                if tips and config.ui["language"] == "zh":
+                    st.warning(
+                        "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
                     )
-                with llm_helper:
-                    tips = """
-                        ##### OneAPI 配置说明
-                        - **API Key**: 填写您的 OneAPI 密钥
-                        - **Base Url**: 填写 OneAPI 的基础 URL
-                        - **Model Name**: 填写您要使用的模型名称，例如 claude-3-5-sonnet-20240620
-                        """
+                    st.info(tips)
 
-            if llm_provider == "qwen":
-                if not llm_model_name:
-                    llm_model_name = "qwen-max"
-                with llm_helper:
-                    tips = """
-                           ##### 通义千问Qwen 配置说明
-                           - **API Key**: [点击到官网申请](https://dashscope.console.aliyun.com/apiKey)
-                           - **Base Url**: 留空
-                           - **Model Name**: 比如 qwen-max，[点击查看模型列表](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction#3ef6d0bcf91wy)
-                           """
-
-            if llm_provider == "g4f":
-                if not llm_model_name:
-                    llm_model_name = "gpt-3.5-turbo"
-                with llm_helper:
-                    tips = """
-                           ##### gpt4free 配置说明
-                           > [GitHub开源项目](https://github.com/xtekky/gpt4free)，可以免费使用GPT模型，但是**稳定性较差**
-                           - **API Key**: 随便填写，比如 123
-                           - **Base Url**: 留空
-                           - **Model Name**: 比如 gpt-3.5-turbo，[点击查看模型列表](https://github.com/xtekky/gpt4free/blob/main/g4f/models.py#L308)
-                           """
-            if llm_provider == "azure":
-                with llm_helper:
-                    tips = """
-                           ##### Azure 配置说明
-                           > [点击查看如何部署模型](https://learn.microsoft.com/zh-cn/azure/ai-services/openai/how-to/create-resource)
-                           - **API Key**: [点击到Azure后台创建](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)
-                           - **Base Url**: 留空
-                           - **Model Name**: 填写你实际的部署名
-                           """
-
-            if llm_provider == "gemini":
-                if not llm_model_name:
-                    llm_model_name = "gemini-1.0-pro"
-
-                with llm_helper:
-                    tips = """
-                            ##### Gemini 配置说明
-                            > 需要VPN开启全局流量模式
-                           - **API Key**: [点击到官网申请](https://ai.google.dev/)
-                           - **Base Url**: 留空
-                           - **Model Name**: 比如 gemini-1.0-pro
-                           """
-
-            if llm_provider == "deepseek":
-                if not llm_model_name:
-                    llm_model_name = "deepseek-chat"
-                if not llm_base_url:
-                    llm_base_url = "https://api.deepseek.com"
-                with llm_helper:
-                    tips = """
-                           ##### DeepSeek 配置说明
-                           - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
-                           - **Base Url**: 固定为 https://api.deepseek.com
-                           - **Model Name**: 固定为 deepseek-chat
-                           """
-
-            if llm_provider == "ernie":
-                with llm_helper:
-                    tips = """
-                           ##### 百度文心一言 配置说明
-                           - **API Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
-                           - **Secret Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
-                           - **Base Url**: 填写 **请求地址** [点击查看文档](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)
-                           """
-
-            if tips and config.ui["language"] == "zh":
-                st.warning(
-                    "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
+                st_llm_api_key = st.text_input(
+                    tr("API Key"), value=llm_api_key, type="password"
                 )
-                st.info(tips)
+                st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
+                st_llm_model_name = ""
+                if llm_provider != "ernie":
+                    st_llm_model_name = st.text_input(
+                        tr("Model Name"),
+                        value=llm_model_name,
+                        key=f"{llm_provider}_model_name_input",
+                    )
+                    if st_llm_model_name:
+                        config.app[f"{llm_provider}_model_name"] = st_llm_model_name
+                else:
+                    st_llm_model_name = None
 
-            st_llm_api_key = st.text_input(
-                tr("API Key"), value=llm_api_key, type="password"
-            )
-            st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
-            st_llm_model_name = ""
-            if llm_provider != "ernie":
-                st_llm_model_name = st.text_input(
-                    tr("Model Name"),
-                    value=llm_model_name,
-                    key=f"{llm_provider}_model_name_input",
-                )
+                if st_llm_api_key:
+                    config.app[f"{llm_provider}_api_key"] = st_llm_api_key
+                if st_llm_base_url:
+                    config.app[f"{llm_provider}_base_url"] = st_llm_base_url
                 if st_llm_model_name:
                     config.app[f"{llm_provider}_model_name"] = st_llm_model_name
-            else:
-                st_llm_model_name = None
+                if llm_provider == "ernie":
+                    st_llm_secret_key = st.text_input(
+                        tr("Secret Key"), value=llm_secret_key, type="password"
+                    )
+                    config.app[f"{llm_provider}_secret_key"] = st_llm_secret_key
 
-            if st_llm_api_key:
-                config.app[f"{llm_provider}_api_key"] = st_llm_api_key
-            if st_llm_base_url:
-                config.app[f"{llm_provider}_base_url"] = st_llm_base_url
-            if st_llm_model_name:
-                config.app[f"{llm_provider}_model_name"] = st_llm_model_name
-            if llm_provider == "ernie":
-                st_llm_secret_key = st.text_input(
-                    tr("Secret Key"), value=llm_secret_key, type="password"
+                if llm_provider == "cloudflare":
+                    st_llm_account_id = st.text_input(
+                        tr("Account ID"), value=llm_account_id
+                    )
+                    if st_llm_account_id:
+                        config.app[f"{llm_provider}_account_id"] = st_llm_account_id
+
+            # 右侧面板 - API 密钥设置
+            with right_config_panel:
+
+                def get_keys_from_config(cfg_key):
+                    api_keys = config.app.get(cfg_key, [])
+                    if isinstance(api_keys, str):
+                        api_keys = [api_keys]
+                    api_key = ", ".join(api_keys)
+                    return api_key
+
+                def save_keys_to_config(cfg_key, value):
+                    value = value.replace(" ", "")
+                    if value:
+                        config.app[cfg_key] = value.split(",")
+
+                st.markdown("##### " + tr("Video API Keys"))
+
+                # Pexels API Key
+                pexels_api_key = get_keys_from_config("pexels_api_keys")
+                st.markdown(
+                    f"**Pexels API Key** ([{tr('点击获取')}](https://www.pexels.com/api/documentation/))"
                 )
-                config.app[f"{llm_provider}_secret_key"] = st_llm_secret_key
-
-            if llm_provider == "cloudflare":
-                st_llm_account_id = st.text_input(
-                    tr("Account ID"), value=llm_account_id
+                st.markdown(
+                    f"<span style='color:#FF4B4B'>{tr('推荐使用')}</span>",
+                    unsafe_allow_html=True,
                 )
-                if st_llm_account_id:
-                    config.app[f"{llm_provider}_account_id"] = st_llm_account_id
+                pexels_api_key = st.text_input(
+                    "Pexels API Key",
+                    value=pexels_api_key,
+                    type="password",
+                    key="pexels_api_key_input",
+                    label_visibility="collapsed",
+                )
+                save_keys_to_config("pexels_api_keys", pexels_api_key)
 
-        with right_config_panel:
+                # Pixabay API Key
+                pixabay_api_key = get_keys_from_config("pixabay_api_keys")
+                st.markdown(
+                    f"**Pixabay API Key** ([{tr('点击获取')}](https://pixabay.com/api/docs/))"
+                )
+                st.markdown(
+                    f"<span style='color:#808080'>{tr('可以不用配置，如果 Pexels 无法使用，再选择Pixabay')}</span>",
+                    unsafe_allow_html=True,
+                )
+                pixabay_api_key = st.text_input(
+                    "Pixabay API Key",
+                    value=pixabay_api_key,
+                    type="password",
+                    key="pixabay_api_key_input",
+                    label_visibility="collapsed",
+                )
+                save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
-            def get_keys_from_config(cfg_key):
-                api_keys = config.app.get(cfg_key, [])
-                if isinstance(api_keys, str):
-                    api_keys = [api_keys]
-                api_key = ", ".join(api_keys)
-                return api_key
-
-            def save_keys_to_config(cfg_key, value):
-                value = value.replace(" ", "")
-                if value:
-                    config.app[cfg_key] = value.split(",")
-
-            pexels_api_key = get_keys_from_config("pexels_api_keys")
-            pexels_api_key = st.text_input(
-                tr("Pexels API Key"), value=pexels_api_key, type="password"
-            )
-            save_keys_to_config("pexels_api_keys", pexels_api_key)
-
-            pixabay_api_key = get_keys_from_config("pixabay_api_keys")
-            pixabay_api_key = st.text_input(
-                tr("Pixabay API Key"), value=pixabay_api_key, type="password"
-            )
-            save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
 panel = st.columns(3)
 left_panel = panel[0]
@@ -443,7 +564,9 @@ with left_panel:
     with st.container(border=True):
         st.write(tr("Video Script Settings"))
         params.video_subject = st.text_input(
-            tr("Video Subject"), value=st.session_state["video_subject"]
+            tr("Video Subject"),
+            value=st.session_state["video_subject"],
+            key="video_subject_input",
         ).strip()
 
         video_languages = [
@@ -529,7 +652,6 @@ with middle_panel:
         config.app["video_source"] = params.video_source
 
         if params.video_source == "local":
-            _supported_types = FILE_TYPE_VIDEOS + FILE_TYPE_IMAGES
             uploaded_files = st.file_uploader(
                 "Upload Local Files",
                 type=["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"],
@@ -664,10 +786,15 @@ with middle_panel:
             saved_azure_speech_region = config.azure.get("speech_region", "")
             saved_azure_speech_key = config.azure.get("speech_key", "")
             azure_speech_region = st.text_input(
-                tr("Speech Region"), value=saved_azure_speech_region
+                tr("Speech Region"),
+                value=saved_azure_speech_region,
+                key="azure_speech_region_input",
             )
             azure_speech_key = st.text_input(
-                tr("Speech Key"), value=saved_azure_speech_key, type="password"
+                tr("Speech Key"),
+                value=saved_azure_speech_key,
+                type="password",
+                key="azure_speech_key_input",
             )
             config.azure["speech_region"] = azure_speech_region
             config.azure["speech_key"] = azure_speech_key
@@ -704,7 +831,9 @@ with middle_panel:
 
         # Show or hide components based on the selection
         if params.bgm_type == "custom":
-            custom_bgm_file = st.text_input(tr("Custom Background Music File"))
+            custom_bgm_file = st.text_input(
+                tr("Custom Background Music File"), key="custom_bgm_file_input"
+            )
             if custom_bgm_file and os.path.exists(custom_bgm_file):
                 params.bgm_file = custom_bgm_file
                 # st.write(f":red[已选择自定义背景音乐]：**{custom_bgm_file}**")
@@ -744,7 +873,9 @@ with right_panel:
 
         if params.subtitle_position == "custom":
             custom_position = st.text_input(
-                tr("Custom Position (% from top)"), value="70.0"
+                tr("Custom Position (% from top)"),
+                value="70.0",
+                key="custom_position_input",
             )
             try:
                 params.custom_position = float(custom_position)

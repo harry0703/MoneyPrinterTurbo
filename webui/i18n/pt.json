@@ -1,12 +1,20 @@
 {
   "Language": "Português Brasileiro",
   "Translation": {
+    "Login Required": "Login Necessário",
+    "Please login to access settings": "Por favor, faça login para acessar as configurações",
+    "Username": "Nome de usuário",
+    "Password": "Senha",
+    "Login": "Entrar",
+    "Login Error": "Erro de Login",
+    "Incorrect username or password": "Nome de usuário ou senha incorretos",
+    "Please enter your username and password": "Por favor, digite seu nome de usuário e senha",
     "Video Script Settings": "**Configurações do Roteiro do Vídeo**",
     "Video Subject": "Tema do Vídeo (Forneça uma palavra-chave, :red[a IA irá gerar automaticamente] o roteiro do vídeo)",
     "Script Language": "Idioma para Gerar o Roteiro do Vídeo (a IA irá gerar automaticamente com base no idioma do seu tema)",
     "Generate Video Script and Keywords": "Clique para usar a IA para gerar o [Roteiro do Vídeo] e as [Palavras-chave do Vídeo] com base no **tema**",
     "Auto Detect": "Detectar Automaticamente",
-    "Video Script": "Roteiro do Vídeo (:blue[① Opcional, gerado pela IA  ② Pontuação adequada ajuda na geração de legendas])",
+    "Video Script": "Roteiro do Vídeo (:blue[① Opcional, gerado pela IA  ② Pontuação adequada ajuda na geração de legendas])",
     "Generate Video Keywords": "Clique para usar a IA para gerar [Palavras-chave do Vídeo] com base no **roteiro**",
     "Please Enter the Video Subject": "Por favor, insira o Roteiro do Vídeo primeiro",
     "Generating Video Script and Keywords": "A IA está gerando o roteiro do vídeo e as palavras-chave...",
@@ -61,10 +69,10 @@
     "Video Generation Completed": "Geração do Vídeo Concluída",
     "Video Generation Failed": "Falha na Geração do Vídeo",
     "You can download the generated video from the following links": "Você pode baixar o vídeo gerado a partir dos seguintes links",
-    "Pexels API Key": "Chave da API do Pexels ([Obter Chave da API](https://www.pexels.com/api/))",
-    "Pixabay API Key": "Chave da API do Pixabay ([Obter Chave da API](https://pixabay.com/api/docs/#api_search_videos))",
     "Basic Settings": "**Configurações Básicas** (:blue[Clique para expandir])",
     "Language": "Idioma",
+    "Pexels API Key": "Chave da API do Pexels ([Obter Chave da API](https://www.pexels.com/api/))",
+    "Pixabay API Key": "Chave da API do Pixabay ([Obter Chave da API](https://pixabay.com/api/docs/#api_search_videos))",
     "LLM Provider": "Provedor LLM",
     "API Key": "Chave da API (:red[Obrigatório])",
     "Base Url": "URL Base",
@@ -83,6 +91,9 @@
     "Voice Example": "Este é um exemplo de texto para testar a síntese de fala",
     "Synthesizing Voice": "Sintetizando voz, por favor aguarde...",
     "TTS Provider": "Selecione o provedor de síntese de voz",
-    "Hide Log": "Ocultar Log"
+    "Hide Log": "Ocultar Log",
+    "点击获取": "Clique para obter",
+    "推荐使用": "Recomendado",
+    "可以不用配置，如果 Pexels 无法使用，再选择Pixabay": "Pode não ser configurado, se o Pexels não estiver disponível, escolha o Pixabay"
   }
 }
