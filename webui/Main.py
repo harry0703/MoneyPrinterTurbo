@@ -4,7 +4,6 @@ import sys
 from uuid import uuid4
 
 import streamlit as st
-import streamlit_authenticator as stauth
 from loguru import logger
 
 # Add the root directory of the project to the system path to allow importing modules from the project
