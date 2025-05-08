@@ -24,7 +24,7 @@
     "Video Concat Mode": "Modo de Concatenação de Vídeo",
     "Random": "Concatenação Aleatória (Recomendado)",
     "Sequential": "Concatenação Sequencial",
-    "Video Transition Mode": "Modo de Transição de Vídeo",  
+    "Video Transition Mode": "Modo de Transição de Vídeo",
     "None": "Nenhuma Transição",
     "Shuffle": "Transição Aleatória",
     "FadeIn": "FadeIn",
@@ -92,8 +92,8 @@
     "Synthesizing Voice": "Sintetizando voz, por favor aguarde...",
     "TTS Provider": "Selecione o provedor de síntese de voz",
     "Hide Log": "Ocultar Log",
-    "点击获取": "Clique para obter",
-    "推荐使用": "Recomendado",
-    "可以不用配置，如果 Pexels 无法使用，再选择Pixabay": "Pode não ser configurado, se o Pexels não estiver disponível, escolha o Pixabay"
+    "Hide Basic Settings": "Ocultar Configurações Básicas\n\nOculto, o painel de configurações básicas não será exibido na página.\n\nSe precisar exibi-lo novamente, defina `hide_config = false` em `config.toml`",
+    "LLM Settings": "**Configurações do LLM**",
+    "Video Source Settings": "**Configurações da Fonte do Vídeo**"
   }
 }
