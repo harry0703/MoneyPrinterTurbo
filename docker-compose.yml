@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: "webui"
+    container_name: "moneyprinterturbo-webui"
     ports:
       - "8501:8501"
     command: [ "streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False" ]
@@ -16,7 +16,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: "api"
+    container_name: "moneyprinterturbo-api"
     ports:
       - "8080:8080"
     command: [ "python3", "main.py" ]
