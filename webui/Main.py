@@ -618,7 +618,7 @@ with middle_panel:
         # tts_providers = ['edge', 'azure']
         # tts_provider = st.selectbox(tr("TTS Provider"), tts_providers)
 
-        voices = voice.get_all_azure_voices(filter_locals=support_locales)
+        voices = voice.get_all_azure_voices(filter_locals=None)
         friendly_names = {
             v: v.replace("Female", tr("Female"))
             .replace("Male", tr("Male"))
