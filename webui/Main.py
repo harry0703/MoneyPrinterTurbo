@@ -57,6 +57,16 @@ i18n_dir = os.path.join(root_dir, "webui", "i18n")
 config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
 system_locale = utils.get_system_locale()
 
+
+if "video_subject" not in st.session_state:
+    st.session_state["video_subject"] = ""
+if "video_script" not in st.session_state:
+    st.session_state["video_script"] = ""
+if "video_terms" not in st.session_state:
+    st.session_state["video_terms"] = ""
+if "ui_language" not in st.session_state:
+    st.session_state["ui_language"] = config.ui.get("language", system_locale)
+
 # 加载语言文件
 locales = utils.load_locales(i18n_dir)
 
@@ -96,16 +106,6 @@ support_locales = [
     "vi-VN",
     "th-TH",
 ]
-
-if "video_subject" not in st.session_state:
-    st.session_state["video_subject"] = ""
-if "video_script" not in st.session_state:
-    st.session_state["video_script"] = ""
-if "video_terms" not in st.session_state:
-    st.session_state["video_terms"] = ""
-if "ui_language" not in st.session_state:
-    st.session_state["ui_language"] = config.ui.get("language", system_locale)
-
 
 def get_all_fonts():
     fonts = []
