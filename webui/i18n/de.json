@@ -24,7 +24,7 @@
     "Video Concat Mode": "Videoverkettungsmodus",
     "Random": "Zufällige Verkettung (empfohlen)",
     "Sequential": "Sequentielle Verkettung",
-    "Video Transition Mode": "Video Übergangsmodus",  
+    "Video Transition Mode": "Video Übergangsmodus",
     "None": "Kein Übergang",
     "Shuffle": "Zufällige Übergänge",
     "FadeIn": "FadeIn",
@@ -92,8 +92,8 @@
     "Synthesizing Voice": "Sprachsynthese läuft, bitte warten...",
     "TTS Provider": "Sprachsynthese-Anbieter auswählen",
     "Hide Log": "Protokoll ausblenden",
-    "点击获取": "Klicken zum Abrufen",
-    "推荐使用": "Empfohlen",
-    "可以不用配置，如果 Pexels 无法使用，再选择Pixabay": "Kann uneingestellt bleiben. Wenn Pexels nicht funktioniert, wählen Sie Pixabay"
+    "Hide Basic Settings": "Basis-Einstellungen ausblenden\n\nWenn diese Option deaktiviert ist, wird die Basis-Einstellungen-Leiste nicht auf der Seite angezeigt.\n\nWenn Sie sie erneut anzeigen möchten, setzen Sie `hide_config = false` in `config.toml`",
+    "LLM Settings": "**LLM-Einstellungen**",
+    "Video Source Settings": "**Videoquellen-Einstellungen**"
   }
 }

@@ -25,7 +25,7 @@
     "Random": "Nối Ngẫu Nhiên (Được Khuyến Nghị)",
     "Sequential": "Nối Theo Thứ Tự",
     "Video Transition Mode": "Chế Độ Chuyển Đổi Video",
-    "None": "Không Có Chuyển Đổi",  
+    "None": "Không Có Chuyển Đổi",
     "Shuffle": "Chuyển Đổi Ngẫu Nhiên",
     "FadeIn": "FadeIn",
     "FadeOut": "FadeOut",
@@ -92,8 +92,8 @@
     "Synthesizing Voice": "Đang tổng hợp giọng nói, vui lòng đợi...",
     "TTS Provider": "Chọn nhà cung cấp tổng hợp giọng nói",
     "Hide Log": "Ẩn Nhật Ký",
-    "点击获取": "Nhấp để lấy",
-    "推荐使用": "Được khuyến nghị",
-    "可以不用配置，如果 Pexels 无法使用，再选择Pixabay": "Có thể không cần cấu hình, nếu Pexels không khả dụng, hãy chọn Pixabay"
+    "Hide Basic Settings": "Ẩn Cài Đặt Cơ Bản\n\nẨn, thanh cài đặt cơ bản sẽ không hiển thị trên trang web.\n\nNếu bạn muốn hiển thị lại, vui lòng đặt `hide_config = false` trong `config.toml`",
+    "LLM Settings": "**Cài Đặt LLM**",
+    "Video Source Settings": "**Cài Đặt Nguồn Video**"
   }
 }
