@@ -13,3 +13,4 @@ azure-cognitiveservices-speech==1.41.1
 redis==5.2.0
 python-multipart==0.0.19
 pyyaml
+transformers
