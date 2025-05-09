@@ -59,7 +59,7 @@ project_description = _cfg.get(
     "project_description",
     "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>",
 )
-project_version = _cfg.get("project_version", "1.2.4")
+project_version = _cfg.get("project_version", "1.2.5")
 reload_debug = False
 
 imagemagick_path = app.get("imagemagick_path", "")
