@@ -5,11 +5,10 @@ from datetime import datetime
 from typing import Union
 from xml.sax.saxutils import unescape
 
-import edge_tts
-from edge_tts import SubMaker, submaker
-from edge_tts.submaker import mktimestamp
 from loguru import logger
 from moviepy.video.tools import subtitles
+from edge_tts import SubMaker, submaker  # Only for SubMaker/submaker utilities
+from edge_tts.submaker import mktimestamp
 
 from app.config import config
 from app.utils import utils
@@ -1048,9 +1047,16 @@ def is_azure_v2_voice(voice_name: str):
 def tts(
     text: str, voice_name: str, voice_rate: float, voice_file: str
 ) -> Union[SubMaker, None]:
-    if is_azure_v2_voice(voice_name):
-        return azure_tts_v2(text, voice_name, voice_file)
-    return azure_tts_v1(text, voice_name, voice_rate, voice_file)
+    """
+    Unified TTS function using only Azure Cognitive Services (official supported API).
+    - Ignores voice_rate, since Azure SDK supports rate via SSML (can be extended if needed).
+    """
+    # Ensure all voice names are routed through Azure official API.
+    v2_name = is_azure_v2_voice(voice_name)
+    if not v2_name:
+        # If not a V2 name, just strip "-Female" or "-Male" and use as-is
+        v2_name = parse_voice_name(voice_name)
+    return azure_tts_v2(text, v2_name, voice_file)
 
 
 def convert_rate_to_percent(rate: float) -> str:
@@ -1063,39 +1069,7 @@ def convert_rate_to_percent(rate: float) -> str:
         return f"{percent}%"
 
 
-def azure_tts_v1(
-    text: str, voice_name: str, voice_rate: float, voice_file: str
-) -> Union[SubMaker, None]:
-    voice_name = parse_voice_name(voice_name)
-    text = text.strip()
-    rate_str = convert_rate_to_percent(voice_rate)
-    for i in range(3):
-        try:
-            logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
-
-            async def _do() -> SubMaker:
-                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str)
-                sub_maker = edge_tts.SubMaker()
-                with open(voice_file, "wb") as file:
-                    async for chunk in communicate.stream():
-                        if chunk["type"] == "audio":
-                            file.write(chunk["data"])
-                        elif chunk["type"] == "WordBoundary":
-                            sub_maker.create_sub(
-                                (chunk["offset"], chunk["duration"]), chunk["text"]
-                            )
-                return sub_maker
-
-            sub_maker = asyncio.run(_do())
-            if not sub_maker or not sub_maker.subs:
-                logger.warning("failed, sub_maker is None or sub_maker.subs is None")
-                continue
-
-            logger.info(f"completed, output file: {voice_file}")
-            return sub_maker
-        except Exception as e:
-            logger.error(f"failed, error: {str(e)}")
-    return None
+# Removed azure_tts_v1 and all edge_tts/Bing API usage. Now only Azure official SDK is used.
 
 
 def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:
