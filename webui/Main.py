@@ -621,6 +621,7 @@ with middle_panel:
         tts_servers = [
             ("azure-tts-v1", "Azure TTS V1"),
             ("azure-tts-v2", "Azure TTS V2"),
+            ("siliconflow", "SiliconFlow TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -641,20 +642,26 @@ with middle_panel:
         selected_tts_server = tts_servers[selected_tts_server_index][0]
         config.ui["tts_server"] = selected_tts_server
 
-        # 获取所有声音
-        all_voices = voice.get_all_azure_voices(filter_locals=None)
-
-        # 根据选择的TTS服务器筛选声音
+        # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
-        for v in all_voices:
-            if selected_tts_server == "azure-tts-v2":
-                # V2版本的声音名称中包含"v2"
-                if "V2" in v:
-                    filtered_voices.append(v)
-            else:
-                # V1版本的声音名称中不包含"v2"
-                if "V2" not in v:
-                    filtered_voices.append(v)
+
+        if selected_tts_server == "siliconflow":
+            # 获取硅基流动的声音列表
+            filtered_voices = voice.get_siliconflow_voices()
+        else:
+            # 获取Azure的声音列表
+            all_voices = voice.get_all_azure_voices(filter_locals=None)
+
+            # 根据选择的TTS服务器筛选声音
+            for v in all_voices:
+                if selected_tts_server == "azure-tts-v2":
+                    # V2版本的声音名称中包含"v2"
+                    if "V2" in v:
+                        filtered_voices.append(v)
+                else:
+                    # V1版本的声音名称中不包含"v2"
+                    if "V2" not in v:
+                        filtered_voices.append(v)
 
         friendly_names = {
             v: v.replace("Female", tr("Female"))
@@ -720,6 +727,7 @@ with middle_panel:
                     voice_name=voice_name,
                     voice_rate=params.voice_rate,
                     voice_file=audio_file,
+                    voice_volume=params.voice_volume,
                 )
                 # if the voice file generation failed, try again with a default content.
                 if not sub_maker:
@@ -729,6 +737,7 @@ with middle_panel:
                         voice_name=voice_name,
                         voice_rate=params.voice_rate,
                         voice_file=audio_file,
+                        voice_volume=params.voice_volume,
                     )
 
                 if sub_maker and os.path.exists(audio_file):
@@ -755,6 +764,32 @@ with middle_panel:
             )
             config.azure["speech_region"] = azure_speech_region
             config.azure["speech_key"] = azure_speech_key
+
+        # 当选择硅基流动时，显示API key输入框和说明信息
+        if selected_tts_server == "siliconflow" or (
+            voice_name and voice.is_siliconflow_voice(voice_name)
+        ):
+            saved_siliconflow_api_key = config.siliconflow.get("api_key", "")
+
+            siliconflow_api_key = st.text_input(
+                tr("SiliconFlow API Key"),
+                value=saved_siliconflow_api_key,
+                type="password",
+                key="siliconflow_api_key_input",
+            )
+
+            # 显示硅基流动的说明信息
+            st.info(
+                tr("SiliconFlow TTS Settings")
+                + ":\n"
+                + "- "
+                + tr("Speed: Range [0.25, 4.0], default is 1.0")
+                + "\n"
+                + "- "
+                + tr("Volume: Uses Speech Volume setting, default 1.0 maps to gain 0")
+            )
+
+            config.siliconflow["api_key"] = siliconflow_api_key
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),

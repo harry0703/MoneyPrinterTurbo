@@ -193,6 +193,11 @@ compute_type = "int8"
 speech_key = ""
 speech_region = ""
 
+[siliconflow]
+# SiliconFlow API Key
+# Get your API key at https://siliconflow.cn
+api_key = ""
+
 [ui]
 # UI related settings
 # 是否隐藏日志信息
