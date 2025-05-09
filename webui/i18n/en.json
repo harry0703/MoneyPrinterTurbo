@@ -91,6 +91,8 @@
     "Voice Example": "This is an example text for testing speech synthesis",
     "Synthesizing Voice": "Synthesizing voice, please wait...",
     "TTS Provider": "Select the voice synthesis provider",
+    "TTS Servers": "TTS Servers",
+    "No voices available for the selected TTS server. Please select another server.": "No voices available for the selected TTS server. Please select another server.",
     "Hide Log": "Hide Log",
     "Hide Basic Settings": "Hide Basic Settings\n\nHidden, the basic settings panel will not be displayed on the page.\n\nIf you need to display it again, please set `hide_config = false` in `config.toml`",
     "LLM Settings": "**LLM Settings**",

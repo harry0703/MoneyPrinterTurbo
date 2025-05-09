@@ -91,6 +91,8 @@
     "Voice Example": "Đây là văn bản mẫu để kiểm tra tổng hợp giọng nói",
     "Synthesizing Voice": "Đang tổng hợp giọng nói, vui lòng đợi...",
     "TTS Provider": "Chọn nhà cung cấp tổng hợp giọng nói",
+    "TTS Servers": "Máy chủ TTS",
+    "No voices available for the selected TTS server. Please select another server.": "Không có giọng nói nào cho máy chủ TTS đã chọn. Vui lòng chọn máy chủ khác.",
     "Hide Log": "Ẩn Nhật Ký",
     "Hide Basic Settings": "Ẩn Cài Đặt Cơ Bản\n\nẨn, thanh cài đặt cơ bản sẽ không hiển thị trên trang web.\n\nNếu bạn muốn hiển thị lại, vui lòng đặt `hide_config = false` trong `config.toml`",
     "LLM Settings": "**Cài Đặt LLM**",

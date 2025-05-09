@@ -16,7 +16,7 @@ from app.utils import utils
 
 
 def get_all_azure_voices(filter_locals=None) -> list[str]:
-    voices_str = """
+    azure_voices_str = """
 Name: af-ZA-AdriNeural
 Gender: Female
 
@@ -1015,7 +1015,7 @@ Gender: Female
     # 定义正则表达式模式，用于匹配 Name 和 Gender 行
     pattern = re.compile(r"Name:\s*(.+)\s*Gender:\s*(.+)\s*", re.MULTILINE)
     # 使用正则表达式查找所有匹配项
-    matches = pattern.findall(voices_str)
+    matches = pattern.findall(azure_voices_str)
 
     for name, gender in matches:
         # 应用过滤条件
@@ -1219,7 +1219,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
         """
         start_t = mktimestamp(start_time).replace(".", ",")
         end_t = mktimestamp(end_time).replace(".", ",")
-        return f"{idx}\n" f"{start_t} --> {end_t}\n" f"{sub_text}\n"
+        return f"{idx}\n{start_t} --> {end_t}\n{sub_text}\n"
 
     start_time = -1.0
     sub_items = []

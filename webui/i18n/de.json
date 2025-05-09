@@ -91,6 +91,8 @@
     "Voice Example": "Dies ist ein Beispieltext zum Testen der Sprachsynthese",
     "Synthesizing Voice": "Sprachsynthese läuft, bitte warten...",
     "TTS Provider": "Sprachsynthese-Anbieter auswählen",
+    "TTS Servers": "TTS-Server",
+    "No voices available for the selected TTS server. Please select another server.": "Keine Stimmen für den ausgewählten TTS-Server verfügbar. Bitte wählen Sie einen anderen Server.",
     "Hide Log": "Protokoll ausblenden",
     "Hide Basic Settings": "Basis-Einstellungen ausblenden\n\nWenn diese Option deaktiviert ist, wird die Basis-Einstellungen-Leiste nicht auf der Seite angezeigt.\n\nWenn Sie sie erneut anzeigen möchten, setzen Sie `hide_config = false` in `config.toml`",
     "LLM Settings": "**LLM-Einstellungen**",
