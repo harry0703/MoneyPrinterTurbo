@@ -1,6 +1,7 @@
 import json
 import locale
 import os
+from pathlib import Path
 import threading
 from typing import Any
 from uuid import uuid4
@@ -226,4 +227,4 @@ def load_locales(i18n_dir):
 
 
 def parse_extension(filename):
-    return os.path.splitext(filename)[1].strip().lower().replace(".", "")
+    return Path(filename).suffix.lower().lstrip('.')
