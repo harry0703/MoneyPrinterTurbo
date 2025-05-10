@@ -144,7 +144,7 @@ def combine_videos(
 
         while start_time < clip_duration:
             end_time = min(start_time + max_clip_duration, clip_duration)            
-            if clip_duration - start_time > max_clip_duration:
+            if clip_duration - start_time >= max_clip_duration:
                 subclipped_items.append(SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h))
             start_time = end_time    
             if video_concat_mode.value == VideoConcatMode.sequential.value:
@@ -171,7 +171,7 @@ def combine_videos(
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing to {video_width}x{video_height}, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target ratio: {video_ratio:.2f}")
+                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
                 
                 if clip_ratio == video_ratio:
                     clip = clip.resized(new_size=(video_width, video_height))
@@ -511,8 +511,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             # Output the video to a file.
             video_file = f"{material.url}.mp4"
             final_clip.write_videofile(video_file, fps=30, logger=None)
-            final_clip.close()
-            del final_clip
+            close_clip(clip)
             material.url = video_file
             logger.success(f"image processed: {video_file}")
     return materials
