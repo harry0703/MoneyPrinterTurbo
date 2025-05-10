@@ -36,6 +36,7 @@ def save_config():
     with open(config_file, "w", encoding="utf-8") as f:
         _cfg["app"] = app
         _cfg["azure"] = azure
+        _cfg["siliconflow"] = siliconflow
         _cfg["ui"] = ui
         f.write(toml.dumps(_cfg))
 
@@ -45,9 +46,13 @@ app = _cfg.get("app", {})
 whisper = _cfg.get("whisper", {})
 proxy = _cfg.get("proxy", {})
 azure = _cfg.get("azure", {})
-ui = _cfg.get("ui", {
-    "hide_log": False,
-})
+siliconflow = _cfg.get("siliconflow", {})
+ui = _cfg.get(
+    "ui",
+    {
+        "hide_log": False,
+    },
+)
 
 hostname = socket.gethostname()
 
@@ -59,7 +64,7 @@ project_description = _cfg.get(
     "project_description",
     "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>",
 )
-project_version = _cfg.get("project_version", "1.2.5")
+project_version = _cfg.get("project_version", "1.2.6")
 reload_debug = False
 
 imagemagick_path = app.get("imagemagick_path", "")

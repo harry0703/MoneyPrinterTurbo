@@ -6,6 +6,7 @@ from typing import Union
 from xml.sax.saxutils import unescape
 
 import edge_tts
+import requests
 from edge_tts import SubMaker, submaker
 from edge_tts.submaker import mktimestamp
 from loguru import logger
@@ -15,8 +16,34 @@ from app.config import config
 from app.utils import utils
 
 
+def get_siliconflow_voices() -> list[str]:
+    """
+    获取硅基流动的声音列表
+
+    Returns:
+        声音列表，格式为 ["siliconflow:FunAudioLLM/CosyVoice2-0.5B:alex", ...]
+    """
+    # 硅基流动的声音列表和对应的性别（用于显示）
+    voices_with_gender = [
+        ("FunAudioLLM/CosyVoice2-0.5B", "alex", "Male"),
+        ("FunAudioLLM/CosyVoice2-0.5B", "anna", "Female"),
+        ("FunAudioLLM/CosyVoice2-0.5B", "bella", "Female"),
+        ("FunAudioLLM/CosyVoice2-0.5B", "benjamin", "Male"),
+        ("FunAudioLLM/CosyVoice2-0.5B", "charles", "Male"),
+        ("FunAudioLLM/CosyVoice2-0.5B", "claire", "Female"),
+        ("FunAudioLLM/CosyVoice2-0.5B", "david", "Male"),
+        ("FunAudioLLM/CosyVoice2-0.5B", "diana", "Female"),
+    ]
+
+    # 添加siliconflow:前缀，并格式化为显示名称
+    return [
+        f"siliconflow:{model}:{voice}-{gender}"
+        for model, voice, gender in voices_with_gender
+    ]
+
+
 def get_all_azure_voices(filter_locals=None) -> list[str]:
-    voices_str = """
+    azure_voices_str = """
 Name: af-ZA-AdriNeural
 Gender: Female
 
@@ -1015,7 +1042,7 @@ Gender: Female
     # 定义正则表达式模式，用于匹配 Name 和 Gender 行
     pattern = re.compile(r"Name:\s*(.+)\s*Gender:\s*(.+)\s*", re.MULTILINE)
     # 使用正则表达式查找所有匹配项
-    matches = pattern.findall(voices_str)
+    matches = pattern.findall(azure_voices_str)
 
     for name, gender in matches:
         # 应用过滤条件
@@ -1045,11 +1072,37 @@ def is_azure_v2_voice(voice_name: str):
     return ""
 
 
+def is_siliconflow_voice(voice_name: str):
+    """检查是否是硅基流动的声音"""
+    return voice_name.startswith("siliconflow:")
+
+
 def tts(
-    text: str, voice_name: str, voice_rate: float, voice_file: str
+    text: str,
+    voice_name: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
 ) -> Union[SubMaker, None]:
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
+    elif is_siliconflow_voice(voice_name):
+        # 从voice_name中提取模型和声音
+        # 格式: siliconflow:model:voice-Gender
+        parts = voice_name.split(":")
+        if len(parts) >= 3:
+            model = parts[1]
+            # 移除性别后缀，例如 "alex-Male" -> "alex"
+            voice_with_gender = parts[2]
+            voice = voice_with_gender.split("-")[0]
+            # 构建完整的voice参数，格式为 "model:voice"
+            full_voice = f"{model}:{voice}"
+            return siliconflow_tts(
+                text, model, full_voice, voice_rate, voice_file, voice_volume
+            )
+        else:
+            logger.error(f"Invalid siliconflow voice name format: {voice_name}")
+            return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
@@ -1095,6 +1148,144 @@ def azure_tts_v1(
             return sub_maker
         except Exception as e:
             logger.error(f"failed, error: {str(e)}")
+    return None
+
+
+def siliconflow_tts(
+    text: str,
+    model: str,
+    voice: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """
+    使用硅基流动的API生成语音
+
+    Args:
+        text: 要转换为语音的文本
+        model: 模型名称，如 "FunAudioLLM/CosyVoice2-0.5B"
+        voice: 声音名称，如 "FunAudioLLM/CosyVoice2-0.5B:alex"
+        voice_rate: 语音速度，范围[0.25, 4.0]
+        voice_file: 输出的音频文件路径
+        voice_volume: 语音音量，范围[0.6, 5.0]，需要转换为硅基流动的增益范围[-10, 10]
+
+    Returns:
+        SubMaker对象或None
+    """
+    text = text.strip()
+    api_key = config.siliconflow.get("api_key", "")
+
+    if not api_key:
+        logger.error("SiliconFlow API key is not set")
+        return None
+
+    # 将voice_volume转换为硅基流动的增益范围
+    # 默认voice_volume为1.0，对应gain为0
+    gain = voice_volume - 1.0
+    # 确保gain在[-10, 10]范围内
+    gain = max(-10, min(10, gain))
+
+    url = "https://api.siliconflow.cn/v1/audio/speech"
+
+    payload = {
+        "model": model,
+        "input": text,
+        "voice": voice,
+        "response_format": "mp3",
+        "sample_rate": 32000,
+        "stream": False,
+        "speed": voice_rate,
+        "gain": gain,
+    }
+
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    for i in range(3):  # 尝试3次
+        try:
+            logger.info(
+                f"start siliconflow tts, model: {model}, voice: {voice}, try: {i + 1}"
+            )
+
+            response = requests.post(url, json=payload, headers=headers)
+
+            if response.status_code == 200:
+                # 保存音频文件
+                with open(voice_file, "wb") as f:
+                    f.write(response.content)
+
+                # 创建一个空的SubMaker对象
+                sub_maker = SubMaker()
+
+                # 获取音频文件的实际长度
+                try:
+                    # 尝试使用moviepy获取音频长度
+                    from moviepy import AudioFileClip
+
+                    audio_clip = AudioFileClip(voice_file)
+                    audio_duration = audio_clip.duration
+                    audio_clip.close()
+
+                    # 将音频长度转换为100纳秒单位（与edge_tts兼容）
+                    audio_duration_100ns = int(audio_duration * 10000000)
+
+                    # 使用文本分割来创建更准确的字幕
+                    # 将文本按标点符号分割成句子
+                    sentences = utils.split_string_by_punctuations(text)
+
+                    if sentences:
+                        # 计算每个句子的大致时长（按字符数比例分配）
+                        total_chars = sum(len(s) for s in sentences)
+                        char_duration = (
+                            audio_duration_100ns / total_chars if total_chars > 0 else 0
+                        )
+
+                        current_offset = 0
+                        for sentence in sentences:
+                            if not sentence.strip():
+                                continue
+
+                            # 计算当前句子的时长
+                            sentence_chars = len(sentence)
+                            sentence_duration = int(sentence_chars * char_duration)
+
+                            # 添加到SubMaker
+                            sub_maker.subs.append(sentence)
+                            sub_maker.offset.append(
+                                (current_offset, current_offset + sentence_duration)
+                            )
+
+                            # 更新偏移量
+                            current_offset += sentence_duration
+                    else:
+                        # 如果无法分割，则使用整个文本作为一个字幕
+                        sub_maker.subs = [text]
+                        sub_maker.offset = [(0, audio_duration_100ns)]
+
+                except Exception as e:
+                    logger.warning(f"Failed to create accurate subtitles: {str(e)}")
+                    # 回退到简单的字幕
+                    sub_maker.subs = [text]
+                    # 使用音频文件的实际长度，如果无法获取，则假设为10秒
+                    sub_maker.offset = [
+                        (
+                            0,
+                            audio_duration_100ns
+                            if "audio_duration_100ns" in locals()
+                            else 10000000,
+                        )
+                    ]
+
+                logger.success(f"siliconflow tts succeeded: {voice_file}")
+                print("s", sub_maker.subs, sub_maker.offset)
+                return sub_maker
+            else:
+                logger.error(
+                    f"siliconflow tts failed with status code {response.status_code}: {response.text}"
+                )
+        except Exception as e:
+            logger.error(f"siliconflow tts failed: {str(e)}")
+
     return None
 
 
@@ -1219,7 +1410,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
         """
         start_t = mktimestamp(start_time).replace(".", ",")
         end_t = mktimestamp(end_time).replace(".", ",")
-        return f"{idx}\n" f"{start_t} --> {end_t}\n" f"{sub_text}\n"
+        return f"{idx}\n{start_t} --> {end_t}\n{sub_text}\n"
 
     start_time = -1.0
     sub_items = []
