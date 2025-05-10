@@ -44,7 +44,7 @@ st.set_page_config(
 streamlit_style = """
 <style>
 h1 {
-    padding-top: 0 !important; 
+    padding-top: 0 !important;
 }
 </style>
 """
@@ -106,6 +106,7 @@ support_locales = [
     "vi-VN",
     "th-TH",
 ]
+
 
 def get_all_fonts():
     fonts = []
@@ -197,7 +198,8 @@ def tr(key):
     loc = locales.get(st.session_state["ui_language"], {})
     return loc.get("Translation", {}).get(key, key)
 
- # 创建基础设置折叠框
+
+# 创建基础设置折叠框
 if not config.app.get("hide_config", False):
     with st.expander(tr("Basic Settings"), expanded=False):
         config_panels = st.columns(3)
@@ -220,7 +222,7 @@ if not config.app.get("hide_config", False):
             config.ui["hide_log"] = hide_log
 
         # 中间面板 - LLM 设置
-        
+
         with middle_config_panel:
             st.write(tr("LLM Settings"))
             llm_providers = [
@@ -423,31 +425,31 @@ if not config.app.get("hide_config", False):
         # 右侧面板 - API 密钥设置
         with right_config_panel:
 
-                def get_keys_from_config(cfg_key):
-                    api_keys = config.app.get(cfg_key, [])
-                    if isinstance(api_keys, str):
-                        api_keys = [api_keys]
-                    api_key = ", ".join(api_keys)
-                    return api_key
+            def get_keys_from_config(cfg_key):
+                api_keys = config.app.get(cfg_key, [])
+                if isinstance(api_keys, str):
+                    api_keys = [api_keys]
+                api_key = ", ".join(api_keys)
+                return api_key
 
-                def save_keys_to_config(cfg_key, value):
-                    value = value.replace(" ", "")
-                    if value:
-                        config.app[cfg_key] = value.split(",")
+            def save_keys_to_config(cfg_key, value):
+                value = value.replace(" ", "")
+                if value:
+                    config.app[cfg_key] = value.split(",")
 
-                st.write(tr("Video Source Settings"))
+            st.write(tr("Video Source Settings"))
 
-                pexels_api_key = get_keys_from_config("pexels_api_keys")
-                pexels_api_key = st.text_input(
-                    tr("Pexels API Key"), value=pexels_api_key, type="password"
-                )
-                save_keys_to_config("pexels_api_keys", pexels_api_key)
+            pexels_api_key = get_keys_from_config("pexels_api_keys")
+            pexels_api_key = st.text_input(
+                tr("Pexels API Key"), value=pexels_api_key, type="password"
+            )
+            save_keys_to_config("pexels_api_keys", pexels_api_key)
 
-                pixabay_api_key = get_keys_from_config("pixabay_api_keys")
-                pixabay_api_key = st.text_input(
-                    tr("Pixabay API Key"), value=pixabay_api_key, type="password"
-                )
-                save_keys_to_config("pixabay_api_keys", pixabay_api_key)
+            pixabay_api_key = get_keys_from_config("pixabay_api_keys")
+            pixabay_api_key = st.text_input(
+                tr("Pixabay API Key"), value=pixabay_api_key, type="password"
+            )
+            save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
@@ -615,42 +617,103 @@ with middle_panel:
     with st.container(border=True):
         st.write(tr("Audio Settings"))
 
-        # tts_providers = ['edge', 'azure']
-        # tts_provider = st.selectbox(tr("TTS Provider"), tts_providers)
+        # 添加TTS服务器选择下拉框
+        tts_servers = [
+            ("azure-tts-v1", "Azure TTS V1"),
+            ("azure-tts-v2", "Azure TTS V2"),
+            ("siliconflow", "SiliconFlow TTS"),
+        ]
 
-        voices = voice.get_all_azure_voices(filter_locals=None)
+        # 获取保存的TTS服务器，默认为v1
+        saved_tts_server = config.ui.get("tts_server", "azure-tts-v1")
+        saved_tts_server_index = 0
+        for i, (server_value, _) in enumerate(tts_servers):
+            if server_value == saved_tts_server:
+                saved_tts_server_index = i
+                break
+
+        selected_tts_server_index = st.selectbox(
+            tr("TTS Servers"),
+            options=range(len(tts_servers)),
+            format_func=lambda x: tts_servers[x][1],
+            index=saved_tts_server_index,
+        )
+
+        selected_tts_server = tts_servers[selected_tts_server_index][0]
+        config.ui["tts_server"] = selected_tts_server
+
+        # 根据选择的TTS服务器获取声音列表
+        filtered_voices = []
+
+        if selected_tts_server == "siliconflow":
+            # 获取硅基流动的声音列表
+            filtered_voices = voice.get_siliconflow_voices()
+        else:
+            # 获取Azure的声音列表
+            all_voices = voice.get_all_azure_voices(filter_locals=None)
+
+            # 根据选择的TTS服务器筛选声音
+            for v in all_voices:
+                if selected_tts_server == "azure-tts-v2":
+                    # V2版本的声音名称中包含"v2"
+                    if "V2" in v:
+                        filtered_voices.append(v)
+                else:
+                    # V1版本的声音名称中不包含"v2"
+                    if "V2" not in v:
+                        filtered_voices.append(v)
+
         friendly_names = {
             v: v.replace("Female", tr("Female"))
             .replace("Male", tr("Male"))
             .replace("Neural", "")
-            for v in voices
+            for v in filtered_voices
         }
+
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
+
+        # 检查保存的声音是否在当前筛选的声音列表中
         if saved_voice_name in friendly_names:
             saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
         else:
-            for i, v in enumerate(voices):
-                if (
-                    v.lower().startswith(st.session_state["ui_language"].lower())
-                    and "V2" not in v
-                ):
+            # 如果不在，则根据当前UI语言选择一个默认声音
+            for i, v in enumerate(filtered_voices):
+                if v.lower().startswith(st.session_state["ui_language"].lower()):
                     saved_voice_name_index = i
                     break
 
-        selected_friendly_name = st.selectbox(
-            tr("Speech Synthesis"),
-            options=list(friendly_names.values()),
-            index=saved_voice_name_index,
-        )
+        # 如果没有找到匹配的声音，使用第一个声音
+        if saved_voice_name_index >= len(friendly_names) and friendly_names:
+            saved_voice_name_index = 0
 
-        voice_name = list(friendly_names.keys())[
-            list(friendly_names.values()).index(selected_friendly_name)
-        ]
-        params.voice_name = voice_name
-        config.ui["voice_name"] = voice_name
+        # 确保有声音可选
+        if friendly_names:
+            selected_friendly_name = st.selectbox(
+                tr("Speech Synthesis"),
+                options=list(friendly_names.values()),
+                index=min(saved_voice_name_index, len(friendly_names) - 1)
+                if friendly_names
+                else 0,
+            )
 
-        if st.button(tr("Play Voice")):
+            voice_name = list(friendly_names.keys())[
+                list(friendly_names.values()).index(selected_friendly_name)
+            ]
+            params.voice_name = voice_name
+            config.ui["voice_name"] = voice_name
+        else:
+            # 如果没有声音可选，显示提示信息
+            st.warning(
+                tr(
+                    "No voices available for the selected TTS server. Please select another server."
+                )
+            )
+            params.voice_name = ""
+            config.ui["voice_name"] = ""
+
+        # 只有在有声音可选时才显示试听按钮
+        if friendly_names and st.button(tr("Play Voice")):
             play_content = params.video_subject
             if not play_content:
                 play_content = params.video_script
@@ -664,6 +727,7 @@ with middle_panel:
                     voice_name=voice_name,
                     voice_rate=params.voice_rate,
                     voice_file=audio_file,
+                    voice_volume=params.voice_volume,
                 )
                 # if the voice file generation failed, try again with a default content.
                 if not sub_maker:
@@ -673,6 +737,7 @@ with middle_panel:
                         voice_name=voice_name,
                         voice_rate=params.voice_rate,
                         voice_file=audio_file,
+                        voice_volume=params.voice_volume,
                     )
 
                 if sub_maker and os.path.exists(audio_file):
@@ -680,7 +745,10 @@ with middle_panel:
                     if os.path.exists(audio_file):
                         os.remove(audio_file)
 
-        if voice.is_azure_v2_voice(voice_name):
+        # 当选择V2版本或者声音是V2声音时，显示服务区域和API key输入框
+        if selected_tts_server == "azure-tts-v2" or (
+            voice_name and voice.is_azure_v2_voice(voice_name)
+        ):
             saved_azure_speech_region = config.azure.get("speech_region", "")
             saved_azure_speech_key = config.azure.get("speech_key", "")
             azure_speech_region = st.text_input(
@@ -696,6 +764,32 @@ with middle_panel:
             )
             config.azure["speech_region"] = azure_speech_region
             config.azure["speech_key"] = azure_speech_key
+
+        # 当选择硅基流动时，显示API key输入框和说明信息
+        if selected_tts_server == "siliconflow" or (
+            voice_name and voice.is_siliconflow_voice(voice_name)
+        ):
+            saved_siliconflow_api_key = config.siliconflow.get("api_key", "")
+
+            siliconflow_api_key = st.text_input(
+                tr("SiliconFlow API Key"),
+                value=saved_siliconflow_api_key,
+                type="password",
+                key="siliconflow_api_key_input",
+            )
+
+            # 显示硅基流动的说明信息
+            st.info(
+                tr("SiliconFlow TTS Settings")
+                + ":\n"
+                + "- "
+                + tr("Speed: Range [0.25, 4.0], default is 1.0")
+                + "\n"
+                + "- "
+                + tr("Volume: Uses Speech Volume setting, default 1.0 maps to gain 0")
+            )
+
+            config.siliconflow["api_key"] = siliconflow_api_key
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
