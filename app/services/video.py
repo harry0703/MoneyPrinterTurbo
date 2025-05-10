@@ -1,4 +1,5 @@
 import glob
+import itertools
 import os
 import random
 import gc
@@ -31,15 +32,19 @@ from app.services.utils import video_effects
 from app.utils import utils
 
 class SubClippedVideoClip:
-    def __init__(self, file_path, start_time, end_time, width=None, height=None):
+    def __init__(self, file_path, start_time=None, end_time=None, width=None, height=None, duration=None):
         self.file_path = file_path
         self.start_time = start_time
         self.end_time = end_time
         self.width = width
         self.height = height
+        if duration is None:
+            self.duration = end_time - start_time
+        else:
+            self.duration = duration
 
     def __str__(self):
-        return f"SubClippedVideoClip(file_path={self.file_path}, start_time={self.start_time}, end_time={self.end_time}, width={self.width}, height={self.height})"
+        return f"SubClippedVideoClip(file_path={self.file_path}, start_time={self.start_time}, end_time={self.end_time}, duration={self.duration}, width={self.width}, height={self.height})"
 
 
 audio_codec = "aac"
@@ -131,7 +136,7 @@ def combine_videos(
     aspect = VideoAspect(video_aspect)
     video_width, video_height = aspect.to_resolution()
 
-    clip_files = []
+    processed_clips = []
     subclipped_items = []
     video_duration = 0
     for video_path in video_paths:
@@ -144,7 +149,7 @@ def combine_videos(
 
         while start_time < clip_duration:
             end_time = min(start_time + max_clip_duration, clip_duration)            
-            if clip_duration - start_time > max_clip_duration:
+            if clip_duration - start_time >= max_clip_duration:
                 subclipped_items.append(SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h))
             start_time = end_time    
             if video_concat_mode.value == VideoConcatMode.sequential.value:
@@ -171,7 +176,7 @@ def combine_videos(
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing to {video_width}x{video_height}, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target ratio: {video_ratio:.2f}")
+                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
                 
                 if clip_ratio == video_ratio:
                     clip = clip.resized(new_size=(video_width, video_height))
@@ -221,28 +226,39 @@ def combine_videos(
             
             close_clip(clip)
         
-            clip_files.append(clip_file)
+            processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip.duration, width=clip_w, height=clip_h))
             video_duration += clip.duration
             
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
-            
+    
+    # loop processed clips until the video duration matches or exceeds the audio duration.
+    if video_duration < audio_duration:
+        logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
+        base_clips = processed_clips.copy()
+        for clip in itertools.cycle(base_clips):
+            if video_duration >= audio_duration:
+                break
+            processed_clips.append(clip)
+            video_duration += clip.duration
+        logger.info(f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, looped {len(processed_clips)-len(base_clips)} clips")
+     
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
-    if not clip_files:
+    if not processed_clips:
         logger.warning("no clips available for merging")
         return combined_video_path
     
     # if there is only one clip, use it directly
-    if len(clip_files) == 1:
+    if len(processed_clips) == 1:
         logger.info("using single clip directly")
-        shutil.copy(clip_files[0], combined_video_path)
-        delete_files(clip_files)
+        shutil.copy(processed_clips[0].file_path, combined_video_path)
+        delete_files(processed_clips)
         logger.info("video combining completed")
         return combined_video_path
     
     # create initial video file as base
-    base_clip_path = clip_files[0]
+    base_clip_path = processed_clips[0].file_path
     temp_merged_video = f"{output_dir}/temp-merged-video.mp4"
     temp_merged_next = f"{output_dir}/temp-merged-next.mp4"
     
@@ -250,13 +266,13 @@ def combine_videos(
     shutil.copy(base_clip_path, temp_merged_video)
     
     # merge remaining video clips one by one
-    for i, clip_path in enumerate(clip_files[1:], 1):
-        logger.info(f"merging clip {i}/{len(clip_files)-1}")
+    for i, clip in enumerate(processed_clips[1:], 1):
+        logger.info(f"merging clip {i}/{len(processed_clips)-1}, duration: {clip.duration:.2f}s")
         
         try:
             # load current base video and next clip to merge
             base_clip = VideoFileClip(temp_merged_video)
-            next_clip = VideoFileClip(clip_path)
+            next_clip = VideoFileClip(clip.file_path)
             
             # merge these two clips
             merged_clip = concatenate_videoclips([base_clip, next_clip])
@@ -286,6 +302,7 @@ def combine_videos(
     os.rename(temp_merged_video, combined_video_path)
     
     # clean temp files
+    clip_files = [clip.file_path for clip in processed_clips]
     delete_files(clip_files)
             
     logger.info("video combining completed")
@@ -511,8 +528,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             # Output the video to a file.
             video_file = f"{material.url}.mp4"
             final_clip.write_videofile(video_file, fps=30, logger=None)
-            final_clip.close()
-            del final_clip
+            close_clip(clip)
             material.url = video_file
             logger.success(f"image processed: {video_file}")
     return materials
