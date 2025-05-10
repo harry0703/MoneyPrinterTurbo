@@ -7,6 +7,7 @@ This directory contains unit tests for the **MoneyPrinterTurbo** project.
 - `services/`: Tests for components in the `app/services` directory  
   - `test_video.py`: Tests for the video service  
   - `test_task.py`: Tests for the task service  
+  - `test_voice.py`: Tests for the voice service  
 
 ## Running Tests
 
