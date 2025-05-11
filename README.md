@@ -120,7 +120,7 @@
 下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
 
 ### Windows
-- 百度网盘（1.2.1 老版本）: https://pan.baidu.com/s/1pSNjxTYiVENulTLm6zieMQ?pwd=g36q 提取码: g36q
+- 百度网盘（v1.2.6）: https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx 提取码: sbqx
 
 下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
 
