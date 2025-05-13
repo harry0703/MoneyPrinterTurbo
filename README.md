@@ -58,9 +58,9 @@
 - [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、`颜色`、`大小`，同时支持`字幕描边`设置
 - [x] 支持 **背景音乐**，随机或者指定音乐文件，可设置`背景音乐音量`
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
-- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、
-  **DeepSeek**、 **文心一言**, **Pollinations** 等多种模型接入
+- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、 **文心一言**, **Pollinations** 等多种模型接入
     - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
+
 
 ### 后期计划 📅
 
