@@ -66,7 +66,7 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
 - [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**,
-  **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **ERNIE** and more
+  **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **ERNIE**, **pollinations** and more
     - For users in China, it is recommended to use **DeepSeek** or **Moonshot** as the large model provider (directly accessible in China, no VPN needed. Free credits upon registration, generally sufficient for use)
 
 ❓[How to Use the Free OpenAI GPT-3.5 Model?](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#common-questions-)

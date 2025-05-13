@@ -32,6 +32,15 @@ pixabay_api_keys = []
 #   ernie       (文心一言)
 llm_provider = "openai"
 
+########## Pollinations AI Settings
+# Visit https://pollinations.ai/ to learn more
+# API Key is optional - leave empty for public access
+pollinations_api_key = ""
+# Default base URL for Pollinations API
+pollinations_base_url = "https://pollinations.ai/api/v1"
+# Default model for text generation
+pollinations_model_name = "openai-fast"
+
 ########## Ollama Settings
 # No need to set it unless you want to use your own proxy
 ollama_base_url = ""

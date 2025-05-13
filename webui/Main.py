@@ -237,6 +237,7 @@ if not config.app.get("hide_config", False):
                 "OneAPI",
                 "Cloudflare",
                 "ERNIE",
+                "Pollinations",
             ]
             saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
             saved_llm_provider_index = 0
@@ -379,6 +380,17 @@ if not config.app.get("hide_config", False):
                             - **API Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
                             - **Secret Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
                             - **Base Url**: 填写 **请求地址** [点击查看文档](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)
+                            """
+
+            if llm_provider == "pollinations":
+                if not llm_model_name:
+                    llm_model_name = "default"
+                with llm_helper:
+                    tips = """
+                            ##### Pollinations AI Configuration
+                            - **API Key**: Optional - Leave empty for public access
+                            - **Base Url**: Default is https://text.pollinations.ai/openai
+                            - **Model Name**: Use 'openai-fast' or specify a model name
                             """
 
             if tips and config.ui["language"] == "zh":
