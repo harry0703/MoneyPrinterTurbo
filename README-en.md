@@ -38,15 +38,15 @@ project. It allows for online use without deployment, which is very convenient.
 - Chinese version: https://reccloud.cn
 - English version: https://reccloud.com
 
-![](docs/reccloud.cn.jpg)
+![](docs/reccloud.com.jpg)
 
 ## Thanks for Sponsorship 🙏
 
-Thanks to Picwish https://picwish.cn for supporting and sponsoring this project, enabling continuous updates and maintenance.
+Thanks to Picwish https://picwish.com for supporting and sponsoring this project, enabling continuous updates and maintenance.
 
 Picwish focuses on the **image processing field**, providing a rich set of **image processing tools** that extremely simplify complex operations, truly making image processing easier.
 
-![picwish.jpg](docs/picwish.jpg)
+![picwish.jpg](docs/picwish.com.jpg)
 
 ## Features 🎯
 
@@ -66,10 +66,7 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
 - [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**,
-  **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **ERNIE**, **pollinations** and more
-    - For users in China, it is recommended to use **DeepSeek** or **Moonshot** as the large model provider (directly accessible in China, no VPN needed. Free credits upon registration, generally sufficient for use)
-
-❓[How to Use the Free OpenAI GPT-3.5 Model?](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#common-questions-)
+  **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **ERNIE**, **Pollinations** and more
 
 ### Future Plans 📅
 
@@ -119,15 +116,20 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 ## System Requirements 📦
 
-- Recommended minimum 4 CPU cores or more, 8G of memory or more, GPU is not required
+- Recommended minimum 4 CPU cores or more, 4G of memory or more, GPU is not required
 - Windows 10 or MacOS 11.0, and their later versions
 
 ## Quick Start 🚀
 
-Download the one-click startup package, extract and use directly (the path should not contain **Chinese characters**, **special characters**, or **spaces**)
+### Run in Google Colab 
+Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
+
 
 ### Windows
-- Baidu Netdisk (1.2.1 latest version): https://pan.baidu.com/s/1pSNjxTYiVENulTLm6zieMQ?pwd=g36q Extraction code: g36q
+
+Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
 
 After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
 
@@ -140,9 +142,6 @@ One-click startup packages have not been created yet. See the **Installation & D
 ## Installation & Deployment 📥
 
 ### Prerequisites
-
-- Try to avoid using **Chinese paths** to prevent unpredictable issues
-- Ensure your **network** is stable, VPN needs to be in `global traffic` mode
 
 #### ① Clone the Project
 
@@ -183,19 +182,16 @@ Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redo
 
 ### Manual Deployment 📦
 
-> Video tutorials
->
-> - Complete usage demonstration: https://v.douyin.com/iFhnwsKY/
-> - How to deploy on Windows: https://v.douyin.com/iFyjoW3M
+#### ① Create a Python Virtual Environment
 
-#### ① Install Dependencies
-
-It is recommended to use [pdm](https://pdm-project.org/en/latest/#installation)
+It is recommended to create a Python virtual environment using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 cd MoneyPrinterTurbo
-pdm sync
+conda create -n MoneyPrinterTurbo python=3.11
+conda activate MoneyPrinterTurbo
+pip install -r requirements.txt
 ```
 
 #### ② Install ImageMagick
@@ -310,34 +306,6 @@ own fonts.
 
 ## Common Questions 🤔
 
-### ❓How to Use the Free OpenAI GPT-3.5 Model?
-
-[OpenAI has announced that ChatGPT with 3.5 is now free](https://openai.com/blog/start-using-chatgpt-instantly), and
-developers have wrapped it into an API for direct usage.
-
-**Ensure you have Docker installed and running**. Execute the following command to start the Docker service:
-
-```shell
-docker run -p 3040:3040 missuo/freegpt35
-```
-
-Once successfully started, modify the `config.toml` configuration as follows:
-
-- Set `llm_provider` to `openai`
-- Fill in `openai_api_key` with any value, for example, '123456'
-- Change `openai_base_url` to `http://localhost:3040/v1/`
-- Set `openai_model_name` to `gpt-3.5-turbo`
-
-> Note: This method may be unstable
-
-### ❓AttributeError: 'str' object has no attribute 'choices'
-
-This issue is caused by the large language model not returning a correct response.
-
-It's likely a network issue. Use a **VPN**, or set `openai_base_url` to your proxy, which should solve the problem.
-
-At the same time, it is recommended to use **Moonshot** or **DeepSeek** as the large model provider, as these service providers have faster access and are more stable in China.
-
 ### ❓RuntimeError: No ffmpeg exe could be found
 
 Normally, ffmpeg will be automatically downloaded and detected.
@@ -356,24 +324,6 @@ actual installation path.
 # Please set according to your actual path, note that Windows path separators are \\
 ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 ```
-
-### ❓Error generating audio or downloading videos
-
-[issue 56](https://github.com/harry0703/MoneyPrinterTurbo/issues/56)
-
-```
-failed to generate audio, maybe the network is not available.
-if you are in China, please use a VPN.
-```
-
-[issue 44](https://github.com/harry0703/MoneyPrinterTurbo/issues/44)
-
-```
-failed to download videos, maybe the network is not available.
-if you are in China, please use a VPN.
-```
-
-This is likely due to network issues preventing access to foreign services. Please use a VPN to resolve this.
 
 ### ❓ImageMagick is not installed on your computer
 
@@ -430,11 +380,6 @@ Solution: [Click to see how to manually download the model from netdisk](#subtit
 
 - You can submit an [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) or
   a [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls).
-
-## Reference Projects 📚
-
-This project is based on https://github.com/FujiwaraChoki/MoneyPrinter and has been refactored with a lot of
-optimizations and added functionalities. Thanks to the original author for their spirit of open source.
 
 ## License 📝
 
