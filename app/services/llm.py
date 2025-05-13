@@ -332,70 +332,51 @@ Generate a script for a video, depending on the subject of the video.
         logger.success(f"completed: \n{final_script}")
     return final_script.strip()
 
+from typing import List
+import json
 
-def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
+def generate_terms(
+    video_subject: str,
+    video_script: str,
+    amount: int = 5
+) -> List[str]:
+    """
+    動画主題とスクリプトからAI画像生成プロンプトを生成します。
+    LLMに生のJSON配列のみを返させるよう、明確に指示を強化しています。
+    """
     prompt = f"""
-# Role: Video Search Terms Generator
+Generate exactly {amount} image prompts as a raw JSON array of strings. No markdown, code fences, or extra characters.
 
-## Goals:
-Generate {amount} search terms for stock videos, depending on the subject of a video.
-
-## Constrains:
-1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
-3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
-4. the search terms must be related to the subject of the video.
-5. reply with english search terms only.
-
-## Output Example:
-["search term 1", "search term 2", "search term 3","search term 4","search term 5"]
-
-## Context:
-### Video Subject
+Video Subject:
 {video_subject}
 
-### Video Script
+Video Script:
 {video_script}
 
-Please note that you must use English for generating video search terms; Chinese is not accepted.
+Rules:
+1. Each prompt must start with either:
+   - "1girl, solo, anatomically correct" for character prompts, or
+   - a concise scene noun phrase for scene prompts (e.g., "moonlit forest clearing").
+2. Include at least one abstract symbol (hourglass, gear, DNA helix, etc.) and one environmental element (lantern, river, ancient ruins, etc.).
+3. Specify mood & lighting (e.g., golden hour, moody fog).
+4. Append: "portrait, 9:16, masterpiece:1.1, high detail, beautiful lighting, cinematic".
+
+Return only the JSON array, for example:
+["prompt1", "prompt2", ..., "promptN"]
 """.strip()
 
-    logger.info(f"subject: {video_subject}")
+    # LLM呼び出し
+    response = _generate_response(prompt)
 
-    search_terms = []
-    response = ""
-    for i in range(_max_retries):
-        try:
-            response = _generate_response(prompt)
-            if "Error: " in response:
-                logger.error(f"failed to generate video script: {response}")
-                return response
-            search_terms = json.loads(response)
-            if not isinstance(search_terms, list) or not all(
-                isinstance(term, str) for term in search_terms
-            ):
-                logger.error("response is not a list of strings.")
-                continue
+    # JSONとしてパース
+    try:
+        prompts = json.loads(response)
+    except json.JSONDecodeError:
+        raise ValueError(f"LLM response is not valid JSON: {response}")
+    if not isinstance(prompts, list) or not all(isinstance(p, str) for p in prompts):
+        raise ValueError(f"LLM response is not a list of strings: {prompts}")
 
-        except Exception as e:
-            logger.warning(f"failed to generate video terms: {str(e)}")
-            if response:
-                match = re.search(r"\[.*]", response)
-                if match:
-                    try:
-                        search_terms = json.loads(match.group())
-                    except Exception as e:
-                        logger.warning(f"failed to generate video terms: {str(e)}")
-                        pass
-
-        if search_terms and len(search_terms) > 0:
-            break
-        if i < _max_retries:
-            logger.warning(f"failed to generate video terms, trying again... {i + 1}")
-
-    logger.success(f"completed: \n{search_terms}")
-    return search_terms
-
+    return prompts
 
 if __name__ == "__main__":
     video_subject = "生命的意义是什么"

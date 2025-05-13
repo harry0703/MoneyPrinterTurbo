@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice
+from app.services import llm, material, subtitle, video, voice, imagegen
 from app.services import state as sm
 from app.utils import utils
 
@@ -124,7 +124,21 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
 
 def get_video_materials(task_id, params, video_terms, audio_duration):
-    if params.video_source == "local":
+    if params.video_source == "local-ai":
+        logger.info("\n\n## generating AI images as materials")
+        prompts = video_terms if isinstance(video_terms, list) else [video_terms]
+        image_paths = []
+        for i, prompt in enumerate(prompts):
+            output_path = path.join(utils.task_dir(task_id), f"aiimg_{i}.png")
+            imagegen.generate_image(prompt, output_path)
+            image_paths.append(output_path)
+        materials = []
+        for img_path in image_paths:
+            m = material.MaterialInfo(provider="local-ai", url=img_path, duration=0)
+            materials.append(m)
+        processed = video.preprocess_video(materials, clip_duration=params.video_clip_duration)
+        return [material.url for material in materials]
+    elif params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
             materials=params.video_materials, clip_duration=params.video_clip_duration

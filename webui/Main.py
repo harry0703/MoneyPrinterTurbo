@@ -532,6 +532,7 @@ with middle_panel:
             (tr("Pexels"), "pexels"),
             (tr("Pixabay"), "pixabay"),
             (tr("Local file"), "local"),
+            (tr("AI Image (local)"), "local-ai"),
             (tr("TikTok"), "douyin"),
             (tr("Bilibili"), "bilibili"),
             (tr("Xiaohongshu"), "xiaohongshu"),
@@ -904,7 +905,7 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source not in ["pexels", "pixabay", "local"]:
+    if params.video_source not in ["pexels", "pixabay", "local", "local-ai", "douyin", "bilibili", "xiaohongshu"]:
         st.error(tr("Please Select a Valid Video Source"))
         scroll_to_bottom()
         st.stop()
@@ -965,6 +966,8 @@ if start_button:
                 player_cols[i * 2 + 1].video(url)
     except Exception:
         pass
+
+    # logger.info(tr("!!! Uploading Video Files To Tiktok!!!"))
 
     open_task_folder(task_id)
     logger.info(tr("Video Generation Completed"))
