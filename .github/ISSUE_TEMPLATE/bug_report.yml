@@ -1,7 +1,6 @@
 name: 🐛 Bug | Bug Report
 description: 报告错误或异常问题 | Report an error or unexpected behavior
-title:
-  default: "[Bug] Something is not working"
+title: "[Bug]: "
 labels:
   - bug
 

@@ -1,8 +1,6 @@
 name: ✨ 增加功能 | Feature Request
 description: 为此项目提出一个新想法或建议 | Suggest a new idea for this project
-title:
-  default: "[Feature] Idea for new feature"
-
+title: "[Feature]: "
 labels:
   - enhancement
 
