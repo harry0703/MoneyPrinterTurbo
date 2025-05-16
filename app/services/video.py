@@ -193,9 +193,6 @@ def combine_videos(
                     clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
                     clip = CompositeVideoClip([background, clip_resized])
                     
-                    close_clip(clip_resized)
-                    close_clip(background)
-                    
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if video_transition_mode.value == VideoTransitionMode.none.value:
                 clip = clip
