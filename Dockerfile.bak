@@ -41,13 +41,4 @@ CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","
 ## For Linux or MacOS:
 # docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
 ## For Windows:
-# Create a non-root user and group
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
-# Ensure application files are accessible to the non-root user
-RUN mkdir -p /app && chown -R appuser:appuser /app
-
-# Switch to non-root user
-USER appuser
-
 # docker run -v %cd%/config.toml:/MoneyPrinterTurbo/config.toml -v %cd%/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
