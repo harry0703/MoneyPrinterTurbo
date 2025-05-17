@@ -26,3 +26,4 @@ node_modules
 
 venv/
 .venv
+/.vs
