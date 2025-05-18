@@ -50,9 +50,6 @@ class SubClippedVideoClip:
 audio_codec = "aac"
 video_codec = "libx264"
 fps = 30
-video_preset = "medium"
-video_crf = "23"
-pixel_format = "yuv420p"
 
 def close_clip(clip):
     if clip is None:
@@ -173,9 +170,6 @@ def combine_videos(
         
         try:
             clip = VideoFileClip(subclipped_item.file_path).subclipped(subclipped_item.start_time, subclipped_item.end_time)
-            clip = VideoFileClip(subclipped_item.file_path, 
-                    target_resolution=(video_height, video_width),
-                    audio_fps=44100)
             clip_duration = clip.duration
             # Not all videos are same size, so we need to resize them
             clip_w, clip_h = clip.size
@@ -185,7 +179,7 @@ def combine_videos(
                 logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
                 
                 if clip_ratio == video_ratio:
-                    clip = clip.resized(new_size=(video_width, video_height), method='lanczos')
+                    clip = clip.resized(new_size=(video_width, video_height))
                 else:
                     if clip_ratio > video_ratio:
                         scale_factor = video_width / clip_w
@@ -225,19 +219,8 @@ def combine_videos(
                 
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            #clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
-            clip.write_videofile(
-                clip_file, 
-                logger=None, 
-                fps=fps, 
-                codec=video_codec,
-                preset=video_preset,
-                ffmpeg_params=[
-                    '-crf', video_crf,
-                    '-pix_fmt', pixel_format,
-                    '-movflags', '+faststart'
-                ]
-            )
+            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            
             close_clip(clip)
         
             processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip.duration, width=clip_w, height=clip_h))
@@ -292,14 +275,6 @@ def combine_videos(
             merged_clip = concatenate_videoclips([base_clip, next_clip])
 
             # save merged result to temp file
-            #merged_clip.write_videofile(
-            #    filename=temp_merged_next,
-            #    threads=threads,
-            #    logger=None,
-            #    temp_audiofile_path=output_dir,
-            #    audio_codec=audio_codec,
-            #    fps=fps,
-            #)
             merged_clip.write_videofile(
                 filename=temp_merged_next,
                 threads=threads,
@@ -307,12 +282,6 @@ def combine_videos(
                 temp_audiofile_path=output_dir,
                 audio_codec=audio_codec,
                 fps=fps,
-                preset=video_preset,
-                ffmpeg_params=[
-                    '-crf', video_crf,
-                    '-pix_fmt', pixel_format,
-                    '-movflags', '+faststart'
-                ]
             )
             close_clip(base_clip)
             close_clip(next_clip)
@@ -503,14 +472,6 @@ def generate_video(
             logger.error(f"failed to add bgm: {str(e)}")
 
     video_clip = video_clip.with_audio(audio_clip)
-    #video_clip.write_videofile(
-    #    output_file,
-    #    audio_codec=audio_codec,
-    #    temp_audiofile_path=output_dir,
-    #    threads=params.n_threads or 2,
-    #    logger=None,
-    #    fps=fps,
-    #)
     video_clip.write_videofile(
         output_file,
         audio_codec=audio_codec,
@@ -518,12 +479,6 @@ def generate_video(
         threads=params.n_threads or 2,
         logger=None,
         fps=fps,
-        preset=video_preset,
-        ffmpeg_params=[
-            '-crf', video_crf,
-            '-pix_fmt', pixel_format,
-            '-movflags', '+faststart'
-        ]
     )
     video_clip.close()
     del video_clip
@@ -559,13 +514,8 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             # The zoom effect starts from the original size and gradually scales up to 120%.
             # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
             # Note: 1 represents 100% size, so 1.2 represents 120% size.
-            #zoom_clip = clip.resized(
-            #    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-            #)
-
             zoom_clip = clip.resized(
-                lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration),
-                method='lanczos'
+                lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
             )
 
             # Optionally, create a composite video clip containing the zoomed clip.
