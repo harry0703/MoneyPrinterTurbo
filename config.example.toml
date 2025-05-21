@@ -99,6 +99,14 @@ deepseek_api_key = ""
 deepseek_base_url = "https://api.deepseek.com"
 deepseek_model_name = "deepseek-chat"
 
+
+########## ModelScope API Key
+# Visit https://modelscope.cn/docs/model-service/API-Inference/intro to get your API key
+# And note that you need to bind your Alibaba Cloud account before using the API.
+modelscope_api_key = ""
+modelscope_base_url = "https://api-inference.modelscope.cn/v1/"
+modelscope_model_name = "Qwen/Qwen3-32B"
+
 # Subtitle Provider, "edge" or "whisper"
 # If empty, the subtitle will not be generated
 subtitle_provider = "edge"

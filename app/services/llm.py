@@ -74,6 +74,12 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.app.get("deepseek_base_url")
                 if not base_url:
                     base_url = "https://api.deepseek.com"
+            elif llm_provider == "modelscope":
+                api_key = config.app.get("modelscope_api_key")
+                model_name = config.app.get("modelscope_model_name")
+                base_url = config.app.get("modelscope_base_url")
+                if not base_url:
+                    base_url = "https://api-inference.modelscope.cn/v1/"
             elif llm_provider == "ernie":
                 api_key = config.app.get("ernie_api_key")
                 secret_key = config.app.get("ernie_secret_key")
@@ -264,6 +270,34 @@ def _generate_response(prompt: str) -> str:
                     api_version=api_version,
                     azure_endpoint=base_url,
                 )
+
+            if llm_provider == "modelscope":
+                content = ''
+                client = OpenAI(
+                    api_key=api_key,
+                    base_url=base_url,
+                )
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    extra_body={"enable_thinking": False},
+                    stream=True
+                )
+                if response:
+                    for chunk in response:
+                        if not chunk.choices:
+                            continue
+                        delta = chunk.choices[0].delta
+                        if delta and delta.content:
+                            content += delta.content
+                    
+                    if not content.strip():
+                        raise ValueError("Empty content in stream response")
+                    
+                    return content.replace("\n", "")
+                else:
+                    raise Exception(f"[{llm_provider}] returned an empty response")
+
             else:
                 client = OpenAI(
                     api_key=api_key,
@@ -399,6 +433,8 @@ Please note that you must use English for generating video search terms; Chinese
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
+            print(response)
+            print('1111111111')
             if "Error: " in response:
                 logger.error(f"failed to generate video script: {response}")
                 return response
