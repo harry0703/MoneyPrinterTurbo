@@ -30,6 +30,7 @@ pixabay_api_keys = []
 #   oneapi
 #   cloudflare
 #   ernie       (文心一言)
+#   modelscope  (魔搭社区)
 llm_provider = "openai"
 
 ########## Pollinations AI Settings
