@@ -433,8 +433,6 @@ Please note that you must use English for generating video search terms; Chinese
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
-            print(response)
-            print('1111111111')
             if "Error: " in response:
                 logger.error(f"failed to generate video script: {response}")
                 return response
