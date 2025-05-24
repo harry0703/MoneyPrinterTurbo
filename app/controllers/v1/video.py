@@ -267,7 +267,7 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
         return utils.get_response(200, response)
 
     raise HttpException(
-        "", status_code=400, message=f"{request_id}: Only files with extensions {allowed_suffixes} can be uploaded"
+        "", status_code=400, message=f"{request_id}: Only files with extensions {', '.join(allowed_suffixes)} can be uploaded"
     )
 
 @router.get("/stream/{file_path:path}")
