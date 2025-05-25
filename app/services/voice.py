@@ -11,6 +11,7 @@ from edge_tts import SubMaker, submaker
 from edge_tts.submaker import mktimestamp
 from loguru import logger
 from moviepy.video.tools import subtitles
+from moviepy.audio.io.AudioFileClip import AudioFileClip
 
 from app.config import config
 from app.utils import utils
@@ -1486,7 +1487,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
         logger.error(f"failed, error: {str(e)}")
 
 
-def get_audio_duration(sub_maker: submaker.SubMaker):
+def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker):
     """
     获取音频时长
     """
@@ -1494,6 +1495,35 @@ def get_audio_duration(sub_maker: submaker.SubMaker):
         return 0.0
     return sub_maker.offset[-1][1] / 10000000
 
+def _get_audio_duration_from_mp3(mp3_file: str) -> float:
+    """
+    获取MP3音频时长
+    """
+    if not os.path.exists(mp3_file):
+        logger.error(f"MP3 file does not exist: {mp3_file}")
+        return 0.0
+
+    try:
+        # Use moviepy to get the duration of the MP3 file
+        with AudioFileClip(mp3_file) as audio:
+            return audio.duration  # Duration in seconds
+    except Exception as e:
+        logger.error(f"Failed to get audio duration from MP3: {str(e)}")
+        return 0.0
+
+def get_audio_duration( target: Union[str, submaker.SubMaker]) -> float:
+    """
+    获取音频时长
+    如果是SubMaker对象，则从SubMaker中获取时长
+    如果是MP3文件，则从MP3文件中获取时长
+    """
+    if isinstance(target, submaker.SubMaker):
+        return _get_audio_duration_from_submaker(target)
+    elif isinstance(target, str) and target.endswith(".mp3"):
+        return _get_audio_duration_from_mp3(target)
+    else:
+        logger.error(f"Invalid target type: {type(target)}")
+        return 0.0
 
 if __name__ == "__main__":
     voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
