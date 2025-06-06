@@ -66,6 +66,10 @@ if "video_terms" not in st.session_state:
     st.session_state["video_terms"] = ""
 if "ui_language" not in st.session_state:
     st.session_state["ui_language"] = config.ui.get("language", system_locale)
+if "generated_content_output" not in st.session_state:
+    st.session_state["generated_content_output"] = ""
+if "content_generation_prompt" not in st.session_state:
+    st.session_state["content_generation_prompt"] = ""
 
 # 加载语言文件
 locales = utils.load_locales(i18n_dir)
@@ -626,6 +630,32 @@ with middle_panel:
             options=[1, 2, 3, 4, 5],
             index=0,
         )
+
+    with st.container(border=True):
+        st.write(tr("Content Generation"))
+        st.session_state["content_generation_prompt"] = st.text_input(
+            tr("Enter your prompt"),
+            value=st.session_state["content_generation_prompt"],
+            key="content_prompt_input_main"
+        )
+
+        if st.button(tr("Generate Content"), key="generate_content_button_main"):
+            prompt_value = st.session_state["content_generation_prompt"]
+            if prompt_value:
+                with st.spinner(tr("Generating content...")):
+                    st.session_state["generated_content_output"] = llm.generate_content(prompt_value)
+            else:
+                st.error(tr("Please enter a prompt."))
+                st.session_state["generated_content_output"] = "" # Clear previous output
+
+        if st.session_state["generated_content_output"]:
+            st.text_area(
+                tr("Generated Content"),
+                value=st.session_state["generated_content_output"],
+                height=300,
+                key="generated_content_display_main"
+            )
+
     with st.container(border=True):
         st.write(tr("Audio Settings"))
 
