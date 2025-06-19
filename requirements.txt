@@ -1,10 +1,11 @@
 moviepy==2.1.2
+Pillow
 streamlit==1.45.0
 edge_tts==6.1.19
 fastapi==0.115.6
 uvicorn==0.32.1
 openai==1.56.1
-faster-whisper==1.1.0
+faster-whisper
 loguru==0.7.3
 google.generativeai==0.8.3
 dashscope==1.20.14
@@ -14,3 +15,5 @@ redis==5.2.0
 python-multipart==0.0.19
 pyyaml
 requests>=2.31.0
+numpy
+shutil

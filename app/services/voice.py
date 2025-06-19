@@ -1469,7 +1469,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
             with open(subtitle_file, "w", encoding="utf-8") as file:
                 file.write("\n".join(sub_items) + "\n")
             try:
-                sbs = subtitles.file_to_subtitles(subtitle_file, encoding="utf-8")
+                sbs = subtitles.file_to_subtitles(subtitle_file)
                 duration = max([tb for ((ta, tb), txt) in sbs])
                 logger.info(
                     f"completed, subtitle file created: {subtitle_file}, duration: {duration}"
