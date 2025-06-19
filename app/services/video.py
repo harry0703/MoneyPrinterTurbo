@@ -54,10 +54,10 @@ class SubClippedVideoClip:
 audio_codec = "aac"
 video_codec = "libx264"
 fps = 30
-video_bitrate = "25M"  # Increased from 15M for better quality
-audio_bitrate = "320k"  # Increased from 192k for better audio quality
-crf = "15"  # Adjusted from 16 - better balance between quality and file size
-preset = "slower"  # Changed from slower - better balance between speed and compression
+video_bitrate = "25M"
+audio_bitrate = "320k"
+crf = "15"
+preset = "slower"
 
 def get_optimal_encoding_params(width, height, content_type="video"):
     """Get optimal encoding parameters based on resolution and content type."""
