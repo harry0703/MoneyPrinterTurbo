@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import requests
 from typing import List
 
 import g4f
@@ -82,23 +83,61 @@ def _generate_response(prompt: str) -> str:
                     raise ValueError(
                         f"{llm_provider}: secret_key is not set, please set it in the config.toml file."
                     )
-            else:
-                raise ValueError(
-                    "llm_provider is not set, please set it in the config.toml file."
-                )
+            elif llm_provider == "pollinations":
+                try:
+                    base_url = config.app.get("pollinations_base_url", "")
+                    if not base_url:
+                        base_url = "https://text.pollinations.ai/openai"
+                    model_name = config.app.get("pollinations_model_name", "openai-fast")
+                   
+                    # Prepare the payload
+                    payload = {
+                        "model": model_name,
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ],
+                        "seed": 101  # Optional but helps with reproducibility
+                    }
+                    
+                    # Optional parameters if configured
+                    if config.app.get("pollinations_private"):
+                        payload["private"] = True
+                    if config.app.get("pollinations_referrer"):
+                        payload["referrer"] = config.app.get("pollinations_referrer")
+                    
+                    headers = {
+                        "Content-Type": "application/json"
+                    }
+                    
+                    # Make the API request
+                    response = requests.post(base_url, headers=headers, json=payload)
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    if result and "choices" in result and len(result["choices"]) > 0:
+                        content = result["choices"][0]["message"]["content"]
+                        return content.replace("\n", "")
+                    else:
+                        raise Exception(f"[{llm_provider}] returned an invalid response format")
+                        
+                except requests.exceptions.RequestException as e:
+                    raise Exception(f"[{llm_provider}] request failed: {str(e)}")
+                except Exception as e:
+                    raise Exception(f"[{llm_provider}] error: {str(e)}")
 
-            if not api_key:
-                raise ValueError(
-                    f"{llm_provider}: api_key is not set, please set it in the config.toml file."
-                )
-            if not model_name:
-                raise ValueError(
-                    f"{llm_provider}: model_name is not set, please set it in the config.toml file."
-                )
-            if not base_url:
-                raise ValueError(
-                    f"{llm_provider}: base_url is not set, please set it in the config.toml file."
-                )
+            if llm_provider not in ["pollinations", "ollama"]:  # Skip validation for providers that don't require API key
+                if not api_key:
+                    raise ValueError(
+                        f"{llm_provider}: api_key is not set, please set it in the config.toml file."
+                    )
+                if not model_name:
+                    raise ValueError(
+                        f"{llm_provider}: model_name is not set, please set it in the config.toml file."
+                    )
+                if not base_url:
+                    raise ValueError(
+                        f"{llm_provider}: base_url is not set, please set it in the config.toml file."
+                    )
 
             if llm_provider == "qwen":
                 import dashscope
@@ -172,8 +211,6 @@ def _generate_response(prompt: str) -> str:
                 return generated_text
 
             if llm_provider == "cloudflare":
-                import requests
-
                 response = requests.post(
                     f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_name}",
                     headers={"Authorization": f"Bearer {api_key}"},
@@ -192,20 +229,15 @@ def _generate_response(prompt: str) -> str:
                 return result["result"]["response"]
 
             if llm_provider == "ernie":
-                import requests
-
-                params = {
-                    "grant_type": "client_credentials",
-                    "client_id": api_key,
-                    "client_secret": secret_key,
-                }
-                access_token = (
-                    requests.post(
-                        "https://aip.baidubce.com/oauth/2.0/token", params=params
-                    )
-                    .json()
-                    .get("access_token")
+                response = requests.post(
+                    "https://aip.baidubce.com/oauth/2.0/token", 
+                    params={
+                        "grant_type": "client_credentials",
+                        "client_id": api_key,
+                        "client_secret": secret_key,
+                    }
                 )
+                access_token = response.json().get("access_token")
                 url = f"{base_url}?access_token={access_token}"
 
                 payload = json.dumps(
@@ -409,3 +441,4 @@ if __name__ == "__main__":
     )
     print("######################")
     print(search_terms)
+    
