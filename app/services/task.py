@@ -38,7 +38,7 @@ def generate_terms(task_id, params, video_script):
     video_terms = params.video_terms
     if not video_terms:
         video_terms = llm.generate_terms(
-            video_subject=params.video_subject, video_script=video_script, amount=5
+            video_subject=params.video_subject, video_script=video_script
         )
     else:
         if isinstance(video_terms, str):

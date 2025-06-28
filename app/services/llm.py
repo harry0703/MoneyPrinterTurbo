@@ -307,7 +307,7 @@ Generate a script for a video, depending on the subject of the video.
 4. you must not include any type of markdown or formatting in the script, never use a title.
 5. only return the raw content of the script.
 6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
-7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
+7. you must not mention the prompt, or anything about the script itself. also, never talk about the number of paragraphs or lines. just write the script.
 8. respond in the same language as the video subject.
 
 # Initialization:
@@ -365,18 +365,23 @@ Generate a script for a video, depending on the subject of the video.
     return final_script.strip()
 
 
-def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
+def generate_terms(video_subject: str, video_script: str) -> List[str]:
     prompt = f"""
-# Role: Video Search Terms Generator
+# Role: AI Video Director and Editor
 
-## Goals:
-Generate {amount} search terms for stock videos, depending on the subject of a video.
+## Core Goal:
+Analyze the provided complete video script and intelligently segment it into a sequence of logical scenes suitable for a short-form video. For each segmented scene, you must generate a highly descriptive English search query ideal for finding the most relevant stock footage on platforms like Pexels.
 
-## Constrains:
-1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
-3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
-4. the search terms must be related to the subject of the video.
+## Output Format and Constraints:
+1.  **You MUST return a pure, single JSON Array.** Do not include any explanatory text, markdown markers (` ```json ... ``` `), or any other content outside of the JSON array. Your entire response body must be a valid JSON array that can be parsed directly.
+2.  each search term should consist of 1-3 words, always add the main subject of the video.
+3.  Constraints for the `pexels_search_query` field value:
+    - It must be a concise, highly descriptive **English phrase**.
+    - It is intended to be used directly as the `query` parameter for the Pexels API.
+    - It should describe a concrete **visual scene**, not an abstract concept or emotion.
+    - **Excellent Examples**: "Man walking alone on foggy road", "Futuristic city skyline at night", "Close up of old book pages turning".
+    - **Poor Examples**: "sadness", "a trip", "the meaning of life".
+4.  Scene segmentation should be based on logical shifts in the narrative, changes in time, or natural transition points for visuals.
 5. reply with english search terms only.
 
 ## Output Example:
@@ -437,8 +442,10 @@ if __name__ == "__main__":
     print("######################")
     print(script)
     search_terms = generate_terms(
-        video_subject=video_subject, video_script=script, amount=5
+        video_subject=video_subject, video_script=script
     )
     print("######################")
     print(search_terms)
+    print("-----输出包含的场景数量-----")
+    print(len(search_terms))
     
