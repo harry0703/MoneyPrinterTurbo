@@ -45,7 +45,7 @@ def search_videos_pexels(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     }
     # Build URL
-    params = {"query": search_term, "per_page": 20, "orientation": video_orientation,"orientation":"landscape","size":"large"}
+    params = {"query": search_term, "page": 1, "per_page": 80, "orientation": "landscape", "size": "medium","locale":"en-US"}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
 
@@ -62,31 +62,51 @@ def search_videos_pexels(
         if "videos" not in response:
             logger.error(f"search videos failed: {response}")
             return video_items
+        
         videos = response["videos"]
-        # loop through each video in the result
+        
         for v in videos:
-            duration = v["duration"]
-            # check if video has desired minimum duration
-            if duration < minimum_duration:
+            duration = v.get("duration")
+            if not duration or duration < minimum_duration:
                 continue
-            video_files = v["video_files"]
-            # loop through each url to determine the best quality
-            for video in video_files:
-                w = int(video["width"])
-                h = int(video["height"])
-                if w == video_width and h == video_height:
-                    item = MaterialInfo()
-                    item.provider = "pexels"
-                    item.url = video["link"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
+            
+            video_files = v.get("video_files", [])
+            
+            # ---- 新的筛选逻辑 ----
+            best_landscape_file = None
+            max_resolution = 0
+
+            # 遍历所有文件版本，找到分辨率最高的横屏视频
+            for video_file in video_files:
+                width = video_file.get("width")
+                height = video_file.get("height")
+
+                # 确保有宽高信息，并且是横屏 (width > height)
+                if not width or not height or width <= height:
+                    continue
+
+                # 计算当前分辨率的总像素
+                current_resolution = width * height
+                
+                # 如果当前版本更清晰，则更新为最佳版本
+                if current_resolution > max_resolution:
+                    max_resolution = current_resolution
+                    best_landscape_file = video_file
+
+            # 如果在这个视频的所有版本中找到了至少一个横屏视频
+            if best_landscape_file:
+                item = MaterialInfo()
+                item.provider = "pexels"
+                item.url = best_landscape_file["link"] # 使用最佳版本的链接
+                item.duration = duration
+                video_items.append(item)
+        
         return video_items
+
     except Exception as e:
         logger.error(f"search videos failed: {str(e)}")
 
     return []
-
 
 def search_videos_pixabay(
     search_term: str,
@@ -101,7 +121,7 @@ def search_videos_pixabay(
     # Build URL
     params = {
         "q": search_term,
-        "video_type": "all",  # Accepted values: "all", "film", "animation"
+        "video_type": "film",  # Accepted values: "all", "film", "animation"
         "per_page": 50,
         "key": api_key,
     }

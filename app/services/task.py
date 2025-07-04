@@ -173,7 +173,7 @@ def generate_final_videos(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
         logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
-        video.combine_videos(
+        video.combine_videos_ffmpeg(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
             audio_file=audio_file,

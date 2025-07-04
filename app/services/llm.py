@@ -365,30 +365,61 @@ Generate a script for a video, depending on the subject of the video.
     return final_script.strip()
 
 
+# def generate_terms(video_subject: str, video_script: str) -> List[str]:
+#     prompt = f"""
+# # Role: AI Video Director and Editor
+
+# ## Core Goal:
+# Analyze the provided complete video script and intelligently segment it into a sequence of logical scenes suitable for a short-form video. For each segmented scene, you must generate a highly descriptive English search query ideal for finding the most relevant stock footage on platforms like Pexels.
+
+# ## Output Format and Constraints:
+# 1.  **You MUST return a pure, single JSON Array.** Do not include any explanatory text, markdown markers (` ```json ... ``` `), or any other content outside of the JSON array. Your entire response body must be a valid JSON array that can be parsed directly.
+# 2.  each search term should consist of 1-3 words, always add the main subject of the video.
+# 3.  Constraints for the `pexels_search_query` field value:
+#     - It must be a concise, highly descriptive **English phrase**.
+#     - It is intended to be used directly as the `query` parameter for the Pexels API.
+#     - It should describe a concrete **visual scene**, not an abstract concept or emotion.
+#     - **Excellent Examples**: "Man walking alone on foggy road", "Futuristic city skyline at night", "Close up of old book pages turning".
+#     - **Poor Examples**: "sadness", "a trip", "the meaning of life".
+# 4.  Scene segmentation should be based on logical shifts in the narrative, changes in time, or natural transition points for visuals.
+# 5. reply with english search terms only.
+# 6.**The number of search terms should directly correspond to the number of distinct scenes you identify in the script. A longer script should naturally result in more search terms.**
+
+# ## Output Example:
+# ["search term 1", "search term 2", "search term 3","search term 4","search term 5", "..."]
+
+# ## Context:
+# ### Video Subject
+# {video_subject}
 def generate_terms(video_subject: str, video_script: str) -> List[str]:
     prompt = f"""
 # Role: AI Video Director and Editor
 
 ## Core Goal:
-Analyze the provided complete video script and intelligently segment it into a sequence of logical scenes suitable for a short-form video. For each segmented scene, you must generate a highly descriptive English search query ideal for finding the most relevant stock footage on platforms like Pexels.
+Your mission is to meticulously analyze the provided video script, break it down into distinct visual scenes, and generate a diverse list of English search terms for stock footage.
 
-## Output Format and Constraints:
-1.  **You MUST return a pure, single JSON Array.** Do not include any explanatory text, markdown markers (` ```json ... ``` `), or any other content outside of the JSON array. Your entire response body must be a valid JSON array that can be parsed directly.
-2.  each search term should consist of 1-3 words, always add the main subject of the video.
-3.  Constraints for the `pexels_search_query` field value:
-    - It must be a concise, highly descriptive **English phrase**.
-    - It is intended to be used directly as the `query` parameter for the Pexels API.
-    - It should describe a concrete **visual scene**, not an abstract concept or emotion.
-    - **Excellent Examples**: "Man walking alone on foggy road", "Futuristic city skyline at night", "Close up of old book pages turning".
-    - **Poor Examples**: "sadness", "a trip", "the meaning of life".
-4.  Scene segmentation should be based on logical shifts in the narrative, changes in time, or natural transition points for visuals.
-5. reply with english search terms only.
+## Step-by-Step Instructions:
+1.  Read the entire `{video_subject}` script to understand the main narrative and mood.
+2.  Go through the script paragraph by paragraph (or by logical scene breaks).
+3.  For each paragraph/scene, generate ONE primary search term that best captures its visual essence.
+4.  Compile all generated search terms into a single JSON array.
 
-## Output Example:
-["search term 1", "search term 2", "search term 3","search term 4","search term 5"]
+## Keyword Generation Principles:
+-   **DIVERSITY**: CRITICAL. Avoid repetitive or overly similar terms. Each keyword must represent a distinct visual concept from the script.
+-   **SPECIFICITY**: Be specific. Instead of "car driving," prefer "sports car on mountain road at sunset."
+-   **VISUAL & CONCRETE**: Each term must describe a tangible, visual scene. Do not use abstract concepts (e.g., "sadness", "freedom").
+-   **CONCISENESS**: Terms should ideally be 2-4 words long.
+-   **RELEVANCE**: Every term must be directly inspired by a part of the script and be relevant to the main video subject.
+
+## Output Format Constraints:
+-   You MUST return a pure, single JSON Array. No introductory text, no markdown. Your entire response body must be a valid JSON array.
+-   All search terms must be in English.
+
+## Example of a Good Output:
+["dramatic mountain landscape", "hiker reaching summit", "close up of old compass", "time-lapse of starry night", "..."]
 
 ## Context:
-### Video Subject
+### Video Subject:
 {video_subject}
 
 ### Video Script
