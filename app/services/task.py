@@ -12,6 +12,7 @@ from app.models.schema import (
     VideoParams,
     VideoAspect,
     MaterialInfo,
+    VideoSegment,
 )
 from app.services import llm, material, subtitle, voice, video
 from app.services import video as video_utils
@@ -91,39 +92,43 @@ def start_storyboard_task(task_id, params: VideoParams):
             audio_duration = voice.get_audio_duration(sub_maker)
             total_duration += audio_duration
 
-            # b. Search and download video materials for each term
-            video_materials = []
-            downloaded_duration = 0
-            for term in search_terms:
-                if downloaded_duration >= audio_duration:
-                    break
-                term_materials = material.download_videos(
-                    task_id=task_id,
-                    video_subject=params.video_subject,
-                    search_terms=[term],  # Pass one term at a time
-                    source=params.video_source,
-                    video_aspect=params.video_aspect,
-                    video_concat_mode=params.video_concat_mode,
-                    audio_duration=audio_duration - downloaded_duration,
-                    max_clip_duration=params.max_clip_duration,
-                )
-                if term_materials:
-                    video_materials.extend(term_materials)
-                    downloaded_duration = sum(m.duration for m in video_materials)
-            if not video_materials:
-                raise Exception(f"Failed to find materials for segment {i + 1}")
+            # b. Calculate the number of clips needed and download them
+            num_clips = math.ceil(audio_duration / params.max_clip_duration) if params.max_clip_duration > 0 else 1
+            logger.info(f"Segment {i+1} audio duration: {audio_duration:.2f}s, max_clip_duration: {params.max_clip_duration}s. Calculated number of clips: {num_clips}")
 
-            # c. Create a video clip matching the audio duration
-            segment_video_path = path.join(workdir, f"segment_video_{i + 1}.mp4")
-            clip_created = video.create_video_clip_from_materials(
-                video_materials=video_materials,
-                audio_duration=audio_duration,
-                max_clip_duration=params.max_clip_duration,
+            video_materials = material.download_videos_for_clips(
+                video_search_terms=search_terms,
+                num_clips=num_clips,
+                source=params.video_source
+            )
+            if not video_materials or len(video_materials) < num_clips:
+                sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, status_message=f"Failed to download enough video materials for segment {i + 1}")
+                return
+
+            # c. Create video clip by combining materials with precise durations
+            video_segments = []
+            remaining_audio_duration = audio_duration
+            for video_material in video_materials:
+                if remaining_audio_duration <= 0:
+                    break
+                clip_duration = min(remaining_audio_duration, params.max_clip_duration)
+                video_segments.append(VideoSegment(path=video_material.path, duration=clip_duration))
+                remaining_audio_duration -= clip_duration
+
+            # If the total duration of the clips is still less than the audio duration, adjust the last clip
+            if remaining_audio_duration > 0.01 and video_segments:
+                video_segments[-1].duration += remaining_audio_duration
+
+            segment_video_path = os.path.join(workdir, f"segment_video_{i + 1}.mp4")
+            video_created = video.create_video_clip_from_segments(
+                segments=video_segments,
                 video_aspect=params.video_aspect,
                 output_path=segment_video_path
             )
-            if not clip_created:
-                raise Exception(f"Failed to create video clip for segment {i + 1}")
+
+            if not video_created:
+                sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, status_message=f"Video clip creation failed for segment {i + 1}")
+                return
 
             segment_video_paths.append(segment_video_path)
             segment_audio_paths.append(segment_audio_file)

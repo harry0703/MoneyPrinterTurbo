@@ -50,7 +50,15 @@ class _Config:
 class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
-    duration: int = 0
+    path: str = ""
+    duration: float = 0.0
+    start_time: float = 0.0
+
+
+@pydantic.dataclasses.dataclass(config=_Config)
+class VideoSegment:
+    path: str
+    duration: float
 
 
 class VideoParams(BaseModel):

@@ -3,6 +3,7 @@ import os
 import random
 from typing import List
 from urllib.parse import urlencode
+import math
 
 import requests
 from loguru import logger
@@ -317,6 +318,85 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     return ""
 
 
+def download_videos_for_clips(video_search_terms: List[str], num_clips: int, source: str) -> List[MaterialInfo]:
+    logger.info(f"Attempting to download {num_clips} unique video clips for {len(video_search_terms)} terms.")
+    downloaded_videos = []
+    used_video_urls = set()
+
+    if not video_search_terms:
+        logger.error("No video search terms provided. Cannot download videos.")
+        return []
+
+    import itertools
+    # Expand search terms if not enough for the number of clips
+    if len(video_search_terms) < num_clips:
+        logger.warning(f"Number of search terms ({len(video_search_terms)}) is less than the required number of clips ({num_clips}). Reusing terms.")
+        video_search_terms = list(itertools.islice(itertools.cycle(video_search_terms), num_clips))
+
+    search_term_queue = list(video_search_terms)
+    random.shuffle(search_term_queue)
+
+    while len(downloaded_videos) < num_clips and search_term_queue:
+        term = search_term_queue.pop(0)
+        try:
+            if source == "pexels":
+                video_items = search_videos_pexels(
+                    search_term=term,
+                    minimum_duration=5,
+                    video_aspect=VideoAspect.portrait,
+                )
+            elif source == "pixabay":
+                video_items = search_videos_pixabay(
+                    search_term=term,
+                    minimum_duration=5,
+                    video_aspect=VideoAspect.portrait,
+                )
+            else:
+                video_items = []
+            
+            if not video_items:
+                logger.warning(f"No video results for term: '{term}'")
+                continue
+
+            random.shuffle(video_items)
+
+            for item in video_items:
+                if item.url in used_video_urls:
+                    continue
+
+                logger.info(f"Downloading video for term '{term}': {item.url}")
+                file_path = save_video(item.url)
+                if file_path:
+                    video_material = MaterialInfo(
+                        path=file_path,
+                        url=item.url,
+                        duration=_get_video_info_ffprobe(file_path).get("duration", 0.0),
+                        start_time=0.0
+                    )
+                    downloaded_videos.append(video_material)
+                    used_video_urls.add(item.url)
+                    logger.info(f"Video saved: {file_path}")
+                    break  # Move to the next search term
+                else:
+                    logger.warning(f"Video download failed: {item.url}")
+
+        except Exception as e:
+            logger.error(f"Error processing search term '{term}': {e}")
+
+    # Fallback: If not enough unique videos were found, reuse the ones we have
+    if downloaded_videos and len(downloaded_videos) < num_clips:
+        logger.warning(f"Could not find enough unique videos. Required: {num_clips}, Found: {len(downloaded_videos)}. Reusing downloaded videos.")
+        needed = num_clips - len(downloaded_videos)
+        reused_videos = list(itertools.islice(itertools.cycle(downloaded_videos), needed))
+        downloaded_videos.extend(reused_videos)
+
+    if len(downloaded_videos) < num_clips:
+        logger.error(f"Failed to download enough videos. Required: {num_clips}, Found: {len(downloaded_videos)}. Aborting.")
+        return []
+
+    logger.success(f"Successfully downloaded {len(downloaded_videos)} video clips.")
+    return downloaded_videos
+
 def download_videos(
     task_id: str,
     video_subject: str,
@@ -327,86 +407,14 @@ def download_videos(
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
 ) -> List[MaterialInfo]:
-    """
-    Download videos from Pexels or Pixabay based on search terms.
-    """
-    all_video_items: List[MaterialInfo] = []
-    for term in search_terms:
-        if source == "pexels":
-            video_items = search_videos_pexels(
-                search_term=term,
-                minimum_duration=max_clip_duration,
-                video_aspect=video_aspect,
-            )
-        elif source == "pixabay":
-            video_items = search_videos_pixabay(
-                search_term=term,
-                minimum_duration=max_clip_duration,
-                video_aspect=video_aspect,
-            )
-        else:
-            video_items = []
-        
-        logger.info(f"found {len(video_items)} videos for '{term}'")
-        all_video_items.extend(video_items)
-
-    # Remove duplicates and calculate total duration
-    unique_video_items = []
-    seen_urls = set()
-    for item in all_video_items:
-        if item.url not in seen_urls:
-            unique_video_items.append(item)
-            seen_urls.add(item.url)
-
-    if video_concat_mode == VideoConcatMode.random:
-        random.shuffle(unique_video_items)
-
-    found_duration = sum(item.duration for item in unique_video_items)
-    logger.info(f"found total unique videos: {len(unique_video_items)}, required duration: {audio_duration:.4f} seconds, found duration: {found_duration:.2f} seconds")
-    logger.info(f"Video download list (first 5): {[item.url for item in unique_video_items[:5]]}")
-
-    if not unique_video_items:
-        logger.warning("No videos found for the given search terms.")
-        return []
-
-    if found_duration < audio_duration:
-        logger.warning(f"total duration of found videos ({found_duration:.2f}s) is less than audio duration ({audio_duration:.2f}s).")
-
-    downloaded_materials: List[MaterialInfo] = []
-    downloaded_duration = 0.0
-    
-    for item in unique_video_items:
-        if downloaded_duration >= audio_duration:
-            logger.info(f"total duration of downloaded videos: {downloaded_duration:.2f} seconds, skip downloading more")
-            break
-        
-        try:
-            logger.info(f"downloading video: {item.url}")
-            file_path = save_video(video_url=item.url)
-            if file_path:
-                logger.info(f"video saved: {file_path}")
-                material_info = MaterialInfo()
-                material_info.path = file_path
-                material_info.start_time = 0.0
-                ffprobe_info = _get_video_info_ffprobe(file_path)
-                if ffprobe_info and ffprobe_info.get("duration"):
-                    material_info.duration = float(ffprobe_info.get("duration"))
-                    downloaded_duration += material_info.duration
-                else:
-                    material_info.duration = item.duration # fallback
-                    downloaded_duration += item.duration
-                
-                downloaded_materials.append(material_info)
-
-        except Exception as e:
-            logger.error(f"failed to download video: {item.url} => {e}")
-
-    logger.success(f"downloaded {len(downloaded_materials)} videos")
-    return downloaded_materials
+    sm.state.update_task(task_id, status_message=f"Downloading videos for terms: {search_terms}")
+    num_clips = math.ceil(audio_duration / max_clip_duration) if max_clip_duration > 0 else 1
+    logger.info(f"Required audio duration: {audio_duration:.2f}s, max_clip_duration: {max_clip_duration}s. Calculated number of clips: {num_clips}")
+    return download_videos_for_clips(video_search_terms=search_terms, num_clips=num_clips, source=source)
 
 
 # 以下为调试入口，仅供开发测试
 if __name__ == "__main__":
     download_videos(
-        "test123", ["Money Exchange Medium"], audio_duration=100, source="pixabay"
+        "test123", ["Money Exchange Medium"], ["Money Exchange Medium"], audio_duration=100, source="pixabay"
     )

@@ -87,91 +87,75 @@ def delete_files(files: List[str] | str):
                 logger.warning(f"Failed to delete file {file}: {e}")
 
 
-def create_video_clip_from_materials(video_materials: list, audio_duration: float, max_clip_duration: int, video_aspect: VideoAspect, output_path: str):
-    logger.info(f"Optimized: Creating video clip for {output_path} with duration {audio_duration:.2f}s using ffmpeg")
+def create_video_clip_from_segments(segments: list, video_aspect: VideoAspect, output_path: str):
+    """
+    Creates a video clip by concatenating pre-defined video segments.
 
-    if audio_duration <= 0:
-        logger.warning("Audio duration is zero or negative, cannot create video clip.")
+    Args:
+        segments (list): A list of VideoSegment objects, where each object represents a video segment
+                         and contains 'path' and 'duration' attributes.
+        video_aspect (VideoAspect): The aspect ratio of the output video.
+        output_path (str): The path to save the output video clip.
+
+    Returns:
+        bool: True if the command was successful, False otherwise.
+    """
+    if not segments:
+        logger.warning("No video segments provided, cannot create video clip.")
         return False
 
-    total_duration_of_materials = sum(m.duration for m in video_materials)
-    if total_duration_of_materials < audio_duration:
-        logger.warning(f"Total material duration ({total_duration_of_materials}s) is less than audio duration ({audio_duration}s). Video will be shorter.")
-        audio_duration = total_duration_of_materials
-
     w, h = video_aspect.to_resolution()
-    # Use the most robust method: scale to fill, then crop to center.
-    # This avoids black bars by ensuring the video fills the frame, cropping excess.
     scale_filter = f"scale={w}:{h}:force_original_aspect_ratio=increase"
     crop_filter = f"crop={w}:{h}"
-    fade_in_filter = "fade=in:st=0:d=0.5"
+    sar_filter = "setsar=1"
+    fps_filter = "fps=30"
 
     filter_complex_parts = []
     concat_inputs = ""
-    time_so_far = 0.0
+    input_files = []
+    input_mappings = {}
 
-    # If only one material, just trim and process it
-    if len(video_materials) == 1:
-        material = video_materials[0]
-        duration_needed = audio_duration
-        start_time = material.start_time if material.start_time >= 0 else 0
-        trim_filter = f"[0:v]trim=start={start_time}:duration={duration_needed},setpts=PTS-STARTPTS"
-        sar_filter = "setsar=1"
+    total_duration = sum(seg.duration for seg in segments)
 
-        command = [
-            "ffmpeg",
-            "-y",
-            "-i", material.path,
-            "-vf", f"{trim_filter},{sar_filter},{scale_filter},{crop_filter},{fade_in_filter}",
-            "-an",  # remove audio
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "23",
-            "-maxrate", "10M",
-            "-bufsize", "20M",
-            "-r", "30",
-            output_path
-        ]
-        return _run_ffmpeg_command(command)
+    for i, segment in enumerate(segments):
+        input_path = segment.path
+        duration = segment.duration
 
-    # If multiple materials, create clips and concatenate
-    for i, material in enumerate(video_materials):
-        if time_so_far >= audio_duration:
-            break
+        if input_path not in input_mappings:
+            input_mappings[input_path] = len(input_files)
+            input_files.append(input_path)
 
-        duration_from_this_clip = min(material.duration, audio_duration - time_so_far, max_clip_duration)
-        if duration_from_this_clip <= 0:
-            continue
+        input_idx = input_mappings[input_path]
+        input_specifier = f"[{input_idx}:v]"
 
-        start_time = material.start_time if material.start_time >= 0 else 0
-        trim_filter = f"[{i}:v]trim=start={start_time}:duration={duration_from_this_clip},setpts=PTS-STARTPTS"
-        sar_filter = "setsar=1"
-        filter_complex_parts.append(f"{trim_filter},{sar_filter},{scale_filter},{crop_filter}[v{i}]" )
-        concat_inputs += f"[v{i}]"
-        time_so_far += duration_from_this_clip
+        # Each segment is trimmed from the start of the source video.
+        trim_filter = f"{input_specifier}trim=start=0:duration={duration},setpts=PTS-STARTPTS"
 
-    if not filter_complex_parts:
-        logger.error("No video clips could be prepared for concatenation.")
-        return False
+        processed_clip_name = f"[v{i}]"
+        filter_complex_parts.append(f"{trim_filter},{sar_filter},{scale_filter},{crop_filter},{fps_filter}{processed_clip_name}")
+        concat_inputs += processed_clip_name
 
-    concat_filter = f"{concat_inputs}concat=n={len(concat_inputs)//3}:v=1:a=0[outv]"
+    concat_filter = f"{concat_inputs}concat=n={len(segments)}:v=1:a=0[outv]"
     filter_complex_parts.append(concat_filter)
 
     command = [
         "ffmpeg", "-y",
     ]
-    for material in video_materials[:len(concat_inputs)//3]:
-        command.extend(["-i", material.path])
+    for file_path in input_files:
+        command.extend(["-i", file_path])
 
     command.extend([
-        "-filter_complex", ';'.join(filter_complex_parts),
+        "-filter_complex",
+        ";".join(filter_complex_parts),
         "-map", "[outv]",
         "-c:v", "libx264",
         "-an",
         "-r", "30",
+        "-t", str(total_duration),
         output_path
     ])
 
+    logger.info(f"Creating video clip for {output_path} with {len(segments)} segments (total duration: {total_duration:.2f}s) using ffmpeg.")
     return _run_ffmpeg_command(command)
 
 
@@ -340,7 +324,7 @@ def add_bgm_to_video(video_path: str, bgm_path: str, bgm_volume: float, output_p
         "-c:v", "copy",
         "-c:a", "aac",
         "-t", str(video_duration),
-        "-shortest",
+        "-shortest", # Add -shortest parameter here
         output_path,
     ]
 
@@ -397,13 +381,15 @@ def add_subtitles_to_video(video_path: str, srt_path: str, font_name: str, font_
         "-i", video_path,
         "-vf", subtitles_filter,
         "-c:v", "libx264",
-        "-c:a", "copy",
-        "-preset", "ultrafast",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-shortest",
         output_path
     ]
 
     return _run_ffmpeg_command(command)
 
+# ... (rest of the code remains the same)
 
 def process_scene_video(material_url: str, output_dir: str, target_duration: float, aspect_ratio: str = "16:9") -> str:
     """
