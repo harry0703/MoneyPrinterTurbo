@@ -49,7 +49,7 @@ def search_videos_pexels(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     }
     # Build URL
-    params = {"query": search_term, "page": 1, "per_page": 5, "orientation": "landscape", "size": "large","locale":"en-US"}
+    params = {"query": search_term, "page": 1, "per_page": 5, "orientation": video_orientation, "size": "large","locale":"en-US"}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
 
@@ -76,32 +76,41 @@ def search_videos_pexels(
             
             video_files = v.get("video_files", [])
             
-            # ---- 新的筛选逻辑 ----
-            best_landscape_file = None
+            # ---- Dynamic aspect ratio filtering logic ----
+            best_matching_file = None
             max_resolution = 0
 
-            # 遍历所有文件版本，找到分辨率最高的横屏视频
+            # Find the highest resolution video that matches the requested aspect ratio
             for video_file in video_files:
                 width = video_file.get("width")
                 height = video_file.get("height")
 
-                # 确保有宽高信息，并且是横屏 (width > height)
-                if not width or not height or width <= height:
+                # Ensure width and height are available
+                if not width or not height:
                     continue
 
-                # 计算当前分辨率的总像素
+                # Check if the video orientation matches the requirement
+                is_landscape = width > height
+                is_portrait = height > width
+
+                if video_aspect == VideoAspect.landscape and not is_landscape:
+                    continue
+                if video_aspect == VideoAspect.portrait and not is_portrait:
+                    continue
+
+                # Calculate the total pixels for the current resolution
                 current_resolution = width * height
                 
-                # 如果当前版本更清晰，则更新为最佳版本
+                # If the current version has a higher resolution, update the best match
                 if current_resolution > max_resolution:
                     max_resolution = current_resolution
-                    best_landscape_file = video_file
+                    best_matching_file = video_file
 
-            # 如果在这个视频的所有版本中找到了至少一个横屏视频
-            if best_landscape_file:
+            # If a matching video was found
+            if best_matching_file:
                 item = MaterialInfo()
                 item.provider = "pexels"
-                item.url = best_landscape_file["link"] # 使用最佳版本的链接
+                item.url = best_matching_file["link"] # Use the link of the best matching version
                 item.duration = duration
                 item.path = ""
                 item.start_time = 0.0
@@ -318,7 +327,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     return ""
 
 
-def download_videos_for_clips(video_search_terms: List[str], num_clips: int, source: str) -> List[MaterialInfo]:
+def download_videos_for_clips(video_search_terms: List[str], num_clips: int, source: str, video_aspect: VideoAspect) -> List[MaterialInfo]:
     logger.info(f"Attempting to download {num_clips} unique video clips for {len(video_search_terms)} terms.")
     downloaded_videos = []
     used_video_urls = set()
@@ -343,13 +352,13 @@ def download_videos_for_clips(video_search_terms: List[str], num_clips: int, sou
                 video_items = search_videos_pexels(
                     search_term=term,
                     minimum_duration=5,
-                    video_aspect=VideoAspect.portrait,
+                    video_aspect=video_aspect,
                 )
             elif source == "pixabay":
                 video_items = search_videos_pixabay(
                     search_term=term,
                     minimum_duration=5,
-                    video_aspect=VideoAspect.portrait,
+                    video_aspect=video_aspect,
                 )
             else:
                 video_items = []

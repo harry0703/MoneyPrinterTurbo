@@ -108,7 +108,8 @@ def start_storyboard_task(task_id, params: VideoParams):
             video_materials = material.download_videos_for_clips(
                 video_search_terms=search_terms,
                 num_clips=num_clips,
-                source=params.video_source
+                source=params.video_source,
+                video_aspect=params.video_aspect
             )
             if not video_materials or len(video_materials) < num_clips:
                 sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, status_message=f"Failed to download enough video materials for segment {i + 1}")
