@@ -38,8 +38,7 @@ def generate_video_script(request: Request, body: VideoScriptRequest):
 def generate_video_terms(request: Request, body: VideoTermsRequest):
     video_terms = llm.generate_terms(
         video_subject=body.video_subject,
-        video_script=body.video_script,
-        amount=body.amount,
+        video_script=body.video_script
     )
     response = {"video_terms": video_terms}
     return utils.get_response(200, response)

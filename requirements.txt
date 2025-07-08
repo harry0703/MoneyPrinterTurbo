@@ -6,7 +6,7 @@ uvicorn==0.32.1
 openai==1.56.1
 faster-whisper==1.1.0
 loguru==0.7.3
-google.generativeai==0.8.3
+google-generativeai==0.8.3
 dashscope==1.20.14
 g4f==0.5.2.2
 azure-cognitiveservices-speech==1.41.1

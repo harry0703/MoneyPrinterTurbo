@@ -14,6 +14,23 @@ from app.models import const
 urllib3.disable_warnings()
 
 
+def parse_voice_name(name: str):
+    # zh-CN-XiaoyiNeural-Female -> zh-CN-XiaoyiNeural
+    # zh-CN-YunxiNeural-Male -> zh-CN-YunxiNeural
+    # zh-CN-XiaoxiaoMultilingualNeural-V2-Female -> zh-CN-XiaoxiaoMultilingualNeural-V2
+    return name.replace("-Female", "").replace("-Male", "").strip()
+
+def is_azure_v2_voice(voice_name: str):
+    voice_name = parse_voice_name(voice_name)
+    if voice_name.endswith("-V2"):
+        return voice_name.replace("-V2", "").strip()
+    return ""
+
+def is_siliconflow_voice(voice_name: str):
+    """检查是否是硅基流动的声音"""
+    return voice_name.startswith("siliconflow:")
+
+
 def get_response(status: int, data: Any = None, message: str = ""):
     obj = {
         "status": status,
@@ -64,6 +81,13 @@ def get_uuid(remove_hyphen: bool = False):
     return u
 
 
+def get_root_dir(sub_dir: str = ""):
+    d = root_dir()
+    if sub_dir:
+        d = os.path.join(d, sub_dir)
+    return d
+
+
 def root_dir():
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -101,6 +125,10 @@ def font_dir(sub_dir: str = ""):
     if not os.path.exists(d):
         os.makedirs(d)
     return d
+
+
+def get_font_path(font_name: str):
+    return os.path.join(font_dir(), font_name)
 
 
 def song_dir(sub_dir: str = ""):
@@ -227,4 +255,22 @@ def load_locales(i18n_dir):
 
 
 def parse_extension(filename):
-    return Path(filename).suffix.lower().lstrip('.')
+    return os.path.splitext(filename)[1]
+
+
+def rgb_to_bgr_hex(rgb_color):
+    """Converts an RGB color string (e.g., '#RRGGBB') to a BGR hex string for FFmpeg.
+
+    Args:
+        rgb_color (str): The RGB color string, starting with '#'.
+
+    Returns:
+        str: The BGR hex string (e.g., 'BBGGRR').
+    """
+    if not rgb_color.startswith('#') or len(rgb_color) != 7:
+        logger.warning(f"Invalid color format: {rgb_color}. Using default white.")
+        return "FFFFFF"  # Default to white for invalid formats
+    r = rgb_color[1:3]
+    g = rgb_color[3:5]
+    b = rgb_color[5:7]
+    return f"{b}{g}{r}"

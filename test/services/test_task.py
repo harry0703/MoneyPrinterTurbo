@@ -55,7 +55,7 @@ class TestTaskService(unittest.TestCase):
             font_size=60,
             stroke_color="#000000",
             stroke_width=1.5,
-            n_threads=2,
+            n_threads=4,
             paragraph_number=1
         )
         result = tm.start(task_id=task_id, params=params)

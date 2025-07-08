@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, List, Optional, Union
 
 import pydantic
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # 忽略 Pydantic 的特定警告
 warnings.filterwarnings(
@@ -50,7 +50,15 @@ class _Config:
 class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
-    duration: int = 0
+    path: str = ""
+    duration: float = 0.0
+    start_time: float = 0.0
+
+
+@pydantic.dataclasses.dataclass(config=_Config)
+class VideoSegment:
+    path: str
+    duration: float
 
 
 class VideoParams(BaseModel):
@@ -74,7 +82,7 @@ class VideoParams(BaseModel):
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
-    video_clip_duration: Optional[int] = 5
+    max_clip_duration: Optional[int] = 5
     video_count: Optional[int] = 1
 
     video_source: Optional[str] = "pexels"
@@ -103,7 +111,7 @@ class VideoParams(BaseModel):
     stroke_width: float = 1.5
     n_threads: Optional[int] = 2
     paragraph_number: Optional[int] = 1
-
+    storyboard_mode: bool = Field(False, description="是否启用故事板模式以实现音画同步")
 
 class SubtitleRequest(BaseModel):
     video_script: str

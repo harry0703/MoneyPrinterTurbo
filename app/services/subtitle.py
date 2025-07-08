@@ -278,6 +278,77 @@ def correct(subtitle_file, video_script):
         logger.success("Subtitle is correct")
 
 
+def combine_srt_files(srt_files: list, output_file: str):
+    """
+    Combines multiple SRT files into a single file, adjusting timestamps sequentially.
+    """
+    logger.info(f"Combining {len(srt_files)} SRT files into {output_file}")
+    combined_subtitles = []
+    last_end_time_seconds = 0.0
+    entry_index = 1
+
+    for srt_file in srt_files:
+        if not os.path.exists(srt_file):
+            logger.warning(f"SRT file not found, skipping: {srt_file}")
+            continue
+        try:
+            with open(srt_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            entries = re.split(r'\n\s*\n', content.strip())
+            for entry in entries:
+                if not entry.strip():
+                    continue
+                
+                lines = entry.split('\n')
+                if len(lines) < 3:
+                    continue
+
+                # Parse timestamp
+                timestamp_line = lines[1]
+                start_time_str, end_time_str = timestamp_line.split(' --> ')
+
+                def srt_time_to_seconds(t_str):
+                    h, m, s_ms = t_str.split(':')
+                    s, ms = s_ms.split(',')
+                    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000.0
+
+                start_time = srt_time_to_seconds(start_time_str)
+                end_time = srt_time_to_seconds(end_time_str)
+                duration = end_time - start_time
+
+                # Adjust time
+                new_start_time = last_end_time_seconds
+                new_end_time = new_start_time + duration
+
+                def seconds_to_srt_time(seconds):
+                    h = int(seconds // 3600)
+                    m = int((seconds % 3600) // 60)
+                    s = int(seconds % 60)
+                    ms = int((seconds * 1000) % 1000)
+                    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+                new_start_str = seconds_to_srt_time(new_start_time)
+                new_end_str = seconds_to_srt_time(new_end_time)
+
+                # Append to combined list
+                text = '\n'.join(lines[2:])
+                combined_subtitles.append(f"{entry_index}\n{new_start_str} --> {new_end_str}\n{text}")
+                entry_index += 1
+            
+            # Update last end time for the next file
+            last_end_time_seconds = new_end_time
+
+        except Exception as e:
+            logger.error(f"Error processing SRT file {srt_file}: {e}")
+
+    # Write combined SRT to output file
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write('\n\n'.join(combined_subtitles) + '\n\n')
+    
+    logger.success(f"Successfully combined SRT files into {output_file}")
+
+
 if __name__ == "__main__":
     task_id = "c12fd1e6-4b0a-4d65-a075-c87abe35a072"
     task_dir = utils.task_dir(task_id)
