@@ -102,6 +102,8 @@ def search_videos_pexels(
                 item.provider = "pexels"
                 item.url = best_landscape_file["link"] # 使用最佳版本的链接
                 item.duration = duration
+                item.path = ""
+                item.start_time = 0.0
                 video_items.append(item)
         logging.info("选取的Mp4链接地址为{}".format(item.url))
         return video_items
@@ -177,6 +179,8 @@ def search_videos_pixabay(
                     item.provider = "pixabay"
                     item.url = best_video.get("url")
                     item.duration = duration
+                    item.path = ""
+                    item.start_time = 0.0
                     video_items.append(item)
             
             return video_items
@@ -319,73 +323,86 @@ def download_videos(
     search_terms: List[str],
     source: str = "pexels",
     video_aspect: VideoAspect = VideoAspect.portrait,
-    video_contact_mode: VideoConcatMode = VideoConcatMode.random,
+    video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
-) -> List[str]:
-    valid_video_items = []
-    valid_video_urls = []
-    found_duration = 0.0
-    search_videos = search_videos_pexels
-    search_kwargs = {}
-    if source == "pixabay":
-        search_videos = search_videos_pixabay
-        video_category = ""
-        if video_subject:
-            video_category = llm.generate_video_category(video_subject)
-        if video_category:
-            search_kwargs['category'] = video_category
+) -> List[MaterialInfo]:
+    """
+    Download videos from Pexels or Pixabay based on search terms.
+    """
+    all_video_items: List[MaterialInfo] = []
+    for term in search_terms:
+        if source == "pexels":
+            video_items = search_videos_pexels(
+                search_term=term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+        elif source == "pixabay":
+            video_items = search_videos_pixabay(
+                search_term=term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+        else:
+            video_items = []
+        
+        logger.info(f"found {len(video_items)} videos for '{term}'")
+        all_video_items.extend(video_items)
 
-    for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-            **search_kwargs,
-        )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
+    # Remove duplicates and calculate total duration
+    unique_video_items = []
+    seen_urls = set()
+    for item in all_video_items:
+        if item.url not in seen_urls:
+            unique_video_items.append(item)
+            seen_urls.add(item.url)
 
-        for item in video_items:
-            if item.url not in valid_video_urls:
-                valid_video_items.append(item)
-                valid_video_urls.append(item.url)
-                found_duration += item.duration
+    if video_concat_mode == VideoConcatMode.random:
+        random.shuffle(unique_video_items)
 
-    logger.info(
-        f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
-    )
-    video_paths = []
+    found_duration = sum(item.duration for item in unique_video_items)
+    logger.info(f"found total unique videos: {len(unique_video_items)}, required duration: {audio_duration:.4f} seconds, found duration: {found_duration:.2f} seconds")
+    logger.info(f"Video download list (first 5): {[item.url for item in unique_video_items[:5]]}")
 
-    material_directory = config.app.get("material_directory", "").strip()
-    if material_directory == "task":
-        material_directory = utils.task_dir(task_id)
-    elif material_directory and not os.path.isdir(material_directory):
-        material_directory = ""
+    if not unique_video_items:
+        logger.warning("No videos found for the given search terms.")
+        return []
 
-    if video_contact_mode.value == VideoConcatMode.random.value:
-        random.shuffle(valid_video_items)
+    if found_duration < audio_duration:
+        logger.warning(f"total duration of found videos ({found_duration:.2f}s) is less than audio duration ({audio_duration:.2f}s).")
 
-    total_duration = 0.0
-    for item in valid_video_items:
+    downloaded_materials: List[MaterialInfo] = []
+    downloaded_duration = 0.0
+    
+    for item in unique_video_items:
+        if downloaded_duration >= audio_duration:
+            logger.info(f"total duration of downloaded videos: {downloaded_duration:.2f} seconds, skip downloading more")
+            break
+        
         try:
             logger.info(f"downloading video: {item.url}")
-            saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
-            )
-            if saved_video_path:
-                logger.info(f"video saved: {saved_video_path}")
-                video_paths.append(saved_video_path)
-                seconds = min(max_clip_duration, item.duration)
-                total_duration += seconds
-                if total_duration > audio_duration:
-                    logger.info(
-                        f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
-                    )
-                    break
+            file_path = save_video(video_url=item.url)
+            if file_path:
+                logger.info(f"video saved: {file_path}")
+                material_info = MaterialInfo()
+                material_info.path = file_path
+                material_info.start_time = 0.0
+                ffprobe_info = _get_video_info_ffprobe(file_path)
+                if ffprobe_info and ffprobe_info.get("duration"):
+                    material_info.duration = float(ffprobe_info.get("duration"))
+                    downloaded_duration += material_info.duration
+                else:
+                    material_info.duration = item.duration # fallback
+                    downloaded_duration += item.duration
+                
+                downloaded_materials.append(material_info)
+
         except Exception as e:
-            logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
-    logger.success(f"downloaded {len(video_paths)} videos")
-    return video_paths
+            logger.error(f"failed to download video: {item.url} => {e}")
+
+    logger.success(f"downloaded {len(downloaded_materials)} videos")
+    return downloaded_materials
 
 
 # 以下为调试入口，仅供开发测试

@@ -618,7 +618,7 @@ with middle_panel:
         )
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
 
-        params.video_clip_duration = st.selectbox(
+        params.max_clip_duration = st.selectbox(
             tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10], index=1
         )
         params.video_count = st.selectbox(
@@ -659,7 +659,8 @@ with middle_panel:
 
         if selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
-            filtered_voices = voice.get_siliconflow_voices()
+            # filtered_voices = voice.get_siliconflow_voices()
+            pass
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -699,6 +700,7 @@ with middle_panel:
         if saved_voice_name_index >= len(friendly_names) and friendly_names:
             saved_voice_name_index = 0
 
+        voice_name = ""
         # 确保有声音可选
         if friendly_names:
             selected_friendly_name = st.selectbox(
@@ -715,14 +717,16 @@ with middle_panel:
             params.voice_name = voice_name
             config.ui["voice_name"] = voice_name
         else:
-            # 如果没有声音可选，显示提示信息
+            # 如果没有声音可选，使用默认声音并显示提示信息
             st.warning(
                 tr(
-                    "No voices available for the selected TTS server. Please select another server."
+                    "No voices available for the selected TTS server. A default voice (en-US-JennyNeural) will be used."
                 )
             )
-            params.voice_name = ""
-            config.ui["voice_name"] = ""
+            default_voice = "en-US-JennyNeural"
+            params.voice_name = default_voice
+            config.ui["voice_name"] = default_voice
+            voice_name = default_voice
 
         # 只有在有声音可选时才显示试听按钮
         if friendly_names and st.button(tr("Play Voice")):
@@ -961,7 +965,7 @@ if start_button:
     logger.info(utils.to_json(params))
     scroll_to_bottom()
 
-    result = tm.start(task_id=task_id, params=params)
+    result = tm.start_storyboard_task(task_id=task_id, params=params)
     if not result or "videos" not in result:
         st.error(tr("Video Generation Failed"))
         logger.error(tr("Video Generation Failed"))

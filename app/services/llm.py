@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import requests
-from typing import List
+from typing import List, Dict
 
 import g4f
 from loguru import logger
@@ -173,7 +173,7 @@ def _generate_response(prompt: str) -> str:
                     "temperature": 0.5,
                     "top_p": 1,
                     "top_k": 1,
-                    "max_output_tokens": 2048,
+                    "max_output_tokens": 8192,
                 }
 
                 safety_settings = [
@@ -270,8 +270,10 @@ def _generate_response(prompt: str) -> str:
                     base_url=base_url,
                 )
 
-            response = client.chat.completions.create(
-                model=model_name, messages=[{"role": "user", "content": prompt}]
+            response: ChatCompletion = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=4096
             )
             if response:
                 if isinstance(response, ChatCompletion):
@@ -392,77 +394,168 @@ Generate a script for a video, depending on the subject of the video.
 # ### Video Subject
 # {video_subject}
 def generate_terms(video_subject: str, video_script: str) -> List[str]:
-    prompt = f"""
-# Role: AI Video Director and Editor
+    """
+    Generate video terms from video subject and script.
+    """
+    prompt_template = """
+# Role: Video Search Terms Generator
 
-## Core Goal:
-Your mission is to meticulously analyze the provided video script, break it down into distinct visual scenes, and generate a diverse list of English search terms for stock footage.
+## Task:
+Generate a concise, comma-separated list of 1-5 English search terms based on the provided `Video Subject` and `Video Script`. These terms will be used to find relevant video clips.
 
-## Step-by-Step Instructions:
-1.  Read the entire `{video_subject}` script to understand the main narrative and mood.
-2.  Go through the script paragraph by paragraph (or by logical scene breaks).
-3.  For each paragraph/scene, generate ONE primary search term that best captures its visual essence.
-4.  Compile all generated search terms into a single JSON array.
+## Instructions:
+1.  **Analyze Context:** Read the `Video Subject` and `Video Script` to understand the main topics and visual elements.
+2.  **Brainstorm Keywords:** Think of concrete, visually-driven keywords. Avoid abstract concepts.
+3.  **Select & Refine:** Choose the most powerful and representative terms.
+4.  **Format Output:** Provide a single line of comma-separated English keywords. Do not include any other text, explanations, or formatting.
 
-## Keyword Generation Principles:
--   **DIVERSITY**: CRITICAL. Avoid repetitive or overly similar terms. Each keyword must represent a distinct visual concept from the script.
--   **SPECIFICITY**: Be specific. Instead of "car driving," prefer "sports car on mountain road at sunset."
--   **VISUAL & CONCRETE**: Each term must describe a tangible, visual scene. Do not use abstract concepts (e.g., "sadness", "freedom").
--   **CONCISENESS**: Terms should ideally be 2-4 words long.
--   **RELEVANCE**: Every term must be directly inspired by a part of the script and be relevant to the main video subject.
+## Example:
+**Video Subject:** "The Impact of Sugar on Your Brain"
+**Video Script:** "Sugar, a sweet temptation, can have a profound effect on our brain chemistry..."
+**Output:**
+`sugar cubes, brain scan, dopamine release, person eating candy, neural pathways`
 
-## Output Format Constraints:
--   You MUST return a pure, single JSON Array. No introductory text, no markdown. Your entire response body must be a valid JSON array.
--   All search terms must be in English.
-
-## Example of a Good Output:
-["dramatic mountain landscape", "hiker reaching summit", "close up of old compass", "time-lapse of starry night", "..."]
-
-## Context:
+## Your Turn:
 ### Video Subject:
 {video_subject}
 
-### Video Script
+### Video Script:
 {video_script}
 
-Please note that you must use English for generating video search terms; Chinese is not accepted.
-""".strip()
+### Output:
+"""
+    prompt = prompt_template.format(
+        video_subject=video_subject, video_script=video_script
+    )
 
     logger.info(f"subject: {video_subject}")
 
-    search_terms = []
-    response = ""
-    for i in range(_max_retries):
-        try:
-            response = _generate_response(prompt)
-            if "Error: " in response:
-                logger.error(f"failed to generate video script: {response}")
-                return response
-            search_terms = json.loads(response)
-            if not isinstance(search_terms, list) or not all(
-                isinstance(term, str) for term in search_terms
-            ):
-                logger.error("response is not a list of strings.")
-                continue
+    try:
+        response = _generate_response(prompt)
+        # remove blank lines
+        generated_text = "\n".join(
+            [line for line in response.split("\n") if line.strip()]
+        )
+        if not generated_text:
+            logger.warning("LLM returned empty terms list.")
+            return []
 
-        except Exception as e:
-            logger.warning(f"failed to generate video terms: {str(e)}")
-            if response:
-                match = re.search(r"\[.*]", response)
-                if match:
-                    try:
-                        search_terms = json.loads(match.group())
-                    except Exception as e:
-                        logger.warning(f"failed to generate video terms: {str(e)}")
-                        pass
+        terms = [term.strip().strip("`'\"") for term in generated_text.split(",")]
+        logger.info(f"Generated terms: {terms}")
+        return terms
+    except Exception as e:
+        logger.error(f"Failed to generate video terms: {e}")
+        return []
 
-        if search_terms and len(search_terms) > 0:
-            break
-        if i < _max_retries:
-            logger.warning(f"failed to generate video terms, trying again... {i + 1}")
 
-    logger.success(f"completed: \n{search_terms}")
-    return search_terms
+# def generate_storyboard(video_subject: str, video_script: str) -> List[Dict]:
+#     """
+#     Analyzes the entire script, breaks it down into scenes, and generates matching search terms for each scene.
+#     Returns a list of scenes, where each scene is a dictionary containing 'scene_script' and 'search_terms'.
+#     """
+#     prompt = f"""
+# # Role: Video Script Analyst
+
+# ## GOAL:
+# Your task is to transform a video script into a storyboard. You will read the provided script, segment it into scenes, and for each scene, generate a set of descriptive, visual search terms that will be used to find stock video footage. The final output must be a valid JSON array of objects.
+
+# ## STEP-BY-STEP INSTRUCTIONS:
+# 1.  **Segment the Script:** Read the `Video Script` and break it down into short, logical, spoken segments. A segment should typically be one or two sentences long.
+
+# ## EXAMPLE (Note the Realism and Concreteness):
+# [
+#   {{
+#     "scene_script": "Blueberries. They're often called nature's perfect food for your eyes.",
+#     "search_terms": ["woman eating fresh blueberries from a bowl", "close up of fresh blueberries", "bowl of blueberries on a table"]
+#   }},
+#   {{
+#     "scene_script": "And for good reason. Packed with anthocyanins, vitamin C, and ludian...",
+#     "search_terms": ["nutritionist explaining health benefits", "close up of vitamin C tablets", "diagram of anthocyanin molecule"]
+#   }},
+#   {{
+#     "scene_script": "...these tiny berries act like microscopic shields, protecting your retina and macula from oxidative stress and age related damage.",
+#     "search_terms": ["medical animation of the human eye", "diagram of the retina and macula", "older person with healthy eyes smiling"]
+#   }}
+# ]
+
+# ## CONTEXT:
+# ### Video Subject:
+# {video_subject}
+
+# ### Video Script:
+# {video_script}
+def generate_storyboard(video_subject: str, video_script: str) -> List[Dict]:
+    """
+    Analyzes the script, breaks it into scenes, and extracts the main subject nouns as search terms for each scene.
+    Returns a list of scenes, where each scene is a dictionary containing 'scene_script' and 'search_terms'.
+    """
+    # [核心修改] 通过更明确、更强力的指令，强制要求 LLM 将视频脚本的每一句话都处理成一个独立的场景，并为每个场景生成对应的英文关键词。
+    prompt = f"""
+You are a video production assistant. Your task is to process a script for a video, breaking it down sentence by sentence to generate visual search terms.
+
+**CRITICAL INSTRUCTIONS - FOLLOW THESE RULES EXACTLY:**
+
+1.  **ONE SENTENCE = ONE VISUAL SEGMENT:** Each sentence from the script is a distinct visual segment. Do not merge sentences.
+2.  **CONCRETE & VISUAL KEYWORDS ONLY:** The `search_terms` MUST be concrete, visual, and tangible things. They must be nouns or descriptive actions that can be found in a video library. 
+    - **GOOD:** `blueberries`, `person walking`, `city skyline`, `laughing friends`, `human eye`.
+    - **BAD / FORBIDDEN:** `reason`, `concept`, `idea`, `method`, `health`, `protection`, `damage`. Never use abstract, non-visual words.
+3.  **MANDATORY KEYWORD DIVERSITY:** You are FORBIDDEN from using the same primary keyword for two consecutive segments. If segment 1 uses `blueberries`, segment 2 MUST use a different but relevant keyword (e.g., `antioxidants` could be visualized as `colorful fruits`, `retina` as `close-up of eye`). DIVERSIFY a lot.
+
+**REQUIRED OUTPUT FORMAT:**
+- You must output a valid JSON array of objects.
+- Each object represents one sentence and must ONLY contain two keys: `script` and `search_terms`.
+
+**EXAMPLE:**
+
+Video Script:
+"Blueberries are packed with anthocyanins, which are great for your eyes. These antioxidants protect the retina from damage."
+
+Your JSON Output:
+```json
+[
+    {{
+        "script": "Blueberries are packed with anthocyanins, which are great for your eyes.",
+        "search_terms": "blueberries, fresh fruit, antioxidant food"
+    }},
+    {{
+        "script": "These antioxidants protect the retina from damage.",
+        "search_terms": "close-up of eye, retina scan, vision test"
+    }}
+]
+```
+
+**Video Script to Process:**
+```
+{video_script}
+```
+
+**Your JSON Output (must be a valid JSON array):**
+"""
+    # return []
+
+    logger.info(f"Generating storyboard for subject: {video_subject}")
+    response_str = _generate_response(prompt)
+
+    try:
+        # The model should return a valid JSON array string.
+        # Find the start and end of the JSON array.
+        json_start = response_str.find('[')
+        json_end = response_str.rfind(']')
+        if json_start != -1 and json_end != -1 and json_start < json_end:
+            json_str = response_str[json_start:json_end+1]
+            storyboard = json.loads(json_str)
+            logger.success("Successfully parsed storyboard from LLM response.")
+            return storyboard
+        else:
+            logger.error(f"Could not find a valid JSON array in the response. Raw response: {response_str}")
+            return []
+    except json.JSONDecodeError:
+        logger.error(f"Failed to parse JSON. Raw response: {response_str}")
+        # Fallback logic can be added here if needed, e.g., using regex to extract JSON.
+        return []
+
+
+# ... (您的其他函数和代码保持不变)
 
 
 if __name__ == "__main__":
@@ -479,4 +572,42 @@ if __name__ == "__main__":
     print(search_terms)
     print("-----输出包含的场景数量-----")
     print(len(search_terms))
+
+def generate_video_category(video_subject: str) -> str:
+    """
+    Selects the most appropriate video category from a predefined list based on the video subject.
+    """
+    prompt = f"""
+# Role: Video Category Selector
+
+## Goal:
+Based on the provided 'Video Subject', select the ONE most suitable category from the `Category List` that best represents the subject. Your response must be only the single category name.
+
+## Category List:
+backgrounds, fashion, nature, science, education, feelings, health, people, religion, places, animals, industry, computer, food, sports, transportation, travel, buildings, business, music
+
+## Instructions:
+- Analyze the 'Video Subject'.
+- Choose the single best-fitting category from the list.
+- Respond with ONLY the category name and nothing else.
+
+## Example:
+Video Subject: "The benefits of a ketogenic diet"
+Response: health
+
+Video Subject: "A tour of the Grand Canyon"
+Response: travel
+
+## CONTEXT:
+### Video Subject:
+{video_subject}
+"""
+    category = _generate_response(prompt).strip().lower()
+    # Fallback to a default category if the response is invalid
+    valid_categories = ["backgrounds", "fashion", "nature", "science", "education", "feelings", "health", "people", "religion", "places", "animals", "industry", "computer", "food", "sports", "transportation", "travel", "buildings", "business", "music"]
+    if category not in valid_categories:
+        logger.warning(f"Generated category '{category}' is not valid. Falling back to 'nature'.")
+        return "nature"
     
+    logger.success(f"Successfully selected video category: {category}")
+    return category
