@@ -86,10 +86,19 @@ def start_storyboard_task(task_id, params: VideoParams):
             if not sub_maker:
                 raise Exception(f"Failed to generate audio for segment {i + 1}")
 
+            # Trim silence from the generated audio
+            trimmed_audio_file = path.join(workdir, f"segment_{i + 1}_trimmed.mp3")
+            if voice.trim_audio_silence(segment_audio_file, trimmed_audio_file):
+                logger.info(f"Silence trimmed for segment {i+1}, using trimmed audio.")
+                audio_to_process = trimmed_audio_file
+            else:
+                logger.warning(f"Failed to trim silence for segment {i+1}, using original audio.")
+                audio_to_process = segment_audio_file
+
             voice.create_subtitle(
                 sub_maker=sub_maker, text=segment_script, subtitle_file=segment_srt_file
             )
-            audio_duration = voice.get_audio_duration(sub_maker)
+            audio_duration = video.get_video_duration(audio_to_process)
             total_duration += audio_duration
 
             # b. Calculate the number of clips needed and download them
@@ -131,7 +140,7 @@ def start_storyboard_task(task_id, params: VideoParams):
                 return
 
             segment_video_paths.append(segment_video_path)
-            segment_audio_paths.append(segment_audio_file)
+            segment_audio_paths.append(audio_to_process)
             segment_srt_paths.append(segment_srt_file)
 
         except Exception as e:
@@ -189,18 +198,20 @@ def start_storyboard_task(task_id, params: VideoParams):
 
     # c. Add subtitles
     final_video_path = path.join(workdir, f"final_{task_id}.mp4")
-    video.add_subtitles_to_video(
-        video_path=video_with_bgm_path,
-        srt_path=combined_srt_path,
-        font_name=params.font_name,
-        font_size=params.font_size,
-        text_fore_color=params.text_fore_color,
-        stroke_color=params.stroke_color,
-        stroke_width=params.stroke_width,
-        subtitle_position=params.subtitle_position,
-        custom_position=params.custom_position,
-        output_path=final_video_path
-    )
+    # video.add_subtitles_to_video(
+    #     video_path=video_with_bgm_path,
+    #     srt_path=combined_srt_path,
+    #     font_name=params.font_name,
+    #     font_size=params.font_size,
+    #     text_fore_color=params.text_fore_color,
+    #     stroke_color=params.stroke_color,
+    #     stroke_width=params.stroke_width,
+    #     subtitle_position=params.subtitle_position,
+    #     custom_position=params.custom_position,
+    #     output_path=final_video_path
+    # )
+    import shutil
+    shutil.copy(video_with_bgm_path, final_video_path)
 
     # 5. Cleanup
     logger.info("--- Step 5: Cleaning up temporary files ---")

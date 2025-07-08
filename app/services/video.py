@@ -108,7 +108,7 @@ def create_video_clip_from_segments(segments: list, video_aspect: VideoAspect, o
     scale_filter = f"scale={w}:{h}:force_original_aspect_ratio=increase"
     crop_filter = f"crop={w}:{h}"
     sar_filter = "setsar=1"
-    fps_filter = "fps=30"
+    fps_filter = "fps=60"
 
     filter_complex_parts = []
     concat_inputs = ""
@@ -129,13 +129,13 @@ def create_video_clip_from_segments(segments: list, video_aspect: VideoAspect, o
         input_specifier = f"[{input_idx}:v]"
 
         # Each segment is trimmed from the start of the source video.
-        trim_filter = f"{input_specifier}trim=start=0:duration={duration},setpts=PTS-STARTPTS"
+        trim_filter = f"{input_specifier}trim=start=1:duration={duration},setpts=PTS-STARTPTS"
 
         processed_clip_name = f"[v{i}]"
-        filter_complex_parts.append(f"{trim_filter},{sar_filter},{scale_filter},{crop_filter},{fps_filter}{processed_clip_name}")
+        filter_complex_parts.append(f"{trim_filter},{scale_filter},{crop_filter},{fps_filter}{processed_clip_name}")
         concat_inputs += processed_clip_name
 
-    concat_filter = f"{concat_inputs}concat=n={len(segments)}:v=1:a=0[outv]"
+    concat_filter = f"{concat_inputs}concat=n={len(segments)}:v=1:a=0,setsar=1[outv]"
     filter_complex_parts.append(concat_filter)
 
     command = [
@@ -149,8 +149,9 @@ def create_video_clip_from_segments(segments: list, video_aspect: VideoAspect, o
         ";".join(filter_complex_parts),
         "-map", "[outv]",
         "-c:v", "libx264",
+        "-crf", "18",
         "-an",
-        "-r", "30",
+        "-r", "60",
         "-t", str(total_duration),
         output_path
     ])
@@ -384,6 +385,7 @@ def add_subtitles_to_video(video_path: str, srt_path: str, font_name: str, font_
         "-c:a", "aac",
         "-b:a", "192k",
         "-shortest",
+        "-vsync", "cfr",
         output_path
     ]
 

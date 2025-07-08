@@ -49,7 +49,7 @@ def search_videos_pexels(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     }
     # Build URL
-    params = {"query": search_term, "page": 1, "per_page": 5, "orientation": "landscape", "size": "medium","locale":"en-US"}
+    params = {"query": search_term, "page": 1, "per_page": 5, "orientation": "landscape", "size": "large","locale":"en-US"}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
 
@@ -202,7 +202,7 @@ def search_videos_pixabay(
         "editors_choice": "true",
         "order": "popular",
         "page": 1,
-        "per_page": 80,
+        "per_page": 10,
     }
     if category:
         params["category"] = category

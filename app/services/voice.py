@@ -44,7 +44,7 @@ def tts(
         else:
             logger.error(f"Invalid siliconflow voice name format: {voice_name}")
             return None
-    return azure_tts_v1(text, voice_name, voice_rate, voice_file)
+    return azure_tts_v1(text, voice_name, voice_rate, voice_file, voice_volume)
 
 
 def convert_rate_to_percent(rate: float) -> str:
@@ -57,8 +57,18 @@ def convert_rate_to_percent(rate: float) -> str:
         return f"{percent}%"
 
 
+def convert_volume_to_percent(volume: float) -> str:
+    if volume == 1.0:
+        return "+0%"
+    percent = round((volume - 1.0) * 100)
+    if percent > 0:
+        return f"+{percent}%"
+    else:
+        return f"{percent}%"
+
+
 def azure_tts_v1(
-    text: str, voice_name: str, voice_rate: float, voice_file: str
+    text: str, voice_name: str, voice_rate: float, voice_file: str, voice_volume: float = 1.0
 ) -> Union[SubMaker, None]:
     voice_name = parse_voice_name(voice_name)
     text = text.strip()
@@ -68,7 +78,7 @@ def azure_tts_v1(
             logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
 
             async def _do() -> SubMaker:
-                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str)
+                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str, volume=convert_volume_to_percent(voice_volume))
                 sub_maker = edge_tts.SubMaker()
                 with open(voice_file, "wb") as file:
                     async for chunk in communicate.stream():
@@ -198,13 +208,12 @@ def siliconflow_tts(
 
                             # 计算当前句子的时长
                             sentence_chars = len(sentence)
+
                             sentence_duration = int(sentence_chars * char_duration)
 
                             # 添加到SubMaker
                             sub_maker.subs.append(sentence)
-                            sub_maker.offset.append(
-                                (current_offset, current_offset + sentence_duration)
-                            )
+                            sub_maker.offset.append((current_offset, current_offset + sentence_duration))
 
                             # 更新偏移量
                             current_offset += sentence_duration
@@ -453,6 +462,37 @@ def get_audio_duration(sub_maker: submaker.SubMaker):
     if not sub_maker.offset:
         return 0.0
     return sub_maker.offset[-1][1] / 10000000
+
+
+def trim_audio_silence(input_path: str, output_path: str) -> bool:
+    """
+    Trims silence from the beginning and end of an audio file using ffmpeg.
+    """
+    if not os.path.exists(input_path):
+        logger.error(f"Input file not found: {input_path}")
+        return False
+
+    command = [
+        "ffmpeg",
+        "-i", input_path,
+        "-af", "silenceremove=stop_periods=-1:stop_duration=0.1:stop_threshold=-40dB,areverse,silenceremove=stop_periods=-1:stop_duration=0.1:stop_threshold=-40dB,areverse",
+        "-y",
+        output_path,
+    ]
+
+    try:
+        process = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+        logger.debug(f"Successfully trimmed silence from {input_path} to {output_path}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to trim silence from {input_path}. Error: {e.stderr}")
+        return False
 
 
 def combine_audio_files(audio_paths: List[str], output_path: str) -> bool:
