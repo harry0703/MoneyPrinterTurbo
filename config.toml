@@ -9,7 +9,7 @@ hide_config = false
 # You can use multiple keys to avoid rate limits.
 # For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
-pexels_api_keys = ["2XOMf6IUwdjOqvGmiaioTeE9nPm5EOesNnRRU8XdQnIt60oeUUuMQEju"]
+pexels_api_keys = []
 
 # Pixabay API Key
 # Register at https://pixabay.com/api/docs/ to get your API key.
@@ -81,7 +81,7 @@ azure_model_name = "gpt-35-turbo"        # replace with your model deployment na
 azure_api_version = "2024-02-15-preview"
 
 ########## Gemini API Key
-gemini_api_key = "AIzaSyBcKZXCaNsnFbJfX54mR_9-46X6eJeQOuk"
+gemini_api_key = ""
 gemini_model_name = "gemini-2.5-pro"
 
 ########## Qwen API Key
