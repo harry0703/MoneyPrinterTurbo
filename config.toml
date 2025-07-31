@@ -81,8 +81,8 @@ azure_model_name = "gpt-35-turbo"        # replace with your model deployment na
 azure_api_version = "2024-02-15-preview"
 
 ########## Gemini API Key
-gemini_api_key = ""
-gemini_model_name = "gemini-1.0-pro"
+gemini_api_key = "AIzaSyBcKZXCaNsnFbJfX54mR_9-46X6eJeQOuk"
+gemini_model_name = "gemini-2.5-pro"
 
 ########## Qwen API Key
 # Visit https://dashscope.console.aliyun.com/apiKey to get your API key
