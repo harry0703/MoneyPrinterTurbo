@@ -15,14 +15,30 @@ requested_count = 0
 
 
 def get_api_key(cfg_key: str):
+    # 1. 先優先試著從環境變數拿
+    env_map = {
+        "pexels_api_keys": "PEXELS_API_KEY",
+        "pixabay_api_keys": "PIXABAY_API_KEY"
+    }
+    env_var = env_map.get(cfg_key)
+    if env_var:
+        api_keys_env = os.getenv(env_var)
+        if api_keys_env:
+            # 支援多組用逗號分隔，轉成 list
+            api_key_list = [k.strip() for k in api_keys_env.split(",") if k.strip()]
+            if api_key_list:
+                global requested_count
+                requested_count += 1
+                return api_key_list[requested_count % len(api_key_list)]
+    
+    # 2. 如果沒有環境變數，就用原本 config.toml 的方式
     api_keys = config.app.get(cfg_key)
     if not api_keys:
         raise ValueError(
-            f"\n\n##### {cfg_key} is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n"
+            f"\n\n##### {cfg_key} is not set #####\n\nPlease set it as env variable '{env_var}' or in the config.toml file: {config.config_file}\n\n"
             f"{utils.to_json(config.app)}"
         )
 
-    # if only one key is provided, return it
     if isinstance(api_keys, str):
         return api_keys
 
