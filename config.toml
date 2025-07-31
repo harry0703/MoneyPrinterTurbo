@@ -1,0 +1,214 @@
+[app]
+video_source = "pexels" # "pexels" or "pixabay"
+
+# 是否隐藏配置面板
+hide_config = false
+
+# Pexels API Key
+# Register at https://www.pexels.com/api/ to get your API key.
+# You can use multiple keys to avoid rate limits.
+# For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+pexels_api_keys = []
+
+# Pixabay API Key
+# Register at https://pixabay.com/api/docs/ to get your API key.
+# You can use multiple keys to avoid rate limits.
+# For example: pixabay_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+pixabay_api_keys = []
+
+# 支持的提供商 (Supported providers):
+#   openai
+#   moonshot    (月之暗面)
+#   azure
+#   qwen        (通义千问)
+#   deepseek
+#   gemini
+#   ollama
+#   g4f
+#   oneapi
+#   cloudflare
+#   ernie       (文心一言)
+llm_provider = "openai"
+
+########## Pollinations AI Settings
+# Visit https://pollinations.ai/ to learn more
+# API Key is optional - leave empty for public access
+pollinations_api_key = ""
+# Default base URL for Pollinations API
+pollinations_base_url = "https://pollinations.ai/api/v1"
+# Default model for text generation
+pollinations_model_name = "openai-fast"
+
+########## Ollama Settings
+# No need to set it unless you want to use your own proxy
+ollama_base_url = ""
+# Check your available models at https://ollama.com/library
+ollama_model_name = ""
+
+########## OpenAI API Key
+# Get your API key at https://platform.openai.com/api-keys
+openai_api_key = ""
+# No need to set it unless you want to use your own proxy
+openai_base_url = ""
+# Check your available models at https://platform.openai.com/account/limits
+openai_model_name = "gpt-4o-mini"
+
+########## Moonshot API Key
+# Visit https://platform.moonshot.cn/console/api-keys to get your API key.
+moonshot_api_key = ""
+moonshot_base_url = "https://api.moonshot.cn/v1"
+moonshot_model_name = "moonshot-v1-8k"
+
+########## OneAPI API Key
+# Visit https://github.com/songquanpeng/one-api to get your API key
+oneapi_api_key = ""
+oneapi_base_url = ""
+oneapi_model_name = ""
+
+########## G4F
+# Visit https://github.com/xtekky/gpt4free to get more details
+# Supported model list: https://github.com/xtekky/gpt4free/blob/main/g4f/models.py
+g4f_model_name = "gpt-3.5-turbo"
+
+########## Azure API Key
+# Visit https://learn.microsoft.com/zh-cn/azure/ai-services/openai/ to get more details
+# API documentation: https://learn.microsoft.com/zh-cn/azure/ai-services/openai/reference
+azure_api_key = ""
+azure_base_url = ""
+azure_model_name = "gpt-35-turbo"        # replace with your model deployment name
+azure_api_version = "2024-02-15-preview"
+
+########## Gemini API Key
+gemini_api_key = ""
+gemini_model_name = "gemini-1.0-pro"
+
+########## Qwen API Key
+# Visit https://dashscope.console.aliyun.com/apiKey to get your API key
+# Visit below links to get more details
+# https://tongyi.aliyun.com/qianwen/
+# https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction
+qwen_api_key = ""
+qwen_model_name = "qwen-max"
+
+
+########## DeepSeek API Key
+# Visit https://platform.deepseek.com/api_keys to get your API key
+deepseek_api_key = ""
+deepseek_base_url = "https://api.deepseek.com"
+deepseek_model_name = "deepseek-chat"
+
+# Subtitle Provider, "edge" or "whisper"
+# If empty, the subtitle will not be generated
+subtitle_provider = "edge"
+
+#
+# ImageMagick
+#
+# Once you have installed it, ImageMagick will be automatically detected, except on Windows!
+# On Windows, for example "C:\Program Files (x86)\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
+# Download from https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
+
+# imagemagick_path = "C:\\Program Files (x86)\\ImageMagick-7.1.1-Q16\\magick.exe"
+
+
+#
+# FFMPEG
+#
+# 通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
+# 但是如果你的环境有问题，无法自动下载，可能会遇到如下错误：
+#   RuntimeError: No ffmpeg exe could be found.
+#   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
+# 此时你可以手动下载 ffmpeg 并设置 ffmpeg_path，下载地址：https://www.gyan.dev/ffmpeg/builds/
+
+# Under normal circumstances, ffmpeg is downloaded automatically and detected automatically.
+# However, if there is an issue with your environment that prevents automatic downloading, you might encounter the following error:
+#   RuntimeError: No ffmpeg exe could be found.
+#   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
+# In such cases, you can manually download ffmpeg and set the ffmpeg_path, download link: https://www.gyan.dev/ffmpeg/builds/
+
+# ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
+#########################################################################################
+
+# 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口
+# 比如 http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# 如果你需要使用域名对外提供服务（一般会用nginx做代理），则可以设置为你的域名
+# 比如 https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# endpoint="https://xxxx.com"
+
+# When the video is successfully generated, the API service provides a download endpoint for the video, defaulting to the service's current address and listening port.
+# For example, http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# If you need to provide the service externally using a domain name (usually done with nginx as a proxy), you can set it to your domain name.
+# For example, https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# endpoint="https://xxxx.com"
+endpoint = ""
+
+
+# Video material storage location
+# material_directory = ""                    # Indicates that video materials will be downloaded to the default folder, the default folder is ./storage/cache_videos under the current project
+# material_directory = "/user/harry/videos"  # Indicates that video materials will be downloaded to a specified folder
+# material_directory = "task"                # Indicates that video materials will be downloaded to the current task's folder, this method does not allow sharing of already downloaded video materials
+
+# 视频素材存放位置
+# material_directory = ""                    #表示将视频素材下载到默认的文件夹，默认文件夹为当前项目下的 ./storage/cache_videos
+# material_directory = "/user/harry/videos"  #表示将视频素材下载到指定的文件夹中
+# material_directory = "task"                #表示将视频素材下载到当前任务的文件夹中，这种方式无法共享已经下载的视频素材
+
+material_directory = ""
+
+# Used for state management of the task
+enable_redis = false
+redis_host = "localhost"
+redis_port = 6379
+redis_db = 0
+redis_password = ""
+
+# 文生视频时的最大并发任务数
+max_concurrent_tasks = 5
+
+
+[whisper]
+# Only effective when subtitle_provider is "whisper"
+
+# Run on GPU with FP16
+# model = WhisperModel(model_size, device="cuda", compute_type="float16")
+
+# Run on GPU with INT8
+# model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
+
+# Run on CPU with INT8
+# model = WhisperModel(model_size, device="cpu", compute_type="int8")
+
+# recommended model_size: "large-v3"
+model_size = "large-v3"
+# if you want to use GPU, set device="cuda"
+device = "CPU"
+compute_type = "int8"
+
+
+[proxy]
+### Use a proxy to access the Pexels API
+### Format: "http://<username>:<password>@<proxy>:<port>"
+### Example: "http://user:pass@proxy:1234"
+### Doc: https://requests.readthedocs.io/en/latest/user/advanced/#proxies
+
+# http = "http://10.10.1.10:3128"
+# https = "http://10.10.1.10:1080"
+
+[azure]
+# Azure Speech API Key
+# Get your API key at https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices
+speech_key = ""
+speech_region = ""
+
+[siliconflow]
+# SiliconFlow API Key
+# Get your API key at https://siliconflow.cn
+api_key = ""
+
+[ui]
+# UI related settings
+# 是否隐藏日志信息
+# Whether to hide logs in the UI
+hide_log = false
