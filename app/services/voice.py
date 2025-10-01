@@ -7,6 +7,7 @@ from xml.sax.saxutils import unescape
 
 import edge_tts
 import requests
+from aiohttp import ClientConnectorError
 from edge_tts import SubMaker, submaker
 from edge_tts.submaker import mktimestamp
 from loguru import logger
@@ -1115,20 +1116,34 @@ def convert_rate_to_percent(rate: float) -> str:
     else:
         return f"{percent}%"
 
+def _ensure_voice_directory(voice_file: str) -> None:
+    dir_path = os.path.dirname(voice_file)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)
 
 def azure_tts_v1(
     text: str, voice_name: str, voice_rate: float, voice_file: str
 ) -> Union[SubMaker, None]:
-    voice_name = parse_voice_name(voice_name)
+    norm_voice_name = parse_voice_name(voice_name)
     text = text.strip()
     rate_str = convert_rate_to_percent(voice_rate)
+    azure_key = config.azure.get("speech_key", "")
+    azure_region = config.azure.get("speech_region", "")
+    fallback_available = bool(azure_key and azure_region)
+    fallback_attempted = False
+
     for i in range(3):
         try:
-            logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
+            logger.info(
+                f"Edge TTS start, voice name: {norm_voice_name}, try: {i + 1}"
+            )
 
             async def _do() -> SubMaker:
-                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str)
+                communicate = edge_tts.Communicate(
+                    text, norm_voice_name, rate=rate_str
+                )
                 sub_maker = edge_tts.SubMaker()
+                _ensure_voice_directory(voice_file)
                 with open(voice_file, "wb") as file:
                     async for chunk in communicate.stream():
                         if chunk["type"] == "audio":
@@ -1141,13 +1156,53 @@ def azure_tts_v1(
 
             sub_maker = asyncio.run(_do())
             if not sub_maker or not sub_maker.subs:
-                logger.warning("failed, sub_maker is None or sub_maker.subs is None")
+                logger.warning(
+                    "Edge TTS failed, sub_maker is None or sub_maker.subs is None"
+                )
                 continue
 
-            logger.info(f"completed, output file: {voice_file}")
+            logger.info(f"Edge TTS completed, output file: {voice_file}")
             return sub_maker
+        except (asyncio.TimeoutError, ClientConnectorError) as network_error:
+            logger.warning(
+                "Edge TTS encountered a network issue: {}".format(network_error)
+            )
+            if fallback_available and not fallback_attempted:
+                fallback_attempted = True
+                fallback_voice_name = f"{norm_voice_name}-V2"
+                logger.info(
+                    "Attempting Azure Speech SDK fallback with voice: {}".format(
+                        fallback_voice_name
+                    )
+                )
+                fallback_sub_maker = azure_tts_v2(
+                    text=text,
+                    voice_name=fallback_voice_name,
+                    voice_file=voice_file,
+                )
+                if fallback_sub_maker and getattr(
+                        fallback_sub_maker, "subs", None
+                ):
+                    logger.info(
+                        f"Azure Speech SDK fallback completed, output file: {voice_file}"
+                    )
+                    return fallback_sub_maker
+                logger.error("Azure Speech SDK fallback failed to synthesize audio")
+            elif not fallback_available:
+                logger.warning(
+                    "Azure Speech SDK fallback unavailable - missing credentials"
+                )
         except Exception as e:
-            logger.error(f"failed, error: {str(e)}")
+            logger.error(f"Edge TTS failed, error: {str(e)}")
+
+            if fallback_available and fallback_attempted:
+                logger.error(
+                    f"Edge TTS and Azure Speech SDK fallback both failed for voice: {norm_voice_name}"
+                )
+            else:
+                logger.error(
+                    f"Edge TTS failed for voice: {norm_voice_name} after retries"
+                )
     return None
 
 
@@ -1211,6 +1266,7 @@ def siliconflow_tts(
 
             if response.status_code == 200:
                 # 保存音频文件
+                _ensure_voice_directory(voice_file)
                 with open(voice_file, "wb") as f:
                     f.write(response.content)
 
@@ -1340,6 +1396,8 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
             if not speech_key or not service_region:
                 logger.error("Azure speech key or region is not set")
                 return None
+
+            _ensure_voice_directory(voice_file)
 
             audio_config = speechsdk.audio.AudioOutputConfig(
                 filename=voice_file, use_default_speaker=True

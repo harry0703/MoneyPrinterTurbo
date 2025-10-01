@@ -3,6 +3,7 @@ import unittest
 import os
 import sys
 from pathlib import Path
+from unittest import mock
 
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -100,6 +101,55 @@ class TestVoiceService(unittest.TestCase):
             print(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
         self.loop.run_until_complete(_do())
+
+    def test_azure_tts_v1_fallback_to_v2(self):
+        voice_name = "en-US-JennyNeural-Female"
+        normalized_voice_name = vs.parse_voice_name(voice_name)
+        voice_file = f"{temp_dir}/tts-azure-fallback-{normalized_voice_name}.mp3"
+        fallback_sub_maker = vs.SubMaker()
+        fallback_sub_maker.subs = ["hello"]
+
+        text_value = "  hello world  "
+
+        def raise_timeout(coro):
+            coro.close()
+            raise asyncio.TimeoutError()
+
+        with mock.patch(
+                "app.services.voice.asyncio.run", side_effect=raise_timeout
+        ) as mock_asyncio_run, mock.patch(
+            "app.services.voice.azure_tts_v2", return_value=fallback_sub_maker
+        ) as mock_azure_v2:
+            original_key = vs.config.azure.get("speech_key")
+            original_region = vs.config.azure.get("speech_region")
+            vs.config.azure["speech_key"] = "dummy-key"
+            vs.config.azure["speech_region"] = "dummy-region"
+
+            try:
+                sub_maker = vs.azure_tts_v1(
+                    text=text_value,
+                    voice_name=voice_name,
+                    voice_rate=1.0,
+                    voice_file=voice_file,
+                )
+            finally:
+                if original_key is None:
+                    vs.config.azure.pop("speech_key", None)
+                else:
+                    vs.config.azure["speech_key"] = original_key
+
+                if original_region is None:
+                    vs.config.azure.pop("speech_region", None)
+                else:
+                    vs.config.azure["speech_region"] = original_region
+
+        self.assertIs(sub_maker, fallback_sub_maker)
+        mock_asyncio_run.assert_called_once()
+        mock_azure_v2.assert_called_once_with(
+            text=text_value.strip(),
+            voice_name=f"{normalized_voice_name}-V2",
+            voice_file=voice_file,
+        )
 
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1
