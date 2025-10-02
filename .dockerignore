@@ -13,7 +13,7 @@ __pycache__/
 .env
 .env.*
 *.log
-*.db
+*.sfgfggh
 
 # Exclude version control system files
 .git/
