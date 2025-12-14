@@ -58,7 +58,7 @@ def _generate_response(prompt: str) -> str:
             elif llm_provider == "gemini":
                 api_key = config.app.get("gemini_api_key")
                 model_name = config.app.get("gemini_model_name")
-                base_url = "***"
+                base_url = config.app.get("gemini_base_url", "")
             elif llm_provider == "qwen":
                 api_key = config.app.get("qwen_api_key")
                 model_name = config.app.get("qwen_model_name")
@@ -167,7 +167,10 @@ def _generate_response(prompt: str) -> str:
             if llm_provider == "gemini":
                 import google.generativeai as genai
 
-                genai.configure(api_key=api_key, transport="rest")
+                if not base_url:
+                    genai.configure(api_key=api_key, transport="rest")
+                else:
+                    genai.configure(api_key=api_key, transport="rest", client_options={'api_endpoint': base_url})
 
                 generation_config = {
                     "temperature": 0.5,
