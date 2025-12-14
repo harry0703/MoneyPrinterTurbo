@@ -100,6 +100,23 @@
     "Hide Log": "Ocultar Log",
     "Hide Basic Settings": "Ocultar Configurações Básicas\n\nOculto, o painel de configurações básicas não será exibido na página.\n\nSe precisar exibi-lo novamente, defina `hide_config = false` em `config.toml`",
     "LLM Settings": "**Configurações do LLM**",
-    "Video Source Settings": "**Configurações da Fonte do Vídeo**"
+    "Video Source Settings": "**Configurações da Fonte do Vídeo**",
+    "Click to show API Key management": "Clique para mostrar o gerenciamento de chaves de API",
+    "Manage Pexels and Pixabay API Keys": "Gerenciar chaves de API do Pexels e Pixabay",
+    "Current Keys:": "Chaves atuais:",
+    "No Pexels API Keys currently": "Nenhuma chave de API do Pexels atualmente",
+    "Add Pexels API Key": "Adicionar chave de API do Pexels",
+    "Pexels API Key added successfully": "Chave de API do Pexels adicionada com sucesso",
+    "This API Key already exists": "Esta chave de API já existe",
+    "Please enter a valid API Key": "Por favor, insira uma chave de API válida",
+    "Select Pexels API Key to delete": "Selecione a chave de API do Pexels para excluir",
+    "Delete Selected Pexels API Key": "Excluir chave de API do Pexels selecionada",
+    "Pexels API Key deleted successfully": "Chave de API do Pexels excluída com sucesso",
+    "No Pixabay API Keys currently": "Nenhuma chave de API do Pixabay atualmente",
+    "Add Pixabay API Key": "Adicionar chave de API do Pixabay",
+    "Pixabay API Key added successfully": "Chave de API do Pixabay adicionada com sucesso",
+    "Select Pixabay API Key to delete": "Selecione a chave de API do Pixabay para excluir",
+    "Delete Selected Pixabay API Key": "Excluir chave de API do Pixabay selecionada",
+    "Pixabay API Key deleted successfully": "Chave de API do Pixabay excluída com sucesso"
   }
 }

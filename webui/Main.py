@@ -925,6 +925,69 @@ with right_panel:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+    with st.expander(tr("Click to show API Key management"), expanded=False):
+        st.subheader(tr("Manage Pexels and Pixabay API Keys"))
+
+        col1, col2 = st.tabs(["Pexels API Keys", "Pixabay API Keys"])
+
+        with col1:
+            st.subheader("Pexels API Keys")
+            if config.app["pexels_api_keys"]:
+                st.write(tr("Current Keys:"))
+                for key in config.app["pexels_api_keys"]:
+                    st.code(key)
+            else:
+                st.info(tr("No Pexels API Keys currently"))
+
+            new_key = st.text_input(tr("Add Pexels API Key"), key="pexels_new_key")
+            if st.button(tr("Add Pexels API Key")):
+                if new_key and new_key not in config.app["pexels_api_keys"]:
+                    config.app["pexels_api_keys"].append(new_key)
+                    config.save_config()
+                    st.success(tr("Pexels API Key added successfully"))
+                elif new_key in config.app["pexels_api_keys"]:
+                    st.warning(tr("This API Key already exists"))
+                else:
+                    st.error(tr("Please enter a valid API Key"))
+
+            if config.app["pexels_api_keys"]:
+                delete_key = st.selectbox(
+                    tr("Select Pexels API Key to delete"), config.app["pexels_api_keys"], key="pexels_delete_key"
+                )
+                if st.button(tr("Delete Selected Pexels API Key")):
+                    config.app["pexels_api_keys"].remove(delete_key)
+                    config.save_config()
+                    st.success(tr("Pexels API Key deleted successfully"))
+
+        with col2:
+            st.subheader("Pixabay API Keys")
+
+            if config.app["pixabay_api_keys"]:
+                st.write(tr("Current Keys:"))
+                for key in config.app["pixabay_api_keys"]:
+                    st.code(key)
+            else:
+                st.info(tr("No Pixabay API Keys currently"))
+
+            new_key = st.text_input(tr("Add Pixabay API Key"), key="pixabay_new_key")
+            if st.button(tr("Add Pixabay API Key")):
+                if new_key and new_key not in config.app["pixabay_api_keys"]:
+                    config.app["pixabay_api_keys"].append(new_key)
+                    config.save_config()
+                    st.success(tr("Pixabay API Key added successfully"))
+                elif new_key in config.app["pixabay_api_keys"]:
+                    st.warning(tr("This API Key already exists"))
+                else:
+                    st.error(tr("Please enter a valid API Key"))
+
+            if config.app["pixabay_api_keys"]:
+                delete_key = st.selectbox(
+                    tr("Select Pixabay API Key to delete"), config.app["pixabay_api_keys"], key="pixabay_delete_key"
+                )
+                if st.button(tr("Delete Selected Pixabay API Key")):
+                    config.app["pixabay_api_keys"].remove(delete_key)
+                    config.save_config()
+                    st.success(tr("Pixabay API Key deleted successfully"))
 
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:
