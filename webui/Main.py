@@ -635,6 +635,7 @@ with middle_panel:
             ("azure-tts-v1", "Azure TTS V1"),
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
+            ("gemini-tts", "Google Gemini TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -661,6 +662,9 @@ with middle_panel:
         if selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
             filtered_voices = voice.get_siliconflow_voices()
+        elif selected_tts_server == "gemini-tts":
+            # 获取Gemini TTS的声音列表
+            filtered_voices = voice.get_gemini_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
