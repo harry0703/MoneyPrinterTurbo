@@ -71,30 +71,66 @@ def save_script_data(task_id, video_script, video_terms, params):
 
 
 def generate_audio(task_id, params, video_script):
+    '''
+    Generate audio for the video script.
+    If a custom audio file is provided, it will be used directly.
+    There will be no subtitle maker object returned in this case.
+    Otherwise, TTS will be used to generate the audio.
+    Returns:
+        - audio_file: path to the generated or provided audio file
+        - audio_duration: duration of the audio in seconds
+        - sub_maker: subtitle maker object if TTS is used, None otherwise
+    '''
     logger.info("\n\n## generating audio")
-    audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
-    sub_maker = voice.tts(
-        text=video_script,
-        voice_name=voice.parse_voice_name(params.voice_name),
-        voice_rate=params.voice_rate,
-        voice_file=audio_file,
-    )
-    if sub_maker is None:
-        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-        logger.error(
-            """failed to generate audio:
+    custom_audio_file = params.custom_audio_file
+    if not custom_audio_file or not os.path.exists(custom_audio_file):
+        if custom_audio_file:
+            logger.warning(
+                f"custom audio file not found: {custom_audio_file}, using TTS to generate audio."
+            )
+        else:
+            logger.info("no custom audio file provided, using TTS to generate audio.")
+        audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
+        sub_maker = voice.tts(
+            text=video_script,
+            voice_name=voice.parse_voice_name(params.voice_name),
+            voice_rate=params.voice_rate,
+            voice_file=audio_file,
+        )
+        if sub_maker is None:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error(
+                """failed to generate audio:
 1. check if the language of the voice matches the language of the video script.
 2. check if the network is available. If you are in China, it is recommended to use a VPN and enable the global traffic mode.
-        """.strip()
-        )
-        return None, None, None
-
-    audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
-    return audio_file, audio_duration, sub_maker
-
+            """.strip()
+            )
+            return None, None, None
+        audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
+        if audio_duration == 0:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to get audio duration.")
+            return None, None, None
+        return audio_file, audio_duration, sub_maker
+    else:
+        logger.info(f"using custom audio file: {custom_audio_file}")
+        audio_duration = voice.get_audio_duration(custom_audio_file)
+        if audio_duration == 0:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to get audio duration from custom audio file.")
+            return None, None, None
+        return custom_audio_file, audio_duration, None
 
 def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
-    if not params.subtitle_enabled:
+    '''
+    Generate subtitle for the video script.
+    If subtitle generation is disabled or no subtitle maker is provided, it will return an empty string.
+    Otherwise, it will generate the subtitle using the specified provider.
+    Returns:
+        - subtitle_path: path to the generated subtitle file
+    '''
+    logger.info("\n\n## generating subtitle")
+    if not params.subtitle_enabled or sub_maker is None:
         return ""
 
     subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
