@@ -25,6 +25,8 @@ from app.models.schema import (
     TaskQueryResponse,
     TaskResponse,
     TaskVideoRequest,
+    VideoMaterialUploadResponse,
+    VideoMaterialRetrieveResponse
 )
 from app.services import state as sm
 from app.services import task as tm
@@ -222,6 +224,51 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
         "", status_code=400, message=f"{request_id}: Only *.mp3 files can be uploaded"
     )
 
+@router.get(
+    "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="Retrieve local video materials"
+)
+def get_video_materials_list(request: Request):
+    allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
+    local_videos_dir = utils.storage_dir("local_videos", create=True)
+    files = []
+    for suffix in allowed_suffixes:
+        files.extend(glob.glob(os.path.join(local_videos_dir, f"*.{suffix}")))
+    video_materials_list = []
+    for file in files:
+        video_materials_list.append(
+            {
+                "name": os.path.basename(file),
+                "size": os.path.getsize(file),
+                "file": file,
+            }
+        )
+    response = {"files": video_materials_list}
+    return utils.get_response(200, response)
+
+
+@router.post(
+    "/video_materials",
+    response_model=VideoMaterialUploadResponse,
+    summary="Upload the video material file to the local videos directory",
+)
+def upload_video_material_file(request: Request, file: UploadFile = File(...)):
+    request_id = base.get_task_id(request)
+    # check file ext
+    allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
+    if file.filename.endswith(allowed_suffixes):
+        local_videos_dir = utils.storage_dir("local_videos", create=True)
+        save_path = os.path.join(local_videos_dir, file.filename)
+        # save file
+        with open(save_path, "wb+") as buffer:
+            # If the file already exists, it will be overwritten
+            file.file.seek(0)
+            buffer.write(file.file.read())
+        response = {"file": save_path}
+        return utils.get_response(200, response)
+
+    raise HttpException(
+        "", status_code=400, message=f"{request_id}: Only files with extensions {', '.join(allowed_suffixes)} can be uploaded"
+    )
 
 @router.get("/stream/{file_path:path}")
 async def stream_video(request: Request, file_path: str):
