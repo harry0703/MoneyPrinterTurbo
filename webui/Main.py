@@ -232,6 +232,7 @@ if not config.app.get("hide_config", False):
                 "Azure",
                 "Qwen",
                 "DeepSeek",
+                "ModelScope",
                 "Gemini",
                 "Ollama",
                 "G4f",
@@ -372,6 +373,19 @@ if not config.app.get("hide_config", False):
                             - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
                             - **Base Url**: 固定为 https://api.deepseek.com
                             - **Model Name**: 固定为 deepseek-chat
+                            """
+
+            if llm_provider == "modelscope":
+                if not llm_model_name:
+                    llm_model_name = "Qwen/Qwen3-32B"
+                if not llm_base_url:
+                    llm_base_url = "https://api-inference.modelscope.cn/v1/"
+                with llm_helper:
+                    tips = """
+                            ##### ModelScope 配置说明
+                            - **API Key**: [点击到官网申请](https://modelscope.cn/docs/model-service/API-Inference/intro)
+                            - **Base Url**: 固定为 https://api-inference.modelscope.cn/v1/
+                            - **Model Name**: 比如 Qwen/Qwen3-32B，[点击查看模型列表](https://modelscope.cn/models?filter=inference_type&page=1)
                             """
 
             if llm_provider == "ernie":
