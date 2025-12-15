@@ -249,6 +249,9 @@ def combine_videos(
     # if there is only one clip, use it directly
     if len(processed_clips) == 1:
         logger.info("using single clip directly")
+        # remove existing file to avoid FileExistsError
+        if os.path.exists(combined_video_path):
+            delete_files(combined_video_path)
         shutil.copy(processed_clips[0].file_path, combined_video_path)
         delete_files(processed_clips)
         logger.info("video combining completed")
@@ -260,6 +263,7 @@ def combine_videos(
     temp_merged_next = f"{output_dir}/temp-merged-next.mp4"
     
     # copy first clip as initial merged video
+    delete_files([temp_merged_video, temp_merged_next])
     shutil.copy(base_clip_path, temp_merged_video)
     
     # merge remaining video clips one by one
@@ -289,14 +293,16 @@ def combine_videos(
             
             # replace base file with new merged file
             delete_files(temp_merged_video)
-            os.rename(temp_merged_next, temp_merged_video)
+            os.replace(temp_merged_next, temp_merged_video)
             
         except Exception as e:
             logger.error(f"failed to merge clip: {str(e)}")
             continue
     
     # after merging, rename final result to target file name
-    os.rename(temp_merged_video, combined_video_path)
+    if os.path.exists(combined_video_path):
+        delete_files(combined_video_path)
+    os.replace(temp_merged_video, combined_video_path)
     
     # clean temp files
     clip_files = [clip.file_path for clip in processed_clips]
@@ -490,42 +496,44 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             continue
 
         ext = utils.parse_extension(material.url)
+        clip = None
         try:
-            clip = VideoFileClip(material.url)
-        except Exception:
-            clip = ImageClip(material.url)
+            try:
+                clip = VideoFileClip(material.url)
+            except Exception:
+                clip = ImageClip(material.url)
 
-        width = clip.size[0]
-        height = clip.size[1]
-        if width < 480 or height < 480:
-            logger.warning(f"low resolution material: {width}x{height}, minimum 480x480 required")
-            continue
+            width = clip.size[0]
+            height = clip.size[1]
+            if width < 480 or height < 480:
+                logger.warning(f"low resolution material: {width}x{height}, minimum 480x480 required")
+                continue
 
-        if ext in const.FILE_TYPE_IMAGES:
-            logger.info(f"processing image: {material.url}")
-            # Create an image clip and set its duration to 3 seconds
-            clip = (
-                ImageClip(material.url)
-                .with_duration(clip_duration)
-                .with_position("center")
-            )
-            # Apply a zoom effect using the resize method.
-            # A lambda function is used to make the zoom effect dynamic over time.
-            # The zoom effect starts from the original size and gradually scales up to 120%.
-            # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-            # Note: 1 represents 100% size, so 1.2 represents 120% size.
-            zoom_clip = clip.resized(
-                lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-            )
+            if ext in const.FILE_TYPE_IMAGES:
+                logger.info(f"processing image: {material.url}")
+                image_clip = None
+                zoom_clip = None
+                final_clip = None
+                try:
+                    image_clip = (
+                        ImageClip(material.url)
+                        .with_duration(clip_duration)
+                        .with_position("center")
+                    )
+                    zoom_clip = image_clip.resized(
+                        lambda t: 1 + (clip_duration * 0.03) * (t / image_clip.duration)
+                    )
 
-            # Optionally, create a composite video clip containing the zoomed clip.
-            # This is useful when you want to add other elements to the video.
-            final_clip = CompositeVideoClip([zoom_clip])
+                    final_clip = CompositeVideoClip([zoom_clip])
 
-            # Output the video to a file.
-            video_file = f"{material.url}.mp4"
-            final_clip.write_videofile(video_file, fps=30, logger=None)
+                    video_file = f"{material.url}.mp4"
+                    final_clip.write_videofile(video_file, fps=30, logger=None)
+                    material.url = video_file
+                    logger.success(f"image processed: {video_file}")
+                finally:
+                    close_clip(final_clip)
+                    close_clip(zoom_clip)
+                    close_clip(image_clip)
+        finally:
             close_clip(clip)
-            material.url = video_file
-            logger.success(f"image processed: {video_file}")
     return materials
