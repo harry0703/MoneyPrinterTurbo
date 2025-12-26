@@ -53,7 +53,8 @@ def to_json(obj):
 
         # Serialize the processed object into a JSON string
         return json.dumps(serialized_obj, ensure_ascii=False, indent=4)
-    except Exception:
+    except Exception as e:
+        logger.error(f"failed to serialize object to json: {str(e)}")
         return None
 
 
@@ -126,9 +127,9 @@ def run_in_background(func, *args, **kwargs):
         try:
             func(*args, **kwargs)
         except Exception as e:
-            logger.error(f"run_in_background error: {e}")
+            logger.error(f"run_in_background error: {e}", exc_info=True)
 
-    thread = threading.Thread(target=run)
+    thread = threading.Thread(target=run, daemon=False)
     thread.start()
     return thread
 
