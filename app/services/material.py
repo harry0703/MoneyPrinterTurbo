@@ -1,5 +1,6 @@
 import os
 import random
+import threading
 from typing import List
 from urllib.parse import urlencode
 
@@ -11,7 +12,9 @@ from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 
-requested_count = 0
+# Thread-safe counter for API key rotation
+_api_key_counter = 0
+_api_key_lock = threading.Lock()
 
 
 def get_api_key(cfg_key: str):
@@ -26,9 +29,10 @@ def get_api_key(cfg_key: str):
     if isinstance(api_keys, str):
         return api_keys
 
-    global requested_count
-    requested_count += 1
-    return api_keys[requested_count % len(api_keys)]
+    global _api_key_counter
+    with _api_key_lock:
+        _api_key_counter += 1
+        return api_keys[_api_key_counter % len(api_keys)]
 
 
 def search_videos_pexels(
@@ -178,19 +182,25 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         )
 
     if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        clip = None
         try:
             clip = VideoFileClip(video_path)
             duration = clip.duration
             fps = clip.fps
-            clip.close()
             if duration > 0 and fps > 0:
                 return video_path
         except Exception as e:
+            logger.warning(f"invalid video file: {video_path} => {str(e)}")
             try:
                 os.remove(video_path)
             except Exception:
                 pass
-            logger.warning(f"invalid video file: {video_path} => {str(e)}")
+        finally:
+            if clip is not None:
+                try:
+                    clip.close()
+                except Exception:
+                    pass
     return ""
 
 
