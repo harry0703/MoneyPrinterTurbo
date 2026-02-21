@@ -5,7 +5,7 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
@@ -69,7 +69,11 @@ app.mount(
 )
 
 public_dir = utils.public_dir()
-app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
+
+
+@app.get("/", include_in_schema=False)
+async def index():
+    return FileResponse(os.path.join(public_dir, "index.html"))
 
 
 @app.on_event("shutdown")
