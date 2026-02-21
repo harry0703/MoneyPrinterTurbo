@@ -650,6 +650,7 @@ with middle_panel:
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
             ("gemini-tts", "Google Gemini TTS"),
+            ("modelslab", "ModelsLab TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -679,6 +680,9 @@ with middle_panel:
         elif selected_tts_server == "gemini-tts":
             # 获取Gemini TTS的声音列表
             filtered_voices = voice.get_gemini_voices()
+        elif selected_tts_server == "modelslab":
+            # Get ModelsLab TTS voice list
+            filtered_voices = voice.get_modelslab_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -821,6 +825,31 @@ with middle_panel:
             )
 
             config.siliconflow["api_key"] = siliconflow_api_key
+
+        # Show API key input when ModelsLab TTS is selected
+        if selected_tts_server == "modelslab" or (
+            voice_name and voice.is_modelslab_voice(voice_name)
+        ):
+            saved_modelslab_api_key = config.modelslab.get("api_key", "")
+
+            modelslab_api_key = st.text_input(
+                tr("ModelsLab API Key"),
+                value=saved_modelslab_api_key,
+                type="password",
+                key="modelslab_api_key_input",
+            )
+
+            st.info(
+                tr("ModelsLab TTS Settings")
+                + ":\n"
+                + "- "
+                + tr("10 voices available (Bella, Rachel, Elli, Domi, Gigi, Antoni, Josh, Arnold, Adam, Sam)")
+                + "\n"
+                + "- "
+                + tr("Get your API key at https://modelslab.com")
+            )
+
+            config.modelslab["api_key"] = modelslab_api_key
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),

@@ -76,6 +76,31 @@ def get_gemini_voices() -> list[str]:
     ]
 
 
+def get_modelslab_voices() -> list[str]:
+    """
+    Get ModelsLab TTS voice list.
+
+    Returns:
+        Voice list in the format ["modelslab:Bella-Female", "modelslab:Antoni-Male", ...]
+    """
+    voices_with_gender = [
+        ("Bella", "Female"),
+        ("Rachel", "Female"),
+        ("Elli", "Female"),
+        ("Domi", "Female"),
+        ("Gigi", "Female"),
+        ("Antoni", "Male"),
+        ("Josh", "Male"),
+        ("Arnold", "Male"),
+        ("Adam", "Male"),
+        ("Sam", "Male"),
+    ]
+    return [
+        f"modelslab:{voice}-{gender}"
+        for voice, gender in voices_with_gender
+    ]
+
+
 def get_all_azure_voices(filter_locals=None) -> list[str]:
     azure_voices_str = """
 Name: af-ZA-AdriNeural
@@ -1116,6 +1141,11 @@ def is_gemini_voice(voice_name: str):
     return voice_name.startswith("gemini:")
 
 
+def is_modelslab_voice(voice_name: str):
+    """Check if the voice name is a ModelsLab voice."""
+    return voice_name.startswith("modelslab:")
+
+
 def tts(
     text: str,
     voice_name: str,
@@ -1153,6 +1183,18 @@ def tts(
             return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
+            return None
+    elif is_modelslab_voice(voice_name):
+        # Format: modelslab:voice_name-Gender
+        # Example: modelslab:Bella-Female
+        parts = voice_name.split(":")
+        if len(parts) >= 2:
+            # Strip the gender suffix, e.g. "Bella-Female" -> "Bella"
+            voice_with_gender = parts[1]
+            voice = voice_with_gender.split("-")[0]
+            return modelslab_tts(text, voice, voice_rate, voice_file)
+        else:
+            logger.error(f"Invalid modelslab voice name format: {voice_name}")
             return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
@@ -1557,6 +1599,156 @@ def gemini_tts(
     except Exception as e:
         logger.error(f"Gemini TTS failed, error: {str(e)}")
         return None
+
+
+def modelslab_tts(
+    text: str,
+    voice_name: str,
+    voice_rate: float,
+    voice_file: str,
+) -> Union[SubMaker, None]:
+    """
+    Generate speech using the ModelsLab TTS API.
+
+    Args:
+        text: Text to convert to speech (max 2500 characters)
+        voice_name: Voice name, e.g. "Bella", "Antoni"
+        voice_rate: Speech rate (unused — ModelsLab does not support speed control)
+        voice_file: Output audio file path
+
+    Returns:
+        SubMaker object or None on failure
+    """
+    import time
+
+    # Map voice names to ModelsLab voice IDs
+    VOICE_MAP = {
+        "Bella": 1,
+        "Rachel": 8,
+        "Elli": 3,
+        "Domi": 9,
+        "Gigi": 10,
+        "Antoni": 2,
+        "Josh": 4,
+        "Arnold": 5,
+        "Adam": 6,
+        "Sam": 7,
+    }
+
+    api_key = config.modelslab.get("api_key", "")
+    if not api_key:
+        logger.error("ModelsLab API key is not set")
+        return None
+
+    voice_id = VOICE_MAP.get(voice_name, 1)
+    text = text.strip()
+    # ModelsLab TTS has a 2500 character limit per request
+    if len(text) > 2500:
+        text = text[:2500]
+        logger.warning(f"ModelsLab TTS: text truncated to 2500 characters")
+
+    url = "https://modelslab.com/api/v6/voice/text_to_speech"
+    fetch_url_template = "https://modelslab.com/api/v6/voice/fetch/{}"
+
+    payload = {
+        "key": api_key,
+        "prompt": text,
+        "language": "English",
+        "voice_id": voice_id,
+        "audio_format": "mp3",
+    }
+
+    for attempt in range(3):
+        try:
+            logger.info(
+                f"ModelsLab TTS: voice={voice_name} (id={voice_id}), attempt {attempt + 1}"
+            )
+            response = requests.post(url, json=payload, timeout=(15, 60))
+            data = response.json()
+
+            if data.get("status") == "success":
+                audio_url = data.get("output") or data.get("output_url")
+                if isinstance(audio_url, list):
+                    audio_url = audio_url[0]
+            elif data.get("status") == "processing":
+                # Async generation — poll until ready
+                request_id = data.get("id")
+                if not request_id:
+                    logger.error("ModelsLab TTS: processing but no request_id returned")
+                    continue
+                logger.info(f"ModelsLab TTS: processing, polling request_id={request_id}")
+                fetch_url = fetch_url_template.format(request_id)
+                fetch_payload = {"key": api_key}
+                audio_url = None
+                for _ in range(60):  # poll up to 5 minutes
+                    time.sleep(5)
+                    fetch_resp = requests.post(fetch_url, json=fetch_payload, timeout=(10, 30))
+                    fetch_data = fetch_resp.json()
+                    if fetch_data.get("status") == "success":
+                        audio_url = fetch_data.get("output") or fetch_data.get("output_url")
+                        if isinstance(audio_url, list):
+                            audio_url = audio_url[0]
+                        break
+                    elif fetch_data.get("status") == "processing":
+                        continue
+                    else:
+                        logger.error(f"ModelsLab TTS fetch error: {fetch_data}")
+                        break
+                if not audio_url:
+                    logger.error("ModelsLab TTS: timed out waiting for audio")
+                    continue
+            else:
+                logger.error(f"ModelsLab TTS API error: {data}")
+                continue
+
+            # Download the generated audio file
+            audio_resp = requests.get(audio_url, timeout=(10, 60))
+            if audio_resp.status_code != 200:
+                logger.error(f"ModelsLab TTS: failed to download audio: {audio_resp.status_code}")
+                continue
+
+            with open(voice_file, "wb") as f:
+                f.write(audio_resp.content)
+
+            # Build a SubMaker with timing info from the audio
+            sub_maker = SubMaker()
+            try:
+                from moviepy import AudioFileClip
+
+                audio_clip = AudioFileClip(voice_file)
+                audio_duration = audio_clip.duration
+                audio_clip.close()
+                audio_duration_100ns = int(audio_duration * 10_000_000)
+
+                sentences = utils.split_string_by_punctuations(text)
+                if sentences:
+                    total_chars = sum(len(s) for s in sentences)
+                    char_duration = audio_duration_100ns / total_chars if total_chars > 0 else 0
+                    current_offset = 0
+                    for sentence in sentences:
+                        if not sentence.strip():
+                            continue
+                        sentence_duration = int(len(sentence) * char_duration)
+                        sub_maker.subs.append(sentence)
+                        sub_maker.offset.append(
+                            (current_offset, current_offset + sentence_duration)
+                        )
+                        current_offset += sentence_duration
+                else:
+                    sub_maker.subs = [text]
+                    sub_maker.offset = [(0, audio_duration_100ns)]
+            except Exception as e:
+                logger.warning(f"ModelsLab TTS: subtitle creation fallback: {str(e)}")
+                sub_maker.subs = [text]
+                sub_maker.offset = [(0, 10_000_000)]
+
+            logger.success(f"ModelsLab TTS succeeded: {voice_file}")
+            return sub_maker
+
+        except Exception as e:
+            logger.error(f"ModelsLab TTS error (attempt {attempt + 1}): {str(e)}")
+
+    return None
 
 
 def _format_text(text: str) -> str:

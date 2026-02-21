@@ -216,6 +216,12 @@ speech_region = ""
 # Get your API key at https://siliconflow.cn
 api_key = ""
 
+[modelslab]
+# ModelsLab API Key
+# Sign up at https://modelslab.com and get your API key from the dashboard.
+# ModelsLab provides TTS with 10 voices and 8 language options.
+api_key = ""
+
 [ui]
 # UI related settings
 # 是否隐藏日志信息
