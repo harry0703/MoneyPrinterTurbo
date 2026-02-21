@@ -87,11 +87,13 @@
     "Bilibili": "Bilibili (Bilibili support is coming soon)",
     "Xiaohongshu": "Xiaohongshu (Xiaohongshu support is coming soon)",
     "Local file": "Local file",
+    "JiMeng Video": "JiMeng Video",
     "Play Voice": "Play Voice",
     "Voice Example": "This is an example text for testing speech synthesis",
     "Synthesizing Voice": "Synthesizing voice, please wait...",
     "TTS Provider": "Select the voice synthesis provider",
     "TTS Servers": "TTS Servers",
+    "Please Select a Voice/TTS Server": "Please Select a Voice/TTS Server",
     "No voices available for the selected TTS server. Please select another server.": "No voices available for the selected TTS server. Please select another server.",
     "SiliconFlow API Key": "SiliconFlow API Key [Click to get](https://cloud.siliconflow.cn/account/ak)",
     "SiliconFlow TTS Settings": "SiliconFlow TTS Settings",
@@ -117,6 +119,11 @@
     "Pixabay API Key added successfully": "Pixabay API Key added successfully",
     "Select Pixabay API Key to delete": "Select Pixabay API Key to delete",
     "Delete Selected Pixabay API Key": "Delete Selected Pixabay API Key",
-    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully"
+    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully",
+    "JiMeng Video Settings": "**JiMeng Video Settings**",
+    "JiMeng Access Key ID": "JiMeng Access Key ID",
+    "JiMeng Secret Access Key": "JiMeng Secret Access Key",
+    "JiMeng Region": "JiMeng Region",
+    "Please Enter the JiMeng Access Key ID and Secret Access Key": "Please Enter the JiMeng Access Key ID and Secret Access Key"
   }
 }

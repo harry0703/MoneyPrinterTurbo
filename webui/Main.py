@@ -478,6 +478,23 @@ if not config.app.get("hide_config", False):
             )
             save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
+            st.write(tr("JiMeng Video Settings"))
+
+            jimeng_access_key_id = st.text_input(
+                tr("JiMeng Access Key ID"), value=config.jimeng.get("access_key_id", ""), type="password"
+            )
+            config.jimeng["access_key_id"] = jimeng_access_key_id
+
+            jimeng_secret_access_key = st.text_input(
+                tr("JiMeng Secret Access Key"), value=config.jimeng.get("secret_access_key", ""), type="password"
+            )
+            config.jimeng["secret_access_key"] = jimeng_secret_access_key
+
+            jimeng_region = st.text_input(
+                tr("JiMeng Region"), value=config.jimeng.get("region", "cn-north-1")
+            )
+            config.jimeng["region"] = jimeng_region
+
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
 left_panel = panel[0]
@@ -562,6 +579,7 @@ with middle_panel:
             (tr("TikTok"), "douyin"),
             (tr("Bilibili"), "bilibili"),
             (tr("Xiaohongshu"), "xiaohongshu"),
+            (tr("JiMeng Video"), "jimeng"),
         ]
 
         saved_video_source_name = config.app.get("video_source", "pexels")
@@ -650,6 +668,7 @@ with middle_panel:
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
             ("gemini-tts", "Google Gemini TTS"),
+            ("voicebox", "Voicebox TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -672,6 +691,7 @@ with middle_panel:
 
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
+        voice_name = ""  # 初始化voice_name
 
         if selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
@@ -679,6 +699,9 @@ with middle_panel:
         elif selected_tts_server == "gemini-tts":
             # 获取Gemini TTS的声音列表
             filtered_voices = voice.get_gemini_voices()
+        elif selected_tts_server == "voicebox":
+            # 获取Voicebox的声音列表
+            filtered_voices = voice.get_voicebox_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -821,6 +844,31 @@ with middle_panel:
             )
 
             config.siliconflow["api_key"] = siliconflow_api_key
+
+        # 当选择Voicebox时，显示配置输入框
+        if selected_tts_server == "voicebox" or (
+            voice_name and voice.is_voicebox_voice(voice_name)
+        ):
+            saved_voicebox_base_url = config.voicebox.get("base_url", "http://localhost:8000")
+
+            voicebox_base_url = st.text_input(
+                tr("Voicebox Base URL"),
+                value=saved_voicebox_base_url,
+                key="voicebox_base_url_input",
+            )
+
+            # 显示Voicebox的说明信息
+            st.info(
+                tr("Voicebox TTS Settings")
+                + ":\n"
+                + "- "
+                + tr("Make sure Voicebox server is running on the specified URL")
+                + "\n"
+                + "- "
+                + tr("Voice profiles need to be created in Voicebox app first")
+            )
+
+            config.voicebox["base_url"] = voicebox_base_url
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
@@ -998,7 +1046,7 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source not in ["pexels", "pixabay", "local"]:
+    if params.video_source not in ["pexels", "pixabay", "local", "jimeng"]:
         st.error(tr("Please Select a Valid Video Source"))
         scroll_to_bottom()
         st.stop()
@@ -1010,6 +1058,18 @@ if start_button:
 
     if params.video_source == "pixabay" and not config.app.get("pixabay_api_keys", ""):
         st.error(tr("Please Enter the Pixabay API Key"))
+        scroll_to_bottom()
+        st.stop()
+
+    if params.video_source == "jimeng":
+        if not config.jimeng.get("access_key_id", "") or not config.jimeng.get("secret_access_key", ""):
+            st.error(tr("Please Enter the JiMeng Access Key ID and Secret Access Key"))
+            scroll_to_bottom()
+            st.stop()
+
+    # 验证voice_name
+    if not params.voice_name:
+        st.error(tr("Please Select a Voice/TTS Server"))
         scroll_to_bottom()
         st.stop()
 

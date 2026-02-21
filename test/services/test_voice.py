@@ -101,6 +101,21 @@ class TestVoiceService(unittest.TestCase):
 
         self.loop.run_until_complete(_do())
 
+    def test_voicebox(self):
+        # 注意：需要先在Voicebox中创建语音配置文件
+        voice_name = "voicebox:example-profile-id:Example Profile"
+        
+        voice_file = f"{temp_dir}/tts-voicebox.mp3"
+        subtitle_file = f"{temp_dir}/tts-voicebox.srt"
+        sub_maker = vs.voicebox_tts(
+            text=text_en, profile_id="example-profile-id", voice_file=voice_file, voice_rate=voice_rate, voice_volume=voice_volume
+        )
+        if not sub_maker:
+            self.fail("voicebox tts failed")
+        vs.create_subtitle(sub_maker=sub_maker, text=text_en, subtitle_file=subtitle_file)
+        audio_duration = vs.get_audio_duration(sub_maker)
+        print(f"voicebox audio duration: {audio_duration}s")
+
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v2

@@ -190,6 +190,16 @@ class VideoTermsRequest(VideoTermsParams, BaseModel):
     pass
 
 
+class JiMengVideoRequest(BaseModel):
+    prompt: str
+    seed: Optional[int] = -1
+    frames: Optional[int] = 121
+    aspect_ratio: Optional[str] = "16:9"
+    poll_interval: Optional[int] = 10
+    timeout: Optional[int] = 600
+    req_json: Optional[str] = None
+
+
 ######################################################################################################
 ######################################################################################################
 ######################################################################################################

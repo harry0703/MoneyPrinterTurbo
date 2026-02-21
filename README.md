@@ -60,6 +60,7 @@
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
 - [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
     - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
+- [x] 支持 **即梦视频生成**，基于火山引擎VolcEngine的文本到视频API，可生成高质量的AI视频
 
 
 ### 后期计划 📅
@@ -153,6 +154,7 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 - 将 `config.example.toml` 文件复制一份，命名为 `config.toml`
 - 按照 `config.toml` 文件中的说明，配置好 `pexels_api_keys` 和 `llm_provider`，并根据 llm_provider 对应的服务商，配置相关的
   API Key
+- 如需使用即梦视频生成功能，需要配置 `[jimeng]` 部分的 `access_key_id` 和 `secret_access_key`（需要注册火山引擎VolcEngine账号获取）
 
 ### Docker部署 🐳
 

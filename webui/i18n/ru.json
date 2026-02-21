@@ -87,6 +87,7 @@
     "Bilibili": "Bilibili (Поддержка Bilibili скоро появится)",
     "Xiaohongshu": "Xiaohongshu (Поддержка Xiaohongshu скоро появится)",
     "Local file": "Локальный файл",
+    "JiMeng Video": "Видео JiMeng",
     "Play Voice": "Воспроизвести голос",
     "Voice Example": "Это пример текста для тестирования синтеза речи",
     "Synthesizing Voice": "Синтезирование голоса, пожалуйста подождите...",
@@ -100,6 +101,11 @@
     "Hide Log": "Скрыть журнал",
     "Hide Basic Settings": "Скрыть основные настройки\n\nПри скрытии панель основных настроек не будет отображаться на странице.\n\nДля повторного отображения установите `hide_config = false` в `config.toml`",
     "LLM Settings": "**Настройки LLM**",
-    "Video Source Settings": "**Настройки источника видео**"
+    "Video Source Settings": "**Настройки источника видео**",
+    "JiMeng Video Settings": "**Настройки видео JiMeng**",
+    "JiMeng Access Key ID": "ID ключа доступа JiMeng",
+    "JiMeng Secret Access Key": "Секретный ключ доступа JiMeng",
+    "JiMeng Region": "Регион JiMeng",
+    "Please Enter the JiMeng Access Key ID and Secret Access Key": "Пожалуйста, введите ID ключа доступа JiMeng и секретный ключ доступа"
   }
 }

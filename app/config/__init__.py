@@ -4,6 +4,23 @@ import sys
 from loguru import logger
 
 from app.config import config
+from app.config.config import (
+    app,
+    whisper,
+    proxy,
+    azure,
+    siliconflow,
+    jimeng,
+    ui,
+    hostname,
+    log_level,
+    listen_host,
+    listen_port,
+    project_name,
+    project_description,
+    project_version,
+    reload_debug,
+)
 from app.utils import utils
 
 

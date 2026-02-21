@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+FROM docker.m.daocloud.io/python:3.11-slim
 
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo

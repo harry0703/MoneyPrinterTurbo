@@ -87,6 +87,7 @@
     "Bilibili": "Bilibili (Bilibili desteği yakında geliyor)",
     "Xiaohongshu": "Xiaohongshu (Xiaohongshu desteği yakında geliyor)",
     "Local file": "Yerel dosya",
+    "JiMeng Video": "JiMeng Video",
     "Play Voice": "Sesi Oynat",
     "Voice Example": "Bu, konuşma sentezini test etmek için örnek bir metindir",
     "Synthesizing Voice": "Ses sentezleniyor, lütfen bekleyin...",
@@ -100,6 +101,11 @@
     "Hide Log": "Günlüğü Gizle",
     "Hide Basic Settings": "Temel Ayarları Gizle\n\nGizlendiği takdirde, temel ayarlar paneli sayfada görüntülenmeyecektir.\n\nTekrar görüntülemek için `config.toml` dosyasında `hide_config = false` olarak ayarlayın",
     "LLM Settings": "**LLM Ayarları**",
-    "Video Source Settings": "**Video Kaynağı Ayarları**"
+    "Video Source Settings": "**Video Kaynağı Ayarları**",
+    "JiMeng Video Settings": "**JiMeng Video Ayarları**",
+    "JiMeng Access Key ID": "JiMeng Erişim Anahtarı Kimliği",
+    "JiMeng Secret Access Key": "JiMeng Gizli Erişim Anahtarı",
+    "JiMeng Region": "JiMeng Bölgesi",
+    "Please Enter the JiMeng Access Key ID and Secret Access Key": "Lütfen JiMeng Erişim Anahtarı Kimliğini ve Gizli Erişim Anahtarını girin"
   }
 }

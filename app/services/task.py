@@ -90,6 +90,13 @@ def generate_audio(task_id, params, video_script):
             )
         else:
             logger.info("no custom audio file provided, using TTS to generate audio.")
+        
+        # 验证voice_name不为空
+        if not params.voice_name:
+            logger.error("voice_name is empty, cannot generate audio.")
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            return None, None, None
+        
         audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
         sub_maker = voice.tts(
             text=video_script,
@@ -172,6 +179,41 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             )
             return None
         return [material_info.url for material_info in materials]
+    elif params.video_source == "jimeng":
+        logger.info("\n\n## generating video using JiMeng API")
+        # Import here to avoid circular imports
+        from app.services.jimeng_video import jimeng_video_service
+        
+        try:
+            # Use video script as prompt for JiMeng video generation
+            prompt = params.video_script or params.video_subject
+            if not prompt:
+                sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+                logger.error("no prompt provided for JiMeng video generation")
+                return None
+            
+            # Generate video using JiMeng API
+            video_url = jimeng_video_service.generate_video(
+                prompt=prompt,
+                seed=-1,  # Use random seed
+                frames=121,  # 5 seconds video
+                aspect_ratio=params.video_aspect.value if hasattr(params.video_aspect, 'value') else "16:9",
+                poll_interval=10,
+                timeout=600
+            )
+            
+            if video_url:
+                logger.info(f"JiMeng video generated successfully: {video_url}")
+                return [video_url]
+            else:
+                sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+                logger.error("failed to generate video using JiMeng API")
+                return None
+                
+        except Exception as e:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error(f"error generating video with JiMeng API: {e}")
+            return None
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         downloaded_videos = material.download_videos(

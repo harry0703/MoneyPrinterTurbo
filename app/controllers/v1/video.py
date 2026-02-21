@@ -19,6 +19,7 @@ from app.models.schema import (
     AudioRequest,
     BgmRetrieveResponse,
     BgmUploadResponse,
+    JiMengVideoRequest,
     SubtitleRequest,
     TaskDeletionResponse,
     TaskQueryRequest,
@@ -30,6 +31,7 @@ from app.models.schema import (
 )
 from app.services import state as sm
 from app.services import task as tm
+from app.services.jimeng_video import jimeng_video_service
 from app.utils import utils
 
 # 认证依赖项
@@ -72,6 +74,31 @@ def create_audio(
     background_tasks: BackgroundTasks, request: Request, body: AudioRequest
 ):
     return create_task(request, body, stop_at="audio")
+
+
+@router.post("/jimeng-video", summary="Generate video using JiMeng API")
+async def create_jimeng_video(request: Request, body: JiMengVideoRequest):
+    """
+    Generate a video using JiMeng Video API (VolcEngine).
+    
+    This endpoint submits a text-to-video generation task and waits for completion.
+    """
+    try:
+        video_url = await jimeng_video_service.generate_video(
+            prompt=body.prompt,
+            seed=body.seed,
+            frames=body.frames,
+            aspect_ratio=body.aspect_ratio,
+            poll_interval=body.poll_interval,
+            timeout=body.timeout,
+            req_json=body.req_json
+        )
+        return utils.get_response(200, {"video_url": video_url})
+    except ValueError as e:
+        raise HttpException(status_code=400, message=str(e))
+    except Exception as e:
+        logger.error(f"Error generating JiMeng video: {e}")
+        raise HttpException(status_code=500, message="Internal server error")
 
 
 def create_task(

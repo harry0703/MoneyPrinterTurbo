@@ -87,6 +87,7 @@
     "Bilibili": "Bilibili (Hỗ trợ Bilibili sắp ra mắt)",
     "Xiaohongshu": "Xiaohongshu (Hỗ trợ Xiaohongshu sắp ra mắt)",
     "Local file": "Tệp cục bộ",
+    "JiMeng Video": "Video JiMeng",
     "Play Voice": "Phát Giọng Nói",
     "Voice Example": "Đây là văn bản mẫu để kiểm tra tổng hợp giọng nói",
     "Synthesizing Voice": "Đang tổng hợp giọng nói, vui lòng đợi...",
@@ -117,6 +118,11 @@
     "Pixabay API Key added successfully": "Thêm API Key Pixabay thành công",
     "Select Pixabay API Key to delete": "Chọn API Key Pixabay để xóa",
     "Delete Selected Pixabay API Key": "Xóa API Key Pixabay đã chọn",
-    "Pixabay API Key deleted successfully": "Xóa API Key Pixabay thành công"
+    "Pixabay API Key deleted successfully": "Xóa API Key Pixabay thành công",
+    "JiMeng Video Settings": "**Cài Đặt Video JiMeng**",
+    "JiMeng Access Key ID": "ID Khóa Truy Cập JiMeng",
+    "JiMeng Secret Access Key": "Khóa Truy Cập Bí Mật JiMeng",
+    "JiMeng Region": "Vùng JiMeng",
+    "Please Enter the JiMeng Access Key ID and Secret Access Key": "Vui lòng nhập ID Khóa Truy Cập JiMeng và Khóa Truy Cập Bí Mật"
   }
 }

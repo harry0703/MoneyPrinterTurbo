@@ -87,6 +87,7 @@
     "Bilibili": "Bilibili (Bilibili-Unterstützung kommt bald)",
     "Xiaohongshu": "Xiaohongshu (Xiaohongshu-Unterstützung kommt bald)",
     "Local file": "Lokale Datei",
+    "JiMeng Video": "JiMeng Video",
     "Play Voice": "Sprachausgabe abspielen",
     "Voice Example": "Dies ist ein Beispieltext zum Testen der Sprachsynthese",
     "Synthesizing Voice": "Sprachsynthese läuft, bitte warten...",
@@ -117,6 +118,11 @@
     "Pixabay API Key added successfully": "Pixabay-API-Schlüssel erfolgreich hinzugefügt",
     "Select Pixabay API Key to delete": "Wählen Sie den zu löschenden Pixabay-API-Schlüssel aus",
     "Delete Selected Pixabay API Key": "Ausgewählten Pixabay-API-Schlüssel löschen",
-    "Pixabay API Key deleted successfully": "Pixabay-API-Schlüssel erfolgreich gelöscht"
+    "Pixabay API Key deleted successfully": "Pixabay-API-Schlüssel erfolgreich gelöscht",
+    "JiMeng Video Settings": "**JiMeng Video-Einstellungen**",
+    "JiMeng Access Key ID": "JiMeng Access Key ID",
+    "JiMeng Secret Access Key": "JiMeng Secret Access Key",
+    "JiMeng Region": "JiMeng Region",
+    "Please Enter the JiMeng Access Key ID and Secret Access Key": "Bitte geben Sie die JiMeng Access Key ID und Secret Access Key ein"
   }
 }

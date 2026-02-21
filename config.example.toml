@@ -1,5 +1,5 @@
 [app]
-video_source = "pexels" # "pexels" or "pixabay"
+video_source = "pexels" # "pexels" or "pixabay" or "jimeng"
 
 # 是否隐藏配置面板
 hide_config = false
@@ -18,6 +18,16 @@ pexels_api_keys = []
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 pixabay_api_keys = []
 
+# Jimeng APi Key, this is a special option.
+# Register at https://www.volcengine.com/product/jimeng/ to get your api key... maybe it gonna complex.
+[jimeng]
+# VolcEngine Access Key ID for JiMeng Video API
+access_key_id = ""
+# VolcEngine Secret Access Key for JiMeng Video API
+secret_access_key = ""
+# Region for JiMeng Video API (default: cn-north-1)
+region = "cn-north-1"
+
 # 支持的提供商 (Supported providers):
 #   openai
 #   moonshot    (月之暗面)
@@ -31,6 +41,7 @@ pixabay_api_keys = []
 #   cloudflare
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
+[app]
 llm_provider = "openai"
 
 ########## Pollinations AI Settings
@@ -215,6 +226,13 @@ speech_region = ""
 # SiliconFlow API Key
 # Get your API key at https://siliconflow.cn
 api_key = ""
+
+[voicebox]
+# Voicebox API settings
+# Voicebox server URL (default: http://localhost:8000)
+base_url = "http://localhost:8000"
+# Default voice profile ID to use
+default_profile_id = ""
 
 [ui]
 # UI related settings
