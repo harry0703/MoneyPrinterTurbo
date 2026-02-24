@@ -1,6 +1,7 @@
 import os
 import platform
 import sys
+from typing import Any
 from uuid import uuid4
 
 import streamlit as st
@@ -109,7 +110,7 @@ support_locales = [
 ]
 
 
-def get_all_fonts():
+def get_all_fonts() -> list[str]:
     fonts = []
     for root, dirs, files in os.walk(font_dir):
         for file in files:
@@ -119,7 +120,7 @@ def get_all_fonts():
     return fonts
 
 
-def get_all_songs():
+def get_all_songs() -> list[str]:
     songs = []
     for root, dirs, files in os.walk(song_dir):
         for file in files:
@@ -128,7 +129,7 @@ def get_all_songs():
     return songs
 
 
-def open_task_folder(task_id):
+def open_task_folder(task_id: str) -> None:
     try:
         sys = platform.system()
         path = os.path.join(root_dir, "storage", "tasks", task_id)
@@ -141,7 +142,7 @@ def open_task_folder(task_id):
         logger.error(e)
 
 
-def scroll_to_bottom():
+def scroll_to_bottom() -> None:
     js = """
     <script>
         console.log("scroll_to_bottom");
@@ -158,11 +159,11 @@ def scroll_to_bottom():
     st.components.v1.html(js, height=0, width=0)
 
 
-def init_log():
+def init_log() -> None:
     logger.remove()
     _lvl = "DEBUG"
 
-    def format_record(record):
+    def format_record(record: dict[str, Any]) -> str:
         # 获取日志记录中的文件全路径
         file_path = record["file"].path
         # 将绝对路径转换为相对于项目根目录的路径
@@ -195,7 +196,7 @@ init_log()
 locales = utils.load_locales(i18n_dir)
 
 
-def tr(key):
+def tr(key: str) -> str:
     loc = locales.get(st.session_state["ui_language"], {})
     return loc.get("Translation", {}).get(key, key)
 
@@ -452,14 +453,14 @@ if not config.app.get("hide_config", False):
         # 右侧面板 - API 密钥设置
         with right_config_panel:
 
-            def get_keys_from_config(cfg_key):
+            def get_keys_from_config(cfg_key: str) -> str:
                 api_keys = config.app.get(cfg_key, [])
                 if isinstance(api_keys, str):
                     api_keys = [api_keys]
                 api_key = ", ".join(api_keys)
                 return api_key
 
-            def save_keys_to_config(cfg_key, value):
+            def save_keys_to_config(cfg_key: str, value: str) -> None:
                 value = value.replace(" ", "")
                 if value:
                     config.app[cfg_key] = value.split(",")
@@ -480,15 +481,12 @@ if not config.app.get("hide_config", False):
 
             st.write(tr("JiMeng Video Settings"))
 
-            jimeng_access_key_id = st.text_input(
-                tr("JiMeng Access Key ID"), value=config.jimeng.get("access_key_id", ""), type="password"
+            jimeng_api_key = st.text_input(
+                tr("JiMeng API Key"), value=config.jimeng.get("api_key", ""), type="password"
             )
-            config.jimeng["access_key_id"] = jimeng_access_key_id
-
-            jimeng_secret_access_key = st.text_input(
-                tr("JiMeng Secret Access Key"), value=config.jimeng.get("secret_access_key", ""), type="password"
-            )
-            config.jimeng["secret_access_key"] = jimeng_secret_access_key
+            config.jimeng["api_key"] = jimeng_api_key
+            config.jimeng.pop("access_key_id", None)
+            config.jimeng.pop("secret_access_key", None)
 
             jimeng_region = st.text_input(
                 tr("JiMeng Region"), value=config.jimeng.get("region", "cn-north-1")
@@ -1062,8 +1060,8 @@ if start_button:
         st.stop()
 
     if params.video_source == "jimeng":
-        if not config.jimeng.get("access_key_id", "") or not config.jimeng.get("secret_access_key", ""):
-            st.error(tr("Please Enter the JiMeng Access Key ID and Secret Access Key"))
+        if not config.jimeng.get("api_key", "").strip():
+            st.error(tr("Please Enter the JiMeng API Key"))
             scroll_to_bottom()
             st.stop()
 
@@ -1089,7 +1087,7 @@ if start_button:
     log_container = st.empty()
     log_records = []
 
-    def log_received(msg):
+    def log_received(msg: Any) -> None:
         if config.ui["hide_log"]:
             return
         with log_container:

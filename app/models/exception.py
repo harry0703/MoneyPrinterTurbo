@@ -7,7 +7,8 @@ from loguru import logger
 class HttpException(Exception):
     def __init__(
         self, task_id: str, status_code: int, message: str = "", data: Any = None
-    ):
+    ) -> None:
+        super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.data = data

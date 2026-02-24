@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Any
 
 from loguru import logger
 
@@ -24,14 +25,14 @@ from app.config.config import (
 from app.utils import utils
 
 
-def __init_logger():
+def __init_logger() -> None:
     # _log_file = utils.storage_dir("logs/server.log")
     _lvl = config.log_level
     root_dir = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     )
 
-    def format_record(record):
+    def format_record(record: dict[str, Any]) -> str:
         # 获取日志记录中的文件全路径
         file_path = record["file"].path
         # 将绝对路径转换为相对于项目根目录的路径

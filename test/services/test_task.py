@@ -12,13 +12,13 @@ from app.models.schema import MaterialInfo, VideoParams
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
 
 class TestTaskService(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         pass
     
-    def tearDown(self):
+    def tearDown(self) -> None:
         pass
     
-    def test_task_local_materials(self):
+    def test_task_local_materials(self) -> None:
         task_id = "00000000-0000-0000-0000-000000000000"
         video_materials=[]
         for i in range(1, 4):

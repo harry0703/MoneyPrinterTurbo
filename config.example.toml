@@ -21,10 +21,8 @@ pixabay_api_keys = []
 # Jimeng APi Key, this is a special option.
 # Register at https://www.volcengine.com/product/jimeng/ to get your api key... maybe it gonna complex.
 [jimeng]
-# VolcEngine Access Key ID for JiMeng Video API
-access_key_id = ""
-# VolcEngine Secret Access Key for JiMeng Video API
-secret_access_key = ""
+# JiMeng API Key for video generation
+api_key = ""
 # Region for JiMeng Video API (default: cn-north-1)
 region = "cn-north-1"
 

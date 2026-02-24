@@ -1,4 +1,6 @@
-PUNCTUATIONS = [
+from typing import List
+
+PUNCTUATIONS: List[str] = [
     "?",
     ",",
     ".",

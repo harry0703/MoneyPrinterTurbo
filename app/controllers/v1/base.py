@@ -1,7 +1,8 @@
 from fastapi import APIRouter
+from typing import Any
 
 
-def new_router(dependencies=None):
+def new_router(dependencies: list[Any] | None = None) -> APIRouter:
     router = APIRouter()
     router.tags = ["V1"]
     router.prefix = "/api/v1"

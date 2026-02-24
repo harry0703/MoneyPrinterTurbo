@@ -121,9 +121,11 @@
     "Delete Selected Pixabay API Key": "Delete Selected Pixabay API Key",
     "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully",
     "JiMeng Video Settings": "**JiMeng Video Settings**",
+    "JiMeng API Key": "JiMeng API Key",
     "JiMeng Access Key ID": "JiMeng Access Key ID",
     "JiMeng Secret Access Key": "JiMeng Secret Access Key",
     "JiMeng Region": "JiMeng Region",
+    "Please Enter the JiMeng API Key": "Please Enter the JiMeng API Key",
     "Please Enter the JiMeng Access Key ID and Secret Access Key": "Please Enter the JiMeng Access Key ID and Secret Access Key"
   }
 }

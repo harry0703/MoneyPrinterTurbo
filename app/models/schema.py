@@ -32,12 +32,12 @@ class VideoAspect(str, Enum):
     portrait = "9:16"
     square = "1:1"
 
-    def to_resolution(self):
-        if self == VideoAspect.landscape.value:
+    def to_resolution(self) -> tuple[int, int]:
+        if self == VideoAspect.landscape:
             return 1920, 1080
-        elif self == VideoAspect.portrait.value:
+        if self == VideoAspect.portrait:
             return 1080, 1920
-        elif self == VideoAspect.square.value:
+        if self == VideoAspect.square:
             return 1080, 1080
         return 1080, 1920
 
@@ -70,9 +70,11 @@ class VideoParams(BaseModel):
 
     video_subject: str
     video_script: str = ""  # Script used to generate the video
-    video_terms: Optional[str | list] = None  # Keywords used to generate the video
-    video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
-    video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
+    video_terms: Optional[str | list[str]] = (
+        None  # Keywords used to generate the video
+    )
+    video_aspect: Optional[VideoAspect] = VideoAspect.portrait
+    video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random
     video_transition_mode: Optional[VideoTransitionMode] = None
     video_clip_duration: Optional[int] = 5
     video_count: Optional[int] = 1

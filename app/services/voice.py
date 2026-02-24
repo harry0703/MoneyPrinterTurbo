@@ -102,7 +102,7 @@ def get_voicebox_voices() -> list[str]:
         return []
 
 
-def get_all_azure_voices(filter_locals=None) -> list[str]:
+def get_all_azure_voices(filter_locals: list[str] | None = None) -> list[str]:
     azure_voices_str = """
 Name: af-ZA-AdriNeural
 Gender: Female
@@ -1117,7 +1117,7 @@ Gender: Female
     return voices
 
 
-def parse_voice_name(name: str):
+def parse_voice_name(name: str) -> str:
     # zh-CN-XiaoyiNeural-Female
     # zh-CN-YunxiNeural-Male
     # zh-CN-XiaoxiaoMultilingualNeural-V2-Female
@@ -1125,24 +1125,24 @@ def parse_voice_name(name: str):
     return name
 
 
-def is_azure_v2_voice(voice_name: str):
+def is_azure_v2_voice(voice_name: str) -> str:
     voice_name = parse_voice_name(voice_name)
     if voice_name.endswith("-V2"):
         return voice_name.replace("-V2", "").strip()
     return ""
 
 
-def is_siliconflow_voice(voice_name: str):
+def is_siliconflow_voice(voice_name: str) -> bool:
     """检查是否是硅基流动的声音"""
     return voice_name.startswith("siliconflow:")
 
 
-def is_gemini_voice(voice_name: str):
+def is_gemini_voice(voice_name: str) -> bool:
     """检查是否是Gemini TTS的声音"""
     return voice_name.startswith("gemini:")
 
 
-def is_voicebox_voice(voice_name: str):
+def is_voicebox_voice(voice_name: str) -> bool:
     """检查是否是Voicebox的声音"""
     return voice_name.startswith("voicebox:")
 
@@ -1504,7 +1504,7 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
         raise ValueError(f"invalid voice name: {voice_name}")
     text = text.strip()
 
-    def _format_duration_to_offset(duration) -> int:
+    def _format_duration_to_offset(duration: float) -> int:
         if isinstance(duration, str):
             time_obj = datetime.strptime(duration, "%H:%M:%S.%f")
             milliseconds = (
@@ -1528,7 +1528,9 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
 
             sub_maker = SubMaker()
 
-            def speech_synthesizer_word_boundary_cb(evt: speechsdk.SessionEventArgs):
+            def speech_synthesizer_word_boundary_cb(
+                evt: speechsdk.SessionEventArgs,
+            ) -> None:
                 # print('WordBoundary event:')
                 # print('\tBoundaryType: {}'.format(evt.boundary_type))
                 # print('\tAudioOffset: {}ms'.format((evt.audio_offset + 5000)))
@@ -1728,7 +1730,9 @@ def _format_text(text: str) -> str:
     return text
 
 
-def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str):
+def create_subtitle(
+    sub_maker: submaker.SubMaker, text: str, subtitle_file: str
+) -> None:
     """
     优化字幕文件
     1. 将字幕文件按照标点符号分割成多行
@@ -1754,7 +1758,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
 
     script_lines = utils.split_string_by_punctuations(text)
 
-    def match_line(_sub_line: str, _sub_index: int):
+    def match_line(_sub_line: str, _sub_index: int) -> str:
         if len(script_lines) <= _sub_index:
             return ""
 
@@ -1818,7 +1822,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
         logger.error(f"failed, error: {str(e)}")
 
 
-def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker):
+def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker) -> float:
     """
     获取音频时长
     """
@@ -1865,7 +1869,7 @@ if __name__ == "__main__":
     voices = get_all_azure_voices()
     print(len(voices))
 
-    async def _do():
+    async def _do() -> None:
         temp_dir = utils.storage_dir("temp")
 
         voice_names = [

@@ -357,7 +357,7 @@ Generate a script for a video, depending on the subject of the video.
     final_script = ""
     logger.info(f"subject: {video_subject}")
 
-    def format_response(response):
+    def format_response(response: str) -> str:
         # Clean the script
         # Remove asterisks, hashes
         response = response.replace("*", "")

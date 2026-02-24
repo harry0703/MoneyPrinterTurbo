@@ -1,18 +1,17 @@
 from queue import Queue
-from typing import Dict
 
-from app.controllers.manager.base_manager import TaskManager
+from app.controllers.manager.base_manager import QueuedTask, TaskManager
 
 
 class InMemoryTaskManager(TaskManager):
-    def create_queue(self):
-        return Queue()
+    def create_queue(self) -> Queue[QueuedTask]:
+        return Queue[QueuedTask]()
 
-    def enqueue(self, task: Dict):
+    def enqueue(self, task: QueuedTask) -> None:
         self.queue.put(task)
 
-    def dequeue(self):
+    def dequeue(self) -> QueuedTask:
         return self.queue.get()
 
-    def is_queue_empty(self):
+    def is_queue_empty(self) -> bool:
         return self.queue.empty()

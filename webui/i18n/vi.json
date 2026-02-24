@@ -120,9 +120,11 @@
     "Delete Selected Pixabay API Key": "Xóa API Key Pixabay đã chọn",
     "Pixabay API Key deleted successfully": "Xóa API Key Pixabay thành công",
     "JiMeng Video Settings": "**Cài Đặt Video JiMeng**",
+    "JiMeng API Key": "JiMeng API Key",
     "JiMeng Access Key ID": "ID Khóa Truy Cập JiMeng",
     "JiMeng Secret Access Key": "Khóa Truy Cập Bí Mật JiMeng",
     "JiMeng Region": "Vùng JiMeng",
+    "Please Enter the JiMeng API Key": "Please Enter the JiMeng API Key",
     "Please Enter the JiMeng Access Key ID and Secret Access Key": "Vui lòng nhập ID Khóa Truy Cập JiMeng và Khóa Truy Cập Bí Mật"
   }
 }

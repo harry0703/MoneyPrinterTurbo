@@ -15,13 +15,13 @@ from app.utils import utils
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
 
 class TestVideoService(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.test_img_path = os.path.join(resources_dir, "1.png")
     
-    def tearDown(self):
+    def tearDown(self) -> None:
         pass
     
-    def test_preprocess_video(self):
+    def test_preprocess_video(self) -> None:
         if not os.path.exists(self.test_img_path):
             self.fail(f"test image not found: {self.test_img_path}")
         
@@ -47,7 +47,7 @@ class TestVideoService(unittest.TestCase):
         if os.path.exists(materials[0].url):
             os.remove(materials[0].url)
     
-    def test_wrap_text(self):
+    def test_wrap_text(self) -> None:
         """test text wrapping function"""
         try:
             font_path = os.path.join(utils.font_dir(), "STHeitiMedium.ttc")

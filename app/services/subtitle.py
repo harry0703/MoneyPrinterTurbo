@@ -18,7 +18,7 @@ compute_type = config.whisper.get("compute_type", "int8")
 model = None
 
 
-def create(audio_file, subtitle_file: str = ""):
+def create(audio_file: str, subtitle_file: str = "") -> str | None:
     global model
     if WhisperModel is None:
         logger.warning("faster_whisper not available, skipping whisper subtitle generation")
@@ -66,7 +66,7 @@ def create(audio_file, subtitle_file: str = ""):
     start = timer()
     subtitles = []
 
-    def recognized(seg_text, seg_start, seg_end):
+    def recognized(seg_text: str, seg_start: float, seg_end: float) -> None:
         seg_text = seg_text.strip()
         if not seg_text:
             return
@@ -142,7 +142,7 @@ def create(audio_file, subtitle_file: str = ""):
     logger.info(f"subtitle file created: {subtitle_file}")
 
 
-def file_to_subtitles(filename):
+def file_to_subtitles(filename: str) -> list[tuple[int, str, str]]:
     if not filename or not os.path.isfile(filename):
         return []
 
@@ -164,7 +164,7 @@ def file_to_subtitles(filename):
     return times_texts
 
 
-def levenshtein_distance(s1, s2):
+def levenshtein_distance(s1: str, s2: str) -> int:
     if len(s1) < len(s2):
         return levenshtein_distance(s2, s1)
 
@@ -184,13 +184,13 @@ def levenshtein_distance(s1, s2):
     return previous_row[-1]
 
 
-def similarity(a, b):
+def similarity(a: str, b: str) -> float:
     distance = levenshtein_distance(a.lower(), b.lower())
     max_length = max(len(a), len(b))
     return 1 - (distance / max_length)
 
 
-def correct(subtitle_file, video_script):
+def correct(subtitle_file: str, video_script: str) -> None:
     subtitle_items = file_to_subtitles(subtitle_file)
     script_lines = utils.split_string_by_punctuations(video_script)
 

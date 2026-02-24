@@ -5,7 +5,8 @@ Voicebox API 调用示例代码
 
 import requests
 import json
-from typing import List, Dict, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 # ============================================================================
 # 基础配置
@@ -18,12 +19,12 @@ TIMEOUT = 10  # 秒
 # 1. 低级API调用示例 (直接HTTP请求)
 # ============================================================================
 
+@dataclass(slots=True)
 class VoiceboxAPIClient:
     """原生Voicebox API客户端"""
     
-    def __init__(self, base_url: str = VOICEBOX_BASE_URL, timeout: int = TIMEOUT):
-        self.base_url = base_url
-        self.timeout = timeout
+    base_url: str = VOICEBOX_BASE_URL
+    timeout: int = TIMEOUT
     
     def health_check(self) -> bool:
         """检查Voicebox服务健康状态"""
@@ -125,7 +126,7 @@ class VoiceboxAPIClient:
 # 2. MoneyPrinterTurbo集成示例
 # ============================================================================
 
-def example_with_mpt_services():
+def example_with_mpt_services() -> None:
     """使用MoneyPrinterTurbo服务进行调用"""
     from app.services import voice
     from app.config import config
@@ -184,7 +185,7 @@ def example_with_mpt_services():
 # 3. 完整工作流示例
 # ============================================================================
 
-def complete_workflow_example():
+def complete_workflow_example() -> None:
     """完整的Voicebox使用工作流"""
     
     print("\n=== 完整工作流示例 ===")
@@ -253,7 +254,7 @@ def complete_workflow_example():
 # 4. 错误处理最佳实践
 # ============================================================================
 
-def error_handling_example():
+def error_handling_example() -> None:
     """展示错误处理的最佳实践"""
     
     print("\n=== 错误处理示例 ===")
@@ -304,7 +305,7 @@ def error_handling_example():
 # 5. 配置与监控
 # ============================================================================
 
-def configuration_example():
+def configuration_example() -> None:
     """配置与监控示例"""
     
     print("\n=== 配置与监控示例 ===")

@@ -31,18 +31,18 @@ voice_rate=1.0
 voice_volume=1.0
                     
 class TestVoiceService(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
     
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.loop.close()
     
-    def test_siliconflow(self):
+    def test_siliconflow(self) -> None:
         voice_name = "siliconflow:FunAudioLLM/CosyVoice2-0.5B:alex-Male"
         voice_name = vs.parse_voice_name(voice_name)
         
-        async def _do():
+        async def _do() -> None:
             parts = voice_name.split(":")
             if len(parts) >= 3:
                 model = parts[1]
@@ -66,7 +66,7 @@ class TestVoiceService(unittest.TestCase):
 
         self.loop.run_until_complete(_do())
     
-    def test_azure_tts_v1(self):
+    def test_azure_tts_v1(self) -> None:
         voice_name = "zh-CN-XiaoyiNeural-Female"
         voice_name = vs.parse_voice_name(voice_name)
         print(voice_name)
@@ -82,12 +82,12 @@ class TestVoiceService(unittest.TestCase):
         audio_duration = vs.get_audio_duration(sub_maker)
         print(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
-    def test_azure_tts_v2(self):
+    def test_azure_tts_v2(self) -> None:
         voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
         voice_name = vs.parse_voice_name(voice_name)
         print(voice_name)
 
-        async def _do():
+        async def _do() -> None:
             voice_file = f"{temp_dir}/tts-azure-v2-{voice_name}.mp3"
             subtitle_file = f"{temp_dir}/tts-azure-v2-{voice_name}.srt"
             sub_maker = vs.azure_tts_v2(
@@ -101,7 +101,7 @@ class TestVoiceService(unittest.TestCase):
 
         self.loop.run_until_complete(_do())
 
-    def test_voicebox(self):
+    def test_voicebox(self) -> None:
         # 注意：需要先在Voicebox中创建语音配置文件
         voice_name = "voicebox:example-profile-id:Example Profile"
         

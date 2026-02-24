@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-def check_frontend_validation():
+def check_frontend_validation() -> bool:
     """检查前端是否添加了voice_name验证"""
     print("\n=== 检查前端验证 ===")
     
@@ -32,7 +32,7 @@ def check_frontend_validation():
     
     return True
 
-def check_backend_validation():
+def check_backend_validation() -> bool:
     """检查后端是否添加了voice_name验证"""
     print("\n=== 检查后端验证 ===")
     
@@ -54,7 +54,7 @@ def check_backend_validation():
     
     return True
 
-def check_language_strings():
+def check_language_strings() -> bool:
     """检查是否添加了多语言字符串"""
     print("\n=== 检查多语言支持 ===")
     
@@ -80,7 +80,7 @@ def check_language_strings():
     
     return True
 
-def main():
+def main() -> int:
     print("=" * 60)
     print("voice_name参数修复验证")
     print("=" * 60)

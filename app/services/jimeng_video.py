@@ -1,30 +1,39 @@
-import asyncio
-import os
-from typing import Optional, Dict, Any
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
 from loguru import logger
 
 from app.config import jimeng
 from app.jimeng_video_handler import JiMengVideoHandler, JiMengVideoAPIException
 
 
+@dataclass(slots=True)
 class JiMengVideoService:
     """Service for generating videos using JiMeng Video API."""
 
-    def __init__(self):
-        self.access_key_id = jimeng.get("access_key_id", "")
-        self.secret_access_key = jimeng.get("secret_access_key", "")
+    api_key: str = field(init=False)
+    model: str = field(init=False)
+    region: str = field(init=False)
+    handler: JiMengVideoHandler | None = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        self.api_key = jimeng.get("api_key", "")
+        self.model = jimeng.get("model", "")
         self.region = jimeng.get("region", "cn-north-1")
 
-        if not self.access_key_id or not self.secret_access_key:
-            logger.warning("JiMeng Video API credentials not configured. Video generation will not work.")
-
-        self.handler = None
-        if self.access_key_id and self.secret_access_key:
-            self.handler = JiMengVideoHandler(
-                access_key_id=self.access_key_id,
-                secret_access_key=self.secret_access_key,
-                region=self.region
+        if not self.api_key:
+            logger.warning(
+                "JiMeng Video API credentials not configured. Video generation will not work."
             )
+            return
+
+        try:
+            self.handler = JiMengVideoHandler(
+                api_key=self.api_key,
+                model=self.model
+            )
+        except JiMengVideoAPIException as exc:
+            logger.warning(f"JiMeng SDK initialization failed: {exc}")
+            self.handler = None
 
     async def generate_video(
         self,
@@ -32,7 +41,7 @@ class JiMengVideoService:
         seed: int = -1,
         frames: int = 121,
         aspect_ratio: str = "16:9",
-        poll_interval: int = 10,
+        poll_interval: int = 3,
         timeout: int = 600,
         req_json: Optional[str] = None
     ) -> Optional[str]:
@@ -53,7 +62,7 @@ class JiMengVideoService:
 
         try:
             logger.info(f"Starting video generation with prompt: {prompt}")
-            video_url = await self.handler.generate_video_with_status_check(
+            video_url = await self.handler.generate_video(
                 prompt=prompt,
                 seed=seed,
                 frames=frames,
@@ -69,48 +78,6 @@ class JiMengVideoService:
             raise
         except Exception as e:
             logger.error(f"Unexpected error in video generation: {e}")
-            raise
-
-    async def submit_task(
-        self,
-        prompt: str,
-        seed: int = -1,
-        frames: int = 121,
-        aspect_ratio: str = "16:9"
-    ) -> Dict[str, Any]:
-        """
-        Submit a video generation task.
-
-        :param prompt: Text prompt
-        :param seed: Random seed
-        :param frames: Number of frames
-        :param aspect_ratio: Aspect ratio
-        :return: Task submission response
-        """
-        if not self.handler:
-            raise ValueError("JiMeng Video API credentials not configured")
-
-        try:
-            return await self.handler.submit_task_async(prompt, seed, frames, aspect_ratio)
-        except JiMengVideoAPIException as e:
-            logger.error(f"JiMeng Video API error: {e}")
-            raise
-
-    async def query_task(self, task_id: str, req_json: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Query task status.
-
-        :param task_id: Task ID
-        :param req_json: Additional options
-        :return: Task status response
-        """
-        if not self.handler:
-            raise ValueError("JiMeng Video API credentials not configured")
-
-        try:
-            return await self.handler.query_task_async(task_id, req_json)
-        except JiMengVideoAPIException as e:
-            logger.error(f"JiMeng Video API error: {e}")
             raise
 
 

@@ -20,7 +20,7 @@ router = new_router()
     response_model=VideoScriptResponse,
     summary="Create a script for the video",
 )
-def generate_video_script(request: Request, body: VideoScriptRequest):
+def generate_video_script(_: Request, body: VideoScriptRequest) -> dict[str, object]:
     video_script = llm.generate_script(
         video_subject=body.video_subject,
         language=body.video_language,
@@ -35,7 +35,7 @@ def generate_video_script(request: Request, body: VideoScriptRequest):
     response_model=VideoTermsResponse,
     summary="Generate video terms based on the video script",
 )
-def generate_video_terms(request: Request, body: VideoTermsRequest):
+def generate_video_terms(_: Request, body: VideoTermsRequest) -> dict[str, object]:
     video_terms = llm.generate_terms(
         video_subject=body.video_subject,
         video_script=body.video_script,

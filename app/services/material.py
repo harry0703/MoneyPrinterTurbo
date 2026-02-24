@@ -11,10 +11,10 @@ from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 
-requested_count = 0
+requested_count: int = 0
 
 
-def get_api_key(cfg_key: str):
+def get_api_key(cfg_key: str) -> str:
     api_keys = config.app.get(cfg_key)
     if not api_keys:
         raise ValueError(

@@ -3,7 +3,7 @@ import locale
 import os
 from pathlib import Path
 import threading
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 import urllib3
@@ -14,7 +14,9 @@ from app.models import const
 urllib3.disable_warnings()
 
 
-def get_response(status: int, data: Any = None, message: str = ""):
+def get_response(
+    status: int, data: Any = None, message: str = ""
+) -> dict[str, Any]:
     obj = {
         "status": status,
     }
@@ -25,10 +27,10 @@ def get_response(status: int, data: Any = None, message: str = ""):
     return obj
 
 
-def to_json(obj):
+def to_json(obj: Any) -> str | None:
     try:
         # Define a helper function to handle different types of objects
-        def serialize(o):
+        def serialize(o: Any) -> Any:
             # If the object is a serializable type, return it directly
             if isinstance(o, (int, float, bool, str)) or o is None:
                 return o
@@ -57,18 +59,18 @@ def to_json(obj):
         return None
 
 
-def get_uuid(remove_hyphen: bool = False):
+def get_uuid(remove_hyphen: bool = False) -> str:
     u = str(uuid4())
     if remove_hyphen:
         u = u.replace("-", "")
     return u
 
 
-def root_dir():
+def root_dir() -> str:
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 
-def storage_dir(sub_dir: str = "", create: bool = False):
+def storage_dir(sub_dir: str = "", create: bool = False) -> str:
     d = os.path.join(root_dir(), "storage")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -78,14 +80,14 @@ def storage_dir(sub_dir: str = "", create: bool = False):
     return d
 
 
-def resource_dir(sub_dir: str = ""):
+def resource_dir(sub_dir: str = "") -> str:
     d = os.path.join(root_dir(), "resource")
     if sub_dir:
         d = os.path.join(d, sub_dir)
     return d
 
 
-def task_dir(sub_dir: str = ""):
+def task_dir(sub_dir: str = "") -> str:
     d = os.path.join(storage_dir(), "tasks")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -94,7 +96,7 @@ def task_dir(sub_dir: str = ""):
     return d
 
 
-def font_dir(sub_dir: str = ""):
+def font_dir(sub_dir: str = "") -> str:
     d = resource_dir("fonts")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -103,7 +105,7 @@ def font_dir(sub_dir: str = ""):
     return d
 
 
-def song_dir(sub_dir: str = ""):
+def song_dir(sub_dir: str = "") -> str:
     d = resource_dir("songs")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -112,7 +114,7 @@ def song_dir(sub_dir: str = ""):
     return d
 
 
-def public_dir(sub_dir: str = ""):
+def public_dir(sub_dir: str = "") -> str:
     d = resource_dir("public")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -121,8 +123,10 @@ def public_dir(sub_dir: str = ""):
     return d
 
 
-def run_in_background(func, *args, **kwargs):
-    def run():
+def run_in_background(
+    func: Callable[..., Any], *args: Any, **kwargs: Any
+) -> threading.Thread:
+    def run() -> None:
         try:
             func(*args, **kwargs)
         except Exception as e:
@@ -133,7 +137,7 @@ def run_in_background(func, *args, **kwargs):
     return thread
 
 
-def time_convert_seconds_to_hmsm(seconds) -> str:
+def time_convert_seconds_to_hmsm(seconds: float) -> str:
     hours = int(seconds // 3600)
     seconds = seconds % 3600
     minutes = int(seconds // 60)
@@ -157,14 +161,14 @@ def text_to_srt(idx: int, msg: str, start_time: float, end_time: float) -> str:
     return srt
 
 
-def str_contains_punctuation(word):
+def str_contains_punctuation(word: str) -> bool:
     for p in const.PUNCTUATIONS:
         if p in word:
             return True
     return False
 
 
-def split_string_by_punctuations(s):
+def split_string_by_punctuations(s: str) -> list[str]:
     result = []
     txt = ""
 
@@ -198,13 +202,13 @@ def split_string_by_punctuations(s):
     return result
 
 
-def md5(text):
+def md5(text: str) -> str:
     import hashlib
 
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
-def get_system_locale():
+def get_system_locale() -> str:
     try:
         loc = locale.getdefaultlocale()
         # zh_CN, zh_TW return zh
@@ -215,7 +219,7 @@ def get_system_locale():
         return "en"
 
 
-def load_locales(i18n_dir):
+def load_locales(i18n_dir: str) -> dict[str, Any]:
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:
@@ -226,5 +230,5 @@ def load_locales(i18n_dir):
     return _locales
 
 
-def parse_extension(filename):
+def parse_extension(filename: str) -> str:
     return Path(filename).suffix.lower().lstrip('.')

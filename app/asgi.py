@@ -15,14 +15,16 @@ from app.router import root_api_router
 from app.utils import utils
 
 
-def exception_handler(request: Request, e: HttpException):
+def exception_handler(_: Request, e: HttpException) -> JSONResponse:
     return JSONResponse(
         status_code=e.status_code,
         content=utils.get_response(e.status_code, e.data, e.message),
     )
 
 
-def validation_exception_handler(request: Request, e: RequestValidationError):
+def validation_exception_handler(
+    _: Request, e: RequestValidationError
+) -> JSONResponse:
     return JSONResponse(
         status_code=400,
         content=utils.get_response(
@@ -73,10 +75,10 @@ app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
 
 
 @app.on_event("shutdown")
-def shutdown_event():
+def shutdown_event() -> None:
     logger.info("shutdown event")
 
 
 @app.on_event("startup")
-def startup_event():
+def startup_event() -> None:
     logger.info("startup event")

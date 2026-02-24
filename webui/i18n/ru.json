@@ -103,9 +103,11 @@
     "LLM Settings": "**Настройки LLM**",
     "Video Source Settings": "**Настройки источника видео**",
     "JiMeng Video Settings": "**Настройки видео JiMeng**",
+    "JiMeng API Key": "JiMeng API Key",
     "JiMeng Access Key ID": "ID ключа доступа JiMeng",
     "JiMeng Secret Access Key": "Секретный ключ доступа JiMeng",
     "JiMeng Region": "Регион JiMeng",
+    "Please Enter the JiMeng API Key": "Please Enter the JiMeng API Key",
     "Please Enter the JiMeng Access Key ID and Secret Access Key": "Пожалуйста, введите ID ключа доступа JiMeng и секретный ключ доступа"
   }
 }
