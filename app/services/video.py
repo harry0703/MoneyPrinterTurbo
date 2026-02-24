@@ -129,8 +129,14 @@ def combine_videos(
     max_clip_duration: int = 5,
     threads: int = 2,
 ) -> str:
+    if not video_paths:
+        raise ValueError("video_paths cannot be empty")
+    if max_clip_duration <= 0:
+        raise ValueError("max_clip_duration must be greater than 0")
+
     audio_clip = AudioFileClip(audio_file)
     audio_duration = audio_clip.duration
+    close_clip(audio_clip)
     logger.info(f"audio duration: {audio_duration} seconds")
     # Required duration of each clip
     req_dur = audio_duration / len(video_paths)
@@ -154,10 +160,19 @@ def combine_videos(
         start_time = 0
 
         while start_time < clip_duration:
-            end_time = min(start_time + max_clip_duration, clip_duration)            
-            if clip_duration - start_time >= max_clip_duration:
-                subclipped_items.append(SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h))
-            start_time = end_time    
+            end_time = min(start_time + max_clip_duration, clip_duration)
+            segment_duration = end_time - start_time
+            if segment_duration > 0:
+                subclipped_items.append(
+                    SubClippedVideoClip(
+                        file_path=video_path,
+                        start_time=start_time,
+                        end_time=end_time,
+                        width=clip_w,
+                        height=clip_h,
+                    )
+                )
+            start_time = end_time
             if video_concat_mode.value == VideoConcatMode.sequential.value:
                 break
 
@@ -226,7 +241,13 @@ def combine_videos(
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
             clip_duration = clip.duration
-            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            clip.write_videofile(
+                clip_file,
+                logger=None,
+                fps=fps,
+                codec=video_codec,
+                audio=False,
+            )
             
             close_clip(clip)
         
@@ -247,6 +268,8 @@ def combine_videos(
     if video_duration < audio_duration:
         logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
         base_clips = processed_clips.copy()
+        if not base_clips:
+            raise RuntimeError("no valid clips were generated from input videos")
         for clip in itertools.cycle(base_clips):
             if video_duration >= audio_duration:
                 break
@@ -257,8 +280,7 @@ def combine_videos(
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
     if not processed_clips:
-        logger.warning("no clips available for merging")
-        return combined_video_path
+        raise RuntimeError("no clips available for merging")
     
     # if there is only one clip, use it directly
     if len(processed_clips) == 1:
@@ -293,9 +315,8 @@ def combine_videos(
                 filename=temp_merged_next,
                 threads=threads,
                 logger=None,
-                temp_audiofile_path=output_dir,
-                audio_codec=audio_codec,
                 fps=fps,
+                audio=False,
             )
             close_clip(base_clip)
             close_clip(next_clip)

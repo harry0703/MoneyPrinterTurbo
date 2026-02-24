@@ -94,8 +94,7 @@ class JiMengVideoHandler:
                 return get_result.content.video_url
             
             else:
-                print(f"Current jimeng video status: {status}, Re-poll after {poll_interval} seconds...")
-                time.sleep(poll_interval)
+                await asyncio.sleep(poll_interval)
 
 # Example usage
 async def main() -> None:
