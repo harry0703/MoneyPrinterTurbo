@@ -3,14 +3,11 @@ import os
 import re
 from datetime import datetime
 from typing import Union
-from xml.sax.saxutils import unescape
 
 import edge_tts
 import requests
 from edge_tts import SubMaker, submaker
-from edge_tts.submaker import mktimestamp
 from loguru import logger
-from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 
 from app.config import config
@@ -1172,33 +1169,33 @@ def azure_tts_v1(
 ) -> Union[SubMaker, None]:
     voice_name = parse_voice_name(voice_name)
     text = text.strip()
-    rate_str = convert_rate_to_percent(voice_rate)
+    
+    rate_str = convert_rate_to_percent(voice_rate) 
+
     for i in range(3):
         try:
             logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
 
-            async def _do() -> SubMaker:
-                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str)
-                sub_maker = edge_tts.SubMaker()
-                with open(voice_file, "wb") as file:
-                    async for chunk in communicate.stream():
-                        if chunk["type"] == "audio":
-                            file.write(chunk["data"])
-                        elif chunk["type"] == "WordBoundary":
-                            sub_maker.create_sub(
-                                (chunk["offset"], chunk["duration"]), chunk["text"]
-                            )
-                return sub_maker
+            communicate = edge_tts.Communicate(text, voice_name, rate=rate_str, boundary="WordBoundary")
+            sub_maker = edge_tts.SubMaker()
 
-            sub_maker = asyncio.run(_do())
-            if not sub_maker or not sub_maker.subs:
-                logger.warning("failed, sub_maker is None or sub_maker.subs is None")
+            with open(voice_file, "wb") as file:
+                for chunk in communicate.stream_sync():
+                    chunk_type = chunk["type"]
+                              
+                    if chunk_type == "audio":
+                        file.write(chunk["data"])
+                    elif chunk_type in ["WordBoundary", "SentenceBoundary"]:
+                        sub_maker.feed(chunk)
+                                           
+            if not sub_maker.get_srt():
                 continue
-
-            logger.info(f"completed, output file: {voice_file}")
+            
             return sub_maker
+
         except Exception as e:
-            logger.error(f"failed, error: {str(e)}")
+            logger.error(f"Error occured: {str(e)}")
+                        
     return None
 
 
@@ -1571,7 +1568,7 @@ def _format_text(text: str) -> str:
     return text
 
 
-def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str):
+def create_subtitle(sub_maker: submaker.SubMaker, subtitle_file: str):
     """
     优化字幕文件
     1. 将字幕文件按照标点符号分割成多行
@@ -1579,95 +1576,21 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     3. 生成新的字幕文件
     """
 
-    text = _format_text(text)
-
-    def formatter(idx: int, start_time: float, end_time: float, sub_text: str) -> str:
-        """
-        1
-        00:00:00,000 --> 00:00:02,360
-        跑步是一项简单易行的运动
-        """
-        start_t = mktimestamp(start_time).replace(".", ",")
-        end_t = mktimestamp(end_time).replace(".", ",")
-        return f"{idx}\n{start_t} --> {end_t}\n{sub_text}\n"
-
-    start_time = -1.0
-    sub_items = []
-    sub_index = 0
-
-    script_lines = utils.split_string_by_punctuations(text)
-
-    def match_line(_sub_line: str, _sub_index: int):
-        if len(script_lines) <= _sub_index:
-            return ""
-
-        _line = script_lines[_sub_index]
-        if _sub_line == _line:
-            return script_lines[_sub_index].strip()
-
-        _sub_line_ = re.sub(r"[^\w\s]", "", _sub_line)
-        _line_ = re.sub(r"[^\w\s]", "", _line)
-        if _sub_line_ == _line_:
-            return _line_.strip()
-
-        _sub_line_ = re.sub(r"\W+", "", _sub_line)
-        _line_ = re.sub(r"\W+", "", _line)
-        if _sub_line_ == _line_:
-            return _line.strip()
-
-        return ""
-
-    sub_line = ""
-
     try:
-        for _, (offset, sub) in enumerate(zip(sub_maker.offset, sub_maker.subs)):
-            _start_time, end_time = offset
-            if start_time < 0:
-                start_time = _start_time
-
-            sub = unescape(sub)
-            sub_line += sub
-            sub_text = match_line(sub_line, sub_index)
-            if sub_text:
-                sub_index += 1
-                line = formatter(
-                    idx=sub_index,
-                    start_time=start_time,
-                    end_time=end_time,
-                    sub_text=sub_text,
-                )
-                sub_items.append(line)
-                start_time = -1.0
-                sub_line = ""
-
-        if len(sub_items) == len(script_lines):
-            with open(subtitle_file, "w", encoding="utf-8") as file:
-                file.write("\n".join(sub_items) + "\n")
-            try:
-                sbs = subtitles.file_to_subtitles(subtitle_file, encoding="utf-8")
-                duration = max([tb for ((ta, tb), txt) in sbs])
-                logger.info(
-                    f"completed, subtitle file created: {subtitle_file}, duration: {duration}"
-                )
-            except Exception as e:
-                logger.error(f"failed, error: {str(e)}")
-                os.remove(subtitle_file)
-        else:
-            logger.warning(
-                f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}"
-            )
+        with open(subtitle_file, "w", encoding="utf-8") as f:
+            f.write(sub_maker.get_srt())
 
     except Exception as e:
         logger.error(f"failed, error: {str(e)}")
 
 
-def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker):
+def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker) -> float:
     """
     获取音频时长
     """
-    if not sub_maker.offset:
+    if not sub_maker.cues:
         return 0.0
-    return sub_maker.offset[-1][1] / 10000000
+    return sub_maker.cues[-1].end.total_seconds()
 
 def _get_audio_duration_from_mp3(mp3_file: str) -> float:
     """
@@ -1759,7 +1682,7 @@ if __name__ == "__main__":
             sub_maker = azure_tts_v2(
                 text=text, voice_name=voice_name, voice_file=voice_file
             )
-            create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
+            create_subtitle(sub_maker=sub_maker, subtitle_file=subtitle_file)
             audio_duration = get_audio_duration(sub_maker)
             print(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
