@@ -1,8 +1,8 @@
 moviepy==2.1.2
 streamlit==1.45.0
 edge_tts==6.1.19
-fastapi==0.115.6
-uvicorn==0.32.1
+fastapi>=0.124.1
+uvicorn>=0.34.0
 openai==1.56.1
 faster-whisper==1.1.0
 loguru==0.7.3
