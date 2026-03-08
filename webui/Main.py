@@ -766,20 +766,75 @@ with middle_panel:
                 # 其他TTS服务只显示基本提示
                 speech_synthesis_label = f"{tr('Speech Synthesis')} (:red[**与文案语言保持一致**])"
             
-            selected_friendly_name = st.selectbox(
-                speech_synthesis_label,
-                options=list(friendly_names.values()),
-                index=min(saved_voice_name_index, len(friendly_names) - 1)
-                if friendly_names
-                else 0,
-                key=f"voice_select_{selected_tts_server}",  # 使用TTS服务作为key，强制重新创建selectbox
-            )
-
-            voice_name = list(friendly_names.keys())[
-                list(friendly_names.values()).index(selected_friendly_name)
-            ]
+            # 只有Coze TTS才显示搜索框
+            search_term = ""
+            if selected_tts_server == "coze-tts":
+                # 添加搜索框
+                search_term = st.text_input(
+                    tr("Search"),
+                    key=f"voice_search_{selected_tts_server}",
+                    label_visibility="collapsed",
+                    placeholder=tr("Type to search...")
+                )
+            
+            # 过滤音色列表
+            filtered_friendly_names = {}
+            if search_term:
+                search_term_lower = search_term.lower()
+                for voice_key, voice_name in friendly_names.items():
+                    if search_term_lower in voice_name.lower():
+                        filtered_friendly_names[voice_key] = voice_name
+            else:
+                filtered_friendly_names = friendly_names
+            
+            # 确定当前索引
+            if filtered_friendly_names:
+                if saved_voice_name and saved_voice_name in filtered_friendly_names:
+                    filtered_saved_voice_name_index = list(filtered_friendly_names.keys()).index(saved_voice_name)
+                else:
+                    filtered_saved_voice_name_index = 0
+                
+                selected_friendly_name = st.selectbox(
+                    speech_synthesis_label,
+                    options=list(filtered_friendly_names.values()),
+                    index=min(filtered_saved_voice_name_index, len(filtered_friendly_names) - 1),
+                    key=f"voice_select_{selected_tts_server}",  # 使用TTS服务作为key，强制重新创建selectbox
+                )
+                
+                voice_name = list(filtered_friendly_names.keys())[
+                    list(filtered_friendly_names.values()).index(selected_friendly_name)
+                ]
+            else:
+                # 没有匹配的音色
+                st.warning(tr("No matching voices found"))
+                voice_name = list(friendly_names.keys())[0]
             params.voice_name = voice_name
             config.ui["voice_name"] = voice_name
+            
+            # 处理Coze声音的情感选择
+            params.voice_emotion = ""
+            if voice_name.startswith("coze|"):
+                parts = voice_name.split("|")
+                if len(parts) > 5 and parts[5]:
+                    emotions = parts[5].split(",")
+                    if emotions:
+                        # 过滤空字符串并清理
+                        emotion_options = [e.strip() for e in emotions if e.strip()]
+                        
+                        if emotion_options:
+                            # 显示情感选择下拉框（格式：emotion-display_name）
+                            selected_emotion = st.selectbox(
+                                tr("Voice Emotion"),
+                                options=emotion_options,
+                                index=0,
+                                key=f"emotion_select_{selected_tts_server}_{voice_name[:30]}",
+                            )
+                            # 提取情感值（格式：emotion-display_name -> emotion）
+                            if "-" in selected_emotion:
+                                params.voice_emotion = selected_emotion.split("-")[0]
+                            else:
+                                params.voice_emotion = selected_emotion
+
         else:
             # 如果没有声音可选，显示提示信息
             st.warning(

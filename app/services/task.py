@@ -96,6 +96,7 @@ def generate_audio(task_id, params, video_script):
             voice_name=voice.parse_voice_name(params.voice_name),
             voice_rate=params.voice_rate,
             voice_file=audio_file,
+            emotion=getattr(params, 'voice_emotion', ''),
         )
         if sub_maker is None:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)

@@ -88,6 +88,7 @@ class VideoParams(BaseModel):
     voice_name: Optional[str] = ""
     voice_volume: Optional[float] = 1.0
     voice_rate: Optional[float] = 1.0
+    voice_emotion: Optional[str] = ""
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2

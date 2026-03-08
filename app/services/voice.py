@@ -149,10 +149,28 @@ def get_coze_voices() -> list[str]:
                         gender = voice.get("gender", "")
                         # 获取语言代码
                         language_code = voice.get("language_code", "")
+                        # 获取支持的情感
+                        support_emotions = voice.get("support_emotions", [])
                         
                         # 只添加中文声音 (language_code 为 "zh")
                         if language_code != "zh":
                             continue
+                        
+                        # 处理情感列表，格式化为"emotion-display_name"
+                        emotion_strings = []
+                        for emotion in support_emotions:
+                            if isinstance(emotion, dict):
+                                # 如果是字典，提取emotion和display_name
+                                emotion_value = emotion.get("emotion", "")
+                                display_name = emotion.get("display_name", "")
+                                if emotion_value:
+                                    if display_name:
+                                        emotion_strings.append(f"{emotion_value}-{display_name}")
+                                    else:
+                                        emotion_strings.append(emotion_value)
+                            else:
+                                # 如果不是字典，直接使用
+                                emotion_strings.append(str(emotion))
                         
                         if not gender and speaker_id:
                             # speaker_id格式如: "zh_female_cancan_tob" 或 "zh_male_xxx"
@@ -172,10 +190,11 @@ def get_coze_voices() -> list[str]:
                         gender = gender.title()
                         
                         if voice_id and voice_name:
-                            # 新格式: coze|voice_id|voice_name-gender|preview_audio|preview_text
+                            # 新格式: coze|voice_id|voice_name-gender|preview_audio|preview_text|emotions
                             # 使用|作为分隔符，避免与URL中的:冲突
-                            voices.append(f"coze|{voice_id}|{voice_name}-{gender}|{preview_audio}|{preview_text}")
-                            logger.info(f"Found Chinese voice: {voice_id} - {voice_name} ({gender}) with preview audio and text")
+                            emotions_str = ",".join(emotion_strings) if emotion_strings else ""
+                            voices.append(f"coze|{voice_id}|{voice_name}-{gender}|{preview_audio}|{preview_text}|{emotions_str}")
+                            logger.info(f"Found Chinese voice: {voice_id} - {voice_name} ({gender}) with preview audio, text, and emotions: {emotions_str}")
 
                     has_more = response_data.get("has_more", False)
                     continue
@@ -1262,6 +1281,7 @@ def tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    emotion: str = "",
 ) -> Union[SubMaker, None]:
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
@@ -1296,16 +1316,17 @@ def tts(
             return None
     elif is_coze_voice(voice_name):
         # 从voice_name中提取voice_id、preview_audio和preview_text
-        # 格式: coze|voice_id|voice_name-gender|preview_audio|preview_text
+        # 格式: coze|voice_id|voice_name-gender|preview_audio|preview_text|emotions
         parts = voice_name.split("|")
         if len(parts) >= 2:
-            # 提取voice_id，例如 "coze|7426720361732915209|xiaoyi-Female|https://...|preview_text" -> "7426720361732915209"
+            # 提取voice_id，例如 "coze|7426720361732915209|xiaoyi-Female|https://...|preview_text|emotions" -> "7426720361732915209"
             voice_id = parts[1]
             # 提取preview_audio URL (parts[3])
             preview_audio = parts[3] if len(parts) > 3 else ""
             # 提取preview_text (parts[4])
             preview_text = parts[4] if len(parts) > 4 else ""
-            return coze_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text)
+            # 使用传入的emotion参数
+            return coze_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text, emotion)
         else:
             logger.error(f"Invalid coze voice name format: {voice_name}")
             return None
@@ -1722,6 +1743,7 @@ def coze_tts(
     voice_volume: float = 1.0,
     preview_audio: str = "",
     preview_text: str = "",
+    emotion: str = "",
 ) -> Union[SubMaker, None]:
     """
     使用Coze TTS生成语音
@@ -1734,6 +1756,7 @@ def coze_tts(
         voice_volume: 音频音量
         preview_audio: 预览音频URL（用于试听）
         preview_text: 预览文本（用于匹配试听）
+        emotion: 语音情感（如果支持）
         
     Returns:
         SubMaker对象或None
@@ -1782,8 +1805,13 @@ def coze_tts(
             "voice_id": voice_id,
             "speed": float(voice_rate),  # Coze API expects float
             "sample_rate": 8000,  # 默认采样率
-            "input": text  # 使用input参数而不是text
+            "input": text,  # 使用input参数而不是text
+            "language_code": "zh"  # 为所有Coze语音应用中文语言代码
         }
+        
+        # 如果提供了情感参数，添加到请求中
+        if emotion:
+            payload["emotion"] = emotion
         
         headers = {
             "Authorization": f"Bearer {api_key}",
