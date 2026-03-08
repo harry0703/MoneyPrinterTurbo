@@ -78,22 +78,23 @@ def get_gemini_voices() -> list[str]:
 
 def get_coze_voices() -> list[str]:
     """
-    获取Coze TTS的声音列表
+    获取Coze TTS的中文声音列表
     
     Returns:
-        声音列表，格式为 ["coze:voice_id:voice_name-gender", ...]
+        声音列表，格式为: "coze|voice_id|voice_name-gender|preview_audio|preview_text"
     """
+    # 定义默认中文声音列表
     voices_with_id_gender = [
-        ("7426720361732915209", "xiaoyi", "Female"),
-        ("7426720361732915210", "daming", "Male"),
-        ("7426720361732915211", "lili", "Female"),
-        ("7426720361732915212", "zhiwei", "Male"),
-        ("7426720361732915213", "nana", "Female"),
-        ("7426720361732915214", "erica", "Female"),
-        ("7426720361732915215", "david", "Male"),
-        ("7426720361732915216", "sophie", "Female"),
-        ("7426720361732915217", "leo", "Male"),
-        ("7426720361732915218", "luna", "Female"),
+        ("7426720361732915209", "湾区大叔", "Male"),
+        ("7426720361732915210", "财阀千金", "Female"),
+        ("7426720361732915211", "青叔", "Male"),
+        ("7426720361732915212", "御姐", "Female"),
+        ("7426720361732915213", "阳光少年", "Male"),
+        ("7426720361732915214", "可爱少女", "Female"),
+        ("7426720361732915215", "温和大叔", "Male"),
+        ("7426720361732915216", "甜美女生", "Female"),
+        ("7426720361732915217", "成熟男声", "Male"),
+        ("7426720361732915218", "温柔女声", "Female"),
     ]
 
     voices = []
@@ -146,6 +147,13 @@ def get_coze_voices() -> list[str]:
                         # 尝试从speaker_id中提取性别信息
                         speaker_id = voice.get("speaker_id", "")
                         gender = voice.get("gender", "")
+                        # 获取语言代码
+                        language_code = voice.get("language_code", "")
+                        
+                        # 只添加中文声音 (language_code 为 "zh")
+                        if language_code != "zh":
+                            continue
+                        
                         if not gender and speaker_id:
                             # speaker_id格式如: "zh_female_cancan_tob" 或 "zh_male_xxx"
                             if "_female_" in speaker_id.lower():
@@ -167,7 +175,7 @@ def get_coze_voices() -> list[str]:
                             # 新格式: coze|voice_id|voice_name-gender|preview_audio|preview_text
                             # 使用|作为分隔符，避免与URL中的:冲突
                             voices.append(f"coze|{voice_id}|{voice_name}-{gender}|{preview_audio}|{preview_text}")
-                            logger.info(f"Found voice: {voice_id} - {voice_name} ({gender}) with preview audio and text")
+                            logger.info(f"Found Chinese voice: {voice_id} - {voice_name} ({gender}) with preview audio and text")
 
                     has_more = response_data.get("has_more", False)
                     continue
