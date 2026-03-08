@@ -37,7 +37,7 @@
     "Clip Duration": "视频片段最大时长(秒)（**不是视频总长度**，是指每个**合成片段**的长度）",
     "Number of Videos Generated Simultaneously": "同时生成视频数量",
     "Audio Settings": "**音频设置**",
-    "Speech Synthesis": "朗读声音（:red[**与文案语言保持一致**。注意：V2版效果更好，但是需要API KEY]）",
+    "Speech Synthesis": "朗读声音",
     "Speech Region": "服务区域 (:red[必填，[点击获取](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Key": "API Key (:red[必填，密钥1 或 密钥2 均可 [点击获取](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "朗读音量（1.0表示100%）",
