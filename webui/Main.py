@@ -868,6 +868,7 @@ with middle_panel:
                     voice_rate=params.voice_rate,
                     voice_file=audio_file,
                     voice_volume=params.voice_volume,
+                    emotion=params.voice_emotion,
                 )
                 # if the voice file generation failed, try again with a default content.
                 if not sub_maker:
@@ -878,6 +879,7 @@ with middle_panel:
                         voice_rate=params.voice_rate,
                         voice_file=audio_file,
                         voice_volume=params.voice_volume,
+                        emotion=params.voice_emotion,
                     )
 
                 if sub_maker and os.path.exists(audio_file):
