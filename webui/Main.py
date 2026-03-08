@@ -655,28 +655,23 @@ with middle_panel:
 
         # 获取保存的TTS服务器，默认为v1
         saved_tts_server = config.ui.get("tts_server", "azure-tts-v1")
-        logger.info(f"[TTS Flow] Initial saved_tts_server: '{saved_tts_server}'")
         
         saved_tts_server_index = 0
         for i, (server_value, _) in enumerate(tts_servers):
             if server_value == saved_tts_server:
                 saved_tts_server_index = i
                 break
-        logger.info(f"[TTS Flow] saved_tts_server_index: {saved_tts_server_index}")
 
         # 使用session_state来跟踪TTS选择
         if "tts_server_index" not in st.session_state:
             st.session_state["tts_server_index"] = saved_tts_server_index
-            logger.info(f"[TTS Flow] Initialized tts_server_index in session_state: {saved_tts_server_index}")
 
         # 定义TTS改变时的回调函数
         def on_tts_change():
             """TTS服务器改变时的回调函数"""
-            logger.info("[TTS Callback] TTS server selectbox value changed")
             # 从session_state获取新值
             new_index = st.session_state.get("tts_server_select", saved_tts_server_index)
             st.session_state["tts_server_index"] = new_index
-            logger.info(f"[TTS Callback] Updated tts_server_index to: {new_index}")
 
         # 使用key绑定到session_state
         selected_tts_server_index = st.selectbox(
@@ -687,34 +682,20 @@ with middle_panel:
             key="tts_server_select",
             on_change=on_tts_change,
         )
-        logger.info(f"[TTS Flow] selected_tts_server_index: {selected_tts_server_index}")
-        logger.info(f"[TTS Flow] session_state tts_server_select: {st.session_state.get('tts_server_select', 'NOT_SET')}")
-        logger.info(f"[TTS Flow] session_state tts_server_index: {st.session_state.get('tts_server_index', 'NOT_SET')}")
 
         # 优先使用session_state中的值
         if "tts_server_select" in st.session_state:
             selected_tts_server_index = st.session_state["tts_server_select"]
-            logger.info(f"[TTS Flow] Using session_state value: {selected_tts_server_index}")
 
         selected_tts_server = tts_servers[selected_tts_server_index][0]
-        logger.info(f"[TTS Flow] selected_tts_server: '{selected_tts_server}'")
         
         # 直接比较selected和saved的值
-        logger.info(f"[TTS Flow] Comparing: selected='{selected_tts_server}' vs saved='{saved_tts_server}'")
         if selected_tts_server != saved_tts_server:
-            logger.info(f"[TTS Flow] CHANGE detected! Resetting voice_name")
             # 重置voice_name
-            old_voice = config.ui.get("voice_name", "")
-            logger.info(f"[TTS Flow] Old voice_name: '{old_voice}'")
             config.ui["voice_name"] = ""
-            logger.info(f"[TTS Flow] New voice_name: '{config.ui.get('voice_name', '')}'")
-        else:
-            logger.info(f"[TTS Flow] NO CHANGE detected")
         
         # 保存到配置
-        logger.info(f"[TTS Flow] Saving tts_server to config: '{selected_tts_server}'")
         config.ui["tts_server"] = selected_tts_server
-        logger.info(f"[TTS Flow] Config tts_server after save: '{config.ui.get('tts_server', 'NOT_SET')}'")
 
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
