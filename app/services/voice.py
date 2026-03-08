@@ -76,6 +76,129 @@ def get_gemini_voices() -> list[str]:
     ]
 
 
+def get_coze_voices() -> list[str]:
+    """
+    获取Coze TTS的声音列表
+    
+    Returns:
+        声音列表，格式为 ["coze:voice_id:voice_name-gender", ...]
+    """
+    voices_with_id_gender = [
+        ("7426720361732915209", "xiaoyi", "Female"),
+        ("7426720361732915210", "daming", "Male"),
+        ("7426720361732915211", "lili", "Female"),
+        ("7426720361732915212", "zhiwei", "Male"),
+        ("7426720361732915213", "nana", "Female"),
+        ("7426720361732915214", "erica", "Female"),
+        ("7426720361732915215", "david", "Male"),
+        ("7426720361732915216", "sophie", "Female"),
+        ("7426720361732915217", "leo", "Male"),
+        ("7426720361732915218", "luna", "Female"),
+    ]
+
+    voices = []
+
+    try:
+        # 配置Coze API
+        api_key = config.coze.get("api_key", "")
+        if not api_key:
+            # 如果没有API key，返回默认的语音列表
+            logger.info("No Coze API key found, using default voices")
+            for voice_id, voice_name, gender in voices_with_id_gender:
+                voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+            return voices
+        
+        # Coze TTS声音列表API endpoint
+        url = "https://api.coze.cn/v1/audio/voices"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+        page_num = 0
+        params = {}
+
+        has_more = True
+        while has_more:
+            page_num += 1
+            params["page_num"] = page_num
+            # 发送请求
+            response = requests.get(url, headers=headers, params=params)
+
+            if response.status_code == 200:
+                # 解析响应
+                data = response.json()
+                logger.info(f"Coze voices API response: {data}")
+
+                # Coze API响应格式: {"data": {"voices": [...]}, "code": 0, "msg": "success"}
+                response_data = data.get("data", {})
+                assert response_data, "Coze API response does not contain data"
+                voice_list = response_data.get("voice_list", [])
+
+                if len(voice_list) > 0:
+                    for voice in voice_list:
+                        # 根据Coze API文档，使用正确的字段名
+                        voice_id = voice.get("voice_id", "")
+                        voice_name = voice.get("name", "")
+                        # 尝试从speaker_id中提取性别信息
+                        speaker_id = voice.get("speaker_id", "")
+                        gender = voice.get("gender", "")
+                        if not gender and speaker_id:
+                            # speaker_id格式如: "zh_female_cancan_tob" 或 "zh_male_xxx"
+                            if "_female_" in speaker_id.lower():
+                                gender = "Female"
+                            elif "_male_" in speaker_id.lower():
+                                gender = "Male"
+                        # 如果speaker_id中没有性别信息，尝试从name中提取
+                        if not gender and voice_name:
+                            # 检查name中是否包含"男"或"女"
+                            if any(gender_term in voice_name.lower() for gender_term in ["女", "姐", "妹","美","靓"]):
+                                gender = "Female"
+                            elif any(gender_term in voice_name.lower() for gender_term in ["男", "哥", "爷", "伙","婿","叔","兄","弟","俊","帅"]):
+                                gender = "Male"
+                        if not gender:
+                            gender = "Unknown"
+                        gender = gender.title()
+                        
+                        if voice_id and voice_name:
+                            voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+                            logger.info(f"Found voice: {voice_id} - {voice_name} ({gender})")
+
+                    has_more = response_data.get("has_more", False)
+                    continue
+                else:
+                    logger.warning(f"Coze API response does not contain voices data. Response: {data}")
+                    break
+
+                # 如果API返回的列表为空，使用默认列表
+                if not voices:
+                    logger.warning("Coze API returned empty voice list, using default voices")
+                    for voice_id, voice_name, gender in voices_with_id_gender:
+                        voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+                    break
+            else:
+                # API调用失败，返回默认列表
+                logger.error(f"Failed to get Coze voices: {response.status_code} {response.text}")
+                for voice_id, voice_name, gender in voices_with_id_gender:
+                    voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+                break
+        
+        # 如果没有从API获取到任何声音，使用默认列表
+        if len(voices) == 0:
+            logger.warning("No voices fetched from API, using default voices")
+            for voice_id, voice_name, gender in voices_with_id_gender:
+                voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+        
+        return voices
+    except Exception as e:
+        # 发生异常，返回默认列表
+        logger.error(f"Error getting Coze voices: {str(e)}")
+        for voice_id, voice_name, gender in voices_with_id_gender:
+            voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+        return voices
+
+
 def get_all_azure_voices(filter_locals=None) -> list[str]:
     azure_voices_str = """
 Name: af-ZA-AdriNeural
@@ -1116,6 +1239,11 @@ def is_gemini_voice(voice_name: str):
     return voice_name.startswith("gemini:")
 
 
+def is_coze_voice(voice_name: str):
+    """检查是否是Coze TTS的声音"""
+    return voice_name.startswith("coze:")
+
+
 def tts(
     text: str,
     voice_name: str,
@@ -1153,6 +1281,17 @@ def tts(
             return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
+            return None
+    elif is_coze_voice(voice_name):
+        # 从voice_name中提取voice_id
+        # 格式: coze:voice_id:voice_name-gender
+        parts = voice_name.split(":")
+        if len(parts) >= 2:
+            # 提取voice_id，例如 "7426720361732915209:xiaoyi-Female" -> "7426720361732915209"
+            voice_id = parts[1]
+            return coze_tts(text, voice_id, voice_rate, voice_file, voice_volume)
+        else:
+            logger.error(f"Invalid coze voice name format: {voice_name}")
             return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
@@ -1556,6 +1695,115 @@ def gemini_tts(
         return None
     except Exception as e:
         logger.error(f"Gemini TTS failed, error: {str(e)}")
+        return None
+
+
+def coze_tts(
+    text: str,
+    voice_id: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """
+    使用Coze TTS生成语音
+    
+    Args:
+        text: 要转换的文本
+        voice_id: 语音ID，如 "7426720361732915209", "7426720361732915210" 等
+        voice_rate: 语音速率
+        voice_file: 输出音频文件路径
+        voice_volume: 音频音量
+        
+    Returns:
+        SubMaker对象或None
+    """
+    import io
+    from pydub import AudioSegment
+    
+    try:
+        # 配置Coze API
+        api_key = config.coze.get("api_key", "")
+        if not api_key:
+            logger.error("Coze API key is not set")
+            return None
+            
+        logger.info(f"start, voice name: {voice_id}, try: 1")
+        
+        # Coze TTS API endpoint
+        url = "https://api.coze.cn/v1/audio/speech"
+        
+        # 构建请求参数 - 使用正确的参数名称和类型
+        payload = {
+            "voice_id": voice_id,
+            "speed": float(voice_rate),  # Coze API expects float
+            "sample_rate": 8000,  # 默认采样率
+            "input": text  # 使用input参数而不是text
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # 发送请求
+        response = requests.post(url, json=payload, headers=headers)
+        
+        # 记录完整的API响应信息（用于调试）
+        logger.info(f"Coze TTS API response status: {response.status_code}")
+        logger.info(f"Coze TTS API response headers: {dict(response.headers)}")
+        if response.status_code != 200:
+            logger.error(f"Coze TTS API response body: {response.text}")
+        
+        if response.status_code == 200:
+            # 获取音频数据
+            audio_bytes = response.content
+            
+            # 尝试不同的音频格式 - Coze可能返回不同的格式
+            audio_segment = None
+            
+            try:
+                # 尝试直接加载音频
+                audio_segment = AudioSegment.from_file(
+                    io.BytesIO(audio_bytes),
+                    format="mp3"  # 假设Coze返回MP3格式
+                )
+            except Exception as e:
+                logger.error(f"Failed to load audio: {e}")
+                logger.error(f"Audio data length: {len(audio_bytes)} bytes")
+                logger.error(f"Audio data preview (first 100 bytes): {audio_bytes[:100]}")
+                return None
+            
+            # 导出为MP3格式
+            audio_segment.export(voice_file, format="mp3")
+            
+            logger.info(f"completed, output file: {voice_file}")
+            
+            # 创建SubMaker对象用于字幕
+            sub_maker = SubMaker()
+            audio_duration = len(audio_segment) / 1000.0  # 转换为秒
+            
+            # 将音频长度转换为100纳秒单位（与edge_tts兼容）
+            audio_duration_100ns = int(audio_duration * 10000000)
+            
+            # 使用create_sub方法正确创建字幕项
+            sub_maker.create_sub(
+                (0, audio_duration_100ns), 
+                text
+            )
+            
+            return sub_maker
+        else:
+            logger.error(f"Coze TTS failed with status code {response.status_code}: {response.text}")
+            logger.error(f"Request payload: {payload}")
+            logger.error(f"Request headers: {headers}")
+            return None
+        
+    except ImportError as e:
+        logger.error(f"Missing required package for Coze TTS: {str(e)}. Please install: pip install pydub")
+        return None
+    except Exception as e:
+        logger.error(f"Coze TTS failed, error: {str(e)}")
         return None
 
 

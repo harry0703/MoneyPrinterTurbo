@@ -9,7 +9,7 @@ This report documents the integration of Coze TTS service into the MoneyPrinterT
 ### 2.1 Voice Service Implementation
 
 **File: `app/services/voice.py`**
-- Added `get_coze_voices()` function to retrieve available Coze voices
+- Added `get_coze_voices()` function to retrieve available Coze voices from API
 - Added `is_coze_voice()` function to detect Coze voice format
 - Added `coze_tts()` function to implement Coze TTS synthesis
 - Updated main `tts()` dispatcher to handle Coze voices
@@ -37,29 +37,32 @@ This report documents the integration of Coze TTS service into the MoneyPrinterT
 
 Coze TTS provides 10 voices with different genders and characteristics:
 
-| Voice ID | Gender | Description |
-|----------|--------|-------------|
-| xiaoyi   | Female | Standard female voice |
-| daming   | Male   | Standard male voice |
-| lili     | Female | Gentle female voice |
-| zhiwei   | Male   | Professional male voice |
-| nana     | Female | Sweet female voice |
-| erica    | Female | English female voice |
-| david    | Male   | English male voice |
-| sophie   | Female | Elegant female voice |
-| leo      | Male   | Energetic male voice |
-| luna     | Female | Soft female voice |
+| Voice ID | Voice Name | Gender | Description |
+|----------|------------|--------|-------------|
+| 7426720361732915209 | xiaoyi   | Female | Standard female voice |
+| 7426720361732915210 | daming   | Male   | Standard male voice |
+| 7426720361732915211 | lili     | Female | Gentle female voice |
+| 7426720361732915212 | zhiwei   | Male   | Professional male voice |
+| 7426720361732915213 | nana     | Female | Sweet female voice |
+| 7426720361732915214 | erica    | Female | English female voice |
+| 7426720361732915215 | david    | Male   | English male voice |
+| 7426720361732915216 | sophie   | Female | Elegant female voice |
+| 7426720361732915217 | leo      | Male   | Energetic male voice |
+| 7426720361732915218 | luna     | Female | Soft female voice |
 
 ### 3.2 Voice Naming Convention
 
-Coze voices follow the format: `coze:voice_id-gender`
+Coze voices follow the format: `coze:voice_id:voice_name-gender`
 
-Example: `coze:xiaoyi-Female`
+Example: `coze:7426720361732915209:xiaoyi-Female`
+
+The voice_id is a numeric identifier used for API calls, while voice_name is a human-readable name for display purposes.
 
 ### 3.3 Configuration Requirements
 
 - **API Key**: Required from Coze platform
-- **Endpoint**: `https://api.coze.cn/v1/tts`
+- **Voice List Endpoint**: `https://api.coze.cn/v1/audio/voices`
+- **Speech Synthesis Endpoint**: `https://api.coze.cn/v1/audio/speech`
 - **Authentication**: Bearer token in Authorization header
 
 ### 3.4 Parameters
@@ -73,15 +76,17 @@ Example: `coze:xiaoyi-Female`
 
 1. **User selects Coze TTS** from the TTS server dropdown
 2. **API key is entered** in the Coze API Key field
-3. **Voice is selected** from the Coze voice list
-4. **TTS synthesis** is performed using Coze API
-5. **Audio file** is generated and saved
-6. **Subtitles** are created using the returned audio duration
+3. **Voice list is fetched** from Coze API (or uses default list if API key not set)
+4. **Voice is selected** from the Coze voice list
+5. **TTS synthesis** is performed using Coze API
+6. **Audio file** is generated and saved
+7. **Subtitles** are created using the returned audio duration
 
 ## 5. Error Handling
 
 - **API Key Validation**: Checks if API key is provided
-- **Network Errors**: Implements retry logic for network failures
+- **Voice List Fetching**: Falls back to default voice list if API call fails
+- **Network Errors**: Implements error handling for network failures
 - **Response Validation**: Validates API responses
 - **Audio Processing**: Handles different audio formats
 
@@ -102,7 +107,7 @@ Example: `coze:xiaoyi-Female`
 
 ## 8. Testing
 
-- **Voice List**: Verify all 10 Coze voices appear in the dropdown
+- **Voice List**: Verify Coze voices appear in the dropdown (either from API or default list)
 - **API Key**: Test with valid/invalid API keys
 - **Text Synthesis**: Test with different text lengths and languages
 - **Audio Quality**: Verify audio quality and subtitle synchronization

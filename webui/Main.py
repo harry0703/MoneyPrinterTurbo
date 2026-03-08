@@ -650,6 +650,7 @@ with middle_panel:
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
             ("gemini-tts", "Google Gemini TTS"),
+            ("coze-tts", "Coze TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -679,6 +680,9 @@ with middle_panel:
         elif selected_tts_server == "gemini-tts":
             # 获取Gemini TTS的声音列表
             filtered_voices = voice.get_gemini_voices()
+        elif selected_tts_server == "coze-tts":
+            # 获取Coze TTS的声音列表
+            filtered_voices = voice.get_coze_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -718,6 +722,9 @@ with middle_panel:
         if saved_voice_name_index >= len(friendly_names) and friendly_names:
             saved_voice_name_index = 0
 
+        # 初始化voice_name变量
+        voice_name = ""
+        
         # 确保有声音可选
         if friendly_names:
             selected_friendly_name = st.selectbox(
@@ -819,8 +826,35 @@ with middle_panel:
                 + "- "
                 + tr("Volume: Uses Speech Volume setting, default 1.0 maps to gain 0")
             )
-
             config.siliconflow["api_key"] = siliconflow_api_key
+
+        # 当选择Coze时，显示API key输入框和说明信息
+        if selected_tts_server == "coze-tts" or (
+            voice_name and voice.is_coze_voice(voice_name)
+        ):
+            saved_coze_api_key = config.coze.get("api_key", "")
+
+            coze_api_key = st.text_input(
+                tr("Coze API Key"),
+                value=saved_coze_api_key,
+                type="password",
+                key="coze_api_key_input",
+            )
+
+            # 显示Coze的说明信息
+            st.info(
+                tr("Coze TTS Settings")
+                + ":\n"
+                + "- "
+                + tr("Speed: Range [0.5, 2.0], default is 1.0")
+                + "\n"
+                + "- "
+                + tr("Volume: Range [0.1, 2.0], default is 1.0")
+                + "\n"
+                + "- "
+                + tr("Get API key from https://www.coze.cn")
+            )
+            config.coze["api_key"] = coze_api_key
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
