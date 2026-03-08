@@ -105,7 +105,7 @@ def get_coze_voices() -> list[str]:
             # 如果没有API key，返回默认的语音列表
             logger.info("No Coze API key found, using default voices")
             for voice_id, voice_name, gender in voices_with_id_gender:
-                voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+                voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
             return voices
         
         # Coze TTS声音列表API endpoint
@@ -141,6 +141,8 @@ def get_coze_voices() -> list[str]:
                         # 根据Coze API文档，使用正确的字段名
                         voice_id = voice.get("voice_id", "")
                         voice_name = voice.get("name", "")
+                        preview_audio = voice.get("preview_audio", "")
+                        preview_text = voice.get("preview_text", "")
                         # 尝试从speaker_id中提取性别信息
                         speaker_id = voice.get("speaker_id", "")
                         gender = voice.get("gender", "")
@@ -162,8 +164,10 @@ def get_coze_voices() -> list[str]:
                         gender = gender.title()
                         
                         if voice_id and voice_name:
-                            voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
-                            logger.info(f"Found voice: {voice_id} - {voice_name} ({gender})")
+                            # 新格式: coze|voice_id|voice_name-gender|preview_audio|preview_text
+                            # 使用|作为分隔符，避免与URL中的:冲突
+                            voices.append(f"coze|{voice_id}|{voice_name}-{gender}|{preview_audio}|{preview_text}")
+                            logger.info(f"Found voice: {voice_id} - {voice_name} ({gender}) with preview audio and text")
 
                     has_more = response_data.get("has_more", False)
                     continue
@@ -175,27 +179,27 @@ def get_coze_voices() -> list[str]:
                 if not voices:
                     logger.warning("Coze API returned empty voice list, using default voices")
                     for voice_id, voice_name, gender in voices_with_id_gender:
-                        voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+                        voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
                     break
             else:
                 # API调用失败，返回默认列表
                 logger.error(f"Failed to get Coze voices: {response.status_code} {response.text}")
                 for voice_id, voice_name, gender in voices_with_id_gender:
-                    voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+                    voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
                 break
         
         # 如果没有从API获取到任何声音，使用默认列表
         if len(voices) == 0:
             logger.warning("No voices fetched from API, using default voices")
             for voice_id, voice_name, gender in voices_with_id_gender:
-                voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+                voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
         
         return voices
     except Exception as e:
         # 发生异常，返回默认列表
         logger.error(f"Error getting Coze voices: {str(e)}")
         for voice_id, voice_name, gender in voices_with_id_gender:
-            voices.append(f"coze:{voice_id}:{voice_name}-{gender}")
+            voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
         return voices
 
 
@@ -1241,7 +1245,7 @@ def is_gemini_voice(voice_name: str):
 
 def is_coze_voice(voice_name: str):
     """检查是否是Coze TTS的声音"""
-    return voice_name.startswith("coze:")
+    return voice_name.startswith("coze|")
 
 
 def tts(
@@ -1283,13 +1287,17 @@ def tts(
             logger.error(f"Invalid gemini voice name format: {voice_name}")
             return None
     elif is_coze_voice(voice_name):
-        # 从voice_name中提取voice_id
-        # 格式: coze:voice_id:voice_name-gender
-        parts = voice_name.split(":")
+        # 从voice_name中提取voice_id、preview_audio和preview_text
+        # 格式: coze|voice_id|voice_name-gender|preview_audio|preview_text
+        parts = voice_name.split("|")
         if len(parts) >= 2:
-            # 提取voice_id，例如 "7426720361732915209:xiaoyi-Female" -> "7426720361732915209"
+            # 提取voice_id，例如 "coze|7426720361732915209|xiaoyi-Female|https://...|preview_text" -> "7426720361732915209"
             voice_id = parts[1]
-            return coze_tts(text, voice_id, voice_rate, voice_file, voice_volume)
+            # 提取preview_audio URL (parts[3])
+            preview_audio = parts[3] if len(parts) > 3 else ""
+            # 提取preview_text (parts[4])
+            preview_text = parts[4] if len(parts) > 4 else ""
+            return coze_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text)
         else:
             logger.error(f"Invalid coze voice name format: {voice_name}")
             return None
@@ -1704,6 +1712,8 @@ def coze_tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    preview_audio: str = "",
+    preview_text: str = "",
 ) -> Union[SubMaker, None]:
     """
     使用Coze TTS生成语音
@@ -1714,6 +1724,8 @@ def coze_tts(
         voice_rate: 语音速率
         voice_file: 输出音频文件路径
         voice_volume: 音频音量
+        preview_audio: 预览音频URL（用于试听）
+        preview_text: 预览文本（用于匹配试听）
         
     Returns:
         SubMaker对象或None
@@ -1727,6 +1739,30 @@ def coze_tts(
         if not api_key:
             logger.error("Coze API key is not set")
             return None
+        
+        # 如果有预览音频URL且文本匹配预览文本，直接下载预览音频
+        if preview_audio and preview_text and text == preview_text:
+            logger.info(f"Downloading preview audio from: {preview_audio}")
+            try:
+                response = requests.get(preview_audio, timeout=30)
+                if response.status_code == 200:
+                    with open(voice_file, "wb") as f:
+                        f.write(response.content)
+                    logger.info(f"Preview audio saved to: {voice_file}")
+                    
+                    # 创建SubMaker对象用于字幕
+                    sub_maker = SubMaker()
+                    # 使用pydub获取音频时长
+                    audio_segment = AudioSegment.from_file(voice_file)
+                    audio_duration = len(audio_segment) / 1000.0
+                    audio_duration_100ns = int(audio_duration * 10000000)
+                    sub_maker.create_sub((0, audio_duration_100ns), text)
+                    return sub_maker
+                else:
+                    logger.error(f"Failed to download preview audio: {response.status_code}")
+            except Exception as e:
+                logger.error(f"Error downloading preview audio: {str(e)}")
+            # 如果下载失败，继续尝试TTS API
             
         logger.info(f"start, voice name: {voice_id}, try: 1")
         

@@ -698,12 +698,20 @@ with middle_panel:
                     if "V2" not in v:
                         filtered_voices.append(v)
 
-        friendly_names = {
-            v: v.replace("Female", tr("Female"))
-            .replace("Male", tr("Male"))
-            .replace("Neural", "")
-            for v in filtered_voices
-        }
+        friendly_names = {}
+        for v in filtered_voices:
+            # 对于Coze声音，提取友好的显示名称（去掉preview_audio和preview_text）
+            if v.startswith("coze|"):
+                parts = v.split("|")
+                if len(parts) >= 3:
+                    # 格式: coze|voice_id|voice_name-gender|preview_audio|preview_text
+                    # 显示为: voice_name-gender
+                    display_name = parts[2].replace("Female", tr("Female")).replace("Male", tr("Male"))
+                else:
+                    display_name = v
+            else:
+                display_name = v.replace("Female", tr("Female")).replace("Male", tr("Male")).replace("Neural", "")
+            friendly_names[v] = display_name
 
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
@@ -756,7 +764,14 @@ with middle_panel:
             if not play_content:
                 play_content = params.video_script
             if not play_content:
-                play_content = tr("Voice Example")
+                # 对于Coze声音，使用preview_text作为试听文本
+                if voice_name and voice.is_coze_voice(voice_name):
+                    # 从voice_name中提取preview_text (格式: coze|voice_id|voice_name-gender|preview_audio|preview_text)
+                    parts = voice_name.split("|")
+                    if len(parts) > 4:
+                        play_content = parts[4]
+                if not play_content:
+                    play_content = tr("Voice Example")
             with st.spinner(tr("Synthesizing Voice")):
                 temp_dir = utils.storage_dir("temp", create=True)
                 audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
