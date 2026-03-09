@@ -18,6 +18,18 @@ compute_type = config.whisper.get("compute_type", "int8")
 model = None
 
 
+def _format_text(text: str) -> str:
+    # text = text.replace("\n", " ")
+    text = text.replace("[", " ")
+    text = text.replace("]", " ")
+    text = text.replace("(", " ")
+    text = text.replace(")", " ")
+    text = text.replace("{", " ")
+    text = text.replace("}", " ")
+    text = text.strip()
+    return text
+
+
 def create(audio_file, subtitle_file: str = ""):
     global model
     if WhisperModel is None:
@@ -191,97 +203,96 @@ def similarity(a, b):
 
 
 def correct(subtitle_file, video_script):
+    """
+    纠正字幕文件，使其与视频脚本匹配
+    当Whisper生成的字幕与原始脚本不匹配时，使用原始脚本替换字幕文本
+    并根据文本长度重新分配时间戳
+    """
+    if not os.path.exists(subtitle_file):
+        logger.error(f"subtitle file not found: {subtitle_file}")
+        return
+
+    # 读取原始字幕文件
     subtitle_items = file_to_subtitles(subtitle_file)
+    if not subtitle_items:
+        logger.error(f"subtitle file is empty: {subtitle_file}")
+        return
+
+    # 处理视频脚本
+    video_script = _format_text(video_script)
     script_lines = utils.split_string_by_punctuations(video_script)
+    script_lines = [line.strip() for line in script_lines if line.strip()]
 
-    corrected = False
+    if not script_lines:
+        logger.error("video script is empty")
+        return
+
+    # 计算总音频时长（从字幕文件中获取）
+    total_duration = 0
+    if subtitle_items:
+        last_item = subtitle_items[-1]
+        end_time_str = last_item[1].split(" --> ")[1]
+        total_duration = _srt_time_to_seconds(end_time_str)
+
+    # 计算总脚本长度（字符数）
+    total_script_chars = sum(len(line) for line in script_lines)
+
+    # 重新分配时间戳
     new_subtitle_items = []
-    script_index = 0
-    subtitle_index = 0
+    current_time = 0
 
-    while script_index < len(script_lines) and subtitle_index < len(subtitle_items):
-        script_line = script_lines[script_index].strip()
-        subtitle_line = subtitle_items[subtitle_index][2].strip()
-
-        if script_line == subtitle_line:
-            new_subtitle_items.append(subtitle_items[subtitle_index])
-            script_index += 1
-            subtitle_index += 1
-        else:
-            combined_subtitle = subtitle_line
-            start_time = subtitle_items[subtitle_index][1].split(" --> ")[0]
-            end_time = subtitle_items[subtitle_index][1].split(" --> ")[1]
-            next_subtitle_index = subtitle_index + 1
-
-            while next_subtitle_index < len(subtitle_items):
-                next_subtitle = subtitle_items[next_subtitle_index][2].strip()
-                if similarity(
-                    script_line, combined_subtitle + " " + next_subtitle
-                ) > similarity(script_line, combined_subtitle):
-                    combined_subtitle += " " + next_subtitle
-                    end_time = subtitle_items[next_subtitle_index][1].split(" --> ")[1]
-                    next_subtitle_index += 1
-                else:
-                    break
-
-            if similarity(script_line, combined_subtitle) > 0.8:
-                logger.warning(
-                    f"Merged/Corrected - Script: {script_line}, Subtitle: {combined_subtitle}"
-                )
-                new_subtitle_items.append(
-                    (
-                        len(new_subtitle_items) + 1,
-                        f"{start_time} --> {end_time}",
-                        script_line,
-                    )
-                )
-                corrected = True
-            else:
-                logger.warning(
-                    f"Mismatch - Script: {script_line}, Subtitle: {combined_subtitle}"
-                )
-                new_subtitle_items.append(
-                    (
-                        len(new_subtitle_items) + 1,
-                        f"{start_time} --> {end_time}",
-                        script_line,
-                    )
-                )
-                corrected = True
-
-            script_index += 1
-            subtitle_index = next_subtitle_index
-
-    # Process the remaining lines of the script.
-    while script_index < len(script_lines):
-        logger.warning(f"Extra script line: {script_lines[script_index]}")
-        if subtitle_index < len(subtitle_items):
-            new_subtitle_items.append(
-                (
-                    len(new_subtitle_items) + 1,
-                    subtitle_items[subtitle_index][1],
-                    script_lines[script_index],
-                )
+    for i, script_line in enumerate(script_lines):
+        # 计算当前行的时间比例
+        line_chars = len(script_line)
+        line_duration = (line_chars / total_script_chars) * total_duration if total_script_chars > 0 else 0
+        
+        # 转换为SRT时间格式
+        start_time_str = _seconds_to_srt_time(current_time)
+        end_time_str = _seconds_to_srt_time(current_time + line_duration)
+        
+        # 添加到新字幕列表
+        new_subtitle_items.append(
+            (
+                i + 1,
+                f"{start_time_str} --> {end_time_str}",
+                script_line,
             )
-            subtitle_index += 1
-        else:
-            new_subtitle_items.append(
-                (
-                    len(new_subtitle_items) + 1,
-                    "00:00:00,000 --> 00:00:00,000",
-                    script_lines[script_index],
-                )
-            )
-        script_index += 1
-        corrected = True
+        )
+        
+        # 更新当前时间
+        current_time += line_duration
 
-    if corrected:
-        with open(subtitle_file, "w", encoding="utf-8") as fd:
-            for i, item in enumerate(new_subtitle_items):
-                fd.write(f"{i + 1}\n{item[1]}\n{item[2]}\n\n")
-        logger.info("Subtitle corrected")
-    else:
-        logger.success("Subtitle is correct")
+    # 保存纠正后的字幕文件
+    with open(subtitle_file, "w", encoding="utf-8") as fd:
+        for i, item in enumerate(new_subtitle_items):
+            fd.write(f"{i + 1}\n{item[1]}\n{item[2]}\n\n")
+    logger.info("Subtitle corrected with reallocated timestamps")
+
+
+def _srt_time_to_seconds(time_str):
+    """
+    将SRT时间格式转换为秒
+    格式: 00:00:00,000
+    """
+    try:
+        parts = time_str.split(",")
+        h, m, s = map(int, parts[0].split(":"))
+        ms = int(parts[1])
+        return h * 3600 + m * 60 + s + ms / 1000
+    except:
+        return 0
+
+
+def _seconds_to_srt_time(seconds):
+    """
+    将秒转换为SRT时间格式
+    格式: 00:00:00,000
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    ms = int((seconds % 1) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
 
 
 if __name__ == "__main__":

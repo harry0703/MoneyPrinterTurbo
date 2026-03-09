@@ -1846,43 +1846,9 @@ def coze_tts(
             
             logger.info(f"completed, output file: {voice_file}")
             
-            # 创建SubMaker对象用于字幕
-            sub_maker = SubMaker()
-            audio_duration = len(audio_segment) / 1000.0  # 转换为秒
-            
-            # 将文本按标点符号分割成多行
-            script_lines = utils.split_string_by_punctuations(text)
-            
-            if len(script_lines) > 1:
-                # 如果有多行文本，为每行分配时间戳
-                # 根据每行文本的长度比例分配时间
-                total_chars = sum(len(line) for line in script_lines)
-                if total_chars > 0:
-                    current_time = 0
-                    for line in script_lines:
-                        if not line.strip():
-                            continue
-                        # 计算每行的时间比例
-                        line_duration = (len(line) / total_chars) * audio_duration
-                        # 转换为100纳秒单位
-                        start_time_100ns = int(current_time * 10000000)
-                        end_time_100ns = int((current_time + line_duration) * 10000000)
-                        # 创建字幕条目
-                        sub_maker.create_sub(
-                            (start_time_100ns, end_time_100ns),
-                            line.strip()
-                        )
-                        current_time += line_duration
-                else:
-                    # 如果总字符数为0，使用单个字幕条目
-                    audio_duration_100ns = int(audio_duration * 10000000)
-                    sub_maker.create_sub((0, audio_duration_100ns), text)
-            else:
-                # 如果只有一行文本，使用单个字幕条目
-                audio_duration_100ns = int(audio_duration * 10000000)
-                sub_maker.create_sub((0, audio_duration_100ns), text)
-            
-            return sub_maker
+            # Coze TTS只负责音频生成，字幕由Whisper生成
+            # 返回None，让generate_subtitle函数使用Whisper生成字幕
+            return None
         else:
             logger.error(f"Coze TTS failed with status code {response.status_code}: {response.text}")
             logger.error(f"Request payload: {payload}")
