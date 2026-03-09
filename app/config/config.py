@@ -33,13 +33,18 @@ def load_config():
 
 
 def save_config():
+    # 更新_cfg字典中的值
+    _cfg["app"] = app
+    _cfg["whisper"] = whisper
+    _cfg["azure"] = azure
+    _cfg["siliconflow"] = siliconflow
+    _cfg["coze"] = coze
+    _cfg["ui"] = ui
+    
+    # 保存到文件
     with open(config_file, "w", encoding="utf-8") as f:
-        _cfg["app"] = app
-        _cfg["azure"] = azure
-        _cfg["siliconflow"] = siliconflow
-        _cfg["coze"] = coze
-        _cfg["ui"] = ui
         f.write(toml.dumps(_cfg))
+        f.flush()
 
 
 _cfg = load_config()

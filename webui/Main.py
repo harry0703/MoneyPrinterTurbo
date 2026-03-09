@@ -708,9 +708,17 @@ with middle_panel:
         if selected_tts_server != saved_tts_server:
             # 重置voice_name
             config.ui["voice_name"] = ""
+            config.save_config()
+            
+            # 删除所有TTS相关的session_state
+            for key in list(st.session_state.keys()):
+                if key.startswith("voice_select_"):
+                    del st.session_state[key]
+                    logger.info(f"[TTS Change] Deleted session_state: {key}")
         
         # 保存到配置
         config.ui["tts_server"] = selected_tts_server
+        config.save_config()
 
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
@@ -757,12 +765,17 @@ with middle_panel:
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
         
+        logger.info(f"[Voice Load] Saved voice_name from config: {saved_voice_name}")
+        logger.info(f"[Voice Load] Total available voices: {len(friendly_names)}")
+        
         # 检查保存的声音是否在当前筛选的声音列表中
         if saved_voice_name and saved_voice_name in friendly_names:
             saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
+            logger.info(f"[Voice Load] Found saved voice in list, index: {saved_voice_name_index}")
         else:
             # 如果不在，使用第一个声音
             saved_voice_name_index = 0
+            logger.info(f"[Voice Load] Saved voice not found in list, using index 0")
 
         # 确保索引在有效范围内
         if friendly_names:
@@ -804,27 +817,66 @@ with middle_panel:
             
             # 确定当前索引
             if filtered_friendly_names:
-                if saved_voice_name and saved_voice_name in filtered_friendly_names:
+                # 使用session_state跟踪音色选择
+                voice_select_key = f"voice_select_{selected_tts_server}"
+                
+                # 检查是否需要重置选择（TTS服务器变化或保存的voice_name不在列表中）
+                # 初始化索引变量
+                filtered_saved_voice_name_index = 0
+                
+                # 优先使用session_state中的值
+                if voice_select_key in st.session_state:
+                    # 如果session_state中有值，使用它
+                    logger.info(f"[Selectbox] Using session_state value: {st.session_state[voice_select_key]}")
+                elif saved_voice_name and saved_voice_name in filtered_friendly_names:
+                    # 如果session_state中没有值，但配置文件中有值，使用配置文件中的值
                     filtered_saved_voice_name_index = list(filtered_friendly_names.keys()).index(saved_voice_name)
+                    logger.info(f"[Selectbox] Found saved voice in filtered list, index: {filtered_saved_voice_name_index}")
+                    st.session_state[voice_select_key] = list(filtered_friendly_names.values())[filtered_saved_voice_name_index]
+                    logger.info(f"[Selectbox] Initialized session_state with saved voice")
                 else:
+                    # 如果都没有值，使用第一个
                     filtered_saved_voice_name_index = 0
+                    logger.info(f"[Selectbox] Saved voice not in filtered list, using index 0")
+                    # 重置session_state
+                    if voice_select_key in st.session_state:
+                        del st.session_state[voice_select_key]
+                        logger.info(f"[Selectbox] Deleted old session_state for voice_select")
+                
+                # 计算正确的索引
+                selectbox_index = min(filtered_saved_voice_name_index, len(filtered_friendly_names) - 1)
+                logger.info(f"[Selectbox] Total filtered voices: {len(filtered_friendly_names)}")
+                logger.info(f"[Selectbox] Selectbox index: {selectbox_index}")
+                logger.info(f"[Selectbox] Session state value: {st.session_state.get(voice_select_key, 'not set')}")
                 
                 selected_friendly_name = st.selectbox(
                     speech_synthesis_label,
                     options=list(filtered_friendly_names.values()),
-                    index=min(filtered_saved_voice_name_index, len(filtered_friendly_names) - 1),
-                    key=f"voice_select_{selected_tts_server}",  # 使用TTS服务作为key，强制重新创建selectbox
+                    index=selectbox_index,
+                    key=voice_select_key,
                 )
                 
-                voice_name = list(filtered_friendly_names.keys())[
-                    list(filtered_friendly_names.values()).index(selected_friendly_name)
-                ]
+                # 找到对应的voice_name
+                for voice_key, display_name in filtered_friendly_names.items():
+                    if display_name == selected_friendly_name:
+                        voice_name = voice_key
+                        break
+                else:
+                    # 如果没有找到，使用第一个
+                    voice_name = list(filtered_friendly_names.keys())[0]
+                    logger.warning(f"[Selectbox] Could not find voice for display name: {selected_friendly_name}, using first voice")
             else:
                 # 没有匹配的音色
                 st.warning(tr("No matching voices found"))
                 voice_name = list(friendly_names.keys())[0]
             params.voice_name = voice_name
-            config.ui["voice_name"] = voice_name
+            
+            # 检查voice_name是否变化，如果变化则保存配置
+            current_saved_voice = config.ui.get("voice_name", "")
+            if current_saved_voice != voice_name:
+                config.ui["voice_name"] = voice_name
+                config.save_config()
+                logger.info(f"[Config Save] Voice name changed from '{current_saved_voice}' to '{voice_name}', saved to config file")
             
             # 处理Coze声音的情感选择
             params.voice_emotion = ""
@@ -859,6 +911,7 @@ with middle_panel:
             )
             params.voice_name = ""
             config.ui["voice_name"] = ""
+            config.save_config()
 
         # 只有在有声音可选时才显示试听按钮
         if friendly_names and st.button(tr("Play Voice")):

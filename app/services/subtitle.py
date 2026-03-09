@@ -43,6 +43,9 @@ def create(audio_file, subtitle_file: str = ""):
 
         # 每次都从配置中读取最新的device设置
         device = config.whisper.get("device", "cpu")
+        # 转换device值，WhisperModel使用"cuda"而不是"GPU"
+        if device.upper() == "GPU":
+            device = "cuda"
         compute_type = config.whisper.get("compute_type", "int8")
         
         logger.info(
