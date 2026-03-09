@@ -125,6 +125,8 @@
     "Voice Emotion": "语音情感",
     "Search": "搜索",
     "Type to search...": "输入音色关键词搜索...",
-    "No matching voices found": "没有找到匹配的音色。"
+    "No matching voices found": "没有找到匹配的音色。",
+    "Whisper Settings": "**Whisper 设置**",
+    "Whisper Device": "Whisper 设备"
   }
 }

@@ -41,6 +41,10 @@ def create(audio_file, subtitle_file: str = ""):
         if not os.path.isdir(model_path) or not os.path.isfile(model_bin_file):
             model_path = model_size
 
+        # 每次都从配置中读取最新的device设置
+        device = config.whisper.get("device", "cpu")
+        compute_type = config.whisper.get("compute_type", "int8")
+        
         logger.info(
             f"loading model: {model_path}, device: {device}, compute_type: {compute_type}"
         )
@@ -59,7 +63,12 @@ def create(audio_file, subtitle_file: str = ""):
             )
             return None
 
+    # 每次都从配置中读取最新的device设置
+    device = config.whisper.get("device", "cpu")
+    compute_type = config.whisper.get("compute_type", "int8")
+    
     logger.info(f"start, output file: {subtitle_file}")
+    logger.info(f"using device: {device}, compute_type: {compute_type}")
     if not subtitle_file:
         subtitle_file = f"{audio_file}.srt"
 

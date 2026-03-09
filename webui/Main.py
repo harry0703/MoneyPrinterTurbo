@@ -478,6 +478,21 @@ if not config.app.get("hide_config", False):
             )
             save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
+            # Whisper settings
+            st.write(tr("Whisper Settings"))
+            
+            # Device selection
+            whisper_devices = ["CPU", "GPU", "auto"]
+            saved_device = config.whisper.get("device", "CPU")
+            saved_device_index = whisper_devices.index(saved_device)
+            
+            selected_device = st.selectbox(
+                tr("Whisper Device"),
+                options=whisper_devices,
+                index=saved_device_index
+            )
+            config.whisper["device"] = selected_device
+
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
 left_panel = panel[0]
