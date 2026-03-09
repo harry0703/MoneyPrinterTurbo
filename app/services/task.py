@@ -98,7 +98,8 @@ def generate_audio(task_id, params, video_script):
             voice_file=audio_file,
             emotion=getattr(params, 'voice_emotion', ''),
         )
-        if sub_maker is None:
+        # 检查音频文件是否存在，即使sub_maker为None（如Coze预览音频的情况）
+        if sub_maker is None and not os.path.exists(audio_file):
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error(
                 """failed to generate audio:
@@ -107,7 +108,13 @@ def generate_audio(task_id, params, video_script):
             """.strip()
             )
             return None, None, None
-        audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
+        # 获取音频时长
+        if sub_maker is None and os.path.exists(audio_file):
+            # 使用音频文件路径获取时长
+            audio_duration = math.ceil(voice.get_audio_duration(audio_file))
+        else:
+            # 使用sub_maker获取时长
+            audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
         if audio_duration == 0:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error("failed to get audio duration.")

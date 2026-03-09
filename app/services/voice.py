@@ -1771,8 +1771,9 @@ def coze_tts(
             logger.error("Coze API key is not set")
             return None
         
-        # 如果有预览音频URL且文本匹配预览文本，直接下载预览音频
-        if preview_audio and preview_text and text == preview_text:
+        # 只有在试听时才使用预览音频（根据文本长度判断）
+        # 预览文本通常较短，而正式脚本通常较长
+        if preview_audio and len(text) < 100:
             logger.info(f"Downloading preview audio from: {preview_audio}")
             try:
                 response = requests.get(preview_audio, timeout=30)
@@ -1780,21 +1781,15 @@ def coze_tts(
                     with open(voice_file, "wb") as f:
                         f.write(response.content)
                     logger.info(f"Preview audio saved to: {voice_file}")
-                    
-                    # 创建SubMaker对象用于字幕
-                    sub_maker = SubMaker()
-                    # 使用pydub获取音频时长
-                    audio_segment = AudioSegment.from_file(voice_file)
-                    audio_duration = len(audio_segment) / 1000.0
-                    audio_duration_100ns = int(audio_duration * 10000000)
-                    sub_maker.create_sub((0, audio_duration_100ns), text)
-                    return sub_maker
+                    # 预览音频时不需要创建字幕，直接返回None
+                    return None
                 else:
                     logger.error(f"Failed to download preview audio: {response.status_code}")
             except Exception as e:
                 logger.error(f"Error downloading preview audio: {str(e)}")
             # 如果下载失败，继续尝试TTS API
-            
+        
+        # 只有在预览音频下载失败时才执行API调用
         logger.info(f"start, voice name: {voice_id}, try: 1")
         
         # Coze TTS API endpoint
@@ -1855,14 +1850,37 @@ def coze_tts(
             sub_maker = SubMaker()
             audio_duration = len(audio_segment) / 1000.0  # 转换为秒
             
-            # 将音频长度转换为100纳秒单位（与edge_tts兼容）
-            audio_duration_100ns = int(audio_duration * 10000000)
+            # 将文本按标点符号分割成多行
+            script_lines = utils.split_string_by_punctuations(text)
             
-            # 使用create_sub方法正确创建字幕项
-            sub_maker.create_sub(
-                (0, audio_duration_100ns), 
-                text
-            )
+            if len(script_lines) > 1:
+                # 如果有多行文本，为每行分配时间戳
+                # 根据每行文本的长度比例分配时间
+                total_chars = sum(len(line) for line in script_lines)
+                if total_chars > 0:
+                    current_time = 0
+                    for line in script_lines:
+                        if not line.strip():
+                            continue
+                        # 计算每行的时间比例
+                        line_duration = (len(line) / total_chars) * audio_duration
+                        # 转换为100纳秒单位
+                        start_time_100ns = int(current_time * 10000000)
+                        end_time_100ns = int((current_time + line_duration) * 10000000)
+                        # 创建字幕条目
+                        sub_maker.create_sub(
+                            (start_time_100ns, end_time_100ns),
+                            line.strip()
+                        )
+                        current_time += line_duration
+                else:
+                    # 如果总字符数为0，使用单个字幕条目
+                    audio_duration_100ns = int(audio_duration * 10000000)
+                    sub_maker.create_sub((0, audio_duration_100ns), text)
+            else:
+                # 如果只有一行文本，使用单个字幕条目
+                audio_duration_100ns = int(audio_duration * 10000000)
+                sub_maker.create_sub((0, audio_duration_100ns), text)
             
             return sub_maker
         else:

@@ -871,7 +871,7 @@ with middle_panel:
                     emotion=params.voice_emotion,
                 )
                 # if the voice file generation failed, try again with a default content.
-                if not sub_maker:
+                if not sub_maker and not os.path.exists(audio_file):
                     play_content = "This is a example voice. if you hear this, the voice synthesis failed with the original content."
                     sub_maker = voice.tts(
                         text=play_content,
@@ -882,7 +882,7 @@ with middle_panel:
                         emotion=params.voice_emotion,
                     )
 
-                if sub_maker and os.path.exists(audio_file):
+                if sub_maker or os.path.exists(audio_file):
                     st.audio(audio_file, format="audio/mp3")
                     if os.path.exists(audio_file):
                         os.remove(audio_file)
