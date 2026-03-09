@@ -10,9 +10,6 @@ from loguru import logger
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
-    print("******** sys.path ********")
-    print(sys.path)
-    print("")
 
 from app.config import config
 from app.models.schema import (
