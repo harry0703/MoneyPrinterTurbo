@@ -760,7 +760,19 @@ with middle_panel:
             filtered_voices = voice.get_gemini_voices()
         elif selected_tts_server == "coze-tts":
             # 获取Coze TTS的声音列表
-            filtered_voices = voice.get_coze_voices()
+            # 添加刷新按钮
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.write("Coze TTS")
+            with col2:
+                if st.button("🔄", key="refresh_coze_voices", help="刷新音色列表"):
+                    # 强制刷新缓存
+                    filtered_voices = voice.get_coze_voices(force_refresh=True)
+                    st.success("音色列表已刷新")
+            
+            # 正常获取音色（使用缓存）
+            if not filtered_voices:
+                filtered_voices = voice.get_coze_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)

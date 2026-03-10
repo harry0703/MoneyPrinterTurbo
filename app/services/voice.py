@@ -16,6 +16,16 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 from app.config import config
 from app.utils import utils
 
+# 缓存字典，用于存储TTS音色信息
+_voice_cache = {
+    'coze': {'voices': [], 'timestamp': None, 'api_key': None},
+    'siliconflow': {'voices': [], 'timestamp': None},
+    'gemini': {'voices': [], 'timestamp': None}
+}
+
+# 缓存有效期（秒）
+CACHE_DURATION = 3600  # 1小时
+
 
 def get_siliconflow_voices() -> list[str]:
     """
@@ -76,13 +86,32 @@ def get_gemini_voices() -> list[str]:
     ]
 
 
-def get_coze_voices() -> list[str]:
+def get_coze_voices(force_refresh=False) -> list[str]:
     """
     获取Coze TTS的中文声音列表
+    
+    Args:
+        force_refresh: 是否强制刷新缓存
     
     Returns:
         声音列表，格式为: "coze|voice_id|voice_name-gender|preview_audio|preview_text"
     """
+    global _voice_cache
+    
+    # 检查缓存
+    api_key = config.coze.get("api_key", "")
+    cache_entry = _voice_cache['coze']
+    
+    # 检查缓存是否有效
+    current_time = datetime.now().timestamp()
+    if not force_refresh and cache_entry['voices'] and cache_entry['timestamp']:
+        cache_age = current_time - cache_entry['timestamp']
+        if cache_age < CACHE_DURATION and cache_entry['api_key'] == api_key:
+            logger.info(f"Using cached Coze voices (age: {cache_age:.1f}s)")
+            return cache_entry['voices']
+    
+    logger.info("Fetching Coze voices from API")
+    
     # 定义默认中文声音列表
     voices_with_id_gender = [
         ("7426720361732915209", "湾区大叔", "Male"),
@@ -221,12 +250,27 @@ def get_coze_voices() -> list[str]:
             for voice_id, voice_name, gender in voices_with_id_gender:
                 voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
         
+        # 更新缓存
+        _voice_cache['coze'] = {
+            'voices': voices,
+            'timestamp': datetime.now().timestamp(),
+            'api_key': api_key
+        }
+        logger.info(f"Coze voices cached: {len(voices)} voices")
+        
         return voices
     except Exception as e:
         # 发生异常，返回默认列表
         logger.error(f"Error getting Coze voices: {str(e)}")
         for voice_id, voice_name, gender in voices_with_id_gender:
             voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
+        
+        # 即使发生异常，也更新缓存以避免重复失败
+        _voice_cache['coze'] = {
+            'voices': voices,
+            'timestamp': datetime.now().timestamp(),
+            'api_key': api_key
+        }
         return voices
 
 
