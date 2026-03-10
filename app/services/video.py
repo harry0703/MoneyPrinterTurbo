@@ -57,6 +57,7 @@ def get_video_codec():
     use_gpu = config.app.get("use_gpu", False)
     
     if not use_gpu:
+        logger.info("Video encoder: CPU mode selected (libx264)")
         return "libx264"  # CPU 编码器
     
     # 检查是否支持 NVIDIA GPU 编码
@@ -70,16 +71,17 @@ def get_video_codec():
             timeout=5
         )
         if "h264_nvenc" in result.stdout:
-            logger.info("Using NVIDIA GPU encoder: h264_nvenc")
+            logger.info("Video encoder: GPU mode selected (h264_nvenc) - NVIDIA GPU acceleration enabled")
             return "h264_nvenc"
         else:
-            logger.warning("NVIDIA GPU encoder not supported, falling back to CPU")
+            logger.warning("Video encoder: GPU requested but not supported, falling back to CPU (libx264)")
             return "libx264"
     except Exception as e:
-        logger.error(f"Failed to check GPU support: {e}")
+        logger.error(f"Video encoder: Failed to check GPU support, using CPU (libx264). Error: {e}")
         return "libx264"
 
 video_codec = get_video_codec()
+logger.info(f"Video encoder initialized: {video_codec} (GPU: {config.app.get('use_gpu', False)})")
 
 def close_clip(clip):
     if clip is None:
@@ -191,7 +193,7 @@ def combine_videos(
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
-    # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
+    # Add downloaded clips over and over until we reach the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
         if video_duration > audio_duration:
             break
@@ -227,19 +229,19 @@ def combine_videos(
             if video_transition_mode.value == VideoTransitionMode.none.value:
                 clip = clip
             elif video_transition_mode.value == VideoTransitionMode.fade_in.value:
-                clip = video_effects.fadein_transition(clip, 1)
+                clip = video_effects.fadein_transition(clip,1)
             elif video_transition_mode.value == VideoTransitionMode.fade_out.value:
-                clip = video_effects.fadeout_transition(clip, 1)
+                clip = video_effects.fadeout_transition(clip,1)
             elif video_transition_mode.value == VideoTransitionMode.slide_in.value:
-                clip = video_effects.slidein_transition(clip, 1, shuffle_side)
+                clip = video_effects.slidein_transition(clip,1, shuffle_side)
             elif video_transition_mode.value == VideoTransitionMode.slide_out.value:
-                clip = video_effects.slideout_transition(clip, 1, shuffle_side)
+                clip = video_effects.slideout_transition(clip,1, shuffle_side)
             elif video_transition_mode.value == VideoTransitionMode.shuffle.value:
                 transition_funcs = [
-                    lambda c: video_effects.fadein_transition(c, 1),
-                    lambda c: video_effects.fadeout_transition(c, 1),
-                    lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
-                    lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
+                    lambda c: video_effects.fadein_transition(c,1),
+                    lambda c: video_effects.fadeout_transition(c,1),
+                    lambda c: video_effects.slidein_transition(c,1, shuffle_side),
+                    lambda c: video_effects.slideout_transition(c,1, shuffle_side),
                 ]
                 shuffle_transition = random.choice(transition_funcs)
                 clip = shuffle_transition(clip)
@@ -247,7 +249,7 @@ def combine_videos(
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
                 
-            # wirte clip to temp file
+            # write clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
             clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
             
@@ -259,7 +261,7 @@ def combine_videos(
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
     
-    # loop processed clips until the video duration matches or exceeds the audio duration.
+    # loop processed clips until video duration matches or exceeds the audio duration.
     if video_duration < audio_duration:
         logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
         base_clips = processed_clips.copy()
@@ -401,14 +403,14 @@ def generate_video(
     video_width, video_height = aspect.to_resolution()
 
     logger.info(f"generating video: {video_width} x {video_height}")
-    logger.info(f"  ① video: {video_path}")
-    logger.info(f"  ② audio: {audio_path}")
-    logger.info(f"  ③ subtitle: {subtitle_path}")
-    logger.info(f"  ④ output: {output_file}")
+    logger.info(f" ① video: {video_path}")
+    logger.info(f" ② audio: {audio_path}")
+    logger.info(f" ③ subtitle: {subtitle_path}")
+    logger.info(f" ④ output: {output_file}")
 
     # https://github.com/harry0703/MoneyPrinterTurbo/issues/217
     # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'final-1.mp4.tempTEMP_MPY_wvf_snd.mp3'
-    # write into the same directory as the output file
+    # write into a same directory as the output file
     output_dir = os.path.dirname(output_file)
 
     font_path = ""
@@ -419,7 +421,7 @@ def generate_video(
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
-        logger.info(f"  ⑤ font: {font_path}")
+        logger.info(f" ⑤ font: {font_path}")
 
     def create_text_clip(subtitle_item):
         params.font_size = int(params.font_size)
@@ -443,7 +445,7 @@ def generate_video(
             # interline=interline,
             # size=size,
         )
-        duration = subtitle_item[0][1] - subtitle_item[0][0]
+        duration = subtitle_item[1] - subtitle_item[0]
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
@@ -452,14 +454,14 @@ def generate_video(
         elif params.subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
         elif params.subtitle_position == "custom":
-            # Ensure the subtitle is fully within the screen bounds
+            # Ensure that subtitle is fully within screen bounds
             margin = 10  # Additional margin, in pixels
             max_y = video_height - _clip.h - margin
             min_y = margin
             custom_y = (video_height - _clip.h) * (params.custom_position / 100)
             custom_y = max(
                 min_y, min(custom_y, max_y)
-            )  # Constrain the y value within the valid range
+            )  # Constrain the y value within a valid range
             _clip = _clip.with_position(("center", custom_y))
         else:  # center
             _clip = _clip.with_position(("center", "center"))
@@ -539,23 +541,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 .with_duration(clip_duration)
                 .with_position("center")
             )
-            # Apply a zoom effect using the resize method.
+            # Apply a zoom effect using a resize method.
             # A lambda function is used to make the zoom effect dynamic over time.
             # The zoom effect starts from the original size and gradually scales up to 120%.
             # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-            # Note: 1 represents 100% size, so 1.2 represents 120% size.
-            zoom_clip = clip.resized(
-                lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-            )
-
-            # Optionally, create a composite video clip containing the zoomed clip.
-            # This is useful when you want to add other elements to the video.
-            final_clip = CompositeVideoClip([zoom_clip])
-
-            # Output the video to a file.
-            video_file = f"{material.url}.mp4"
-            final_clip.write_videofile(video_file, fps=30, logger=None)
-            close_clip(clip)
-            material.url = video_file
-            logger.success(f"image processed: {video_file}")
-    return materials
