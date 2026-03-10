@@ -314,6 +314,7 @@ def combine_videos(
                 temp_audiofile_path=output_dir,
                 audio_codec=audio_codec,
                 fps=fps,
+                codec=video_codec,
             )
             close_clip(base_clip)
             close_clip(next_clip)
@@ -511,6 +512,7 @@ def generate_video(
         threads=params.n_threads or 2,
         logger=None,
         fps=fps,
+        codec=video_codec,
     )
     video_clip.close()
     del video_clip
