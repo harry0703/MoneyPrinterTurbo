@@ -63,9 +63,13 @@ def get_video_codec():
     # 检查是否支持 NVIDIA GPU 编码
     try:
         import subprocess
+        # 获取 ffmpeg 可执行文件路径
+        ffmpeg_exe = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
+        logger.debug(f"Using ffmpeg executable: {ffmpeg_exe}")
+        
         # 检查 ffmpeg 是否支持 nvenc 编码器
         result = subprocess.run(
-            ["ffmpeg", "-encoders"],
+            [ffmpeg_exe, "-encoders"],
             capture_output=True,
             text=True,
             timeout=5
