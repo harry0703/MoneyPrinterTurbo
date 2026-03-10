@@ -51,6 +51,94 @@ class SubClippedVideoClip:
 audio_codec = "aac"
 fps = 30
 
+# 视频质量预设配置
+VIDEO_QUALITY_PRESETS = {
+    "cpu": {
+        "low": {
+            "bitrate": "3M",
+            "preset": "fast",
+            "crf": 28,
+            "description": "Low quality, fast encoding"
+        },
+        "medium": {
+            "bitrate": "5M",
+            "preset": "medium",
+            "crf": 23,
+            "description": "Medium quality, balanced encoding"
+        },
+        "high": {
+            "bitrate": "8M",
+            "preset": "slow",
+            "crf": 20,
+            "description": "High quality, slower encoding"
+        },
+        "ultra": {
+            "bitrate": "12M",
+            "preset": "slower",
+            "crf": 18,
+            "description": "Ultra quality, very slow encoding"
+        }
+    },
+    "gpu": {
+        "low": {
+            "bitrate": "4M",
+            "preset": "p5",
+            "crf": None,
+            "description": "Low quality, fast encoding (GPU)"
+        },
+        "medium": {
+            "bitrate": "6M",
+            "preset": "p4",
+            "crf": None,
+            "description": "Medium quality, balanced encoding (GPU)"
+        },
+        "high": {
+            "bitrate": "10M",
+            "preset": "p3",
+            "crf": None,
+            "description": "High quality, good encoding (GPU)"
+        },
+        "ultra": {
+            "bitrate": "15M",
+            "preset": "p2",
+            "crf": None,
+            "description": "Ultra quality, best encoding (GPU)"
+        }
+    }
+}
+
+def get_video_encoding_params():
+    """获取视频编码参数"""
+    use_gpu = config.app.get("use_gpu", False)
+    # GPU默认使用最高质量，CPU默认使用高质量
+    default_quality = "ultra" if use_gpu else "high"
+    quality = config.app.get("video_quality", default_quality).lower()
+    custom_bitrate = config.app.get("video_bitrate", "")
+    
+    # 选择CPU或GPU的预设
+    preset_type = "gpu" if use_gpu else "cpu"
+    
+    # 获取质量预设
+    preset = VIDEO_QUALITY_PRESETS[preset_type].get(quality, VIDEO_QUALITY_PRESETS[preset_type][default_quality])
+    
+    # 如果设置了自定义比特率，使用自定义值
+    if custom_bitrate:
+        bitrate = custom_bitrate
+    else:
+        bitrate = preset["bitrate"]
+    
+    # 获取编码预设和CRF值
+    encoding_preset = preset["preset"]
+    crf = preset["crf"]
+    
+    logger.info(f"Video encoding params: type={preset_type}, quality={quality}, bitrate={bitrate}, preset={encoding_preset}, crf={crf}")
+    
+    return {
+        "bitrate": bitrate,
+        "preset": encoding_preset,
+        "crf": crf
+    }
+
 # 根据配置选择视频编码器
 def get_video_codec():
     """根据配置和系统环境选择合适的视频编码器"""
@@ -85,6 +173,7 @@ def get_video_codec():
         return "libx264"
 
 video_codec = get_video_codec()
+video_encoding_params = get_video_encoding_params()
 logger.info(f"Video encoder initialized: {video_codec} (GPU: {config.app.get('use_gpu', False)})")
 
 def close_clip(clip):
@@ -255,7 +344,14 @@ def combine_videos(
                 
             # write clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            clip.write_videofile(
+                clip_file,
+                logger=None,
+                fps=fps,
+                codec=video_codec,
+                bitrate=video_encoding_params["bitrate"],
+                preset=video_encoding_params["preset"]
+            )
             
             close_clip(clip)
         
@@ -319,6 +415,8 @@ def combine_videos(
                 audio_codec=audio_codec,
                 fps=fps,
                 codec=video_codec,
+                bitrate=video_encoding_params["bitrate"],
+                preset=video_encoding_params["preset"]
             )
             close_clip(base_clip)
             close_clip(next_clip)
@@ -446,11 +544,11 @@ def generate_video(
             color=params.text_fore_color,
             bg_color=params.text_background_color,
             stroke_color=params.stroke_color,
-            stroke_width=params.stroke_width,
+            stroke_width=int(params.stroke_width),
             # interline=interline,
             # size=size,
         )
-        duration = subtitle_item[1] - subtitle_item[0]
+        duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
@@ -482,6 +580,10 @@ def generate_video(
             text=text,
             font=font_path,
             font_size=params.font_size,
+            color=params.text_fore_color,
+            bg_color=params.text_background_color,
+            stroke_color=params.stroke_color,
+            stroke_width=int(params.stroke_width),
         )
 
     if subtitle_path and os.path.exists(subtitle_path):
@@ -517,6 +619,8 @@ def generate_video(
         logger=None,
         fps=fps,
         codec=video_codec,
+        bitrate=video_encoding_params["bitrate"],
+        preset=video_encoding_params["preset"]
     )
     video_clip.close()
     del video_clip
