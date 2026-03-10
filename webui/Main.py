@@ -766,9 +766,33 @@ with middle_panel:
         logger.info(f"[Voice Load] Total available voices: {len(friendly_names)}")
         
         # 检查保存的声音是否在当前筛选的声音列表中
+        # 对于coze声音，使用voice_id进行匹配，因为URL中的签名会变化
         if saved_voice_name and saved_voice_name in friendly_names:
             saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
             logger.info(f"[Voice Load] Found saved voice in list, index: {saved_voice_name_index}")
+        elif saved_voice_name and saved_voice_name.startswith("coze|"):
+            # 对于coze声音，提取voice_id进行匹配
+            saved_parts = saved_voice_name.split("|")
+            if len(saved_parts) >= 2:
+                saved_voice_id = saved_parts[1]
+                logger.info(f"[Voice Load] Trying to match coze voice by ID: {saved_voice_id}")
+                
+                # 在当前声音列表中查找匹配的voice_id
+                for i, voice_key in enumerate(friendly_names.keys()):
+                    if voice_key.startswith("coze|"):
+                        current_parts = voice_key.split("|")
+                        if len(current_parts) >= 2 and current_parts[1] == saved_voice_id:
+                            saved_voice_name_index = i
+                            saved_voice_name = voice_key
+                            logger.info(f"[Voice Load] Found matching voice ID in list, index: {saved_voice_name_index}")
+                            break
+                else:
+                    # 如果不在，使用第一个声音
+                    saved_voice_name_index = 0
+                    logger.info(f"[Voice Load] Saved voice ID not found in list, using index 0")
+            else:
+                saved_voice_name_index = 0
+                logger.info(f"[Voice Load] Invalid saved voice format, using index 0")
         else:
             # 如果不在，使用第一个声音
             saved_voice_name_index = 0
@@ -825,12 +849,38 @@ with middle_panel:
                 if voice_select_key in st.session_state:
                     # 如果session_state中有值，使用它
                     logger.info(f"[Selectbox] Using session_state value: {st.session_state[voice_select_key]}")
+                    # 尝试找到对应的索引
+                    for i, display_name in enumerate(filtered_friendly_names.values()):
+                        if display_name == st.session_state[voice_select_key]:
+                            filtered_saved_voice_name_index = i
+                            break
                 elif saved_voice_name and saved_voice_name in filtered_friendly_names:
                     # 如果session_state中没有值，但配置文件中有值，使用配置文件中的值
                     filtered_saved_voice_name_index = list(filtered_friendly_names.keys()).index(saved_voice_name)
                     logger.info(f"[Selectbox] Found saved voice in filtered list, index: {filtered_saved_voice_name_index}")
-                    st.session_state[voice_select_key] = list(filtered_friendly_names.values())[filtered_saved_voice_name_index]
-                    logger.info(f"[Selectbox] Initialized session_state with saved voice")
+                elif saved_voice_name and saved_voice_name.startswith("coze|"):
+                    # 对于coze声音，提取voice_id进行匹配
+                    saved_parts = saved_voice_name.split("|")
+                    if len(saved_parts) >= 2:
+                        saved_voice_id = saved_parts[1]
+                        logger.info(f"[Selectbox] Trying to match coze voice by ID in filtered list: {saved_voice_id}")
+                        
+                        # 在过滤后的声音列表中查找匹配的voice_id
+                        for i, voice_key in enumerate(filtered_friendly_names.keys()):
+                            if voice_key.startswith("coze|"):
+                                current_parts = voice_key.split("|")
+                                if len(current_parts) >= 2 and current_parts[1] == saved_voice_id:
+                                    filtered_saved_voice_name_index = i
+                                    saved_voice_name = voice_key
+                                    logger.info(f"[Selectbox] Found matching voice ID in filtered list, index: {filtered_saved_voice_name_index}")
+                                    break
+                        else:
+                            # 如果不在，使用第一个
+                            filtered_saved_voice_name_index = 0
+                            logger.info(f"[Selectbox] Saved voice ID not found in filtered list, using index 0")
+                    else:
+                        filtered_saved_voice_name_index = 0
+                        logger.info(f"[Selectbox] Invalid saved voice format, using index 0")
                 else:
                     # 如果都没有值，使用第一个
                     filtered_saved_voice_name_index = 0
