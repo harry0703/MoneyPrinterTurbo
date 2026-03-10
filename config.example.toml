@@ -119,7 +119,7 @@ subtitle_provider = "edge"
 # On Windows, for example "C:\Program Files (x86)\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
 # Download from https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
 
-# imagemagick_path = "C:\\Program Files (x86)\\ImageMagick-7.1.1-Q16\\magick.exe"
+imagemagick_path = "D:\\ProgramData\\ImageMagick-7.1.12-Q16\\magick.exe"
 
 
 #
@@ -176,6 +176,12 @@ redis_password = ""
 # 文生视频时的最大并发任务数
 max_concurrent_tasks = 5
 
+# Ollama API Key
+ollama_api_key = ""
+
+# Use GPU for video encoding
+use_gpu = false
+
 
 [whisper]
 # Only effective when subtitle_provider is "whisper"
@@ -216,8 +222,26 @@ speech_region = ""
 # Get your API key at https://siliconflow.cn
 api_key = ""
 
+[coze]
+# Coze API Key
+# Get your API key at https://www.coze.cn
+api_key = ""
+
 [ui]
 # UI related settings
 # 是否隐藏日志信息
 # Whether to hide logs in the UI
 hide_log = false
+# UI language
+language = "zh"
+# TTS server
+# Options: azure-tts, azure-tts-v2, siliconflow, gemini-tts, coze-tts
+tts_server = "azure-tts"
+# Voice name
+voice_name = ""
+# Font name
+font_name = "MicrosoftYaHeiBold.ttc"
+# Text color
+text_fore_color = "#FFFFFF"
+# Font size
+font_size = 60
