@@ -127,6 +127,8 @@
     "Type to search...": "输入音色关键词搜索...",
     "No matching voices found": "没有找到匹配的音色。",
     "Whisper Settings": "**Whisper 设置**",
-    "Whisper Device": "Whisper 设备"
+    "Whisper Device": "Whisper 设备",
+    "Video Encoder Settings": "**视频编码器设置**",
+    "Video Encoder": "视频编码器"
   }
 }

@@ -20,6 +20,7 @@ from moviepy import (
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import ImageFont
 
+from app.config import config
 from app.models import const
 from app.models.schema import (
     MaterialInfo,
@@ -48,8 +49,37 @@ class SubClippedVideoClip:
 
 
 audio_codec = "aac"
-video_codec = "libx264"
 fps = 30
+
+# 根据配置选择视频编码器
+def get_video_codec():
+    """根据配置和系统环境选择合适的视频编码器"""
+    use_gpu = config.app.get("use_gpu", False)
+    
+    if not use_gpu:
+        return "libx264"  # CPU 编码器
+    
+    # 检查是否支持 NVIDIA GPU 编码
+    try:
+        import subprocess
+        # 检查 ffmpeg 是否支持 nvenc 编码器
+        result = subprocess.run(
+            ["ffmpeg", "-encoders"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if "h264_nvenc" in result.stdout:
+            logger.info("Using NVIDIA GPU encoder: h264_nvenc")
+            return "h264_nvenc"
+        else:
+            logger.warning("NVIDIA GPU encoder not supported, falling back to CPU")
+            return "libx264"
+    except Exception as e:
+        logger.error(f"Failed to check GPU support: {e}")
+        return "libx264"
+
+video_codec = get_video_codec()
 
 def close_clip(clip):
     if clip is None:

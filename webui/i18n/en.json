@@ -117,6 +117,10 @@
     "Pixabay API Key added successfully": "Pixabay API Key added successfully",
     "Select Pixabay API Key to delete": "Select Pixabay API Key to delete",
     "Delete Selected Pixabay API Key": "Delete Selected Pixabay API Key",
-    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully"
+    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully",
+    "Whisper Settings": "**Whisper Settings**",
+    "Whisper Device": "Whisper Device",
+    "Video Encoder Settings": "**Video Encoder Settings**",
+    "Video Encoder": "Video Encoder"
   }
 }

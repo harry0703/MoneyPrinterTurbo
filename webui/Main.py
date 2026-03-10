@@ -478,17 +478,49 @@ if not config.app.get("hide_config", False):
             # Whisper settings
             st.write(tr("Whisper Settings"))
             
-            # Device selection
+            # Device selection - 使用key参数让Streamlit自动管理状态
             whisper_devices = ["CPU", "GPU", "auto"]
             saved_device = config.whisper.get("device", "CPU")
-            saved_device_index = whisper_devices.index(saved_device)
+            
+            # 初始化session_state
+            if "whisper_device" not in st.session_state:
+                st.session_state["whisper_device"] = saved_device
             
             selected_device = st.selectbox(
                 tr("Whisper Device"),
                 options=whisper_devices,
-                index=saved_device_index
+                key="whisper_device"
             )
-            config.whisper["device"] = selected_device
+            
+            # 检查值是否变化
+            if selected_device != saved_device:
+                logger.info(f"Whisper device changed from {saved_device} to {selected_device}")
+                config.whisper["device"] = selected_device
+                config.save_config()
+                logger.info(f"Whisper device saved to config: {selected_device}")
+            
+            # Video Encoder GPU Acceleration - 使用key参数让Streamlit自动管理状态
+            st.write(tr("Video Encoder Settings"))
+            video_encoder_options = ["CPU", "GPU"]
+            saved_use_gpu = config.app.get("use_gpu", False)
+            saved_encoder_value = "GPU" if saved_use_gpu else "CPU"
+            
+            # 初始化session_state
+            if "video_encoder" not in st.session_state:
+                st.session_state["video_encoder"] = saved_encoder_value
+            
+            selected_encoder = st.selectbox(
+                tr("Video Encoder"),
+                options=video_encoder_options,
+                key="video_encoder"
+            )
+            
+            # 检查值是否变化
+            if selected_encoder != saved_encoder_value:
+                logger.info(f"Video encoder changed from {saved_encoder_value} to {selected_encoder}")
+                config.app["use_gpu"] = (selected_encoder == "GPU")
+                config.save_config()
+                logger.info(f"Video encoder saved to config: {selected_encoder} (use_gpu={config.app.get('use_gpu')})")
 
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
