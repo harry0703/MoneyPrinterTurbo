@@ -184,7 +184,7 @@ use_gpu = false
 
 # Video quality settings
 # Options: "low", "medium", "high", "ultra"
-# video_quality = "high"
+video_quality = "high"
 
 # Video bitrate (in Mbps)
 # If set, overrides quality preset
@@ -247,9 +247,23 @@ language = "zh"
 tts_server = "azure-tts"
 # Voice name
 voice_name = ""
+
+# Subtitle Settings
+# Enable subtitles
+subtitle_enabled = true
+# Subtitle position: "top", "center", "bottom", "custom"
+subtitle_position = "bottom"
+# Custom position percentage from top (only used when position is "custom")
+subtitle_custom_position = 70.0
 # Font name
 font_name = "MicrosoftYaHeiBold.ttc"
-# Text color
+# Text color (hex format)
 text_fore_color = "#FFFFFF"
+# Text background color (true/false or hex color)
+text_background_color = true
 # Font size
 font_size = 60
+# Stroke color (hex format)
+stroke_color = "#000000"
+# Stroke width
+stroke_width = 1.5
