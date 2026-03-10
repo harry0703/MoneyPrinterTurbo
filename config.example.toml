@@ -182,6 +182,14 @@ ollama_api_key = ""
 # Use GPU for video encoding
 use_gpu = false
 
+# Video quality settings
+# Options: "low", "medium", "high", "ultra"
+# video_quality = "high"
+
+# Video bitrate (in Mbps)
+# If set, overrides quality preset
+# video_bitrate = "8M"
+
 
 [whisper]
 # Only effective when subtitle_provider is "whisper"
