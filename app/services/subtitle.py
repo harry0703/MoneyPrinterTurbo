@@ -9,6 +9,11 @@ except ImportError:
     WhisperModel = None
 from loguru import logger
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 from app.config import config
 from app.utils import utils
 
@@ -75,6 +80,16 @@ def create(audio_file, subtitle_file: str = ""):
     if not subtitle_file:
         subtitle_file = f"{audio_file}.srt"
 
+    # 在转录前清理GPU缓存以避免内存不足
+    if device.upper() == "GPU":
+        device_str = "cuda"
+    else:
+        device_str = device.lower()
+    
+    if device_str == "cuda" and torch is not None:
+        logger.info("clearing GPU cache before transcription")
+        torch.cuda.empty_cache()
+
     segments, info = model.transcribe(
         audio_file,
         beam_size=5,
@@ -82,6 +97,11 @@ def create(audio_file, subtitle_file: str = ""):
         vad_filter=True,
         vad_parameters=dict(min_silence_duration_ms=500),
     )
+
+    # 转录后清理GPU缓存
+    if device_str == "cuda" and torch is not None:
+        logger.info("clearing GPU cache after transcription")
+        torch.cuda.empty_cache()
 
     logger.info(
         f"detected language: '{info.language}', probability: {info.language_probability:.2f}"
