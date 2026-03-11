@@ -1833,71 +1833,109 @@ def coze_tts(
                 logger.error(f"Error downloading preview audio: {str(e)}")
             # 如果下载失败，继续尝试TTS API
         
-        # 只有在预览音频下载失败时才执行API调用
-        logger.info(f"start, voice name: {voice_id}, try: 1")
-        
         # Coze TTS API endpoint
         url = "https://api.coze.cn/v1/audio/speech"
-        
-        # 构建请求参数 - 使用正确的参数名称和类型
-        payload = {
-            "voice_id": voice_id,
-            "speed": float(voice_rate),  # Coze API expects float
-            "sample_rate": 8000,  # 默认采样率
-            "input": text,  # 使用input参数而不是text
-            "language_code": "zh"  # 为所有Coze语音应用中文语言代码
-        }
-        
-        # 如果提供了情感参数，添加到请求中
-        if emotion:
-            payload["emotion"] = emotion
         
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         
-        # 发送请求
-        response = requests.post(url, json=payload, headers=headers)
+        # 文本分段处理 - Coze API有长度限制
+        # 按照标点符号分割文本，每段不超过1024字符
+        max_segment_length = 1024
+        segments = []
         
-        # 记录完整的API响应信息（用于调试）
-        logger.info(f"Coze TTS API response status: {response.status_code}")
-        logger.info(f"Coze TTS API response headers: {dict(response.headers)}")
-        if response.status_code != 200:
-            logger.error(f"Coze TTS API response body: {response.text}")
+        if len(text) <= max_segment_length:
+            # 文本长度在限制内，直接处理
+            segments = [text]
+        else:
+            # 文本长度超过限制，需要分段
+            logger.info(f"Text length {len(text)} exceeds Coze API limit, splitting into segments")
+            
+            # 使用utils.split_string_by_punctuations分割文本
+            sentences = utils.split_string_by_punctuations(text)
+            
+            current_segment = ""
+            for sentence in sentences:
+                if len(current_segment) + len(sentence) + 1 <= max_segment_length:
+                    # 当前段落加上新句子不会超过限制，添加到当前段落
+                    if current_segment:
+                        current_segment += " " + sentence
+                    else:
+                        current_segment = sentence
+                else:
+                    # 当前段落加上新句子会超过限制，保存当前段落并开始新段落
+                    if current_segment:
+                        segments.append(current_segment)
+                    current_segment = sentence
+            
+            # 保存最后一个段落
+            if current_segment:
+                segments.append(current_segment)
+            
+            logger.info(f"Split text into {len(segments)} segments")
         
-        if response.status_code == 200:
+        # 处理每个文本片段
+        audio_segments = []
+        for i, segment in enumerate(segments):
+            logger.info(f"Processing segment {i+1}/{len(segments)}, length: {len(segment)}")
+            
+            # 构建请求参数 - 使用正确的参数名称和类型
+            payload = {
+                "voice_id": voice_id,
+                "speed": float(voice_rate),  # Coze API expects float
+                "sample_rate": 8000,  # 默认采样率
+                "input": segment,  # 使用input参数而不是text
+                "language_code": "zh"  # 为所有Coze语音应用中文语言代码
+            }
+            
+            # 如果提供了情感参数，添加到请求中
+            if emotion:
+                payload["emotion"] = emotion
+            
+            # 发送请求
+            response = requests.post(url, json=payload, headers=headers)
+            
+            # 记录完整的API响应信息（用于调试）
+            logger.info(f"Coze TTS API response status for segment {i+1}: {response.status_code}")
+            if response.status_code != 200:
+                logger.error(f"Coze TTS API response body for segment {i+1}: {response.text}")
+                return None
+            
             # 获取音频数据
             audio_bytes = response.content
             
             # 尝试不同的音频格式 - Coze可能返回不同的格式
-            audio_segment = None
-            
             try:
                 # 尝试直接加载音频
                 audio_segment = AudioSegment.from_file(
                     io.BytesIO(audio_bytes),
                     format="mp3"  # 假设Coze返回MP3格式
                 )
+                audio_segments.append(audio_segment)
             except Exception as e:
-                logger.error(f"Failed to load audio: {e}")
+                logger.error(f"Failed to load audio for segment {i+1}: {e}")
                 logger.error(f"Audio data length: {len(audio_bytes)} bytes")
-                logger.error(f"Audio data preview (first 100 bytes): {audio_bytes[:100]}")
                 return None
-            
-            # 导出为MP3格式
-            audio_segment.export(voice_file, format="mp3")
-            
-            logger.info(f"completed, output file: {voice_file}")
-            
-            # Coze TTS只负责音频生成，字幕由Whisper生成
-            # 返回None，让generate_subtitle函数使用Whisper生成字幕
-            return None
+        
+        # 合并音频片段
+        if len(audio_segments) == 1:
+            # 只有一个片段，直接导出
+            audio_segments[0].export(voice_file, format="mp3")
         else:
-            logger.error(f"Coze TTS failed with status code {response.status_code}: {response.text}")
-            logger.error(f"Request payload: {payload}")
-            logger.error(f"Request headers: {headers}")
-            return None
+            # 多个片段，合并后导出
+            logger.info(f"Merging {len(audio_segments)} audio segments")
+            combined = audio_segments[0]
+            for i in range(1, len(audio_segments)):
+                combined += audio_segments[i]
+            combined.export(voice_file, format="mp3")
+        
+        logger.info(f"completed, output file: {voice_file}")
+        
+        # Coze TTS只负责音频生成，字幕由Whisper生成
+        # 返回None，让generate_subtitle函数使用Whisper生成字幕
+        return None
         
     except ImportError as e:
         logger.error(f"Missing required package for Coze TTS: {str(e)}. Please install: pip install pydub")
