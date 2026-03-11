@@ -83,25 +83,25 @@ VIDEO_QUALITY_PRESETS = {
         "low": {
             "bitrate": "4M",
             "preset": "p5",
-            "crf": None,
+            "crf": 28,
             "description": "Low quality, fast encoding (GPU)"
         },
         "medium": {
             "bitrate": "6M",
             "preset": "p4",
-            "crf": None,
+            "crf": 23,
             "description": "Medium quality, balanced encoding (GPU)"
         },
         "high": {
             "bitrate": "10M",
             "preset": "p3",
-            "crf": None,
+            "crf": 20,
             "description": "High quality, good encoding (GPU)"
         },
         "ultra": {
             "bitrate": "15M",
             "preset": "p2",
-            "crf": None,
+            "crf": 18,
             "description": "Ultra quality, best encoding (GPU)"
         }
     }
@@ -350,7 +350,8 @@ def combine_videos(
                 fps=fps,
                 codec=video_codec,
                 bitrate=video_encoding_params["bitrate"],
-                preset=video_encoding_params["preset"]
+                preset=video_encoding_params["preset"],
+                crf=video_encoding_params["crf"]
             )
             
             close_clip(clip)
@@ -416,7 +417,8 @@ def combine_videos(
                 fps=fps,
                 codec=video_codec,
                 bitrate=video_encoding_params["bitrate"],
-                preset=video_encoding_params["preset"]
+                preset=video_encoding_params["preset"],
+                crf=video_encoding_params["crf"]
             )
             close_clip(base_clip)
             close_clip(next_clip)
@@ -620,7 +622,8 @@ def generate_video(
         fps=fps,
         codec=video_codec,
         bitrate=video_encoding_params["bitrate"],
-        preset=video_encoding_params["preset"]
+        preset=video_encoding_params["preset"],
+        crf=video_encoding_params["crf"]
     )
     video_clip.close()
     del video_clip
