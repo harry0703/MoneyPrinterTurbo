@@ -344,6 +344,11 @@ def combine_videos(
                 
             # write clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
+            # 构建ffmpeg参数
+            ffmpeg_params = []
+            if video_encoding_params["crf"] is not None:
+                ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+            
             clip.write_videofile(
                 clip_file,
                 logger=None,
@@ -351,7 +356,7 @@ def combine_videos(
                 codec=video_codec,
                 bitrate=video_encoding_params["bitrate"],
                 preset=video_encoding_params["preset"],
-                crf=video_encoding_params["crf"]
+                ffmpeg_params=ffmpeg_params
             )
             
             close_clip(clip)
@@ -408,6 +413,11 @@ def combine_videos(
             merged_clip = concatenate_videoclips([base_clip, next_clip])
 
             # save merged result to temp file
+            # 构建ffmpeg参数
+            ffmpeg_params = []
+            if video_encoding_params["crf"] is not None:
+                ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+            
             merged_clip.write_videofile(
                 filename=temp_merged_next,
                 threads=threads,
@@ -418,7 +428,7 @@ def combine_videos(
                 codec=video_codec,
                 bitrate=video_encoding_params["bitrate"],
                 preset=video_encoding_params["preset"],
-                crf=video_encoding_params["crf"]
+                ffmpeg_params=ffmpeg_params
             )
             close_clip(base_clip)
             close_clip(next_clip)
@@ -613,6 +623,11 @@ def generate_video(
             logger.error(f"failed to add bgm: {str(e)}")
 
     video_clip = video_clip.with_audio(audio_clip)
+    # 构建ffmpeg参数
+    ffmpeg_params = []
+    if video_encoding_params["crf"] is not None:
+        ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+    
     video_clip.write_videofile(
         output_file,
         audio_codec=audio_codec,
@@ -623,7 +638,7 @@ def generate_video(
         codec=video_codec,
         bitrate=video_encoding_params["bitrate"],
         preset=video_encoding_params["preset"],
-        crf=video_encoding_params["crf"]
+        ffmpeg_params=ffmpeg_params
     )
     video_clip.close()
     del video_clip
