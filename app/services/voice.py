@@ -153,7 +153,7 @@ def get_coze_voices(force_refresh=False) -> list[str]:
         while has_more:
             page_num += 1
             params["page_num"] = page_num
-            # 发送请求
+            # Send request
             response = requests.get(url, headers=headers, params=params)
 
             if response.status_code == 200:
@@ -1831,7 +1831,7 @@ def coze_tts(
                     logger.error(f"Failed to download preview audio: {response.status_code}")
             except Exception as e:
                 logger.error(f"Error downloading preview audio: {str(e)}")
-            # 如果下载失败，继续尝试TTS API
+            # If download fails, continue trying TTS API
         
         # Coze TTS API endpoint
         url = "https://api.coze.cn/v1/audio/speech"
@@ -1841,77 +1841,77 @@ def coze_tts(
             "Content-Type": "application/json"
         }
         
-        # 文本分段处理 - Coze API有长度限制
-        # 按照标点符号分割文本，每段不超过1024字符
+        # Text segmentation processing - Coze API has length limit
+        # Split text by punctuation, each segment not exceeding 1024 characters
         max_segment_length = 1024
         segments = []
         
         if len(text) <= max_segment_length:
-            # 文本长度在限制内，直接处理
+            # Text length within limit, process directly
             segments = [text]
         else:
-            # 文本长度超过限制，需要分段
+            # Text length exceeds limit, need segmentation
             logger.info(f"Text length {len(text)} exceeds Coze API limit, splitting into segments")
             
-            # 使用utils.split_string_by_punctuations分割文本
+            # Use utils.split_string_by_punctuations to split text
             sentences = utils.split_string_by_punctuations(text)
             
             current_segment = ""
             for sentence in sentences:
                 if len(current_segment) + len(sentence) + 1 <= max_segment_length:
-                    # 当前段落加上新句子不会超过限制，添加到当前段落
+                    # Current segment plus new sentence won't exceed limit, add to current segment
                     if current_segment:
                         current_segment += " " + sentence
                     else:
                         current_segment = sentence
                 else:
-                    # 当前段落加上新句子会超过限制，保存当前段落并开始新段落
+                    # Current segment plus new sentence will exceed limit, save current segment and start new segment
                     if current_segment:
                         segments.append(current_segment)
                     current_segment = sentence
             
-            # 保存最后一个段落
+            # Save the last segment
             if current_segment:
                 segments.append(current_segment)
             
             logger.info(f"Split text into {len(segments)} segments")
         
-        # 处理每个文本片段
+        # Process each text segment
         audio_segments = []
         for i, segment in enumerate(segments):
             logger.info(f"Processing segment {i+1}/{len(segments)}, length: {len(segment)}")
             
-            # 构建请求参数 - 使用正确的参数名称和类型
+            # Build request parameters - use correct parameter names and types
             payload = {
                 "voice_id": voice_id,
                 "speed": float(voice_rate),  # Coze API expects float
-                "sample_rate": 8000,  # 默认采样率
-                "input": segment,  # 使用input参数而不是text
-                "language_code": "zh"  # 为所有Coze语音应用中文语言代码
+                "sample_rate": 8000,  # Default sample rate
+                "input": segment,  # Use input parameter instead of text
+                "language_code": "zh"  # Apply Chinese language code for all Coze voices
             }
             
-            # 如果提供了情感参数，添加到请求中
+            # If emotion parameter is provided, add to request
             if emotion:
                 payload["emotion"] = emotion
             
-            # 发送请求
+            # Send request
             response = requests.post(url, json=payload, headers=headers)
             
-            # 记录完整的API响应信息（用于调试）
+            # Record complete API response information (for debugging)
             logger.info(f"Coze TTS API response status for segment {i+1}: {response.status_code}")
             if response.status_code != 200:
                 logger.error(f"Coze TTS API response body for segment {i+1}: {response.text}")
                 return None
             
-            # 获取音频数据
+            # Get audio data
             audio_bytes = response.content
             
-            # 尝试不同的音频格式 - Coze可能返回不同的格式
+            # Try different audio formats - Coze may return different formats
             try:
-                # 尝试直接加载音频
+                # Try to load audio directly
                 audio_segment = AudioSegment.from_file(
                     io.BytesIO(audio_bytes),
-                    format="mp3"  # 假设Coze返回MP3格式
+                    format="mp3"  # Assume Coze returns MP3 format
                 )
                 audio_segments.append(audio_segment)
             except Exception as e:
@@ -1919,12 +1919,12 @@ def coze_tts(
                 logger.error(f"Audio data length: {len(audio_bytes)} bytes")
                 return None
         
-        # 合并音频片段
+        # Merge audio segments
         if len(audio_segments) == 1:
-            # 只有一个片段，直接导出
+            # Only one segment, export directly
             audio_segments[0].export(voice_file, format="mp3")
         else:
-            # 多个片段，合并后导出
+            # Multiple segments, merge and export
             logger.info(f"Merging {len(audio_segments)} audio segments")
             combined = audio_segments[0]
             for i in range(1, len(audio_segments)):

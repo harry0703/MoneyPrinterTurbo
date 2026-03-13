@@ -344,7 +344,7 @@ def combine_videos(
                 
             # write clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            # 构建ffmpeg参数
+            # Build ffmpeg parameters
             ffmpeg_params = []
             if video_encoding_params["crf"] is not None:
                 ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
@@ -413,14 +413,14 @@ def combine_videos(
             merged_clip = concatenate_videoclips([base_clip, next_clip])
 
             # save merged result to temp file
-            # 构建ffmpeg参数
+            # Build ffmpeg parameters
             ffmpeg_params = []
             if video_encoding_params["crf"] is not None:
                 ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
             
             merged_clip.write_videofile(
                 filename=temp_merged_next,
-                threads=threads,
+                threads=int(threads),
                 logger=None,
                 temp_audiofile_path=output_dir,
                 audio_codec=audio_codec,
@@ -632,7 +632,7 @@ def generate_video(
         output_file,
         audio_codec=audio_codec,
         temp_audiofile_path=output_dir,
-        threads=params.n_threads or 2,
+        threads=int(params.n_threads or 2),
         logger=None,
         fps=fps,
         codec=video_codec,

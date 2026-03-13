@@ -80,14 +80,14 @@ def create(audio_file, subtitle_file: str = ""):
     if not subtitle_file:
         subtitle_file = f"{audio_file}.srt"
 
-    # 在转录前清理GPU缓存以避免内存不足
+    # Clear GPU cache before transcription to avoid out of memory
     if device.upper() == "GPU":
         device_str = "cuda"
     else:
         device_str = device.lower()
     
     if device_str == "cuda" and torch is not None:
-        logger.info("clearing GPU cache before transcription")
+        logger.info("Clearing GPU cache before transcription")
         torch.cuda.empty_cache()
 
     segments, info = model.transcribe(
@@ -98,9 +98,9 @@ def create(audio_file, subtitle_file: str = ""):
         vad_parameters=dict(min_silence_duration_ms=500),
     )
 
-    # 转录后清理GPU缓存
+    # Clear GPU cache after transcription
     if device_str == "cuda" and torch is not None:
-        logger.info("clearing GPU cache after transcription")
+        logger.info("Clearing GPU cache after transcription")
         torch.cuda.empty_cache()
 
     logger.info(
@@ -303,15 +303,25 @@ def correct(subtitle_file, video_script):
 
 def _srt_time_to_seconds(time_str):
     """
-    将SRT时间格式转换为秒
-    格式: 00:00:00,000
+    Convert SRT time format to seconds
+    Format: 00:00:00,000
     """
     try:
+        if not time_str:
+            return 0
         parts = time_str.split(",")
-        h, m, s = map(int, parts[0].split(":"))
-        ms = int(parts[1])
+        if len(parts) < 2:
+            return 0
+        time_part = parts[0]
+        ms_part = parts[1]
+        time_components = time_part.split(":")
+        if len(time_components) < 3:
+            return 0
+        h, m, s = map(int, time_components)
+        ms = int(ms_part)
         return h * 3600 + m * 60 + s + ms / 1000
-    except:
+    except Exception as e:
+        logger.error(f"Error converting SRT time to seconds: {e}")
         return 0
 
 
