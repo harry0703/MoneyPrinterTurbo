@@ -1,5 +1,6 @@
 <div align="center">
-<h1 align="center">MoneyPrinterTurbo 💸</h1>
+<h1 align="center">MoneyPrinterTurboCN 💸</h1>
+<p align="center">(Honor from upstream MoneyPrinterTurbo)</p>
 
 <p align="center">
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/stargazers"><img src="https://img.shields.io/github/stars/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Stargazers"></a>
@@ -118,12 +119,6 @@
 
 ## 快速开始 🚀
 
-### 在 Google Colab 中运行
-免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
-
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
-
 ### Windows一键启动包
 
 下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
@@ -145,7 +140,7 @@
 #### ① 克隆代码
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
 ```
 
 #### ② 修改配置文件（可选，建议启动后也可以在 WebUI 里面配置）
@@ -192,10 +187,10 @@ docker-compose up
 建议使用 [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html) 创建 python 虚拟环境
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
-cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.11
-conda activate MoneyPrinterTurbo
+git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
+cd MoneyPrinterTurboCN
+conda create -n MoneyPrinterTurboCN python=3.12
+conda activate MoneyPrinterTurboCN  
 pip install -r requirements.txt
 ```
 
@@ -222,7 +217,7 @@ pip install -r requirements.txt
 
 #### ③ 启动Web界面 🌐
 
-注意需要到 MoneyPrinterTurbo 项目 `根目录` 下执行以下命令
+注意需要到 MoneyPrinterTurboCN 项目 `根目录` 下执行以下命令
 
 ###### Windows
 
@@ -275,11 +270,11 @@ python main.py
 - 百度网盘: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
 - 夸克网盘：https://pan.quark.cn/s/3ee3d991d64b
 
-模型下载后解压，整个目录放到 `.\MoneyPrinterTurbo\models` 里面，
-最终的文件路径应该是这样: `.\MoneyPrinterTurbo\models\whisper-large-v3`
+模型下载后解压，整个目录放到 `.\MoneyPrinterTurboCN\models` 里面，
+最终的文件路径应该是这样: `.\MoneyPrinterTurboCN\models\whisper-large-v3`
 
 ```
-MoneyPrinterTurbo  
+MoneyPrinterTurboCN  
   ├─models
   │   └─whisper-large-v3
   │          config.json
@@ -357,13 +352,13 @@ Trying to load the model directly from the local cache, if it exists.
 
 ## 反馈建议 📢
 
-- 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues)
-  或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。
+- 可以提交 [issue](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues)
+  或者 [pull request](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/pulls)。
 
 ## 许可证 📝
 
 点击查看 [`LICENSE`](LICENSE) 文件
 
-## Star History
+## Star History (upstream: harry0703/MoneyPrinterTurbo)
 
 [![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date)

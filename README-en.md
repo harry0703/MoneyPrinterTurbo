@@ -1,5 +1,6 @@
 <div align="center">
-<h1 align="center">MoneyPrinterTurbo 💸</h1>
+<h1 align="center">MoneyPrinterTurboCN 💸</h1>
+<p align="center">(Honor from upstream MoneyPrinterTurbo)</p>
 
 <p align="center">
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/stargazers"><img src="https://img.shields.io/github/stars/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Stargazers"></a>
@@ -120,35 +121,31 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 ## Quick Start 🚀
 
-### Run in Google Colab 
-Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
+### Windows One-click Launch Package
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
+Download the one-click launch package, unzip and use directly (path should not contain **Chinese**, **special characters**, **spaces**)
 
-
-### Windows
-
-Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
+- Baidu Netdisk (v1.2.6): https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx
+- Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
 
 After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
 
 After launching, the browser will open automatically (if it opens blank, it is recommended to use **Chrome** or **Edge**)
 
-### Other Systems
-
-One-click startup packages have not been created yet. See the **Installation & Deployment** section below. It is recommended to use **docker** for deployment, which is more convenient.
-
 ## Installation & Deployment 📥
 
 ### Prerequisites
 
+- Try not to use **Chinese paths** to avoid unpredictable issues
+- Ensure your **network** is normal, VPN needs to be in `global traffic` mode
+
 #### ① Clone the Project
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
 ```
 
-#### ② Modify the Configuration File
+#### ② Modify the Configuration File (optional, recommended to configure in WebUI after startup)
 
 - Copy the `config.example.toml` file and rename it to `config.toml`
 - Follow the instructions in the `config.toml` file to configure `pexels_api_keys` and `llm_provider`, and according to
@@ -159,13 +156,14 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 #### ① Launch the Docker Container
 
 If you haven't installed Docker, please install it first https://www.docker.com/products/docker-desktop/
+
 If you are using a Windows system, please refer to Microsoft's documentation:
 
 1. https://learn.microsoft.com/en-us/windows/wsl/install
 2. https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers
 
 ```shell
-cd MoneyPrinterTurbo
+cd MoneyPrinterTurboCN
 docker-compose up
 ```
 
@@ -181,15 +179,20 @@ Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redo
 
 ### Manual Deployment 📦
 
+> Video Tutorials
+
+- Complete usage demonstration: https://v.douyin.com/iFhnwsKY/
+- How to deploy on Windows: https://v.douyin.com/iFyjoW3M
+
 #### ① Create a Python Virtual Environment
 
 It is recommended to create a Python virtual environment using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
-cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.11
-conda activate MoneyPrinterTurbo
+git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
+cd MoneyPrinterTurboCN
+conda create -n MoneyPrinterTurboCN python=3.12
+conda activate MoneyPrinterTurboCN  
 pip install -r requirements.txt
 ```
 
@@ -205,7 +208,7 @@ pip install -r requirements.txt
 
 ```shell
 brew install imagemagick
-````
+```
 
 ###### Ubuntu
 
@@ -221,7 +224,7 @@ sudo yum install ImageMagick
 
 #### ③ Launch the Web Interface 🌐
 
-Note that you need to execute the following commands in the `root directory` of the MoneyPrinterTurbo project
+Note that you need to execute the following commands in the `root directory` of the MoneyPrinterTurboCN project
 
 ###### Windows
 
@@ -235,7 +238,7 @@ webui.bat
 sh webui.sh
 ```
 
-After launching, the browser will open automatically
+After launching, the browser will open automatically (if it opens blank, it is recommended to use **Chrome** or **Edge**)
 
 #### ④ Launch the API Service 🚀
 
@@ -267,9 +270,9 @@ It is recommended to use `edge` mode, and switch to `whisper` mode if the qualit
 satisfactory.
 
 > Note:
->
-> 1. In whisper mode, you need to download a model file from HuggingFace, about 3GB in size, please ensure good internet connectivity
-> 2. If left blank, it means no subtitles will be generated.
+
+1. In whisper mode, you need to download a model file from HuggingFace, about 3GB in size, please ensure good internet connectivity
+2. If left blank, it means no subtitles will be generated.
 
 > Since HuggingFace is not accessible in China, you can use the following methods to download the `whisper-large-v3` model file
 
@@ -278,11 +281,11 @@ Download links:
 - Baidu Netdisk: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
 - Quark Netdisk: https://pan.quark.cn/s/3ee3d991d64b
 
-After downloading the model, extract it and place the entire directory in `.\MoneyPrinterTurbo\models`,
-The final file path should look like this: `.\MoneyPrinterTurbo\models\whisper-large-v3`
+After downloading the model, extract it and place the entire directory in `./MoneyPrinterTurboCN/models`,
+The final file path should look like this: `./MoneyPrinterTurboCN/models/whisper-large-v3`
 
 ```
-MoneyPrinterTurbo
+MoneyPrinterTurboCN  
   ├─models
   │   └─whisper-large-v3
   │          config.json
@@ -320,8 +323,8 @@ actual installation path.
 
 ```toml
 [app]
-# Please set according to your actual path, note that Windows path separators are \\
-ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
+# Please set according to your actual path, note that Windows path separators are \
+ffmpeg_path = "C:\Users\harry\Downloads\ffmpeg.exe"
 ```
 
 ### ❓ImageMagick is not installed on your computer
@@ -377,13 +380,13 @@ Solution: [Click to see how to manually download the model from netdisk](#subtit
 
 ## Feedback & Suggestions 📢
 
-- You can submit an [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) or
-  a [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls).
+- You can submit an [issue](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues) or
+  a [pull request](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/pulls).
 
 ## License 📝
 
 Click to view the [`LICENSE`](LICENSE) file
 
-## Star History
+## Star History (upstream: harry0703/MoneyPrinterTurbo)
 
 [![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date)

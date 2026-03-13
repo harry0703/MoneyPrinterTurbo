@@ -71,7 +71,7 @@ locales = utils.load_locales(i18n_dir)
 title_col, lang_col = st.columns([3, 1])
 
 with title_col:
-    st.title(f"MoneyPrinterTurbo v{config.project_version}")
+    st.title(f"{config.project_name} v{config.project_version}")
 
 with lang_col:
     display_languages = []
