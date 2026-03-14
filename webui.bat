@@ -11,7 +11,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 rem Check if the required Docker containers are running
-set CONTAINER_NAME=moneyprinterturbo-webui
+set CONTAINER_NAME=moneyprinterturbocn-webui
 docker ps -q -f name=%CONTAINER_NAME% >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo Docker container %CONTAINER_NAME% is not running.

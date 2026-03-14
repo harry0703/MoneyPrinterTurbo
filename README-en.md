@@ -177,6 +177,72 @@ Open your browser and visit http://0.0.0.0:8501
 
 Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redoc
 
+### Docker Maintenance 🛠
+
+#### Check Container Status
+
+```shell
+docker-compose ps
+```
+
+#### Stop Containers
+
+```shell
+docker-compose stop
+```
+
+#### Start Containers
+
+```shell
+docker-compose start
+```
+
+#### Restart Containers
+
+```shell
+docker-compose restart
+```
+
+#### Stop and Remove Containers
+
+```shell
+docker-compose down
+```
+
+#### View Container Logs
+
+```shell
+# View all container logs
+docker-compose logs
+
+# View webui container logs
+docker-compose logs webui
+
+# View api container logs
+docker-compose logs api
+
+# View logs in real-time
+docker-compose logs -f
+```
+
+#### Rebuild Image
+
+If you have modified the Dockerfile or dependency files, you need to rebuild the image:
+
+```shell
+docker-compose up -d --build
+```
+
+#### Enter Container
+
+```shell
+# Enter webui container
+docker-compose exec webui bash
+
+# Enter api container
+docker-compose exec api bash
+```
+
 ### Manual Deployment 📦
 
 > Video Tutorials

@@ -175,6 +175,72 @@ docker-compose up
 
 打开浏览器，访问 http://0.0.0.0:8080/docs 或者 http://0.0.0.0:8080/redoc
 
+### Docker维护 🛠
+
+#### 查看容器状态
+
+```shell
+docker-compose ps
+```
+
+#### 停止容器
+
+```shell
+docker-compose stop
+```
+
+#### 启动容器
+
+```shell
+docker-compose start
+```
+
+#### 重启容器
+
+```shell
+docker-compose restart
+```
+
+#### 停止并删除容器
+
+```shell
+docker-compose down
+```
+
+#### 查看容器日志
+
+```shell
+# 查看所有容器日志
+docker-compose logs
+
+# 查看webui容器日志
+docker-compose logs webui
+
+# 查看api容器日志
+docker-compose logs api
+
+# 实时查看日志
+docker-compose logs -f
+```
+
+#### 重新构建镜像
+
+如果修改了Dockerfile或依赖文件，需要重新构建镜像：
+
+```shell
+docker-compose up -d --build
+```
+
+#### 进入容器
+
+```shell
+# 进入webui容器
+docker-compose exec webui bash
+
+# 进入api容器
+docker-compose exec api bash
+```
+
 ### 手动部署 📦
 
 > 视频教程

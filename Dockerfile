@@ -1,13 +1,13 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-bullseye@sha256:59f0d65a7a8570beed8a0e3e3b7011a6864b2a5c6a4db6a333b3e0d8c9f5b0b6
 
 # Set the working directory in the container
-WORKDIR /MoneyPrinterTurbo
+WORKDIR /MoneyPrinterTurboCN
 
-# 设置/MoneyPrinterTurbo目录权限为777
-RUN chmod 777 /MoneyPrinterTurbo
+# Set /MoneyPrinterTurboCN directory permissions to 777
+RUN chmod 777 /MoneyPrinterTurboCN
 
-ENV PYTHONPATH="/MoneyPrinterTurbo"
+ENV PYTHONPATH="/MoneyPrinterTurboCN"
 
 # Install system dependencies with domestic mirrors first for stability
 RUN echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources.list && \
@@ -65,10 +65,10 @@ EXPOSE 8501
 CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False"]
 
 # 1. Build the Docker image using the following command
-# docker build -t moneyprinterturbo .
+# docker build -t moneyprinterturbocn .
 
 # 2. Run the Docker container using the following command
 ## For Linux or MacOS:
-# docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
+# docker run -v $(pwd)/config.toml:/MoneyPrinterTurboCN/config.toml -v $(pwd)/storage:/MoneyPrinterTurboCN/storage -p 8501:8501 moneyprinterturbocn
 ## For Windows:
-# docker run -v ${PWD}/config.toml:/MoneyPrinterTurbo/config.toml -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
+# docker run -v ${PWD}/config.toml:/MoneyPrinterTurboCN/config.toml -v ${PWD}/storage:/MoneyPrinterTurboCN/storage -p 8501:8501 moneyprinterturbocn
