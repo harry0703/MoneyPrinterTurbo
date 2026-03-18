@@ -96,11 +96,12 @@ qwen_model_name = "qwen-max"
 
 
 ########## MiniMax API Key
-# Visit https://platform.minimaxi.com to get your API key
+# Visit https://platform.minimax.io to get your API key
 # MiniMax API is OpenAI-compatible
+# Available models: MiniMax-M2.7 (default), MiniMax-M2.7-highspeed
 minimax_api_key = ""
 minimax_base_url = "https://api.minimax.io/v1"
-minimax_model_name = "MiniMax-M1"
+minimax_model_name = "MiniMax-M2.7"
 
 ########## DeepSeek API Key
 # Visit https://platform.deepseek.com/api_keys to get your API key
