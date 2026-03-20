@@ -558,6 +558,18 @@ with left_panel:
         )
         params.video_language = video_languages[selected_index][1]
 
+        # Multi-scene mode switch
+        if "multi_scene_enabled" not in st.session_state:
+            st.session_state["multi_scene_enabled"] = False
+        
+        multi_scene_enabled = st.checkbox(
+            tr("Enable Multi-Scene Mode"),
+            value=st.session_state["multi_scene_enabled"],
+            help=tr("When enabled, the video will be divided into multiple scenes, each with its own visual requirements and narration")
+        )
+        st.session_state["multi_scene_enabled"] = multi_scene_enabled
+        params.multi_scene_enabled = multi_scene_enabled
+
         if st.button(
             tr("Generate Video Script and Keywords"), key="auto_generate_script"
         ):

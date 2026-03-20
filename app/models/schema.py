@@ -84,6 +84,9 @@ class VideoParams(BaseModel):
     
     custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore video_script and disable subtitle
     video_language: Optional[str] = ""  # auto detect
+    
+    # Multi-scene mode settings
+    multi_scene_enabled: Optional[bool] = False  # Enable multi-scene mode
 
     voice_name: Optional[str] = ""
     voice_volume: Optional[float] = 1.0
