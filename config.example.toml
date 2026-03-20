@@ -221,3 +221,21 @@ api_key = ""
 # 是否隐藏日志信息
 # Whether to hide logs in the UI
 hide_log = false
+
+# ===== ComfyUI 本地 AI 生成配置 (video_source = "ai" 时使用) =====
+# ComfyUI API 地址
+comfyui_api_url = "http://127.0.0.1:8188"
+# FLUX.1-schnell 模型文件名
+comfyui_flux_model = "flux1-schnell.safetensors"
+# VAE 文件名
+comfyui_flux_vae = "ae.safetensors"
+# T5-XXL 文本编码器
+comfyui_t5xxl = "t5xxl_fp16.safetensors"
+# CLIP-L 文本编码器
+comfyui_clip_l = "clip_l.safetensors"
+# 生成超时（秒）
+comfyui_timeout = 120
+# prompt 前缀（自动加在搜索词前）
+comfyui_prompt_prefix = "Professional cinematic photo, high quality, detailed, 4K, "
+# prompt 后缀（自动加在搜索词后）
+comfyui_prompt_suffix = ""

@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice
+from app.services import comfyui, llm, material, subtitle, video, voice
 from app.services import state as sm
 from app.utils import utils
 
@@ -172,6 +172,19 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             )
             return None
         return [material_info.url for material_info in materials]
+    elif params.video_source == "ai":
+        logger.info("\n\n## generating AI video materials via ComfyUI")
+        ai_videos = comfyui.generate_videos_ai(
+            search_terms=video_terms,
+            video_aspect=params.video_aspect,
+            audio_duration=audio_duration * params.video_count,
+            clip_duration=params.video_clip_duration,
+        )
+        if not ai_videos:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to generate AI video materials via ComfyUI.")
+            return None
+        return ai_videos
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         downloaded_videos = material.download_videos(
