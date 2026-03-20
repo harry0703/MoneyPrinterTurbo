@@ -34,6 +34,13 @@ def get_siliconflow_voices() -> list[str]:
     Returns:
         声音列表，格式为 ["siliconflow:FunAudioLLM/CosyVoice2-0.5B:alex", ...]
     """
+    api_key = config.siliconflow.get("api_key", "")
+    if not api_key:
+        logger.warning("SiliconFlow API key is NOT set, using HARDCODED voice list")
+    else:
+        logger.info("SiliconFlow API key is set, using HARDCODED voice list")
+    
+    logger.info("Loading SiliconFlow voices from HARDCODED list")
     # 硅基流动的声音列表和对应的性别（用于显示）
     voices_with_gender = [
         ("FunAudioLLM/CosyVoice2-0.5B", "alex", "Male"),
@@ -47,10 +54,12 @@ def get_siliconflow_voices() -> list[str]:
     ]
 
     # 添加siliconflow:前缀，并格式化为显示名称
-    return [
+    result = [
         f"siliconflow:{model}:{voice}-{gender}"
         for model, voice, gender in voices_with_gender
     ]
+    logger.info(f"SiliconFlow loaded {len(result)} hardcoded voices: {result}")
+    return result
 
 
 def get_gemini_voices() -> list[str]:
@@ -60,6 +69,13 @@ def get_gemini_voices() -> list[str]:
     Returns:
         声音列表，格式为 ["gemini:Zephyr-Female", "gemini:Puck-Male", ...]
     """
+    api_key = config.app.get("gemini_api_key", "")
+    if not api_key:
+        logger.warning("Gemini API key is NOT set, using HARDCODED voice list")
+    else:
+        logger.info("Gemini API key is set, using HARDCODED voice list")
+    
+    logger.info("Loading Gemini voices from HARDCODED list")
     # Gemini TTS支持的语音列表
     voices_with_gender = [
         ("Zephyr", "Female"),
@@ -80,10 +96,12 @@ def get_gemini_voices() -> list[str]:
     ]
     
     # 添加gemini:前缀，并格式化为显示名称
-    return [
+    result = [
         f"gemini:{voice}-{gender}"
         for voice, gender in voices_with_gender
     ]
+    logger.info(f"Gemini loaded {len(result)} hardcoded voices: {result}")
+    return result
 
 
 def get_coze_voices(force_refresh=False) -> list[str]:
@@ -133,9 +151,10 @@ def get_coze_voices(force_refresh=False) -> list[str]:
         api_key = config.coze.get("api_key", "")
         if not api_key:
             # 如果没有API key，返回默认的语音列表
-            logger.info("No Coze API key found, using default voices")
+            logger.info("No Coze API key found, using DEFAULT hardcoded voices")
             for voice_id, voice_name, gender in voices_with_id_gender:
                 voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
+            logger.info(f"Coze loaded {len(voices)} DEFAULT hardcoded voices (no API key): {voices}")
             return voices
         
         # Coze TTS声音列表API endpoint
@@ -233,22 +252,25 @@ def get_coze_voices(force_refresh=False) -> list[str]:
 
                 # 如果API返回的列表为空，使用默认列表
                 if not voices:
-                    logger.warning("Coze API returned empty voice list, using default voices")
+                    logger.warning("Coze API returned empty voice list, using DEFAULT hardcoded voices")
                     for voice_id, voice_name, gender in voices_with_id_gender:
                         voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
+                    logger.info(f"Coze loaded {len(voices)} DEFAULT hardcoded voices (API empty response): {voices}")
                     break
             else:
                 # API调用失败，返回默认列表
-                logger.error(f"Failed to get Coze voices: {response.status_code} {response.text}")
+                logger.error(f"Failed to get Coze voices from API: {response.status_code} {response.text}")
                 for voice_id, voice_name, gender in voices_with_id_gender:
                     voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
+                logger.info(f"Coze loaded {len(voices)} DEFAULT hardcoded voices (API call failed): {voices}")
                 break
         
         # 如果没有从API获取到任何声音，使用默认列表
         if len(voices) == 0:
-            logger.warning("No voices fetched from API, using default voices")
+            logger.warning("No voices fetched from API, using DEFAULT hardcoded voices")
             for voice_id, voice_name, gender in voices_with_id_gender:
                 voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
+            logger.info(f"Coze loaded {len(voices)} DEFAULT hardcoded voices (no voices from API): {voices}")
         
         # 更新缓存
         _voice_cache['coze'] = {
@@ -261,9 +283,10 @@ def get_coze_voices(force_refresh=False) -> list[str]:
         return voices
     except Exception as e:
         # 发生异常，返回默认列表
-        logger.error(f"Error getting Coze voices: {str(e)}")
+        logger.error(f"Error getting Coze voices from API: {str(e)}")
         for voice_id, voice_name, gender in voices_with_id_gender:
             voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
+        logger.info(f"Coze loaded {len(voices)} DEFAULT hardcoded voices (exception occurred): {voices}")
         
         # 即使发生异常，也更新缓存以避免重复失败
         _voice_cache['coze'] = {
@@ -275,6 +298,14 @@ def get_coze_voices(force_refresh=False) -> list[str]:
 
 
 def get_all_azure_voices(filter_locals=None) -> list[str]:
+    speech_key = config.azure.get("speech_key", "")
+    service_region = config.azure.get("speech_region", "")
+    if not speech_key or not service_region:
+        logger.warning("Azure speech key or region is NOT set, using HARDCODED voice list")
+    else:
+        logger.info("Azure speech key and region are set, using HARDCODED voice list")
+    
+    logger.info(f"Loading Azure voices from HARDCODED list (filter_locals={filter_locals})")
     azure_voices_str = """
 Name: af-ZA-AdriNeural
 Gender: Female
@@ -1286,6 +1317,7 @@ Gender: Female
             voices.append(f"{name}-{gender}")
 
     voices.sort()
+    logger.info(f"Azure loaded {len(voices)} hardcoded voices (filter_locals={filter_locals})")
     return voices
 
 
