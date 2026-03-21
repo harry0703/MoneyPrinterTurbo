@@ -155,6 +155,12 @@ def get_coze_voices(force_refresh=False) -> list[str]:
             for voice_id, voice_name, gender in voices_with_id_gender:
                 voices.append(f"coze|{voice_id}|{voice_name}-{gender}||")
             logger.info(f"Coze loaded {len(voices)} DEFAULT hardcoded voices (no API key): {voices}")
+            # 更新缓存
+            _voice_cache['coze'] = {
+                'voices': voices,
+                'timestamp': current_time,
+                'api_key': api_key
+            }
             return voices
         
         # Coze TTS声音列表API endpoint
@@ -275,7 +281,7 @@ def get_coze_voices(force_refresh=False) -> list[str]:
         # 更新缓存
         _voice_cache['coze'] = {
             'voices': voices,
-            'timestamp': datetime.now().timestamp(),
+            'timestamp': current_time,
             'api_key': api_key
         }
         logger.info(f"Coze voices cached: {len(voices)} voices")
@@ -291,7 +297,7 @@ def get_coze_voices(force_refresh=False) -> list[str]:
         # 即使发生异常，也更新缓存以避免重复失败
         _voice_cache['coze'] = {
             'voices': voices,
-            'timestamp': datetime.now().timestamp(),
+            'timestamp': current_time,
             'api_key': api_key
         }
         return voices

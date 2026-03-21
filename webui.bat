@@ -36,7 +36,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 rem Run Streamlit app (browser will open automatically by default)
-streamlit run .\webui\Main.py --browser.gatherUsageStats=False --server.enableCORS=True
+streamlit run .\webui\Main.py --browser.gatherUsageStats=False --server.enableCORS=True --server.maxUploadSize=1024 --server.headless=True
 
 rem Return to original environment
 call conda deactivate

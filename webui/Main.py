@@ -558,20 +558,9 @@ with left_panel:
         )
         params.video_language = video_languages[selected_index][1]
 
-        # Multi-scene mode switch
-        if "multi_scene_enabled" not in st.session_state:
-            st.session_state["multi_scene_enabled"] = False
-        
-        multi_scene_enabled = st.checkbox(
-            tr("Enable Multi-Scene Mode"),
-            value=st.session_state["multi_scene_enabled"],
-            help=tr("When enabled, the video will be divided into multiple scenes, each with its own visual requirements and narration")
-        )
-        st.session_state["multi_scene_enabled"] = multi_scene_enabled
-        params.multi_scene_enabled = multi_scene_enabled
-
         if st.button(
-            tr("Generate Video Script and Keywords"), key="auto_generate_script"
+            tr("Generate Video Script and Keywords"), key="auto_generate_script",
+            disabled=not params.video_subject
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
                 script = llm.generate_script(
@@ -585,20 +574,69 @@ with left_panel:
                 else:
                     st.session_state["video_script"] = script
                     st.session_state["video_terms"] = ", ".join(terms)
+
+        # Multi-scene mode switch
+        if "multi_scene_enabled" not in st.session_state:
+            st.session_state["multi_scene_enabled"] = False
+        
+        multi_scene_enabled = st.checkbox(
+            tr("Enable Multi-Scene Mode"),
+            value=st.session_state["multi_scene_enabled"],
+            help=tr("When enabled, the video will be divided into multiple scenes, each with its own visual requirements and narration")
+        )
+        st.session_state["multi_scene_enabled"] = multi_scene_enabled
+        params.multi_scene_enabled = multi_scene_enabled
+
         params.video_script = st.text_area(
             tr("Video Script"), value=st.session_state["video_script"], height=280
         )
-        if st.button(tr("Generate Video Keywords"), key="auto_generate_terms"):
+        if st.button(
+            tr("Generate Video Keywords"), key="auto_generate_terms",
+            disabled=not params.video_script
+        ):
             if not params.video_script:
                 st.error(tr("Please Enter the Video Subject"))
                 st.stop()
 
             with st.spinner(tr("Generating Video Keywords")):
-                terms = llm.generate_terms(params.video_subject, params.video_script)
-                if "Error: " in terms:
-                    st.error(tr(terms))
+                if multi_scene_enabled:
+                    # Multi-scene mode: generate keywords for each scene
+                    scenes = llm.parse_multi_scene_script(params.video_script)
+                    if not scenes:
+                        st.error(tr("Failed to parse multi-scene script"))
+                        st.stop()
+                    
+                    # Generate keywords for each scene
+                    scene_terms_list = []
+                    for i, scene in enumerate(scenes):
+                        logger.info(f"generating terms for scene {i+1}/{len(scenes)}")
+                        terms = llm.generate_scene_terms(
+                            video_subject=params.video_subject,
+                            scene_script=scene.get('script', ''),
+                            scene_camera=scene.get('camera', ''),
+                            amount=5
+                        )
+                        if terms and not (isinstance(terms, str) and "Error: " in terms):
+                            scene['keywords'] = terms
+                            scene_terms_list.append(terms)
+                        else:
+                            logger.warning(f"failed to generate terms for scene {i+1}")
+                    
+                    # Format keywords for display: different scenes separated by semicolon, same scene separated by comma
+                    formatted_terms = []
+                    for scene in scenes:
+                        scene_keywords = scene.get('keywords', [])
+                        if scene_keywords:
+                            formatted_terms.append(", ".join(scene_keywords))
+                    
+                    st.session_state["video_terms"] = "; ".join(formatted_terms)
                 else:
-                    st.session_state["video_terms"] = ", ".join(terms)
+                    # Single-scene mode: generate keywords normally
+                    terms = llm.generate_terms(params.video_subject, params.video_script)
+                    if "Error: " in terms:
+                        st.error(tr(terms))
+                    else:
+                        st.session_state["video_terms"] = ", ".join(terms)
 
         params.video_terms = st.text_area(
             tr("Video Keywords"), value=st.session_state["video_terms"]
@@ -749,17 +787,16 @@ with middle_panel:
         if selected_tts_server != saved_tts_server:
             # 重置voice_name
             config.ui["voice_name"] = ""
+            # 保存到配置
+            config.ui["tts_server"] = selected_tts_server
             config.save_config()
+            logger.info(f"[TTS Change] TTS server changed from '{saved_tts_server}' to '{selected_tts_server}', config saved")
             
             # 删除所有TTS相关的session_state
             for key in list(st.session_state.keys()):
                 if key.startswith("voice_select_"):
                     del st.session_state[key]
                     logger.info(f"[TTS Change] Deleted session_state: {key}")
-        
-        # 保存到配置
-        config.ui["tts_server"] = selected_tts_server
-        config.save_config()
 
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
@@ -1352,15 +1389,30 @@ if start_button:
                     params.video_materials = []
                 params.video_materials.append(m)
 
+    # Initialize log container and session state for logs
     log_container = st.empty()
-    log_records = []
-
+    if "log_records" not in st.session_state:
+        st.session_state["log_records"] = []
+    
+    # Clear previous logs at the start of video generation
+    st.session_state["log_records"] = []
+    
     def log_received(msg):
         if config.ui["hide_log"]:
             return
+        # Extract log message from loguru Record object
+        if hasattr(msg, 'message'):
+            log_message = str(msg.message)
+        else:
+            log_message = str(msg)
+        
+        # Add to session state
+        st.session_state["log_records"].append(log_message)
+        
+        # Update UI (limit to last 100 lines to prevent performance issues)
         with log_container:
-            log_records.append(msg)
-            st.code("\n".join(log_records))
+            log_text = "\n".join(st.session_state["log_records"][-100:])
+            st.code(log_text)
 
     logger.add(log_received)
 

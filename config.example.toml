@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.0.0"
+project_version = "1.1.0"
 
 [app]
 video_source = "pexels" # "pexels" or "pixabay"
@@ -35,6 +35,11 @@ pixabay_api_keys = []
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 llm_provider = "openai"
+
+# Stop on API failure
+# If true, the process will stop immediately when LLM API fails
+# If false, the process will use fallback methods when LLM API fails
+stop_on_api_failure = false
 
 ########## Pollinations AI Settings
 # Visit https://pollinations.ai/ to learn more

@@ -4,6 +4,8 @@ import os
 import random
 import gc
 import shutil
+import time
+import ctypes
 from typing import List
 from loguru import logger
 from moviepy import (
@@ -51,7 +53,7 @@ class SubClippedVideoClip:
 audio_codec = "aac"
 fps = 30
 
-# 视频质量预设配置
+# Video quality preset configuration
 VIDEO_QUALITY_PRESETS = {
     "cpu": {
         "low": {
@@ -108,26 +110,26 @@ VIDEO_QUALITY_PRESETS = {
 }
 
 def get_video_encoding_params():
-    """获取视频编码参数"""
+    """Get video encoding parameters"""
     use_gpu = config.app.get("use_gpu", False)
-    # GPU默认使用最高质量，CPU默认使用高质量
+    # GPU defaults to highest quality, CPU defaults to high quality
     default_quality = "ultra" if use_gpu else "high"
     quality = config.app.get("video_quality", default_quality).lower()
     custom_bitrate = config.app.get("video_bitrate", "")
     
-    # 选择CPU或GPU的预设
+    # Select CPU or GPU preset
     preset_type = "gpu" if use_gpu else "cpu"
     
-    # 获取质量预设
+    # Get quality preset
     preset = VIDEO_QUALITY_PRESETS[preset_type].get(quality, VIDEO_QUALITY_PRESETS[preset_type][default_quality])
     
-    # 如果设置了自定义比特率，使用自定义值
+    # Use custom bitrate if set
     if custom_bitrate:
         bitrate = custom_bitrate
     else:
         bitrate = preset["bitrate"]
     
-    # 获取编码预设和CRF值
+    # Get encoding preset and CRF value
     encoding_preset = preset["preset"]
     crf = preset["crf"]
     
@@ -139,23 +141,23 @@ def get_video_encoding_params():
         "crf": crf
     }
 
-# 根据配置选择视频编码器
+# Select video encoder based on configuration
 def get_video_codec():
-    """根据配置和系统环境选择合适的视频编码器"""
+    """Select appropriate video encoder based on configuration and system environment"""
     use_gpu = config.app.get("use_gpu", False)
     
     if not use_gpu:
         logger.info("Video encoder: CPU mode selected (libx264)")
-        return "libx264"  # CPU 编码器
+        return "libx264"  # CPU encoder
     
-    # 检查是否支持 NVIDIA GPU 编码
+    # Check if NVIDIA GPU encoding is supported
     try:
         import subprocess
-        # 获取 ffmpeg 可执行文件路径
+        # Get ffmpeg executable path
         ffmpeg_exe = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
         logger.debug(f"Using ffmpeg executable: {ffmpeg_exe}")
         
-        # 检查 ffmpeg 是否支持 nvenc 编码器
+        # Check if ffmpeg supports nvenc encoder
         result = subprocess.run(
             [ffmpeg_exe, "-encoders"],
             capture_output=True,
@@ -252,6 +254,9 @@ def combine_videos(
     audio_clip = AudioFileClip(audio_file)
     audio_duration = audio_clip.duration
     logger.info(f"audio duration: {audio_duration} seconds")
+    # Close audio_clip immediately after getting duration, we'll reopen it later if needed
+    close_clip(audio_clip)
+    audio_clip = None
     # Required duration of each clip
     req_dur = audio_duration / len(video_paths)
     req_dur = max_clip_duration
@@ -345,7 +350,7 @@ def combine_videos(
             # write clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
             # Build ffmpeg parameters
-            ffmpeg_params = []
+            ffmpeg_params = ["-pix_fmt", "yuv420p"]
             if video_encoding_params["crf"] is not None:
                 ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
             
@@ -414,7 +419,7 @@ def combine_videos(
 
             # save merged result to temp file
             # Build ffmpeg parameters
-            ffmpeg_params = []
+            ffmpeg_params = ["-pix_fmt", "yuv420p"]
             if video_encoding_params["crf"] is not None:
                 ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
             
@@ -434,21 +439,126 @@ def combine_videos(
             close_clip(next_clip)
             close_clip(merged_clip)
             
-            # replace base file with new merged file
-            delete_files(temp_merged_video)
-            os.rename(temp_merged_next, temp_merged_video)
+            # swap temp files for next iteration
+            temp_merged_video, temp_merged_next = temp_merged_next, temp_merged_video
             
         except Exception as e:
-            logger.error(f"failed to merge clip: {str(e)}")
-            continue
+            logger.error(f"failed to merge clip {i}: {str(e)}")
+            break
     
-    # after merging, rename final result to target file name
-    os.rename(temp_merged_video, combined_video_path)
+    # final merged video is in temp_merged_video
+    # move to final destination
+    try:
+        if os.path.exists(temp_merged_video):
+            shutil.move(temp_merged_video, combined_video_path)
+            logger.success(f"merged video saved to: {combined_video_path}")
+    except Exception as e:
+        logger.error(f"failed to move merged video: {str(e)}")
     
     # clean temp files
     clip_files = [clip.file_path for clip in processed_clips]
     delete_files(clip_files)
+    
+    # Add audio to the combined video
+    logger.info("adding audio to combined video")
+    temp_with_audio = None
+    video_clip = None
+    audio_clip_for_video = None
+    audio_clip_trimmed = None
+    
+    try:
+        # Load the combined video
+        video_clip = VideoFileClip(combined_video_path)
+        
+        # Reopen audio file to add it to video
+        audio_clip_for_video = AudioFileClip(audio_file)
+        
+        # Trim audio to match video duration
+        video_duration = video_clip.duration
+        audio_clip_trimmed = audio_clip_for_video.subclipped(0, min(video_duration, audio_clip_for_video.duration))
+        video_clip = video_clip.with_audio(audio_clip_trimmed)
+        
+        # Write video with audio to temp file
+        temp_with_audio = f"{output_dir}/temp-with-audio.mp4"
+        # Build ffmpeg parameters
+        ffmpeg_params = ["-pix_fmt", "yuv420p"]
+        if video_encoding_params["crf"] is not None:
+            ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+        
+        # Write video with audio to temp file
+        video_clip.write_videofile(
+            filename=temp_with_audio,
+            threads=int(threads),
+            logger=None,
+            temp_audiofile_path=output_dir,
+            audio_codec=audio_codec,
+            fps=fps,
+            codec=video_codec,
+            bitrate=video_encoding_params["bitrate"],
+            preset=video_encoding_params["preset"],
+            ffmpeg_params=ffmpeg_params
+        )
+        
+        logger.success("audio added to combined video")
+    except Exception as e:
+        logger.error(f"failed to add audio to combined video: {e}")
+    finally:
+        # Close all clips in finally block to ensure they are always closed
+        if video_clip is not None:
+            try:
+                video_clip.close()
+            except Exception as e:
+                logger.warning(f"failed to close video_clip: {e}")
+        if audio_clip_trimmed is not None:
+            try:
+                audio_clip_trimmed.close()
+            except Exception as e:
+                logger.warning(f"failed to close audio_clip_trimmed: {e}")
+        if audio_clip_for_video is not None:
+            try:
+                audio_clip_for_video.close()
+            except Exception as e:
+                logger.warning(f"failed to close audio_clip_for_video: {e}")
+        
+        # Force garbage collection to release file handles
+        gc.collect()
+        
+        # Replace original with audio version using robust retry mechanism
+        if temp_with_audio and os.path.exists(temp_with_audio):
+            # Retry mechanism for file replacement
+            max_retries = 10
+            retry_delay = 1.0  # Start with 1 second
             
+            for attempt in range(max_retries):
+                try:
+                    # Try to remove original file
+                    if os.path.exists(combined_video_path):
+                        # Use shutil.move instead of os.rename for better Windows compatibility
+                        shutil.move(temp_with_audio, combined_video_path)
+                    else:
+                        # If original doesn't exist, just rename
+                        os.rename(temp_with_audio, combined_video_path)
+                    logger.success("video file replaced with audio version")
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"failed to replace video file (attempt {attempt + 1}/{max_retries}): {e}, retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 1.2  # Exponential backoff
+                        gc.collect()  # Force garbage collection again
+                        # Try to delete the file using Windows API
+                        try:
+                            # Try to delete using Windows API
+                            if os.path.exists(combined_video_path):
+                                ctypes.windll.kernel32.SetFileAttributesW(combined_video_path, 128)  # FILE_ATTRIBUTE_NORMAL
+                                ctypes.windll.kernel32.DeleteFileW(combined_video_path)
+                        except:
+                            pass
+                    else:
+                        logger.error(f"failed to replace video file after {max_retries} attempts: {e}")
+                        # If replacement fails, use temp file as result
+                        combined_video_path = temp_with_audio
+    
     logger.info("video combining completed")
     return combined_video_path
 
@@ -467,45 +577,34 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         return text, height
 
     processed = True
-
-    _wrapped_lines_ = []
-    words = text.split(" ")
-    _txt_ = ""
-    for word in words:
-        _before = _txt_
-        _txt_ += f"{word} "
-        _width, _height = get_text_size(_txt_)
-        if _width <= max_width:
-            continue
+    while processed:
+        # Split text into two lines at the middle
+        middle = len(text) // 2
+        # Find the nearest space to split
+        split_pos = text.rfind(' ', 0, middle)
+        if split_pos == -1:
+            split_pos = text.find(' ', middle)
+        if split_pos == -1:
+            break
+        
+        line1 = text[:split_pos]
+        line2 = text[split_pos+1:]
+        
+        # Check if both lines fit within max_width
+        w1, h1 = get_text_size(line1)
+        w2, h2 = get_text_size(line2)
+        
+        if w1 <= max_width and w2 <= max_width:
+            return f"{line1}\n{line2}", h1 + h2
         else:
-            if _txt_.strip() == word.strip():
-                processed = False
-                break
-            _wrapped_lines_.append(_before)
-            _txt_ = f"{word} "
-    _wrapped_lines_.append(_txt_)
-    if processed:
-        _wrapped_lines_ = [line.strip() for line in _wrapped_lines_]
-        result = "\n".join(_wrapped_lines_).strip()
-        height = len(_wrapped_lines_) * height
-        return result, height
-
-    _wrapped_lines_ = []
-    chars = list(text)
-    _txt_ = ""
-    for word in chars:
-        _txt_ += word
-        _width, _height = get_text_size(_txt_)
-        if _width <= max_width:
-            continue
-        else:
-            _wrapped_lines_.append(_txt_)
-            _txt_ = ""
-    _wrapped_lines_.append(_txt_)
-    result = "\n".join(_wrapped_lines_).strip()
-    height = len(_wrapped_lines_) * height
-    return result, height
-
+            # If still too long, continue splitting the longer line
+            if w1 > w2:
+                text = line1
+            else:
+                text = line2
+    
+    # If we can't split nicely, just return the original
+    return text, height
 
 def generate_video(
     video_path: str,
@@ -513,163 +612,138 @@ def generate_video(
     subtitle_path: str,
     output_file: str,
     params: VideoParams,
+    progress_callback=None,
 ):
-    aspect = VideoAspect(params.video_aspect)
-    video_width, video_height = aspect.to_resolution()
-
-    logger.info(f"generating video: {video_width} x {video_height}")
-    logger.info(f" ① video: {video_path}")
-    logger.info(f" ② audio: {audio_path}")
-    logger.info(f" ③ subtitle: {subtitle_path}")
-    logger.info(f" ④ output: {output_file}")
-
-    # https://github.com/harry0703/MoneyPrinterTurbo/issues/217
-    # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'final-1.mp4.tempTEMP_MPY_wvf_snd.mp3'
-    # write into a same directory as the output file
-    output_dir = os.path.dirname(output_file)
-
-    font_path = ""
-    if params.subtitle_enabled:
-        if not params.font_name:
-            params.font_name = "STHeitiMedium.ttc"
-        font_path = os.path.join(utils.font_dir(), params.font_name)
-        if os.name == "nt":
-            font_path = font_path.replace("\\", "/")
-
-        logger.info(f" ⑤ font: {font_path}")
-
-    def create_text_clip(subtitle_item):
-        params.font_size = int(params.font_size)
-        params.stroke_width = int(params.stroke_width)
-        phrase = subtitle_item[1]
-        max_width = video_width * 0.9
-        wrapped_txt, txt_height = wrap_text(
-            phrase, max_width=max_width, font=font_path, fontsize=params.font_size
-        )
-        interline = int(params.font_size * 0.25)
-        size=(int(max_width), int(txt_height + params.font_size * 0.25 + (interline * (wrapped_txt.count("\n") + 1))))
-
-        _clip = TextClip(
-            text=wrapped_txt,
-            font=font_path,
-            font_size=params.font_size,
-            color=params.text_fore_color,
-            bg_color=params.text_background_color,
-            stroke_color=params.stroke_color,
-            stroke_width=int(params.stroke_width),
-            # interline=interline,
-            # size=size,
-        )
-        duration = subtitle_item[0][1] - subtitle_item[0][0]
-        _clip = _clip.with_start(subtitle_item[0][0])
-        _clip = _clip.with_end(subtitle_item[0][1])
-        _clip = _clip.with_duration(duration)
-        if params.subtitle_position == "bottom":
-            _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
-        elif params.subtitle_position == "top":
-            _clip = _clip.with_position(("center", video_height * 0.05))
-        elif params.subtitle_position == "custom":
-            # Ensure that subtitle is fully within screen bounds
-            margin = 10  # Additional margin, in pixels
-            max_y = video_height - _clip.h - margin
-            min_y = margin
-            custom_y = (video_height - _clip.h) * (params.custom_position / 100)
-            custom_y = max(
-                min_y, min(custom_y, max_y)
-            )  # Constrain the y value within a valid range
-            _clip = _clip.with_position(("center", custom_y))
-        else:  # center
-            _clip = _clip.with_position(("center", "center"))
-        return _clip
-
-    video_clip = VideoFileClip(video_path).without_audio()
-    audio_clip = AudioFileClip(audio_path).with_effects(
-        [afx.MultiplyVolume(params.voice_volume)]
-    )
-
-    def make_textclip(text):
-        return TextClip(
-            text=text,
-            font=font_path,
-            font_size=params.font_size,
-            color=params.text_fore_color,
-            bg_color=params.text_background_color,
-            stroke_color=params.stroke_color,
-            stroke_width=int(params.stroke_width),
-        )
-
-    if subtitle_path and os.path.exists(subtitle_path):
-        sub = SubtitlesClip(
-            subtitles=subtitle_path, encoding="utf-8", make_textclip=make_textclip
-        )
-        text_clips = []
-        for item in sub.subtitles:
-            clip = create_text_clip(subtitle_item=item)
-            text_clips.append(clip)
-        video_clip = CompositeVideoClip([video_clip, *text_clips])
-
-    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
-    if bgm_file:
-        try:
-            bgm_clip = AudioFileClip(bgm_file).with_effects(
-                [
-                    afx.MultiplyVolume(params.bgm_volume),
-                    afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
-                ]
-            )
-            audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
-        except Exception as e:
-            logger.error(f"failed to add bgm: {str(e)}")
-
-    video_clip = video_clip.with_audio(audio_clip)
-    # 构建ffmpeg参数
-    ffmpeg_params = []
-    if video_encoding_params["crf"] is not None:
-        ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+    """
+    Combine video, audio and subtitles into final video
     
-    video_clip.write_videofile(
-        output_file,
-        audio_codec=audio_codec,
-        temp_audiofile_path=output_dir,
-        threads=int(params.n_threads or 2),
-        logger=None,
-        fps=fps,
-        codec=video_codec,
-        bitrate=video_encoding_params["bitrate"],
-        preset=video_encoding_params["preset"],
-        ffmpeg_params=ffmpeg_params
-    )
-    video_clip.close()
-    del video_clip
-
-
-def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
-    for material in materials:
-        if not material.url:
-            continue
-
-        ext = utils.parse_extension(material.url)
-        try:
-            clip = VideoFileClip(material.url)
-        except Exception:
-            clip = ImageClip(material.url)
-
-        width = clip.size[0]
-        height = clip.size[1]
-        if width < 480 or height < 480:
-            logger.warning(f"low resolution material: {width}x{height}, minimum 480x480 required")
-            continue
-
-        if ext in const.FILE_TYPE_IMAGES:
-            logger.info(f"processing image: {material.url}")
-            # Create an image clip and set its duration to 3 seconds
-            clip = (
-                ImageClip(material.url)
-                .with_duration(clip_duration)
-                .with_position("center")
-            )
-            # Apply a zoom effect using a resize method.
-            # A lambda function is used to make the zoom effect dynamic over time.
-            # The zoom effect starts from the original size and gradually scales up to 120%.
-            # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
+    Args:
+        video_path: Path to video file
+        audio_path: Path to audio file
+        subtitle_path: Path to subtitle file
+        output_file: Output file path
+        params: Video parameters
+        progress_callback: Optional callback function for progress updates
+    """
+    logger.info(f"starting video generation: {output_file}")
+    
+    try:
+        # Load video
+        video_clip = VideoFileClip(video_path)
+        
+        # Load audio
+        audio_clip = AudioFileClip(audio_path)
+        
+        # Set audio to video
+        video_clip = video_clip.with_audio(audio_clip)
+        
+        # Add subtitles if enabled
+        if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
+            logger.info("adding subtitles to video")
+            try:
+                # Load font
+                font_path = ""
+                if not params.font_name:
+                    params.font_name = "STHeitiMedium.ttc"
+                font_path = os.path.join(utils.font_dir(), params.font_name)
+                if os.name == "nt":
+                    font_path = font_path.replace("\\", "/")
+                
+                # Create subtitle clips
+                subtitle_clips = []
+                
+                # Parse subtitle file
+                with open(subtitle_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                
+                current_time = 0
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # Parse timecode and text (simplified parsing)
+                    # Format: HH:MM:SS,mmm --> HH:MM:SS,mmm
+                    if '-->' in line:
+                        continue
+                    
+                    # Check if line is a number (subtitle index)
+                    if line.isdigit():
+                        continue
+                    
+                    # This is subtitle text
+                    if line:
+                        # Wrap text
+                        max_width = video_clip.w * 0.9
+                        wrapped_text, _ = wrap_text(line, max_width=max_width, font=font_path, fontsize=int(params.font_size))
+                        
+                        # Create text clip
+                        txt_clip = TextClip(
+                            text=wrapped_text,
+                            font=font_path,
+                            font_size=int(params.font_size),
+                            color=params.text_fore_color,
+                            bg_color=params.text_background_color,
+                            stroke_color=params.stroke_color,
+                            stroke_width=int(params.stroke_width),
+                        )
+                        
+                        # Position subtitle
+                        if params.subtitle_position == "bottom":
+                            txt_clip = txt_clip.with_position(("center", video_clip.h * 0.95 - txt_clip.h))
+                        elif params.subtitle_position == "top":
+                            txt_clip = txt_clip.with_position(("center", video_clip.h * 0.05))
+                        elif params.subtitle_position == "custom":
+                            margin = 10
+                            max_y = video_clip.h - txt_clip.h - margin
+                            min_y = margin
+                            custom_y = (video_clip.h - txt_clip.h) * (params.custom_position / 100)
+                            custom_y = max(min_y, min(custom_y, max_y))
+                            txt_clip = txt_clip.with_position(("center", custom_y))
+                        else:  # center
+                            txt_clip = txt_clip.with_position(("center", "center"))
+                        
+                        # Set duration (simplified - using fixed duration for each subtitle)
+                        txt_clip = txt_clip.with_start(current_time).with_duration(2)
+                        current_time += 2
+                        
+                        subtitle_clips.append(txt_clip)
+                
+                # Composite video with subtitles
+                if subtitle_clips:
+                    video_clip = CompositeVideoClip([video_clip] + subtitle_clips)
+                    logger.success("subtitles added to video")
+            except Exception as e:
+                logger.error(f"failed to add subtitles: {e}")
+        
+        # Write final video
+        logger.info(f"writing final video to: {output_file}")
+        
+        # Build ffmpeg parameters
+        ffmpeg_params = ["-pix_fmt", "yuv420p"]
+        if video_encoding_params["crf"] is not None:
+            ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+        
+        video_clip.write_videofile(
+            filename=output_file,
+            threads=2,
+            logger=None,
+            temp_audiofile_path=os.path.dirname(output_file),
+            audio_codec=audio_codec,
+            fps=fps,
+            codec=video_codec,
+            bitrate=video_encoding_params["bitrate"],
+            preset=video_encoding_params["preset"],
+            ffmpeg_params=ffmpeg_params
+        )
+        
+        # Close clips
+        video_clip.close()
+        audio_clip.close()
+        
+        logger.success(f"video generated successfully: {output_file}")
+        return output_file
+        
+    except Exception as e:
+        logger.error(f"failed to generate video: {e}")
+        raise

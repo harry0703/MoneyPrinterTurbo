@@ -7,10 +7,39 @@ from loguru import logger
 
 from app.config import config
 from app.models import const
-from app.models.schema import VideoConcatMode, VideoParams
+from app.models.schema import Scene, VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, video, voice
 from app.services import state as sm
 from app.utils import utils
+
+# Helper functions for subtitle time conversion
+def _srt_time_to_seconds(time_str):
+    """Convert SRT time format to seconds"""
+    try:
+        # Format: 00:00:00,000
+        parts = time_str.split(':')
+        if len(parts) == 3:
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            seconds_ms = parts[2].split(',')
+            seconds = int(seconds_ms[0])
+            milliseconds = int(seconds_ms[1]) if len(seconds_ms) == 2 else 0
+            return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000
+    except Exception as e:
+        logger.error(f"failed to convert SRT time to seconds: {e}")
+    return 0
+
+def _seconds_to_srt_time(seconds):
+    """Convert seconds to SRT time format"""
+    try:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        milliseconds = int((seconds % 1) * 1000)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
+    except Exception as e:
+        logger.error(f"failed to convert seconds to SRT time: {e}")
+    return "00:00:00,000"
 
 
 def generate_script(task_id, params):
@@ -70,6 +99,309 @@ def save_script_data(task_id, video_script, video_terms, params):
         f.write(utils.to_json(script_data))
 
 
+def generate_multi_scene_script(task_id, params):
+    """
+    Generate multi-scene script for video.
+    If multi-scene mode is enabled and user provides a subject, generate multi-scene script.
+    If user provides a script, convert it to multi-scene format.
+    
+    Returns:
+        Tuple of (script_text, scenes_list)
+    """
+    logger.info("\n\n## generating multi-scene script")
+    
+    video_script = params.video_script.strip()
+    
+    if not video_script:
+        # User provided subject only, generate multi-scene script from scratch
+        logger.info("generating multi-scene script from subject")
+        video_script = llm.generate_multi_scene_script(
+            video_subject=params.video_subject,
+            language=params.video_language,
+            max_scenes=5
+        )
+    else:
+        # User provided script, convert to multi-scene format
+        logger.info("converting provided script to multi-scene format")
+        video_script = llm.convert_to_multi_scene(
+            video_script=video_script,
+            video_subject=params.video_subject
+        )
+    
+    if not video_script or "Error: " in video_script:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("failed to generate multi-scene script.")
+        return None, None
+    
+    # Parse the multi-scene script into structured data
+    scenes_data = llm.parse_multi_scene_script(video_script)
+    
+    if not scenes_data:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("failed to parse multi-scene script.")
+        return None, None
+    
+    logger.success(f"generated {len(scenes_data)} scenes")
+    return video_script, scenes_data
+
+
+def generate_scene_terms(task_id, params, scenes):
+    """
+    Generate search terms for each scene.
+    
+    Args:
+        task_id: Task ID
+        params: Video parameters
+        scenes: List of scene dictionaries
+    
+    Returns:
+        List of terms for each scene
+    """
+    logger.info("\n\n## generating terms for each scene")
+    
+    scene_terms_list = []
+    for i, scene in enumerate(scenes):
+        logger.info(f"generating terms for scene {i+1}/{len(scenes)}: {scene.get('title', '')}")
+        
+        terms = llm.generate_scene_terms(
+            video_subject=params.video_subject,
+            scene_script=scene.get('script', ''),
+            scene_camera=scene.get('camera', ''),
+            amount=5
+        )
+        
+        if terms and not (isinstance(terms, str) and "Error: " in terms):
+            scene_terms_list.append(terms)
+            scene['keywords'] = terms
+            logger.success(f"scene {i+1} terms: {terms}")
+        else:
+            logger.warning(f"failed to generate terms for scene {i+1}, using default terms")
+            default_terms = [params.video_subject, "video", "content"]
+            scene_terms_list.append(default_terms)
+            scene['keywords'] = default_terms
+    
+    return scene_terms_list
+
+
+def process_scene(task_id, params, scene, scene_index, total_scenes):
+    """
+    Process a single scene:
+    1. Generate audio for scene
+    2. Generate subtitle for scene
+    3. Get video materials for scene
+    4. Combine scene video clip (without BGM)
+    
+    Args:
+        task_id: Task ID
+        params: Video parameters
+        scene: Scene dictionary
+        scene_index: Index of this scene (0-based)
+        total_scenes: Total number of scenes
+    
+    Returns:
+        Scene result dictionary with video clip path, audio path, subtitle path
+    """
+    scene_num = scene_index + 1
+    logger.info(f"\n\n## processing scene {scene_num}/{total_scenes}: {scene.get('title', '')}")
+    
+    scene_id = scene.get('id', f'scene_{scene_num}')
+    scene_script = scene.get('script', '')
+    scene_keywords = scene.get('keywords', [])
+    
+    logger.info(f"scene {scene_num}: scene_id={scene_id}, script={scene_script[:50]}...")
+    
+    # Create scene-specific directory
+    scene_dir = path.join(utils.task_dir(task_id), scene_id)
+    os.makedirs(scene_dir, exist_ok=True)
+    
+    # 1. Generate audio for scene
+    logger.info(f"generating audio for scene {scene_num}")
+    audio_file = path.join(scene_dir, "audio.mp3")
+    logger.info(f"scene {scene_num}: audio_file={audio_file}")
+    sub_maker = voice.tts(
+        text=scene_script,
+        voice_name=voice.parse_voice_name(params.voice_name),
+        voice_rate=params.voice_rate,
+        voice_file=audio_file,
+        emotion=getattr(params, 'voice_emotion', ''),
+    )
+    
+    if not sub_maker and not os.path.exists(audio_file):
+        logger.error(f"failed to generate audio for scene {scene_num}")
+        return None
+    
+    # Get audio duration
+    if sub_maker is None and os.path.exists(audio_file):
+        audio_duration = voice.get_audio_duration(audio_file)
+    else:
+        audio_duration = voice.get_audio_duration(sub_maker)
+    
+    if audio_duration == 0:
+        logger.error(f"failed to get audio duration for scene {scene_num}")
+        return None
+    
+    logger.success(f"scene {scene_num} audio duration: {audio_duration:.2f}s")
+    
+    # 2. Generate subtitle for scene
+    logger.info(f"generating subtitle for scene {scene_num}")
+    subtitle_path = ""
+    if params.subtitle_enabled:
+        subtitle_path = path.join(scene_dir, "subtitle.srt")
+        logger.info(f"scene {scene_num}: subtitle path: {subtitle_path}")
+        subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
+        
+        subtitle_fallback = False
+        if sub_maker is None:
+            logger.info(f"scene {scene_num}: sub_maker is None, using Whisper")
+            subtitle_fallback = True
+        elif subtitle_provider == "edge":
+            voice.create_subtitle(
+                text=scene_script, sub_maker=sub_maker, subtitle_file=subtitle_path
+            )
+            if not os.path.exists(subtitle_path):
+                subtitle_fallback = True
+        
+        if subtitle_provider == "whisper" or subtitle_fallback:
+            logger.info(f"scene {scene_num}: using Whisper to generate subtitle from audio file: {audio_file}")
+            subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
+            subtitle.correct(subtitle_file=subtitle_path, video_script=scene_script)
+        
+        if not os.path.exists(subtitle_path):
+            logger.warning(f"scene {scene_num}: subtitle file not found")
+            subtitle_path = ""
+        else:
+            logger.success(f"scene {scene_num}: subtitle file created: {subtitle_path}")
+    
+    # 3. Get video materials for scene
+    logger.info(f"getting video materials for scene {scene_num}")
+    downloaded_videos = []
+    
+    if params.video_source == "local":
+        # For local source, use the same materials for all scenes
+        # This could be enhanced to support scene-specific material selection
+        materials = video.preprocess_video(
+            materials=params.video_materials, clip_duration=params.video_clip_duration
+        )
+        if materials:
+            downloaded_videos = [m.url for m in materials]
+    else:
+        # Download videos based on scene keywords
+        downloaded_videos = material.download_videos(
+            task_id=task_id,
+            search_terms=scene_keywords,
+            source=params.video_source,
+            video_aspect=params.video_aspect,
+            video_contact_mode=params.video_concat_mode,
+            audio_duration=audio_duration,
+            max_clip_duration=params.video_clip_duration,
+        )
+    
+    if not downloaded_videos:
+        logger.error(f"failed to get video materials for scene {scene_num}")
+        return None
+    
+    logger.success(f"scene {scene_num}: downloaded {len(downloaded_videos)} video clips")
+    
+    # 4. Combine scene video clip (without BGM)
+    logger.info(f"combining video clip for scene {scene_num}")
+    combined_video_path = path.join(scene_dir, "combined.mp4")
+    
+    video.combine_videos(
+        combined_video_path=combined_video_path,
+        video_paths=downloaded_videos,
+        audio_file=audio_file,
+        video_aspect=params.video_aspect,
+        video_concat_mode=params.video_concat_mode,
+        video_transition_mode=params.video_transition_mode,
+        max_clip_duration=params.video_clip_duration,
+        threads=params.n_threads,
+    )
+    
+    if not os.path.exists(combined_video_path):
+        logger.error(f"failed to combine video for scene {scene_num}")
+        return None
+    
+    logger.success(f"scene {scene_num}: video clip created")
+    
+    # Return scene result
+    return {
+        "scene_id": scene_id,
+        "scene_index": scene_index,
+        "audio_file": audio_file,
+        "audio_duration": audio_duration,
+        "subtitle_path": subtitle_path,
+        "combined_video_path": combined_video_path,
+    }
+
+
+def combine_all_scenes(task_id, params, scene_results):
+    """
+    Combine all scene clips into final video with background music.
+    
+    Args:
+        task_id: Task ID
+        params: Video parameters
+        scene_results: List of scene result dictionaries
+    
+    Returns:
+        Final video path (temp file without BGM, will be processed by generate_video)
+    """
+    logger.info("\n\n## combining all scenes into final video")
+    
+    # Collect all scene video clips
+    scene_clips = []
+    for result in scene_results:
+        if result and os.path.exists(result.get('combined_video_path', '')):
+            scene_clips.append(result['combined_video_path'])
+    
+    if not scene_clips:
+        logger.error("no scene clips available for final combination")
+        return None
+    
+    logger.info(f"combining {len(scene_clips)} scene clips")
+    
+    # Concatenate all scene clips to a temp file (without BGM, will be processed later)
+    temp_video_path = path.join(utils.task_dir(task_id), "temp_combined_scenes.mp4")
+    
+    # Use moviepy to concatenate videos
+    from moviepy import VideoFileClip, concatenate_videoclips
+    
+    try:
+        clips = []
+        for clip_path in scene_clips:
+            logger.info(f"loading scene clip: {clip_path}")
+            clip = VideoFileClip(clip_path)
+            logger.info(f"clip duration: {clip.duration}s, size: {clip.size}")
+            clips.append(clip)
+        
+        # Concatenate all clips using chain method for proper sequential concatenation
+        logger.info(f"concatenating {len(clips)} clips")
+        final_clip = concatenate_videoclips(clips, method="chain")
+        logger.info(f"final clip duration: {final_clip.duration}s")
+        
+        # Write temp video with audio
+        final_clip.write_videofile(
+            temp_video_path,
+            codec=video.video_codec,
+            audio_codec="aac",
+            fps=video.fps,
+            logger=None,
+            ffmpeg_params=["-pix_fmt", "yuv420p"],
+        )
+        
+        # Close clips to free memory
+        for clip in clips:
+            clip.close()
+        final_clip.close()
+        
+        logger.success(f"combined scenes created: {temp_video_path}")
+        return temp_video_path
+        
+    except Exception as e:
+        logger.error(f"failed to combine scenes: {e}")
+        return None
+
+
 def generate_audio(task_id, params, video_script):
     '''
     Generate audio for the video script.
@@ -111,14 +443,15 @@ def generate_audio(task_id, params, video_script):
         # 获取音频时长
         if sub_maker is None and os.path.exists(audio_file):
             # 使用音频文件路径获取时长
-            audio_duration = math.ceil(voice.get_audio_duration(audio_file))
+            audio_duration = voice.get_audio_duration(audio_file)
         else:
             # 使用sub_maker获取时长
-            audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
+            audio_duration = voice.get_audio_duration(sub_maker)
         if audio_duration == 0:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error("failed to get audio duration.")
             return None, None, None
+        logger.info(f"audio duration: {audio_duration:.2f}s")
         return audio_file, audio_duration, sub_maker
     else:
         logger.info(f"using custom audio file: {custom_audio_file}")
@@ -264,6 +597,19 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
+    # Check if multi-scene mode is enabled
+    if getattr(params, 'multi_scene_enabled', False):
+        logger.info("multi-scene mode is enabled")
+        return start_multi_scene(task_id, params, stop_at)
+    
+    # Original single-scene flow
+    return start_single_scene(task_id, params, stop_at)
+
+
+def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
+    """Original single-scene video generation flow."""
+    logger.info("using single-scene mode")
+    
     # 1. Generate script
     video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
@@ -372,6 +718,323 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "audio_duration": audio_duration,
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
+    }
+    sm.state.update_task(
+        task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
+    )
+    return kwargs
+
+
+def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
+    """Multi-scene video generation flow."""
+    logger.info("using multi-scene mode")
+    
+    # 1. Generate multi-scene script
+    video_script, scenes = generate_multi_scene_script(task_id, params)
+    if not video_script or not scenes:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        return
+    
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
+    
+    if stop_at == "script":
+        sm.state.update_task(
+            task_id, state=const.TASK_STATE_COMPLETE, progress=100, script=video_script
+        )
+        return {"script": video_script, "scenes": scenes}
+    
+    # 2. Generate terms for each scene
+    scene_terms_list = generate_scene_terms(task_id, params, scenes)
+    if not scene_terms_list:
+        logger.warning("failed to generate scene terms, continuing with defaults")
+    
+    save_script_data(task_id, video_script, scene_terms_list, params)
+    
+    if stop_at == "terms":
+        sm.state.update_task(
+            task_id, state=const.TASK_STATE_COMPLETE, progress=100, terms=scene_terms_list
+        )
+        return {"script": video_script, "terms": scene_terms_list, "scenes": scenes}
+    
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
+    
+    # 3. Process each scene
+    total_scenes = len(scenes)
+    scene_results = []
+    
+    for i, scene in enumerate(scenes):
+        progress = 20 + (i / total_scenes) * 40  # Progress from 20% to 60%
+        sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=int(progress))
+        
+        result = process_scene(task_id, params, scene, i, total_scenes)
+        if result:
+            scene_results.append(result)
+        else:
+            logger.error(f"failed to process scene {i+1}, skipping")
+    
+    if not scene_results:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("no scenes were successfully processed")
+        return
+    
+    logger.success(f"successfully processed {len(scene_results)}/{total_scenes} scenes")
+    
+    if stop_at == "audio":
+        # Return audio info from first scene as representative
+        if scene_results:
+            first_scene = scene_results[0]
+            return {
+                "audio_file": first_scene.get("audio_file"),
+                "audio_duration": first_scene.get("audio_duration"),
+                "scenes": scenes,
+                "scene_results": scene_results
+            }
+        return {"scenes": scenes, "scene_results": scene_results}
+    
+    if stop_at == "subtitle":
+        return {"scenes": scenes, "scene_results": scene_results}
+    
+    if stop_at == "materials":
+        return {"scenes": scenes, "scene_results": scene_results}
+    
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=70)
+    
+    # 4. Combine all scenes into final video
+    final_video_path = combine_all_scenes(task_id, params, scene_results)
+    if not final_video_path:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        return
+    
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=90)
+    
+    # 5. Add background music and final processing for multi-scene video
+    final_output_path = path.join(utils.task_dir(task_id), "final-1.mp4")
+    
+    # For multi-scene mode, we need to add BGM to the combined video
+    # The combined video already has all scene audio, so we just need to add BGM
+    logger.info("adding background music to multi-scene video")
+    
+    try:
+        from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, afx
+        import app.services.video as video_module
+        
+        # Load the combined video (which already has all scene audio)
+        video_clip = VideoFileClip(final_video_path)
+        logger.info(f"loaded combined video, duration: {video_clip.duration}s")
+        
+        # Get BGM file
+        bgm_file = video_module.get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
+        
+        if bgm_file:
+            try:
+                # Load and process BGM
+                bgm_clip = AudioFileClip(bgm_file).with_effects([
+                    afx.MultiplyVolume(params.bgm_volume),
+                    afx.AudioFadeOut(3),
+                    afx.AudioLoop(duration=video_clip.duration),
+                ])
+                
+                # Get existing audio from video
+                existing_audio = video_clip.audio
+                
+                # Combine existing audio with BGM
+                combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
+                video_clip = video_clip.with_audio(combined_audio)
+                
+                logger.success("BGM added to multi-scene video")
+            except Exception as e:
+                logger.error(f"failed to add BGM: {str(e)}")
+        
+        # Add subtitle if enabled
+        if params.subtitle_enabled and scene_results:
+            # Collect all scene subtitles and adjust timestamps
+            all_subtitles = []
+            current_offset = 0
+            
+            for scene_result in scene_results:
+                scene_subtitle = scene_result.get("subtitle_path")
+                scene_video = scene_result.get("combined_video_path")
+                
+                # Get scene duration - always get this, even if no subtitle
+                scene_duration = 0
+                try:
+                    if scene_video and os.path.exists(scene_video):
+                        clip = VideoFileClip(scene_video)
+                        scene_duration = clip.duration
+                        # Use close_clip function for proper cleanup
+                        from app.services import video as video_module
+                        video_module.close_clip(clip)
+                    else:
+                        scene_duration = scene_result.get("audio_duration", 0)
+                except Exception as e:
+                    logger.error(f"failed to get scene duration: {e}")
+                    scene_duration = scene_result.get("audio_duration", 0)
+                
+                # Process subtitles if available
+                if scene_subtitle and os.path.exists(scene_subtitle):
+                    try:
+                        from app.services import subtitle
+                        scene_subs = subtitle.file_to_subtitles(scene_subtitle)
+                        logger.info(f"scene {scene_result.get('scene_index', 0) + 1}: loaded {len(scene_subs)} subtitles from {scene_subtitle}")
+                        
+                        # Adjust timestamps and add to all_subtitles
+                        for sub in scene_subs:
+                            index, time_str, text = sub
+                            # Parse time string
+                            start_end = time_str.split(" --> ")
+                            if len(start_end) == 2:
+                                # Convert to seconds and add offset
+                                start_time = _srt_time_to_seconds(start_end[0]) + current_offset
+                                end_time = _srt_time_to_seconds(start_end[1]) + current_offset
+                                # Convert back to SRT format
+                                new_time_str = f"{_seconds_to_srt_time(start_time)} --> {_seconds_to_srt_time(end_time)}"
+                                all_subtitles.append((len(all_subtitles) + 1, new_time_str, text))
+                    except Exception as e:
+                        logger.error(f"failed to process scene subtitle: {e}")
+                else:
+                    logger.warning(f"scene {scene_result.get('scene_index', 0) + 1}: subtitle file not found or does not exist: {scene_subtitle}")
+                
+                # Update offset for next scene
+                current_offset += scene_duration
+            
+            # Create merged subtitle file if we have subtitles
+            if all_subtitles:
+                merged_subtitle_path = path.join(utils.task_dir(task_id), "merged_subtitle.srt")
+                try:
+                    with open(merged_subtitle_path, "w", encoding="utf-8") as f:
+                        for sub in all_subtitles:
+                            f.write(f"{sub[0]}\n")
+                            f.write(f"{sub[1]}\n")
+                            f.write(f"{sub[2]}\n\n")
+                    logger.info(f"merged subtitle file created: {merged_subtitle_path}")
+                    logger.info(f"total subtitles merged: {len(all_subtitles)}")
+                except Exception as e:
+                    logger.error(f"failed to create merged subtitle file: {e}")
+                    merged_subtitle_path = None
+            
+            # Use merged subtitle if available, otherwise fall back to first scene
+            if merged_subtitle_path and os.path.exists(merged_subtitle_path):
+                subtitle_path = merged_subtitle_path
+                logger.info(f"using merged subtitle file: {subtitle_path}")
+            else:
+                subtitle_path = scene_results[0].get("subtitle_path")
+                logger.warning(f"merged subtitle not available, falling back to first scene subtitle: {subtitle_path}")
+            
+            if subtitle_path and os.path.exists(subtitle_path):
+                logger.info("adding subtitle to multi-scene video")
+                try:
+                    from moviepy import TextClip, CompositeVideoClip
+                    from moviepy.video.tools.subtitles import SubtitlesClip
+                    import app.services.subtitle as subtitle_module
+                    
+                    # Load font
+                    font_path = ""
+                    if not params.font_name:
+                        params.font_name = "STHeitiMedium.ttc"
+                    font_path = os.path.join(utils.font_dir(), params.font_name)
+                    if os.name == "nt":
+                        font_path = font_path.replace("\\", "/")
+                    
+                    # Load subtitles
+                    subtitle_lines = subtitle_module.file_to_subtitles(subtitle_path)
+                    if subtitle_lines:
+                        def make_textclip(text):
+                            return TextClip(
+                                text=text,
+                                font=font_path,
+                                font_size=int(params.font_size),
+                                color=params.text_fore_color,
+                                bg_color=params.text_background_color,
+                                stroke_color=params.stroke_color,
+                                stroke_width=int(params.stroke_width),
+                            )
+                        
+                        sub = SubtitlesClip(
+                            subtitles=subtitle_path, 
+                            encoding="utf-8", 
+                            make_textclip=make_textclip
+                        )
+                        
+                        # Create text clips
+                        text_clips = []
+                        video_width, video_height = video_clip.size
+                        
+                        for item in sub.subtitles:
+                            phrase = item[1]
+                            max_width = video_width * 0.9
+                            wrapped_txt, txt_height = video_module.wrap_text(
+                                phrase, max_width=max_width, font=font_path, fontsize=int(params.font_size)
+                            )
+                            
+                            _clip = TextClip(
+                                text=wrapped_txt,
+                                font=font_path,
+                                font_size=int(params.font_size),
+                                color=params.text_fore_color,
+                                bg_color=params.text_background_color,
+                                stroke_color=params.stroke_color,
+                                stroke_width=int(params.stroke_width),
+                            )
+                            duration = item[0][1] - item[0][0]
+                            _clip = _clip.with_start(item[0][0])
+                            _clip = _clip.with_end(item[0][1])
+                            _clip = _clip.with_duration(duration)
+                            
+                            # Position subtitle
+                            if params.subtitle_position == "bottom":
+                                _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
+                            elif params.subtitle_position == "top":
+                                _clip = _clip.with_position(("center", video_height * 0.05))
+                            elif params.subtitle_position == "custom":
+                                margin = 10
+                                max_y = video_height - _clip.h - margin
+                                min_y = margin
+                                custom_y = (video_height - _clip.h) * (params.custom_position / 100)
+                                custom_y = max(min_y, min(custom_y, max_y))
+                                _clip = _clip.with_position(("center", custom_y))
+                            else:  # center
+                                _clip = _clip.with_position(("center", "center"))
+                            
+                            text_clips.append(_clip)
+                        
+                        # Composite video with subtitles
+                        video_clip = CompositeVideoClip([video_clip, *text_clips])
+                        logger.success("subtitle added to multi-scene video")
+                except Exception as e:
+                    logger.error(f"failed to add subtitle: {str(e)}")
+        
+        # Write final video
+        logger.info(f"writing final video to: {final_output_path}")
+        video_clip.write_videofile(
+            final_output_path,
+            codec=video_module.video_codec,
+            audio_codec="aac",
+            fps=video_module.fps,
+            logger=None,
+            ffmpeg_params=["-pix_fmt", "yuv420p"],
+        )
+        # Use close_clip function for proper cleanup
+        video_module.close_clip(video_clip)
+        
+        logger.success(f"final video created: {final_output_path}")
+        
+    except Exception as e:
+        logger.error(f"failed to generate final multi-scene video: {e}")
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        return
+    
+    logger.success(f"task {task_id} finished, generated multi-scene video")
+    
+    # Collect all scene clips for reference
+    combined_video_paths = [r.get("combined_video_path") for r in scene_results if r]
+    
+    kwargs = {
+        "videos": [final_output_path],
+        "combined_videos": combined_video_paths,
+        "script": video_script,
+        "terms": scene_terms_list,
+        "scenes": scenes,
+        "scene_results": scene_results,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs

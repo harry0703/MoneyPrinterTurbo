@@ -75,10 +75,15 @@ def create(audio_file, subtitle_file: str = ""):
     device = config.whisper.get("device", "cpu")
     compute_type = config.whisper.get("compute_type", "int8")
     
-    logger.info(f"start, output file: {subtitle_file}")
+    logger.info(f"start, audio file: {audio_file}, output file: {subtitle_file}")
     logger.info(f"using device: {device}, compute_type: {compute_type}")
     if not subtitle_file:
         subtitle_file = f"{audio_file}.srt"
+
+    # Check if audio file exists
+    if not os.path.exists(audio_file):
+        logger.error(f"audio file does not exist: {audio_file}")
+        return ""
 
     # Clear GPU cache before transcription to avoid out of memory
     if device.upper() == "GPU":
@@ -97,6 +102,9 @@ def create(audio_file, subtitle_file: str = ""):
         vad_filter=True,
         vad_parameters=dict(min_silence_duration_ms=500),
     )
+
+    logger.info(f"transcribing audio file: {audio_file}")
+    logger.info(f"audio file size: {os.path.getsize(audio_file)} bytes")
 
     # Clear GPU cache after transcription
     if device_str == "cuda" and torch is not None:
@@ -167,6 +175,11 @@ def create(audio_file, subtitle_file: str = ""):
 
     diff = end - start
     logger.info(f"complete, elapsed: {diff:.2f} s")
+    logger.info(f"generated {len(subtitles)} subtitle segments")
+    
+    # Log first few subtitle segments for debugging
+    for i, sub in enumerate(subtitles[:3]):
+        logger.info(f"subtitle {i+1}: [{sub['start_time']:.2f}s -> {sub['end_time']:.2f}s] {sub['msg']}")
 
     idx = 1
     lines = []

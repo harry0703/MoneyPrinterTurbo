@@ -53,6 +53,23 @@ class MaterialInfo:
     duration: int = 0
 
 
+class Scene(BaseModel):
+    """
+    Scene model for multi-scene video generation.
+    Each scene has its own visual requirements and narration.
+    """
+    id: str = ""  # Scene ID (e.g., "scene_1")
+    camera: str = ""  # Camera description for visual requirements
+    start_time: float = 0.0  # Start time in seconds
+    end_time: float = 0.0  # End time in seconds
+    title: str = ""  # Scene title
+    script: str = ""  # Narration script for this scene
+    keywords: Optional[List[str]] = None  # Video search keywords for this scene
+    video_clips: Optional[List[str]] = None  # Video clip paths for this scene
+    audio_file: Optional[str] = None  # Audio file path for this scene
+    subtitle_file: Optional[str] = None  # Subtitle file path for this scene
+
+
 class VideoParams(BaseModel):
     """
     {
