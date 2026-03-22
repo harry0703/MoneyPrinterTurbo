@@ -34,6 +34,8 @@
     "Video Ratio": "Video Aspect Ratio",
     "Portrait": "Portrait 9:16",
     "Landscape": "Landscape 16:9",
+    "Square": "Square 1:1",
+    "3:4 Portrait": "Portrait 3:4",
     "Clip Duration": "Maximum Duration of Video Clips (seconds)",
     "Number of Videos Generated Simultaneously": "Number of Videos Generated Simultaneously",
     "Audio Settings": "**Audio Settings**",

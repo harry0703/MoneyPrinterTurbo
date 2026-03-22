@@ -34,6 +34,8 @@
     "Video Ratio": "Video En-Boy Oranı",
     "Portrait": "Dikey 9:16",
     "Landscape": "Yatay 16:9",
+    "Square": "Kare 1:1",
+    "3:4 Portrait": "Dikey 3:4",
     "Clip Duration": "Video Kliplerinin Maksimum Süresi (saniye)",
     "Number of Videos Generated Simultaneously": "Aynı Anda Oluşturulan Video Sayısı",
     "Audio Settings": "**Ses Ayarları**",

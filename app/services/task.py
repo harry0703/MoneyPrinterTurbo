@@ -6,6 +6,7 @@ from os import path
 from loguru import logger
 
 from app.config import config
+from app.config.config import load_config
 from app.models import const
 from app.models.schema import Scene, VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, video, voice
@@ -224,6 +225,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         voice_rate=params.voice_rate,
         voice_file=audio_file,
         emotion=getattr(params, 'voice_emotion', ''),
+        is_preview=False,
     )
     
     if not sub_maker and not os.path.exists(audio_file):
@@ -263,6 +265,8 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         
         if subtitle_provider == "whisper" or subtitle_fallback:
             logger.info(f"scene {scene_num}: using Whisper to generate subtitle from audio file: {audio_file}")
+            logger.info(f"scene {scene_num}: audio file exists: {os.path.exists(audio_file)}, size: {os.path.getsize(audio_file) if os.path.exists(audio_file) else 0} bytes")
+            logger.info(f"scene {scene_num}: scene_script for subtitle: {scene_script[:100]}...")
             subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
             subtitle.correct(subtitle_file=subtitle_path, video_script=scene_script)
         
@@ -379,14 +383,25 @@ def combine_all_scenes(task_id, params, scene_results):
         final_clip = concatenate_videoclips(clips, method="chain")
         logger.info(f"final clip duration: {final_clip.duration}s")
         
+        # Get video encoding parameters
+        video_encoding_params = video.get_video_encoding_params()
+        logger.info(f"using video encoding params: bitrate={video_encoding_params['bitrate']}, preset={video_encoding_params['preset']}, crf={video_encoding_params['crf']}")
+        
+        # Build ffmpeg parameters
+        ffmpeg_params = ["-pix_fmt", "yuv420p"]
+        if video_encoding_params["crf"] is not None:
+            ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+        
         # Write temp video with audio
         final_clip.write_videofile(
             temp_video_path,
             codec=video.video_codec,
             audio_codec="aac",
             fps=video.fps,
+            bitrate=video_encoding_params["bitrate"],
+            preset=video_encoding_params["preset"],
             logger=None,
-            ffmpeg_params=["-pix_fmt", "yuv420p"],
+            ffmpeg_params=ffmpeg_params,
         )
         
         # Close clips to free memory
@@ -961,7 +976,12 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
                         
                         for item in sub.subtitles:
                             phrase = item[1]
-                            max_width = video_width * 0.9
+                            # Get subtitle margin from config (default 0.05 = 5% on each side)
+                            # Reload config to get latest values
+                            _cfg = load_config()
+                            ui_config = _cfg.get("ui", {})
+                            subtitle_margin = ui_config.get("subtitle_margin", 0.05)
+                            max_width = video_width * (1 - 2 * subtitle_margin)
                             wrapped_txt, txt_height = video_module.wrap_text(
                                 phrase, max_width=max_width, font=font_path, fontsize=int(params.font_size)
                             )
@@ -1005,13 +1025,25 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
         
         # Write final video
         logger.info(f"writing final video to: {final_output_path}")
+        
+        # Get video encoding parameters
+        video_encoding_params = video_module.get_video_encoding_params()
+        logger.info(f"using video encoding params: bitrate={video_encoding_params['bitrate']}, preset={video_encoding_params['preset']}, crf={video_encoding_params['crf']}")
+        
+        # Build ffmpeg parameters
+        ffmpeg_params = ["-pix_fmt", "yuv420p"]
+        if video_encoding_params["crf"] is not None:
+            ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+        
         video_clip.write_videofile(
             final_output_path,
             codec=video_module.video_codec,
             audio_codec="aac",
             fps=video_module.fps,
+            bitrate=video_encoding_params["bitrate"],
+            preset=video_encoding_params["preset"],
             logger=None,
-            ffmpeg_params=["-pix_fmt", "yuv420p"],
+            ffmpeg_params=ffmpeg_params,
         )
         # Use close_clip function for proper cleanup
         video_module.close_clip(video_clip)

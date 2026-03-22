@@ -1364,6 +1364,7 @@ def tts(
     voice_file: str,
     voice_volume: float = 1.0,
     emotion: str = "",
+    is_preview: bool = False,
 ) -> Union[SubMaker, None]:
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
@@ -1408,7 +1409,7 @@ def tts(
             # 提取preview_text (parts[4])
             preview_text = parts[4] if len(parts) > 4 else ""
             # 使用传入的emotion参数
-            return coze_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text, emotion)
+            return coze_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text, emotion, is_preview)
         else:
             logger.error(f"Invalid coze voice name format: {voice_name}")
             return None
@@ -1826,6 +1827,7 @@ def coze_tts(
     preview_audio: str = "",
     preview_text: str = "",
     emotion: str = "",
+    is_preview: bool = False,
 ) -> Union[SubMaker, None]:
     """
     使用Coze TTS生成语音
@@ -1853,10 +1855,13 @@ def coze_tts(
             logger.error("Coze API key is not set")
             return None
         
-        # 只有在试听时才使用预览音频（根据文本长度判断）
-        # 预览文本通常较短，而正式脚本通常较长
-        if preview_audio and len(text) < 100:
-            logger.info(f"Downloading preview audio from: {preview_audio}")
+        # 只有在试听时才使用预览音频
+        # 试听时传入的文本就是预览文本本身，且长度较短
+        # 正式生成时，即使文本较短，也应该使用TTS API生成
+        is_preview_mode = is_preview and preview_text and text.strip() == preview_text.strip()
+        
+        if preview_audio and is_preview_mode:
+            logger.info(f"Preview mode: downloading preview audio from: {preview_audio}")
             try:
                 response = requests.get(preview_audio, timeout=30)
                 if response.status_code == 200:

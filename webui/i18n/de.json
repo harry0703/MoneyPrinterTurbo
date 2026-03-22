@@ -34,6 +34,8 @@
     "Video Ratio": "Video-Seitenverhältnis",
     "Portrait": "Portrait 9:16",
     "Landscape": "Landschaft 16:9",
+    "Square": "Quadratisch 1:1",
+    "3:4 Portrait": "Portrait 3:4",
     "Clip Duration": "Maximale Dauer einzelner Videoclips in sekunden",
     "Number of Videos Generated Simultaneously": "Anzahl der parallel generierten Videos",
     "Audio Settings": "**Audio Einstellungen**",

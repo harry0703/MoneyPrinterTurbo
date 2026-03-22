@@ -534,11 +534,12 @@ uploaded_files = []
 with left_panel:
     with st.container(border=True):
         st.write(tr("Video Script Settings"))
-        params.video_subject = st.text_input(
+        st.session_state["video_subject"] = st.text_input(
             tr("Video Subject"),
             value=st.session_state["video_subject"],
             key="video_subject_input",
         ).strip()
+        params.video_subject = st.session_state["video_subject"]
 
         video_languages = [
             (tr("Auto Detect"), ""),
@@ -560,7 +561,7 @@ with left_panel:
 
         if st.button(
             tr("Generate Video Script and Keywords"), key="auto_generate_script",
-            disabled=not params.video_subject
+            disabled=not st.session_state["video_subject"]
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
                 script = llm.generate_script(
@@ -587,15 +588,16 @@ with left_panel:
         st.session_state["multi_scene_enabled"] = multi_scene_enabled
         params.multi_scene_enabled = multi_scene_enabled
 
-        params.video_script = st.text_area(
+        st.session_state["video_script"] = st.text_area(
             tr("Video Script"), value=st.session_state["video_script"], height=280
         )
+        params.video_script = st.session_state["video_script"]
         if st.button(
             tr("Generate Video Keywords"), key="auto_generate_terms",
-            disabled=not params.video_script
+            disabled=not st.session_state["video_script"]
         ):
-            if not params.video_script:
-                st.error(tr("Please Enter the Video Subject"))
+            if not st.session_state["video_script"]:
+                st.error(tr("Please Enter the Video Script"))
                 st.stop()
 
             with st.spinner(tr("Generating Video Keywords")):
@@ -715,6 +717,8 @@ with middle_panel:
         video_aspect_ratios = [
             (tr("Portrait"), VideoAspect.portrait.value),
             (tr("Landscape"), VideoAspect.landscape.value),
+            (tr("Square"), VideoAspect.square.value),
+            (tr("3:4 Portrait"), VideoAspect.portrait_3_4.value),
         ]
         selected_index = st.selectbox(
             tr("Video Ratio"),
@@ -1077,6 +1081,7 @@ with middle_panel:
                     voice_file=audio_file,
                     voice_volume=params.voice_volume,
                     emotion=params.voice_emotion,
+                    is_preview=True,
                 )
                 # if the voice file generation failed, try again with a default content.
                 if not sub_maker and not os.path.exists(audio_file):
@@ -1088,6 +1093,7 @@ with middle_panel:
                         voice_file=audio_file,
                         voice_volume=params.voice_volume,
                         emotion=params.voice_emotion,
+                        is_preview=True,
                     )
 
                 if sub_maker or os.path.exists(audio_file):

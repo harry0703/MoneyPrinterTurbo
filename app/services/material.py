@@ -37,7 +37,15 @@ def search_videos_pexels(
     video_aspect: VideoAspect = VideoAspect.portrait,
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
-    video_orientation = aspect.name
+    # Map aspect to Pexels API orientation parameter
+    if aspect == VideoAspect.portrait.value or aspect == VideoAspect.portrait_3_4.value:
+        video_orientation = "portrait"
+    elif aspect == VideoAspect.landscape.value:
+        video_orientation = "landscape"
+    elif aspect == VideoAspect.square.value:
+        video_orientation = "square"
+    else:
+        video_orientation = "portrait"
     video_width, video_height = aspect.to_resolution()
     api_key = get_api_key("pexels_api_keys")
     headers = {
@@ -71,16 +79,60 @@ def search_videos_pexels(
                 continue
             video_files = v["video_files"]
             # loop through each url to determine the best quality
+            # First try to find exact match
+            best_video = None
+            best_quality_score = -1
+            
             for video in video_files:
                 w = int(video["width"])
                 h = int(video["height"])
+                
+                # Calculate quality score (prefer higher resolution)
+                quality_score = w * h
+                
+                # Check if this is an exact match
                 if w == video_width and h == video_height:
-                    item = MaterialInfo()
-                    item.provider = "pexels"
-                    item.url = video["link"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
+                    best_video = video
+                    best_quality_score = quality_score
+                    break  # Exact match found, use it
+                
+                # If no exact match yet, track the best quality video
+                # that is at least as large as target resolution
+                if best_video is None or quality_score > best_quality_score:
+                    if w >= video_width and h >= video_height:
+                        best_video = video
+                        best_quality_score = quality_score
+            
+            # If no suitable video found, use the highest quality available
+            if best_video is None and video_files:
+                for video in video_files:
+                    w = int(video["width"])
+                    h = int(video["height"])
+                    quality_score = w * h
+                    if best_video is None or quality_score > best_quality_score:
+                        best_video = video
+                        best_quality_score = quality_score
+            
+            # Filter out low quality videos
+            if best_video:
+                w = int(best_video["width"])
+                h = int(best_video["height"])
+                # Calculate minimum acceptable resolution (75% of target)
+                min_width = int(video_width * 0.75)
+                min_height = int(video_height * 0.75)
+                
+                # Skip videos that are too low quality
+                if w < min_width or h < min_height:
+                    logger.warning(f"Skipping low quality video: {w}x{h}, minimum required: {min_width}x{min_height}")
+                    continue
+                
+                item = MaterialInfo()
+                item.provider = "pexels"
+                item.url = best_video["link"]
+                item.duration = duration
+                video_items.append(item)
+                logger.info(f"selected video: {best_video['width']}x{best_video['height']}, target: {video_width}x{video_height}")
+        
         return video_items
     except Exception as e:
         logger.error(f"search videos failed: {str(e)}")
@@ -126,17 +178,62 @@ def search_videos_pixabay(
                 continue
             video_files = v["videos"]
             # loop through each url to determine the best quality
+            # First try to find exact match
+            best_video = None
+            best_quality_score = -1
+            
             for video_type in video_files:
                 video = video_files[video_type]
                 w = int(video["width"])
-                # h = int(video["height"])
-                if w >= video_width:
-                    item = MaterialInfo()
-                    item.provider = "pixabay"
-                    item.url = video["url"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
+                h = int(video["height"])
+                
+                # Calculate quality score (prefer higher resolution)
+                quality_score = w * h
+                
+                # Check if this is an exact match
+                if w == video_width and h == video_height:
+                    best_video = video
+                    best_quality_score = quality_score
+                    break  # Exact match found, use it
+                
+                # If no exact match yet, track the best quality video
+                # that is at least as large as target resolution
+                if best_video is None or quality_score > best_quality_score:
+                    if w >= video_width and h >= video_height:
+                        best_video = video
+                        best_quality_score = quality_score
+            
+            # If no suitable video found, use the highest quality available
+            if best_video is None and video_files:
+                for video_type in video_files:
+                    video = video_files[video_type]
+                    w = int(video["width"])
+                    h = int(video["height"])
+                    quality_score = w * h
+                    if best_video is None or quality_score > best_quality_score:
+                        best_video = video
+                        best_quality_score = quality_score
+            
+            # Filter out low quality videos
+            if best_video:
+                w = int(best_video["width"])
+                h = int(best_video["height"])
+                # Calculate minimum acceptable resolution (75% of target)
+                min_width = int(video_width * 0.75)
+                min_height = int(video_height * 0.75)
+                
+                # Skip videos that are too low quality
+                if w < min_width or h < min_height:
+                    logger.warning(f"Skipping low quality video: {w}x{h}, minimum required: {min_width}x{min_height}")
+                    continue
+                
+                item = MaterialInfo()
+                item.provider = "pixabay"
+                item.url = best_video["url"]
+                item.duration = duration
+                video_items.append(item)
+                logger.info(f"selected video: {best_video['width']}x{best_video['height']}, target: {video_width}x{video_height}")
+        
         return video_items
     except Exception as e:
         logger.error(f"search videos failed: {str(e)}")

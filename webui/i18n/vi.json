@@ -34,6 +34,8 @@
     "Video Ratio": "Tỷ Lệ Khung Hình Video",
     "Portrait": "Dọc 9:16",
     "Landscape": "Ngang 16:9",
+    "Square": "Vuông 1:1",
+    "3:4 Portrait": "Dọc 3:4",
     "Clip Duration": "Thời Lượng Tối Đa Của Đoạn Video (giây)",
     "Number of Videos Generated Simultaneously": "Số Video Được Tạo Ra Đồng Thời",
     "Audio Settings": "**Cài Đặt Âm Thanh**",

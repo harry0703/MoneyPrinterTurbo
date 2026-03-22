@@ -34,6 +34,8 @@
     "Video Ratio": "视频比例",
     "Portrait": "竖屏 9:16（抖音视频）",
     "Landscape": "横屏 16:9（西瓜视频）",
+    "Square": "方形 1:1",
+    "3:4 Portrait": "竖屏 3:4",
     "Clip Duration": "视频片段最大时长(秒)（**不是视频总长度**，是指每个**合成片段**的长度）",
     "Number of Videos Generated Simultaneously": "同时生成视频数量",
     "Audio Settings": "**音频设置**",

@@ -23,6 +23,7 @@ from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import ImageFont
 
 from app.config import config
+from app.config.config import load_config
 from app.models import const
 from app.models.schema import (
     MaterialInfo,
@@ -111,14 +112,20 @@ VIDEO_QUALITY_PRESETS = {
 
 def get_video_encoding_params():
     """Get video encoding parameters"""
-    use_gpu = config.app.get("use_gpu", False)
+    # Reload config to get latest values
+    _cfg = load_config()
+    app_config = _cfg.get("app", {})
+    
+    use_gpu = app_config.get("use_gpu", False)
     # GPU defaults to highest quality, CPU defaults to high quality
     default_quality = "ultra" if use_gpu else "high"
-    quality = config.app.get("video_quality", default_quality).lower()
-    custom_bitrate = config.app.get("video_bitrate", "")
+    quality = app_config.get("video_quality", default_quality).lower()
+    custom_bitrate = app_config.get("video_bitrate", "")
     
     # Select CPU or GPU preset
     preset_type = "gpu" if use_gpu else "cpu"
+    
+    logger.info(f"Video encoding config: use_gpu={use_gpu}, quality={quality}, custom_bitrate={custom_bitrate}")
     
     # Get quality preset
     preset = VIDEO_QUALITY_PRESETS[preset_type].get(quality, VIDEO_QUALITY_PRESETS[preset_type][default_quality])
@@ -343,6 +350,16 @@ def combine_videos(
                 ]
                 shuffle_transition = random.choice(transition_funcs)
                 clip = shuffle_transition(clip)
+
+            # Apply brightness and contrast enhancement
+            brightness_factor = config.app.get("video_brightness", 1.0)
+            contrast_factor = config.app.get("video_contrast", 1.0)
+            
+            if brightness_factor != 1.0:
+                clip = video_effects.brightness_enhance(clip, brightness_factor)
+            
+            if contrast_factor != 1.0:
+                clip = video_effects.contrast_enhance(clip, contrast_factor)
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
@@ -674,7 +691,12 @@ def generate_video(
                     # This is subtitle text
                     if line:
                         # Wrap text
-                        max_width = video_clip.w * 0.9
+                        # Get subtitle margin from config (default 0.05 = 5% on each side)
+                        # Reload config to get latest values
+                        _cfg = load_config()
+                        ui_config = _cfg.get("ui", {})
+                        subtitle_margin = ui_config.get("subtitle_margin", 0.05)
+                        max_width = video_clip.w * (1 - 2 * subtitle_margin)
                         wrapped_text, _ = wrap_text(line, max_width=max_width, font=font_path, fontsize=int(params.font_size))
                         
                         # Create text clip
