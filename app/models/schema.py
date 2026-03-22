@@ -34,15 +34,17 @@ class VideoAspect(str, Enum):
     portrait_3_4 = "3:4"
 
     def to_resolution(self):
-        if self == VideoAspect.landscape.value:
+        if self == VideoAspect.landscape:
             return 1920, 1080
-        elif self == VideoAspect.portrait.value:
+        elif self == VideoAspect.portrait:
             return 1080, 1920
-        elif self == VideoAspect.square.value:
+        elif self == VideoAspect.square:
             return 1080, 1080
-        elif self == VideoAspect.portrait_3_4.value:
+        elif self == VideoAspect.portrait_3_4:
             return 1080, 1440
-        return 1080, 1920
+        else:
+            # Default to portrait 9:16
+            return 1080, 1920
 
 
 class _Config:

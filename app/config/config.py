@@ -8,8 +8,12 @@ from loguru import logger
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 config_file = f"{root_dir}/config.toml"
 
+# Track if config has been loaded to avoid duplicate logs
+_config_loaded = False
+
 
 def load_config():
+    global _config_loaded
     # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurbo/config.toml'
     if os.path.isdir(config_file):
         shutil.rmtree(config_file)
@@ -20,7 +24,10 @@ def load_config():
             shutil.copyfile(example_file, config_file)
             logger.info("copy config.example.toml to config.toml")
 
-    logger.info(f"load config from file: {config_file}")
+    # Only log on first load to avoid duplicate messages
+    if not _config_loaded:
+        logger.info(f"load config from file: {config_file}")
+        _config_loaded = True
 
     try:
         _config_ = toml.load(config_file)

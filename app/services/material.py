@@ -38,11 +38,11 @@ def search_videos_pexels(
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
     # Map aspect to Pexels API orientation parameter
-    if aspect == VideoAspect.portrait.value or aspect == VideoAspect.portrait_3_4.value:
+    if aspect == VideoAspect.portrait or aspect == VideoAspect.portrait_3_4:
         video_orientation = "portrait"
-    elif aspect == VideoAspect.landscape.value:
+    elif aspect == VideoAspect.landscape:
         video_orientation = "landscape"
-    elif aspect == VideoAspect.square.value:
+    elif aspect == VideoAspect.square:
         video_orientation = "square"
     else:
         video_orientation = "portrait"
