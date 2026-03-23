@@ -117,21 +117,38 @@ def search_videos_pexels(
             if best_video:
                 w = int(best_video["width"])
                 h = int(best_video["height"])
-                # Calculate minimum acceptable resolution (75% of target)
-                min_width = int(video_width * 0.75)
-                min_height = int(video_height * 0.75)
+                # Calculate minimum acceptable resolution (90% of target to ensure quality)
+                min_width = int(video_width * 0.90)
+                min_height = int(video_height * 0.90)
                 
                 # Skip videos that are too low quality
                 if w < min_width or h < min_height:
-                    logger.warning(f"Skipping low quality video: {w}x{h}, minimum required: {min_width}x{min_height}")
+                    logger.warning(f"Skipping low quality video: {w}x{h}, minimum required: {min_width}x{min_height} (90% of target)")
                     continue
+                
+                # Check if video needs to be upscaled (enlarged)
+                scale_w = video_width / w if w < video_width else 1.0
+                scale_h = video_height / h if h < video_height else 1.0
+                max_scale = max(scale_w, scale_h)
+                
+                # Log video quality information
+                if max_scale > 1.0:
+                    if max_scale <= 1.10:  # Allow up to 110% upscaling
+                        logger.info(f"Video needs upscaling: {w}x{h} -> {video_width}x{video_height} (scale: {max_scale:.2f}x, within 110% limit)")
+                    else:
+                        logger.warning(f"Skipping video requiring too much upscaling: {w}x{h} -> {video_width}x{video_height} (scale: {max_scale:.2f}x, max allowed: 1.10x)")
+                        continue
+                else:
+                    logger.info(f"Video quality OK: {w}x{h} -> {video_width}x{video_height} (no upscaling needed or will be downscaled)")
                 
                 item = MaterialInfo()
                 item.provider = "pexels"
                 item.url = best_video["link"]
                 item.duration = duration
+                item.width = w
+                item.height = h
                 video_items.append(item)
-                logger.info(f"selected video: {best_video['width']}x{best_video['height']}, target: {video_width}x{video_height}")
+                logger.info(f"Selected video: {w}x{h}, target: {video_width}x{video_height}, scale_factor: {max_scale:.2f}x")
         
         return video_items
     except Exception as e:

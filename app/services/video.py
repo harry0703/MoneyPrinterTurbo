@@ -313,22 +313,14 @@ def combine_videos(
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
+                logger.info(f"Processing clip {i+1}: source={clip_w}x{clip_h}, ratio={clip_ratio:.2f}, target={video_width}x{video_height}, ratio={video_ratio:.2f}")
                 
-                if clip_ratio == video_ratio:
-                    clip = clip.resized(new_size=(video_width, video_height))
-                else:
-                    if clip_ratio > video_ratio:
-                        scale_factor = video_width / clip_w
-                    else:
-                        scale_factor = video_height / clip_h
-
-                    new_width = int(clip_w * scale_factor)
-                    new_height = int(clip_h * scale_factor)
-
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
-                    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
-                    clip = CompositeVideoClip([background, clip_resized])
+                # Use unified crop function that handles both upscaling and cropping
+                # It will upscale if needed (within 110% limit), then crop to target dimensions
+                clip = crop_clip_to_target(clip, video_width, video_height, max_scale=1.10)
+                if clip is None:
+                    logger.warning(f"Clip {i+1} could not be processed within quality constraints, skipping")
+                    continue
                     
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if video_transition_mode.value == VideoTransitionMode.none.value:
@@ -363,31 +355,15 @@ def combine_videos(
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
-                
-            # write clip to temp file
-            clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            # Build ffmpeg parameters
-            ffmpeg_params = ["-pix_fmt", "yuv420p"]
-            if video_encoding_params["crf"] is not None:
-                ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
             
-            clip.write_videofile(
-                clip_file,
-                logger=None,
-                fps=fps,
-                codec=video_codec,
-                bitrate=video_encoding_params["bitrate"],
-                preset=video_encoding_params["preset"],
-                ffmpeg_params=ffmpeg_params
-            )
-            
-            close_clip(clip)
-        
-            processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip.duration, width=clip_w, height=clip_h))
+            # Store processed clip in memory instead of writing to temp file
+            # This avoids the first encoding step
+            processed_clips.append(clip)
             video_duration += clip.duration
+            logger.info(f"Clip {i+1} processed in memory, duration: {clip.duration:.2f}s")
             
         except Exception as e:
-            logger.error(f"failed to process clip: {str(e)}")
+            logger.error(f"failed to process clip {i+1}: {str(e)}")
     
     # loop processed clips until video duration matches or exceeds the audio duration.
     if video_duration < audio_duration:
@@ -400,111 +376,41 @@ def combine_videos(
             video_duration += clip.duration
         logger.info(f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, looped {len(processed_clips)-len(base_clips)} clips")
      
-    # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
-    logger.info("starting clip merging process")
+    # merge video clips and add audio in one step to reduce encoding loss
+    logger.info("starting clip merging and audio addition process")
     if not processed_clips:
         logger.warning("no clips available for merging")
         return combined_video_path
     
-    # if there is only one clip, use it directly
-    if len(processed_clips) == 1:
-        logger.info("using single clip directly")
-        shutil.copy(processed_clips[0].file_path, combined_video_path)
-        delete_files(processed_clips)
-        logger.info("video combining completed")
-        return combined_video_path
-    
-    # create initial video file as base
-    base_clip_path = processed_clips[0].file_path
-    temp_merged_video = f"{output_dir}/temp-merged-video.mp4"
-    temp_merged_next = f"{output_dir}/temp-merged-next.mp4"
-    
-    # copy first clip as initial merged video
-    shutil.copy(base_clip_path, temp_merged_video)
-    
-    # merge remaining video clips one by one
-    for i, clip in enumerate(processed_clips[1:], 1):
-        logger.info(f"merging clip {i}/{len(processed_clips)-1}, duration: {clip.duration:.2f}s")
-        
-        try:
-            # load current base video and next clip to merge
-            base_clip = VideoFileClip(temp_merged_video)
-            next_clip = VideoFileClip(clip.file_path)
-            
-            # merge these two clips
-            merged_clip = concatenate_videoclips([base_clip, next_clip])
-
-            # save merged result to temp file
-            # Build ffmpeg parameters
-            ffmpeg_params = ["-pix_fmt", "yuv420p"]
-            if video_encoding_params["crf"] is not None:
-                ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
-            
-            merged_clip.write_videofile(
-                filename=temp_merged_next,
-                threads=int(threads),
-                logger=None,
-                temp_audiofile_path=output_dir,
-                audio_codec=audio_codec,
-                fps=fps,
-                codec=video_codec,
-                bitrate=video_encoding_params["bitrate"],
-                preset=video_encoding_params["preset"],
-                ffmpeg_params=ffmpeg_params
-            )
-            close_clip(base_clip)
-            close_clip(next_clip)
-            close_clip(merged_clip)
-            
-            # swap temp files for next iteration
-            temp_merged_video, temp_merged_next = temp_merged_next, temp_merged_video
-            
-        except Exception as e:
-            logger.error(f"failed to merge clip {i}: {str(e)}")
-            break
-    
-    # final merged video is in temp_merged_video
-    # move to final destination
+    # Concatenate all clips in memory
+    logger.info(f"concatenating {len(processed_clips)} clips in memory")
     try:
-        if os.path.exists(temp_merged_video):
-            shutil.move(temp_merged_video, combined_video_path)
-            logger.success(f"merged video saved to: {combined_video_path}")
-    except Exception as e:
-        logger.error(f"failed to move merged video: {str(e)}")
-    
-    # clean temp files
-    clip_files = [clip.file_path for clip in processed_clips]
-    delete_files(clip_files)
-    
-    # Add audio to the combined video
-    logger.info("adding audio to combined video")
-    temp_with_audio = None
-    video_clip = None
-    audio_clip_for_video = None
-    audio_clip_trimmed = None
-    
-    try:
-        # Load the combined video
-        video_clip = VideoFileClip(combined_video_path)
+        # Concatenate all clips at once (no intermediate encoding)
+        final_video = concatenate_videoclips(processed_clips)
+        logger.info(f"clips concatenated, total duration: {final_video.duration:.2f}s")
         
-        # Reopen audio file to add it to video
-        audio_clip_for_video = AudioFileClip(audio_file)
+        # Load audio
+        audio_clip = AudioFileClip(audio_file)
         
         # Trim audio to match video duration
-        video_duration = video_clip.duration
-        audio_clip_trimmed = audio_clip_for_video.subclipped(0, min(video_duration, audio_clip_for_video.duration))
-        video_clip = video_clip.with_audio(audio_clip_trimmed)
+        video_duration_final = final_video.duration
+        audio_duration = audio_clip.duration
+        if audio_duration > video_duration_final:
+            audio_clip = audio_clip.subclipped(0, video_duration_final)
+            logger.info(f"audio trimmed to match video duration: {video_duration_final:.2f}s")
         
-        # Write video with audio to temp file
-        temp_with_audio = f"{output_dir}/temp-with-audio.mp4"
-        # Build ffmpeg parameters
+        # Add audio to video
+        final_video = final_video.with_audio(audio_clip)
+        logger.info("audio added to video")
+        
+        # Write final video with audio (single encoding step)
+        logger.info("writing final video with audio (single encoding step)")
         ffmpeg_params = ["-pix_fmt", "yuv420p"]
         if video_encoding_params["crf"] is not None:
             ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
         
-        # Write video with audio to temp file
-        video_clip.write_videofile(
-            filename=temp_with_audio,
+        final_video.write_videofile(
+            filename=combined_video_path,
             threads=int(threads),
             logger=None,
             temp_audiofile_path=output_dir,
@@ -516,68 +422,109 @@ def combine_videos(
             ffmpeg_params=ffmpeg_params
         )
         
-        logger.success("audio added to combined video")
+        logger.success(f"final video saved to: {combined_video_path}")
+        
+        # Close all clips
+        close_clip(final_video)
+        close_clip(audio_clip)
+        for clip in processed_clips:
+            close_clip(clip)
+        
     except Exception as e:
-        logger.error(f"failed to add audio to combined video: {e}")
-    finally:
-        # Close all clips in finally block to ensure they are always closed
-        if video_clip is not None:
-            try:
-                video_clip.close()
-            except Exception as e:
-                logger.warning(f"failed to close video_clip: {e}")
-        if audio_clip_trimmed is not None:
-            try:
-                audio_clip_trimmed.close()
-            except Exception as e:
-                logger.warning(f"failed to close audio_clip_trimmed: {e}")
-        if audio_clip_for_video is not None:
-            try:
-                audio_clip_for_video.close()
-            except Exception as e:
-                logger.warning(f"failed to close audio_clip_for_video: {e}")
-        
-        # Force garbage collection to release file handles
-        gc.collect()
-        
-        # Replace original with audio version using robust retry mechanism
-        if temp_with_audio and os.path.exists(temp_with_audio):
-            # Retry mechanism for file replacement
-            max_retries = 10
-            retry_delay = 1.0  # Start with 1 second
-            
-            for attempt in range(max_retries):
-                try:
-                    # Try to remove original file
-                    if os.path.exists(combined_video_path):
-                        # Use shutil.move instead of os.rename for better Windows compatibility
-                        shutil.move(temp_with_audio, combined_video_path)
-                    else:
-                        # If original doesn't exist, just rename
-                        os.rename(temp_with_audio, combined_video_path)
-                    logger.success("video file replaced with audio version")
-                    break
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        logger.warning(f"failed to replace video file (attempt {attempt + 1}/{max_retries}): {e}, retrying in {retry_delay}s...")
-                        time.sleep(retry_delay)
-                        retry_delay *= 1.2  # Exponential backoff
-                        gc.collect()  # Force garbage collection again
-                        # Try to delete the file using Windows API
-                        try:
-                            # Try to delete using Windows API
-                            if os.path.exists(combined_video_path):
-                                ctypes.windll.kernel32.SetFileAttributesW(combined_video_path, 128)  # FILE_ATTRIBUTE_NORMAL
-                                ctypes.windll.kernel32.DeleteFileW(combined_video_path)
-                        except:
-                            pass
-                    else:
-                        logger.error(f"failed to replace video file after {max_retries} attempts: {e}")
-                        # If replacement fails, use temp file as result
-                        combined_video_path = temp_with_audio
+        logger.error(f"failed to merge clips and add audio: {str(e)}")
+        return combined_video_path
     
     logger.info("video combining completed")
     return combined_video_path
+
+
+def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
+    """
+    Crop a video clip to target dimensions while maintaining quality.
+    For clips smaller than target: upscale first (within max_scale limit), then crop.
+    For clips larger than target: crop directly.
+    Centers the crop on the original video.
+    
+    Args:
+        clip: VideoFileClip to crop
+        target_width: Target width in pixels
+        target_height: Target height in pixels
+        max_scale: Maximum allowed scaling factor (default 1.10 = 110%)
+    
+    Returns:
+        Cropped video clip
+    """
+    clip_w, clip_h = clip.size
+    target_ratio = target_width / target_height
+    clip_ratio = clip_w / clip_h
+    
+    logger.info(f"Processing clip: {clip_w}x{clip_h} -> {target_width}x{target_height}, ratios: clip={clip_ratio:.3f}, target={target_ratio:.3f}")
+    
+    # Calculate scale factors for width and height
+    scale_w = target_width / clip_w
+    scale_h = target_height / clip_h
+    
+    # Determine if we need to upscale
+    needs_upscale = clip_w < target_width or clip_h < target_height
+    
+    if needs_upscale:
+        # Clip is smaller than target in at least one dimension
+        # Calculate the scale factor to make the smaller dimension match target
+        # while maintaining aspect ratio
+        if clip_ratio > target_ratio:
+            # Clip is relatively wider, scale based on height
+            scale_factor = scale_h
+            logger.info(f"Clip is wider ratio, scaling based on height: {scale_factor:.3f}x")
+        else:
+            # Clip is relatively taller, scale based on width
+            scale_factor = scale_w
+            logger.info(f"Clip is taller ratio, scaling based on width: {scale_factor:.3f}x")
+        
+        # Check if scale is within allowed limit
+        if scale_factor > max_scale:
+            logger.warning(f"Scale factor {scale_factor:.3f}x exceeds max allowed {max_scale:.3f}x")
+            return None
+        
+        # Upscale the clip
+        new_width = int(clip_w * scale_factor)
+        new_height = int(clip_h * scale_factor)
+        logger.info(f"Upscaling: {clip_w}x{clip_h} -> {new_width}x{new_height} ({scale_factor:.3f}x)")
+        clip = clip.resized(new_size=(new_width, new_height))
+        clip_w, clip_h = new_width, new_height
+    else:
+        logger.info(f"No upscaling needed, clip is larger than target")
+    
+    # Now crop to target dimensions (center crop)
+    if clip_w > target_width or clip_h > target_height:
+        if clip_ratio > target_ratio:
+            # After scaling, clip is still wider than target - crop width
+            new_width = int(clip_h * target_ratio)
+            new_height = clip_h
+            x_center = clip_w // 2
+            x1 = x_center - new_width // 2
+            y1 = 0
+            logger.info(f"Cropping width: {clip_w}x{clip_h} -> {new_width}x{new_height}, crop_x={x1}")
+        else:
+            # After scaling, clip is taller than target - crop height
+            new_width = clip_w
+            new_height = int(clip_w / target_ratio)
+            y_center = clip_h // 2
+            x1 = 0
+            y1 = y_center - new_height // 2
+            logger.info(f"Cropping height: {clip_w}x{clip_h} -> {new_width}x{new_height}, crop_y={y1}")
+        
+        # Crop to target dimensions
+        from moviepy import vfx
+        clip = clip.with_effects([vfx.Crop(x1=x1, y1=y1, width=new_width, height=new_height)])
+    
+    # Final resize if needed (should be minimal or none)
+    final_w, final_h = clip.size
+    if final_w != target_width or final_h != target_height:
+        logger.info(f"Final resize: {final_w}x{final_h} -> {target_width}x{target_height}")
+        clip = clip.resized(new_size=(target_width, target_height))
+    
+    logger.success(f"Clip processed successfully: {target_width}x{target_height}")
+    return clip
 
 
 def wrap_text(text, max_width, font="Arial", fontsize=60):
