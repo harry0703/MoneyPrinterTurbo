@@ -9,6 +9,7 @@ import edge_tts
 import requests
 from edge_tts import SubMaker, submaker
 from edge_tts.submaker import mktimestamp
+from gtts import gTTS
 from loguru import logger
 from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -73,6 +74,34 @@ def get_gemini_voices() -> list[str]:
     return [
         f"gemini:{voice}-{gender}"
         for voice, gender in voices_with_gender
+    ]
+
+
+def get_gtts_voices() -> list[str]:
+    """
+    获取gTTS的声音列表
+    
+    Returns:
+        声音列表，格式为 ["gtts:English", "gtts:Chinese", ...]
+    """
+    # gTTS支持的语言列表
+    languages = [
+        ("English", "en"),
+        ("Chinese", "zh"),
+        ("Spanish", "es"),
+        ("French", "fr"),
+        ("German", "de"),
+        ("Japanese", "ja"),
+        ("Korean", "ko"),
+        ("Russian", "ru"),
+        ("Italian", "it"),
+        ("Portuguese", "pt"),
+    ]
+    
+    # 添加gtts:前缀，并格式化为显示名称
+    return [
+        f"gtts:{name}"
+        for name, code in languages
     ]
 
 
@@ -1116,6 +1145,11 @@ def is_gemini_voice(voice_name: str):
     return voice_name.startswith("gemini:")
 
 
+def is_gtts_voice(voice_name: str):
+    """检查是否是gTTS的声音"""
+    return voice_name.startswith("gtts:")
+
+
 def tts(
     text: str,
     voice_name: str,
@@ -1154,6 +1188,8 @@ def tts(
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
             return None
+    elif is_gtts_voice(voice_name):
+        return gtts_tts(text, voice_name, voice_rate, voice_file)
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
@@ -1768,3 +1804,70 @@ if __name__ == "__main__":
         loop.run_until_complete(_do())
     finally:
         loop.close()
+
+
+def gtts_tts(text: str, voice_name: str, voice_rate: float, voice_file: str) -> Union[SubMaker, None]:
+    """
+    使用gTTS生成音频
+    
+    Args:
+        text: 要转换的文本
+        voice_name: 声音名称，格式为 "gtts:Language"
+        voice_rate: 语速 (暂时不支持)
+        voice_file: 输出音频文件路径
+    
+    Returns:
+        SubMaker对象 (包含音频时长信息)
+    """
+    try:
+        logger.info(f"start gTTS, voice name: {voice_name}")
+        
+        # 解析语言代码
+        if ":" in voice_name:
+            parts = voice_name.split(":")
+            if len(parts) >= 2:
+                lang_name = parts[1]
+                # 简单的语言映射
+                lang_map = {
+                    "English": "en",
+                    "Chinese": "zh",
+                    "Spanish": "es",
+                    "French": "fr",
+                    "German": "de",
+                    "Japanese": "ja",
+                    "Korean": "ko",
+                    "Russian": "ru",
+                    "Italian": "it",
+                    "Portuguese": "pt",
+                }
+                lang = lang_map.get(lang_name, "en")
+            else:
+                lang = "en"
+        else:
+            lang = "en"
+        
+        # 创建gTTS对象
+        tts = gTTS(text=text, lang=lang, slow=False)
+        
+        # 保存音频文件
+        tts.save(voice_file)
+        
+        logger.info(f"gTTS completed, output file: {voice_file}")
+        
+        # 获取音频时长并创建SubMaker
+        duration = _get_audio_duration_from_mp3(voice_file)
+        if duration > 0:
+            sub_maker = SubMaker()
+            # 创建一个简单的字幕条目，包含整个文本和时长
+            sub_maker.subs.append(text.strip())
+            # offset 以100纳秒为单位，所以乘以10000000
+            end_offset = int(duration * 10000000)
+            sub_maker.offset.append((0, end_offset))
+            return sub_maker
+        else:
+            logger.error("Failed to get audio duration from gTTS output")
+            return None
+        
+    except Exception as e:
+        logger.error(f"gTTS failed: {e}")
+        return None
