@@ -612,13 +612,10 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
-    # Check if multi-scene mode is enabled
-    if getattr(params, 'multi_scene_enabled', False):
-        logger.info("multi-scene mode is enabled")
-        return start_multi_scene(task_id, params, stop_at)
-    
-    # Original single-scene flow
-    return start_single_scene(task_id, params, stop_at)
+    # Unified multi-scene architecture - always use multi-scene flow
+    # The old single-scene mode is mapped to a single scene in multi-scene architecture
+    logger.info("using unified multi-scene architecture")
+    return start_multi_scene(task_id, params, stop_at)
 
 
 def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
