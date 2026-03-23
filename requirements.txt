@@ -15,3 +15,4 @@ python-multipart==0.0.19
 pyyaml
 requests>=2.31.0
 pydub
+gtts>=2.5.0
