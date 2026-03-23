@@ -17,6 +17,7 @@ from moviepy import (
     TextClip,
     VideoFileClip,
     afx,
+    vfx,
     concatenate_videoclips,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
@@ -481,7 +482,7 @@ def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
             logger.info(f"Clip is taller ratio, scaling based on width: {scale_factor:.3f}x")
         
         # Check if scale is within allowed limit
-        if scale_factor > max_scale:
+        if scale_factor >= max_scale:
             logger.warning(f"Scale factor {scale_factor:.3f}x exceeds max allowed {max_scale:.3f}x")
             return None
         
@@ -514,7 +515,6 @@ def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
             logger.info(f"Cropping height: {clip_w}x{clip_h} -> {new_width}x{new_height}, crop_y={y1}")
         
         # Crop to target dimensions
-        from moviepy import vfx
         clip = clip.with_effects([vfx.Crop(x1=x1, y1=y1, width=new_width, height=new_height)])
     
     # Final resize if needed (should be minimal or none)
