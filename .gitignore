@@ -34,3 +34,4 @@ debug_*.py
 test_*.py
 streamlit.log
 app/models/whisper-large-v3/
+.trae/
