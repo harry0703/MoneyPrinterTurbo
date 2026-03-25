@@ -221,3 +221,23 @@ api_key = ""
 # 是否隐藏日志信息
 # Whether to hide logs in the UI
 hide_log = false
+
+########## Upload-Post (Cross-post to TikTok/Instagram)
+# Upload-Post allows you to automatically cross-post generated videos to TikTok and Instagram.
+# Visit https://upload-post.com to create an account and get your API key.
+# API Documentation: https://docs.upload-post.com
+
+# Enable/disable Upload-Post integration
+upload_post_enabled = false
+
+# Your Upload-Post API key
+upload_post_api_key = ""
+
+# Your Upload-Post username
+upload_post_username = ""
+
+# Platforms to cross-post to (options: "tiktok", "instagram")
+upload_post_platforms = ["tiktok", "instagram"]
+
+# Automatically cross-post videos after generation (if false, you'll need to call the API manually)
+upload_post_auto_upload = false
