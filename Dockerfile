@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye@sha256:59f0d65a7a8570beed8a0e3e3b7011a6864b2a5c6a4db6a333b3e0d8c9f5b0b6
+FROM python:3.11-slim-bullseye
 
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurboCN
