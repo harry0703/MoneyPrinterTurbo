@@ -49,16 +49,17 @@ def create(audio_file, subtitle_file: str = ""):
         # 每次都从配置中读取最新的device设置
         device = config.whisper.get("device", "cpu")
         # 转换device值，WhisperModel使用"cuda"而不是"GPU"
+        device_str = device
         if device.upper() == "GPU":
-            device = "cuda"
+            device_str = "cuda"
         compute_type = config.whisper.get("compute_type", "int8")
         
         logger.info(
-            f"loading model: {model_path}, device: {device}, compute_type: {compute_type}"
+            f"loading model: {model_path}, device: {device_str}, compute_type: {compute_type}"
         )
         try:
             model = WhisperModel(
-                model_size_or_path=model_path, device=device, compute_type=compute_type
+                model_size_or_path=model_path, device=device_str, compute_type=compute_type
             )
         except Exception as e:
             logger.error(
@@ -73,10 +74,14 @@ def create(audio_file, subtitle_file: str = ""):
 
     # 每次都从配置中读取最新的device设置
     device = config.whisper.get("device", "cpu")
+    # 转换device值，WhisperModel使用"cuda"而不是"GPU"
+    device_str = device
+    if device.upper() == "GPU":
+        device_str = "cuda"
     compute_type = config.whisper.get("compute_type", "int8")
     
     logger.info(f"start, audio file: {audio_file}, output file: {subtitle_file}")
-    logger.info(f"using device: {device}, compute_type: {compute_type}")
+    logger.info(f"using device: {device_str}, compute_type: {compute_type}")
     if not subtitle_file:
         subtitle_file = f"{audio_file}.srt"
 

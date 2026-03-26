@@ -139,14 +139,15 @@ def search_videos_pexels(
                         logger.warning(f"Skipping video requiring too much upscaling: {w}x{h} -> {video_width}x{video_height} (scale: {max_scale:.2f}x, max allowed: 1.10x)")
                         continue
                 else:
-                    logger.info(f"Video quality OK: {w}x{h} -> {video_width}x{video_height} (no upscaling needed or will be downscaled)")
+                    # logger.info(f"Video quality OK: {w}x{h} -> {video_width}x{video_height} (no upscaling needed or will be downscaled)")
+                    
+                    item = MaterialInfo()
+                    item.provider = "pexels"
+                    item.url = best_video["link"]
+                    item.duration = duration
+                    item.width = w
+                    item.height = h
                 
-                item = MaterialInfo()
-                item.provider = "pexels"
-                item.url = best_video["link"]
-                item.duration = duration
-                item.width = w
-                item.height = h
                 video_items.append(item)
                 logger.info(f"Selected video: {w}x{h}, target: {video_width}x{video_height}, scale_factor: {max_scale:.2f}x")
         

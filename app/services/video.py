@@ -6,6 +6,10 @@ import gc
 import shutil
 import time
 import ctypes
+import sys
+import warnings
+import io
+import contextlib
 from typing import List
 from loguru import logger
 from moviepy import (
@@ -35,6 +39,105 @@ from app.models.schema import (
 )
 from app.services.utils import video_effects
 from app.utils import utils
+
+# Suppress FFmpeg handle invalid errors from moviepy's __del__ methods
+# This is a common Windows subprocess issue that occurs during garbage collection
+warnings.filterwarnings("ignore", message=".*句柄无效.*")
+warnings.filterwarnings("ignore", message=".*invalid handle.*")
+
+# Context manager to suppress stderr output (for cleanup operations)
+@contextlib.contextmanager
+def suppress_stderr():
+    """Context manager to suppress stderr output"""
+    original_stderr = sys.stderr
+    try:
+        sys.stderr = io.StringIO()
+        yield
+    finally:
+        sys.stderr = original_stderr
+
+# Monkey-patch FFMPEG_VideoReader.__del__ to suppress handle invalid errors
+try:
+    from moviepy.video.io.ffmpeg_reader import FFMPEG_VideoReader
+    original_del = FFMPEG_VideoReader.__del__
+    
+    def safe_del(self):
+        with suppress_stderr():
+            try:
+                original_del(self)
+            except OSError as e:
+                # Ignore handle invalid errors (WinError 6) during cleanup
+                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                    # Only log if it's not a handle invalid error
+                    logger.debug(f"FFMPEG_VideoReader cleanup error (ignored): {e}")
+            except Exception as e:
+                # Suppress any other exceptions during __del__ to avoid crashes
+                logger.debug(f"FFMPEG_VideoReader cleanup error (ignored): {e}")
+    
+    FFMPEG_VideoReader.__del__ = safe_del
+    logger.debug("Applied safe cleanup patch for FFMPEG_VideoReader")
+except ImportError:
+    logger.debug("Could not patch FFMPEG_VideoReader (module not available)")
+except Exception as e:
+    logger.debug(f"Failed to patch FFMPEG_VideoReader: {e}")
+
+# Monkey-patch FFMPEG_AudioReader.__del__ to suppress handle invalid errors
+try:
+    from moviepy.audio.io.ffmpeg_audioreader import FFMPEG_AudioReader
+    original_audio_del = FFMPEG_AudioReader.__del__
+    
+    def safe_audio_del(self):
+        with suppress_stderr():
+            try:
+                original_audio_del(self)
+            except OSError as e:
+                # Ignore handle invalid errors (WinError 6) during cleanup
+                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                    # Only log if it's not a handle invalid error
+                    logger.debug(f"FFMPEG_AudioReader cleanup error (ignored): {e}")
+            except Exception as e:
+                # Suppress any other exceptions during __del__ to avoid crashes
+                logger.debug(f"FFMPEG_AudioReader cleanup error (ignored): {e}")
+    
+    FFMPEG_AudioReader.__del__ = safe_audio_del
+    logger.debug("Applied safe cleanup patch for FFMPEG_AudioReader")
+except ImportError:
+    logger.debug("Could not patch FFMPEG_AudioReader (module not available)")
+except Exception as e:
+    logger.debug(f"Failed to patch FFMPEG_AudioReader: {e}")
+
+# Patch sys.excepthook to suppress handle invalid errors during interpreter shutdown
+original_excepthook = sys.excepthook
+
+def custom_excepthook(exc_type, exc_value, exc_traceback):
+    """Custom exception hook to suppress handle invalid errors during shutdown"""
+    error_str = str(exc_value)
+    if "句柄无效" in error_str or "invalid handle" in error_str.lower():
+        # Silently ignore handle invalid errors
+        return
+    # Call original excepthook for other exceptions
+    original_excepthook(exc_type, exc_value, exc_traceback)
+
+sys.excepthook = custom_excepthook
+logger.debug("Applied custom exception hook to suppress handle invalid errors")
+
+# Add global exception handler for unhandled exceptions during shutdown
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """Global exception handler to suppress handle invalid errors"""
+    if exc_type is None:
+        return
+    
+    error_str = str(exc_value)
+    if "句柄无效" in error_str or "invalid handle" in error_str.lower():
+        # Silently ignore handle invalid errors
+        return
+    
+    # Log other exceptions
+    logger.error(f"Unhandled exception: {exc_type.__name__}: {exc_value}")
+
+# Install the handler
+sys.excepthook = handle_exception
+logger.debug("Applied global exception handler for cleanup errors")
 
 class SubClippedVideoClip:
     def __init__(self, file_path, start_time=None, end_time=None, width=None, height=None, duration=None):
@@ -123,10 +226,12 @@ def get_video_encoding_params():
     quality = app_config.get("video_quality", default_quality).lower()
     custom_bitrate = app_config.get("video_bitrate", "")
     
-    # Select CPU or GPU preset
-    preset_type = "gpu" if use_gpu else "cpu"
+    # Get actual video codec to determine preset type
+    actual_codec = get_video_codec()
+    # Use CPU preset for libx264, GPU preset for others
+    preset_type = "cpu" if actual_codec == "libx264" else "gpu"
     
-    logger.info(f"Video encoding config: use_gpu={use_gpu}, quality={quality}, custom_bitrate={custom_bitrate}")
+    logger.info(f"Video encoding config: use_gpu={use_gpu} (for video codec), actual_codec={actual_codec}, quality={quality}, custom_bitrate={custom_bitrate}")
     
     # Get quality preset
     preset = VIDEO_QUALITY_PRESETS[preset_type].get(quality, VIDEO_QUALITY_PRESETS[preset_type][default_quality])
@@ -154,37 +259,111 @@ def get_video_codec():
     """Select appropriate video encoder based on configuration and system environment"""
     use_gpu = config.app.get("use_gpu", False)
     
+    # Log GPU configuration status for video codec
+    logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
+    
     if not use_gpu:
         logger.info("Video encoder: CPU mode selected (libx264)")
         return "libx264"  # CPU encoder
     
-    # Check if NVIDIA GPU encoding is supported
+    # Check if GPU encoding is supported
     try:
         import subprocess
         # Get ffmpeg executable path
         ffmpeg_exe = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
-        logger.debug(f"Using ffmpeg executable: {ffmpeg_exe}")
+        logger.info(f"Video encoder: Checking GPU support using ffmpeg executable: {ffmpeg_exe}")
         
-        # Check if ffmpeg supports nvenc encoder
+        # Check if ffmpeg supports GPU encoders
         result = subprocess.run(
             [ffmpeg_exe, "-encoders"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=10
         )
+        
+        # Check for NVIDIA GPU support
         if "h264_nvenc" in result.stdout:
-            logger.info("Video encoder: GPU mode selected (h264_nvenc) - NVIDIA GPU acceleration enabled")
+            logger.info("Video encoder: NVIDIA GPU mode selected (h264_nvenc) - GPU acceleration enabled")
             return "h264_nvenc"
+        # Check for AMD GPU support
+        elif "h264_amf" in result.stdout:
+            logger.info("Video encoder: AMD GPU mode selected (h264_amf) - GPU acceleration enabled")
+            return "h264_amf"
+        # Check for Intel GPU support
+        elif "h264_qsv" in result.stdout:
+            logger.info("Video encoder: Intel GPU mode selected (h264_qsv) - GPU acceleration enabled")
+            return "h264_qsv"
         else:
-            logger.warning("Video encoder: GPU requested but not supported, falling back to CPU (libx264)")
+            # GPU fallback: use_gpu=True but no GPU encoder available
+            fallback_reason = "No supported GPU encoder found in FFmpeg"
+            logger.warning(f"============================================")
+            logger.warning(f"GPU FALLBACK DETECTED")
+            logger.warning(f"============================================")
+            logger.warning(f"Configuration: use_gpu=True")
+            logger.warning(f"Reason: {fallback_reason}")
+            logger.warning(f"Details:")
+            logger.warning(f"  - NVIDIA GPU encoder (h264_nvenc): NOT FOUND")
+            logger.warning(f"  - AMD GPU encoder (h264_amf): NOT FOUND")
+            logger.warning(f"  - Intel GPU encoder (h264_qsv): NOT FOUND")
+            logger.warning(f"Action: Falling back to CPU encoder (libx264)")
+            logger.warning(f"To enable GPU encoding:")
+            logger.warning(f"  1. Ensure GPU drivers are properly installed")
+            logger.warning(f"  2. Install FFmpeg with GPU support (h264_nvenc/h264_amf/h264_qsv)")
+            logger.warning(f"  3. Verify GPU encoder availability with: ffmpeg -encoders | grep h264")
+            logger.warning(f"============================================")
+            logger.debug(f"Available encoders: {result.stdout[:1000]}...")  # Log first 1000 chars of encoder list
             return "libx264"
+    except subprocess.TimeoutExpired:
+        # GPU fallback: timeout while checking GPU support
+        fallback_reason = "Timeout while checking GPU encoder availability"
+        logger.warning(f"============================================")
+        logger.warning(f"GPU FALLBACK DETECTED")
+        logger.warning(f"============================================")
+        logger.warning(f"Configuration: use_gpu=True")
+        logger.warning(f"Reason: {fallback_reason}")
+        logger.warning(f"Details: FFmpeg command 'ffmpeg -encoders' timed out after 10 seconds")
+        logger.warning(f"Action: Falling back to CPU encoder (libx264)")
+        logger.warning(f"Possible causes:")
+        logger.warning(f"  - FFmpeg executable is not responding")
+        logger.warning(f"  - System performance issues")
+        logger.warning(f"  - Corrupted FFmpeg installation")
+        logger.warning(f"============================================")
+        return "libx264"
+    except FileNotFoundError:
+        # GPU fallback: FFmpeg executable not found
+        fallback_reason = "FFmpeg executable not found"
+        logger.warning(f"============================================")
+        logger.warning(f"GPU FALLBACK DETECTED")
+        logger.warning(f"============================================")
+        logger.warning(f"Configuration: use_gpu=True")
+        logger.warning(f"Reason: {fallback_reason}")
+        logger.warning(f"Details: FFmpeg executable not found at path: {ffmpeg_exe}")
+        logger.warning(f"Action: Falling back to CPU encoder (libx264)")
+        logger.warning(f"Solution:")
+        logger.warning(f"  1. Install FFmpeg from https://www.gyan.dev/ffmpeg/builds/")
+        logger.warning(f"  2. Set ffmpeg_path in config.toml")
+        logger.warning(f"  3. Or set IMAGEIO_FFMPEG_EXE environment variable")
+        logger.warning(f"============================================")
+        return "libx264"
     except Exception as e:
-        logger.error(f"Video encoder: Failed to check GPU support, using CPU (libx264). Error: {e}")
+        # GPU fallback: unexpected error
+        fallback_reason = f"Unexpected error while checking GPU support: {type(e).__name__}"
+        logger.warning(f"============================================")
+        logger.warning(f"GPU FALLBACK DETECTED")
+        logger.warning(f"============================================")
+        logger.warning(f"Configuration: use_gpu=True")
+        logger.warning(f"Reason: {fallback_reason}")
+        logger.warning(f"Error details: {str(e)}")
+        logger.warning(f"Action: Falling back to CPU encoder (libx264)")
+        logger.warning(f"Debug information:")
+        logger.warning(f"  - FFmpeg executable: {ffmpeg_exe}")
+        logger.warning(f"  - Error type: {type(e).__name__}")
+        logger.warning(f"============================================")
         return "libx264"
 
 video_codec = get_video_codec()
 video_encoding_params = get_video_encoding_params()
-logger.info(f"Video encoder initialized: {video_codec} (GPU: {config.app.get('use_gpu', False)})")
+logger.info(f"Video encoder initialized: {video_codec} (GPU for video codec: {config.app.get('use_gpu', False)})")
 
 def close_clip(clip):
     if clip is None:
@@ -193,19 +372,54 @@ def close_clip(clip):
     try:
         # close main resources
         if hasattr(clip, 'reader') and clip.reader is not None:
-            clip.reader.close()
+            try:
+                clip.reader.close()
+            except Exception as e:
+                # Ignore handle invalid errors
+                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                    logger.error(f"failed to close clip reader: {str(e)}")
             
         # close audio resources
         if hasattr(clip, 'audio') and clip.audio is not None:
-            if hasattr(clip.audio, 'reader') and clip.audio.reader is not None:
-                clip.audio.reader.close()
-            del clip.audio
+            try:
+                if hasattr(clip.audio, 'reader') and clip.audio.reader is not None:
+                    try:
+                        clip.audio.reader.close()
+                    except Exception as e:
+                        # Ignore handle invalid errors
+                        if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                            logger.error(f"failed to close audio reader: {str(e)}")
+                clip.audio.close()
+            except Exception as e:
+                # Ignore handle invalid errors
+                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                    logger.error(f"failed to close audio clip: {str(e)}")
+            finally:
+                try:
+                    del clip.audio
+                except:
+                    pass
             
         # close mask resources
         if hasattr(clip, 'mask') and clip.mask is not None:
-            if hasattr(clip.mask, 'reader') and clip.mask.reader is not None:
-                clip.mask.reader.close()
-            del clip.mask
+            try:
+                if hasattr(clip.mask, 'reader') and clip.mask.reader is not None:
+                    try:
+                        clip.mask.reader.close()
+                    except Exception as e:
+                        # Ignore handle invalid errors
+                        if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                            logger.error(f"failed to close mask reader: {str(e)}")
+                clip.mask.close()
+            except Exception as e:
+                # Ignore handle invalid errors
+                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                    logger.error(f"failed to close mask clip: {str(e)}")
+            finally:
+                try:
+                    del clip.mask
+                except:
+                    pass
             
         # handle child clips in composite clips
         if hasattr(clip, 'clips') and clip.clips:
@@ -217,11 +431,24 @@ def close_clip(clip):
         if hasattr(clip, 'clips'):
             clip.clips = []
             
+        # Try to close the clip itself
+        try:
+            clip.close()
+        except Exception as e:
+            # Ignore handle invalid errors
+            if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                logger.error(f"failed to close clip: {str(e)}")
+            
     except Exception as e:
         logger.error(f"failed to close clip: {str(e)}")
     
-    del clip
-    gc.collect()
+    try:
+        del clip
+    except:
+        pass
+    
+    # Only collect garbage if necessary
+    # gc.collect()  # Commented out to avoid triggering __del__ methods prematurely
 
 def delete_files(files: List[str] | str):
     if isinstance(files, str):
@@ -258,6 +485,7 @@ def combine_videos(
     video_transition_mode: VideoTransitionMode = None,
     max_clip_duration: int = 5,
     threads: int = 2,
+    scene_info: str = None,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     audio_duration = audio_clip.duration
@@ -278,20 +506,24 @@ def combine_videos(
     subclipped_items = []
     video_duration = 0
     for video_path in video_paths:
-        clip = VideoFileClip(video_path)
-        clip_duration = clip.duration
-        clip_w, clip_h = clip.size
-        close_clip(clip)
-        
-        start_time = 0
+        try:
+            clip = VideoFileClip(video_path)
+            clip_duration = clip.duration
+            clip_w, clip_h = clip.size
+            close_clip(clip)
+            
+            start_time = 0
 
-        while start_time < clip_duration:
-            end_time = min(start_time + max_clip_duration, clip_duration)            
-            if clip_duration - start_time >= max_clip_duration:
-                subclipped_items.append(SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h))
-            start_time = end_time    
-            if video_concat_mode.value == VideoConcatMode.sequential.value:
-                break
+            while start_time < clip_duration:
+                end_time = min(start_time + max_clip_duration, clip_duration)            
+                if clip_duration - start_time >= max_clip_duration:
+                    subclipped_items.append(SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h))
+                start_time = end_time    
+                if video_concat_mode.value == VideoConcatMode.sequential.value:
+                    break
+        except Exception as e:
+            logger.error(f"failed to process video file {video_path}: {str(e)}")
+            continue
 
     # random subclipped_items order
     if video_concat_mode.value == VideoConcatMode.random.value:
@@ -324,17 +556,17 @@ def combine_videos(
                     continue
                     
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
-            if video_transition_mode.value == VideoTransitionMode.none.value:
+            if video_transition_mode and video_transition_mode.value == VideoTransitionMode.none.value:
                 clip = clip
-            elif video_transition_mode.value == VideoTransitionMode.fade_in.value:
+            elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.fade_in.value:
                 clip = video_effects.fadein_transition(clip,1)
-            elif video_transition_mode.value == VideoTransitionMode.fade_out.value:
+            elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.fade_out.value:
                 clip = video_effects.fadeout_transition(clip,1)
-            elif video_transition_mode.value == VideoTransitionMode.slide_in.value:
+            elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.slide_in.value:
                 clip = video_effects.slidein_transition(clip,1, shuffle_side)
-            elif video_transition_mode.value == VideoTransitionMode.slide_out.value:
+            elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.slide_out.value:
                 clip = video_effects.slideout_transition(clip,1, shuffle_side)
-            elif video_transition_mode.value == VideoTransitionMode.shuffle.value:
+            elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.shuffle.value:
                 transition_funcs = [
                     lambda c: video_effects.fadein_transition(c,1),
                     lambda c: video_effects.fadeout_transition(c,1),
@@ -363,25 +595,45 @@ def combine_videos(
             video_duration += clip.duration
             logger.info(f"Clip {i+1} processed in memory, duration: {clip.duration:.2f}s")
             
+            # Release memory periodically
+            if len(processed_clips) % 5 == 0:
+                gc.collect()
+                logger.debug(f"Memory released, processed {len(processed_clips)} clips so far")
+            
         except Exception as e:
             logger.error(f"failed to process clip {i+1}: {str(e)}")
+            # Release memory in case of error
+            gc.collect()
+            continue
     
     # loop processed clips until video duration matches or exceeds the audio duration.
     if video_duration < audio_duration:
         logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
+        # Instead of keeping all clips in memory, calculate how many loops we need
+        base_duration = video_duration
+        num_loops = int(audio_duration / base_duration) + 1
+        logger.info(f"Need {num_loops} loops to match audio duration")
+        
+        # Only keep base clips in memory and reuse them
         base_clips = processed_clips.copy()
-        for clip in itertools.cycle(base_clips):
-            if video_duration >= audio_duration:
-                break
-            processed_clips.append(clip)
-            video_duration += clip.duration
+        for i in range(num_loops - 1):
+            for clip in base_clips:
+                if video_duration >= audio_duration:
+                    break
+                processed_clips.append(clip)
+                video_duration += clip.duration
+                # Release memory periodically
+                if len(processed_clips) % 10 == 0:
+                    gc.collect()
         logger.info(f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, looped {len(processed_clips)-len(base_clips)} clips")
+        # Force garbage collection after loop
+        gc.collect()
      
     # merge video clips and add audio in one step to reduce encoding loss
     logger.info("starting clip merging and audio addition process")
     if not processed_clips:
         logger.warning("no clips available for merging")
-        return combined_video_path
+        return None
     
     # Concatenate all clips in memory
     logger.info(f"concatenating {len(processed_clips)} clips in memory")
@@ -402,7 +654,10 @@ def combine_videos(
         
         # Add audio to video
         final_video = final_video.with_audio(audio_clip)
-        logger.info("audio added to video")
+        if scene_info:
+            logger.info(f"audio added to video {scene_info}")
+        else:
+            logger.info("audio added to video")
         
         # Write final video with audio (single encoding step)
         logger.info("writing final video with audio (single encoding step)")
@@ -433,7 +688,7 @@ def combine_videos(
         
     except Exception as e:
         logger.error(f"failed to merge clips and add audio: {str(e)}")
-        return combined_video_path
+        return None
     
     logger.info("video combining completed")
     return combined_video_path

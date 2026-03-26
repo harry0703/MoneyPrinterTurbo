@@ -1,17 +1,25 @@
 import asyncio
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Union
 from xml.sax.saxutils import unescape
 
 import edge_tts
 import requests
 from edge_tts import SubMaker, submaker
-from edge_tts.submaker import mktimestamp
 from loguru import logger
 from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
+
+# 替代edge_tts.submaker中的mktimestamp函数
+def mktimestamp(seconds: float) -> str:
+    """将秒数转换为SRT格式的时间戳"""
+    td = timedelta(seconds=seconds)
+    hours, remainder = divmod(td.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    milliseconds = td.microseconds // 1000
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
 
 from app.config import config
 from app.utils import utils
@@ -1846,7 +1854,13 @@ def coze_tts(
         SubMaker对象或None
     """
     import io
-    from pydub import AudioSegment
+    
+    try:
+        from pydub import AudioSegment
+    except ImportError as e:
+        logger.error(f"Failed to import pydub: {str(e)}")
+        logger.error("Please install pydub and its dependencies: pip install pydub")
+        return None
     
     try:
         # 配置Coze API

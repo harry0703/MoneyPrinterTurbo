@@ -559,9 +559,20 @@ with left_panel:
         )
         params.video_language = video_languages[selected_index][1]
 
+        # Multi-scene mode switch
+        if "multi_scene_enabled" not in st.session_state:
+            st.session_state["multi_scene_enabled"] = False
+
+        multi_scene_enabled = st.checkbox(
+            tr("Enable Multi-Scene Mode"),
+            value=st.session_state["multi_scene_enabled"],
+            help=tr("When enabled, the video will be divided into multiple scenes, each with its own visual requirements and narration")
+        )
+        st.session_state["multi_scene_enabled"] = multi_scene_enabled
+        params.multi_scene_enabled = multi_scene_enabled
+
         if st.button(
-            tr("Generate Video Script and Keywords"), key="auto_generate_script",
-            disabled=not st.session_state["video_subject"]
+            tr("Generate Video Script and Keywords"), key="auto_generate_script"
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
                 script = llm.generate_script(
@@ -576,10 +587,25 @@ with left_panel:
                     st.session_state["video_script"] = script
                     st.session_state["video_terms"] = ", ".join(terms)
 
-        # Unified multi-scene architecture - always enabled
-        multi_scene_enabled = True
-        st.session_state["multi_scene_enabled"] = multi_scene_enabled
-        params.multi_scene_enabled = multi_scene_enabled
+        params.video_script = st.text_area(
+            tr("Video Script"), value=st.session_state["video_script"], height=280
+        )
+        if st.button(tr("Generate Video Keywords"), key="auto_generate_terms"):
+            if not params.video_script:
+                st.error(tr("Please Enter the Video Subject"))
+                st.stop()
+
+            with st.spinner(tr("Generating Video Keywords")):
+                terms = llm.generate_terms(params.video_subject, params.video_script)
+                if "Error: " in terms:
+                    st.error(tr(terms))
+                else:
+                    st.session_state["video_terms"] = ", ".join(terms)
+
+        params.video_terms = st.text_area(
+            tr("Video Keywords"), value=st.session_state["video_terms"],
+            key="video_terms_single"
+        )
 
         # Initialize scenes in session state
         if "scenes" not in st.session_state:
@@ -589,310 +615,266 @@ with left_panel:
         if "auto_parse_mode" not in st.session_state:
             st.session_state["auto_parse_mode"] = "auto"  # "auto" or "manual"
 
-        # Multi-scene mode UI - always enabled
-        st.write(tr("Scenes Management"))
-        
-        # Create a container with border for visible border
-        with st.container(border=True):
-            # Button row for import and cancel
-            btn_cols = st.columns(2)
-            with btn_cols[0]:
-                if st.button(tr("Import Script"), key="import_script_btn"):
-                    imported_script = st.session_state.get("imported_script", "")
-                    if imported_script.strip():
-                        st.session_state["video_script"] = imported_script
-                        st.success(tr("Script imported successfully!"))
-                    else:
-                        st.warning(tr("Please paste a script to import"))
-            with btn_cols[1]:
-                if st.button(tr("Cancel Script"), key="cancel_script_btn"):
-                    # Only clear the imported script, not the scenes
-                    if "imported_script" in st.session_state:
-                        st.session_state["imported_script"] = ""
-                    st.info(tr("Imported script cleared"))
+        # Multi-scene mode UI
+        if multi_scene_enabled:
+            st.write(tr("Scenes Management"))
             
-            # Display imported script area with placeholder
-            imported_script = st.text_area(
-                "Script",
-                placeholder=tr("Here shows the imported script"),
-                height=150,
-                key="imported_script",
-                label_visibility="hidden"
-            )
-            
-            # Parse mode selection - all in one line
-            current_mode = st.session_state.get("auto_parse_mode", "auto")
-            
-            # Create a single line layout for parse mode
-            st.markdown('''
-            <style>
-            .parse-mode-row {
-                display: flex;
-                align-items: center;
-                gap: 20px;
-                margin: 10px 0;
-            }
-            </style>
-            ''', unsafe_allow_html=True)
-            
-            # Create a single line parse mode selector using Streamlit's native radio button
-            parse_mode = st.radio(
-                "解析模式",
-                options=["auto", "manual"],
-                format_func=lambda x: "完全自动" if x == "auto" else "手动确认",
-                index=0,
-                key="parse_mode_radio",
-                horizontal=True
-            )
-            st.session_state["auto_parse_mode"] = parse_mode
-            
-            # Parse button
-            if st.button(tr("Parse Current Script"), key="parse_script_btn"):
-                if not st.session_state.get("video_script", "").strip():
-                    st.warning(tr("Please enter a script first"))
-                else:
-                    with st.spinner(tr("Parsing script...")):
-                        from app.services.scene_parser import auto_parse_script, format_evaluation_result
-                        
-                        result = auto_parse_script(
-                            st.session_state["video_script"],
-                            max_retries=3,
-                            auto_mode=(parse_mode == "auto")
-                        )
-                        
-                        if result["status"] == "success":
-                            # Auto-accepted
-                            st.session_state["scenes"] = result["scenes"]
-                            st.success(tr(f"Successfully parsed {len(result['scenes'])} scenes (Score: {result['evaluation']['total_score']:.0f})"))
-                            st.rerun()
-                        elif result["status"] == "manual":
-                            # Need user confirmation
-                            st.session_state["pending_scenes"] = result["scenes"]
-                            st.session_state["pending_evaluation"] = result["evaluation"]
-                            st.info(tr("Please review the parsed scenes below"))
+            # Create a container with border for visible border
+            with st.container(border=True):
+                # Button row for import and cancel
+                btn_cols = st.columns(2)
+                with btn_cols[0]:
+                    if st.button(tr("Import Script"), key="import_script_btn"):
+                        imported_script = st.session_state.get("imported_script", "")
+                        if imported_script.strip():
+                            st.session_state["video_script"] = imported_script
+                            st.success(tr("Script imported successfully!"))
                         else:
-                            # Failed
-                            st.error(tr(f"Parsing failed: {result.get('message', 'Unknown error')}"))
-            
-            st.divider()
-            
-            # Display pending scenes for manual confirmation
-            if "pending_scenes" in st.session_state and "pending_evaluation" in st.session_state:
-                st.subheader(tr("Parsed Scenes Review"))
+                            st.warning(tr("Please paste a script to import"))
+                with btn_cols[1]:
+                    if st.button(tr("Cancel Script"), key="cancel_script_btn"):
+                        # Only clear the imported script, not the scenes
+                        if "imported_script" in st.session_state:
+                            st.session_state["imported_script"] = ""
+                        st.info(tr("Imported script cleared"))
                 
-                # Show evaluation
-                evaluation_data = format_evaluation_result(st.session_state["pending_evaluation"])
+                # Display imported script area with placeholder
+                imported_script = st.text_area(
+                    "Script",
+                    placeholder=tr("Here shows the imported script"),
+                    height=150,
+                    key="imported_script",
+                    label_visibility="hidden"
+                )
                 
-                # Get status text
-                status_text_map = {
-                    "excellent": tr("Excellent"),
-                    "good": tr("Good"),
-                    "fair": tr("Fair"),
-                    "poor": tr("Poor")
-                }
-                status_text = status_text_map.get(evaluation_data["status"], tr("Unknown"))
+                # Parse mode selection - all in one line
+                current_mode = st.session_state.get("auto_parse_mode", "auto")
                 
-                # Format evaluation result with i18n
-                evaluation_text = f"{evaluation_data['icon']} {tr('Smart Recognition Evaluation')}: {status_text} ({evaluation_data['total_score']:.0f} points)\n\n"
-                
-                # Individual scores - new evaluation dimensions
-                evaluation_text += f"{tr('Detailed Scores')}:\n"
-                evaluation_text += f"- {tr('Time Marker Completeness')}: {'✅' if evaluation_data['individual_scores'].get('time_marker_completeness', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('time_marker_completeness', 0):.0f} {tr('points')}\n"
-                evaluation_text += f"- {tr('Time Continuity')}: {'✅' if evaluation_data['individual_scores'].get('time_continuity', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('time_continuity', 0):.0f} {tr('points')}\n"
-                evaluation_text += f"- {tr('Visual Completeness')}: {'✅' if evaluation_data['individual_scores'].get('visual_completeness', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('visual_completeness', 0):.0f} {tr('points')}\n"
-                evaluation_text += f"- {tr('Script Duration Match')}: {'✅' if evaluation_data['individual_scores'].get('script_duration_match', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('script_duration_match', 0):.0f} {tr('points')}\n"
-                evaluation_text += f"- {tr('Scene Structure Completeness')}: {'✅' if evaluation_data['individual_scores'].get('scene_structure_completeness', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('scene_structure_completeness', 0):.0f} {tr('points')}\n\n"
-                
-                # Issues
-                if evaluation_data.get('issues'):
-                    evaluation_text += f"{tr('Suggestions for Improvement')}:\n"
-                    for issue in evaluation_data['issues']:
-                        # Translate issue based on type
-                        if isinstance(issue, dict):
-                            issue_type = issue.get('type')
-                            params = issue.get('params', {})
-                            
-                            if issue_type == 'time_marker_incomplete':
-                                evaluation_text += f"- {tr('Time marker incomplete')}: {params.get('count')}/{params.get('total')} {tr('scenes have time markers')}\n"
-                            elif issue_type == 'time_gap':
-                                evaluation_text += f"- {tr('Time gap detected')}: {tr('Scene')} {params.get('scene')} {tr('gap')} {params.get('gap')} {tr('seconds between scenes')}\n"
-                            elif issue_type == 'time_overlap':
-                                evaluation_text += f"- {tr('Time overlap detected')}: {tr('Scene')} {params.get('scene')} {tr('overlap')} {params.get('overlap')} {tr('seconds overlap')}\n"
-                            elif issue_type == 'total_duration_short':
-                                evaluation_text += f"- {tr('Total duration too short')}: {tr('Total duration')} {params.get('duration')}s, {tr('recommended minimum')} 30s\n"
-                            elif issue_type == 'total_duration_long':
-                                evaluation_text += f"- {tr('Total duration too long')}: {tr('Total duration')} {params.get('duration')}s, {tr('recommended maximum')} 300s\n"
-                            elif issue_type == 'visual_incomplete':
-                                evaluation_text += f"- {tr('Visual incomplete')}: {params.get('count')}/{params.get('total')} {tr('scenes have visual requirements')}\n"
-                            elif issue_type == 'script_too_short':
-                                evaluation_text += f"- {tr('Script too short')}: {tr('actual')} {params.get('actual')} {tr('characters')}, {tr('expected')} {params.get('expected')} {tr('characters')}\n"
-                            elif issue_type == 'script_too_long':
-                                evaluation_text += f"- {tr('Script too long')}: {tr('actual')} {params.get('actual')} {tr('characters')}, {tr('expected')} {params.get('expected')} {tr('characters')}\n"
-                            elif issue_type == 'structure_incomplete':
-                                evaluation_text += f"- {tr('Structure incomplete')}: {params.get('count')}/{params.get('total')} {tr('scenes have complete structure')}\n"
-                            else:
-                                evaluation_text += f"- {str(issue)}\n"
-                        else:
-                            evaluation_text += f"- {issue}\n"
-                
-                st.markdown(evaluation_text)
-                
-                # Preview scenes
-                with st.expander(tr("Preview Parsed Scenes")):
-                    for i, scene in enumerate(st.session_state["pending_scenes"]):
-                        st.write(f"**{tr('Scene')} {i+1}** ({scene['duration']}s)")
-                        st.write(f"{tr('Script')}: {scene['script'][:100]}...")
-                
-                # Action buttons
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    if st.button(tr("Use These Scenes"), key="use_parsed_scenes"):
-                        st.session_state["scenes"] = st.session_state["pending_scenes"]
-                        del st.session_state["pending_scenes"]
-                        del st.session_state["pending_evaluation"]
-                        st.success(tr("Scenes applied successfully!"))
-                        st.rerun()
-                with col2:
-                    if st.button(tr("Re-parse"), key="reparse_scenes"):
-                        del st.session_state["pending_scenes"]
-                        del st.session_state["pending_evaluation"]
-                        st.rerun()
-                with col3:
-                    if st.button(tr("Cancel"), key="cancel_parsed_scenes"):
-                        del st.session_state["pending_scenes"]
-                        del st.session_state["pending_evaluation"]
-                        st.rerun()
-            
-            # Add new scene button
-            if st.button(tr("Add New Scene")):
-                new_scene = {
-                    "id": str(uuid4()),
-                    "script": "",
-                    "visual_requirement": "",
-                    "keywords": "",
-                    "duration": 5
-                }
-                st.session_state["scenes"].append(new_scene)
-                st.rerun()
-                
-            # Display placeholder if no scenes
-            if len(st.session_state["scenes"]) == 0:
+                # Create a single line layout for parse mode
                 st.markdown('''
-                <div style="display: flex; align-items: center; justify-content: center; height: 200px; background-color: #f8f9fa; border-radius: 8px; border: 1px dashed #dee2e6;">
-                    <span style="color: #6c757d; font-size: 16px;">这里显示多场景文案</span>
-                </div>
+                <style>
+                .parse-mode-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 20px;
+                    margin: 10px 0;
+                }
+                </style>
                 ''', unsafe_allow_html=True)
-            else:
-                # Display scenes as cards
-                for i, scene in enumerate(st.session_state["scenes"]):
-                    with st.container(border=True):
-                        scene_header, scene_actions = st.columns([3, 1])
-                        with scene_header:
-                            st.subheader(f"{tr('Scene')} {i+1}")
-                        with scene_actions:
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button(tr("Delete"), key=f"delete_scene_{scene['id']}"):
-                                    st.session_state["scenes"].pop(i)
-                                    st.rerun()
-                            with col2:
-                                if st.button(tr("Copy"), key=f"copy_scene_{scene['id']}"):
-                                    copied_scene = scene.copy()
-                                    copied_scene["id"] = str(uuid4())
-                                    st.session_state["scenes"].append(copied_scene)
-                                    st.rerun()
+                
+                # Create a single line parse mode selector using Streamlit's native radio button
+                parse_mode = st.radio(
+                    "解析模式",
+                    options=["auto", "manual"],
+                    format_func=lambda x: "完全自动" if x == "auto" else "手动确认",
+                    index=0,
+                    key="parse_mode_radio",
+                    horizontal=True
+                )
+                st.session_state["auto_parse_mode"] = parse_mode
+                
+                # Parse button
+                if st.button(tr("Parse Current Script"), key="parse_script_btn"):
+                    if not st.session_state.get("video_script", "").strip():
+                        st.warning(tr("Please enter a script first"))
+                    else:
+                        with st.spinner(tr("Parsing script...")):
+                            from app.services.scene_parser import auto_parse_script, format_evaluation_result
                             
-                            # Scene duration
-                            scene["duration"] = st.number_input(
-                                tr("Duration (seconds)"),
-                                min_value=1, max_value=60, value=scene["duration"],
-                                key=f"duration_{scene['id']}"
+                            result = auto_parse_script(
+                                st.session_state["video_script"],
+                                max_retries=3,
+                                auto_mode=(parse_mode == "auto")
                             )
                             
-                            # Visual requirement with tags support
-                            st.write(tr("Visual Requirements"))
-                            scene["visual_requirement"] = st.text_area(
-                                tr("Detailed Description"),
-                                value=scene["visual_requirement"],
-                                height=100,
-                                key=f"visual_{scene['id']}"
-                            )
-                            
-                            # Keywords input
-                            scene["keywords"] = st.text_input(
-                                tr("Keywords (separated by commas)"),
-                                value=scene["keywords"],
-                                key=f"keywords_{scene['id']}"
-                            )
-                            
-                            # Script input
-                            scene["script"] = st.text_area(
-                                tr("Scene Script"),
-                                value=scene["script"],
-                                height=150,
-                                key=f"script_{scene['id']}"
-                            )
-                            
-                            # Scene order adjustment
-                            order_cols = st.columns(3)
-                            with order_cols[0]:
-                                if i > 0 and st.button(tr("Move Up"), key=f"up_{scene['id']}"):
-                                    st.session_state["scenes"][i], st.session_state["scenes"][i-1] = st.session_state["scenes"][i-1], st.session_state["scenes"][i]
-                                    st.rerun()
-                            with order_cols[2]:
-                                if i < len(st.session_state["scenes"])-1 and st.button(tr("Move Down"), key=f"down_{scene['id']}"):
-                                    st.session_state["scenes"][i], st.session_state["scenes"][i+1] = st.session_state["scenes"][i+1], st.session_state["scenes"][i]
-                                    st.rerun()
+                            if result["status"] == "success":
+                                # Auto-accepted
+                                st.session_state["scenes"] = result["scenes"]
+                                st.success(tr(f"Successfully parsed {len(result['scenes'])} scenes (Score: {result['evaluation']['total_score']:.0f})"))
+                                st.rerun()
+                            elif result["status"] == "manual":
+                                # Need user confirmation
+                                st.session_state["pending_scenes"] = result["scenes"]
+                                st.session_state["pending_evaluation"] = result["evaluation"]
+                                st.info(tr("Please review the parsed scenes below"))
+                            else:
+                                # Failed
+                                st.error(tr(f"Parsing failed: {result.get('message', 'Unknown error')}"))
+                
+                st.divider()
+                
+                # Display pending scenes for manual confirmation
+                if "pending_scenes" in st.session_state and "pending_evaluation" in st.session_state:
+                    st.subheader(tr("Parsed Scenes Review"))
+                    
+                    # Show evaluation
+                    evaluation_data = format_evaluation_result(st.session_state["pending_evaluation"])
+                    
+                    # Get status text
+                    status_text_map = {
+                        "excellent": tr("Excellent"),
+                        "good": tr("Good"),
+                        "fair": tr("Fair"),
+                        "poor": tr("Poor")
+                    }
+                    status_text = status_text_map.get(evaluation_data["status"], tr("Unknown"))
+                    
+                    # Format evaluation result with i18n
+                    evaluation_text = f"{evaluation_data['icon']} {tr('Smart Recognition Evaluation')}: {status_text} ({evaluation_data['total_score']:.0f} points)\n\n"
+                    
+                    # Individual scores - new evaluation dimensions
+                    evaluation_text += f"{tr('Detailed Scores')}:\n"
+                    evaluation_text += f"- {tr('Time Marker Completeness')}: {'✅' if evaluation_data['individual_scores'].get('time_marker_completeness', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('time_marker_completeness', 0):.0f} {tr('points')}\n"
+                    evaluation_text += f"- {tr('Time Continuity')}: {'✅' if evaluation_data['individual_scores'].get('time_continuity', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('time_continuity', 0):.0f} {tr('points')}\n"
+                    evaluation_text += f"- {tr('Visual Completeness')}: {'✅' if evaluation_data['individual_scores'].get('visual_completeness', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('visual_completeness', 0):.0f} {tr('points')}\n"
+                    evaluation_text += f"- {tr('Script Duration Match')}: {'✅' if evaluation_data['individual_scores'].get('script_duration_match', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('script_duration_match', 0):.0f} {tr('points')}\n"
+                    evaluation_text += f"- {tr('Scene Structure Completeness')}: {'✅' if evaluation_data['individual_scores'].get('scene_structure_completeness', 0) >= 80 else '⚠️'} {evaluation_data['individual_scores'].get('scene_structure_completeness', 0):.0f} {tr('points')}\n\n"
+                    
+                    # Issues
+                    if evaluation_data.get('issues'):
+                        evaluation_text += f"{tr('Suggestions for Improvement')}:\n"
+                        for issue in evaluation_data['issues']:
+                            # Translate issue based on type
+                            if isinstance(issue, dict):
+                                issue_type = issue.get('type')
+                                params = issue.get('params', {})
+                                
+                                if issue_type == 'time_marker_incomplete':
+                                    evaluation_text += f"- {tr('Time marker incomplete')}: {params.get('count')}/{params.get('total')} {tr('scenes have time markers')}\n"
+                                elif issue_type == 'time_gap':
+                                    evaluation_text += f"- {tr('Time gap detected')}: {tr('Scene')} {params.get('scene')} {tr('gap')} {params.get('gap')} {tr('seconds between scenes')}\n"
+                                elif issue_type == 'time_overlap':
+                                    evaluation_text += f"- {tr('Time overlap detected')}: {tr('Scene')} {params.get('scene')} {tr('overlap')} {params.get('overlap')} {tr('seconds overlap')}\n"
+                                elif issue_type == 'total_duration_short':
+                                    evaluation_text += f"- {tr('Total duration too short')}: {tr('Total duration')} {params.get('duration')}s, {tr('recommended minimum')} 30s\n"
+                                elif issue_type == 'total_duration_long':
+                                    evaluation_text += f"- {tr('Total duration too long')}: {tr('Total duration')} {params.get('duration')}s, {tr('recommended maximum')} 300s\n"
+                                elif issue_type == 'visual_incomplete':
+                                    evaluation_text += f"- {tr('Visual incomplete')}: {params.get('count')}/{params.get('total')} {tr('scenes have visual requirements')}\n"
+                                elif issue_type == 'script_too_short':
+                                    evaluation_text += f"- {tr('Script too short')}: {tr('actual')} {params.get('actual')} {tr('characters')}, {tr('expected')} {params.get('expected')} {tr('characters')}\n"
+                                elif issue_type == 'script_too_long':
+                                    evaluation_text += f"- {tr('Script too long')}: {tr('actual')} {params.get('actual')} {tr('characters')}, {tr('expected')} {params.get('expected')} {tr('characters')}\n"
+                                elif issue_type == 'structure_incomplete':
+                                    evaluation_text += f"- {tr('Structure incomplete')}: {params.get('count')}/{params.get('total')} {tr('scenes have complete structure')}\n"
+                                else:
+                                    evaluation_text += f"- {str(issue)}\n"
+                            else:
+                                evaluation_text += f"- {issue}\n"
+                    
+                    st.markdown(evaluation_text)
+                    
+                    # Preview scenes
+                    with st.expander(tr("Preview Parsed Scenes")):
+                        for i, scene in enumerate(st.session_state["pending_scenes"]):
+                            st.write(f"**{tr('Scene')} {i+1}** ({scene['duration']}s)")
+                            st.write(f"{tr('Script')}: {scene['script'][:100]}...")
+                    
+                    # Action buttons
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button(tr("Use These Scenes"), key="use_parsed_scenes"):
+                            st.session_state["scenes"] = st.session_state["pending_scenes"]
+                            del st.session_state["pending_scenes"]
+                            del st.session_state["pending_evaluation"]
+                            st.success(tr("Scenes applied successfully!"))
+                            st.rerun()
+                    with col2:
+                        if st.button(tr("Re-parse"), key="reparse_scenes"):
+                            del st.session_state["pending_scenes"]
+                            del st.session_state["pending_evaluation"]
+                            st.rerun()
+                    with col3:
+                        if st.button(tr("Cancel"), key="cancel_parsed_scenes"):
+                            del st.session_state["pending_scenes"]
+                            del st.session_state["pending_evaluation"]
+                            st.rerun()
+                
+                # Add new scene button
+                if st.button(tr("Add New Scene")):
+                    new_scene = {
+                        "id": str(uuid4()),
+                        "script": "",
+                        "visual_requirement": "",
+                        "keywords": "",
+                        "duration": 5
+                    }
+                    st.session_state["scenes"].append(new_scene)
+                    st.rerun()
+                    
+                # Display placeholder if no scenes
+                if len(st.session_state["scenes"]) == 0:
+                    st.markdown('''
+                    <div style="display: flex; align-items: center; justify-content: center; height: 200px; background-color: #f8f9fa; border-radius: 8px; border: 1px dashed #dee2e6;">
+                        <span style="color: #6c757d; font-size: 16px;">这里显示多场景文案</span>
+                    </div>
+                    ''', unsafe_allow_html=True)
+                else:
+                    # Display scenes as cards
+                    for i, scene in enumerate(st.session_state["scenes"]):
+                        with st.container(border=True):
+                            scene_header, scene_actions = st.columns([3, 1])
+                            with scene_header:
+                                st.subheader(f"{tr('Scene')} {i+1}")
+                            with scene_actions:
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button(tr("Delete"), key=f"delete_scene_{scene['id']}"):
+                                        st.session_state["scenes"].pop(i)
+                                        st.rerun()
+                                with col2:
+                                    if st.button(tr("Copy"), key=f"copy_scene_{scene['id']}"):
+                                        copied_scene = scene.copy()
+                                        copied_scene["id"] = str(uuid4())
+                                        st.session_state["scenes"].append(copied_scene)
+                                        st.rerun()
+                                
+                                # Scene duration
+                                scene["duration"] = st.number_input(
+                                    tr("Duration (seconds)"),
+                                    min_value=1, max_value=60, value=scene["duration"],
+                                    key=f"duration_{scene['id']}"
+                                )
+                                
+                                # Visual requirement with tags support
+                                st.write(tr("Visual Requirements"))
+                                scene["visual_requirement"] = st.text_area(
+                                    tr("Detailed Description"),
+                                    value=scene["visual_requirement"],
+                                    height=100,
+                                    key=f"visual_{scene['id']}"
+                                )
+                                
+                                # Keywords input
+                                scene["keywords"] = st.text_input(
+                                    tr("Keywords (separated by commas)"),
+                                    value=scene["keywords"],
+                                    key=f"keywords_{scene['id']}"
+                                )
+                                
+                                # Script input
+                                scene["script"] = st.text_area(
+                                    tr("Scene Script"),
+                                    value=scene["script"],
+                                    height=150,
+                                    key=f"script_{scene['id']}"
+                                )
+                                
+                                # Scene order adjustment
+                                order_cols = st.columns(3)
+                                with order_cols[0]:
+                                    if i > 0 and st.button(tr("Move Up"), key=f"up_{scene['id']}"):
+                                        st.session_state["scenes"][i], st.session_state["scenes"][i-1] = st.session_state["scenes"][i-1], st.session_state["scenes"][i]
+                                        st.rerun()
+                                with order_cols[2]:
+                                    if i < len(st.session_state["scenes"])-1 and st.button(tr("Move Down"), key=f"down_{scene['id']}"):
+                                        st.session_state["scenes"][i], st.session_state["scenes"][i+1] = st.session_state["scenes"][i+1], st.session_state["scenes"][i]
+                                        st.rerun()
             
             # Add spacing at the bottom of scene cards display area
             st.markdown('<br><br>', unsafe_allow_html=True)
         
-        # Add spacing between scene cards and keyword generation button
-        st.markdown('<br><br>', unsafe_allow_html=True)
-        
-        if st.button(
-            tr("Generate Video Keywords"), key="auto_generate_terms",
-            disabled=not st.session_state["video_script"]
-        ):
-                if not st.session_state["video_script"]:
-                    st.error(tr("Please Enter the Video Script"))
-                    st.stop()
 
-                with st.spinner(tr("Generating Video Keywords")):
-                    # Multi-scene mode: generate keywords for each scene
-                    scenes = llm.parse_multi_scene_script(params.video_script)
-                    if not scenes:
-                        st.error(tr("Failed to parse multi-scene script"))
-                        st.stop()
-                    
-                    # Generate keywords for each scene
-                    scene_terms_list = []
-                    for i, scene in enumerate(scenes):
-                        logger.info(f"generating terms for scene {i+1}/{len(scenes)}")
-                        terms = llm.generate_scene_terms(
-                            video_subject=params.video_subject,
-                            scene_script=scene.get('script', ''),
-                            scene_camera=scene.get('camera', ''),
-                            amount=5
-                        )
-                        if terms and not (isinstance(terms, str) and "Error: " in terms):
-                            scene['keywords'] = terms
-                            scene_terms_list.append(terms)
-                        else:
-                            logger.warning(f"failed to generate terms for scene {i+1}")
-                    
-                    # Format keywords for display: different scenes separated by semicolon, same scene separated by comma
-                    formatted_terms = []
-                    for scene in scenes:
-                        scene_keywords = scene.get('keywords', [])
-                        if scene_keywords:
-                            formatted_terms.append(", ".join(scene_keywords))
-                    
-                    st.session_state["video_terms"] = "; ".join(formatted_terms)
-
-        params.video_terms = st.text_area(
-            tr("Video Keywords"), value=st.session_state["video_terms"]
-        )
 
 with middle_panel:
     with st.container(border=True):
@@ -1688,6 +1670,14 @@ if start_button:
     def log_received(msg):
         if config.ui["hide_log"]:
             return
+        # Check if session_state is available and initialized
+        try:
+            if "log_records" not in st.session_state:
+                return
+        except Exception:
+            # Session state not available (e.g., during thread execution)
+            return
+        
         # Extract log message from loguru Record object
         if hasattr(msg, 'message'):
             log_message = str(msg.message)
@@ -1702,7 +1692,8 @@ if start_button:
             log_text = "\n".join(st.session_state["log_records"][-100:])
             st.code(log_text)
 
-    logger.add(log_received)
+    # Add log handler and save handler ID for cleanup
+    log_handler_id = logger.add(log_received)
 
     st.toast(tr("Generating Video"))
     logger.info(tr("Start Generating Video"))
@@ -1710,6 +1701,10 @@ if start_button:
     scroll_to_bottom()
 
     result = tm.start(task_id=task_id, params=params)
+    
+    # Remove the log handler to prevent memory leaks and page reload issues
+    logger.remove(log_handler_id)
+    
     if not result or "videos" not in result:
         st.error(tr("Video Generation Failed"))
         logger.error(tr("Video Generation Failed"))

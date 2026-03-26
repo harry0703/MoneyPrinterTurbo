@@ -267,12 +267,53 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
             logger.info(f"scene {scene_num}: using Whisper to generate subtitle from audio file: {audio_file}")
             logger.info(f"scene {scene_num}: audio file exists: {os.path.exists(audio_file)}, size: {os.path.getsize(audio_file) if os.path.exists(audio_file) else 0} bytes")
             logger.info(f"scene {scene_num}: scene_script for subtitle: {scene_script[:100]}...")
-            subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
-            subtitle.correct(subtitle_file=subtitle_path, video_script=scene_script)
+            try:
+                subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
+                if os.path.exists(subtitle_path):
+                    subtitle.correct(subtitle_file=subtitle_path, video_script=scene_script)
+            except Exception as e:
+                logger.error(f"scene {scene_num}: failed to generate subtitle with Whisper: {str(e)}")
+                subtitle_fallback = True
         
         if not os.path.exists(subtitle_path):
             logger.warning(f"scene {scene_num}: subtitle file not found")
-            subtitle_path = ""
+            # Fallback: create subtitle from script directly
+            try:
+                logger.info(f"scene {scene_num}: creating subtitle from script directly")
+                # Split script into lines
+                script_lines = utils.split_string_by_punctuations(scene_script)
+                script_lines = [line.strip() for line in script_lines if line.strip()]
+                
+                if script_lines:
+                    # Create subtitle file with simple timing
+                    with open(subtitle_path, 'w', encoding='utf-8') as f:
+                        start_time = 0.0
+                        for i, line in enumerate(script_lines):
+                            # Calculate end time (approx 2 seconds per line)
+                            end_time = start_time + 2.0
+                            # Format time for SRT
+                            def format_time(seconds):
+                                hours = int(seconds // 3600)
+                                minutes = int((seconds % 3600) // 60)
+                                secs = int(seconds % 60)
+                                ms = int((seconds % 1) * 1000)
+                                return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
+                            
+                            # Write subtitle entry
+                            f.write(f"{i+1}\n")
+                            f.write(f"{format_time(start_time)} --> {format_time(end_time)}\n")
+                            f.write(f"{line}\n\n")
+                            
+                            # Update start time for next line
+                            start_time = end_time
+                    
+                    logger.success(f"scene {scene_num}: subtitle file created from script: {subtitle_path}")
+                else:
+                    logger.warning(f"scene {scene_num}: script is empty, cannot create subtitle")
+                    subtitle_path = ""
+            except Exception as e:
+                logger.error(f"scene {scene_num}: failed to create subtitle from script: {e}")
+                subtitle_path = ""
         else:
             logger.success(f"scene {scene_num}: subtitle file created: {subtitle_path}")
     
@@ -310,7 +351,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     logger.info(f"combining video clip for scene {scene_num}")
     combined_video_path = path.join(scene_dir, "combined.mp4")
     
-    video.combine_videos(
+    result = video.combine_videos(
         combined_video_path=combined_video_path,
         video_paths=downloaded_videos,
         audio_file=audio_file,
@@ -319,9 +360,9 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         video_transition_mode=params.video_transition_mode,
         max_clip_duration=params.video_clip_duration,
         threads=params.n_threads,
-    )
+        scene_info=f"(scene {scene_num}/{total_scenes})")
     
-    if not os.path.exists(combined_video_path):
+    if result is None or not os.path.exists(combined_video_path):
         logger.error(f"failed to combine video for scene {scene_num}")
         return None
     
@@ -383,9 +424,9 @@ def combine_all_scenes(task_id, params, scene_results):
         final_clip = concatenate_videoclips(clips, method="chain")
         logger.info(f"final clip duration: {final_clip.duration}s")
         
-        # Get video encoding parameters
+        # Get video encoding parameters (loaded once at module initialization)
         video_encoding_params = video.get_video_encoding_params()
-        logger.info(f"using video encoding params: bitrate={video_encoding_params['bitrate']}, preset={video_encoding_params['preset']}, crf={video_encoding_params['crf']}")
+        logger.info(f"using video encoding params: bitrate={video_encoding_params['bitrate']}, preset={video_encoding_params['preset']}, crf={video_encoding_params['crf']}, codec={video.video_codec}")
         
         # Build ffmpeg parameters
         ffmpeg_params = ["-pix_fmt", "yuv420p"]
@@ -580,6 +621,7 @@ def generate_final_videos(
             video_transition_mode=video_transition_mode,
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
+            scene_info=f"(video {index}/{params.video_count})"
         )
 
         _progress += 50 / params.video_count / 2
@@ -606,7 +648,24 @@ def generate_final_videos(
 
 
 def start(task_id, params: VideoParams, stop_at: str = "video"):
+    # Create task log file
+    task_log_path = os.path.join(utils.task_dir(task_id), "task.log")
+    # Add file handler to logger
+    log_handler_id = logger.add(
+        task_log_path,
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{line} | {message}",
+        level="INFO",
+        rotation="10 MB",
+        compression="zip"
+    )
+    
+    # Log GPU configuration for video codec
+    from app.config import config
+    use_gpu = config.app.get("use_gpu", False)
+    logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
+    
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
+    logger.info(f"Task log file created: {task_log_path}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
     if type(params.video_concat_mode) is str:
@@ -615,7 +674,12 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     # Unified multi-scene architecture - always use multi-scene flow
     # The old single-scene mode is mapped to a single scene in multi-scene architecture
     logger.info("using unified multi-scene architecture")
-    return start_multi_scene(task_id, params, stop_at)
+    try:
+        return start_multi_scene(task_id, params, stop_at)
+    finally:
+        # Remove the file handler to release the log file
+        logger.remove(log_handler_id)
+        logger.info(f"Task log file closed: {task_log_path}")
 
 
 def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
@@ -910,6 +974,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
                 current_offset += scene_duration
             
             # Create merged subtitle file if we have subtitles
+            merged_subtitle_path = None
             if all_subtitles:
                 merged_subtitle_path = path.join(utils.task_dir(task_id), "merged_subtitle.srt")
                 try:
@@ -950,82 +1015,101 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
                     # Load subtitles
                     subtitle_lines = subtitle_module.file_to_subtitles(subtitle_path)
                     if subtitle_lines:
-                        def make_textclip(text):
-                            return TextClip(
-                                text=text,
-                                font=font_path,
-                                font_size=int(params.font_size),
-                                color=params.text_fore_color,
-                                bg_color=params.text_background_color,
-                                stroke_color=params.stroke_color,
-                                stroke_width=int(params.stroke_width),
-                            )
-                        
-                        sub = SubtitlesClip(
-                            subtitles=subtitle_path, 
-                            encoding="utf-8", 
-                            make_textclip=make_textclip
-                        )
+                        logger.info(f"Loaded {len(subtitle_lines)} subtitles from {subtitle_path}")
                         
                         # Create text clips
                         text_clips = []
                         video_width, video_height = video_clip.size
                         
-                        for item in sub.subtitles:
-                            phrase = item[1]
+                        # Check if font file exists
+                        if not os.path.exists(font_path):
+                            logger.warning(f"Font file not found: {font_path}, using default font")
+                            font_path = None  # Use default font
+                        
+                        # Use subtitle_lines directly
+                        for i, (index, time_str, text) in enumerate(subtitle_lines):
+                            phrase = text
+                            logger.debug(f"Processing subtitle {i+1}: {phrase[:50]}...")
+                            
                             # Get subtitle margin from config (default 0.05 = 5% on each side)
                             # Reload config to get latest values
                             _cfg = load_config()
                             ui_config = _cfg.get("ui", {})
                             subtitle_margin = ui_config.get("subtitle_margin", 0.05)
                             max_width = video_width * (1 - 2 * subtitle_margin)
-                            wrapped_txt, txt_height = video_module.wrap_text(
-                                phrase, max_width=max_width, font=font_path, fontsize=int(params.font_size)
-                            )
                             
-                            _clip = TextClip(
-                                text=wrapped_txt,
-                                font=font_path,
-                                font_size=int(params.font_size),
-                                color=params.text_fore_color,
-                                bg_color=params.text_background_color,
-                                stroke_color=params.stroke_color,
-                                stroke_width=int(params.stroke_width),
-                            )
-                            duration = item[0][1] - item[0][0]
-                            _clip = _clip.with_start(item[0][0])
-                            _clip = _clip.with_end(item[0][1])
-                            _clip = _clip.with_duration(duration)
-                            
-                            # Position subtitle
-                            if params.subtitle_position == "bottom":
-                                _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
-                            elif params.subtitle_position == "top":
-                                _clip = _clip.with_position(("center", video_height * 0.05))
-                            elif params.subtitle_position == "custom":
-                                margin = 10
-                                max_y = video_height - _clip.h - margin
-                                min_y = margin
-                                custom_y = (video_height - _clip.h) * (params.custom_position / 100)
-                                custom_y = max(min_y, min(custom_y, max_y))
-                                _clip = _clip.with_position(("center", custom_y))
-                            else:  # center
-                                _clip = _clip.with_position(("center", "center"))
-                            
-                            text_clips.append(_clip)
+                            try:
+                                # Wrap text to fit within video width
+                                wrapped_txt, txt_height = video_module.wrap_text(
+                                    phrase, max_width=max_width, font=font_path if font_path else "Arial", fontsize=int(params.font_size)
+                                )
+                                
+                                # Parse time string
+                                start_end = time_str.split(" --> ")
+                                if len(start_end) == 2:
+                                    # Convert to seconds
+                                    start_time = _srt_time_to_seconds(start_end[0])
+                                    end_time = _srt_time_to_seconds(start_end[1])
+                                    
+                                    # Create text clip with proper encoding
+                                    try:
+                                        _clip = TextClip(
+                                            text=wrapped_txt,
+                                            font=font_path,
+                                            font_size=int(params.font_size),
+                                            color=params.text_fore_color,
+                                            bg_color=params.text_background_color,
+                                            stroke_color=params.stroke_color,
+                                            stroke_width=int(params.stroke_width),
+                                            method='label'  # Use label method for better text rendering
+                                        )
+                                        
+                                        duration = end_time - start_time
+                                        _clip = _clip.with_start(start_time)
+                                        _clip = _clip.with_end(end_time)
+                                        _clip = _clip.with_duration(duration)
+                                        
+                                        # Position subtitle
+                                        if params.subtitle_position == "bottom":
+                                            _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
+                                        elif params.subtitle_position == "top":
+                                            _clip = _clip.with_position(("center", video_height * 0.05))
+                                        elif params.subtitle_position == "custom":
+                                            margin = 10
+                                            max_y = video_height - _clip.h - margin
+                                            min_y = margin
+                                            custom_y = (video_height - _clip.h) * (params.custom_position / 100)
+                                            custom_y = max(min_y, min(custom_y, max_y))
+                                            _clip = _clip.with_position(("center", custom_y))
+                                        else:  # center
+                                            _clip = _clip.with_position(("center", "center"))
+                                        
+                                        text_clips.append(_clip)
+                                        logger.debug(f"Created text clip for subtitle {i+1}")
+                                    except Exception as e:
+                                        logger.error(f"Failed to create text clip: {e}")
+                            except Exception as e:
+                                logger.error(f"Failed to process subtitle {i+1}: {e}")
                         
                         # Composite video with subtitles
-                        video_clip = CompositeVideoClip([video_clip, *text_clips])
-                        logger.success("subtitle added to multi-scene video")
+                        if text_clips:
+                            logger.info(f"Adding {len(text_clips)} text clips to video")
+                            try:
+                                video_clip = CompositeVideoClip([video_clip, *text_clips])
+                                logger.success("subtitle added to multi-scene video")
+                            except Exception as e:
+                                logger.error(f"Failed to composite video with subtitles: {e}")
+                        else:
+                            logger.warning("No text clips created, skipping subtitle addition")
                 except Exception as e:
                     logger.error(f"failed to add subtitle: {str(e)}")
         
         # Write final video
         logger.info(f"writing final video to: {final_output_path}")
         
-        # Get video encoding parameters
+        # Get video encoding parameters (loaded once at module initialization)
         video_encoding_params = video_module.get_video_encoding_params()
-        logger.info(f"using video encoding params: bitrate={video_encoding_params['bitrate']}, preset={video_encoding_params['preset']}, crf={video_encoding_params['crf']}")
+        logger.info(f"using video encoding params: bitrate={video_encoding_params['bitrate']}, preset={video_encoding_params['preset']}, crf={video_encoding_params['crf']}, codec={video_module.video_codec}")
         
         # Build ffmpeg parameters
         ffmpeg_params = ["-pix_fmt", "yuv420p"]
