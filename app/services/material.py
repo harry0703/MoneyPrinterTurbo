@@ -314,7 +314,7 @@ def download_videos(
     search_terms: List[str],
     source: str = "pexels",
     video_aspect: VideoAspect = VideoAspect.portrait,
-    video_contact_mode: VideoConcatMode = VideoConcatMode.random,
+    video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
 ) -> List[str]:
@@ -350,7 +350,7 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
-    if video_contact_mode.value == VideoConcatMode.random.value:
+    if video_concat_mode.value == VideoConcatMode.random.value:
         random.shuffle(valid_video_items)
 
     total_duration = 0.0

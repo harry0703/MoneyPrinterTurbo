@@ -523,6 +523,9 @@ Generate a multi-scene video script based on the subject. The script should be d
 5. Do not include any markdown formatting
 6. Do not include scene numbers or other metadata
 7. Respond in the same language as the video subject
+8. Do not require the host to be on camera throughout the entire video
+9. Include scenes that show relevant materials, products, or visuals related to the topic
+10. Balance between host on-camera scenes and material展示 scenes
 
 ## Output Format:
 (镜头: 主播坐在电脑前，屏幕上是代码编辑器)
@@ -696,6 +699,9 @@ Convert the provided single-scene script into a multi-scene format with visual d
 4. Scene transitions should be natural
 5. Do not add new content, only reorganize existing content
 6. Do not include any markdown formatting
+7. Do not require the host to be on camera throughout the entire video
+8. Include scenes that show relevant materials, products, or visuals related to the topic
+9. Balance between host on-camera scenes and material展示 scenes
 
 ## Output Format:
 (镜头: 主播坐在电脑前)
@@ -797,6 +803,7 @@ Generate {amount} search terms for stock videos for a specific scene.
 3. You must only return the JSON array of strings
 4. The search terms must be in English for better stock video search results
 5. Focus on visual elements mentioned in the camera description
+6. Always include keywords related to the overall video subject to maintain consistency across scenes
 
 ## Output Example:
 ["computer screen", "coding", "programmer", "software development", "technology"]

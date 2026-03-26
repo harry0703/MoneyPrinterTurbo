@@ -246,7 +246,7 @@ def get_video_encoding_params():
     encoding_preset = preset["preset"]
     crf = preset["crf"]
     
-    logger.info(f"Video encoding params: type={preset_type}, quality={quality}, bitrate={bitrate}, preset={encoding_preset}, crf={crf}")
+    logger.debug(f"Video encoding params: type={preset_type}, quality={quality}, bitrate={bitrate}, preset={encoding_preset}, crf={crf}")
     
     return {
         "bitrate": bitrate,
@@ -271,7 +271,7 @@ def get_video_codec():
         import subprocess
         # Get ffmpeg executable path
         ffmpeg_exe = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
-        logger.info(f"Video encoder: Checking GPU support using ffmpeg executable: {ffmpeg_exe}")
+        logger.debug(f"Video encoder: Checking GPU support using ffmpeg executable: {ffmpeg_exe}")
         
         # Check if ffmpeg supports GPU encoders
         result = subprocess.run(

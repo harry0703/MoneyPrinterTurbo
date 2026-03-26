@@ -172,6 +172,14 @@ def generate_scene_terms(task_id, params, scenes):
         )
         
         if terms and not (isinstance(terms, str) and "Error: " in terms):
+            # Ensure video subject is included in keywords
+            subject_lower = params.video_subject.lower()
+            terms_lower = [term.lower() for term in terms]
+            if subject_lower not in terms_lower:
+                # Add video subject to terms if not already present
+                terms.insert(0, params.video_subject)
+                # Limit to amount terms
+                terms = terms[:5]
             scene_terms_list.append(terms)
             scene['keywords'] = terms
             logger.success(f"scene {i+1} terms: {terms}")
@@ -336,7 +344,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
             search_terms=scene_keywords,
             source=params.video_source,
             video_aspect=params.video_aspect,
-            video_contact_mode=params.video_concat_mode,
+            video_concat_mode=params.video_concat_mode,
             audio_duration=audio_duration,
             max_clip_duration=params.video_clip_duration,
         )
@@ -678,8 +686,12 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return start_multi_scene(task_id, params, stop_at)
     finally:
         # Remove the file handler to release the log file
-        logger.remove(log_handler_id)
-        logger.info(f"Task log file closed: {task_log_path}")
+        try:
+            logger.remove(log_handler_id)
+            logger.info(f"Task log file closed: {task_log_path}")
+        except ValueError:
+            # Handler already removed, ignore
+            pass
 
 
 def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
