@@ -325,7 +325,14 @@ def download_videos(
     if source == "pixabay":
         search_videos = search_videos_pixabay
 
-    for search_term in search_terms:
+    # Filter out empty search terms
+    valid_search_terms = [term for term in search_terms if term and term.strip()]
+    
+    if not valid_search_terms:
+        logger.warning("No valid search terms provided for video download")
+        return []
+
+    for search_term in valid_search_terms:
         video_items = search_videos(
             search_term=search_term,
             minimum_duration=max_clip_duration,

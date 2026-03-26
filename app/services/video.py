@@ -476,6 +476,58 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     return ""
 
 
+def preprocess_video(materials, clip_duration=5):
+    """
+    Preprocess video materials, converting images to videos if needed.
+    
+    Args:
+        materials: List of MaterialInfo objects
+        clip_duration: Duration for image-based videos
+        
+    Returns:
+        List of MaterialInfo objects with processed videos
+    """
+    from app.models.schema import MaterialInfo
+    
+    if not materials:
+        return []
+    
+    processed_materials = []
+    
+    for material in materials:
+        if not material or not material.url:
+            continue
+        
+        # Check if the material is an image
+        if material.url.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+            # Convert image to video
+            try:
+                # Create a temporary video file path
+                video_path = material.url + '.mp4'
+                
+                # Use moviepy to create a video from the image
+                from moviepy.editor import ImageClip
+                clip = ImageClip(material.url).set_duration(clip_duration)
+                clip.write_videofile(video_path, fps=24)
+                
+                # Create a new MaterialInfo with the video path
+                new_material = MaterialInfo()
+                new_material.url = video_path
+                new_material.provider = material.provider
+                new_material.duration = clip_duration
+                
+                processed_materials.append(new_material)
+                logger.info(f"Converted image to video: {material.url} -> {video_path}")
+            except Exception as e:
+                logger.error(f"Failed to convert image to video: {material.url} -> {str(e)}")
+                continue
+        else:
+            # Already a video, add as is
+            processed_materials.append(material)
+    
+    return processed_materials
+
+
 def combine_videos(
     combined_video_path: str,
     video_paths: List[str],
@@ -549,8 +601,9 @@ def combine_videos(
                 logger.info(f"Processing clip {i+1}: source={clip_w}x{clip_h}, ratio={clip_ratio:.2f}, target={video_width}x{video_height}, ratio={video_ratio:.2f}")
                 
                 # Use unified crop function that handles both upscaling and cropping
-                # It will upscale if needed (within 110% limit), then crop to target dimensions
-                clip = crop_clip_to_target(clip, video_width, video_height, max_scale=1.10)
+                # Use higher max_scale for 3:4 videos to ensure they fill the screen width
+                max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
+                clip = crop_clip_to_target(clip, video_width, video_height, max_scale=max_scale)
                 if clip is None:
                     logger.warning(f"Clip {i+1} could not be processed within quality constraints, skipping")
                     continue

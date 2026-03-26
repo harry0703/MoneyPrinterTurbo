@@ -337,12 +337,18 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         )
         if materials:
             downloaded_videos = [m.url for m in materials]
-    else:
-        # Download videos based on scene keywords
+            logger.success(f"scene {scene_num}: found {len(downloaded_videos)} local materials")
+        else:
+            logger.warning(f"scene {scene_num}: no local materials found, falling back to online sources")
+    
+    # Fallback to online sources if local fails or if online was selected
+    if not downloaded_videos:
+        online_source = params.video_source if params.video_source != "local" else "pexels"
+        logger.info(f"scene {scene_num}: downloading videos from {online_source}")
         downloaded_videos = material.download_videos(
             task_id=task_id,
             search_terms=scene_keywords,
-            source=params.video_source,
+            source=online_source,
             video_aspect=params.video_aspect,
             video_concat_mode=params.video_concat_mode,
             audio_duration=audio_duration,
@@ -350,10 +356,10 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         )
     
     if not downloaded_videos:
-        logger.error(f"failed to get video materials for scene {scene_num}")
+        logger.error(f"scene {scene_num}: failed to get video materials")
         return None
     
-    logger.success(f"scene {scene_num}: downloaded {len(downloaded_videos)} video clips")
+    logger.success(f"scene {scene_num}: obtained {len(downloaded_videos)} video clips")
     
     # 4. Combine scene video clip (without BGM)
     logger.info(f"combining video clip for scene {scene_num}")
@@ -576,31 +582,31 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         materials = video.preprocess_video(
             materials=params.video_materials, clip_duration=params.video_clip_duration
         )
-        if not materials:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-            logger.error(
-                "no valid materials found, please check the materials and try again."
-            )
-            return None
-        return [material_info.url for material_info in materials]
-    else:
-        logger.info(f"\n\n## downloading videos from {params.video_source}")
-        downloaded_videos = material.download_videos(
-            task_id=task_id,
-            search_terms=video_terms,
-            source=params.video_source,
-            video_aspect=params.video_aspect,
-            video_contact_mode=params.video_concat_mode,
-            audio_duration=audio_duration * params.video_count,
-            max_clip_duration=params.video_clip_duration,
+        if materials:
+            logger.success(f"Found {len(materials)} local materials")
+            return [material_info.url for material_info in materials]
+        logger.warning("No local materials found, falling back to online sources")
+    
+    # Fallback to online sources if local fails or if online was selected
+    online_source = params.video_source if params.video_source != "local" else "pexels"
+    logger.info(f"\n\n## downloading videos from {online_source}")
+    downloaded_videos = material.download_videos(
+        task_id=task_id,
+        search_terms=video_terms,
+        source=online_source,
+        video_aspect=params.video_aspect,
+        video_concat_mode=params.video_concat_mode,
+        audio_duration=audio_duration * params.video_count,
+        max_clip_duration=params.video_clip_duration,
+    )
+    if not downloaded_videos:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error(
+            "failed to download videos, maybe the network is not available. if you are in China, please use a VPN."
         )
-        if not downloaded_videos:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-            logger.error(
-                "failed to download videos, maybe the network is not available. if you are in China, please use a VPN."
-            )
-            return None
-        return downloaded_videos
+        return None
+    logger.success(f"Downloaded {len(downloaded_videos)} videos from {online_source}")
+    return downloaded_videos
 
 
 def generate_final_videos(

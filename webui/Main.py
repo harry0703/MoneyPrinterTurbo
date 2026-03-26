@@ -1703,7 +1703,11 @@ if start_button:
     result = tm.start(task_id=task_id, params=params)
     
     # Remove the log handler to prevent memory leaks and page reload issues
-    logger.remove(log_handler_id)
+    try:
+        logger.remove(log_handler_id)
+    except ValueError:
+        # Handler already removed, ignore
+        pass
     
     if not result or "videos" not in result:
         st.error(tr("Video Generation Failed"))
