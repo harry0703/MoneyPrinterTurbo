@@ -157,7 +157,7 @@ def scroll_to_bottom():
 
 def init_log():
     logger.remove()
-    _lvl = "DEBUG"
+    _lvl = "INFO"
 
     def format_record(record):
         # 获取日志记录中的文件全路径
@@ -529,6 +529,13 @@ middle_panel = panel[1]
 right_panel = panel[2]
 
 params = VideoParams(video_subject="")
+
+# 初始化session state以保持文件上传状态
+if "uploaded_files" not in st.session_state:
+    st.session_state["uploaded_files"] = []
+if "uploaded_file_info" not in st.session_state:
+    st.session_state["uploaded_file_info"] = []
+
 uploaded_files = []
 
 with left_panel:
@@ -907,11 +914,49 @@ with middle_panel:
         config.app["video_source"] = params.video_source
 
         if params.video_source == "local":
+            # 显示已上传的文件信息
+            if st.session_state.get("uploaded_file_info"):
+                st.info(f"已上传 {len(st.session_state['uploaded_file_info'])} 个文件")
+                for file_info in st.session_state["uploaded_file_info"]:
+                    st.text(f"📄 {file_info['name']}")
+            
             uploaded_files = st.file_uploader(
                 "Upload Local Files",
                 type=["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"],
                 accept_multiple_files=True,
             )
+            # 存储到 session state
+            if uploaded_files is not None:
+                # 立即保存文件到本地目录
+                local_videos_dir = utils.storage_dir("local_videos", create=True)
+                saved_files = []
+                file_info_list = []
+                for file in uploaded_files:
+                    try:
+                        import uuid
+                        unique_id = str(uuid.uuid4())
+                        file_path = os.path.join(local_videos_dir, f"{unique_id}_{file.name}")
+                        with open(file_path, "wb") as f:
+                            f.write(file.getbuffer())
+                        saved_files.append(file_path)
+                        file_info_list.append({
+                            'name': file.name,
+                            'type': file.type,
+                            'size': file.size,
+                            'path': file_path
+                        })
+                        logger.info(f"Uploaded file saved to: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to save uploaded file {file.name}: {str(e)}")
+                        st.error(f"Failed to save file {file.name}: {str(e)}")
+                
+                if saved_files:
+                    st.session_state["uploaded_files"] = saved_files
+                    st.session_state["uploaded_file_info"] = file_info_list
+                    st.success(f"Successfully uploaded {len(saved_files)} files")
+        else:
+            # 从 session state 获取已上传的文件
+            uploaded_files = st.session_state.get("uploaded_files", [])
 
         selected_index = st.selectbox(
             tr("Video Concat Mode"),
@@ -1614,31 +1659,117 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
+    # 调试日志：检查uploaded_files的状态
+    logger.info(f"uploaded_files type: {type(uploaded_files)}")
+    logger.info(f"uploaded_files length: {len(uploaded_files) if uploaded_files else 0}")
+    logger.info(f"session_state uploaded_files: {len(st.session_state.get('uploaded_files', []))}")
+    logger.info(f"session_state uploaded_file_info: {st.session_state.get('uploaded_file_info', [])}")
+    
+    # 总是优先使用session state中保存的文件路径
+    if st.session_state.get("uploaded_files"):
+        uploaded_files = st.session_state["uploaded_files"]
+        logger.info(f"Using uploaded_files from session_state: {len(uploaded_files)} files")
+    else:
+        # 检查uploaded_files是否包含UploadedFile对象
+        if uploaded_files and hasattr(uploaded_files[0], 'name'):
+            # 这是新上传的文件，需要保存
+            local_videos_dir = utils.storage_dir("local_videos", create=True)
+            saved_files = []
+            file_info_list = []
+            for file in uploaded_files:
+                try:
+                    import uuid
+                    unique_id = str(uuid.uuid4())
+                    file_path = os.path.join(local_videos_dir, f"{unique_id}_{file.name}")
+                    with open(file_path, "wb") as f:
+                        f.write(file.getbuffer())
+                    saved_files.append(file_path)
+                    file_info_list.append({
+                        'name': file.name,
+                        'type': file.type,
+                        'size': file.size,
+                        'path': file_path
+                    })
+                    logger.info(f"Uploaded file saved to: {file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save uploaded file {file.name}: {str(e)}")
+                    st.error(f"Failed to save file {file.name}: {str(e)}")
+            
+            if saved_files:
+                st.session_state["uploaded_files"] = saved_files
+                st.session_state["uploaded_file_info"] = file_info_list
+                uploaded_files = saved_files
+                st.success(f"Successfully uploaded {len(saved_files)} files")
+            else:
+                # 如果没有成功保存的文件，将uploaded_files设置为None
+                uploaded_files = None
+
     if uploaded_files:
-        local_videos_dir = utils.storage_dir("local_videos", create=True)
-        for file in uploaded_files:
-            file_path = os.path.join(local_videos_dir, f"{file.file_id}_{file.name}")
-            with open(file_path, "wb") as f:
-                f.write(file.getbuffer())
-                m = MaterialInfo()
-                m.provider = "local"
-                m.url = file_path
-                if not params.video_materials:
-                    params.video_materials = []
-                params.video_materials.append(m)
+        material_list = []
+        success_count = 0
+        for item in uploaded_files:
+            try:
+                # 检查item是否是UploadedFile对象
+                if hasattr(item, 'file_id') or (hasattr(item, 'name') and not isinstance(item, str)):
+                    # 这是UploadedFile对象，需要先保存
+                    local_videos_dir = utils.storage_dir("local_videos", create=True)
+                    import uuid
+                    unique_id = str(uuid.uuid4())
+                    file_path = os.path.join(local_videos_dir, f"{unique_id}_{item.name}")
+                    with open(file_path, "wb") as f:
+                        f.write(item.getbuffer())
+                    logger.info(f"Processed UploadedFile saved to: {file_path}")
+                else:
+                    # 这是文件路径
+                    file_path = item
+                
+                # 检查文件是否存在
+                if os.path.exists(file_path):
+                    # 创建 MaterialInfo 对象
+                    m = MaterialInfo()
+                    m.provider = "local"
+                    m.url = file_path
+                    material_list.append(m)
+                    success_count += 1
+                    logger.info(f"Using uploaded file: {file_path}")
+                else:
+                    logger.error(f"Uploaded file not found: {file_path}")
+            except Exception as e:
+                logger.error(f"Failed to process uploaded file: {str(e)}")
+                st.error(f"Failed to process file: {str(e)}")
+        
+        if material_list:
+            # 直接修改__dict__绕过Pydantic验证
+            if not hasattr(params, 'video_materials'):
+                params.__dict__['video_materials'] = []
+            params.__dict__['video_materials'] = material_list
+            logger.info(f"Total {success_count} files processed successfully")
+            logger.info(f"params.video_materials count: {len(params.__dict__['video_materials'])}")
+            st.success(f"Successfully processed {success_count} files")
+        else:
+            logger.warning("No files were successfully processed")
+            st.warning("No files were successfully processed")
+    else:
+        logger.warning("uploaded_files is None or empty")
+        st.warning("No files were uploaded")
 
     # Handle multi-scene data - always enabled
     if st.session_state.get("scenes"):
-        # Add scenes to params
+        # Add scenes to params - directly use user-created scenes
         params.scenes = st.session_state["scenes"]
-        # Generate combined script from scenes
+        
+        # Generate combined script from scenes for display purposes only
         combined_script = ""
         for i, scene in enumerate(st.session_state["scenes"]):
             combined_script += f"[Scene {i+1}]\n"
             combined_script += f"Duration: {scene['duration']}s\n"
             combined_script += f"Visual: {scene['visual_requirement']}\n"
             combined_script += f"Script: {scene['script']}\n\n"
-        params.video_script = combined_script
+        
+        # Set video_script to empty to prevent re-conversion in task.py
+        # When video_script is empty, task.py will use params.scenes directly
+        params.video_script = ""
+        
         # Generate combined keywords from scenes
         combined_keywords = []
         for scene in st.session_state["scenes"]:

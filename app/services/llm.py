@@ -487,6 +487,91 @@ Please note that you must use English for generating video search terms; Chinese
     return search_terms
 
 
+def generate_tags(scene_script: str, max_tags: int = 3) -> List[str]:
+    """
+    Generate 1-3 tags for a scene based on its script content.
+    
+    Args:
+        scene_script: Scene script text
+        max_tags: Maximum number of tags to generate
+        
+    Returns:
+        List of generated tags
+    """
+    prompt = f"""
+    # Role: Scene Tag Generator
+    
+    ## Goals:
+    Generate {max_tags} relevant tags for a video scene based on its script content.
+    
+    ## Constrains:
+    1. The tags are to be returned as a json-array of strings.
+    2. Each tag should be a single word or short phrase (1-3 words).
+    3. The tags must be directly related to the content of the scene.
+    4. You must only return the json-array of strings. You must not return anything else.
+    5. Respond in the same language as the scene script.
+    
+    ## Output Example:
+    ["tag1", "tag2", "tag3"]
+    
+    ## Context:
+    ### Scene Script
+    {scene_script}
+    """.strip()
+    
+    logger.info(f"Generating tags for scene script: {scene_script[:50]}...")
+    
+    tags = []
+    response = ""
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt)
+            if "Error: " in response:
+                logger.error(f"Failed to generate tags: {response}")
+                if stop_on_api_failure:
+                    return []
+                continue
+            tags = json.loads(response)
+            if not isinstance(tags, list) or not all(
+                isinstance(tag, str) for tag in tags
+            ):
+                logger.error("Response is not a list of strings.")
+                continue
+            
+            # Limit to max_tags
+            tags = tags[:max_tags]
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate tags: {str(e)}")
+            if stop_on_api_failure:
+                error_msg = f"LLM API failed to generate tags after {_max_retries} attempts: {str(e)}"
+                logger.error(error_msg)
+                return []
+            if response:
+                match = re.search(r"\[.*]", response)
+                if match:
+                    try:
+                        tags = json.loads(match.group())
+                        # Limit to max_tags
+                        tags = tags[:max_tags]
+                    except Exception as e:
+                        logger.warning(f"Failed to parse tags: {str(e)}")
+                        pass
+        
+        if tags and len(tags) > 0:
+            break
+        if i < _max_retries:
+            logger.warning(f"Failed to generate tags, trying again... {i + 1}")
+    
+    if not tags and stop_on_api_failure:
+        error_msg = f"LLM API failed to generate tags after {_max_retries} attempts"
+        logger.error(error_msg)
+        return []
+    
+    logger.success(f"Generated tags: {tags}")
+    return tags
+
+
 def generate_multi_scene_script(
     video_subject: str,
     language: str = "",

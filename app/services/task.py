@@ -1,7 +1,14 @@
 import math
 import os.path
 import re
+import time
+import logging
 from os import path
+
+# Set moviepy and imageio logging level to WARNING to suppress detailed metadata logs
+logging.basicConfig(level=logging.WARNING)
+for logger_name in ['moviepy', 'imageio', 'imageio_ffmpeg']:
+    logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 from loguru import logger
 
@@ -105,11 +112,22 @@ def generate_multi_scene_script(task_id, params):
     Generate multi-scene script for video.
     If multi-scene mode is enabled and user provides a subject, generate multi-scene script.
     If user provides a script, convert it to multi-scene format.
+    If user provides scenes directly, use them as-is.
     
     Returns:
         Tuple of (script_text, scenes_list)
     """
     logger.info("\n\n## generating multi-scene script")
+    
+    # Check if user provided scenes directly
+    if params.scenes and len(params.scenes) > 0:
+        logger.info(f"using {len(params.scenes)} user-provided scenes directly")
+        # Generate a simple combined script for logging
+        combined_script = ""
+        for i, scene in enumerate(params.scenes):
+            combined_script += f"[Scene {i+1}] {scene.get('title', '')}\n"
+            combined_script += f"{scene.get('script', '')}\n\n"
+        return combined_script, params.scenes
     
     video_script = params.video_script.strip()
     
@@ -173,23 +191,81 @@ def generate_scene_terms(task_id, params, scenes):
         
         if terms and not (isinstance(terms, str) and "Error: " in terms):
             # Ensure video subject is included in keywords
-            subject_lower = params.video_subject.lower()
-            terms_lower = [term.lower() for term in terms]
-            if subject_lower not in terms_lower:
-                # Add video subject to terms if not already present
-                terms.insert(0, params.video_subject)
-                # Limit to amount terms
-                terms = terms[:5]
+            if params.video_subject and params.video_subject.strip():
+                subject_lower = params.video_subject.lower()
+                terms_lower = [term.lower() for term in terms]
+                if subject_lower not in terms_lower:
+                    # Add video subject to terms if not already present
+                    terms.insert(0, params.video_subject)
+                    # Limit to amount terms
+                    terms = terms[:5]
+            # Filter out any empty terms
+            terms = [term for term in terms if term and term.strip()]
             scene_terms_list.append(terms)
             scene['keywords'] = terms
             logger.success(f"scene {i+1} terms: {terms}")
         else:
             logger.warning(f"failed to generate terms for scene {i+1}, using default terms")
-            default_terms = [params.video_subject, "video", "content"]
+            default_terms = []
+            if params.video_subject and params.video_subject.strip():
+                default_terms.append(params.video_subject)
+            default_terms.extend(["video", "content"])
             scene_terms_list.append(default_terms)
             scene['keywords'] = default_terms
     
     return scene_terms_list
+
+
+def generate_scene_tags(scene_script, max_tags=3):
+    """
+    Generate 1-3 tags for a scene based on its script content.
+    
+    Args:
+        scene_script: Scene script text
+        max_tags: Maximum number of tags to generate
+        
+    Returns:
+        List of generated tags
+    """
+    if not scene_script or not scene_script.strip():
+        return []
+    
+    try:
+        # Use LLM to generate tags
+        tags = llm.generate_tags(scene_script, max_tags=max_tags)
+        if tags and len(tags) > 0:
+            # Filter out empty tags
+            tags = [tag for tag in tags if tag and tag.strip()]
+            logger.info(f"Generated tags: {tags}")
+            return tags
+    except Exception as e:
+        logger.error(f"Failed to generate tags with LLM: {str(e)}")
+    
+    # Fallback: extract keywords from script
+    try:
+        import jieba
+        import collections
+        
+        # Tokenize Chinese text
+        words = jieba.cut(scene_script)
+        
+        # Filter out stop words and short words
+        stop_words = set(['的', '了', '和', '是', '在', '有', '我', '他', '她', '它', '这', '那', '你', '我', '他', '她', '它', '也', '就', '都', '要', '而', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这'])
+        filtered_words = [word for word in words if word not in stop_words and len(word) >= 2]
+        
+        # Count word frequency
+        word_counts = collections.Counter(filtered_words)
+        
+        # Get top N words as tags
+        top_words = [word for word, _ in word_counts.most_common(max_tags)]
+        # Filter out empty tags
+        top_words = [word for word in top_words if word and word.strip()]
+        logger.info(f"Extracted tags from script: {top_words}")
+        return top_words
+    except Exception as e:
+        logger.error(f"Failed to extract tags from script: {str(e)}")
+    
+    return []
 
 
 def process_scene(task_id, params, scene, scene_index, total_scenes):
@@ -211,13 +287,24 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         Scene result dictionary with video clip path, audio path, subtitle path
     """
     scene_num = scene_index + 1
-    logger.info(f"\n\n## processing scene {scene_num}/{total_scenes}: {scene.get('title', '')}")
+    scene_title = scene.get('title', scene.get('visual_requirement', ''))
+    logger.info(f"\n\n## processing scene {scene_num}/{total_scenes}: {scene_title}")
     
     scene_id = scene.get('id', f'scene_{scene_num}')
     scene_script = scene.get('script', '')
     scene_keywords = scene.get('keywords', [])
     
+    # Generate 1-3 tags for the scene
+    scene_tags = generate_scene_tags(scene_script, max_tags=3)
+    if scene_tags:
+        # Add generated tags to scene keywords
+        scene_keywords.extend(scene_tags)
+        # Remove duplicates
+        scene_keywords = list(set(scene_keywords))
+        logger.info(f"scene {scene_num}: updated keywords with generated tags: {scene_keywords}")
+    
     logger.info(f"scene {scene_num}: scene_id={scene_id}, script={scene_script[:50]}...")
+    logger.info(f"scene {scene_num}: keywords={scene_keywords}")
     
     # Create scene-specific directory
     scene_dir = path.join(utils.task_dir(task_id), scene_id)
@@ -328,24 +415,47 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     # 3. Get video materials for scene
     logger.info(f"getting video materials for scene {scene_num}")
     downloaded_videos = []
+    local_materials = []
     
-    if params.video_source == "local":
-        # For local source, use the same materials for all scenes
-        # This could be enhanced to support scene-specific material selection
+    if params.video_source == "local" or (params.video_materials and len(params.video_materials) > 0):
+        # For local source or when local materials are provided, use them first
+        logger.info(f"scene {scene_num}: processing local materials. Video materials count: {len(params.video_materials) if params.video_materials else 0}")
+        
+        # Check if video source is local but no materials provided
+        if params.video_source == "local" and (not params.video_materials or len(params.video_materials) == 0):
+            logger.error(f"scene {scene_num}: video source is set to 'local' but no local materials provided")
+            return None
+        
         materials = video.preprocess_video(
-            materials=params.video_materials, clip_duration=params.video_clip_duration
+            materials=params.video_materials, clip_duration=(3, 5)
         )
-        if materials:
-            downloaded_videos = [m.url for m in materials]
-            logger.success(f"scene {scene_num}: found {len(downloaded_videos)} local materials")
+        
+        logger.info(f"scene {scene_num}: after preprocessing, materials count: {len(materials) if materials else 0}")
+        
+        # Match local videos by scene keywords for better semantic relevance
+        if materials and scene_keywords:
+            logger.info(f"scene {scene_num}: matching local materials with keywords: {scene_keywords}")
+            materials = video.match_local_videos_by_keywords(materials, scene_keywords)
+            logger.info(f"scene {scene_num}: after matching, materials count: {len(materials) if materials else 0}")
+        elif materials:
+            logger.info(f"scene {scene_num}: no keywords provided for matching, using all materials")
+        elif scene_keywords:
+            logger.info(f"scene {scene_num}: no materials provided for matching, but have keywords: {scene_keywords}")
         else:
-            logger.warning(f"scene {scene_num}: no local materials found, falling back to online sources")
+            logger.info(f"scene {scene_num}: no materials and no keywords provided for matching")
+        
+        if materials:
+            local_materials = [m.url for m in materials]
+            logger.success(f"scene {scene_num}: found {len(local_materials)} local materials")
+        else:
+            logger.error(f"scene {scene_num}: no local materials found. When local materials are provided, they must be used for scene start.")
+            return None
     
-    # Fallback to online sources if local fails or if online was selected
-    if not downloaded_videos:
+    # Add online videos as supplement if needed
+    if params.video_source != "local" or (params.video_source == "local" and len(local_materials) < len(scene_keywords)):
         online_source = params.video_source if params.video_source != "local" else "pexels"
-        logger.info(f"scene {scene_num}: downloading videos from {online_source}")
-        downloaded_videos = material.download_videos(
+        logger.info(f"scene {scene_num}: downloading supplement videos from {online_source}")
+        supplement_videos = material.download_videos(
             task_id=task_id,
             search_terms=scene_keywords,
             source=online_source,
@@ -354,12 +464,20 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
             audio_duration=audio_duration,
             max_clip_duration=params.video_clip_duration,
         )
+        
+        if supplement_videos:
+            logger.success(f"scene {scene_num}: downloaded {len(supplement_videos)} supplement videos")
+    
+    # Combine local materials (must be first) and supplement videos
+    downloaded_videos = local_materials.copy()
+    if 'supplement_videos' in locals() and supplement_videos:
+        downloaded_videos.extend(supplement_videos)
     
     if not downloaded_videos:
         logger.error(f"scene {scene_num}: failed to get video materials")
         return None
     
-    logger.success(f"scene {scene_num}: obtained {len(downloaded_videos)} video clips")
+    logger.success(f"scene {scene_num}: obtained {len(downloaded_videos)} video clips (local: {len(local_materials)}, supplement: {len(downloaded_videos) - len(local_materials)})")
     
     # 4. Combine scene video clip (without BGM)
     logger.info(f"combining video clip for scene {scene_num}")
@@ -440,7 +558,7 @@ def combine_all_scenes(task_id, params, scene_results):
         
         # Get video encoding parameters (loaded once at module initialization)
         video_encoding_params = video.get_video_encoding_params()
-        logger.info(f"using video encoding params: bitrate={video_encoding_params['bitrate']}, preset={video_encoding_params['preset']}, crf={video_encoding_params['crf']}, codec={video.video_codec}")
+        logger.info(f"using video encoding: bitrate={video_encoding_params['bitrate']}, codec={video.video_codec}")
         
         # Build ffmpeg parameters
         ffmpeg_params = ["-pix_fmt", "yuv420p"]
@@ -577,35 +695,58 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
 
 def get_video_materials(task_id, params, video_terms, audio_duration):
-    if params.video_source == "local":
+    local_materials = []
+    supplement_videos = []
+    
+    if params.video_source == "local" or (params.video_materials and len(params.video_materials) > 0):
+        # For local source or when local materials are provided, use them first
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
             materials=params.video_materials, clip_duration=params.video_clip_duration
         )
+        
+        # Match local videos by scene keywords for better semantic relevance
+        if materials and video_terms:
+            materials = video.match_local_videos_by_keywords(materials, video_terms)
+        
         if materials:
-            logger.success(f"Found {len(materials)} local materials")
-            return [material_info.url for material_info in materials]
-        logger.warning("No local materials found, falling back to online sources")
+            local_materials = [material_info.url for material_info in materials]
+            logger.success(f"Found {len(local_materials)} local materials")
+        else:
+            logger.error("No local materials found. When local materials are provided, they must be used for video generation.")
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            return None
     
-    # Fallback to online sources if local fails or if online was selected
-    online_source = params.video_source if params.video_source != "local" else "pexels"
-    logger.info(f"\n\n## downloading videos from {online_source}")
-    downloaded_videos = material.download_videos(
-        task_id=task_id,
-        search_terms=video_terms,
-        source=online_source,
-        video_aspect=params.video_aspect,
-        video_concat_mode=params.video_concat_mode,
-        audio_duration=audio_duration * params.video_count,
-        max_clip_duration=params.video_clip_duration,
-    )
+    # Add online videos as supplement if needed
+    if params.video_source != "local" or (params.video_source == "local" and len(local_materials) < len(video_terms)):
+        online_source = params.video_source if params.video_source != "local" else "pexels"
+        logger.info(f"\n\n## downloading supplement videos from {online_source}")
+        supplement_videos = material.download_videos(
+            task_id=task_id,
+            search_terms=video_terms,
+            source=online_source,
+            video_aspect=params.video_aspect,
+            video_concat_mode=params.video_concat_mode,
+            audio_duration=audio_duration * params.video_count,
+            max_clip_duration=params.video_clip_duration,
+        )
+        
+        if supplement_videos:
+            logger.success(f"Downloaded {len(supplement_videos)} supplement videos from {online_source}")
+    
+    # Combine local materials (must be first) and supplement videos
+    downloaded_videos = local_materials.copy()
+    if supplement_videos:
+        downloaded_videos.extend(supplement_videos)
+    
     if not downloaded_videos:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error(
-            "failed to download videos, maybe the network is not available. if you are in China, please use a VPN."
+            "failed to get video materials. Please check your local materials or network connection."
         )
         return None
-    logger.success(f"Downloaded {len(downloaded_videos)} videos from {online_source}")
+    
+    logger.success(f"Total obtained {len(downloaded_videos)} video clips (local: {len(local_materials)}, supplement: {len(downloaded_videos) - len(local_materials)})")
     return downloaded_videos
 
 
@@ -678,8 +819,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     use_gpu = config.app.get("use_gpu", False)
     logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
     
-    logger.info(f"start task: {task_id}, stop_at: {stop_at}")
-    logger.info(f"Task log file created: {task_log_path}")
+    logger.info(f"========================================")
+    logger.info(f"TASK STARTED: {task_id}")
+    logger.info(f"stop_at: {stop_at}")
+    logger.info(f"Task log file: {task_log_path}")
+    logger.info(f"========================================")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
     if type(params.video_concat_mode) is str:
@@ -688,9 +832,32 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     # Unified multi-scene architecture - always use multi-scene flow
     # The old single-scene mode is mapped to a single scene in multi-scene architecture
     logger.info("using unified multi-scene architecture")
+    
+    result = None
+    exception_occurred = None
     try:
-        return start_multi_scene(task_id, params, stop_at)
+        result = start_multi_scene(task_id, params, stop_at)
+    except Exception as e:
+        exception_occurred = e
+        logger.error(f"========================================")
+        logger.error(f"TASK FAILED WITH EXCEPTION: {str(e)}")
+        logger.error(f"========================================")
+        raise
     finally:
+        # Determine task status and log final status
+        if exception_occurred:
+            logger.warning(f"========================================")
+            logger.warning(f"TASK ENDED WITH EXCEPTION")
+            logger.warning(f"========================================")
+        elif result is None:
+            logger.warning(f"========================================")
+            logger.warning(f"TASK ENDED: No result returned (possibly failed)")
+            logger.warning(f"========================================")
+        else:
+            logger.success(f"========================================")
+            logger.success(f"TASK COMPLETED SUCCESSFULLY")
+            logger.success(f"========================================")
+        
         # Remove the file handler to release the log file
         try:
             logger.remove(log_handler_id)
@@ -698,11 +865,21 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         except ValueError:
             # Handler already removed, ignore
             pass
+    
+    return result
 
 
 def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
     """Original single-scene video generation flow."""
     logger.info("using single-scene mode")
+    
+    # Print local materials list at the beginning
+    if params.video_materials and len(params.video_materials) > 0:
+        logger.info(f"User provided {len(params.video_materials)} local materials:")
+        for i, material in enumerate(params.video_materials):
+            logger.info(f"  {i+1}. {os.path.basename(material.url)}")
+    else:
+        logger.info("No local materials provided by user")
     
     # 1. Generate script
     video_script = generate_script(task_id, params)
@@ -823,15 +1000,25 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
     """Multi-scene video generation flow."""
     logger.info("using multi-scene mode")
     
+    # Print local materials list at the beginning
+    if params.video_materials and len(params.video_materials) > 0:
+        logger.info(f"User provided {len(params.video_materials)} local materials:")
+        for i, material in enumerate(params.video_materials):
+            logger.info(f"  {i+1}. {os.path.basename(material.url)}")
+    else:
+        logger.info("No local materials provided by user")
+    
     # 1. Generate multi-scene script
     video_script, scenes = generate_multi_scene_script(task_id, params)
     if not video_script or not scenes:
+        logger.error("Multi-scene: failed to generate script, returning None")
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
     
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
     
     if stop_at == "script":
+        logger.info("Multi-scene: returning at stop_at='script'")
         sm.state.update_task(
             task_id, state=const.TASK_STATE_COMPLETE, progress=100, script=video_script
         )
@@ -845,6 +1032,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
     save_script_data(task_id, video_script, scene_terms_list, params)
     
     if stop_at == "terms":
+        logger.info("Multi-scene: returning at stop_at='terms'")
         sm.state.update_task(
             task_id, state=const.TASK_STATE_COMPLETE, progress=100, terms=scene_terms_list
         )
@@ -855,6 +1043,25 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
     # 3. Process each scene
     total_scenes = len(scenes)
     scene_results = []
+    
+    # Check if video source is local but no materials provided
+    if params.video_source == "local" and (not params.video_materials or len(params.video_materials) == 0):
+        error_msg = "Video source is set to 'local' but no local materials provided"
+        logger.error(error_msg)
+        # Instead of failing, let's warn and continue with online sources as fallback
+        logger.warning("Falling back to online video sources")
+        # Temporarily change video source to pexels for this task
+        original_video_source = params.video_source
+        params.video_source = "pexels"
+        logger.info(f"Changed video source from {original_video_source} to pexels as fallback")
+    else:
+        # Log local materials info if available
+        if params.video_materials and len(params.video_materials) > 0:
+            logger.info(f"Found {len(params.video_materials)} local materials")
+            for i, material in enumerate(params.video_materials):
+                logger.info(f"  {i+1}. {os.path.basename(material.url)}")
+        else:
+            logger.info("No local materials provided")
     
     for i, scene in enumerate(scenes):
         progress = 20 + (i / total_scenes) * 40  # Progress from 20% to 60%
@@ -867,13 +1074,14 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
             logger.error(f"failed to process scene {i+1}, skipping")
     
     if not scene_results:
+        logger.error("Multi-scene: no scenes processed successfully, returning None")
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-        logger.error("no scenes were successfully processed")
         return
     
     logger.success(f"successfully processed {len(scene_results)}/{total_scenes} scenes")
     
     if stop_at == "audio":
+        logger.info("Multi-scene: returning at stop_at='audio'")
         # Return audio info from first scene as representative
         if scene_results:
             first_scene = scene_results[0]
@@ -886,9 +1094,11 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
         return {"scenes": scenes, "scene_results": scene_results}
     
     if stop_at == "subtitle":
+        logger.info("Multi-scene: returning at stop_at='subtitle'")
         return {"scenes": scenes, "scene_results": scene_results}
     
     if stop_at == "materials":
+        logger.info("Multi-scene: returning at stop_at='materials'")
         return {"scenes": scenes, "scene_results": scene_results}
     
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=70)
@@ -896,6 +1106,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
     # 4. Combine all scenes into final video
     final_video_path = combine_all_scenes(task_id, params, scene_results)
     if not final_video_path:
+        logger.error("Multi-scene: failed to combine all scenes, returning None")
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
     
@@ -903,35 +1114,61 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
     
     # 5. Add background music and final processing for multi-scene video
     final_output_path = path.join(utils.task_dir(task_id), "final-1.mp4")
+    step5_start_time = time.time()
     
     # For multi-scene mode, we need to add BGM to the combined video
     # The combined video already has all scene audio, so we just need to add BGM
-    logger.info("adding background music to multi-scene video")
+    logger.info("========================================")
+    logger.info("Step 5: Adding background music and final processing")
+    logger.info(f"Combined video path: {final_video_path}")
+    logger.info(f"Final output path: {final_output_path}")
+    logger.info(f"BGM type: {params.bgm_type}")
+    logger.info(f"Subtitle enabled: {params.subtitle_enabled}")
+    logger.info(f"[TIMESTAMP] Step 5 started at: {time.strftime('%H:%M:%S')}")
+    logger.info("========================================")
     
     try:
         from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, afx
         import app.services.video as video_module
         
         # Load the combined video (which already has all scene audio)
+        logger.info(f"Loading combined video file: {final_video_path}")
+        if not os.path.exists(final_video_path):
+            logger.error(f"Combined video file does not exist: {final_video_path}")
+            raise FileNotFoundError(f"Combined video not found: {final_video_path}")
+        
+        video_load_start = time.time()
+        logger.info(f"[TIMESTAMP] Reading video file with VideoFileClip... ({time.strftime('%H:%M:%S')})")
         video_clip = VideoFileClip(final_video_path)
-        logger.info(f"loaded combined video, duration: {video_clip.duration}s")
+        video_load_time = time.time() - video_load_start
+        logger.info(f"Video loaded successfully in {video_load_time:.2f}s, duration: {video_clip.duration}s, size: {video_clip.size}")
+        logger.info(f"[TIMESTAMP] Video loaded at: {time.strftime('%H:%M:%S')}")
         
         # Get BGM file
+        logger.info(f"Getting BGM file: bgm_type={params.bgm_type}, bgm_file={params.bgm_file}")
         bgm_file = video_module.get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
+        logger.info(f"BGM file result: {bgm_file}")
         
         if bgm_file:
             try:
-                # Load and process BGM
+                logger.info(f"Loading BGM file: {bgm_file}")
+                if not os.path.exists(bgm_file):
+                    logger.error(f"BGM file does not exist: {bgm_file}")
+                    raise FileNotFoundError(f"BGM file not found: {bgm_file}")
+                
+                logger.info(f"Processing BGM with effects: volume={params.bgm_volume}")
                 bgm_clip = AudioFileClip(bgm_file).with_effects([
                     afx.MultiplyVolume(params.bgm_volume),
                     afx.AudioFadeOut(3),
                     afx.AudioLoop(duration=video_clip.duration),
                 ])
+                logger.info("BGM loaded and processed successfully")
                 
-                # Get existing audio from video
+                logger.info("Getting existing audio from video...")
                 existing_audio = video_clip.audio
+                logger.info(f"Existing audio loaded, duration: {existing_audio.duration if existing_audio else 'None'}s")
                 
-                # Combine existing audio with BGM
+                logger.info("Combining existing audio with BGM...")
                 combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
                 video_clip = video_clip.with_audio(combined_audio)
                 
@@ -1123,16 +1360,23 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
                     logger.error(f"failed to add subtitle: {str(e)}")
         
         # Write final video
-        logger.info(f"writing final video to: {final_output_path}")
+        logger.info(f"========================================")
+        logger.info(f"[TIMESTAMP] Starting final video encoding at: {time.strftime('%H:%M:%S')}")
+        logger.info(f"Writing final video to: {final_output_path}")
+        logger.info(f"Encoding parameters: codec={video_module.video_codec}, fps={video_module.fps}, bitrate={video_encoding_params['bitrate']}")
+        logger.info("========================================")
         
         # Get video encoding parameters (loaded once at module initialization)
         video_encoding_params = video_module.get_video_encoding_params()
-        logger.info(f"using video encoding params: bitrate={video_encoding_params['bitrate']}, preset={video_encoding_params['preset']}, crf={video_encoding_params['crf']}, codec={video_module.video_codec}")
+        logger.info(f"using video encoding: bitrate={video_encoding_params['bitrate']}, codec={video_module.video_codec}")
         
         # Build ffmpeg parameters
         ffmpeg_params = ["-pix_fmt", "yuv420p"]
         if video_encoding_params["crf"] is not None:
             ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
+        
+        encoding_start_time = time.time()
+        logger.info(f"[TIMESTAMP] Video encoding started at: {time.strftime('%H:%M:%S')} (this may take a while)...")
         
         video_clip.write_videofile(
             final_output_path,
@@ -1144,13 +1388,24 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
             logger=None,
             ffmpeg_params=ffmpeg_params,
         )
+        
+        encoding_time = time.time() - encoding_start_time
+        step5_total_time = time.time() - step5_start_time
+        
         # Use close_clip function for proper cleanup
         video_module.close_clip(video_clip)
         
-        logger.success(f"final video created: {final_output_path}")
+        logger.info(f"========================================")
+        logger.info(f"[TIMESTAMP] Video encoding completed at: {time.strftime('%H:%M:%S')}")
+        logger.info(f"Video encoding took: {encoding_time:.2f}s")
+        logger.info(f"Step 5 total time: {step5_total_time:.2f}s")
+        logger.success(f"Final video created: {final_output_path}")
+        logger.info("========================================")
         
     except Exception as e:
-        logger.error(f"failed to generate final multi-scene video: {e}")
+        logger.error(f"========================================")
+        logger.error(f"Multi-scene EXCEPTION: {str(e)}")
+        logger.error(f"========================================")
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
     

@@ -2,26 +2,8 @@
 set CURRENT_DIR=%CD%
 echo ***** Current directory: %CURRENT_DIR% *****
 
-rem Check if Docker is running
-docker info >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo Docker is not running. Please start Docker first.
-    pause
-    exit /b 1
-)
+echo Running Streamlit app directly (command line mode)...
 
-rem Check if the required Docker containers are running
-set CONTAINER_NAME=moneyprinterturbocn-webui
-docker ps -q -f name=%CONTAINER_NAME% >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo Docker container %CONTAINER_NAME% is not running.
-    echo Please launch the Docker containers first using:
-    echo   docker-compose up -d
-    pause
-    exit /b 1
-)
-
-echo Docker container is running properly.
 
 set PYTHONPATH=%CURRENT_DIR%
 

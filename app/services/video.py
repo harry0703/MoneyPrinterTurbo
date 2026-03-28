@@ -10,7 +10,14 @@ import sys
 import warnings
 import io
 import contextlib
+import logging
 from typing import List
+
+# Set moviepy and imageio logging level to WARNING to suppress detailed metadata logs
+logging.basicConfig(level=logging.WARNING)
+for logger_name in ['moviepy', 'imageio', 'imageio_ffmpeg']:
+    logging.getLogger(logger_name).setLevel(logging.WARNING)
+
 from loguru import logger
 from moviepy import (
     AudioFileClip,
@@ -231,7 +238,7 @@ def get_video_encoding_params():
     # Use CPU preset for libx264, GPU preset for others
     preset_type = "cpu" if actual_codec == "libx264" else "gpu"
     
-    logger.info(f"Video encoding config: use_gpu={use_gpu} (for video codec), actual_codec={actual_codec}, quality={quality}, custom_bitrate={custom_bitrate}")
+    logger.info(f"Video encoding: codec={actual_codec}, quality={quality}")
     
     # Get quality preset
     preset = VIDEO_QUALITY_PRESETS[preset_type].get(quality, VIDEO_QUALITY_PRESETS[preset_type][default_quality])
@@ -246,7 +253,7 @@ def get_video_encoding_params():
     encoding_preset = preset["preset"]
     crf = preset["crf"]
     
-    logger.debug(f"Video encoding params: type={preset_type}, quality={quality}, bitrate={bitrate}, preset={encoding_preset}, crf={crf}")
+    # logger.debug(f"Video encoding params: type={preset_type}, quality={quality}, bitrate={bitrate}, preset={encoding_preset}, crf={crf}")
     
     return {
         "bitrate": bitrate,
@@ -260,7 +267,7 @@ def get_video_codec():
     use_gpu = config.app.get("use_gpu", False)
     
     # Log GPU configuration status for video codec
-    logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
+    # logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
     
     if not use_gpu:
         logger.info("Video encoder: CPU mode selected (libx264)")
@@ -271,7 +278,7 @@ def get_video_codec():
         import subprocess
         # Get ffmpeg executable path
         ffmpeg_exe = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
-        logger.debug(f"Video encoder: Checking GPU support using ffmpeg executable: {ffmpeg_exe}")
+        # logger.debug(f"Video encoder: Checking GPU support using ffmpeg executable: {ffmpeg_exe}")
         
         # Check if ffmpeg supports GPU encoders
         result = subprocess.run(
@@ -482,12 +489,13 @@ def preprocess_video(materials, clip_duration=5):
     
     Args:
         materials: List of MaterialInfo objects
-        clip_duration: Duration for image-based videos
+        clip_duration: Duration for image-based videos (if int, use fixed duration; if tuple, use random duration in range)
         
     Returns:
         List of MaterialInfo objects with processed videos
     """
     from app.models.schema import MaterialInfo
+    import random
     
     if not materials:
         return []
@@ -505,19 +513,24 @@ def preprocess_video(materials, clip_duration=5):
                 # Create a temporary video file path
                 video_path = material.url + '.mp4'
                 
+                # Determine clip duration (random 3-5 seconds for images)
+                if isinstance(clip_duration, tuple) and len(clip_duration) == 2:
+                    actual_duration = random.uniform(clip_duration[0], clip_duration[1])
+                else:
+                    actual_duration = clip_duration
+                
                 # Use moviepy to create a video from the image
-                from moviepy.editor import ImageClip
-                clip = ImageClip(material.url).set_duration(clip_duration)
+                clip = ImageClip(material.url).with_duration(actual_duration)
                 clip.write_videofile(video_path, fps=24)
                 
                 # Create a new MaterialInfo with the video path
                 new_material = MaterialInfo()
                 new_material.url = video_path
                 new_material.provider = material.provider
-                new_material.duration = clip_duration
+                new_material.duration = actual_duration
                 
                 processed_materials.append(new_material)
-                logger.info(f"Converted image to video: {material.url} -> {video_path}")
+                logger.info(f"Converted image to video: {material.url} -> {video_path} ({actual_duration:.1f}s)")
             except Exception as e:
                 logger.error(f"Failed to convert image to video: {material.url} -> {str(e)}")
                 continue
@@ -526,6 +539,105 @@ def preprocess_video(materials, clip_duration=5):
             processed_materials.append(material)
     
     return processed_materials
+
+
+def match_local_videos_by_keywords(materials, scene_keywords):
+    """
+    Match local videos by scene keywords based on filename and metadata.
+    Uses similarity matching for better semantic relevance.
+    
+    Args:
+        materials: List of MaterialInfo objects
+        scene_keywords: List of scene keywords to match against
+        
+    Returns:
+        List of MaterialInfo objects sorted by match score
+    """
+    from app.models.schema import MaterialInfo
+    import difflib
+    
+    if not materials or not scene_keywords:
+        logger.info(f"No materials or keywords provided for matching. Materials: {len(materials) if materials else 0}, Keywords: {len(scene_keywords) if scene_keywords else 0}")
+        return materials
+    
+    # Normalize scene keywords
+    normalized_keywords = [kw.lower().strip() for kw in scene_keywords if kw and kw.strip()]
+    
+    if not normalized_keywords:
+        logger.info("No valid keywords after normalization")
+        return materials
+    
+    logger.info(f"Starting local material matching with {len(normalized_keywords)} keywords: {normalized_keywords}")
+    logger.info(f"Processing {len(materials)} local materials")
+    
+    scored_materials = []
+    
+    for material in materials:
+        if not material or not material.url:
+            logger.warning("Skipping invalid material (empty or no URL)")
+            continue
+        
+        score = 0
+        filename = os.path.basename(material.url).lower()
+        filename_without_ext = os.path.splitext(filename)[0]
+        
+        # Detailed scoring breakdown
+        scoring_details = {
+            'filename': filename,
+            'exact_matches': 0,
+            'partial_matches': 0,
+            'similarity_scores': {}
+        }
+        
+        # Check for exact keyword matches in filename (traditional matching)
+        for keyword in normalized_keywords:
+            if keyword in filename:
+                score += 10  # High score for exact match
+                scoring_details['exact_matches'] += 1
+        
+        # Check for partial matches (traditional matching)
+        for keyword in normalized_keywords:
+            if keyword in filename or filename in keyword:
+                score += 5  # Medium score for partial match
+                scoring_details['partial_matches'] += 1
+        
+        # Calculate similarity score for each keyword (improved matching)
+        for keyword in normalized_keywords:
+            # Calculate similarity ratio
+            similarity = difflib.SequenceMatcher(None, keyword, filename_without_ext).ratio()
+            
+            # Convert similarity to score (0-10 scale)
+            similarity_score = similarity * 10
+            score += similarity_score
+            
+            scoring_details['similarity_scores'][keyword] = similarity
+        
+        # Add to scored list
+        scored_materials.append((material, score, scoring_details))
+    
+    # Sort by score (descending)
+    scored_materials.sort(key=lambda x: x[1], reverse=True)
+    
+    # Return sorted materials
+    sorted_materials = [item[0] for item in scored_materials]
+    
+    # Log simplified matching results
+    logger.info(f"Matched {len(sorted_materials)} materials by keywords: {normalized_keywords}")
+    
+    # Log top 5 matching results (simplified)
+    if scored_materials:
+        logger.info("Top 5 matching results:")
+        for i, (material, score, _) in enumerate(scored_materials[:5]):
+            logger.info(f"  {i+1}. {os.path.basename(material.url)} (score: {score:.2f})")
+        
+        # Log basic statistics
+        total_score = sum(item[1] for item in scored_materials)
+        average_score = total_score / len(scored_materials)
+        max_score = max(item[1] for item in scored_materials)
+        
+        logger.info(f"Matching statistics: total={len(scored_materials)}, avg_score={average_score:.2f}, max_score={max_score:.2f}")
+    
+    return sorted_materials
 
 
 def combine_videos(
@@ -659,11 +771,19 @@ def combine_videos(
             gc.collect()
             continue
     
+    # Check if we have any processed clips
+    if not processed_clips:
+        logger.error("No video clips were successfully processed")
+        return None
+    
     # loop processed clips until video duration matches or exceeds the audio duration.
     if video_duration < audio_duration:
         logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
         # Instead of keeping all clips in memory, calculate how many loops we need
         base_duration = video_duration
+        if base_duration <= 0:
+            logger.error(f"video duration is zero or negative ({video_duration:.2f}s), cannot loop clips")
+            return None
         num_loops = int(audio_duration / base_duration) + 1
         logger.info(f"Need {num_loops} loops to match audio duration")
         
