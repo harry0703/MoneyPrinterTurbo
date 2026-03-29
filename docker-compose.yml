@@ -1,5 +1,8 @@
 x-common-volumes: &common-volumes
   - ./:/MoneyPrinterTurboCN
+  - ./models:/MoneyPrinterTurboCN/models
+  - ./config.toml:/MoneyPrinterTurboCN/config.toml
+  - ./storage:/MoneyPrinterTurboCN/storage
 
 services:
   webui:
@@ -9,7 +12,7 @@ services:
     container_name: "moneyprinterturbocn-webui"
     ports:
       - "8501:8501"
-    command: [ "streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False" ]
+    command: [ "streamlit", "run", "./webui/Main.py","--browser.serverAddress=localhost","--server.enableCORS=True","--browser.gatherUsageStats=False" ]
     volumes: *common-volumes
     restart: always
   api:

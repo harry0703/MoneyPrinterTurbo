@@ -6,7 +6,10 @@ import toml
 from loguru import logger
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-config_file = f"{root_dir}/config.toml"
+# Check for config file in both locations (backward compatibility)
+config_file = f"{root_dir}/config/config.toml"
+if not os.path.isfile(config_file):
+    config_file = f"{root_dir}/config.toml"
 
 # Track if config has been loaded to avoid duplicate logs
 _config_loaded = False

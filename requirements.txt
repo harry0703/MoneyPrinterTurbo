@@ -15,3 +15,14 @@ python-multipart==0.0.19
 pyyaml
 requests>=2.31.0
 pydub>=0.25.1
+toml
+numpy
+pandas
+pillow
+imageio
+imageio-ffmpeg
+decorator
+proglog
+pydantic
+starlette
+typing-extensions

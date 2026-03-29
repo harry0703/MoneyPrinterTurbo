@@ -416,6 +416,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     logger.info(f"getting video materials for scene {scene_num}")
     downloaded_videos = []
     local_materials = []
+    supplement_videos = []
     
     if params.video_source == "local" or (params.video_materials and len(params.video_materials) > 0):
         # For local source or when local materials are provided, use them first
@@ -839,19 +840,26 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         result = start_multi_scene(task_id, params, stop_at)
     except Exception as e:
         exception_occurred = e
+        import traceback
+        tb_str = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
         logger.error(f"========================================")
-        logger.error(f"TASK FAILED WITH EXCEPTION: {str(e)}")
+        logger.error(f"TASK FAILED WITH EXCEPTION:")
+        logger.error(f"Exception Type: {type(e).__name__}")
+        logger.error(f"Exception Message: {str(e)}")
+        logger.error(f"Traceback:\n{tb_str}")
         logger.error(f"========================================")
         raise
     finally:
         # Determine task status and log final status
         if exception_occurred:
             logger.warning(f"========================================")
-            logger.warning(f"TASK ENDED WITH EXCEPTION")
+            logger.warning(f"TASK ENDED WITH EXCEPTION (see error details above)")
             logger.warning(f"========================================")
         elif result is None:
             logger.warning(f"========================================")
-            logger.warning(f"TASK ENDED: No result returned (possibly failed)")
+            logger.warning(f"TASK ENDED: No result returned")
+            logger.warning(f"The task likely failed during execution.")
+            logger.warning(f"Check the logs above for error details.")
             logger.warning(f"========================================")
         else:
             logger.success(f"========================================")
@@ -1067,14 +1075,34 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
         progress = 20 + (i / total_scenes) * 40  # Progress from 20% to 60%
         sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=int(progress))
         
+        logger.info(f"========================================")
+        logger.info(f"Processing scene {i+1}/{total_scenes}")
+        logger.info(f"========================================")
+        
         result = process_scene(task_id, params, scene, i, total_scenes)
         if result:
             scene_results.append(result)
+            logger.info(f"Scene {i+1} processed successfully, combined_video_path: {result.get('combined_video_path')}")
         else:
-            logger.error(f"failed to process scene {i+1}, skipping")
+            logger.error(f"========================================")
+            logger.error(f"FAILED to process scene {i+1}/{total_scenes}")
+            logger.error(f"The scene result is None, skipping this scene")
+            logger.error(f"========================================")
+    
+    logger.info(f"========================================")
+    logger.info(f"All scenes processed")
+    logger.info(f"Successful scenes: {len(scene_results)}/{total_scenes}")
+    logger.info(f"========================================")
     
     if not scene_results:
-        logger.error("Multi-scene: no scenes processed successfully, returning None")
+        logger.error("Multi-scene: ALL scenes failed to process!")
+        logger.error(f"Expected {total_scenes} scenes but got 0 successful results")
+        logger.error("Possible reasons:")
+        logger.error("  1. Video material download failed")
+        logger.error("  2. Video combine process failed")
+        logger.error("  3. No video materials found for search terms")
+        logger.error("Please check the error logs above for details")
+        logger.error("========================================")
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
     

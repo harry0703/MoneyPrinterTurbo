@@ -1,7 +1,44 @@
-# Use an official Python runtime as a parent image
+# Build stage
+FROM python:3.11-slim-bullseye AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Install build dependencies with domestic mirrors
+RUN echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian-security bullseye-security main" >> /etc/apt/sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+        libjpeg-dev \
+        zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy requirements.txt
+COPY requirements.txt .
+
+# Install Python dependencies with domestic mirrors
+RUN pip install --no-cache-dir \
+    -i https://mirrors.aliyun.com/pypi/simple/ \
+    --trusted-host mirrors.aliyun.com \
+    --retries 3 \
+    --timeout 60 \
+    -r requirements.txt || \
+    pip install --no-cache-dir \
+    -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/ \
+    --trusted-host mirrors.tuna.tsinghua.edu.cn \
+    --retries 3 \
+    --timeout 60 \
+    -r requirements.txt || \
+    pip install --no-cache-dir \
+    --retries 3 \
+    --timeout 60 \
+    -r requirements.txt
+
+# Runtime stage
 FROM python:3.11-slim-bullseye
 
-# Set the working directory in the container
+# Set working directory in container
 WORKDIR /MoneyPrinterTurboCN
 
 # Set /MoneyPrinterTurboCN directory permissions to 777
@@ -9,57 +46,29 @@ RUN chmod 777 /MoneyPrinterTurboCN
 
 ENV PYTHONPATH="/MoneyPrinterTurboCN"
 
-# Install system dependencies with domestic mirrors first for stability
+# Install runtime dependencies with domestic mirrors
 RUN echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources.list && \
     echo "deb http://mirrors.aliyun.com/debian-security bullseye-security main" >> /etc/apt/sources.list && \
-    ( \
-        for i in 1 2 3; do \
-            echo "Attempt $i: Using Aliyun mirror"; \
-            apt-get update && apt-get install -y --no-install-recommends \
-                git \
-                imagemagick \
-                ffmpeg && break || \
-            echo "Attempt $i failed, retrying..."; \
-            if [ $i -eq 3 ]; then \
-                echo "Aliyun mirror failed, switching to Tsinghua mirror"; \
-                sed -i 's/mirrors.aliyun.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
-                sed -i 's/mirrors.aliyun.com\/debian-security/mirrors.tuna.tsinghua.edu.cn\/debian-security/g' /etc/apt/sources.list && \
-                ( \
-                    apt-get update && apt-get install -y --no-install-recommends \
-                        git \
-                        imagemagick \
-                        ffmpeg || \
-                    ( \
-                        echo "Tsinghua mirror failed, switching to default Debian mirror"; \
-                        sed -i 's/mirrors.tuna.tsinghua.edu.cn/deb.debian.org/g' /etc/apt/sources.list && \
-                        sed -i 's/mirrors.tuna.tsinghua.edu.cn\/debian-security/security.debian.org/g' /etc/apt/sources.list; \
-                        apt-get update && apt-get install -y --no-install-recommends \
-                            git \
-                            imagemagick \
-                            ffmpeg; \
-                    ); \
-                ); \
-            fi; \
-            sleep 5; \
-        done \
-    ) && rm -rf /var/lib/apt/lists/*
+    apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        imagemagick \
+        ffmpeg \
+        libjpeg62-turbo \
+        zlib1g && \
+    rm -rf /var/lib/apt/lists/*
 
 # Fix security policy for ImageMagick
 RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
 
-# Copy only the requirements.txt first to leverage Docker cache
-COPY requirements.txt ./
+# Copy Python dependencies from builder stage
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Install Python dependencies with domestic mirrors first and retry logic
-RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com --retries 3 --timeout 60 -r requirements.txt || \
-    pip install --no-cache-dir -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/ --trusted-host mirrors.tuna.tsinghua.edu.cn --retries 3 --timeout 60 -r requirements.txt || \
-    pip install --no-cache-dir --retries 3 --timeout 60 -r requirements.txt
-
-# Now copy the rest of the codebase into the image
+# Copy application code
 COPY . .
 
-# Expose the port the app runs on
-EXPOSE 8501
+# Expose port that app runs on
+EXPOSE 8501 8080
 
 # Command to run the application
 CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False"]
@@ -69,6 +78,6 @@ CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","
 
 # 2. Run the Docker container using the following command
 ## For Linux or MacOS:
-# docker run -v $(pwd)/config.toml:/MoneyPrinterTurboCN/config.toml -v $(pwd)/storage:/MoneyPrinterTurboCN/storage -p 8501:8501 moneyprinterturbocn
+# docker run -v $(pwd)/config.toml:/MoneyPrinterTurboCN/config.toml -v $(pwd)/storage:/MoneyPrinterTurboCN/storage -v $(pwd)/models:/MoneyPrinterTurboCN/models -p 8501:8501 moneyprinterturbocn
 ## For Windows:
-# docker run -v ${PWD}/config.toml:/MoneyPrinterTurboCN/config.toml -v ${PWD}/storage:/MoneyPrinterTurboCN/storage -p 8501:8501 moneyprinterturbocn
+# docker run -v ${PWD}/config.toml:/MoneyPrinterTurboCN/config.toml -v ${PWD}/storage:/MoneyPrinterTurboCN/storage -v ${PWD}/models:/MoneyPrinterTurboCN/models -p 8501:8501 moneyprinterturbocn
