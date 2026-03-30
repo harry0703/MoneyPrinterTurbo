@@ -103,6 +103,7 @@ support_locales = [
     "de-DE",
     "en-US",
     "fr-FR",
+    "ko-KR",
     "vi-VN",
     "th-TH",
     "tr-TR",
