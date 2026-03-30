@@ -26,7 +26,8 @@ services:
       - PYTHON_TZ=Asia/Shanghai
       # GPU environment variables - will be ignored if no GPU available
       - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+      - IMAGEIO_FFMPEG_EXE=/usr/bin/ffmpeg
     # GPU configuration - will gracefully fallback to CPU if no GPU available
     deploy:
       resources:
@@ -54,7 +55,8 @@ services:
       - PYTHON_TZ=Asia/Shanghai
       # GPU environment variables - will be ignored if no GPU available
       - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+      - IMAGEIO_FFMPEG_EXE=/usr/bin/ffmpeg
     # GPU configuration - will gracefully fallback to CPU if no GPU available
     deploy:
       resources:

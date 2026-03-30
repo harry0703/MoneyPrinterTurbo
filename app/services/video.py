@@ -842,18 +842,43 @@ def combine_videos(
         current_codec = get_video_codec()
         current_encoding_params = get_video_encoding_params()
         
-        final_video.write_videofile(
-            filename=combined_video_path,
-            threads=int(threads),
-            logger=None,
-            temp_audiofile_path=output_dir,
-            audio_codec=audio_codec,
-            fps=fps,
-            codec=current_codec,
-            bitrate=current_encoding_params["bitrate"],
-            preset=current_encoding_params["preset"],
-            ffmpeg_params=ffmpeg_params
-        )
+        try:
+            final_video.write_videofile(
+                filename=combined_video_path,
+                threads=int(threads),
+                logger=None,
+                temp_audiofile_path=output_dir,
+                audio_codec=audio_codec,
+                fps=fps,
+                codec=current_codec,
+                bitrate=current_encoding_params["bitrate"],
+                preset=current_encoding_params["preset"],
+                ffmpeg_params=ffmpeg_params
+            )
+        except Exception as e:
+            # If encoder not found, fallback to CPU encoder
+            if "Unknown encoder" in str(e) or "Encoder not found" in str(e):
+                logger.warning(f"Encoder {current_codec} not found, falling back to CPU encoder (libx264)")
+                # Use CPU encoder
+                current_codec = "libx264"
+                # Get CPU encoding parameters
+                current_encoding_params = get_video_encoding_params()
+                # Try again with CPU encoder
+                final_video.write_videofile(
+                    filename=combined_video_path,
+                    threads=int(threads),
+                    logger=None,
+                    temp_audiofile_path=output_dir,
+                    audio_codec=audio_codec,
+                    fps=fps,
+                    codec=current_codec,
+                    bitrate=current_encoding_params["bitrate"],
+                    preset=current_encoding_params["preset"],
+                    ffmpeg_params=ffmpeg_params
+                )
+            else:
+                # Re-raise other exceptions
+                raise
         
         logger.success(f"final video saved to: {combined_video_path}")
         

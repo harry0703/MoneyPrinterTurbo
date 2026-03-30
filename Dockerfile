@@ -47,6 +47,7 @@ RUN chmod 777 /MoneyPrinterTurboCN
 
 ENV PYTHONPATH="/MoneyPrinterTurboCN"
 ENV LD_LIBRARY_PATH="/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda-12.0/targets/x86_64-linux/lib"
+ENV IMAGEIO_FFMPEG_EXE="/usr/bin/ffmpeg"
 
 # Install runtime dependencies
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
