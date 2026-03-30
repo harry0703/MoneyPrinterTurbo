@@ -46,6 +46,7 @@ WORKDIR /MoneyPrinterTurboCN
 RUN chmod 777 /MoneyPrinterTurboCN
 
 ENV PYTHONPATH="/MoneyPrinterTurboCN"
+ENV LD_LIBRARY_PATH="/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda-12.0/targets/x86_64-linux/lib"
 
 # Install runtime dependencies
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
@@ -58,6 +59,10 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
         python3 \
         python3-pip \
         tzdata && \
+    # Install CUDA 12.x libraries for Whisper
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libcublas-12-0 \
+        libcudnn8 && \
     # Set timezone to Asia/Shanghai
     echo "Asia/Shanghai" > /etc/timezone && \
     DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive tzdata && \

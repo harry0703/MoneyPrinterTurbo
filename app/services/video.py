@@ -838,6 +838,10 @@ def combine_videos(
         if video_encoding_params["crf"] is not None:
             ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
         
+        # Get the latest video codec (dynamic detection)
+        current_codec = get_video_codec()
+        current_encoding_params = get_video_encoding_params()
+        
         final_video.write_videofile(
             filename=combined_video_path,
             threads=int(threads),
@@ -845,9 +849,9 @@ def combine_videos(
             temp_audiofile_path=output_dir,
             audio_codec=audio_codec,
             fps=fps,
-            codec=video_codec,
-            bitrate=video_encoding_params["bitrate"],
-            preset=video_encoding_params["preset"],
+            codec=current_codec,
+            bitrate=current_encoding_params["bitrate"],
+            preset=current_encoding_params["preset"],
             ffmpeg_params=ffmpeg_params
         )
         
