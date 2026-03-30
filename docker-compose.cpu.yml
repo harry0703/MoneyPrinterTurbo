@@ -1,3 +1,8 @@
+# Docker Compose configuration for CPU-only mode
+# Usage: docker-compose -f docker-compose.cpu.yml up -d
+#
+# Use this file when running on machines without NVIDIA GPU
+
 x-common-volumes: &common-volumes
   - ./:/MoneyPrinterTurboCN
   - ./models:/MoneyPrinterTurboCN/models
@@ -24,17 +29,8 @@ services:
       - TZ=Asia/Shanghai
       # Set time zone for Python
       - PYTHON_TZ=Asia/Shanghai
-      # GPU environment variables - will be ignored if no GPU available
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    # GPU configuration - will gracefully fallback to CPU if no GPU available
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      # Explicitly disable GPU
+      - CUDA_VISIBLE_DEVICES=""
 
   api:
     build:
@@ -52,14 +48,5 @@ services:
       - TZ=Asia/Shanghai
       # Set time zone for Python
       - PYTHON_TZ=Asia/Shanghai
-      # GPU environment variables - will be ignored if no GPU available
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    # GPU configuration - will gracefully fallback to CPU if no GPU available
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      # Explicitly disable GPU
+      - CUDA_VISIBLE_DEVICES=""

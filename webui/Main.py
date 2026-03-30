@@ -179,11 +179,55 @@ def init_log():
         )
         return _format
 
+    # Set timezone to local time
+    import os
+    import datetime
+    import pytz
+    
+    # Try to get timezone from host system
+    def get_host_timezone():
+        # Try to read from /etc/timezone (Linux/Mac)
+        try:
+            with open('/etc/timezone', 'r') as f:
+                return f.read().strip()
+        except Exception:
+            pass
+        
+        # Try to get from environment variable
+        tz_name = os.environ.get('TZ')
+        if tz_name:
+            return tz_name
+        
+        # Default to local timezone
+        return 'Asia/Shanghai'
+    
+    # Get timezone
+    tz_name = get_host_timezone()
+    try:
+        local_tz = pytz.timezone(tz_name)
+    except pytz.exceptions.UnknownTimeZoneError:
+        local_tz = pytz.timezone('Asia/Shanghai')
+    
+    # Create a custom format that includes local timezone
+    def format_record_with_timezone(record):
+        # Get local time
+        local_time = record['time'].astimezone(local_tz)
+        # Format the record with local time
+        _format = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+        return _format.format(
+            time=local_time,
+            level=record['level'].name,
+            name=record['name'],
+            function=record['function'],
+            line=record['line'],
+            message=record['message']
+        )
+    
     logger.add(
         sys.stdout,
         level=_lvl,
-        format=format_record,
-        colorize=True,
+        format=format_record_with_timezone,
+        colorize=True
     )
 
 
