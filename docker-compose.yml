@@ -1,6 +1,6 @@
 x-common-volumes: &common-volumes
   - ./:/MoneyPrinterTurbo
-  - ./storage:/MoneyPrinterTurbo/storage
+
 services:
   webui:
     build:
@@ -22,10 +22,3 @@ services:
     command: [ "python3", "main.py" ]
     volumes: *common-volumes
     restart: always
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
