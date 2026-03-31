@@ -1387,6 +1387,9 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
                 except Exception as e:
                     logger.error(f"failed to add subtitle: {str(e)}")
         
+        # Get video encoding parameters (loaded once at module initialization)
+        video_encoding_params = video_module.get_video_encoding_params()
+        
         # Write final video
         logger.info(f"========================================")
         logger.info(f"[TIMESTAMP] Starting final video encoding at: {time.strftime('%H:%M:%S')}")
@@ -1394,8 +1397,6 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
         logger.info(f"Encoding parameters: codec={video_module.video_codec}, fps={video_module.fps}, bitrate={video_encoding_params['bitrate']}")
         logger.info("========================================")
         
-        # Get video encoding parameters (loaded once at module initialization)
-        video_encoding_params = video_module.get_video_encoding_params()
         logger.info(f"using video encoding: bitrate={video_encoding_params['bitrate']}, codec={video_module.video_codec}")
         
         # Build ffmpeg parameters
