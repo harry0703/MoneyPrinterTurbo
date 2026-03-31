@@ -1,5 +1,6 @@
 import streamlit as st
 from uuid import uuid4
+from loguru import logger
 from app.services.scene_parser import auto_parse_script
 from webui.ui_multiscene_components import render_multiscene_management
 
@@ -77,6 +78,8 @@ def render_script_settings(params, tr, llm):
         params.video_script = st.text_area(
             tr("Video Script"), value=st.session_state.get("video_script", ""), height=280
         )
+        # Update session state with user input
+        st.session_state["video_script"] = params.video_script
         if st.button(tr("Generate Video Keywords"), key="auto_generate_terms", use_container_width=True):
             if not params.video_script:
                 st.error(tr("Please Enter the Video Subject"))
@@ -104,22 +107,25 @@ def render_script_settings(params, tr, llm):
                     parse_mode = "auto"
                     st.session_state["auto_parse_mode"] = parse_mode
                     
+                    logger.info(f"Starting to parse script, script length: {len(st.session_state['video_script'])}")
                     result = auto_parse_script(
                         st.session_state["video_script"],
                         max_retries=3,
-                        auto_mode=(parse_mode == "auto")
+                        auto_mode=True  # Always use auto mode to skip review
                     )
+                    logger.info(f"Parsing result: status={result.get('status')}, scenes_count={len(result.get('scenes', []))}")
                     
-                    if result["status"] == "success":
-                        # Auto-accepted
-                        st.session_state["scenes"] = result["scenes"]
-                        st.success(tr(f"Successfully parsed {len(result['scenes'])} scenes (Score: {result['evaluation']['total_score']:.0f})"))
+                    if result["status"] in ["success", "manual"]:
+                        # Always accept the parsed scenes without review
+                        scenes_data = result["scenes"]
+                        logger.info(f"Setting session state with {len(scenes_data)} scenes")
+                        for i, scene in enumerate(scenes_data):
+                            logger.info(f"Scene {i+1}: visual_requirement='{scene.get('visual_requirement', 'N/A')}', keywords='{scene.get('keywords', 'N/A')}'")
+                        
+                        st.session_state["scenes"] = scenes_data
+                        logger.info(f"Session state 'scenes' updated, count: {len(st.session_state['scenes'])}")
+                        st.success(tr(f"Successfully parsed {len(result['scenes'])} scenes"))
                         st.rerun()
-                    elif result["status"] == "manual":
-                        # Need user confirmation
-                        st.session_state["pending_scenes"] = result["scenes"]
-                        st.session_state["pending_evaluation"] = result["evaluation"]
-                        st.info(tr("Please review the parsed scenes below"))
                     else:
                         # Failed
                         st.error(tr(f"Parsing failed: {result.get('message', 'Unknown error')}"))

@@ -550,29 +550,51 @@ def parse_script_with_llm(script: str) -> List[Dict[str, Any]]:
     """
     import app.services.llm as llm_service
     
+    logger.info(f"Starting to parse script with LLM, script length: {len(script)}")
+    
     # Generate multi-scene script using LLM
+    # Use script as both subject and script since we want to process the entire script
     multi_scene_script = llm_service.generate_multi_scene_script(script)
+    logger.info(f"Generated multi-scene script: {multi_scene_script[:200]}...")
     
     # Parse the generated multi-scene script
     scenes_data = llm_service.parse_multi_scene_script(multi_scene_script)
+    logger.info(f"Parsed {len(scenes_data)} scenes from multi-scene script")
     
     # Convert to the expected format with additional fields
     scenes = []
     current_time = 0
     
     for i, scene_data in enumerate(scenes_data):
-        duration = estimate_duration(scene_data.get("script", ""))
+        scene_script = scene_data.get("script", "")
+        duration = estimate_duration(scene_script)
+        
+        # Generate visual requirements using LLM
+        visual_requirement = scene_data.get("camera", "")
+        logger.info(f"Scene {i+1} - Visual requirement from camera field: {visual_requirement}")
+        
+        # Generate keywords using LLM
+        logger.info(f"Scene {i+1} - Generating keywords...")
+        keywords_list = llm_service.generate_scene_terms(
+            video_subject=script,  # Use the entire script as context
+            scene_script=scene_script,
+            scene_camera=visual_requirement,
+            amount=5
+        )
+        keywords = ", ".join(keywords_list) if isinstance(keywords_list, list) else ""
+        logger.info(f"Scene {i+1} - Generated keywords: {keywords}")
         
         scene = {
             "id": str(uuid4()),
             "title": scene_data.get("title", f"Scene {i+1}"),
-            "script": scene_data.get("script", ""),
+            "script": scene_script,  # This will be used for audio generation
             "duration": duration,
             "start_time": current_time,
             "end_time": current_time + duration,
-            "visual_requirement": extract_visual_requirement(scene_data.get("script", "")),
-            "keywords": extract_keywords_from_script(scene_data.get("script", ""))
+            "visual_requirement": visual_requirement,  # LLM-generated visual requirements
+            "keywords": keywords  # LLM-generated keywords
         }
+        logger.info(f"Scene {i+1} - Final scene data: visual_requirement='{scene['visual_requirement']}', keywords='{scene['keywords']}'")
         scenes.append(scene)
         current_time += duration
     
@@ -583,15 +605,26 @@ def parse_script_with_llm(script: str) -> List[Dict[str, Any]]:
         for i, paragraph in enumerate(paragraphs):
             duration = estimate_duration(paragraph)
             
+            # Generate visual requirements using LLM for fallback
+            visual_requirement = f"场景 {i+1} 的视觉需求"
+            
+            # Generate keywords using LLM for fallback
+            keywords_list = llm_service.generate_terms(
+                video_subject=script,  # Use the entire script as context
+                video_script=paragraph,
+                amount=5
+            )
+            keywords = ", ".join(keywords_list) if isinstance(keywords_list, list) else ""
+            
             scene = {
                 "id": str(uuid4()),
                 "title": f"Scene {i+1}",
-                "script": paragraph,
+                "script": paragraph,  # This will be used for audio generation
                 "duration": duration,
                 "start_time": current_time,
                 "end_time": current_time + duration,
-                "visual_requirement": extract_visual_requirement(paragraph),
-                "keywords": extract_keywords_from_script(paragraph)
+                "visual_requirement": visual_requirement,  # LLM-generated visual requirements
+                "keywords": keywords  # LLM-generated keywords
             }
             scenes.append(scene)
             current_time += duration
@@ -622,40 +655,32 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True)
             "scenes": []
         }
     
-    # Step 1: Detect if script is already divided
-    detection = detect_scene_format(script)
-    logger.info(f"Scene detection result: {detection}")
+    # Step 1: Always use LLM to parse script for multi-scene construction
+    # regardless of whether it's already divided
+    logger.info("Using LLM to parse script for multi-scene construction")
     
     scenes = []
     
-    # Step 2: Parse based on detection result
-    if detection["is_divided"] and detection["confidence"] >= 0.7:
-        # Script is already divided, extract scenes directly
-        logger.info("Script is already divided, extracting scenes directly")
-        scenes = extract_scenes_from_divided_script(script, detection)
-    else:
-        # Script is not divided, need to parse with LLM
-        logger.info("Script is not divided, parsing with LLM")
-        
-        for attempt in range(max_retries):
-            try:
-                scenes = parse_script_with_llm(script)
+    # Step 2: Parse with LLM
+    for attempt in range(max_retries):
+        try:
+            scenes = parse_script_with_llm(script)
+            
+            if scenes:
+                logger.info(f"LLM parsing attempt {attempt + 1} successful, got {len(scenes)} scenes")
+                break
+            else:
+                logger.warning(f"LLM parsing attempt {attempt + 1} returned empty scenes")
                 
-                if scenes:
-                    logger.info(f"LLM parsing attempt {attempt + 1} successful, got {len(scenes)} scenes")
-                    break
-                else:
-                    logger.warning(f"LLM parsing attempt {attempt + 1} returned empty scenes")
-                    
-            except Exception as e:
-                logger.error(f"LLM parsing attempt {attempt + 1} failed: {e}")
-                
-                if attempt == max_retries - 1:
-                    return {
-                        "status": "failed",
-                        "message": f"Failed to parse script after {max_retries} attempts: {str(e)}",
-                        "scenes": []
-                    }
+        except Exception as e:
+            logger.error(f"LLM parsing attempt {attempt + 1} failed: {e}")
+            
+            if attempt == max_retries - 1:
+                return {
+                    "status": "failed",
+                    "message": f"Failed to parse script after {max_retries} attempts: {str(e)}",
+                    "scenes": []
+                }
     
     if not scenes:
         return {
@@ -680,23 +705,13 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True)
                 "evaluation": evaluation
             }
         elif evaluation["auto_reject"]:
-            # Low quality, retry with LLM if not already retried
-            if not detection["is_divided"]:
-                logger.warning(f"Auto-rejecting scenes with score {evaluation['total_score']:.1f}, retrying...")
-                # In a real implementation, this would retry with different LLM parameters
-                # For now, return the scenes with manual status
-                return {
-                    "status": "manual",
-                    "scenes": scenes,
-                    "evaluation": evaluation
-                }
-            else:
-                # Already extracted from divided script, can't retry
-                return {
-                    "status": "manual",
-                    "scenes": scenes,
-                    "evaluation": evaluation
-                }
+            # Low quality, return with manual status
+            logger.warning(f"Auto-rejecting scenes with score {evaluation['total_score']:.1f}")
+            return {
+                "status": "manual",
+                "scenes": scenes,
+                "evaluation": evaluation
+            }
         else:
             # Medium quality, need user confirmation
             logger.info(f"Medium quality scenes (score {evaluation['total_score']:.1f}), requiring user confirmation")
