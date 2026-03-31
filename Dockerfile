@@ -1,48 +1,33 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+# Use NVIDIA CUDA runtime as parent image (includes CUDA 12.1 + cuDNN 8)
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+# Avoid interactive timezone prompt
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
-
-# 设置/MoneyPrinterTurbo目录权限为777
 RUN chmod 777 /MoneyPrinterTurbo
 
 ENV PYTHONPATH="/MoneyPrinterTurbo"
 
-# Install system dependencies with domestic mirrors first for stability
-RUN echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources.list && \
-    echo "deb http://mirrors.aliyun.com/debian-security bullseye-security main" >> /etc/apt/sources.list && \
-    ( \
-        for i in 1 2 3; do \
-            echo "Attempt $i: Using Aliyun mirror"; \
-            apt-get update && apt-get install -y --no-install-recommends \
-                git \
-                imagemagick \
-                ffmpeg && break || \
-            echo "Attempt $i failed, retrying..."; \
-            if [ $i -eq 3 ]; then \
-                echo "Aliyun mirror failed, switching to Tsinghua mirror"; \
-                sed -i 's/mirrors.aliyun.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
-                sed -i 's/mirrors.aliyun.com\/debian-security/mirrors.tuna.tsinghua.edu.cn\/debian-security/g' /etc/apt/sources.list && \
-                ( \
-                    apt-get update && apt-get install -y --no-install-recommends \
-                        git \
-                        imagemagick \
-                        ffmpeg || \
-                    ( \
-                        echo "Tsinghua mirror failed, switching to default Debian mirror"; \
-                        sed -i 's/mirrors.tuna.tsinghua.edu.cn/deb.debian.org/g' /etc/apt/sources.list && \
-                        sed -i 's/mirrors.tuna.tsinghua.edu.cn\/debian-security/security.debian.org/g' /etc/apt/sources.list; \
-                        apt-get update && apt-get install -y --no-install-recommends \
-                            git \
-                            imagemagick \
-                            ffmpeg; \
-                    ); \
-                ); \
-            fi; \
-            sleep 5; \
-        done \
-    ) && rm -rf /var/lib/apt/lists/*
+# Install Python 3.11 and system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        software-properties-common \
+        git \
+        imagemagick \
+        ffmpeg \
+        curl \
+        && add-apt-repository ppa:deadsnakes/ppa \
+        && apt-get update && apt-get install -y --no-install-recommends \
+        python3.11 \
+        python3.11-venv \
+        python3.11-dev \
+        python3-pip \
+        && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
+        && ln -sf /usr/bin/python3.11 /usr/bin/python \
+        && python3.11 -m pip install --upgrade pip \
+        && apt-get remove -y python3-blinker || true \
+        && rm -rf /var/lib/apt/lists/*
 
 # Fix security policy for ImageMagick
 RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
@@ -50,10 +35,15 @@ RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagi
 # Copy only the requirements.txt first to leverage Docker cache
 COPY requirements.txt ./
 
-# Install Python dependencies with domestic mirrors first and retry logic
-RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com --retries 3 --timeout 60 -r requirements.txt || \
-    pip install --no-cache-dir -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/ --trusted-host mirrors.tuna.tsinghua.edu.cn --retries 3 --timeout 60 -r requirements.txt || \
-    pip install --no-cache-dir --retries 3 --timeout 60 -r requirements.txt
+# Install Python dependencies
+RUN python3 -m pip install --no-cache-dir \
+    -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com \
+    --retries 3 --timeout 60 -r requirements.txt || \
+    python3 -m pip install --no-cache-dir \
+    -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/ --trusted-host mirrors.tuna.tsinghua.edu.cn \
+    --retries 3 --timeout 60 -r requirements.txt || \
+    python3 -m pip install --no-cache-dir \
+    --retries 3 --timeout 60 -r requirements.txt
 
 # Now copy the rest of the codebase into the image
 COPY . .
@@ -63,12 +53,3 @@ EXPOSE 8501
 
 # Command to run the application
 CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False"]
-
-# 1. Build the Docker image using the following command
-# docker build -t moneyprinterturbo .
-
-# 2. Run the Docker container using the following command
-## For Linux or MacOS:
-# docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
-## For Windows:
-# docker run -v ${PWD}/config.toml:/MoneyPrinterTurbo/config.toml -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
