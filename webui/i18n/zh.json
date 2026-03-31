@@ -38,6 +38,7 @@
     "3:4 Portrait": "竖屏 3:4",
     "Clip Duration": "视频片段最大时长(秒)（**不是视频总长度**，是指每个**合成片段**的长度）",
     "Number of Videos Generated Simultaneously": "同时生成视频数量",
+    "Upload Local Files": "上传本地文件",
     "Audio Settings": "**音频设置**",
     "Speech Synthesis": "朗读声音",
     "Speech Region": "服务区域 (:red[必填，[点击获取](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",

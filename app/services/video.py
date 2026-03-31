@@ -261,9 +261,18 @@ def get_video_encoding_params():
         "crf": crf
     }
 
+# Cache for video codec detection
+_cached_video_codec = None
+
 # Select video encoder based on configuration
 def get_video_codec():
     """Select appropriate video encoder based on configuration and system environment"""
+    global _cached_video_codec
+    
+    # Return cached result if available
+    if _cached_video_codec is not None:
+        return _cached_video_codec
+    
     use_gpu = config.app.get("use_gpu", False)
     
     # Log GPU configuration status for video codec
@@ -271,7 +280,8 @@ def get_video_codec():
     
     if not use_gpu:
         logger.info("Video encoder: CPU mode selected (libx264)")
-        return "libx264"  # CPU encoder
+        _cached_video_codec = "libx264"  # CPU encoder
+        return _cached_video_codec
     
     # Check if GPU encoding is supported
     try:
@@ -291,15 +301,18 @@ def get_video_codec():
         # Check for NVIDIA GPU support
         if "h264_nvenc" in result.stdout:
             logger.info("Video encoder: NVIDIA GPU mode selected (h264_nvenc) - GPU acceleration enabled")
-            return "h264_nvenc"
+            _cached_video_codec = "h264_nvenc"
+            return _cached_video_codec
         # Check for AMD GPU support
         elif "h264_amf" in result.stdout:
             logger.info("Video encoder: AMD GPU mode selected (h264_amf) - GPU acceleration enabled")
-            return "h264_amf"
+            _cached_video_codec = "h264_amf"
+            return _cached_video_codec
         # Check for Intel GPU support
         elif "h264_qsv" in result.stdout:
             logger.info("Video encoder: Intel GPU mode selected (h264_qsv) - GPU acceleration enabled")
-            return "h264_qsv"
+            _cached_video_codec = "h264_qsv"
+            return _cached_video_codec
         else:
             # GPU fallback: use_gpu=True but no GPU encoder available
             fallback_reason = "No supported GPU encoder found in FFmpeg"
@@ -319,7 +332,8 @@ def get_video_codec():
             logger.warning(f"  3. Verify GPU encoder availability with: ffmpeg -encoders | grep h264")
             logger.warning(f"============================================")
             logger.debug(f"Available encoders: {result.stdout[:1000]}...")  # Log first 1000 chars of encoder list
-            return "libx264"
+            _cached_video_codec = "libx264"
+            return _cached_video_codec
     except subprocess.TimeoutExpired:
         # GPU fallback: timeout while checking GPU support
         fallback_reason = "Timeout while checking GPU encoder availability"
@@ -335,7 +349,8 @@ def get_video_codec():
         logger.warning(f"  - System performance issues")
         logger.warning(f"  - Corrupted FFmpeg installation")
         logger.warning(f"============================================")
-        return "libx264"
+        _cached_video_codec = "libx264"
+        return _cached_video_codec
     except FileNotFoundError:
         # GPU fallback: FFmpeg executable not found
         fallback_reason = "FFmpeg executable not found"
@@ -351,7 +366,8 @@ def get_video_codec():
         logger.warning(f"  2. Set ffmpeg_path in config.toml")
         logger.warning(f"  3. Or set IMAGEIO_FFMPEG_EXE environment variable")
         logger.warning(f"============================================")
-        return "libx264"
+        _cached_video_codec = "libx264"
+        return _cached_video_codec
     except Exception as e:
         # GPU fallback: unexpected error
         fallback_reason = f"Unexpected error while checking GPU support: {type(e).__name__}"
@@ -366,7 +382,8 @@ def get_video_codec():
         logger.warning(f"  - FFmpeg executable: {ffmpeg_exe}")
         logger.warning(f"  - Error type: {type(e).__name__}")
         logger.warning(f"============================================")
-        return "libx264"
+        _cached_video_codec = "libx264"
+        return _cached_video_codec
 
 video_codec = get_video_codec()
 video_encoding_params = get_video_encoding_params()
