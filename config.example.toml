@@ -221,3 +221,10 @@ api_key = ""
 # 是否隐藏日志信息
 # Whether to hide logs in the UI
 hide_log = false
+
+# 字幕位置设置 (Subtitle position settings)
+# 可选值 (Available values): "top", "center", "bottom", "custom"
+# subtitle_position = "custom"
+# 自定义位置，表示离顶部的百分比 (0-100)，仅当 subtitle_position = "custom" 时生效
+# Custom position as percentage from top (0-100), only effective when subtitle_position = "custom"
+# custom_position = 70.0
