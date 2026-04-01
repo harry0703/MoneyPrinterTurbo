@@ -182,12 +182,25 @@ def generate_scene_terms(task_id, params, scenes):
     for i, scene in enumerate(scenes):
         logger.info(f"generating terms for scene {i+1}/{len(scenes)}: {scene.get('title', '')}")
         
-        terms = llm.generate_scene_terms(
-            video_subject=params.video_subject,
-            scene_script=scene.get('script', ''),
-            scene_camera=scene.get('camera', ''),
-            amount=5
-        )
+        # Check if scene already has keywords (from UI/parsing)
+        existing_keywords = scene.get('keywords', '')
+        if existing_keywords:
+            # Use existing keywords if they exist
+            if isinstance(existing_keywords, str):
+                # Convert comma-separated string to list
+                terms = [term.strip() for term in existing_keywords.split(',') if term.strip()]
+            else:
+                # Already a list
+                terms = existing_keywords
+            logger.info(f"Using existing keywords for scene {i+1}: {terms}")
+        else:
+            # Generate new keywords if none exist
+            terms = llm.generate_scene_terms(
+                video_subject=params.video_subject,
+                scene_script=scene.get('script', ''),
+                scene_camera=scene.get('visual_requirement', ''),  # Use visual_requirement instead of camera
+                amount=5
+            )
         
         if terms and not (isinstance(terms, str) and "Error: " in terms):
             # Ensure video subject is included in keywords
@@ -202,6 +215,7 @@ def generate_scene_terms(task_id, params, scenes):
             # Filter out any empty terms
             terms = [term for term in terms if term and term.strip()]
             scene_terms_list.append(terms)
+            # Update scene keywords with final terms
             scene['keywords'] = terms
             logger.success(f"scene {i+1} terms: {terms}")
         else:
