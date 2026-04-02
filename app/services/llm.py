@@ -68,6 +68,12 @@ def _generate_response(prompt: str) -> str:
                 model_name = config.app.get("cloudflare_model_name")
                 account_id = config.app.get("cloudflare_account_id")
                 base_url = "***"
+            elif llm_provider == "minimax":
+                api_key = config.app.get("minimax_api_key")
+                model_name = config.app.get("minimax_model_name")
+                base_url = config.app.get("minimax_base_url", "")
+                if not base_url:
+                    base_url = "https://api.minimax.io/v1"
             elif llm_provider == "deepseek":
                 api_key = config.app.get("deepseek_api_key")
                 model_name = config.app.get("deepseek_model_name")

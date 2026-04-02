@@ -29,6 +29,7 @@ pixabay_api_keys = []
 #   g4f
 #   oneapi
 #   cloudflare
+#   minimax
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 llm_provider = "openai"
@@ -93,6 +94,14 @@ gemini_model_name = "gemini-1.0-pro"
 qwen_api_key = ""
 qwen_model_name = "qwen-max"
 
+
+########## MiniMax API Key
+# Visit https://platform.minimax.io to get your API key
+# MiniMax API is OpenAI-compatible
+# Available models: MiniMax-M2.7 (default), MiniMax-M2.7-highspeed
+minimax_api_key = ""
+minimax_base_url = "https://api.minimax.io/v1"
+minimax_model_name = "MiniMax-M2.7"
 
 ########## DeepSeek API Key
 # Visit https://platform.deepseek.com/api_keys to get your API key
