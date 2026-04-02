@@ -406,6 +406,14 @@ def generate_video(
 
         logger.info(f"  ⑤ font: {font_path}")
 
+    def resolve_subtitle_background_color():
+        # 兼容历史参数：API 里 `text_background_color` 既可能是布尔值，
+        # 也可能是实际颜色字符串。统一在这里归一化，避免把 True/False
+        # 直接传给 TextClip 后出现不可预期的渲染结果。
+        if isinstance(params.text_background_color, bool):
+            return "#000000" if params.text_background_color else None
+        return params.text_background_color
+
     def create_text_clip(subtitle_item):
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
@@ -415,18 +423,28 @@ def generate_video(
             phrase, max_width=max_width, font=font_path, fontsize=params.font_size
         )
         interline = int(params.font_size * 0.25)
-        size=(int(max_width), int(txt_height + params.font_size * 0.25 + (interline * (wrapped_txt.count("\n") + 1))))
+        line_count = wrapped_txt.count("\n") + 1
+        vertical_padding = int(params.font_size * 0.35)
+        # MoviePy 在 `method=label` 下会自动收缩文本框高度，遇到多行字幕、
+        # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
+        # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
+        # 背景框与文字本身都能完整渲染出来。
+        size = (
+            int(max_width),
+            int(txt_height + vertical_padding + (interline * line_count)),
+        )
 
         _clip = TextClip(
             text=wrapped_txt,
             font=font_path,
             font_size=params.font_size,
             color=params.text_fore_color,
-            bg_color=params.text_background_color,
+            bg_color=resolve_subtitle_background_color(),
             stroke_color=params.stroke_color,
             stroke_width=params.stroke_width,
-            # interline=interline,
-            # size=size,
+            interline=interline,
+            size=size,
+            text_align="center",
         )
         duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.with_start(subtitle_item[0][0])
