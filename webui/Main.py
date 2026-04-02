@@ -66,6 +66,9 @@ if "video_terms" not in st.session_state:
     st.session_state["video_terms"] = ""
 if "ui_language" not in st.session_state:
     st.session_state["ui_language"] = config.ui.get("language", system_locale)
+if "local_video_materials" not in st.session_state:
+    # 记住用户最近一次已经落盘的本地素材，避免仅修改文案后二次生成时丢失素材列表。
+    st.session_state["local_video_materials"] = []
 
 # 加载语言文件
 locales = utils.load_locales(i18n_dir)
@@ -1025,6 +1028,9 @@ if start_button:
 
     if uploaded_files:
         local_videos_dir = utils.storage_dir("local_videos", create=True)
+        # 每次重新上传时都以本次选择的素材为准，避免旧素材不断重复追加。
+        params.video_materials = []
+        persisted_local_materials = []
         for file in uploaded_files:
             file_path = os.path.join(local_videos_dir, f"{file.file_id}_{file.name}")
             with open(file_path, "wb") as f:
@@ -1032,8 +1038,25 @@ if start_button:
                 m = MaterialInfo()
                 m.provider = "local"
                 m.url = file_path
-                if not params.video_materials:
-                    params.video_materials = []
+                params.video_materials.append(m)
+                persisted_local_materials.append(
+                    {
+                        "provider": m.provider,
+                        "url": m.url,
+                        "duration": m.duration,
+                    }
+                )
+        # 将已上传并保存到本地的视频素材写入会话，供后续只改文案时直接复用。
+        st.session_state["local_video_materials"] = persisted_local_materials
+    elif params.video_source == "local" and st.session_state["local_video_materials"]:
+        # 当用户没有重新上传文件时，复用最近一次已经保存到磁盘的本地素材列表。
+        params.video_materials = []
+        for material in st.session_state["local_video_materials"]:
+            m = MaterialInfo()
+            m.provider = material.get("provider", "local")
+            m.url = material.get("url", "")
+            m.duration = material.get("duration", 0)
+            if m.url:
                 params.video_materials.append(m)
 
     log_container = st.empty()
