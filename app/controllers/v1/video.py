@@ -133,7 +133,7 @@ def get_task(
 
         def file_to_uri(file):
             if not file.startswith(endpoint):
-                _uri_path = v.replace(task_dir, "tasks").replace("\\", "/")
+                _uri_path = file.replace(task_dir, "tasks").replace("\\", "/")
                 _uri_path = f"{endpoint}/{_uri_path}"
             else:
                 _uri_path = file

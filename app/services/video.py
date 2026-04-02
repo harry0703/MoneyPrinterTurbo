@@ -91,12 +91,12 @@ def close_clip(clip):
 def delete_files(files: List[str] | str):
     if isinstance(files, str):
         files = [files]
-        
+
     for file in files:
         try:
             os.remove(file)
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"failed to delete file {file}: {str(e)}")
 
 def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if not bgm_type:
@@ -127,10 +127,7 @@ def combine_videos(
     audio_clip = AudioFileClip(audio_file)
     audio_duration = audio_clip.duration
     logger.info(f"audio duration: {audio_duration} seconds")
-    # Required duration of each clip
-    req_dur = audio_duration / len(video_paths)
-    req_dur = max_clip_duration
-    logger.info(f"maximum clip duration: {req_dur} seconds")
+    logger.info(f"maximum clip duration: {max_clip_duration} seconds")
     output_dir = os.path.dirname(combined_video_path)
 
     aspect = VideoAspect(video_aspect)
@@ -220,11 +217,13 @@ def combine_videos(
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
             clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
-            
+
+            # Store clip duration before closing
+            clip_duration_saved = clip.duration
             close_clip(clip)
-        
-            processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip.duration, width=clip_w, height=clip_h))
-            video_duration += clip.duration
+
+            processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip_duration_saved, width=clip_w, height=clip_h))
+            video_duration += clip_duration_saved
             
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
