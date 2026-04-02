@@ -1,4 +1,5 @@
 import asyncio
+import math
 import os
 import re
 from datetime import datetime
@@ -8,13 +9,26 @@ from xml.sax.saxutils import unescape
 import edge_tts
 import requests
 from edge_tts import SubMaker, submaker
-from edge_tts.submaker import mktimestamp
 from loguru import logger
 from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 
 from app.config import config
 from app.utils import utils
+
+
+def mktimestamp(time_unit: float) -> str:
+    """
+    将 edge_tts 使用的 100 纳秒时间单位转换为字幕时间戳。
+
+    edge_tts 7.x 不再导出旧版本里的 `mktimestamp`，但项目里旧字幕链路
+    还需要这个格式化函数来兼容 Azure v2、Gemini、SiliconFlow 这些
+    手工构造的字幕时间轴，因此这里内置一个等价实现。
+    """
+    hour = math.floor(time_unit / 10**7 / 3600)
+    minute = math.floor((time_unit / 10**7 / 60) % 60)
+    seconds = (time_unit / 10**7) % 60
+    return f"{hour:02d}:{minute:02d}:{seconds:06.3f}"
 
 
 def get_siliconflow_voices() -> list[str]:
@@ -1167,6 +1181,34 @@ def convert_rate_to_percent(rate: float) -> str:
         return f"{percent}%"
 
 
+def ensure_file_path_exists(file_path: str) -> None:
+    """
+    确保输出文件所在目录一定存在。
+
+    这里单独做一层兜底，是因为 edge_tts 7.x 在真正发起网络请求之前，
+    就会先打开目标音频文件；如果目录不存在，会直接因为本地文件路径报错，
+    从而掩盖真正的 TTS 行为结果。
+    """
+    dir_path = os.path.dirname(file_path)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)
+
+
+def ensure_legacy_submaker_fields(sub_maker: SubMaker) -> SubMaker:
+    """
+    为项目里仍然沿用旧字幕结构的调用方补齐兼容字段。
+
+    edge_tts 7.x 的 `SubMaker` 主要暴露 `cues/get_srt()`，但项目里 Azure v2、
+    Gemini、SiliconFlow 这些路径仍然会直接读写 `subs/offset`。这里统一补齐，
+    避免升级 edge_tts 后这些非 edge 路径被连带破坏。
+    """
+    if not hasattr(sub_maker, "subs"):
+        sub_maker.subs = []
+    if not hasattr(sub_maker, "offset"):
+        sub_maker.offset = []
+    return sub_maker
+
+
 def azure_tts_v1(
     text: str, voice_name: str, voice_rate: float, voice_file: str
 ) -> Union[SubMaker, None]:
@@ -1177,22 +1219,29 @@ def azure_tts_v1(
         try:
             logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
 
-            async def _do() -> SubMaker:
-                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str)
-                sub_maker = edge_tts.SubMaker()
-                with open(voice_file, "wb") as file:
-                    async for chunk in communicate.stream():
-                        if chunk["type"] == "audio":
-                            file.write(chunk["data"])
-                        elif chunk["type"] == "WordBoundary":
-                            sub_maker.create_sub(
-                                (chunk["offset"], chunk["duration"]), chunk["text"]
-                            )
-                return sub_maker
+            # edge_tts 7.x 已经提供同步流接口和新的字幕聚合器实现，
+            # 这里直接使用同步接口，避免继续依赖旧版本的异步流事件结构。
+            ensure_file_path_exists(voice_file)
+            communicate = edge_tts.Communicate(
+                text,
+                voice_name,
+                rate=rate_str,
+                boundary="WordBoundary",
+            )
+            sub_maker = edge_tts.SubMaker()
 
-            sub_maker = asyncio.run(_do())
-            if not sub_maker or not sub_maker.subs:
-                logger.warning("failed, sub_maker is None or sub_maker.subs is None")
+            with open(voice_file, "wb") as file:
+                for chunk in communicate.stream_sync():
+                    chunk_type = chunk["type"]
+                    if chunk_type == "audio":
+                        file.write(chunk["data"])
+                    elif chunk_type in ["WordBoundary", "SentenceBoundary"]:
+                        # 直接把 7.x 返回的边界事件喂给新的 SubMaker，
+                        # 这样后续可以复用官方生成的字幕与时间轴。
+                        sub_maker.feed(chunk)
+
+            if not sub_maker.get_srt():
+                logger.warning("failed, sub_maker.get_srt() is empty")
                 continue
 
             logger.info(f"completed, output file: {voice_file}")
@@ -1265,8 +1314,8 @@ def siliconflow_tts(
                 with open(voice_file, "wb") as f:
                     f.write(response.content)
 
-                # 创建一个空的SubMaker对象
-                sub_maker = SubMaker()
+                # 这里仍然沿用项目原有的字幕结构，因此需要补齐旧字段。
+                sub_maker = ensure_legacy_submaker_fields(SubMaker())
 
                 # 获取音频文件的实际长度
                 try:
@@ -1369,7 +1418,7 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
 
             import azure.cognitiveservices.speech as speechsdk
 
-            sub_maker = SubMaker()
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
 
             def speech_synthesizer_word_boundary_cb(evt: speechsdk.SessionEventArgs):
                 # print('WordBoundary event:')
@@ -1536,8 +1585,8 @@ def gemini_tts(
         
         logger.info(f"completed, output file: {voice_file}")
         
-        # 创建SubMaker对象用于字幕
-        sub_maker = SubMaker()
+        # Gemini 路径仍然按项目的旧字幕结构写入，因此补齐旧字段。
+        sub_maker = ensure_legacy_submaker_fields(SubMaker())
         audio_duration = len(audio_segment) / 1000.0  # 转换为秒
         
         # 将音频长度转换为100纳秒单位（与edge_tts兼容）
@@ -1571,103 +1620,225 @@ def _format_text(text: str) -> str:
     return text
 
 
-def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str):
+def _build_subtitle_formatter():
+    """
+    返回统一的 SRT 行格式化函数。
+
+    这里单独拆成一个小工具，是为了让 edge_tts 7.x 的 cues 路径
+    和项目原有的 legacy `subs/offset` 路径共用同一套字幕落盘格式，
+    避免两套逻辑各自产生细微格式差异。
+    """
+
+    def formatter(idx: int, start_time: float, end_time: float, sub_text: str) -> str:
+        start_t = mktimestamp(start_time).replace(".", ",")
+        end_t = mktimestamp(end_time).replace(".", ",")
+        return f"{idx}\n{start_t} --> {end_t}\n{sub_text}\n"
+
+    return formatter
+
+
+def _match_script_line(script_lines: list[str], current_text: str, sub_index: int) -> str:
+    """
+    尝试把当前累计的字幕文本，与脚本中的某一条标准断句匹配起来。
+
+    这里复用了项目原有的“按标点拆脚本，再逐段比对”的思路：
+    1. 优先精确匹配；
+    2. 再做一次去常规标点后的匹配；
+    3. 最后做一次更激进的非单词字符清洗匹配。
+
+    这样可以兼容：
+    - TTS 返回里可能缺失或单独拆分的标点；
+    - 中文场景下词边界和脚本文本不完全一一对应的情况。
+    """
+    if len(script_lines) <= sub_index:
+        return ""
+
+    target_line = script_lines[sub_index]
+    if current_text == target_line:
+        return target_line.strip()
+
+    current_text_normalized = re.sub(r"[^\w\s]", "", current_text)
+    target_line_normalized = re.sub(r"[^\w\s]", "", target_line)
+    if current_text_normalized == target_line_normalized:
+        return target_line.strip()
+
+    current_text_normalized = re.sub(r"\W+", "", current_text)
+    target_line_normalized = re.sub(r"\W+", "", target_line)
+    if current_text_normalized == target_line_normalized:
+        return target_line.strip()
+
+    return ""
+
+
+def _write_subtitle_items(sub_items: list[str], subtitle_file: str) -> bool:
+    """
+    将已经聚合好的字幕段写入到 SRT 文件，并做一次基本可读性验证。
+
+    返回值：
+    - `True`：字幕文件成功落盘且可被 moviepy 解析；
+    - `False`：字幕文件写入或解析失败。
+    """
+    try:
+        ensure_file_path_exists(subtitle_file)
+        with open(subtitle_file, "w", encoding="utf-8") as file:
+            file.write("\n".join(sub_items) + "\n")
+
+        sbs = subtitles.file_to_subtitles(subtitle_file, encoding="utf-8")
+        duration = max([tb for ((ta, tb), txt) in sbs]) if sbs else 0
+        logger.info(
+            f"completed, subtitle file created: {subtitle_file}, duration: {duration}"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"failed, error: {str(e)}")
+        if os.path.exists(subtitle_file):
+            os.remove(subtitle_file)
+        return False
+
+
+def _build_subtitle_items_from_edge_cues(
+    sub_maker: SubMaker, script_lines: list[str]
+) -> list[str]:
+    """
+    将 edge_tts 7.x 的细粒度 `cues` 聚合为按脚本断句的 SRT 片段。
+
+    背景：
+    edge_tts 7.x 的 `SubMaker.get_srt()` 更偏向逐词/逐短语的时间轴。
+    对英文做逐词高亮尚可，但中文短视频字幕如果直接照搬，会出现
+    “金钱 / 是 / 一种 / 社会 / 工具” 这种阅读体验很差的效果。
+
+    实现策略：
+    1. 逐个消费 cues 中的 `content`；
+    2. 累积成一段候选文本；
+    3. 当候选文本与脚本里当前目标断句匹配时，收敛为一个完整字幕段；
+    4. 使用第一条 cue 的开始时间和最后一条 cue 的结束时间，保证时间轴连续。
+    """
+    formatter = _build_subtitle_formatter()
+    sub_items = []
+    sub_index = 0
+    current_text = ""
+    current_start_time = None
+
+    for cue in sub_maker.cues:
+        cue_text = unescape(cue.content)
+        if current_start_time is None:
+            current_start_time = int(cue.start.total_seconds() * 10000000)
+
+        current_end_time = int(cue.end.total_seconds() * 10000000)
+        current_text += cue_text
+
+        matched_text = _match_script_line(script_lines, current_text, sub_index)
+        if not matched_text:
+            continue
+
+        sub_index += 1
+        sub_items.append(
+            formatter(
+                idx=sub_index,
+                start_time=current_start_time,
+                end_time=current_end_time,
+                sub_text=matched_text,
+            )
+        )
+        current_text = ""
+        current_start_time = None
+
+    if current_text.strip():
+        logger.warning(
+            f"edge cues still have unmatched text after aggregation: {current_text}"
+        )
+
+    return sub_items
+
+
+def _build_subtitle_items_from_legacy_submaker(
+    sub_maker: SubMaker, script_lines: list[str]
+) -> list[str]:
+    """
+    将项目原有 `subs/offset` 结构聚合为按脚本断句的 SRT 片段。
+
+    这部分保留了原来的核心思路，只是拆成独立函数，便于与 edge_tts 7.x
+    的 cues 聚合逻辑共享同一套断句匹配与落盘流程。
+    """
+    formatter = _build_subtitle_formatter()
+    start_time = -1.0
+    sub_items = []
+    sub_index = 0
+    sub_line = ""
+
+    legacy_offsets = getattr(sub_maker, "offset", [])
+    legacy_subs = getattr(sub_maker, "subs", [])
+    for _, (offset, sub) in enumerate(zip(legacy_offsets, legacy_subs)):
+        current_start_time, current_end_time = offset
+        if start_time < 0:
+            start_time = current_start_time
+
+        sub_line += unescape(sub)
+        matched_text = _match_script_line(script_lines, sub_line, sub_index)
+        if not matched_text:
+            continue
+
+        sub_index += 1
+        sub_items.append(
+            formatter(
+                idx=sub_index,
+                start_time=start_time,
+                end_time=current_end_time,
+                sub_text=matched_text,
+            )
+        )
+        start_time = -1.0
+        sub_line = ""
+
+    if sub_line.strip():
+        logger.warning(
+            f"legacy subtitle items still have unmatched text after aggregation: {sub_line}"
+        )
+
+    return sub_items
+
+
+def create_subtitle(sub_maker: SubMaker, text: str, subtitle_file: str):
     """
     优化字幕文件
     1. 将字幕文件按照标点符号分割成多行
     2. 逐行匹配字幕文件中的文本
     3. 生成新的字幕文件
     """
-
     text = _format_text(text)
-
-    def formatter(idx: int, start_time: float, end_time: float, sub_text: str) -> str:
-        """
-        1
-        00:00:00,000 --> 00:00:02,360
-        跑步是一项简单易行的运动
-        """
-        start_t = mktimestamp(start_time).replace(".", ",")
-        end_t = mktimestamp(end_time).replace(".", ",")
-        return f"{idx}\n{start_t} --> {end_t}\n{sub_text}\n"
-
-    start_time = -1.0
-    sub_items = []
-    sub_index = 0
-
     script_lines = utils.split_string_by_punctuations(text)
-
-    def match_line(_sub_line: str, _sub_index: int):
-        if len(script_lines) <= _sub_index:
-            return ""
-
-        _line = script_lines[_sub_index]
-        if _sub_line == _line:
-            return script_lines[_sub_index].strip()
-
-        _sub_line_ = re.sub(r"[^\w\s]", "", _sub_line)
-        _line_ = re.sub(r"[^\w\s]", "", _line)
-        if _sub_line_ == _line_:
-            return _line_.strip()
-
-        _sub_line_ = re.sub(r"\W+", "", _sub_line)
-        _line_ = re.sub(r"\W+", "", _line)
-        if _sub_line_ == _line_:
-            return _line.strip()
-
-        return ""
-
-    sub_line = ""
-
     try:
-        for _, (offset, sub) in enumerate(zip(sub_maker.offset, sub_maker.subs)):
-            _start_time, end_time = offset
-            if start_time < 0:
-                start_time = _start_time
-
-            sub = unescape(sub)
-            sub_line += sub
-            sub_text = match_line(sub_line, sub_index)
-            if sub_text:
-                sub_index += 1
-                line = formatter(
-                    idx=sub_index,
-                    start_time=start_time,
-                    end_time=end_time,
-                    sub_text=sub_text,
-                )
-                sub_items.append(line)
-                start_time = -1.0
-                sub_line = ""
-
-        if len(sub_items) == len(script_lines):
-            with open(subtitle_file, "w", encoding="utf-8") as file:
-                file.write("\n".join(sub_items) + "\n")
-            try:
-                sbs = subtitles.file_to_subtitles(subtitle_file, encoding="utf-8")
-                duration = max([tb for ((ta, tb), txt) in sbs])
-                logger.info(
-                    f"completed, subtitle file created: {subtitle_file}, duration: {duration}"
-                )
-            except Exception as e:
-                logger.error(f"failed, error: {str(e)}")
-                os.remove(subtitle_file)
+        if hasattr(sub_maker, "cues") and sub_maker.cues:
+            sub_items = _build_subtitle_items_from_edge_cues(sub_maker, script_lines)
         else:
+            sub_items = _build_subtitle_items_from_legacy_submaker(
+                sub_maker, script_lines
+            )
+
+        if len(sub_items) != len(script_lines):
             logger.warning(
                 f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}"
             )
+            return
 
+        _write_subtitle_items(sub_items, subtitle_file)
     except Exception as e:
         logger.error(f"failed, error: {str(e)}")
 
 
-def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker):
+def _get_audio_duration_from_submaker(sub_maker: SubMaker):
     """
     获取音频时长
     """
-    if not sub_maker.offset:
+    # 优先兼容 edge_tts 7.x 的 cues 结构；
+    # 如果是项目里其他 TTS 手工填充的旧结构，则继续读取 offset。
+    if hasattr(sub_maker, "cues") and sub_maker.cues:
+        return sub_maker.cues[-1].end.total_seconds()
+
+    legacy_offsets = getattr(sub_maker, "offset", [])
+    if not legacy_offsets:
         return 0.0
-    return sub_maker.offset[-1][1] / 10000000
+    return legacy_offsets[-1][1] / 10000000
 
 def _get_audio_duration_from_mp3(mp3_file: str) -> float:
     """
@@ -1685,13 +1856,13 @@ def _get_audio_duration_from_mp3(mp3_file: str) -> float:
         logger.error(f"Failed to get audio duration from MP3: {str(e)}")
         return 0.0
 
-def get_audio_duration( target: Union[str, submaker.SubMaker]) -> float:
+def get_audio_duration(target: Union[str, SubMaker]) -> float:
     """
     获取音频时长
     如果是SubMaker对象，则从SubMaker中获取时长
     如果是MP3文件，则从MP3文件中获取时长
     """
-    if isinstance(target, submaker.SubMaker):
+    if isinstance(target, SubMaker):
         return _get_audio_duration_from_submaker(target)
     elif isinstance(target, str) and target.endswith(".mp3"):
         return _get_audio_duration_from_mp3(target)
