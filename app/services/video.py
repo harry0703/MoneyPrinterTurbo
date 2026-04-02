@@ -162,6 +162,10 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
         suffix = "*.mp3"
         song_dir = utils.song_dir()
         files = glob.glob(os.path.join(song_dir, suffix))
+        # 当背景音乐目录为空时，直接回退为“不使用 BGM”，避免 random.choice([]) 抛异常。
+        if not files:
+            logger.warning(f"no bgm files found in song directory: {song_dir}")
+            return ""
         return random.choice(files)
 
     return ""
