@@ -12,6 +12,8 @@ from openai.types.chat import ChatCompletion
 from app.config import config
 
 _max_retries = 5
+_DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+_DEPRECATED_GEMINI_MODELS = {"gemini-pro", "gemini-1.0-pro"}
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
@@ -78,6 +80,15 @@ def _generate_response(prompt: str) -> str:
                 api_key = config.app.get("gemini_api_key")
                 model_name = config.app.get("gemini_model_name")
                 base_url = config.app.get("gemini_base_url", "")
+                # Gemini 旧模型名已经陆续下线，这里自动兼容历史配置，
+                # 避免用户沿用旧值时直接收到 404。
+                if not model_name:
+                    model_name = _DEFAULT_GEMINI_MODEL
+                elif model_name in _DEPRECATED_GEMINI_MODELS:
+                    logger.warning(
+                        f"gemini model '{model_name}' is deprecated, fallback to '{_DEFAULT_GEMINI_MODEL}'"
+                    )
+                    model_name = _DEFAULT_GEMINI_MODEL
             elif llm_provider == "qwen":
                 api_key = config.app.get("qwen_api_key")
                 model_name = config.app.get("qwen_model_name")
@@ -165,7 +176,7 @@ def _generate_response(prompt: str) -> str:
                     raise ValueError(
                         f"{llm_provider}: model_name is not set, please set it in the config.toml file."
                     )
-                if not base_url:
+                if not base_url and llm_provider not in ["gemini"]:
                     raise ValueError(
                         f"{llm_provider}: base_url is not set, please set it in the config.toml file."
                     )
