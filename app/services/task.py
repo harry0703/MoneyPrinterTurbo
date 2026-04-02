@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice
+from app.services import llm, material, subtitle, video, voice, upload_post
 from app.services import state as sm
 from app.utils import utils
 
@@ -349,6 +349,21 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         f"task {task_id} finished, generated {len(final_video_paths)} videos."
     )
 
+    # 7. Cross-post to TikTok/Instagram (if enabled)
+    cross_post_results = []
+    if upload_post.upload_post_service.is_configured() and upload_post.upload_post_service.auto_upload:
+        logger.info("\n\n## cross-posting videos to TikTok/Instagram")
+        for video_path in final_video_paths:
+            result = upload_post.cross_post_video(
+                video_path=video_path,
+                title=params.video_subject or "Check out this video! #shorts #viral"
+            )
+            cross_post_results.append(result)
+            if result.get('success'):
+                logger.info(f"✅ Cross-posted: {video_path}")
+            else:
+                logger.warning(f"⚠️ Failed to cross-post: {video_path} - {result.get('error', 'Unknown error')}")
+
     kwargs = {
         "videos": final_video_paths,
         "combined_videos": combined_video_paths,
@@ -358,6 +373,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "audio_duration": audio_duration,
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
+        "cross_post_results": cross_post_results if cross_post_results else None,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
