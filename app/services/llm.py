@@ -35,6 +35,24 @@ def _normalize_text_response(content, llm_provider: str) -> str:
     return content.replace("\n", "")
 
 
+def _extract_chat_completion_text(response, llm_provider: str) -> str:
+    # OpenAI 兼容接口在异常场景下，可能返回没有 choices、
+    # 或者 choices/message/content 为空的响应对象。
+    # 这里统一做结构校验，避免出现 `NoneType is not subscriptable`
+    # 这类底层属性访问错误。
+    choices = getattr(response, "choices", None)
+    if not choices:
+        raise ValueError(f"[{llm_provider}] returned empty choices")
+
+    first_choice = choices[0]
+    message = getattr(first_choice, "message", None)
+    if message is None:
+        raise ValueError(f"[{llm_provider}] returned empty message")
+
+    content = getattr(message, "content", None)
+    return _normalize_text_response(content, llm_provider)
+
+
 def _generate_response(prompt: str) -> str:
     try:
         content = ""
@@ -349,7 +367,7 @@ def _generate_response(prompt: str) -> str:
             )
             if response:
                 if isinstance(response, ChatCompletion):
-                    content = response.choices[0].message.content
+                    return _extract_chat_completion_text(response, llm_provider)
                 else:
                     raise Exception(
                         f'[{llm_provider}] returned an invalid response: "{response}", please check your network '
