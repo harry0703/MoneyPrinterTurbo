@@ -18,7 +18,7 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import ImageFont
+from PIL import Image, ImageFont
 
 from app.models import const
 from app.models.schema import (
@@ -106,6 +106,34 @@ def concat_video_clips_with_ffmpeg(
             raise RuntimeError(error_message or "ffmpeg concat failed")
     finally:
         delete_files(concat_list_file)
+
+
+def _sanitize_image_file(image_path: str) -> str:
+    # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
+    # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
+    image_root, _ = os.path.splitext(image_path)
+    sanitized_path = f"{image_root}.sanitized.png"
+
+    with Image.open(image_path) as image:
+        image.load()
+        # 统一导出为 PNG，避免 JPEG/PNG 不同元数据路径继续把坏块带过去。
+        cleaned_image = Image.new(image.mode, image.size)
+        cleaned_image.putdata(list(image.getdata()))
+        cleaned_image.save(sanitized_path)
+
+    return sanitized_path
+
+
+def _open_image_clip_with_fallback(image_path: str):
+    # 优先直接打开原始图片；如果因为损坏元数据失败，再尝试生成无元数据副本。
+    try:
+        return ImageClip(image_path), image_path
+    except Exception as exc:
+        logger.warning(
+            f"failed to open image directly, trying sanitized copy: {image_path}, error: {str(exc)}"
+        )
+        sanitized_path = _sanitize_image_file(image_path)
+        return ImageClip(sanitized_path), sanitized_path
 
 def close_clip(clip):
     if clip is None:
@@ -559,15 +587,22 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             continue
 
         ext = utils.parse_extension(material.url)
+        material_source_path = material.url
         try:
             # 图片素材直接按图片方式读取，避免先走 VideoFileClip 误判后触发不稳定的回退分支。
             if ext in const.FILE_TYPE_IMAGES:
-                clip = ImageClip(material.url)
+                clip, material_source_path = _open_image_clip_with_fallback(material.url)
             else:
                 clip = VideoFileClip(material.url)
         except Exception:
             # 非标准扩展名或探测失败时再回退到图片模式，兼容历史上直接传本地图片路径的情况。
-            clip = ImageClip(material.url)
+            try:
+                clip, material_source_path = _open_image_clip_with_fallback(material.url)
+            except Exception as exc:
+                logger.warning(
+                    f"skip unreadable local material: {material.url}, error: {str(exc)}"
+                )
+                continue
         try:
             width = clip.size[0]
             height = clip.size[1]
@@ -578,12 +613,12 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 continue
 
             if ext in const.FILE_TYPE_IMAGES:
-                logger.info(f"processing image: {material.url}")
+                logger.info(f"processing image: {material_source_path}")
                 # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
                 close_clip(clip)
                 # Create an image clip and set its duration to 3 seconds
                 clip = (
-                    ImageClip(material.url)
+                    ImageClip(material_source_path)
                     .with_duration(clip_duration)
                     .with_position("center")
                 )
@@ -601,7 +636,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 final_clip = CompositeVideoClip([zoom_clip])
 
                 # Output the video to a file.
-                video_file = f"{material.url}.mp4"
+                video_file = f"{material_source_path}.mp4"
                 final_clip.write_videofile(video_file, fps=30, logger=None)
                 close_clip(clip)
                 close_clip(final_clip)
