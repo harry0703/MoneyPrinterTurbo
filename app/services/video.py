@@ -48,6 +48,9 @@ class SubClippedVideoClip:
 
 
 audio_codec = "aac"
+# Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
+# 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
+audio_bitrate = "192k"
 video_codec = "libx264"
 fps = 30
 
@@ -526,9 +529,14 @@ def generate_video(
             logger.error(f"failed to add bgm: {str(e)}")
 
     video_clip = video_clip.with_audio(audio_clip)
+    # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
+    # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
+    output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
     video_clip.write_videofile(
         output_file,
         audio_codec=audio_codec,
+        audio_fps=output_audio_fps,
+        audio_bitrate=audio_bitrate,
         temp_audiofile_path=output_dir,
         threads=params.n_threads or 2,
         logger=None,
