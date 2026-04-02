@@ -82,7 +82,9 @@ def generate_audio(task_id, params, video_script):
         - sub_maker: subtitle maker object if TTS is used, None otherwise
     '''
     logger.info("\n\n## generating audio")
-    custom_audio_file = params.custom_audio_file
+    # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
+    # 这里统一做兼容读取，避免直调接口时抛属性错误。
+    custom_audio_file = getattr(params, "custom_audio_file", None)
     if not custom_audio_file or not os.path.exists(custom_audio_file):
         if custom_audio_file:
             logger.warning(
@@ -247,9 +249,6 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
-    if type(params.video_concat_mode) is str:
-        params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
-
     # 1. Generate script
     video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
@@ -335,6 +334,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"materials": downloaded_videos}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
+
+    # 仅完整视频生成流程才需要处理视频拼接模式；
+    # 这样可以避免 /subtitle 和 /audio 这类请求访问不存在的字段。
+    if type(params.video_concat_mode) is str:
+        params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
     # 6. Generate final videos
     final_video_paths, combined_video_paths = generate_final_videos(
