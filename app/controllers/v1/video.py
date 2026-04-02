@@ -233,6 +233,9 @@ def get_video_materials_list(request: Request):
     files = []
     for suffix in allowed_suffixes:
         files.extend(glob.glob(os.path.join(local_videos_dir, f"*.{suffix}")))
+    # 文件系统枚举顺序不稳定，直接返回会导致“顺序拼接”在不同机器或不同
+    # 时刻表现不一致。这里统一按文件名排序，至少保证服务端返回顺序可预测。
+    files.sort(key=lambda file_path: os.path.basename(file_path).lower())
     video_materials_list = []
     for file in files:
         video_materials_list.append(
