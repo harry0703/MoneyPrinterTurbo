@@ -7,11 +7,9 @@ from xml.sax.saxutils import unescape
 
 import edge_tts
 import requests
-from edge_tts import SubMaker, submaker
-from edge_tts.submaker import mktimestamp
+from app.services.submaker import  SubMaker,mktimestamp
 from loguru import logger
 from moviepy.video.tools import subtitles
-from moviepy.audio.io.AudioFileClip import AudioFileClip
 
 from app.config import config
 from app.utils import utils
@@ -40,39 +38,6 @@ def get_siliconflow_voices() -> list[str]:
     return [
         f"siliconflow:{model}:{voice}-{gender}"
         for model, voice, gender in voices_with_gender
-    ]
-
-
-def get_gemini_voices() -> list[str]:
-    """
-    获取Gemini TTS的声音列表
-    
-    Returns:
-        声音列表，格式为 ["gemini:Zephyr-Female", "gemini:Puck-Male", ...]
-    """
-    # Gemini TTS支持的语音列表
-    voices_with_gender = [
-        ("Zephyr", "Female"),
-        ("Puck", "Male"), 
-        ("Charon", "Male"),
-        ("Kore", "Female"),
-        ("Fenrir", "Male"),
-        ("Aoede", "Female"),
-        ("Thalia", "Female"),
-        ("Sage", "Male"),
-        ("Echo", "Female"),
-        ("Harmony", "Female"),
-        ("Lux", "Female"),
-        ("Nova", "Female"),
-        ("Vale", "Male"),
-        ("Orion", "Male"),
-        ("Atlas", "Male"),
-    ]
-    
-    # 添加gemini:前缀，并格式化为显示名称
-    return [
-        f"gemini:{voice}-{gender}"
-        for voice, gender in voices_with_gender
     ]
 
 
@@ -1111,11 +1076,6 @@ def is_siliconflow_voice(voice_name: str):
     return voice_name.startswith("siliconflow:")
 
 
-def is_gemini_voice(voice_name: str):
-    """检查是否是Gemini TTS的声音"""
-    return voice_name.startswith("gemini:")
-
-
 def tts(
     text: str,
     voice_name: str,
@@ -1142,18 +1102,6 @@ def tts(
         else:
             logger.error(f"Invalid siliconflow voice name format: {voice_name}")
             return None
-    elif is_gemini_voice(voice_name):
-        # 从voice_name中提取声音名称
-        # 格式: gemini:voice-Gender
-        parts = voice_name.split(":")
-        if len(parts) >= 2:
-            # 移除性别后缀，例如 "Zephyr-Female" -> "Zephyr"
-            voice_with_gender = parts[1]
-            voice = voice_with_gender.split("-")[0]
-            return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
-        else:
-            logger.error(f"Invalid gemini voice name format: {voice_name}")
-            return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
@@ -1167,7 +1115,138 @@ def convert_rate_to_percent(rate: float) -> str:
         return f"{percent}%"
 
 
+import os
+
+
+def ensure_file_path_exists(file_path: str):
+    """
+    确保文件所在的目录存在，如果不存在就自动创建
+    :param file_path: 文件完整路径，例如 "output/audio.mp3"
+    """
+    # 获取文件所在的文件夹路径
+    dir_path = os.path.dirname(file_path)
+
+    # 如果文件夹不存在，就创建
+    if dir_path and not os.path.exists(dir_path):
+        os.makedirs(dir_path, exist_ok=True)
+
 def azure_tts_v1(
+        text: str, voice_name: str, voice_rate: float, voice_file: str
+) -> Union[SubMaker, None]:
+    import tempfile
+    import json
+    import os
+    import asyncio
+    import concurrent.futures
+    import traceback
+    voice_name = parse_voice_name(voice_name)
+    text = text.strip()
+    rate_str = convert_rate_to_percent(voice_rate)
+
+    async def _async_core() -> Union[SubMaker, None]:
+        for i in range(3):
+            try:
+                logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
+                logger.info(f"text: {text[:100]}...")  # 打印前100个字符
+                logger.info(f"rate_str: {rate_str}")
+                logger.info(f"voice_file: {voice_file}")
+
+                communicate = edge_tts.Communicate(text, voice_name, rate=rate_str)
+                logger.info("Communicate object created successfully")
+
+                meta_path = f"{voice_file}.json"
+                logger.info(f"meta_path: {meta_path}")
+                ensure_file_path_exists(voice_file)
+                ensure_file_path_exists(meta_path)
+
+                try:
+                    logger.info("Calling communicate.save()...")
+                    await communicate.save(voice_file, meta_path)
+                    logger.info("communicate.save() completed successfully")
+
+                    sub_maker = SubMaker()
+                    logger.info("SubMaker created")
+
+                    # 检查元数据文件是否存在
+                    if not os.path.exists(meta_path):
+                        logger.error(f"Metadata file not found: {meta_path}")
+                        continue
+
+                    # 读取元数据文件
+                    line_count = 0
+                    with open(meta_path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line_count += 1
+                            line = line.strip()
+                            if not line:
+                                continue
+
+                            try:
+                                data = json.loads(line)
+                                logger.debug(f"Parsed metadata: {data}")
+                                if data.get("type") in ["WordBoundary", "SentenceBoundary"]:
+                                    sub_maker.create_sub(
+                                        (data["offset"], data["duration"]),
+                                        data["text"]
+                                    )
+                            except (json.JSONDecodeError, KeyError) as e:
+                                logger.warning(f"Parse error: {e}, line: {line}")
+                                continue
+
+                    logger.info(f"Processed {line_count} lines from metadata file")
+
+                    if not sub_maker or not sub_maker.subs:
+                        logger.warning("failed, sub_maker is None or sub_maker.subs is None")
+                        continue
+
+                    logger.info(f"completed, output file: {voice_file}, subtitles: {len(sub_maker.subs)}")
+                    return sub_maker
+
+                except Exception as e:
+                    logger.error(f"Error in save/subtitle processing: {str(e)}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    raise  # 重新抛出异常，让外层 except 捕获
+                finally:
+                    if os.path.exists(meta_path):
+                        try:
+                            #os.unlink(meta_path)
+                            logger.info(f"Deleted metadata file: {meta_path}")
+                        except Exception as e:
+                            logger.warning(f"Failed to delete {meta_path}: {e}")
+
+            except Exception as e:
+                logger.error(f"failed in try {i + 1}, error: {str(e)}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                # 如果不是最后一次重试，继续循环
+                if i == 2:  # 最后一次
+                    logger.error("All retries failed")
+                continue
+
+        return None
+
+    # 始终在新线程中运行异步函数，避免任何事件循环冲突
+    def run_async_in_thread():
+        # 在新线程中创建新的事件循环
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            logger.info("Starting async core in new thread")
+            result = loop.run_until_complete(_async_core())
+            logger.info(f"Async core completed with result: {result is not None}")
+            return result
+        except Exception as e:
+            logger.error(f"Exception in async thread: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return None
+        finally:
+            loop.close()
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_async_in_thread)
+        return future.result()
+
+
+def azure_tts_v133(
     text: str, voice_name: str, voice_rate: float, voice_file: str
 ) -> Union[SubMaker, None]:
     voice_name = parse_voice_name(voice_name)
@@ -1179,7 +1258,7 @@ def azure_tts_v1(
 
             async def _do() -> SubMaker:
                 communicate = edge_tts.Communicate(text, voice_name, rate=rate_str)
-                sub_maker = edge_tts.SubMaker()
+                sub_maker = SubMaker()
                 with open(voice_file, "wb") as file:
                     async for chunk in communicate.stream():
                         if chunk["type"] == "audio":
@@ -1435,130 +1514,6 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
     return None
 
 
-def gemini_tts(
-    text: str,
-    voice_name: str,
-    voice_rate: float,
-    voice_file: str,
-    voice_volume: float = 1.0,
-) -> Union[SubMaker, None]:
-    """
-    使用Google Gemini TTS生成语音
-    
-    Args:
-        text: 要转换的文本
-        voice_name: 语音名称，如 "Zephyr", "Puck" 等
-        voice_rate: 语音速率（当前未使用）
-        voice_file: 输出音频文件路径
-        voice_volume: 音频音量（当前未使用）
-        
-    Returns:
-        SubMaker对象或None
-    """
-    import base64
-    import json
-    import io
-    from pydub import AudioSegment
-    import google.generativeai as genai
-    
-    try:
-        # 配置Gemini API
-        api_key = config.app.get("gemini_api_key", "")
-        if not api_key:
-            logger.error("Gemini API key is not set")
-            return None
-            
-        genai.configure(api_key=api_key)
-        
-        logger.info(f"start, voice name: {voice_name}, try: 1")
-        
-        # 使用Gemini TTS API
-        model = genai.GenerativeModel("gemini-2.5-flash-preview-tts")
-        
-        generation_config = {
-            "response_modalities": ["AUDIO"],
-            "speech_config": {
-                "voice_config": {
-                    "prebuilt_voice_config": {
-                        "voice_name": voice_name
-                    }
-                }
-            }
-        }
-        
-        response = model.generate_content(
-            contents=text,
-            generation_config=generation_config
-        )
-        
-        # 检查响应
-        if not response.candidates or not response.candidates[0].content:
-            logger.error("No audio content received from Gemini TTS")
-            return None
-            
-        # 获取音频数据
-        audio_data = None
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
-                audio_data = part.inline_data.data
-                break
-                
-        if not audio_data:
-            logger.error("No audio data found in response")
-            return None
-            
-        # 音频数据已经是原始字节，不需要base64解码
-        if isinstance(audio_data, str):
-            # 如果是字符串，则需要base64解码
-            audio_bytes = base64.b64decode(audio_data)
-        else:
-            # 如果已经是字节，直接使用
-            audio_bytes = audio_data
-        
-        # 尝试不同的音频格式 - Gemini可能返回不同的格式
-        audio_segment = None
-        
-        # Gemini返回Linear PCM格式，按照文档参数解析
-        try:
-            audio_segment = AudioSegment.from_file(
-                io.BytesIO(audio_bytes), 
-                format="raw",
-                frame_rate=24000,  # Gemini TTS默认采样率
-                channels=1,        # 单声道
-                sample_width=2     # 16-bit
-            )
-        except Exception as e:
-            logger.error(f"Failed to load PCM audio: {e}")
-            return None
-        
-        # 导出为MP3格式
-        audio_segment.export(voice_file, format="mp3")
-        
-        logger.info(f"completed, output file: {voice_file}")
-        
-        # 创建SubMaker对象用于字幕
-        sub_maker = SubMaker()
-        audio_duration = len(audio_segment) / 1000.0  # 转换为秒
-        
-        # 将音频长度转换为100纳秒单位（与edge_tts兼容）
-        audio_duration_100ns = int(audio_duration * 10000000)
-        
-        # 使用create_sub方法正确创建字幕项
-        sub_maker.create_sub(
-            (0, audio_duration_100ns), 
-            text
-        )
-        
-        return sub_maker
-        
-    except ImportError as e:
-        logger.error(f"Missing required package for Gemini TTS: {str(e)}. Please install: pip install pydub")
-        return None
-    except Exception as e:
-        logger.error(f"Gemini TTS failed, error: {str(e)}")
-        return None
-
-
 def _format_text(text: str) -> str:
     # text = text.replace("\n", " ")
     text = text.replace("[", " ")
@@ -1571,7 +1526,8 @@ def _format_text(text: str) -> str:
     return text
 
 
-def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str):
+
+def create_subtitle(sub_maker: SubMaker, text: str, subtitle_file: str):
     """
     优化字幕文件
     1. 将字幕文件按照标点符号分割成多行
@@ -1661,7 +1617,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
         logger.error(f"failed, error: {str(e)}")
 
 
-def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker):
+def get_audio_duration(sub_maker: SubMaker):
     """
     获取音频时长
     """
@@ -1669,35 +1625,6 @@ def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker):
         return 0.0
     return sub_maker.offset[-1][1] / 10000000
 
-def _get_audio_duration_from_mp3(mp3_file: str) -> float:
-    """
-    获取MP3音频时长
-    """
-    if not os.path.exists(mp3_file):
-        logger.error(f"MP3 file does not exist: {mp3_file}")
-        return 0.0
-
-    try:
-        # Use moviepy to get the duration of the MP3 file
-        with AudioFileClip(mp3_file) as audio:
-            return audio.duration  # Duration in seconds
-    except Exception as e:
-        logger.error(f"Failed to get audio duration from MP3: {str(e)}")
-        return 0.0
-
-def get_audio_duration( target: Union[str, submaker.SubMaker]) -> float:
-    """
-    获取音频时长
-    如果是SubMaker对象，则从SubMaker中获取时长
-    如果是MP3文件，则从MP3文件中获取时长
-    """
-    if isinstance(target, submaker.SubMaker):
-        return _get_audio_duration_from_submaker(target)
-    elif isinstance(target, str) and target.endswith(".mp3"):
-        return _get_audio_duration_from_mp3(target)
-    else:
-        logger.error(f"Invalid target type: {type(target)}")
-        return 0.0
 
 if __name__ == "__main__":
     voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
@@ -1708,38 +1635,31 @@ if __name__ == "__main__":
     voices = get_all_azure_voices()
     print(len(voices))
 
-    async def _do():
-        temp_dir = utils.storage_dir("temp")
+    temp_dir = utils.storage_dir("temp")
 
-        voice_names = [
-            "zh-CN-XiaoxiaoMultilingualNeural",
-            # 女性
-            "zh-CN-XiaoxiaoNeural",
-            "zh-CN-XiaoyiNeural",
-            # 男性
-            "zh-CN-YunyangNeural",
-            "zh-CN-YunxiNeural",
-        ]
-        text = """
-        静夜思是唐代诗人李白创作的一首五言古诗。这首诗描绘了诗人在寂静的夜晚，看到窗前的明月，不禁想起远方的家乡和亲人，表达了他对家乡和亲人的深深思念之情。全诗内容是：“床前明月光，疑是地上霜。举头望明月，低头思故乡。”在这短短的四句诗中，诗人通过“明月”和“思故乡”的意象，巧妙地表达了离乡背井人的孤独与哀愁。首句“床前明月光”设景立意，通过明亮的月光引出诗人的遐想；“疑是地上霜”增添了夜晚的寒冷感，加深了诗人的孤寂之情；“举头望明月”和“低头思故乡”则是情感的升华，展现了诗人内心深处的乡愁和对家的渴望。这首诗简洁明快，情感真挚，是中国古典诗歌中非常著名的一首，也深受后人喜爱和推崇。
-            """
-
-        text = """
-        What is the meaning of life? This question has puzzled philosophers, scientists, and thinkers of all kinds for centuries. Throughout history, various cultures and individuals have come up with their interpretations and beliefs around the purpose of life. Some say it's to seek happiness and self-fulfillment, while others believe it's about contributing to the welfare of others and making a positive impact in the world. Despite the myriad of perspectives, one thing remains clear: the meaning of life is a deeply personal concept that varies from one person to another. It's an existential inquiry that encourages us to reflect on our values, desires, and the essence of our existence.
+    voice_names = [
+        "zh-CN-XiaoxiaoNeural",
+    ]
+    text = """
+    静夜思是唐代诗人李白创作的一首五言古诗。这首诗描绘了诗人在寂静的夜晚，看到窗前的明月，不禁想起远方的家乡和亲人，表达了他对家乡和亲人的深深思念之情。全诗内容是：“床前明月光，疑是地上霜。举头望明月，低头思故乡。”在这短短的四句诗中，诗人通过“明月”和“思故乡”的意象，巧妙地表达了离乡背井人的孤独与哀愁。首句“床前明月光”设景立意，通过明亮的月光引出诗人的遐想；“疑是地上霜”增添了夜晚的寒冷感，加深了诗人的孤寂之情；“举头望明月”和“低头思故乡”则是情感的升华，展现了诗人内心深处的乡愁和对家的渴望。这首诗简洁明快，情感真挚，是中国古典诗歌中非常著名的一首，也深受后人喜爱和推崇。
         """
 
-        text = """
-               预计未来3天深圳冷空气活动频繁，未来两天持续阴天有小雨，出门带好雨具；
-               10-11日持续阴天有小雨，日温差小，气温在13-17℃之间，体感阴凉；
-               12日天气短暂好转，早晚清凉；
-                   """
+    text = """
+    What is the meaning of life? This question has puzzled philosophers, scientists, and thinkers of all kinds for centuries. Throughout history, various cultures and individuals have come up with their interpretations and beliefs around the purpose of life. Some say it's to seek happiness and self-fulfillment, while others believe it's about contributing to the welfare of others and making a positive impact in the world. Despite the myriad of perspectives, one thing remains clear: the meaning of life is a deeply personal concept that varies from one person to another. It's an existential inquiry that encourages us to reflect on our values, desires, and the essence of our existence.
+    """
 
-        text = "[Opening scene: A sunny day in a suburban neighborhood. A young boy named Alex, around 8 years old, is playing in his front yard with his loyal dog, Buddy.]\n\n[Camera zooms in on Alex as he throws a ball for Buddy to fetch. Buddy excitedly runs after it and brings it back to Alex.]\n\nAlex: Good boy, Buddy! You're the best dog ever!\n\n[Buddy barks happily and wags his tail.]\n\n[As Alex and Buddy continue playing, a series of potential dangers loom nearby, such as a stray dog approaching, a ball rolling towards the street, and a suspicious-looking stranger walking by.]\n\nAlex: Uh oh, Buddy, look out!\n\n[Buddy senses the danger and immediately springs into action. He barks loudly at the stray dog, scaring it away. Then, he rushes to retrieve the ball before it reaches the street and gently nudges it back towards Alex. Finally, he stands protectively between Alex and the stranger, growling softly to warn them away.]\n\nAlex: Wow, Buddy, you're like my superhero!\n\n[Just as Alex and Buddy are about to head inside, they hear a loud crash from a nearby construction site. They rush over to investigate and find a pile of rubble blocking the path of a kitten trapped underneath.]\n\nAlex: Oh no, Buddy, we have to help!\n\n[Buddy barks in agreement and together they work to carefully move the rubble aside, allowing the kitten to escape unharmed. The kitten gratefully nuzzles against Buddy, who responds with a friendly lick.]\n\nAlex: We did it, Buddy! We saved the day again!\n\n[As Alex and Buddy walk home together, the sun begins to set, casting a warm glow over the neighborhood.]\n\nAlex: Thanks for always being there to watch over me, Buddy. You're not just my dog, you're my best friend.\n\n[Buddy barks happily and nuzzles against Alex as they disappear into the sunset, ready to face whatever adventures tomorrow may bring.]\n\n[End scene.]"
+    text = """
+           预计未来3天深圳冷空气活动频繁，未来两天持续阴天有小雨，出门带好雨具；
+           10-11日持续阴天有小雨，日温差小，气温在13-17℃之间，体感阴凉；
+           12日天气短暂好转，早晚清凉；
+               """
 
-        text = "大家好，我是乔哥，一个想帮你把信用卡全部还清的家伙！\n今天我们要聊的是信用卡的取现功能。\n你是不是也曾经因为一时的资金紧张，而拿着信用卡到ATM机取现？如果是，那你得好好看看这个视频了。\n现在都2024年了，我以为现在不会再有人用信用卡取现功能了。前几天一个粉丝发来一张图片，取现1万。\n信用卡取现有三个弊端。\n一，信用卡取现功能代价可不小。会先收取一个取现手续费，比如这个粉丝，取现1万，按2.5%收取手续费，收取了250元。\n二，信用卡正常消费有最长56天的免息期，但取现不享受免息期。从取现那一天开始，每天按照万5收取利息，这个粉丝用了11天，收取了55元利息。\n三，频繁的取现行为，银行会认为你资金紧张，会被标记为高风险用户，影响你的综合评分和额度。\n那么，如果你资金紧张了，该怎么办呢？\n乔哥给你支一招，用破思机摩擦信用卡，只需要少量的手续费，而且还可以享受最长56天的免息期。\n最后，如果你对玩卡感兴趣，可以找乔哥领取一本《卡神秘籍》，用卡过程中遇到任何疑惑，也欢迎找乔哥交流。\n别忘了，关注乔哥，回复用卡技巧，免费领取《2024用卡技巧》，让我们一起成为用卡高手！"
+    text = "[Opening scene: A sunny day in a suburban neighborhood. A young boy named Alex, around 8 years old, is playing in his front yard with his loyal dog, Buddy.]\n\n[Camera zooms in on Alex as he throws a ball for Buddy to fetch. Buddy excitedly runs after it and brings it back to Alex.]\n\nAlex: Good boy, Buddy! You're the best dog ever!\n\n[Buddy barks happily and wags his tail.]\n\n[As Alex and Buddy continue playing, a series of potential dangers loom nearby, such as a stray dog approaching, a ball rolling towards the street, and a suspicious-looking stranger walking by.]\n\nAlex: Uh oh, Buddy, look out!\n\n[Buddy senses the danger and immediately springs into action. He barks loudly at the stray dog, scaring it away. Then, he rushes to retrieve the ball before it reaches the street and gently nudges it back towards Alex. Finally, he stands protectively between Alex and the stranger, growling softly to warn them away.]\n\nAlex: Wow, Buddy, you're like my superhero!\n\n[Just as Alex and Buddy are about to head inside, they hear a loud crash from a nearby construction site. They rush over to investigate and find a pile of rubble blocking the path of a kitten trapped underneath.]\n\nAlex: Oh no, Buddy, we have to help!\n\n[Buddy barks in agreement and together they work to carefully move the rubble aside, allowing the kitten to escape unharmed. The kitten gratefully nuzzles against Buddy, who responds with a friendly lick.]\n\nAlex: We did it, Buddy! We saved the day again!\n\n[As Alex and Buddy walk home together, the sun begins to set, casting a warm glow over the neighborhood.]\n\nAlex: Thanks for always being there to watch over me, Buddy. You're not just my dog, you're my best friend.\n\n[Buddy barks happily and nuzzles against Alex as they disappear into the sunset, ready to face whatever adventures tomorrow may bring.]\n\n[End scene.]"
 
-        text = """
-        2023全年业绩速览
+    text = "大家好，我是乔哥，一个想帮你把信用卡全部还清的家伙！\n今天我们要聊的是信用卡的取现功能。\n你是不是也曾经因为一时的资金紧张，而拿着信用卡到ATM机取现？如果是，那你得好好看看这个视频了。\n现在都2024年了，我以为现在不会再有人用信用卡取现功能了。前几天一个粉丝发来一张图片，取现1万。\n信用卡取现有三个弊端。\n一，信用卡取现功能代价可不小。会先收取一个取现手续费，比如这个粉丝，取现1万，按2.5%收取手续费，收取了250元。\n二，信用卡正常消费有最长56天的免息期，但取现不享受免息期。从取现那一天开始，每天按照万5收取利息，这个粉丝用了11天，收取了55元利息。\n三，频繁的取现行为，银行会认为你资金紧张，会被标记为高风险用户，影响你的综合评分和额度。\n那么，如果你资金紧张了，该怎么办呢？\n乔哥给你支一招，用破思机摩擦信用卡，只需要少量的手续费，而且还可以享受最长56天的免息期。\n最后，如果你对玩卡感兴趣，可以找乔哥领取一本《卡神秘籍》，用卡过程中遇到任何疑惑，也欢迎找乔哥交流。\n别忘了，关注乔哥，回复用卡技巧，免费领取《2024用卡技巧》，让我们一起成为用卡高手！"
+
+    text = """
+    2023全年业绩速览
 公司全年累计实现营业收入1476.94亿元，同比增长19.01%，归母净利润747.34亿元，同比增长19.16%。EPS达到59.49元。第四季度单季，营业收入444.25亿元，同比增长20.26%，环比增长31.86%；归母净利润218.58亿元，同比增长19.33%，环比增长29.37%。这一阶段
 的业绩表现不仅突显了公司的增长动力和盈利能力，也反映出公司在竞争激烈的市场环境中保持了良好的发展势头。
 2023年Q4业绩速览
@@ -1747,24 +1667,19 @@ if __name__ == "__main__":
 业绩解读
 利润方面，2023全年贵州茅台，>归母净利润增速为19%，其中营业收入正贡献18%，营业成本正贡献百分之一，管理费用正贡献百分之一点四。(注：归母净利润增速值=营业收入增速+各科目贡献，展示贡献/拖累的前四名科目，且要求贡献值/净利润增速>15%)
 """
-        text = "静夜思是唐代诗人李白创作的一首五言古诗。这首诗描绘了诗人在寂静的夜晚，看到窗前的明月，不禁想起远方的家乡和亲人"
+    text = "静夜思是唐代诗人李白创作的一首五言古诗。这首诗描绘了诗人在寂静的夜晚，看到窗前的明月，不禁想起远方的家乡和亲人"
 
-        text = _format_text(text)
-        lines = utils.split_string_by_punctuations(text)
-        print(lines)
+    text = _format_text(text)
+    lines = utils.split_string_by_punctuations(text)
+    print(lines)
 
-        for voice_name in voice_names:
-            voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
-            subtitle_file = f"{temp_dir}/tts.mp3.srt"
-            sub_maker = azure_tts_v2(
-                text=text, voice_name=voice_name, voice_file=voice_file
-            )
-            create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
-            audio_duration = get_audio_duration(sub_maker)
-            print(f"voice: {voice_name}, audio duration: {audio_duration}s")
+    for voice_name in voice_names:
+        voice_file = f"{temp_dir}/tts-{voice_name}.mp3"
+        subtitle_file = f"{temp_dir}/tts.mp3.srt"
+        sub_maker = azure_tts_v1(
+            text=text, voice_name=voice_name, voice_file=voice_file,voice_rate=1.0
+        )
+        create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
+        audio_duration = get_audio_duration(sub_maker)
+        print(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
-    loop = asyncio.get_event_loop_policy().get_event_loop()
-    try:
-        loop.run_until_complete(_do())
-    finally:
-        loop.close()
