@@ -293,8 +293,8 @@ if not config.app.get("hide_config", False):
                             ##### OpenAI 配置说明
                             > 需要VPN开启全局流量模式
                             - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
-                            - **Base Url**: 可以留空
-                            - **Model Name**: 填写**有权限**的模型，[点击查看模型列表](https://platform.openai.com/settings/organization/limits)
+                            - **Base Url**: 官方 OpenAI 可留空；如果使用 OpenAI 兼容供应商（例如 OpenRouter），请填写对应的兼容接口地址
+                            - **Model Name**: 填写**有权限**的模型；如果使用兼容供应商，请填写该平台支持的模型 ID
                             """
 
             if llm_provider == "moonshot":

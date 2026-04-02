@@ -51,10 +51,14 @@ ollama_model_name = ""
 
 ########## OpenAI API Key
 # Get your API key at https://platform.openai.com/api-keys
+# 也可以填写兼容 OpenAI Chat Completions 协议的供应商密钥，
+# 例如 OpenRouter 这类提供自定义 base_url 的平台。
 openai_api_key = ""
 # No need to set it unless you want to use your own proxy
+# 如果使用兼容 OpenAI 接口的平台，请在这里填写对应的 base_url。
 openai_base_url = ""
 # Check your available models at https://platform.openai.com/account/limits
+# 如果使用兼容供应商，请填写该平台要求的模型 ID。
 openai_model_name = "gpt-4o-mini"
 
 ########## Moonshot API Key
