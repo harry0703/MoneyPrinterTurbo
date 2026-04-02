@@ -14,6 +14,25 @@ from app.config import config
 _max_retries = 5
 
 
+def _normalize_text_response(content, llm_provider: str) -> str:
+    # 不同 LLM SDK 在异常或被拦截场景下，可能返回 None、空字符串，
+    # 甚至返回非字符串对象。这里统一做兜底校验，避免后续直接调用
+    # `.replace()` 时抛出 `NoneType` 之类的属性错误。
+    if content is None:
+        raise ValueError(f"[{llm_provider}] returned empty text content")
+
+    if not isinstance(content, str):
+        raise TypeError(
+            f"[{llm_provider}] returned non-text content: {type(content).__name__}"
+        )
+
+    content = content.strip()
+    if not content:
+        raise ValueError(f"[{llm_provider}] returned empty text content")
+
+    return content.replace("\n", "")
+
+
 def _generate_response(prompt: str) -> str:
     try:
         content = ""
@@ -128,7 +147,7 @@ def _generate_response(prompt: str) -> str:
                     
                     if result and "choices" in result and len(result["choices"]) > 0:
                         content = result["choices"][0]["message"]["content"]
-                        return content.replace("\n", "")
+                        return _normalize_text_response(content, llm_provider)
                     else:
                         raise Exception(f"[{llm_provider}] returned an invalid response format")
                         
@@ -222,8 +241,9 @@ def _generate_response(prompt: str) -> str:
                     generated_text = candidates[0].content.parts[0].text
                 except (AttributeError, IndexError) as e:
                     print("Gemini Error:", e)
+                    raise ValueError(f"[{llm_provider}] returned invalid response content")
 
-                return generated_text
+                return _normalize_text_response(generated_text, llm_provider)
 
             if llm_provider == "cloudflare":
                 response = requests.post(
@@ -241,7 +261,7 @@ def _generate_response(prompt: str) -> str:
                 )
                 result = response.json()
                 logger.info(result)
-                return result["result"]["response"]
+                return _normalize_text_response(result["result"]["response"], llm_provider)
 
             if llm_provider == "ernie":
                 response = requests.post(
@@ -271,7 +291,7 @@ def _generate_response(prompt: str) -> str:
                 response = requests.request(
                     "POST", url, headers=headers, data=payload
                 ).json()
-                return response.get("result")
+                return _normalize_text_response(response.get("result"), llm_provider)
 
             if llm_provider == "azure":
                 client = AzureOpenAI(
@@ -303,7 +323,7 @@ def _generate_response(prompt: str) -> str:
                     if not content.strip():
                         raise ValueError("Empty content in stream response")
                     
-                    return content.replace("\n", "")
+                    return _normalize_text_response(content, llm_provider)
                 else:
                     raise Exception(f"[{llm_provider}] returned an empty response")
 
@@ -329,7 +349,7 @@ def _generate_response(prompt: str) -> str:
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
 
-        return content.replace("\n", "")
+        return _normalize_text_response(content, llm_provider)
     except Exception as e:
         return f"Error: {str(e)}"
 
