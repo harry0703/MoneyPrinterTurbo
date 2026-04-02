@@ -255,7 +255,9 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
     # check file ext
     allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
-    if file.filename.endswith(allowed_suffixes):
+    normalized_filename = (file.filename or "").lower()
+    # 统一按小写扩展名校验，兼容 .MOV 这类大写后缀文件。
+    if normalized_filename.endswith(allowed_suffixes):
         local_videos_dir = utils.storage_dir("local_videos", create=True)
         save_path = os.path.join(local_videos_dir, file.filename)
         # save file

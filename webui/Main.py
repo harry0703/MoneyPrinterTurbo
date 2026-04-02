@@ -582,9 +582,11 @@ with middle_panel:
         config.app["video_source"] = params.video_source
 
         if params.video_source == "local":
+            # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
+            local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
             uploaded_files = st.file_uploader(
                 "Upload Local Files",
-                type=["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"],
+                type=local_file_types + [file_type.upper() for file_type in local_file_types],
                 accept_multiple_files=True,
             )
 
