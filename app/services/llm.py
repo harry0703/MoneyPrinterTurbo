@@ -1102,15 +1102,17 @@ def generate_scene_terms(
 ) -> List[str]:
     """
     Generate search terms for a specific scene.
-    
+    Generate terms in the same language as the scene script.
+    English translations will be added during video search.
+
     Args:
         video_subject: Overall video subject
         scene_script: Script for this specific scene
         scene_camera: Camera/visual description for this scene
         amount: Number of terms to generate
-    
+
     Returns:
-        List of search terms
+        List of search terms in the original language
     """
     prompt = f"""
 # Role: Scene-Specific Video Search Terms Generator
@@ -1122,12 +1124,12 @@ Generate {amount} search terms for stock videos for a specific scene.
 1. The search terms should be relevant to both the scene's visual description and narration
 2. Each search term should consist of 1-3 words
 3. You must only return the JSON array of strings
-4. Generate both English and Chinese search terms to get more relevant videos
+4. Generate search terms in the same language as the scene script
 5. Focus on visual elements mentioned in the camera description
 6. Always include keywords related to the overall video subject to maintain consistency across scenes
 
 ## Output Example:
-["design patterns", "设计模式", "software design", "软件设计", "coding best practices", "编程最佳实践", "object oriented", "面向对象", "design principles", "设计原则"]
+["城市夜景", "摩天大楼", "都市生活", "繁华街道", "现代建筑"]
 
 ## Context:
 ### Video Subject
@@ -1139,11 +1141,11 @@ Generate {amount} search terms for stock videos for a specific scene.
 ### Scene Script
 {scene_script}
 
-Please generate both English and Chinese search terms to ensure better search results.
+Please generate search terms in the same language as the scene script.
 """.strip()
 
     logger.info(f"generating terms for scene")
-    
+
     search_terms = []
     response = ""
     for i in range(_max_retries):
@@ -1174,19 +1176,99 @@ Please generate both English and Chinese search terms to ensure better search re
                     except Exception as e:
                         logger.warning(f"failed to parse scene terms: {str(e)}")
                         pass
-        
+
         if search_terms and len(search_terms) > 0:
             break
         if i < _max_retries - 1:
             logger.warning(f"failed to generate scene terms, trying again... {i + 1}")
-    
+
     if not search_terms and stop_on_api_failure:
         error_msg = f"LLM API failed to generate scene terms after {_max_retries} attempts"
         logger.error(error_msg)
         return f"Error: {error_msg}"
-    
+
     logger.success(f"completed scene terms: {search_terms}")
     return search_terms
+
+
+def add_english_translations(terms: List[str]) -> List[str]:
+    """
+    For non-English terms, add English translations to maximize video search coverage.
+
+    Args:
+        terms: List of search terms (may contain any language)
+
+    Returns:
+        List of terms with English translations added for non-English terms
+    """
+    if not terms:
+        return terms
+
+    # Check if terms are already in English
+    def is_english_term(term: str) -> bool:
+        """Check if a term is primarily English (ASCII characters)."""
+        if not term:
+            return True
+        # Count non-ASCII characters
+        non_ascii_count = sum(1 for char in term if ord(char) > 127)
+        # If more than 30% non-ASCII, consider it non-English
+        return non_ascii_count / len(term) < 0.3
+
+    # Separate English and non-English terms
+    english_terms = [t for t in terms if is_english_term(t)]
+    non_english_terms = [t for t in terms if not is_english_term(t)]
+
+    if not non_english_terms:
+        # All terms are already in English
+        return terms
+
+    # Generate English translations for non-English terms
+    translations = []
+    try:
+        terms_str = ", ".join([f'"{t}"' for t in non_english_terms])
+        prompt = f"""
+Translate the following search terms to English for video search purposes.
+Return ONLY a JSON array with the English translations in the same order.
+
+Terms to translate:
+[{terms_str}]
+
+Requirements:
+1. Each translation should be 1-3 words
+2. Use common video search keywords
+3. Return ONLY the JSON array, no other text
+
+Example output:
+["city night view", "skyscraper", "urban life"]
+""".strip()
+
+        response = _generate_response(prompt)
+        if "Error: " not in response:
+            try:
+                translations = json.loads(response)
+                if not isinstance(translations, list):
+                    translations = []
+            except:
+                # Try to extract array from response
+                match = re.search(r'\[.*]', response)
+                if match:
+                    try:
+                        translations = json.loads(match.group())
+                    except:
+                        translations = []
+    except Exception as e:
+        logger.warning(f"Failed to generate translations: {str(e)}")
+        translations = []
+
+    # Combine original terms with English translations
+    final_terms = list(terms)  # Keep original terms
+    if translations and len(translations) == len(non_english_terms):
+        final_terms.extend(translations)
+        logger.info(f"Added English translations: {translations}")
+    else:
+        logger.warning(f"Translation mismatch: expected {len(non_english_terms)}, got {len(translations)}")
+
+    return final_terms
 
 
 if __name__ == "__main__":

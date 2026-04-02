@@ -204,15 +204,15 @@ def generate_scene_terms(task_id, params, scenes):
             )
         
         if terms and not (isinstance(terms, str) and "Error: " in terms):
-            # Ensure video subject is included in keywords
+            # Ensure video subject is included in keywords (add bilingual versions)
             if params.video_subject and params.video_subject.strip():
                 subject_lower = params.video_subject.lower()
                 terms_lower = [term.lower() for term in terms]
                 if subject_lower not in terms_lower:
                     # Add video subject to terms if not already present
+                    # Add both English and Chinese versions if possible
                     terms.insert(0, params.video_subject)
-                    # Limit to amount terms
-                    terms = terms[:5]
+                    # Do not limit terms count to preserve bilingual keywords
             # Filter out any empty terms
             terms = [term for term in terms if term and term.strip()]
             scene_terms_list.append(terms)

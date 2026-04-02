@@ -10,6 +10,7 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
+from app.services.llm import add_english_translations
 
 requested_count = 0
 
@@ -331,6 +332,11 @@ def download_videos(
     if not valid_search_terms:
         logger.warning("No valid search terms provided for video download")
         return []
+    
+    # Add English translations for non-English terms to maximize search coverage
+    enhanced_search_terms = add_english_translations(valid_search_terms)
+    logger.info(f"Enhanced search terms with translations: {enhanced_search_terms}")
+    valid_search_terms = enhanced_search_terms
 
     for search_term in valid_search_terms:
         video_items = search_videos(
