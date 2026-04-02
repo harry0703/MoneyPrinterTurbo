@@ -148,10 +148,23 @@ def combine_videos(
         start_time = 0
 
         while start_time < clip_duration:
-            end_time = min(start_time + max_clip_duration, clip_duration)            
-            if clip_duration - start_time >= max_clip_duration:
-                subclipped_items.append(SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h))
-            start_time = end_time    
+            end_time = min(start_time + max_clip_duration, clip_duration)
+
+            # 保留所有有效分段。
+            # 这样既不会丢掉“整段视频本身就短于 max_clip_duration”的素材，
+            # 也不会吞掉长视频最后剩下的一小段尾部内容。
+            if end_time > start_time:
+                subclipped_items.append(
+                    SubClippedVideoClip(
+                        file_path=video_path,
+                        start_time=start_time,
+                        end_time=end_time,
+                        width=clip_w,
+                        height=clip_h,
+                    )
+                )
+
+            start_time = end_time
             if video_concat_mode.value == VideoConcatMode.sequential.value:
                 break
 
