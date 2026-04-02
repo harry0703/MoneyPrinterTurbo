@@ -886,24 +886,34 @@ with right_panel:
             (tr("Bottom"), "bottom"),
             (tr("Custom"), "custom"),
         ]
+        saved_subtitle_position = config.ui.get("subtitle_position", "bottom")
+        saved_position_index = 2
+        for i, (_, pos_value) in enumerate(subtitle_positions):
+            if pos_value == saved_subtitle_position:
+                saved_position_index = i
+                break
         selected_index = st.selectbox(
             tr("Position"),
-            index=2,
+            index=saved_position_index,
             options=range(len(subtitle_positions)),
             format_func=lambda x: subtitle_positions[x][0],
         )
         params.subtitle_position = subtitle_positions[selected_index][1]
+        config.ui["subtitle_position"] = params.subtitle_position
 
         if params.subtitle_position == "custom":
+            saved_custom_position = config.ui.get("custom_position", 70.0)
             custom_position = st.text_input(
                 tr("Custom Position (% from top)"),
-                value="70.0",
+                value=str(saved_custom_position),
                 key="custom_position_input",
             )
             try:
                 params.custom_position = float(custom_position)
                 if params.custom_position < 0 or params.custom_position > 100:
                     st.error(tr("Please enter a value between 0 and 100"))
+                else:
+                    config.ui["custom_position"] = params.custom_position
             except ValueError:
                 st.error(tr("Please enter a valid number"))
 
