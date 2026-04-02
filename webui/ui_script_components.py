@@ -21,15 +21,20 @@ def render_script_settings(params, tr, llm):
     
     with st.container(border=True):
         st.write(tr("Video Script Settings"))
-        st.session_state["video_subject"] = st.text_input(
+        
+        # Get video subject from user input
+        video_subject = st.text_input(
             tr("Video Subject"),
             value=st.session_state.get("video_subject", ""),
             key="video_subject_input",
         ).strip()
-        params.video_subject = st.session_state["video_subject"]
+        
+        # Update session state and params
+        st.session_state["video_subject"] = video_subject
+        params.video_subject = video_subject
 
         video_languages = [
-            (tr("Auto Detect"), ""),
+            (tr("Auto Detect"), None),
         ]
         support_locales = [
             "zh-CN",
@@ -67,8 +72,13 @@ def render_script_settings(params, tr, llm):
             tr("Generate Video Script and Keywords"), key="auto_generate_script", use_container_width=True
         ):
             with st.spinner(tr("Generating Video Script")):
+                # Check if video subject is empty
+                if not video_subject:
+                    st.error(tr("Please Enter the Video Subject"))
+                    st.stop()
+                
                 script = llm.generate_script(
-                    video_subject=params.video_subject, language=params.video_language
+                    video_subject=video_subject, language=params.video_language
                 )
                 if "Error: " in script:
                     st.error(tr(script))
@@ -82,7 +92,7 @@ def render_script_settings(params, tr, llm):
         st.session_state["video_script"] = params.video_script
         if st.button(tr("Generate Video Keywords"), key="auto_generate_terms", use_container_width=True):
             if not params.video_script:
-                st.error(tr("Please Enter the Video Subject"))
+                st.error(tr("Please Enter the Video Script"))
                 st.stop()
 
             with st.spinner(tr("Generating Video Keywords")):
@@ -99,36 +109,31 @@ def render_script_settings(params, tr, llm):
 
         # Parse button - moved to the bottom of script settings panel
         if st.button(tr("Parse Current Script"), key="parse_script_btn", use_container_width=True):
-            if not st.session_state.get("video_script", "").strip():
+            script_to_parse = st.session_state.get("video_script", "").strip()
+            
+            if not script_to_parse:
                 st.warning(tr("Please enter a script first"))
-            else:
-                with st.spinner(tr("Parsing script...")):
-                    # Set default parse mode to auto
-                    parse_mode = "auto"
-                    st.session_state["auto_parse_mode"] = parse_mode
-                    
-                    logger.info(f"Starting to parse script, script length: {len(st.session_state['video_script'])}")
-                    result = auto_parse_script(
-                        st.session_state["video_script"],
-                        max_retries=3,
-                        auto_mode=True  # Always use auto mode to skip review
-                    )
-                    logger.info(f"Parsing result: status={result.get('status')}, scenes_count={len(result.get('scenes', []))}")
-                    
-                    if result["status"] in ["success", "manual"]:
-                        # Always accept the parsed scenes without review
-                        scenes_data = result["scenes"]
-                        logger.info(f"Setting session state with {len(scenes_data)} scenes")
-                        for i, scene in enumerate(scenes_data):
-                            logger.info(f"Scene {i+1}: visual_requirement='{scene.get('visual_requirement', 'N/A')}', keywords='{scene.get('keywords', 'N/A')}'")
-                        
-                        st.session_state["scenes"] = scenes_data
-                        logger.info(f"Session state 'scenes' updated, count: {len(st.session_state['scenes'])}")
-                        st.success(tr(f"Successfully parsed {len(result['scenes'])} scenes"))
-                        st.rerun()
-                    else:
-                        # Failed
-                        st.error(tr(f"Parsing failed: {result.get('message', 'Unknown error')}"))
+                st.stop()
+            
+            with st.spinner(tr("Parsing script...")):
+                # Use the selected language from params
+                selected_language = params.video_language
+                
+                # Use LLM to parse the script
+                import app.services.scene_parser as scene_parser_service
+                result = scene_parser_service.auto_parse_script(script_to_parse, language=selected_language)
+                
+                if result["status"] in ["success", "manual"]:
+                    # Save scenes to session state
+                    st.session_state["scenes"] = result["scenes"]
+                    st.session_state["current_scene_index"] = 0
+                    st.success(tr(f"Successfully parsed {len(result['scenes'])} scenes"))
+                    st.rerun()
+                else:
+                    # LLM parsing failed
+                    st.error(tr("Failed to parse script using LLM. Please try again later."))
+                    logger.error(f"LLM parsing failed: {result.get('message', 'Unknown error')}")
+                    st.stop()
 
     # Scene management panel - moved outside the script settings container
     if multi_scene_enabled:

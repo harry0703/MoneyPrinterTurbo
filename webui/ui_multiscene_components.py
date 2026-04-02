@@ -148,7 +148,7 @@ def render_multiscene_management(tr):
                         st.text(f"{tr('Duration (seconds)')}:")
                     with col2:
                         scene["duration"] = st.number_input(
-                            "",
+                            "Duration",
                             min_value=1, max_value=60, value=scene["duration"],
                             label_visibility="collapsed",
                             key=f"duration_{scene['id']}"
@@ -171,7 +171,7 @@ def render_multiscene_management(tr):
                     
                     # Script input
                     scene["script"] = st.text_area(
-                        tr("Scene Script"),
+                        tr("Scene Lines"),
                         value=scene["script"],
                         height=90,  # Default height 90px
                         key=f"script_{scene['id']}"

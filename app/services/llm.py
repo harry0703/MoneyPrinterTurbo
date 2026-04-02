@@ -16,6 +16,32 @@ _max_retries = 5
 # Load configuration once at module level
 stop_on_api_failure = config.app.get("stop_on_api_failure", False)
 
+# Language detection utility
+def detect_language(text: str) -> str:
+    """
+    Detect the language of the given text.
+    
+    Args:
+        text: Text to detect language from
+        
+    Returns:
+        Detected language code
+    """
+    # Simple language detection based on character sets and common words
+    # This is a basic implementation - for production, consider using a proper NLP library
+    
+    # Check for Chinese characters
+    if any('\u4e00' <= char <= '\u9fff' for char in text):
+        return "Chinese"
+    
+    # Check for German umlauts and common German words
+    german_indicators = ['ä', 'ö', 'ü', 'ß', 'der', 'die', 'das', 'und', 'in', 'ist']
+    if any(indicator in text.lower() for indicator in german_indicators):
+        return "German"
+    
+    # Default to English
+    return "English"
+
 
 def _generate_response(prompt: str) -> str:
     try:
@@ -332,8 +358,15 @@ def _generate_response(prompt: str) -> str:
 
 
 def generate_script(
-    video_subject: str, language: str = "", paragraph_number: int = 1
+    video_subject: str, language: str = None, paragraph_number: int = 1
 ) -> str:
+    # Default language to Chinese if video_subject is empty
+    if not video_subject:
+        video_subject = "设计模式"
+        default_language = "Chinese"
+    else:
+        default_language = None
+        
     prompt = f"""
 # Role: Video Script Generator
 
@@ -354,8 +387,12 @@ Generate a script for a video, depending on the subject of the video.
 - video subject: {video_subject}
 - number of paragraphs: {paragraph_number}
 """.strip()
-    if language:
-        prompt += f"\n- language: {language}"
+    if language and language != "":
+        prompt += f"\n- language: {language}\n- IMPORTANT: Please respond in {language} language."
+    else:
+        # Auto-detect language from video subject
+        detected_language = default_language if default_language else detect_language(video_subject)
+        prompt += f"\n- language: {detected_language}\n- IMPORTANT: Please respond in {detected_language} language."
 
     final_script = ""
     logger.info(f"subject: {video_subject}")
@@ -424,10 +461,10 @@ Generate {amount} search terms for stock videos, depending on the subject of a v
 2. each search term should consist of 1-3 words, always add the main subject of the video.
 3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
 4. the search terms must be related to the subject of the video.
-5. reply with english search terms only.
+5. generate both English and Chinese search terms to get more relevant videos.
 
 ## Output Example:
-["search term 1", "search term 2", "search term 3","search term 4","search term 5"]
+["design patterns", "设计模式", "software design", "软件设计", "coding best practices", "编程最佳实践", "object oriented", "面向对象", "design principles", "设计原则"]
 
 ## Context:
 ### Video Subject
@@ -436,7 +473,7 @@ Generate {amount} search terms for stock videos, depending on the subject of a v
 ### Video Script
 {video_script}
 
-Please note that you must use English for generating video search terms; Chinese is not accepted.
+Please generate both English and Chinese search terms to ensure better search results.
 """.strip()
 
     logger.info(f"subject: {video_subject}")
@@ -447,7 +484,7 @@ Please note that you must use English for generating video search terms; Chinese
         try:
             response = _generate_response(prompt)
             if "Error: " in response:
-                logger.error(f"failed to generate video script: {response}")
+                logger.error(f"failed to generate video terms: {response}")
                 if stop_on_api_failure:
                     return response
                 return []
@@ -573,71 +610,88 @@ def generate_tags(scene_script: str, max_tags: int = 3) -> List[str]:
 
 
 def generate_multi_scene_script(
-    video_subject: str,
+    video_content: str,
     language: str = "",
-    max_scenes: int = 5
+    max_scenes: int = 12
 ) -> str:
     """
     Generate multi-scene script for video.
     
     Args:
-        video_subject: The subject of the video
+        video_content: The content of the video (can be a subject or full script)
         language: Language for the script
         max_scenes: Maximum number of scenes to generate
     
     Returns:
-        Multi-scene script text in the following format:
-        (镜头: 镜头描述)
-        【开始时间-结束时间 场景标题】
-        主播文案内容
+        Multi-scene script in JSON format
     """
-    prompt = f"""
-# Role: Multi-Scene Video Script Generator
+    # 构建提示词，避免f-string解析错误
+    prompt = """
+# Role
+You are a senior video director and storyboard designer with 10 years of experience. You excel at transforming various types of text content (whether it's informative articles, stories, or marketing copy) into visually impactful and logically coherent storyboard scripts.
 
-## Goals:
-Generate a multi-scene video script based on the subject. The script should be divided into multiple scenes, each with its own visual requirements and narration.
+# Goal
+Please read the user-provided [Original Text] and adapt it into a structured multi-scene script in JSON format.
 
-## Constraints:
-1. Divide the video into 3-5 scenes based on the content flow
-2. Each scene must include:
-   - Camera/visual description in parentheses: (镜头: 描述)
-   - Time range in brackets: 【开始秒数-结束秒数 场景标题】
-   - Narration script for that scene
-3. Total video length should be around 30-60 seconds
-4. Scene transitions should be natural and logical
-5. Do not include any markdown formatting
-6. Do not include scene numbers or other metadata
-7. Respond in the same language as the video subject
-8. Do not require the host to be on camera throughout the entire video
-9. Include scenes that show relevant materials, products, or visuals related to the topic
-10. Balance between host on-camera scenes and material展示 scenes
+# Constraints & Workflow
+1. **Audio-First Principle**: Audio (dialogue) is the core, and video and subtitles serve the dialogue. All visual elements and scene designs should enhance the expression of the dialogue.
+2. **Semantic Scene Division**: Analyze the semantic structure of the article, identify logical turning points, and divide the content into 5-15 scenes (including opening, main body, and conclusion)
+   - **Opening Scene**: Should include natural greetings and background introduction, avoid directly entering the topic to make the video start more smoothly
+   - Each scene should have complete content and a clear theme, with logical coherence
+   - Scene content should be independent and able to clearly express a complete concept or viewpoint
+3. **Visual Transformation**:
+    - Reject boring visuals (such as "a person speaking").
+    - Must use **visual metaphors** (expressing abstract concepts with concrete objects), **dynamic graphics**, or **scene reenactment**.
+    - Visual descriptions should be **pure text, concise and standard**, including: subject, environment, action, camera movement (such as close-up, push-in, pull-out).
+    - Visual elements must be closely related to the dialogue content and able to enhance the expression of the dialogue.
+4. **Dialogue Optimization**: Rewrite the original text into natural spoken language and mark tone/emotion.
+   - Dialogue content should be clear, fluent, and suitable for spoken expression
+   - Emotion markers should accurately reflect the emotional tone of the dialogue
+   - **Technical Content Handling**: When dealing with technical content (code, terms, symbols):
+     - Replace technical terms with plain language explanations
+     - Avoid directly reading code or symbols (e.g., instead of reading "#", say "hashtag")
+     - Use analogies and examples to explain complex concepts
+     - Keep sentences short and conversational
+     - Ensure the content flows naturally when spoken aloud
+5. **Keyword Extraction**: Extract 3-5 core keywords for each scene.
 
-## Output Format:
-(镜头: 主播坐在电脑前，屏幕上是代码编辑器)
-【0-5秒 开场引入】
-各位朋友们，今天我要和大家分享一个非常重要的话题...
+# Output Format
+Please return a JSON object with the following structure:
+{
+  "scenes": [
+    {
+      "title": "Scene title",
+      "keywords": "keyword1, keyword2, keyword3",
+      "visual": "Detailed visual requirements including subject, environment, action, and camera movement",
+      "script": "Dialogue script",
+      "emotion": "Emotion annotation"
+    }
+  ]
+}
 
-(镜头: 特写屏幕，展示代码运行效果)
-【5-15秒 核心内容一】
-首先，让我们来看一下这个问题的本质...
+# Requirements
+1. Return only the JSON, no other text
+2. Ensure the JSON is valid and properly formatted
+3. Include 5-15 scenes
+4. Each scene must have all required fields
+5. Visual descriptions must be detailed and specific
 
-(镜头: 切换到产品展示画面)
-【15-25秒 核心内容二】
-接下来，我要给大家介绍具体的解决方案...
-
-(镜头: 回到主播画面，展示总结)
-【25-30秒 总结收尾】
-总结一下，今天我们讨论了...
-
-## Context:
-- Video Subject: {video_subject}
-- Maximum Scenes: {max_scenes}
-""".strip()
+# Input Text
+[Original Text]:
+"""
+    prompt += video_content
+    prompt += """
+"""
+    prompt = prompt.strip()
     
     if language:
-        prompt += f"\n- Language: {language}"
+        prompt += f"\n- Language: {language}\n- IMPORTANT: Please respond in {language} language. All content, including scene titles, visual descriptions, dialogue scripts, and emotion markers, must be in {language}."
+    else:
+        # Auto-detect language from video content
+        detected_language = detect_language(video_content)
+        prompt += f"\n- Language: {detected_language}\n- IMPORTANT: Please respond in {detected_language} language. All content, including scene titles, visual descriptions, dialogue scripts, and emotion markers, must be in {detected_language}."
 
-    logger.info(f"generating multi-scene script for subject: {video_subject}")
+    logger.info(f"generating multi-scene script for content: {video_content}")
     
     final_script = ""
     for i in range(_max_retries):
@@ -645,9 +699,6 @@ Generate a multi-scene video script based on the subject. The script should be d
             response = _generate_response(prompt=prompt)
             if response:
                 final_script = response
-                # Clean up the script
-                final_script = final_script.replace("*", "")
-                final_script = final_script.replace("#", "")
                 break
         except Exception as e:
             logger.error(f"failed to generate multi-scene script: {e}")
@@ -656,16 +707,10 @@ Generate a multi-scene video script based on the subject. The script should be d
             logger.warning(f"failed to generate multi-scene script, trying again... {i + 1}")
     
     if not final_script or "Error: " in final_script:
-        # Check if we should stop on API failure
-        if stop_on_api_failure:
-            error_msg = f"LLM API failed to generate multi-scene script after {_max_retries} attempts"
-            logger.error(error_msg)
-            return f"Error: {error_msg}"
-        
-        # Fallback: generate a simple multi-scene structure
+        # Fallback: generate a simple multi-scene structure in JSON
         logger.warning("using fallback multi-scene script generation")
-        fallback_script = f"(镜头: 开场画面)\n【0-10秒 开场引入】\n各位朋友们，今天我要和大家分享一个关于{video_subject}的话题。\n\n(镜头: 核心内容展示)\n【10-20秒 核心内容】\n{video_subject}是一个非常重要的话题，它涉及到我们生活的方方面面。\n\n(镜头: 总结画面)\n【20-30秒 总结收尾】\n希望今天的分享对大家有所帮助，谢谢大家！"
-        return fallback_script
+        fallback_json = f"{{\n  \"scenes\": [\n    {{\n      \"title\": \"开场引入\",\n      \"keywords\": \"introduction, greeting, overview\",\n      \"visual\": \"主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。运镜：从远到近的推镜头，聚焦到主播面部表情。\",\n      \"script\": \"各位朋友们，今天我要和大家分享一个关于设计模式的重要话题。\",\n      \"emotion\": \"热情、亲切\"\n    }},\n    {{\n      \"title\": \"核心内容\",\n      \"keywords\": \"core content, explanation, details\",\n      \"visual\": \"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。\",\n      \"script\": \"设计模式是软件开发中的重要概念，它提供了一套解决常见问题的最佳实践。\",\n      \"emotion\": \"专业、清晰\"\n    }},\n    {{\n      \"title\": \"总结收尾\",\n      \"keywords\": \"conclusion, summary, closing\",\n      \"visual\": \"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。\",\n      \"script\": \"希望今天的分享对大家有所帮助，谢谢大家的观看！\",\n      \"emotion\": \"自信、鼓舞\"\n    }}\n  ]\n}}"
+        return fallback_json
     else:
         logger.success(f"completed multi-scene script generation: \n{final_script}")
     
@@ -676,79 +721,248 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
     """
     Parse multi-scene script text into structured data.
     
-    Input format:
-        (镜头: 镜头描述)
-        【0-5秒 场景标题】
-        主播文案内容...
+    Input format can be either:
+    1. JSON format with scenes array
+    2. Text format with scene sections
     
     Args:
-        script_text: Multi-scene script text
+        script_text: Multi-scene script text (JSON or text format)
     
     Returns:
         List of scene dictionaries with structure:
         [
             {
                 "id": "scene_1",
-                "camera": "镜头描述",
-                "start_time": 0,
-                "end_time": 5,
-                "title": "场景标题",
-                "script": "主播文案"
+                "title": "场景核心主题",
+                "visual": "视觉描述",
+                "audio": "口播文案",
+                "emotion": "情绪标注",
+                "script": "完整脚本",
+                "keywords": "关键词"
             },
             ...
         ]
     """
     import re
+    import json
     
     scenes = []
     scene_id = 1
     
-    # Split by scene markers (镜头:)
-    # Pattern to match scene blocks
-    scene_pattern = r'\(镜头[:：]\s*([^)]+)\)\s*【(\d+)-(\d+)秒?\s+([^】]+)】\s*([^\(]+)'
+    # 首先尝试解析JSON格式
+    try:
+        logger.info("Attempting to parse JSON format")
+        # 处理Markdown代码块标记
+        cleaned_script = script_text.strip()
+        # 移除可能的Markdown代码块标记
+        if cleaned_script.startswith('```json') and cleaned_script.endswith('```'):
+            # 处理```json和{之间没有空格的情况
+            cleaned_script = cleaned_script[7:-3].strip()
+        elif cleaned_script.startswith('```') and cleaned_script.endswith('```'):
+            # 处理```和{之间没有空格的情况
+            cleaned_script = cleaned_script[3:-3].strip()
+        # 进一步清理，确保JSON格式正确
+        # 移除可能的前导和尾随字符
+        cleaned_script = cleaned_script.strip()
+        # 确保JSON以{开头，以}结尾
+        if cleaned_script and (not cleaned_script.startswith('{') or not cleaned_script.endswith('}')):
+            # 尝试找到JSON的开始和结束位置
+            start_idx = cleaned_script.find('{')
+            end_idx = cleaned_script.rfind('}')
+            if start_idx != -1 and end_idx != -1:
+                cleaned_script = cleaned_script[start_idx:end_idx+1]
+        
+        data = json.loads(cleaned_script)
+        if "scenes" in data and isinstance(data["scenes"], list):
+            for i, scene_data in enumerate(data["scenes"]):
+                scene = {
+                    "id": f"scene_{scene_id}",
+                    "title": scene_data.get("title", f"Scene {scene_id}"),
+                    "visual": scene_data.get("visual", ""),
+                    "audio": scene_data.get("script", ""),
+                    "emotion": scene_data.get("emotion", ""),
+                    "script": scene_data.get("script", ""),  # 保持与原有结构兼容
+                    "camera": scene_data.get("visual", ""),  # 保持与原有结构兼容
+                    "keywords": scene_data.get("keywords", ""),  # 新增关键词字段
+                    "start_time": scene_id * 10,  # 保持与原有结构兼容
+                    "end_time": (scene_id + 1) * 10,  # 保持与原有结构兼容
+                    "full_script": f"###  Scene {scene_id}: {scene_data.get('title', f'Scene {scene_id}')}\n- **Core Keywords**：{scene_data.get('keywords', '')}\n- **Visual (Visual Elements)**：\n{scene_data.get('visual', '')}\n- **Audio (Dialogue Script)**：\n[{scene_data.get('emotion', '')}] {scene_data.get('script', '')}"
+                }
+                scenes.append(scene)
+                scene_id += 1
+            logger.info(f"Successfully parsed {len(scenes)} scenes from JSON format")
+            
+            # 限制场景数量在合理范围内 (5-15)
+            max_scenes = 15
+            min_scenes = 5
+            if len(scenes) > max_scenes:
+                logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")
+                scenes = scenes[:max_scenes]
+            elif len(scenes) < min_scenes:
+                logger.warning(f"Found {len(scenes)} scenes, which is less than the recommended minimum of {min_scenes} scenes")
+            
+            return scenes
+    except json.JSONDecodeError as e:
+        logger.warning(f"JSON parsing failed: {e}, falling back to text parsing")
+    except Exception as e:
+        logger.warning(f"Error parsing JSON: {e}, falling back to text parsing")
     
+    # JSON解析失败，尝试使用原来的文本解析
+    logger.info("Falling back to text format parsing")
+    
+    # 首先尝试匹配新格式
+    scene_pattern = r'###\s*Scene\s*(\d+):\s*([^\n]+)\s*-\s*\*\*Core Keywords\*\*：\s*([^\n]+)\s*-\s*\*\*Visual \(Visual Elements\)\*\*：\s*([\s\S]*?)\s*-\s*\*\*Audio \(Dialogue Script\)\*\*：\s*([\s\S]*?)(?=###\s*Scene|$)'
     matches = re.findall(scene_pattern, script_text, re.DOTALL)
     
-    for match in matches:
-        camera, start_time, end_time, title, script = match
+    if matches:
+        for match in matches:
+            scene_num, title, keywords, visual, audio = match
+            
+            # 提取情绪标注
+            emotion_match = re.search(r'\[(.*?)\]', audio)
+            emotion = emotion_match.group(1) if emotion_match else ""
+            
+            # 清理音频文本
+            clean_audio = re.sub(r'\[.*?\]\s*', '', audio).strip()
+            
+            # 清理视觉文本
+            clean_visual = visual.strip()
+            
+            # 清理关键词
+            clean_keywords = keywords.strip()
+            
+            scene = {
+                "id": f"scene_{scene_id}",
+                "title": title.strip(),
+                "visual": clean_visual,
+                "audio": clean_audio,
+                "emotion": emotion,
+                "script": clean_audio,  # 保持与原有结构兼容
+                "camera": clean_visual,  # 保持与原有结构兼容
+                "keywords": clean_keywords,  # 新增关键词字段
+                "start_time": scene_id * 10,  # 保持与原有结构兼容
+                "end_time": (scene_id + 1) * 10,  # 保持与原有结构兼容
+                "full_script": f"###  Scene {scene_num}: {title}\n- **Core Keywords**：{keywords}\n- **Visual (Visual Elements)**：\n{visual}\n- **Audio (Dialogue Script)**：\n{audio}"
+            }
+            scenes.append(scene)
+            scene_id += 1
+    else:
+        # 尝试匹配旧格式
+        old_scene_pattern = r'###\s*Scene\s*(\d+):\s*([^\n]+)\s*-\s*\*\*Visual \(Visual Elements\)\*\*：\s*([\s\S]*?)\s*-\s*\*\*Audio \(Dialogue Script\)\*\*：\s*([\s\S]*?)(?=###\s*Scene|$)'
+        old_matches = re.findall(old_scene_pattern, script_text, re.DOTALL)
+        
+        if old_matches:
+            for match in old_matches:
+                scene_num, title, visual, audio = match
+                
+                # 提取情绪标注
+                emotion_match = re.search(r'\[(.*?)\]', audio)
+                emotion = emotion_match.group(1) if emotion_match else ""
+                
+                # 清理音频文本
+                clean_audio = re.sub(r'\[.*?\]\s*', '', audio).strip()
+                
+                # 清理视觉文本
+                clean_visual = visual.strip()
+                
+                scene = {
+                    "id": f"scene_{scene_id}",
+                    "title": title.strip(),
+                    "visual": clean_visual,
+                    "audio": clean_audio,
+                    "emotion": emotion,
+                    "script": clean_audio,  # 保持与原有结构兼容
+                    "camera": clean_visual,  # 保持与原有结构兼容
+                    "keywords": "",  # 旧格式没有关键词
+                    "start_time": scene_id * 10,  # 保持与原有结构兼容
+                    "end_time": (scene_id + 1) * 10,  # 保持与原有结构兼容
+                    "full_script": f"###  Scene {scene_num}: {title}\n- **Visual (Visual Elements)**：\n{visual}\n- **Audio (Dialogue Script)**：\n{audio}"
+                }
+                scenes.append(scene)
+                scene_id += 1
+        else:
+            # 处理混合格式的情况 - 直接基于场景标记分割
+            # 首先清理脚本，移除多余的Markdown标记
+            cleaned_script = script_text.replace('*', '').replace('#', '')
+            
+            # 按场景标记分割
+            scene_markers = re.split(r'###\s*(?:Scene|场景)\s*(\d+)', cleaned_script)
+            
+            for i in range(1, len(scene_markers), 2):
+                scene_num = scene_markers[i]
+                scene_content = scene_markers[i+1]
+                
+                # 提取标题
+                title_match = re.search(r'[:：]\s*([^\n]+)', scene_content)
+                title = title_match.group(1).strip() if title_match else f"Scene {scene_num}"
+                
+                # 提取视觉需求 - 查找包含视觉元素的部分
+                visual_match = re.search(r'(?:Visual|视觉).*?:\s*([\s\S]*?)(?:Audio|Audio|口播|$)', scene_content, re.IGNORECASE)
+                visual = visual_match.group(1).strip() if visual_match else ""
+                
+                # 提取音频/口播内容
+                audio_match = re.search(r'(?:Audio|口播).*?:\s*([\s\S]*?)(?=###|$)', scene_content, re.IGNORECASE)
+                audio = audio_match.group(1).strip() if audio_match else ""
+                
+                # 提取情绪标注
+                emotion_match = re.search(r'\[(.*?)\]', audio)
+                emotion = emotion_match.group(1) if emotion_match else ""
+                
+                # 清理音频文本
+                clean_audio = re.sub(r'\[.*?\]\s*', '', audio).strip()
+                
+                # 清理视觉文本
+                clean_visual = visual.strip()
+                
+                # 提取关键词
+                keywords_match = re.search(r'(?:Core Keywords|核心关键词).*?:\s*([^\n]+)', scene_content, re.IGNORECASE)
+                keywords = keywords_match.group(1).strip() if keywords_match else ""
+                
+                scene = {
+                    "id": f"scene_{scene_id}",
+                    "title": title,
+                    "visual": clean_visual,
+                    "audio": clean_audio,
+                    "emotion": emotion,
+                    "script": clean_audio,  # 保持与原有结构兼容
+                    "camera": clean_visual,  # 保持与原有结构兼容
+                    "keywords": keywords,  # 关键词字段
+                    "start_time": scene_id * 10,  # 保持与原有结构兼容
+                    "end_time": (scene_id + 1) * 10,  # 保持与原有结构兼容
+                    "full_script": f"###  Scene {scene_num}: {title}\n- **Visual (Visual Elements)**：\n{visual}\n- **Audio (Dialogue Script)**：\n{audio}"
+                }
+                scenes.append(scene)
+                scene_id += 1
+    
+    # 如果仍然没有匹配到场景，创建一个默认场景
+    if not scenes:
+        # 清理脚本内容
+        cleaned_content = script_text.replace('*', '').replace('#', '').strip()
+        
+        # 创建默认场景
         scene = {
-            "id": f"scene_{scene_id}",
-            "camera": camera.strip(),
-            "start_time": float(start_time),
-            "end_time": float(end_time),
-            "title": title.strip(),
-            "script": script.strip()
+            "id": "scene_1",
+            "title": "Default Scene",
+            "visual": "Default visual requirements",
+            "audio": cleaned_content,
+            "emotion": "",
+            "script": cleaned_content,
+            "camera": "Default visual requirements",
+            "keywords": "",
+            "start_time": 0,
+            "end_time": 10,
+            "full_script": cleaned_content
         }
         scenes.append(scene)
-        scene_id += 1
     
-    # If no matches with strict pattern, try alternative parsing
-    if not scenes:
-        # Try to split by camera marker
-        parts = re.split(r'\(镜头[:：]', script_text)
-        for i, part in enumerate(parts[1:], 1):  # Skip first empty part
-            lines = part.strip().split('\n')
-            if len(lines) >= 2:
-                camera = lines[0].replace(')', '').strip()
-                
-                # Try to extract time and title from second line
-                time_match = re.search(r'【(\d+)-(\d+)秒?\s+([^】]+)】', lines[1])
-                if time_match:
-                    start_time = float(time_match.group(1))
-                    end_time = float(time_match.group(2))
-                    title = time_match.group(3).strip()
-                    # Rest is script
-                    script = '\n'.join(lines[2:]).strip()
-                    
-                    scene = {
-                        "id": f"scene_{i}",
-                        "camera": camera,
-                        "start_time": start_time,
-                        "end_time": end_time,
-                        "title": title,
-                        "script": script
-                    }
-                    scenes.append(scene)
+    # 限制场景数量在合理范围内 (5-15)
+    max_scenes = 15
+    min_scenes = 5
+    if len(scenes) > max_scenes:
+        logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")
+        scenes = scenes[:max_scenes]
+    elif len(scenes) < min_scenes:
+        logger.warning(f"Found {len(scenes)} scenes, which is less than the recommended minimum of {min_scenes} scenes")
     
     logger.info(f"parsed {len(scenes)} scenes from multi-scene script")
     return scenes
@@ -756,7 +970,8 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
 
 def convert_to_multi_scene(
     video_script: str,
-    video_subject: str = ""
+    video_subject: str = "",
+    language: str = None
 ) -> str:
     """
     Convert single-scene script to multi-scene format.
@@ -764,48 +979,69 @@ def convert_to_multi_scene(
     Args:
         video_script: Single-scene script text
         video_subject: Video subject for context
+        language: Language for the generated script
     
     Returns:
-        Multi-scene script text
+        Multi-scene script text with visual descriptions, camera movements, and emotion annotations
     """
     prompt = f"""
-# Role: Script Converter
+# Role
+You are a senior video director and storyboard designer with 10 years of experience. You excel at transforming various types of text content (whether it's informative articles, stories, or marketing copy) into visually impactful and logically coherent storyboard scripts.
 
-## Goals:
-Convert the provided single-scene script into a multi-scene format with visual descriptions and time markers.
+# Goal
+Please read the user-provided [Original Text] and adapt it into a standardized **scene-based storyboard script**.
 
-## Constraints:
-1. Divide the script into 3-5 logical scenes based on content flow
-2. Each scene must include:
-   - Camera/visual description in parentheses: (镜头: 描述)
-   - Time range in brackets: 【开始秒数-结束秒数 场景标题】
-   - Narration script for that scene (adapted from original script)
-3. Total length should match the original script's pacing
-4. Scene transitions should be natural
-5. Do not add new content, only reorganize existing content
-6. Do not include any markdown formatting
-7. Do not require the host to be on camera throughout the entire video
-8. Include scenes that show relevant materials, products, or visuals related to the topic
-9. Balance between host on-camera scenes and material展示 scenes
+# Constraints & Workflow
+1. **Audio-First Principle**: Audio (dialogue) is the core, and video and subtitles serve the dialogue. All visual elements and scene designs should enhance the expression of the dialogue.
+2. **Semantic Scene Division**: Analyze the semantic structure of the article, identify logical turning points, and divide the content into 5-15 scenes (including opening, main body, and conclusion)
+   - **Opening Scene**: Should include natural greetings and background introduction, avoid directly entering the topic to make the video start more smoothly
+   - Each scene should have complete content and a clear theme, with logical coherence
+   - Scene content should be independent and able to clearly express a complete concept or viewpoint
+3. **Visual Transformation**:
+    - Reject boring visuals (such as "a person speaking").
+    - Must use **visual metaphors** (expressing abstract concepts with concrete objects), **dynamic graphics**, or **scene reenactment**.
+    - Visual descriptions should be **pure text, concise and standard**, including: subject, environment, action, camera movement (such as close-up, push-in, pull-out).
+    - Visual elements must be closely related to the dialogue content and able to enhance the expression of the dialogue.
+    - **Format Requirements**: Use clear, straightforward language without special formatting or markers.
+4. **Dialogue Optimization**: Rewrite the original text into natural spoken language and mark tone/emotion.
+   - Dialogue content should be clear, fluent, and suitable for spoken expression
+   - Emotion markers should accurately reflect the emotional tone of the dialogue
+   - **Technical Content Handling**: When dealing with technical content (code, terms, symbols):
+     - Replace technical terms with plain language explanations
+     - Avoid directly reading code or symbols (e.g., instead of reading "#", say "hashtag")
+     - Use analogies and examples to explain complex concepts
+     - Keep sentences short and conversational
+     - Ensure the content flows naturally when spoken aloud
+5. **Keyword Extraction**: Extract 3-5 core keywords for each scene.
+6. **Format Enforcement**: **Must** strictly follow the [Output Template] format below, without arbitrarily adding or removing fields.
 
-## Output Format:
-(镜头: 主播坐在电脑前)
-【0-5秒 开场】
-[Adapted opening narration]
+# Output Template (Please strictly follow this format)
 
-(镜头: 特写屏幕)
-【5-15秒 主要内容】
-[Adapted main content]
+###  Scene [Number]: [Scene Core Theme]
+- **Core Keywords**: Keyword 1, Keyword 2, Keyword 3
+- **Visual (Visual Elements)**:
+    - **Visual Element 1**: Detailed description
+    - **Visual Element 2**: Detailed description
+- **Audio (Dialogue Script)**:
+    - ([Emotion Marker]) Dialogue content
 
-(镜头: 产品展示)
-【15-25秒 解决方案】
-[Adapted solution content]
+# Few-Shot Example (Reference Example)
+*If the input is "Procrastination is because the brain is avoiding pain", the output should include:*
+###  Scene 1: The Instinct to Avoid Pain
+- **Core Keywords**: Monkey, Steering Wheel, Chaos
+- **Visual (Visual Elements)**:
+    - **Visual Contrast**: On the left side of the screen, a happy little monkey doll is grabbing the steering wheel, while on the right side, a rational helmsman (human) is tied to a pole. The background is a chaotic amusement park.
+    - **Camera Movement**: Quick push-pull to express a sense of chaos.
+- **Audio (Dialogue Script)**:
+    - ([Vivid, Metaphorical]) Procrastination is not actually a time management issue, but an emotional management issue. It's like having a monkey in your brain that grabs the steering wheel...
 
-## Context:
-- Video Subject: {video_subject}
-- Original Script:
+# Input Text
+[Original Text]:
 {video_script}
 """.strip()
+
+    if language:
+        prompt += f"\n- Language: {language}\n- IMPORTANT: Please respond in {language} language. All content, including scene titles, visual descriptions, dialogue scripts, and emotion markers, must be in {language}."
 
     logger.info("converting single-scene script to multi-scene format")
     
@@ -840,7 +1076,7 @@ Convert the provided single-scene script into a multi-scene format with visual d
         
         if total_lines <= 1:
             # Very short script, create minimal structure
-            fallback_script = f"(镜头: 开场画面)\n【0-10秒 开场】\n{video_script}\n\n(镜头: 核心内容)\n【10-20秒 核心内容】\n{video_script}\n\n(镜头: 结尾)\n【20-30秒 结尾】\n{video_script}"
+            fallback_script = f"###  场景 1：开场引入\n- **Visual (画面视觉)**：\n    - 主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。\n    - 运镜：从远到近的推镜头，聚焦到主播面部表情。\n- **Audio (口播文案)**：\n    - ([热情、亲切]) {video_script}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {video_script}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - 回到主播画面，主播面带微笑，背景屏幕显示总结要点。\n    - 运镜：拉远镜头，展示完整的工作室环境。\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {video_script}"
         else:
             # Split into 3 roughly equal parts
             part1_end = total_lines // 3
@@ -850,7 +1086,7 @@ Convert the provided single-scene script into a multi-scene format with visual d
             part2 = '\n'.join(script_lines[part1_end:part2_end])
             part3 = '\n'.join(script_lines[part2_end:])
             
-            fallback_script = f"(镜头: 开场画面)\n【0-10秒 开场】\n{part1}\n\n(镜头: 核心内容展示)\n【10-20秒 核心内容】\n{part2}\n\n(镜头: 总结画面)\n【20-30秒 总结】\n{part3}"
+            fallback_script = f"###  场景 1：开场引入\n- **Visual (画面视觉)**：\n    - 主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。\n    - 运镜：从远到近的推镜头，聚焦到主播面部表情。\n- **Audio (口播文案)**：\n    - ([热情、亲切]) {part1}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {part2}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - 回到主播画面，主播面带微笑，背景屏幕显示总结要点。\n    - 运镜：拉远镜头，展示完整的工作室环境。\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {part3}"
         return fallback_script
     else:
         logger.success(f"completed script conversion: \n{final_script}")
@@ -886,12 +1122,12 @@ Generate {amount} search terms for stock videos for a specific scene.
 1. The search terms should be relevant to both the scene's visual description and narration
 2. Each search term should consist of 1-3 words
 3. You must only return the JSON array of strings
-4. The search terms must be in English for better stock video search results
+4. Generate both English and Chinese search terms to get more relevant videos
 5. Focus on visual elements mentioned in the camera description
 6. Always include keywords related to the overall video subject to maintain consistency across scenes
 
 ## Output Example:
-["computer screen", "coding", "programmer", "software development", "technology"]
+["design patterns", "设计模式", "software design", "软件设计", "coding best practices", "编程最佳实践", "object oriented", "面向对象", "design principles", "设计原则"]
 
 ## Context:
 ### Video Subject
@@ -902,6 +1138,8 @@ Generate {amount} search terms for stock videos for a specific scene.
 
 ### Scene Script
 {scene_script}
+
+Please generate both English and Chinese search terms to ensure better search results.
 """.strip()
 
     logger.info(f"generating terms for scene")

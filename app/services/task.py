@@ -135,16 +135,17 @@ def generate_multi_scene_script(task_id, params):
         # User provided subject only, generate multi-scene script from scratch
         logger.info("generating multi-scene script from subject")
         video_script = llm.generate_multi_scene_script(
-            video_subject=params.video_subject,
+            video_content=params.video_subject,
             language=params.video_language,
-            max_scenes=5
+            max_scenes=15
         )
     else:
         # User provided script, convert to multi-scene format
         logger.info("converting provided script to multi-scene format")
         video_script = llm.convert_to_multi_scene(
             video_script=video_script,
-            video_subject=params.video_subject
+            video_subject=params.video_subject,
+            language=params.video_language
         )
     
     if not video_script or "Error: " in video_script:
@@ -197,8 +198,8 @@ def generate_scene_terms(task_id, params, scenes):
             # Generate new keywords if none exist
             terms = llm.generate_scene_terms(
                 video_subject=params.video_subject,
-                scene_script=scene.get('script', ''),
-                scene_camera=scene.get('visual_requirement', ''),  # Use visual_requirement instead of camera
+                scene_script=scene.get('audio', scene.get('script', '')),
+                scene_camera=scene.get('visual', scene.get('camera', '')),  # Use visual field from new format
                 amount=5
             )
         
@@ -305,7 +306,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     logger.info(f"\n\n## processing scene {scene_num}/{total_scenes}: {scene_title}")
     
     scene_id = scene.get('id', f'scene_{scene_num}')
-    scene_script = scene.get('script', '')
+    scene_script = scene.get('audio', scene.get('script', ''))
     scene_keywords = scene.get('keywords', [])
     
     # Generate 1-3 tags for the scene

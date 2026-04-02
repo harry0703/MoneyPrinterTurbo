@@ -544,9 +544,13 @@ def evaluate_scenes(scenes: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def parse_script_with_llm(script: str) -> List[Dict[str, Any]]:
+def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, Any]]:
     """
     Parse script using LLM to divide it into scenes.
+    
+    Args:
+        script: Script text to parse
+        language: Language for the generated content
     """
     import app.services.llm as llm_service
     
@@ -554,7 +558,7 @@ def parse_script_with_llm(script: str) -> List[Dict[str, Any]]:
     
     # Generate multi-scene script using LLM
     # Use script as both subject and script since we want to process the entire script
-    multi_scene_script = llm_service.generate_multi_scene_script(script)
+    multi_scene_script = llm_service.generate_multi_scene_script(video_content=script, language=language)
     logger.info(f"Generated multi-scene script: {multi_scene_script[:200]}...")
     
     # Parse the generated multi-scene script
@@ -566,23 +570,78 @@ def parse_script_with_llm(script: str) -> List[Dict[str, Any]]:
     current_time = 0
     
     for i, scene_data in enumerate(scenes_data):
-        scene_script = scene_data.get("script", "")
+        scene_script = scene_data.get("script", scene_data.get("audio", ""))
         duration = estimate_duration(scene_script)
         
-        # Generate visual requirements using LLM
-        visual_requirement = scene_data.get("camera", "")
-        logger.info(f"Scene {i+1} - Visual requirement from camera field: {visual_requirement}")
+        # 获取视觉需求，如果为空则使用LLM生成
+        visual_requirement = scene_data.get("visual", scene_data.get("camera", ""))
         
-        # Generate keywords using LLM
-        logger.info(f"Scene {i+1} - Generating keywords...")
-        keywords_list = llm_service.generate_scene_terms(
-            video_subject=script,  # Use the entire script as context
-            scene_script=scene_script,
-            scene_camera=visual_requirement,
-            amount=5
-        )
-        keywords = ", ".join(keywords_list) if isinstance(keywords_list, list) else ""
-        logger.info(f"Scene {i+1} - Generated keywords: {keywords}")
+        # 如果视觉需求为空，使用LLM生成
+        if not visual_requirement or visual_requirement.strip() == "":
+            # Build visual prompt based on selected language
+            if language == "Chinese":
+                logger.warning(f"[场景{i+1}视觉需求为空] 尝试使用LLM生成视觉需求...")
+                visual_prompt = f"为以下视频台词生成纯文本视觉需求，要求：1. 内容简洁规范；2. 包含画面主体、环境背景、人物动作或物体变化、运镜方式；3. 直接输出纯文本内容，不使用任何特殊标记和格式：{scene_script[:200]}"
+            else:
+                logger.warning(f"[Scene {i+1} Visual Requirements Empty] Attempting to generate visual requirements using LLM...")
+                visual_prompt = f"Generate pure text visual requirements for the following video lines. Requirements: 1. Concise and standard content; 2. Include scene subject, environment background, character actions or object changes, camera movement; 3. Directly output pure text content without any special markers or formats: {scene_script[:200]}"
+            
+            try:
+                visual_response = llm_service._generate_response(visual_prompt)
+                if visual_response and "Error: " not in visual_response:
+                    # Clean generated content, remove special markers
+                    visual_requirement = visual_response.strip()
+                    # Remove possible special markers
+                    import re
+                    visual_requirement = re.sub(r'[#*]+', '', visual_requirement)
+                    visual_requirement = visual_requirement.strip()
+                    # Ensure content is reasonable
+                    if len(visual_requirement) < 20:
+                        if language == "Chinese":
+                            visual_requirement = f"场景 {i+1} 的视觉需求"
+                            logger.warning(f"[场景{i+1}视觉需求过短] 使用默认占位符")
+                        else:
+                            visual_requirement = f"Visual requirements for Scene {i+1}"
+                            logger.warning(f"[Scene {i+1} Visual Requirements Too Short] Using default placeholder")
+                    else:
+                        if language == "Chinese":
+                            logger.info(f"[场景{i+1}视觉需求生成成功] {visual_requirement[:100]}...")
+                        else:
+                            logger.info(f"[Scene {i+1} Visual Requirements Generated Successfully] {visual_requirement[:100]}...")
+                else:
+                    if language == "Chinese":
+                        visual_requirement = f"场景 {i+1} 的视觉需求"
+                        logger.error(f"[场景{i+1}视觉需求生成失败] 使用默认占位符")
+                    else:
+                        visual_requirement = f"Visual requirements for Scene {i+1}"
+                        logger.error(f"[Scene {i+1} Visual Requirements Generation Failed] Using default placeholder")
+            except Exception as e:
+                if language == "Chinese":
+                    visual_requirement = f"场景 {i+1} 的视觉需求"
+                    logger.error(f"[场景{i+1}视觉需求生成异常] {str(e)}")
+                else:
+                    visual_requirement = f"Visual requirements for Scene {i+1}"
+                    logger.error(f"[Scene {i+1} Visual Requirements Generation Exception] {str(e)}")
+        else:
+            logger.info(f"[Scene {i+1} Visual Requirement Exists] {visual_requirement[:100]}...")
+        
+        # 获取关键词，如果为空则使用LLM生成
+        keywords = scene_data.get("keywords", "")
+        if not keywords or keywords.strip() == "":
+            # Generate keywords using LLM
+            logger.info(f"Scene {i+1} - Generating keywords...")
+            # Use scene title or first few words as video subject to avoid passing the entire script
+            scene_subject = scene_data.get("title", "") or scene_script[:50].strip()
+            keywords_list = llm_service.generate_scene_terms(
+                video_subject=scene_subject,  # Use scene title or short script snippet as context
+                scene_script=scene_script,
+                scene_camera=visual_requirement,
+                amount=5
+            )
+            keywords = ", ".join(keywords_list) if isinstance(keywords_list, list) else ""
+            logger.info(f"Scene {i+1} - Generated keywords: {keywords}")
+        else:
+            logger.info(f"[Scene {i+1} Keywords Exists] {keywords}")
         
         scene = {
             "id": str(uuid4()),
@@ -600,22 +659,89 @@ def parse_script_with_llm(script: str) -> List[Dict[str, Any]]:
     
     # Fallback to paragraph-based parsing if LLM parsing fails
     if not scenes:
+        logger.error("=" * 60)
+        logger.error("[LLM Parsing Failed] Cannot use LLM to generate scenes, falling back to paragraph splitting mode")
+        logger.error("=" * 60)
+        
         paragraphs = [p.strip() for p in script.split("\n\n") if p.strip()]
+        
+        # Limit the number of paragraphs to a reasonable range (5-15)
+        max_scenes = 15
+        min_scenes = 5
+        if len(paragraphs) > max_scenes:
+            logger.warning(f"Found {len(paragraphs)} paragraphs, limiting to {max_scenes} scenes")
+            paragraphs = paragraphs[:max_scenes]
+        elif len(paragraphs) < min_scenes:
+            logger.warning(f"Found {len(paragraphs)} paragraphs, which is less than the recommended minimum of {min_scenes} scenes")
         
         for i, paragraph in enumerate(paragraphs):
             duration = estimate_duration(paragraph)
             
-            # Generate visual requirements using LLM for fallback
-            visual_requirement = f"场景 {i+1} 的视觉需求"
+            # 检查内容是否适合口播
+            unsuitable_patterns = [
+                ("Load ", "文件加载指令"),
+                ("# When ", "Markdown标题"),
+                ("#", "Markdown标记"),
+                ("1.", "列表项"),
+                ("2.", "列表项"),
+                ("3.", "列表项"),
+                ("4.", "列表项"),
+                ("5.", "列表项"),
+                ("```", "代码块"),
+                ("references/", "文件路径"),
+                ("SKILL.md", "文件名"),
+                ("You are an", "指令语句"),
+                ("Load '", "文件加载指令"),
+                ("Step ", "步骤指令"),
+                ("Ask the user", "用户询问指令"),
+                ("Fill the template", "模板填充指令"),
+            ]
             
-            # Generate keywords using LLM for fallback
+            is_unsuitable = False
+            unsuitable_reason = ""
+            for pattern, reason in unsuitable_patterns:
+                if pattern in paragraph:
+                    is_unsuitable = True
+                    unsuitable_reason = reason
+                    break
+            
+            if is_unsuitable:
+                logger.warning(f"[Unsuitable for Voiceover] Skipping content containing '{unsuitable_reason}': {paragraph[:80]}...")
+                continue
+            
+            # Generate more meaningful visual requirements
+            import app.services.llm as llm_service
+            visual_prompt = f"Generate pure text visual requirements for the following video script. Requirements: 1. Concise and standard content; 2. Include scene subject, environment background, character actions or object changes, camera movement; 3. Directly output pure text content without any special markers or formats: {paragraph}"
+            try:
+                visual_response = llm_service._generate_response(visual_prompt)
+                if visual_response and "Error: " in visual_response:
+                    logger.error(f"[Visual Requirement Generation Failed] {visual_response}")
+                    visual_requirement = f"Visual requirement for Scene {i+1}"
+                else:
+                    visual_requirement = visual_response.strip()
+            except Exception as e:
+                logger.error(f"[Visual Requirement Generation Failed] {str(e)}")
+                visual_requirement = f"Visual requirement for Scene {i+1}"
+            
+            # Generate keywords
+            fallback_subject = paragraph[:50].strip()
             keywords_list = llm_service.generate_terms(
-                video_subject=script,  # Use the entire script as context
+                video_subject=fallback_subject,
                 video_script=paragraph,
                 amount=5
             )
-            keywords = ", ".join(keywords_list) if isinstance(keywords_list, list) else ""
             
+            if isinstance(keywords_list, str) and "Error: " in keywords_list:
+                logger.error(f"[Keywords Generation Failed] {keywords_list}")
+                keywords = ""
+            else:
+                keywords = ", ".join(keywords_list) if isinstance(keywords_list, list) else ""
+            
+            # Check if video lines are suitable for voiceover
+            if len(paragraph) < 20:
+                logger.warning(f"[Video Lines May Not Be Suitable for Voiceover] Content too short ({len(paragraph)} chars): {paragraph[:80]}...")
+            
+            # Create scene object
             scene = {
                 "id": str(uuid4()),
                 "title": f"Scene {i+1}",
@@ -623,16 +749,26 @@ def parse_script_with_llm(script: str) -> List[Dict[str, Any]]:
                 "duration": duration,
                 "start_time": current_time,
                 "end_time": current_time + duration,
-                "visual_requirement": visual_requirement,  # LLM-generated visual requirements
-                "keywords": keywords  # LLM-generated keywords
+                "visual_requirement": visual_requirement,
+                "keywords": keywords
             }
             scenes.append(scene)
+            logger.info(f"[Scene {i+1} Created Successfully] Lines length: {len(paragraph)} chars, Estimated duration: {duration} seconds")
             current_time += duration
+    
+    # Limit the number of scenes to a reasonable range (5-15)
+    max_scenes = 15
+    min_scenes = 5
+    if len(scenes) > max_scenes:
+        logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")
+        scenes = scenes[:max_scenes]
+    elif len(scenes) < min_scenes:
+        logger.warning(f"Found {len(scenes)} scenes, which is less than the recommended minimum of {min_scenes} scenes")
     
     return scenes
 
 
-def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True) -> Dict[str, Any]:
+def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True, language: str = None) -> Dict[str, Any]:
     """
     Automatically parse script with retry mechanism.
     
@@ -640,6 +776,7 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True)
         script: The script text to parse
         max_retries: Maximum number of retry attempts for LLM parsing
         auto_mode: If True, auto-accept high scores and auto-retry low scores
+        language: Language for the generated content
     
     Returns:
         Dict with keys:
@@ -664,7 +801,7 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True)
     # Step 2: Parse with LLM
     for attempt in range(max_retries):
         try:
-            scenes = parse_script_with_llm(script)
+            scenes = parse_script_with_llm(script, language=language)
             
             if scenes:
                 logger.info(f"LLM parsing attempt {attempt + 1} successful, got {len(scenes)} scenes")
