@@ -4,6 +4,7 @@ import os
 import random
 import gc
 import shutil
+import subprocess
 from typing import List
 from loguru import logger
 from moviepy import (
@@ -15,7 +16,6 @@ from moviepy import (
     TextClip,
     VideoFileClip,
     afx,
-    concatenate_videoclips,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import ImageFont
@@ -50,6 +50,59 @@ class SubClippedVideoClip:
 audio_codec = "aac"
 video_codec = "libx264"
 fps = 30
+
+
+def get_ffmpeg_binary():
+    # 优先复用配置里显式指定的 ffmpeg，可避免不同环境下 PATH 不一致。
+    return os.environ.get("IMAGEIO_FFMPEG_EXE") or "ffmpeg"
+
+
+def _escape_ffmpeg_concat_path(file_path: str) -> str:
+    # concat demuxer 使用单引号包裹路径，路径中的单引号需要先转义。
+    return file_path.replace("'", "'\\''")
+
+
+def concat_video_clips_with_ffmpeg(
+    clip_files: List[str], output_file: str, threads: int, output_dir: str
+):
+    concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
+    with open(concat_list_file, "w", encoding="utf-8") as fp:
+        for clip_file in clip_files:
+            absolute_path = os.path.abspath(clip_file)
+            fp.write(f"file '{_escape_ffmpeg_concat_path(absolute_path)}'\n")
+
+    command = [
+        get_ffmpeg_binary(),
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        concat_list_file,
+        "-c:v",
+        video_codec,
+        "-threads",
+        str(threads or 2),
+        "-pix_fmt",
+        "yuv420p",
+        output_file,
+    ]
+
+    try:
+        # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
+        # 从而降低画质劣化与颜色偏移风险。
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            error_message = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(error_message or "ffmpeg concat failed")
+    finally:
+        delete_files(concat_list_file)
 
 def close_clip(clip):
     if clip is None:
@@ -265,56 +318,20 @@ def combine_videos(
     if len(processed_clips) == 1:
         logger.info("using single clip directly")
         shutil.copy(processed_clips[0].file_path, combined_video_path)
-        delete_files(processed_clips)
+        delete_files([processed_clips[0].file_path])
         logger.info("video combining completed")
         return combined_video_path
-    
-    # create initial video file as base
-    base_clip_path = processed_clips[0].file_path
-    temp_merged_video = f"{output_dir}/temp-merged-video.mp4"
-    temp_merged_next = f"{output_dir}/temp-merged-next.mp4"
-    
-    # copy first clip as initial merged video
-    shutil.copy(base_clip_path, temp_merged_video)
-    
-    # merge remaining video clips one by one
-    for i, clip in enumerate(processed_clips[1:], 1):
-        logger.info(f"merging clip {i}/{len(processed_clips)-1}, duration: {clip.duration:.2f}s")
-        
-        try:
-            # load current base video and next clip to merge
-            base_clip = VideoFileClip(temp_merged_video)
-            next_clip = VideoFileClip(clip.file_path)
-            
-            # merge these two clips
-            merged_clip = concatenate_videoclips([base_clip, next_clip])
 
-            # save merged result to temp file
-            merged_clip.write_videofile(
-                filename=temp_merged_next,
-                threads=threads,
-                logger=None,
-                temp_audiofile_path=output_dir,
-                audio_codec=audio_codec,
-                fps=fps,
-            )
-            close_clip(base_clip)
-            close_clip(next_clip)
-            close_clip(merged_clip)
-            
-            # replace base file with new merged file
-            delete_files(temp_merged_video)
-            os.rename(temp_merged_next, temp_merged_video)
-            
-        except Exception as e:
-            logger.error(f"failed to merge clip: {str(e)}")
-            continue
-    
-    # after merging, rename final result to target file name
-    os.rename(temp_merged_video, combined_video_path)
+    clip_files = [clip.file_path for clip in processed_clips]
+    logger.info(f"concatenating {len(clip_files)} clips with ffmpeg")
+    concat_video_clips_with_ffmpeg(
+        clip_files=clip_files,
+        output_file=combined_video_path,
+        threads=threads,
+        output_dir=output_dir,
+    )
     
     # clean temp files
-    clip_files = [clip.file_path for clip in processed_clips]
     delete_files(clip_files)
             
     logger.info("video combining completed")
