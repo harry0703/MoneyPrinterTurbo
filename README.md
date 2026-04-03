@@ -42,6 +42,45 @@
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
 - [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
     - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
+
+## 视频演示 📺
+
+### 竖屏 9:16
+
+<table>
+<thead>
+<tr>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《如何增加生活的乐趣》</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《金钱的作用》<br>更真实的合成声音</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《生命的意义是什么》</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/a84d33d5-27a2-4aba-8fd0-9fb2bd91c6a6"></video></td>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/af2f3b0b-002e-49fe-b161-18ba91c055e8"></video></td>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/112c9564-d52b-4472-99ad-970b75f66476"></video></td>
+</tr>
+</tbody>
+</table>
+
+### 横屏 16:9
+
+<table>
+<thead>
+<tr>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji>《生命的意义是什么》</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji>《为什么要运动》</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/346ebb15-c55f-47a9-a653-114f08bb8073"></video></td>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/271f2fae-8283-44a0-8aa0-0ed8f9a6fa87"></video></td>
+</tr>
+</tbody>
+</table>
+
 ## 配置要求 📦
 
 - 建议最低 CPU **4核** 或以上，内存 **4G** 或以上，显卡非必须
@@ -55,23 +94,6 @@
 - Windows 用户：优先使用一键启动包，适合快速体验
 - MacOS / Linux 用户：优先使用 `uv sync --frozen` 进行本地部署
 - 想要隔离运行环境：优先使用 Docker 部署
-
-### 常用入口
-
-- WebUI：`http://127.0.0.1:8501`
-- API 文档：`http://127.0.0.1:8080/docs`
-- 配置样例：[config.example.toml](config.example.toml)
-- GPU Docker 部署说明：[docs/GPU_DOCKER_DEPLOYMENT.md](docs/GPU_DOCKER_DEPLOYMENT.md)
-- Upload-Post 集成说明：[docs/upload-post.md](docs/upload-post.md)
-
-### 文档导航
-
-- 想快速体验：先看“Windows 一键启动包”或 “Google Colab”
-- 想本地开发：先看“手动部署”，默认使用 `uv`
-- 想隔离环境：先看“Docker 部署”
-- 想调整模型、TTS、代理等配置：先看 [config.example.toml](config.example.toml)
-- 想启用 GPU 容器：先看 [docs/GPU_DOCKER_DEPLOYMENT.md](docs/GPU_DOCKER_DEPLOYMENT.md)
-- 想启用 Upload-Post 分发：先看 [docs/upload-post.md](docs/upload-post.md)
 
 ### 在 Google Colab 中运行
 免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
@@ -228,44 +250,6 @@ uv run python main.py
 ```shell
 python main.py
 ```
-
-## 视频演示 📺
-
-### 竖屏 9:16
-
-<table>
-<thead>
-<tr>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《如何增加生活的乐趣》</th>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《金钱的作用》<br>更真实的合成声音</th>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《生命的意义是什么》</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/a84d33d5-27a2-4aba-8fd0-9fb2bd91c6a6"></video></td>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/af2f3b0b-002e-49fe-b161-18ba91c055e8"></video></td>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/112c9564-d52b-4472-99ad-970b75f66476"></video></td>
-</tr>
-</tbody>
-</table>
-
-### 横屏 16:9
-
-<table>
-<thead>
-<tr>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji>《生命的意义是什么》</th>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji>《为什么要运动》</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/346ebb15-c55f-47a9-a653-114f08bb8073"></video></td>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/271f2fae-8283-44a0-8aa0-0ed8f9a6fa87"></video></td>
-</tr>
-</tbody>
-</table>
 
 ## 特别感谢 🙏
 

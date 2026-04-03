@@ -45,6 +45,43 @@ materials, video subtitles, and video background music before synthesizing a hig
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
 - [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
+
+## Video Demos 📺
+
+### Portrait 9:16
+
+<table>
+<thead>
+<tr>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> How to Add Fun to Your Life </th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> What is the Meaning of Life</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/a84d33d5-27a2-4aba-8fd0-9fb2bd91c6a6"></video></td>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/112c9564-d52b-4472-99ad-970b75f66476"></video></td>
+</tr>
+</tbody>
+</table>
+
+### Landscape 16:9
+
+<table>
+<thead>
+<tr>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> What is the Meaning of Life</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> Why Exercise</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/346ebb15-c55f-47a9-a653-114f08bb8073"></video></td>
+<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/271f2fae-8283-44a0-8aa0-0ed8f9a6fa87"></video></td>
+</tr>
+</tbody>
+</table>
+
 ## System Requirements 📦
 
 - Recommended minimum 4 CPU cores or more, 4G of memory or more, GPU is not required
@@ -57,23 +94,6 @@ materials, video subtitles, and video background music before synthesizing a hig
 - Windows users: use the one-click package first for the fastest local trial
 - MacOS / Linux users: use `uv sync --frozen` for the primary local setup path
 - If you want a more isolated runtime: use Docker deployment
-
-### Common Entry Points
-
-- WebUI: `http://127.0.0.1:8501`
-- API docs: `http://127.0.0.1:8080/docs`
-- Example config: [config.example.toml](config.example.toml)
-- GPU Docker deployment guide: [docs/GPU_DOCKER_DEPLOYMENT.md](docs/GPU_DOCKER_DEPLOYMENT.md)
-- Upload-Post integration guide: [docs/upload-post.md](docs/upload-post.md)
-
-### Documentation Map
-
-- Want the fastest trial: start with the Windows package or Google Colab
-- Want local development: go to “Manual Deployment” and use `uv` by default
-- Want an isolated runtime: go to “Docker Deployment”
-- Need model, TTS, or proxy configuration: read [config.example.toml](config.example.toml)
-- Need GPU container support: read [docs/GPU_DOCKER_DEPLOYMENT.md](docs/GPU_DOCKER_DEPLOYMENT.md)
-- Need Upload-Post distribution: read [docs/upload-post.md](docs/upload-post.md)
 
 ### Run in Google Colab 
 Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
@@ -227,42 +247,6 @@ If you have already activated the virtual environment manually, you can still ru
 ```shell
 python main.py
 ```
-
-## Video Demos 📺
-
-### Portrait 9:16
-
-<table>
-<thead>
-<tr>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> How to Add Fun to Your Life </th>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> What is the Meaning of Life</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/a84d33d5-27a2-4aba-8fd0-9fb2bd91c6a6"></video></td>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/112c9564-d52b-4472-99ad-970b75f66476"></video></td>
-</tr>
-</tbody>
-</table>
-
-### Landscape 16:9
-
-<table>
-<thead>
-<tr>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> What is the Meaning of Life</th>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> Why Exercise</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/346ebb15-c55f-47a9-a653-114f08bb8073"></video></td>
-<td align="center"><video src="https://github.com/harry0703/MoneyPrinterTurbo/assets/4928832/271f2fae-8283-44a0-8aa0-0ed8f9a6fa87"></video></td>
-</tr>
-</tbody>
-</table>
 
 ## Special Thanks 🙏
 
