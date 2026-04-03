@@ -118,24 +118,20 @@ def render_multiscene_management(tr):
         col1, col2 = st.columns(2, gap="small")
         
         with col1:
-            # Simple export button
-            if st.button(tr("Export Scenes"), use_container_width=True):
+            # Simple export button - disabled when no scenes
+            if st.button(tr("Export Scenes"), use_container_width=True, disabled=len(st.session_state["scenes"]) == 0):
                 import json
                 
-                # Ensure scenes data exists
-                if st.session_state["scenes"]:
-                    # Convert to JSON
-                    scenes_json = json.dumps(st.session_state["scenes"], ensure_ascii=False, indent=2)
-                    
-                    # Create download button
-                    st.download_button(
-                        label=tr("Download scenes.json"),
-                        data=scenes_json,
-                        file_name="scenes.json",
-                        mime="application/json"
-                    )
-                else:
-                    st.warning(tr("No scenes to export"))
+                # Convert to JSON
+                scenes_json = json.dumps(st.session_state["scenes"], ensure_ascii=False, indent=2)
+                
+                # Create download button
+                st.download_button(
+                    label=tr("Download scenes.json"),
+                    data=scenes_json,
+                    file_name="scenes.json",
+                    mime="application/json"
+                )
 
         with col2:
             # Simple import button that triggers file upload
