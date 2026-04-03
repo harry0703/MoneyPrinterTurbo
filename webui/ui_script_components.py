@@ -90,22 +90,6 @@ def render_script_settings(params, tr, llm):
         )
         # Update session state with user input
         st.session_state["video_script"] = params.video_script
-        if st.button(tr("Generate Video Keywords"), key="auto_generate_terms", use_container_width=True):
-            if not params.video_script:
-                st.error(tr("Please Enter the Video Script"))
-                st.stop()
-
-            with st.spinner(tr("Generating Video Keywords")):
-                terms = llm.generate_terms(params.video_subject, params.video_script)
-                if "Error: " in terms:
-                    st.error(tr(terms))
-                else:
-                    st.session_state["video_terms"] = ", ".join(terms)
-
-        params.video_terms = st.text_area(
-            tr("Video Keywords"), value=st.session_state.get("video_terms", ""),
-            key="video_terms_single"
-        )
 
         # Parse button - moved to the bottom of script settings panel
         if st.button(tr("Parse Current Script"), key="parse_script_btn", use_container_width=True):

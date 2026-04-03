@@ -44,8 +44,8 @@ def render_multiscene_management(tr):
         }
 
         /* Reduce spacing between script settings and scene management */
-        .stContainer + div {
-            margin-top: -20px !important;
+        .stContainer + .stContainer {
+            margin-top: -35px !important;
         }
 
         /* Reduce spacing around buttons */
@@ -86,7 +86,21 @@ def render_multiscene_management(tr):
     
     # Create a container with border for visible border
     with st.container(border=True):
+        # Use st.write with custom CSS to reduce spacing
         st.write(tr("Scenes Management"))
+        # Add CSS to reduce spacing after the title and between title and buttons
+        st.markdown('''
+        <style>
+            /* Target the specific container for scenes management */
+            .stContainer:has(> div > div > div[data-testid="stWrite"]) > div > div {
+                margin-bottom: -30px !important;
+            }
+            /* Target the columns containing import/export buttons */
+            .stContainer:has(> div > div > div[data-testid="stWrite"]) > div > div + div {
+                margin-top: -20px !important;
+            }
+        </style>
+        ''', unsafe_allow_html=True)
         # Set default parse mode to auto
         st.session_state["auto_parse_mode"] = "auto"
         parse_mode = "auto"
@@ -97,12 +111,98 @@ def render_multiscene_management(tr):
         if "pending_evaluation" in st.session_state:
             del st.session_state["pending_evaluation"]
         
-
+        # Simple import/export buttons
+        # Removed margin to minimize spacing
         
+        # Create a horizontal layout for two simple buttons
+        col1, col2 = st.columns(2, gap="small")
+        
+        with col1:
+            # Simple export button
+            if st.button(tr("Export Scenes"), use_container_width=True):
+                import json
+                
+                # Ensure scenes data exists
+                if st.session_state["scenes"]:
+                    # Convert to JSON
+                    scenes_json = json.dumps(st.session_state["scenes"], ensure_ascii=False, indent=2)
+                    
+                    # Create download button
+                    st.download_button(
+                        label=tr("Download scenes.json"),
+                        data=scenes_json,
+                        file_name="scenes.json",
+                        mime="application/json"
+                    )
+                else:
+                    st.warning(tr("No scenes to export"))
+
+        with col2:
+            # Simple import button that triggers file upload
+            import json
+            from io import StringIO
+            
+            # Create a button that will trigger file upload
+            if st.button(tr("Import Scenes"), use_container_width=True):
+                # Use a hidden file uploader that appears when button is clicked
+                # We'll use session state to control visibility
+                if "show_import_uploader" not in st.session_state:
+                    st.session_state["show_import_uploader"] = True
+                else:
+                    st.session_state["show_import_uploader"] = not st.session_state["show_import_uploader"]
+                
+                # Force a rerun to show the uploader
+                st.rerun()
+            
+            # Show file uploader if triggered
+            if "show_import_uploader" in st.session_state and st.session_state["show_import_uploader"]:
+                uploaded_file = st.file_uploader(
+                    tr("Choose JSON file"),
+                    type=["json"],
+                    key="import_scenes_uploader"
+                )
+                
+                if uploaded_file is not None:
+                    try:
+                        # Read and parse JSON file
+                        stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
+                        scenes_data = json.load(stringio)
+                        
+                        # Validate data format
+                        if isinstance(scenes_data, list):
+                            # Check each scene for required fields
+                            valid_scenes = []
+                            for scene in scenes_data:
+                                if isinstance(scene, dict) and "id" in scene:
+                                    # Ensure all required fields exist
+                                    if "duration" not in scene:
+                                        scene["duration"] = 5
+                                    if "visual_requirement" not in scene:
+                                        scene["visual_requirement"] = ""
+                                    if "keywords" not in scene:
+                                        scene["keywords"] = ""
+                                    if "script" not in scene:
+                                        scene["script"] = ""
+                                    valid_scenes.append(scene)
+                            
+                            # Update session state
+                            st.session_state["scenes"] = valid_scenes
+                            st.success(tr(f"Successfully imported {len(valid_scenes)} scenes"))
+                            # Hide the uploader after successful import
+                            st.session_state["show_import_uploader"] = False
+                            st.rerun()
+                        else:
+                            st.error(tr("Invalid scenes data format"))
+                    except json.JSONDecodeError:
+                        st.error(tr("Invalid JSON file"))
+                    except Exception as e:
+                        st.error(tr(f"Error importing scenes: {str(e)}"))
+
+
         # Display placeholder if no scenes
         if len(st.session_state["scenes"]) == 0:
             st.markdown('''
-            <div style="display: flex; align-items: center; justify-content: center; height: 200px; background-color: #f8f9fa; border-radius: 8px; border: 1px dashed #dee2e6; margin: 20px 0;">
+            <div style="display: flex; align-items: center; justify-content: center; height: 120px; background-color: #f8f9fa; border-radius: 8px; border: 1px dashed #dee2e6; margin: 10px 0;">
                 <span style="color: #6c757d; font-size: 16px;">这里显示多场景文案</span>
             </div>
             ''', unsafe_allow_html=True)
@@ -176,9 +276,10 @@ def render_multiscene_management(tr):
                         height=90,  # Default height 90px
                         key=f"script_{scene['id']}"
                     )
-                    
 
-        # Add new scene button at the bottom
+
+        # Add new scene button at the bottom with reduced spacing
+        st.markdown('<div style="margin-top: 10px;"></div>', unsafe_allow_html=True)
         if st.button(tr("Add New Scene"), use_container_width=True):
             new_scene = {
                 "id": str(uuid4()),
@@ -189,6 +290,3 @@ def render_multiscene_management(tr):
             }
             st.session_state["scenes"].append(new_scene)
             st.rerun()
-        
-        # Add spacing at the bottom of scene cards display area
-        st.markdown('<br><br>', unsafe_allow_html=True)

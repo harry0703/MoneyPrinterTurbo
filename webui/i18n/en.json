@@ -217,6 +217,15 @@
     "expected": "expected",
     "Script too long": "Script too long",
     "Structure incomplete": "Structure incomplete",
-    "scenes have complete structure": "scenes have complete structure"
+    "scenes have complete structure": "scenes have complete structure",
+    "Export Scenes": "Export Scenes",
+    "Import Scenes": "Import Scenes",
+    "Download scenes.json": "Download scenes.json",
+    "No scenes to export": "No scenes to export",
+    "Choose JSON file": "Choose JSON file",
+    "Successfully imported": "Successfully imported",
+    "Invalid scenes data format": "Invalid scenes data format",
+    "Invalid JSON file": "Invalid JSON file",
+    "Error importing scenes": "Error importing scenes"
   }
 }

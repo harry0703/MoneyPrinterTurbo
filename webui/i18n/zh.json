@@ -233,6 +233,15 @@
     "expected": "期望",
     "Script too long": "文案太长",
     "Structure incomplete": "结构不完整",
-    "scenes have complete structure": "个场景有完整结构"
+    "scenes have complete structure": "个场景有完整结构",
+    "Export Scenes": "导出场景",
+    "Import Scenes": "导入场景",
+    "Download scenes.json": "下载 scenes.json",
+    "No scenes to export": "没有场景可导出",
+    "Choose JSON file": "选择 JSON 文件",
+    "Successfully imported": "成功导入",
+    "Invalid scenes data format": "无效的场景数据格式",
+    "Invalid JSON file": "无效的 JSON 文件",
+    "Error importing scenes": "导入场景时出错"
   }
 }
