@@ -999,7 +999,7 @@ wheels = [
 
 [[package]]
 name = "moneyprinterturbo"
-version = "1.2.6"
+version = "1.2.7"
 source = { virtual = "." }
 dependencies = [
     { name = "azure-cognitiveservices-speech" },
