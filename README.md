@@ -189,15 +189,27 @@ docker-compose up
 
 #### ① 创建虚拟环境
 
-建议使用 [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html) 创建 python 虚拟环境
+推荐使用 [uv](https://docs.astral.sh/uv/) 管理 Python 环境和依赖，默认使用 Python `3.11`
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.11
-conda activate MoneyPrinterTurbo
+uv python install 3.11
+uv sync --frozen
+```
+
+如果你暂时不使用 `uv`，也可以继续使用 `venv + pip`
+
+```shell
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+说明：
+- `pyproject.toml` 是主依赖定义文件
+- `uv.lock` 是锁文件，建议默认执行 `uv sync --frozen`
+- `requirements.txt` 仅保留给旧的 `pip` 安装方式兼容使用
 
 #### ② 安装好 ImageMagick
 
@@ -226,11 +238,23 @@ pip install -r requirements.txt
 
 ###### Windows
 
+```shell
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```
+
+如果你已经手动激活了虚拟环境，也可以直接执行：
+
 ```bat
 webui.bat
 ```
 
 ###### MacOS or Linux
+
+```shell
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```
+
+如果你已经手动激活了虚拟环境，也可以直接执行：
 
 ```shell
 sh webui.sh
@@ -239,6 +263,12 @@ sh webui.sh
 启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
 
 #### ④ 启动API服务 🚀
+
+```shell
+uv run python main.py
+```
+
+如果你已经手动激活了虚拟环境，也可以直接执行：
 
 ```shell
 python main.py

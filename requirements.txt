@@ -1,3 +1,4 @@
+# 兼容旧的 pip 安装方式；主依赖定义已迁移到 pyproject.toml / uv.lock。
 moviepy==2.1.2
 streamlit==1.45.0
 edge_tts==7.2.7
@@ -12,7 +13,7 @@ g4f==0.5.2.2
 azure-cognitiveservices-speech==1.41.1
 redis==5.2.0
 python-multipart==0.0.19
-pyyaml
-requests>=2.31.0
+pyyaml==6.0.3
+requests==2.33.1
 socksio==1.0.0
 pydub==0.25.1

@@ -183,15 +183,27 @@ Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redo
 
 #### ① Create a Python Virtual Environment
 
-It is recommended to create a Python virtual environment using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
+It is recommended to use [uv](https://docs.astral.sh/uv/) to manage the Python environment and dependencies, with Python `3.11` as the default runtime.
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.11
-conda activate MoneyPrinterTurbo
+uv python install 3.11
+uv sync --frozen
+```
+
+If you are not using `uv` yet, you can still use `venv + pip`.
+
+```shell
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+Notes:
+- `pyproject.toml` is now the primary dependency manifest.
+- `uv.lock` pins the resolved environment, so `uv sync --frozen` is recommended by default.
+- `requirements.txt` is kept only for legacy `pip`-based installation.
 
 #### ② Install ImageMagick
 
@@ -225,11 +237,23 @@ Note that you need to execute the following commands in the `root directory` of 
 
 ###### Windows
 
+```shell
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```
+
+If you have already activated the virtual environment manually, you can still run:
+
 ```bat
 webui.bat
 ```
 
 ###### MacOS or Linux
+
+```shell
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```
+
+If you have already activated the virtual environment manually, you can still run:
 
 ```shell
 sh webui.sh
@@ -238,6 +262,12 @@ sh webui.sh
 After launching, the browser will open automatically
 
 #### ④ Launch the API Service 🚀
+
+```shell
+uv run python main.py
+```
+
+If you have already activated the virtual environment manually, you can still run:
 
 ```shell
 python main.py
