@@ -321,8 +321,8 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     logger.info(f"scene {scene_num}: scene_id={scene_id}, script={scene_script[:50]}...")
     logger.info(f"scene {scene_num}: keywords={scene_keywords}")
     
-    # Create scene-specific directory
-    scene_dir = path.join(utils.task_dir(task_id), scene_id)
+    # Create scene-specific directory with sequential number for user-friendliness
+    scene_dir = path.join(utils.task_dir(task_id), f'scene_{scene_num}')
     os.makedirs(scene_dir, exist_ok=True)
     
     # 1. Generate audio for scene
