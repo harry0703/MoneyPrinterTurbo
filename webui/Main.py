@@ -47,8 +47,21 @@ streamlit_style = """
 h1 {
     padding-top: 0 !important;
 }
+/* Reduce button font size globally */
+.stButton > button {
+    font-size: 0.7rem !important;
+}
+/* Reduce dropdown option font size */
+.stSelectbox select {
+    font-size: 0.7rem !important;
+}
+/* Reduce dropdown menu font size */
+[role="listbox"] {
+    font-size: 0.7rem !important;
+}
 </style>
 """
+
 st.markdown(streamlit_style, unsafe_allow_html=True)
 
 # Define resource directories

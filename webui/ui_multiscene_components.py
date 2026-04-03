@@ -76,11 +76,6 @@ def render_multiscene_management(tr):
             padding-bottom: 5px !important;
         }
 
-        /* Reduce scene ID font size */
-        [data-testid="stHorizontalBlock"] h5 {
-            font-size: 0.9rem !important;
-            font-weight: 500 !important;
-        }
     </style>
     ''', unsafe_allow_html=True)
     
