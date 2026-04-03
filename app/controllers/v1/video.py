@@ -53,6 +53,51 @@ else:
     task_manager = InMemoryTaskManager(max_concurrent_tasks=_max_concurrent_tasks)
 
 
+def _sanitize_upload_filename(filename: str, request_id: str) -> str:
+    # 浏览器或客户端有时会附带目录信息，甚至可能夹带 ../ 这类穿越片段。
+    # 这里只保留纯文件名，避免上传接口把文件写到目标目录之外。
+    normalized_name = (filename or "").replace("\\", "/").split("/")[-1].strip()
+    if not normalized_name or normalized_name in {".", ".."}:
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: invalid filename",
+        )
+    return normalized_name
+
+
+def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: str) -> str:
+    # 对用户传入的相对路径做归一化，并强制要求结果仍然落在指定目录内，
+    # 这样可以阻止通过 ../ 或绝对路径逃逸到任务目录之外读取任意文件。
+    base_dir_real = os.path.realpath(base_dir)
+    resolved_path = os.path.realpath(os.path.join(base_dir_real, unsafe_path))
+
+    try:
+        common_path = os.path.commonpath([base_dir_real, resolved_path])
+    except ValueError:
+        raise HttpException(
+            task_id=request_id,
+            status_code=403,
+            message=f"{request_id}: invalid file path",
+        )
+
+    if common_path != base_dir_real:
+        raise HttpException(
+            task_id=request_id,
+            status_code=403,
+            message=f"{request_id}: access to the requested file is forbidden",
+        )
+
+    if not os.path.isfile(resolved_path):
+        raise HttpException(
+            task_id=request_id,
+            status_code=404,
+            message=f"{request_id}: file not found",
+        )
+
+    return resolved_path
+
+
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
 def create_video(
     background_tasks: BackgroundTasks, request: Request, body: TaskVideoRequest
@@ -208,10 +253,11 @@ def get_bgm_list(request: Request):
 )
 def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
+    safe_filename = _sanitize_upload_filename(file.filename, request_id)
     # check file ext
-    if file.filename.endswith("mp3"):
+    if safe_filename.lower().endswith("mp3"):
         song_dir = utils.song_dir()
-        save_path = os.path.join(song_dir, file.filename)
+        save_path = os.path.join(song_dir, safe_filename)
         # save file
         with open(save_path, "wb+") as buffer:
             # If the file already exists, it will be overwritten
@@ -256,13 +302,14 @@ def get_video_materials_list(request: Request):
 )
 def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
+    safe_filename = _sanitize_upload_filename(file.filename, request_id)
     # check file ext
     allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
-    normalized_filename = (file.filename or "").lower()
+    normalized_filename = safe_filename.lower()
     # 统一按小写扩展名校验，兼容 .MOV 这类大写后缀文件。
     if normalized_filename.endswith(allowed_suffixes):
         local_videos_dir = utils.storage_dir("local_videos", create=True)
-        save_path = os.path.join(local_videos_dir, file.filename)
+        save_path = os.path.join(local_videos_dir, safe_filename)
         # save file
         with open(save_path, "wb+") as buffer:
             # If the file already exists, it will be overwritten
@@ -277,8 +324,9 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
 
 @router.get("/stream/{file_path:path}")
 async def stream_video(request: Request, file_path: str):
+    request_id = base.get_task_id(request)
     tasks_dir = utils.task_dir()
-    video_path = os.path.join(tasks_dir, file_path)
+    video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     range_header = request.headers.get("Range")
     video_size = os.path.getsize(video_path)
     start, end = 0, video_size - 1
@@ -318,15 +366,16 @@ async def stream_video(request: Request, file_path: str):
 
 
 @router.get("/download/{file_path:path}")
-async def download_video(_: Request, file_path: str):
+async def download_video(request: Request, file_path: str):
     """
     download video
-    :param _: Request request
+    :param request: Request request
     :param file_path: video file path, eg: /cd1727ed-3473-42a2-a7da-4faafafec72b/final-1.mp4
     :return: video file
     """
+    request_id = base.get_task_id(request)
     tasks_dir = utils.task_dir()
-    video_path = os.path.join(tasks_dir, file_path)
+    video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     file_path = pathlib.Path(video_path)
     filename = file_path.stem
     extension = file_path.suffix
