@@ -45,6 +45,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services.utils import video_effects
+from app.services.llm import add_english_translations
 from app.utils import utils
 
 # Suppress FFmpeg handle invalid errors from moviepy's __del__ methods
@@ -584,8 +585,15 @@ def match_local_videos_by_keywords(materials, scene_keywords):
         logger.info("No valid keywords after normalization")
         return materials
     
-    logger.info(f"Starting local material matching with {len(normalized_keywords)} keywords: {normalized_keywords}")
+    # Add English translations for non-English keywords to improve matching
+    enhanced_keywords = add_english_translations([kw for kw in scene_keywords if kw and kw.strip()])
+    enhanced_normalized_keywords = [kw.lower().strip() for kw in enhanced_keywords if kw and kw.strip()]
+    
+    logger.info(f"Starting local material matching with {len(enhanced_normalized_keywords)} keywords: {enhanced_normalized_keywords}")
     logger.info(f"Processing {len(materials)} local materials")
+    
+    # Use enhanced keywords for matching
+    normalized_keywords = enhanced_normalized_keywords
     
     scored_materials = []
     
@@ -667,6 +675,7 @@ def combine_videos(
     max_clip_duration: int = 5,
     threads: int = 2,
     scene_info: str = None,
+    local_video_paths: List[str] = None,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     audio_duration = audio_clip.duration
@@ -731,10 +740,19 @@ def combine_videos(
                 
                 # Use unified crop function that handles both upscaling and cropping
                 # Use higher max_scale for 3:4 videos to ensure they fill the screen width
-                max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
+                # For local materials, use a much higher max_scale to avoid skipping user-provided materials
+                if local_video_paths and subclipped_item.file_path in local_video_paths:
+                    max_scale = 5.0  # Allow up to 500% upscaling for local materials
+                    logger.info(f"Processing local material clip {i+1}: {subclipped_item.file_path}, using max_scale={max_scale}")
+                else:
+                    max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
+                    logger.info(f"Processing online material clip {i+1}: {subclipped_item.file_path}, using max_scale={max_scale}")
                 clip = crop_clip_to_target(clip, video_width, video_height, max_scale=max_scale)
                 if clip is None:
-                    logger.warning(f"Clip {i+1} could not be processed within quality constraints, skipping")
+                    if local_video_paths and subclipped_item.file_path in local_video_paths:
+                        logger.warning(f"Local clip {i+1} could not be processed even with relaxed quality constraints, skipping")
+                    else:
+                        logger.warning(f"Online clip {i+1} could not be processed within quality constraints, skipping")
                     continue
                     
             shuffle_side = random.choice(["left", "right", "top", "bottom"])

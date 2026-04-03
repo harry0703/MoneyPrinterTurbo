@@ -309,6 +309,11 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     scene_script = scene.get('audio', scene.get('script', ''))
     scene_keywords = scene.get('keywords', [])
     
+    # Convert keywords string to list if needed
+    if isinstance(scene_keywords, str):
+        # Convert comma-separated string to list (support both Chinese and English commas)
+        scene_keywords = [term.strip() for term in scene_keywords.replace('，', ',').split(',') if term.strip()]
+    
     # Generate 1-3 tags for the scene
     scene_tags = generate_scene_tags(scene_script, max_tags=3)
     if scene_tags:
@@ -499,6 +504,11 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     logger.info(f"combining video clip for scene {scene_num}")
     combined_video_path = path.join(scene_dir, "combined.mp4")
     
+    # Pass local video paths to combine_videos so it can apply different quality check rules
+    local_video_paths = local_materials.copy()
+    if local_video_paths:
+        logger.info(f"scene {scene_num}: passing {len(local_video_paths)} local video paths for quality check exemption")
+    
     result = video.combine_videos(
         combined_video_path=combined_video_path,
         video_paths=downloaded_videos,
@@ -508,7 +518,8 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         video_transition_mode=params.video_transition_mode,
         max_clip_duration=params.video_clip_duration,
         threads=params.n_threads,
-        scene_info=f"(scene {scene_num}/{total_scenes})")
+        scene_info=f"(scene {scene_num}/{total_scenes})",
+        local_video_paths=local_video_paths)
     
     if result is None or not os.path.exists(combined_video_path):
         logger.error(f"failed to combine video for scene {scene_num}")
@@ -763,11 +774,11 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         return None
     
     logger.success(f"Total obtained {len(downloaded_videos)} video clips (local: {len(local_materials)}, supplement: {len(downloaded_videos) - len(local_materials)})")
-    return downloaded_videos
+    return downloaded_videos, local_materials, supplement_videos
 
 
 def generate_final_videos(
-    task_id, params, downloaded_videos, audio_file, subtitle_path
+    task_id, params, downloaded_videos, audio_file, subtitle_path, local_materials=None, supplement_videos=None
 ):
     final_video_paths = []
     combined_video_paths = []
@@ -775,6 +786,11 @@ def generate_final_videos(
         params.video_concat_mode if params.video_count == 1 else VideoConcatMode.random
     )
     video_transition_mode = params.video_transition_mode
+
+    # Pass local video paths to combine_videos so it can apply different quality check rules
+    local_video_paths = local_materials.copy() if local_materials else []
+    if local_video_paths:
+        logger.info(f"Passing {len(local_video_paths)} local video paths for quality check exemption")
 
     _progress = 50
     for i in range(params.video_count):
@@ -792,7 +808,8 @@ def generate_final_videos(
             video_transition_mode=video_transition_mode,
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
-            scene_info=f"(video {index}/{params.video_count})"
+            scene_info=f"(video {index}/{params.video_count})",
+            local_video_paths=local_video_paths
         )
 
         _progress += 50 / params.video_count / 2
@@ -972,12 +989,13 @@ def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     # 5. Get video materials
-    downloaded_videos = get_video_materials(
+    result = get_video_materials(
         task_id, params, video_terms, audio_duration
     )
-    if not downloaded_videos:
+    if not result:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
+    downloaded_videos, local_materials, supplement_videos = result
 
     if stop_at == "materials":
         sm.state.update_task(
@@ -992,7 +1010,7 @@ def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 6. Generate final videos
     final_video_paths, combined_video_paths = generate_final_videos(
-        task_id, params, downloaded_videos, audio_file, subtitle_path
+        task_id, params, downloaded_videos, audio_file, subtitle_path, local_materials, supplement_videos
     )
 
     if not final_video_paths:
