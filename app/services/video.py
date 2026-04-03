@@ -270,14 +270,20 @@ def get_video_codec():
     """Select appropriate video encoder based on configuration and system environment"""
     global _cached_video_codec
     
-    # Return cached result if available
-    if _cached_video_codec is not None:
-        return _cached_video_codec
-    
     use_gpu = config.app.get("use_gpu", False)
     
     # Log GPU configuration status for video codec
-    # logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
+    logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
+    
+    # If use_gpu is True, always recheck GPU support (clear cache)
+    if use_gpu:
+        logger.info("use_gpu=True, clearing codec cache and rechecking GPU support")
+        _cached_video_codec = None
+    
+    # Return cached result if available
+    if _cached_video_codec is not None:
+        logger.info(f"Using cached video codec: {_cached_video_codec}")
+        return _cached_video_codec
     
     if not use_gpu:
         logger.info("Video encoder: CPU mode selected (libx264)")
