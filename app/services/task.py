@@ -745,12 +745,15 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             return None
     
     # Add online videos as supplement if needed
-    if params.video_source != "local" or (params.video_source == "local" and len(local_materials) < len(video_terms)):
-        online_source = params.video_source if params.video_source != "local" else "pexels"
-        logger.info(f"\n\n## downloading supplement videos from {online_source}")
+    supplement_videos = []
+    if params.video_source != "local":
+        online_source = params.video_source
+        logger.info(f"\n\n## downloading videos from {online_source}")
+        # Use video subject as fallback when video_terms is empty
+        search_terms = video_terms if video_terms else [params.video_subject]
         supplement_videos = material.download_videos(
             task_id=task_id,
-            search_terms=video_terms,
+            search_terms=search_terms,
             source=online_source,
             video_aspect=params.video_aspect,
             video_concat_mode=params.video_concat_mode,
@@ -759,7 +762,7 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         )
         
         if supplement_videos:
-            logger.success(f"Downloaded {len(supplement_videos)} supplement videos from {online_source}")
+            logger.success(f"Downloaded {len(supplement_videos)} videos from {online_source}")
     
     # Combine local materials (must be first) and supplement videos
     downloaded_videos = local_materials.copy()
@@ -935,14 +938,8 @@ def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
         )
         return {"script": video_script}
 
-    # 2. Generate terms
+    # 2. Skip terms generation as it's no longer needed
     video_terms = ""
-    if params.video_source != "local":
-        video_terms = generate_terms(task_id, params, video_script)
-        if not video_terms:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-            return
-
     save_script_data(task_id, video_script, video_terms, params)
 
     if stop_at == "terms":
