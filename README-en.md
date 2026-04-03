@@ -120,6 +120,20 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 ## Quick Start 🚀
 
+### Recommended Paths
+
+- Windows users: use the one-click package first for the fastest local trial
+- MacOS / Linux users: use `uv sync --frozen` for the primary local setup path
+- If you want a more isolated runtime: use Docker deployment
+
+### Common Entry Points
+
+- WebUI: `http://127.0.0.1:8501`
+- API docs: `http://127.0.0.1:8080/docs`
+- Example config: [config.example.toml](config.example.toml)
+- GPU Docker deployment guide: [docs/GPU_DOCKER_DEPLOYMENT.md](docs/GPU_DOCKER_DEPLOYMENT.md)
+- Upload-Post integration guide: [docs/upload-post.md](docs/upload-post.md)
+
 ### Run in Google Colab 
 Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
 

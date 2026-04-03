@@ -118,6 +118,20 @@
 
 ## 快速开始 🚀
 
+### 推荐使用方式
+
+- Windows 用户：优先使用一键启动包，适合快速体验
+- MacOS / Linux 用户：优先使用 `uv sync --frozen` 进行本地部署
+- 想要隔离运行环境：优先使用 Docker 部署
+
+### 常用入口
+
+- WebUI：`http://127.0.0.1:8501`
+- API 文档：`http://127.0.0.1:8080/docs`
+- 配置样例：[config.example.toml](config.example.toml)
+- GPU Docker 部署说明：[docs/GPU_DOCKER_DEPLOYMENT.md](docs/GPU_DOCKER_DEPLOYMENT.md)
+- Upload-Post 集成说明：[docs/upload-post.md](docs/upload-post.md)
+
 ### 在 Google Colab 中运行
 免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
 
