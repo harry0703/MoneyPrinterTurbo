@@ -150,7 +150,7 @@ def search_videos_pexels(
                     item.height = h
                 
                 video_items.append(item)
-                logger.info(f"Selected video: {w}x{h}, target: {video_width}x{video_height}, scale_factor: {max_scale:.2f}x")
+                # logger.info(f"Selected video: {w}x{h}, target: {video_width}x{video_height}, scale_factor: {max_scale:.2f}x")
         
         return video_items
     except Exception as e:

@@ -1,3 +1,4 @@
+import ast
 import math
 import os.path
 import re
@@ -188,8 +189,17 @@ def generate_scene_terms(task_id, params, scenes):
         if existing_keywords:
             # Use existing keywords if they exist
             if isinstance(existing_keywords, str):
-                # Convert comma-separated string to list
-                terms = [term.strip() for term in existing_keywords.split(',') if term.strip()]
+                # Try to parse as Python list literal first
+                try:
+                    parsed = ast.literal_eval(existing_keywords)
+                    if isinstance(parsed, list):
+                        terms = [str(term).strip() for term in parsed if term]
+                    else:
+                        # Not a list, treat as comma-separated string
+                        terms = [term.strip() for term in existing_keywords.split(',') if term.strip()]
+                except (ValueError, SyntaxError):
+                    # Fallback to comma-separated string parsing
+                    terms = [term.strip() for term in existing_keywords.split(',') if term.strip()]
             else:
                 # Already a list
                 terms = existing_keywords

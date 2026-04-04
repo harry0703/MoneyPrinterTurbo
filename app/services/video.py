@@ -703,7 +703,12 @@ def combine_videos(
     processed_clips = []
     subclipped_items = []
     video_duration = 0
-    for video_path in video_paths:
+    
+    # Process videos and separate intro video (first video) from others
+    intro_subclips = []
+    regular_subclips = []
+    
+    for i, video_path in enumerate(video_paths):
         try:
             clip = VideoFileClip(video_path)
             clip_duration = clip.duration
@@ -714,8 +719,14 @@ def combine_videos(
 
             while start_time < clip_duration:
                 end_time = min(start_time + max_clip_duration, clip_duration)            
-                if clip_duration - start_time >= max_clip_duration:
-                    subclipped_items.append(SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h))
+                subclip = SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h)
+                
+                # First video is intro video, keep it separate
+                if i == 0:
+                    intro_subclips.append(subclip)
+                else:
+                    regular_subclips.append(subclip)
+                
                 start_time = end_time    
                 if video_concat_mode.value == VideoConcatMode.sequential.value:
                     break
@@ -723,10 +734,17 @@ def combine_videos(
             logger.error(f"failed to process video file {video_path}: {str(e)}")
             continue
 
-    # random subclipped_items order
+    # random regular subclips order if needed
     if video_concat_mode.value == VideoConcatMode.random.value:
-        random.shuffle(subclipped_items)
+        random.shuffle(regular_subclips)
+    
+    # Combine intro subclips first, then regular subclips
+    subclipped_items = intro_subclips + regular_subclips
         
+    logger.info(f"Intro video processing: {len(intro_subclips)} intro subclips, {len(regular_subclips)} regular subclips")
+    if intro_subclips:
+        intro_path = intro_subclips[0].file_path
+        logger.info(f"Intro video path: {intro_path}")
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
     # Add downloaded clips over and over until we reach the duration of the audio (max_duration) has been reached
@@ -734,7 +752,12 @@ def combine_videos(
         if video_duration > audio_duration:
             break
         
-        logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
+        # Check if this is the intro video
+        is_intro = i == 0
+        if is_intro:
+            logger.info(f"Processing intro video clip {i+1}: {subclipped_item.file_path}")
+        else:
+            logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
         
         try:
             clip = VideoFileClip(subclipped_item.file_path).subclipped(subclipped_item.start_time, subclipped_item.end_time)
@@ -744,7 +767,10 @@ def combine_videos(
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.info(f"Processing clip {i+1}: source={clip_w}x{clip_h}, ratio={clip_ratio:.2f}, target={video_width}x{video_height}, ratio={video_ratio:.2f}")
+                if is_intro:
+                    logger.info(f"Resizing intro video: source={clip_w}x{clip_h}, ratio={clip_ratio:.2f}, target={video_width}x{video_height}, ratio={video_ratio:.2f}")
+                else:
+                    logger.info(f"Processing clip {i+1}: source={clip_w}x{clip_h}, ratio={clip_ratio:.2f}, target={video_width}x{video_height}, ratio={video_ratio:.2f}")
                 
                 # Use unified crop function that handles both upscaling and cropping
                 # Use higher max_scale for 3:4 videos to ensure they fill the screen width
