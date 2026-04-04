@@ -229,19 +229,21 @@ def get_video_encoding_params():
     app_config = _cfg.get("app", {})
     
     use_gpu = app_config.get("use_gpu", False)
-    # GPU defaults to highest quality, CPU defaults to high quality
-    default_quality = "ultra" if use_gpu else "high"
-    quality = app_config.get("video_quality", default_quality).lower()
-    custom_bitrate = app_config.get("video_bitrate", "")
     
-    # Get actual video codec to determine preset type
+    # Get actual video codec to determine preset type first
     actual_codec = get_video_codec()
     # Use CPU preset for libx264, GPU preset for others
     preset_type = "cpu" if actual_codec == "libx264" else "gpu"
     
-    logger.info(f"Video encoding: codec={actual_codec}, quality={quality}")
+    # Set default quality based on actual codec type (not config use_gpu)
+    # GPU defaults to highest quality, CPU defaults to high quality
+    default_quality = "ultra" if preset_type == "gpu" else "high"
+    quality = app_config.get("video_quality", default_quality).lower()
+    custom_bitrate = app_config.get("video_bitrate", "")
     
-    # Get quality preset
+    logger.info(f"Video encoding: codec={actual_codec}, preset_type={preset_type}, quality={quality}")
+    
+    # Get quality preset - use default_quality if requested quality not available for this preset type
     preset = VIDEO_QUALITY_PRESETS[preset_type].get(quality, VIDEO_QUALITY_PRESETS[preset_type][default_quality])
     
     # Use custom bitrate if set
@@ -273,11 +275,11 @@ def get_video_codec():
     use_gpu = config.app.get("use_gpu", False)
     
     # Log GPU configuration status for video codec
-    logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
+    # logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
     
     # If use_gpu is True, always recheck GPU support (clear cache)
     if use_gpu:
-        logger.info("use_gpu=True, clearing codec cache and rechecking GPU support")
+        # logger.info("use_gpu=True, clearing codec cache and rechecking GPU support")
         _cached_video_codec = None
     
     # Return cached result if available
@@ -307,7 +309,7 @@ def get_video_codec():
         
         # Check for NVIDIA GPU support
         if "h264_nvenc" in result.stdout:
-            logger.info("Video encoder: NVIDIA GPU mode selected (h264_nvenc) - GPU acceleration enabled")
+            # logger.info("Video encoder: NVIDIA GPU mode selected (h264_nvenc) - GPU acceleration enabled")
             _cached_video_codec = "h264_nvenc"
             return _cached_video_codec
         # Check for AMD GPU support

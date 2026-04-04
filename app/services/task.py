@@ -309,19 +309,32 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     scene_script = scene.get('audio', scene.get('script', ''))
     scene_keywords = scene.get('keywords', [])
     
-    # Convert keywords string to list if needed
+    # Process keywords: handle both string and list cases
+    processed_keywords = []
     if isinstance(scene_keywords, str):
         # Convert comma-separated string to list (support both Chinese and English commas)
-        scene_keywords = [term.strip() for term in scene_keywords.replace('，', ',').split(',') if term.strip()]
+        processed_keywords = [term.strip() for term in scene_keywords.replace('，', ',').split(',') if term.strip()]
+    else:
+        # If already a list, process each element to split any comma-separated strings
+        for item in scene_keywords:
+            if isinstance(item, str):
+                # Split any comma-separated strings in the list elements
+                sub_items = [term.strip() for term in item.replace('，', ',').split(',') if term.strip()]
+                processed_keywords.extend(sub_items)
+            else:
+                processed_keywords.append(item)
     
     # Generate 1-3 tags for the scene
     scene_tags = generate_scene_tags(scene_script, max_tags=3)
     if scene_tags:
         # Add generated tags to scene keywords
-        scene_keywords.extend(scene_tags)
+        processed_keywords.extend(scene_tags)
         # Remove duplicates
-        scene_keywords = list(set(scene_keywords))
-        logger.info(f"scene {scene_num}: updated keywords with generated tags: {scene_keywords}")
+        processed_keywords = list(set(processed_keywords))
+        logger.info(f"scene {scene_num}: updated keywords with generated tags: {processed_keywords}")
+    
+    # Use processed keywords
+    scene_keywords = processed_keywords
     
     logger.info(f"scene {scene_num}: scene_id={scene_id}, script={scene_script[:50]}...")
     logger.info(f"scene {scene_num}: keywords={scene_keywords}")
@@ -498,6 +511,13 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         logger.error(f"scene {scene_num}: failed to get video materials")
         return None
     
+    # Check for intro video and insert at the beginning
+    intro_video = scene.get("intro_video")
+    if intro_video and os.path.exists(intro_video):
+        logger.info(f"scene {scene_num}: adding intro video at the beginning: {intro_video}")
+        downloaded_videos.insert(0, intro_video)
+        logger.success(f"scene {scene_num}: intro video added, total clips: {len(downloaded_videos)}")
+    
     logger.success(f"scene {scene_num}: obtained {len(downloaded_videos)} video clips (local: {len(local_materials)}, supplement: {len(downloaded_videos) - len(local_materials)})")
     
     # 4. Combine scene video clip (without BGM)
@@ -506,6 +526,9 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     
     # Pass local video paths to combine_videos so it can apply different quality check rules
     local_video_paths = local_materials.copy()
+    # Also add intro video to local_video_paths if exists (to avoid quality check issues)
+    if intro_video and os.path.exists(intro_video):
+        local_video_paths.insert(0, intro_video)
     if local_video_paths:
         logger.info(f"scene {scene_num}: passing {len(local_video_paths)} local video paths for quality check exemption")
     
@@ -1036,7 +1059,7 @@ def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
 
 def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
     """Multi-scene video generation flow."""
-    logger.info("using multi-scene mode")
+
     
     # Print local materials list at the beginning
     if params.video_materials and len(params.video_materials) > 0:

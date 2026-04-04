@@ -174,6 +174,8 @@ def render_multiscene_management(tr):
                                         scene["keywords"] = ""
                                     if "script" not in scene:
                                         scene["script"] = ""
+                                    if "intro_video" not in scene:
+                                        scene["intro_video"] = ""
                                     valid_scenes.append(scene)
                             
                             # Update session state
@@ -217,26 +219,26 @@ def render_multiscene_management(tr):
                     ''', unsafe_allow_html=True)
                     
                     # Create header with scene number and action buttons
-                    header_cols = st.columns([3, 0.8, 0.8, 0.8])
+                    header_cols = st.columns([2, 1.2, 1.2, 1.2])
                     with header_cols[0]:
                         st.subheader(f"{tr('Scene')} {i+1}")
                     with header_cols[1]:
-                        if st.button("删除", key=f"delete_scene_{scene['id']}", use_container_width=True):
+                        if st.button(tr("Delete"), key=f"delete_scene_{scene['id']}", use_container_width=True):
                             st.session_state["scenes"].pop(i)
                             st.rerun()
                     with header_cols[2]:
-                        if i > 0 and st.button("上移", key=f"up_{scene['id']}", use_container_width=True):
+                        if i > 0 and st.button(tr("Move Up"), key=f"up_{scene['id']}", use_container_width=True):
                             st.session_state["scenes"][i], st.session_state["scenes"][i-1] = st.session_state["scenes"][i-1], st.session_state["scenes"][i]
                             st.rerun()
                     with header_cols[3]:
-                        if i < len(st.session_state["scenes"])-1 and st.button("下移", key=f"down_{scene['id']}", use_container_width=True):
+                        if i < len(st.session_state["scenes"])-1 and st.button(tr("Move Down"), key=f"down_{scene['id']}", use_container_width=True):
                             st.session_state["scenes"][i], st.session_state["scenes"][i+1] = st.session_state["scenes"][i+1], st.session_state["scenes"][i]
                             st.rerun()
                     
-                    # Scene duration - custom layout with label and input on same row
-                    col1, col2 = st.columns([1, 3])
+                    # Scene duration - custom layout with label, input and button on same row
+                    col1, col2, col3 = st.columns([1, 3, 1], gap="small")
                     with col1:
-                        st.text(f"{tr('Duration (seconds)')}:")
+                        st.markdown(f"<div style='margin-top: 8px;'>{tr('Duration (seconds)')}:</div>", unsafe_allow_html=True)
                     with col2:
                         scene["duration"] = st.number_input(
                             "Duration",
@@ -244,6 +246,93 @@ def render_multiscene_management(tr):
                             label_visibility="collapsed",
                             key=f"duration_{scene['id']}"
                         )
+                    with col3:
+                        # 按钮样式：有视频时高亮
+                        button_kwargs = {}
+                        if scene.get("intro_video"):
+                            button_kwargs["type"] = "primary"
+                        
+                        if st.button("🎬", key=f"intro_video_btn_{scene['id']}", **button_kwargs):
+                            # 显示文件上传器
+                            if f"show_uploader_{scene['id']}" not in st.session_state:
+                                st.session_state[f"show_uploader_{scene['id']}"] = True
+                            else:
+                                st.session_state[f"show_uploader_{scene['id']}"] = not st.session_state[f"show_uploader_{scene['id']}"]
+                            st.rerun()
+                    
+                    # 显示文件上传器（如果触发）
+                    if f"show_uploader_{scene['id']}" in st.session_state and st.session_state[f"show_uploader_{scene['id']}"]:
+                        uploaded_file = st.file_uploader(
+                            "选择片头视频或图片",
+                            type=["mp4", "avi", "mov", "wmv", "jpg", "jpeg", "png", "bmp"],
+                            key=f"uploader_{scene['id']}"
+                        )
+                        
+                        if uploaded_file is not None:
+                            # Save file to intro_video directory
+                            import os
+                            import shutil
+                            from app.utils import utils
+                            
+                            # Create intro_video directory in storage
+                            intro_video_dir = os.path.join(utils.storage_dir(), "intro_video")
+                            os.makedirs(intro_video_dir, exist_ok=True)
+                            
+                            # Create scene-specific subdirectory
+                            scene_intro_dir = os.path.join(intro_video_dir, f"scene_{scene['id']}")
+                            os.makedirs(scene_intro_dir, exist_ok=True)
+                            
+                            # Save original file
+                            file_path = os.path.join(scene_intro_dir, uploaded_file.name)
+                            with open(file_path, "wb") as f:
+                                f.write(uploaded_file.getvalue())
+                            
+                            # Check file type, convert image to video if needed
+                            import subprocess
+                            
+                            video_path = file_path
+                            file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+                            if file_ext in [".jpg", ".jpeg", ".png", ".bmp"]:
+                                # Image to video (5 seconds)
+                                video_path = os.path.join(scene_intro_dir, f"{os.path.splitext(uploaded_file.name)[0]}.mp4")
+                                try:
+                                    # Use ffmpeg to convert image to 5-second video
+                                    subprocess.run([
+                                        "ffmpeg", "-loop", "1", "-i", file_path, 
+                                        "-t", "5", "-c:v", "libx264", "-pix_fmt", "yuv420p", 
+                                        "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=blue",
+                                        "-y", video_path
+                                    ], check=True, capture_output=True)
+                                    st.success("Image converted to 5-second video")
+                                except Exception as e:
+                                    st.error(f"Conversion failed: {str(e)}")
+                                    # Hide uploader
+                                    del st.session_state[f"show_uploader_{scene['id']}"]
+                                    st.rerun()
+                            
+                            # Update scene data
+                            scene["intro_video"] = video_path
+                            # 隐藏上传器
+                            del st.session_state[f"show_uploader_{scene['id']}"]
+                            st.success("片头视频已添加")
+                            st.rerun()
+                    
+                    # 显示视频路径（如果有）
+                    if scene.get("intro_video"):
+                        col_path, col_clear = st.columns([4, 1])
+                        with col_path:
+                            st.text_input(
+                                "片头视频路径",
+                                value=scene["intro_video"],
+                                disabled=True,
+                                key=f"intro_video_path_{scene['id']}"
+                            )
+                        with col_clear:
+                            if st.button("清除", key=f"clear_intro_video_{scene['id']}"):
+                                scene["intro_video"] = ""
+                                st.rerun()
+                    
+
                     
                     # Visual requirement with tags support
                     scene["visual_requirement"] = st.text_area(
@@ -277,7 +366,8 @@ def render_multiscene_management(tr):
                 "script": "",
                 "visual_requirement": "",
                 "keywords": "",
-                "duration": 5
+                "duration": 5,
+                "intro_video": ""
             }
             st.session_state["scenes"].append(new_scene)
             st.rerun()

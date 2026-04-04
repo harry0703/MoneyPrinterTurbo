@@ -669,10 +669,77 @@ start_button = st.button(tr("Generate Video"), use_container_width=True, type="p
 if start_button:
     config.save_config()
     task_id = str(uuid4())
-    if not params.video_subject and not params.video_script:
-        st.error(tr("Video Script and Subject Cannot Both Be Empty"))
+    
+    # 层级递进校验逻辑
+    # 1. 检查是否有场景信息
+    has_scenes = st.session_state.get("scenes") and len(st.session_state["scenes"]) > 0
+    
+    # 2. 如果没有场景信息，检查是否有视频文案
+    has_script = params.video_script and params.video_script.strip()
+    
+    # 3. 如果没有视频文案，检查是否有视频主题
+    has_subject = params.video_subject and params.video_subject.strip()
+    
+    if not has_scenes and not has_script and not has_subject:
+        st.error("请至少提供视频主题、视频文案或场景信息之一")
         scroll_to_bottom()
         st.stop()
+    
+    # 自动补全逻辑
+    if not has_scenes:
+        if has_script:
+            # 有文案但没有场景，自动触发智能脚本解析
+            st.info("正在自动解析文案为场景...")
+            try:
+                from app.services.scene_parser import auto_parse_script
+                result = auto_parse_script(params.video_script, auto_mode=True)
+                if result["status"] in ["success", "manual"] and result["scenes"]:
+                    st.session_state["scenes"] = result["scenes"]
+                    st.success(f"成功解析为 {len(result['scenes'])} 个场景")
+                    has_scenes = True
+                else:
+                    st.error(f"文案解析失败: {result.get('message', '请检查文案格式')}")
+                    scroll_to_bottom()
+                    st.stop()
+            except Exception as e:
+                st.error(f"解析失败: {str(e)}")
+                scroll_to_bottom()
+                st.stop()
+        elif has_subject:
+            # 只有主题，先自动生成文案，再解析为场景
+            st.info("正在基于主题生成文案...")
+            try:
+                # 使用LLM基于主题生成文案
+                generated_script = llm.generate_script(
+                    subject=params.video_subject,
+                    language=config.ui.get("language", "zh"),
+                    length=300  # 默认长度
+                )
+                if generated_script:
+                    params.video_script = generated_script
+                    st.session_state["video_script"] = generated_script
+                    st.success("文案生成成功")
+                    
+                    # 然后解析为场景
+                    st.info("正在自动解析文案为场景...")
+                    from app.services.scene_parser import auto_parse_script
+                    result = auto_parse_script(generated_script, auto_mode=True)
+                    if result["status"] in ["success", "manual"] and result["scenes"]:
+                        st.session_state["scenes"] = result["scenes"]
+                        st.success(f"成功解析为 {len(result['scenes'])} 个场景")
+                        has_scenes = True
+                    else:
+                        st.error(f"文案解析失败: {result.get('message', '未知错误')}")
+                        scroll_to_bottom()
+                        st.stop()
+                else:
+                    st.error("文案生成失败，请检查LLM配置")
+                    scroll_to_bottom()
+                    st.stop()
+            except Exception as e:
+                st.error(f"生成失败: {str(e)}")
+                scroll_to_bottom()
+                st.stop()
 
     if params.video_source not in ["pexels", "pixabay", "local"]:
         st.error(tr("Please Select a Valid Video Source"))
