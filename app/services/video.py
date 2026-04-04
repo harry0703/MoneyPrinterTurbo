@@ -884,7 +884,7 @@ def combine_videos(
         return None
     
     # Concatenate all clips in memory
-    logger.info(f"concatenating {len(processed_clips)} clips in memory")
+    logger.debug(f"concatenating {len(processed_clips)} clips in memory")
     try:
         # Concatenate all clips at once (no intermediate encoding)
         final_video = concatenate_videoclips(processed_clips)
@@ -1098,7 +1098,7 @@ def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
         clip = clip.resized(new_size=(new_width, new_height))
         clip_w, clip_h = new_width, new_height
     else:
-        logger.info(f"No upscaling needed, clip is larger than target")
+        logger.debug(f"No upscaling needed, clip is larger than target")
     
     # Now crop to target dimensions (center crop)
     if clip_w > target_width or clip_h > target_height:
