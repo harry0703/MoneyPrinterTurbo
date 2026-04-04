@@ -742,6 +742,7 @@ def combine_videos(
     subclipped_items = intro_subclips + regular_subclips
         
     logger.info(f"Intro video processing: {len(intro_subclips)} intro subclips, {len(regular_subclips)} regular subclips")
+    intro_path = None
     if intro_subclips:
         intro_path = intro_subclips[0].file_path
         logger.info(f"Intro video path: {intro_path}")
@@ -752,8 +753,8 @@ def combine_videos(
         if video_duration > audio_duration:
             break
         
-        # Check if this is the intro video
-        is_intro = i == 0
+        # Check if this is the intro video (all subclips from the first video)
+        is_intro = intro_path and subclipped_item.file_path == intro_path
         if is_intro:
             logger.info(f"Processing intro video clip {i+1}: {subclipped_item.file_path}")
         else:
@@ -772,22 +773,27 @@ def combine_videos(
                 else:
                     logger.info(f"Processing clip {i+1}: source={clip_w}x{clip_h}, ratio={clip_ratio:.2f}, target={video_width}x{video_height}, ratio={video_ratio:.2f}")
                 
-                # Use unified crop function that handles both upscaling and cropping
-                # Use higher max_scale for 3:4 videos to ensure they fill the screen width
-                # For local materials, use a much higher max_scale to avoid skipping user-provided materials
-                if local_video_paths and subclipped_item.file_path in local_video_paths:
-                    max_scale = 5.0  # Allow up to 500% upscaling for local materials
-                    logger.info(f"Processing local material clip {i+1}: {subclipped_item.file_path}, using max_scale={max_scale}")
+                # Process intro video differently: fit without cropping, center on blue background
+                if is_intro:
+                    logger.info("Processing intro video with fit-and-center strategy (no cropping)")
+                    clip = fit_intro_video_to_target(clip, video_width, video_height)
                 else:
-                    max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
-                    logger.info(f"Processing online material clip {i+1}: {subclipped_item.file_path}, using max_scale={max_scale}")
-                clip = crop_clip_to_target(clip, video_width, video_height, max_scale=max_scale)
-                if clip is None:
+                    # Use unified crop function that handles both upscaling and cropping
+                    # Use higher max_scale for 3:4 videos to ensure they fill the screen width
+                    # For local materials, use a much higher max_scale to avoid skipping user-provided materials
                     if local_video_paths and subclipped_item.file_path in local_video_paths:
-                        logger.warning(f"Local clip {i+1} could not be processed even with relaxed quality constraints, skipping")
+                        max_scale = 5.0  # Allow up to 500% upscaling for local materials
+                        logger.info(f"Processing local material clip {i+1}: {subclipped_item.file_path}, using max_scale={max_scale}")
                     else:
-                        logger.warning(f"Online clip {i+1} could not be processed within quality constraints, skipping")
-                    continue
+                        max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
+                        logger.info(f"Processing online material clip {i+1}: {subclipped_item.file_path}, using max_scale={max_scale}")
+                    clip = crop_clip_to_target(clip, video_width, video_height, max_scale=max_scale)
+                    if clip is None:
+                        if local_video_paths and subclipped_item.file_path in local_video_paths:
+                            logger.warning(f"Local clip {i+1} could not be processed even with relaxed quality constraints, skipping")
+                        else:
+                            logger.warning(f"Online clip {i+1} could not be processed within quality constraints, skipping")
+                        continue
                     
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if video_transition_mode and video_transition_mode.value == VideoTransitionMode.none.value:
@@ -963,6 +969,79 @@ def combine_videos(
     
     logger.info("video combining completed")
     return combined_video_path
+
+
+def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0, 255)):
+    """
+    Fit intro video into target dimensions without cropping.
+    Scales the video to fit within target, centers it on a background layer.
+    
+    Args:
+        clip: VideoFileClip to process
+        target_width: Target width in pixels
+        target_height: Target height in pixels
+        bg_color: Background color as RGB tuple (default: blue)
+    
+    Returns:
+        Composite video clip with intro centered on background
+    """
+    clip_w, clip_h = clip.size
+    target_ratio = target_width / target_height
+    clip_ratio = clip_w / clip_h
+    
+    logger.info(f"Fitting intro video: {clip_w}x{clip_h} -> {target_width}x{target_height}")
+    logger.info(f"Ratios - clip: {clip_ratio:.3f}, target: {target_ratio:.3f}")
+    
+    # Calculate scale factor to ensure at least one dimension matches target
+    # Based on aspect ratio comparison to avoid cropping
+    if clip_ratio > target_ratio:
+        # Video is wider than target, scale based on width to fill horizontally
+        scale_factor = target_width / clip_w
+        logger.info(f"Video is wider (ratio {clip_ratio:.3f} > {target_ratio:.3f}), scaling based on width")
+    elif clip_ratio < target_ratio:
+        # Video is taller than target, scale based on height to fill vertically
+        scale_factor = target_height / clip_h
+        logger.info(f"Video is taller (ratio {clip_ratio:.3f} < {target_ratio:.3f}), scaling based on height")
+    else:
+        # Same aspect ratio, scale to fit exactly
+        scale_factor = target_width / clip_w
+        logger.info(f"Same aspect ratio, scaling to fit exactly")
+    
+    logger.info(f"Selected scale factor: {scale_factor:.3f}")
+    
+    # Scale the video
+    new_width = round(clip_w * scale_factor)
+    new_height = round(clip_h * scale_factor)
+    logger.info(f"Scaling intro video: {clip_w}x{clip_h} -> {new_width}x{new_height}")
+    
+    scaled_clip = clip.resized(new_size=(new_width, new_height))
+    
+    # Create background layer
+    background = ColorClip(
+        size=(target_width, target_height),
+        color=bg_color,
+        duration=clip.duration
+    )
+    
+    # Center the scaled clip on background
+    x_offset = (target_width - new_width) // 2
+    y_offset = (target_height - new_height) // 2
+    
+    logger.info(f"Positioning intro at center: x={x_offset}, y={y_offset}")
+    
+    # Composite the video on background
+    composite = CompositeVideoClip(
+        [background, scaled_clip.with_position((x_offset, y_offset))],
+        size=(target_width, target_height)
+    )
+    composite = composite.with_duration(clip.duration)
+    
+    # Preserve audio if present
+    if clip.audio is not None:
+        composite = composite.with_audio(clip.audio)
+    
+    logger.success(f"Intro video fitted successfully: {target_width}x{target_height}")
+    return composite
 
 
 def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
