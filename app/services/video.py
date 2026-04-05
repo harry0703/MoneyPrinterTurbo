@@ -11,6 +11,7 @@ import warnings
 import io
 import contextlib
 import logging
+import math
 from typing import List
 
 # Set moviepy and imageio logging level to WARNING to suppress detailed metadata logs
@@ -685,14 +686,27 @@ def combine_videos(
     scene_info: str = None,
     local_video_paths: List[str] = None,
 ) -> str:
-    audio_clip = AudioFileClip(audio_file)
-    audio_duration = audio_clip.duration
-    logger.info(f"audio duration: {audio_duration} seconds")
-    # Close audio_clip immediately after getting duration, we'll reopen it later if needed
-    close_clip(audio_clip)
-    audio_clip = None
+    # Handle audio_file being None (scene videos already contain audio)
+    if audio_file:
+        audio_clip = AudioFileClip(audio_file)
+        audio_duration = audio_clip.duration
+        logger.info(f"audio duration: {audio_duration} seconds")
+        # Close audio_clip immediately after getting duration, we'll reopen it later if needed
+        close_clip(audio_clip)
+        audio_clip = None
+    else:
+        # Calculate total video duration from scene videos
+        audio_duration = 0
+        for video_path in video_paths:
+            try:
+                clip = VideoFileClip(video_path)
+                audio_duration += clip.duration
+                close_clip(clip)
+            except Exception as e:
+                logger.error(f"Failed to get duration for {video_path}: {e}")
+        logger.info(f"Total video duration: {audio_duration} seconds")
+    
     # Required duration of each clip
-    req_dur = audio_duration / len(video_paths)
     req_dur = max_clip_duration
     logger.info(f"maximum clip duration: {req_dur} seconds")
     output_dir = os.path.dirname(combined_video_path)
@@ -890,18 +904,21 @@ def combine_videos(
         final_video = concatenate_videoclips(processed_clips)
         logger.info(f"clips concatenated, total duration: {final_video.duration:.2f}s")
         
-        # Load audio
-        audio_clip = AudioFileClip(audio_file)
-        
-        # Trim audio to match video duration
-        video_duration_final = final_video.duration
-        audio_duration = audio_clip.duration
-        if audio_duration > video_duration_final:
-            audio_clip = audio_clip.subclipped(0, video_duration_final)
-            logger.info(f"audio trimmed to match video duration: {video_duration_final:.2f}s")
-        
-        # Add audio to video
-        final_video = final_video.with_audio(audio_clip)
+        # Load audio if provided
+        if audio_file:
+            audio_clip = AudioFileClip(audio_file)
+            
+            # Trim audio to match video duration
+            video_duration_final = final_video.duration
+            audio_duration = audio_clip.duration
+            if audio_duration > video_duration_final:
+                audio_clip = audio_clip.subclipped(0, video_duration_final)
+                logger.info(f"audio trimmed to match video duration: {video_duration_final:.2f}s")
+            
+            # Add audio to video
+            final_video = final_video.with_audio(audio_clip)
+        else:
+            logger.info("Using existing audio from scene videos")
         if scene_info:
             logger.info(f"audio added to video {scene_info}")
         else:
@@ -959,7 +976,8 @@ def combine_videos(
         
         # Close all clips
         close_clip(final_video)
-        close_clip(audio_clip)
+        if audio_file:
+            close_clip(audio_clip)
         for clip in processed_clips:
             close_clip(clip)
         
@@ -1200,11 +1218,11 @@ def generate_video(
         # Load video
         video_clip = VideoFileClip(video_path)
         
-        # Load audio
-        audio_clip = AudioFileClip(audio_path)
-        
-        # Set audio to video
-        video_clip = video_clip.with_audio(audio_clip)
+        # Load audio if provided
+        if audio_path:
+            audio_clip = AudioFileClip(audio_path)
+            # Set audio to video
+            video_clip = video_clip.with_audio(audio_clip)
         
         # Add subtitles if enabled
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
@@ -1252,12 +1270,17 @@ def generate_video(
                         wrapped_text, _ = wrap_text(line, max_width=max_width, font=font_path, fontsize=int(params.font_size))
                         
                         # Create text clip
+                        # Handle transparent background
+                        bg_color = params.text_background_color
+                        if bg_color == 'transparent':
+                            bg_color = None
+                        
                         txt_clip = TextClip(
                             text=wrapped_text,
                             font=font_path,
                             font_size=int(params.font_size),
                             color=params.text_fore_color,
-                            bg_color=params.text_background_color,
+                            bg_color=bg_color,
                             stroke_color=params.stroke_color,
                             stroke_width=int(params.stroke_width),
                         )
@@ -1313,7 +1336,8 @@ def generate_video(
         
         # Close clips
         video_clip.close()
-        audio_clip.close()
+        if audio_path:
+            audio_clip.close()
         
         logger.success(f"video generated successfully: {output_file}")
         return output_file
@@ -1321,3 +1345,335 @@ def generate_video(
     except Exception as e:
         logger.error(f"failed to generate video: {e}")
         raise
+
+
+def analyze_video_params(video_path):
+    """
+    Analyze video file and return parameters
+    
+    Args:
+        video_path: Path to video file
+        
+    Returns:
+        Dictionary containing video parameters, or None if failed
+    """
+    try:
+        from moviepy import VideoFileClip
+        clip = VideoFileClip(video_path)
+        params = {
+            "width": clip.w,
+            "height": clip.h,
+            "fps": clip.fps,
+            "duration": clip.duration
+        }
+        clip.close()
+        logger.info(f"Analyzed video params: {params}")
+        return params
+    except Exception as e:
+        logger.error(f"Failed to analyze video params: {e}")
+        return None
+
+
+def scan_task_files(task_id_or_path: str) -> dict:
+    """
+    Scan task directory and return detected files.
+    
+    Args:
+        task_id_or_path: Task ID or direct directory path
+        
+    Returns:
+        Dictionary containing detected files and their status
+    """
+    # Check if it's a direct directory path
+    if os.path.isdir(task_id_or_path):
+        task_dir = task_id_or_path
+        task_id = os.path.basename(task_dir)
+    else:
+        # It's a task ID
+        task_id = task_id_or_path
+        task_dir = utils.task_dir(task_id)
+    
+    result = {
+        "task_id": task_id,
+        "task_dir": task_dir,
+        "scene_videos": [],
+        "audio_files": [],
+        "subtitle_files": [],
+        "is_valid": False,
+        "total_scenes": 0,
+        "combined_video": None,
+        "global_audio": None,
+        "global_subtitle": None,
+    }
+    
+    if not os.path.exists(task_dir):
+        logger.error(f"Task directory does not exist: {task_dir}")
+        return result
+    
+    # Check global audio and subtitle files
+    global_audio_path = os.path.join(task_dir, "audio.mp3")
+    if os.path.exists(global_audio_path):
+        result["global_audio"] = global_audio_path
+        result["audio_files"].append(global_audio_path)
+        logger.info(f"Found global audio: {global_audio_path}")
+    
+    global_subtitle_path = os.path.join(task_dir, "subtitle.srt")
+    if os.path.exists(global_subtitle_path):
+        result["global_subtitle"] = global_subtitle_path
+        result["subtitle_files"].append(global_subtitle_path)
+        logger.info(f"Found global subtitle: {global_subtitle_path}")
+    
+    # Scan for scene directories
+    scene_dirs = []
+    for item in os.listdir(task_dir):
+        item_path = os.path.join(task_dir, item)
+        if os.path.isdir(item_path) and item.startswith("scene_"):
+            try:
+                scene_num = int(item.split("_")[1])
+                scene_dirs.append((scene_num, item_path))
+            except (IndexError, ValueError):
+                pass
+    
+    # Sort by scene number
+    scene_dirs.sort(key=lambda x: x[0])
+    
+    for scene_num, scene_dir in scene_dirs:
+        scene_video_path = os.path.join(scene_dir, "combined.mp4")
+        scene_audio_path = os.path.join(scene_dir, "audio.mp3")
+        scene_subtitle_path = os.path.join(scene_dir, "subtitle.srt")
+        
+        scene_info = {
+            "scene_num": scene_num,
+            "scene_dir": scene_dir,
+            "video": scene_video_path if os.path.exists(scene_video_path) else None,
+            "audio": scene_audio_path if os.path.exists(scene_audio_path) else None,
+            "subtitle": scene_subtitle_path if os.path.exists(scene_subtitle_path) else None,
+        }
+        
+        result["scene_videos"].append(scene_info)
+        
+        if scene_info["audio"]:
+            result["audio_files"].append(scene_audio_path)
+        if scene_info["subtitle"]:
+            result["subtitle_files"].append(scene_subtitle_path)
+        
+        logger.info(f"Scene {scene_num}: video={scene_info['video'] is not None}, "
+                   f"audio={scene_info['audio'] is not None}, "
+                   f"subtitle={scene_info['subtitle'] is not None}")
+    
+    result["total_scenes"] = len(scene_dirs)
+    
+    # Check if we have valid scene videos to combine
+    valid_scenes = [s for s in result["scene_videos"] if s["video"] is not None]
+    if valid_scenes:
+        result["is_valid"] = True
+        logger.info(f"Task scan complete: {len(valid_scenes)} valid scenes found")
+    else:
+        logger.warning(f"No valid scene videos found in task directory: {task_dir}")
+    
+    return result
+
+
+def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str:
+    """
+    Recover video synthesis from existing task files.
+    
+    This function scans the task directory for existing scene videos,
+    audio files, and subtitle files, then combines them into the final video.
+    
+    Args:
+        task_id_or_path: Task ID or direct directory path
+        progress_callback: Optional callback function for progress updates
+        
+    Returns:
+        Path to the final video file, or None if failed
+    """
+    # Determine task ID and directory
+    if os.path.isdir(task_id_or_path):
+        task_dir = task_id_or_path
+        task_id = os.path.basename(task_dir)
+    else:
+        task_id = task_id_or_path
+        task_dir = utils.task_dir(task_id)
+    
+    logger.info(f"\n\n## Starting video synthesis recovery for task: {task_id}")
+    
+    # Scan task directory
+    task_files = scan_task_files(task_id_or_path)
+    
+    if not task_files["is_valid"]:
+        logger.error("No valid scene videos found in task directory")
+        return None
+    
+    task_dir = task_files["task_dir"]
+    valid_scenes = [s for s in task_files["scene_videos"] if s["video"] is not None]
+    
+    if not valid_scenes:
+        logger.error("No valid scenes found")
+        return None
+    
+    logger.info(f"Found {len(valid_scenes)} valid scenes to combine")
+    
+    # Determine which audio and subtitle files to use
+    subtitle_file = task_files["global_subtitle"]
+    audio_file = None  # Scene videos already contain audio
+    
+    # 场景视频中已经包含音频，不需要单独处理音频文件
+    logger.info("Scene videos already contain audio, skipping audio processing")
+    
+    if not subtitle_file:
+        logger.info("No global subtitle found, searching for scene subtitles...")
+        # Collect subtitles from scene directories
+        scene_subtitles = []
+        for scene in valid_scenes:
+            scene_subtitle = scene.get("subtitle")
+            if scene_subtitle and os.path.exists(scene_subtitle):
+                scene_subtitles.append(scene_subtitle)
+                logger.info(f"Found scene subtitle: {scene_subtitle}")
+        
+        if scene_subtitles:
+            # Use merge_scene_subtitles function to merge scene subtitles with time offset
+            logger.info(f"Merging {len(scene_subtitles)} scene subtitles into global subtitle")
+            merged_subtitle_path = os.path.join(task_dir, "merged_subtitle.srt")
+            
+            try:
+                from app.services.subtitle import merge_scene_subtitles
+                # Create scene_results list with duration info
+                scene_results = []
+                for i, scene in enumerate(valid_scenes):
+                    scene_result = {
+                        "scene_index": i,
+                        "subtitle_path": scene.get("subtitle"),
+                        "combined_video_path": scene.get("video")
+                    }
+                    scene_results.append(scene_result)
+                
+                subtitle_file = merge_scene_subtitles(task_id, scene_results, merged_subtitle_path)
+                
+                if not subtitle_file:
+                    logger.error("Failed to merge subtitles")
+            except Exception as e:
+                logger.error(f"Failed to merge subtitles: {e}")
+        else:
+            logger.info("No scene subtitles found, will proceed without subtitles")
+    
+    # Collect video paths
+    video_paths = [s["video"] for s in valid_scenes]
+    
+    # Determine output path
+    output_path = os.path.join(task_dir, "final-1.mp4")
+    
+    # Get video parameters from config
+    _cfg = load_config()
+    app_config = _cfg.get("app", {})
+    
+    # Analyze video parameters from scene videos
+    video_params = None
+    if video_paths:
+        # Analyze first scene video as reference
+        video_params = analyze_video_params(video_paths[0])
+        
+        # Verify other videos
+        for i, video_path in enumerate(video_paths[1:], 1):
+            other_params = analyze_video_params(video_path)
+            if other_params:
+                # Check if parameters match
+                if other_params["width"] != video_params["width"] or \
+                   other_params["height"] != video_params["height"]:
+                    logger.warning(f"Scene {i+1} video parameters don't match reference")
+            else:
+                logger.warning(f"Failed to analyze scene {i+1} video")
+    
+    # Create VideoParams object
+    from app.models.schema import VideoParams, VideoAspect, VideoConcatMode
+    
+    # Determine video aspect ratio
+    if video_params:
+        # Calculate aspect ratio from video dimensions
+        width, height = video_params["width"], video_params["height"]
+        # Simplify aspect ratio
+        gcd = math.gcd(width, height)
+        aspect_ratio = f"{width//gcd}:{height//gcd}"
+        logger.info(f"Using detected aspect ratio: {aspect_ratio}")
+    else:
+        # Fall back to config
+        aspect_ratio = app_config.get("video_aspect", "9:16")
+        logger.info(f"Using config aspect ratio: {aspect_ratio}")
+    
+    params = VideoParams(
+        video_subject="Recovered Video",
+        video_aspect=VideoAspect(aspect_ratio),
+        video_concat_mode=VideoConcatMode(app_config.get("video_concat_mode", "random")),
+        subtitle_enabled=app_config.get("subtitle_enabled", True),
+        font_name=app_config.get("font_name", "STHeitiMedium.ttc"),
+        font_size=app_config.get("font_size", 60),
+        text_fore_color=app_config.get("text_fore_color", "white"),
+        text_background_color=app_config.get("text_background_color", "transparent"),
+        stroke_color=app_config.get("stroke_color", "black"),
+        stroke_width=app_config.get("stroke_width", 2),
+        subtitle_position=app_config.get("subtitle_position", "bottom")
+    )
+    
+    if progress_callback:
+        progress_callback(20, "Preparing video files...")
+    
+    # If we have only one scene video, use it directly
+    if len(video_paths) == 1:
+        logger.info("Only one scene video found, using it directly")
+        combined_video_path = video_paths[0]
+    else:
+        # Combine all scene videos using existing combine_videos function
+        logger.info(f"Combining {len(video_paths)} scene videos")
+        
+        if progress_callback:
+            progress_callback(40, "Combining scene videos...")
+        
+        try:
+            combined_video_path = os.path.join(task_dir, "temp_combined_scenes.mp4")
+            
+            # Use existing combine_videos function
+            from app.services.video import combine_videos
+            combined_video_path = combine_videos(
+                combined_video_path=combined_video_path,
+                video_paths=video_paths,
+                audio_file=audio_file,
+                video_aspect=params.video_aspect,
+                video_concat_mode=params.video_concat_mode
+            )
+            
+            if not combined_video_path:
+                logger.error("Failed to combine scene videos")
+                return None
+            
+            logger.success(f"Combined video created: {combined_video_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to combine scene videos: {e}")
+            return None
+    
+    if progress_callback:
+        progress_callback(60, "Generating final video...")
+    
+    # Use existing generate_video function to add audio and subtitles
+    try:
+        from app.services.video import generate_video
+        output_path = generate_video(
+            video_path=combined_video_path,
+            audio_path=audio_file,
+            subtitle_path=subtitle_file,
+            output_file=output_path,
+            params=params,
+            progress_callback=progress_callback
+        )
+        
+        if output_path and os.path.exists(output_path):
+            logger.success(f"Final video generated: {output_path}")
+            
+            return output_path
+        else:
+            logger.error("Failed to generate final video")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Failed to generate final video: {e}")
+        return None

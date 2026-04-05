@@ -216,13 +216,26 @@ def file_to_subtitles(filename):
         for line in f:
             times = re.findall("([0-9]*:[0-9]*:[0-9]*,[0-9]*)", line)
             if times:
+                # If we have a current entry, add it before starting a new one
+                if current_times and current_text:
+                    index += 1
+                    times_texts.append((index, current_times.strip(), current_text.strip()))
+                    current_text = ""
                 current_times = line
-            elif line.strip() == "" and current_times:
+            elif line.strip() == "" and current_times and current_text:
+                # Empty line indicates end of current entry
                 index += 1
                 times_texts.append((index, current_times.strip(), current_text.strip()))
                 current_times, current_text = None, ""
             elif current_times:
+                # Accumulate text for current entry
                 current_text += line
+    
+    # Add the last entry if we have one
+    if current_times and current_text:
+        index += 1
+        times_texts.append((index, current_times.strip(), current_text.strip()))
+    
     return times_texts
 
 
@@ -353,6 +366,134 @@ def _seconds_to_srt_time(seconds):
     secs = int(seconds % 60)
     ms = int((seconds % 1) * 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
+
+
+def merge_subtitles(subtitle_files, output_file):
+    """
+    Merge multiple subtitle files into a single global subtitle file.
+    
+    Args:
+        subtitle_files: List of subtitle file paths to merge
+        output_file: Path to save the merged subtitle file
+        
+    Returns:
+        Path to the merged subtitle file, or None if failed
+    """
+    try:
+        with open(output_file, 'w', encoding='utf-8') as outfile:
+            subtitle_index = 1
+            
+            for subtitle_file in subtitle_files:
+                if not os.path.exists(subtitle_file):
+                    logger.warning(f"Subtitle file not found: {subtitle_file}")
+                    continue
+                
+                # Use existing file_to_subtitles function to read subtitle items
+                subtitle_items = file_to_subtitles(subtitle_file)
+                
+                for item in subtitle_items:
+                    index, time_str, text = item
+                    # Write with updated index
+                    outfile.write(f"{subtitle_index}\n")
+                    outfile.write(f"{time_str}\n")
+                    outfile.write(f"{text}\n\n")
+                    subtitle_index += 1
+        
+        logger.success(f"Merged subtitles saved to: {output_file}")
+        return output_file
+    except Exception as e:
+        logger.error(f"Failed to merge subtitles: {e}")
+        return None
+
+
+def merge_scene_subtitles(task_id, scene_results, output_file=None):
+    """
+    Merge subtitles from multiple scenes, adjusting timestamps based on scene durations.
+    
+    Args:
+        task_id: Task ID for logging and file paths
+        scene_results: List of scene results, each containing subtitle_path and duration info
+        output_file: Optional output file path, defaults to task directory
+        
+    Returns:
+        Path to the merged subtitle file, or None if failed
+    """
+    try:
+        from moviepy import VideoFileClip
+        from app.utils import utils
+        import os
+        
+        if not output_file:
+            output_file = os.path.join(utils.task_dir(task_id), "merged_subtitle.srt")
+        
+        # Collect all scene subtitles and adjust timestamps
+        all_subtitles = []
+        current_offset = 0
+        
+        for scene_result in scene_results:
+            scene_subtitle = scene_result.get("subtitle_path")
+            scene_video = scene_result.get("combined_video_path")
+            
+            # Get scene duration
+            scene_duration = 0
+            try:
+                if scene_video and os.path.exists(scene_video):
+                    clip = VideoFileClip(scene_video)
+                    scene_duration = clip.duration
+                    # Properly close the clip
+                    clip.close()
+                else:
+                    scene_duration = scene_result.get("audio_duration", 0)
+            except Exception as e:
+                logger.error(f"failed to get scene duration: {e}")
+                scene_duration = scene_result.get("audio_duration", 0)
+            
+            # Process subtitles if available
+            if scene_subtitle and os.path.exists(scene_subtitle):
+                try:
+                    scene_subs = file_to_subtitles(scene_subtitle)
+                    logger.info(f"scene {scene_result.get('scene_index', 0) + 1}: loaded {len(scene_subs)} subtitles from {scene_subtitle}")
+                    
+                    # Adjust timestamps and add to all_subtitles
+                    for sub in scene_subs:
+                        index, time_str, text = sub
+                        # Parse time string
+                        start_end = time_str.split(" --> ")
+                        if len(start_end) == 2:
+                            # Convert to seconds and add offset
+                            start_time = _srt_time_to_seconds(start_end[0]) + current_offset
+                            end_time = _srt_time_to_seconds(start_end[1]) + current_offset
+                            # Convert back to SRT format
+                            new_time_str = f"{_seconds_to_srt_time(start_time)} --> {_seconds_to_srt_time(end_time)}"
+                            all_subtitles.append((len(all_subtitles) + 1, new_time_str, text))
+                except Exception as e:
+                    logger.error(f"failed to process scene subtitle: {e}")
+            else:
+                logger.warning(f"scene {scene_result.get('scene_index', 0) + 1}: subtitle file not found or does not exist: {scene_subtitle}")
+            
+            # Update offset for next scene
+            current_offset += scene_duration
+        
+        # Create merged subtitle file if we have subtitles
+        if all_subtitles:
+            try:
+                with open(output_file, "w", encoding="utf-8") as f:
+                    for sub in all_subtitles:
+                        f.write(f"{sub[0]}\n")
+                        f.write(f"{sub[1]}\n")
+                        f.write(f"{sub[2]}\n\n")
+                logger.info(f"merged subtitle file created: {output_file}")
+                logger.info(f"total subtitles merged: {len(all_subtitles)}")
+                return output_file
+            except Exception as e:
+                logger.error(f"failed to create merged subtitle file: {e}")
+                return None
+        else:
+            logger.warning("No subtitles found to merge")
+            return None
+    except Exception as e:
+        logger.error(f"Failed to merge scene subtitles: {e}")
+        return None
 
 
 if __name__ == "__main__":

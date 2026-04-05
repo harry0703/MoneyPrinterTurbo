@@ -1269,71 +1269,9 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
         
         # Add subtitle if enabled
         if params.subtitle_enabled and scene_results:
-            # Collect all scene subtitles and adjust timestamps
-            all_subtitles = []
-            current_offset = 0
-            
-            for scene_result in scene_results:
-                scene_subtitle = scene_result.get("subtitle_path")
-                scene_video = scene_result.get("combined_video_path")
-                
-                # Get scene duration - always get this, even if no subtitle
-                scene_duration = 0
-                try:
-                    if scene_video and os.path.exists(scene_video):
-                        clip = VideoFileClip(scene_video)
-                        scene_duration = clip.duration
-                        # Use close_clip function for proper cleanup
-                        from app.services import video as video_module
-                        video_module.close_clip(clip)
-                    else:
-                        scene_duration = scene_result.get("audio_duration", 0)
-                except Exception as e:
-                    logger.error(f"failed to get scene duration: {e}")
-                    scene_duration = scene_result.get("audio_duration", 0)
-                
-                # Process subtitles if available
-                if scene_subtitle and os.path.exists(scene_subtitle):
-                    try:
-                        from app.services import subtitle
-                        scene_subs = subtitle.file_to_subtitles(scene_subtitle)
-                        logger.info(f"scene {scene_result.get('scene_index', 0) + 1}: loaded {len(scene_subs)} subtitles from {scene_subtitle}")
-                        
-                        # Adjust timestamps and add to all_subtitles
-                        for sub in scene_subs:
-                            index, time_str, text = sub
-                            # Parse time string
-                            start_end = time_str.split(" --> ")
-                            if len(start_end) == 2:
-                                # Convert to seconds and add offset
-                                start_time = _srt_time_to_seconds(start_end[0]) + current_offset
-                                end_time = _srt_time_to_seconds(start_end[1]) + current_offset
-                                # Convert back to SRT format
-                                new_time_str = f"{_seconds_to_srt_time(start_time)} --> {_seconds_to_srt_time(end_time)}"
-                                all_subtitles.append((len(all_subtitles) + 1, new_time_str, text))
-                    except Exception as e:
-                        logger.error(f"failed to process scene subtitle: {e}")
-                else:
-                    logger.warning(f"scene {scene_result.get('scene_index', 0) + 1}: subtitle file not found or does not exist: {scene_subtitle}")
-                
-                # Update offset for next scene
-                current_offset += scene_duration
-            
-            # Create merged subtitle file if we have subtitles
-            merged_subtitle_path = None
-            if all_subtitles:
-                merged_subtitle_path = path.join(utils.task_dir(task_id), "merged_subtitle.srt")
-                try:
-                    with open(merged_subtitle_path, "w", encoding="utf-8") as f:
-                        for sub in all_subtitles:
-                            f.write(f"{sub[0]}\n")
-                            f.write(f"{sub[1]}\n")
-                            f.write(f"{sub[2]}\n\n")
-                    logger.info(f"merged subtitle file created: {merged_subtitle_path}")
-                    logger.info(f"total subtitles merged: {len(all_subtitles)}")
-                except Exception as e:
-                    logger.error(f"failed to create merged subtitle file: {e}")
-                    merged_subtitle_path = None
+            # Use the new merge_scene_subtitles function to merge subtitles
+            from app.services import subtitle
+            merged_subtitle_path = subtitle.merge_scene_subtitles(task_id, scene_results)
             
             # Use merged subtitle if available, otherwise fall back to first scene
             if merged_subtitle_path and os.path.exists(merged_subtitle_path):
