@@ -14,6 +14,8 @@ try:
 except ImportError:
     torch = None
 
+from moviepy.editor import VideoFileClip
+
 from app.config import config
 from app.utils import utils
 
@@ -419,10 +421,6 @@ def merge_scene_subtitles(task_id, scene_results, output_file=None):
         Path to the merged subtitle file, or None if failed
     """
     try:
-        from moviepy import VideoFileClip
-        from app.utils import utils
-        import os
-        
         if not output_file:
             output_file = os.path.join(utils.task_dir(task_id), "merged_subtitle.srt")
         

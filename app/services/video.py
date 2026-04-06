@@ -685,6 +685,7 @@ def combine_videos(
     threads: int = 2,
     scene_info: str = None,
     local_video_paths: List[str] = None,
+    intro_video_path: str = None,
 ) -> str:
     # Handle audio_file being None (scene videos already contain audio)
     if audio_file:
@@ -718,7 +719,7 @@ def combine_videos(
     subclipped_items = []
     video_duration = 0
     
-    # Process videos and separate intro video (first video) from others
+    # Process videos and separate intro video (if intro_video_path is provided) from others
     intro_subclips = []
     regular_subclips = []
     
@@ -735,8 +736,8 @@ def combine_videos(
                 end_time = min(start_time + max_clip_duration, clip_duration)            
                 subclip = SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h)
                 
-                # First video is intro video, keep it separate
-                if i == 0:
+                # Only use intro processing if intro_video_path is provided and matches current video
+                if intro_video_path and video_path == intro_video_path:
                     intro_subclips.append(subclip)
                 else:
                     regular_subclips.append(subclip)
@@ -756,10 +757,10 @@ def combine_videos(
     subclipped_items = intro_subclips + regular_subclips
         
     logger.info(f"Intro video processing: {len(intro_subclips)} intro subclips, {len(regular_subclips)} regular subclips")
-    intro_path = None
-    if intro_subclips:
-        intro_path = intro_subclips[0].file_path
-        logger.info(f"Intro video path: {intro_path}")
+    if intro_video_path:
+        logger.info(f"Intro video path: {intro_video_path}")
+    else:
+        logger.info("No intro video specified")
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
     # Add downloaded clips over and over until we reach the duration of the audio (max_duration) has been reached
@@ -767,8 +768,8 @@ def combine_videos(
         if video_duration > audio_duration:
             break
         
-        # Check if this is the intro video (all subclips from the first video)
-        is_intro = intro_path and subclipped_item.file_path == intro_path
+        # Check if this is the intro video (all subclips from the intro_video_path)
+        is_intro = intro_video_path and subclipped_item.file_path == intro_video_path
         if is_intro:
             logger.info(f"Processing intro video clip {i+1}: {subclipped_item.file_path}")
         else:
@@ -1358,7 +1359,6 @@ def analyze_video_params(video_path):
         Dictionary containing video parameters, or None if failed
     """
     try:
-        from moviepy import VideoFileClip
         clip = VideoFileClip(video_path)
         params = {
             "width": clip.w,
@@ -1518,7 +1518,7 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
     subtitle_file = task_files["global_subtitle"]
     audio_file = None  # Scene videos already contain audio
     
-    # 场景视频中已经包含音频，不需要单独处理音频文件
+    # Scene videos already contain audio, no need for separate audio processing
     logger.info("Scene videos already contain audio, skipping audio processing")
     
     if not subtitle_file:
@@ -1632,7 +1632,6 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
             combined_video_path = os.path.join(task_dir, "temp_combined_scenes.mp4")
             
             # Use existing combine_videos function
-            from app.services.video import combine_videos
             combined_video_path = combine_videos(
                 combined_video_path=combined_video_path,
                 video_paths=video_paths,

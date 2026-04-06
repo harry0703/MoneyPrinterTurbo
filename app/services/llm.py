@@ -524,27 +524,33 @@ Please generate both English and Chinese search terms to ensure better search re
     return search_terms
 
 
-def generate_tags(scene_script: str, max_tags: int = 3) -> List[str]:
+def generate_tags(scene_script: str, visual_requirement: str = "", max_tags: int = 3) -> List[str]:
     """
-    Generate 1-3 tags for a scene based on its script content.
+    Generate 1-3 tags for a scene based on its script content and visual requirements.
     
     Args:
         scene_script: Scene script text
+        visual_requirement: Scene visual requirements
         max_tags: Maximum number of tags to generate
         
     Returns:
         List of generated tags
     """
+    # Build context with both script and visual requirements
+    context = f"### Scene Script\n{scene_script}"
+    if visual_requirement and visual_requirement.strip():
+        context += f"\n\n### Visual Requirements\n{visual_requirement}"
+    
     prompt = f"""
     # Role: Scene Tag Generator
     
     ## Goals:
-    Generate {max_tags} relevant tags for a video scene based on its script content.
+    Generate {max_tags} relevant tags for a video scene based on its script content and visual requirements.
     
     ## Constrains:
     1. The tags are to be returned as a json-array of strings.
     2. Each tag should be a single word or short phrase (1-3 words).
-    3. The tags must be directly related to the content of the scene.
+    3. The tags must be directly related to the content of the scene and its visual requirements.
     4. You must only return the json-array of strings. You must not return anything else.
     5. Respond in the same language as the scene script.
     
@@ -552,9 +558,11 @@ def generate_tags(scene_script: str, max_tags: int = 3) -> List[str]:
     ["tag1", "tag2", "tag3"]
     
     ## Context:
-    ### Scene Script
-    {scene_script}
-    """.strip()
+    {context}
+    """
+    
+    # Strip whitespace and ensure proper formatting
+    prompt = prompt.strip()
     
     logger.info(f"Generating tags for scene script: {scene_script[:50]}...")
     
