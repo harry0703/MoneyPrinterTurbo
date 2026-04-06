@@ -149,7 +149,7 @@ docker-compose up
 > Note：The latest version of docker will automatically install docker compose in the form of a plug-in, and the start command is adjusted to `docker compose up `
 >
 > If Redis is enabled, `redis_host` in `config.toml` can remain `localhost` for local runs.
-> When started with `docker-compose`, Compose injects `MPT_APP_REDIS_HOST=redis` by default,
+> When started with `docker-compose`, Compose injects `REDIS_HOST=redis` by default,
 > so the API container connects to the Redis service name instead of its own `localhost`.
 
 #### ② Access the Web Interface
