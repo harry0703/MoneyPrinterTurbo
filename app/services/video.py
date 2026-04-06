@@ -1067,35 +1067,69 @@ def build_scene_video(
     if intro_video_path and intro_video_path in video_paths:
         # Process intro video
         try:
-            clip = VideoFileClip(intro_video_path)
-            clip_duration = clip.duration
-            clip_w, clip_h = clip.size
-            close_clip(clip)
-            
-            start_time = 0
-            end_time = min(start_time + max_clip_duration, clip_duration)
-            subclip = SubClippedVideoClip(file_path=intro_video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h)
-            
-            # Process intro clip
-            aspect = VideoAspect(video_aspect)
-            video_width, video_height = aspect.to_resolution()
-            
-            clip = VideoFileClip(subclip.file_path).subclipped(subclip.start_time, subclip.end_time)
-            # Process intro video differently: fit without cropping, center on blue background
-            clip = fit_intro_video_to_target(clip, video_width, video_height)
-            
-            # Apply brightness and contrast enhancement
-            brightness_factor = config.app.get("video_brightness", 1.0)
-            contrast_factor = config.app.get("video_contrast", 1.0)
-            
-            if brightness_factor != 1.0:
-                clip = video_effects.brightness_enhance(clip, brightness_factor)
-            
-            if contrast_factor != 1.0:
-                clip = video_effects.contrast_enhance(clip, contrast_factor)
-            
-            intro_clips.append(clip)
-            logger.info(f"Intro video processed: {intro_video_path}")
+            # Check if intro video is actually an image
+            if intro_video_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+                # Handle image as intro video with 5-8 seconds random duration
+                import random
+                # Generate random duration between 5 and 8 seconds
+                random_duration = random.uniform(5, 8)
+                logger.info(f"Processing image as intro video with random duration: {random_duration:.1f}s")
+                
+                # Create video from image with random duration
+                clip = ImageClip(intro_video_path).with_duration(random_duration)
+                clip_duration = random_duration
+                clip_w, clip_h = clip.size
+                
+                # Process intro clip
+                aspect = VideoAspect(video_aspect)
+                video_width, video_height = aspect.to_resolution()
+                
+                # Process intro video differently: fit without cropping, center on blue background
+                clip = fit_intro_video_to_target(clip, video_width, video_height)
+                
+                # Apply brightness and contrast enhancement
+                brightness_factor = config.app.get("video_brightness", 1.0)
+                contrast_factor = config.app.get("video_contrast", 1.0)
+                
+                if brightness_factor != 1.0:
+                    clip = video_effects.brightness_enhance(clip, brightness_factor)
+                
+                if contrast_factor != 1.0:
+                    clip = video_effects.contrast_enhance(clip, contrast_factor)
+                
+                intro_clips.append(clip)
+                logger.info(f"Image intro video processed: {intro_video_path} (duration: {random_duration:.1f}s)")
+            else:
+                # Process as regular video
+                clip = VideoFileClip(intro_video_path)
+                clip_duration = clip.duration
+                clip_w, clip_h = clip.size
+                close_clip(clip)
+                
+                start_time = 0
+                end_time = min(start_time + max_clip_duration, clip_duration)
+                subclip = SubClippedVideoClip(file_path=intro_video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h)
+                
+                # Process intro clip
+                aspect = VideoAspect(video_aspect)
+                video_width, video_height = aspect.to_resolution()
+                
+                clip = VideoFileClip(subclip.file_path).subclipped(subclip.start_time, subclip.end_time)
+                # Process intro video differently: fit without cropping, center on blue background
+                clip = fit_intro_video_to_target(clip, video_width, video_height)
+                
+                # Apply brightness and contrast enhancement
+                brightness_factor = config.app.get("video_brightness", 1.0)
+                contrast_factor = config.app.get("video_contrast", 1.0)
+                
+                if brightness_factor != 1.0:
+                    clip = video_effects.brightness_enhance(clip, brightness_factor)
+                
+                if contrast_factor != 1.0:
+                    clip = video_effects.contrast_enhance(clip, contrast_factor)
+                
+                intro_clips.append(clip)
+                logger.info(f"Video intro processed: {intro_video_path}")
         except Exception as e:
             logger.error(f"Failed to process intro video: {str(e)}")
         
@@ -1385,27 +1419,30 @@ def generate_video(
                 # Create subtitle clips
                 subtitle_clips = []
                 
-                # Parse subtitle file
-                with open(subtitle_path, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
+                # Import file_to_subtitles function
+                from app.services.subtitle import file_to_subtitles, _srt_time_to_seconds
                 
-                current_time = 0
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        continue
+                # Parse subtitle file
+                subtitle_items = file_to_subtitles(subtitle_path)
+                logger.info(f"Loaded {len(subtitle_items)} subtitles from {subtitle_path}")
+                
+                # Process each subtitle item
+                for item in subtitle_items:
+                    index, time_str, text = item
                     
-                    # Parse timecode and text (simplified parsing)
-                    # Format: HH:MM:SS,mmm --> HH:MM:SS,mmm
-                    if '-->' in line:
-                        continue
-                    
-                    # Check if line is a number (subtitle index)
-                    if line.isdigit():
-                        continue
-                    
-                    # This is subtitle text
-                    if line:
+                    # Parse time string
+                    start_end = time_str.split(" --> ")
+                    if len(start_end) == 2:
+                        # Convert to seconds
+                        start_time = _srt_time_to_seconds(start_end[0])
+                        end_time = _srt_time_to_seconds(start_end[1])
+                        duration = end_time - start_time
+                        
+                        # Skip subtitles with negative or zero duration
+                        if duration <= 0:
+                            logger.warning(f"Skipping subtitle with invalid duration: {duration}s")
+                            continue
+                        
                         # Wrap text
                         # Get subtitle margin from config (default 0.05 = 5% on each side)
                         # Reload config to get latest values
@@ -1413,7 +1450,7 @@ def generate_video(
                         ui_config = _cfg.get("ui", {})
                         subtitle_margin = ui_config.get("subtitle_margin", 0.05)
                         max_width = video_clip.w * (1 - 2 * subtitle_margin)
-                        wrapped_text, _ = wrap_text(line, max_width=max_width, font=font_path, fontsize=int(params.font_size))
+                        wrapped_text, _ = wrap_text(text, max_width=max_width, font=font_path, fontsize=int(params.font_size))
                         
                         # Create text clip
                         # Handle transparent background
@@ -1446,11 +1483,12 @@ def generate_video(
                         else:  # center
                             txt_clip = txt_clip.with_position(("center", "center"))
                         
-                        # Set duration (simplified - using fixed duration for each subtitle)
-                        txt_clip = txt_clip.with_start(current_time).with_duration(2)
-                        current_time += 2
+                        # Set duration based on subtitle timestamps
+                        txt_clip = txt_clip.with_start(start_time).with_duration(duration)
                         
                         subtitle_clips.append(txt_clip)
+                
+                logger.info(f"Created {len(subtitle_clips)} subtitle clips")
                 
                 # Composite video with subtitles
                 if subtitle_clips:
