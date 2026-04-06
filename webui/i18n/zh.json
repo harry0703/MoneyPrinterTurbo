@@ -2,6 +2,13 @@
   "Language": "简体中文",
   "Translation": {
     "Login Required": "需要登录",
+    "Will use audio from scene videos": "将使用场景视频中的音频",
+    "Scene Audio": "场景音频",
+    "Scene Videos": "场景视频",
+    "Subtitle File": "字幕文件",
+    "Will generate global subtitle from scene subtitles": "将基于场景字幕生成全局字幕",
+    "Not found, will proceed without subtitles": "未找到，将无字幕处理",
+    "items": "个",
     "Please login to access settings": "请登录后访问配置设置 (:gray[默认用户名: admin, 密码: admin, 您可以在 config.toml 中修改])",
     "Username": "用户名",
     "Password": "密码",

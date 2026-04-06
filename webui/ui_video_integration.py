@@ -60,19 +60,31 @@ def render_video_integration_panel(tr):
                 
                 # Scene videos status
                 valid_scenes = [s for s in task_files["scene_videos"] if s["video"] is not None]
-                st.success(f"✅ {tr('Scene Videos')}: {len(valid_scenes)} {tr('scenes')}")
+                st.success(f"✅ {tr('Scene Videos')}: {len(valid_scenes)} {tr('items')}.")
                 
-                # Audio file status
-                if task_files["global_audio"]:
-                    st.success(f"✅ {tr('Audio File')}: 1")
-                elif valid_scenes and valid_scenes[0]["audio"]:
-                    st.info(f"ℹ️ {tr('Audio File')}: {tr('Will use first scene audio')}")
+                # Audio file status - only show scene audio status
+                # Check if there are scene audios
+                scene_audios = []
+                total_scenes = len(task_files["scene_videos"])
+                for scene in task_files["scene_videos"]:
+                    if scene.get("audio") and os.path.exists(scene.get("audio")):
+                        scene_audios.append(scene.get("audio"))
+                
+                num_scene_audios = len(scene_audios)
+                
+                if num_scene_audios == total_scenes:
+                    # All scenes have audio files
+                    st.success(f"✅ {tr('Scene Audio')}: {num_scene_audios} {tr('items')}. {tr('Will use audio from scene videos')}.")
+                elif num_scene_audios > 1:
+                    # More than 1 scene has audio files but not all
+                    st.warning(f"⚠️ {tr('Scene Audio')}: {num_scene_audios} {tr('items')}. {tr('Will use audio from scene videos')}.")
                 else:
-                    st.warning(f"⚠️ {tr('Audio File')}: {tr('Not found')}")
+                    # Only 1 scene has audio files or none
+                    st.warning(f"⚠️ {tr('Scene Audio')}: {num_scene_audios} {tr('items')}. {tr('Will use audio from scene videos')}.")
                 
                 # Subtitle file status
                 if task_files["global_subtitle"]:
-                    st.success(f"✅ {tr('Subtitle File')}: 1")
+                    st.success(f"✅ {tr('Subtitle File')}: 1 {tr('items')}.")
                 else:
                     # Check if there are scene subtitles
                     scene_subtitles = []
@@ -81,9 +93,9 @@ def render_video_integration_panel(tr):
                             scene_subtitles.append(scene.get("subtitle"))
                     
                     if scene_subtitles:
-                        st.info(f"ℹ️ {tr('Subtitle File')}: {tr('Will generate global subtitle from scene subtitles')}")
+                        st.info(f"ℹ️ {tr('Subtitle File')}: {tr('Will generate global subtitle from scene subtitles')}.")
                     else:
-                        st.warning(f"⚠️ {tr('Subtitle File')}: {tr('Not found, will proceed without subtitles')}")
+                        st.warning(f"⚠️ {tr('Subtitle File')}: {tr('Not found, will proceed without subtitles')}.")
                 
                 # Start integration button
                 st.divider()

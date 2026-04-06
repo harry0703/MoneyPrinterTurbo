@@ -14,7 +14,7 @@ try:
 except ImportError:
     torch = None
 
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 
 from app.config import config
 from app.utils import utils

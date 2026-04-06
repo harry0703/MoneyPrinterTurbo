@@ -2,6 +2,13 @@
   "Language": "English",
   "Translation": {
     "Login Required": "Login Required",
+    "Will use audio from scene videos": "Will use audio from scene videos",
+    "Scene Audio": "Scene Audio",
+    "Scene Videos": "Scene Videos",
+    "Subtitle File": "Subtitle File",
+    "Will generate global subtitle from scene subtitles": "Will generate global subtitle from scene subtitles",
+    "Not found, will proceed without subtitles": "Not found, will proceed without subtitles",
+    "items": "items",
     "Please login to access settings": "Please login to access settings",
     "Username": "Username",
     "Password": "Password",
