@@ -674,56 +674,36 @@ def match_local_videos_by_keywords(materials, scene_keywords):
     return sorted_materials
 
 
-def combine_videos(
-    combined_video_path: str,
-    video_paths: List[str],
-    audio_file: str,
-    video_aspect: VideoAspect = VideoAspect.portrait,
-    video_concat_mode: VideoConcatMode = VideoConcatMode.random,
-    video_transition_mode: VideoTransitionMode = None,
-    max_clip_duration: int = 5,
-    threads: int = 2,
-    scene_info: str = None,
+def process_scene_videos(
+    scene_video_paths: List[str],
+    video_aspect: VideoAspect,
+    video_concat_mode: VideoConcatMode,
+    video_transition_mode: VideoTransitionMode,
+    max_clip_duration: int,
     local_video_paths: List[str] = None,
-    intro_video_path: str = None,
-) -> str:
-    # Handle audio_file being None (scene videos already contain audio)
-    if audio_file:
-        audio_clip = AudioFileClip(audio_file)
-        audio_duration = audio_clip.duration
-        logger.info(f"audio duration: {audio_duration} seconds")
-        # Close audio_clip immediately after getting duration, we'll reopen it later if needed
-        close_clip(audio_clip)
-        audio_clip = None
-    else:
-        # Calculate total video duration from scene videos
-        audio_duration = 0
-        for video_path in video_paths:
-            try:
-                clip = VideoFileClip(video_path)
-                audio_duration += clip.duration
-                close_clip(clip)
-            except Exception as e:
-                logger.error(f"Failed to get duration for {video_path}: {e}")
-        logger.info(f"Total video duration: {audio_duration} seconds")
+) -> List:
+    """
+    Process videos for a single scene
     
-    # Required duration of each clip
-    req_dur = max_clip_duration
-    logger.info(f"maximum clip duration: {req_dur} seconds")
-    output_dir = os.path.dirname(combined_video_path)
-
+    Args:
+        scene_video_paths: List of video paths for the scene
+        video_aspect: Video aspect ratio
+        video_concat_mode: Video concatenation mode
+        video_transition_mode: Video transition mode
+        max_clip_duration: Maximum clip duration
+        local_video_paths: List of local video paths
+    
+    Returns:
+        List of processed video clips
+    """
     aspect = VideoAspect(video_aspect)
     video_width, video_height = aspect.to_resolution()
-
+    
     processed_clips = []
     subclipped_items = []
-    video_duration = 0
     
-    # Process videos and separate intro video (if intro_video_path is provided) from others
-    intro_subclips = []
-    regular_subclips = []
-    
-    for i, video_path in enumerate(video_paths):
+    # Process videos
+    for i, video_path in enumerate(scene_video_paths):
         try:
             clip = VideoFileClip(video_path)
             clip_duration = clip.duration
@@ -735,12 +715,7 @@ def combine_videos(
             while start_time < clip_duration:
                 end_time = min(start_time + max_clip_duration, clip_duration)            
                 subclip = SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h)
-                
-                # Only use intro processing if intro_video_path is provided and matches current video
-                if intro_video_path and video_path == intro_video_path:
-                    intro_subclips.append(subclip)
-                else:
-                    regular_subclips.append(subclip)
+                subclipped_items.append(subclip)
                 
                 start_time = end_time    
                 if video_concat_mode.value == VideoConcatMode.sequential.value:
@@ -749,67 +724,37 @@ def combine_videos(
             logger.error(f"failed to process video file {video_path}: {str(e)}")
             continue
 
-    # random regular subclips order if needed
+    # Apply concat mode to scene's video clips
     if video_concat_mode.value == VideoConcatMode.random.value:
-        random.shuffle(regular_subclips)
+        random.shuffle(subclipped_items)
     
-    # Combine intro subclips first, then regular subclips
-    subclipped_items = intro_subclips + regular_subclips
-        
-    logger.info(f"Intro video processing: {len(intro_subclips)} intro subclips, {len(regular_subclips)} regular subclips")
-    if intro_video_path:
-        logger.info(f"Intro video path: {intro_video_path}")
-    else:
-        logger.info("No intro video specified")
-    logger.debug(f"total subclipped items: {len(subclipped_items)}")
-    
-    # Add downloaded clips over and over until we reach the duration of the audio (max_duration) has been reached
+    # Process subclips
     for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration > audio_duration:
-            break
-        
-        # Check if this is the intro video (all subclips from the intro_video_path)
-        is_intro = intro_video_path and subclipped_item.file_path == intro_video_path
-        if is_intro:
-            logger.info(f"Processing intro video clip {i+1}: {subclipped_item.file_path}")
-        else:
-            logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
-        
         try:
             clip = VideoFileClip(subclipped_item.file_path).subclipped(subclipped_item.start_time, subclipped_item.end_time)
             clip_duration = clip.duration
-            # Not all videos are same size, so we need to resize them
+            
+            # Resize if needed
             clip_w, clip_h = clip.size
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                if is_intro:
-                    logger.info(f"Resizing intro video: source={clip_w}x{clip_h}, ratio={clip_ratio:.2f}, target={video_width}x{video_height}, ratio={video_ratio:.2f}")
-                else:
-                    logger.info(f"Processing clip {i+1}: source={clip_w}x{clip_h}, ratio={clip_ratio:.2f}, target={video_width}x{video_height}, ratio={video_ratio:.2f}")
                 
-                # Process intro video differently: fit without cropping, center on blue background
-                if is_intro:
-                    logger.info("Processing intro video with fit-and-center strategy (no cropping)")
-                    clip = fit_intro_video_to_target(clip, video_width, video_height)
+                # Use unified crop function
+                if local_video_paths and subclipped_item.file_path in local_video_paths:
+                    max_scale = 5.0  # Allow up to 500% upscaling for local materials
                 else:
-                    # Use unified crop function that handles both upscaling and cropping
-                    # Use higher max_scale for 3:4 videos to ensure they fill the screen width
-                    # For local materials, use a much higher max_scale to avoid skipping user-provided materials
+                    max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
+                
+                clip = crop_clip_to_target(clip, video_width, video_height, max_scale=max_scale)
+                if clip is None:
                     if local_video_paths and subclipped_item.file_path in local_video_paths:
-                        max_scale = 5.0  # Allow up to 500% upscaling for local materials
-                        logger.info(f"Processing local material clip {i+1}: {subclipped_item.file_path}, using max_scale={max_scale}")
+                        logger.warning(f"Local clip {i+1} could not be processed even with relaxed quality constraints, skipping")
                     else:
-                        max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
-                        logger.info(f"Processing online material clip {i+1}: {subclipped_item.file_path}, using max_scale={max_scale}")
-                    clip = crop_clip_to_target(clip, video_width, video_height, max_scale=max_scale)
-                    if clip is None:
-                        if local_video_paths and subclipped_item.file_path in local_video_paths:
-                            logger.warning(f"Local clip {i+1} could not be processed even with relaxed quality constraints, skipping")
-                        else:
-                            logger.warning(f"Online clip {i+1} could not be processed within quality constraints, skipping")
-                        continue
-                    
+                        logger.warning(f"Online clip {i+1} could not be processed within quality constraints, skipping")
+                    continue
+            
+            # Apply transitions
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if video_transition_mode and video_transition_mode.value == VideoTransitionMode.none.value:
                 clip = clip
@@ -844,36 +789,55 @@ def combine_videos(
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
             
-            # Store processed clip in memory instead of writing to temp file
-            # This avoids the first encoding step
             processed_clips.append(clip)
-            video_duration += clip.duration
-            logger.info(f"Clip {i+1} processed in memory, duration: {clip.duration:.2f}s")
             
             # Release memory periodically
             if len(processed_clips) % 5 == 0:
                 gc.collect()
-                logger.debug(f"Memory released, processed {len(processed_clips)} clips so far")
-            
+                
         except Exception as e:
             logger.error(f"failed to process clip {i+1}: {str(e)}")
             # Release memory in case of error
             gc.collect()
             continue
     
-    # Check if we have any processed clips
-    if not processed_clips:
-        logger.error("No video clips were successfully processed")
-        return None
+    return processed_clips
+
+def combine_scene_clips(
+    scene_clips: List,
+    audio_duration: float,
+) -> List:
+    """
+    Combine clips for a single scene, handling duration matching
     
-    # loop processed clips until video duration matches or exceeds the audio duration.
+    Args:
+        scene_clips: List of processed clips for the scene
+        audio_duration: Target audio duration
+    
+    Returns:
+        List of clips ready for final concatenation
+    """
+    processed_clips = []
+    video_duration = 0
+    
+    # Add clips from the scene
+    for clip in scene_clips:
+        if video_duration > audio_duration:
+            break
+        processed_clips.append(clip)
+        video_duration += clip.duration
+        
+        # Release memory periodically
+        if len(processed_clips) % 10 == 0:
+            gc.collect()
+    
+    # Loop if needed to match audio duration
     if video_duration < audio_duration:
         logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
-        # Instead of keeping all clips in memory, calculate how many loops we need
         base_duration = video_duration
         if base_duration <= 0:
             logger.error(f"video duration is zero or negative ({video_duration:.2f}s), cannot loop clips")
-            return None
+            return []
         num_loops = int(audio_duration / base_duration) + 1
         logger.info(f"Need {num_loops} loops to match audio duration")
         
@@ -891,9 +855,85 @@ def combine_videos(
         logger.info(f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, looped {len(processed_clips)-len(base_clips)} clips")
         # Force garbage collection after loop
         gc.collect()
-     
-    # merge video clips and add audio in one step to reduce encoding loss
-    logger.info("starting clip merging and audio addition process")
+    
+    return processed_clips
+
+
+def combine_early_scenes(
+    scene_clips_list: List[List],
+    audio_duration: float,
+) -> List:
+    """
+    Combine multiple scenes while maintaining scene order
+    
+    Args:
+        scene_clips_list: List of processed clips for each scene
+        audio_duration: Target audio duration
+    
+    Returns:
+        List of clips ready for final concatenation
+    """
+    processed_clips = []
+    video_duration = 0
+    
+    # Add clips from each scene in order
+    for scene_index, scene_clips in enumerate(scene_clips_list):
+        logger.info(f"Adding clips from scene {scene_index + 1}")
+        for clip in scene_clips:
+            if video_duration > audio_duration:
+                break
+            processed_clips.append(clip)
+            video_duration += clip.duration
+            
+            # Release memory periodically
+            if len(processed_clips) % 10 == 0:
+                gc.collect()
+    
+    # Loop if needed to match audio duration
+    if video_duration < audio_duration:
+        logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
+        base_duration = video_duration
+        if base_duration <= 0:
+            logger.error(f"video duration is zero or negative ({video_duration:.2f}s), cannot loop clips")
+            return []
+        num_loops = int(audio_duration / base_duration) + 1
+        logger.info(f"Need {num_loops} loops to match audio duration")
+        
+        # Only keep base clips in memory and reuse them
+        base_clips = processed_clips.copy()
+        for i in range(num_loops - 1):
+            for clip in base_clips:
+                if video_duration >= audio_duration:
+                    break
+                processed_clips.append(clip)
+                video_duration += clip.duration
+                # Release memory periodically
+                if len(processed_clips) % 10 == 0:
+                    gc.collect()
+        logger.info(f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, looped {len(processed_clips)-len(base_clips)} clips")
+        # Force garbage collection after loop
+        gc.collect()
+    
+    return processed_clips
+
+def finalize_video(
+    processed_clips: List,
+    combined_video_path: str,
+    audio_file: str,
+    threads: int,
+) -> str:
+    """
+    Finalize video by concatenating clips and adding audio
+    
+    Args:
+        processed_clips: List of processed video clips
+        combined_video_path: Path to save the final video
+        audio_file: Path to audio file
+        threads: Number of threads to use
+    
+    Returns:
+        Path to the final video
+    """
     if not processed_clips:
         logger.warning("no clips available for merging")
         return None
@@ -920,10 +960,6 @@ def combine_videos(
             final_video = final_video.with_audio(audio_clip)
         else:
             logger.info("Using existing audio from scene videos")
-        if scene_info:
-            logger.info(f"audio added to video {scene_info}")
-        else:
-            logger.info("audio added to video")
         
         # Write final video with audio (single encoding step)
         logger.info("writing final video with audio (single encoding step)")
@@ -934,6 +970,8 @@ def combine_videos(
         # Get the latest video codec (dynamic detection)
         current_codec = get_video_codec()
         current_encoding_params = get_video_encoding_params()
+        
+        output_dir = os.path.dirname(combined_video_path)
         
         try:
             final_video.write_videofile(
@@ -988,6 +1026,113 @@ def combine_videos(
     
     logger.info("video combining completed")
     return combined_video_path
+
+def build_scene_video(
+    combined_video_path: str,
+    video_paths: List[str],
+    audio_file: str,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+    video_concat_mode: VideoConcatMode = VideoConcatMode.random,
+    video_transition_mode: VideoTransitionMode = None,
+    max_clip_duration: int = 5,
+    threads: int = 2,
+    scene_info: str = None,
+    local_video_paths: List[str] = None,
+    intro_video_path: str = None,
+) -> str:
+    # Handle audio_file being None (scene videos already contain audio)
+    if audio_file:
+        audio_clip = AudioFileClip(audio_file)
+        audio_duration = audio_clip.duration
+        logger.info(f"audio duration: {audio_duration} seconds")
+        # Close audio_clip immediately after getting duration, we'll reopen it later if needed
+        close_clip(audio_clip)
+        audio_clip = None
+    else:
+        # Calculate total video duration from scene videos
+        audio_duration = 0
+        for video_path in video_paths:
+            try:
+                clip = VideoFileClip(video_path)
+                audio_duration += clip.duration
+                close_clip(clip)
+            except Exception as e:
+                logger.error(f"Failed to get duration for {video_path}: {e}")
+        logger.info(f"Total video duration: {audio_duration} seconds")
+    
+    output_dir = os.path.dirname(combined_video_path)
+
+    # Process intro video separately if provided
+    intro_clips = []
+    if intro_video_path and intro_video_path in video_paths:
+        # Process intro video
+        try:
+            clip = VideoFileClip(intro_video_path)
+            clip_duration = clip.duration
+            clip_w, clip_h = clip.size
+            close_clip(clip)
+            
+            start_time = 0
+            end_time = min(start_time + max_clip_duration, clip_duration)
+            subclip = SubClippedVideoClip(file_path=intro_video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h)
+            
+            # Process intro clip
+            aspect = VideoAspect(video_aspect)
+            video_width, video_height = aspect.to_resolution()
+            
+            clip = VideoFileClip(subclip.file_path).subclipped(subclip.start_time, subclip.end_time)
+            # Process intro video differently: fit without cropping, center on blue background
+            clip = fit_intro_video_to_target(clip, video_width, video_height)
+            
+            # Apply brightness and contrast enhancement
+            brightness_factor = config.app.get("video_brightness", 1.0)
+            contrast_factor = config.app.get("video_contrast", 1.0)
+            
+            if brightness_factor != 1.0:
+                clip = video_effects.brightness_enhance(clip, brightness_factor)
+            
+            if contrast_factor != 1.0:
+                clip = video_effects.contrast_enhance(clip, contrast_factor)
+            
+            intro_clips.append(clip)
+            logger.info(f"Intro video processed: {intro_video_path}")
+        except Exception as e:
+            logger.error(f"Failed to process intro video: {str(e)}")
+        
+        # Remove intro video from regular video paths
+        video_paths = [path for path in video_paths if path != intro_video_path]
+    
+    # Process regular videos as a single scene
+    scene_clips = process_scene_videos(
+        scene_video_paths=video_paths,
+        video_aspect=video_aspect,
+        video_concat_mode=video_concat_mode,
+        video_transition_mode=video_transition_mode,
+        max_clip_duration=max_clip_duration,
+        local_video_paths=local_video_paths
+    )
+    
+    # Combine intro clips with scene clips
+    all_clips = intro_clips + scene_clips
+    
+    # Check if we have any processed clips
+    if not all_clips:
+        logger.error("No video clips were successfully processed")
+        return None
+    
+    # Combine clips to match audio duration
+    processed_clips = combine_scene_clips(
+        scene_clips=all_clips,
+        audio_duration=audio_duration
+    )
+    
+    # Finalize video
+    return finalize_video(
+        processed_clips=processed_clips,
+        combined_video_path=combined_video_path,
+        audio_file=audio_file,
+        threads=threads
+    )
 
 
 def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0, 255)):
@@ -1617,38 +1762,41 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
     if progress_callback:
         progress_callback(20, "Preparing video files...")
     
-    # If we have only one scene video, use it directly
-    if len(video_paths) == 1:
-        logger.info("Only one scene video found, using it directly")
-        combined_video_path = video_paths[0]
-    else:
-        # Combine all scene videos using existing combine_videos function
-        logger.info(f"Combining {len(video_paths)} scene videos")
+    # For video integration tasks (target video level), use combine_all_scenes
+    logger.info(f"Combining {len(video_paths)} scene videos using combine_all_scenes for video integration task")
+    
+    if progress_callback:
+        progress_callback(40, "Combining scene videos...")
+    
+    try:
+        # Create scene_results list for combine_all_scenes
+        scene_results = []
+        for i, video_path in enumerate(video_paths):
+            scene_result = {
+                "combined_video_path": video_path
+            }
+            scene_results.append(scene_result)
         
-        if progress_callback:
-            progress_callback(40, "Combining scene videos...")
+        # Use combine_all_scenes function
+        combined_video_path = os.path.join(task_dir, "temp_combined_scenes.mp4")
         
-        try:
-            combined_video_path = os.path.join(task_dir, "temp_combined_scenes.mp4")
-            
-            # Use existing combine_videos function
-            combined_video_path = combine_videos(
-                combined_video_path=combined_video_path,
-                video_paths=video_paths,
-                audio_file=audio_file,
-                video_aspect=params.video_aspect,
-                video_concat_mode=params.video_concat_mode
-            )
-            
-            if not combined_video_path:
-                logger.error("Failed to combine scene videos")
-                return None
-            
-            logger.success(f"Combined video created: {combined_video_path}")
-            
-        except Exception as e:
-            logger.error(f"Failed to combine scene videos: {e}")
+        # Import combine_all_scenes from task module
+        from app.services.task import combine_all_scenes
+        combined_video_path = combine_all_scenes(
+            task_id=task_id,
+            params=params,
+            scene_results=scene_results
+        )
+        
+        if not combined_video_path:
+            logger.error("Failed to combine scene videos")
             return None
+        
+        logger.success(f"Combined video created: {combined_video_path}")
+        
+    except Exception as e:
+        logger.error(f"Failed to combine scene videos: {e}")
+        return None
     
     if progress_callback:
         progress_callback(60, "Generating final video...")

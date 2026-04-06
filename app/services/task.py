@@ -553,7 +553,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     logger.info(f"combining video clip for scene {scene_num}")
     combined_video_path = path.join(scene_dir, "combined.mp4")
     
-    # Pass local video paths to combine_videos so it can apply different quality check rules
+    # Pass local video paths to build_scene_video so it can apply different quality check rules
     local_video_paths = local_materials.copy()
     # Also add intro video to local_video_paths if exists (to avoid quality check issues)
     if intro_video and os.path.exists(intro_video):
@@ -561,7 +561,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     if local_video_paths:
         logger.info(f"scene {scene_num}: passing {len(local_video_paths)} local video paths for quality check exemption")
     
-    result = video.combine_videos(
+    result = video.build_scene_video(
         combined_video_path=combined_video_path,
         video_paths=downloaded_videos,
         audio_file=audio_file,
@@ -607,66 +607,127 @@ def combine_all_scenes(task_id, params, scene_results):
     
     # Collect all scene video clips
     scene_clips = []
+    total_video_duration = 0
+    scene_durations = []
+    
     for result in scene_results:
         if result and os.path.exists(result.get('combined_video_path', '')):
-            scene_clips.append(result['combined_video_path'])
+            # Load each scene video as a clip
+            try:
+                clip = video.VideoFileClip(result['combined_video_path'])
+                scene_clips.append(clip)
+                scene_duration = clip.duration
+                scene_durations.append(scene_duration)
+                total_video_duration += scene_duration
+                logger.info(f"loaded scene clip: {result['combined_video_path']} (duration: {scene_duration:.2f}s)")
+            except Exception as e:
+                logger.error(f"failed to load scene clip {result['combined_video_path']}: {e}")
     
     if not scene_clips:
         logger.error("no scene clips available for final combination")
         return None
     
     logger.info(f"combining {len(scene_clips)} scene clips")
+    logger.info(f"total video duration: {total_video_duration:.2f}s")
+    logger.info(f"scene durations: {[f'{d:.2f}s' for d in scene_durations]}")
+    
+    # Calculate audio duration (if needed)
+    audio_duration = 0
+    if params.bgm_file:
+        try:
+            audio_clip = video.AudioFileClip(params.bgm_file)
+            audio_duration = audio_clip.duration
+            audio_clip.close()
+            logger.info(f"BGM duration: {audio_duration:.2f} seconds")
+        except Exception as e:
+            logger.error(f"failed to get BGM duration: {e}")
+            audio_duration = 0
+    
+    # Compare video duration with audio duration
+    if audio_duration > 0:
+        logger.info(f"comparing video duration ({total_video_duration:.2f}s) with audio duration ({audio_duration:.2f}s)")
+        
+        if total_video_duration < audio_duration:
+            # Video duration is shorter than audio duration - task failure
+            logger.error(f"ERROR: Video duration ({total_video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s)")
+            logger.error("This indicates an issue with scene-level processing")
+            logger.error(f"Scene durations: {[f'{d:.2f}s' for d in scene_durations]}")
+            logger.error(f"Total video duration: {total_video_duration:.2f}s, Audio duration: {audio_duration:.2f}s")
+            # Close all clips
+            for clip in scene_clips:
+                clip.close()
+            return None
+        elif total_video_duration > audio_duration:
+            # Video duration is longer than audio duration - truncate video
+            logger.warning(f"Video duration ({total_video_duration:.2f}s) is longer than audio duration ({audio_duration:.2f}s)")
+            logger.info("Truncating video to match audio duration")
+            
+            # Calculate how much to truncate
+            truncate_duration = total_video_duration - audio_duration
+            logger.info(f"Need to truncate {truncate_duration:.2f}s from the end")
+            
+            # Process clips to truncate the excess duration
+            processed_clips = []
+            remaining_duration = audio_duration
+            
+            for i, clip in enumerate(scene_clips):
+                clip_duration = clip.duration
+                if remaining_duration > clip_duration:
+                    # Keep the entire clip
+                    processed_clips.append(clip)
+                    remaining_duration -= clip_duration
+                    logger.info(f"Keeping entire scene {i+1} ({clip_duration:.2f}s), remaining: {remaining_duration:.2f}s")
+                else:
+                    # Truncate this clip to the remaining duration
+                    logger.info(f"Truncating scene {i+1} from {clip_duration:.2f}s to {remaining_duration:.2f}s")
+                    truncated_clip = clip.subclip(0, remaining_duration)
+                    processed_clips.append(truncated_clip)
+                    remaining_duration = 0
+                    break
+            
+            # Close unused clips
+            for i, clip in enumerate(scene_clips):
+                if i >= len(processed_clips):
+                    clip.close()
+        else:
+            # Video duration matches audio duration exactly
+            logger.info("Video duration matches audio duration exactly")
+            processed_clips = scene_clips
+    else:
+        # No audio provided, use all clips
+        logger.info("No audio provided, using all video clips")
+        processed_clips = scene_clips
     
     # Concatenate all scene clips to a temp file (without BGM, will be processed later)
     temp_video_path = path.join(utils.task_dir(task_id), "temp_combined_scenes.mp4")
     
-    # Use moviepy to concatenate videos
-    from moviepy import VideoFileClip, concatenate_videoclips
-    
+    # Finalize video
     try:
-        clips = []
-        for clip_path in scene_clips:
-            logger.info(f"loading scene clip: {clip_path}")
-            clip = VideoFileClip(clip_path)
-            logger.info(f"clip duration: {clip.duration}s, size: {clip.size}")
-            clips.append(clip)
-        
-        # Concatenate all clips using chain method for proper sequential concatenation
-        logger.info(f"concatenating {len(clips)} clips")
-        final_clip = concatenate_videoclips(clips, method="chain")
-        logger.info(f"final clip duration: {final_clip.duration}s")
-        
-        # Get video encoding parameters (loaded once at module initialization)
-        video_encoding_params = video.get_video_encoding_params()
-        logger.info(f"using video encoding: bitrate={video_encoding_params['bitrate']}, codec={video.video_codec}")
-        
-        # Build ffmpeg parameters
-        ffmpeg_params = ["-pix_fmt", "yuv420p"]
-        if video_encoding_params["crf"] is not None:
-            ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
-        
-        # Write temp video with audio
-        final_clip.write_videofile(
-            temp_video_path,
-            codec=video.video_codec,
-            audio_codec="aac",
-            fps=video.fps,
-            bitrate=video_encoding_params["bitrate"],
-            preset=video_encoding_params["preset"],
-            logger=None,
-            ffmpeg_params=ffmpeg_params,
+        result = video.finalize_video(
+            processed_clips=processed_clips,
+            combined_video_path=temp_video_path,
+            audio_file=None,  # No audio here, will be added later
+            threads=params.n_threads
         )
         
-        # Close clips to free memory
-        for clip in clips:
-            clip.close()
-        final_clip.close()
-        
-        logger.success(f"combined scenes created: {temp_video_path}")
-        return temp_video_path
-        
+        if result:
+            logger.success(f"combined scenes created: {temp_video_path}")
+            # Close all clips
+            for clip in processed_clips:
+                clip.close()
+            return temp_video_path
+        else:
+            logger.error("failed to finalize video")
+            # Close all clips
+            for clip in processed_clips:
+                clip.close()
+            return None
+            
     except Exception as e:
         logger.error(f"failed to combine scenes: {e}")
+        # Close all clips
+        for clip in processed_clips:
+            clip.close()
         return None
 
 
@@ -843,7 +904,7 @@ def generate_final_videos(
     )
     video_transition_mode = params.video_transition_mode
 
-    # Pass local video paths to combine_videos so it can apply different quality check rules
+    # Pass local video paths to build_scene_video so it can apply different quality check rules
     local_video_paths = local_materials.copy() if local_materials else []
     if local_video_paths:
         logger.info(f"Passing {len(local_video_paths)} local video paths for quality check exemption")
@@ -855,7 +916,7 @@ def generate_final_videos(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
         logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
-        video.combine_videos(
+        video.build_scene_video(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
             audio_file=audio_file,
