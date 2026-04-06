@@ -20,5 +20,7 @@ services:
     ports:
       - "8080:8080"
     command: [ "python3", "main.py" ]
+    environment:
+      MPT_APP_REDIS_HOST: ${MPT_APP_REDIS_HOST:-redis}
     volumes: *common-volumes
     restart: always
