@@ -318,7 +318,7 @@ def combine_videos(
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
                 
-            # wirte clip to temp file
+            # write clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
             clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
 
