@@ -142,6 +142,10 @@ class RedisState(BaseState):
         return value_str
 
 
+# Global task running state
+_is_task_running = False
+_task_type = None  # Can be 'complete_video' or 'video_integration'
+
 # Global state
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
@@ -156,3 +160,29 @@ state = (
     if _enable_redis
     else MemoryState()
 )
+
+
+def is_task_running():
+    """Check if any task is running"""
+    global _is_task_running
+    return _is_task_running
+
+
+def get_running_task_type():
+    """Get the type of the currently running task"""
+    global _task_type
+    return _task_type
+
+
+def set_task_running(task_type):
+    """Set task as running"""
+    global _is_task_running, _task_type
+    _is_task_running = True
+    _task_type = task_type
+
+
+def set_task_completed():
+    """Set task as completed"""
+    global _is_task_running, _task_type
+    _is_task_running = False
+    _task_type = None

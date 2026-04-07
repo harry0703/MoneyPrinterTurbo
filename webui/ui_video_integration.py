@@ -12,6 +12,15 @@ def render_video_integration_panel(tr):
     Args:
         tr: Translation function
     """
+    # Check if another task is already running
+    from app.services.state import is_task_running, set_task_running, set_task_completed
+    
+    if is_task_running():
+        with st.container(border=True):
+            st.write(f"🎬 {tr('Video Integration')}")
+            st.error(tr("Another task is already running. Please wait for it to complete."))
+        return
+    
     with st.container(border=True):
         st.write(f"🎬 {tr('Video Integration')}")
         
@@ -118,6 +127,9 @@ def render_video_integration_panel(tr):
                 
                 # Start integration when button clicked
                 if start_clicked and task_files["is_valid"]:
+                    # Set task as running
+                    set_task_running("video_integration")
+                    
                     st.session_state["integration_running"] = True
                     st.session_state["integration_progress"] = 0
                     st.session_state["integration_status"] = tr("Starting...")
@@ -144,6 +156,8 @@ def render_video_integration_panel(tr):
                         logger.error(f"Video integration failed: {e}")
                         st.error(f"{tr('Video integration failed')}: {str(e)}")
                     finally:
+                        # Set task as completed
+                        set_task_completed()
                         st.session_state["integration_running"] = False
                 
                 # Display result if available

@@ -933,7 +933,11 @@ if start_button:
     logger.info(utils.to_json(params))
     scroll_to_bottom()
 
-    result = tm.start(task_id=task_id, params=params)
+    # Submit task to background thread
+    tm.start_async(task_id=task_id, params=params)
+    
+    # Display task ID
+    st.info(f"Task submitted successfully! Task ID: {task_id}")
     
     # Remove the log handler to prevent memory leaks and page reload issues
     try:
@@ -942,24 +946,28 @@ if start_button:
         # Handler already removed, ignore
         pass
     
-    if not result or "videos" not in result:
-        st.error(tr("Video Generation Failed"))
-        logger.error(tr("Video Generation Failed"))
-        scroll_to_bottom()
-        st.stop()
+    # Add task ID to session state for tracking
+    if "running_tasks" not in st.session_state:
+        st.session_state["running_tasks"] = []
+    st.session_state["running_tasks"].append(task_id)
+    
+    # Display task status monitoring UI
+    st.subheader("Task Status")
+    status_placeholder = st.empty()
+    
+    # Simple status message
+    status_placeholder.info(f"Task {task_id} is running in background. Check logs for progress.")
+    
+    # Provide instructions to user
+    st.info("You can continue using the app while the video is being generated. The task will continue running even if you navigate away from this page.")
+    st.info("To check the status of your task, refresh the page and look for your task in the 'Running Tasks' section below.")
+    
+    # Add a section to display running tasks
+    if "running_tasks" in st.session_state and st.session_state["running_tasks"]:
+        st.subheader("Running Tasks")
+        for task in st.session_state["running_tasks"]:
+            st.write(f"- Task ID: {task}")
 
-    video_files = result.get("videos", [])
-    st.success(tr("Video Generation Completed"))
-    try:
-        if video_files:
-            player_cols = st.columns(len(video_files) * 2 + 1)
-            for i, url in enumerate(video_files):
-                player_cols[i * 2 + 1].video(url)
-    except Exception:
-        pass
-
-    open_task_folder(task_id)
-    logger.info(tr("Video Generation Completed"))
     scroll_to_bottom()
 
 config.save_config()

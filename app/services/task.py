@@ -19,6 +19,7 @@ from app.models import const
 from app.models.schema import Scene, VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, video, voice
 from app.services import state as sm
+from app.services.thread_manager import thread_manager
 from app.utils import utils
 
 # Helper functions for subtitle time conversion
@@ -952,7 +953,32 @@ def generate_final_videos(
     return final_video_paths, combined_video_paths
 
 
+def start_async(task_id, params: VideoParams, stop_at: str = "video"):
+    """Start task (async version)
+    
+    Args:
+        task_id: Task ID
+        params: Video parameters
+        stop_at: Stop point
+        
+    Returns:
+        Task ID
+    """
+    logger.info(f"Submitting task {task_id} to background thread")
+    return thread_manager.submit_task(task_id, start, task_id, params, stop_at)
+
+
 def start(task_id, params: VideoParams, stop_at: str = "video"):
+    # Check if another task is already running
+    from app.services.state import is_task_running, set_task_running, set_task_completed
+    
+    if is_task_running():
+        logger.error("Another task is already running. Please wait for it to complete.")
+        return None
+    
+    # Set task as running
+    set_task_running("complete_video")
+    
     # Create task log file
     task_log_path = os.path.join(utils.task_dir(task_id), "task.log")
     # Add file handler to logger
@@ -999,6 +1025,10 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         logger.error(f"========================================")
         raise
     finally:
+        # Set task as completed
+        from app.services.state import set_task_completed
+        set_task_completed()
+        
         # Determine task status and log final status
         if exception_occurred:
             logger.warning(f"========================================")
