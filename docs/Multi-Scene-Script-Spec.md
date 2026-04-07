@@ -1,49 +1,39 @@
-# Multi-Scene Script Generation Implementation
+# 高质量分镜脚本生成三步工作流
 
-## 1. Current Implementation
+## 1. 工作流概述
 
-### 1.1 Core Features
-
-The current multi-scene script generation implementation focuses on creating structured, visually-rich storyboard scripts from user input. Key features include:
-
-- **LLM-powered scene division** based on semantic structure
-- **Audio-first approach** with natural spoken dialogue
-- **Visual transformation** using metaphors and dynamic elements
-- **Technical content handling** for code and specialized terms
-- **Multi-language support** based on user selection
-
-### 1.2 Architecture
+高质量分镜脚本生成采用三步工作流，确保从输入到输出的每个环节都经过精心设计和优化，最终生成结构清晰、视觉丰富、适合口播的场景式脚本。
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        User Input                               │
-│ (Video subject or full script)                                   │
+│                        第一步：内容分析与结构规划                 │
 └─────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              LLM Processing (Single Call)                        │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │ 1. Content Analysis                                    │    │
-│  │ 2. Scene Division based on semantic structure          │    │
-│  │ 3. Visual Element Generation                           │    │
-│  │ 4. Dialogue Optimization                              │    │
-│  │ 5. Keyword Extraction                                 │    │
-│  └─────────────────────────────────────────────────────────┘    │
+│                        第二步：场景设计与视觉转化                 │
 └─────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  Multi-Scene Script Output                       │
+│                        第三步：脚本优化与输出                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 2. Detailed Implementation
+## 2. 第一步：内容分析与结构规划
 
-### 2.1 Core Functions
+### 2.1 核心任务
+- **内容理解**：深入分析用户输入的视频主题或完整文案
+- **结构规划**：基于内容语义划分逻辑场景
+- **目标设定**：确定视频的核心目标和关键信息点
 
-#### 2.1.1 `generate_multi_scene_script`
+### 2.2 具体流程
+1. **输入分析**：识别输入类型（主题/完整脚本）和语言
+2. **语义拆解**：分析内容的起承转合，识别自然的场景边界
+3. **结构设计**：规划开场、主体、结尾的整体结构
+4. **场景数量确定**：根据内容复杂度确定合适的场景数量（5-15个）
 
+### 2.3 技术实现
 ```python
 def generate_multi_scene_script(
     video_content: str,
@@ -51,251 +41,268 @@ def generate_multi_scene_script(
     max_scenes: int = 12
 ) -> str:
     """
-    Generate multi-scene script for video.
-    
-    Args:
-        video_content: The content of the video (can be a subject or full script)
-        language: Language for the script
-        max_scenes: Maximum number of scenes to generate
-    
-    Returns:
-        Multi-scene script text with visual descriptions, camera movements, and emotion annotations
+    第一步：内容分析与结构规划
+    - 分析输入内容
+    - 规划场景结构
+    - 确定场景数量
     """
 ```
 
-#### 2.1.2 `parse_multi_scene_script`
+## 3. 第二步：场景设计与视觉转化
 
-```python
-def parse_multi_scene_script(script_text: str) -> List[Dict]:
-    """
-    Parse multi-scene script text into structured data.
-    
-    Input format:
-        ###  Scene [Number]: [Scene Core Theme]
-        - **Core Keywords**: Keyword 1, Keyword 2, Keyword 3
-        - **Visual (Visual Elements)**: 
-            - **Visual Element 1**: Detailed description
-            - **Visual Element 2**: Detailed description
-        - **Audio (Dialogue Script)**: 
-            - ([Emotion Marker]) Dialogue content
-    
-    Returns:
-        List of scene dictionaries with structure:
-        [
-            {
-                "id": "scene_1",
-                "title": "Scene core theme",
-                "visual": "Visual description",
-                "audio": "Dialogue content",
-                "emotion": "Emotion marker",
-                "script": "Complete script",
-                "keywords": "Keywords"
-            },
-            ...
-        ]
-    """
+### 3.1 核心任务
+- **场景细化**：为每个场景设计具体的视觉元素
+- **视觉转化**：将抽象概念转化为具体的视觉表现
+- **动态设计**：设计合理的运镜和画面变化
+
+### 3.2 具体流程
+1. **场景主题确定**：为每个场景确定核心主题
+2. **视觉元素设计**：设计符合场景主题的视觉元素
+3. **视觉隐喻应用**：使用视觉隐喻增强表达效果
+4. **运镜方式设计**：根据场景情绪设计合适的运镜方式
+5. **环境背景设定**：为每个场景设定合适的环境背景
+
+### 3.3 技术实现
+- **LLM提示**：引导模型生成丰富的视觉描述
+- **格式规范**：确保视觉描述符合标准化格式
+- **质量控制**：拒绝枯燥的画面描述
+
+## 4. 第三步：脚本优化与输出
+
+### 4.1 核心任务
+- **对话优化**：将原文转化为自然的口语表达
+- **情绪标注**：为对话添加合适的情绪标记
+- **技术内容处理**：处理专业术语和技术内容
+- **格式标准化**：确保输出符合标准格式
+
+### 4.2 具体流程
+1. **口语化转换**：将书面内容转化为自然口语
+2. **情绪标注**：为对话添加情绪/语气标记
+3. **技术内容处理**：用通俗语言解释专业术语
+4. **关键词提取**：为每个场景提取核心关键词
+5. **格式标准化**：按照标准格式组织输出内容
+
+### 4.3 技术实现
+- **对话优化**：引导模型生成自然口语
+- **技术内容处理**：专门的技术术语处理逻辑
+- **格式验证**：确保输出符合标准格式
+- **多语言支持**：根据用户选择的语言生成对应内容
+
+## 5. 技术架构
+
+### 5.1 核心组件
+
+| 组件 | 功能 | 实现方式 |
+|------|------|----------|
+| 内容分析器 | 分析输入内容，规划场景结构 | LLM提示工程 |
+| 视觉设计师 | 生成视觉元素描述 | LLM视觉化能力 |
+| 对话优化器 | 优化口语表达，处理技术内容 | 专门的提示指导 |
+| 格式标准化器 | 确保输出符合标准格式 | 模板约束和后处理 |
+
+### 5.2 工作流程图
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        用户输入                                │
+│ (视频主题或完整脚本)                                           │
+└─────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     第一步：内容分析与结构规划                    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ 1. 输入类型识别                                      │    │
+│  │ 2. 语义结构分析                                      │    │
+│  │ 3. 场景数量规划                                      │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     第二步：场景设计与视觉转化                    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ 1. 场景主题确定                                      │    │
+│  │ 2. 视觉元素设计                                      │    │
+│  │ 3. 运镜方式规划                                      │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     第三步：脚本优化与输出                      │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ 1. 口语化转换                                        │    │
+│  │ 2. 情绪标注                                          │    │
+│  │ 3. 技术内容处理                                      │    │
+│  │ 4. 关键词提取                                        │    │
+│  │ 5. 格式标准化                                        │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        高质量分镜脚本输出                         │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 LLM Prompt Structure
+## 6. 关键技术实现
 
-The system uses a comprehensive prompt to guide the LLM in generating high-quality multi-scene scripts:
+### 6.1 LLM提示工程
 
-#### 2.2.1 Role and Goal
-- **Role**: Senior video director and storyboard designer with 10 years of experience
-- **Goal**: Transform text content into visually impactful, logically coherent storyboard scripts
+#### 6.1.1 角色设定
+- **角色**：拥有10年经验的资深视频编导和分镜脚本设计师
+- **能力**：擅长将各种类型的文本内容转化为视觉冲击力强、逻辑严密的分镜脚本
 
-#### 2.2.2 Key Constraints
-1. **Audio-First Principle**: Dialogue is core, visuals enhance the dialogue
-2. **Semantic Scene Division**: 5-15 scenes with logical boundaries
-3. **Visual Transformation**: Use visual metaphors, dynamic graphics, or scene reenactment
-4. **Dialogue Optimization**: Natural spoken language with emotion markers
-5. **Technical Content Handling**: Plain language explanations for technical terms
-6. **Keyword Extraction**: 3-5 core keywords per scene
+#### 6.1.2 核心约束
+1. **Audio-First原则**：对话是核心，视觉为对话服务
+2. **Semantic Scene Division**：基于语义的场景划分
+3. **Visual Transformation**：使用视觉隐喻和动态元素
+4. **Dialogue Optimization**：自然口语表达
+5. **Technical Content Handling**：专业术语处理
+6. **Format Enforcement**：严格的格式要求
 
-#### 2.2.3 Output Format
+### 6.2 输出格式标准
+
 ```
-###  Scene [Number]: [Scene Core Theme]
-- **Core Keywords**: Keyword 1, Keyword 2, Keyword 3
-- **Visual (Visual Elements)**:
-    - **Visual Element 1**: Detailed description
-    - **Visual Element 2**: Detailed description
-- **Audio (Dialogue Script)**:
-    - ([Emotion Marker]) Dialogue content
-```
-
-## 3. Workflow
-
-### 3.1 Input Processing
-1. User provides video subject or full script
-2. System detects input type and language
-3. Input is passed to LLM for scene generation
-
-### 3.2 Script Generation
-1. LLM analyzes content and divides into semantic scenes
-2. For each scene, generates:
-   - Scene title and core theme
-   - Visual elements and camera movements
-   - Natural spoken dialogue with emotion markers
-   - Core keywords
-
-### 3.3 Output Processing
-1. Generated script is parsed into structured scene data
-2. Each scene is processed for audio generation
-3. Visual requirements are extracted for video material search
-
-## 4. Technical Content Handling
-
-The system includes specialized handling for technical content:
-
-- **Terminology**: Replaces technical terms with plain language explanations
-- **Code/Symbols**: Avoids direct reading of code or symbols
-- **Complex Concepts**: Uses analogies and examples to explain
-- **Readability**: Keeps sentences short and conversational
-
-## 5. Language Support
-
-The system supports multi-language script generation:
-- **Input Language**: Detects or uses user-specified language
-- **Output Language**: Generates all content in the selected language
-- **Localization**: Adapts visual and dialogue elements to cultural context
-
-## 6. Fallback Mechanism
-
-If LLM generation fails, the system provides a fallback mechanism:
-- Generates a basic 3-scene structure
-- Includes opening, main content, and conclusion scenes
-- Uses generic but effective visual descriptions
-
-## 7. Integration Points
-
-### 7.1 Scene Parser Integration
-- `scene_parser.py` calls `generate_multi_scene_script` for script processing
-- Parses generated script into structured scene data
-
-### 7.2 Task Processing Integration
-- `task.py` uses multi-scene scripts for video generation
-- Processes each scene sequentially for audio and video creation
-
-## 8. Configuration
-
-### 8.1 Current Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `max_scenes` | int | 12 | Maximum number of scenes to generate |
-| `language` | string | "" | Language for script generation |
-
-### 8.2 Future Configuration Options
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `scene_count` | int | 8 | Target number of scenes |
-| `visual_style` | string | "mixed" | Visual style preference |
-| `dialogue_style` | string | "natural" | Dialogue style preference |
-
-## 9. Performance Metrics
-
-| Metric | Current | Notes |
-|--------|---------|-------|
-| Generation time | 3-10s | Depends on content length |
-| Success rate | >95% | Fallback for failures |
-| Scene quality | High | Semantic coherence and visual richness |
-
-## 10. Usage Examples
-
-### 10.1 Basic Usage
-```python
-from app.services import llm
-
-# Generate multi-scene script from subject
-script = llm.generate_multi_scene_script(
-    video_content="The benefits of regular exercise",
-    language="Chinese"
-)
-
-# Parse script into scenes
-scenes = llm.parse_multi_scene_script(script)
-```
-
-### 10.2 Full Script Input
-```python
-from app.services import llm
-
-# Generate multi-scene script from full script
-full_script = """Regular exercise has numerous benefits..."""
-script = llm.generate_multi_scene_script(
-    video_content=full_script,
-    language="English"
-)
-```
-
-## 11. Limitations
-
-- **Scene Count**: Limited to maximum 15 scenes
-- **Content Length**: Works best with 500-3000 characters
-- **Technical Content**: May require additional processing for highly specialized topics
-- **Visual Complexity**: Visual descriptions are text-based only
-
-## 12. Future Roadmap
-
-1. **Semantic Clustering**: Implement advanced scene boundary detection
-2. **Content Type Adaptation**: Optimize for different content types
-3. **Visual Preview**: Generate thumbnail previews for scenes
-4. **Interactive Editing**: Allow users to adjust scene boundaries
-5. **Multi-Modal Input**: Support image and audio inputs
-
-## 13. Appendix
-
-### 13.1 Glossary
-
-- **Scene**: A distinct segment of the video with specific visual and audio elements
-- **Visual Element**: A component of the scene's visual composition
-- **Emotion Marker**: Indication of the tone or emotion for the dialogue
-- **Core Keywords**: Key concepts associated with each scene
-
-### 13.2 References
-
-- LLM Prompt Engineering Best Practices
-- Video Storyboarding Techniques
-- Audio-Visual Content Creation Guidelines
-
----
-
-## 14. Appendix: Multi-Scene Script Prompt Template
-
-# Role
-你是一位拥有10年经验的资深视频编导和分镜脚本设计师。你擅长将各种类型的文本内容（无论是干货文章、故事还是营销文案）转化为视觉冲击力强、逻辑严密的分镜脚本。
-
-# Goal
-请阅读用户提供的【原始文案】，将其改编为一份标准化的**场景化分镜脚本**。
-
-# Constraints & Workflow
-1. **逻辑拆解**：分析文案的起承转合，将其拆解为若干个独立的场景。
-2. **视觉转化**：
-    - 拒绝枯燥的画面（如“一个人说话”）。
-    - 必须运用**视觉隐喻**（用具体物体表达抽象概念）、**动态图形**或**场景重现**。
-    - 画面描述需包含：主体、环境、动作、运镜方式（如特写、推拉）。
-3. **口播优化**：将原文改写为自然的口语，并标注语气/情绪。
-4. **格式强制**：**必须**严格遵守下方的【输出模板】格式，不得随意增减字段。
-
----
-
-# Output Template (请严格按此格式输出)
-
 ###  场景 [序号]：[场景核心主题]
-- **Visual (画面视觉)**：
-    - [详细描述画面内容，包括主体、动作、环境、光影、运镜建议]
-    - [如果是抽象概念，请描述具体的视觉隐喻]
-- **Audio (口播文案)**：
-    - ([情绪/语气标注]) [具体的口播台词]
+- **Core Keywords**：关键词1, 关键词2, 关键词3
+- **Visual (Visual Elements)**：
+    - **Visual Element 1**：详细描述
+    - **Visual Element 2**：详细描述
+- **Audio (Dialogue Script)**：
+    - ([Emotion Marker]) 对话内容
+```
+
+## 7. 质量控制
+
+### 7.1 质量标准
+
+| 维度 | 标准 | 评估方法 |
+|------|------|----------|
+| 语义连贯性 | 场景间逻辑清晰，过渡自然 | 人工评估 |
+| 视觉丰富度 | 视觉元素多样，有创意 | 人工评估 |
+| 口语化程度 | 对话自然，适合口播 | 人工评估 |
+| 技术内容处理 | 专业术语解释清晰 | 人工评估 |
+| 格式规范性 | 符合标准格式要求 | 自动验证 |
+
+### 7.2 优化策略
+- **多轮迭代**：对生成结果进行多轮优化
+- **模板约束**：使用严格的格式模板
+- **后处理**：对生成结果进行标准化处理
+- **回退机制**：当生成失败时使用备用方案
+
+## 8. 应用场景
+
+### 8.1 适用内容类型
+- **知识讲解**：将专业知识转化为生动的视频内容
+- **故事叙述**：将故事转化为视觉化的分镜脚本
+- **产品介绍**：为产品创建吸引人的视频脚本
+- **教育培训**：设计教育内容的视频结构
+
+### 8.2 输入类型支持
+- **视频主题**：基于主题生成完整脚本
+- **完整文案**：将现有文案转化为分镜脚本
+- **大纲结构**：基于大纲生成详细脚本
+
+## 9. 性能指标
+
+| 指标 | 目标值 | 实际表现 |
+|------|--------|----------|
+| 生成时间 | <10秒 | 3-10秒 |
+| 成功率 | >95% | >95% |
+| 场景质量 | 高 | 高 |
+| 用户满意度 | >85% | - |
+
+## 10. 未来发展
+
+### 10.1 技术升级
+- **语义理解增强**：更准确的内容分析
+- **视觉生成优化**：更丰富的视觉元素生成
+- **多模态支持**：结合图像和音频输入
+
+### 10.2 功能扩展
+- **交互式编辑**：用户可以调整场景边界
+- **视觉预览**：生成场景的视觉预览
+- **自动配音**：与TTS系统集成
+
+## 11. 实施指南
+
+### 11.1 输入准备
+- **视频主题**：清晰明确的主题描述
+- **完整文案**：结构清晰的文本内容
+- **语言选择**：指定生成脚本的语言
+
+### 11.2 生成流程
+1. **输入内容**：提供视频主题或完整文案
+2. **设置参数**：选择语言和其他选项
+3. **生成脚本**：执行三步工作流生成脚本
+4. **审查修改**：检查生成结果并进行必要修改
+5. **导出使用**：导出脚本用于视频制作
+
+## 12. 案例分析
+
+### 12.1 知识讲解类视频
+- **输入**："人工智能的发展历史"
+- **输出**：5个场景的分镜脚本，包含视觉隐喻和生动对话
+
+### 12.2 故事叙述类视频
+- **输入**：完整的故事文本
+- **输出**：8个场景的分镜脚本，包含场景转换和情绪标注
+
+### 12.3 产品介绍类视频
+- **输入**：产品功能描述
+- **输出**：6个场景的分镜脚本，突出产品特点
+
+## 13. 附录
+
+### 13.1 术语表
+
+- **分镜脚本**：视频拍摄的详细计划，包含视觉和音频元素
+- **视觉隐喻**：用具体物体表达抽象概念的视觉手法
+- **运镜**：摄像机的移动方式，如推、拉、摇、移等
+- **情绪标注**：对话的语气和情绪标记
+- **语义场景**：基于内容语义划分的视频片段
+
+### 13.2 参考资源
+
+- 视频编导基础教程
+- 分镜脚本设计指南
+- LLM提示工程最佳实践
+- 视觉叙事技巧
+
+### 13.3 工具集成
+
+- **TTS系统**：将脚本转化为语音
+- **视频素材库**：基于关键词搜索视频素材
+- **视频编辑软件**：导入脚本进行视频制作
 
 ---
 
-# Few-Shot Example (参考示例)
-*如果输入是“拖延症是因为大脑在逃避痛苦”，输出应包含：*
-###  场景 1：逃避痛苦的本能
-- **Visual (画面视觉)**：
-    - 画面左侧是一个快乐的小猴子玩偶在抢方向盘，右侧是一个理性的掌舵人（人类）被绑在柱子上。背景是混乱的游乐场。
-    - 运镜：快速推拉，表现混乱感。
-- **Audio (口播文案)**：
-    - ([生动、比喻]) 拖延症其实不是时间管理问题，而是情绪管理问题。就像你大脑里住了一只抢方向盘的猴子...
+## 14. 三步工作流执行示例
+
+### 14.1 第一步：内容分析与结构规划
+**输入**："健康饮食的重要性"
+**分析结果**：
+- 内容类型：知识讲解
+- 核心要点：健康饮食的定义、 benefits、实践建议、常见误区
+- 场景规划：5个场景（开场、定义、 benefits、建议、总结）
+
+### 14.2 第二步：场景设计与视觉转化
+**场景1**：开场
+- 视觉元素：阳光明媚的厨房，新鲜食材
+- 运镜：推镜头聚焦到食材上
+- 环境：明亮、温馨的家庭厨房
+
+**场景2**：健康饮食定义
+- 视觉元素：食物金字塔图表，各种健康食品
+- 运镜：平移展示不同食物类别
+- 环境：营养教育课堂
+
+### 14.3 第三步：脚本优化与输出
+**场景1对话**：
+- ([亲切、热情]) 大家好！今天我们来聊聊健康饮食这个话题。你知道吗，我们每天吃的食物直接影响着我们的健康和活力。
+
+**场景2对话**：
+- ([专业、清晰]) 首先，什么是健康饮食呢？简单来说，就是摄入多样化的食物，包括谷物、蔬菜、水果、蛋白质和健康脂肪。
+
+**最终输出**：完整的5场景分镜脚本，包含视觉描述、对话内容和情绪标注。
