@@ -223,13 +223,131 @@ Two task manager implementations:
 
 ---
 
+## 4.5 Task Types
+
+### 4.5.1 Task Definitions
+
+| Task Type | Description |
+|-----------|-------------|
+| **Complete Video Building Task** | A task initiated by clicking the "Generate Video" button on the web page. |
+| **Video Integration Task** | A task initiated through the video integration panel to generate the target video. |
+| **Multi-Scene Building Task** | A task initiated by clicking the "Parse Script" button in the script settings panel, targeting multi-scene scripts. |
+
+---
+
+## 4.6 Multi-Scene Service Logic
+
+### 4.6.1 Hierarchical Structure
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Task Level      │     │ Multi-Scene     │     │ Scene Level     │
+│ (start)         │────>│ Level           │────>│                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+          │                      │                      │
+          v                      v                      v
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Task Management │     │ Script Parsing  │     │ Audio Generation│
+│ (state.py)      │     │ (llm.py)        │     │ (voice.py)      │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+          │                      │                      │
+          v                      v                      v
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Service Layer   │     │ Scene Terms    │     │ Subtitle Gen    │
+│ (task.py)       │     │ (llm.py)        │     │ (subtitle.py)   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+          │                      │                      │
+          v                      v                      v
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Final Video     │     │ Scene Tags     │     │ Material Fetch  │
+│ (video.py)      │     │ (llm.py)        │     │ (material.py)   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+          │                      │                      │
+          v                      v                      v
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Output:         │     │ Multi-Scene     │     │ Scene Video     │
+│ final.mp4       │<────│ Combination     │<────│ (video.py)      │
+└─────────────────┘     │ (video.py)      │     └─────────────────┘
+                        └─────────────────┘
+```
+
+### 4.6.2 Core Functions
+
+#### Task Level
+- **start()**: Main task orchestration function, coordinates the entire video generation process
+- **save_script_data()**: Saves script and terms to disk for persistence
+
+#### Multi-Scene Level
+- **generate_multi_scene_script()**: Generates multi-scene script from subject, converts existing script to multi-scene format, or uses user-provided scenes
+- **generate_scene_terms()**: Generates search terms for each scene
+- **generate_scene_tags()**: Generates tags for each scene based on script content and visual requirements
+- **combine_all_scenes()**: Combines all scene videos into final video, handles duration matching
+
+#### Scene Level
+- **generate_scene_audio()**: Generates audio for a single scene
+- **generate_scene_subtitle()**: Generates subtitles for a single scene
+- **generate_scene_video()**: Coordinates the generation of a single scene video
+- **build_scene_video()**: Builds video for a single scene, combines video clips with audio
+
+### 4.6.3 Process Flow
+
+1. **Script Generation**: Convert input subject or script into multi-scene format
+2. **Scene Analysis**: Generate terms and tags for each scene
+3. **Scene Processing**: For each scene:
+   - Generate audio
+   - Generate subtitles
+   - Fetch video materials
+   - Build scene video
+4. **Multi-Scene Combination**: Combine all scene videos into final video
+5. **Final Processing**: Add background music and finalize video
+
+### 4.6.4 Key Features
+
+- **Flexible Script Input**: Supports subject-only, existing script, or direct scene input
+- **Scene-Level Customization**: Each scene can have its own keywords, visual requirements, and intro video
+- **Intelligent Material Matching**: Uses scene-specific terms for better video material selection
+- **Duration Management**: Ensures video duration matches audio duration
+- **Error Handling**: Graceful handling of failures at scene level
+
+### 4.6.5 Data Structures
+
+#### Scene Structure
+```python
+{
+    "id": "scene_1",
+    "title": "Introduction",
+    "script": "Welcome to our video about AI technology",
+    "audio": "Welcome to our video about AI technology",
+    "keywords": ["AI", "technology", "introduction"],
+    "tags": ["AI Technology", "Introduction"],
+    "visual": "Close-up of a computer screen showing AI interface",
+    "intro_video": "path/to/intro.mp4"
+}
+```
+
+#### Scene Result Structure
+```python
+{
+    "scene_id": "scene_1",
+    "scene_index": 0,
+    "audio_file": "path/to/audio.mp3",
+    "audio_duration": 15.5,
+    "subtitle_path": "path/to/subtitle.srt",
+    "combined_video_path": "path/to/combined.mp4"
+}
+```
+
+---
+
 ## 5. Video Generation Pipeline
 
 ### 5.1 Complete Flow Diagram
 
+#### 5.1.1 Single-Scene Flow
+
 ```
 +-------------------------------------------------------------------------+
-|                        VIDEO GENERATION PIPELINE                        |
+|                        SINGLE-SCENE VIDEO PIPELINE                      |
 +-------------------------------------------------------------------------+
 
      +----------+
@@ -301,8 +419,6 @@ Two task manager implementations:
 |  | Pexels /      |   |
 |  | Pixabay /     |   |
 |  | Local         |   |
-|  | Pixabay /     |   |
-|  | Local         |   |
 |  +---------------+   |
 +----------+-----------+
            |
@@ -341,6 +457,96 @@ Two task manager implementations:
      +------------+
 ```
 
+#### 5.1.2 Multi-Scene Flow
+
+```
++-------------------------------------------------------------------------+
+|                        MULTI-SCENE VIDEO PIPELINE                       |
++-------------------------------------------------------------------------+
+
+     +----------+
+     |   START  |
+     | (Request)|
+     +----+-----+
+          |
+          v
++-----------------------+
+|  1. Generate Multi-   |
+|     Scene Script      |
+|                       |
+|  Input: video_subject |
+|  Output: scenes_list  |
+|                       |
+|  +---------------+    |
+|  |  LLM Provider |    |
+|  +---------------+    |
++----------+------------+
+           |
+           v
++-----------------------+
+|  2. Generate Scene    |
+|     Terms & Tags      |
+|                       |
+|  Input: scenes_list   |
+|  Output: scene_terms  |
+|                       |
+|  +---------------+    |
+|  |  LLM Provider |    |
+|  +---------------+    |
++----------+------------+
+           |
+           v
++-----------------------+
+|  3. Process Each      |
+|     Scene             |
+|                       |
+|  For each scene:      |
+|  - Generate Audio     |
+|  - Generate Subtitle  |
+|  - Get Materials      |
+|  - Build Scene Video  |
+|                       |
+|  +---------------+    |
+|  |  Scene Worker |    |
+|  +---------------+    |
++----------+------------+
+           |
+           v
++-----------------------+
+|  4. Combine All       |
+|     Scenes            |
+|                       |
+|  Input: scene_videos  |
+|  Output: combined.mp4 |
+|                       |
+|  +---------------+    |
+|  | MoviePy +     |    |
+|  | FFmpeg        |    |
+|  +---------------+    |
++----------+------------+
+           |
+           v
++-----------------------+
+|  5. Generate Final    |
+|                       |
+|  Input: combined.mp4  |
+|        + subtitles    |
+|        + bgm          |
+|  Output: final.mp4    |
+|                       |
+|  +---------------+    |
+|  | MoviePy +     |    |
+|  | SubtitlesClip |    |
+|  +---------------+    |
++----------+------------+
+           |
+           v
+     +------------+
+     |   END      |
+     | (final.mp4)|
+     +------------+
+```
+
 ### 5.2 Task State Machine
 
 ```
@@ -357,6 +563,8 @@ Two task manager implementations:
 
 ### 5.3 Progress Tracking
 
+#### 5.3.1 Single-Scene Task
+
 | Stage | Progress | Description |
 |-------|----------|-------------|
 | Script Generation | 5-10% | LLM generates video script |
@@ -366,6 +574,54 @@ Two task manager implementations:
 | Material Download | 40-50% | Download video clips |
 | Video Combination | 50-75% | Combine clips with audio |
 | Final Generation | 75-100% | Add subtitles and BGM |
+
+#### 5.3.2 Multi-Scene Task
+
+| Stage | Progress | Description |
+|-------|----------|-------------|
+| Multi-Scene Script Gen | 5-15% | LLM generates multi-scene script |
+| Scene Terms & Tags Gen | 15-25% | Generate terms and tags for each scene |
+| Scene 1 Processing | 25-35% | Process first scene (audio, subtitles, materials, video) |
+| Scene 2 Processing | 35-45% | Process second scene |
+| Additional Scenes | 45-70% | Process remaining scenes (varies by scene count) |
+| Scene Combination | 70-85% | Combine all scene videos |
+| Final Generation | 85-100% | Add subtitles and BGM |
+
+### 5.4 Task Type Specific Flows
+
+#### 5.4.1 Complete Video Building Task
+- **Initiation**: Web UI "Generate Video" button
+- **Flow**: Full single-scene or multi-scene pipeline
+- **Output**: Complete video with audio, subtitles, and BGM
+
+#### 5.4.2 Video Integration Task
+- **Initiation**: Video integration panel
+- **Flow**: Combines existing scene videos into target video
+- **Key Steps**: Load scene videos → Combine scenes → Add BGM and subtitles
+- **Output**: Integrated target video
+
+#### 5.4.3 Multi-Scene Building Task
+- **Initiation**: Script settings panel "Parse Script" button
+- **Flow**: Multi-scene pipeline with script parsing
+- **Key Steps**: Parse script → Generate scenes → Process each scene → Combine scenes
+- **Output**: Multi-scene video with cohesive narrative
+
+### 5.5 Multi-Scene Mechanism
+
+#### 5.5.1 Scene-Level Processing
+- Each scene is processed independently
+- Scene-specific audio, subtitles, and materials
+- Scene-level error handling and recovery
+
+#### 5.5.2 Scene Combination
+- Maintains scene order and narrative flow
+- Handles duration matching between scenes
+- Applies smooth transitions between scenes
+
+#### 5.5.3 Data Management
+- Scene data is stored in structured format
+- Scene results are aggregated for final combination
+- Persistent storage of scene-level assets
 
 ---
 
