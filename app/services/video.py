@@ -1153,7 +1153,7 @@ def build_scene_video(
     scene_info: str = None,
     local_video_paths: List[str] = None,
     intro_video_path: str = None,
-    intro_duration: int = 5,
+    intro_duration: int = 10,
 ) -> str:
     # Handle audio_file being None (scene videos already contain audio)
     if audio_file:
@@ -1211,7 +1211,7 @@ def build_scene_video(
                         clip = video_effects.contrast_enhance(clip, contrast_factor)
                     
                     intro_clips.append(clip)
-                    logger.info(f"Image intro video processed: {intro_video_path} (duration: {random_duration:.1f}s)")
+                    logger.info(f"Image intro video processed: {intro_video_path} (duration: {intro_duration:.1f}s)")
                 finally:
                     # Close the original clip to release resources
                     # Note: We don't close the processed clip as it's added to intro_clips and will be closed later

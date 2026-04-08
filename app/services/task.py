@@ -577,7 +577,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         scene_info=f"(scene {scene_num}/{total_scenes})",
         local_video_paths=local_video_paths,
         intro_video_path=intro_video if intro_video and os.path.exists(intro_video) else None,
-        intro_duration=scene.get("intro_duration", 5))
+        intro_duration=scene.get("intro_duration", 10))
     
     if result is None or not os.path.exists(combined_video_path):
         logger.error(f"failed to combine video for scene {scene_num}")

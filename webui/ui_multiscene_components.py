@@ -11,17 +11,17 @@ def render_multiscene_management(tr):
     """
     from loguru import logger
     
-    # 初始化scenes in session state
+    # Initialize scenes in session state
     if "scenes" not in st.session_state:
         st.session_state["scenes"] = []
-    
+
     logger.info(f"Rendering multi-scene management, total scenes: {len(st.session_state['scenes'])}")
-    
-    # 初始化auto-parse settings
+
+    # Initialize auto-parse settings
     if "auto_parse_mode" not in st.session_state:
         st.session_state["auto_parse_mode"] = "auto"  # "auto" or "manual"
-    
-    # 初始化选中的场景
+
+    # Initialize selected scenes
     if "selected_scenes" not in st.session_state:
         st.session_state["selected_scenes"] = []
     
@@ -245,49 +245,49 @@ def render_multiscene_management(tr):
                     
                     # Duration value (left-aligned)
                     with col2:
-                        # 使用文本显示时长，添加边框和背景使其看起来更协调
+                        # Use text to display duration, add border and background for better appearance
                         st.markdown(f"<div style='border: 1px solid #e0e0e0; border-radius: 4px; padding: 6px 10px; background-color: #f8f9fa; text-align: center;'>{scene['duration']}</div>", unsafe_allow_html=True)
-                    
+
                     # Vertical divider
                     with divider:
                         st.markdown('<div style="width: 1px; height: 30px; background-color: #e0e0e0; margin: 5px 0;"></div>', unsafe_allow_html=True)
-                    
+
                     # Intro video button
                     with col3:
-                        # 按钮样式：有视频时高亮
+                        # Button style: highlight when video exists
                         button_kwargs = {}
                         if scene.get("intro_video"):
                             button_kwargs["type"] = "primary"
-                        
+
                         if st.button("🎬", key=f"intro_video_btn_{scene['id']}", **button_kwargs):
-                            # 显示文件上传器
+                            # Show file uploader
                             if f"show_uploader_{scene['id']}" not in st.session_state:
                                 st.session_state[f"show_uploader_{scene['id']}"] = True
                             else:
                                 st.session_state[f"show_uploader_{scene['id']}"] = not st.session_state[f"show_uploader_{scene['id']}"]
                             st.rerun()
-                    
+
                     # Intro duration input
                     with col4:
-                        # 片头视频时长设置，使用数字输入框
+                        # Intro video duration setting, using number input
                         if "intro_duration" not in scene:
-                            scene["intro_duration"] = 5
+                            scene["intro_duration"] = 10
                         scene["intro_duration"] = st.number_input(
                             "",
                             min_value=1, max_value=60, value=scene["intro_duration"],
-                            label_visibility="collapsed",
-                            key=f"intro_duration_{scene['id']}"
+                            key=f"intro_duration_{scene['id']}",
+                            label_visibility="collapsed"
                         )
-                    
+
                     # Unit "s"
                     with col5:
-                        # 显示单位"s"
+                        # Display unit "s"
                         st.markdown(f"<div style='margin-top: 8px;'>s</div>", unsafe_allow_html=True)
-                    
-                    # 显示文件上传器（如果触发）
+
+                    # Show file uploader (if triggered)
                     if f"show_uploader_{scene['id']}" in st.session_state and st.session_state[f"show_uploader_{scene['id']}"]:
                         uploaded_file = st.file_uploader(
-                            "选择片头视频或图片",
+                            "Select intro video or image",
                             type=["mp4", "avi", "mov", "wmv", "jpg", "jpeg", "png", "bmp"],
                             key=f"uploader_{scene['id']}"
                         )
@@ -336,14 +336,14 @@ def render_multiscene_management(tr):
                             
                             # Update scene data
                             scene["intro_video"] = video_path
-                            # 隐藏上传器
+                            # Hide uploader
                             del st.session_state[f"show_uploader_{scene['id']}"]
-                            st.success("片头视频已添加")
+                            st.success("Intro video added")
                             st.rerun()
-                    
-                    # 显示视频路径（如果有）
+
+                    # Display video path (if exists)
                     if scene.get("intro_video"):
-                        # 使用st.columns保持水平布局不变，只调整竖直方向对齐
+                        # Use st.columns to maintain horizontal layout, only adjust vertical alignment
                         col_path, col_clear = st.columns([4, 1])
                         with col_path:
                             st.text_input(
@@ -353,7 +353,7 @@ def render_multiscene_management(tr):
                                 key=f"intro_video_path_{scene['id']}"
                             )
                         with col_clear:
-                            # 调整按钮的竖直对齐
+                            # Adjust button vertical alignment
                             st.markdown('<div style="display: flex; align-items: center; height: 100%;">', unsafe_allow_html=True)
                             if st.button(tr("Clear"), key=f"clear_intro_video_{scene['id']}"):
                                 scene["intro_video"] = ""
