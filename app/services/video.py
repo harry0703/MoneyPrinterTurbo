@@ -1153,6 +1153,7 @@ def build_scene_video(
     scene_info: str = None,
     local_video_paths: List[str] = None,
     intro_video_path: str = None,
+    intro_duration: int = 5,
 ) -> str:
     # Handle audio_file being None (scene videos already contain audio)
     if audio_file:
@@ -1183,16 +1184,13 @@ def build_scene_video(
         try:
             # Check if intro video is actually an image
             if intro_video_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
-                # Handle image as intro video with 5-8 seconds random duration
-                import random
-                # Generate random duration between 5 and 8 seconds
-                random_duration = random.uniform(5, 8)
-                logger.info(f"Processing image as intro video with random duration: {random_duration:.1f}s")
+                # Handle image as intro video with specified duration
+                logger.info(f"Processing image as intro video with duration: {intro_duration:.1f}s")
                 
-                # Create video from image with random duration
-                clip = ImageClip(intro_video_path).with_duration(random_duration)
+                # Create video from image with specified duration
+                clip = ImageClip(intro_video_path).with_duration(intro_duration)
                 try:
-                    clip_duration = random_duration
+                    clip_duration = intro_duration
                     clip_w, clip_h = clip.size
                     
                     # Process intro clip
@@ -1232,7 +1230,7 @@ def build_scene_video(
                     close_clip(clip)
                 
                 start_time = 0
-                end_time = min(start_time + max_clip_duration, clip_duration)
+                end_time = min(start_time + intro_duration, clip_duration)
                 subclip = SubClippedVideoClip(file_path=intro_video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h)
                 
                 # Process intro clip

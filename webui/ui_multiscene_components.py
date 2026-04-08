@@ -236,16 +236,23 @@ def render_multiscene_management(tr):
                             st.rerun()
                     
                     # Scene duration - custom layout with label, input and button on same row
-                    col1, col2, col3 = st.columns([1, 3, 1], gap="small")
+                    # Create horizontal layout with simple columns including vertical divider
+                    col1, col2, divider, col3, col4, col5 = st.columns([1.3, 1.5, 0.1, 1, 1.5, 0.5], gap="small")
+                    
+                    # Duration label (left-aligned)
                     with col1:
-                        st.markdown(f"<div style='margin-top: 8px;'>{tr('Duration (seconds)')}:</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='margin-top: 8px;'>{tr('~Duration(s)')}:</div>", unsafe_allow_html=True)
+                    
+                    # Duration value (left-aligned)
                     with col2:
-                        scene["duration"] = st.number_input(
-                            "Duration",
-                            min_value=1, max_value=60, value=scene["duration"],
-                            label_visibility="collapsed",
-                            key=f"duration_{scene['id']}"
-                        )
+                        # 使用文本显示时长，添加边框和背景使其看起来更协调
+                        st.markdown(f"<div style='border: 1px solid #e0e0e0; border-radius: 4px; padding: 6px 10px; background-color: #f8f9fa; text-align: center;'>{scene['duration']}</div>", unsafe_allow_html=True)
+                    
+                    # Vertical divider
+                    with divider:
+                        st.markdown('<div style="width: 1px; height: 30px; background-color: #e0e0e0; margin: 5px 0;"></div>', unsafe_allow_html=True)
+                    
+                    # Intro video button
                     with col3:
                         # 按钮样式：有视频时高亮
                         button_kwargs = {}
@@ -259,6 +266,23 @@ def render_multiscene_management(tr):
                             else:
                                 st.session_state[f"show_uploader_{scene['id']}"] = not st.session_state[f"show_uploader_{scene['id']}"]
                             st.rerun()
+                    
+                    # Intro duration input
+                    with col4:
+                        # 片头视频时长设置，使用数字输入框
+                        if "intro_duration" not in scene:
+                            scene["intro_duration"] = 5
+                        scene["intro_duration"] = st.number_input(
+                            "",
+                            min_value=1, max_value=60, value=scene["intro_duration"],
+                            label_visibility="collapsed",
+                            key=f"intro_duration_{scene['id']}"
+                        )
+                    
+                    # Unit "s"
+                    with col5:
+                        # 显示单位"s"
+                        st.markdown(f"<div style='margin-top: 8px;'>s</div>", unsafe_allow_html=True)
                     
                     # 显示文件上传器（如果触发）
                     if f"show_uploader_{scene['id']}" in st.session_state and st.session_state[f"show_uploader_{scene['id']}"]:
@@ -319,18 +343,22 @@ def render_multiscene_management(tr):
                     
                     # 显示视频路径（如果有）
                     if scene.get("intro_video"):
+                        # 使用st.columns保持水平布局不变，只调整竖直方向对齐
                         col_path, col_clear = st.columns([4, 1])
                         with col_path:
                             st.text_input(
-                                "片头视频路径",
+                                "",
                                 value=scene["intro_video"],
                                 disabled=True,
                                 key=f"intro_video_path_{scene['id']}"
                             )
                         with col_clear:
-                            if st.button("清除", key=f"clear_intro_video_{scene['id']}"):
+                            # 调整按钮的竖直对齐
+                            st.markdown('<div style="display: flex; align-items: center; height: 100%;">', unsafe_allow_html=True)
+                            if st.button(tr("Clear"), key=f"clear_intro_video_{scene['id']}"):
                                 scene["intro_video"] = ""
                                 st.rerun()
+                            st.markdown('</div>', unsafe_allow_html=True)
                     
 
                     
