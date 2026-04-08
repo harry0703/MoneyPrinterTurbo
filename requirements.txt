@@ -27,3 +27,4 @@ pydantic
 starlette
 typing-extensions
 psutil
+jieba
