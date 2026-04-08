@@ -1565,6 +1565,8 @@ def generate_video(
         params: Video parameters
         progress_callback: Optional callback function for progress updates
     """
+    import time
+    start_time = time.time()
     logger.info(f"starting video generation: {output_file}")
     
     try:
@@ -1696,11 +1698,23 @@ def generate_video(
         if audio_path:
             audio_clip.close()
         
+        import time
+        end_time = time.time()
+        total_time = end_time - start_time
+        hours, remainder = divmod(total_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
         logger.success(f"video generated successfully: {output_file}")
+        logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
         return output_file
         
     except Exception as e:
+        import time
+        end_time = time.time()
+        total_time = end_time - start_time
+        hours, remainder = divmod(total_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
         logger.error(f"failed to generate video: {e}")
+        logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
         raise
 
 
@@ -1844,6 +1858,8 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
     Returns:
         Path to the final video file, or None if failed
     """
+    import time
+    start_time = time.time()
     # Determine task ID and directory
     if os.path.isdir(task_id_or_path):
         task_dir = task_id_or_path
@@ -1858,14 +1874,26 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
     task_files = scan_task_files(task_id_or_path)
     
     if not task_files["is_valid"]:
+        import time
+        end_time = time.time()
+        total_time = end_time - start_time
+        hours, remainder = divmod(total_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
         logger.error("No valid scene videos found in task directory")
+        logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
         return None
     
     task_dir = task_files["task_dir"]
     valid_scenes = [s for s in task_files["scene_videos"] if s["video"] is not None]
     
     if not valid_scenes:
+        import time
+        end_time = time.time()
+        total_time = end_time - start_time
+        hours, remainder = divmod(total_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
         logger.error("No valid scenes found")
+        logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
         return None
     
     logger.info(f"Found {len(valid_scenes)} valid scenes to combine")
@@ -2000,13 +2028,25 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
         )
         
         if not combined_video_path:
+            import time
+            end_time = time.time()
+            total_time = end_time - start_time
+            hours, remainder = divmod(total_time, 3600)
+            minutes, seconds = divmod(remainder, 60)
             logger.error("Failed to combine scene videos")
+            logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
             return None
         
         logger.success(f"Combined video created: {combined_video_path}")
         
     except Exception as e:
+        import time
+        end_time = time.time()
+        total_time = end_time - start_time
+        hours, remainder = divmod(total_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
         logger.error(f"Failed to combine scene videos: {e}")
+        logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
         return None
     
     if progress_callback:
@@ -2025,13 +2065,31 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
         )
         
         if output_path and os.path.exists(output_path):
+            import time
+            end_time = time.time()
+            total_time = end_time - start_time
+            hours, remainder = divmod(total_time, 3600)
+            minutes, seconds = divmod(remainder, 60)
             logger.success(f"Final video generated: {output_path}")
+            logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
             
             return output_path
         else:
+            import time
+            end_time = time.time()
+            total_time = end_time - start_time
+            hours, remainder = divmod(total_time, 3600)
+            minutes, seconds = divmod(remainder, 60)
             logger.error("Failed to generate final video")
+            logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
             return None
             
     except Exception as e:
+        import time
+        end_time = time.time()
+        total_time = end_time - start_time
+        hours, remainder = divmod(total_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
         logger.error(f"Failed to generate final video: {e}")
+        logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
         return None
