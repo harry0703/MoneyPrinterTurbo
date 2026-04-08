@@ -149,10 +149,6 @@ docker-compose up
 ```
 
 > 注意：最新版的docker安装时会自动以插件的形式安装docker compose，启动命令调整为docker compose up
->
-> 如果启用了 Redis，`config.toml` 中的 `redis_host` 在本地运行时通常保持为 `localhost` 即可；
-> 通过 `docker-compose` 启动时，Compose 会默认注入 `REDIS_HOST=redis`，
-> 让 API 容器通过 Docker 服务名访问 Redis，而不是访问容器自身的 `localhost`。
 
 #### ② 访问Web界面
 
