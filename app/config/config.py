@@ -68,8 +68,8 @@ project_version = _cfg.get("project_version", "1.2.7")
 reload_debug = False
 
 app["redis_host"] = os.getenv(
-    "REDIS_HOST",
-    os.getenv("MPT_APP_REDIS_HOST", app.get("redis_host", "localhost")),
+    "MPT_APP_REDIS_HOST",
+    os.getenv("REDIS_HOST", app.get("redis_host", "localhost")),
 )
 
 imagemagick_path = app.get("imagemagick_path", "")
