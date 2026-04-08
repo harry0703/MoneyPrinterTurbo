@@ -181,7 +181,6 @@ material_directory = ""
 
 # Used for state management of the task
 enable_redis = false
-# Keep localhost for local runs. In Docker Compose, this is overridden to `redis`.
 redis_host = "localhost"
 redis_port = 6379
 redis_db = 0
