@@ -8,8 +8,11 @@ from os import path
 
 # Set moviepy and imageio logging level to WARNING to suppress detailed metadata logs
 logging.basicConfig(level=logging.WARNING)
-for logger_name in ['moviepy', 'imageio', 'imageio_ffmpeg']:
+for logger_name in ['moviepy', 'imageio', 'imageio_ffmpeg', 'ffmpeg', 'PIL']:
     logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+# Also set the root logger level to WARNING to suppress all debug logs
+logging.getLogger().setLevel(logging.WARNING)
 
 from loguru import logger
 
@@ -984,7 +987,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     # Add file handler to logger
     log_handler_id = logger.add(
         task_log_path,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{line} | {message}",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{line} | {message}\n",
         level="INFO",
         rotation="10 MB",
         compression="zip"

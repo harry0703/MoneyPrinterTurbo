@@ -65,7 +65,7 @@ def __init_logger():
         sys.stdout,
         level=_lvl,
         format=format_record,
-        colorize=True,
+        colorize=True
     )
 
 

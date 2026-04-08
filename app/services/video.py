@@ -12,12 +12,16 @@ import io
 import contextlib
 import logging
 import math
+import psutil
 from typing import List
 
 # Set moviepy and imageio logging level to WARNING to suppress detailed metadata logs
 logging.basicConfig(level=logging.WARNING)
-for logger_name in ['moviepy', 'imageio', 'imageio_ffmpeg']:
+for logger_name in ['moviepy', 'imageio', 'imageio_ffmpeg', 'ffmpeg', 'PIL']:
     logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+# Also set the root logger level to WARNING to suppress all debug logs
+logging.getLogger().setLevel(logging.WARNING)
 
 from loguru import logger
 from moviepy import (
@@ -399,6 +403,37 @@ video_codec = get_video_codec()
 video_encoding_params = get_video_encoding_params()
 logger.info(f"Video encoder initialized: {video_codec} (GPU for video codec: {config.app.get('use_gpu', False)})")
 
+def get_memory_usage():
+    """Get current memory usage percentage"""
+    memory = psutil.virtual_memory()
+    return memory.percent
+
+def check_memory_usage(threshold=75):
+    """Check if memory usage exceeds threshold"""
+    memory_usage = get_memory_usage()
+    logger.debug(f"Current memory usage: {memory_usage:.2f}%")
+    return memory_usage >= threshold
+
+def memory_safe_wait():
+    """Wait until memory usage drops below threshold"""
+    while check_memory_usage():
+        logger.warning(f"Memory usage high, waiting for 3 seconds...")
+        # Force garbage collection before sleeping
+        gc.collect()
+        time.sleep(3)
+    logger.debug("Memory usage acceptable, continuing processing")
+
+def memory_safe_operation(func):
+    """Decorator for memory-safe operations"""
+    def wrapper(*args, **kwargs):
+        # Check memory before operation
+        memory_safe_wait()
+        result = func(*args, **kwargs)
+        # Check memory after operation
+        memory_safe_wait()
+        return result
+    return wrapper
+
 def close_clip(clip):
     if clip is None:
         return
@@ -548,16 +583,20 @@ def preprocess_video(materials, clip_duration=5):
                 
                 # Use moviepy to create a video from the image
                 clip = ImageClip(material.url).with_duration(actual_duration)
-                clip.write_videofile(video_path, fps=24)
-                
-                # Create a new MaterialInfo with the video path
-                new_material = MaterialInfo()
-                new_material.url = video_path
-                new_material.provider = material.provider
-                new_material.duration = actual_duration
-                
-                processed_materials.append(new_material)
-                logger.info(f"Converted image to video: {material.url} -> {video_path} ({actual_duration:.1f}s)")
+                try:
+                    clip.write_videofile(video_path, fps=24)
+                    
+                    # Create a new MaterialInfo with the video path
+                    new_material = MaterialInfo()
+                    new_material.url = video_path
+                    new_material.provider = material.provider
+                    new_material.duration = actual_duration
+                    
+                    processed_materials.append(new_material)
+                    logger.info(f"Converted image to video: {material.url} -> {video_path} ({actual_duration:.1f}s)")
+                finally:
+                    # Close the clip to release resources
+                    close_clip(clip)
             except Exception as e:
                 logger.error(f"Failed to convert image to video: {material.url} -> {str(e)}")
                 continue
@@ -674,6 +713,7 @@ def match_local_videos_by_keywords(materials, scene_keywords):
     return sorted_materials
 
 
+@memory_safe_operation
 def process_scene_videos(
     scene_video_paths: List[str],
     video_aspect: VideoAspect,
@@ -705,6 +745,9 @@ def process_scene_videos(
     # Process videos
     for i, video_path in enumerate(scene_video_paths):
         try:
+            # Check memory before processing each video
+            memory_safe_wait()
+            
             clip = VideoFileClip(video_path)
             clip_duration = clip.duration
             clip_w, clip_h = clip.size
@@ -722,6 +765,8 @@ def process_scene_videos(
                     break
         except Exception as e:
             logger.error(f"failed to process video file {video_path}: {str(e)}")
+            # Release memory in case of error
+            gc.collect()
             continue
 
     # Apply concat mode to scene's video clips
@@ -731,6 +776,9 @@ def process_scene_videos(
     # Process subclips
     for i, subclipped_item in enumerate(subclipped_items):
         try:
+            # Check memory before processing each subclip
+            memory_safe_wait()
+            
             clip = VideoFileClip(subclipped_item.file_path).subclipped(subclipped_item.start_time, subclipped_item.end_time)
             clip_duration = clip.duration
             
@@ -746,7 +794,19 @@ def process_scene_videos(
                 else:
                     max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
                 
+                # Check memory before crop
+                memory_safe_wait()
+                
+                old_clip = clip
                 clip = crop_clip_to_target(clip, video_width, video_height, max_scale=max_scale)
+                
+                # Close old clip to release memory
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
+                
                 if clip is None:
                     if local_video_paths and subclipped_item.file_path in local_video_paths:
                         logger.warning(f"Local clip {i+1} could not be processed even with relaxed quality constraints, skipping")
@@ -759,13 +819,37 @@ def process_scene_videos(
             if video_transition_mode and video_transition_mode.value == VideoTransitionMode.none.value:
                 clip = clip
             elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.fade_in.value:
+                old_clip = clip
                 clip = video_effects.fadein_transition(clip,1)
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
             elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.fade_out.value:
+                old_clip = clip
                 clip = video_effects.fadeout_transition(clip,1)
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
             elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.slide_in.value:
+                old_clip = clip
                 clip = video_effects.slidein_transition(clip,1, shuffle_side)
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
             elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.slide_out.value:
+                old_clip = clip
                 clip = video_effects.slideout_transition(clip,1, shuffle_side)
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
             elif video_transition_mode and video_transition_mode.value == VideoTransitionMode.shuffle.value:
                 transition_funcs = [
                     lambda c: video_effects.fadein_transition(c,1),
@@ -774,25 +858,53 @@ def process_scene_videos(
                     lambda c: video_effects.slideout_transition(c,1, shuffle_side),
                 ]
                 shuffle_transition = random.choice(transition_funcs)
+                old_clip = clip
                 clip = shuffle_transition(clip)
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
 
             # Apply brightness and contrast enhancement
             brightness_factor = config.app.get("video_brightness", 1.0)
             contrast_factor = config.app.get("video_contrast", 1.0)
             
             if brightness_factor != 1.0:
+                old_clip = clip
                 clip = video_effects.brightness_enhance(clip, brightness_factor)
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
             
             if contrast_factor != 1.0:
+                old_clip = clip
                 clip = video_effects.contrast_enhance(clip, contrast_factor)
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
 
             if clip.duration > max_clip_duration:
+                old_clip = clip
                 clip = clip.subclipped(0, max_clip_duration)
+                try:
+                    if old_clip is not clip:
+                        close_clip(old_clip)
+                except Exception as e:
+                    logger.debug(f"Error closing old clip: {e}")
+            
+            # Check memory before adding to processed clips
+            memory_safe_wait()
             
             processed_clips.append(clip)
             
-            # Release memory periodically
-            if len(processed_clips) % 5 == 0:
+            # Release memory more frequently
+            if len(processed_clips) % 3 == 0:
+                logger.debug(f"Releasing memory after processing {len(processed_clips)} clips")
                 gc.collect()
                 
         except Exception as e:
@@ -801,6 +913,8 @@ def process_scene_videos(
             gc.collect()
             continue
     
+    # Final memory cleanup
+    gc.collect()
     return processed_clips
 
 def combine_scene_clips(
@@ -1077,34 +1191,45 @@ def build_scene_video(
                 
                 # Create video from image with random duration
                 clip = ImageClip(intro_video_path).with_duration(random_duration)
-                clip_duration = random_duration
-                clip_w, clip_h = clip.size
-                
-                # Process intro clip
-                aspect = VideoAspect(video_aspect)
-                video_width, video_height = aspect.to_resolution()
-                
-                # Process intro video differently: fit without cropping, center on blue background
-                clip = fit_intro_video_to_target(clip, video_width, video_height)
-                
-                # Apply brightness and contrast enhancement
-                brightness_factor = config.app.get("video_brightness", 1.0)
-                contrast_factor = config.app.get("video_contrast", 1.0)
-                
-                if brightness_factor != 1.0:
-                    clip = video_effects.brightness_enhance(clip, brightness_factor)
-                
-                if contrast_factor != 1.0:
-                    clip = video_effects.contrast_enhance(clip, contrast_factor)
-                
-                intro_clips.append(clip)
-                logger.info(f"Image intro video processed: {intro_video_path} (duration: {random_duration:.1f}s)")
+                try:
+                    clip_duration = random_duration
+                    clip_w, clip_h = clip.size
+                    
+                    # Process intro clip
+                    aspect = VideoAspect(video_aspect)
+                    video_width, video_height = aspect.to_resolution()
+                    
+                    # Process intro video differently: fit without cropping, center on blue background
+                    clip = fit_intro_video_to_target(clip, video_width, video_height)
+                    
+                    # Apply brightness and contrast enhancement
+                    brightness_factor = config.app.get("video_brightness", 1.0)
+                    contrast_factor = config.app.get("video_contrast", 1.0)
+                    
+                    if brightness_factor != 1.0:
+                        clip = video_effects.brightness_enhance(clip, brightness_factor)
+                    
+                    if contrast_factor != 1.0:
+                        clip = video_effects.contrast_enhance(clip, contrast_factor)
+                    
+                    intro_clips.append(clip)
+                    logger.info(f"Image intro video processed: {intro_video_path} (duration: {random_duration:.1f}s)")
+                finally:
+                    # Close the original clip to release resources
+                    # Note: We don't close the processed clip as it's added to intro_clips and will be closed later
+                    try:
+                        if clip and hasattr(clip, 'close'):
+                            clip.close()
+                    except Exception:
+                        pass
             else:
                 # Process as regular video
                 clip = VideoFileClip(intro_video_path)
-                clip_duration = clip.duration
-                clip_w, clip_h = clip.size
-                close_clip(clip)
+                try:
+                    clip_duration = clip.duration
+                    clip_w, clip_h = clip.size
+                finally:
+                    close_clip(clip)
                 
                 start_time = 0
                 end_time = min(start_time + max_clip_duration, clip_duration)
@@ -1115,21 +1240,30 @@ def build_scene_video(
                 video_width, video_height = aspect.to_resolution()
                 
                 clip = VideoFileClip(subclip.file_path).subclipped(subclip.start_time, subclip.end_time)
-                # Process intro video differently: fit without cropping, center on blue background
-                clip = fit_intro_video_to_target(clip, video_width, video_height)
-                
-                # Apply brightness and contrast enhancement
-                brightness_factor = config.app.get("video_brightness", 1.0)
-                contrast_factor = config.app.get("video_contrast", 1.0)
-                
-                if brightness_factor != 1.0:
-                    clip = video_effects.brightness_enhance(clip, brightness_factor)
-                
-                if contrast_factor != 1.0:
-                    clip = video_effects.contrast_enhance(clip, contrast_factor)
-                
-                intro_clips.append(clip)
-                logger.info(f"Video intro processed: {intro_video_path}")
+                try:
+                    # Process intro video differently: fit without cropping, center on blue background
+                    clip = fit_intro_video_to_target(clip, video_width, video_height)
+                    
+                    # Apply brightness and contrast enhancement
+                    brightness_factor = config.app.get("video_brightness", 1.0)
+                    contrast_factor = config.app.get("video_contrast", 1.0)
+                    
+                    if brightness_factor != 1.0:
+                        clip = video_effects.brightness_enhance(clip, brightness_factor)
+                    
+                    if contrast_factor != 1.0:
+                        clip = video_effects.contrast_enhance(clip, contrast_factor)
+                    
+                    intro_clips.append(clip)
+                    logger.info(f"Video intro processed: {intro_video_path}")
+                finally:
+                    # Close the original clip to release resources
+                    # Note: We don't close the processed clip as it's added to intro_clips and will be closed later
+                    try:
+                        if clip and hasattr(clip, 'close'):
+                            clip.close()
+                    except Exception:
+                        pass
         except Exception as e:
             logger.error(f"Failed to process intro video: {str(e)}")
         
@@ -1242,6 +1376,7 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0,
     return composite
 
 
+@memory_safe_operation
 def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
     """
     Crop a video clip to target dimensions while maintaining quality.
@@ -1293,7 +1428,21 @@ def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
         new_width = int(clip_w * scale_factor)
         new_height = int(clip_h * scale_factor)
         logger.info(f"Upscaling: {clip_w}x{clip_h} -> {new_width}x{new_height} ({scale_factor:.3f}x)")
+        
+        # Check memory before upscale
+        memory_safe_wait()
+        
+        # Create new clip and release old one
+        old_clip = clip
         clip = clip.resized(new_size=(new_width, new_height))
+        # Close old clip to release memory
+        try:
+            old_clip.close()
+            del old_clip
+            gc.collect()
+        except Exception as e:
+            logger.debug(f"Error closing old clip: {e}")
+        
         clip_w, clip_h = new_width, new_height
     else:
         logger.debug(f"No upscaling needed, clip is larger than target")
@@ -1317,14 +1466,38 @@ def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
             y1 = y_center - new_height // 2
             logger.info(f"Cropping height: {clip_w}x{clip_h} -> {new_width}x{new_height}, crop_y={y1}")
         
+        # Check memory before crop
+        memory_safe_wait()
+        
         # Crop to target dimensions
+        old_clip = clip
         clip = clip.with_effects([vfx.Crop(x1=x1, y1=y1, width=new_width, height=new_height)])
+        # Close old clip to release memory
+        try:
+            old_clip.close()
+            del old_clip
+            gc.collect()
+        except Exception as e:
+            logger.debug(f"Error closing old clip: {e}")
     
     # Final resize if needed (should be minimal or none)
     final_w, final_h = clip.size
     if final_w != target_width or final_h != target_height:
         logger.info(f"Final resize: {final_w}x{final_h} -> {target_width}x{target_height}")
+        
+        # Check memory before final resize
+        memory_safe_wait()
+        
+        # Create new clip and release old one
+        old_clip = clip
         clip = clip.resized(new_size=(target_width, target_height))
+        # Close old clip to release memory
+        try:
+            old_clip.close()
+            del old_clip
+            gc.collect()
+        except Exception as e:
+            logger.debug(f"Error closing old clip: {e}")
     
     logger.success(f"Clip processed successfully: {target_width}x{target_height}")
     return clip

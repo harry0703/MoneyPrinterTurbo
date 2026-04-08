@@ -26,3 +26,4 @@ proglog
 pydantic
 starlette
 typing-extensions
+psutil

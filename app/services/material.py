@@ -11,6 +11,7 @@ from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 from app.services.llm import add_english_translations
+from app.services.download_manager import download_video, initialize_download_system, get_download_status
 
 requested_count = 0
 
@@ -319,6 +320,9 @@ def download_videos(
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
 ) -> List[str]:
+    # Initialize download system
+    initialize_download_system()
+    
     valid_video_items = []
     valid_video_urls = []
     found_duration = 0.0
@@ -356,6 +360,8 @@ def download_videos(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
     )
     video_paths = []
+    downloaded_paths = []
+    download_count = 0
 
     material_directory = config.app.get("material_directory", "").strip()
     if material_directory == "task":
@@ -367,26 +373,77 @@ def download_videos(
         random.shuffle(valid_video_items)
 
     total_duration = 0.0
+    
+    # Function to handle download completion
+    def download_callback(success, path=None, error=None):
+        nonlocal download_count, total_duration
+        if success and path:
+            downloaded_paths.append(path)
+            # Get video duration
+            try:
+                clip = VideoFileClip(path)
+                duration = clip.duration
+                clip.close()
+                seconds = min(max_clip_duration, duration)
+                total_duration += seconds
+            except Exception as e:
+                logger.error(f"Failed to get video duration: {e}")
+                seconds = max_clip_duration
+                total_duration += seconds
+            download_count += 1
+            logger.info(f"Video downloaded: {path}, total downloaded: {download_count}")
+        elif error:
+            logger.error(f"Download failed: {error}")
+
+    # Add download tasks to queue
     for item in valid_video_items:
         try:
-            logger.info(f"downloading video: {item.url}")
-            saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
-            )
-            if saved_video_path:
-                logger.info(f"video saved: {saved_video_path}")
-                video_paths.append(saved_video_path)
+            # Generate save path
+            url_without_query = item.url.split("?")[0]
+            url_hash = utils.md5(url_without_query)
+            video_id = f"vid-{url_hash}"
+            if material_directory:
+                save_path = f"{material_directory}/{video_id}.mp4"
+            else:
+                save_dir = utils.storage_dir("cache_videos")
+                save_path = f"{save_dir}/{video_id}.mp4"
+            
+            # Check if video already exists
+            if os.path.exists(save_path) and os.path.getsize(save_path) > 0:
+                logger.info(f"Video already exists: {save_path}")
+                downloaded_paths.append(save_path)
                 seconds = min(max_clip_duration, item.duration)
                 total_duration += seconds
-                if total_duration > audio_duration:
-                    logger.info(
-                        f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
-                    )
-                    break
+                download_count += 1
+            else:
+                # Add to download queue
+                logger.info(f"Adding video to download queue: {item.url}")
+                download_video(item.url, save_path, download_callback)
+                
+            # Check if we have enough duration
+            if total_duration > audio_duration:
+                logger.info(
+                    f"Total duration of downloaded videos: {total_duration} seconds, skip downloading more"
+                )
+                break
         except Exception as e:
-            logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
-    logger.success(f"downloaded {len(video_paths)} videos")
-    return video_paths
+            logger.error(f"Failed to add video to download queue: {utils.to_json(item)} => {str(e)}")
+    
+    # Wait for downloads to complete (simple approach)
+    # In a production environment, you might want to use a more robust mechanism
+    import time
+    start_time = time.time()
+    timeout = 600  # 10 minutes timeout
+    
+    while len(downloaded_paths) < len(valid_video_items) and time.time() - start_time < timeout:
+        status = get_download_status()
+        logger.debug(f"Download status: {status}")
+        if status['active_downloads'] == 0 and status['queue_size'] == 0:
+            break
+        time.sleep(5)  # Check every 5 seconds
+    
+    logger.success(f"Downloaded {len(downloaded_paths)} videos")
+    return downloaded_paths
 
 
 if __name__ == "__main__":
