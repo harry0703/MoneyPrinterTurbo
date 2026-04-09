@@ -142,4 +142,19 @@ def render_video_settings(params, config, uploaded_files, tr):
             options=[1, 2, 3, 4, 5],
             index=0,
         )
+        
+        # Video style keyword
+        video_style_options = [
+            (tr("Video Style None"), ""),
+            (tr("People/Human"), "people"),
+            (tr("Nature/Landscape"), "nature"),
+            (tr("Animation/Cartoon"), "animation"),
+        ]
+        selected_index = st.selectbox(
+            tr("Video Style"),
+            options=range(len(video_style_options)),
+            format_func=lambda x: video_style_options[x][0],
+            index=0,
+        )
+        params.video_style = video_style_options[selected_index][1]
     return uploaded_files

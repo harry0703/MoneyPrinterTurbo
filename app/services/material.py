@@ -13,6 +13,46 @@ from app.utils import utils
 from app.services.llm import add_english_translations
 from app.services.download_manager import download_video, initialize_download_system, get_download_status
 
+# Style keyword mapping based on visual requirements
+STYLE_KEYWORDS = {
+    'people': ['people', 'human', 'lifestyle', 'person', 'character', 'humanoid'],
+    'scenery': ['nature', 'landscape', 'scenery', 'travel', 'outdoor', 'environment'],
+    'animation': ['animation', 'cartoon', 'illustration', 'animated', 'cartoony']
+}
+
+# Visual cues for each style
+VISUAL_CUES = {
+    'people': ['people', 'human', 'person', 'character', 'man', 'woman', 'child', 'family', 'group', 'individual', 'lifestyle', 'portrait', 'face', 'figure', 'body'],
+    'scenery': ['nature', 'landscape', 'scenery', 'travel', 'outdoor', 'environment', 'mountain', 'forest', 'ocean', 'beach', 'sky', 'sunset', 'landform', 'natural'],
+    'animation': ['animation', 'cartoon', 'illustration', 'animated', 'cartoony', 'cartoonish', 'anime', 'comic', 'drawing', 'sketch', 'digital art']
+}
+
+def extract_style_keyword(visual_requirement: str) -> str:
+    """
+    Extract style keyword from visual requirements
+    
+    Args:
+        visual_requirement: Visual requirements text
+    
+    Returns:
+        Style keyword in English
+    """
+    if not visual_requirement:
+        return ""
+    
+    # Convert to lowercase for case-insensitive matching
+    text = visual_requirement.lower()
+    
+    # Check for visual cues in order of priority
+    for style, cues in VISUAL_CUES.items():
+        for cue in cues:
+            if cue in text:
+                # Return the first matching style's primary keyword
+                return STYLE_KEYWORDS[style][0]
+    
+    # Default to no style keyword
+    return ""
+
 requested_count = 0
 
 
@@ -37,6 +77,7 @@ def search_videos_pexels(
     search_term: str,
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
+    style_keyword: str = "",
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
     # Map aspect to Pexels API orientation parameter
@@ -54,8 +95,14 @@ def search_videos_pexels(
         "Authorization": api_key,
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     }
+    # Build search query with style keyword if provided
+    full_search_term = search_term
+    if style_keyword:
+        full_search_term = f"{style_keyword} {search_term}"
+        logger.info(f"Adding style keyword '{style_keyword}' to search term")
+    
     # Build URL
-    params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
+    params = {"query": full_search_term, "per_page": 20, "orientation": video_orientation}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
 
@@ -164,15 +211,22 @@ def search_videos_pixabay(
     search_term: str,
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
+    style_keyword: str = "",
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
 
     video_width, video_height = aspect.to_resolution()
 
     api_key = get_api_key("pixabay_api_keys")
+    # Build search query with style keyword if provided
+    full_search_term = search_term
+    if style_keyword:
+        full_search_term = f"{style_keyword} {search_term}"
+        logger.info(f"Adding style keyword '{style_keyword}' to search term")
+    
     # Build URL
     params = {
-        "q": search_term,
+        "q": full_search_term,
         "video_type": "all",  # Accepted values: "all", "film", "animation"
         "per_page": 50,
         "key": api_key,
@@ -319,6 +373,7 @@ def download_videos(
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
+    style_keyword: str = "",
 ) -> List[str]:
     # Initialize download system
     initialize_download_system()
@@ -347,6 +402,7 @@ def download_videos(
             search_term=search_term,
             minimum_duration=max_clip_duration,
             video_aspect=video_aspect,
+            style_keyword=style_keyword,
         )
         logger.info(f"found {len(video_items)} videos for '{search_term}'")
 

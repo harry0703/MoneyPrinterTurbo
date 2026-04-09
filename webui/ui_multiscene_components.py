@@ -176,6 +176,11 @@ def render_multiscene_management(tr):
                                         scene["script"] = ""
                                     if "intro_video" not in scene:
                                         scene["intro_video"] = ""
+                                    if "intro_duration" not in scene:
+                                        scene["intro_duration"] = 10
+                                    # Convert keywords list to comma-separated string if needed
+                                    if isinstance(scene["keywords"], list):
+                                        scene["keywords"] = ", ".join(scene["keywords"])
                                     valid_scenes.append(scene)
                             
                             # Update session state
@@ -320,22 +325,22 @@ def render_multiscene_management(tr):
                                 # Image to video (5 seconds)
                                 video_path = os.path.join(scene_intro_dir, f"{os.path.splitext(uploaded_file.name)[0]}.mp4")
                                 try:
-                                    # Use ffmpeg to convert image to 5-second video
+                                    # Use ffmpeg to convert image to video with user-specified duration
                                     subprocess.run([
                                         "ffmpeg", "-loop", "1", "-i", file_path, 
-                                        "-t", "5", "-c:v", "libx264", "-pix_fmt", "yuv420p", 
+                                        "-t", str(scene["intro_duration"]), "-c:v", "libx264", "-pix_fmt", "yuv420p", 
                                         "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=blue",
                                         "-y", video_path
                                     ], check=True, capture_output=True)
-                                    st.success("Image converted to 5-second video")
+                                    st.success(f"Image converted to {scene['intro_duration']}-second video")
                                 except Exception as e:
                                     st.error(f"Conversion failed: {str(e)}")
                                     # Hide uploader
                                     del st.session_state[f"show_uploader_{scene['id']}"]
                                     st.rerun()
                             
-                            # Update scene data
-                            scene["intro_video"] = video_path
+                            # Update scene data - store original image path instead of converted video
+                            scene["intro_video"] = file_path
                             # Hide uploader
                             del st.session_state[f"show_uploader_{scene['id']}"]
                             st.success("Intro video added")
@@ -395,7 +400,8 @@ def render_multiscene_management(tr):
                 "visual_requirement": "",
                 "keywords": "",
                 "duration": 5,
-                "intro_video": ""
+                "intro_video": "",
+                "intro_duration": 10
             }
             st.session_state["scenes"].append(new_scene)
             st.rerun()

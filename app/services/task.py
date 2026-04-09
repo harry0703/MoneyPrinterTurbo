@@ -22,6 +22,7 @@ from app.models import const
 from app.models.schema import Scene, VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, video, voice
 from app.services import state as sm
+from app.services.material import extract_style_keyword
 from app.services.thread_manager import thread_manager
 from app.utils import utils
 
@@ -230,8 +231,8 @@ def generate_scene_terms(task_id, params, scenes):
             # Filter out any empty terms
             terms = [term for term in terms if term and term.strip()]
             scene_terms_list.append(terms)
-            # Update scene keywords with final terms
-            scene['keywords'] = terms
+            # Update scene keywords with final terms as comma-separated string
+            scene['keywords'] = ", ".join(terms)
             logger.success(f"scene {i+1} terms: {terms}")
         else:
             logger.warning(f"failed to generate terms for scene {i+1}, using default terms")
@@ -240,7 +241,7 @@ def generate_scene_terms(task_id, params, scenes):
                 default_terms.append(params.video_subject)
             default_terms.extend(["video", "content"])
             scene_terms_list.append(default_terms)
-            scene['keywords'] = default_terms
+            scene['keywords'] = ", ".join(default_terms)
     
     return scene_terms_list
 
@@ -484,6 +485,13 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     local_materials = []
     supplement_videos = []
     
+    # Use global video style keyword from params
+    style_keyword = params.video_style
+    if style_keyword:
+        logger.info(f"Using global video style keyword: {style_keyword}")
+    else:
+        logger.info("No global video style keyword provided")
+    
     if params.video_source == "local" or (params.video_materials and len(params.video_materials) > 0):
         # For local source or when local materials are provided, use them first
         logger.info(f"scene {scene_num}: processing local materials. Video materials count: {len(params.video_materials) if params.video_materials else 0}")
@@ -530,6 +538,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
             video_concat_mode=params.video_concat_mode,
             audio_duration=audio_duration,
             max_clip_duration=params.video_clip_duration,
+            style_keyword=style_keyword,
         )
         
         if supplement_videos:
@@ -878,6 +887,7 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             video_concat_mode=params.video_concat_mode,
             audio_duration=audio_duration * params.video_count,
             max_clip_duration=params.video_clip_duration,
+            style_keyword=params.video_style,
         )
         
         if supplement_videos:
