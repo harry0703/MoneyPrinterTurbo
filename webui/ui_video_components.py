@@ -148,7 +148,8 @@ def render_video_settings(params, config, uploaded_files, tr):
             (tr("Video Style None"), ""),
             (tr("People/Human"), "people"),
             (tr("Nature/Landscape"), "nature"),
-            (tr("Animation/Cartoon"), "animation"),
+            (tr("Animation"), "animation"),
+            (tr("Cartoon"), "cartoon"),
         ]
         selected_index = st.selectbox(
             tr("Video Style"),

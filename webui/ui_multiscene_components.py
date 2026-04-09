@@ -316,34 +316,35 @@ def render_multiscene_management(tr):
                             with open(file_path, "wb") as f:
                                 f.write(uploaded_file.getvalue())
                             
-                            # Check file type, convert image to video if needed
-                            import subprocess
+                            # Check file type
+                            import os
+                            from loguru import logger
                             
-                            video_path = file_path
                             file_ext = os.path.splitext(uploaded_file.name)[1].lower()
-                            if file_ext in [".jpg", ".jpeg", ".png", ".bmp"]:
-                                # Image to video (5 seconds)
-                                video_path = os.path.join(scene_intro_dir, f"{os.path.splitext(uploaded_file.name)[0]}.mp4")
-                                try:
-                                    # Use ffmpeg to convert image to video with user-specified duration
-                                    subprocess.run([
-                                        "ffmpeg", "-loop", "1", "-i", file_path, 
-                                        "-t", str(scene["intro_duration"]), "-c:v", "libx264", "-pix_fmt", "yuv420p", 
-                                        "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=blue",
-                                        "-y", video_path
-                                    ], check=True, capture_output=True)
-                                    st.success(f"Image converted to {scene['intro_duration']}-second video")
-                                except Exception as e:
-                                    st.error(f"Conversion failed: {str(e)}")
-                                    # Hide uploader
-                                    del st.session_state[f"show_uploader_{scene['id']}"]
-                                    st.rerun()
                             
-                            # Update scene data - store original image path instead of converted video
+                            # Log legacy intro video availability
+                            if scene.get("intro_video") and os.path.exists(scene["intro_video"]):
+                                logger.info(f"Legacy intro video found: {scene['intro_video']}")
+                                # Delete existing intro video
+                                try:
+                                    os.remove(scene["intro_video"])
+                                    logger.info(f"Deleted existing intro video: {scene['intro_video']}")
+                                except Exception as e:
+                                    logger.warning(f"Failed to delete existing intro video: {str(e)}")
+                            else:
+                                logger.info("No legacy intro video found")
+                            
+                            # Update scene data - store original image path
+                            logger.info(f"Storing original image path: {file_path}")
                             scene["intro_video"] = file_path
+                            
+                            # Success message
+                            if file_ext in [".jpg", ".jpeg", ".png", ".bmp"]:
+                                st.success("Image uploaded as intro video")
+                            else:
+                                st.success("Intro video added")
                             # Hide uploader
                             del st.session_state[f"show_uploader_{scene['id']}"]
-                            st.success("Intro video added")
                             st.rerun()
 
                     # Display video path (if exists)
