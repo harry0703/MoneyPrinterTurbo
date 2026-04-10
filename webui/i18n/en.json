@@ -263,6 +263,14 @@
     "Successfully imported": "Successfully imported",
     "Invalid scenes data format": "Invalid scenes data format",
     "Invalid JSON file": "Invalid JSON file",
-    "Error importing scenes": "Error importing scenes"
+    "Error importing scenes": "Error importing scenes",
+    "Task Status": "Task Status",
+    "Task in progress": "Task in progress",
+    "Complete Video": "Complete Video",
+    "Processing...": "Processing...",
+    "No tasks running": "No tasks running",
+    "Scene Range Selection": "Scene Range Selection",
+    "Start Scene": "Start Scene",
+    "End Scene": "End Scene"
   }
 }

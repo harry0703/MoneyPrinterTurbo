@@ -1863,7 +1863,7 @@ def scan_task_files(task_id_or_path: str) -> dict:
     return result
 
 
-def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str:
+def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_scene=None, end_scene=None) -> str:
     """
     Recover video synthesis from existing task files.
     
@@ -1873,6 +1873,8 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
     Args:
         task_id_or_path: Task ID or direct directory path
         progress_callback: Optional callback function for progress updates
+        start_scene: Starting scene number (1-based), None for first scene
+        end_scene: Ending scene number (1-based), None for last scene
         
     Returns:
         Path to the final video file, or None if failed
@@ -1915,7 +1917,34 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
         logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
         return None
     
-    logger.info(f"Found {len(valid_scenes)} valid scenes to combine")
+    # Apply scene range filtering
+    # Default to first scene if start_scene not specified
+    actual_start_scene = start_scene if start_scene is not None else 1
+    # Default to last scene if end_scene not specified
+    actual_end_scene = end_scene if end_scene is not None else len(task_files['scene_videos'])
+    
+    # Convert to 0-based indices
+    start_idx = actual_start_scene - 1
+    end_idx = actual_end_scene - 1
+    
+    # Ensure indices are within bounds
+    start_idx = max(0, start_idx)
+    end_idx = min(len(valid_scenes) - 1, end_idx)
+    
+    # Filter scenes
+    valid_scenes = valid_scenes[start_idx:end_idx + 1]
+    
+    if not valid_scenes:
+        import time
+        end_time = time.time()
+        total_time = end_time - start_time
+        hours, remainder = divmod(total_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        logger.error("No valid scenes in the specified range")
+        logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
+        return None
+    
+    logger.info(f"Filtered to {len(valid_scenes)} valid scenes (range: {actual_start_scene}-{actual_end_scene})")
     
     # Determine which audio and subtitle files to use
     subtitle_file = task_files["global_subtitle"]
@@ -1963,8 +1992,9 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None) -> str
     # Collect video paths
     video_paths = [s["video"] for s in valid_scenes]
     
-    # Determine output path
-    output_path = os.path.join(task_dir, "final-1.mp4")
+    # Determine output path with scene range format
+    # Use the actual start and end scene values already calculated
+    output_path = os.path.join(task_dir, f"scenes_{actual_start_scene}_to_{actual_end_scene}.mp4")
     
     # Get video parameters from config
     _cfg = load_config()

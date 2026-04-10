@@ -280,6 +280,14 @@
     "Successfully imported": "成功导入",
     "Invalid scenes data format": "无效的场景数据格式",
     "Invalid JSON file": "无效的 JSON 文件",
-    "Error importing scenes": "导入场景时出错"
+    "Error importing scenes": "导入场景时出错",
+    "Task Status": "任务状态",
+    "Task in progress": "任务进行中",
+    "Complete Video": "完整视频",
+    "Processing...": "处理中...",
+    "No tasks running": "无任务运行",
+    "Scene Range Selection": "场景范围选择",
+    "Start Scene": "起始场景",
+    "End Scene": "终止场景"
   }
 }

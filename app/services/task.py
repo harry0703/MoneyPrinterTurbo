@@ -993,6 +993,10 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     # Set task as running
     set_task_running("complete_video")
     
+    # Track task start time
+    import time
+    task_start_time = time.time()
+    
     # Create task log file
     task_log_path = os.path.join(utils.task_dir(task_id), "task.log")
     # Add file handler to logger
@@ -1026,7 +1030,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     result = None
     exception_occurred = None
     try:
-        result = start_multi_scene(task_id, params, stop_at)
+        result = start_multi_scene(task_id, params, stop_at, task_start_time)
     except Exception as e:
         exception_occurred = e
         import traceback
@@ -1192,7 +1196,7 @@ def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
     return kwargs
 
 
-def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
+def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task_start_time=None):
     """Multi-scene video generation flow."""
 
     
@@ -1555,6 +1559,15 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video"):
         logger.info(f"Video encoding took: {encoding_time:.2f}s")
         logger.info(f"Step 5 total time: {step5_total_time:.2f}s")
         logger.success(f"Final video created: {final_output_path}")
+        
+        # Calculate total task duration from submission to final video creation
+        if task_start_time:
+            total_duration = time.time() - task_start_time
+            hours = int(total_duration // 3600)
+            minutes = int((total_duration % 3600) // 60)
+            seconds = int(total_duration % 60)
+            formatted_duration = f"{hours}:{minutes:02d}:{seconds:02d}"
+            logger.info(f"Total task duration: {formatted_duration}")
         logger.info("========================================")
         
     except Exception as e:
