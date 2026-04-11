@@ -1209,6 +1209,44 @@ def ensure_legacy_submaker_fields(sub_maker: SubMaker) -> SubMaker:
     return sub_maker
 
 
+def populate_legacy_submaker_with_full_text(
+    sub_maker: SubMaker, text: str, audio_duration_seconds: float
+) -> SubMaker:
+    """
+    用整段文本填充项目历史沿用的 `subs/offset` 字幕结构。
+
+    背景：
+    1. edge_tts 7.x 的 `SubMaker` 不再提供旧版本里的 `create_sub()`；
+    2. 项目里 Gemini、SiliconFlow 等非 edge 路径依然需要返回一个
+       带 `subs/offset` 的对象，供后续统一计算音频时长和生成字幕；
+    3. 对于拿不到逐词边界的 TTS 服务，最稳妥的做法是先把整段文本作为
+       一个完整字幕片段写入，保证视频生成流程不中断。
+
+    Args:
+        sub_maker: 需要写入兼容字段的字幕对象
+        text: 原始脚本文本
+        audio_duration_seconds: 音频总时长，单位秒
+
+    Returns:
+        已填充兼容字幕数据的 SubMaker 对象
+    """
+    sub_maker = ensure_legacy_submaker_fields(sub_maker)
+
+    # 清空旧值，避免调用方重复复用对象时出现脏数据叠加。
+    sub_maker.subs = []
+    sub_maker.offset = []
+
+    normalized_text = (text or "").strip()
+    if not normalized_text:
+        return sub_maker
+
+    # 统一转成 edge_tts 旧逻辑使用的 100ns 单位。
+    audio_duration_100ns = max(int(audio_duration_seconds * 10000000), 1)
+    sub_maker.subs.append(normalized_text)
+    sub_maker.offset.append((0, audio_duration_100ns))
+    return sub_maker
+
+
 def azure_tts_v1(
     text: str, voice_name: str, voice_rate: float, voice_file: str
 ) -> Union[SubMaker, None]:
@@ -1585,20 +1623,16 @@ def gemini_tts(
         
         logger.info(f"completed, output file: {voice_file}")
         
-        # Gemini 路径仍然按项目的旧字幕结构写入，因此补齐旧字段。
+        # Gemini 拿不到 edge_tts 那种逐词边界事件，因此这里退回到
+        # 项目原有的 `subs/offset` 兼容结构，至少保证后续字幕与时长
+        # 计算链路可继续工作。
         sub_maker = ensure_legacy_submaker_fields(SubMaker())
         audio_duration = len(audio_segment) / 1000.0  # 转换为秒
-        
-        # 将音频长度转换为100纳秒单位（与edge_tts兼容）
-        audio_duration_100ns = int(audio_duration * 10000000)
-        
-        # 使用create_sub方法正确创建字幕项
-        sub_maker.create_sub(
-            (0, audio_duration_100ns), 
-            text
+        return populate_legacy_submaker_with_full_text(
+            sub_maker=sub_maker,
+            text=text,
+            audio_duration_seconds=audio_duration,
         )
-        
-        return sub_maker
         
     except ImportError as e:
         logger.error(f"Missing required package for Gemini TTS: {str(e)}. Please install: pip install pydub")

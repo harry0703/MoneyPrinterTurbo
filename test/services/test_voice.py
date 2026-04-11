@@ -3,12 +3,14 @@ import unittest
 import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.utils import utils
 from app.services import voice as vs
+from pydub import AudioSegment
 
 temp_dir = utils.storage_dir("temp")
 
@@ -100,6 +102,67 @@ class TestVoiceService(unittest.TestCase):
             print(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
         self.loop.run_until_complete(_do())
+
+    def test_gemini_tts_uses_legacy_submaker_fields(self):
+        """
+        验证 Gemini TTS 在 edge_tts 7.x 环境下仍会返回项目兼容的字幕结构，
+        避免再次调用不存在的 create_sub() 导致整条生成链路失败。
+        """
+
+        class _InlineData:
+            def __init__(self, data):
+                self.data = data
+
+        class _Part:
+            def __init__(self, data):
+                self.inline_data = _InlineData(data)
+
+        class _Content:
+            def __init__(self, data):
+                self.parts = [_Part(data)]
+
+        class _Candidate:
+            def __init__(self, data):
+                self.content = _Content(data)
+
+        class _Response:
+            def __init__(self, data):
+                self.candidates = [_Candidate(data)]
+
+        class _FakeModel:
+            def __init__(self, name):
+                self.name = name
+
+            def generate_content(self, contents, generation_config):
+                tone = (
+                    AudioSegment.silent(duration=1800)
+                    .set_frame_rate(24000)
+                    .set_channels(1)
+                    .set_sample_width(2)
+                )
+                return _Response(tone.raw_data)
+
+        voice_file = f"{temp_dir}/tts-gemini-Zephyr.mp3"
+        subtitle_file = f"{temp_dir}/tts-gemini-Zephyr.srt"
+        text = "Gemini subtitle generation should work now."
+
+        with patch("google.generativeai.configure"), patch(
+            "google.generativeai.GenerativeModel", _FakeModel
+        ), patch.object(vs.config, "app", dict(vs.config.app, gemini_api_key="test-key")):
+            sub_maker = vs.gemini_tts(
+                text=text,
+                voice_name="Zephyr",
+                voice_rate=1.0,
+                voice_file=voice_file,
+            )
+
+        self.assertIsNotNone(sub_maker)
+        self.assertEqual(getattr(sub_maker, "subs", []), [text])
+        self.assertEqual(len(getattr(sub_maker, "offset", [])), 1)
+
+        vs.create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
+        subtitle_content = Path(subtitle_file).read_text(encoding="utf-8")
+        self.assertIn("Gemini subtitle generation should work now", subtitle_content)
 
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1
