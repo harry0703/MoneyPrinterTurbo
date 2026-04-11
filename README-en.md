@@ -84,8 +84,17 @@ materials, video subtitles, and video background music before synthesizing a hig
 
 ## System Requirements 📦
 
-- Recommended minimum 4 CPU cores or more, 4G of memory or more, GPU is not required
-- Windows 10 or MacOS 11.0, and their later versions
+- Recommended platforms: Windows 10+, macOS 11+, or a mainstream Linux distribution
+- A GPU is not required, but it is recommended if you want faster local transcription, faster video processing, or smoother batch generation
+
+| Item | Minimum | Recommended | Optimal |
+| --- | --- | --- | --- |
+| CPU | 4 cores | 6 to 8 cores | 8+ cores |
+| RAM | 4 GB | 8 GB | 16+ GB |
+| GPU | Not required | 4+ GB VRAM | 8+ GB VRAM |
+
+- If you mainly rely on cloud LLMs, cloud TTS, and online material sources, CPU and RAM matter more than GPU
+- If you use `faster-whisper`, batch generation, or heavier local processing, a GPU will improve throughput noticeably
 
 ## Quick Start 🚀
 
