@@ -1215,6 +1215,10 @@ def azure_tts_v1(
     voice_name = parse_voice_name(voice_name)
     text = text.strip()
     rate_str = convert_rate_to_percent(voice_rate)
+    # 获取代理配置
+    proxy_url = config.proxy.get("https", "") or config.proxy.get("http", "")
+    if proxy_url:
+        logger.info(f"using proxy: {proxy_url}")
     for i in range(3):
         try:
             logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
@@ -1226,7 +1230,8 @@ def azure_tts_v1(
                 text,
                 voice_name,
                 rate=rate_str,
-                boundary="WordBoundary",
+                proxy=proxy_url if proxy_url else None,
+                receive_timeout=30,  # 设置接收超时为30秒
             )
             sub_maker = edge_tts.SubMaker()
 
@@ -1235,9 +1240,8 @@ def azure_tts_v1(
                     chunk_type = chunk["type"]
                     if chunk_type == "audio":
                         file.write(chunk["data"])
-                    elif chunk_type in ["WordBoundary", "SentenceBoundary"]:
-                        # 直接把 7.x 返回的边界事件喂给新的 SubMaker，
-                        # 这样后续可以复用官方生成的字幕与时间轴。
+                    elif chunk_type in ("WordBoundary", "SentenceBoundary"):
+                        # edge_tts 7.x 使用 feed 方法
                         sub_maker.feed(chunk)
 
             if not sub_maker.get_srt():

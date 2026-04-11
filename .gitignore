@@ -33,3 +33,4 @@ debug/
 debug_*.py
 test_*.py
 streamlit.log
+lib/
