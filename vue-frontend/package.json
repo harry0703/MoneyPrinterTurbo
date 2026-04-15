@@ -9,14 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.5.13",
-    "vue-router": "^4.4.5",
-    "pinia": "^2.3.0",
     "axios": "^1.7.9",
-    "element-plus": "^2.8.4"
+    "element-plus": "^2.8.4",
+    "marked": "^18.0.0",
+    "pinia": "^2.3.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "ts-node": "^10.9.2",
     "typescript": "~5.6.2",
     "vite": "^5.4.10",
     "vue-tsc": "^2.1.10"

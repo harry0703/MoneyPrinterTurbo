@@ -1,6 +1,6 @@
 <template>
   <div class="base-form">
-    <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
+    <el-form :model="form" :rules="rules" ref="formRef" :label-width="labelWidth">
       <slot></slot>
     </el-form>
   </div>
@@ -12,11 +12,13 @@ import { ref, reactive } from 'vue';
 interface Props {
   model?: Record<string, any>;
   rules?: Record<string, any[]>;
+  labelWidth?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   model: () => ({}),
-  rules: () => ({})
+  rules: () => ({}),
+  labelWidth: '120px'
 });
 
 const form = reactive({ ...props.model });

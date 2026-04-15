@@ -273,6 +273,18 @@
     "No tasks running": "No tasks running",
     "Scene Range Selection": "Scene Range Selection",
     "Start Scene": "Start Scene",
-    "End Scene": "End Scene"
+    "End Scene": "End Scene",
+    "Select video source": "Select video source",
+    "Local Files": "Local Files",
+    "Upload Local Files": "Upload Local Files",
+    "Supported formats: mp4, mov, avi, flv, mkv, jpg, jpeg, png": "Supported formats: mp4, mov, avi, flv, mkv, jpg, jpeg, png",
+    "Uploaded Files": "Uploaded Files",
+    "Successfully uploaded {count} files": "Successfully uploaded {count} files",
+    "Select concat mode": "Select concat mode",
+    "Select transition mode": "Select transition mode",
+    "Select video ratio": "Select video ratio",
+    "Select clip duration": "Select clip duration",
+    "Select number of videos": "Select number of videos",
+    "Select video style": "Select video style"
   }
 }
