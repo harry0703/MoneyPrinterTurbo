@@ -28,6 +28,18 @@
           <span>LLM Settings</span>
         </template>
         
+        <el-alert
+          title="中国用户建议"
+          type="info"
+          :closable="false"
+          show-icon
+          class="mb-4"
+        >
+          <p>建议使用 <strong style="color: #ff4d4f;">DeepSeek</strong> 或 <strong style="color: #ff4d4f;">Moonshot</strong> 作为大模型提供商</p>
+          <p>- 国内可直接访问，不需要VPN</p>
+          <p>- 注册就送额度，基本够用</p>
+        </el-alert>
+        
         <el-form :model="form" label-width="150px">
           <el-form-item label="LLM Provider">
             <el-select v-model="form.llmProvider" @change="handleLLMProviderChange">
