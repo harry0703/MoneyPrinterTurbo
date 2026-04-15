@@ -1,6 +1,7 @@
 <template>
   <div class="script-settings">
-    <el-card :body-style="{ padding: '20px' }">
+    <!-- 文案设置卡片 -->
+    <el-card :body-style="{ padding: '20px' }" class="main-card">
       <template #header>
         <div class="card-header">
           <h2 class="title">文案设置</h2>
@@ -56,6 +57,67 @@
         </div>
       </div>
     </el-card>
+    
+    <!-- 场景管理卡片 -->
+    <el-card :body-style="{ padding: '20px' }" class="scene-card-container">
+      <template #header>
+        <div class="card-header">
+          <h2 class="title">🎬 场景管理</h2>
+        </div>
+      </template>
+      
+      <div class="scene-management-content">
+        <!-- 导入导出按钮 -->
+        <div class="scene-actions">
+          <el-button size="small">导出场景</el-button>
+          <el-button size="small">导入场景</el-button>
+        </div>
+        
+        <!-- 场景列表 -->
+        <div class="scenes-list">
+          <div v-for="(scene, index) in scenes" :key="scene.id" class="scene-card">
+            <div class="scene-header">
+              <div class="scene-title">场景 {{ index + 1 }}</div>
+              <div class="scene-header-actions">
+                <el-button size="small" @click="deleteScene(index)">删除</el-button>
+                <el-button size="small" @click="copyScene(index)">复制</el-button>
+                <el-button size="small" @click="moveSceneUp(index)" :disabled="index === 0">上移</el-button>
+                <el-button size="small" @click="moveSceneDown(index)" :disabled="index === scenes.length - 1">下移</el-button>
+              </div>
+            </div>
+            
+            <div class="scene-content">
+              <div class="form-item">
+                <label class="form-label">时长（秒）</label>
+                <el-input v-model.number="scene.duration" type="number" placeholder="输入时长" class="form-input" />
+              </div>
+              
+              <div class="form-item">
+                <label class="form-label">视觉需求</label>
+                <el-input v-model="scene.visual_requirement" type="textarea" :rows="3" placeholder="输入详细描述" class="form-textarea" />
+              </div>
+              
+              <div class="form-item">
+                <label class="form-label">关键词（逗号分隔）</label>
+                <el-input v-model="scene.keywords" placeholder="输入关键词" class="form-input" />
+              </div>
+              
+              <div class="form-item">
+                <label class="form-label">场景文案</label>
+                <el-input v-model="scene.script" type="textarea" :rows="4" placeholder="输入场景文案" class="form-textarea" />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 添加新场景按钮 -->
+        <div class="form-item">
+          <el-button type="primary" class="form-button" @click="addNewScene">添加新场景</el-button>
+        </div>
+      </div>
+    </el-card>
+    
+
   </div>
 </template>
 
@@ -72,8 +134,62 @@ const form = reactive({
   language: 'auto'
 });
 
+interface Scene {
+  id: string;
+  duration: number;
+  visual_requirement: string;
+  keywords: string;
+  script: string;
+}
+
+const scenes = reactive<Scene[]>([]);
+
+const addNewScene = () => {
+  const newScene: Scene = {
+    id: Date.now().toString(),
+    duration: 30,
+    visual_requirement: '',
+    keywords: '',
+    script: ''
+  };
+  scenes.push(newScene);
+};
+
+const deleteScene = (index: number) => {
+  scenes.splice(index, 1);
+};
+
+const copyScene = (index: number) => {
+  const sceneToCopy = scenes[index];
+  const copiedScene: Scene = {
+    id: Date.now().toString(),
+    duration: sceneToCopy.duration,
+    visual_requirement: sceneToCopy.visual_requirement,
+    keywords: sceneToCopy.keywords,
+    script: sceneToCopy.script
+  };
+  scenes.splice(index + 1, 0, copiedScene);
+};
+
+const moveSceneUp = (index: number) => {
+  if (index > 0) {
+    const temp = scenes[index];
+    scenes[index] = scenes[index - 1];
+    scenes[index - 1] = temp;
+  }
+};
+
+const moveSceneDown = (index: number) => {
+  if (index < scenes.length - 1) {
+    const temp = scenes[index];
+    scenes[index] = scenes[index + 1];
+    scenes[index + 1] = temp;
+  }
+};
+
 defineExpose({
-  form
+  form,
+  scenes
 });
 </script>
 
@@ -191,4 +307,66 @@ defineExpose({
 .form-button:hover {
   opacity: 0.9;
 }
+
+/* 卡片布局样式 */
+.main-card {
+  margin-bottom: 20px;
+}
+
+.scene-card-container {
+  margin-bottom: 20px;
+}
+
+/* 场景管理样式 */
+.scene-management-content {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.scene-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.scenes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.scene-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  background-color: #f9f9f9;
+}
+
+.scene-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.scene-title {
+  font-weight: bold;
+  font-size: 14px;
+  color: #333;
+}
+
+.scene-header-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.scene-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+
 </style>

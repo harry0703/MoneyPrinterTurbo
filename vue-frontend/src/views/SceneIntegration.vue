@@ -3,204 +3,246 @@
     <el-card :body-style="{ padding: '20px' }">
       <template #header>
         <div class="card-header">
-          <span>{{ t('Scene Integration') }}</span>
-          <el-button type="primary" @click="addScene">
-            <el-icon><Plus /></el-icon>
-            {{ t('Add Scene') }}
-          </el-button>
+          <h2 class="title">🎬 {{ t('Scene Integration') }}</h2>
         </div>
       </template>
       
-      <div v-if="scenes.length === 0" class="empty-scenes">
-        <el-empty description="{{ t('No scenes yet, click Add Scene to create one') }}" />
-      </div>
-      
-      <div v-else class="scenes-list">
-        <el-collapse v-model="activeScenes">
-          <el-collapse-item v-for="(scene, index) in scenes" :key="scene.id" :title="getSceneTitle(scene, index)" :name="scene.id">
-            <div class="scene-content">
-              <el-form :model="scene" label-width="120px">
-                <el-form-item label="Duration (s)">
-                  <el-input-number v-model="scene.duration" :min="1" :max="60" :step="1" />
-                </el-form-item>
-                
-                <el-form-item label="Visual Requirement">
-                  <el-input
-                    v-model="scene.visual_requirement"
-                    type="textarea"
-                    :rows="3"
-                    placeholder="Enter visual requirements"
+      <div class="integration-content">
+        <!-- 输入类型选择 -->
+        <div class="form-item">
+          <label class="form-label">{{ t('Input Type') }}</label>
+          <el-radio-group v-model="inputType">
+            <el-radio label="taskId">{{ t('Task ID') }}</el-radio>
+            <el-radio label="directory">{{ t('Task Directory') }}</el-radio>
+          </el-radio-group>
+        </div>
+        
+        <!-- 任务输入 -->
+        <div class="form-item">
+          <label class="form-label" v-if="inputType === 'taskId'">{{ t('Task ID') }}</label>
+          <label class="form-label" v-else>{{ t('Task Directory') }}</label>
+          <el-input
+            v-model="taskInput"
+            :placeholder="inputType === 'taskId' ? t('Enter task ID to recover integration') : t('Enter task directory path')"
+            class="form-input"
+          />
+          <div v-if="inputType === 'directory'" class="tip">{{ t('Please enter the full path to the task directory') }}</div>
+        </div>
+        
+        <!-- 扫描按钮 -->
+        <div class="form-item">
+          <el-button type="primary" class="form-button" @click="scanTask">{{ t('Scan') }}</el-button>
+        </div>
+        
+        <!-- 扫描结果 -->
+        <div v-if="taskFiles" class="scan-results">
+          <h3 class="section-title">{{ t('Detected Files') }}</h3>
+          
+          <div class="file-status">
+            <el-alert
+              v-if="taskFiles.sceneVideos > 0"
+              type="success"
+              :title="`✅ ${t('Scene Videos')}: ${taskFiles.sceneVideos} ${t('items')}`"
+              :closable="false"
+            />
+            <el-alert
+              v-else
+              type="error"
+              :title="t('No valid scene videos found in task directory')"
+              :closable="false"
+            />
+            
+            <el-alert
+              :type="taskFiles.sceneAudio > 0 ? 'success' : 'warning'"
+              :title="taskFiles.sceneAudio > 0 ? `✅ ${t('Scene Audio')}: ${taskFiles.sceneAudio} ${t('items')}` : '⚠️ 未找到场景音频'"
+              :closable="false"
+            />
+            
+            <el-alert
+              :type="taskFiles.subtitle ? 'success' : 'warning'"
+              :title="taskFiles.subtitle ? `✅ ${t('Subtitle File')}: 1 ${t('items')}` : '⚠️ 未找到字幕文件'"
+              :closable="false"
+            />
+          </div>
+          
+          <!-- 场景范围选择 -->
+          <div v-if="taskFiles.sceneVideos > 0" class="scene-range">
+            <h3 class="section-title">{{ t('Scene Range Selection') }}</h3>
+            <div class="range-selectors">
+              <div class="form-item">
+                <label class="form-label">{{ t('Start Scene') }}</label>
+                <el-select v-model="startScene" class="form-select">
+                  <el-option
+                    v-for="i in taskFiles.sceneVideos"
+                    :key="i"
+                    :label="i"
+                    :value="i"
                   />
-                </el-form-item>
-                
-                <el-form-item label="Script">
-                  <el-input
-                    v-model="scene.script"
-                    type="textarea"
-                    :rows="4"
-                    placeholder="Enter scene script"
+                </el-select>
+              </div>
+              <div class="form-item">
+                <label class="form-label">{{ t('End Scene') }}</label>
+                <el-select v-model="endScene" class="form-select">
+                  <el-option
+                    v-for="i in taskFiles.sceneVideos"
+                    :key="i"
+                    :label="i"
+                    :value="i"
+                    :disabled="i < startScene"
                   />
-                </el-form-item>
-                
-                <el-form-item label="Keywords">
-                  <el-input
-                    v-model="scene.keywords"
-                    placeholder="Enter keywords separated by commas"
-                  />
-                </el-form-item>
-                
-                <div class="scene-actions">
-                  <el-button type="primary" size="small" @click="moveSceneUp(index)">
-                    <el-icon><Top /></el-icon>
-                    {{ t('Move Up') }}
-                  </el-button>
-                  <el-button type="primary" size="small" @click="moveSceneDown(index)">
-                    <el-icon><Bottom /></el-icon>
-                    {{ t('Move Down') }}
-                  </el-button>
-                  <el-button type="danger" size="small" @click="deleteScene(index)">
-                    <el-icon><Delete /></el-icon>
-                    {{ t('Delete') }}
-                  </el-button>
-                </div>
-              </el-form>
+                </el-select>
+              </div>
             </div>
-          </el-collapse-item>
-        </el-collapse>
-      </div>
-      
-      <div class="smart-parser-section">
-        <el-card :body-style="{ padding: '15px' }">
-          <div class="parser-header">
-            <span>{{ t('Smart Script Parser') }}</span>
-            <el-button type="primary" @click="parseScript">
-              <el-icon><Document /></el-icon>
-              {{ t('Parse Script') }}
+          </div>
+          
+          <!-- 开始集成按钮 -->
+          <div v-if="taskFiles.sceneVideos > 0" class="form-item">
+            <el-button
+              type="primary"
+              class="form-button"
+              @click="startIntegration"
+              :disabled="isRunning"
+            >
+              {{ isRunning ? '集成中...' : t('Start Integration') }}
             </el-button>
           </div>
           
-          <el-form-item label="Script to Parse">
-            <el-input
-              v-model="scriptToParse"
-              type="textarea"
-              :rows="5"
-              placeholder="Paste your script here for automatic scene parsing"
+          <!-- 进度条 -->
+          <div v-if="isRunning" class="progress-container">
+            <el-progress
+              :percentage="progress"
+              :status="progress === 100 ? 'success' : ''"
             />
-          </el-form-item>
-        </el-card>
+            <div class="progress-status">{{ status }}</div>
+          </div>
+          
+          <!-- 集成结果 -->
+          <div v-if="integrationResult" class="integration-result">
+            <h3 class="section-title">{{ t('Generated Video') }}</h3>
+            <div class="video-preview">
+              <!-- Video preview would go here -->
+              <div class="result-info">
+                <span>{{ t('Video path') }}: {{ integrationResult }}</span>
+                <el-button type="primary" size="small" @click="downloadVideo">{{ t('Download Video') }}</el-button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Plus, Top, Bottom, Delete, Document } from '@element-plus/icons-vue';
+import { ref, reactive, watch } from 'vue';
 import { useI18nStore } from '../stores/i18n';
-
-interface Scene {
-  id: string;
-  duration: number;
-  visual_requirement: string;
-  script: string;
-  keywords: string;
-}
 
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
 
-const scenes = ref<Scene[]>([]);
-const activeScenes = ref<string[]>([]);
-const scriptToParse = ref('');
+// 输入类型
+const inputType = ref('taskId');
+// 任务输入
+const taskInput = ref('');
+// 任务文件信息
+const taskFiles = ref<any>(null);
+// 开始场景
+const startScene = ref(1);
+// 结束场景
+const endScene = ref(1);
+// 是否正在运行
+const isRunning = ref(false);
+// 进度
+const progress = ref(0);
+// 状态
+const status = ref('');
+// 集成结果
+const integrationResult = ref('');
 
-const addScene = () => {
-  const newScene: Scene = {
-    id: Date.now().toString(),
-    duration: 30,
-    visual_requirement: '',
-    script: '',
-    keywords: ''
-  };
-  scenes.value.push(newScene);
-  activeScenes.value = [newScene.id];
-};
-
-const deleteScene = (index: number) => {
-  scenes.value.splice(index, 1);
-  if (scenes.value.length > 0) {
-    activeScenes.value = [scenes.value[0].id];
-  } else {
-    activeScenes.value = [];
+// 监听开始场景变化，更新结束场景
+watch(startScene, (newStart) => {
+  if (endScene.value < newStart) {
+    endScene.value = newStart;
   }
-};
+});
 
-const moveSceneUp = (index: number) => {
-  if (index > 0) {
-    const temp = scenes.value[index];
-    scenes.value[index] = scenes.value[index - 1];
-    scenes.value[index - 1] = temp;
+// 扫描任务
+const scanTask = () => {
+  if (!taskInput.value) {
+    return;
   }
-};
-
-const moveSceneDown = (index: number) => {
-  if (index < scenes.value.length - 1) {
-    const temp = scenes.value[index];
-    scenes.value[index] = scenes.value[index + 1];
-    scenes.value[index + 1] = temp;
-  }
-};
-
-const getSceneTitle = (scene: Scene, index: number): string => {
-  const scriptPreview = scene.script.substring(0, 30) + (scene.script.length > 30 ? '...' : '');
-  return `Scene ${index + 1}: ${scriptPreview}`;
-};
-
-const parseScript = () => {
-  // 这里实现智能脚本解析逻辑
-  // 暂时简单分割为场景
-  if (scriptToParse.value) {
-    const lines = scriptToParse.value.split('\n');
-    const newScenes: Scene[] = [];
-    
-    let currentScene: Scene = {
-      id: Date.now().toString(),
-      duration: 30,
-      visual_requirement: '',
-      script: '',
-      keywords: ''
+  
+  // 模拟扫描过程
+  status.value = t('Scanning task directory...');
+  isRunning.value = true;
+  
+  // 模拟API调用
+  setTimeout(() => {
+    // 模拟扫描结果
+    taskFiles.value = {
+      sceneVideos: 5,
+      sceneAudio: 5,
+      subtitle: true
     };
     
-    lines.forEach(line => {
-      line = line.trim();
-      if (line.startsWith('[Scene') || line.startsWith('Scene')) {
-        if (currentScene.script) {
-          newScenes.push(currentScene);
-          currentScene = {
-            id: Date.now().toString() + Math.random(),
-            duration: 30,
-            visual_requirement: '',
-            script: '',
-            keywords: ''
-          };
-        }
-      } else if (line) {
-        currentScene.script += line + '\n';
-      }
-    });
-    
-    if (currentScene.script) {
-      newScenes.push(currentScene);
-    }
-    
-    if (newScenes.length > 0) {
-      scenes.value = newScenes;
-      activeScenes.value = [newScenes[0].id];
-    }
+    startScene.value = 1;
+    endScene.value = 5;
+    isRunning.value = false;
+    status.value = '';
+  }, 1000);
+};
+
+// 开始集成
+const startIntegration = () => {
+  if (!taskInput.value || !taskFiles.value) {
+    return;
   }
+  
+  isRunning.value = true;
+  progress.value = 0;
+  status.value = t('Starting...');
+  
+  // 模拟集成过程
+  let currentProgress = 0;
+  const interval = setInterval(() => {
+    currentProgress += 10;
+    progress.value = currentProgress;
+    
+    if (currentProgress < 30) {
+      status.value = '处理场景视频...';
+    } else if (currentProgress < 60) {
+      status.value = '处理音频...';
+    } else if (currentProgress < 90) {
+      status.value = '处理字幕...';
+    } else {
+      status.value = '生成最终视频...';
+    }
+    
+    if (currentProgress >= 100) {
+      clearInterval(interval);
+      isRunning.value = false;
+      status.value = t('Scene integration completed');
+      integrationResult.value = 'output/video_integration.mp4';
+    }
+  }, 500);
+};
+
+// 下载视频
+const downloadVideo = () => {
+  // 模拟下载
+  console.log('Downloading video:', integrationResult.value);
 };
 
 defineExpose({
-  scenes
+  inputType,
+  taskInput,
+  taskFiles,
+  startScene,
+  endScene,
+  isRunning,
+  progress,
+  status,
+  integrationResult
 });
 </script>
 
@@ -210,38 +252,154 @@ defineExpose({
 }
 
 .card-header {
+  margin-bottom: 4px;
+}
+
+.title {
+  font-weight: bold;
+  font-size: 20px;
+  margin: 0;
+  color: #333;
+}
+
+.integration-content {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.empty-scenes {
-  padding: 40px 0;
-  text-align: center;
-}
-
-.scenes-list {
-  margin-top: 20px;
-}
-
-.scene-content {
-  padding: 10px 0;
-}
-
-.scene-actions {
+.form-item {
   display: flex;
-  gap: 10px;
-  margin-top: 15px;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.smart-parser-section {
-  margin-top: 30px;
+.form-label {
+  font-weight: normal;
+  font-size: 14px;
+  color: #333;
+  margin: 0;
+  line-height: 1.4;
 }
 
-.parser-header {
+.form-input {
+  width: 100%;
+  border: 1px solid #e0e0e0;
+  background-color: transparent;
+  padding: 6px 8px;
+  font-size: 14px;
+  border-radius: 4px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.form-input:hover {
+  border-color: #000;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #000;
+}
+
+.form-select {
+  width: 100%;
+  border: 1px solid #e0e0e0;
+  background-color: transparent;
+  padding: 6px 8px;
+  font-size: 14px;
+  border-radius: 4px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.form-select:hover {
+  border-color: #000;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: #000;
+}
+
+.form-button {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.form-button:hover {
+  opacity: 0.9;
+}
+
+.tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 2px;
+}
+
+.scan-results {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 15px 0 10px 0;
+  color: #333;
+}
+
+.file-status {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 15px;
+}
+
+.scene-range {
+  margin: 15px 0;
+}
+
+.range-selectors {
+  display: flex;
+  gap: 15px;
+}
+
+.range-selectors .form-item {
+  flex: 1;
+}
+
+.progress-container {
+  margin: 15px 0;
+}
+
+.progress-status {
+  text-align: center;
+  margin-top: 5px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.integration-result {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.video-preview {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  background-color: #f9f9f9;
+}
+
+.result-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 </style>
