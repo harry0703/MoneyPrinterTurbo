@@ -536,9 +536,22 @@ Two task manager implementations:
            |
            v
 +-----------------------+
-|  5. Generate Final    |
+|  5. Trim Video        |
 |                       |
 |  Input: combined.mp4  |
+|        + audio.mp3    |
+|  Output: trimmed.mp4  |
+|                       |
+|  +------------------+ |
+|  | MoviePy          | |
+|  +------------------+ |
++----------+------------+
+           |
+           v
++-----------------------+
+|  6. Generate Final    |
+|                       |
+|  Input: trimmed.mp4   |
 |        + subtitles    |
 |        + bgm          |
 |  Output: final.mp4    |

@@ -56,12 +56,12 @@ def finalize_video(
         if audio_file:
             audio_clip = AudioFileClip(audio_file)
             
-            # Trim audio to match video duration
+            # Trim video to match audio duration
             video_duration_final = final_video.duration
             audio_duration = audio_clip.duration
-            if audio_duration > video_duration_final:
-                audio_clip = audio_clip.subclipped(0, video_duration_final)
-                logger.info(f"audio trimmed to match video duration: {video_duration_final:.2f}s")
+            if video_duration_final > audio_duration:
+                final_video = final_video.subclipped(0, audio_duration)
+                logger.info(f"video trimmed to match audio duration: {audio_duration:.2f}s")
             
             # Add audio to video
             final_video = final_video.with_audio(audio_clip)
