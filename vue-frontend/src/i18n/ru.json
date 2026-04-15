@@ -1,7 +1,8 @@
 {
   "Language": "Русский",
   "Translation": {
-    "Login Required": "Требуется авторизация",
+    "Script Settings": "Настройки сценария",
+    "Login Required": "Требуется вход",
     "Please login to access settings": "Войдите для доступа к настройкам",
     "Username": "Имя пользователя",
     "Password": "Пароль",
@@ -20,7 +21,7 @@
     "Generating Video Script and Keywords": "ИИ создает сценарий и ключевые слова...",
     "Generating Video Keywords": "ИИ создает ключевые слова...",
     "Video Keywords": "Ключевые слова видео (:blue[① Необязательно, создается ИИ ② Используйте **запятые** для разделения, только на английском])",
-    "Video Settings": "**Настройки видео**",
+    "Video Settings": "Настройки видео",
     "Video Concat Mode": "Режим объединения видео",
     "Random": "Случайное объединение (Рекомендуется)",
     "Sequential": "Последовательное объединение",

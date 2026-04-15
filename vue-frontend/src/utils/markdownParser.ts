@@ -28,6 +28,8 @@ export class MarkdownParser {
    */
   private static preprocess(text: string): string {
     return text
+      // 处理颜色语法 :blue[内容]
+      .replace(/:([a-zA-Z]+)\[([^\]]+)\]/g, '<span style="color: $1;">$2</span>')
       // 处理加粗标记与相邻字符紧贴的问题
       .replace(/([^\s*])(\*\*)([^\s*])/g, '$1 **$3')
       .replace(/(\*\*)([^\s*])([^\s*])/g, '** $2$3')

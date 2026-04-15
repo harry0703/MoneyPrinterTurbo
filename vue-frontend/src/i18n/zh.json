@@ -1,6 +1,7 @@
 {
   "Language": "简体中文",
   "Translation": {
+    "Script Settings": "文案设置",
     "Login Required": "需要登录",
     "Input Type": "输入类型",
     "Task ID": "任务 ID",
@@ -40,7 +41,7 @@
     "Generating Video Script and Keywords": "AI正在生成视频文案和关键词...",
     "Generating Video Keywords": "AI正在生成视频关键词...",
     "Video Keywords": "视频关键词（:blue[①可不填，使用AI生成 ②用**英文逗号**分隔，只支持英文]）",
-    "Video Settings": "**视频设置**",
+    "Video Settings": "视频设置",
     "Video Concat Mode": "视频拼接模式",
     "Random": "随机拼接（推荐）",
     "Sequential": "顺序拼接",

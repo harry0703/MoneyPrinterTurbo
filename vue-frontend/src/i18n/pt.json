@@ -1,6 +1,7 @@
 {
   "Language": "Português Brasileiro",
   "Translation": {
+    "Script Settings": "Configurações do Script",
     "Login Required": "Login Necessário",
     "Please login to access settings": "Por favor, faça login para acessar as configurações",
     "Username": "Nome de usuário",
@@ -20,7 +21,7 @@
     "Generating Video Script and Keywords": "A IA está gerando o roteiro do vídeo e as palavras-chave...",
     "Generating Video Keywords": "A IA está gerando as palavras-chave do vídeo...",
     "Video Keywords": "Palavras-chave do Vídeo (:blue[① Opcional, gerado pela IA ② Use **vírgulas em inglês** para separar, somente em inglês])",
-    "Video Settings": "**Configurações do Vídeo**",
+    "Video Settings": "Configurações do Vídeo",
     "Video Concat Mode": "Modo de Concatenação de Vídeo",
     "Random": "Concatenação Aleatória (Recomendado)",
     "Sequential": "Concatenação Sequencial",

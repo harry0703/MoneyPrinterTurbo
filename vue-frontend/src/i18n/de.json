@@ -1,6 +1,7 @@
 {
   "Language": "Deutsch",
   "Translation": {
+    "Script Settings": "Script-Einstellungen",
     "Login Required": "Anmeldung erforderlich",
     "Please login to access settings": "Bitte melden Sie sich an, um auf die Einstellungen zuzugreifen",
     "Username": "Benutzername",
@@ -20,7 +21,7 @@
     "Generating Video Script and Keywords": "KI generiert ein Drehbuch und Schlüsselwörter...",
     "Generating Video Keywords": "KI generiert Video-Schlüsselwörter...",
     "Video Keywords": "Video Schlüsselwörter (:blue[① Optional, KI generiert ② Verwende **, (Kommas)** zur Trennung der Wörter, in englischer Sprache])",
-    "Video Settings": "**Video Einstellungen**",
+    "Video Settings": "Video Einstellungen",
     "Video Concat Mode": "Videoverkettungsmodus",
     "Random": "Zufällige Verkettung (empfohlen)",
     "Sequential": "Sequentielle Verkettung",

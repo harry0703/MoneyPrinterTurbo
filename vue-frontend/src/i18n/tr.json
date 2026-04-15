@@ -1,6 +1,7 @@
 {
   "Language": "Türkçe",
   "Translation": {
+    "Script Settings": "Script Ayarları",
     "Login Required": "Giriş Gerekli",
     "Please login to access settings": "Ayarlara erişmek için lütfen giriş yapın",
     "Username": "Kullanıcı Adı",
@@ -20,7 +21,7 @@
     "Generating Video Script and Keywords": "Yapay zeka video senaryosu ve anahtar kelimeleri oluşturuyor...",
     "Generating Video Keywords": "Yapay zeka video anahtar kelimelerini oluşturuyor...",
     "Video Keywords": "Video Anahtar Kelimeleri (:blue[① İsteğe bağlı, yapay zeka tarafından oluşturulur ② Ayırmak için **İngilizce virgül** kullanın, yalnızca İngilizce])",
-    "Video Settings": "**Video Ayarları**",
+    "Video Settings": "Video Ayarları",
     "Video Concat Mode": "Video Birleştirme Modu",
     "Random": "Rastgele Birleştirme (Önerilen)",
     "Sequential": "Sıralı Birleştirme",

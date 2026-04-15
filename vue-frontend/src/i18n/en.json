@@ -1,6 +1,7 @@
 {
   "Language": "English",
   "Translation": {
+    "Script Settings": "Script Settings",
     "Login Required": "Login Required",
     "Input Type": "Input Type",
     "Task ID": "Task ID",
@@ -45,7 +46,7 @@
     "Generating Video Script and Keywords": "AI is generating video script and keywords...",
     "Generating Video Keywords": "AI is generating video keywords...",
     "Video Keywords": "Video Keywords (:blue[① Optional, AI generated ② Use **English commas** for separation, English only])",
-    "Video Settings": "**Video Settings**",
+    "Video Settings": "Video Settings",
     "Video Concat Mode": "Video Concatenation Mode",
     "Random": "Random Concatenation (Recommended)",
     "Sequential": "Sequential Concatenation",
