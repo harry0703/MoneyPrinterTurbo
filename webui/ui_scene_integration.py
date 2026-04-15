@@ -186,7 +186,7 @@ def render_scene_integration_panel(tr):
                 # Start integration when button clicked
                 if start_clicked and task_files["is_valid"] and not is_task_running():
                     # Set task as running
-                    set_task_running("video_integration")
+                    set_task_running("scene_integration", task_input)
                     
                     st.session_state["integration_running"] = True
                     st.session_state["integration_progress"] = 0
@@ -197,7 +197,7 @@ def render_scene_integration_panel(tr):
                         st.session_state["integration_status"] = status
                     
                     try:
-                        with st.spinner(tr("Processing video integration...")):
+                        with st.spinner(tr("Processing scene integration...")):
                             current_task_input = st.session_state.get("current_task_input", task_input)
                             output_path = recover_video_synthesis(
                                 current_task_input,

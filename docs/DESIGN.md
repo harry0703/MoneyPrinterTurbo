@@ -35,6 +35,8 @@
 
 ## 3. 函数调用关系
 
+> **Note**: Task types (e.g., 视频生成任务, 场景集成任务) refer to how tasks are initiated, while task levels (e.g., 场景级任务, 目标视频级任务) refer to the scope of the task. These are distinct classifications and both terminologies are valid.
+
 ### 3.1 场景级视频生成流程
 
 ```

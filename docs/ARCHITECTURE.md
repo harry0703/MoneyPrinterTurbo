@@ -229,9 +229,18 @@ Two task manager implementations:
 
 | Task Type | Description |
 |-----------|-------------|
-| **Complete Video Building Task** | A task initiated by clicking the "Generate Video" button on the web page. |
-| **Scene Integration Task** | A task initiated through the scene integration panel to generate the target video. |
+| **视频生成任务 (Video Generation Task)** | A task initiated by clicking the "Generate Video" button on the web page. |
+| **场景集成任务 (Scene Integration Task)** | A task initiated through the scene integration panel to generate the target video. |
 | **Multi-Scene Building Task** | A task initiated by clicking the "Parse Script" button in the script settings panel, targeting multi-scene scripts. |
+
+### 4.5.2 Task Level Classifications
+
+| Task Level | Description |
+|------------|-------------|
+| **场景级任务 (Scene-level Task)** | Tasks within a single scene for generating scene videos, audio, and subtitles. |
+| **目标视频级任务 (Target Video-level Task)** | Tasks that target the final deliverable video. |
+
+> **Note**: Task types (e.g., 视频生成任务, 场景集成任务) refer to how tasks are initiated, while task levels (e.g., 场景级任务, 目标视频级任务) refer to the scope of the task. These are distinct classifications and both terminologies are valid.
 
 ---
 
@@ -589,12 +598,12 @@ Two task manager implementations:
 
 ### 5.4 Task Type Specific Flows
 
-#### 5.4.1 Complete Video Building Task
+#### 5.4.1 视频生成任务 (Video Generation Task)
 - **Initiation**: Web UI "Generate Video" button
 - **Flow**: Full single-scene or multi-scene pipeline
 - **Output**: Complete video with audio, subtitles, and BGM
 
-#### 5.4.2 Video Integration Task
+#### 5.4.2 场景集成任务 (Scene Integration Task)
 - **Initiation**: Scene integration panel
 - **Flow**: Combines existing scene videos into target video
 - **Key Steps**: Load scene videos → Combine scenes → Add BGM and subtitles

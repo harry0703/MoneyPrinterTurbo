@@ -8,7 +8,7 @@ def render_task_status_panel(tr):
     Args:
         tr: Translation function
     """
-    from app.services.state import is_task_running, get_running_task_type
+    from app.services.state import is_task_running, get_running_task_type, get_running_task_id
     
     with st.container(border=True):
         st.write(f"📋 {tr('Task Status')}")
@@ -16,9 +16,14 @@ def render_task_status_panel(tr):
         # Check if task is running
         if is_task_running():
             task_type = get_running_task_type()
+            task_id = get_running_task_id()
             
             # Display running task status
-            st.info(f"{tr('Task in progress')}: {tr('Video Integration') if task_type == 'video_integration' else tr('Complete Video')}")
+            task_type_display = tr('Scene Integration Task') if task_type == 'scene_integration' else tr('Video Generation Task')
+            if task_id:
+                st.info(f"{tr('Task in progress')}: {task_type_display} (Task ID: {task_id})")
+            else:
+                st.info(f"{tr('Task in progress')}: {task_type_display}")
             
             # Check if integration progress is available
             if st.session_state.get("integration_running"):

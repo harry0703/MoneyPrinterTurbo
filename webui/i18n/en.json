@@ -267,6 +267,8 @@
     "Task Status": "Task Status",
     "Task in progress": "Task in progress",
     "Complete Video": "Complete Video",
+    "Video Generation Task": "Video Generation Task",
+    "Scene Integration Task": "Scene Integration Task",
     "Processing...": "Processing...",
     "No tasks running": "No tasks running",
     "Scene Range Selection": "Scene Range Selection",

@@ -991,7 +991,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return None
     
     # Set task as running
-    set_task_running("complete_video")
+    set_task_running("complete_video", task_id)
     
     # Track task start time
     import time

@@ -284,6 +284,8 @@
     "Task Status": "任务状态",
     "Task in progress": "任务进行中",
     "Complete Video": "完整视频",
+    "Video Generation Task": "视频生成任务",
+    "Scene Integration Task": "场景集成任务",
     "Processing...": "处理中...",
     "No tasks running": "无任务运行",
     "Scene Range Selection": "场景范围选择",
