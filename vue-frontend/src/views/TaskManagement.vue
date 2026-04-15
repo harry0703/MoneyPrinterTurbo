@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import TaskStatus from '../components/TaskStatus.vue';
 import { useI18nStore } from '../stores/i18n';
@@ -70,6 +70,8 @@ const runningTasks = computed(() => tasksStore.runningTasks);
 const completedTasks = computed(() => tasksStore.completedTasks);
 const failedTasks = computed(() => tasksStore.failedTasks);
 
+const refreshInterval = ref<number | null>(null);
+
 const refreshTasks = async () => {
   await tasksStore.fetchAllTasks();
 };
@@ -84,7 +86,20 @@ const cancelTask = (taskId: string) => {
 };
 
 onMounted(async () => {
+  // 初始刷新
   await refreshTasks();
+  
+  // 设置自动刷新间隔（每5秒）
+  refreshInterval.value = window.setInterval(async () => {
+    await refreshTasks();
+  }, 5000);
+});
+
+onUnmounted(() => {
+  // 清除自动刷新间隔
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value);
+  }
 });
 </script>
 

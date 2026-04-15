@@ -86,6 +86,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { Refresh, Download, Delete, Close } from '@element-plus/icons-vue';
+import { useI18nStore } from '../stores/i18n';
+
+const i18nStore = useI18nStore();
+const t = i18nStore.t;
 
 interface Task {
   task_id: string;
@@ -143,15 +147,15 @@ const emit = defineEmits(['refresh', 'delete', 'cancel']);
 const activeNames = ref<string[]>([]);
 
 const getTaskTitle = (task: Task): string => {
-  return `Task ${task.task_id.substring(0, 8)} - ${getStatusText(task.status)}`;
+  return `${t('Task')} ${task.task_id.substring(0, 8)} - ${getStatusText(task.status)}`;
 };
 
 const getStatusText = (status: string): string => {
   const statusMap: Record<string, string> = {
-    pending: 'Pending',
-    running: 'Running',
-    completed: 'Completed',
-    failed: 'Failed'
+    pending: t('Pending'),
+    running: t('Running'),
+    completed: t('Completed'),
+    failed: t('Failed')
   };
   return statusMap[status] || status;
 };
