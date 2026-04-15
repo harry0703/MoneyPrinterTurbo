@@ -3,13 +3,22 @@
     <header class="app-header">
       <div class="header-content">
         <h1>{{ t('MoneyPrinterTurbo') }}</h1>
-        <div class="language-selector">
-          <el-select v-model="currentLanguage" @change="changeLanguage" placeholder="Select language">
-            <el-option v-for="lang in availableLanguages" :key="lang.code" :label="lang.name" :value="lang.code" />
-          </el-select>
+        <div class="header-actions">
+          <el-button type="primary" @click="showSettings = true">
+            <el-icon><Setting /></el-icon>
+            {{ t('Settings') }}
+          </el-button>
+          <div class="language-selector">
+            <el-select v-model="currentLanguage" @change="changeLanguage" placeholder="Select language">
+              <el-option v-for="lang in availableLanguages" :key="lang.code" :label="lang.name" :value="lang.code" />
+            </el-select>
+          </div>
         </div>
       </div>
     </header>
+    
+    <!-- Settings Panel -->
+    <SettingsPanel v-model:visible="showSettings" @settings-saved="handleSettingsSaved" />
     
     <main class="app-main">
       <el-container>
@@ -71,17 +80,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { VideoCamera, Document, Microphone, ChatLineSquare, Collection, Timer, VideoPlay } from '@element-plus/icons-vue';
+import { VideoCamera, Document, Microphone, ChatLineSquare, Collection, Timer, VideoPlay, Setting } from '@element-plus/icons-vue';
 import { useI18nStore } from './stores/i18n';
 import { useTasksStore } from './stores/tasks';
+import SettingsPanel from './views/SettingsPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
 const i18nStore = useI18nStore();
 const tasksStore = useTasksStore();
 
+const showSettings = ref(false);
 const activeMenu = computed(() => route.path);
 const currentLanguage = computed({
   get: () => i18nStore.currentLanguage,
@@ -96,6 +107,12 @@ const changeLanguage = (lang: string) => {
 
 const handleMenuSelect = (key: string) => {
   router.push(key);
+};
+
+const handleSettingsSaved = () => {
+  // 设置保存后的处理逻辑
+  console.log('Settings saved successfully');
+  // 可以在这里添加提示信息或其他逻辑
 };
 
 const generateVideo = async () => {
@@ -204,6 +221,12 @@ onMounted(async () => {
 .header-content h1 {
   margin: 0;
   font-size: 1.5rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
 .language-selector {
