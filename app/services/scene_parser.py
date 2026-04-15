@@ -725,9 +725,10 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
             
             # Generate keywords
             fallback_subject = paragraph[:50].strip()
-            keywords_list = llm_service.generate_terms(
+            keywords_list = llm_service.generate_scene_terms(
                 video_subject=fallback_subject,
-                video_script=paragraph,
+                scene_script=paragraph,
+                scene_camera=visual_requirement,
                 amount=5
             )
             
