@@ -1,0 +1,19 @@
+{
+  "name": "vue-frontend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@vitejs/plugin-vue": "^6.0.6",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.8",
+    "vue": "^3.5.32"
+  }
+}
