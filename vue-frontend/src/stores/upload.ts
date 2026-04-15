@@ -168,7 +168,7 @@ export const useUploadStore = defineStore('upload', {
       this.error = null;
     },
     
-    private getFileType(filename: string): string {
+    getFileType(filename: string): string {
       const ext = filename.split('.').pop()?.toLowerCase();
       if (ext === 'mp4') return 'video/mp4';
       if (ext === 'mov') return 'video/quicktime';

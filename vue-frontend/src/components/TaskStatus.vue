@@ -118,7 +118,7 @@ interface Props {
   cancelText?: string;
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   tasks: () => [],
   loading: false,
   error: '',

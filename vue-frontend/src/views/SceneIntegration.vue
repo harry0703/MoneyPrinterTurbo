@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref } from 'vue';
 import { Plus, Top, Bottom, Delete, Document } from '@element-plus/icons-vue';
 import { useI18nStore } from '../stores/i18n';
 

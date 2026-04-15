@@ -52,12 +52,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import TaskStatus from '../components/TaskStatus.vue';
 import { useI18nStore } from '../stores/i18n';
 import { useTasksStore } from '../stores/tasks';
-import type { Task } from '../stores/tasks';
 
 const i18nStore = useI18nStore();
 const tasksStore = useTasksStore();
@@ -65,7 +64,7 @@ const t = i18nStore.t;
 
 const tasks = computed(() => tasksStore.tasks);
 const loading = computed(() => tasksStore.loading);
-const error = computed(() => tasksStore.error);
+const error = computed(() => tasksStore.error || '');
 
 const runningTasks = computed(() => tasksStore.runningTasks);
 const completedTasks = computed(() => tasksStore.completedTasks);

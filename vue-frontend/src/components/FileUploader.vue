@@ -30,8 +30,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { Plus } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 
 interface FileItem {
   name: string;
@@ -69,7 +70,7 @@ const emit = defineEmits(['update:modelValue', 'upload-success', 'upload-error',
 const fileList = ref<FileItem[]>([...props.modelValue]);
 const loading = ref(false);
 
-const handleFileChange = (file: any, fileList: FileItem[]) => {
+const handleFileChange = (_file: any, fileList: FileItem[]) => {
   emit('update:modelValue', fileList);
 };
 
@@ -78,22 +79,22 @@ const handleFileRemove = (file: any, fileList: FileItem[]) => {
   emit('remove', file);
 };
 
-const handleUploadSuccess = (response: any, file: any, fileList: FileItem[]) => {
+const handleUploadSuccess = (response: any, _file: any, fileList: FileItem[]) => {
   loading.value = false;
   emit('update:modelValue', fileList);
-  emit('upload-success', response, file, fileList);
+  emit('upload-success', response, _file, fileList);
 };
 
-const handleUploadError = (error: any, file: any, fileList: FileItem[]) => {
+const handleUploadError = (error: any, _file: any, fileList: FileItem[]) => {
   loading.value = false;
-  emit('upload-error', error, file, fileList);
+  emit('upload-error', error, _file, fileList);
 };
 
-const handleExceed = (files: File[], fileList: FileItem[]) => {
+const handleExceed = (files: File[], _fileList: FileItem[]) => {
   ElMessage.warning(`The limit is ${props.limit}, you selected ${files.length} files this time, please upload no more than ${props.limit} files.`);
 };
 
-const beforeUpload = (file: File) => {
+const beforeUpload = (_file: File) => {
   loading.value = true;
   // 可以在这里添加文件验证逻辑
   return true;

@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive } from 'vue';
 import BaseForm from '../components/BaseForm.vue';
 import FileUploader from '../components/FileUploader.vue';
 import { useI18nStore } from '../stores/i18n';

@@ -1,7 +1,47 @@
 import { defineStore } from 'pinia';
 
+interface LLMConfig {
+  apiKey: string;
+  baseUrl: string;
+  modelName: string;
+}
+
+interface LLMConfigs {
+  [key: string]: LLMConfig;
+  openai: LLMConfig;
+  moonshot: LLMConfig;
+  deepseek: LLMConfig;
+}
+
+interface AppSettings {
+  llmProvider: string;
+  videoSource: string;
+  useGpu: boolean;
+  hideConfig: boolean;
+}
+
+interface VideoSources {
+  pexelsApiKeys: string[];
+  pixabayApiKeys: string[];
+}
+
+interface WhisperSettings {
+  device: string;
+}
+
+interface UISettings {
+  language: string;
+  hideLog: boolean;
+}
+
 export const useSettingsStore = defineStore('settings', {
-  state: () => ({
+  state: (): {
+    app: AppSettings;
+    llm: LLMConfigs;
+    videoSources: VideoSources;
+    whisper: WhisperSettings;
+    ui: UISettings;
+  } => ({
     // 应用设置
     app: {
       llmProvider: 'openai',
@@ -63,13 +103,13 @@ export const useSettingsStore = defineStore('settings', {
   },
   
   actions: {
-    updateAppSetting(key: string, value: any) {
-      this.app[key as keyof typeof this.app] = value;
+    updateAppSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
+      this.app[key] = value;
     },
     
-    updateLLMSetting(provider: string, key: string, value: any) {
-      if (this.llm[provider as keyof typeof this.llm]) {
-        this.llm[provider as keyof typeof this.llm][key as keyof typeof this.llm[keyof typeof this.llm]] = value;
+    updateLLMSetting<P extends keyof LLMConfigs, K extends keyof LLMConfig>(provider: P, key: K, value: LLMConfig[K]) {
+      if (this.llm[provider]) {
+        this.llm[provider][key] = value;
       }
     },
     
@@ -81,12 +121,12 @@ export const useSettingsStore = defineStore('settings', {
       }
     },
     
-    updateWhisperSetting(key: string, value: any) {
-      this.whisper[key as keyof typeof this.whisper] = value;
+    updateWhisperSetting<K extends keyof WhisperSettings>(key: K, value: WhisperSettings[K]) {
+      this.whisper[key] = value;
     },
     
-    updateUISetting(key: string, value: any) {
-      this.ui[key as keyof typeof this.ui] = value;
+    updateUISetting<K extends keyof UISettings>(key: K, value: UISettings[K]) {
+      this.ui[key] = value;
     },
     
     loadFromLocalStorage() {

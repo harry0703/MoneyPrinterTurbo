@@ -71,19 +71,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { VideoCamera, Document, Microphone, ChatLineSquare, Collection, Timer, VideoPlay } from '@element-plus/icons-vue';
 import { useI18nStore } from './stores/i18n';
 import { useTasksStore } from './stores/tasks';
-
-// 导入视图组件
-import VideoSettings from './views/VideoSettings.vue';
-import ScriptSettings from './views/ScriptSettings.vue';
-import AudioSettings from './views/AudioSettings.vue';
-import SubtitleSettings from './views/SubtitleSettings.vue';
-import SceneIntegration from './views/SceneIntegration.vue';
-import TaskManagement from './views/TaskManagement.vue';
 
 const route = useRoute();
 const router = useRouter();

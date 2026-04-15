@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { apiService } from '../services/api';
+import { apiService, type ApiResponse } from '../services/api';
 
 export interface Task {
   task_id: string;
@@ -91,7 +91,7 @@ export const useTasksStore = defineStore('tasks', {
       this.error = null;
       
       try {
-        let response;
+        let response: ApiResponse;
         if (type === 'video') {
           response = await apiService.createVideo(params);
         } else if (type === 'subtitle') {
