@@ -69,8 +69,15 @@
       <div class="scene-management-content">
         <!-- 导入导出按钮 -->
         <div class="scene-actions">
-          <el-button size="small">导出场景</el-button>
-          <el-button size="small">导入场景</el-button>
+          <el-button size="small" @click="exportScenes">导出场景</el-button>
+          <el-button size="small" @click="triggerImport">导入场景</el-button>
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".json"
+            style="display: none"
+            @change="importScenes"
+          />
         </div>
         
         <!-- 场景列表 -->
@@ -106,6 +113,34 @@
                 <label class="form-label">场景文案</label>
                 <el-input v-model="scene.script" type="textarea" :rows="4" placeholder="输入场景文案" class="form-textarea" />
               </div>
+              
+              <div class="form-item">
+                <label class="form-label">片头视频</label>
+                <div class="intro-video-section">
+                  <div class="intro-video-info" v-if="scene.introVideo">
+                    <div class="intro-video-path">
+                      <span class="intro-video-file">{{ scene.introVideo }}</span>
+                      <el-button size="small" @click="clearIntroVideo(index)">清除</el-button>
+                    </div>
+                    <div class="intro-video-duration">
+                      <el-icon class="video-icon"><VideoCamera /></el-icon>
+                      <el-input v-model.number="scene.introVideoDuration" type="number" placeholder="时长" class="duration-input" />
+                      <span class="duration-unit">s</span>
+                    </div>
+                  </div>
+                  <div class="intro-video-placeholder" v-else>
+                    <span>未设置</span>
+                    <el-button size="small" @click="triggerIntroVideoImport(index)">导入片头视频</el-button>
+                  </div>
+                  <input
+                    :ref="el => setFileInputRef(el, index)"
+                    type="file"
+                    accept=".mp4,.mov,.avi"
+                    style="display: none"
+                    @change="(e) => importIntroVideo(e, index)"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -122,17 +157,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useI18nStore } from '../stores/i18n';
+import { useScriptStore } from '../stores/script';
+import { ElMessage } from 'element-plus';
+import { VideoCamera } from '@element-plus/icons-vue';
 
 const i18nStore = useI18nStore();
+const scriptStore = useScriptStore();
 const t = i18nStore.t;
 
-const form = reactive({
-  videoSubject: '',
-  videoScript: '',
-  language: 'auto'
-});
+const fileInput = ref<HTMLInputElement | null>(null);
+const introVideoFileInputs = ref<{[key: number]: HTMLInputElement | null}>({});
+
+// 从store获取数据
+const form = scriptStore;
+const scenes = computed(() => scriptStore.scenes);
 
 interface Scene {
   id: string;
@@ -140,9 +180,9 @@ interface Scene {
   visual_requirement: string;
   keywords: string;
   script: string;
+  introVideo?: string;
+  introVideoDuration?: number;
 }
-
-const scenes = reactive<Scene[]>([]);
 
 const addNewScene = () => {
   const newScene: Scene = {
@@ -150,42 +190,198 @@ const addNewScene = () => {
     duration: 30,
     visual_requirement: '',
     keywords: '',
-    script: ''
+    script: '',
+    introVideo: undefined,
+    introVideoDuration: 10
   };
-  scenes.push(newScene);
+  scriptStore.addScene(newScene);
 };
 
 const deleteScene = (index: number) => {
-  scenes.splice(index, 1);
+  scriptStore.removeScene(index);
 };
 
 const copyScene = (index: number) => {
-  const sceneToCopy = scenes[index];
+  const sceneToCopy = scenes.value[index];
   const copiedScene: Scene = {
     id: Date.now().toString(),
     duration: sceneToCopy.duration,
     visual_requirement: sceneToCopy.visual_requirement,
     keywords: sceneToCopy.keywords,
-    script: sceneToCopy.script
+    script: sceneToCopy.script,
+    introVideo: sceneToCopy.introVideo,
+    introVideoDuration: sceneToCopy.introVideoDuration
   };
-  scenes.splice(index + 1, 0, copiedScene);
+  // 复制到index+1位置
+  const newScenes = [...scenes.value];
+  newScenes.splice(index + 1, 0, copiedScene);
+  scriptStore.updateScenes(newScenes);
 };
 
 const moveSceneUp = (index: number) => {
   if (index > 0) {
-    const temp = scenes[index];
-    scenes[index] = scenes[index - 1];
-    scenes[index - 1] = temp;
+    const newScenes = [...scenes.value];
+    const temp = newScenes[index];
+    newScenes[index] = newScenes[index - 1];
+    newScenes[index - 1] = temp;
+    scriptStore.updateScenes(newScenes);
   }
 };
 
 const moveSceneDown = (index: number) => {
-  if (index < scenes.length - 1) {
-    const temp = scenes[index];
-    scenes[index] = scenes[index + 1];
-    scenes[index + 1] = temp;
+  if (index < scenes.value.length - 1) {
+    const newScenes = [...scenes.value];
+    const temp = newScenes[index];
+    newScenes[index] = newScenes[index + 1];
+    newScenes[index + 1] = temp;
+    scriptStore.updateScenes(newScenes);
   }
 };
+
+// 导出场景
+const exportScenes = () => {
+  if (scenes.value.length === 0) {
+    ElMessage.warning('没有场景可以导出');
+    return;
+  }
+  
+  const scenesData = JSON.stringify(scenes.value, null, 2);
+  const blob = new Blob([scenesData], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `scenes-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  ElMessage.success('场景导出成功');
+};
+
+// 触发导入
+const triggerImport = () => {
+  fileInput.value?.click();
+};
+
+// 导入场景
+const importScenes = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const content = e.target?.result as string;
+      const importedScenes = JSON.parse(content);
+      
+      if (Array.isArray(importedScenes)) {
+        // 验证导入的数据格式
+        const validScenes = importedScenes.filter((scene: any) => {
+          return scene && typeof scene === 'object' && 
+                 typeof scene.duration === 'number' &&
+                 typeof scene.visual_requirement === 'string' &&
+                 typeof scene.keywords === 'string' &&
+                 typeof scene.script === 'string';
+        });
+        
+        if (validScenes.length > 0) {
+          // 清空现有场景并导入新场景
+          const formattedScenes = validScenes.map((scene: any) => ({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            duration: scene.duration,
+            visual_requirement: scene.visual_requirement,
+            keywords: scene.keywords,
+            script: scene.script,
+            introVideo: scene.introVideo,
+            introVideoDuration: scene.introVideoDuration || 10
+          }));
+          scriptStore.updateScenes(formattedScenes);
+          ElMessage.success(`成功导入 ${validScenes.length} 个场景`);
+        } else {
+          ElMessage.error('导入的文件格式不正确');
+        }
+      } else {
+        ElMessage.error('导入的文件格式不正确');
+      }
+    } catch (error) {
+      ElMessage.error('导入文件时出错');
+      console.error('Import error:', error);
+    } finally {
+      // 重置文件输入，以便可以重复选择同一个文件
+      input.value = '';
+    }
+  };
+  reader.readAsText(file);
+};
+
+// 设置文件输入引用
+const setFileInputRef = (el: HTMLInputElement | null, index: number) => {
+  if (el) {
+    introVideoFileInputs.value[index] = el;
+  }
+};
+
+// 触发片头视频导入
+const triggerIntroVideoImport = (index: number) => {
+  introVideoFileInputs.value[index]?.click();
+};
+
+// 导入片头视频
+const importIntroVideo = (event: Event, index: number) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  
+  if (!file) return;
+  
+  // 这里可以添加文件上传逻辑
+  // 目前只存储文件名
+  const updatedScene = { ...scenes.value[index], introVideo: file.name };
+  scriptStore.updateScene(index, updatedScene);
+  
+  // 重置文件输入，以便可以重复选择同一个文件
+  input.value = '';
+  
+  ElMessage.success('片头视频导入成功');
+};
+
+// 清除片头视频
+const clearIntroVideo = (index: number) => {
+  const updatedScene = { ...scenes.value[index], introVideo: undefined, introVideoDuration: 10 };
+  scriptStore.updateScene(index, updatedScene);
+  ElMessage.success('片头视频已清除');
+};
+
+// 场景变化由store自动处理，不需要额外监听
+
+// 监听表单字段变化，自动保存
+watch(
+  () => form.videoSubject,
+  (newValue) => {
+    scriptStore.updateVideoSubject(newValue);
+  }
+);
+
+watch(
+  () => form.videoScript,
+  (newValue) => {
+    scriptStore.updateVideoScript(newValue);
+  }
+);
+
+watch(
+  () => form.language,
+  (newValue) => {
+    scriptStore.updateLanguage(newValue);
+  }
+);
+
+// 组件挂载时加载数据
+onMounted(() => {
+  scriptStore.loadFromLocalStorage();
+});
 
 defineExpose({
   form,
@@ -225,7 +421,7 @@ defineExpose({
   font-weight: normal;
   font-size: 14px;
   color: #333;
-  margin: 0;
+  margin-bottom: 4px;
   line-height: 1.4;
 }
 
@@ -272,12 +468,10 @@ defineExpose({
 
 .form-select {
   width: 100%;
-  border: 1px solid #e0e0e0;
-  background-color: transparent;
   padding: 6px 8px;
-  font-size: 14px;
+  border: 1px solid #e0e0e0;
   border-radius: 4px;
-  transition: border-color 0.2s;
+  transition: border-color 0.3s;
   box-sizing: border-box;
 }
 
@@ -366,6 +560,63 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.intro-video-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.intro-video-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.intro-video-path {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.intro-video-file {
+  font-size: 14px;
+  color: #1890ff;
+  flex: 1;
+  min-width: 200px;
+  background-color: #f5f5f5;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.intro-video-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #909399;
+}
+
+.intro-video-duration {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.video-icon {
+  color: #1890ff;
+  font-size: 18px;
+}
+
+.duration-input {
+  width: 80px;
+}
+
+.duration-unit {
+  font-size: 14px;
+  color: #606266;
 }
 
 

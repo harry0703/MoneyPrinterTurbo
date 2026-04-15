@@ -271,14 +271,14 @@ defineExpose({
 .form-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0px;
 }
 
 .form-label {
   font-weight: normal;
   font-size: 14px;
   color: #333;
-  margin: 0;
+  margin-bottom: 4px;
   line-height: 1.4;
 }
 
@@ -304,12 +304,10 @@ defineExpose({
 
 .form-select {
   width: 100%;
-  border: 1px solid #e0e0e0;
-  background-color: transparent;
   padding: 6px 8px;
-  font-size: 14px;
+  border: 1px solid #e0e0e0;
   border-radius: 4px;
-  transition: border-color 0.2s;
+  transition: border-color 0.3s;
   box-sizing: border-box;
 }
 

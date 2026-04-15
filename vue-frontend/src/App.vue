@@ -29,13 +29,13 @@
             router
             @select="handleMenuSelect"
           >
-            <el-menu-item index="/video">
-              <el-icon><VideoCamera /></el-icon>
-              <span>{{ t('Video Settings') }}</span>
-            </el-menu-item>
             <el-menu-item index="/script">
               <el-icon><Document /></el-icon>
               <span>{{ t('Script Settings') }}</span>
+            </el-menu-item>
+            <el-menu-item index="/video">
+              <el-icon><VideoCamera /></el-icon>
+              <span>{{ t('Video Settings') }}</span>
             </el-menu-item>
             <el-menu-item index="/audio">
               <el-icon><Microphone /></el-icon>
