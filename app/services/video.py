@@ -2050,8 +2050,8 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
     if progress_callback:
         progress_callback(20, "Preparing video files...")
     
-    # For video integration tasks (target video level), use combine_all_scenes
-    logger.info(f"Combining {len(video_paths)} scene videos using combine_all_scenes for video integration task")
+    # For scene integration tasks (target video level), use combine_all_scenes
+    logger.info(f"Combining {len(video_paths)} scene videos using combine_all_scenes for scene integration task")
     
     if progress_callback:
         progress_callback(40, "Combining scene videos...")

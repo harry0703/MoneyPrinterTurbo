@@ -6,17 +6,18 @@ from app.utils import utils
 from webui.ui_task_components import render_task_status_panel
 
 
-def render_video_integration_panel(tr):
+def render_scene_integration_panel(tr):
     """
-    Render video integration panel for recovering video integration from existing task files.
+    Render scene integration panel for recovering scene integration from existing task files.
     
     Args:
         tr: Translation function
     """
+
     # Check if another task is already running
     from app.services.state import is_task_running, set_task_running, set_task_completed
     
-    # Create main container for video integration
+    # Create main container for scene integration
     with st.container(border=True):
         st.write(f"🎬 {tr('Video Integration')}")
         

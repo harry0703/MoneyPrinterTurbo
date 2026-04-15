@@ -230,7 +230,7 @@ Two task manager implementations:
 | Task Type | Description |
 |-----------|-------------|
 | **Complete Video Building Task** | A task initiated by clicking the "Generate Video" button on the web page. |
-| **Video Integration Task** | A task initiated through the video integration panel to generate the target video. |
+| **Scene Integration Task** | A task initiated through the scene integration panel to generate the target video. |
 | **Multi-Scene Building Task** | A task initiated by clicking the "Parse Script" button in the script settings panel, targeting multi-scene scripts. |
 
 ---
@@ -595,7 +595,7 @@ Two task manager implementations:
 - **Output**: Complete video with audio, subtitles, and BGM
 
 #### 5.4.2 Video Integration Task
-- **Initiation**: Video integration panel
+- **Initiation**: Scene integration panel
 - **Flow**: Combines existing scene videos into target video
 - **Key Steps**: Load scene videos → Combine scenes → Add BGM and subtitles
 - **Output**: Integrated target video

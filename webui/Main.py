@@ -26,7 +26,7 @@ from webui.ui_audio_components import render_audio_settings
 from webui.ui_video_components import render_video_settings
 from webui.ui_subtitle_components import render_subtitle_settings
 from webui.ui_script_components import render_script_settings
-from webui.ui_video_integration import render_video_integration_panel
+from webui.ui_scene_integration import render_scene_integration_panel
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -603,8 +603,8 @@ with right_panel:
     # Render subtitle settings component
     render_subtitle_settings(params, config, tr)
     
-    # Render video integration panel
-    render_video_integration_panel(tr)
+    # Render scene integration panel
+    render_scene_integration_panel(tr)
     
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels and Pixabay API Keys"))
