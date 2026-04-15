@@ -49,6 +49,32 @@ if %errorlevel% equ 0 (
 
     echo.
     echo [INFO] Base image downloaded successfully
+    echo [INFO] Removing existing moneyprinterturbocn images if exists...
+    :: First, remove all containers using moneyprinterturbocn images
+    echo [INFO] Step 1: Removing containers using moneyprinterturbocn images...
+    for /f "tokens=1" %%i in ('docker ps -a --format "{{.Names}}" ^| findstr "moneyprinterturbocn"') do (
+        echo [INFO] Stopping container: %%i
+        docker stop %%i 2>nul
+        echo [INFO] Removing container: %%i
+        docker rm %%i 2>nul
+    )
+    :: Then remove all images with moneyprinterturbocn in their name
+    echo [INFO] Step 2: Removing moneyprinterturbocn images...
+    :: Remove images by repository name
+    for /f "tokens=*" %%i in ('docker images --format "{{.Repository}}" ^| findstr "moneyprinterturbocn"') do (
+        echo [INFO] Removing image: %%i
+        docker rmi -f %%i 2>nul
+    )
+    :: Remove images by tag
+    for /f "tokens=1,2" %%i in ('docker images ^| findstr "moneyprinterturbocn"') do (
+        echo [INFO] Removing image: %%i:%%j
+        docker rmi -f %%i:%%j 2>nul
+    )
+    :: Remove images by ID
+    for /f "tokens=3" %%i in ('docker images ^| findstr "moneyprinterturbocn"') do (
+        echo [INFO] Removing image by ID: %%i
+        docker rmi -f %%i 2>nul
+    )
     echo [INFO] Building Docker image...
     echo [INFO] Starting build process...
     echo.

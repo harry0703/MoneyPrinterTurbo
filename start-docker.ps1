@@ -90,10 +90,15 @@ Write-Host ""
 
 # Stop any existing containers with same name
 Write-Host "[INFO] Stopping existing containers..."
-docker stop moneyprinterturbocn-webui 2>$null
-docker rm moneyprinterturbocn-webui 2>$null
-docker stop moneyprinterturbocn-api 2>$null
-docker rm moneyprinterturbocn-api 2>$null
+# Remove all containers with moneyprinterturbocn in their name
+$containers = docker ps -a --format "{{.Names}}" | Select-String "moneyprinterturbocn"
+foreach ($container in $containers) {
+    $containerName = $container.ToString().Trim()
+    Write-Host "[INFO] Stopping container: $containerName"
+    docker stop $containerName 2>$null
+    Write-Host "[INFO] Removing container: $containerName"
+    docker rm $containerName 2>$null
+}
 Write-Host "[INFO] Existing containers cleaned up"
 Write-Host ""
 

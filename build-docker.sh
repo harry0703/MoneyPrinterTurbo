@@ -68,6 +68,26 @@ echo ""
 echo "[INFO] Base image downloaded successfully"
 echo ""
 
+# Remove existing moneyprinterturbocn images if exists
+echo "[INFO] Removing existing moneyprinterturbocn images if exists..."
+
+# Step 1: Remove all containers using moneyprinterturbocn images
+echo "[INFO] Step 1: Removing containers using moneyprinterturbocn images..."
+docker ps -a --format "{{.Names}}" | grep "moneyprinterturbocn" | while read -r container; do
+    echo "[INFO] Stopping container: $container"
+    docker stop "$container" 2>/dev/null
+    echo "[INFO] Removing container: $container"
+    docker rm "$container" 2>/dev/null
+done
+
+# Step 2: Remove all moneyprinterturbocn images
+echo "[INFO] Step 2: Removing moneyprinterturbocn images..."
+# Get all unique repositories containing moneyprinterturbocn
+docker images --format "{{.Repository}}" | grep "moneyprinterturbocn" | sort -u | while read -r repo; do
+    echo "[INFO] Removing image: $repo"
+    docker rmi -f "$repo" 2>/dev/null
+done
+
 # Build the Docker image
 echo "[INFO] Building Docker image..."
 echo "[INFO] Starting build process..."

@@ -15,6 +15,18 @@ if errorlevel 1 (
 )
 echo.
 
+:: Stop and remove existing containers
+echo [INFO] Stopping and removing existing containers...
+:: Remove all containers with moneyprinterturbocn in their name
+for /f "tokens=1" %%i in ('docker ps -a --format "{{.Names}}" ^| findstr "moneyprinterturbocn"') do (
+    echo [INFO] Stopping container: %%i
+    docker stop %%i 2>nul
+    echo [INFO] Removing container: %%i
+    docker rm %%i 2>nul
+)
+echo [INFO] Existing containers cleaned up
+echo.
+
 :: Start containers based on argument
 echo [INFO] Starting containers...
 if "%1" == "--cpu" (

@@ -75,6 +75,29 @@ Write-Host ""
 Write-Host "[INFO] Base image downloaded successfully" -ForegroundColor Green
 Write-Host ""
 
+# Remove existing moneyprinterturbocn images if exists
+Write-Host "[INFO] Removing existing moneyprinterturbocn images if exists..." -ForegroundColor Cyan
+
+# Step 1: Remove all containers using moneyprinterturbocn images
+Write-Host "[INFO] Step 1: Removing containers using moneyprinterturbocn images..." -ForegroundColor Cyan
+$containers = docker ps -a --format "{{.Names}}" | Select-String "moneyprinterturbocn"
+foreach ($container in $containers) {
+    $containerName = $container.ToString().Trim()
+    Write-Host "[INFO] Stopping container: $containerName" -ForegroundColor Gray
+    docker stop $containerName 2>$null
+    Write-Host "[INFO] Removing container: $containerName" -ForegroundColor Gray
+    docker rm $containerName 2>$null
+}
+
+# Step 2: Remove all moneyprinterturbocn images
+Write-Host "[INFO] Step 2: Removing moneyprinterturbocn images..." -ForegroundColor Cyan
+# Get all image repositories containing moneyprinterturbocn
+$repositories = docker images --format "{{.Repository}}" | Select-String "moneyprinterturbocn" | ForEach-Object { $_.ToString().Trim() } | Select-Object -Unique
+foreach ($repo in $repositories) {
+    Write-Host "[INFO] Removing image: $repo" -ForegroundColor Gray
+    docker rmi -f $repo 2>$null
+}
+
 # Build the Docker image
 Write-Host "[INFO] Building Docker image..." -ForegroundColor Cyan
 Write-Host "[INFO] Starting build process..." -ForegroundColor Gray
