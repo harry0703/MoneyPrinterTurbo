@@ -1,19 +1,24 @@
 {
   "name": "vue-frontend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "@vitejs/plugin-vue": "^6.0.6",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.8",
-    "vue": "^3.5.32"
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5",
+    "pinia": "^2.3.0",
+    "axios": "^1.7.9",
+    "element-plus": "^2.8.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.1",
+    "vue-tsc": "^2.2.21"
   }
 }
