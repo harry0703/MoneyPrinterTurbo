@@ -4,16 +4,16 @@
     <el-card :body-style="{ padding: '20px' }" class="main-card">
       <template #header>
         <div class="card-header">
-          <h2 class="title">Script Settings</h2>
+          <h2 class="title">{{ t('Script Settings') }}</h2>
         </div>
       </template>
       
       <div class="settings-form">
         <div class="form-item">
-          <label class="form-label">Video Topic (Provide a keyword, <span style="color: red;">AI will automatically generate video script</span>)</label>
+          <label class="form-label" v-html="parseLabelMarkdown(t('Video Topic'))"></label>
           <el-input
             v-model="form.videoSubject"
-            placeholder="Enter video topic"
+            :placeholder="t('Enter video topic')"
             type="text"
             maxlength="100"
             show-word-limit
@@ -22,28 +22,28 @@
         </div>
         
         <div class="form-item">
-          <label class="form-label">Language for video script (AI will automatically detect based on your input language)</label>
-          <el-select v-model="form.language" placeholder="Select language" class="form-select">
-            <el-option label="Auto Detect" value="auto" />
-            <el-option label="Chinese" value="zh" />
-            <el-option label="English" value="en" />
-            <el-option label="German" value="de" />
-            <el-option label="Portuguese" value="pt" />
-            <el-option label="Russian" value="ru" />
-            <el-option label="Turkish" value="tr" />
-            <el-option label="Vietnamese" value="vi" />
+          <label class="form-label" v-html="parseLabelMarkdown(t('Language for video script'))"></label>
+          <el-select v-model="form.language" :placeholder="t('Select language')" class="form-select">
+            <el-option :label="t('Auto Detect')" value="auto" />
+            <el-option :label="t('Chinese')" value="zh" />
+            <el-option :label="t('English')" value="en" />
+            <el-option :label="t('German')" value="de" />
+            <el-option :label="t('Portuguese')" value="pt" />
+            <el-option :label="t('Russian')" value="ru" />
+            <el-option :label="t('Turkish')" value="tr" />
+            <el-option :label="t('Vietnamese')" value="vi" />
           </el-select>
         </div>
         
         <div class="form-item">
-          <el-button type="primary" class="form-button">Generate [Video Script] from Topic</el-button>
+          <el-button type="primary" class="form-button">{{ t('Generate [Video Script] from Topic') }}</el-button>
         </div>
         
         <div class="form-item">
-          <label class="form-label">Video Script <span style="color: blue;">（① Optional, use AI generation ② Proper punctuation helps subtitle generation）</span></label>
+          <label class="form-label" v-html="parseLabelMarkdown(t('Video Script'))"></label>
           <el-input
             v-model="form.videoScript"
-            placeholder="Enter video script"
+            :placeholder="t('Enter video script')"
             type="textarea"
             :rows="6"
             maxlength="5000"
@@ -53,7 +53,7 @@
         </div>
         
         <div class="form-item">
-          <el-button type="primary" class="form-button">Parse Current [Video Script]</el-button>
+          <el-button type="primary" class="form-button">{{ t('Parse Current [Video Script]') }}</el-button>
         </div>
       </div>
     </el-card>
@@ -62,15 +62,15 @@
     <el-card :body-style="{ padding: '20px' }" class="scene-card-container">
       <template #header>
         <div class="card-header">
-          <h2 class="title">🎬 Scene Management</h2>
+          <h2 class="title">🎬 {{ t('Scene Management') }}</h2>
         </div>
       </template>
       
       <div class="scene-management-content">
         <!-- Import/Export Buttons -->
         <div class="scene-actions">
-          <el-button size="small" @click="exportScenes">Export Scenes</el-button>
-          <el-button size="small" @click="triggerImport">Import Scenes</el-button>
+          <el-button size="small" @click="exportScenes">{{ t('Export Scenes') }}</el-button>
+          <el-button size="small" @click="triggerImport">{{ t('Import Scenes') }}</el-button>
           <input
             ref="fileInput"
             type="file"
@@ -84,53 +84,53 @@
         <div class="scenes-list">
           <div v-for="(scene, index) in scenes" :key="scene.id" class="scene-card">
             <div class="scene-header">
-              <div class="scene-title">Scene {{ index + 1 }}</div>
+              <div class="scene-title">{{ t('Scene') }} {{ index + 1 }}</div>
               <div class="scene-header-actions">
-                <el-button size="small" @click="deleteScene(index)">Delete</el-button>
-                <el-button size="small" @click="copyScene(index)">Copy</el-button>
-                <el-button size="small" @click="moveSceneUp(index)" :disabled="index === 0">Move Up</el-button>
-                <el-button size="small" @click="moveSceneDown(index)" :disabled="index === scenes.length - 1">Move Down</el-button>
+                <el-button size="small" @click="deleteScene(index)">{{ t('Delete') }}</el-button>
+                <el-button size="small" @click="copyScene(index)">{{ t('Copy') }}</el-button>
+                <el-button size="small" @click="moveSceneUp(index)" :disabled="index === 0">{{ t('Move Up') }}</el-button>
+                <el-button size="small" @click="moveSceneDown(index)" :disabled="index === scenes.length - 1">{{ t('Move Down') }}</el-button>
               </div>
             </div>
             
             <div class="scene-content">
               <div class="form-item">
-                <label class="form-label">Duration (seconds)</label>
-                <el-input v-model.number="scene.duration" type="number" placeholder="Enter duration" class="form-input" />
+                <label class="form-label" v-html="parseLabelMarkdown(t('Duration (seconds)'))"></label>
+                <el-input v-model.number="scene.duration" type="number" :placeholder="t('Enter duration')" class="form-input" />
               </div>
               
               <div class="form-item">
-                <label class="form-label">Visual Requirements</label>
-                <el-input v-model="scene.visual_requirement" type="textarea" :rows="3" placeholder="Enter detailed description" class="form-textarea" />
+                <label class="form-label" v-html="parseLabelMarkdown(t('Visual Requirements'))"></label>
+                <el-input v-model="scene.visual_requirement" type="textarea" :rows="3" :placeholder="t('Enter detailed description')" class="form-textarea" />
               </div>
               
               <div class="form-item">
-                <label class="form-label">Keywords (comma separated)</label>
-                <el-input v-model="scene.keywords" placeholder="Enter keywords" class="form-input" />
+                <label class="form-label" v-html="parseLabelMarkdown(t('Keywords (comma separated)'))"></label>
+                <el-input v-model="scene.keywords" :placeholder="t('Enter keywords')" class="form-input" />
               </div>
               
               <div class="form-item">
-                <label class="form-label">Scene Script</label>
-                <el-input v-model="scene.script" type="textarea" :rows="4" placeholder="Enter scene script" class="form-textarea" />
+                <label class="form-label" v-html="parseLabelMarkdown(t('Scene Script'))"></label>
+                <el-input v-model="scene.script" type="textarea" :rows="4" :placeholder="t('Enter scene script')" class="form-textarea" />
               </div>
               
               <div class="form-item">
-                <label class="form-label">Intro Video</label>
+                <label class="form-label" v-html="parseLabelMarkdown(t('Intro Video'))"></label>
                 <div class="intro-video-section">
                   <div class="intro-video-info" v-if="scene.introVideo">
                     <div class="intro-video-path">
                       <span class="intro-video-file">{{ scene.introVideo }}</span>
-                      <el-button size="small" @click="clearIntroVideo(index)">Clear</el-button>
+                      <el-button size="small" @click="clearIntroVideo(index)">{{ t('Clear') }}</el-button>
                     </div>
                     <div class="intro-video-duration">
                       <el-icon class="video-icon"><VideoCamera /></el-icon>
-                      <el-input v-model.number="scene.introVideoDuration" type="number" placeholder="Duration" class="duration-input" />
-                      <span class="duration-unit">s</span>
+                      <el-input v-model.number="scene.introVideoDuration" type="number" :placeholder="t('Duration')" class="duration-input" />
+                      <span class="duration-unit">{{ t('s') }}</span>
                     </div>
                   </div>
                   <div class="intro-video-placeholder" v-else>
-                    <span>Not set</span>
-                    <el-button size="small" @click="triggerIntroVideoImport(index)">Import Intro Video</el-button>
+                    <span>{{ t('Not set') }}</span>
+                    <el-button size="small" @click="triggerIntroVideoImport(index)">{{ t('Import Intro Video') }}</el-button>
                   </div>
                   <input
                     :ref="el => setFileInputRef(el, index)"
@@ -147,7 +147,7 @@
         
         <!-- Add New Scene Button -->
         <div class="form-item">
-          <el-button type="primary" class="form-button" @click="addNewScene">Add New Scene</el-button>
+          <el-button type="primary" class="form-button" @click="addNewScene">{{ t('Add New Scene') }}</el-button>
         </div>
       </div>
     </el-card>
@@ -158,13 +158,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { useI18nStore } from '../stores/i18n';
 import { useScriptStore } from '../stores/script';
+import { useI18nStore } from '../stores/i18n';
 import { ElMessage } from 'element-plus';
 import { VideoCamera } from '@element-plus/icons-vue';
+import { parseLabelMarkdown } from '../utils/markdownParser';
 
-const i18nStore = useI18nStore();
 const scriptStore = useScriptStore();
+const i18nStore = useI18nStore();
 const t = i18nStore.t;
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -318,7 +319,7 @@ const importScenes = (event: Event) => {
 };
 
 // Set file input reference
-const setFileInputRef = (el: HTMLInputElement | null, index: number) => {
+const setFileInputRef = (el: any, index: number) => {
   if (el) {
     introVideoFileInputs.value[index] = el;
   }

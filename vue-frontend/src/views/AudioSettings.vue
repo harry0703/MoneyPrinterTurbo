@@ -209,11 +209,18 @@ const form = reactive({
 // Search keyword
 const searchKeyword = ref('');
 
+// Voice interface with optional supportsEmotion property
+interface Voice {
+  label: string;
+  value: string;
+  supportsEmotion?: boolean;
+}
+
 // Simulated voice lists for different TTS servers
-const voiceLists = {
+const voiceLists: Record<string, Voice[]> = {
   'azure-tts-v1': [
     { label: 'zh-CN-XiaoxiaoNeural-Female', value: 'zh-CN-XiaoxiaoNeural' },
-    { label: 'zh-CN-XiaoyiNeural-Female', value: 'zh-CN-XiaoyiNeural' },
+    { label: 'zh-CN-YiaoyiNeural-Female', value: 'zh-CN-YiaoyiNeural' },
     { label: 'zh-CN-YunjianNeural-Male', value: 'zh-CN-YunjianNeural' },
     { label: 'zh-CN-YunxiNeural-Male', value: 'zh-CN-YunxiNeural' },
     { label: 'zh-CN-YunxiaNeural-Male', value: 'zh-CN-YunxiaNeural' },
@@ -229,7 +236,7 @@ const voiceLists = {
   ],
   'azure-tts-v2': [
     { label: 'zh-CN-XiaoxiaoNeural-V2-Female', value: 'zh-CN-XiaoxiaoNeural-V2' },
-    { label: 'zh-CN-XiaoyiNeural-V2-Female', value: 'zh-CN-XiaoyiNeural-V2' },
+    { label: 'zh-CN-YiaoyiNeural-V2-Female', value: 'zh-CN-YiaoyiNeural-V2' },
     { label: 'zh-CN-YunjianNeural-V2-Male', value: 'zh-CN-YunjianNeural-V2' },
     { label: 'zh-CN-YunxiNeural-V2-Male', value: 'zh-CN-YunxiNeural-V2' },
     { label: 'zh-CN-YunxiaNeural-V2-Male', value: 'zh-CN-YunxiaNeural-V2' },
@@ -280,7 +287,7 @@ const voiceLists = {
 
 // Current TTS server's voice list
 const currentVoiceList = computed(() => {
-  return voiceLists[form.ttsServer] || [];
+  return voiceLists[form.ttsServer as keyof typeof voiceLists] || [];
 });
 
 // Filtered voice list (supports search)
@@ -289,7 +296,7 @@ const filteredVoiceList = computed(() => {
     return currentVoiceList.value;
   }
   const keyword = searchKeyword.value.toLowerCase();
-  return currentVoiceList.value.filter(voice => 
+  return currentVoiceList.value.filter((voice: Voice) => 
     voice.label.toLowerCase().includes(keyword)
   );
 });
@@ -299,13 +306,13 @@ const currentVoiceSupportsEmotion = computed(() => {
   if (form.ttsServer !== 'coze-tts') {
     return false;
   }
-  const selectedVoice = currentVoiceList.value.find(voice => voice.value === form.speechSynthesis);
-  return selectedVoice ? selectedVoice.supportsEmotion : false;
+  const selectedVoice = currentVoiceList.value.find((voice: Voice) => voice.value === form.speechSynthesis);
+  return selectedVoice ? selectedVoice.supportsEmotion || false : false;
 });
 
 // Watch TTS server changes, reset voice selection
 watch(() => form.ttsServer, (newServer) => {
-  const voices = voiceLists[newServer] || [];
+  const voices = voiceLists[newServer as keyof typeof voiceLists] || [];
   form.speechSynthesis = voices.length > 0 ? voices[0].value : '';
   form.voiceEmotion = 'neutral';
 });
@@ -319,7 +326,7 @@ watch(() => form.speechSynthesis, () => {
 
 // Initialize default voice
 const initDefaultVoice = () => {
-  const voices = voiceLists[form.ttsServer] || [];
+  const voices = voiceLists[form.ttsServer as keyof typeof voiceLists] || [];
   form.speechSynthesis = voices.length > 0 ? voices[0].value : '';
 };
 

@@ -85,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { reactive } from 'vue';
 import { useI18nStore } from '../stores/i18n';
 
 const i18nStore = useI18nStore();
