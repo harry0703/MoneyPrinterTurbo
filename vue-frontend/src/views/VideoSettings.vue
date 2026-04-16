@@ -95,7 +95,7 @@
         <div class="form-item">
           <label class="form-label" v-html="parseLabelMarkdown(t('Video Style'))"></label>
           <el-select v-model="form.videoStyle" :placeholder="t('Select video style')" class="form-select">
-            <el-option :label="t('Video Style None')" value="" />
+            <el-option :label="t('Video Style None')" value="none" />
             <el-option :label="t('People/Human')" value="people" />
             <el-option :label="t('Nature/Landscape')" value="nature" />
             <el-option :label="t('Animation')" value="animation" />
@@ -132,7 +132,7 @@ const form = reactive({
   videoAspect: 'landscape',
   videoClipDuration: 3,
   videoCount: 1,
-  videoStyle: ''
+  videoStyle: 'none'
 });
 
 const handleFileRemove = (file: FileItem) => {
