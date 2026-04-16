@@ -2,7 +2,7 @@
   <div class="app">
     <header class="app-header">
       <div class="header-content">
-        <h1>{{ t('MoneyPrinterTurbo') }}</h1>
+        <h1>{{ t('MoneyPrinterCN') }} <span v-if="settingsStore.version" class="version">{{ settingsStore.version.version }}</span></h1>
         <div class="header-actions">
           <el-button type="primary" @click="showSettings = true">
             <el-icon><Setting /></el-icon>
@@ -74,7 +74,7 @@
     </main>
     
     <footer class="app-footer">
-      <p>{{ t('MoneyPrinterTurbo') }} © {{ new Date().getFullYear() }}</p>
+      <p>{{ t('MoneyPrinterCN') }} © {{ new Date().getFullYear() }}</p>
     </footer>
   </div>
 </template>
@@ -85,12 +85,14 @@ import { useRoute, useRouter } from 'vue-router';
 import { VideoCamera, Document, Microphone, ChatLineSquare, Collection, Timer, VideoPlay, Setting } from '@element-plus/icons-vue';
 import { useI18nStore } from './stores/i18n';
 import { useTasksStore } from './stores/tasks';
+import { useSettingsStore } from './stores/settings';
 import SettingsPanel from './views/SettingsPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
 const i18nStore = useI18nStore();
 const tasksStore = useTasksStore();
+const settingsStore = useSettingsStore();
 
 const showSettings = ref(false);
 const activeMenu = computed(() => route.path);
@@ -110,23 +112,23 @@ const handleMenuSelect = (key: string) => {
 };
 
 const handleSettingsSaved = () => {
-  // 设置保存后的处理逻辑
+  // Processing logic after settings are saved
   console.log('Settings saved successfully');
-  // 可以在这里添加提示信息或其他逻辑
+  // You can add notification messages or other logic here
 };
 
 const generateVideo = async () => {
-  // 这里实现视频生成逻辑
+  // Video generation logic implementation here
   console.log('Generating video...');
   
-  // 收集所有表单数据
+  // Collect all form data
   const videoSettings = (window as any).__VUE_APP_VIDEO_SETTINGS__;
   const scriptSettings = (window as any).__VUE_APP_SCRIPT_SETTINGS__;
   const audioSettings = (window as any).__VUE_APP_AUDIO_SETTINGS__;
   const subtitleSettings = (window as any).__VUE_APP_SUBTITLE_SETTINGS__;
   const sceneIntegration = (window as any).__VUE_APP_SCENE_INTEGRATION__;
   
-  // 验证所有表单
+  // Validate all forms
   let isValid = true;
   if (videoSettings && videoSettings.validate) {
     isValid = isValid && await videoSettings.validate();
@@ -146,7 +148,7 @@ const generateVideo = async () => {
     return;
   }
   
-  // 构建任务参数
+  // Build task parameters
   const taskParams = {
     video_subject: scriptSettings?.form.videoSubject || '',
     video_script: scriptSettings?.form.videoScript || '',
@@ -178,19 +180,21 @@ const generateVideo = async () => {
   
   console.log('Task params:', taskParams);
   
-  // 创建任务
+  // Create task
   const task = await tasksStore.createTask(taskParams, 'video');
   if (task) {
-    // 跳转到任务管理页面
+    // Navigate to task management page
     router.push('/task');
   }
 };
 
 onMounted(async () => {
-  // 加载翻译
+  // Load translations
   await i18nStore.loadTranslations();
-  // 加载语言设置
+  // Load language settings
   i18nStore.loadLanguageFromLocalStorage();
+  // Load version information
+  await settingsStore.fetchVersion();
 });
 </script>
 
@@ -221,6 +225,18 @@ onMounted(async () => {
 .header-content h1 {
   margin: 0;
   font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.version {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .header-actions {

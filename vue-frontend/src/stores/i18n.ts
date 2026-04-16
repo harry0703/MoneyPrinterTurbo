@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 
-// 语言类型定义
+// Language type definition
 export type Language = 'zh' | 'en' | 'de' | 'pt' | 'ru' | 'tr' | 'vi';
 
-// 翻译资源接口
+// Translation resources interface
 interface TranslationResources {
   [key: string]: {
     Translation: {
@@ -49,7 +49,7 @@ export const useI18nStore = defineStore('i18n', {
       this.error = null;
       
       try {
-        // 加载所有语言文件
+        // Load all language files
         const languages: Language[] = ['zh', 'en', 'de', 'pt', 'ru', 'tr', 'vi'];
         const resources: TranslationResources = {};
         

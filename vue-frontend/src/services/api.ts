@@ -1,25 +1,25 @@
 import axios from 'axios';
 
-// API响应类型
+// API response type
 export interface ApiResponse {
   code: number;
   data: any;
   message?: string;
 }
 
-// 创建axios实例
+// Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:8000', // 假设后端运行在8000端口
+  baseURL: 'http://localhost:8000', // Assuming backend runs on port 8000
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// 请求拦截器
+// Request interceptor
 api.interceptors.request.use(
   config => {
-    // 可以在这里添加认证信息
+    // You can add authentication information here
     return config;
   },
   error => {
@@ -27,7 +27,7 @@ api.interceptors.request.use(
   }
 );
 
-// 响应拦截器
+// Response interceptor
 api.interceptors.response.use(
   response => {
     return response;
@@ -38,19 +38,19 @@ api.interceptors.response.use(
   }
 );
 
-// API接口定义
+// API interface definition
 export const apiService = {
-  // 视频生成相关
+  // Video generation related
   createVideo: (params: any) => api.post<ApiResponse>('/videos', params).then(res => res.data),
   createSubtitle: (params: any) => api.post<ApiResponse>('/subtitle', params).then(res => res.data),
   createAudio: (params: any) => api.post<ApiResponse>('/audio', params).then(res => res.data),
   
-  // 任务管理相关
+  // Task management related
   getAllTasks: (page: number = 1, pageSize: number = 10) => api.get<ApiResponse>(`/tasks?page=${page}&page_size=${pageSize}`).then(res => res.data),
   getTask: (taskId: string) => api.get<ApiResponse>(`/tasks/${taskId}`).then(res => res.data),
   deleteTask: (taskId: string) => api.delete<ApiResponse>(`/tasks/${taskId}`).then(res => res.data),
   
-  // 资源管理相关
+  // Resource management related
   getBgmList: () => api.get<ApiResponse>('/musics').then(res => res.data),
   uploadBgm: (file: File) => {
     const formData = new FormData();
@@ -71,7 +71,10 @@ export const apiService = {
         'Content-Type': 'multipart/form-data'
       }
     }).then(res => res.data);
-  }
+  },
+  
+  // Get version information
+  getVersion: () => api.get<{name: string, version: string}>('/version').then(res => res.data)
 };
 
 export default api;

@@ -8,7 +8,7 @@
       </template>
       
       <div class="integration-content">
-        <!-- 输入类型选择 -->
+        <!-- Input Type Selection -->
         <div class="form-item">
           <label class="form-label">{{ t('Input Type') }}</label>
           <el-radio-group v-model="inputType">
@@ -17,7 +17,7 @@
           </el-radio-group>
         </div>
         
-        <!-- 任务输入 -->
+        <!-- Task Input -->
         <div class="form-item">
           <label class="form-label" v-if="inputType === 'taskId'">{{ t('Task ID') }}</label>
           <label class="form-label" v-else>{{ t('Task Directory') }}</label>
@@ -29,12 +29,12 @@
           <div v-if="inputType === 'directory'" class="tip">{{ t('Please enter the full path to the task directory') }}</div>
         </div>
         
-        <!-- 扫描按钮 -->
+        <!-- Scan Button -->
         <div class="form-item">
           <el-button type="primary" class="form-button" @click="scanTask">{{ t('Scan') }}</el-button>
         </div>
         
-        <!-- 扫描结果 -->
+        <!-- Scan Results -->
         <div v-if="taskFiles" class="scan-results">
           <h3 class="section-title">{{ t('Detected Files') }}</h3>
           
@@ -54,18 +54,18 @@
             
             <el-alert
               :type="taskFiles.sceneAudio > 0 ? 'success' : 'warning'"
-              :title="taskFiles.sceneAudio > 0 ? `✅ ${t('Scene Audio')}: ${taskFiles.sceneAudio} ${t('items')}` : '⚠️ 未找到场景音频'"
+              :title="taskFiles.sceneAudio > 0 ? `✅ ${t('Scene Audio')}: ${taskFiles.sceneAudio} ${t('items')}` : '⚠️ ' + t('No scene audio found')"
               :closable="false"
             />
             
             <el-alert
               :type="taskFiles.subtitle ? 'success' : 'warning'"
-              :title="taskFiles.subtitle ? `✅ ${t('Subtitle File')}: 1 ${t('items')}` : '⚠️ 未找到字幕文件'"
+              :title="taskFiles.subtitle ? `✅ ${t('Subtitle File')}: 1 ${t('items')}` : '⚠️ ' + t('No subtitle file found')"
               :closable="false"
             />
           </div>
           
-          <!-- 场景范围选择 -->
+          <!-- Scene Range Selection -->
           <div v-if="taskFiles.sceneVideos > 0" class="scene-range">
             <h3 class="section-title">{{ t('Scene Range Selection') }}</h3>
             <div class="range-selectors">
@@ -95,7 +95,7 @@
             </div>
           </div>
           
-          <!-- 开始集成按钮 -->
+          <!-- Start Integration Button -->
           <div v-if="taskFiles.sceneVideos > 0" class="form-item">
             <el-button
               type="primary"
@@ -103,11 +103,11 @@
               @click="startIntegration"
               :disabled="isRunning"
             >
-              {{ isRunning ? '集成中...' : t('Start Integration') }}
+              {{ isRunning ? t('Integrating...') : t('Start Integration') }}
             </el-button>
           </div>
           
-          <!-- 进度条 -->
+          <!-- Progress Bar -->
           <div v-if="isRunning" class="progress-container">
             <el-progress
               :percentage="progress"
@@ -116,7 +116,7 @@
             <div class="progress-status">{{ status }}</div>
           </div>
           
-          <!-- 集成结果 -->
+          <!-- Integration Result -->
           <div v-if="integrationResult" class="integration-result">
             <h3 class="section-title">{{ t('Generated Video') }}</h3>
             <div class="video-preview">
@@ -140,45 +140,45 @@ import { useI18nStore } from '../stores/i18n';
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
 
-// 输入类型
+// Input type
 const inputType = ref('taskId');
-// 任务输入
+// Task input
 const taskInput = ref('');
-// 任务文件信息
+// Task file information
 const taskFiles = ref<any>(null);
-// 开始场景
+// Start scene
 const startScene = ref(1);
-// 结束场景
+// End scene
 const endScene = ref(1);
-// 是否正在运行
+// Whether it's running
 const isRunning = ref(false);
-// 进度
+// Progress
 const progress = ref(0);
-// 状态
+// Status
 const status = ref('');
-// 集成结果
+// Integration result
 const integrationResult = ref('');
 
-// 监听开始场景变化，更新结束场景
+// Watch start scene changes, update end scene
 watch(startScene, (newStart) => {
   if (endScene.value < newStart) {
     endScene.value = newStart;
   }
 });
 
-// 扫描任务
+// Scan task
 const scanTask = () => {
   if (!taskInput.value) {
     return;
   }
   
-  // 模拟扫描过程
+  // Simulate scanning process
   status.value = t('Scanning task directory...');
   isRunning.value = true;
   
-  // 模拟API调用
+  // Simulate API call
   setTimeout(() => {
-    // 模拟扫描结果
+    // Simulate scan results
     taskFiles.value = {
       sceneVideos: 5,
       sceneAudio: 5,
@@ -192,7 +192,7 @@ const scanTask = () => {
   }, 1000);
 };
 
-// 开始集成
+// Start integration
 const startIntegration = () => {
   if (!taskInput.value || !taskFiles.value) {
     return;
@@ -202,20 +202,20 @@ const startIntegration = () => {
   progress.value = 0;
   status.value = t('Starting...');
   
-  // 模拟集成过程
+  // Simulate integration process
   let currentProgress = 0;
   const interval = setInterval(() => {
     currentProgress += 10;
     progress.value = currentProgress;
     
     if (currentProgress < 30) {
-      status.value = '处理场景视频...';
+      status.value = t('Processing scene videos...');
     } else if (currentProgress < 60) {
-      status.value = '处理音频...';
+      status.value = t('Processing audio...');
     } else if (currentProgress < 90) {
-      status.value = '处理字幕...';
+      status.value = t('Processing subtitles...');
     } else {
-      status.value = '生成最终视频...';
+      status.value = t('Generating final video...');
     }
     
     if (currentProgress >= 100) {
@@ -227,9 +227,9 @@ const startIntegration = () => {
   }, 500);
 };
 
-// 下载视频
+// Download video
 const downloadVideo = () => {
-  // 模拟下载
+  // Simulate download
   console.log('Downloading video:', integrationResult.value);
 };
 

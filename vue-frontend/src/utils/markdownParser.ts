@@ -1,67 +1,67 @@
 import { marked } from 'marked';
 
 /**
- * Markdown解析工具
- * 用于识别和解析标签中的Markdown格式文字
+ * Markdown parsing utility
+ * Used to identify and parse Markdown formatted text in labels
  */
 export class MarkdownParser {
   /**
-   * 解析Markdown字符串
-   * @param text 包含Markdown格式的文本
-   * @returns 解析后的HTML
+   * Parse Markdown string
+   * @param text Text containing Markdown format
+   * @returns Parsed HTML
    */
   static parse(text: string): string {
     if (!text) return '';
     
-    // 预处理：处理Markdown边界问题
+    // Preprocess: handle Markdown boundary issues
     const processedText = this.preprocess(text);
     
-    // 使用marked解析Markdown
+    // Use marked to parse Markdown
     const result = marked.parse(processedText);
     return typeof result === 'string' ? result : '';
   }
   
   /**
-   * 预处理文本，处理Markdown边界问题
-   * @param text 原始文本
-   * @returns 处理后的文本
+   * Preprocess text, handle Markdown boundary issues
+   * @param text Original text
+   * @returns Processed text
    */
   private static preprocess(text: string): string {
     return text
-      // 处理颜色语法 :blue[内容]
+      // Handle color syntax :blue[content]
       .replace(/:([a-zA-Z]+)\[([^\]]+)\]/g, '<span style="color: $1;">$2</span>')
-      // 处理加粗标记与相邻字符紧贴的问题
+      // Handle bold markers adjacent to characters
       .replace(/([^\s*])(\*\*)([^\s*])/g, '$1 **$3')
       .replace(/(\*\*)([^\s*])([^\s*])/g, '** $2$3')
-      // 处理加粗标记内部的空格
+      // Handle spaces inside bold markers
       .replace(/\*\*\s*(.+?)\s*\*\*/g, '**$1**')
-      // 处理其他Markdown格式的边界问题
+      // Handle other Markdown format boundary issues
       .replace(/([^\s_])(_)([^\s_])/g, '$1 _$3')
       .replace(/(_)([^\s_])([^\s_])/g, '_ $2$3')
       .replace(/\s*(_)(.+?)(_)\s*/g, '_$2_');
   }
   
   /**
-   * 提取文本中的Markdown标签
-   * @param text 包含Markdown格式的文本
-   * @returns 提取的Markdown标签数组
+   * Extract Markdown tags from text
+   * @param text Text containing Markdown format
+   * @returns Array of extracted Markdown tags
    */
   static extractMarkdownTags(text: string): string[] {
     const tags: string[] = [];
     
-    // 提取加粗标签
+    // Extract bold tags
     const boldTags = text.match(/\*\*(.+?)\*\*/g);
     if (boldTags) tags.push(...boldTags);
     
-    // 提取斜体标签
+    // Extract italic tags
     const italicTags = text.match(/_(.+?)_/g);
     if (italicTags) tags.push(...italicTags);
     
-    // 提取链接标签
+    // Extract link tags
     const linkTags = text.match(/\[(.+?)\]\((.+?)\)/g);
     if (linkTags) tags.push(...linkTags);
     
-    // 提取图片标签
+    // Extract image tags
     const imageTags = text.match(/!\[(.+?)\]\((.+?)\)/g);
     if (imageTags) tags.push(...imageTags);
     
@@ -69,73 +69,73 @@ export class MarkdownParser {
   }
   
   /**
-   * 检测文本是否包含Markdown格式
-   * @param text 待检测的文本
-   * @returns 是否包含Markdown格式
+   * Check if text contains Markdown format
+   * @param text Text to check
+   * @returns Whether it contains Markdown format
    */
   static hasMarkdown(text: string): boolean {
     if (!text) return false;
     
-    // 检测常见的Markdown格式
+    // Check common Markdown formats
     const markdownPatterns = [
-      /\*\*[^*]+\*\*/, // 加粗
-      /_[^_]+_/, // 斜体
-      /\[.+?\]\(.+?\)/, // 链接
-      /!\[.+?\]\(.+?\)/, // 图片
-      /^# .+/m, // 标题
-      /^\* .+/m, // 列表
-      /^- .+/m, // 列表
-      /^\d+\. .+/m, // 有序列表
-      /`[^`]+`/, // 代码
-      /```[\s\S]+?```/ // 代码块
+      /\*\*[^*]+\*\*/, // Bold
+      /_[^_]+_/, // Italic
+      /\[.+?\]\(.+?\)/, // Link
+      /!\[.+?\]\(.+?\)/, // Image
+      /^# .+/m, // Heading
+      /^\* .+/m, // List
+      /^- .+/m, // List
+      /^\d+\. .+/m, // Ordered list
+      /`[^`]+`/, // Code
+      /```[\s\S]+?```/ // Code block
     ];
     
     return markdownPatterns.some(pattern => pattern.test(text));
   }
   
   /**
-   * 移除文本中的Markdown格式
-   * @param text 包含Markdown格式的文本
-   * @returns 移除Markdown格式后的纯文本
+   * Remove Markdown format from text
+   * @param text Text containing Markdown format
+   * @returns Plain text without Markdown format
    */
   static removeMarkdown(text: string): string {
     if (!text) return '';
     
     return text
-      // 移除加粗标记
+      // Remove bold markers
       .replace(/\*\*(.+?)\*\*/g, '$1')
-      // 移除斜体标记
+      // Remove italic markers
       .replace(/_(.+?)_/g, '$1')
-      // 移除链接标记，保留链接文本
+      // Remove link markers, keep link text
       .replace(/\[(.+?)\]\((.+?)\)/g, '$1')
-      // 移除图片标记
+      // Remove image markers
       .replace(/!\[(.+?)\]\((.+?)\)/g, '$1')
-      // 移除标题标记
+      // Remove heading markers
       .replace(/^#\s+/gm, '')
-      // 移除列表标记
+      // Remove list markers
       .replace(/^\s*[*\-]\s+/gm, '')
       .replace(/^\s*\d+\.\s+/gm, '')
-      // 移除代码标记
+      // Remove code markers
       .replace(/`([^`]+)`/g, '$1')
       .replace(/```[\s\S]+?```/g, '');
   }
 }
 
 /**
- * 解析标签中的Markdown格式
- * @param text 包含Markdown格式的标签文本
- * @returns 解析后的HTML
+ * Parse Markdown format in labels
+ * @param text Label text containing Markdown format
+ * @returns Parsed HTML
  */
 export function parseLabelMarkdown(text: string): string {
-  // 移除括号中的内容，只保留标签本身
+  // Remove content in parentheses, only keep the label itself
   const labelText = text.replace(/\([^)]*\)/g, '').trim();
   return MarkdownParser.parse(labelText);
 }
 
 /**
- * 提取标签中的提示信息（括号内的内容）
- * @param text 标签文本
- * @returns 提取的提示信息
+ * Extract hint information from labels (content in parentheses)
+ * @param text Label text
+ * @returns Extracted hint information
  */
 export function extractLabelHint(text: string): string {
   const match = text.match(/\(([^)]*)\)/);
@@ -143,18 +143,18 @@ export function extractLabelHint(text: string): string {
 }
 
 /**
- * 检测标签是否包含Markdown格式
- * @param text 标签文本
- * @returns 是否包含Markdown格式
+ * Check if label contains Markdown format
+ * @param text Label text
+ * @returns Whether it contains Markdown format
  */
 export function hasLabelMarkdown(text: string): boolean {
   return MarkdownParser.hasMarkdown(text);
 }
 
 /**
- * 移除标签中的Markdown格式
- * @param text 包含Markdown格式的标签文本
- * @returns 移除Markdown格式后的纯文本
+ * Remove Markdown format from labels
+ * @param text Label text containing Markdown format
+ * @returns Plain text without Markdown format
  */
 export function removeLabelMarkdown(text: string): string {
   return MarkdownParser.removeMarkdown(text);

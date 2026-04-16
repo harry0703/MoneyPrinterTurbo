@@ -3,18 +3,18 @@
     <el-card :body-style="{ padding: '20px' }">
       <template #header>
         <div class="card-header">
-          <h2 class="title">字幕设置</h2>
+          <h2 class="title">{{ t('Subtitle Settings') }}</h2>
         </div>
       </template>
       
       <div class="settings-form">
         <div class="form-item">
-          <el-checkbox v-model="form.enableSubtitles">启用字幕（若取消勾选，下面的设置都将不生效）</el-checkbox>
+          <el-checkbox v-model="form.enableSubtitles">{{ t('Enable subtitles (if unchecked, the following settings will not take effect)') }}</el-checkbox>
         </div>
         
         <div class="form-item" v-if="form.enableSubtitles">
-          <label class="form-label">字幕字体</label>
-          <el-select v-model="form.subtitleFont" placeholder="选择字体" class="form-select">
+          <label class="form-label">{{ t('Subtitle Font') }}</label>
+          <el-select v-model="form.subtitleFont" :placeholder="t('Select font')" class="form-select">
             <el-option label="MicrosoftYaHeiBold.ttc" value="MicrosoftYaHeiBold.ttc" />
             <el-option label="Arial" value="Arial" />
             <el-option label="SimHei" value="SimHei" />
@@ -24,30 +24,30 @@
         </div>
         
         <div class="form-item" v-if="form.enableSubtitles">
-          <label class="form-label">字幕位置</label>
-          <el-select v-model="form.subtitlePosition" placeholder="选择位置" class="form-select">
-            <el-option label="顶部" value="top" />
-            <el-option label="中间" value="middle" />
-            <el-option label="底部（推荐）" value="bottom" />
-            <el-option label="自定义位置（70，表示离顶部70%的位置）" value="custom" />
+          <label class="form-label">{{ t('Subtitle Position') }}</label>
+          <el-select v-model="form.subtitlePosition" :placeholder="t('Select position')" class="form-select">
+            <el-option :label="t('Top')" value="top" />
+            <el-option :label="t('Middle')" value="middle" />
+            <el-option :label="t('Bottom (Recommended)')" value="bottom" />
+            <el-option :label="t('Custom Position (70, means 70% from top)')" value="custom" />
           </el-select>
         </div>
         
         <div class="form-item" v-if="form.enableSubtitles && form.subtitlePosition === 'custom'">
-          <label class="form-label">Custom Position (% from top)</label>
-          <el-input v-model="form.subtitleCustomPosition" placeholder="输入自定义位置" class="form-input" />
+          <label class="form-label">{{ t('Custom Position (% from top)') }}</label>
+          <el-input v-model="form.subtitleCustomPosition" :placeholder="t('Enter custom position')" class="form-input" />
         </div>
         
         <div class="form-item" v-if="form.enableSubtitles">
           <div style="display: flex; justify-content: space-between; gap: 20px;">
             <div style="flex: 1;">
-              <label class="form-label">字幕颜色</label>
+              <label class="form-label">{{ t('Subtitle Color') }}</label>
               <div class="color-picker-container">
                 <el-color-picker v-model="form.subtitleColor" show-alpha />
               </div>
             </div>
             <div style="flex: 2;">
-              <label class="form-label">字幕大小</label>
+              <label class="form-label">{{ t('Subtitle Size') }}</label>
               <el-slider
                 v-model="form.subtitleFontSize"
                 :min="30"
@@ -62,13 +62,13 @@
         <div class="form-item" v-if="form.enableSubtitles">
           <div style="display: flex; justify-content: space-between; gap: 20px;">
             <div style="flex: 1;">
-              <label class="form-label">描边颜色</label>
+              <label class="form-label">{{ t('Outline Color') }}</label>
               <div class="color-picker-container">
                 <el-color-picker v-model="form.subtitleOutlineColor" show-alpha />
               </div>
             </div>
             <div style="flex: 2;">
-              <label class="form-label">描边粗细</label>
+              <label class="form-label">{{ t('Outline Width') }}</label>
               <el-slider
                 v-model="form.subtitleOutlineWidth"
                 :min="0"

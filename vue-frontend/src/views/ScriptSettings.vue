@@ -1,19 +1,19 @@
 <template>
   <div class="script-settings">
-    <!-- 文案设置卡片 -->
+    <!-- Script Settings Card -->
     <el-card :body-style="{ padding: '20px' }" class="main-card">
       <template #header>
         <div class="card-header">
-          <h2 class="title">文案设置</h2>
+          <h2 class="title">Script Settings</h2>
         </div>
       </template>
       
       <div class="settings-form">
         <div class="form-item">
-          <label class="form-label">视频主题（给定一个关键词，<span style="color: red;">AI自动生成视频文案</span>）</label>
+          <label class="form-label">Video Topic (Provide a keyword, <span style="color: red;">AI will automatically generate video script</span>)</label>
           <el-input
             v-model="form.videoSubject"
-            placeholder="输入视频主题"
+            placeholder="Enter video topic"
             type="text"
             maxlength="100"
             show-word-limit
@@ -22,9 +22,9 @@
         </div>
         
         <div class="form-item">
-          <label class="form-label">生成视频脚本的语言（一般情况AI会自动根据你输入的主题语言输出）</label>
-          <el-select v-model="form.language" placeholder="选择语言" class="form-select">
-            <el-option label="自动检测" value="auto" />
+          <label class="form-label">Language for video script (AI will automatically detect based on your input language)</label>
+          <el-select v-model="form.language" placeholder="Select language" class="form-select">
+            <el-option label="Auto Detect" value="auto" />
             <el-option label="Chinese" value="zh" />
             <el-option label="English" value="en" />
             <el-option label="German" value="de" />
@@ -36,14 +36,14 @@
         </div>
         
         <div class="form-item">
-          <el-button type="primary" class="form-button">根据主题生成【视频文案】</el-button>
+          <el-button type="primary" class="form-button">Generate [Video Script] from Topic</el-button>
         </div>
         
         <div class="form-item">
-          <label class="form-label">视频文案 <span style="color: blue;">（①可不填，使用AI生成 ②合理使用标点断句，有助于生成字幕）</span></label>
+          <label class="form-label">Video Script <span style="color: blue;">（① Optional, use AI generation ② Proper punctuation helps subtitle generation）</span></label>
           <el-input
             v-model="form.videoScript"
-            placeholder="输入视频文案"
+            placeholder="Enter video script"
             type="textarea"
             :rows="6"
             maxlength="5000"
@@ -53,24 +53,24 @@
         </div>
         
         <div class="form-item">
-          <el-button type="primary" class="form-button">解析当前【视频文案】</el-button>
+          <el-button type="primary" class="form-button">Parse Current [Video Script]</el-button>
         </div>
       </div>
     </el-card>
     
-    <!-- 场景管理卡片 -->
+    <!-- Scene Management Card -->
     <el-card :body-style="{ padding: '20px' }" class="scene-card-container">
       <template #header>
         <div class="card-header">
-          <h2 class="title">🎬 场景管理</h2>
+          <h2 class="title">🎬 Scene Management</h2>
         </div>
       </template>
       
       <div class="scene-management-content">
-        <!-- 导入导出按钮 -->
+        <!-- Import/Export Buttons -->
         <div class="scene-actions">
-          <el-button size="small" @click="exportScenes">导出场景</el-button>
-          <el-button size="small" @click="triggerImport">导入场景</el-button>
+          <el-button size="small" @click="exportScenes">Export Scenes</el-button>
+          <el-button size="small" @click="triggerImport">Import Scenes</el-button>
           <input
             ref="fileInput"
             type="file"
@@ -80,57 +80,57 @@
           />
         </div>
         
-        <!-- 场景列表 -->
+        <!-- Scene List -->
         <div class="scenes-list">
           <div v-for="(scene, index) in scenes" :key="scene.id" class="scene-card">
             <div class="scene-header">
-              <div class="scene-title">场景 {{ index + 1 }}</div>
+              <div class="scene-title">Scene {{ index + 1 }}</div>
               <div class="scene-header-actions">
-                <el-button size="small" @click="deleteScene(index)">删除</el-button>
-                <el-button size="small" @click="copyScene(index)">复制</el-button>
-                <el-button size="small" @click="moveSceneUp(index)" :disabled="index === 0">上移</el-button>
-                <el-button size="small" @click="moveSceneDown(index)" :disabled="index === scenes.length - 1">下移</el-button>
+                <el-button size="small" @click="deleteScene(index)">Delete</el-button>
+                <el-button size="small" @click="copyScene(index)">Copy</el-button>
+                <el-button size="small" @click="moveSceneUp(index)" :disabled="index === 0">Move Up</el-button>
+                <el-button size="small" @click="moveSceneDown(index)" :disabled="index === scenes.length - 1">Move Down</el-button>
               </div>
             </div>
             
             <div class="scene-content">
               <div class="form-item">
-                <label class="form-label">时长（秒）</label>
-                <el-input v-model.number="scene.duration" type="number" placeholder="输入时长" class="form-input" />
+                <label class="form-label">Duration (seconds)</label>
+                <el-input v-model.number="scene.duration" type="number" placeholder="Enter duration" class="form-input" />
               </div>
               
               <div class="form-item">
-                <label class="form-label">视觉需求</label>
-                <el-input v-model="scene.visual_requirement" type="textarea" :rows="3" placeholder="输入详细描述" class="form-textarea" />
+                <label class="form-label">Visual Requirements</label>
+                <el-input v-model="scene.visual_requirement" type="textarea" :rows="3" placeholder="Enter detailed description" class="form-textarea" />
               </div>
               
               <div class="form-item">
-                <label class="form-label">关键词（逗号分隔）</label>
-                <el-input v-model="scene.keywords" placeholder="输入关键词" class="form-input" />
+                <label class="form-label">Keywords (comma separated)</label>
+                <el-input v-model="scene.keywords" placeholder="Enter keywords" class="form-input" />
               </div>
               
               <div class="form-item">
-                <label class="form-label">场景文案</label>
-                <el-input v-model="scene.script" type="textarea" :rows="4" placeholder="输入场景文案" class="form-textarea" />
+                <label class="form-label">Scene Script</label>
+                <el-input v-model="scene.script" type="textarea" :rows="4" placeholder="Enter scene script" class="form-textarea" />
               </div>
               
               <div class="form-item">
-                <label class="form-label">片头视频</label>
+                <label class="form-label">Intro Video</label>
                 <div class="intro-video-section">
                   <div class="intro-video-info" v-if="scene.introVideo">
                     <div class="intro-video-path">
                       <span class="intro-video-file">{{ scene.introVideo }}</span>
-                      <el-button size="small" @click="clearIntroVideo(index)">清除</el-button>
+                      <el-button size="small" @click="clearIntroVideo(index)">Clear</el-button>
                     </div>
                     <div class="intro-video-duration">
                       <el-icon class="video-icon"><VideoCamera /></el-icon>
-                      <el-input v-model.number="scene.introVideoDuration" type="number" placeholder="时长" class="duration-input" />
+                      <el-input v-model.number="scene.introVideoDuration" type="number" placeholder="Duration" class="duration-input" />
                       <span class="duration-unit">s</span>
                     </div>
                   </div>
                   <div class="intro-video-placeholder" v-else>
-                    <span>未设置</span>
-                    <el-button size="small" @click="triggerIntroVideoImport(index)">导入片头视频</el-button>
+                    <span>Not set</span>
+                    <el-button size="small" @click="triggerIntroVideoImport(index)">Import Intro Video</el-button>
                   </div>
                   <input
                     :ref="el => setFileInputRef(el, index)"
@@ -145,9 +145,9 @@
           </div>
         </div>
         
-        <!-- 添加新场景按钮 -->
+        <!-- Add New Scene Button -->
         <div class="form-item">
-          <el-button type="primary" class="form-button" @click="addNewScene">添加新场景</el-button>
+          <el-button type="primary" class="form-button" @click="addNewScene">Add New Scene</el-button>
         </div>
       </div>
     </el-card>
@@ -170,7 +170,7 @@ const t = i18nStore.t;
 const fileInput = ref<HTMLInputElement | null>(null);
 const introVideoFileInputs = ref<{[key: number]: HTMLInputElement | null}>({});
 
-// 从store获取数据
+// Get data from store
 const form = scriptStore;
 const scenes = computed(() => scriptStore.scenes);
 
@@ -212,7 +212,7 @@ const copyScene = (index: number) => {
     introVideo: sceneToCopy.introVideo,
     introVideoDuration: sceneToCopy.introVideoDuration
   };
-  // 复制到index+1位置
+  // Copy to index+1 position
   const newScenes = [...scenes.value];
   newScenes.splice(index + 1, 0, copiedScene);
   scriptStore.updateScenes(newScenes);
@@ -238,10 +238,10 @@ const moveSceneDown = (index: number) => {
   }
 };
 
-// 导出场景
+// Export scenes
 const exportScenes = () => {
   if (scenes.value.length === 0) {
-    ElMessage.warning('没有场景可以导出');
+    ElMessage.warning('No scenes to export');
     return;
   }
   
@@ -256,15 +256,15 @@ const exportScenes = () => {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   
-  ElMessage.success('场景导出成功');
+  ElMessage.success('Scenes exported successfully');
 };
 
-// 触发导入
+// Trigger import
 const triggerImport = () => {
   fileInput.value?.click();
 };
 
-// 导入场景
+// Import scenes
 const importScenes = (event: Event) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -278,85 +278,85 @@ const importScenes = (event: Event) => {
       const importedScenes = JSON.parse(content);
       
       if (Array.isArray(importedScenes)) {
-        // 验证导入的数据格式
-        const validScenes = importedScenes.filter((scene: any) => {
-          return scene && typeof scene === 'object' && 
-                 typeof scene.duration === 'number' &&
-                 typeof scene.visual_requirement === 'string' &&
-                 typeof scene.keywords === 'string' &&
-                 typeof scene.script === 'string';
-        });
-        
-        if (validScenes.length > 0) {
-          // 清空现有场景并导入新场景
-          const formattedScenes = validScenes.map((scene: any) => ({
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            duration: scene.duration,
-            visual_requirement: scene.visual_requirement,
-            keywords: scene.keywords,
-            script: scene.script,
-            introVideo: scene.introVideo,
-            introVideoDuration: scene.introVideoDuration || 10
-          }));
-          scriptStore.updateScenes(formattedScenes);
-          ElMessage.success(`成功导入 ${validScenes.length} 个场景`);
+          // Validate imported data format
+          const validScenes = importedScenes.filter((scene: any) => {
+            return scene && typeof scene === 'object' && 
+                   typeof scene.duration === 'number' &&
+                   typeof scene.visual_requirement === 'string' &&
+                   typeof scene.keywords === 'string' &&
+                   typeof scene.script === 'string';
+          });
+          
+          if (validScenes.length > 0) {
+            // Clear existing scenes and import new scenes
+            const formattedScenes = validScenes.map((scene: any) => ({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              duration: scene.duration,
+              visual_requirement: scene.visual_requirement,
+              keywords: scene.keywords,
+              script: scene.script,
+              introVideo: scene.introVideo,
+              introVideoDuration: scene.introVideoDuration || 10
+            }));
+            scriptStore.updateScenes(formattedScenes);
+            ElMessage.success(`Successfully imported ${validScenes.length} scenes`);
+          } else {
+            ElMessage.error('Imported file format is incorrect');
+          }
         } else {
-          ElMessage.error('导入的文件格式不正确');
+          ElMessage.error('Imported file format is incorrect');
         }
-      } else {
-        ElMessage.error('导入的文件格式不正确');
+      } catch (error) {
+        ElMessage.error('Error importing file');
+        console.error('Import error:', error);
+      } finally {
+        // Reset file input to allow selecting the same file again
+        input.value = '';
       }
-    } catch (error) {
-      ElMessage.error('导入文件时出错');
-      console.error('Import error:', error);
-    } finally {
-      // 重置文件输入，以便可以重复选择同一个文件
-      input.value = '';
-    }
   };
   reader.readAsText(file);
 };
 
-// 设置文件输入引用
+// Set file input reference
 const setFileInputRef = (el: HTMLInputElement | null, index: number) => {
   if (el) {
     introVideoFileInputs.value[index] = el;
   }
 };
 
-// 触发片头视频导入
+// Trigger intro video import
 const triggerIntroVideoImport = (index: number) => {
   introVideoFileInputs.value[index]?.click();
 };
 
-// 导入片头视频
+// Import intro video
 const importIntroVideo = (event: Event, index: number) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   
   if (!file) return;
   
-  // 这里可以添加文件上传逻辑
-  // 目前只存储文件名
+  // File upload logic can be added here
+  // Currently only storing file name
   const updatedScene = { ...scenes.value[index], introVideo: file.name };
   scriptStore.updateScene(index, updatedScene);
   
-  // 重置文件输入，以便可以重复选择同一个文件
+  // Reset file input to allow selecting the same file again
   input.value = '';
   
-  ElMessage.success('片头视频导入成功');
+  ElMessage.success('Intro video imported successfully');
 };
 
-// 清除片头视频
+// Clear intro video
 const clearIntroVideo = (index: number) => {
   const updatedScene = { ...scenes.value[index], introVideo: undefined, introVideoDuration: 10 };
   scriptStore.updateScene(index, updatedScene);
-  ElMessage.success('片头视频已清除');
+  ElMessage.success('Intro video cleared');
 };
 
-// 场景变化由store自动处理，不需要额外监听
+// Scene changes are automatically handled by the store, no need for additional listening
 
-// 监听表单字段变化，自动保存
+// Watch form field changes, auto save
 watch(
   () => form.videoSubject,
   (newValue) => {
@@ -378,7 +378,7 @@ watch(
   }
 );
 
-// 组件挂载时加载数据
+// Load data when component is mounted
 onMounted(() => {
   scriptStore.loadFromLocalStorage();
 });

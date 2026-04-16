@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { apiService } from '../services/api';
 
 interface LLMConfig {
   apiKey: string;
@@ -34,6 +35,11 @@ interface UISettings {
   hideLog: boolean;
 }
 
+interface VersionInfo {
+  name: string;
+  version: string;
+}
+
 export const useSettingsStore = defineStore('settings', {
   state: (): {
     app: AppSettings;
@@ -41,8 +47,11 @@ export const useSettingsStore = defineStore('settings', {
     videoSources: VideoSources;
     whisper: WhisperSettings;
     ui: UISettings;
+    version: VersionInfo | null;
   } => ({
-    // 应用设置
+    // Version information
+    version: null,
+    // App settings
     app: {
       llmProvider: 'openai',
       videoSource: 'pexels',
@@ -50,7 +59,7 @@ export const useSettingsStore = defineStore('settings', {
       hideConfig: false
     },
     
-    // LLM配置
+    // LLM configuration
     llm: {
       openai: {
         apiKey: '',
@@ -69,18 +78,18 @@ export const useSettingsStore = defineStore('settings', {
       }
     },
     
-    // 视频源配置
+    // Video source configuration
     videoSources: {
       pexelsApiKeys: [],
       pixabayApiKeys: []
     },
     
-    // Whisper配置
+    // Whisper configuration
     whisper: {
       device: 'CPU'
     },
     
-    // UI配置
+    // UI configuration
     ui: {
       language: 'zh',
       hideLog: false
@@ -143,6 +152,20 @@ export const useSettingsStore = defineStore('settings', {
     
     saveToLocalStorage() {
       localStorage.setItem('moneyprinter-settings', JSON.stringify(this));
+    },
+    
+    async fetchVersion() {
+      try {
+        const versionInfo = await apiService.getVersion();
+        this.version = versionInfo;
+      } catch (error) {
+        console.error('Failed to fetch version:', error);
+        // Fallback to default version if API call fails
+        this.version = {
+          name: 'MoneyPrinterCN',
+          version: '1.2.45'
+        };
+      }
     }
   }
 });

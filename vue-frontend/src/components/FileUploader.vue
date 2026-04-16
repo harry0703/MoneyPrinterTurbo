@@ -96,7 +96,7 @@ const handleExceed = (files: File[], _fileList: FileItem[]) => {
 
 const beforeUpload = (_file: File) => {
   loading.value = true;
-  // 可以在这里添加文件验证逻辑
+  // File validation logic can be added here
   return true;
 };
 </script>

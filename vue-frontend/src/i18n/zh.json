@@ -1,6 +1,7 @@
 {
   "Language": "简体中文",
   "Translation": {
+    "MoneyPrinterCN": "MoneyPrinterCN",
     "Script Settings": "文案设置",
     "Login Required": "需要登录",
     "Input Type": "输入类型",

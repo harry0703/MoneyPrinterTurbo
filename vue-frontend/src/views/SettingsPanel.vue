@@ -12,7 +12,7 @@
         </template>
         
         <el-form :model="form" label-width="150px">
-          <!-- 基础设置 -->
+          <!-- Basic Settings -->
           <el-form-item label="Hide Basic Settings">
             <el-switch v-model="form.hideConfig" />
           </el-form-item>
@@ -29,15 +29,15 @@
         </template>
         
         <el-alert
-          title="中国用户建议"
+          title="Recommendation for Chinese Users"
           type="info"
           :closable="false"
           show-icon
           class="mb-4"
         >
-          <p>建议使用 <strong style="color: #ff4d4f;">DeepSeek</strong> 或 <strong style="color: #ff4d4f;">Moonshot</strong> 作为大模型提供商</p>
-          <p>- 国内可直接访问，不需要VPN</p>
-          <p>- 注册就送额度，基本够用</p>
+          <p>We recommend using <strong style="color: #ff4d4f;">DeepSeek</strong> or <strong style="color: #ff4d4f;">Moonshot</strong> as your LLM provider</p>
+          <p>- Accessible directly in China without VPN</p>
+          <p>- Free credits upon registration, generally sufficient for use</p>
         </el-alert>
         
         <el-form :model="form" label-width="150px">
@@ -241,7 +241,7 @@ const llmTips = computed(() => {
 });
 
 const handleLLMProviderChange = () => {
-  // 根据选择的LLM提供商设置默认值
+  // Set default values based on selected LLM provider
   const provider = form.llmProvider;
   
   switch (provider) {
@@ -288,58 +288,58 @@ const handleLLMProviderChange = () => {
 };
 
 const saveSettings = () => {
-  // 保存设置到状态管理
+  // Save settings to state management
   settingsStore.updateAppSetting('hideConfig', form.hideConfig);
   settingsStore.updateUISetting('hideLog', form.hideLog);
   settingsStore.updateAppSetting('llmProvider', form.llmProvider);
   
-  // 保存LLM配置
+  // Save LLM configuration
   settingsStore.updateLLMSetting(form.llmProvider, 'apiKey', form.llmApiKey);
   settingsStore.updateLLMSetting(form.llmProvider, 'baseUrl', form.llmBaseUrl);
   if (form.llmProvider !== 'ernie') {
     settingsStore.updateLLMSetting(form.llmProvider, 'modelName', form.llmModelName);
   }
   
-  // 保存视频源配置
+  // Save video source configuration
   settingsStore.updateVideoSourceSetting('pexels', form.pexelsApiKey.split(',').map(key => key.trim()).filter(Boolean));
   settingsStore.updateVideoSourceSetting('pixabay', form.pixabayApiKey.split(',').map(key => key.trim()).filter(Boolean));
   
-  // 保存Whisper配置
+  // Save Whisper configuration
   settingsStore.updateWhisperSetting('device', form.whisperDevice);
   
-  // 保存视频编码器配置
+  // Save video encoder configuration
   settingsStore.updateAppSetting('useGpu', form.videoEncoder === 'GPU');
   
-  // 保存到本地存储
+  // Save to local storage
   settingsStore.saveToLocalStorage();
   
-  // 关闭对话框
+  // Close dialog
   visible.value = false;
   
-  // 触发设置保存事件
+  // Trigger settings saved event
   emit('settings-saved');
 };
 
 onMounted(() => {
-  // 从状态管理加载设置
+  // Load settings from state management
   form.hideConfig = settingsStore.app.hideConfig;
   form.hideLog = settingsStore.ui.hideLog;
   form.llmProvider = settingsStore.app.llmProvider;
   
-  // 加载LLM配置
+  // Load LLM configuration
   const llmConfig = settingsStore.getLLMConfig(form.llmProvider);
   form.llmApiKey = llmConfig.apiKey;
   form.llmBaseUrl = llmConfig.baseUrl;
   form.llmModelName = llmConfig.modelName;
   
-  // 加载视频源配置
+  // Load video source configuration
   form.pexelsApiKey = settingsStore.getVideoSourceConfig('pexels').join(', ');
   form.pixabayApiKey = settingsStore.getVideoSourceConfig('pixabay').join(', ');
   
-  // 加载Whisper配置
+  // Load Whisper configuration
   form.whisperDevice = settingsStore.whisper.device;
   
-  // 加载视频编码器配置
+  // Load video encoder configuration
   form.videoEncoder = settingsStore.app.useGpu ? 'GPU' : 'CPU';
 });
 </script>

@@ -167,14 +167,14 @@ def init_log():
     _lvl = "INFO"
 
     def format_record(record):
-        # 获取日志记录中的文件全路径
+        # Get the full file path from the log record
         file_path = record["file"].path
-        # 将绝对路径转换为相对于项目根目录的路径
+        # Convert absolute path to relative path from project root directory
         relative_path = os.path.relpath(file_path, root_dir)
-        # 更新记录中的文件路径
+        # Update the file path in the record
         record["file"].path = f"./{relative_path}"
-        # 返回修改后的格式字符串
-        # 您可以根据需要调整这里的格式
+        # Return the modified format string
+        # You can adjust the format here as needed
         record["message"] = record["message"].replace(root_dir, ".")
 
         _format = (
@@ -247,7 +247,7 @@ def tr(key):
     return loc.get("Translation", {}).get(key, key)
 
 
-# 创建基础设置折叠框
+# Create basic settings expander
 if not config.app.get("hide_config", False):
     with st.expander(tr("Basic Settings"), expanded=False):
         config_panels = st.columns(3)
@@ -255,21 +255,21 @@ if not config.app.get("hide_config", False):
         middle_config_panel = config_panels[1]
         right_config_panel = config_panels[2]
 
-        # 左侧面板 - 日志设置
+        # Left panel - Log settings
         with left_config_panel:
-            # 是否隐藏配置面板
+            # Whether to hide config panel
             hide_config = st.checkbox(
                 tr("Hide Basic Settings"), value=config.app.get("hide_config", False)
             )
             config.app["hide_config"] = hide_config
 
-            # 是否禁用日志显示
+            # Whether to disable log display
             hide_log = st.checkbox(
                 tr("Hide Log"), value=config.ui.get("hide_log", False)
             )
             config.ui["hide_log"] = hide_log
 
-        # 中间面板 - LLM 设置
+        # Middle panel - LLM settings
 
         with middle_config_panel:
             st.write(tr("LLM Settings"))
@@ -496,7 +496,7 @@ if not config.app.get("hide_config", False):
                 if st_llm_account_id:
                     config.app[f"{llm_provider}_account_id"] = st_llm_account_id
 
-        # 右侧面板 - API 密钥设置
+        # Right panel - API key settings
         with right_config_panel:
 
             def get_keys_from_config(cfg_key):
@@ -528,11 +528,11 @@ if not config.app.get("hide_config", False):
             # Whisper settings
             st.write(tr("Whisper Settings"))
             
-            # Device selection - 使用key参数让Streamlit自动管理状态
+            # Device selection - use key parameter to let Streamlit manage state automatically
             whisper_devices = ["CPU", "GPU", "auto"]
             saved_device = config.whisper.get("device", "CPU")
             
-            # 初始化session_state
+            # Initialize session_state
             if "whisper_device" not in st.session_state:
                 st.session_state["whisper_device"] = saved_device
             
@@ -549,13 +549,13 @@ if not config.app.get("hide_config", False):
                 config.save_config()
                 logger.info(f"Whisper device saved to config: {selected_device}")
             
-            # Video Encoder GPU Acceleration - 使用key参数让Streamlit自动管理状态
+            # Video Encoder GPU Acceleration - use key parameter to let Streamlit manage state automatically
             st.write(tr("Video Encoder Settings"))
             video_encoder_options = ["CPU", "GPU"]
             saved_use_gpu = config.app.get("use_gpu", False)
             saved_encoder_value = "GPU" if saved_use_gpu else "CPU"
             
-            # 初始化session_state
+            # Initialize session_state
             if "video_encoder" not in st.session_state:
                 st.session_state["video_encoder"] = saved_encoder_value
             
@@ -580,7 +580,7 @@ right_panel = panel[2]
 
 params = VideoParams(video_subject="")
 
-# 初始化session state以保持文件上传状态
+# Initialize session state to maintain file upload status
 if "uploaded_files" not in st.session_state:
     st.session_state["uploaded_files"] = []
 if "uploaded_file_info" not in st.session_state:
@@ -613,74 +613,74 @@ if start_button:
     config.save_config()
     task_id = str(uuid4())
     
-    # 层级递进校验逻辑
-    # 1. 检查是否有场景信息
+    # Hierarchical validation logic
+    # 1. Check if there are scene information
     has_scenes = st.session_state.get("scenes") and len(st.session_state["scenes"]) > 0
     
-    # 2. 如果没有场景信息，检查是否有视频文案
+    # 2. If no scene information, check if there is video script
     has_script = params.video_script and params.video_script.strip()
     
-    # 3. 如果没有视频文案，检查是否有视频主题
+    # 3. If no video script, check if there is video subject
     has_subject = params.video_subject and params.video_subject.strip()
     
     if not has_scenes and not has_script and not has_subject:
-        st.error("请至少提供视频主题、视频文案或场景信息之一")
+        st.error("Please provide at least one of video subject, video script, or scene information")
         scroll_to_bottom()
         st.stop()
     
-    # 自动补全逻辑
+    # Auto-completion logic
     if not has_scenes:
         if has_script:
-            # 有文案但没有场景，自动触发智能脚本解析
-            st.info("正在自动解析文案为场景...")
+            # Has script but no scenes, automatically trigger intelligent script parsing
+            st.info("Automatically parsing script into scenes...")
             try:
                 from app.services.scene_parser import auto_parse_script
                 result = auto_parse_script(params.video_script, auto_mode=True)
                 if result["status"] in ["success", "manual"] and result["scenes"]:
                     st.session_state["scenes"] = result["scenes"]
-                    st.success(f"成功解析为 {len(result['scenes'])} 个场景")
+                    st.success(f"Successfully parsed into {len(result['scenes'])} scenes")
                     has_scenes = True
                 else:
-                    st.error(f"文案解析失败: {result.get('message', '请检查文案格式')}")
+                    st.error(f"Script parsing failed: {result.get('message', 'Please check script format')}")
                     scroll_to_bottom()
                     st.stop()
             except Exception as e:
-                st.error(f"解析失败: {str(e)}")
+                st.error(f"Parsing failed: {str(e)}")
                 scroll_to_bottom()
                 st.stop()
         elif has_subject:
-            # 只有主题，先自动生成文案，再解析为场景
-            st.info("正在基于主题生成文案...")
+            # Only subject, first automatically generate script, then parse into scenes
+            st.info("Generating script based on subject...")
             try:
-                # 使用LLM基于主题生成文案
+                # Use LLM to generate script based on subject
                 generated_script = llm.generate_script(
                     subject=params.video_subject,
                     language=config.ui.get("language", "zh"),
-                    length=300  # 默认长度
+                    length=300  # Default length
                 )
                 if generated_script:
                     params.video_script = generated_script
                     st.session_state["video_script"] = generated_script
-                    st.success("文案生成成功")
+                    st.success("Script generated successfully")
                     
-                    # 然后解析为场景
-                    st.info("正在自动解析文案为场景...")
+                    # Then parse into scenes
+                    st.info("Automatically parsing script into scenes...")
                     from app.services.scene_parser import auto_parse_script
                     result = auto_parse_script(generated_script, auto_mode=True)
                     if result["status"] in ["success", "manual"] and result["scenes"]:
                         st.session_state["scenes"] = result["scenes"]
-                        st.success(f"成功解析为 {len(result['scenes'])} 个场景")
+                        st.success(f"Successfully parsed into {len(result['scenes'])} scenes")
                         has_scenes = True
                     else:
-                        st.error(f"文案解析失败: {result.get('message', '未知错误')}")
+                        st.error(f"Script parsing failed: {result.get('message', 'Unknown error')}")
                         scroll_to_bottom()
                         st.stop()
                 else:
-                    st.error("文案生成失败，请检查LLM配置")
+                    st.error("Script generation failed, please check LLM configuration")
                     scroll_to_bottom()
                     st.stop()
             except Exception as e:
-                st.error(f"生成失败: {str(e)}")
+                st.error(f"Generation failed: {str(e)}")
                 scroll_to_bottom()
                 st.stop()
 

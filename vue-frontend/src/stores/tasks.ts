@@ -70,7 +70,7 @@ export const useTasksStore = defineStore('tasks', {
           const task = response.data;
           this.currentTask = task;
           
-          // 更新任务列表中的对应任务
+          // Update the corresponding task in the task list
           const index = this.tasks.findIndex(t => t.task_id === taskId);
           if (index !== -1) {
             this.tasks[index] = task;

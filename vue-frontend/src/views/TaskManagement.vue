@@ -81,22 +81,22 @@ const deleteTask = async (taskId: string) => {
 };
 
 const cancelTask = (taskId: string) => {
-  // 这里实现取消任务的逻辑
+  // Implement cancel task logic here
   console.log('Cancel task:', taskId);
 };
 
 onMounted(async () => {
-  // 初始刷新
+  // Initial refresh
   await refreshTasks();
   
-  // 设置自动刷新间隔（每5秒）
+  // Set auto refresh interval (every 5 seconds)
   refreshInterval.value = window.setInterval(async () => {
     await refreshTasks();
   }, 5000);
 });
 
 onUnmounted(() => {
-  // 清除自动刷新间隔
+  // Clear auto refresh interval
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value);
   }

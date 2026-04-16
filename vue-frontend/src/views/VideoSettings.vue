@@ -3,7 +3,7 @@
     <el-card :body-style="{ padding: '20px' }">
       <template #header>
         <div class="card-header">
-          <h2 class="title">视频设置</h2>
+          <h2 class="title">{{ t('Video Settings') }}</h2>
         </div>
       </template>
       
@@ -71,10 +71,10 @@
         <div class="form-item">
           <label class="form-label" v-html="parseLabelMarkdown(t('Video Ratio'))"></label>
           <el-select v-model="form.videoAspect" :placeholder="t('Select video ratio')" class="form-select">
-            <el-option label="横屏 16:9 (西瓜视频)" value="landscape" />
-            <el-option label="竖屏 9:16 (抖音)" value="portrait" />
-            <el-option label="方屏 1:1 (小红书)" value="square" />
-            <el-option label="竖屏 3:4" value="portrait_3_4" />
+            <el-option :label="t('Landscape 16:9 (Xigua Video)')" value="landscape" />
+            <el-option :label="t('Portrait 9:16 (Douyin)')" value="portrait" />
+            <el-option :label="t('Square 1:1 (Xiaohongshu)')" value="square" />
+            <el-option :label="t('Portrait 3:4')" value="portrait_3_4" />
           </el-select>
         </div>
         
