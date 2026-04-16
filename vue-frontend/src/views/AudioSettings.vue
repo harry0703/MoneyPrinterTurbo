@@ -11,18 +11,18 @@
         <div class="form-item">
           <label class="form-label">{{ t('TTS Server') }}</label>
           <el-select v-model="form.ttsServer" :placeholder="t('Select TTS server')" class="form-select">
-            <el-option label="Azure TTS V1" value="azure-tts-v1" />
-            <el-option label="Azure TTS V2" value="azure-tts-v2" />
-            <el-option label="SiliconFlow TTS" value="siliconflow" />
-            <el-option label="Google Gemini TTS" value="gemini-tts" />
-            <el-option label="Coze TTS" value="coze-tts" />
+            <el-option :label="t('Azure TTS V1')" value="azure-tts-v1" />
+            <el-option :label="t('Azure TTS V2')" value="azure-tts-v2" />
+            <el-option :label="t('SiliconFlow TTS')" value="siliconflow" />
+            <el-option :label="t('Google Gemini TTS')" value="gemini-tts" />
+            <el-option :label="t('Coze TTS')" value="coze-tts" />
           </el-select>
         </div>
         
         <!-- Coze TTS specific settings - search and refresh -->
         <div v-if="form.ttsServer === 'coze-tts'" class="form-item">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span>Coze TTS</span>
+            <span>{{ t('Coze TTS') }}</span>
             <el-button type="primary" size="small" icon="Refresh">
               {{ t('Refresh') }}
             </el-button>
@@ -75,7 +75,7 @@
           </div>
           
           <div class="form-item">
-            <label class="form-label">API Key <span style="color: blue;">{{ t('(Required, either key 1 or key 2 ') }}<a href="https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices" target="_blank">{{ t('click to get') }}</a>{{ t(')') }}</span></label>
+            <label class="form-label">{{ t('API Key') }} <span style="color: blue;">{{ t('(Required, either key 1 or key 2 ') }}<a href="https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices" target="_blank">{{ t('click to get') }}</a>{{ t(')') }}</span></label>
             <el-input
               v-model="form.speechKey"
               :placeholder="t('Enter API Key')"
@@ -116,7 +116,7 @@
         <!-- Coze TTS specific settings -->
         <div v-if="form.ttsServer === 'coze-tts'">
           <div class="form-item">
-            <label class="form-label">Coze API Key</label>
+            <label class="form-label">{{ t('Coze API Key') }}</label>
             <el-input
               v-model="form.cozeApiKey"
               :placeholder="t('Enter API Key')"
@@ -164,14 +164,14 @@
         <div class="form-item">
           <label class="form-label">{{ t('Background Music') }}</label>
           <el-select v-model="form.backgroundMusic" :placeholder="t('Select background music')" class="form-select">
-            <el-option :label="t('No background music')" value="none" />
-            <el-option :label="t('Random background music')" value="random" />
-            <el-option :label="t('Custom background music')" value="custom" />
+            <el-option :label="t('No Background Music')" value="none" />
+            <el-option :label="t('Random Background Music')" value="random" />
+            <el-option :label="t('Custom Background Music')" value="custom" />
           </el-select>
         </div>
         
         <div class="form-item">
-          <label class="form-label">{{ t('Background Music Volume (0.2 means 20%, background sound should not be too loud)') }}</label>
+          <label class="form-label">{{ t('Background Music Volume') }}</label>
           <el-select v-model="form.backgroundMusicVolume" :placeholder="t('Select volume')" class="form-select">
             <el-option label="0.1" value="0.1" />
             <el-option label="0.2" value="0.2" />

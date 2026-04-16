@@ -9,11 +9,11 @@
       
       <div class="settings-form">
         <div class="form-item">
-          <el-checkbox v-model="form.enableSubtitles">{{ t('Enable subtitles (if unchecked, the following settings will not take effect)') }}</el-checkbox>
+          <el-checkbox v-model="form.enableSubtitles">{{ t('Enable Subtitles') }}</el-checkbox>
         </div>
         
         <div class="form-item" v-if="form.enableSubtitles">
-          <label class="form-label">{{ t('Subtitle Font') }}</label>
+          <label class="form-label">{{ t('Font') }}</label>
           <el-select v-model="form.subtitleFont" :placeholder="t('Select font')" class="form-select">
             <el-option label="MicrosoftYaHeiBold.ttc" value="MicrosoftYaHeiBold.ttc" />
             <el-option label="Arial" value="Arial" />
@@ -24,30 +24,30 @@
         </div>
         
         <div class="form-item" v-if="form.enableSubtitles">
-          <label class="form-label">{{ t('Subtitle Position') }}</label>
+          <label class="form-label">{{ t('Position') }}</label>
           <el-select v-model="form.subtitlePosition" :placeholder="t('Select position')" class="form-select">
             <el-option :label="t('Top')" value="top" />
-            <el-option :label="t('Middle')" value="middle" />
-            <el-option :label="t('Bottom (Recommended)')" value="bottom" />
-            <el-option :label="t('Custom Position (70, means 70% from top)')" value="custom" />
+            <el-option :label="t('Center')" value="middle" />
+            <el-option :label="t('Bottom')" value="bottom" />
+            <el-option :label="t('Custom')" value="custom" />
           </el-select>
         </div>
         
         <div class="form-item" v-if="form.enableSubtitles && form.subtitlePosition === 'custom'">
-          <label class="form-label">{{ t('Custom Position (% from top)') }}</label>
+          <label class="form-label">{{ t('Custom') }}</label>
           <el-input v-model="form.subtitleCustomPosition" :placeholder="t('Enter custom position')" class="form-input" />
         </div>
         
         <div class="form-item" v-if="form.enableSubtitles">
           <div style="display: flex; justify-content: space-between; gap: 20px;">
             <div style="flex: 1;">
-              <label class="form-label">{{ t('Subtitle Color') }}</label>
+              <label class="form-label">{{ t('Font Color') }}</label>
               <div class="color-picker-container">
                 <el-color-picker v-model="form.subtitleColor" show-alpha />
               </div>
             </div>
             <div style="flex: 2;">
-              <label class="form-label">{{ t('Subtitle Size') }}</label>
+              <label class="form-label">{{ t('Font Size') }}</label>
               <el-slider
                 v-model="form.subtitleFontSize"
                 :min="30"
@@ -62,13 +62,13 @@
         <div class="form-item" v-if="form.enableSubtitles">
           <div style="display: flex; justify-content: space-between; gap: 20px;">
             <div style="flex: 1;">
-              <label class="form-label">{{ t('Outline Color') }}</label>
+              <label class="form-label">{{ t('Stroke Color') }}</label>
               <div class="color-picker-container">
                 <el-color-picker v-model="form.subtitleOutlineColor" show-alpha />
               </div>
             </div>
             <div style="flex: 2;">
-              <label class="form-label">{{ t('Outline Width') }}</label>
+              <label class="form-label">{{ t('Stroke Width') }}</label>
               <el-slider
                 v-model="form.subtitleOutlineWidth"
                 :min="0"
