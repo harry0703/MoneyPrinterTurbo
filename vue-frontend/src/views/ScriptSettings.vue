@@ -428,61 +428,36 @@ defineExpose({
 
 .form-input {
   width: 100%;
-  border: 1px solid #e0e0e0;
-  background-color: transparent;
   padding: 6px 8px;
-  font-size: 14px;
   border-radius: 4px;
-  transition: border-color 0.2s;
   box-sizing: border-box;
 }
 
-.form-input:hover {
-  border-color: #000;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #000;
+.form-input :deep(.el-input) {
+  width: 100%;
 }
 
 .form-textarea {
   width: 100%;
-  border: 1px solid #e0e0e0;
-  background-color: transparent;
   padding: 6px 8px;
-  font-size: 14px;
   border-radius: 4px;
-  transition: border-color 0.2s;
   box-sizing: border-box;
   resize: vertical;
 }
 
-.form-textarea:hover {
-  border-color: #000;
-}
-
-.form-textarea:focus {
-  outline: none;
-  border-color: #000;
+.form-textarea :deep(.el-input) {
+  width: 100%;
 }
 
 .form-select {
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid #e0e0e0;
   border-radius: 4px;
-  transition: border-color 0.3s;
   box-sizing: border-box;
 }
 
-.form-select:hover {
-  border-color: #000;
-}
-
-.form-select:focus {
-  outline: none;
-  border-color: #000;
+.form-select :deep(.el-select) {
+  width: 100%;
 }
 
 .tip {
