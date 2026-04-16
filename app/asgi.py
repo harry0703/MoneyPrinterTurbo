@@ -14,6 +14,9 @@ from app.models.exception import HttpException
 from app.router import root_api_router
 from app.utils import utils
 
+# Import log_service to register the logger handler
+from app.services import log_service  # noqa: F401
+
 
 def exception_handler(request: Request, e: HttpException):
     return JSONResponse(

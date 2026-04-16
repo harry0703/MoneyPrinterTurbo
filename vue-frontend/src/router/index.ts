@@ -5,6 +5,7 @@ import AudioSettings from '../views/AudioSettings.vue';
 import SubtitleSettings from '../views/SubtitleSettings.vue';
 import SceneIntegration from '../views/SceneIntegration.vue';
 import TaskManagement from '../views/TaskManagement.vue';
+import LogsView from '../views/LogsView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -40,6 +41,11 @@ const routes: Array<RouteRecordRaw> = [
     path: '/task',
     name: 'TaskManagement',
     component: TaskManagement
+  },
+  {
+    path: '/logs',
+    name: 'LogsView',
+    component: LogsView
   }
 ];
 

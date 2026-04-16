@@ -363,6 +363,15 @@
     "Select number of videos": "Select number of videos",
     "Select video style": "Select video style",
     "Scene Integration": "Scene Integration",
-    "Task Management": "Task Management"
+    "Task Management": "Task Management",
+    "Running Logs": "Running Logs",
+    "Select Task": "Select Task",
+    "All Tasks": "All Tasks",
+    "Log Level": "Log Level",
+    "All Levels": "All Levels",
+    "Refresh": "Refresh",
+    "No logs found": "No logs found",
+    "Auto Refresh On": "Auto Refresh On",
+    "Auto Refresh Off": "Auto Refresh Off"
   }
 }

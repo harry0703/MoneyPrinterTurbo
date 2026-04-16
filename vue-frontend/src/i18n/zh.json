@@ -390,6 +390,15 @@
     "No tasks running": "无任务运行",
     "Scene Range Selection": "场景范围选择",
     "Start Scene": "起始场景",
-    "End Scene": "终止场景"
+    "End Scene": "终止场景",
+    "Running Logs": "运行日志",
+    "Select Task": "选择任务",
+    "All Tasks": "所有任务",
+    "Log Level": "日志级别",
+    "All Levels": "所有级别",
+    "Refresh": "刷新",
+    "No logs found": "未找到日志",
+    "Auto Refresh On": "自动刷新开启",
+    "Auto Refresh Off": "自动刷新关闭"
   }
 }

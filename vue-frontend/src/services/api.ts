@@ -9,7 +9,7 @@ export interface ApiResponse {
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:8000', // Assuming backend runs on port 8000
+  baseURL: 'http://localhost:8081', // Backend runs on port 8081
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -74,7 +74,18 @@ export const apiService = {
   },
   
   // Get version information
-  getVersion: () => api.get<{name: string, version: string}>('/version').then(res => res.data)
+  getVersion: () => api.get<{name: string, version: string}>('/version').then(res => res.data),
+
+  // Logs related
+  getLogs: (level?: string, taskId?: string, limit: number = 100, offset: number = 0) => {
+    const params = new URLSearchParams();
+    if (level) params.append('level', level);
+    if (taskId) params.append('task_id', taskId);
+    params.append('limit', limit.toString());
+    params.append('offset', offset.toString());
+    return api.get<ApiResponse>(`/logs?${params.toString()}`).then(res => res.data);
+  },
+  clearLogs: () => api.delete<ApiResponse>('/logs').then(res => res.data)
 };
 
 export default api;

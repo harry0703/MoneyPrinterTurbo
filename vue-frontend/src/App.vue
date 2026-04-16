@@ -53,6 +53,10 @@
               <el-icon><Timer /></el-icon>
               <span>{{ t('Task Management') }}</span>
             </el-menu-item>
+            <el-menu-item index="/logs">
+              <el-icon><Document /></el-icon>
+              <span>{{ t('Running Logs') }}</span>
+            </el-menu-item>
           </el-menu>
         </el-aside>
         
@@ -64,9 +68,9 @@
           </router-view>
           
           <div class="app-actions" v-if="$route.path !== '/task'">
-            <el-button type="danger" size="large" @click="generateVideo">
+            <el-button type="danger" size="large" @click="generateVideo" :loading="isGenerating">
               <el-icon><VideoPlay /></el-icon>
-              {{ t('Generate Video') }}
+              {{ isGenerating ? t('Generating Video') : t('Generate Video') }}
             </el-button>
           </div>
         </el-main>
@@ -83,6 +87,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { VideoCamera, Document, Microphone, ChatLineSquare, Collection, Timer, VideoPlay, Setting } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 import { useI18nStore } from './stores/i18n';
 import { useTasksStore } from './stores/tasks';
 import { useSettingsStore } from './stores/settings';
@@ -95,6 +100,7 @@ const tasksStore = useTasksStore();
 const settingsStore = useSettingsStore();
 
 const showSettings = ref(false);
+const isGenerating = ref(false);
 const activeMenu = computed(() => route.path);
 const currentLanguage = computed({
   get: () => i18nStore.currentLanguage,
@@ -112,88 +118,89 @@ const handleMenuSelect = (key: string) => {
 };
 
 const handleSettingsSaved = () => {
-  // Processing logic after settings are saved
   console.log('Settings saved successfully');
-  // You can add notification messages or other logic here
 };
 
 const generateVideo = async () => {
-  // Video generation logic implementation here
-  console.log('Generating video...');
-  
-  // Collect all form data
-  const videoSettings = (window as any).__VUE_APP_VIDEO_SETTINGS__;
-  const scriptSettings = (window as any).__VUE_APP_SCRIPT_SETTINGS__;
-  const audioSettings = (window as any).__VUE_APP_AUDIO_SETTINGS__;
-  const subtitleSettings = (window as any).__VUE_APP_SUBTITLE_SETTINGS__;
-  const sceneIntegration = (window as any).__VUE_APP_SCENE_INTEGRATION__;
-  
-  // Validate all forms
-  let isValid = true;
-  if (videoSettings && videoSettings.validate) {
-    isValid = isValid && await videoSettings.validate();
-  }
-  if (scriptSettings && scriptSettings.validate) {
-    isValid = isValid && await scriptSettings.validate();
-  }
-  if (audioSettings && audioSettings.validate) {
-    isValid = isValid && await audioSettings.validate();
-  }
-  if (subtitleSettings && subtitleSettings.validate) {
-    isValid = isValid && await subtitleSettings.validate();
-  }
-  
-  if (!isValid) {
-    console.error('Form validation failed');
+  if (isGenerating.value) {
     return;
   }
-  
-  // Build task parameters
-  const taskParams = {
-    video_subject: scriptSettings?.form.videoSubject || '',
-    video_script: scriptSettings?.form.videoScript || '',
-    video_terms: scriptSettings?.form.videoTerms || '',
-    video_source: videoSettings?.form.videoSource || 'pexels',
-    video_concat_mode: videoSettings?.form.videoConcatMode || 'random',
-    video_transition_mode: videoSettings?.form.videoTransitionMode || 'none',
-    video_aspect: videoSettings?.form.videoAspect || 'portrait',
-    video_clip_duration: videoSettings?.form.videoClipDuration || 3,
-    video_count: videoSettings?.form.videoCount || 1,
-    video_style: videoSettings?.form.videoStyle || '',
-    voice_provider: audioSettings?.form.voiceProvider || 'azure',
-    voice_type: audioSettings?.form.voiceType || 'female',
-    voice_name: audioSettings?.form.voiceName || 'zh-CN-XiaoxiaoNeural',
-    bgm: audioSettings?.form.bgm || '',
-    bgm_volume: audioSettings?.form.bgmVolume || 30,
-    voice_volume: audioSettings?.form.voiceVolume || 80,
-    subtitle_language: subtitleSettings?.form.subtitleLanguage || 'zh',
-    subtitle_position: subtitleSettings?.form.subtitlePosition || 'bottom',
-    subtitle_font: subtitleSettings?.form.subtitleFont || 'Microsoft YaHei',
-    subtitle_font_size: subtitleSettings?.form.subtitleFontSize || 24,
-    subtitle_color: subtitleSettings?.form.subtitleColor || '#ffffff',
-    subtitle_background: subtitleSettings?.form.subtitleBackground || 'rgba(0, 0, 0, 0.5)',
-    subtitle_bold: subtitleSettings?.form.subtitleBold || false,
-    subtitle_italic: subtitleSettings?.form.subtitleItalic || false,
-    scenes: sceneIntegration?.scenes || [],
-    language: scriptSettings?.form.language || 'zh'
-  };
-  
-  console.log('Task params:', taskParams);
-  
-  // Create task
-  const task = await tasksStore.createTask(taskParams, 'video');
-  if (task) {
-    // Navigate to task management page
-    router.push('/task');
+
+  isGenerating.value = true;
+
+  try {
+    const videoSettings = (window as any).__VUE_APP_VIDEO_SETTINGS__;
+    const scriptSettings = (window as any).__VUE_APP_SCRIPT_SETTINGS__;
+    const audioSettings = (window as any).__VUE_APP_AUDIO_SETTINGS__;
+    const subtitleSettings = (window as any).__VUE_APP_SUBTITLE_SETTINGS__;
+    const sceneIntegration = (window as any).__VUE_APP_SCENE_INTEGRATION__;
+
+    let isValid = true;
+    if (videoSettings && videoSettings.validate) {
+      isValid = isValid && await videoSettings.validate();
+    }
+    if (scriptSettings && scriptSettings.validate) {
+      isValid = isValid && await scriptSettings.validate();
+    }
+    if (audioSettings && audioSettings.validate) {
+      isValid = isValid && await audioSettings.validate();
+    }
+    if (subtitleSettings && subtitleSettings.validate) {
+      isValid = isValid && await subtitleSettings.validate();
+    }
+
+    if (!isValid) {
+      ElMessage.warning(t('Video Script and Subject Cannot Both Be Empty'));
+      return;
+    }
+
+    const taskParams = {
+      video_subject: scriptSettings?.form.videoSubject || '',
+      video_script: scriptSettings?.form.videoScript || '',
+      video_terms: scriptSettings?.form.videoTerms || '',
+      video_source: videoSettings?.form.videoSource || 'pexels',
+      video_concat_mode: videoSettings?.form.videoConcatMode || 'random',
+      video_transition_mode: videoSettings?.form.videoTransitionMode || 'none',
+      video_aspect: videoSettings?.form.videoAspect || 'portrait',
+      video_clip_duration: videoSettings?.form.videoClipDuration || 3,
+      video_count: videoSettings?.form.videoCount || 1,
+      video_style: videoSettings?.form.videoStyle || '',
+      voice_provider: audioSettings?.form.voiceProvider || 'azure',
+      voice_type: audioSettings?.form.voiceType || 'female',
+      voice_name: audioSettings?.form.voiceName || 'zh-CN-XiaoxiaoNeural',
+      bgm: audioSettings?.form.bgm || '',
+      bgm_volume: audioSettings?.form.bgmVolume || 30,
+      voice_volume: audioSettings?.form.voiceVolume || 80,
+      subtitle_language: subtitleSettings?.form.subtitleLanguage || 'zh',
+      subtitle_position: subtitleSettings?.form.subtitlePosition || 'bottom',
+      subtitle_font: subtitleSettings?.form.subtitleFont || 'Microsoft YaHei',
+      subtitle_font_size: subtitleSettings?.form.subtitleFontSize || 24,
+      subtitle_color: subtitleSettings?.form.subtitleColor || '#ffffff',
+      subtitle_background: subtitleSettings?.form.subtitleBackground || 'rgba(0, 0, 0, 0.5)',
+      subtitle_bold: subtitleSettings?.form.subtitleBold || false,
+      subtitle_italic: subtitleSettings?.form.subtitleItalic || false,
+      scenes: sceneIntegration?.scenes || [],
+      language: scriptSettings?.form.language || 'zh'
+    };
+
+    const task = await tasksStore.createTask(taskParams, 'video');
+    if (task) {
+      ElMessage.success(t('Start Generating Video'));
+      router.push('/task');
+    } else {
+      ElMessage.error(t('Video Generation Failed'));
+    }
+  } catch (error) {
+    console.error('Error generating video:', error);
+    ElMessage.error(t('Video Generation Failed'));
+  } finally {
+    isGenerating.value = false;
   }
 };
 
 onMounted(async () => {
-  // Load translations
   await i18nStore.loadTranslations();
-  // Load language settings
   i18nStore.loadLanguageFromLocalStorage();
-  // Load version information
   await settingsStore.fetchVersion();
 });
 </script>
