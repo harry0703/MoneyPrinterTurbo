@@ -64,7 +64,7 @@
           </router-view>
           
           <div class="app-actions" v-if="$route.path !== '/task'">
-            <el-button type="primary" size="large" @click="generateVideo">
+            <el-button type="danger" size="large" @click="generateVideo">
               <el-icon><VideoPlay /></el-icon>
               {{ t('Generate Video') }}
             </el-button>
