@@ -71,10 +71,10 @@
         <div class="form-item">
           <label class="form-label" v-html="parseLabelMarkdown(t('Video Ratio'))"></label>
           <el-select v-model="form.videoAspect" :placeholder="t('Select video ratio')" class="form-select">
-            <el-option :label="t('Landscape 16:9 (Xigua Video)')" value="landscape" />
-            <el-option :label="t('Portrait 9:16 (Douyin)')" value="portrait" />
-            <el-option :label="t('Square 1:1 (Xiaohongshu)')" value="square" />
-            <el-option :label="t('Portrait 3:4')" value="portrait_3_4" />
+            <el-option :label="t('Landscape')" value="landscape" />
+            <el-option :label="t('Portrait')" value="portrait" />
+            <el-option :label="t('Square')" value="square" />
+            <el-option :label="t('3:4 Portrait')" value="portrait_3_4" />
           </el-select>
         </div>
         
