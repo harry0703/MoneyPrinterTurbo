@@ -4,9 +4,9 @@
     "MoneyPrinterCN": "MoneyPrinterCN",
     "Script Settings": "文案设置",
     "Scene Management": "场景管理",
-    "Video Topic": "视频主题（提供关键词，<span style=\"color: red;\">AI 会自动生成视频脚本</span>）",
+    "Video Topic": "视频主题（提供关键词，<span style=\"color: red;\">AI 会自动生成视频文案</span>）",
     "Enter video topic": "输入视频主题",
-    "Language for video script": "视频脚本语言（AI 会根据输入语言自动检测）",
+    "Language for video script": "视频文案语言（AI 会根据输入语言自动检测）",
     "Select language": "选择语言",
     "Auto Detect": "自动检测",
     "Chinese": "中文",
@@ -16,10 +16,10 @@
     "Russian": "俄语",
     "Turkish": "土耳其语",
     "Vietnamese": "越南语",
-    "Generate [Video Script] from Topic": "根据主题生成【视频脚本】",
-    "Video Script": "视频脚本 <span style=\"color: blue;\">（① 可不填，使用 AI 生成 ② 适当的标点有助于字幕生成）</span>",
-    "Enter video script": "输入视频脚本",
-    "Parse Current [Video Script]": "解析当前【视频脚本】",
+    "Generate [Video Script] from Topic": "根据主题生成【视频文案】",
+    "Video Script": "视频文案 <span style=\"color: blue;\">（① 可不填，使用 AI 生成 ② 适当的标点有助于字幕生成）</span>",
+    "Enter video script": "输入视频文案",
+    "Parse Current [Video Script]": "解析当前【视频文案】",
     "Export Scenes": "导出场景",
     "Import Scenes": "导入场景",
     "Scene": "场景",
@@ -399,6 +399,7 @@
     "Refresh": "刷新",
     "No logs found": "未找到日志",
     "Auto Refresh On": "自动刷新开启",
-    "Auto Refresh Off": "自动刷新关闭"
+    "Auto Refresh Off": "自动刷新关闭",
+    "Video Subject, Video Script, and Scenes Cannot All Be Empty": "视频主题、视频文案和场景不能同时为空"
   }
 }

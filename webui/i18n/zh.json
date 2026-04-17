@@ -31,7 +31,7 @@
     "Please enter your username and password": "请输入用户名和密码",
     "Video Script Settings": "**文案设置**",
     "Video Subject": "视频主题（给定一个关键词，:red[AI自动生成]视频文案）",
-    "Script Language": "生成视频脚本的语言（一般情况AI会自动根据你输入的主题语言输出）",
+    "Script Language": "生成视频文案的语言（一般情况AI会自动根据你输入的主题语言输出）",
     "Generate Video Script and Keywords": "根据主题生成【视频文案】",
     "Auto Detect": "自动检测",
     "Video Script": "视频文案（:blue[①可不填，使用AI生成 ②合理使用标点断句，有助于生成字幕]）",

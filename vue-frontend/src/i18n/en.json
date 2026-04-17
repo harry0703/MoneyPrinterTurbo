@@ -4,9 +4,9 @@
     "MoneyPrinterCN": "MoneyPrinterCN",
     "Script Settings": "Script Settings",
     "Scene Management": "Scene Management",
-    "Video Topic": "Video Topic (Provide a keyword, <span style=\"color: red;\">AI will automatically generate video script</span>)",
+    "Video Topic": "Video Topic (Provide a keyword, <span style=\"color: red;\">AI will automatically generate video copy</span>)",
     "Enter video topic": "Enter video topic",
-    "Language for video script": "Language for video script (AI will automatically detect based on your input language)",
+    "Language for video script": "Language for video copy (AI will automatically detect based on your input language)",
     "Select language": "Select language",
     "Auto Detect": "Auto Detect",
     "Chinese": "Chinese",
@@ -16,10 +16,10 @@
     "Russian": "Russian",
     "Turkish": "Turkish",
     "Vietnamese": "Vietnamese",
-    "Generate [Video Script] from Topic": "Generate [Video Script] from Topic",
-    "Video Script": "Video Script <span style=\"color: blue;\">(① Optional, use AI generation ② Proper punctuation helps subtitle generation)</span>",
-    "Enter video script": "Enter video script",
-    "Parse Current [Video Script]": "Parse Current [Video Script]",
+    "Generate [Video Script] from Topic": "Generate [Video Copy] from Topic",
+    "Video Script": "Video Copy <span style=\"color: blue;\">(① Optional, use AI generation ② Proper punctuation helps subtitle generation)</span>",
+    "Enter video script": "Enter video copy",
+    "Parse Current [Video Script]": "Parse Current [Video Copy]",
     "Export Scenes": "Export Scenes",
     "Import Scenes": "Import Scenes",
     "Scene": "Scene",
@@ -372,6 +372,7 @@
     "Refresh": "Refresh",
     "No logs found": "No logs found",
     "Auto Refresh On": "Auto Refresh On",
-    "Auto Refresh Off": "Auto Refresh Off"
+    "Auto Refresh Off": "Auto Refresh Off",
+    "Video Subject, Video Script, and Scenes Cannot All Be Empty": "Video Subject, Video Script, and Scenes Cannot All Be Empty"
   }
 }
