@@ -36,7 +36,7 @@
         </div>
         
         <div class="form-item">
-          <el-button type="primary" class="form-button">{{ t('Generate [Video Script] from Topic') }}</el-button>
+          <el-button type="primary" class="form-button" @click="handleGenerateVideoScript" :loading="loading.generateScript">{{ t('Generate [Video Script] from Topic') }}</el-button>
         </div>
         
         <div class="form-item">
@@ -53,7 +53,7 @@
         </div>
         
         <div class="form-item">
-          <el-button type="primary" class="form-button">{{ t('Parse Current [Video Script]') }}</el-button>
+          <el-button type="primary" class="form-button" @click="parseVideoScript" :loading="loading.parseScript">{{ t('Parse Current [Video Script]') }}</el-button>
         </div>
       </div>
     </el-card>
@@ -160,9 +160,10 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useScriptStore } from '../stores/script';
 import { useI18nStore } from '../stores/i18n';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElLoading } from 'element-plus';
 import { VideoCamera } from '@element-plus/icons-vue';
 import { parseLabelMarkdown } from '../utils/markdownParser';
+import { generateVideoScript, parseVideoScript as apiParseVideoScript } from '../services/api';
 
 const scriptStore = useScriptStore();
 const i18nStore = useI18nStore();
@@ -170,6 +171,12 @@ const t = i18nStore.t;
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const introVideoFileInputs = ref<{[key: number]: HTMLInputElement | null}>({});
+
+// Loading state
+const loading = ref({
+  generateScript: false,
+  parseScript: false
+});
 
 // Get data from store
 const form = scriptStore;
@@ -378,6 +385,63 @@ watch(
     scriptStore.updateLanguage(newValue);
   }
 );
+
+// Generate video script from topic
+const handleGenerateVideoScript = async () => {
+  if (!form.videoSubject) {
+    ElMessage.warning(t('Please Enter the Video Subject'));
+    return;
+  }
+
+  loading.value.generateScript = true;
+  try {
+    // If language is "auto", pass null to let backend detect language
+    const language = form.language === 'auto' ? null : form.language;
+    const response = await generateVideoScript({
+      video_subject: form.videoSubject,
+      video_language: language,
+      paragraph_number: 1
+    });
+    form.videoScript = response.video_script;
+    ElMessage.success('Video script generated successfully');
+  } catch (error) {
+    console.error('Error generating video script:', error);
+    ElMessage.error('Failed to generate video script. Please try again.');
+  } finally {
+    loading.value.generateScript = false;
+  }
+};
+
+// Parse current video script
+const parseVideoScript = async () => {
+  if (!form.videoScript) {
+    ElMessage.warning('Please enter a script first');
+    return;
+  }
+
+  loading.value.parseScript = true;
+  try {
+    // If language is "auto", pass null to let backend detect language
+    const language = form.language === 'auto' ? null : form.language;
+    const response = await apiParseVideoScript({
+      video_script: form.videoScript,
+      language: language
+    });
+    
+    if (response.status === 'success' || response.status === 'manual') {
+      // Update scenes in store
+      scriptStore.updateScenes(response.scenes);
+      ElMessage.success(`Successfully parsed ${response.scenes.length} scenes`);
+    } else {
+      ElMessage.error('Failed to parse script. Please try again.');
+    }
+  } catch (error) {
+    console.error('Error parsing video script:', error);
+    ElMessage.error('Failed to parse script. Please try again.');
+  } finally {
+    loading.value.parseScript = false;
+  }
+};
 
 // Load data when component is mounted
 onMounted(() => {

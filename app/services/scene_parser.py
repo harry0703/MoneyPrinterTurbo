@@ -9,6 +9,38 @@ from uuid import uuid4
 from loguru import logger
 
 
+# Language code to full name mapping
+LANGUAGE_CODE_MAP = {
+    "zh": "Chinese",
+    "en": "English",
+    "de": "German",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "tr": "Turkish",
+    "vi": "Vietnamese",
+    "auto": None,  # Auto detect
+    None: None,  # No language specified, auto detect
+}
+
+
+def normalize_language(language: str) -> Optional[str]:
+    """
+    Normalize language code to full language name.
+    
+    Args:
+        language: Language code or full name
+        
+    Returns:
+        Normalized language name (e.g., "Chinese") or None for auto-detect
+    """
+    if language is None:
+        return None
+    if language in LANGUAGE_CODE_MAP:
+        return LANGUAGE_CODE_MAP[language]
+    # If already a full name, return as is
+    return language
+
+
 # Enhanced time marker patterns
 def get_time_patterns() -> List[Tuple[str, str]]:
     """
@@ -554,7 +586,11 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     """
     import app.services.llm as llm_service
     
-    logger.info(f"Starting to parse script with LLM, script length: {len(script)}")
+    # Normalize language code to full name (e.g., "zh" -> "Chinese")
+    # This is important for proper language comparisons in scene generation
+    language = normalize_language(language)
+    
+    logger.info(f"Starting to parse script with LLM, script length: {len(script)}, language: {language}")
     
     # Generate multi-scene script using LLM
     # Use script as both subject and script since we want to process the entire script

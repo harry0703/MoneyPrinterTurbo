@@ -1,91 +1,169 @@
 import axios from 'axios';
 
-// API response type
-export interface ApiResponse {
-  code: number;
-  data: any;
-  message?: string;
-}
+const API_BASE_URL = 'http://localhost:8081/api/v1';
 
-// Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:8081', // Backend runs on port 8081
-  timeout: 10000,
+  baseURL: API_BASE_URL,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Request interceptor
-api.interceptors.request.use(
-  config => {
-    // You can add authentication information here
-    return config;
-  },
-  error => {
-    return Promise.reject(error);
-  }
-);
+export interface ApiResponse {
+  code: number;
+  message: string;
+  data?: any;
+}
 
-// Response interceptor
-api.interceptors.response.use(
-  response => {
-    return response;
-  },
-  error => {
-    console.error('API Error:', error);
-    return Promise.reject(error);
-  }
-);
+export interface VideoScriptRequest {
+  video_subject: string;
+  video_language: string;
+  paragraph_number: number;
+}
 
-// API interface definition
+export interface VideoScriptResponse {
+  video_script: string;
+}
+
+export interface VideoTermsRequest {
+  video_subject: string;
+  video_script: string;
+  amount: number;
+}
+
+export interface VideoTermsResponse {
+  video_terms: string[];
+}
+
+export interface ParseScriptRequest {
+  video_script: string;
+  language: string;
+}
+
+export interface Scene {
+  id: string;
+  duration: number;
+  visual_requirement: string;
+  keywords: string;
+  script: string;
+  introVideo?: string;
+  introVideoDuration?: number;
+}
+
+export interface ParseScriptResponse {
+  status: string;
+  scenes: Scene[];
+  evaluation?: any;
+}
+
 export const apiService = {
-  // Video generation related
-  createVideo: (params: any) => api.post<ApiResponse>('/videos', params).then(res => res.data),
-  createSubtitle: (params: any) => api.post<ApiResponse>('/subtitle', params).then(res => res.data),
-  createAudio: (params: any) => api.post<ApiResponse>('/audio', params).then(res => res.data),
+  // Task related
+  getAllTasks: async (page: number = 1, pageSize: number = 10): Promise<ApiResponse> => {
+    const response = await api.get('/tasks', { params: { page, page_size: pageSize } });
+    return response.data;
+  },
   
-  // Task management related
-  getAllTasks: (page: number = 1, pageSize: number = 10) => api.get<ApiResponse>(`/tasks?page=${page}&page_size=${pageSize}`).then(res => res.data),
-  getTask: (taskId: string) => api.get<ApiResponse>(`/tasks/${taskId}`).then(res => res.data),
-  deleteTask: (taskId: string) => api.delete<ApiResponse>(`/tasks/${taskId}`).then(res => res.data),
+  getTask: async (taskId: string): Promise<ApiResponse> => {
+    const response = await api.get(`/tasks/${taskId}`);
+    return response.data;
+  },
   
-  // Resource management related
-  getBgmList: () => api.get<ApiResponse>('/musics').then(res => res.data),
-  uploadBgm: (file: File) => {
+  createVideo: async (params: any): Promise<ApiResponse> => {
+    const response = await api.post('/videos', params);
+    return response.data;
+  },
+  
+  createSubtitle: async (params: any): Promise<ApiResponse> => {
+    const response = await api.post('/subtitle', params);
+    return response.data;
+  },
+  
+  createAudio: async (params: any): Promise<ApiResponse> => {
+    const response = await api.post('/audio', params);
+    return response.data;
+  },
+  
+  deleteTask: async (taskId: string): Promise<ApiResponse> => {
+    const response = await api.delete(`/tasks/${taskId}`);
+    return response.data;
+  },
+  
+  // Settings related
+  getVersion: async (): Promise<ApiResponse> => {
+    // /version is directly under root, not under /api/v1
+    const response = await axios.get('http://localhost:8081/version');
+    return response.data;
+  },
+  
+  // Upload related
+  uploadBgm: async (file: File): Promise<ApiResponse> => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post<ApiResponse>('/musics', formData, {
+    const response = await api.post('/upload/bgm', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
-    }).then(res => res.data);
+    });
+    return response.data;
   },
   
-  getVideoMaterials: () => api.get<ApiResponse>('/video_materials').then(res => res.data),
-  uploadVideoMaterial: (file: File) => {
+  uploadVideoMaterial: async (file: File): Promise<ApiResponse> => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post<ApiResponse>('/video_materials', formData, {
+    const response = await api.post('/upload/video', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
-    }).then(res => res.data);
+    });
+    return response.data;
   },
   
-  // Get version information
-  getVersion: () => api.get<{name: string, version: string}>('/version').then(res => res.data),
-
+  getBgmList: async (): Promise<ApiResponse> => {
+    const response = await api.get('/upload/bgm');
+    return response.data;
+  },
+  
+  getVideoMaterials: async (): Promise<ApiResponse> => {
+    const response = await api.get('/upload/video');
+    return response.data;
+  },
+  
   // Logs related
-  getLogs: (level?: string, taskId?: string, limit: number = 100, offset: number = 0) => {
-    const params = new URLSearchParams();
-    if (level) params.append('level', level);
-    if (taskId) params.append('task_id', taskId);
-    params.append('limit', limit.toString());
-    params.append('offset', offset.toString());
-    return api.get<ApiResponse>(`/logs?${params.toString()}`).then(res => res.data);
-  },
-  clearLogs: () => api.delete<ApiResponse>('/logs').then(res => res.data)
+  getLogs: async (params: any): Promise<ApiResponse> => {
+    const response = await api.get('/logs', { params });
+    return response.data;
+  }
+};
+
+export const generateVideoScript = async (request: VideoScriptRequest): Promise<VideoScriptResponse> => {
+  try {
+    const response = await api.post('/scripts', request);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error generating video script:', error);
+    throw error;
+  }
+};
+
+export const generateVideoTerms = async (request: VideoTermsRequest): Promise<VideoTermsResponse> => {
+  try {
+    const response = await api.post('/terms', request);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error generating video terms:', error);
+    throw error;
+  }
+};
+
+export const parseVideoScript = async (request: ParseScriptRequest): Promise<ParseScriptResponse> => {
+  try {
+    const response = await api.post('/parse-script', request);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error parsing video script:', error);
+    throw error;
+  }
 };
 
 export default api;

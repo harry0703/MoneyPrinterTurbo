@@ -1,4 +1,4 @@
-from fastapi import Request
+from fastapi import Request, Body
 
 from app.controllers.v1.base import new_router
 from app.models.schema import (
@@ -8,6 +8,7 @@ from app.models.schema import (
     VideoTermsResponse,
 )
 from app.services import llm
+from app.services import scene_parser
 from app.utils import utils
 
 # authentication dependency
@@ -43,3 +44,18 @@ def generate_video_terms(request: Request, body: VideoTermsRequest):
     )
     response = {"video_terms": video_terms}
     return utils.get_response(200, response)
+
+
+@router.post(
+    "/parse-script",
+    summary="Parse video script into scenes",
+)
+def parse_video_script(request: Request, body: dict = Body(...)):
+    video_script = body.get("video_script")
+    language = body.get("language")
+    
+    if not video_script:
+        return utils.get_response(400, {"error": "Video script is required"})
+    
+    result = scene_parser.auto_parse_script(video_script, language=language)
+    return utils.get_response(200, result)
