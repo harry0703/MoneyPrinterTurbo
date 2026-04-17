@@ -1076,15 +1076,15 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
 def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
     """Original single-scene video generation flow."""
-    logger.info("using single-scene mode")
+    logger.info("using single-scene mode", extra={"task_id": task_id})
     
     # Print local materials list at the beginning
     if params.video_materials and len(params.video_materials) > 0:
-        logger.info(f"User provided {len(params.video_materials)} local materials:")
+        logger.info(f"User provided {len(params.video_materials)} local materials:", extra={"task_id": task_id})
         for i, material in enumerate(params.video_materials):
-            logger.info(f"  {i+1}. {os.path.basename(material.url)}")
+            logger.info(f"  {i+1}. {os.path.basename(material.url)}", extra={"task_id": task_id})
     else:
-        logger.info("No local materials provided by user")
+        logger.info("No local materials provided by user", extra={"task_id": task_id})
     
     # 1. Generate script
     video_script = generate_script(task_id, params)

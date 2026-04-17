@@ -91,6 +91,7 @@ import { ElMessage } from 'element-plus';
 import { useI18nStore } from './stores/i18n';
 import { useTasksStore } from './stores/tasks';
 import { useSettingsStore } from './stores/settings';
+import { useScriptStore } from './stores/script';
 import SettingsPanel from './views/SettingsPanel.vue';
 
 const route = useRoute();
@@ -129,28 +130,19 @@ const generateVideo = async () => {
   isGenerating.value = true;
 
   try {
-    const videoSettings = (window as any).__VUE_APP_VIDEO_SETTINGS__;
-    const scriptSettings = (window as any).__VUE_APP_SCRIPT_SETTINGS__;
-    const audioSettings = (window as any).__VUE_APP_AUDIO_SETTINGS__;
-    const subtitleSettings = (window as any).__VUE_APP_SUBTITLE_SETTINGS__;
-    const sceneIntegration = (window as any).__VUE_APP_SCENE_INTEGRATION__;
-
-    let isValid = true;
-    if (videoSettings && videoSettings.validate) {
-      isValid = isValid && await videoSettings.validate();
-    }
-    if (scriptSettings && scriptSettings.validate) {
-      isValid = isValid && await scriptSettings.validate();
-    }
-    if (audioSettings && audioSettings.validate) {
-      isValid = isValid && await audioSettings.validate();
-    }
-    if (subtitleSettings && subtitleSettings.validate) {
-      isValid = isValid && await subtitleSettings.validate();
-    }
-
-    if (!isValid) {
-      ElMessage.warning(t('Video Script and Subject Cannot Both Be Empty'));
+    // 直接使用store获取数据
+    const scriptStore = useScriptStore();
+    
+    // 检查必要的参数（参照streamlit逻辑）
+    const videoSubject = scriptStore.videoSubject || '';
+    const videoScript = scriptStore.videoScript || '';
+    const scenes = scriptStore.scenes || [];
+    const hasScenes = scenes.length > 0;
+    const hasScript = videoScript.trim();
+    const hasSubject = videoSubject.trim();
+    
+    if (!hasScenes && !hasScript && !hasSubject) {
+      ElMessage.warning(t('Please provide at least one of video subject, video script, or scene information'));
       return;
     }
 
@@ -170,33 +162,34 @@ const generateVideo = async () => {
       'slide_out': 'SlideOut'
     };
 
+    // 使用默认值，因为没有其他store
     const taskParams = {
-      video_subject: scriptSettings?.form.videoSubject || '',
-      video_script: scriptSettings?.form.videoScript || '',
-      video_terms: scriptSettings?.form.videoTerms || '',
-      video_source: videoSettings?.form.videoSource || 'pexels',
-      video_concat_mode: videoSettings?.form.videoConcatMode || 'random',
-      video_transition_mode: transitionMap[videoSettings?.form.videoTransitionMode] ?? null,
-      video_aspect: aspectMap[videoSettings?.form.videoAspect] || '9:16',
-      video_clip_duration: videoSettings?.form.videoClipDuration || 3,
-      video_count: videoSettings?.form.videoCount || 1,
-      video_style: videoSettings?.form.videoStyle || '',
-      voice_provider: audioSettings?.form.voiceProvider || 'azure',
-      voice_type: audioSettings?.form.voiceType || 'female',
-      voice_name: audioSettings?.form.voiceName || 'zh-CN-XiaoxiaoNeural',
-      bgm: audioSettings?.form.bgm || '',
-      bgm_volume: audioSettings?.form.bgmVolume || 30,
-      voice_volume: audioSettings?.form.voiceVolume || 80,
-      subtitle_language: subtitleSettings?.form.subtitleLanguage || 'zh',
-      subtitle_position: subtitleSettings?.form.subtitlePosition || 'bottom',
-      subtitle_font: subtitleSettings?.form.subtitleFont || 'Microsoft YaHei',
-      subtitle_font_size: subtitleSettings?.form.subtitleFontSize || 24,
-      subtitle_color: subtitleSettings?.form.subtitleColor || '#ffffff',
-      subtitle_background: subtitleSettings?.form.subtitleBackground || 'rgba(0, 0, 0, 0.5)',
-      subtitle_bold: subtitleSettings?.form.subtitleBold || false,
-      subtitle_italic: subtitleSettings?.form.subtitleItalic || false,
-      scenes: sceneIntegration?.scenes || [],
-      language: scriptSettings?.form.language || 'zh'
+      video_subject: videoSubject,
+      video_script: videoScript,
+      video_terms: '',
+      video_source: 'pexels',
+      video_concat_mode: 'sequential',
+      video_transition_mode: null,
+      video_aspect: '9:16',
+      video_clip_duration: 3,
+      video_count: 1,
+      video_style: '',
+      voice_provider: 'azure',
+      voice_type: 'female',
+      voice_name: 'zh-CN-XiaoxiaoNeural',
+      bgm: '',
+      bgm_volume: 30,
+      voice_volume: 80,
+      subtitle_language: 'zh',
+      subtitle_position: 'bottom',
+      subtitle_font: 'Microsoft YaHei',
+      subtitle_font_size: 24,
+      subtitle_color: '#ffffff',
+      subtitle_background: 'rgba(0, 0, 0, 0.5)',
+      subtitle_bold: false,
+      subtitle_italic: false,
+      scenes: scenes,
+      language: scriptStore.language || 'zh'
     };
 
     const task = await tasksStore.createTask(taskParams, 'video');

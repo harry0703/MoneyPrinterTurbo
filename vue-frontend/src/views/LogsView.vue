@@ -13,9 +13,9 @@
             <el-option :label="t('All Tasks')" value="" />
             <el-option
               v-for="task in tasks"
-              :key="task.id"
-              :label="`${task.id} - ${task.video_subject || task.video_script?.substring(0, 20)}`"
-              :value="task.id"
+              :key="task.task_id"
+              :label="`${task.task_id} - ${task.video_subject || task.video_script?.substring(0, 20)}`"
+              :value="task.task_id"
             />
           </el-select>
 
@@ -34,12 +34,18 @@
           <el-button :type="autoRefresh ? 'success' : 'default'" size="small" @click="toggleAutoRefresh">
             {{ autoRefresh ? t('Auto Refresh On') : t('Auto Refresh Off') }}
           </el-button>
+          <el-button type="info" size="small" @click="debugLogs">
+            Debug Logs
+          </el-button>
+        </div>
+        <div class="log-count">
+          Total logs: {{ logs.length }}
         </div>
       </div>
       
       <div class="logs-container">
         <div 
-          v-for="(log, index) in filteredLogs" 
+          v-for="(log, index) in logs" 
           :key="index" 
           :class="['log-item', `log-level-${log.level?.toLowerCase() || 'info'}`]"
         >
@@ -49,7 +55,7 @@
           <div class="log-message">{{ log.message }}</div>
         </div>
         
-        <div v-if="filteredLogs.length === 0" class="no-logs">
+        <div v-if="logs.length === 0" class="no-logs">
           {{ t('No logs found') }}
         </div>
       </div>
@@ -85,7 +91,7 @@ const selectedLogLevel = ref('');
 const currentPage = ref(1);
 const pageSize = ref(50);
 const totalLogs = ref(0);
-const totalPages = computed(() => Math.ceil(totalLogs.value / pageSize.value));
+const totalPages = computed(() => Math.ceil(filteredLogs.value.length / pageSize.value));
 const autoRefresh = ref(true);
 const refreshInterval = ref<number | null>(null);
 
@@ -111,8 +117,6 @@ const filteredLogs = computed(() => {
     result = result.filter(log => log.level?.toLowerCase() === selectedLogLevel.value);
   }
 
-  totalLogs.value = result.length;
-
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
   return result.slice(start, end);
@@ -125,15 +129,24 @@ const formatTime = (timestamp: string) => {
 
 const fetchLogs = async () => {
   try {
-    const response = await apiService.getLogs(
-      selectedLogLevel.value || undefined,
-      selectedTaskId.value || undefined,
-      1000,
-      0
-    );
-    if (response.code === 200 && response.data) {
-      logs.value = response.data.logs || [];
-      totalLogs.value = response.data.total || 0;
+    const response = await apiService.getLogs({
+      level: selectedLogLevel.value || undefined,
+      task_id: selectedTaskId.value || undefined,
+      limit: 1000,
+      offset: 0
+    });
+    console.log('Logs response:', response);
+    if (response.status === 200) {
+      // Check if the logs are nested under a 'data' field
+      let logsData = response;
+      if (response.data) {
+        logsData = response.data;
+      }
+      console.log('Logs data:', logsData);
+      logs.value = logsData.logs || [];
+      console.log('Logs array:', logs.value);
+      totalLogs.value = logsData.total || 0;
+      console.log('Total logs:', totalLogs.value);
     }
   } catch (error) {
     console.error('Failed to fetch logs:', error);
@@ -176,6 +189,11 @@ const stopAutoRefresh = () => {
     clearInterval(refreshInterval.value);
     refreshInterval.value = null;
   }
+};
+
+const debugLogs = () => {
+  console.log('Current logs:', logs.value);
+  console.log('Logs length:', logs.value.length);
 };
 
 onMounted(async () => {

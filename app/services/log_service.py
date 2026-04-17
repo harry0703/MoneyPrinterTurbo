@@ -56,6 +56,8 @@ class LogService:
             filtered_logs = [log for log in filtered_logs if log.get("task_id") == task_id]
 
         total = len(filtered_logs)
+        # Get the latest logs by reversing the list
+        filtered_logs.reverse()
         paginated_logs = filtered_logs[offset:offset + limit]
 
         return {

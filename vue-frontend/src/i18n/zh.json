@@ -400,6 +400,7 @@
     "No logs found": "未找到日志",
     "Auto Refresh On": "自动刷新开启",
     "Auto Refresh Off": "自动刷新关闭",
-    "Video Subject, Video Script, and Scenes Cannot All Be Empty": "视频主题、视频文案和场景不能同时为空"
+    "Video Subject, Video Script, and Scenes Cannot All Be Empty": "视频主题、视频文案和场景不能同时为空",
+    "Please provide at least one of video subject, video script, or scene information": "请提供视频主题、视频文案或场景信息中的至少一项"
   }
 }

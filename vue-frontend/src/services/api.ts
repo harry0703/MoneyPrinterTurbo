@@ -11,7 +11,7 @@ const api = axios.create({
 });
 
 export interface ApiResponse {
-  code: number;
+  status: number;
   message: string;
   data?: any;
 }
@@ -70,7 +70,9 @@ export const apiService = {
   },
   
   createVideo: async (params: any): Promise<ApiResponse> => {
+    console.log('createVideo params:', params);
     const response = await api.post('/videos', params);
+    console.log('createVideo response:', response.data);
     return response.data;
   },
   
@@ -132,6 +134,7 @@ export const apiService = {
   // Logs related
   getLogs: async (params: any): Promise<ApiResponse> => {
     const response = await api.get('/logs', { params });
+    // Return the raw response data
     return response.data;
   }
 };

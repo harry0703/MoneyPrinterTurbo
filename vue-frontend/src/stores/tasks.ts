@@ -49,7 +49,7 @@ export const useTasksStore = defineStore('tasks', {
       
       try {
         const response = await apiService.getAllTasks(page, pageSize);
-        if (response.code === 200 && response.data) {
+        if (response.status === 200 && response.data) {
           this.tasks = response.data.tasks || [];
         }
       } catch (error) {
@@ -66,7 +66,7 @@ export const useTasksStore = defineStore('tasks', {
       
       try {
         const response = await apiService.getTask(taskId);
-        if (response.code === 200 && response.data) {
+        if (response.status === 200 && response.data) {
           const task = response.data;
           this.currentTask = task;
           
@@ -100,11 +100,14 @@ export const useTasksStore = defineStore('tasks', {
           response = await apiService.createAudio(params);
         }
         
-        if (response.code === 200 && response.data) {
+        if (response.status === 200 && response.data) {
           const task = response.data;
+          console.log('Task created:', task);
           this.tasks.unshift(task);
           this.currentTask = task;
           return task;
+        } else {
+          console.log('Invalid response:', response);
         }
       } catch (error) {
         this.error = 'Failed to create task';
@@ -122,7 +125,7 @@ export const useTasksStore = defineStore('tasks', {
       
       try {
         const response = await apiService.deleteTask(taskId);
-        if (response.code === 200) {
+        if (response.status === 200) {
           this.tasks = this.tasks.filter(task => task.task_id !== taskId);
           if (this.currentTask?.task_id === taskId) {
             this.currentTask = null;
