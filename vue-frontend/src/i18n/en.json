@@ -373,6 +373,13 @@
     "No logs found": "No logs found",
     "Auto Refresh On": "Auto Refresh On",
     "Auto Refresh Off": "Auto Refresh Off",
-    "Video Subject, Video Script, and Scenes Cannot All Be Empty": "Video Subject, Video Script, and Scenes Cannot All Be Empty"
+    "Video Subject, Video Script, and Scenes Cannot All Be Empty": "Video Subject, Video Script, and Scenes Cannot All Be Empty",
+    "Coze voice list refreshed": "Coze voice list refreshed",
+    "Failed to load voice list": "Failed to load voice list",
+    "Please select a voice first": "Please select a voice first",
+    "Testing...": "Testing...",
+    "Failed to generate voice preview": "Failed to generate voice preview",
+    "Upload Background Music": "Upload Background Music",
+    "Only MP3, WAV, OGG files less than 50MB": "Only MP3, WAV, OGG files less than 50MB"
   }
 }

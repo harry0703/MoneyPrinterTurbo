@@ -401,6 +401,13 @@
     "Auto Refresh On": "自动刷新开启",
     "Auto Refresh Off": "自动刷新关闭",
     "Video Subject, Video Script, and Scenes Cannot All Be Empty": "视频主题、视频文案和场景不能同时为空",
-    "Please provide at least one of video subject, video script, or scene information": "请提供视频主题、视频文案或场景信息中的至少一项"
+    "Please provide at least one of video subject, video script, or scene information": "请提供视频主题、视频文案或场景信息中的至少一项",
+    "Coze voice list refreshed": "Coze 音色列表已刷新",
+    "Failed to load voice list": "加载音色列表失败",
+    "Please select a voice first": "请先选择音色",
+    "Testing...": "测试中...",
+    "Failed to generate voice preview": "生成语音预览失败",
+    "Upload Background Music": "上传背景音乐",
+    "Only MP3, WAV, OGG files less than 50MB": "仅支持 MP3、WAV、OGG 格式文件，且小于 50MB"
   }
 }

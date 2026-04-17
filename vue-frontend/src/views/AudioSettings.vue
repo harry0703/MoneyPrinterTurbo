@@ -6,11 +6,11 @@
           <h2 class="title">{{ t('Audio Settings') }}</h2>
         </div>
       </template>
-      
+
       <div class="settings-form">
         <div class="form-item">
           <label class="form-label">{{ t('TTS Server') }}</label>
-          <el-select v-model="form.ttsServer" :placeholder="t('Select TTS server')" class="form-select">
+          <el-select v-model="form.ttsServer" :placeholder="t('Select TTS server')" class="form-select" @change="onTtsServerChange">
             <el-option :label="t('Azure TTS V1')" value="azure-tts-v1" />
             <el-option :label="t('Azure TTS V2')" value="azure-tts-v2" />
             <el-option :label="t('SiliconFlow TTS')" value="siliconflow" />
@@ -18,12 +18,11 @@
             <el-option :label="t('Coze TTS')" value="coze-tts" />
           </el-select>
         </div>
-        
-        <!-- Coze TTS specific settings - search and refresh -->
-        <div v-if="form.ttsServer === 'coze-tts'" class="form-item">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+
+        <div v-if="form.ttsServer === 'coze-tts'" class="form-item coze-settings">
+          <div class="coze-header">
             <span>{{ t('Coze TTS') }}</span>
-            <el-button type="primary" size="small" icon="Refresh">
+            <el-button type="primary" size="small" icon="Refresh" @click="refreshCozeVoices" :loading="refreshingVoices">
               {{ t('Refresh') }}
             </el-button>
           </div>
@@ -31,40 +30,53 @@
             v-model="searchKeyword"
             :placeholder="t('Enter voice keyword to search...')"
             class="form-input"
+            clearable
           />
         </div>
-        
+
         <div class="form-item">
-          <label class="form-label">{{ t('Speaking Voice') }} <span style="color: red;">{{ t('(Keep consistent with copy language)') }}</span><span v-if="form.ttsServer === 'azure-tts-v1'" style="color: red;">{{ t('(Note: V2 version is better, but requires API KEY)') }}</span></label>
-          <el-select v-model="form.speechSynthesis" :placeholder="t('Select voice')" class="form-select">
-            <el-option 
-              v-for="voice in filteredVoiceList" 
-              :key="voice.value" 
-              :label="voice.label" 
-              :value="voice.value" 
+          <label class="form-label">
+            {{ t('Speaking Voice') }}
+            <span style="color: red;" v-if="form.ttsServer === 'azure-tts-v1'">{{ t('(Keep consistent with copy language)') }}</span>
+            <span v-if="form.ttsServer === 'azure-tts-v1'" style="color: red;">{{ t('(Note: V2 version is better, but requires API KEY)') }}</span>
+          </label>
+          <el-select
+            v-model="form.speechSynthesis"
+            :placeholder="t('Select voice')"
+            class="form-select"
+            filterable
+            :loading="loadingVoices"
+          >
+            <el-option
+              v-for="voice in filteredVoiceList"
+              :key="voice.value"
+              :label="voice.label"
+              :value="voice.value"
             />
           </el-select>
         </div>
-        
-        <!-- Coze TTS specific settings - emotion selection -->
+
         <div v-if="form.ttsServer === 'coze-tts' && currentVoiceSupportsEmotion" class="form-item">
           <label class="form-label">{{ t('Voice Emotion') }}</label>
           <el-select v-model="form.voiceEmotion" :placeholder="t('Select emotion')" class="form-select">
-            <el-option :label="t('neutral-Neutral')" value="neutral" />
-            <el-option :label="t('happy-Happy')" value="happy" />
-            <el-option :label="t('sad-Sad')" value="sad" />
-            <el-option :label="t('angry-Angry')" value="angry" />
-            <el-option :label="t('fear-Fear')" value="fear" />
-            <el-option :label="t('surprise-Surprise')" value="surprise" />
+            <el-option
+              v-for="emotion in currentVoiceEmotions"
+              :key="emotion.value"
+              :label="t(emotion.label)"
+              :value="emotion.value"
+            />
           </el-select>
         </div>
-        
+
         <div class="form-item">
-          <el-button type="primary" class="form-button">{{ t('Test Speech Synthesis') }}</el-button>
+          <el-button type="primary" class="form-button" @click="testVoice" :loading="testingVoice">
+            {{ testingVoice ? t('Testing...') : t('Test Speech Synthesis') }}
+          </el-button>
         </div>
-        
-        <!-- Azure TTS V2 specific settings -->
-        <div v-if="form.ttsServer === 'azure-tts-v2'">
+
+        <audio v-if="audioUrl" :src="audioUrl" controls class="audio-preview"></audio>
+
+        <div v-if="form.ttsServer === 'azure-tts-v2'" class="azure-v2-settings">
           <div class="form-item">
             <label class="form-label">{{ t('Service Region') }} <span style="color: blue;">{{ t('(Required, ') }}<a href="https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices" target="_blank">{{ t('click to get') }}</a>{{ t(')') }}</span></label>
             <el-input
@@ -73,7 +85,7 @@
               class="form-input"
             />
           </div>
-          
+
           <div class="form-item">
             <label class="form-label">{{ t('API Key') }} <span style="color: blue;">{{ t('(Required, either key 1 or key 2 ') }}<a href="https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices" target="_blank">{{ t('click to get') }}</a>{{ t(')') }}</span></label>
             <el-input
@@ -85,9 +97,8 @@
             />
           </div>
         </div>
-        
-        <!-- SiliconFlow TTS specific settings -->
-        <div v-if="form.ttsServer === 'siliconflow'">
+
+        <div v-if="form.ttsServer === 'siliconflow'" class="siliconflow-settings">
           <div class="form-item">
             <label class="form-label">{{ t('SiliconFlow API Key') }} <a href="https://cloud.siliconflow.cn/account/ak" target="_blank">{{ t('click to get') }}</a></label>
             <el-input
@@ -98,7 +109,7 @@
               class="form-input"
             />
           </div>
-          
+
           <div class="form-item">
             <el-alert
               :title="t('SiliconFlow TTS Settings:')"
@@ -112,9 +123,8 @@
             </el-alert>
           </div>
         </div>
-        
-        <!-- Coze TTS specific settings -->
-        <div v-if="form.ttsServer === 'coze-tts'">
+
+        <div v-if="form.ttsServer === 'coze-tts'" class="coze-settings-panel">
           <div class="form-item">
             <label class="form-label">{{ t('Coze API Key') }}</label>
             <el-input
@@ -125,7 +135,7 @@
               class="form-input"
             />
           </div>
-          
+
           <div class="form-item">
             <el-alert
               :title="t('Coze TTS Settings:')"
@@ -140,27 +150,56 @@
             </el-alert>
           </div>
         </div>
-        
+
         <div class="form-item">
           <label class="form-label">{{ t('Speaking Volume (1.0 means 100%)') }}</label>
           <el-select v-model="form.speechVolume" :placeholder="t('Select volume')" class="form-select">
+            <el-option label="0.0" value="0.0" />
+            <el-option label="0.1" value="0.1" />
+            <el-option label="0.2" value="0.2" />
+            <el-option label="0.3" value="0.3" />
+            <el-option label="0.4" value="0.4" />
             <el-option label="0.5" value="0.5" />
+            <el-option label="0.6" value="0.6" />
+            <el-option label="0.7" value="0.7" />
             <el-option label="0.8" value="0.8" />
+            <el-option label="0.9" value="0.9" />
             <el-option label="1.0" value="1.0" />
+            <el-option label="1.1" value="1.1" />
             <el-option label="1.2" value="1.2" />
+            <el-option label="1.3" value="1.3" />
+            <el-option label="1.4" value="1.4" />
             <el-option label="1.5" value="1.5" />
+            <el-option label="1.6" value="1.6" />
+            <el-option label="1.7" value="1.7" />
+            <el-option label="1.8" value="1.8" />
+            <el-option label="1.9" value="1.9" />
+            <el-option label="2.0" value="2.0" />
           </el-select>
         </div>
-        
+
         <div class="form-item">
           <label class="form-label">{{ t('Speaking Rate (1.0 means normal speed)') }}</label>
           <el-select v-model="form.speechRate" :placeholder="t('Select rate')" class="form-select">
+            <el-option label="0.5" value="0.5" />
+            <el-option label="0.6" value="0.6" />
+            <el-option label="0.7" value="0.7" />
             <el-option label="0.8" value="0.8" />
+            <el-option label="0.9" value="0.9" />
             <el-option label="1.0" value="1.0" />
+            <el-option label="1.1" value="1.1" />
             <el-option label="1.2" value="1.2" />
+            <el-option label="1.3" value="1.3" />
+            <el-option label="1.4" value="1.4" />
+            <el-option label="1.5" value="1.5" />
+            <el-option label="1.6" value="1.6" />
+            <el-option label="1.7" value="1.7" />
+            <el-option label="1.8" value="1.8" />
+            <el-option label="1.9" value="1.9" />
+            <el-option label="2.0" value="2.0" />
           </el-select>
         </div>
-        
+
         <div class="form-item">
           <label class="form-label">{{ t('Background Music') }}</label>
           <el-select v-model="form.backgroundMusic" :placeholder="t('Select background music')" class="form-select">
@@ -169,15 +208,37 @@
             <el-option :label="t('Custom Background Music')" value="custom" />
           </el-select>
         </div>
-        
+
+        <div v-if="form.backgroundMusic === 'custom'" class="form-item">
+          <el-upload
+            ref="bgmUploadRef"
+            class="bgm-uploader"
+            :auto-upload="false"
+            :limit="1"
+            :on-change="handleBgmChange"
+            accept=".mp3,.wav,.ogg"
+          >
+            <el-button type="primary" size="small">{{ t('Upload Background Music') }}</el-button>
+            <template #tip>
+              <div class="el-upload__tip">{{ t('Only MP3, WAV, OGG files less than 50MB') }}</div>
+            </template>
+          </el-upload>
+        </div>
+
         <div class="form-item">
           <label class="form-label">{{ t('Background Music Volume') }}</label>
           <el-select v-model="form.backgroundMusicVolume" :placeholder="t('Select volume')" class="form-select">
+            <el-option label="0.0" value="0.0" />
             <el-option label="0.1" value="0.1" />
             <el-option label="0.2" value="0.2" />
             <el-option label="0.3" value="0.3" />
             <el-option label="0.4" value="0.4" />
             <el-option label="0.5" value="0.5" />
+            <el-option label="0.6" value="0.6" />
+            <el-option label="0.7" value="0.7" />
+            <el-option label="0.8" value="0.8" />
+            <el-option label="0.9" value="0.9" />
+            <el-option label="1.0" value="1.0" />
           </el-select>
         </div>
       </div>
@@ -186,8 +247,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 import { useI18nStore } from '../stores/i18n';
+import { apiService } from '../services/api';
 
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
@@ -199,142 +262,275 @@ const form = reactive({
   speechKey: '',
   siliconflowApiKey: '',
   cozeApiKey: '',
-  voiceEmotion: 'neutral',
+  voiceEmotion: '',
   speechVolume: '1.0',
   speechRate: '1.0',
-  backgroundMusic: 'random',
+  backgroundMusic: 'none',
   backgroundMusicVolume: '0.2'
 });
 
-// Search keyword
 const searchKeyword = ref('');
+const loadingVoices = ref(false);
+const refreshingVoices = ref(false);
+const testingVoice = ref(false);
+const audioUrl = ref('');
+const bgmFile = ref<File | null>(null);
+const bgmUploadRef = ref();
 
-// Voice interface with optional supportsEmotion property
+const allVoices = ref<string[]>([]);
+
 interface Voice {
   label: string;
   value: string;
   supportsEmotion?: boolean;
+  emotions?: string[];
+  previewText?: string;
 }
 
-// Simulated voice lists for different TTS servers
-const voiceLists: Record<string, Voice[]> = {
-  'azure-tts-v1': [
-    { label: 'zh-CN-XiaoxiaoNeural-Female', value: 'zh-CN-XiaoxiaoNeural' },
-    { label: 'zh-CN-YiaoyiNeural-Female', value: 'zh-CN-YiaoyiNeural' },
-    { label: 'zh-CN-YunjianNeural-Male', value: 'zh-CN-YunjianNeural' },
-    { label: 'zh-CN-YunxiNeural-Male', value: 'zh-CN-YunxiNeural' },
-    { label: 'zh-CN-YunxiaNeural-Male', value: 'zh-CN-YunxiaNeural' },
-    { label: 'zh-CN-YunyangNeural-Male', value: 'zh-CN-YunyangNeural' },
-    { label: 'zh-CN-liaoning-XiaobeiNeural-Female', value: 'zh-CN-liaoning-XiaobeiNeural' },
-    { label: 'zh-CN-shaanxi-XiaoniNeural-Female', value: 'zh-CN-shaanxi-XiaoniNeural' },
-    { label: 'zh-HK-HiuGaaiNeural-Female', value: 'zh-HK-HiuGaaiNeural' },
-    { label: 'zh-HK-HiuMaanNeural-Female', value: 'zh-HK-HiuMaanNeural' },
-    { label: 'zh-HK-WanLungNeural-Male', value: 'zh-HK-WanLungNeural' },
-    { label: 'zh-TW-HsiaoChenNeural-Female', value: 'zh-TW-HsiaoChenNeural' },
-    { label: 'zh-TW-HsiaoYuNeural-Female', value: 'zh-TW-HsiaoYuNeural' },
-    { label: 'zh-TW-YunJheNeural-Male', value: 'zh-TW-YunJheNeural' }
-  ],
-  'azure-tts-v2': [
-    { label: 'zh-CN-XiaoxiaoNeural-V2-Female', value: 'zh-CN-XiaoxiaoNeural-V2' },
-    { label: 'zh-CN-YiaoyiNeural-V2-Female', value: 'zh-CN-YiaoyiNeural-V2' },
-    { label: 'zh-CN-YunjianNeural-V2-Male', value: 'zh-CN-YunjianNeural-V2' },
-    { label: 'zh-CN-YunxiNeural-V2-Male', value: 'zh-CN-YunxiNeural-V2' },
-    { label: 'zh-CN-YunxiaNeural-V2-Male', value: 'zh-CN-YunxiaNeural-V2' },
-    { label: 'zh-CN-YunyangNeural-V2-Male', value: 'zh-CN-YunyangNeural-V2' },
-    { label: 'de-DE-FlorianMultilingual-V2-Male', value: 'de-DE-FlorianMultilingual-V2' },
-    { label: 'en-US-JennyMultilingual-V2-Female', value: 'en-US-JennyMultilingual-V2' }
-  ],
-  'gemini-tts': [
-    { label: 'gemini:Zephyr-Female', value: 'gemini:Zephyr-Female' },
-    { label: 'gemini:Puck-Male', value: 'gemini:Puck-Male' },
-    { label: 'gemini:Charon-Male', value: 'gemini:Charon-Male' },
-    { label: 'gemini:Kore-Female', value: 'gemini:Kore-Female' },
-    { label: 'gemini:Fenrir-Male', value: 'gemini:Fenrir-Male' },
-    { label: 'gemini:Aoede-Female', value: 'gemini:Aoede-Female' },
-    { label: 'gemini:Thalia-Female', value: 'gemini:Thalia-Female' },
-    { label: 'gemini:Sage-Male', value: 'gemini:Sage-Male' },
-    { label: 'gemini:Echo-Female', value: 'gemini:Echo-Female' },
-    { label: 'gemini:Harmony-Female', value: 'gemini:Harmony-Female' },
-    { label: 'gemini:Lux-Female', value: 'gemini:Lux-Female' },
-    { label: 'gemini:Nova-Female', value: 'gemini:Nova-Female' },
-    { label: 'gemini:Vale-Male', value: 'gemini:Vale-Male' },
-    { label: 'gemini:Orion-Male', value: 'gemini:Orion-Male' },
-    { label: 'gemini:Atlas-Male', value: 'gemini:Atlas-Male' }
-  ],
-  'siliconflow': [
-    { label: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:alex-Male', value: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:alex-Male' },
-    { label: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:anna-Female', value: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:anna-Female' },
-    { label: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:bella-Female', value: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:bella-Female' },
-    { label: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:benjamin-Male', value: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:benjamin-Male' },
-    { label: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:charles-Male', value: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:charles-Male' },
-    { label: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:claire-Female', value: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:claire-Female' },
-    { label: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:david-Male', value: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:david-Male' },
-    { label: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:diana-Female', value: 'siliconflow:FunAudioLLM/CosyVoice2-0.5B:diana-Female' }
-  ],
-  'coze-tts': [
-    { label: 'Ao Cang-Male', value: 'coze|7426720361732915209|骜苍-男性', supportsEmotion: false },
-    { label: 'Zhuang Zong (Multi-emotion)-Male', value: 'coze|7426720361732915210|做好霸总-男性', supportsEmotion: true },
-    { label: 'Xiao Yi-Female', value: 'coze|7426720361732915211|小一-女性', supportsEmotion: false },
-    { label: 'Xiao Nuan-Female', value: 'coze|7426720361732915212|小暖-女性', supportsEmotion: false },
-    { label: 'Xiao Ku-Male', value: 'coze|7426720361732915213|小酷-男性', supportsEmotion: false },
-    { label: 'Xiao Tian-Female', value: 'coze|7426720361732915214|小甜-女性', supportsEmotion: false },
-    { label: 'Xiao Wen-Male', value: 'coze|7426720361732915215|小稳-男性', supportsEmotion: false },
-    { label: 'Xiao Meng-Female', value: 'coze|7426720361732915216|小萌-女性', supportsEmotion: false },
-    { label: 'Xiao Sa-Female', value: 'coze|7426720361732915217|小飒-女性', supportsEmotion: false },
-    { label: 'Xiao Zhi-Male', value: 'coze|7426720361732915218|小智-男性', supportsEmotion: false }
-  ]
-};
+const voiceList = computed<Voice[]>(() => {
+  const voices: Voice[] = [];
+  for (const v of allVoices.value) {
+    if (v.startsWith('coze|')) {
+      const parts = v.split('|');
+      if (parts.length >= 3) {
+        const voiceNameGender = parts[2];
+        let label = voiceNameGender.replace('Female', t('Female')).replace('Male', t('Male'));
+        const emotions: string[] = [];
+        let supportsEmotion = false;
 
-// Current TTS server's voice list
-const currentVoiceList = computed(() => {
-  return voiceLists[form.ttsServer as keyof typeof voiceLists] || [];
+        if (parts.length >= 6 && parts[5]) {
+          const emotionParts = parts[5].split(',');
+          for (const ep of emotionParts) {
+            if (ep.trim()) {
+              emotions.push(ep.trim());
+              supportsEmotion = true;
+            }
+          }
+        }
+
+        voices.push({
+          label,
+          value: v,
+          supportsEmotion,
+          emotions,
+          previewText: parts.length >= 5 ? parts[4] : ''
+        });
+      }
+    } else if (v.startsWith('siliconflow:')) {
+      const parts = v.split(':');
+      if (parts.length >= 3) {
+        const voiceWithGender = parts[2];
+        const label = voiceWithGender.replace('Female', t('Female')).replace('Male', t('Male'));
+        voices.push({ label, value: v });
+      }
+    } else if (v.startsWith('gemini:')) {
+      const parts = v.split(':');
+      if (parts.length >= 2) {
+        const voiceWithGender = parts[1];
+        const label = voiceWithGender.replace('Female', t('Female')).replace('Male', t('Male'));
+        voices.push({ label, value: v });
+      }
+    } else {
+      const label = v.replace('Female', t('Female')).replace('Male', t('Male')).replace('Neural', '').replace('-V2', ' V2');
+      voices.push({ label, value: v });
+    }
+  }
+  return voices;
 });
 
-// Filtered voice list (supports search)
 const filteredVoiceList = computed(() => {
   if (!searchKeyword.value) {
-    return currentVoiceList.value;
+    return voiceList.value;
   }
   const keyword = searchKeyword.value.toLowerCase();
-  return currentVoiceList.value.filter((voice: Voice) => 
+  return voiceList.value.filter((voice: Voice) =>
     voice.label.toLowerCase().includes(keyword)
   );
 });
 
-// Check if current selected voice supports emotion
+const currentVoice = computed(() => {
+  return voiceList.value.find((v: Voice) => v.value === form.speechSynthesis);
+});
+
 const currentVoiceSupportsEmotion = computed(() => {
-  if (form.ttsServer !== 'coze-tts') {
-    return false;
+  return currentVoice.value?.supportsEmotion || false;
+});
+
+const currentVoiceEmotions = computed(() => {
+  if (!currentVoice.value?.emotions) {
+    return [];
   }
-  const selectedVoice = currentVoiceList.value.find((voice: Voice) => voice.value === form.speechSynthesis);
-  return selectedVoice ? selectedVoice.supportsEmotion || false : false;
+  return currentVoice.value.emotions.map((e: string) => {
+    const parts = e.split('-');
+    return {
+      value: parts[0],
+      label: e
+    };
+  });
 });
 
-// Watch TTS server changes, reset voice selection
-watch(() => form.ttsServer, (newServer) => {
-  const voices = voiceLists[newServer as keyof typeof voiceLists] || [];
-  form.speechSynthesis = voices.length > 0 ? voices[0].value : '';
-  form.voiceEmotion = 'neutral';
-});
-
-// Watch voice changes, reset emotion selection
-watch(() => form.speechSynthesis, () => {
-  if (!currentVoiceSupportsEmotion.value) {
-    form.voiceEmotion = 'neutral';
+const loadVoices = async (forceRefresh: boolean = false) => {
+  loadingVoices.value = true;
+  try {
+    const response = await apiService.getVoices(form.ttsServer, forceRefresh);
+    if (response.status === 200 && response.data?.voices) {
+      allVoices.value = response.data.voices;
+      // Check if current speechSynthesis is valid for this TTS server
+      if (allVoices.value.length > 0) {
+        const isValidVoice = allVoices.value.includes(form.speechSynthesis);
+        if (!form.speechSynthesis || !isValidVoice) {
+          form.speechSynthesis = allVoices.value[0];
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error('Failed to load voices:', error);
+    ElMessage.error(t('Failed to load voice list'));
+  } finally {
+    loadingVoices.value = false;
   }
-});
-
-// Initialize default voice
-const initDefaultVoice = () => {
-  const voices = voiceLists[form.ttsServer as keyof typeof voiceLists] || [];
-  form.speechSynthesis = voices.length > 0 ? voices[0].value : '';
 };
 
-// Initialize
-initDefaultVoice();
+const loadConfig = async () => {
+  try {
+    const response = await apiService.getConfig();
+    if (response.status === 200 && response.data) {
+      const cfg = response.data;
+      if (cfg.ui) {
+        if (cfg.ui.tts_server) {
+          form.ttsServer = cfg.ui.tts_server;
+        }
+        if (cfg.ui.voice_name) {
+          form.speechSynthesis = cfg.ui.voice_name;
+        }
+      }
+      if (cfg.azure) {
+        form.speechRegion = cfg.azure.speech_region || '';
+        form.speechKey = cfg.azure.speech_key || '';
+      }
+      if (cfg.siliconflow) {
+        form.siliconflowApiKey = cfg.siliconflow.api_key || '';
+      }
+      if (cfg.coze) {
+        form.cozeApiKey = cfg.coze.api_key || '';
+      }
+    }
+  } catch (error: any) {
+    console.error('Failed to load config:', error);
+  }
+};
+
+const saveConfig = async () => {
+  try {
+    const cfg = {
+      ui: {
+        tts_server: form.ttsServer,
+        voice_name: form.speechSynthesis
+      },
+      azure: {
+        speech_region: form.speechRegion,
+        speech_key: form.speechKey
+      },
+      siliconflow: {
+        api_key: form.siliconflowApiKey
+      },
+      coze: {
+        api_key: form.cozeApiKey
+      }
+    };
+    await apiService.updateConfig(cfg);
+  } catch (error: any) {
+    console.error('Failed to save config:', error);
+  }
+};
+
+const refreshCozeVoices = async () => {
+  refreshingVoices.value = true;
+  try {
+    await loadVoices(true);
+    ElMessage.success(t('Coze voice list refreshed'));
+  } finally {
+    refreshingVoices.value = false;
+  }
+};
+
+const testVoice = async () => {
+  if (!form.speechSynthesis) {
+    ElMessage.warning(t('Please select a voice first'));
+    return;
+  }
+
+  testingVoice.value = true;
+  audioUrl.value = '';
+
+  try {
+    let text = '';
+    if (currentVoice.value?.previewText) {
+      text = currentVoice.value.previewText;
+    }
+    if (!text) {
+      text = t('Voice Example');
+    }
+
+    const blob = await apiService.previewAudio({
+      text,
+      voice_name: form.speechSynthesis,
+      voice_rate: parseFloat(form.speechRate),
+      voice_volume: parseFloat(form.speechVolume),
+      voice_emotion: form.voiceEmotion
+    });
+
+    if (blob) {
+      audioUrl.value = URL.createObjectURL(blob);
+    }
+  } catch (error: any) {
+    console.error('Failed to test voice:', error);
+    ElMessage.error(t('Failed to generate voice preview'));
+  } finally {
+    testingVoice.value = false;
+  }
+};
+
+const handleBgmChange = (file: any) => {
+  bgmFile.value = file.raw;
+};
+
+const onTtsServerChange = () => {
+  form.speechSynthesis = '';
+  form.voiceEmotion = '';
+  searchKeyword.value = '';
+  loadVoices();
+};
+
+watch([
+  () => form.ttsServer,
+  () => form.speechSynthesis,
+  () => form.speechRegion,
+  () => form.speechKey,
+  () => form.siliconflowApiKey,
+  () => form.cozeApiKey
+], () => {
+  saveConfig();
+});
+
+watch(() => form.speechSynthesis, () => {
+  // Clear audio URL when voice changes
+  audioUrl.value = '';
+  if (!currentVoiceSupportsEmotion.value) {
+    form.voiceEmotion = '';
+  } else if (!form.voiceEmotion && currentVoiceEmotions.value.length > 0) {
+    form.voiceEmotion = currentVoiceEmotions.value[0].value;
+  }
+});
+
+onMounted(async () => {
+  await loadConfig();
+  await loadVoices();
+});
 
 defineExpose({
-  form
+  form,
+  bgmFile
 });
 </script>
 
@@ -372,23 +568,9 @@ defineExpose({
 
 .form-select {
   width: 100%;
-  padding: 6px 8px;
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-
-.form-select :deep(.el-select) {
-  width: 100%;
 }
 
 .form-input {
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-
-.form-input :deep(.el-input) {
   width: 100%;
 }
 
@@ -402,5 +584,36 @@ defineExpose({
 
 .form-button:hover {
   opacity: 0.9;
+}
+
+.audio-preview {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.coze-settings {
+  background-color: #f5f7fa;
+  padding: 12px;
+  border-radius: 4px;
+}
+
+.coze-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.azure-v2-settings,
+.siliconflow-settings,
+.coze-settings-panel {
+  border: 1px solid #dcdfe6;
+  padding: 12px;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.bgm-uploader {
+  width: 100%;
 }
 </style>

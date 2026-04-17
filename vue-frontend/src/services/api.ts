@@ -102,6 +102,34 @@ export const apiService = {
     const response = await axios.get('http://localhost:8081/version');
     return response.data;
   },
+
+  getVoices: async (ttsServer: string, forceRefresh: boolean = false): Promise<ApiResponse> => {
+    const response = await api.get('/voices', { params: { tts_server: ttsServer, force_refresh: forceRefresh } });
+    return response.data;
+  },
+
+  getConfig: async (): Promise<ApiResponse> => {
+    const response = await api.get('/config');
+    return response.data;
+  },
+
+  updateConfig: async (cfg: any): Promise<ApiResponse> => {
+    const response = await api.put('/config', cfg);
+    return response.data;
+  },
+
+  previewAudio: async (params: {
+    text: string;
+    voice_name: string;
+    voice_rate: number;
+    voice_volume: number;
+    voice_emotion?: string;
+  }): Promise<Blob> => {
+    const response = await api.post('/audio/preview', params, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
   
   // Upload related
   uploadBgm: async (file: File): Promise<ApiResponse> => {
