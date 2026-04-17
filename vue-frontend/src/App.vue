@@ -154,14 +154,30 @@ const generateVideo = async () => {
       return;
     }
 
+    const aspectMap: Record<string, string> = {
+      'landscape': '16:9',
+      'portrait': '9:16',
+      'square': '1:1',
+      'portrait_3_4': '3:4'
+    };
+
+    const transitionMap: Record<string, string | null> = {
+      'none': null,
+      'shuffle': 'Shuffle',
+      'fade_in': 'FadeIn',
+      'fade_out': 'FadeOut',
+      'slide_in': 'SlideIn',
+      'slide_out': 'SlideOut'
+    };
+
     const taskParams = {
       video_subject: scriptSettings?.form.videoSubject || '',
       video_script: scriptSettings?.form.videoScript || '',
       video_terms: scriptSettings?.form.videoTerms || '',
       video_source: videoSettings?.form.videoSource || 'pexels',
       video_concat_mode: videoSettings?.form.videoConcatMode || 'random',
-      video_transition_mode: videoSettings?.form.videoTransitionMode || 'none',
-      video_aspect: videoSettings?.form.videoAspect || 'portrait',
+      video_transition_mode: transitionMap[videoSettings?.form.videoTransitionMode] ?? null,
+      video_aspect: aspectMap[videoSettings?.form.videoAspect] || '9:16',
       video_clip_duration: videoSettings?.form.videoClipDuration || 3,
       video_count: videoSettings?.form.videoCount || 1,
       video_style: videoSettings?.form.videoStyle || '',
