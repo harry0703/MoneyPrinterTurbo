@@ -71,6 +71,7 @@
         <div class="scene-actions">
           <el-button size="small" @click="exportScenes">{{ t('Export Scenes') }}</el-button>
           <el-button size="small" @click="triggerImport">{{ t('Import Scenes') }}</el-button>
+          <el-button size="small" type="danger" @click="clearScenes">清除场景</el-button>
           <input
             ref="fileInput"
             type="file"
@@ -265,6 +266,17 @@ const exportScenes = () => {
   URL.revokeObjectURL(url);
   
   ElMessage.success('Scenes exported successfully');
+};
+
+// Clear all scenes
+const clearScenes = () => {
+  if (scenes.value.length === 0) {
+    ElMessage.warning('No scenes to clear');
+    return;
+  }
+  
+  scriptStore.updateScenes([]);
+  ElMessage.success('All scenes cleared successfully');
 };
 
 // Trigger import
