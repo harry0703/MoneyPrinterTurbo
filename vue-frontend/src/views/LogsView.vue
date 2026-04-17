@@ -34,9 +34,6 @@
           <el-button :type="autoRefresh ? 'success' : 'default'" size="small" @click="toggleAutoRefresh">
             {{ autoRefresh ? t('Auto Refresh On') : t('Auto Refresh Off') }}
           </el-button>
-          <el-button type="info" size="small" @click="debugLogs">
-            Debug Logs
-          </el-button>
         </div>
         <div class="log-count">
           Total logs: {{ logs.length }}
@@ -107,7 +104,7 @@ const logs = ref<LogEntry[]>([]);
 const tasks = computed(() => tasksStore.tasks);
 
 const filteredLogs = computed(() => {
-  let result = [...logs.value];
+  let result = [...logs.value].reverse();
 
   if (selectedTaskId.value) {
     result = result.filter(log => log.task_id === selectedTaskId.value);
@@ -197,11 +194,6 @@ const stopAutoRefresh = () => {
     clearInterval(refreshInterval.value);
     refreshInterval.value = null;
   }
-};
-
-const debugLogs = () => {
-  console.log('Current logs:', logs.value);
-  console.log('Logs length:', logs.value.length);
 };
 
 onMounted(async () => {
