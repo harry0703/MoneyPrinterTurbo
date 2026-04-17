@@ -66,7 +66,7 @@
             </transition>
           </router-view>
           
-          <div class="app-actions" v-if="$route.path !== '/task'">
+          <div class="app-actions" v-if="$route.path !== '/task' && $route.path !== '/logs' && $route.path !== '/scene'">
             <el-button type="danger" size="large" @click="generateVideo" :loading="isGenerating">
               <el-icon><VideoPlay /></el-icon>
               {{ isGenerating ? t('Generating Video') : t('Generate Video') }}
