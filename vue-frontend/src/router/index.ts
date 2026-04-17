@@ -10,7 +10,7 @@ import LogsView from '../views/LogsView.vue';
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    redirect: '/video'
+    redirect: '/script'
   },
   {
     path: '/video',
