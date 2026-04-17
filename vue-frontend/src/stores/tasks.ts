@@ -142,6 +142,30 @@ export const useTasksStore = defineStore('tasks', {
       return false;
     },
     
+    async cancelTask(taskId: string) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await apiService.cancelTask(taskId);
+        if (response.status === 200) {
+          // 更新任务状态为 cancelled
+          const task = this.getTaskById(taskId);
+          if (task) {
+            task.status = 'cancelled';
+          }
+          return true;
+        }
+      } catch (error) {
+        this.error = 'Failed to cancel task';
+        console.error('Error cancelling task:', error);
+      } finally {
+        this.loading = false;
+      }
+      
+      return false;
+    },
+    
     updateTaskStatus(taskId: string, status: string, progress?: number) {
       const task = this.getTaskById(taskId);
       if (task) {

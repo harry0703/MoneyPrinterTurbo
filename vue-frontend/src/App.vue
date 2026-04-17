@@ -6,7 +6,6 @@
         <div class="header-actions">
           <el-button type="primary" @click="showSettings = true">
             <el-icon><Setting /></el-icon>
-            {{ t('Settings') }}
           </el-button>
           <div class="language-selector">
             <el-select v-model="currentLanguage" @change="changeLanguage" placeholder="Select language">
@@ -22,7 +21,7 @@
     
     <main class="app-main">
       <el-container>
-        <el-aside width="200px" class="app-sidebar">
+        <el-aside width="160px" class="app-sidebar">
           <el-menu
             :default-active="activeMenu"
             class="sidebar-menu"

@@ -123,12 +123,12 @@ const scrollToBottom = () => {
 .logs-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 2px;
 }
 
 .log-item {
   display: flex;
-  padding: 5px 0;
+  padding: 2px 0;
   border-bottom: 1px solid #f0f0f0;
 }
 

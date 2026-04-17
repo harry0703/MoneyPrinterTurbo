@@ -15,6 +15,7 @@ from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1.base import new_router
 from app.models.exception import HttpException
+from app.models import const
 from app.models.schema import (
     AudioRequest,
     BgmRetrieveResponse,
@@ -102,9 +103,23 @@ from fastapi import Query
 def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
     request_id = base.get_task_id(request)
     tasks, total = sm.state.get_all_tasks(page, page_size)
+    
+    # Convert numeric status to string status
+    def convert_status(task):
+        status_map = {
+            const.TASK_STATE_FAILED: "failed",
+            const.TASK_STATE_COMPLETE: "completed",
+            const.TASK_STATE_PROCESSING: "running"
+        }
+        if "state" in task:
+            task["status"] = status_map.get(task["state"], "pending")
+            del task["state"]
+        return task
+    
+    converted_tasks = [convert_status(task) for task in tasks]
 
     response = {
-        "tasks": tasks,
+        "tasks": converted_tasks,
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -129,11 +144,21 @@ def get_task(
     request_id = base.get_task_id(request)
     task = sm.state.get_task(task_id)
     if task:
+        # Convert numeric status to string status
+        status_map = {
+            const.TASK_STATE_FAILED: "failed",
+            const.TASK_STATE_COMPLETE: "completed",
+            const.TASK_STATE_PROCESSING: "running"
+        }
+        if "state" in task:
+            task["status"] = status_map.get(task["state"], "pending")
+            del task["state"]
+        
         task_dir = utils.task_dir()
 
         def file_to_uri(file):
             if not file.startswith(endpoint):
-                _uri_path = v.replace(task_dir, "tasks").replace("\\", "/")
+                _uri_path = file.replace(task_dir, "tasks").replace("\\", "/")
                 _uri_path = f"{endpoint}/{_uri_path}"
             else:
                 _uri_path = file
@@ -172,8 +197,37 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
         if os.path.exists(current_task_dir):
             shutil.rmtree(current_task_dir)
 
+        # 删除任务的日志
+        from app.services.log_service import log_service
+        log_service.clear_task_logs(task_id)
+
         sm.state.delete_task(task_id)
         logger.success(f"video deleted: {utils.to_json(task)}")
+        return utils.get_response(200)
+
+    raise HttpException(
+        task_id=task_id, status_code=404, message=f"{request_id}: task not found"
+    )
+
+
+@router.post(
+    "/tasks/{task_id}/cancel",
+    response_model=TaskDeletionResponse,
+    summary="Cancel a running task",
+)
+def cancel_task(request: Request, task_id: str = Path(..., description="Task ID")):
+    request_id = base.get_task_id(request)
+    task = sm.state.get_task(task_id)
+    if task:
+        # 这里需要调用 thread_manager.cancel_task 来取消任务
+        # 但是我们需要确保 thread_manager 能够访问到
+        from app.services.thread_manager import thread_manager
+        thread_manager.cancel_task(task_id)
+        
+        # 更新任务状态为 cancelled
+        sm.state.update_task(task_id, const.TASK_STATE_FAILED, **{"status": "cancelled"})
+        
+        logger.success(f"Task cancelled: {task_id}")
         return utils.get_response(200)
 
     raise HttpException(

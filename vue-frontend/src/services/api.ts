@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8081/api/v1';
+const API_BASE_URL = 'http://127.0.0.1:8081/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -88,6 +88,11 @@ export const apiService = {
   
   deleteTask: async (taskId: string): Promise<ApiResponse> => {
     const response = await api.delete(`/tasks/${taskId}`);
+    return response.data;
+  },
+  
+  cancelTask: async (taskId: string): Promise<ApiResponse> => {
+    const response = await api.post(`/tasks/${taskId}/cancel`);
     return response.data;
   },
   

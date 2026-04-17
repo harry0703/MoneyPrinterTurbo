@@ -124,7 +124,15 @@ const filteredLogs = computed(() => {
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp);
-  return date.toLocaleString();
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
 };
 
 const fetchLogs = async () => {
@@ -232,6 +240,12 @@ onUnmounted(() => {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.log-count {
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
 }
 
 .task-select {

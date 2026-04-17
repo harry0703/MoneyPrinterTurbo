@@ -80,9 +80,9 @@ const deleteTask = async (taskId: string) => {
   await tasksStore.deleteTask(taskId);
 };
 
-const cancelTask = (taskId: string) => {
-  // Implement cancel task logic here
-  console.log('Cancel task:', taskId);
+const cancelTask = async (taskId: string) => {
+  await tasksStore.cancelTask(taskId);
+  await refreshTasks();
 };
 
 onMounted(async () => {

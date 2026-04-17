@@ -59,20 +59,23 @@
                 </div>
               </div>
               
-              <div class="task-actions" v-if="task.status === 'completed'">
-                <el-button v-if="task.videos && task.videos.length > 0" type="primary" size="small" @click="handleDownload(task.videos[0])">
+              <div class="task-actions">
+                <!-- 下载按钮 - 仅在任务完成且有视频时显示 -->
+                <el-button v-if="task.status === 'completed' && task.videos && task.videos.length > 0" type="primary" size="small" @click="handleDownload(task.videos[0])">
                   <el-icon><Download /></el-icon>
                   {{ downloadText }}
                 </el-button>
+                
+                <!-- 取消按钮 - 仅在任务运行时显示 -->
+                <el-button v-if="task.status === 'running'" type="warning" size="small" @click="$emit('cancel', task.task_id)">
+                  <el-icon><Close /></el-icon>
+                  {{ cancelText }}
+                </el-button>
+                
+                <!-- 删除按钮 - 对所有状态的任务都显示 -->
                 <el-button type="danger" size="small" @click="$emit('delete', task.task_id)">
                   <el-icon><Delete /></el-icon>
                   {{ deleteText }}
-                </el-button>
-              </div>
-              <div class="task-actions" v-else-if="task.status === 'running'">
-                <el-button type="warning" size="small" @click="$emit('cancel', task.task_id)">
-                  <el-icon><Close /></el-icon>
-                  {{ cancelText }}
                 </el-button>
               </div>
             </div>

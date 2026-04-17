@@ -70,6 +70,15 @@ class LogService:
     def clear_logs(self):
         self._logs.clear()
 
+    def clear_task_logs(self, task_id: str):
+        """删除特定任务的日志
+        
+        Args:
+            task_id: 任务ID
+        """
+        # 从内存中删除特定任务的日志
+        self._logs = deque([log for log in self._logs if log.get("task_id") != task_id], maxlen=1000)
+
     def get_log_file_path(self):
         return self._log_file
 
