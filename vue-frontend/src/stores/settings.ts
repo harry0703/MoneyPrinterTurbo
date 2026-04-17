@@ -163,7 +163,7 @@ export const useSettingsStore = defineStore('settings', {
         // Fallback to default version if API call fails
         this.version = {
           name: 'MoneyPrinterCN',
-          version: '1.2.45'
+          version: '0.0.0'
         };
       }
     }

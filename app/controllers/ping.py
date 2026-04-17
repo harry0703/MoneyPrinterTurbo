@@ -23,5 +23,7 @@ def ping(request: Request) -> str:
 def version(request: Request) -> dict:
     return {
         "name": config.project_name,
-        "version": config.project_version
+        "version": config.project_version,
+        "code": 0,
+        "message": "success"
     }
