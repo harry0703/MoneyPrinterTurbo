@@ -595,7 +595,7 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     # Generate multi-scene script using LLM
     # Use script as both subject and script since we want to process the entire script
     multi_scene_script = llm_service.generate_multi_scene_script(video_content=script, language=language)
-    logger.info(f"Generated multi-scene script: {multi_scene_script[:200]}...")
+    logger.info(f"Generated multi-scene script: {multi_scene_script[:500]}...")
     
     # Parse the generated multi-scene script
     scenes_data = llm_service.parse_multi_scene_script(multi_scene_script)
@@ -607,6 +607,21 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     
     for i, scene_data in enumerate(scenes_data):
         scene_script = scene_data.get("script", scene_data.get("audio", ""))
+        # Extract emotion markers from script (e.g., "(叙述性、略带规划感) 台词内容")
+        import re
+        emotion_match = re.match(r'^\(([^\)]+)\)\s*(.*)', scene_script)
+        emotion = scene_data.get("emotion", "")
+        
+        if emotion_match:
+            extracted_emotion = emotion_match.group(1)
+            cleaned_script = emotion_match.group(2)
+            # Merge extracted emotion with existing emotion
+            if extracted_emotion and not emotion:
+                emotion = extracted_emotion
+            elif extracted_emotion and emotion:
+                emotion = f"{emotion}, {extracted_emotion}"
+            scene_script = cleaned_script
+        
         duration = estimate_duration(scene_script)
         
         # 获取视觉需求，如果为空则使用LLM生成
@@ -687,9 +702,10 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
             "start_time": current_time,
             "end_time": current_time + duration,
             "visual_requirement": visual_requirement,  # LLM-generated visual requirements
-            "keywords": keywords  # LLM-generated keywords
+            "keywords": keywords,  # LLM-generated keywords
+            "emotion": emotion  # Extracted emotion markers
         }
-        logger.info(f"Scene {i+1} - Final scene data: visual_requirement='{scene['visual_requirement']}', keywords='{scene['keywords']}'")
+        logger.info(f"Scene {i+1} - Final scene data: visual_requirement='{scene['visual_requirement']}', keywords='{scene['keywords']}', emotion='{scene['emotion']}'")
         scenes.append(scene)
         current_time += duration
     

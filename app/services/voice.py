@@ -1374,6 +1374,8 @@ def tts(
     emotion: str = "",
     is_preview: bool = False,
 ) -> Union[SubMaker, None]:
+    parsed_voice_name = voice.parse_voice_name(voice_name)
+    
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
     elif is_siliconflow_voice(voice_name):
@@ -1421,7 +1423,10 @@ def tts(
         else:
             logger.error(f"Invalid coze voice name format: {voice_name}")
             return None
-    return azure_tts_v1(text, voice_name, voice_rate, voice_file)
+    else:
+        # Default to Azure TTS v1 (Edge TTS)
+        logger.info(f"[TTS] Using Azure TTS v1 for voice: {voice_name}")
+        return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
 def convert_rate_to_percent(rate: float) -> str:

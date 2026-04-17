@@ -58,4 +58,5 @@ def parse_video_script(request: Request, body: dict = Body(...)):
         return utils.get_response(400, {"error": "Video script is required"})
     
     result = scene_parser.auto_parse_script(video_script, language=language)
+    logger.info(f"Parse script result: status={result['status']}, scenes_count={len(result.get('scenes', []))}")
     return utils.get_response(200, result)

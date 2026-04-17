@@ -91,6 +91,7 @@ import { useI18nStore } from './stores/i18n';
 import { useTasksStore } from './stores/tasks';
 import { useSettingsStore } from './stores/settings';
 import { useScriptStore } from './stores/script';
+import { apiService } from './services/api';
 import SettingsPanel from './views/SettingsPanel.vue';
 
 const route = useRoute();
@@ -121,6 +122,21 @@ const handleSettingsSaved = () => {
   console.log('Settings saved successfully');
 };
 
+const getAudioConfig = async (): Promise<{tts_server: string, voice_name: string}> => {
+  try {
+    const response = await apiService.getConfig();
+    if (response.status === 200 && response.data?.ui) {
+      return {
+        tts_server: response.data.ui.tts_server || 'azure-tts-v1',
+        voice_name: response.data.ui.voice_name || 'zh-CN-XiaoxiaoNeural'
+      };
+    }
+  } catch (error) {
+    console.error('Failed to fetch audio config:', error);
+  }
+  return { tts_server: 'azure-tts-v1', voice_name: 'zh-CN-XiaoxiaoNeural' };
+};
+
 const generateVideo = async () => {
   if (isGenerating.value) {
     return;
@@ -129,6 +145,9 @@ const generateVideo = async () => {
   isGenerating.value = true;
 
   try {
+    // Fetch audio config from backend
+    const audioConfig = await getAudioConfig();
+    
     // 直接使用store获取数据
     const scriptStore = useScriptStore();
     
@@ -161,7 +180,7 @@ const generateVideo = async () => {
       'slide_out': 'SlideOut'
     };
 
-    // 使用默认值，因为没有其他store
+    // 使用从后端获取的音频配置
     const taskParams = {
       video_subject: videoSubject,
       video_script: videoScript,
@@ -173,9 +192,9 @@ const generateVideo = async () => {
       video_clip_duration: 3,
       video_count: 1,
       video_style: '',
-      voice_provider: 'azure',
+      voice_provider: audioConfig.tts_server || 'azure-tts-v1',
       voice_type: 'female',
-      voice_name: 'zh-CN-XiaoxiaoNeural',
+      voice_name: audioConfig.voice_name || 'zh-CN-XiaoxiaoNeural',
       bgm: '',
       bgm_volume: 30,
       voice_volume: 80,

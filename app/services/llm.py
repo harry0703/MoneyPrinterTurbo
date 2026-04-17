@@ -678,11 +678,13 @@ Please return a JSON object with the following structure:
 }
 
 # Requirements
-1. Return only the JSON, no other text
-2. Ensure the JSON is valid and properly formatted
-3. Include 5-15 scenes
-4. Each scene must have all required fields
-5. Visual descriptions must be detailed and specific
+1. Return ONLY the raw JSON object, NO markdown code blocks, NO backticks, NO explanatory text
+2. The response must start with `{` and end with `}` - nothing before or after
+3. Ensure the JSON is valid and properly formatted
+4. Include 5-18 scenes
+5. Each scene must have all required fields
+6. Visual descriptions must be detailed and specific
+7. CRITICAL: Do NOT wrap the JSON in ```json or ``` markers - output pure JSON only
 
 # Input Text
 [Original Text]:
@@ -760,21 +762,16 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
     # 首先尝试解析JSON格式
     try:
         logger.info("Attempting to parse JSON format")
-        # 处理Markdown代码块标记
         cleaned_script = script_text.strip()
-        # 移除可能的Markdown代码块标记
+        
         if cleaned_script.startswith('```json') and cleaned_script.endswith('```'):
-            # 处理```json和{之间没有空格的情况
             cleaned_script = cleaned_script[7:-3].strip()
         elif cleaned_script.startswith('```') and cleaned_script.endswith('```'):
-            # 处理```和{之间没有空格的情况
             cleaned_script = cleaned_script[3:-3].strip()
-        # 进一步清理，确保JSON格式正确
-        # 移除可能的前导和尾随字符
+        
         cleaned_script = cleaned_script.strip()
-        # 确保JSON以{开头，以}结尾
+        
         if cleaned_script and (not cleaned_script.startswith('{') or not cleaned_script.endswith('}')):
-            # 尝试找到JSON的开始和结束位置
             start_idx = cleaned_script.find('{')
             end_idx = cleaned_script.rfind('}')
             if start_idx != -1 and end_idx != -1:

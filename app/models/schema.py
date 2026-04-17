@@ -116,6 +116,7 @@ class VideoParams(BaseModel):
     voice_volume: Optional[float] = 1.0
     voice_rate: Optional[float] = 1.0
     voice_emotion: Optional[str] = ""
+    tts_server: Optional[str] = "azure-tts-v1"  # TTS server type (azure-tts-v1, azure-tts-v2, siliconflow, gemini-tts, coze-tts)
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
