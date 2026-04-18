@@ -10,6 +10,13 @@ const api = axios.create({
   }
 });
 
+export interface VersionResponse {
+  name: string;
+  version: string;
+  code: number;
+  message: string;
+}
+
 export interface ApiResponse {
   status: number;
   message: string;
@@ -18,7 +25,7 @@ export interface ApiResponse {
 
 export interface VideoScriptRequest {
   video_subject: string;
-  video_language: string;
+  video_language: string | null;
   paragraph_number: number;
 }
 
@@ -38,7 +45,7 @@ export interface VideoTermsResponse {
 
 export interface ParseScriptRequest {
   video_script: string;
-  language: string;
+  language: string | null;
 }
 
 export interface Scene {
@@ -97,7 +104,7 @@ export const apiService = {
   },
   
   // Settings related
-  getVersion: async (): Promise<ApiResponse> => {
+  getVersion: async (): Promise<VersionResponse> => {
     // /version is directly under root, not under /api/v1
     const response = await axios.get('http://localhost:8081/version');
     return response.data;

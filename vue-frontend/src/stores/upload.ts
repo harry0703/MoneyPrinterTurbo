@@ -54,7 +54,7 @@ export const useUploadStore = defineStore('upload', {
       
       try {
         const response = await apiService.uploadBgm(file);
-        if (response.code === 200 && response.data) {
+        if (response.status === 200 && response.data) {
           uploadFile.status = 'completed';
           uploadFile.progress = 100;
           uploadFile.path = response.data.file;
@@ -85,7 +85,7 @@ export const useUploadStore = defineStore('upload', {
       
       try {
         const response = await apiService.uploadVideoMaterial(file);
-        if (response.code === 200 && response.data) {
+        if (response.status === 200 && response.data) {
           uploadFile.status = 'completed';
           uploadFile.progress = 100;
           uploadFile.path = response.data.file;
@@ -108,7 +108,7 @@ export const useUploadStore = defineStore('upload', {
       
       try {
         const response = await apiService.getBgmList();
-        if (response.code === 200 && response.data) {
+        if (response.status === 200 && response.data) {
           this.bgmFiles = response.data.files.map((file: any) => ({
             id: file.file,
             name: file.name,
@@ -133,7 +133,7 @@ export const useUploadStore = defineStore('upload', {
       
       try {
         const response = await apiService.getVideoMaterials();
-        if (response.code === 200 && response.data) {
+        if (response.status === 200 && response.data) {
           this.videoMaterials = response.data.files.map((file: any) => ({
             id: file.file,
             name: file.name,

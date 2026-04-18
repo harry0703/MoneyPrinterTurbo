@@ -14,7 +14,7 @@
             <el-option
               v-for="task in tasks"
               :key="task.task_id"
-              :label="`${task.task_id} - ${task.video_subject || task.video_script?.substring(0, 20)}`"
+              :label="task.task_id"
               :value="task.task_id"
             />
           </el-select>
@@ -101,6 +101,11 @@ interface LogEntry {
 
 const logs = ref<LogEntry[]>([]);
 
+interface LogsResponse {
+  logs: LogEntry[];
+  total: number;
+}
+
 const tasks = computed(() => tasksStore.tasks);
 
 const filteredLogs = computed(() => {
@@ -142,16 +147,14 @@ const fetchLogs = async () => {
     });
     console.log('Logs response:', response);
     if (response.status === 200) {
-      // Check if the logs are nested under a 'data' field
-      let logsData = response;
-      if (response.data) {
-        logsData = response.data;
+      const logsData = response.data as LogsResponse | undefined;
+      if (logsData) {
+        console.log('Logs data:', logsData);
+        logs.value = logsData.logs || [];
+        console.log('Logs array:', logs.value);
+        totalLogs.value = logsData.total || 0;
+        console.log('Total logs:', totalLogs.value);
       }
-      console.log('Logs data:', logsData);
-      logs.value = logsData.logs || [];
-      console.log('Logs array:', logs.value);
-      totalLogs.value = logsData.total || 0;
-      console.log('Total logs:', totalLogs.value);
     }
   } catch (error) {
     console.error('Failed to fetch logs:', error);

@@ -6,6 +6,36 @@ echo Starting MoneyPrinterCN with Vue frontend...
 
 set PYTHONPATH=%CURRENT_DIR%
 
+rem Check if npm is already in PATH
+where npm >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    rem npm not found in PATH, try to find Node.js installation
+    set "NODE_PATH="
+    
+    rem Check common Node.js installation locations
+    if exist "%ProgramFiles%\nodejs" set "NODE_PATH=%ProgramFiles%\nodejs"
+    if exist "%ProgramFiles(x86)%\nodejs" set "NODE_PATH=%ProgramFiles(x86)%\nodejs"
+    if exist "%LOCALAPPDATA%\Programs\node" set "NODE_PATH=%LOCALAPPDATA%\Programs\node"
+    
+    rem Try to find npm in various locations
+    if defined NODE_PATH (
+        set "PATH=%NODE_PATH%;%PATH%"
+    ) else (
+        rem Try USERPROFILE\.trae-cn as fallback
+        if exist "%USERPROFILE%\.trae-cn\sdks\versions\node\current" (
+            set "NODE_PATH=%USERPROFILE%\.trae-cn\sdks\versions\node\current"
+            set "PATH=%NODE_PATH%;%PATH%"
+        )
+    )
+)
+
+rem Verify npm is now available
+where npm >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo WARNING: npm not found. Vue frontend cannot be built.
+    echo Please install Node.js from https://nodejs.org/
+)
+
 rem Activate conda environment
 call conda activate condaenv-moneyprinter
 
@@ -19,13 +49,30 @@ if %ERRORLEVEL% NEQ 0 (
 rem Check if Vue frontend needs to be rebuilt
 set "VUE_SRC_DIR=%CURRENT_DIR%\vue-frontend\src"
 set "VUE_DIST_DIR=%CURRENT_DIR%\vue-frontend\dist"
+set "CONFIG_FILE=%CURRENT_DIR%\config.toml"
+
+rem Get last modified time of dist directory
+set "DIST_TIME="
+if exist "%VUE_DIST_DIR%" (
+    for /f "delims= " %%a in ('dir /t:w "%VUE_DIST_DIR%" ^| findstr "<DIR>"') do set "DIST_TIME=%%a"
+)
+
+rem Get last modified time of config file
+set "CONFIG_TIME="
+if exist "%CONFIG_FILE%" (
+    for /f "delims= " %%a in ('dir /t:w "%CONFIG_FILE%" ^| findstr "config.toml"') do set "CONFIG_TIME=%%a"
+)
+
+rem Determine if rebuild is needed
+set "NEED_REBUILD=false"
+
+rem Check if config.toml is newer than dist directory
+if defined DIST_TIME if defined CONFIG_TIME (
+    if "%CONFIG_TIME%" gtr "%DIST_TIME%" set "NEED_REBUILD=true"
+)
 
 rem Check if source files are newer than dist directory
 if exist "%VUE_DIST_DIR%" (
-    rem Get last modified time of dist directory
-    for /f "delims= " %%a in ('dir /t:w "%VUE_DIST_DIR%" ^| findstr "<DIR>"') do set "DIST_TIME=%%a"
-    
-    rem Get last modified time of source files
     set "SRC_NEWER=false"
     for /r "%VUE_SRC_DIR%" %%f in (*.vue *.ts *.js) do (
         for /f "delims= " %%a in ('dir /t:w "%%f" ^| findstr "%%~nxf"') do (
@@ -33,19 +80,14 @@ if exist "%VUE_DIST_DIR%" (
         )
     )
     
-    rem Rebuild if source files are newer
-    if "%SRC_NEWER%" equ "true" (
-        echo Source files are newer, rebuilding production build...
-        cd /d "%CURRENT_DIR%\vue-frontend"
-        npm run build
-        if %ERRORLEVEL% NEQ 0 (
-            echo Build failed, starting development server instead...
-            set "BUILD_FAILED=true"
-        )
-        cd /d "%CURRENT_DIR%"
-    )
+    if "%SRC_NEWER%" equ "true" set "NEED_REBUILD=true"
 ) else (
-    echo Production build not found, building now...
+    set "NEED_REBUILD=true"
+)
+
+rem Rebuild if needed
+if "%NEED_REBUILD%" equ "true" (
+    echo Config or source files changed, rebuilding production build...
     cd /d "%CURRENT_DIR%\vue-frontend"
     npm run build
     if %ERRORLEVEL% NEQ 0 (

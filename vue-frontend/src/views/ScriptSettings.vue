@@ -161,7 +161,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useScriptStore } from '../stores/script';
 import { useI18nStore } from '../stores/i18n';
-import { ElMessage, ElLoading } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { VideoCamera } from '@element-plus/icons-vue';
 import { parseLabelMarkdown } from '../utils/markdownParser';
 import { generateVideoScript, parseVideoScript as apiParseVideoScript } from '../services/api';

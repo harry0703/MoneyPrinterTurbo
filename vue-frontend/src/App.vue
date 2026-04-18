@@ -164,23 +164,6 @@ const generateVideo = async () => {
       return;
     }
 
-    const aspectMap: Record<string, string> = {
-      'landscape': '16:9',
-      'portrait': '9:16',
-      'square': '1:1',
-      'portrait_3_4': '3:4'
-    };
-
-    const transitionMap: Record<string, string | null> = {
-      'none': null,
-      'shuffle': 'Shuffle',
-      'fade_in': 'FadeIn',
-      'fade_out': 'FadeOut',
-      'slide_in': 'SlideIn',
-      'slide_out': 'SlideOut'
-    };
-
-    // 使用从后端获取的音频配置
     const taskParams = {
       video_subject: videoSubject,
       video_script: videoScript,

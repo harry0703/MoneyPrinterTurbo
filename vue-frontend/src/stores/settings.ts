@@ -157,10 +157,12 @@ export const useSettingsStore = defineStore('settings', {
     async fetchVersion() {
       try {
         const versionInfo = await apiService.getVersion();
-        this.version = versionInfo;
+        this.version = {
+          name: versionInfo.name || 'MoneyPrinterCN',
+          version: versionInfo.version || '0.0.0'
+        };
       } catch (error) {
         console.error('Failed to fetch version:', error);
-        // Fallback to default version if API call fails
         this.version = {
           name: 'MoneyPrinterCN',
           version: '0.0.0'
