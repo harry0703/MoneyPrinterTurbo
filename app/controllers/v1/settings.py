@@ -48,6 +48,23 @@ def get_config(request: Request):
     try:
         cfg = {
             "ui": config.ui,
+            "app": {
+                "llm_provider": config.app.get("llm_provider", "openai"),
+                "video_source": config.app.get("video_source", "pexels"),
+                "hide_config": config.app.get("hide_config", False),
+                "use_gpu": config.app.get("use_gpu", False),
+                "pexels_api_keys": config.app.get("pexels_api_keys", []),
+                "pixabay_api_keys": config.app.get("pixabay_api_keys", []),
+                "openai_api_key": config.app.get("openai_api_key", ""),
+                "openai_base_url": config.app.get("openai_base_url", ""),
+                "openai_model_name": config.app.get("openai_model_name", "gpt-3.5-turbo"),
+                "moonshot_api_key": config.app.get("moonshot_api_key", ""),
+                "moonshot_base_url": config.app.get("moonshot_base_url", ""),
+                "moonshot_model_name": config.app.get("moonshot_model_name", ""),
+                "deepseek_api_key": config.app.get("deepseek_api_key", ""),
+                "deepseek_base_url": config.app.get("deepseek_base_url", ""),
+                "deepseek_model_name": config.app.get("deepseek_model_name", ""),
+            },
             "azure": {
                 "speech_region": config.azure.get("speech_region", ""),
                 "speech_key": config.azure.get("speech_key", ""),
@@ -57,6 +74,9 @@ def get_config(request: Request):
             },
             "coze": {
                 "api_key": config.coze.get("api_key", ""),
+            },
+            "whisper": {
+                "device": config.whisper.get("device", "CPU"),
             }
         }
         return utils.get_response(200, cfg)

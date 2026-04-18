@@ -47,7 +47,10 @@ def get_application() -> FastAPI:
         version=config.project_version,
         debug=False,
     )
-    instance.include_router(root_api_router)
+    # 挂载 API 路由到 /api 前缀
+    api_router = APIRouter(prefix="/api")
+    api_router.include_router(root_api_router)
+    instance.include_router(api_router)
     instance.add_exception_handler(HttpException, exception_handler)
     instance.add_exception_handler(RequestValidationError, validation_exception_handler)
     return instance

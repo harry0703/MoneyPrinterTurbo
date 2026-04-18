@@ -212,6 +212,7 @@ onMounted(async () => {
   await i18nStore.loadTranslations();
   i18nStore.loadLanguageFromLocalStorage();
   await settingsStore.fetchVersion();
+  await settingsStore.fetchConfig();
 });
 </script>
 
