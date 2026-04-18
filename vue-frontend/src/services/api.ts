@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8081/api/v1';
+const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -103,10 +103,16 @@ export const apiService = {
     return response.data;
   },
   
+  // Health check
+  ping: async (): Promise<string> => {
+    const response = await axios.get('http://localhost:8000/api/ping');
+    return response.data;
+  },
+
   // Settings related
   getVersion: async (): Promise<VersionResponse> => {
     // /version is under /api prefix
-    const response = await axios.get('http://localhost:8081/api/version');
+    const response = await axios.get('http://localhost:8000/api/version');
     return response.data;
   },
 

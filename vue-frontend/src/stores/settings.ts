@@ -40,6 +40,8 @@ interface VersionInfo {
   version: string;
 }
 
+type BackendStatus = 'unknown' | 'checking' | 'online' | 'offline';
+
 export const useSettingsStore = defineStore('settings', {
   state: (): {
     app: AppSettings;
@@ -48,9 +50,14 @@ export const useSettingsStore = defineStore('settings', {
     whisper: WhisperSettings;
     ui: UISettings;
     version: VersionInfo | null;
+    backendStatus: BackendStatus;
+    lastHealthCheck: number;
   } => ({
     // Version information
     version: null,
+    // Backend health status
+    backendStatus: 'unknown',
+    lastHealthCheck: 0,
     // App settings
     app: {
       llmProvider: 'openai',
@@ -153,16 +160,55 @@ export const useSettingsStore = defineStore('settings', {
     saveToLocalStorage() {
       localStorage.setItem('moneyprinter-settings', JSON.stringify(this));
     },
+
+    async checkBackendHealth(): Promise<boolean> {
+      this.backendStatus = 'checking';
+      try {
+        console.log('Checking backend health at:', new Date().toLocaleString());
+        const response = await apiService.ping();
+        console.log('Backend ping response:', response);
+        this.backendStatus = 'online';
+        this.lastHealthCheck = Date.now();
+        console.log('Backend is online');
+        return true;
+      } catch (error: any) {
+        console.error('Backend health check failed:', error);
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+          response: error.response,
+          request: error.request,
+          status: error.response?.status
+        });
+        this.backendStatus = 'offline';
+        console.warn('Backend is offline');
+        return false;
+      }
+    },
+
+    async ensureBackendOnline(): Promise<boolean> {
+      if (this.backendStatus === 'online') {
+        return true;
+      }
+      return await this.checkBackendHealth();
+    },
     
     async fetchVersion() {
+      if (!(await this.ensureBackendOnline())) {
+        console.warn('Backend is offline, skipping fetchVersion');
+        return;
+      }
       try {
         const versionInfo = await apiService.getVersion();
         this.version = {
           name: versionInfo.name || 'MoneyPrinterCN',
           version: versionInfo.version || '0.0.0'
         };
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to fetch version:', error);
+        if (error.response?.status === 404) {
+          this.backendStatus = 'offline';
+        }
         this.version = {
           name: 'MoneyPrinterCN',
           version: '0.0.0'
@@ -171,8 +217,13 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async fetchConfig() {
+      if (!(await this.ensureBackendOnline())) {
+        console.warn('Backend is offline, skipping fetchConfig');
+        return;
+      }
       try {
         console.log('Fetching config from backend...');
+        console.log('API Base URL:', 'http://localhost:8081/api/v1');
         const response = await apiService.getConfig();
         console.log('Config response:', response);
         if (response.status === 200 && response.data) {
@@ -285,9 +336,17 @@ export const useSettingsStore = defineStore('settings', {
 
           this.saveToLocalStorage();
           console.log('Config saved to localStorage');
+        } else {
+          console.error('Invalid config response:', response);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to fetch config:', error);
+        console.error('Error details:', error.message);
+        if (error.response) {
+          console.error('Error response:', error.response);
+        } else if (error.request) {
+          console.error('Error request:', error.request);
+        }
       }
     }
   }

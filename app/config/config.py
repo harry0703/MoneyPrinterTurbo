@@ -75,7 +75,7 @@ hostname = socket.gethostname()
 
 log_level = _cfg.get("log_level", "DEBUG")
 listen_host = _cfg.get("listen_host", "0.0.0.0")
-listen_port = _cfg.get("listen_port", 8081)
+listen_port = _cfg.get("listen_port", 8000)
 project_name = _cfg.get("project_name", "MoneyPrinterTurbo")
 project_description = _cfg.get(
     "project_description",

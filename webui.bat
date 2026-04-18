@@ -49,16 +49,16 @@ start "Backend API" cmd /c "cd /d %CD% && python main.py"
 
 rem Wait for backend to start
 echo Waiting for backend to start...
-ping localhost -n 5 > nul
+ping localhost -n 10 > nul
 
 rem Start frontend
 echo Starting Vue frontend...
 if exist "%VUE_DIST%" if not defined BUILD_FAILED (
     echo Starting production server with serve...
-    start "Vue Frontend" cmd /c "cd /d %CURRENT_DIR% && npx serve vue-frontend/dist -l 3000 --single"
+    start "Vue Frontend" cmd /c "cd /d %CD% && npx serve vue-frontend/dist -l 3000 --single"
 ) else (
     echo Starting development server...
-    start "Vue Frontend" cmd /c "cd /d %CURRENT_DIR%\vue-frontend && npm run dev"
+    start "Vue Frontend" cmd /c "cd /d %CD%\vue-frontend && npm run dev"
 )
 
 rem Wait for frontend server to start

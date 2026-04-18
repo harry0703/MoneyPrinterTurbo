@@ -4,6 +4,9 @@
       <div class="header-content">
         <h1>{{ t('MoneyPrinterCN') }} <span v-if="settingsStore.version" class="version">{{ settingsStore.version.version }}</span></h1>
         <div class="header-actions">
+          <el-tag :type="backendStatusType" size="small" class="backend-status">
+            {{ backendStatusText }}
+          </el-tag>
           <el-button type="primary" @click="showSettings = true">
             <el-icon><Setting /></el-icon>
           </el-button>
@@ -110,6 +113,24 @@ const currentLanguage = computed({
 const availableLanguages = computed(() => i18nStore.availableLanguages);
 const t = i18nStore.t;
 
+const backendStatusType = computed(() => {
+  switch (settingsStore.backendStatus) {
+    case 'online': return 'success';
+    case 'offline': return 'danger';
+    case 'checking': return 'warning';
+    default: return 'info';
+  }
+});
+
+const backendStatusText = computed(() => {
+  switch (settingsStore.backendStatus) {
+    case 'online': return 'Backend Online';
+    case 'offline': return 'Backend Offline';
+    case 'checking': return 'Checking...';
+    default: return 'Unknown';
+  }
+});
+
 const changeLanguage = (lang: string) => {
   i18nStore.setLanguage(lang as any);
 };
@@ -211,6 +232,9 @@ const generateVideo = async () => {
 onMounted(async () => {
   await i18nStore.loadTranslations();
   i18nStore.loadLanguageFromLocalStorage();
+  
+  // First check backend health before fetching version and config
+  await settingsStore.checkBackendHealth();
   await settingsStore.fetchVersion();
   await settingsStore.fetchConfig();
 });
@@ -265,6 +289,10 @@ onMounted(async () => {
 
 .language-selector {
   min-width: 150px;
+}
+
+.backend-status {
+  margin-right: 10px;
 }
 
 .app-main {
