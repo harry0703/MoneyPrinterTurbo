@@ -585,29 +585,43 @@ Two task manager implementations:
 
 ### 5.3 Progress Tracking
 
-#### 5.3.1 Single-Scene Task
+#### 5.3.1 Video Generation Task Progress Definition
+
+视频生成任务进度定义（阶段数 = n + 4，其中 n 为场景数）：
 
 | Stage | Progress | Description |
 |-------|----------|-------------|
-| Script Generation | 5-10% | LLM generates video script |
-| Terms Generation | 10-20% | LLM extracts search terms |
-| Audio Generation | 20-35% | TTS creates audio file |
-| Subtitle Generation | 35-40% | Create subtitle file |
-| Material Download | 40-50% | Download video clips |
-| Video Combination | 50-75% | Combine clips with audio |
-| Final Generation | 75-100% | Add subtitles and BGM |
+| Task Preparation | 0-10% | Script generation only |
+| Scene 1 Building | 10% ~ (70%/n + 10%) | Process first scene |
+| Scene 2 Building | (70%/n + 10%) ~ (2×70%/n + 10%) | Process second scene |
+| ... | ... | ... |
+| Scene n Building | ((n-1)×70%/n + 10%) ~ 80% | Process scene n |
+| Video Combination | 80-90% | Combine all scene videos |
+| BGM Merging | 90-95% | Add background music |
+| Subtitle Merging | 95-100% | Merge and add subtitles |
 
-#### 5.3.2 Multi-Scene Task
+#### 5.3.2 Single-Scene Task
 
 | Stage | Progress | Description |
 |-------|----------|-------------|
-| Multi-Scene Script Gen | 5-15% | LLM generates multi-scene script |
-| Scene Terms & Tags Gen | 15-25% | Generate terms and tags for each scene |
-| Scene 1 Processing | 25-35% | Process first scene (audio, subtitles, materials, video) |
-| Scene 2 Processing | 35-45% | Process second scene |
-| Additional Scenes | 45-70% | Process remaining scenes (varies by scene count) |
-| Scene Combination | 70-85% | Combine all scene videos |
-| Final Generation | 85-100% | Add subtitles and BGM |
+| Task Preparation | 0-10% | Script generation |
+| Scene 1 Building | 10-80% | Process the single scene (audio, subtitles, materials, video) |
+| Video Combination | 80-90% | Combine video clips |
+| BGM Merging | 90-95% | Add background music |
+| Subtitle Merging | 95-100% | Add subtitles |
+
+#### 5.3.3 Multi-Scene Task
+
+| Stage | Progress | Description |
+|-------|----------|-------------|
+| Task Preparation | 0-10% | Multi-scene script generation |
+| Scene 1 Building | 10% ~ (70%/n + 10%) | Process first scene |
+| Scene 2 Building | (70%/n + 10%) ~ (2×70%/n + 10%) | Process second scene |
+| ... | ... | ... |
+| Scene n Building | ((n-1)×70%/n + 10%) ~ 80% | Process scene n |
+| Video Combination | 80-90% | Combine all scene videos |
+| BGM Merging | 90-95% | Add background music |
+| Subtitle Merging | 95-100% | Merge and add subtitles |
 
 ### 5.4 Task Type Specific Flows
 
@@ -621,6 +635,14 @@ Two task manager implementations:
 - **Flow**: Combines existing scene videos into target video
 - **Key Steps**: Load scene videos → Combine scenes → Add BGM and subtitles
 - **Output**: Integrated target video
+
+**Progress Definition:**
+
+| Stage | Progress | Description |
+|-------|----------|-------------|
+| Video Combination | 0-40% | Combine all scene videos |
+| BGM Merging | 40-70% | Add background music |
+| Subtitle Merging | 70-100% | Merge and add subtitles |
 
 #### 5.4.3 Multi-Scene Building Task
 - **Initiation**: Script settings panel "Parse Script" button

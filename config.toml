@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.57"
+project_version = "1.2.58"
 
 [app]
 video_source = "pexels"
@@ -71,7 +71,7 @@ api_key = "sk-ehmjzsdqlcbsswaplkgzjsqjrlwyjquczplhjxoszbhdjgvn"
 hide_log = false
 language = "zh"
 tts_server = "coze-tts"
-voice_name = "coze|7426720361753903141|爽快思思-Female|https://lf26-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_female_shuangkuaisisi_moon_bigtts.mp3?lk3s=da27ec82&x-expires=1776530578&x-signature=fvdhzS%2FdUjDYrmX6ypRkedcyKQ8%3D|今天天气可好了，我打算和朋友一起去野餐，带上美食和饮料，找个舒适的草坪，什么烦恼都没了。你要不要和我们一起？|"
+voice_name = "coze|7426720361753903141|爽快思思-Female|https://lf9-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_female_shuangkuaisisi_moon_bigtts.mp3?lk3s=da27ec82&x-expires=1776561966&x-signature=ZvEOFzqE%2BfexfExUQTMCykwqEYc%3D|今天天气可好了，我打算和朋友一起去野餐，带上美食和饮料，找个舒适的草坪，什么烦恼都没了。你要不要和我们一起？|"
 subtitle_enabled = true
 subtitle_position = "custom"
 subtitle_custom_position = 90.0
