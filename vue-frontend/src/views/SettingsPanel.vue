@@ -174,6 +174,7 @@ import { reactive, computed, onMounted } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { useI18nStore } from '../stores/i18n';
 import { Delete, Plus } from '@element-plus/icons-vue';
+import { apiService } from '../services/api';
 
 const props = defineProps<{
   visible: boolean;
@@ -348,59 +349,110 @@ const handleLLMProviderChange = () => {
   }
 };
 
-const saveSettings = () => {
-  // Save settings to state management
-  settingsStore.updateAppSetting('llmProvider', form.llmProvider);
-  
-  // Save LLM configuration
-  settingsStore.updateLLMSetting(form.llmProvider, 'apiKey', form.llmApiKey);
-  settingsStore.updateLLMSetting(form.llmProvider, 'baseUrl', form.llmBaseUrl);
-  if (form.llmProvider !== 'ernie') {
-    settingsStore.updateLLMSetting(form.llmProvider, 'modelName', form.llmModelName);
+const saveSettings = async () => {
+  try {
+    // Save settings to state management
+    settingsStore.updateAppSetting('llmProvider', form.llmProvider);
+
+    // Save LLM configuration
+    settingsStore.updateLLMSetting(form.llmProvider, 'apiKey', form.llmApiKey);
+    settingsStore.updateLLMSetting(form.llmProvider, 'baseUrl', form.llmBaseUrl);
+    if (form.llmProvider !== 'ernie') {
+      settingsStore.updateLLMSetting(form.llmProvider, 'modelName', form.llmModelName);
+    }
+
+    // Save video source configuration
+    const pexelsKeys = form.pexelsApiKeys.map(key => key.trim()).filter(Boolean);
+    const pixabayKeys = form.pixabayApiKeys.map(key => key.trim()).filter(Boolean);
+    settingsStore.updateVideoSourceSetting('pexels', pexelsKeys);
+    settingsStore.updateVideoSourceSetting('pixabay', pixabayKeys);
+
+    // Save Whisper configuration
+    settingsStore.updateWhisperSetting('device', form.whisperDevice);
+
+    // Save video encoder configuration
+    settingsStore.updateAppSetting('useGpu', form.videoEncoder === 'GPU');
+
+    // Build app config based on LLM provider
+    const appConfig: Record<string, any> = {
+      llm_provider: form.llmProvider,
+      use_gpu: form.videoEncoder === 'GPU',
+      pexels_api_keys: pexelsKeys,
+      pixabay_api_keys: pixabayKeys
+    };
+
+    // Add LLM specific configs based on provider
+    switch (form.llmProvider) {
+      case 'openai':
+        appConfig.openai_api_key = form.llmApiKey;
+        appConfig.openai_base_url = form.llmBaseUrl;
+        appConfig.openai_model_name = form.llmModelName;
+        break;
+      case 'moonshot':
+        appConfig.moonshot_api_key = form.llmApiKey;
+        appConfig.moonshot_base_url = form.llmBaseUrl;
+        appConfig.moonshot_model_name = form.llmModelName;
+        break;
+      case 'deepseek':
+        appConfig.deepseek_api_key = form.llmApiKey;
+        appConfig.deepseek_base_url = form.llmBaseUrl;
+        appConfig.deepseek_model_name = form.llmModelName;
+        break;
+    }
+
+    // Prepare config object to send to backend
+    const configToSave = {
+      app: appConfig,
+      whisper: {
+        device: form.whisperDevice
+      }
+    };
+
+    // Send config to backend
+    await apiService.updateConfig(configToSave);
+
+    // Save to local storage
+    settingsStore.saveToLocalStorage();
+
+    // Close dialog
+    visible.value = false;
+
+    // Trigger settings saved event
+    emit('settings-saved');
+  } catch (error) {
+    console.error('Failed to save settings:', error);
   }
-  
-  // Save video source configuration
-  settingsStore.updateVideoSourceSetting('pexels', form.pexelsApiKeys.map(key => key.trim()).filter(Boolean));
-  settingsStore.updateVideoSourceSetting('pixabay', form.pixabayApiKeys.map(key => key.trim()).filter(Boolean));
-  
-  // Save Whisper configuration
-  settingsStore.updateWhisperSetting('device', form.whisperDevice);
-  
-  // Save video encoder configuration
-  settingsStore.updateAppSetting('useGpu', form.videoEncoder === 'GPU');
-  
-  // Save to local storage
-  settingsStore.saveToLocalStorage();
-  
-  // Close dialog
-  visible.value = false;
-  
-  // Trigger settings saved event
-  emit('settings-saved');
 };
 
-onMounted(() => {
-  // Load settings from state management
-  form.llmProvider = settingsStore.app.llmProvider;
-  
-  // Load LLM configuration
-  const llmConfig = settingsStore.getLLMConfig(form.llmProvider);
-  form.llmApiKey = llmConfig.apiKey;
-  form.llmBaseUrl = llmConfig.baseUrl;
-  form.llmModelName = llmConfig.modelName;
-  
-  // Load video source configuration
-  const pexelsKeys = settingsStore.getVideoSourceConfig('pexels');
-  form.pexelsApiKeys = pexelsKeys.length > 0 ? pexelsKeys : [''];
-  
-  const pixabayKeys = settingsStore.getVideoSourceConfig('pixabay');
-  form.pixabayApiKeys = pixabayKeys.length > 0 ? pixabayKeys : [''];
-  
-  // Load Whisper configuration
-  form.whisperDevice = settingsStore.whisper.device;
-  
-  // Load video encoder configuration
-  form.videoEncoder = settingsStore.app.useGpu ? 'GPU' : 'CPU';
+onMounted(async () => {
+  try {
+    // Fetch config from backend first
+    await settingsStore.fetchConfig();
+    
+    // Load settings from state management
+    form.llmProvider = settingsStore.app.llmProvider;
+    
+    // Load LLM configuration
+    const llmConfig = settingsStore.getLLMConfig(form.llmProvider);
+    form.llmApiKey = llmConfig.apiKey || '';
+    form.llmBaseUrl = llmConfig.baseUrl || '';
+    form.llmModelName = llmConfig.modelName || '';
+    
+    // Load video source configuration
+    const pexelsKeys = settingsStore.getVideoSourceConfig('pexels');
+    form.pexelsApiKeys = pexelsKeys.length > 0 ? pexelsKeys : [''];
+    
+    const pixabayKeys = settingsStore.getVideoSourceConfig('pixabay');
+    form.pixabayApiKeys = pixabayKeys.length > 0 ? pixabayKeys : [''];
+    
+    // Load Whisper configuration
+    form.whisperDevice = settingsStore.whisper.device || 'CPU';
+    
+    // Load video encoder configuration
+    form.videoEncoder = settingsStore.app.useGpu ? 'GPU' : 'CPU';
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+  }
 });
 </script>
 

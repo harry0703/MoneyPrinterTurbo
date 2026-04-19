@@ -91,12 +91,16 @@ def update_config(request: Request, cfg: dict):
     Update configuration.
 
     Args:
-        cfg: Configuration dictionary with keys: ui, azure, siliconflow, coze
+        cfg: Configuration dictionary with keys: ui, app, azure, siliconflow, coze, whisper
     """
     try:
         if "ui" in cfg:
             for key, value in cfg["ui"].items():
                 config.ui[key] = value
+
+        if "app" in cfg:
+            for key, value in cfg["app"].items():
+                config.app[key] = value
 
         if "azure" in cfg:
             for key, value in cfg["azure"].items():
@@ -109,6 +113,10 @@ def update_config(request: Request, cfg: dict):
         if "coze" in cfg:
             for key, value in cfg["coze"].items():
                 config.coze[key] = value
+
+        if "whisper" in cfg:
+            for key, value in cfg["whisper"].items():
+                config.whisper[key] = value
 
         config.save_config()
         return utils.get_response(200, {"message": "Config saved successfully"})
