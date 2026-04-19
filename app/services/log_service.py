@@ -24,6 +24,8 @@ class LogService:
         self._logs = deque(maxlen=1000)
         self._log_file = None
         self._setup_log_file()
+        self._websocket_connections = set()
+        self._connections_lock = threading.Lock()
 
     def _setup_log_file(self):
         log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), "logs")
@@ -45,6 +47,9 @@ class LogService:
                 timestamp = log_entry["timestamp"]
                 task_info = f"[Task: {task_id}] " if task_id else ""
                 f.write(f"{timestamp} | {level.upper()} | {task_info}{message}\n")
+
+        # Push log to all connected WebSocket clients
+        self._broadcast_log(log_entry)
 
     def get_logs(self, level: str = None, task_id: str = None, limit: int = 100, offset: int = 0):
         filtered_logs = list(self._logs)
@@ -81,6 +86,34 @@ class LogService:
 
     def get_log_file_path(self):
         return self._log_file
+
+    def add_websocket_connection(self, connection):
+        """Add a WebSocket connection to the set of active connections."""
+        with self._connections_lock:
+            self._websocket_connections.add(connection)
+
+    def remove_websocket_connection(self, connection):
+        """Remove a WebSocket connection from the set of active connections."""
+        with self._connections_lock:
+            if connection in self._websocket_connections:
+                self._websocket_connections.remove(connection)
+
+    def _broadcast_log(self, log_entry):
+        """Broadcast a log entry to all connected WebSocket clients."""
+        import json
+        from fastapi import WebSocket
+
+        with self._connections_lock:
+            connections = list(self._websocket_connections)
+
+        for connection in connections:
+            try:
+                # Send log entry as JSON
+                connection.send_json(log_entry)
+            except Exception as e:
+                # If sending fails, remove the connection
+                logger.error(f"Error sending log to WebSocket: {e}")
+                self.remove_websocket_connection(connection)
 
 
 class LoguruHandler:

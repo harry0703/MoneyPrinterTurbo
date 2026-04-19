@@ -36,13 +36,13 @@
           </el-button>
         </div>
         <div class="log-count">
-          Total logs: {{ logs.length }}
+          Total logs: {{ filteredLogs.length }}
         </div>
       </div>
       
-      <div class="logs-container">
+      <div class="logs-container" ref="logsContainerRef">
         <div 
-          v-for="(log, index) in logs" 
+          v-for="(log, index) in filteredLogs" 
           :key="index" 
           :class="['log-item', `log-level-${log.level?.toLowerCase() || 'info'}`]"
         >
@@ -52,7 +52,7 @@
           <div class="log-message">{{ log.message }}</div>
         </div>
         
-        <div v-if="logs.length === 0" class="no-logs">
+        <div v-if="filteredLogs.length === 0" class="no-logs">
           {{ t('No logs found') }}
         </div>
       </div>
@@ -100,6 +100,9 @@ interface LogEntry {
 }
 
 const logs = ref<LogEntry[]>([]);
+const logsContainerRef = ref<HTMLElement | null>(null);
+const ws = ref<WebSocket | null>(null);
+const isWebSocketConnected = ref(false);
 
 interface LogsResponse {
   logs: LogEntry[];
@@ -109,7 +112,14 @@ interface LogsResponse {
 const tasks = computed(() => tasksStore.tasks);
 
 const filteredLogs = computed(() => {
-  let result = [...logs.value].reverse();
+  let result = [...logs.value];
+
+  // Sort logs by timestamp (oldest first)
+  result.sort((a, b) => {
+    const dateA = new Date(a.timestamp).getTime();
+    const dateB = new Date(b.timestamp).getTime();
+    return dateA - dateB;
+  });
 
   if (selectedTaskId.value) {
     result = result.filter(log => log.task_id === selectedTaskId.value);
@@ -154,11 +164,61 @@ const fetchLogs = async () => {
         console.log('Logs array:', logs.value);
         totalLogs.value = logsData.total || 0;
         console.log('Total logs:', totalLogs.value);
+        
+        // Scroll to bottom to show latest logs
+        scrollToBottom();
       }
     }
   } catch (error) {
     console.error('Failed to fetch logs:', error);
   }
+};
+
+const scrollToBottom = () => {
+  setTimeout(() => {
+    if (logsContainerRef.value) {
+      logsContainerRef.value.scrollTop = logsContainerRef.value.scrollHeight;
+    }
+  }, 100);
+};
+
+const connectWebSocket = () => {
+  // WebSocket URL - adjust based on your backend URL
+  const wsUrl = 'ws://localhost:8000/api/v1/logs/ws';
+  
+  ws.value = new WebSocket(wsUrl);
+  
+  ws.value.onopen = () => {
+    console.log('WebSocket connected');
+    isWebSocketConnected.value = true;
+  };
+  
+  ws.value.onmessage = (event) => {
+    try {
+      const newLog: LogEntry = JSON.parse(event.data);
+      console.log('Received log:', newLog);
+      
+      // Add the new log to the beginning of the array
+      // This maintains the correct order (newest at bottom)
+      logs.value.push(newLog);
+      
+      // Scroll to bottom to show the new log
+      scrollToBottom();
+    } catch (error) {
+      console.error('Error parsing WebSocket message:', error);
+    }
+  };
+  
+  ws.value.onclose = () => {
+    console.log('WebSocket disconnected');
+    isWebSocketConnected.value = false;
+    // Try to reconnect after 3 seconds
+    setTimeout(connectWebSocket, 3000);
+  };
+  
+  ws.value.onerror = (error) => {
+    console.error('WebSocket error:', error);
+  };
 };
 
 const refreshLogs = () => {
@@ -203,10 +263,15 @@ onMounted(async () => {
   await tasksStore.fetchAllTasks();
   await fetchLogs();
   startAutoRefresh();
+  connectWebSocket();
 });
 
 onUnmounted(() => {
   stopAutoRefresh();
+  // Close WebSocket connection
+  if (ws.value) {
+    ws.value.close();
+  }
 });
 </script>
 
