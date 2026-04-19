@@ -154,6 +154,27 @@
     "Delete Selected Pixabay API Key": "Excluir chave de API do Pixabay selecionada",
     "Pixabay API Key deleted successfully": "Chave de API do Pixabay excluída com sucesso",
     "Scene Integration": "Integração de Cena",
-    "Task Management": "Gerenciamento de Tarefas"
+    "Task Management": "Gerenciamento de Tarefas",
+    "Task Statistics": "Estatísticas de Tarefas",
+    "Total Tasks": "Total de Tarefas",
+    "Running Tasks": "Tarefas em Execução",
+    "Completed Tasks": "Tarefas Concluídas",
+    "Failed Tasks": "Tarefas com Falha",
+    "Task List": "Lista de Tarefas",
+    "Loading tasks...": "Carregando tarefas...",
+    "Retry": "Tentar Novamente",
+    "No tasks": "Nenhuma Tarefa",
+    "Status": "Status",
+    "Progress": "Progresso",
+    "Created At": "Criado Em",
+    "Updated At": "Atualizado Em",
+    "Error": "Erro",
+    "Download": "Baixar",
+    "Cancel": "Cancelar",
+    "Pending": "Pendente",
+    "Running": "Executando",
+    "Completed": "Concluído",
+    "Failed": "Falhou",
+    "Task": "Tarefa"
   }
 }

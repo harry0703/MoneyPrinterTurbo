@@ -150,7 +150,7 @@ const emit = defineEmits(['refresh', 'delete', 'cancel']);
 const activeNames = ref<string[]>([]);
 
 const getTaskTitle = (task: Task): string => {
-  return `${t('Task')} ${task.task_id.substring(0, 8)} - ${getStatusText(task.status)}`;
+  return `${t('Task')} ${task.task_id} - ${getStatusText(task.status)}`;
 };
 
 const getStatusText = (status: string): string => {

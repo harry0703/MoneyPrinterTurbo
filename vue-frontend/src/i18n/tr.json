@@ -137,6 +137,27 @@
     "LLM Settings": "<strong>LLM Ayarları</strong>",
     "Video Source Settings": "<strong>Video Kaynağı Ayarları</strong>",
     "Scene Integration": "Sahne Entegrasyonu",
-    "Task Management": "Görev Yönetimi"
+    "Task Management": "Görev Yönetimi",
+    "Task Statistics": "Görev İstatistikleri",
+    "Total Tasks": "Toplam Görevler",
+    "Running Tasks": "Çalışan Görevler",
+    "Completed Tasks": "Tamamlanan Görevler",
+    "Failed Tasks": "Başarısız Görevler",
+    "Task List": "Görev Listesi",
+    "Loading tasks...": "Görevler yükleniyor...",
+    "Retry": "Tekrar Dene",
+    "No tasks": "Görev yok",
+    "Status": "Durum",
+    "Progress": "İlerleme",
+    "Created At": "Oluşturulma Zamanı",
+    "Updated At": "Güncellenme Zamanı",
+    "Error": "Hata",
+    "Download": "İndir",
+    "Cancel": "İptal Et",
+    "Pending": "Beklemede",
+    "Running": "Çalışıyor",
+    "Completed": "Tamamlandı",
+    "Failed": "Başarısız",
+    "Task": "Görev"
   }
 }

@@ -154,6 +154,27 @@
     "Delete Selected Pixabay API Key": "Xóa API Key Pixabay đã chọn",
     "Pixabay API Key deleted successfully": "Xóa API Key Pixabay thành công",
     "Scene Integration": "Tích Hợp Scene",
-    "Task Management": "Quản Lý Công Việc"
+    "Task Management": "Quản Lý Công Việc",
+    "Task Statistics": "Thống Kê Công Việc",
+    "Total Tasks": "Tổng Số Công Việc",
+    "Running Tasks": "Công Việc Đang Chạy",
+    "Completed Tasks": "Công Việc Đã Hoàn Thành",
+    "Failed Tasks": "Công Việc Thất Bại",
+    "Task List": "Danh Sách Công Việc",
+    "Loading tasks...": "Đang tải công việc...",
+    "Retry": "Thử Lại",
+    "No tasks": "Không Có Công Việc",
+    "Status": "Trạng Thái",
+    "Progress": "Tiến Trình",
+    "Created At": "Thời Gian Tạo",
+    "Updated At": "Thời Gian Cập Nhật",
+    "Error": "Lỗi",
+    "Download": "Tải Xuống",
+    "Cancel": "Hủy",
+    "Pending": "Chờ",
+    "Running": "Đang Chạy",
+    "Completed": "Hoàn Thành",
+    "Failed": "Thất Bại",
+    "Task": "Công Việc"
   }
 }

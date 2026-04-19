@@ -40,10 +40,10 @@
             <span>{{ t('Task Statistics') }}</span>
           </div>
           <div class="stats-content">
-            <el-statistic :value="tasks.length" title="{{ t('Total Tasks') }}" />
-            <el-statistic :value="runningTasks.length" title="{{ t('Running Tasks') }}" />
-            <el-statistic :value="completedTasks.length" title="{{ t('Completed Tasks') }}" />
-            <el-statistic :value="failedTasks.length" title="{{ t('Failed Tasks') }}" />
+            <el-statistic :value="tasks.length" :title="t('Total Tasks')" />
+            <el-statistic :value="runningTasks.length" :title="t('Running Tasks')" />
+            <el-statistic :value="completedTasks.length" :title="t('Completed Tasks')" />
+            <el-statistic :value="failedTasks.length" :title="t('Failed Tasks')" />
           </div>
         </el-card>
       </div>

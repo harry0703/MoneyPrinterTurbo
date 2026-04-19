@@ -411,6 +411,27 @@
     "DeepSeek Configuration": "DeepSeek Configuration",
     "DeepSeek API Key Tip": "API Key: <a href=\"https://platform.deepseek.com/api_keys\" target=\"_blank\">Click to apply from official website</a>",
     "DeepSeek Base Url Tip": "Base Url: Fixed to https://api.deepseek.com",
-    "DeepSeek Model Name Tip": "Model Name: Fixed to deepseek-chat"
+    "DeepSeek Model Name Tip": "Model Name: Fixed to deepseek-chat",
+    "Task Statistics": "Task Statistics",
+    "Total Tasks": "Total Tasks",
+    "Running Tasks": "Running Tasks",
+    "Completed Tasks": "Completed Tasks",
+    "Failed Tasks": "Failed Tasks",
+    "Task List": "Task List",
+    "Loading tasks...": "Loading tasks...",
+    "Retry": "Retry",
+    "No tasks": "No tasks",
+    "Status": "Status",
+    "Progress": "Progress",
+    "Created At": "Created At",
+    "Updated At": "Updated At",
+    "Error": "Error",
+    "Download": "Download",
+    "Cancel": "Cancel",
+    "Pending": "Pending",
+    "Running": "Running",
+    "Completed": "Completed",
+    "Failed": "Failed",
+    "Task": "Task"
   }
 }

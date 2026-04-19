@@ -137,6 +137,27 @@
     "LLM Settings": "<strong>Настройки LLM</strong>",
     "Video Source Settings": "<strong>Настройки источника видео</strong>",
     "Scene Integration": "Интеграция сцен",
-    "Task Management": "Управление задачами"
+    "Task Management": "Управление задачами",
+    "Task Statistics": "Статистика задач",
+    "Total Tasks": "Всего задач",
+    "Running Tasks": "Запущенные задачи",
+    "Completed Tasks": "Завершенные задачи",
+    "Failed Tasks": "Неудачные задачи",
+    "Task List": "Список задач",
+    "Loading tasks...": "Загрузка задач...",
+    "Retry": "Повторить",
+    "No tasks": "Нет задач",
+    "Status": "Статус",
+    "Progress": "Прогресс",
+    "Created At": "Создано",
+    "Updated At": "Обновлено",
+    "Error": "Ошибка",
+    "Download": "Скачать",
+    "Cancel": "Отменить",
+    "Pending": "В ожидании",
+    "Running": "Запущено",
+    "Completed": "Завершено",
+    "Failed": "Неудачно",
+    "Task": "Задача"
   }
 }
