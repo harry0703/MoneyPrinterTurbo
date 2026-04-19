@@ -43,20 +43,46 @@ export const useTasksStore = defineStore('tasks', {
   },
   
   actions: {
-    async fetchAllTasks(page: number = 1, pageSize: number = 10) {
-      this.loading = true;
+    async fetchAllTasks(page: number = 1, pageSize: number = 10, showLoading: boolean = true) {
+      if (showLoading) {
+        this.loading = true;
+      }
       this.error = null;
       
       try {
         const response = await apiService.getAllTasks(page, pageSize);
         if (response.status === 200 && response.data) {
-          this.tasks = response.data.tasks || [];
+          const newTasks: Task[] = response.data.tasks || [];
+          const newTaskIds = new Set(newTasks.map((task: Task) => task.task_id));
+
+          this.tasks = this.tasks.filter((task: Task) => newTaskIds.has(task.task_id));
+
+          newTasks.forEach((newTask: Task) => {
+            const existingIndex = this.tasks.findIndex((task: Task) => task.task_id === newTask.task_id);
+            if (existingIndex !== -1) {
+              const existingTask = this.tasks[existingIndex];
+              if (existingTask.status !== newTask.status || existingTask.progress !== newTask.progress) {
+                this.tasks[existingIndex] = newTask;
+              }
+            } else {
+              this.tasks.push(newTask);
+            }
+          });
+          
+          // 按创建时间排序（最新的在前面）
+          this.tasks.sort((a, b) => {
+            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return dateB - dateA;
+          });
         }
       } catch (error) {
         this.error = 'Failed to fetch tasks';
         console.error('Error fetching tasks:', error);
       } finally {
-        this.loading = false;
+        if (showLoading) {
+          this.loading = false;
+        }
       }
     },
     

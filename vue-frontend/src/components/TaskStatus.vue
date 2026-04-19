@@ -39,11 +39,15 @@
               <div class="task-info">
                 <div class="info-item">
                   <span class="label">{{ statusText }}:</span>
-                  <el-tag :type="getStatusType(task.status)">{{ getStatusText(task.status) }}</el-tag>
+                  <transition name="fade" mode="out-in">
+                    <el-tag :key="task.status" :type="getStatusType(task.status)">{{ getStatusText(task.status) }}</el-tag>
+                  </transition>
                 </div>
                 <div class="info-item" v-if="task.progress !== undefined">
                   <span class="label">{{ progressText }}:</span>
-                  <el-progress :percentage="task.progress" :format="formatProgress" />
+                  <transition name="fade">
+                    <el-progress :key="task.progress" :percentage="task.progress" :format="formatProgress" />
+                  </transition>
                 </div>
                 <div class="info-item" v-if="task.created_at">
                   <span class="label">{{ createdAtText }}:</span>
@@ -61,16 +65,20 @@
               
               <div class="task-actions">
                 <!-- 下载按钮 - 仅在任务完成且有视频时显示 -->
-                <el-button v-if="task.status === 'completed' && task.videos && task.videos.length > 0" type="primary" size="small" @click="handleDownload(task.videos[0])">
-                  <el-icon><Download /></el-icon>
-                  {{ downloadText }}
-                </el-button>
+                <transition name="fade">
+                  <el-button v-if="task.status === 'completed' && task.videos && task.videos.length > 0" :key="'download-'+task.task_id" type="primary" size="small" @click="handleDownload(task.videos[0])">
+                    <el-icon><Download /></el-icon>
+                    {{ downloadText }}
+                  </el-button>
+                </transition>
                 
                 <!-- 取消按钮 - 仅在任务运行时显示 -->
-                <el-button v-if="task.status === 'running'" type="warning" size="small" @click="$emit('cancel', task.task_id)">
-                  <el-icon><Close /></el-icon>
-                  {{ cancelText }}
-                </el-button>
+                <transition name="fade">
+                  <el-button v-if="task.status === 'running'" :key="'cancel-'+task.task_id" type="warning" size="small" @click="$emit('cancel', task.task_id)">
+                    <el-icon><Close /></el-icon>
+                    {{ cancelText }}
+                  </el-button>
+                </transition>
                 
                 <!-- 删除按钮 - 对所有状态的任务都显示 -->
                 <el-button type="danger" size="small" @click="$emit('delete', task.task_id)">
@@ -245,5 +253,31 @@ const handleDownload = (videoUrl: string) => {
   display: flex;
   gap: 10px;
   margin-top: 15px;
+}
+
+/* 过渡效果 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 进度条过渡效果 */
+:deep(.el-progress__bar) {
+  transition: width 0.5s ease;
+}
+
+/* 标签过渡效果 */
+:deep(.el-tag) {
+  transition: all 0.3s ease;
+}
+
+/* 按钮过渡效果 */
+:deep(.el-button) {
+  transition: all 0.3s ease;
 }
 </style>

@@ -91,7 +91,8 @@ onMounted(async () => {
   
   // Set auto refresh interval (every 5 seconds)
   refreshInterval.value = window.setInterval(async () => {
-    await refreshTasks();
+    // 轮询时不显示 loading 状态，避免界面闪动
+    await tasksStore.fetchAllTasks(1, 10, false);
   }, 5000);
 });
 
