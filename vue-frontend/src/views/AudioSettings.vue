@@ -607,12 +607,24 @@ defineExpose({
 }
 
 .azure-v2-settings,
-.siliconflow-settings,
-.coze-settings-panel {
+.siliconflow-settings {
   border: 1px solid #dcdfe6;
   padding: 12px;
   border-radius: 4px;
   margin-top: 8px;
+}
+
+.coze-settings-panel {
+  margin-top: 8px;
+}
+
+.coze-settings-panel .form-item {
+  margin-bottom: 16px;
+}
+
+.coze-settings-panel .el-alert {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .bgm-uploader {
