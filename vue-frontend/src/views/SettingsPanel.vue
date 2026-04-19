@@ -2,111 +2,143 @@
   <div class="settings-panel">
     <el-dialog
       v-model="visible"
-      title="Settings"
+      :title="t('Settings')"
       width="800px"
       destroy-on-close
     >
-      <el-card :body-style="{ padding: '20px' }">
+      <el-card :body-style="{ padding: '20px' }" class="mt-4">
         <template #header>
-          <span>Basic Settings</span>
+          <span v-html="t('LLM Settings')"></span>
         </template>
         
         <el-form :model="form" label-width="150px">
-          <!-- Basic Settings -->
-          <el-form-item label="Hide Basic Settings">
-            <el-switch v-model="form.hideConfig" />
-          </el-form-item>
-          
-          <el-form-item label="Hide Log">
-            <el-switch v-model="form.hideLog" />
+          <el-form-item :label="t('LLM Provider')">
+            <el-select v-model="form.llmProvider" @change="handleLLMProviderChange">
+              <el-option v-for="provider in llmProviders" :key="provider.value" :label="provider.label" :value="provider.value" />
+            </el-select>
           </el-form-item>
         </el-form>
-      </el-card>
-      
-      <el-card :body-style="{ padding: '20px' }" class="mt-4">
-        <template #header>
-          <span>LLM Settings</span>
-        </template>
         
         <el-alert
-          title="Recommendation for Chinese Users"
+          :title="t('LLM Provider Recommendation')"
           type="info"
           :closable="false"
           show-icon
           class="mb-4"
         >
-          <p>We recommend using <strong style="color: #ff4d4f;">DeepSeek</strong> or <strong style="color: #ff4d4f;">Moonshot</strong> as your LLM provider</p>
-          <p>- Accessible directly in China without VPN</p>
-          <p>- Free credits upon registration, generally sufficient for use</p>
+          <p v-html="t('LLM Provider Recommendation Content')"></p>
         </el-alert>
         
+        <div v-if="llmTips" class="llm-tips">
+          <el-alert
+            :title="llmTips.title"
+            :type="llmTips.type"
+            :closable="false"
+            show-icon
+          >
+            <div v-html="llmTips.content"></div>
+          </el-alert>
+        </div>
+        
         <el-form :model="form" label-width="150px">
-          <el-form-item label="LLM Provider">
-            <el-select v-model="form.llmProvider" @change="handleLLMProviderChange">
-              <el-option v-for="provider in llmProviders" :key="provider.value" :label="provider.label" :value="provider.value" />
-            </el-select>
-          </el-form-item>
           
-          <el-form-item label="API Key">
+          <el-form-item>
+            <template #label>
+              <span>{{ t('API Key') }} <span style="color: red;">*</span></span>
+            </template>
             <el-input v-model="form.llmApiKey" type="password" />
           </el-form-item>
           
-          <el-form-item label="Base Url">
+          <el-form-item :label="t('Base Url')">
             <el-input v-model="form.llmBaseUrl" />
           </el-form-item>
           
-          <el-form-item label="Model Name" v-if="form.llmProvider !== 'ernie'">
+          <el-form-item v-if="form.llmProvider !== 'ernie'">
+            <template #label>
+              <el-tooltip :content="t('Model Name Tooltip')" placement="top">
+                <span>{{ t('Model Name') }}</span>
+              </el-tooltip>
+            </template>
             <el-input v-model="form.llmModelName" />
           </el-form-item>
           
-          <el-form-item label="Secret Key" v-if="form.llmProvider === 'ernie'">
+          <el-form-item :label="t('Secret Key')" v-if="form.llmProvider === 'ernie'">
             <el-input v-model="form.llmSecretKey" type="password" />
           </el-form-item>
           
-          <el-form-item label="Account ID" v-if="form.llmProvider === 'cloudflare'">
+          <el-form-item :label="t('Account ID')" v-if="form.llmProvider === 'cloudflare'">
             <el-input v-model="form.llmAccountId" />
           </el-form-item>
-          
-          <div v-if="llmTips" class="llm-tips">
-            <el-alert
-              :title="llmTips.title"
-              :type="llmTips.type"
-              :closable="false"
-              show-icon
-            >
-              <div v-html="llmTips.content"></div>
-            </el-alert>
-          </div>
         </el-form>
       </el-card>
       
       <el-card :body-style="{ padding: '20px' }" class="mt-4">
         <template #header>
-          <span>Video Source Settings</span>
+          <span v-html="t('Video Source Settings')"></span>
         </template>
         
-        <el-form :model="form" label-width="150px">
-          <el-form-item label="Pexels API Key">
-            <el-input v-model="form.pexelsApiKey" type="password" />
+        <el-form :model="form" label-position="top">
+          <el-form-item>
+            <template #label>
+              <span v-html="t('Pexels API Key')"></span>
+            </template>
+            <div v-for="(_, index) in form.pexelsApiKeys" :key="index" class="api-key-input-group">
+              <el-input v-model="form.pexelsApiKeys[index]" type="password">
+                <template #append>
+                  <el-button 
+                    v-if="form.pexelsApiKeys.length > 1" 
+                    type="danger" 
+                    circle 
+                    @click="removePexelsApiKey(index)"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </template>
+              </el-input>
+            </div>
+            <el-button type="primary" plain @click="addPexelsApiKey" class="mt-2">
+              <el-icon><Plus /></el-icon>
+              {{ t('Add') }}
+            </el-button>
           </el-form-item>
           
-          <el-form-item label="Pixabay API Key">
-            <el-input v-model="form.pixabayApiKey" type="password" />
+          <el-form-item>
+            <template #label>
+              <span v-html="t('Pixabay API Key')"></span>
+            </template>
+            <div v-for="(_, index) in form.pixabayApiKeys" :key="index" class="api-key-input-group">
+              <el-input v-model="form.pixabayApiKeys[index]" type="password">
+                <template #append>
+                  <el-button 
+                    v-if="form.pixabayApiKeys.length > 1" 
+                    type="danger" 
+                    circle 
+                    @click="removePixabayApiKey(index)"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </template>
+              </el-input>
+            </div>
+            <el-button type="primary" plain @click="addPixabayApiKey" class="mt-2">
+              <el-icon><Plus /></el-icon>
+              {{ t('Add') }}
+            </el-button>
           </el-form-item>
         </el-form>
       </el-card>
       
       <el-card :body-style="{ padding: '20px' }" class="mt-4">
         <template #header>
-          <span>Whisper Settings</span>
+          <span v-html="t('Whisper Settings')"></span>
         </template>
         
         <el-form :model="form" label-width="150px">
-          <el-form-item label="Whisper Device">
+          <el-form-item :label="t('Whisper Device')">
             <el-select v-model="form.whisperDevice">
-              <el-option label="CPU" value="CPU" />
-              <el-option label="GPU" value="GPU" />
-              <el-option label="Auto" value="auto" />
+              <el-option :label="t('CPU')" value="CPU" />
+              <el-option :label="t('GPU')" value="GPU" />
+              <el-option :label="t('Auto')" value="auto" />
             </el-select>
           </el-form-item>
         </el-form>
@@ -114,14 +146,14 @@
       
       <el-card :body-style="{ padding: '20px' }" class="mt-4">
         <template #header>
-          <span>Video Encoder Settings</span>
+          <span v-html="t('Video Encoder Settings')"></span>
         </template>
         
         <el-form :model="form" label-width="150px">
-          <el-form-item label="Video Encoder">
+          <el-form-item :label="t('Video Encoder')">
             <el-select v-model="form.videoEncoder">
-              <el-option label="CPU" value="CPU" />
-              <el-option label="GPU" value="GPU" />
+              <el-option :label="t('CPU')" value="CPU" />
+              <el-option :label="t('GPU')" value="GPU" />
             </el-select>
           </el-form-item>
         </el-form>
@@ -129,8 +161,8 @@
       
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="visible = false">Cancel</el-button>
-          <el-button type="primary" @click="saveSettings">Save</el-button>
+          <el-button @click="visible = false">{{ t('Cancel') }}</el-button>
+          <el-button type="primary" @click="saveSettings">{{ t('Save') }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -140,6 +172,8 @@
 <script setup lang="ts">
 import { reactive, computed, onMounted } from 'vue';
 import { useSettingsStore } from '../stores/settings';
+import { useI18nStore } from '../stores/i18n';
+import { Delete, Plus } from '@element-plus/icons-vue';
 
 const props = defineProps<{
   visible: boolean;
@@ -155,22 +189,44 @@ const visible = computed({
   set: (value) => emit('update:visible', value)
 });
 
+const i18nStore = useI18nStore();
+const t = computed(() => i18nStore.t);
+
 const settingsStore = useSettingsStore();
 
 const form = reactive({
-  hideConfig: false,
-  hideLog: false,
   llmProvider: 'openai',
   llmApiKey: '',
   llmBaseUrl: '',
   llmModelName: '',
   llmSecretKey: '',
   llmAccountId: '',
-  pexelsApiKey: '',
-  pixabayApiKey: '',
+  pexelsApiKeys: [''],
+  pixabayApiKeys: [''],
   whisperDevice: 'CPU',
   videoEncoder: 'CPU'
 });
+
+// API Key management methods
+const addPexelsApiKey = () => {
+  form.pexelsApiKeys.push('');
+};
+
+const removePexelsApiKey = (index: number) => {
+  if (form.pexelsApiKeys.length > 1) {
+    form.pexelsApiKeys.splice(index, 1);
+  }
+};
+
+const addPixabayApiKey = () => {
+  form.pixabayApiKeys.push('');
+};
+
+const removePixabayApiKey = (index: number) => {
+  if (form.pixabayApiKeys.length > 1) {
+    form.pixabayApiKeys.splice(index, 1);
+  }
+};
 
 const llmProviders = [
   { label: 'OpenAI', value: 'openai' },
@@ -190,54 +246,59 @@ const llmProviders = [
 
 const llmTips = computed(() => {
   const provider = form.llmProvider;
+  let title = '';
+  let content = '';
   
   switch (provider) {
-    case 'ollama':
-      return {
-        title: 'Ollama Configuration',
-        type: 'info',
-        content: `
-          <p><strong>API Key:</strong>随便填写，比如 123</p>
-          <p><strong>Base Url:</strong>一般为 http://localhost:11434/v1</p>
-          <p>- 如果 MoneyPrinterTurbo 和 Ollama 不在同一台机器上，需要填写 Ollama 机器的IP地址</p>
-          <p>- 如果 MoneyPrinterTurbo 是 Docker 部署，建议填写 http://host.docker.internal:11434/v1</p>
-          <p><strong>Model Name:</strong>使用 ollama list 查看，比如 qwen:7b</p>
-        `
-      };
-    case 'openai':
-      return {
-        title: 'OpenAI Configuration',
-        type: 'info',
-        content: `
-          <p><strong>需要VPN开启全局流量模式</strong></p>
-          <p><strong>API Key:</strong><a href="https://platform.openai.com/api-keys" target="_blank">点击到官网申请</a></p>
-          <p><strong>Base Url:</strong>可以留空</p>
-          <p><strong>Model Name:</strong>填写有权限的模型，<a href="https://platform.openai.com/settings/organization/limits" target="_blank">点击查看模型列表</a></p>
-        `
-      };
-    case 'moonshot':
-      return {
-        title: 'Moonshot Configuration',
-        type: 'info',
-        content: `
-          <p><strong>API Key:</strong><a href="https://platform.moonshot.cn/console/api-keys" target="_blank">点击到官网申请</a></p>
-          <p><strong>Base Url:</strong>固定为 https://api.moonshot.cn/v1</p>
-          <p><strong>Model Name:</strong>比如 moonshot-v1-8k，<a href="https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8" target="_blank">点击查看模型列表</a></p>
-        `
-      };
     case 'deepseek':
-      return {
-        title: 'DeepSeek Configuration',
-        type: 'info',
-        content: `
-          <p><strong>API Key:</strong><a href="https://platform.deepseek.com/api_keys" target="_blank">点击到官网申请</a></p>
-          <p><strong>Base Url:</strong>固定为 https://api.deepseek.com</p>
-          <p><strong>Model Name:</strong>固定为 deepseek-chat</p>
-        `
-      };
+      title = t.value('DeepSeek Configuration');
+      content = `
+        <p>${t.value('API Key')}: ${t.value('DeepSeek API Key Tip').replace('API Key: ', '')}</p>
+        <p>${t.value('Base Url')}: ${t.value('DeepSeek Base Url Tip').replace('Base Url: ', '')}</p>
+        <p>${t.value('Model Name')}: ${t.value('DeepSeek Model Name Tip').replace('Model Name: ', '')}</p>
+      `;
+      break;
+    case 'moonshot':
+      title = t.value('Moonshot Configuration');
+      content = `
+        <p>${t.value('API Key')}: ${t.value('Moonshot API Key Tip').replace('API Key: ', '')}</p>
+        <p>${t.value('Base Url')}: ${t.value('Moonshot Base Url Tip').replace('Base Url: ', '')}</p>
+        <p>${t.value('Model Name')}: ${t.value('Moonshot Model Name Tip').replace('Model Name: ', '')}</p>
+      `;
+      break;
+    case 'openai':
+      title = t.value('OpenAI Configuration');
+      content = `
+        <p>${t.value('OpenAI VPN Tip')}</p>
+        <p>${t.value('API Key')}: ${t.value('OpenAI API Key Tip').replace('API Key: ', '')}</p>
+        <p>${t.value('Base Url')}: ${t.value('OpenAI Base Url Tip').replace('Base Url: ', '')}</p>
+        <p>${t.value('Model Name')}: ${t.value('OpenAI Model Name Tip').replace('Model Name: ', '')}</p>
+      `;
+      break;
+    case 'ollama':
+      title = t.value('Ollama Configuration');
+      content = `
+        <p>${t.value('API Key')}: ${t.value('Ollama API Key Tip').replace('API Key: ', '')}</p>
+        <p>${t.value('Base Url')}: ${t.value('Ollama Base Url Tip').replace('Base Url: ', '')}</p>
+        <p>- ${t.value('Ollama Base Url Tip 2')}</p>
+        <p>- ${t.value('Ollama Base Url Tip 3')}</p>
+        <p>${t.value('Model Name')}: ${t.value('Ollama Model Name Tip').replace('Model Name: ', '')}</p>
+      `;
+      break;
     default:
-      return null;
+      title = t.value('LLM Configuration');
+      content = `
+        <p>${t.value('API Key')}: ${t.value('Please Enter LLM API Key')}</p>
+        <p>${t.value('Base Url')}: ${t.value('Base Url Tooltip')}</p>
+        <p>${t.value('Model Name')}: ${t.value('Model Name Tooltip')}</p>
+      `;
   }
+  
+  return {
+    title: title,
+    type: 'info',
+    content: content
+  };
 });
 
 const handleLLMProviderChange = () => {
@@ -289,8 +350,6 @@ const handleLLMProviderChange = () => {
 
 const saveSettings = () => {
   // Save settings to state management
-  settingsStore.updateAppSetting('hideConfig', form.hideConfig);
-  settingsStore.updateUISetting('hideLog', form.hideLog);
   settingsStore.updateAppSetting('llmProvider', form.llmProvider);
   
   // Save LLM configuration
@@ -301,8 +360,8 @@ const saveSettings = () => {
   }
   
   // Save video source configuration
-  settingsStore.updateVideoSourceSetting('pexels', form.pexelsApiKey.split(',').map(key => key.trim()).filter(Boolean));
-  settingsStore.updateVideoSourceSetting('pixabay', form.pixabayApiKey.split(',').map(key => key.trim()).filter(Boolean));
+  settingsStore.updateVideoSourceSetting('pexels', form.pexelsApiKeys.map(key => key.trim()).filter(Boolean));
+  settingsStore.updateVideoSourceSetting('pixabay', form.pixabayApiKeys.map(key => key.trim()).filter(Boolean));
   
   // Save Whisper configuration
   settingsStore.updateWhisperSetting('device', form.whisperDevice);
@@ -322,8 +381,6 @@ const saveSettings = () => {
 
 onMounted(() => {
   // Load settings from state management
-  form.hideConfig = settingsStore.app.hideConfig;
-  form.hideLog = settingsStore.ui.hideLog;
   form.llmProvider = settingsStore.app.llmProvider;
   
   // Load LLM configuration
@@ -333,8 +390,11 @@ onMounted(() => {
   form.llmModelName = llmConfig.modelName;
   
   // Load video source configuration
-  form.pexelsApiKey = settingsStore.getVideoSourceConfig('pexels').join(', ');
-  form.pixabayApiKey = settingsStore.getVideoSourceConfig('pixabay').join(', ');
+  const pexelsKeys = settingsStore.getVideoSourceConfig('pexels');
+  form.pexelsApiKeys = pexelsKeys.length > 0 ? pexelsKeys : [''];
+  
+  const pixabayKeys = settingsStore.getVideoSourceConfig('pixabay');
+  form.pixabayApiKeys = pixabayKeys.length > 0 ? pixabayKeys : [''];
   
   // Load Whisper configuration
   form.whisperDevice = settingsStore.whisper.device;
@@ -362,5 +422,46 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.api-key-input-group {
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.api-key-input-group:last-of-type {
+  margin-bottom: 12px;
+}
+
+.api-key-input-group .el-input {
+  width: 100%;
+}
+
+/* Style for input fields to match ui-setting.png */
+.el-input__inner {
+  background-color: #f5f5f5;
+  border-color: #d9d9d9;
+}
+
+/* Style for LLM tips to match the blue box background */
+.llm-tips {
+  margin: 16px 0;
+}
+
+.llm-tips .el-alert {
+  background-color: #e6f7ff;
+  border-color: #91d5ff;
+  border-radius: 4px;
+}
+
+/* Style for LLM provider recommendation to match the yellow box background */
+.mb-4 {
+  background-color: #fff7e6;
+  border-color: #ffd591;
+  border-radius: 4px;
+}
+
+.mt-2 {
+  margin-top: 8px;
 }
 </style>
