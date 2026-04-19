@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.63.2"
+project_version = "1.2.64.0"
 
 [app]
 video_source = "pexels"
@@ -71,7 +71,7 @@ api_key = "sk-ehmjzsdqlcbsswaplkgzjsqjrlwyjquczplhjxoszbhdjgvn"
 hide_log = false
 language = "zh"
 tts_server = "coze-tts"
-voice_name = "coze|7468512265151741979|擎苍-Male|https://lf9-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_male_qingcang_mars_bigtts.mp3?lk3s=da27ec82&x-expires=1776679083&x-signature=W2FLt%2F%2B5GGy43wFLb46Xj4jfuoE%3D|无语，擎天之巨首，揽尽世间风云变幻，诸般阻碍，不过是无脉相巅峰之基石。今日之儒，来日必当十倍奉还。 无知威名，必将震慑四海八荒。|"
+voice_name = "coze|7426720361733013513|魅力女友-Female|https://lf26-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_female_meilinvyou_moon_bigtts.mp3?lk3s=da27ec82&x-expires=1776682524&x-signature=DQD5yxK5TrUoZKmcIycl0tdZjME%3D|以后呢？你只能对我一个人好，心里也只能装着我，不管发生什么都要第一时间想到我，我可会一直赖着你的，你别想跑掉了。还有呀，要好好爱我宠我，不然我可不依呢。|"
 subtitle_enabled = true
 subtitle_position = "custom"
 subtitle_custom_position = 90.0
