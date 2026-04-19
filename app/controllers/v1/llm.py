@@ -1,4 +1,5 @@
 from fastapi import Request, Body
+from loguru import logger
 
 from app.controllers.v1.base import new_router
 from app.models.schema import (
