@@ -29,14 +29,17 @@ set VUE_DIST=%CD%\vue-frontend\dist
 
 rem Check if frontend process is running
 echo Checking for running frontend processes...
-netstat -ano | findstr :3000 >nul
-if %ERRORLEVEL% EQU 0 (
-    echo ERROR: Frontend service is already running on port 3000
-    set "PID="
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000') do (
-        if %%a NEQ 0 set "PID=%%a"
+set "PID_FOUND=false"
+set "FOUND_PID="
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr "0.0.0.0:3000.*LISTENING"') do (
+    if %%a NEQ 0 (
+        set "FOUND_PID=%%a"
+        set "PID_FOUND=true"
     )
-    echo The process ID using port 3000 is: %PID%
+)
+if "!PID_FOUND!" == "true" (
+    echo ERROR: Frontend service is already running on port 3000
+    echo The process ID using port 3000 is: !FOUND_PID!
     echo What would you like to do?
     echo 1. Kill this process and rebuild frontend
     echo 2. Reuse the existing process
@@ -46,16 +49,17 @@ if %ERRORLEVEL% EQU 0 (
     if "!choice!" equ "" set "choice=1"
     echo You entered: "!choice!"
     if "!choice!" equ "1" (
-        if defined PID if not "%PID%" == "" (
-            echo Killing process %PID%...
-            taskkill /PID %PID% /F
+        if "!PID_FOUND!" == "true" (
+            echo Killing process !FOUND_PID!...
+            taskkill /PID !FOUND_PID! /F
             if %ERRORLEVEL% NEQ 0 (
                 echo Failed to kill process
                 pause
                 exit /b 1
             )
         ) else (
-            echo No process ID found, but continuing to kill...
+            echo WARNING: Port 3000 is in use, but couldn't identify the specific process ID.
+            echo Attempting to kill potential processes that might be using this port...
             taskkill /F /IM node.exe > nul 2>&1
             taskkill /F /IM python.exe /FI "COMMANDLINE like %%http.server%%" > nul 2>&1
         )
@@ -110,14 +114,17 @@ if not defined SKIP_FRONTEND_REBUILD (
 )
 
 rem Check if backend port is available
-netstat -ano | findstr :8000 >nul
-if %ERRORLEVEL% EQU 0 (
-    echo ERROR: Port 8000 is already in use by another process
-    set "PID="
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000') do (
-        if %%a NEQ 0 set "PID=%%a"
+set "PID_FOUND=false"
+set "FOUND_PID="
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr "0.0.0.0:8000.*LISTENING"') do (
+    if %%a NEQ 0 (
+        set "FOUND_PID=%%a"
+        set "PID_FOUND=true"
     )
-    echo The process ID using port 8000 is: %PID%
+)
+if "!PID_FOUND!" == "true" (
+    echo ERROR: Port 8000 is already in use by another process
+    echo The process ID using port 8000 is: !FOUND_PID!
     echo What would you like to do?
     echo 1. Kill this process and start a new backend service
     echo 2. Reuse the existing process
@@ -127,9 +134,9 @@ if %ERRORLEVEL% EQU 0 (
     if "!choice!" equ "" set "choice=1"
     echo You entered: "!choice!"
     if "!choice!" equ "1" (
-        if defined PID if not "%PID%" == "" (
-            echo Killing process %PID%...
-            taskkill /PID %PID% /F
+        if "!PID_FOUND!" == "true" (
+            echo Killing process !FOUND_PID!...
+            taskkill /PID !FOUND_PID! /F
             if %ERRORLEVEL% EQU 0 (
                 echo Process killed successfully
             ) else (
@@ -138,7 +145,8 @@ if %ERRORLEVEL% EQU 0 (
                 set "SKIP_BACKEND=true"
             )
         ) else (
-            echo No process ID found, but continuing to kill...
+            echo WARNING: Port 8000 is in use, but couldn't identify the specific process ID.
+            echo Attempting to kill potential processes that might be using this port...
             taskkill /F /IM python.exe /FI "COMMANDLINE like %%main.py%%" > nul 2>&1
         )
     ) else if "!choice!" equ "2" (
@@ -167,14 +175,17 @@ if not defined SKIP_BACKEND (
 
 rem Check if frontend port is available
 if not defined SKIP_FRONTEND_REBUILD (
-    netstat -ano | findstr :3000 >nul
-    if %ERRORLEVEL% EQU 0 (
-        echo ERROR: Port 3000 is already in use by another process
-        set "PID="
-        for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000') do (
-            if %%a NEQ 0 set "PID=%%a"
+    set "PID_FOUND=false"
+    set "FOUND_PID="
+    for /f "tokens=5" %%a in ('netstat -ano ^| findstr "0.0.0.0:3000.*LISTENING"') do (
+        if %%a NEQ 0 (
+            set "FOUND_PID=%%a"
+            set "PID_FOUND=true"
         )
-        echo The process ID using port 3000 is: %PID%
+    )
+    if "!PID_FOUND!" == "true" (
+        echo ERROR: Port 3000 is already in use by another process
+        echo The process ID using port 3000 is: !FOUND_PID!
         echo What would you like to do?
         echo 1. Kill this process and start a new frontend service
         echo 2. Reuse the existing process
@@ -184,16 +195,17 @@ if not defined SKIP_FRONTEND_REBUILD (
         if "%choice%" equ "" set "choice=1"
         echo You entered: "%choice%"
         if "%choice%" equ "1" (
-            if defined PID if not "%PID%" == "" (
-                echo Killing process %PID%...
-                taskkill /PID %PID% /F
+            if "!PID_FOUND!" == "true" (
+                echo Killing process !FOUND_PID!...
+                taskkill /PID !FOUND_PID! /F
                 if %ERRORLEVEL% NEQ 0 (
                     echo Failed to kill process
                     pause
                     exit /b 1
                 )
             ) else (
-                echo No process ID found, but continuing to kill...
+                echo WARNING: Port 3000 is in use, but couldn't identify the specific process ID.
+                echo Attempting to kill potential processes that might be using this port...
                 taskkill /F /IM node.exe > nul 2>&1
                 taskkill /F /IM python.exe /FI "COMMANDLINE like %%http.server%%" > nul 2>&1
             )
