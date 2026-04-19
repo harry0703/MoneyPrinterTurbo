@@ -71,7 +71,7 @@
         <div class="scene-actions">
           <el-button size="small" @click="exportScenes">{{ t('Export Scenes') }}</el-button>
           <el-button size="small" @click="triggerImport">{{ t('Import Scenes') }}</el-button>
-          <el-button size="small" type="danger" @click="clearScenes">清除场景</el-button>
+          <el-button size="small" type="danger" @click="clearScenes">{{ t('Clear Scenes') }}</el-button>
           <input
             ref="fileInput"
             type="file"
