@@ -49,7 +49,25 @@ class LogService:
                 f.write(f"{timestamp} | {level.upper()} | {task_info}{message}\n")
 
         # Push log to all connected WebSocket clients
-        self._broadcast_log(log_entry)
+        import asyncio
+        try:
+            # Handle different thread scenarios
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(self._broadcast_log(log_entry))
+                else:
+                    asyncio.run(self._broadcast_log(log_entry))
+            except RuntimeError:
+                # No event loop in this thread, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._broadcast_log(log_entry))
+                loop.close()
+        except Exception as e:
+            # Log error without using logger to avoid re-entrant issues
+            import traceback
+            traceback.print_exc()
 
     def get_logs(self, level: str = None, task_id: str = None, limit: int = 100, offset: int = 0):
         filtered_logs = list(self._logs)
@@ -98,22 +116,27 @@ class LogService:
             if connection in self._websocket_connections:
                 self._websocket_connections.remove(connection)
 
-    def _broadcast_log(self, log_entry):
+    async def _broadcast_log(self, log_entry):
         """Broadcast a log entry to all connected WebSocket clients."""
         import json
+        import asyncio
         from fastapi import WebSocket
 
         with self._connections_lock:
             connections = list(self._websocket_connections)
 
-        for connection in connections:
+        async def send_to_connection(connection):
             try:
                 # Send log entry as JSON
-                connection.send_json(log_entry)
+                await connection.send_json(log_entry)
             except Exception as e:
                 # If sending fails, remove the connection
                 logger.error(f"Error sending log to WebSocket: {e}")
                 self.remove_websocket_connection(connection)
+
+        # Send to all connections concurrently
+        if connections:
+            await asyncio.gather(*(send_to_connection(conn) for conn in connections))
 
 
 class LoguruHandler:

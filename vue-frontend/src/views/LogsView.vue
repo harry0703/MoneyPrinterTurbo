@@ -34,6 +34,10 @@
           <el-button :type="autoRefresh ? 'success' : 'default'" size="small" @click="toggleAutoRefresh">
             {{ autoRefresh ? t('Auto Refresh On') : t('Auto Refresh Off') }}
           </el-button>
+
+          <el-tag :type="wsStatus.type" size="small" class="ws-status">
+            {{ wsStatus.text }}
+          </el-tag>
         </div>
         <div class="log-count">
           Total logs: {{ filteredLogs.length }}
@@ -103,6 +107,11 @@ const logs = ref<LogEntry[]>([]);
 const logsContainerRef = ref<HTMLElement | null>(null);
 const ws = ref<WebSocket | null>(null);
 const isWebSocketConnected = ref(false);
+
+const wsStatus = ref({
+  text: 'Disconnected',
+  type: 'danger'
+});
 
 interface LogsResponse {
   logs: LogEntry[];
@@ -183,14 +192,22 @@ const scrollToBottom = () => {
 };
 
 const connectWebSocket = () => {
-  // WebSocket URL - adjust based on your backend URL
-  const wsUrl = 'ws://localhost:8000/api/v1/logs/ws';
+  // WebSocket URL - connect to backend server
+  // Use the same base URL as API service
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  // Backend server runs on port 8000
+  const wsUrl = `${wsProtocol}//localhost:8000/api/v1/logs/ws`;
   
+  console.log('WebSocket connecting to:', wsUrl);
   ws.value = new WebSocket(wsUrl);
   
   ws.value.onopen = () => {
     console.log('WebSocket connected');
     isWebSocketConnected.value = true;
+    wsStatus.value = {
+      text: 'Connected',
+      type: 'success'
+    };
   };
   
   ws.value.onmessage = (event) => {
@@ -212,12 +229,20 @@ const connectWebSocket = () => {
   ws.value.onclose = () => {
     console.log('WebSocket disconnected');
     isWebSocketConnected.value = false;
+    wsStatus.value = {
+      text: 'Disconnected',
+      type: 'danger'
+    };
     // Try to reconnect after 3 seconds
     setTimeout(connectWebSocket, 3000);
   };
   
   ws.value.onerror = (error) => {
     console.error('WebSocket error:', error);
+    wsStatus.value = {
+      text: 'Error',
+      type: 'danger'
+    };
   };
 };
 
@@ -314,6 +339,11 @@ onUnmounted(() => {
 
 .level-select {
   min-width: 120px;
+}
+
+.ws-status {
+  margin-left: 10px;
+  padding: 2px 8px;
 }
 
 .logs-container {
