@@ -104,8 +104,21 @@ def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int =
     request_id = base.get_task_id(request)
     tasks, total = sm.state.get_all_tasks(page, page_size)
     
-    # Convert numeric status to string status
-    def convert_status(task):
+    endpoint = config.app.get("endpoint", "")
+    if not endpoint:
+        endpoint = str(request.base_url)
+    endpoint = endpoint.rstrip("/")
+    task_dir = utils.task_dir()
+    
+    def file_to_uri(file):
+        if not file.startswith(endpoint):
+            _uri_path = file.replace(task_dir, "tasks").replace("\\", "/")
+            _uri_path = f"{endpoint}/{_uri_path}"
+        else:
+            _uri_path = file
+        return _uri_path
+    
+    def convert_task(task):
         status_map = {
             const.TASK_STATE_FAILED: "failed",
             const.TASK_STATE_COMPLETE: "completed",
@@ -114,9 +127,22 @@ def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int =
         if "state" in task:
             task["status"] = status_map.get(task["state"], "pending")
             del task["state"]
+        
+        if "videos" in task and task["videos"]:
+            videos = task["videos"]
+            urls = []
+            for v in videos:
+                urls.append(file_to_uri(v))
+            task["videos"] = urls
+        if "combined_videos" in task and task["combined_videos"]:
+            combined_videos = task["combined_videos"]
+            urls = []
+            for v in combined_videos:
+                urls.append(file_to_uri(v))
+            task["combined_videos"] = urls
         return task
     
-    converted_tasks = [convert_status(task) for task in tasks]
+    converted_tasks = [convert_task(task) for task in tasks]
 
     response = {
         "tasks": converted_tasks,
