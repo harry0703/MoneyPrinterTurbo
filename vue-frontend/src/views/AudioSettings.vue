@@ -285,6 +285,7 @@ interface Voice {
   supportsEmotion?: boolean;
   emotions?: string[];
   previewText?: string;
+  previewAudio?: string;
 }
 
 const voiceList = computed<Voice[]>(() => {
@@ -313,7 +314,8 @@ const voiceList = computed<Voice[]>(() => {
           value: v,
           supportsEmotion,
           emotions,
-          previewText: parts.length >= 5 ? parts[4] : ''
+          previewText: parts.length >= 5 ? parts[4] : '',
+          previewAudio: parts.length >= 4 ? parts[3] : ''
         });
       }
     } else if (v.startsWith('siliconflow:')) {

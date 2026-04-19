@@ -1374,8 +1374,6 @@ def tts(
     emotion: str = "",
     is_preview: bool = False,
 ) -> Union[SubMaker, None]:
-    parsed_voice_name = voice.parse_voice_name(voice_name)
-    
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
     elif is_siliconflow_voice(voice_name):
@@ -1868,12 +1866,6 @@ def coze_tts(
         return None
     
     try:
-        # 配置Coze API
-        api_key = config.coze.get("api_key", "")
-        if not api_key:
-            logger.error("Coze API key is not set")
-            return None
-        
         # 只有在试听时才使用预览音频
         # 试听时传入的文本就是预览文本本身，且长度较短
         # 正式生成时，即使文本较短，也应该使用TTS API生成
@@ -1894,6 +1886,12 @@ def coze_tts(
             except Exception as e:
                 logger.error(f"Error downloading preview audio: {str(e)}")
             # If download fails, continue trying TTS API
+        
+        # 配置Coze API
+        api_key = config.coze.get("api_key", "")
+        if not api_key:
+            logger.error("Coze API key is not set")
+            return None
         
         # Coze TTS API endpoint
         url = "https://api.coze.cn/v1/audio/speech"
