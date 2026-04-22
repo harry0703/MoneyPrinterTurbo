@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import math
 import os
 import re
@@ -1281,6 +1282,63 @@ def populate_legacy_submaker_with_full_text(
     return sub_maker
 
 
+def create_edge_tts_communicate(
+    text: str, voice_name: str, rate_str: str
+) -> edge_tts.Communicate:
+    """
+    按当前已安装的 edge_tts 版本构造 Communicate 对象。
+
+    背景：
+    1. 主线代码已经升级到 edge_tts 7.x，并使用 `boundary` 参数拿到更细的边界事件；
+    2. 但 Windows 便携包如果更新失败，现场环境可能仍然停留在旧版 edge_tts；
+    3. 旧版 `Communicate.__init__()` 不接受 `boundary`，会直接抛出
+       `unexpected keyword argument 'boundary'`，导致整个 TTS 链路失败。
+
+    因此这里先根据构造函数签名探测当前版本支持的参数，再决定是否传入
+    `boundary`，让同一份代码同时兼容旧版和新版依赖。
+    """
+    communicate_kwargs = {"rate": rate_str}
+    communicate_signature = inspect.signature(edge_tts.Communicate)
+
+    if "boundary" in communicate_signature.parameters:
+        communicate_kwargs["boundary"] = "WordBoundary"
+
+    return edge_tts.Communicate(text, voice_name, **communicate_kwargs)
+
+
+def stream_edge_tts_chunks(communicate, on_chunk) -> None:
+    """
+    统一消费 edge_tts 的同步流和旧版异步流。
+
+    edge_tts 7.x 提供 `stream_sync()`，可以在同步函数里直接迭代；
+    更早的版本通常只有异步 `stream()`。为了让 `azure_tts_v1()` 在
+    旧依赖残留场景下仍能继续工作，这里统一做一层流式兼容。
+
+    Args:
+        communicate: edge_tts.Communicate 实例
+        on_chunk: 每拿到一个事件块时执行的回调
+    """
+    if hasattr(communicate, "stream_sync"):
+        for chunk in communicate.stream_sync():
+            on_chunk(chunk)
+        return
+
+    if not hasattr(communicate, "stream"):
+        raise AttributeError("edge_tts communicate object has no stream method")
+
+    async def _consume_async_stream():
+        async for chunk in communicate.stream():
+            on_chunk(chunk)
+
+    # 这里显式创建独立事件循环，而不是复用外部上下文，目的是避免
+    # 在同步调用栈里遇到“当前线程没有事件循环”或跨线程复用循环的问题。
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(_consume_async_stream())
+    finally:
+        loop.close()
+
+
 def azure_tts_v1(
     text: str, voice_name: str, voice_rate: float, voice_file: str
 ) -> Union[SubMaker, None]:
@@ -1291,26 +1349,25 @@ def azure_tts_v1(
         try:
             logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
 
-            # edge_tts 7.x 已经提供同步流接口和新的字幕聚合器实现，
-            # 这里直接使用同步接口，避免继续依赖旧版本的异步流事件结构。
+            # 这里同时兼容 edge_tts 7.x 和旧版便携包里可能残留的老依赖：
+            # 1. 新版支持 `boundary` + `stream_sync()`
+            # 2. 旧版不支持 `boundary`，且通常只暴露异步 `stream()`
             ensure_file_path_exists(voice_file)
-            communicate = edge_tts.Communicate(
-                text,
-                voice_name,
-                rate=rate_str,
-                boundary="WordBoundary",
-            )
+            communicate = create_edge_tts_communicate(text, voice_name, rate_str)
             sub_maker = edge_tts.SubMaker()
 
             with open(voice_file, "wb") as file:
-                for chunk in communicate.stream_sync():
+                def _handle_chunk(chunk):
                     chunk_type = chunk["type"]
                     if chunk_type == "audio":
                         file.write(chunk["data"])
                     elif chunk_type in ["WordBoundary", "SentenceBoundary"]:
-                        # 直接把 7.x 返回的边界事件喂给新的 SubMaker，
-                        # 这样后续可以复用官方生成的字幕与时间轴。
+                        # 无论来自 7.x 的同步流，还是旧版异步流，只要事件结构
+                        # 里仍有边界信息，就统一喂给 SubMaker，保证后续字幕链路
+                        # 仍然走项目现有逻辑。
                         sub_maker.feed(chunk)
+
+                stream_edge_tts_chunks(communicate, _handle_chunk)
 
             if not sub_maker.get_srt():
                 logger.warning("failed, sub_maker.get_srt() is empty")
