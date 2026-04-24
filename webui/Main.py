@@ -243,6 +243,7 @@ if not config.app.get("hide_config", False):
                 "Cloudflare",
                 "ERNIE",
                 "Pollinations",
+                "LiteLLM",
             ]
             saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
             saved_llm_provider_index = 0
@@ -409,6 +410,18 @@ if not config.app.get("hide_config", False):
                             - **API Key**: Optional - Leave empty for public access
                             - **Base Url**: Default is https://text.pollinations.ai/openai
                             - **Model Name**: Use 'openai-fast' or specify a model name
+                            """
+
+            if llm_provider == "litellm":
+                if not llm_model_name:
+                    llm_model_name = "openai/gpt-4o-mini"
+                with llm_helper:
+                    tips = """
+                            ##### LiteLLM Configuration
+                            > [LiteLLM](https://github.com/BerriAI/litellm) routes to 100+ LLM providers via a unified interface
+                            - **API Key**: Only needed for LiteLLM proxy. For direct access, set provider env vars (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
+                            - **Base Url**: Only needed for LiteLLM proxy (e.g. http://localhost:4000). Leave blank for direct provider access
+                            - **Model Name**: Use LiteLLM format, e.g. `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, `gemini/gemini-2.5-flash`. See [full provider list](https://docs.litellm.ai/docs/providers)
                             """
 
             if tips and config.ui["language"] == "zh":

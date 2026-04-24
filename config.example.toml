@@ -32,6 +32,7 @@ pixabay_api_keys = []
 #   minimax
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
+#   litellm     (100+ providers via LiteLLM gateway)
 llm_provider = "openai"
 
 ########## Pollinations AI Settings
@@ -120,6 +121,27 @@ deepseek_model_name = "deepseek-chat"
 modelscope_api_key = ""
 modelscope_base_url = "https://api-inference.modelscope.cn/v1/"
 modelscope_model_name = "Qwen/Qwen3-32B"
+
+########## LiteLLM (AI Gateway — 100+ providers)
+# LiteLLM routes to any LLM provider via a unified interface.
+# Use this for providers not directly supported above: Anthropic (native API),
+# AWS Bedrock, Google Vertex AI, Cohere, Mistral, Together AI, etc.
+# Visit https://docs.litellm.ai/docs/providers for the full list.
+#
+# LiteLLM reads provider API keys from environment variables automatically:
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, AWS_ACCESS_KEY_ID, etc.
+# Set the appropriate env var for your chosen provider before running.
+#
+# API Key: only needed when using a LiteLLM proxy server. Leave blank for direct provider access.
+litellm_api_key = ""
+# Base URL: only needed when using a LiteLLM proxy server (e.g. http://localhost:4000).
+# Leave blank for direct provider access.
+litellm_base_url = ""
+# Model name in LiteLLM format: "provider/model-name"
+# Examples: "openai/gpt-4o", "anthropic/claude-sonnet-4-20250514",
+#           "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
+#           "gemini/gemini-2.5-flash", "ollama/llama3"
+litellm_model_name = "openai/gpt-4o-mini"
 
 # Subtitle Provider, "edge" or "whisper"
 # If empty, the subtitle will not be generated

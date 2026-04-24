@@ -31,6 +31,7 @@ dependencies = [
     "requests==2.33.1",
     "socksio==1.0.0",
     "pydub==0.25.1",
+    "litellm>=1.55,<2.0",
 ]
 
 [tool.hatch.build.targets.wheel]
