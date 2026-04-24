@@ -186,9 +186,7 @@ def _generate_response(prompt: str) -> str:
                     raise Exception(f"[{llm_provider}] error: {str(e)}")
 
             elif llm_provider == "litellm":
-                api_key = config.app.get("litellm_api_key", "")
                 model_name = config.app.get("litellm_model_name")
-                base_url = config.app.get("litellm_base_url", "")
 
             if llm_provider not in ["pollinations", "ollama", "litellm"]:  # Skip validation for providers that don't require API key
                 if not api_key:
@@ -335,17 +333,11 @@ def _generate_response(prompt: str) -> str:
                         f"{llm_provider}: model_name is not set, please set it in the config.toml file."
                     )
 
-                kwargs = {
-                    "model": model_name,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "drop_params": True,
-                }
-                if api_key:
-                    kwargs["api_key"] = api_key
-                if base_url:
-                    kwargs["api_base"] = base_url
-
-                response = litellm.completion(**kwargs)
+                response = litellm.completion(
+                    model=model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    drop_params=True,
+                )
 
                 if not response or not getattr(response, "choices", None):
                     raise ValueError(f"[{llm_provider}] returned empty response")

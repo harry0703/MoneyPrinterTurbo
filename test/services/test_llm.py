@@ -18,12 +18,12 @@ FOUNDRY_MODEL = "azure_ai/claude-sonnet-4-6"
 requires_key = unittest.skipUnless(FOUNDRY_KEY, "ANTHROPIC_FOUNDRY_API_KEY not set")
 
 
-def _setup_litellm_config(model=FOUNDRY_MODEL, api_key=FOUNDRY_KEY, base_url=FOUNDRY_BASE):
+def _setup_litellm_config(model=FOUNDRY_MODEL):
     from app.config import config
     config.app["llm_provider"] = "litellm"
     config.app["litellm_model_name"] = model
-    config.app["litellm_api_key"] = api_key
-    config.app["litellm_base_url"] = base_url
+    os.environ["AZURE_AI_API_KEY"] = FOUNDRY_KEY
+    os.environ["AZURE_AI_API_BASE"] = FOUNDRY_BASE
 
 
 @requires_key
@@ -90,18 +90,6 @@ class TestLiteLLMEdgeCases(unittest.TestCase):
         self.assertIn("Error:", result)
         self.assertIn("model_name is not set", result)
 
-    def test_invalid_api_key(self):
-        _setup_litellm_config(api_key="invalid-key-12345")
-        from app.services.llm import _generate_response
-        result = _generate_response("test")
-        self.assertIn("Error:", result)
-
-    def test_invalid_base_url(self):
-        _setup_litellm_config(base_url="http://localhost:99999/nonexistent")
-        from app.services.llm import _generate_response
-        result = _generate_response("test")
-        self.assertIn("Error:", result)
-
     def test_nonexistent_model(self):
         _setup_litellm_config(model="azure_ai/nonexistent-model-xyz")
         from app.services.llm import _generate_response
@@ -131,28 +119,7 @@ class TestLiteLLMEdgeCases(unittest.TestCase):
 
 
 @requires_key
-class TestLiteLLMDirectAccess(unittest.TestCase):
-    """Test litellm without api_key/base_url — using env var fallback."""
-
-    def test_env_var_fallback_with_blank_key(self):
-        _setup_litellm_config(api_key="", base_url="")
-        os.environ["AZURE_AI_API_KEY"] = FOUNDRY_KEY
-        os.environ["AZURE_AI_API_BASE"] = FOUNDRY_BASE
-        try:
-            from app.services.llm import _generate_response
-            result = _generate_response("Say OK.")
-            # This may or may not work depending on litellm's env var resolution
-            # for azure_ai — the important thing is it doesn't crash with a
-            # confusing error about missing config
-            self.assertIsInstance(result, str)
-        finally:
-            os.environ.pop("AZURE_AI_API_KEY", None)
-            os.environ.pop("AZURE_AI_API_BASE", None)
-
-
-@requires_key
 class TestLiteLLMDoesNotBreakOtherProviders(unittest.TestCase):
-    """Verify that adding the litellm branch didn't break existing providers."""
 
     def test_openai_provider_still_works_structurally(self):
         from app.config import config
@@ -163,9 +130,7 @@ class TestLiteLLMDoesNotBreakOtherProviders(unittest.TestCase):
 
         from app.services.llm import _generate_response
         result = _generate_response("test")
-        # Will fail with auth error but should NOT crash with a code error
         self.assertIn("Error:", result)
-        # Should NOT contain litellm-related errors
         self.assertNotIn("litellm", result.lower())
 
 
