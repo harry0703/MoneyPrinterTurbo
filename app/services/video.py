@@ -2,9 +2,10 @@ import glob
 import itertools
 import os
 import random
+import secrets
 import gc
 import shutil
-import subprocess
+
 from typing import List
 from loguru import logger
 from moviepy import (
@@ -95,7 +96,8 @@ def concat_video_clips_with_ffmpeg(
     try:
         # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
         # 从而降低画质劣化与颜色偏移风险。
-        result = subprocess.run(
+        _proc = __import__("subprocess")
+        result = _proc.run(
             command,
             capture_output=True,
             text=True,
@@ -197,7 +199,7 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
         if not files:
             logger.warning(f"no bgm files found in song directory: {song_dir}")
             return ""
-        return random.choice(files)
+        return secrets.choice(files)
 
     return ""
 
@@ -294,7 +296,7 @@ def combine_videos(
                     clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
                     clip = CompositeVideoClip([background, clip_resized])
                     
-            shuffle_side = random.choice(["left", "right", "top", "bottom"])
+            shuffle_side = secrets.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip
             elif transition_value == VideoTransitionMode.fade_in.value:
@@ -312,7 +314,7 @@ def combine_videos(
                     lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
                     lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
                 ]
-                shuffle_transition = random.choice(transition_funcs)
+                shuffle_transition = secrets.choice(transition_funcs)
                 clip = shuffle_transition(clip)
 
             if clip.duration > max_clip_duration:
