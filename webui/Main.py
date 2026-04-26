@@ -133,13 +133,14 @@ def get_all_songs():
 
 def open_task_folder(task_id):
     try:
-        sys = platform.system()
+        import re
+        import webbrowser
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", task_id):
+            logger.error(f"Invalid task_id: {task_id}")
+            return
         path = os.path.join(root_dir, "storage", "tasks", task_id)
         if os.path.exists(path):
-            if sys == "Windows":
-                os.system(f"start {path}")
-            if sys == "Darwin":
-                os.system(f"open {path}")
+            webbrowser.open(path)
     except Exception as e:
         logger.error(e)
 
