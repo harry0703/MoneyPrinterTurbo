@@ -29,7 +29,9 @@ pixabay_api_keys = []
 #   g4f
 #   oneapi
 #   cloudflare
+#   minimax
 #   ernie       (文心一言)
+#   modelscope  (魔搭社区)
 llm_provider = "openai"
 
 ########## Pollinations AI Settings
@@ -49,10 +51,14 @@ ollama_model_name = ""
 
 ########## OpenAI API Key
 # Get your API key at https://platform.openai.com/api-keys
+# 也可以填写兼容 OpenAI Chat Completions 协议的供应商密钥，
+# 例如 OpenRouter 这类提供自定义 base_url 的平台。
 openai_api_key = ""
 # No need to set it unless you want to use your own proxy
+# 如果使用兼容 OpenAI 接口的平台，请在这里填写对应的 base_url。
 openai_base_url = ""
 # Check your available models at https://platform.openai.com/account/limits
+# 如果使用兼容供应商，请填写该平台要求的模型 ID。
 openai_model_name = "gpt-4o-mini"
 
 ########## Moonshot API Key
@@ -82,7 +88,7 @@ azure_api_version = "2024-02-15-preview"
 
 ########## Gemini API Key
 gemini_api_key = ""
-gemini_model_name = "gemini-1.0-pro"
+gemini_model_name = "gemini-2.5-flash"
 
 ########## Qwen API Key
 # Visit https://dashscope.console.aliyun.com/apiKey to get your API key
@@ -93,11 +99,27 @@ qwen_api_key = ""
 qwen_model_name = "qwen-max"
 
 
+########## MiniMax API Key
+# Visit https://platform.minimax.io to get your API key
+# MiniMax API is OpenAI-compatible
+# Available models: MiniMax-M2.7 (default), MiniMax-M2.7-highspeed
+minimax_api_key = ""
+minimax_base_url = "https://api.minimax.io/v1"
+minimax_model_name = "MiniMax-M2.7"
+
 ########## DeepSeek API Key
 # Visit https://platform.deepseek.com/api_keys to get your API key
 deepseek_api_key = ""
 deepseek_base_url = "https://api.deepseek.com"
 deepseek_model_name = "deepseek-chat"
+
+
+########## ModelScope API Key
+# Visit https://modelscope.cn/docs/model-service/API-Inference/intro to get your API key
+# And note that you need to bind your Alibaba Cloud account before using the API.
+modelscope_api_key = ""
+modelscope_base_url = "https://api-inference.modelscope.cn/v1/"
+modelscope_model_name = "Qwen/Qwen3-32B"
 
 # Subtitle Provider, "edge" or "whisper"
 # If empty, the subtitle will not be generated
@@ -212,3 +234,30 @@ api_key = ""
 # 是否隐藏日志信息
 # Whether to hide logs in the UI
 hide_log = false
+
+# 字幕位置设置 (Subtitle position settings)
+# 可选值 (Available values): "top", "center", "bottom", "custom"
+# subtitle_position = "custom"
+# 自定义位置，表示离顶部的百分比 (0-100)，仅当 subtitle_position = "custom" 时生效
+# Custom position as percentage from top (0-100), only effective when subtitle_position = "custom"
+# custom_position = 70.0
+
+########## Upload-Post (Cross-post to TikTok/Instagram)
+# Upload-Post allows you to automatically cross-post generated videos to TikTok and Instagram.
+# Visit https://upload-post.com to create an account and get your API key.
+# API Documentation: https://docs.upload-post.com
+
+# Enable/disable Upload-Post integration
+upload_post_enabled = false
+
+# Your Upload-Post API key
+upload_post_api_key = ""
+
+# Your Upload-Post username
+upload_post_username = ""
+
+# Platforms to cross-post to (options: "tiktok", "instagram")
+upload_post_platforms = ["tiktok", "instagram"]
+
+# Automatically cross-post videos after generation (if false, you'll need to call the API manually)
+upload_post_auto_upload = false

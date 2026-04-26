@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice
+from app.services import llm, material, subtitle, video, voice, upload_post
 from app.services import state as sm
 from app.utils import utils
 
@@ -71,30 +71,68 @@ def save_script_data(task_id, video_script, video_terms, params):
 
 
 def generate_audio(task_id, params, video_script):
+    '''
+    Generate audio for the video script.
+    If a custom audio file is provided, it will be used directly.
+    There will be no subtitle maker object returned in this case.
+    Otherwise, TTS will be used to generate the audio.
+    Returns:
+        - audio_file: path to the generated or provided audio file
+        - audio_duration: duration of the audio in seconds
+        - sub_maker: subtitle maker object if TTS is used, None otherwise
+    '''
     logger.info("\n\n## generating audio")
-    audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
-    sub_maker = voice.tts(
-        text=video_script,
-        voice_name=voice.parse_voice_name(params.voice_name),
-        voice_rate=params.voice_rate,
-        voice_file=audio_file,
-    )
-    if sub_maker is None:
-        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-        logger.error(
-            """failed to generate audio:
+    # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
+    # 这里统一做兼容读取，避免直调接口时抛属性错误。
+    custom_audio_file = getattr(params, "custom_audio_file", None)
+    if not custom_audio_file or not os.path.exists(custom_audio_file):
+        if custom_audio_file:
+            logger.warning(
+                f"custom audio file not found: {custom_audio_file}, using TTS to generate audio."
+            )
+        else:
+            logger.info("no custom audio file provided, using TTS to generate audio.")
+        audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
+        sub_maker = voice.tts(
+            text=video_script,
+            voice_name=voice.parse_voice_name(params.voice_name),
+            voice_rate=params.voice_rate,
+            voice_file=audio_file,
+        )
+        if sub_maker is None:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error(
+                """failed to generate audio:
 1. check if the language of the voice matches the language of the video script.
 2. check if the network is available. If you are in China, it is recommended to use a VPN and enable the global traffic mode.
-        """.strip()
-        )
-        return None, None, None
-
-    audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
-    return audio_file, audio_duration, sub_maker
-
+            """.strip()
+            )
+            return None, None, None
+        audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
+        if audio_duration == 0:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to get audio duration.")
+            return None, None, None
+        return audio_file, audio_duration, sub_maker
+    else:
+        logger.info(f"using custom audio file: {custom_audio_file}")
+        audio_duration = voice.get_audio_duration(custom_audio_file)
+        if audio_duration == 0:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to get audio duration from custom audio file.")
+            return None, None, None
+        return custom_audio_file, audio_duration, None
 
 def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
-    if not params.subtitle_enabled:
+    '''
+    Generate subtitle for the video script.
+    If subtitle generation is disabled or no subtitle maker is provided, it will return an empty string.
+    Otherwise, it will generate the subtitle using the specified provider.
+    Returns:
+        - subtitle_path: path to the generated subtitle file
+    '''
+    logger.info("\n\n## generating subtitle")
+    if not params.subtitle_enabled or sub_maker is None:
         return ""
 
     subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
@@ -211,9 +249,6 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
-    if type(params.video_concat_mode) is str:
-        params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
-
     # 1. Generate script
     video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
@@ -300,6 +335,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
+    # 仅完整视频生成流程才需要处理视频拼接模式；
+    # 这样可以避免 /subtitle 和 /audio 这类请求访问不存在的字段。
+    if type(params.video_concat_mode) is str:
+        params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
+
     # 6. Generate final videos
     final_video_paths, combined_video_paths = generate_final_videos(
         task_id, params, downloaded_videos, audio_file, subtitle_path
@@ -313,6 +353,21 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         f"task {task_id} finished, generated {len(final_video_paths)} videos."
     )
 
+    # 7. Cross-post to TikTok/Instagram (if enabled)
+    cross_post_results = []
+    if upload_post.upload_post_service.is_configured() and upload_post.upload_post_service.auto_upload:
+        logger.info("\n\n## cross-posting videos to TikTok/Instagram")
+        for video_path in final_video_paths:
+            result = upload_post.cross_post_video(
+                video_path=video_path,
+                title=params.video_subject or "Check out this video! #shorts #viral"
+            )
+            cross_post_results.append(result)
+            if result.get('success'):
+                logger.info(f"✅ Cross-posted: {video_path}")
+            else:
+                logger.warning(f"⚠️ Failed to cross-post: {video_path} - {result.get('error', 'Unknown error')}")
+
     kwargs = {
         "videos": final_video_paths,
         "combined_videos": combined_video_paths,
@@ -322,6 +377,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "audio_duration": audio_duration,
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
+        "cross_post_results": cross_post_results if cross_post_results else None,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs

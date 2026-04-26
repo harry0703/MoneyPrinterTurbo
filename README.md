@@ -26,24 +26,6 @@
 
 </div>
 
-## 特别感谢 🙏
-
-由于该项目的 **部署** 和 **使用**，对于一些小白用户来说，还是 **有一定的门槛**，在此特别感谢
-**录咖（AI智能 多媒体服务平台）** 网站基于该项目，提供的免费`AI视频生成器`服务，可以不用部署，直接在线使用，非常方便。
-
-- 中文版：https://reccloud.cn
-- 英文版：https://reccloud.com
-
-![](docs/reccloud.cn.jpg)
-
-## 感谢赞助 🙏
-
-感谢佐糖 https://picwish.cn 对该项目的支持和赞助，使得该项目能够持续的更新和维护。
-
-佐糖专注于**图像处理领域**，提供丰富的**图像处理工具**，将复杂操作极致简化，真正实现让图像处理更简单。
-
-![picwish.jpg](docs/picwish.jpg)
-
 ## 功能特性 🎯
 
 - [x] 完整的 **MVC架构**，代码 **结构清晰**，易于维护，支持 `API` 和 `Web界面`
@@ -58,19 +40,8 @@
 - [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、`颜色`、`大小`，同时支持`字幕描边`设置
 - [x] 支持 **背景音乐**，随机或者指定音乐文件，可设置`背景音乐音量`
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
-- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、 **文心一言**, **Pollinations** 等多种模型接入
+- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
     - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
-
-
-### 后期计划 📅
-
-- [ ] GPT-SoVITS 配音支持
-- [ ] 优化语音合成，利用大模型，使其合成的声音，更加自然，情绪更加丰富
-- [ ] 增加视频转场效果，使其看起来更加的流畅
-- [ ] 增加更多视频素材来源，优化视频素材和文案的匹配度
-- [ ] 增加视频长度选项：短、中、长
-- [ ] 支持更多的语音合成服务商，比如 OpenAI TTS
-- [ ] 自动上传到YouTube平台
 
 ## 视频演示 📺
 
@@ -112,11 +83,26 @@
 
 ## 配置要求 📦
 
-- 建议最低 CPU **4核** 或以上，内存 **4G** 或以上，显卡非必须
-- Windows 10 或 MacOS 11.0 以上系统
+- 建议系统：Windows 10 或 MacOS 11.0 以上，或主流 Linux 发行版
+- GPU 不是必需项，但如果你希望本地转录、更快的视频处理或更顺畅的批量生成体验，建议使用带显存的独立显卡
+
+| 项目 | 最低配置 | 推荐配置 | 理想配置 |
+| --- | --- | --- | --- |
+| CPU | 4 核 | 6 到 8 核 | 8 核及以上 |
+| RAM | 4 GB | 8 GB | 16 GB 及以上 |
+| GPU | 非必须 | 4 GB 显存及以上 | 8 GB 显存及以上 |
+
+- 如果你主要依赖云端 LLM、云端 TTS 和在线素材源，CPU 与内存比 GPU 更重要
+- 如果你启用 `faster-whisper`、批量生成或更重的本地处理链路，GPU 会明显提升速度
 
 
 ## 快速开始 🚀
+
+### 推荐使用方式
+
+- Windows 用户：优先使用一键启动包，适合快速体验
+- MacOS / Linux 用户：优先使用 `uv sync --frozen` 进行本地部署
+- 想要隔离运行环境：优先使用 Docker 部署
 
 ### 在 Google Colab 中运行
 免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
@@ -127,6 +113,7 @@
 ### Windows一键启动包
 
 下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
+当前提供的安装包仍是 `v1.2.6` 的旧打包版本，建议下载后先执行 `update.bat` 更新到最新代码。
 
 - 百度网盘（v1.2.6）: https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx 提取码: sbqx
 - Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
@@ -189,15 +176,27 @@ docker-compose up
 
 #### ① 创建虚拟环境
 
-建议使用 [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html) 创建 python 虚拟环境
+推荐使用 [uv](https://docs.astral.sh/uv/) 管理 Python 环境和依赖，默认使用 Python `3.11`
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.11
-conda activate MoneyPrinterTurbo
+uv python install 3.11
+uv sync --frozen
+```
+
+如果你暂时不使用 `uv`，也可以继续使用 `venv + pip`
+
+```shell
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+说明：
+- `pyproject.toml` 是主依赖定义文件
+- `uv.lock` 是锁文件，建议默认执行 `uv sync --frozen`
+- `requirements.txt` 仅保留给旧的 `pip` 安装方式兼容使用
 
 #### ② 安装好 ImageMagick
 
@@ -226,11 +225,23 @@ pip install -r requirements.txt
 
 ###### Windows
 
+```shell
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```
+
+如果你已经手动激活了虚拟环境，也可以直接执行：
+
 ```bat
 webui.bat
 ```
 
 ###### MacOS or Linux
+
+```shell
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```
+
+如果你已经手动激活了虚拟环境，也可以直接执行：
 
 ```shell
 sh webui.sh
@@ -241,8 +252,32 @@ sh webui.sh
 #### ④ 启动API服务 🚀
 
 ```shell
+uv run python main.py
+```
+
+如果你已经手动激活了虚拟环境，也可以直接执行：
+
+```shell
 python main.py
 ```
+
+## 特别感谢 🙏
+
+由于该项目的 **部署** 和 **使用**，对于一些小白用户来说，还是 **有一定的门槛**，在此特别感谢
+**录咖（AI智能 多媒体服务平台）** 网站基于该项目，提供的免费`AI视频生成器`服务，可以不用部署，直接在线使用，非常方便。
+
+- 中文版：https://reccloud.cn
+- 英文版：https://reccloud.com
+
+![](docs/reccloud.cn.jpg)
+
+## 感谢赞助 🙏
+
+感谢佐糖 https://picwish.cn 对该项目的支持和赞助，使得该项目能够持续的更新和维护。
+
+佐糖专注于**图像处理领域**，提供丰富的**图像处理工具**，将复杂操作极致简化，真正实现让图像处理更简单。
+
+![picwish.jpg](docs/picwish.jpg)
 
 启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc 直接在线调试接口，快速体验。
 

@@ -66,6 +66,9 @@ if "video_terms" not in st.session_state:
     st.session_state["video_terms"] = ""
 if "ui_language" not in st.session_state:
     st.session_state["ui_language"] = config.ui.get("language", system_locale)
+if "local_video_materials" not in st.session_state:
+    # 记住用户最近一次已经落盘的本地素材，避免仅修改文案后二次生成时丢失素材列表。
+    st.session_state["local_video_materials"] = []
 
 # 加载语言文件
 locales = utils.load_locales(i18n_dir)
@@ -105,6 +108,7 @@ support_locales = [
     "fr-FR",
     "vi-VN",
     "th-TH",
+    "tr-TR",
 ]
 
 
@@ -129,13 +133,14 @@ def get_all_songs():
 
 def open_task_folder(task_id):
     try:
-        sys = platform.system()
+        import re
+        import webbrowser
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", task_id):
+            logger.error(f"Invalid task_id: {task_id}")
+            return
         path = os.path.join(root_dir, "storage", "tasks", task_id)
         if os.path.exists(path):
-            if sys == "Windows":
-                os.system(f"start {path}")
-            if sys == "Darwin":
-                os.system(f"open {path}")
+            webbrowser.open(path)
     except Exception as e:
         logger.error(e)
 
@@ -231,6 +236,7 @@ if not config.app.get("hide_config", False):
                 "Azure",
                 "Qwen",
                 "DeepSeek",
+                "ModelScope",
                 "Gemini",
                 "Ollama",
                 "G4f",
@@ -288,8 +294,8 @@ if not config.app.get("hide_config", False):
                             ##### OpenAI 配置说明
                             > 需要VPN开启全局流量模式
                             - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
-                            - **Base Url**: 可以留空
-                            - **Model Name**: 填写**有权限**的模型，[点击查看模型列表](https://platform.openai.com/settings/organization/limits)
+                            - **Base Url**: 官方 OpenAI 可留空；如果使用 OpenAI 兼容供应商（例如 OpenRouter），请填写对应的兼容接口地址
+                            - **Model Name**: 填写**有权限**的模型；如果使用兼容供应商，请填写该平台支持的模型 ID
                             """
 
             if llm_provider == "moonshot":
@@ -371,6 +377,19 @@ if not config.app.get("hide_config", False):
                             - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
                             - **Base Url**: 固定为 https://api.deepseek.com
                             - **Model Name**: 固定为 deepseek-chat
+                            """
+
+            if llm_provider == "modelscope":
+                if not llm_model_name:
+                    llm_model_name = "Qwen/Qwen3-32B"
+                if not llm_base_url:
+                    llm_base_url = "https://api-inference.modelscope.cn/v1/"
+                with llm_helper:
+                    tips = """
+                            ##### ModelScope 配置说明
+                            - **API Key**: [点击到官网申请](https://modelscope.cn/docs/model-service/API-Inference/intro)
+                            - **Base Url**: 固定为 https://api-inference.modelscope.cn/v1/
+                            - **Model Name**: 比如 Qwen/Qwen3-32B，[点击查看模型列表](https://modelscope.cn/models?filter=inference_type&page=1)
                             """
 
             if llm_provider == "ernie":
@@ -564,9 +583,11 @@ with middle_panel:
         config.app["video_source"] = params.video_source
 
         if params.video_source == "local":
+            # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
+            local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
             uploaded_files = st.file_uploader(
                 "Upload Local Files",
-                type=["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"],
+                type=local_file_types + [file_type.upper() for file_type in local_file_types],
                 accept_multiple_files=True,
             )
 
@@ -634,6 +655,7 @@ with middle_panel:
             ("azure-tts-v1", "Azure TTS V1"),
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
+            ("gemini-tts", "Google Gemini TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -660,6 +682,9 @@ with middle_panel:
         if selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
             filtered_voices = voice.get_siliconflow_voices()
+        elif selected_tts_server == "gemini-tts":
+            # 获取Gemini TTS的声音列表
+            filtered_voices = voice.get_gemini_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -867,24 +892,34 @@ with right_panel:
             (tr("Bottom"), "bottom"),
             (tr("Custom"), "custom"),
         ]
+        saved_subtitle_position = config.ui.get("subtitle_position", "bottom")
+        saved_position_index = 2
+        for i, (_, pos_value) in enumerate(subtitle_positions):
+            if pos_value == saved_subtitle_position:
+                saved_position_index = i
+                break
         selected_index = st.selectbox(
             tr("Position"),
-            index=2,
+            index=saved_position_index,
             options=range(len(subtitle_positions)),
             format_func=lambda x: subtitle_positions[x][0],
         )
         params.subtitle_position = subtitle_positions[selected_index][1]
+        config.ui["subtitle_position"] = params.subtitle_position
 
         if params.subtitle_position == "custom":
+            saved_custom_position = config.ui.get("custom_position", 70.0)
             custom_position = st.text_input(
                 tr("Custom Position (% from top)"),
-                value="70.0",
+                value=str(saved_custom_position),
                 key="custom_position_input",
             )
             try:
                 params.custom_position = float(custom_position)
                 if params.custom_position < 0 or params.custom_position > 100:
                     st.error(tr("Please enter a value between 0 and 100"))
+                else:
+                    config.ui["custom_position"] = params.custom_position
             except ValueError:
                 st.error(tr("Please enter a valid number"))
 
@@ -906,6 +941,69 @@ with right_panel:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+    with st.expander(tr("Click to show API Key management"), expanded=False):
+        st.subheader(tr("Manage Pexels and Pixabay API Keys"))
+
+        col1, col2 = st.tabs(["Pexels API Keys", "Pixabay API Keys"])
+
+        with col1:
+            st.subheader("Pexels API Keys")
+            if config.app["pexels_api_keys"]:
+                st.write(tr("Current Keys:"))
+                for key in config.app["pexels_api_keys"]:
+                    st.code(key)
+            else:
+                st.info(tr("No Pexels API Keys currently"))
+
+            new_key = st.text_input(tr("Add Pexels API Key"), key="pexels_new_key")
+            if st.button(tr("Add Pexels API Key")):
+                if new_key and new_key not in config.app["pexels_api_keys"]:
+                    config.app["pexels_api_keys"].append(new_key)
+                    config.save_config()
+                    st.success(tr("Pexels API Key added successfully"))
+                elif new_key in config.app["pexels_api_keys"]:
+                    st.warning(tr("This API Key already exists"))
+                else:
+                    st.error(tr("Please enter a valid API Key"))
+
+            if config.app["pexels_api_keys"]:
+                delete_key = st.selectbox(
+                    tr("Select Pexels API Key to delete"), config.app["pexels_api_keys"], key="pexels_delete_key"
+                )
+                if st.button(tr("Delete Selected Pexels API Key")):
+                    config.app["pexels_api_keys"].remove(delete_key)
+                    config.save_config()
+                    st.success(tr("Pexels API Key deleted successfully"))
+
+        with col2:
+            st.subheader("Pixabay API Keys")
+
+            if config.app["pixabay_api_keys"]:
+                st.write(tr("Current Keys:"))
+                for key in config.app["pixabay_api_keys"]:
+                    st.code(key)
+            else:
+                st.info(tr("No Pixabay API Keys currently"))
+
+            new_key = st.text_input(tr("Add Pixabay API Key"), key="pixabay_new_key")
+            if st.button(tr("Add Pixabay API Key")):
+                if new_key and new_key not in config.app["pixabay_api_keys"]:
+                    config.app["pixabay_api_keys"].append(new_key)
+                    config.save_config()
+                    st.success(tr("Pixabay API Key added successfully"))
+                elif new_key in config.app["pixabay_api_keys"]:
+                    st.warning(tr("This API Key already exists"))
+                else:
+                    st.error(tr("Please enter a valid API Key"))
+
+            if config.app["pixabay_api_keys"]:
+                delete_key = st.selectbox(
+                    tr("Select Pixabay API Key to delete"), config.app["pixabay_api_keys"], key="pixabay_delete_key"
+                )
+                if st.button(tr("Delete Selected Pixabay API Key")):
+                    config.app["pixabay_api_keys"].remove(delete_key)
+                    config.save_config()
+                    st.success(tr("Pixabay API Key deleted successfully"))
 
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:
@@ -933,6 +1031,9 @@ if start_button:
 
     if uploaded_files:
         local_videos_dir = utils.storage_dir("local_videos", create=True)
+        # 每次重新上传时都以本次选择的素材为准，避免旧素材不断重复追加。
+        params.video_materials = []
+        persisted_local_materials = []
         for file in uploaded_files:
             file_path = os.path.join(local_videos_dir, f"{file.file_id}_{file.name}")
             with open(file_path, "wb") as f:
@@ -940,8 +1041,25 @@ if start_button:
                 m = MaterialInfo()
                 m.provider = "local"
                 m.url = file_path
-                if not params.video_materials:
-                    params.video_materials = []
+                params.video_materials.append(m)
+                persisted_local_materials.append(
+                    {
+                        "provider": m.provider,
+                        "url": m.url,
+                        "duration": m.duration,
+                    }
+                )
+        # 将已上传并保存到本地的视频素材写入会话，供后续只改文案时直接复用。
+        st.session_state["local_video_materials"] = persisted_local_materials
+    elif params.video_source == "local" and st.session_state["local_video_materials"]:
+        # 当用户没有重新上传文件时，复用最近一次已经保存到磁盘的本地素材列表。
+        params.video_materials = []
+        for material in st.session_state["local_video_materials"]:
+            m = MaterialInfo()
+            m.provider = material.get("provider", "local")
+            m.url = material.get("url", "")
+            m.duration = material.get("duration", 0)
+            if m.url:
                 params.video_materials.append(m)
 
     log_container = st.empty()
