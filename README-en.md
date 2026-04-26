@@ -27,27 +27,6 @@ materials, video subtitles, and video background music before synthesizing a hig
 
 </div>
 
-## Special Thanks 🙏
-
-Due to the **deployment** and **usage** of this project, there is a certain threshold for some beginner users. We would
-like to express our special thanks to
-
-**RecCloud (AI-Powered Multimedia Service Platform)** for providing a free `AI Video Generator` service based on this
-project. It allows for online use without deployment, which is very convenient.
-
-- Chinese version: https://reccloud.cn
-- English version: https://reccloud.com
-
-![](docs/reccloud.com.jpg)
-
-## Thanks for Sponsorship 🙏
-
-Thanks to Picwish https://picwish.com for supporting and sponsoring this project, enabling continuous updates and maintenance.
-
-Picwish focuses on the **image processing field**, providing a rich set of **image processing tools** that extremely simplify complex operations, truly making image processing easier.
-
-![picwish.jpg](docs/picwish.com.jpg)
-
 ## Features 🎯
 
 - [x] Complete **MVC architecture**, **clearly structured** code, easy to maintain, supports both `API`
@@ -65,17 +44,7 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
   supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
-- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **ERNIE**, **Pollinations** and more
-
-### Future Plans 📅
-
-- [ ] GPT-SoVITS dubbing support
-- [ ] Optimize voice synthesis using large models for more natural and emotionally rich voice output
-- [ ] Add video transition effects for a smoother viewing experience
-- [ ] Add more video material sources, improve the matching between video materials and script
-- [ ] Add video length options: short, medium, long
-- [ ] Support more voice synthesis providers, such as OpenAI TTS
-- [ ] Automate upload to YouTube platform
+- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
 
 ## Video Demos 📺
 
@@ -115,10 +84,25 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 ## System Requirements 📦
 
-- Recommended minimum 4 CPU cores or more, 4G of memory or more, GPU is not required
-- Windows 10 or MacOS 11.0, and their later versions
+- Recommended platforms: Windows 10+, macOS 11+, or a mainstream Linux distribution
+- A GPU is not required, but it is recommended if you want faster local transcription, faster video processing, or smoother batch generation
+
+| Item | Minimum | Recommended | Optimal |
+| --- | --- | --- | --- |
+| CPU | 4 cores | 6 to 8 cores | 8+ cores |
+| RAM | 4 GB | 8 GB | 16+ GB |
+| GPU | Not required | 4+ GB VRAM | 8+ GB VRAM |
+
+- If you mainly rely on cloud LLMs, cloud TTS, and online material sources, CPU and RAM matter more than GPU
+- If you use `faster-whisper`, batch generation, or heavier local processing, a GPU will improve throughput noticeably
 
 ## Quick Start 🚀
+
+### Recommended Paths
+
+- Windows users: use the one-click package first for the fastest local trial
+- MacOS / Linux users: use `uv sync --frozen` for the primary local setup path
+- If you want a more isolated runtime: use Docker deployment
 
 ### Run in Google Colab 
 Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
@@ -127,6 +111,8 @@ Want to try MoneyPrinterTurbo without setting up a local environment? Run it dir
 
 
 ### Windows
+
+The downloadable package is still the older `v1.2.6` bundled build. After downloading, run `update.bat` first to bring it up to the latest code.
 
 Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
 
@@ -183,15 +169,27 @@ Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redo
 
 #### ① Create a Python Virtual Environment
 
-It is recommended to create a Python virtual environment using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
+It is recommended to use [uv](https://docs.astral.sh/uv/) to manage the Python environment and dependencies, with Python `3.11` as the default runtime.
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 cd MoneyPrinterTurbo
-conda create -n MoneyPrinterTurbo python=3.11
-conda activate MoneyPrinterTurbo
+uv python install 3.11
+uv sync --frozen
+```
+
+If you are not using `uv` yet, you can still use `venv + pip`.
+
+```shell
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+Notes:
+- `pyproject.toml` is now the primary dependency manifest.
+- `uv.lock` pins the resolved environment, so `uv sync --frozen` is recommended by default.
+- `requirements.txt` is kept only for legacy `pip`-based installation.
 
 #### ② Install ImageMagick
 
@@ -225,11 +223,23 @@ Note that you need to execute the following commands in the `root directory` of 
 
 ###### Windows
 
+```shell
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```
+
+If you have already activated the virtual environment manually, you can still run:
+
 ```bat
 webui.bat
 ```
 
 ###### MacOS or Linux
+
+```shell
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```
+
+If you have already activated the virtual environment manually, you can still run:
 
 ```shell
 sh webui.sh
@@ -240,8 +250,35 @@ After launching, the browser will open automatically
 #### ④ Launch the API Service 🚀
 
 ```shell
+uv run python main.py
+```
+
+If you have already activated the virtual environment manually, you can still run:
+
+```shell
 python main.py
 ```
+
+## Special Thanks 🙏
+
+Due to the **deployment** and **usage** of this project, there is a certain threshold for some beginner users. We would
+like to express our special thanks to
+
+**RecCloud (AI-Powered Multimedia Service Platform)** for providing a free `AI Video Generator` service based on this
+project. It allows for online use without deployment, which is very convenient.
+
+- Chinese version: https://reccloud.cn
+- English version: https://reccloud.com
+
+![](docs/reccloud.com.jpg)
+
+## Thanks for Sponsorship 🙏
+
+Thanks to Picwish https://picwish.com for supporting and sponsoring this project, enabling continuous updates and maintenance.
+
+Picwish focuses on the **image processing field**, providing a rich set of **image processing tools** that extremely simplify complex operations, truly making image processing easier.
+
+![picwish.jpg](docs/picwish.com.jpg)
 
 After launching, you can view the `API documentation` at http://127.0.0.1:8080/docs and directly test the interface
 online for a quick experience.

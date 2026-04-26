@@ -100,6 +100,23 @@
     "Hide Log": "隐藏日志",
     "Hide Basic Settings": "隐藏基础设置\n\n隐藏后，基础设置面板将不会显示在页面中。\n\n如需要再次显示，请在 `config.toml` 中设置 `hide_config = false`",
     "LLM Settings": "**大模型设置**",
-    "Video Source Settings": "**视频源设置**"
+    "Video Source Settings": "**视频源设置**",
+    "Click to show API Key management": "点击以显示 API Key 管理功能",
+    "Manage Pexels and Pixabay API Keys": "管理 Pexels 和 Pixabay API Keys",
+    "Current Keys:": "当前 Keys:",
+    "No Pexels API Keys currently": "暂无 Pexels API Keys",
+    "Add Pexels API Key": "新增 Pexels API Key",
+    "Pexels API Key added successfully": "Pexels API Key 添加成功",
+    "This API Key already exists": "这个 Key 已经存在",
+    "Please enter a valid API Key": "请输入一个有效的 Key",
+    "Select Pexels API Key to delete": "选择要删除的 Pexels API Key",
+    "Delete Selected Pexels API Key": "删除选定的 Pexels API Key",
+    "Pexels API Key deleted successfully": "Pexels API Key 删除成功",
+    "No Pixabay API Keys currently": "暂无 Pixabay API Keys",
+    "Add Pixabay API Key": "新增 Pixabay API Key",
+    "Pixabay API Key added successfully": "Pixabay API Key 添加成功",
+    "Select Pixabay API Key to delete": "选择要删除的 Pixabay API Key",
+    "Delete Selected Pixabay API Key": "删除选定的 Pixabay API Key",
+    "Pixabay API Key deleted successfully": "Pixabay API Key 删除成功"
   }
 }

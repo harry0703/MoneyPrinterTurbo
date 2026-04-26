@@ -100,6 +100,23 @@
     "Hide Log": "Hide Log",
     "Hide Basic Settings": "Hide Basic Settings\n\nHidden, the basic settings panel will not be displayed on the page.\n\nIf you need to display it again, please set `hide_config = false` in `config.toml`",
     "LLM Settings": "**LLM Settings**",
-    "Video Source Settings": "**Video Source Settings**"
+    "Video Source Settings": "**Video Source Settings**",
+    "Click to show API Key management": "Click to show API Key management",
+    "Manage Pexels and Pixabay API Keys": "Manage Pexels and Pixabay API Keys",
+    "Current Keys:": "Current Keys:",
+    "No Pexels API Keys currently": "No Pexels API Keys currently",
+    "Add Pexels API Key": "Add Pexels API Key",
+    "Pexels API Key added successfully": "Pexels API Key added successfully",
+    "This API Key already exists": "This API Key already exists",
+    "Please enter a valid API Key": "Please enter a valid API Key",
+    "Select Pexels API Key to delete": "Select Pexels API Key to delete",
+    "Delete Selected Pexels API Key": "Delete Selected Pexels API Key",
+    "Pexels API Key deleted successfully": "Pexels API Key deleted successfully",
+    "No Pixabay API Keys currently": "No Pixabay API Keys currently",
+    "Add Pixabay API Key": "Add Pixabay API Key",
+    "Pixabay API Key added successfully": "Pixabay API Key added successfully",
+    "Select Pixabay API Key to delete": "Select Pixabay API Key to delete",
+    "Delete Selected Pixabay API Key": "Delete Selected Pixabay API Key",
+    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully"
   }
 }

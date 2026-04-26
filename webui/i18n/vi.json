@@ -100,6 +100,23 @@
     "Hide Log": "Ẩn Nhật Ký",
     "Hide Basic Settings": "Ẩn Cài Đặt Cơ Bản\n\nẨn, thanh cài đặt cơ bản sẽ không hiển thị trên trang web.\n\nNếu bạn muốn hiển thị lại, vui lòng đặt `hide_config = false` trong `config.toml`",
     "LLM Settings": "**Cài Đặt LLM**",
-    "Video Source Settings": "**Cài Đặt Nguồn Video**"
+    "Video Source Settings": "**Cài Đặt Nguồn Video**",
+    "Click to show API Key management": "Nhấn để hiển thị quản lý API Key",
+    "Manage Pexels and Pixabay API Keys": "Quản lý API Key của Pexels và Pixabay",
+    "Current Keys:": "Các Key hiện tại:",
+    "No Pexels API Keys currently": "Hiện không có API Key Pexels",
+    "Add Pexels API Key": "Thêm API Key Pexels",
+    "Pexels API Key added successfully": "Thêm API Key Pexels thành công",
+    "This API Key already exists": "API Key này đã tồn tại",
+    "Please enter a valid API Key": "Vui lòng nhập API Key hợp lệ",
+    "Select Pexels API Key to delete": "Chọn API Key Pexels để xóa",
+    "Delete Selected Pexels API Key": "Xóa API Key Pexels đã chọn",
+    "Pexels API Key deleted successfully": "Xóa API Key Pexels thành công",
+    "No Pixabay API Keys currently": "Hiện không có API Key Pixabay",
+    "Add Pixabay API Key": "Thêm API Key Pixabay",
+    "Pixabay API Key added successfully": "Thêm API Key Pixabay thành công",
+    "Select Pixabay API Key to delete": "Chọn API Key Pixabay để xóa",
+    "Delete Selected Pixabay API Key": "Xóa API Key Pixabay đã chọn",
+    "Pixabay API Key deleted successfully": "Xóa API Key Pixabay thành công"
   }
 }

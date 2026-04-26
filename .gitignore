@@ -26,3 +26,10 @@ node_modules
 
 venv/
 .venv
+
+# Debug and test files
+CLAUDE.md
+debug/
+debug_*.py
+test_*.py
+streamlit.log
