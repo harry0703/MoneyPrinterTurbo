@@ -185,7 +185,10 @@ def _generate_response(prompt: str) -> str:
                 except Exception as e:
                     raise Exception(f"[{llm_provider}] error: {str(e)}")
 
-            if llm_provider not in ["pollinations", "ollama"]:  # Skip validation for providers that don't require API key
+            elif llm_provider == "litellm":
+                model_name = config.app.get("litellm_model_name")
+
+            if llm_provider not in ["pollinations", "ollama", "litellm"]:  # Skip validation for providers that don't require API key
                 if not api_key:
                     raise ValueError(
                         f"{llm_provider}: api_key is not set, please set it in the config.toml file."
@@ -321,6 +324,26 @@ def _generate_response(prompt: str) -> str:
                     "POST", url, headers=headers, data=payload
                 ).json()
                 return _normalize_text_response(response.get("result"), llm_provider)
+
+            if llm_provider == "litellm":
+                import litellm
+
+                if not model_name:
+                    raise ValueError(
+                        f"{llm_provider}: model_name is not set, please set it in the config.toml file."
+                    )
+
+                response = litellm.completion(
+                    model=model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    drop_params=True,
+                )
+
+                if not response or not getattr(response, "choices", None):
+                    raise ValueError(f"[{llm_provider}] returned empty response")
+
+                content = response.choices[0].message.content
+                return _normalize_text_response(content, llm_provider)
 
             if llm_provider == "azure":
                 client = AzureOpenAI(
