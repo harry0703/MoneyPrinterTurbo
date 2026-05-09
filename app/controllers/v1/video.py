@@ -88,6 +88,12 @@ def create_task(
             "request_id": request_id,
             "params": body.model_dump(),
         }
+        
+        # Debug: Check what voice_name is being received
+        if hasattr(body, 'voice_name'):
+            print(f"[Task Creation] voice_name received: {body.voice_name[:100]}...")
+            print(f"[Task Creation] voice_name starts with 'coze|': {body.voice_name.startswith('coze|')}")
+        
         sm.state.update_task(task_id)
         task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
         logger.success(f"Task created: {utils.to_json(task)}")

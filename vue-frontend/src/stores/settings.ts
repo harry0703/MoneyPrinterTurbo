@@ -308,15 +308,17 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async fetchConfig() {
+      console.log('[SettingsStore] fetchConfig called');
       if (!(await this.ensureBackendOnline())) {
         console.warn('Backend is offline, skipping fetchConfig');
         return;
       }
       try {
-        console.log('Fetching config from backend...');
-        console.log('API Base URL:', 'http://localhost:8081/api/v1');
+        console.log('[SettingsStore] Fetching config from backend...');
+        console.log('[SettingsStore] API Base URL:', 'http://localhost:8081/api/v1');
         const response = await apiService.getConfig();
-        console.log('Config response:', response);
+        console.log('[SettingsStore] Config response status:', response.status);
+        console.log('[SettingsStore] Config response data:', response.data);
         if (response.status === 200 && response.data) {
           const data = response.data;
           console.log('Config data:', data);
@@ -329,6 +331,21 @@ export const useSettingsStore = defineStore('settings', {
             if (typeof data.ui.hide_log === 'boolean') {
               this.ui.hideLog = data.ui.hide_log;
               console.log('Updated hideLog:', this.ui.hideLog);
+            }
+            console.log('[SettingsStore] === Config UI Data ===');
+            console.log('[SettingsStore] config.ui:', data.ui);
+            
+            if (data.ui.tts_server) {
+              this.audio.ttsServer = data.ui.tts_server;
+              console.log('[SettingsStore] Updated ttsServer from config.ui:', this.audio.ttsServer);
+            } else {
+              console.log('[SettingsStore] tts_server not found in config.ui');
+            }
+            if (data.ui.voice_name) {
+              this.audio.speechSynthesis = data.ui.voice_name;
+              console.log('[SettingsStore] Updated speechSynthesis from config.ui:', this.audio.speechSynthesis.substring(0, 100) + '...');
+            } else {
+              console.log('[SettingsStore] voice_name not found in config.ui');
             }
           }
 

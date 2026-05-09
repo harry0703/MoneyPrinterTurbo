@@ -412,44 +412,34 @@ def build_scene_video(
                     
                     # Create video from image with specified duration
                     clip = ImageClip(intro_video_path).with_duration(intro_duration)
-                    try:
-                        clip_duration = intro_duration
-                        clip_w, clip_h = clip.size
-                        
-                        # Process intro clip
-                        aspect = VideoAspect(video_aspect)
-                        video_width, video_height = aspect.to_resolution()
-                        
-                        # Process intro video differently: fit without cropping, center on blue background
-                        clip = fit_intro_video_to_target(clip, video_width, video_height)
-                        
-                        # Apply brightness and contrast enhancement
-                        brightness_factor = config.app.get("video_brightness", 1.0)
-                        contrast_factor = config.app.get("video_contrast", 1.0)
-                        
-                        if brightness_factor != 1.0:
-                            clip = video_effects.brightness_enhance(clip, brightness_factor)
-                        
-                        if contrast_factor != 1.0:
-                            clip = video_effects.contrast_enhance(clip, contrast_factor)
-                        
-                        intro_clips.append(clip)
-                        logger.info(f"Image intro video processed: {intro_video_path} (duration: {intro_duration:.1f}s)")
-                    finally:
-                        # Close the original clip to release resources
-                        # Note: We don't close the processed clip as it's added to intro_clips and will be closed later
-                        try:
-                            if clip and hasattr(clip, 'close'):
-                                clip.close()
-                        except Exception:
-                            pass
+                    
+                    clip_duration = intro_duration
+                    clip_w, clip_h = clip.size
+                    
+                    # Process intro clip
+                    aspect = VideoAspect(video_aspect)
+                    video_width, video_height = aspect.to_resolution()
+                    
+                    # Process intro video differently: fit without cropping, center on blue background
+                    clip = fit_intro_video_to_target(clip, video_width, video_height)
+                    
+                    # Apply brightness and contrast enhancement
+                    brightness_factor = config.app.get("video_brightness", 1.0)
+                    contrast_factor = config.app.get("video_contrast", 1.0)
+                    
+                    if brightness_factor != 1.0:
+                        clip = video_effects.brightness_enhance(clip, brightness_factor)
+                    
+                    if contrast_factor != 1.0:
+                        clip = video_effects.contrast_enhance(clip, contrast_factor)
+                    
+                    intro_clips.append(clip)
+                    logger.info(f"Image intro video processed: {intro_video_path} (duration: {intro_duration:.1f}s)")
                 else:
                     clip = VideoFileClip(intro_video_path)
-                    try:
-                        clip_duration = clip.duration
-                        clip_w, clip_h = clip.size
-                    finally:
-                        close_clip(clip)
+                    clip_duration = clip.duration
+                    clip_w, clip_h = clip.size
+                    close_clip(clip)
                     
                     start_time = 0
                     end_time = min(start_time + intro_duration, clip_duration)
@@ -459,26 +449,19 @@ def build_scene_video(
                     video_width, video_height = aspect.to_resolution()
                     
                     clip = VideoFileClip(subclip.file_path).subclipped(subclip.start_time, subclip.end_time)
-                    try:
-                        clip = crop_clip_to_target(clip, video_width, video_height)
-                        
-                        brightness_factor = config.app.get("video_brightness", 1.0)
-                        contrast_factor = config.app.get("video_contrast", 1.0)
-                        
-                        if brightness_factor != 1.0:
-                            clip = video_effects.brightness_enhance(clip, brightness_factor)
-                        
-                        if contrast_factor != 1.0:
-                            clip = video_effects.contrast_enhance(clip, contrast_factor)
-                        
-                        intro_clips.append(clip)
-                        logger.info(f"Video intro processed: {intro_video_path}")
-                    finally:
-                        try:
-                            if clip and hasattr(clip, 'close'):
-                                clip.close()
-                        except Exception:
-                            pass
+                    clip = crop_clip_to_target(clip, video_width, video_height)
+                    
+                    brightness_factor = config.app.get("video_brightness", 1.0)
+                    contrast_factor = config.app.get("video_contrast", 1.0)
+                    
+                    if brightness_factor != 1.0:
+                        clip = video_effects.brightness_enhance(clip, brightness_factor)
+                    
+                    if contrast_factor != 1.0:
+                        clip = video_effects.contrast_enhance(clip, contrast_factor)
+                    
+                    intro_clips.append(clip)
+                    logger.info(f"Video intro processed: {intro_video_path}")
             except Exception as e:
                 logger.error(f"Failed to process intro video: {str(e)}")
             

@@ -192,8 +192,6 @@ const connectWebSocket = () => {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${wsProtocol}//localhost:8000/api/v1/logs/ws`;
   
-  console.log('[WS] Attempting to connect to:', wsUrl);
-  
   if (ws.value) {
     try {
       ws.value.close();
@@ -215,14 +213,9 @@ const connectWebSocket = () => {
   
   ws.value.onmessage = (event) => {
     try {
-      console.log('[WS] Raw message received:', event.data);
       const newLog: LogEntry = JSON.parse(event.data);
-      console.log('[WS] Parsed log:', newLog);
-      
       logs.value.unshift(newLog);
       totalLogs.value++;
-      console.log('[WS] Log added to array, total:', logs.value.length);
-      
       scrollToBottom();
     } catch (error) {
       console.error('[WS] Error parsing message:', error);

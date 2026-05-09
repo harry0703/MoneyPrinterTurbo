@@ -139,23 +139,28 @@ const handleMenuSelect = (key: string) => {
   router.push(key);
 };
 
-const handleSettingsSaved = () => {
-  console.log('Settings saved successfully');
+const handleSettingsSaved = async () => {
+  console.log('Settings saved successfully, refreshing config...');
+  await settingsStore.fetchConfig();
+  console.log('Config refreshed from backend');
 };
 
 const getAudioConfig = async (): Promise<{tts_server: string, voice_name: string}> => {
   try {
     const response = await apiService.getConfig();
+    console.log('[getAudioConfig] Response:', response);
     if (response.status === 200 && response.data?.ui) {
-      return {
+      const result = {
         tts_server: response.data.ui.tts_server || 'azure-tts-v1',
-        voice_name: response.data.ui.voice_name || 'zh-CN-XiaoxiaoNeural'
+        voice_name: response.data.ui.voice_name || ''
       };
+      console.log('[getAudioConfig] Returning:', result);
+      return result;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to fetch audio config:', error);
   }
-  return { tts_server: 'azure-tts-v1', voice_name: 'zh-CN-XiaoxiaoNeural' };
+  return { tts_server: 'azure-tts-v1', voice_name: '' };
 };
 
 const generateVideo = async () => {
@@ -167,7 +172,7 @@ const generateVideo = async () => {
 
   try {
     // Fetch audio config from backend
-    const audioConfig = await getAudioConfig();
+    await getAudioConfig();
     
     // 直接使用store获取数据
     const scriptStore = useScriptStore();
@@ -185,6 +190,14 @@ const generateVideo = async () => {
       return;
     }
 
+    console.log('[Task Creation] === Settings Store Audio Values ===');
+    console.log('[Task Creation] ttsServer:', settingsStore.audio.ttsServer);
+    console.log('[Task Creation] speechSynthesis:', settingsStore.audio.speechSynthesis);
+    console.log('[Task Creation] speechSynthesis starts with coze|:', settingsStore.audio.speechSynthesis.startsWith('coze|'));
+    console.log('[Task Creation] speechRate:', settingsStore.audio.speechRate);
+    console.log('[Task Creation] speechVolume:', settingsStore.audio.speechVolume);
+    console.log('[Task Creation] backgroundMusic:', settingsStore.audio.backgroundMusic);
+    
     const taskParams = {
       video_subject: videoSubject,
       video_script: videoScript,
@@ -234,6 +247,9 @@ const generateVideo = async () => {
 onMounted(async () => {
   await i18nStore.loadTranslations();
   i18nStore.loadLanguageFromLocalStorage();
+  
+  // Load settings from localStorage first
+  settingsStore.loadFromLocalStorage();
   
   // First check backend health before fetching version and config
   await settingsStore.checkBackendHealth();

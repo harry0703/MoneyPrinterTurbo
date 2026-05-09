@@ -46,8 +46,19 @@ def get_voices(request: Request, tts_server: str = "azure-tts-v1", force_refresh
 def get_config(request: Request):
     """Get current configuration for UI settings."""
     try:
+        print(f"[Config API] === Config Debug Info ===")
+        print(f"[Config API] config.ui contents: {config.ui}")
+        tts_server = config.ui.get("tts_server", "azure-tts-v1")
+        voice_name = config.ui.get("voice_name", "")
+        print(f"[Config API] tts_server from config.ui: {tts_server}")
+        print(f"[Config API] voice_name from config.ui: {voice_name[:100]}...")
+        
         cfg = {
-            "ui": config.ui,
+            "ui": {
+                **config.ui,
+                "tts_server": tts_server,
+                "voice_name": voice_name,
+            },
             "app": {
                 "llm_provider": config.app.get("llm_provider", "openai"),
                 "video_source": config.app.get("video_source", "pexels"),
@@ -94,11 +105,15 @@ def update_config(request: Request, cfg: dict):
         cfg: Configuration dictionary with keys: ui, app, azure, siliconflow, coze, whisper
     """
     try:
+        print(f"[Update Config] Received cfg: {cfg}")
+        
         if "ui" in cfg:
+            print(f"[Update Config] ui section: {cfg['ui']}")
             for key, value in cfg["ui"].items():
                 config.ui[key] = value
 
         if "app" in cfg:
+            print(f"[Update Config] app section: {cfg['app']}")
             for key, value in cfg["app"].items():
                 config.app[key] = value
 

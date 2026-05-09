@@ -112,6 +112,7 @@ import { ref, reactive, watch, onMounted } from 'vue';
 import FileUploader from '../components/FileUploader.vue';
 import { useI18nStore } from '../stores/i18n';
 import { parseLabelMarkdown } from '../utils/markdownParser';
+import { useSettingsStore } from '../stores/settings';
 
 interface FileItem {
   name: string;
