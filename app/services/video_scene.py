@@ -444,7 +444,6 @@ def build_scene_video(
                         except Exception:
                             pass
                 else:
-                    # Process as regular video
                     clip = VideoFileClip(intro_video_path)
                     try:
                         clip_duration = clip.duration
@@ -456,16 +455,13 @@ def build_scene_video(
                     end_time = min(start_time + intro_duration, clip_duration)
                     subclip = SubClippedVideoClip(file_path=intro_video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h)
                     
-                    # Process intro clip
                     aspect = VideoAspect(video_aspect)
                     video_width, video_height = aspect.to_resolution()
                     
                     clip = VideoFileClip(subclip.file_path).subclipped(subclip.start_time, subclip.end_time)
                     try:
-                        # Process intro video differently: fit without cropping, center on blue background
-                        clip = fit_intro_video_to_target(clip, video_width, video_height)
+                        clip = crop_clip_to_target(clip, video_width, video_height)
                         
-                        # Apply brightness and contrast enhancement
                         brightness_factor = config.app.get("video_brightness", 1.0)
                         contrast_factor = config.app.get("video_contrast", 1.0)
                         
@@ -478,8 +474,6 @@ def build_scene_video(
                         intro_clips.append(clip)
                         logger.info(f"Video intro processed: {intro_video_path}")
                     finally:
-                        # Close the original clip to release resources
-                        # Note: We don't close the processed clip as it's added to intro_clips and will be closed later
                         try:
                             if clip and hasattr(clip, 'close'):
                                 clip.close()
