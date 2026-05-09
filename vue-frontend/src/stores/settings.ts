@@ -14,6 +14,41 @@ interface LLMConfigs {
   deepseek: LLMConfig;
 }
 
+interface VideoSettings {
+  source: string;
+  concatMode: string;
+  transitionMode: string;
+  aspect: string;
+  clipDuration: number;
+  count: number;
+  style: string;
+}
+
+interface AudioSettings {
+  ttsServer: string;
+  speechSynthesis: string;
+  speechRegion: string;
+  speechKey: string;
+  siliconflowApiKey: string;
+  cozeApiKey: string;
+  voiceEmotion: string;
+  speechVolume: string;
+  speechRate: string;
+  backgroundMusic: string;
+  backgroundMusicVolume: string;
+}
+
+interface SubtitleSettings {
+  enable: boolean;
+  font: string;
+  position: string;
+  customPosition: string;
+  color: string;
+  fontSize: number;
+  outlineColor: string;
+  outlineWidth: number;
+}
+
 interface AppSettings {
   llmProvider: string;
   videoSource: string;
@@ -49,6 +84,9 @@ export const useSettingsStore = defineStore('settings', {
     videoSources: VideoSources;
     whisper: WhisperSettings;
     ui: UISettings;
+    video: VideoSettings;
+    audio: AudioSettings;
+    subtitle: SubtitleSettings;
     version: VersionInfo | null;
     backendStatus: BackendStatus;
     lastHealthCheck: number;
@@ -64,6 +102,44 @@ export const useSettingsStore = defineStore('settings', {
       videoSource: 'pexels',
       useGpu: false,
       hideConfig: false
+    },
+    
+    // Video settings
+    video: {
+      source: 'pexels',
+      concatMode: 'sequential',
+      transitionMode: 'none',
+      aspect: 'landscape',
+      clipDuration: 3,
+      count: 1,
+      style: 'none'
+    },
+    
+    // Audio settings
+    audio: {
+      ttsServer: 'azure-tts-v1',
+      speechSynthesis: '',
+      speechRegion: '',
+      speechKey: '',
+      siliconflowApiKey: '',
+      cozeApiKey: '',
+      voiceEmotion: '',
+      speechVolume: '1.0',
+      speechRate: '1.0',
+      backgroundMusic: 'none',
+      backgroundMusicVolume: '0.2'
+    },
+    
+    // Subtitle settings
+    subtitle: {
+      enable: true,
+      font: 'MicrosoftYaHeiBold.ttc',
+      position: 'custom',
+      customPosition: '80.0',
+      color: '#FFFF00',
+      fontSize: 60,
+      outlineColor: '#000000',
+      outlineWidth: 1.5
     },
     
     // LLM configuration
@@ -143,6 +219,21 @@ export const useSettingsStore = defineStore('settings', {
     
     updateUISetting<K extends keyof UISettings>(key: K, value: UISettings[K]) {
       this.ui[key] = value;
+    },
+    
+    updateVideoSetting<K extends keyof VideoSettings>(key: K, value: VideoSettings[K]) {
+      this.video[key] = value;
+      this.saveToLocalStorage();
+    },
+    
+    updateAudioSetting<K extends keyof AudioSettings>(key: K, value: AudioSettings[K]) {
+      this.audio[key] = value;
+      this.saveToLocalStorage();
+    },
+    
+    updateSubtitleSetting<K extends keyof SubtitleSettings>(key: K, value: SubtitleSettings[K]) {
+      this.subtitle[key] = value;
+      this.saveToLocalStorage();
     },
     
     loadFromLocalStorage() {

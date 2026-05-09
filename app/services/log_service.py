@@ -26,6 +26,13 @@ class LogService:
         self._setup_log_file()
         self._websocket_connections = set()
         self._connections_lock = threading.Lock()
+        self._event_loop = None
+        self._loop_lock = threading.Lock()
+
+    def set_event_loop(self, loop):
+        """Set the event loop for WebSocket broadcasting."""
+        with self._loop_lock:
+            self._event_loop = loop
 
     def _setup_log_file(self):
         log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), "logs")
@@ -41,6 +48,7 @@ class LogService:
             "task_id": task_id
         }
         self._logs.append(log_entry)
+        pass
 
         if self._log_file:
             with open(self._log_file, "a", encoding="utf-8") as f:
@@ -51,23 +59,25 @@ class LogService:
         # Push log to all connected WebSocket clients
         import asyncio
         try:
-            # Handle different thread scenarios
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(self._broadcast_log(log_entry))
-                else:
-                    asyncio.run(self._broadcast_log(log_entry))
-            except RuntimeError:
-                # No event loop in this thread, create a new one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(self._broadcast_log(log_entry))
-                loop.close()
-        except Exception as e:
-            # Log error without using logger to avoid re-entrant issues
-            import traceback
-            traceback.print_exc()
+            with self._loop_lock:
+                loop = self._event_loop
+            
+            if loop and loop.is_running():
+                asyncio.run_coroutine_threadsafe(self._broadcast_log(log_entry), loop)
+            else:
+                try:
+                    current_loop = asyncio.get_event_loop()
+                    if current_loop.is_running():
+                        asyncio.create_task(self._broadcast_log(log_entry))
+                    else:
+                        asyncio.run(self._broadcast_log(log_entry))
+                except RuntimeError:
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    new_loop.run_until_complete(self._broadcast_log(log_entry))
+                    new_loop.close()
+        except Exception:
+            pass
 
     def get_logs(self, level: str = None, task_id: str = None, limit: int = 100, offset: int = 0):
         filtered_logs = list(self._logs)
@@ -125,13 +135,13 @@ class LogService:
         with self._connections_lock:
             connections = list(self._websocket_connections)
 
+        if not connections:
+            return
+
         async def send_to_connection(connection):
             try:
-                # Send log entry as JSON
                 await connection.send_json(log_entry)
-            except Exception as e:
-                # If sending fails, remove the connection
-                logger.error(f"Error sending log to WebSocket: {e}")
+            except Exception:
                 self.remove_websocket_connection(connection)
 
         # Send to all connections concurrently
@@ -149,10 +159,14 @@ class LoguruHandler:
 
         extra = record.get("extra", {})
         task_id = extra.get("task_id")
+        
+        print(f"[LoguruHandler] Received log: level={level}, message={record['message'][:50]}...")
 
         self.log_service.add_log(level, record["message"], task_id)
 
 
 log_service = LogService()
 loguru_handler = LoguruHandler(log_service)
-logger.add(loguru_handler, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}", level="INFO")
+handler_id = logger.add(loguru_handler, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}", level="INFO")
+print(f"[LogService] LoguruHandler registered with ID: {handler_id}")
+print(f"[LogService] Total handlers registered: {len(logger._core.handlers)}")

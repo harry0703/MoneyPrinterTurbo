@@ -108,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, watch, onMounted } from 'vue';
 import FileUploader from '../components/FileUploader.vue';
 import { useI18nStore } from '../stores/i18n';
 import { parseLabelMarkdown } from '../utils/markdownParser';
@@ -122,17 +122,18 @@ interface FileItem {
 
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
+const settingsStore = useSettingsStore();
 
 const localFiles = ref<FileItem[]>([]);
 
 const form = reactive({
-  videoSource: 'pexels',
-  videoConcatMode: 'sequential',
-  videoTransitionMode: 'none',
-  videoAspect: 'landscape',
-  videoClipDuration: 3,
-  videoCount: 1,
-  videoStyle: 'none'
+  videoSource: settingsStore.video.source,
+  videoConcatMode: settingsStore.video.concatMode,
+  videoTransitionMode: settingsStore.video.transitionMode,
+  videoAspect: settingsStore.video.aspect,
+  videoClipDuration: settingsStore.video.clipDuration,
+  videoCount: settingsStore.video.count,
+  videoStyle: settingsStore.video.style
 });
 
 const handleFileRemove = (file: FileItem) => {
@@ -142,8 +143,47 @@ const handleFileRemove = (file: FileItem) => {
   }
 };
 
+watch(() => form.videoSource, (newValue) => {
+  settingsStore.updateVideoSetting('source', newValue);
+});
+
+watch(() => form.videoConcatMode, (newValue) => {
+  settingsStore.updateVideoSetting('concatMode', newValue);
+});
+
+watch(() => form.videoTransitionMode, (newValue) => {
+  settingsStore.updateVideoSetting('transitionMode', newValue);
+});
+
+watch(() => form.videoAspect, (newValue) => {
+  settingsStore.updateVideoSetting('aspect', newValue);
+});
+
+watch(() => form.videoClipDuration, (newValue) => {
+  settingsStore.updateVideoSetting('clipDuration', newValue);
+});
+
+watch(() => form.videoCount, (newValue) => {
+  settingsStore.updateVideoSetting('count', newValue);
+});
+
+watch(() => form.videoStyle, (newValue) => {
+  settingsStore.updateVideoSetting('style', newValue);
+});
+
+onMounted(() => {
+  form.videoSource = settingsStore.video.source;
+  form.videoConcatMode = settingsStore.video.concatMode;
+  form.videoTransitionMode = settingsStore.video.transitionMode;
+  form.videoAspect = settingsStore.video.aspect;
+  form.videoClipDuration = settingsStore.video.clipDuration;
+  form.videoCount = settingsStore.video.count;
+  form.videoStyle = settingsStore.video.style;
+});
+
 defineExpose({
-  form
+  form,
+  localFiles
 });
 </script>
 

@@ -85,21 +85,66 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, watch, onMounted } from 'vue';
 import { useI18nStore } from '../stores/i18n';
+import { useSettingsStore } from '../stores/settings';
 
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
+const settingsStore = useSettingsStore();
 
 const form = reactive({
-  enableSubtitles: true,
-  subtitleFont: 'MicrosoftYaHeiBold.ttc',
-  subtitlePosition: 'custom',
-  subtitleCustomPosition: '80.0',
-  subtitleColor: '#FFFF00',
-  subtitleFontSize: 60,
-  subtitleOutlineColor: '#000000',
-  subtitleOutlineWidth: 1.5
+  enableSubtitles: settingsStore.subtitle.enable,
+  subtitleFont: settingsStore.subtitle.font,
+  subtitlePosition: settingsStore.subtitle.position,
+  subtitleCustomPosition: settingsStore.subtitle.customPosition,
+  subtitleColor: settingsStore.subtitle.color,
+  subtitleFontSize: settingsStore.subtitle.fontSize,
+  subtitleOutlineColor: settingsStore.subtitle.outlineColor,
+  subtitleOutlineWidth: settingsStore.subtitle.outlineWidth
+});
+
+watch(() => form.enableSubtitles, (newValue) => {
+  settingsStore.updateSubtitleSetting('enable', newValue);
+});
+
+watch(() => form.subtitleFont, (newValue) => {
+  settingsStore.updateSubtitleSetting('font', newValue);
+});
+
+watch(() => form.subtitlePosition, (newValue) => {
+  settingsStore.updateSubtitleSetting('position', newValue);
+});
+
+watch(() => form.subtitleCustomPosition, (newValue) => {
+  settingsStore.updateSubtitleSetting('customPosition', newValue);
+});
+
+watch(() => form.subtitleColor, (newValue) => {
+  settingsStore.updateSubtitleSetting('color', newValue);
+});
+
+watch(() => form.subtitleFontSize, (newValue) => {
+  settingsStore.updateSubtitleSetting('fontSize', newValue);
+});
+
+watch(() => form.subtitleOutlineColor, (newValue) => {
+  settingsStore.updateSubtitleSetting('outlineColor', newValue);
+});
+
+watch(() => form.subtitleOutlineWidth, (newValue) => {
+  settingsStore.updateSubtitleSetting('outlineWidth', newValue);
+});
+
+onMounted(() => {
+  form.enableSubtitles = settingsStore.subtitle.enable;
+  form.subtitleFont = settingsStore.subtitle.font;
+  form.subtitlePosition = settingsStore.subtitle.position;
+  form.subtitleCustomPosition = settingsStore.subtitle.customPosition;
+  form.subtitleColor = settingsStore.subtitle.color;
+  form.subtitleFontSize = settingsStore.subtitle.fontSize;
+  form.subtitleOutlineColor = settingsStore.subtitle.outlineColor;
+  form.subtitleOutlineWidth = settingsStore.subtitle.outlineWidth;
 });
 
 defineExpose({

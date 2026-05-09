@@ -27,18 +27,29 @@ def clear_logs():
 @router.websocket("/logs/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time log updates."""
+    print("WebSocket connection attempt received")
     await websocket.accept()
+    print("WebSocket connection accepted successfully")
     
+    log_service._event_loop = asyncio.get_event_loop()
     log_service.add_websocket_connection(websocket)
+    print(f"Total WebSocket connections: {len(log_service._websocket_connections)}")
     
     try:
         while True:
             try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                pong_waiter = await websocket.ping()
+                await asyncio.wait_for(pong_waiter, timeout=10)
             except asyncio.TimeoutError:
-                pass
+                print("WebSocket ping timeout, disconnecting")
+                break
+            except Exception:
+                break
+            await asyncio.sleep(30)
     except WebSocketDisconnect:
-        log_service.remove_websocket_connection(websocket)
+        print("WebSocket disconnected by client")
     except Exception as e:
         print(f"WebSocket error: {e}")
+    finally:
         log_service.remove_websocket_connection(websocket)
+        print(f"WebSocket connection removed, remaining connections: {len(log_service._websocket_connections)}")

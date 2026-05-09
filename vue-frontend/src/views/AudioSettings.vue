@@ -250,23 +250,26 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useI18nStore } from '../stores/i18n';
+import { useSettingsStore } from '../stores/settings';
 import { apiService } from '../services/api';
 
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
 
+const settingsStore = useSettingsStore();
+
 const form = reactive({
-  ttsServer: 'azure-tts-v1',
-  speechSynthesis: '',
-  speechRegion: '',
-  speechKey: '',
-  siliconflowApiKey: '',
-  cozeApiKey: '',
-  voiceEmotion: '',
-  speechVolume: '1.0',
-  speechRate: '1.0',
-  backgroundMusic: 'none',
-  backgroundMusicVolume: '0.2'
+  ttsServer: settingsStore.audio.ttsServer,
+  speechSynthesis: settingsStore.audio.speechSynthesis,
+  speechRegion: settingsStore.audio.speechRegion,
+  speechKey: settingsStore.audio.speechKey,
+  siliconflowApiKey: settingsStore.audio.siliconflowApiKey,
+  cozeApiKey: settingsStore.audio.cozeApiKey,
+  voiceEmotion: settingsStore.audio.voiceEmotion,
+  speechVolume: settingsStore.audio.speechVolume,
+  speechRate: settingsStore.audio.speechRate,
+  backgroundMusic: settingsStore.audio.backgroundMusic,
+  backgroundMusicVolume: settingsStore.audio.backgroundMusicVolume
 });
 
 const searchKeyword = ref('');
@@ -510,9 +513,25 @@ watch([
   () => form.speechRegion,
   () => form.speechKey,
   () => form.siliconflowApiKey,
-  () => form.cozeApiKey
+  () => form.cozeApiKey,
+  () => form.voiceEmotion,
+  () => form.speechVolume,
+  () => form.speechRate,
+  () => form.backgroundMusic,
+  () => form.backgroundMusicVolume
 ], () => {
   saveConfig();
+  settingsStore.updateAudioSetting('ttsServer', form.ttsServer);
+  settingsStore.updateAudioSetting('speechSynthesis', form.speechSynthesis);
+  settingsStore.updateAudioSetting('speechRegion', form.speechRegion);
+  settingsStore.updateAudioSetting('speechKey', form.speechKey);
+  settingsStore.updateAudioSetting('siliconflowApiKey', form.siliconflowApiKey);
+  settingsStore.updateAudioSetting('cozeApiKey', form.cozeApiKey);
+  settingsStore.updateAudioSetting('voiceEmotion', form.voiceEmotion);
+  settingsStore.updateAudioSetting('speechVolume', form.speechVolume);
+  settingsStore.updateAudioSetting('speechRate', form.speechRate);
+  settingsStore.updateAudioSetting('backgroundMusic', form.backgroundMusic);
+  settingsStore.updateAudioSetting('backgroundMusicVolume', form.backgroundMusicVolume);
 });
 
 watch(() => form.speechSynthesis, () => {

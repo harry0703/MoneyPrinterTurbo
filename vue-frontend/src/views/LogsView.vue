@@ -40,7 +40,7 @@
           </el-tag>
         </div>
         <div class="log-count">
-          Total logs: {{ filteredLogs.length }}
+          Total logs: {{ totalLogs }}
         </div>
       </div>
       
@@ -113,21 +113,18 @@ const wsStatus = ref({
   type: 'danger'
 });
 
-interface LogsResponse {
-  logs: LogEntry[];
-  total: number;
-}
+
 
 const tasks = computed(() => tasksStore.tasks);
 
 const filteredLogs = computed(() => {
   let result = [...logs.value];
 
-  // Sort logs by timestamp (oldest first)
+  // Sort logs by timestamp (newest first)
   result.sort((a, b) => {
     const dateA = new Date(a.timestamp).getTime();
     const dateB = new Date(b.timestamp).getTime();
-    return dateA - dateB;
+    return dateB - dateA;
   });
 
   if (selectedTaskId.value) {
@@ -165,16 +162,16 @@ const fetchLogs = async () => {
       offset: 0
     });
     console.log('Logs response:', response);
+    
     if (response.status === 200) {
-      const logsData = response.data as LogsResponse | undefined;
-      if (logsData) {
-        console.log('Logs data:', logsData);
-        logs.value = logsData.logs || [];
+      const responseData = response.data as { logs: LogEntry[], total: number } | undefined;
+      if (responseData && responseData.logs) {
+        console.log('Logs data:', responseData);
+        logs.value = responseData.logs || [];
         console.log('Logs array:', logs.value);
-        totalLogs.value = logsData.total || 0;
+        totalLogs.value = responseData.total || 0;
         console.log('Total logs:', totalLogs.value);
         
-        // Scroll to bottom to show latest logs
         scrollToBottom();
       }
     }
@@ -193,13 +190,22 @@ const scrollToBottom = () => {
 
 const connectWebSocket = () => {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProtocol}//${window.location.host}/api/v1/logs/ws`;
+  const wsUrl = `${wsProtocol}//localhost:8000/api/v1/logs/ws`;
   
-  console.log('WebSocket connecting to:', wsUrl);
+  console.log('[WS] Attempting to connect to:', wsUrl);
+  
+  if (ws.value) {
+    try {
+      ws.value.close();
+    } catch (e) {
+      console.log('[WS] Error closing existing WebSocket:', e);
+    }
+  }
+  
   ws.value = new WebSocket(wsUrl);
   
   ws.value.onopen = () => {
-    console.log('WebSocket connected');
+    console.log('[WS] Connected successfully');
     isWebSocketConnected.value = true;
     wsStatus.value = {
       text: 'Connected',
@@ -209,33 +215,36 @@ const connectWebSocket = () => {
   
   ws.value.onmessage = (event) => {
     try {
+      console.log('[WS] Raw message received:', event.data);
       const newLog: LogEntry = JSON.parse(event.data);
-      console.log('Received log:', newLog);
+      console.log('[WS] Parsed log:', newLog);
       
-      // Add the new log to the beginning of the array
-      // This maintains the correct order (newest at bottom)
-      logs.value.push(newLog);
+      logs.value.unshift(newLog);
+      totalLogs.value++;
+      console.log('[WS] Log added to array, total:', logs.value.length);
       
-      // Scroll to bottom to show the new log
       scrollToBottom();
     } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
+      console.error('[WS] Error parsing message:', error);
     }
   };
   
-  ws.value.onclose = () => {
-    console.log('WebSocket disconnected');
+  ws.value.onclose = (event) => {
+    console.log('[WS] Disconnected - Code:', event.code, 'Reason:', event.reason);
     isWebSocketConnected.value = false;
     wsStatus.value = {
       text: 'Disconnected',
       type: 'danger'
     };
-    // Try to reconnect after 3 seconds
-    setTimeout(connectWebSocket, 3000);
+    
+    if (event.code !== 1000) {
+      console.log('[WS] Reconnecting in 3 seconds...');
+      setTimeout(connectWebSocket, 3000);
+    }
   };
   
-  ws.value.onerror = (error) => {
-    console.error('WebSocket error:', error);
+  ws.value.onerror = (event) => {
+    console.error('[WS] Error event:', event);
     wsStatus.value = {
       text: 'Error',
       type: 'danger'

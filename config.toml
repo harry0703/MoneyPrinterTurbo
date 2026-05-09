@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.6"
+project_version = "1.2.66.7"
 
 [app]
 video_source = "pexels"
@@ -71,7 +71,7 @@ api_key = "sk-ehmjzsdqlcbsswaplkgzjsqjrlwyjquczplhjxoszbhdjgvn"
 hide_log = false
 language = "zh"
 tts_server = "coze-tts"
-voice_name = "coze|7468512265151741979|擎苍-Male|https://lf3-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_male_qingcang_mars_bigtts.mp3?lk3s=da27ec82&x-expires=1778387557&x-signature=idKahJBfzs7Iqujl6HJ7lsWFaJw%3D|无语，擎天之巨首，揽尽世间风云变幻，诸般阻碍，不过是无脉相巅峰之基石。今日之儒，来日必当十倍奉还。 无知威名，必将震慑四海八荒。|"
+voice_name = "coze|7468512265151741979|擎苍-Male|https://lf6-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_male_qingcang_mars_bigtts.mp3?lk3s=da27ec82&x-expires=1778405014&x-signature=0ADslUMu56nHg0yS3kldDH0gGh0%3D|无语，擎天之巨首，揽尽世间风云变幻，诸般阻碍，不过是无脉相巅峰之基石。今日之儒，来日必当十倍奉还。 无知威名，必将震慑四海八荒。|"
 subtitle_enabled = true
 subtitle_position = "custom"
 subtitle_custom_position = 90.0
