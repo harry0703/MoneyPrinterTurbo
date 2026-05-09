@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import Query, WebSocket, WebSocketDisconnect
 from app.controllers.v1.base import new_router
 from app.services.log_service import log_service
@@ -28,17 +29,16 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time log updates."""
     await websocket.accept()
     
-    # Add the connection to the log service
     log_service.add_websocket_connection(websocket)
     
     try:
         while True:
-            # Wait for messages (we don't expect any from the client)
-            await websocket.receive_text()
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                pass
     except WebSocketDisconnect:
-        # Remove the connection when disconnected
         log_service.remove_websocket_connection(websocket)
     except Exception as e:
-        # Handle any other exceptions
         print(f"WebSocket error: {e}")
         log_service.remove_websocket_connection(websocket)

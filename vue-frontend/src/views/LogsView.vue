@@ -192,11 +192,8 @@ const scrollToBottom = () => {
 };
 
 const connectWebSocket = () => {
-  // WebSocket URL - connect to backend server
-  // Use the same base URL as API service
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // Backend server runs on port 8000
-  const wsUrl = `${wsProtocol}//localhost:8000/api/v1/logs/ws`;
+  const wsUrl = `${wsProtocol}//${window.location.host}/api/v1/logs/ws`;
   
   console.log('WebSocket connecting to:', wsUrl);
   ws.value = new WebSocket(wsUrl);
