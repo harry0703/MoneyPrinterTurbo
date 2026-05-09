@@ -295,44 +295,73 @@ const importScenes = (event: Event) => {
   reader.onload = (e) => {
     try {
       const content = e.target?.result as string;
-      const importedScenes = JSON.parse(content);
+      
+      let importedScenes;
+      try {
+        importedScenes = JSON.parse(content);
+      } catch (parseError) {
+        ElMessage.error('Invalid JSON format: ' + (parseError as Error).message);
+        console.error('JSON parse error:', parseError);
+        input.value = '';
+        return;
+      }
       
       if (Array.isArray(importedScenes)) {
-          // Validate imported data format
-          const validScenes = importedScenes.filter((scene: any) => {
-            return scene && typeof scene === 'object' && 
-                   typeof scene.duration === 'number' &&
-                   typeof scene.visual_requirement === 'string' &&
-                   typeof scene.keywords === 'string' &&
-                   typeof scene.script === 'string';
-          });
-          
-          if (validScenes.length > 0) {
-            // Clear existing scenes and import new scenes
-            const formattedScenes = validScenes.map((scene: any) => ({
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        const validScenes = importedScenes.filter((scene: any) => {
+          return scene && typeof scene === 'object' && 
+                 typeof scene.duration === 'number' &&
+                 typeof scene.visual_requirement === 'string' &&
+                 typeof scene.keywords === 'string' &&
+                 typeof scene.script === 'string';
+        });
+        
+        if (validScenes.length > 0) {
+          const formattedScenes = validScenes.map((scene: any) => {
+            let introVideo = scene.introVideo || scene.intro_video;
+            let introVideoDuration = scene.introVideoDuration || scene.intro_duration || 10;
+            
+            if (introVideo && typeof introVideo === 'string') {
+              introVideo = introVideo.trim();
+              if (!introVideo || introVideo.length === 0) {
+                introVideo = undefined;
+                introVideoDuration = 10;
+              }
+            } else {
+              introVideo = undefined;
+              introVideoDuration = 10;
+            }
+            
+            return {
+              id: scene.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
               duration: scene.duration,
               visual_requirement: scene.visual_requirement,
               keywords: scene.keywords,
               script: scene.script,
-              introVideo: scene.introVideo,
-              introVideoDuration: scene.introVideoDuration || 10
-            }));
-            scriptStore.updateScenes(formattedScenes);
-            ElMessage.success(`Successfully imported ${validScenes.length} scenes`);
+              introVideo,
+              introVideoDuration
+            };
+          });
+          
+          scriptStore.updateScenes(formattedScenes);
+          
+          const scenesWithIntroVideo = formattedScenes.filter((s: any) => s.introVideo);
+          if (scenesWithIntroVideo.length > 0) {
+            ElMessage.success(`Successfully imported ${validScenes.length} scenes (${scenesWithIntroVideo.length} have intro videos - please verify file paths exist)`);
           } else {
-            ElMessage.error('Imported file format is incorrect');
+            ElMessage.success(`Successfully imported ${validScenes.length} scenes`);
           }
         } else {
-          ElMessage.error('Imported file format is incorrect');
+          ElMessage.error('Imported file format is incorrect - no valid scenes found');
         }
-      } catch (error) {
-        ElMessage.error('Error importing file');
-        console.error('Import error:', error);
-      } finally {
-        // Reset file input to allow selecting the same file again
-        input.value = '';
+      } else {
+        ElMessage.error('Imported file must contain an array of scenes');
       }
+    } catch (error) {
+      ElMessage.error('Error importing file: ' + (error as Error).message);
+      console.error('Import error:', error);
+    } finally {
+      input.value = '';
+    }
   };
   reader.readAsText(file);
 };

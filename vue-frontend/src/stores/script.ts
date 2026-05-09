@@ -74,7 +74,13 @@ export const useScriptStore = defineStore('script', {
     },
     
     saveToLocalStorage() {
-      localStorage.setItem('moneyprinter-script', JSON.stringify(this));
+      const data = {
+        videoSubject: this.videoSubject,
+        videoScript: this.videoScript,
+        language: this.language,
+        scenes: JSON.parse(JSON.stringify(this.scenes))
+      };
+      localStorage.setItem('moneyprinter-script', JSON.stringify(data));
     }
   }
 });
