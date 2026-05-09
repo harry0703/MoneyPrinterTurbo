@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.1"
+project_version = "1.2.66.2"
 
 [app]
 video_source = "pexels"
@@ -71,7 +71,7 @@ api_key = "sk-ehmjzsdqlcbsswaplkgzjsqjrlwyjquczplhjxoszbhdjgvn"
 hide_log = false
 language = "zh"
 tts_server = "coze-tts"
-voice_name = "coze|7426720361732915209|湾区大叔-Female|https://lf9-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_female_wanqudashu_moon_bigtts.mp3?lk3s=da27ec82&x-expires=1776700608&x-signature=uDQHwTsUrRk4OLi6N94KhboypYs%3D|年轻人啊，你要知道哦，人生这条路啊，可长着呢，有时候要慢慢来啦。莫急莫急，遇到困难不要怕啦，勇敢去面对就好。咱要保持乐观的心态啦，日子总是会越来越好的。|"
+voice_name = "coze|7426720361732915209|湾区大叔-Female|https://lf3-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_female_wanqudashu_moon_bigtts.mp3?lk3s=da27ec82&x-expires=1778383503&x-signature=M79WBSYnYrCzfvyVdxqo6BHZG4E%3D|年轻人啊，你要知道哦，人生这条路啊，可长着呢，有时候要慢慢来啦。莫急莫急，遇到困难不要怕啦，勇敢去面对就好。咱要保持乐观的心态啦，日子总是会越来越好的。|"
 subtitle_enabled = true
 subtitle_position = "custom"
 subtitle_custom_position = 90.0
