@@ -120,7 +120,7 @@
                 <div class="intro-video-section">
                   <div class="intro-video-info" v-if="scene.introVideo">
                     <div class="intro-video-path">
-                      <span class="intro-video-file">{{ scene.introVideo }}</span>
+                      <span class="intro-video-file">{{ getIntroVideoDisplayName(scene.introVideo) }}</span>
                       <el-button size="small" @click="clearIntroVideo(index)">{{ t('Clear') }}</el-button>
                     </div>
                     <div class="intro-video-duration">
@@ -165,6 +165,7 @@ import { ElMessage } from 'element-plus';
 import { VideoCamera } from '@element-plus/icons-vue';
 import { parseLabelMarkdown } from '../utils/markdownParser';
 import { generateVideoScript, parseVideoScript as apiParseVideoScript } from '../services/api';
+import api from '../services/api';
 
 const scriptStore = useScriptStore();
 const i18nStore = useI18nStore();
@@ -190,6 +191,7 @@ interface Scene {
   keywords: string;
   script: string;
   introVideo?: string;
+  introVideoOriginalPath?: string;
   introVideoDuration?: number;
 }
 
@@ -219,6 +221,7 @@ const copyScene = (index: number) => {
     keywords: sceneToCopy.keywords,
     script: sceneToCopy.script,
     introVideo: sceneToCopy.introVideo,
+    introVideoOriginalPath: sceneToCopy.introVideoOriginalPath,
     introVideoDuration: sceneToCopy.introVideoDuration
   };
   // Copy to index+1 position
@@ -318,6 +321,7 @@ const importScenes = (event: Event) => {
         if (validScenes.length > 0) {
           const formattedScenes = validScenes.map((scene: any) => {
             let introVideo = scene.introVideo || scene.intro_video;
+            let introVideoOriginalPath = scene.introVideoOriginalPath || scene.intro_video_original_path;
             let introVideoDuration = scene.introVideoDuration || scene.intro_duration || 10;
             
             if (introVideo && typeof introVideo === 'string') {
@@ -331,6 +335,13 @@ const importScenes = (event: Event) => {
               introVideoDuration = 10;
             }
             
+            if (!introVideo && introVideoOriginalPath) {
+              introVideoOriginalPath = introVideoOriginalPath.trim();
+              if (!introVideoOriginalPath || introVideoOriginalPath.length === 0) {
+                introVideoOriginalPath = undefined;
+              }
+            }
+            
             return {
               id: scene.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
               duration: scene.duration,
@@ -338,6 +349,7 @@ const importScenes = (event: Event) => {
               keywords: scene.keywords,
               script: scene.script,
               introVideo,
+              introVideoOriginalPath,
               introVideoDuration
             };
           });
@@ -378,29 +390,85 @@ const triggerIntroVideoImport = (index: number) => {
   introVideoFileInputs.value[index]?.click();
 };
 
+// Validate intro video file
+const validateIntroVideo = (file: File): { valid: boolean; message: string } => {
+  const allowedExtensions = ['.mp4', '.mov', '.avi', '.flv', '.mkv', '.jpg', '.jpeg', '.png', '.gif'];
+  const fileName = file.name.toLowerCase();
+  const isValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+  
+  if (!isValidExtension) {
+    return { valid: false, message: `Invalid file format. Allowed formats: ${allowedExtensions.join(', ')}` };
+  }
+  
+  const maxSizeMB = 100;
+  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  if (file.size > maxSizeBytes) {
+    return { valid: false, message: `File size exceeds ${maxSizeMB}MB limit` };
+  }
+  
+  return { valid: true, message: 'Valid file' };
+};
+
 // Import intro video
-const importIntroVideo = (event: Event, index: number) => {
+const importIntroVideo = async (event: Event, index: number) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   
   if (!file) return;
   
-  // File upload logic can be added here
-  // Currently only storing file name
-  const updatedScene = { ...scenes.value[index], introVideo: file.name };
-  scriptStore.updateScene(index, updatedScene);
+  // Validate file first
+  const validation = validateIntroVideo(file);
+  if (!validation.valid) {
+    ElMessage.warning(`Intro video validation failed: ${validation.message}`);
+    input.value = '';
+    return;
+  }
   
-  // Reset file input to allow selecting the same file again
-  input.value = '';
-  
-  ElMessage.success('Intro video imported successfully');
+  try {
+    // Upload immediately to storage/local_videos/
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await api.post('/video_materials', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    
+    if (response.data.status === 200 && response.data.data?.file) {
+      const fullPath = response.data.data.file;
+      const updatedScene = { 
+        ...scenes.value[index], 
+        introVideo: fullPath,
+        introVideoOriginalPath: file.name
+      };
+      scriptStore.updateScene(index, updatedScene);
+      ElMessage.success('Intro video uploaded successfully');
+    } else {
+      ElMessage.error('Failed to upload intro video');
+    }
+  } catch (error) {
+    console.error('Error uploading intro video:', error);
+    ElMessage.error('Failed to upload intro video');
+  } finally {
+    // Reset file input to allow selecting the same file again
+    input.value = '';
+  }
 };
 
 // Clear intro video
 const clearIntroVideo = (index: number) => {
-  const updatedScene = { ...scenes.value[index], introVideo: undefined, introVideoDuration: 10 };
+  const updatedScene = { ...scenes.value[index], introVideo: undefined, introVideoOriginalPath: undefined, introVideoDuration: 10 };
   scriptStore.updateScene(index, updatedScene);
   ElMessage.success('Intro video cleared');
+};
+
+// Get display name for intro video (show only filename, not full path)
+const getIntroVideoDisplayName = (fullPath: string): string => {
+  if (!fullPath) return '';
+  // Handle both Windows and Unix paths
+  const parts = fullPath.split(/[\\/]/);
+  return parts[parts.length - 1];
 };
 
 // Scene changes are automatically handled by the store, no need for additional listening

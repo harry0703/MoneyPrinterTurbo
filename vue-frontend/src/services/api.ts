@@ -55,6 +55,7 @@ export interface Scene {
   keywords: string;
   script: string;
   introVideo?: string;
+  introVideoOriginalPath?: string;
   introVideoDuration?: number;
 }
 

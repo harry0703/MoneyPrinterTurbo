@@ -399,6 +399,7 @@ def build_scene_video(
 
     # Process intro video separately if provided
     intro_clips = []
+    logger.info(f"build_scene_video - intro_video_path received: {intro_video_path}")
     if intro_video_path:
         # Check if intro video exists
         if os.path.exists(intro_video_path):
@@ -449,7 +450,9 @@ def build_scene_video(
                     video_width, video_height = aspect.to_resolution()
                     
                     clip = VideoFileClip(subclip.file_path).subclipped(subclip.start_time, subclip.end_time)
-                    clip = crop_clip_to_target(clip, video_width, video_height)
+                    
+                    # Use fit_intro_video_to_target for intro videos - always scale to fit without cropping
+                    clip = fit_intro_video_to_target(clip, video_width, video_height)
                     
                     brightness_factor = config.app.get("video_brightness", 1.0)
                     contrast_factor = config.app.get("video_contrast", 1.0)

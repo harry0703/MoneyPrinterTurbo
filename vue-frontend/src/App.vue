@@ -181,6 +181,15 @@ const generateVideo = async () => {
     const videoSubject = scriptStore.videoSubject || '';
     const videoScript = scriptStore.videoScript || '';
     const scenes = scriptStore.scenes || [];
+    
+    // Convert camelCase to snake_case for backend compatibility
+    const formattedScenes = scenes.map((scene: any) => ({
+      ...scene,
+      intro_video: scene.introVideo || scene.intro_video,
+      intro_video_original_path: scene.introVideoOriginalPath || scene.intro_video_original_path,
+      intro_duration: scene.introVideoDuration || scene.intro_duration || 10,
+    }));
+    
     const hasScenes = scenes.length > 0;
     const hasScript = videoScript.trim();
     const hasSubject = videoSubject.trim();
@@ -225,7 +234,7 @@ const generateVideo = async () => {
       subtitle_color: settingsStore.subtitle.color,
       subtitle_outline_color: settingsStore.subtitle.outlineColor,
       subtitle_outline_width: settingsStore.subtitle.outlineWidth,
-      scenes: scenes,
+      scenes: formattedScenes,
       language: scriptStore.language || 'zh'
     };
 

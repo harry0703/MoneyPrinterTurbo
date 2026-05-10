@@ -555,10 +555,40 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     
     # Check for intro video and insert at the beginning
     intro_video = scene.get("intro_video")
-    if intro_video and os.path.exists(intro_video):
-        logger.info(f"scene {scene_num}: adding intro video at the beginning: {intro_video}")
-        downloaded_videos.insert(0, intro_video)
-        logger.success(f"scene {scene_num}: intro video added, total clips: {len(downloaded_videos)}")
+    intro_video_original_path = scene.get("intro_video_original_path")
+    logger.info(f"scene {scene_num}: intro_video from scene: {intro_video}")
+    logger.info(f"scene {scene_num}: intro_video_original_path: {intro_video_original_path}")
+    
+    # Determine the actual intro video path to use
+    actual_intro_video = None
+    if intro_video:
+        # Check if intro video exists in local_videos
+        if os.path.exists(intro_video):
+            # Create task-specific intro_videos directory
+            task_intro_videos_dir = path.join(utils.storage_dir("intro_videos"), task_id)
+            if not os.path.exists(task_intro_videos_dir):
+                os.makedirs(task_intro_videos_dir)
+                logger.info(f"Created task intro_videos directory: {task_intro_videos_dir}")
+            
+            # Copy intro video from local_videos to task-specific directory
+            intro_video_filename = os.path.basename(intro_video)
+            task_intro_video_path = path.join(task_intro_videos_dir, intro_video_filename)
+            
+            if not os.path.exists(task_intro_video_path):
+                import shutil
+                shutil.copy2(intro_video, task_intro_video_path)
+                logger.info(f"scene {scene_num}: copied intro video from {intro_video} to {task_intro_video_path}")
+            else:
+                logger.info(f"scene {scene_num}: intro video already exists in task directory: {task_intro_video_path}")
+            
+            actual_intro_video = task_intro_video_path
+            logger.info(f"scene {scene_num}: adding intro video at the beginning: {actual_intro_video}")
+            downloaded_videos.insert(0, actual_intro_video)
+            logger.success(f"scene {scene_num}: intro video added, total clips: {len(downloaded_videos)}")
+        else:
+            logger.warning(f"scene {scene_num}: intro_video not found at original location: {intro_video}")
+    else:
+        logger.info(f"scene {scene_num}: no intro_video field in scene")
     
     logger.success(f"scene {scene_num}: obtained {len(downloaded_videos)} video clips (local: {len(local_materials)}, supplement: {len(downloaded_videos) - len(local_materials)})")
     
@@ -569,8 +599,8 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     # Pass local video paths to build_scene_video so it can apply different quality check rules
     local_video_paths = local_materials.copy()
     # Also add intro video to local_video_paths if exists (to avoid quality check issues)
-    if intro_video and os.path.exists(intro_video):
-        local_video_paths.insert(0, intro_video)
+    if actual_intro_video and os.path.exists(actual_intro_video):
+        local_video_paths.insert(0, actual_intro_video)
     if local_video_paths:
         logger.info(f"scene {scene_num}: passing {len(local_video_paths)} local video paths for quality check exemption")
     
@@ -585,7 +615,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         threads=params.n_threads,
         scene_info=f"(scene {scene_num}/{total_scenes})",
         local_video_paths=local_video_paths,
-        intro_video_path=intro_video if intro_video and os.path.exists(intro_video) else None,
+        intro_video_path=actual_intro_video if actual_intro_video and os.path.exists(actual_intro_video) else None,
         intro_duration=scene.get("intro_duration", 10))
     
     if result is None or not os.path.exists(combined_video_path):
