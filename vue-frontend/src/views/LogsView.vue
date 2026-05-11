@@ -215,7 +215,10 @@ const connectWebSocket = () => {
     try {
       const newLog: LogEntry = JSON.parse(event.data);
       logs.value.unshift(newLog);
-      totalLogs.value++;
+      if (logs.value.length > 1000) {
+        logs.value = logs.value.slice(0, 1000);
+      }
+      totalLogs.value = logs.value.length;
       scrollToBottom();
     } catch (error) {
       console.error('[WS] Error parsing message:', error);
