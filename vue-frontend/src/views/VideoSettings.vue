@@ -102,6 +102,36 @@
             <el-option :label="t('Cartoon')" value="cartoon" />
           </el-select>
         </div>
+
+        <div class="form-item">
+          <label class="form-label">{{ t('Video Brightness') }}</label>
+          <div class="slider-control">
+            <el-slider
+              v-model="form.videoBrightness"
+              :min="0.5"
+              :max="2.0"
+              :step="0.05"
+              :show-input="true"
+              :input-size="'small'"
+            />
+            <span class="slider-value">{{ form.videoBrightness.toFixed(2) }}</span>
+          </div>
+        </div>
+
+        <div class="form-item">
+          <label class="form-label">{{ t('Video Contrast') }}</label>
+          <div class="slider-control">
+            <el-slider
+              v-model="form.videoContrast"
+              :min="0.5"
+              :max="2.0"
+              :step="0.05"
+              :show-input="true"
+              :input-size="'small'"
+            />
+            <span class="slider-value">{{ form.videoContrast.toFixed(2) }}</span>
+          </div>
+        </div>
       </div>
     </el-card>
   </div>
@@ -113,6 +143,7 @@ import FileUploader from '../components/FileUploader.vue';
 import { useI18nStore } from '../stores/i18n';
 import { parseLabelMarkdown } from '../utils/markdownParser';
 import { useSettingsStore } from '../stores/settings';
+import { apiService } from '../services/api';
 
 interface FileItem {
   name: string;
@@ -134,7 +165,11 @@ const form = reactive({
   videoAspect: settingsStore.video.aspect,
   videoClipDuration: settingsStore.video.clipDuration,
   videoCount: settingsStore.video.count,
-  videoStyle: settingsStore.video.style
+  videoStyle: settingsStore.video.style,
+  videoQuality: settingsStore.video.quality,
+  videoBitrate: settingsStore.video.bitrate,
+  videoBrightness: settingsStore.video.brightness,
+  videoContrast: settingsStore.video.contrast
 });
 
 const handleFileRemove = (file: FileItem) => {
@@ -144,42 +179,133 @@ const handleFileRemove = (file: FileItem) => {
   }
 };
 
-watch(() => form.videoSource, (newValue) => {
-  settingsStore.updateVideoSetting('source', newValue);
+const setVideoQualityBasedOnGPU = () => {
+  if (settingsStore.app.useGpu) {
+    form.videoQuality = 'ultra';
+    form.videoBitrate = '20M';
+  } else {
+    form.videoQuality = 'high';
+    form.videoBitrate = '10M';
+  }
+};
+
+const loadConfig = async () => {
+  try {
+    const response = await apiService.getConfig();
+    if (response.status === 200 && response.data) {
+      const cfg = response.data;
+      if (cfg.app) {
+        if (cfg.app.video_source) {
+          form.videoSource = cfg.app.video_source;
+        }
+        if (typeof cfg.app.use_gpu === 'boolean') {
+          settingsStore.app.useGpu = cfg.app.use_gpu;
+        }
+        setVideoQualityBasedOnGPU();
+        if (cfg.app.video_brightness !== undefined) {
+          form.videoBrightness = Number(cfg.app.video_brightness);
+        }
+        if (cfg.app.video_contrast !== undefined) {
+          form.videoContrast = Number(cfg.app.video_contrast);
+        }
+        if (cfg.app.video_concat_mode) {
+          form.videoConcatMode = cfg.app.video_concat_mode;
+        }
+        if (cfg.app.video_transition_mode) {
+          form.videoTransitionMode = cfg.app.video_transition_mode;
+        }
+        if (cfg.app.video_aspect) {
+          form.videoAspect = cfg.app.video_aspect;
+        }
+        if (cfg.app.video_clip_duration !== undefined) {
+          form.videoClipDuration = Number(cfg.app.video_clip_duration);
+        }
+        if (cfg.app.video_count !== undefined) {
+          form.videoCount = Number(cfg.app.video_count);
+        }
+        if (cfg.app.video_style) {
+          form.videoStyle = cfg.app.video_style;
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error('Failed to load config:', error);
+  }
+};
+
+const saveConfig = async () => {
+  try {
+    const cfg = {
+      app: {
+        video_source: form.videoSource,
+        video_quality: form.videoQuality,
+        video_bitrate: form.videoBitrate,
+        video_brightness: form.videoBrightness,
+        video_contrast: form.videoContrast,
+        video_concat_mode: form.videoConcatMode,
+        video_transition_mode: form.videoTransitionMode,
+        video_aspect: form.videoAspect,
+        video_clip_duration: form.videoClipDuration,
+        video_count: form.videoCount,
+        video_style: form.videoStyle
+      }
+    };
+    await apiService.updateConfig(cfg);
+    console.log('[VideoSettings] Config saved:', cfg);
+  } catch (error: any) {
+    console.error('Failed to save config:', error);
+  }
+};
+
+watch([
+  () => form.videoSource,
+  () => form.videoConcatMode,
+  () => form.videoTransitionMode,
+  () => form.videoAspect,
+  () => form.videoClipDuration,
+  () => form.videoCount,
+  () => form.videoStyle,
+  () => form.videoQuality,
+  () => form.videoBitrate,
+  () => form.videoBrightness,
+  () => form.videoContrast
+], () => {
+  saveConfig();
+  settingsStore.updateVideoSetting('source', form.videoSource);
+  settingsStore.updateVideoSetting('concatMode', form.videoConcatMode);
+  settingsStore.updateVideoSetting('transitionMode', form.videoTransitionMode);
+  settingsStore.updateVideoSetting('aspect', form.videoAspect);
+  settingsStore.updateVideoSetting('clipDuration', form.videoClipDuration);
+  settingsStore.updateVideoSetting('count', form.videoCount);
+  settingsStore.updateVideoSetting('style', form.videoStyle);
+  settingsStore.updateVideoSetting('quality', form.videoQuality);
+  settingsStore.updateVideoSetting('bitrate', form.videoBitrate);
+  settingsStore.updateVideoSetting('brightness', form.videoBrightness);
+  settingsStore.updateVideoSetting('contrast', form.videoContrast);
 });
 
-watch(() => form.videoConcatMode, (newValue) => {
-  settingsStore.updateVideoSetting('concatMode', newValue);
+watch(() => settingsStore.video, (newVideo) => {
+  console.log('[VideoSettings] Store video changed, updating form:', newVideo);
+  form.videoSource = newVideo.source;
+  form.videoConcatMode = newVideo.concatMode;
+  form.videoTransitionMode = newVideo.transitionMode;
+  form.videoAspect = newVideo.aspect;
+  form.videoClipDuration = newVideo.clipDuration;
+  form.videoCount = newVideo.count;
+  form.videoStyle = newVideo.style;
+  form.videoQuality = newVideo.quality;
+  form.videoBitrate = newVideo.bitrate;
+  form.videoBrightness = newVideo.brightness;
+  form.videoContrast = newVideo.contrast;
+}, { deep: true });
+
+watch(() => settingsStore.app.useGpu, () => {
+  console.log('[VideoSettings] useGpu changed, updating video quality/bitrate');
+  setVideoQualityBasedOnGPU();
 });
 
-watch(() => form.videoTransitionMode, (newValue) => {
-  settingsStore.updateVideoSetting('transitionMode', newValue);
-});
-
-watch(() => form.videoAspect, (newValue) => {
-  settingsStore.updateVideoSetting('aspect', newValue);
-});
-
-watch(() => form.videoClipDuration, (newValue) => {
-  settingsStore.updateVideoSetting('clipDuration', newValue);
-});
-
-watch(() => form.videoCount, (newValue) => {
-  settingsStore.updateVideoSetting('count', newValue);
-});
-
-watch(() => form.videoStyle, (newValue) => {
-  settingsStore.updateVideoSetting('style', newValue);
-});
-
-onMounted(() => {
-  form.videoSource = settingsStore.video.source;
-  form.videoConcatMode = settingsStore.video.concatMode;
-  form.videoTransitionMode = settingsStore.video.transitionMode;
-  form.videoAspect = settingsStore.video.aspect;
-  form.videoClipDuration = settingsStore.video.clipDuration;
-  form.videoCount = settingsStore.video.count;
-  form.videoStyle = settingsStore.video.style;
+onMounted(async () => {
+  await loadConfig();
 });
 
 defineExpose({
@@ -249,6 +375,19 @@ defineExpose({
 .file-item {
   margin-top: 6px;
   font-size: 14px;
+}
+
+.slider-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slider-value {
+  min-width: 60px;
+  text-align: right;
+  font-size: 14px;
+  color: #666;
 }
 
 .mt-2 {
