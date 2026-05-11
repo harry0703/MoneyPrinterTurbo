@@ -232,14 +232,14 @@ def generate_video(
                         )
                         
                         # Position subtitle
+                        margin_px = video_clip.h * subtitle_margin
                         if params.subtitle_position == "bottom":
-                            txt_clip = txt_clip.with_position(("center", video_clip.h * 0.95 - txt_clip.h))
+                            txt_clip = txt_clip.with_position(("center", video_clip.h - margin_px - txt_clip.h))
                         elif params.subtitle_position == "top":
-                            txt_clip = txt_clip.with_position(("center", video_clip.h * 0.05))
+                            txt_clip = txt_clip.with_position(("center", margin_px))
                         elif params.subtitle_position == "custom":
-                            margin = 10
-                            max_y = video_clip.h - txt_clip.h - margin
-                            min_y = margin
+                            max_y = video_clip.h - txt_clip.h - margin_px
+                            min_y = margin_px
                             custom_y = (video_clip.h - txt_clip.h) * (params.custom_position / 100)
                             custom_y = max(min_y, min(custom_y, max_y))
                             txt_clip = txt_clip.with_position(("center", custom_y))

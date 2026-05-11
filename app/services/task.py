@@ -1513,14 +1513,14 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                                         _clip = _clip.with_duration(duration)
                                         
                                         # Position subtitle
+                                        margin_px = video_height * subtitle_margin
                                         if params.subtitle_position == "bottom":
-                                            _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
+                                            _clip = _clip.with_position(("center", video_height - margin_px - _clip.h))
                                         elif params.subtitle_position == "top":
-                                            _clip = _clip.with_position(("center", video_height * 0.05))
+                                            _clip = _clip.with_position(("center", margin_px))
                                         elif params.subtitle_position == "custom":
-                                            margin = 10
-                                            max_y = video_height - _clip.h - margin
-                                            min_y = margin
+                                            max_y = video_height - _clip.h - margin_px
+                                            min_y = margin_px
                                             custom_y = (video_height - _clip.h) * (params.custom_position / 100)
                                             custom_y = max(min_y, min(custom_y, max_y))
                                             _clip = _clip.with_position(("center", custom_y))

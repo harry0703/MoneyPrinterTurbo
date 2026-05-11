@@ -913,11 +913,12 @@ def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
 
 
 def wrap_text(text, max_width, font="Arial", fontsize=60):
-    # Create ImageFont
     font = ImageFont.truetype(font, fontsize)
 
     def get_text_size(inner_text):
         inner_text = inner_text.strip()
+        if not inner_text:
+            return 0, 0
         left, top, right, bottom = font.getbbox(inner_text)
         return right - left, bottom - top
 
@@ -925,35 +926,62 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     if width <= max_width:
         return text, height
 
-    processed = True
-    while processed:
-        # Split text into two lines at the middle
-        middle = len(text) // 2
-        # Find the nearest space to split
-        split_pos = text.rfind(' ', 0, middle)
-        if split_pos == -1:
-            split_pos = text.find(' ', middle)
-        if split_pos == -1:
+    lines = []
+    current_line = text.strip()
+    
+    punctuation_chars = '，,。.！!？?；;：:、'
+    
+    while current_line:
+        current_width, line_height = get_text_size(current_line)
+        
+        if current_width <= max_width:
+            lines.append(current_line)
             break
         
-        line1 = text[:split_pos]
-        line2 = text[split_pos+1:]
+        candidates = []
         
-        # Check if both lines fit within max_width
-        w1, h1 = get_text_size(line1)
-        w2, h2 = get_text_size(line2)
+        for i in range(1, len(current_line)):
+            if current_line[i] in punctuation_chars or current_line[i] == ' ':
+                line1 = current_line[:i].strip()
+                line2 = current_line[i:].strip()
+                
+                if not line1 or not line2:
+                    continue
+                
+                w1, _ = get_text_size(line1)
+                w2, _ = get_text_size(line2)
+                
+                if w1 <= max_width:
+                    candidates.append((i + 1, w1, w2))
         
-        if w1 <= max_width and w2 <= max_width:
-            return f"{line1}\n{line2}", h1 + h2
-        else:
-            # If still too long, continue splitting the longer line
-            if w1 > w2:
-                text = line1
-            else:
-                text = line2
+        split_pos = len(current_line) // 2
+        
+        if candidates:
+            best_candidate = None
+            min_diff = float('inf')
+            
+            for pos, w1, w2 in candidates:
+                diff = abs(w1 - w2)
+                if diff < min_diff:
+                    min_diff = diff
+                    best_candidate = pos
+            
+            if best_candidate:
+                split_pos = best_candidate
+        
+        line = current_line[:split_pos].strip()
+        
+        if not line:
+            line = current_line[:max(1, len(current_line) // 2)]
+            split_pos = len(line)
+        
+        lines.append(line)
+        current_line = current_line[split_pos:].strip()
     
-    # If we can't split nicely, just return the original
-    return text, height
+    wrapped_text = '\n'.join(lines)
+    total_height = len(lines) * line_height
+    
+    return wrapped_text, total_height
 
 def analyze_video_params(video_path):
     """
