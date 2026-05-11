@@ -347,6 +347,23 @@ export const useSettingsStore = defineStore('settings', {
             } else {
               console.log('[SettingsStore] voice_name not found in config.ui');
             }
+            if (data.ui.voice_volume !== undefined) {
+              this.audio.speechVolume = String(data.ui.voice_volume);
+              console.log('[SettingsStore] Updated speechVolume from config.ui:', this.audio.speechVolume);
+            }
+            if (data.ui.voice_rate !== undefined) {
+              this.audio.speechRate = String(data.ui.voice_rate);
+              console.log('[SettingsStore] Updated speechRate from config.ui:', this.audio.speechRate);
+            }
+            if (data.ui.bgm_type !== undefined) {
+              const bgmType = data.ui.bgm_type === '' ? 'none' : data.ui.bgm_type;
+              this.audio.backgroundMusic = bgmType;
+              console.log('[SettingsStore] Updated backgroundMusic from config.ui:', this.audio.backgroundMusic);
+            }
+            if (data.ui.bgm_volume !== undefined) {
+              this.audio.backgroundMusicVolume = String(data.ui.bgm_volume);
+              console.log('[SettingsStore] Updated backgroundMusicVolume from config.ui:', this.audio.backgroundMusicVolume);
+            }
           }
 
           if (data.app) {

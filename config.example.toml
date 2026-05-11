@@ -255,6 +255,14 @@ language = "zh"
 tts_server = "azure-tts"
 # Voice name
 voice_name = ""
+# Voice volume (0.0 - 2.0)
+voice_volume = 1.0
+# Voice rate (0.5 - 2.0)
+voice_rate = 1.0
+# Background music type: "", "random", "custom"
+bgm_type = ""
+# Background music volume (0.0 - 1.0)
+bgm_volume = 0.2
 
 # Subtitle Settings
 # Enable subtitles

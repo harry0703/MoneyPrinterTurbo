@@ -218,14 +218,13 @@ const generateVideo = async () => {
       video_clip_duration: settingsStore.video.clipDuration,
       video_count: settingsStore.video.count,
       video_style: settingsStore.video.style,
-      voice_provider: settingsStore.audio.ttsServer || 'azure-tts-v1',
-      voice_type: 'female',
+      tts_server: settingsStore.audio.ttsServer || 'azure-tts-v1',
       voice_name: settingsStore.audio.speechSynthesis || 'zh-CN-XiaoxiaoNeural',
       voice_rate: parseFloat(settingsStore.audio.speechRate),
-      voice_volume: parseFloat(settingsStore.audio.speechVolume) * 100,
+      voice_volume: parseFloat(settingsStore.audio.speechVolume),
       voice_emotion: settingsStore.audio.voiceEmotion,
-      bgm: settingsStore.audio.backgroundMusic === 'none' ? '' : settingsStore.audio.backgroundMusic,
-      bgm_volume: parseFloat(settingsStore.audio.backgroundMusicVolume) * 100,
+      bgm_type: settingsStore.audio.backgroundMusic === 'none' ? '' : settingsStore.audio.backgroundMusic,
+      bgm_volume: parseFloat(settingsStore.audio.backgroundMusicVolume),
       subtitle_language: scriptStore.language || 'zh',
       subtitle_enable: settingsStore.subtitle.enable,
       subtitle_position: settingsStore.subtitle.position === 'custom' ? settingsStore.subtitle.customPosition : settingsStore.subtitle.position,
@@ -237,6 +236,13 @@ const generateVideo = async () => {
       scenes: formattedScenes,
       language: scriptStore.language || 'zh'
     };
+    
+    console.log('[Task Creation] Final taskParams:', {
+      bgm_type: taskParams.bgm_type,
+      bgm_volume: taskParams.bgm_volume,
+      voice_volume: taskParams.voice_volume,
+      tts_server: taskParams.tts_server
+    });
 
     const task = await tasksStore.createTask(taskParams, 'video');
     if (task) {

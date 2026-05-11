@@ -460,18 +460,32 @@ def render_audio_settings(params):
             config.coze["api_key"] = coze_api_key
 
         # Voice Volume setting
+        saved_voice_volume = config.ui.get("voice_volume", 1.0)
+        voice_volume_options = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
+        voice_volume_index = voice_volume_options.index(saved_voice_volume) if saved_voice_volume in voice_volume_options else 10
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
-            options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0],
-            index=10,  # Default to 1.0
+            options=voice_volume_options,
+            index=voice_volume_index,
         )
+        if params.voice_volume != saved_voice_volume:
+            config.ui["voice_volume"] = params.voice_volume
+            config.save_config()
+            logger.info(f"[Config Save] Voice volume changed from '{saved_voice_volume}' to '{params.voice_volume}'")
 
         # Voice Rate setting
+        saved_voice_rate = config.ui.get("voice_rate", 1.0)
+        voice_rate_options = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
+        voice_rate_index = voice_rate_options.index(saved_voice_rate) if saved_voice_rate in voice_rate_options else 5
         params.voice_rate = st.selectbox(
             tr("Speech Rate"),
-            options=[0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0],
-            index=5,  # Default to 1.0
+            options=voice_rate_options,
+            index=voice_rate_index,
         )
+        if params.voice_rate != saved_voice_rate:
+            config.ui["voice_rate"] = params.voice_rate
+            config.save_config()
+            logger.info(f"[Config Save] Voice rate changed from '{saved_voice_rate}' to '{params.voice_rate}'")
 
         # Background Music settings
         bgm_options = [
@@ -479,13 +493,25 @@ def render_audio_settings(params):
             (tr("Random Background Music"), "random"),
             (tr("Custom Background Music"), "custom"),
         ]
+        saved_bgm_type = config.ui.get("bgm_type", "")
+        bgm_type_index = next((i for i, (_, val) in enumerate(bgm_options) if val == saved_bgm_type), 0)
+        
+        logger.info(f"[Audio Settings] saved_bgm_type={saved_bgm_type}, bgm_type_index={bgm_type_index}, session_state bgm_type_select={st.session_state.get('bgm_type_select')}")
+        
         selected_index = st.selectbox(
             tr("Background Music"),
             options=range(len(bgm_options)),
             format_func=lambda x: bgm_options[x][0],
-            index=0,
+            index=bgm_type_index,
+            key="bgm_type_select",
         )
         params.bgm_type = bgm_options[selected_index][1]
+        logger.info(f"[Audio Settings] selected_index={selected_index}, params.bgm_type={params.bgm_type}")
+        
+        if params.bgm_type != saved_bgm_type:
+            config.ui["bgm_type"] = params.bgm_type
+            config.save_config()
+            logger.info(f"[Config Save] BGM type changed from '{saved_bgm_type}' to '{params.bgm_type}'")
 
         if params.bgm_type == "custom":
             # 创建一个空列表来存储上传的文件
@@ -542,8 +568,16 @@ def render_audio_settings(params):
                 st.session_state["uploaded_file_info"] = []
             params.bgm_file = ""
 
+        # Background Music Volume setting
+        saved_bgm_volume = config.ui.get("bgm_volume", 0.2)
+        bgm_volume_options = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        bgm_volume_index = bgm_volume_options.index(saved_bgm_volume) if saved_bgm_volume in bgm_volume_options else 2
         params.bgm_volume = st.selectbox(
             tr("Background Music Volume"),
-            options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            index=2,
+            options=bgm_volume_options,
+            index=bgm_volume_index,
         )
+        if params.bgm_volume != saved_bgm_volume:
+            config.ui["bgm_volume"] = params.bgm_volume
+            config.save_config()
+            logger.info(f"[Config Save] BGM volume changed from '{saved_bgm_volume}' to '{params.bgm_volume}'")

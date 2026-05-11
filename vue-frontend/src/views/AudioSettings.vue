@@ -408,6 +408,18 @@ const loadConfig = async () => {
         if (cfg.ui.voice_name) {
           form.speechSynthesis = cfg.ui.voice_name;
         }
+        if (cfg.ui.voice_volume !== undefined) {
+          form.speechVolume = String(cfg.ui.voice_volume);
+        }
+        if (cfg.ui.voice_rate !== undefined) {
+          form.speechRate = String(cfg.ui.voice_rate);
+        }
+        if (cfg.ui.bgm_type !== undefined) {
+          form.backgroundMusic = cfg.ui.bgm_type === '' ? 'none' : cfg.ui.bgm_type;
+        }
+        if (cfg.ui.bgm_volume !== undefined) {
+          form.backgroundMusicVolume = String(cfg.ui.bgm_volume);
+        }
       }
       if (cfg.azure) {
         form.speechRegion = cfg.azure.speech_region || '';
@@ -430,7 +442,11 @@ const saveConfig = async () => {
     const cfg = {
       ui: {
         tts_server: form.ttsServer,
-        voice_name: form.speechSynthesis
+        voice_name: form.speechSynthesis,
+        voice_volume: parseFloat(form.speechVolume),
+        voice_rate: parseFloat(form.speechRate),
+        bgm_type: form.backgroundMusic === 'none' ? '' : form.backgroundMusic,
+        bgm_volume: parseFloat(form.backgroundMusicVolume)
       },
       azure: {
         speech_region: form.speechRegion,
@@ -444,6 +460,7 @@ const saveConfig = async () => {
       }
     };
     await apiService.updateConfig(cfg);
+    console.log('[AudioSettings] Config saved:', cfg);
   } catch (error: any) {
     console.error('Failed to save config:', error);
   }

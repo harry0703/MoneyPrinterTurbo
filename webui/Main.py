@@ -579,6 +579,7 @@ middle_panel = panel[1]
 right_panel = panel[2]
 
 params = VideoParams(video_subject="")
+logger.info(f"Initial params - bgm_type={params.bgm_type}, bgm_volume={params.bgm_volume}")
 
 # Initialize session state to maintain file upload status
 if "uploaded_files" not in st.session_state:
@@ -590,6 +591,7 @@ uploaded_files = []
 
 with left_panel:
     params = render_script_settings(params, tr, llm)
+    logger.info(f"After render_script_settings - bgm_type={params.bgm_type}, bgm_volume={params.bgm_volume}")
         
 
 
@@ -598,10 +600,12 @@ with middle_panel:
     uploaded_files = render_video_settings(params, config, uploaded_files, tr)
     # Render audio settings component
     render_audio_settings(params)
+    logger.info(f"After render_audio_settings - bgm_type={params.bgm_type}, bgm_volume={params.bgm_volume}")
 
 with right_panel:
     # Render subtitle settings component
     render_subtitle_settings(params, config, tr)
+    logger.info(f"After render_subtitle_settings - bgm_type={params.bgm_type}, bgm_volume={params.bgm_volume}")
     
     # Render scene integration panel
     render_scene_integration_panel(tr)
@@ -868,6 +872,9 @@ if start_button:
 
     st.toast(tr("Generating Video"))
     logger.info(tr("Start Generating Video"))
+    
+    logger.info(f"Audio parameters from UI: voice_volume={params.voice_volume}, voice_rate={params.voice_rate}, bgm_type={params.bgm_type}, bgm_volume={params.bgm_volume}, voice_name={params.voice_name}")
+    
     logger.info(utils.to_json(params))
     scroll_to_bottom()
 
