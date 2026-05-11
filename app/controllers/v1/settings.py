@@ -58,6 +58,16 @@ def get_config(request: Request):
                 **config.ui,
                 "tts_server": tts_server,
                 "voice_name": voice_name,
+                "subtitle_enabled": config.ui.get("subtitle_enabled", True),
+                "subtitle_position": config.ui.get("subtitle_position", "bottom"),
+                "subtitle_custom_position": config.ui.get("subtitle_custom_position", 70.0),
+                "subtitle_margin": config.ui.get("subtitle_margin", 0.1),
+                "font_name": config.ui.get("font_name", "MicrosoftYaHeiBold.ttc"),
+                "text_fore_color": config.ui.get("text_fore_color", "#FFFFFF"),
+                "text_background_color": config.ui.get("text_background_color", True),
+                "font_size": config.ui.get("font_size", 60),
+                "stroke_color": config.ui.get("stroke_color", "#000000"),
+                "stroke_width": config.ui.get("stroke_width", 1.5),
             },
             "app": {
                 "llm_provider": config.app.get("llm_provider", "openai"),
@@ -134,6 +144,7 @@ def update_config(request: Request, cfg: dict):
                 config.whisper[key] = value
 
         config.save_config()
+        logger.info(f"[Update Config] Config saved successfully. ui.subtitle_enabled={config.ui.get('subtitle_enabled')}")
         return utils.get_response(200, {"message": "Config saved successfully"})
     except Exception as e:
         logger.error(f"Failed to update config: {str(e)}")

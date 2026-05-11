@@ -104,37 +104,49 @@ const form = reactive({
   subtitleOutlineWidth: settingsStore.subtitle.outlineWidth
 });
 
-watch(() => form.enableSubtitles, (newValue) => {
-  settingsStore.updateSubtitleSetting('enable', newValue);
+watch(() => form.enableSubtitles, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('enable', newValue);
 });
 
-watch(() => form.subtitleFont, (newValue) => {
-  settingsStore.updateSubtitleSetting('font', newValue);
+watch(() => form.subtitleFont, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('font', newValue);
 });
 
-watch(() => form.subtitlePosition, (newValue) => {
-  settingsStore.updateSubtitleSetting('position', newValue);
+watch(() => form.subtitlePosition, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('position', newValue);
 });
 
-watch(() => form.subtitleCustomPosition, (newValue) => {
-  settingsStore.updateSubtitleSetting('customPosition', newValue);
+watch(() => form.subtitleCustomPosition, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('customPosition', newValue);
 });
 
-watch(() => form.subtitleColor, (newValue) => {
-  settingsStore.updateSubtitleSetting('color', newValue);
+watch(() => form.subtitleColor, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('color', newValue);
 });
 
-watch(() => form.subtitleFontSize, (newValue) => {
-  settingsStore.updateSubtitleSetting('fontSize', newValue);
+watch(() => form.subtitleFontSize, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('fontSize', newValue);
 });
 
-watch(() => form.subtitleOutlineColor, (newValue) => {
-  settingsStore.updateSubtitleSetting('outlineColor', newValue);
+watch(() => form.subtitleOutlineColor, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('outlineColor', newValue);
 });
 
-watch(() => form.subtitleOutlineWidth, (newValue) => {
-  settingsStore.updateSubtitleSetting('outlineWidth', newValue);
+watch(() => form.subtitleOutlineWidth, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('outlineWidth', newValue);
 });
+
+watch(() => settingsStore.subtitle, (newSubtitle) => {
+  console.log('[SubtitleSettings] Store subtitle changed, updating form:', newSubtitle);
+  form.enableSubtitles = newSubtitle.enable;
+  form.subtitleFont = newSubtitle.font;
+  form.subtitlePosition = newSubtitle.position;
+  form.subtitleCustomPosition = newSubtitle.customPosition;
+  form.subtitleColor = newSubtitle.color;
+  form.subtitleFontSize = newSubtitle.fontSize;
+  form.subtitleOutlineColor = newSubtitle.outlineColor;
+  form.subtitleOutlineWidth = newSubtitle.outlineWidth;
+}, { deep: true });
 
 onMounted(() => {
   form.enableSubtitles = settingsStore.subtitle.enable;

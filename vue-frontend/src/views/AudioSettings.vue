@@ -374,6 +374,14 @@ const currentVoiceEmotions = computed(() => {
   });
 });
 
+const getVoiceId = (voiceValue: string): string => {
+  if (voiceValue.startsWith('coze|')) {
+    const parts = voiceValue.split('|');
+    return parts.length >= 2 ? parts[1] : voiceValue;
+  }
+  return voiceValue;
+};
+
 const loadVoices = async (forceRefresh: boolean = false) => {
   loadingVoices.value = true;
   try {
@@ -383,8 +391,17 @@ const loadVoices = async (forceRefresh: boolean = false) => {
       // Check if current speechSynthesis is valid for this TTS server
       if (allVoices.value.length > 0) {
         const isValidVoice = allVoices.value.includes(form.speechSynthesis);
+        
         if (!form.speechSynthesis || !isValidVoice) {
-          form.speechSynthesis = allVoices.value[0];
+          // For Coze voices, try to match by voice ID (since URL changes)
+          const savedVoiceId = getVoiceId(form.speechSynthesis);
+          const matchingVoice = allVoices.value.find(v => getVoiceId(v) === savedVoiceId);
+          
+          if (matchingVoice) {
+            form.speechSynthesis = matchingVoice;
+          } else {
+            form.speechSynthesis = allVoices.value[0];
+          }
         }
       }
     }
@@ -550,6 +567,21 @@ watch([
   settingsStore.updateAudioSetting('backgroundMusic', form.backgroundMusic);
   settingsStore.updateAudioSetting('backgroundMusicVolume', form.backgroundMusicVolume);
 });
+
+watch(() => settingsStore.audio, (newAudio) => {
+  console.log('[AudioSettings] Store audio changed, updating form:', newAudio);
+  form.ttsServer = newAudio.ttsServer;
+  form.speechSynthesis = newAudio.speechSynthesis;
+  form.speechRegion = newAudio.speechRegion;
+  form.speechKey = newAudio.speechKey;
+  form.siliconflowApiKey = newAudio.siliconflowApiKey;
+  form.cozeApiKey = newAudio.cozeApiKey;
+  form.voiceEmotion = newAudio.voiceEmotion;
+  form.speechVolume = newAudio.speechVolume;
+  form.speechRate = newAudio.speechRate;
+  form.backgroundMusic = newAudio.backgroundMusic;
+  form.backgroundMusicVolume = newAudio.backgroundMusicVolume;
+}, { deep: true });
 
 watch(() => form.speechSynthesis, () => {
   // Clear audio URL when voice changes

@@ -495,7 +495,8 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
         text_background_color=app_config.get("text_background_color", "transparent"),
         stroke_color=app_config.get("stroke_color", "black"),
         stroke_width=app_config.get("stroke_width", 2),
-        subtitle_position=app_config.get("subtitle_position", "bottom")
+        subtitle_position=app_config.get("subtitle_position", "bottom"),
+        custom_position=app_config.get("subtitle_custom_position", 70.0)
     )
     
     if progress_callback:

@@ -231,9 +231,34 @@ export const useSettingsStore = defineStore('settings', {
       this.saveToLocalStorage();
     },
     
-    updateSubtitleSetting<K extends keyof SubtitleSettings>(key: K, value: SubtitleSettings[K]) {
+    async updateSubtitleSetting<K extends keyof SubtitleSettings>(key: K, value: SubtitleSettings[K]) {
       this.subtitle[key] = value;
       this.saveToLocalStorage();
+      await this.saveSubtitleToBackend();
+    },
+    
+    async saveSubtitleToBackend() {
+      console.log('[SettingsStore] Saving subtitle settings to backend...');
+      try {
+        const subtitleConfig = {
+          ui: {
+            subtitle_enabled: this.subtitle.enable,
+            subtitle_position: this.subtitle.position,
+            subtitle_custom_position: parseFloat(this.subtitle.customPosition) || 70.0,
+            font_name: this.subtitle.font,
+            text_fore_color: this.subtitle.color,
+            font_size: this.subtitle.fontSize,
+            stroke_color: this.subtitle.outlineColor,
+            stroke_width: this.subtitle.outlineWidth,
+          }
+        };
+        console.log('[SettingsStore] Sending config:', JSON.stringify(subtitleConfig, null, 2));
+        const response = await apiService.updateConfig(subtitleConfig);
+        console.log('[SettingsStore] Subtitle settings saved successfully:', response);
+      } catch (error) {
+        console.error('[SettingsStore] Failed to save subtitle settings to backend:', error);
+        throw error;
+      }
     },
     
     loadFromLocalStorage() {
@@ -363,6 +388,46 @@ export const useSettingsStore = defineStore('settings', {
             if (data.ui.bgm_volume !== undefined) {
               this.audio.backgroundMusicVolume = String(data.ui.bgm_volume);
               console.log('[SettingsStore] Updated backgroundMusicVolume from config.ui:', this.audio.backgroundMusicVolume);
+            }
+            
+            // Load subtitle settings from config.ui
+            if (typeof data.ui.subtitle_enabled === 'boolean') {
+              this.subtitle.enable = data.ui.subtitle_enabled;
+              console.log('[SettingsStore] Updated subtitle.enable from config.ui:', this.subtitle.enable);
+            }
+            if (data.ui.subtitle_position) {
+              this.subtitle.position = data.ui.subtitle_position;
+              console.log('[SettingsStore] Updated subtitle.position from config.ui:', this.subtitle.position);
+            }
+            if (data.ui.subtitle_custom_position !== undefined) {
+              this.subtitle.customPosition = String(data.ui.subtitle_custom_position);
+              console.log('[SettingsStore] Updated subtitle.customPosition from config.ui:', this.subtitle.customPosition);
+            }
+            if (data.ui.subtitle_margin !== undefined) {
+              console.log('[SettingsStore] subtitle_margin from config.ui:', data.ui.subtitle_margin);
+            }
+            if (data.ui.font_name) {
+              this.subtitle.font = data.ui.font_name;
+              console.log('[SettingsStore] Updated subtitle.font from config.ui:', this.subtitle.font);
+            }
+            if (data.ui.text_fore_color) {
+              this.subtitle.color = data.ui.text_fore_color;
+              console.log('[SettingsStore] Updated subtitle.color from config.ui:', this.subtitle.color);
+            }
+            if (typeof data.ui.text_background_color !== 'undefined') {
+              console.log('[SettingsStore] text_background_color from config.ui:', data.ui.text_background_color);
+            }
+            if (data.ui.font_size !== undefined) {
+              this.subtitle.fontSize = Number(data.ui.font_size);
+              console.log('[SettingsStore] Updated subtitle.fontSize from config.ui:', this.subtitle.fontSize);
+            }
+            if (data.ui.stroke_color) {
+              this.subtitle.outlineColor = data.ui.stroke_color;
+              console.log('[SettingsStore] Updated subtitle.outlineColor from config.ui:', this.subtitle.outlineColor);
+            }
+            if (data.ui.stroke_width !== undefined) {
+              this.subtitle.outlineWidth = Number(data.ui.stroke_width);
+              console.log('[SettingsStore] Updated subtitle.outlineWidth from config.ui:', this.subtitle.outlineWidth);
             }
           }
 

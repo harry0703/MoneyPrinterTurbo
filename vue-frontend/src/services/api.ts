@@ -10,6 +10,30 @@ const api = axios.create({
   }
 });
 
+// Add request interceptor for debugging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, config.data);
+    return config;
+  },
+  (error) => {
+    console.error('[API Request Error]', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for debugging
+api.interceptors.response.use(
+  (response) => {
+    console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`, response.status);
+    return response;
+  },
+  (error) => {
+    console.error('[API Response Error]', error.response?.status, error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
 export interface VersionResponse {
   name: string;
   version: string;
