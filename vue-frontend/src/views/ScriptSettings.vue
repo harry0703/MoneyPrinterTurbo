@@ -440,7 +440,8 @@ const importIntroVideo = async (event: Event, index: number) => {
       const updatedScene = { 
         ...scenes.value[index], 
         introVideo: fullPath,
-        introVideoOriginalPath: file.name
+        introVideoOriginalPath: file.name,
+        introVideoDuration: scenes.value[index].introVideoDuration || 10
       };
       scriptStore.updateScene(index, updatedScene);
       ElMessage.success('Intro video uploaded successfully');
@@ -573,10 +574,9 @@ defineExpose({
 }
 
 .title {
+  font-size: 18px;
   font-weight: bold;
-  font-size: 20px;
   margin: 0;
-  color: #333;
 }
 
 .settings-form {
@@ -588,49 +588,43 @@ defineExpose({
 .form-item {
   display: flex;
   flex-direction: column;
-  gap: 0px;
+  gap: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .form-label {
-  font-weight: normal;
   font-size: 14px;
-  color: #333;
   margin-bottom: 4px;
-  line-height: 1.4;
+  margin-top: 0;
+  padding: 0;
 }
 
 .form-input {
   width: 100%;
-  padding: 6px 8px;
-  border-radius: 4px;
-  box-sizing: border-box;
+  margin-top: 0;
 }
 
 .form-input :deep(.el-input) {
-  width: 100%;
+  margin-top: 0;
 }
 
 .form-textarea {
   width: 100%;
-  padding: 6px 8px;
-  border-radius: 4px;
-  box-sizing: border-box;
-  resize: vertical;
+  margin-top: 0;
 }
 
-.form-textarea :deep(.el-input) {
-  width: 100%;
+.form-textarea :deep(.el-textarea) {
+  margin-top: 0;
 }
 
 .form-select {
   width: 100%;
-  padding: 6px 8px;
-  border-radius: 4px;
-  box-sizing: border-box;
+  margin-top: 0;
 }
 
 .form-select :deep(.el-select) {
-  width: 100%;
+  margin-top: 0;
 }
 
 .tip {
@@ -708,7 +702,22 @@ defineExpose({
 .scene-content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
+}
+
+.scene-content .form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.scene-content .form-label {
+  font-size: 14px;
+  margin-bottom: 4px;
+  margin-top: 0;
+  padding: 0;
 }
 
 .intro-video-section {
