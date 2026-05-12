@@ -120,11 +120,11 @@ const tasks = computed(() => tasksStore.tasks);
 const filteredLogs = computed(() => {
   let result = [...logs.value];
 
-  // Sort logs by timestamp (newest first)
+  // Sort logs by timestamp (oldest first, newest at bottom)
   result.sort((a, b) => {
     const dateA = new Date(a.timestamp).getTime();
     const dateB = new Date(b.timestamp).getTime();
-    return dateB - dateA;
+    return dateA - dateB;
   });
 
   if (selectedTaskId.value) {
@@ -158,7 +158,7 @@ const fetchLogs = async () => {
     const response = await apiService.getLogs({
       level: selectedLogLevel.value || undefined,
       task_id: selectedTaskId.value || undefined,
-      limit: 1000,
+      limit: 3000,
       offset: 0
     });
     console.log('Logs response:', response);
@@ -214,9 +214,9 @@ const connectWebSocket = () => {
   ws.value.onmessage = (event) => {
     try {
       const newLog: LogEntry = JSON.parse(event.data);
-      logs.value.unshift(newLog);
-      if (logs.value.length > 1000) {
-        logs.value = logs.value.slice(0, 1000);
+      logs.value.push(newLog);
+      if (logs.value.length > 3000) {
+        logs.value = logs.value.slice(-3000);
       }
       totalLogs.value = logs.value.length;
       scrollToBottom();

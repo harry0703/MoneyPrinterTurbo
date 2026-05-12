@@ -21,7 +21,7 @@ class LogService:
         if self._initialized:
             return
         self._initialized = True
-        self._logs = deque(maxlen=1000)
+        self._logs = deque(maxlen=3000)
         self._log_file = None
         self._setup_log_file()
         self._websocket_connections = set()
@@ -110,7 +110,7 @@ class LogService:
             task_id: 任务ID
         """
         # 从内存中删除特定任务的日志
-        self._logs = deque([log for log in self._logs if log.get("task_id") != task_id], maxlen=1000)
+        self._logs = deque([log for log in self._logs if log.get("task_id") != task_id], maxlen=3000)
 
     def get_log_file_path(self):
         return self._log_file

@@ -11,7 +11,7 @@ router = new_router()
 def get_logs(
     level: str = Query(None, description="Log level filter (INFO, WARNING, ERROR)"),
     task_id: str = Query(None, description="Task ID filter"),
-    limit: int = Query(100, ge=1, le=1000, description="Number of logs to return"),
+    limit: int = Query(100, ge=1, le=3000, description="Number of logs to return"),
     offset: int = Query(0, ge=0, description="Pagination offset")
 ):
     result = log_service.get_logs(level, task_id, limit, offset)
