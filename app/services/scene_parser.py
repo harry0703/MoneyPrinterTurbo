@@ -717,8 +717,8 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
         
         paragraphs = [p.strip() for p in script.split("\n\n") if p.strip()]
         
-        # Limit the number of paragraphs to a reasonable range (5-15)
-        max_scenes = 15
+        # Limit the number of paragraphs to a reasonable range (5-16)
+        max_scenes = 16
         min_scenes = 5
         if len(paragraphs) > max_scenes:
             logger.warning(f"Found {len(paragraphs)} paragraphs, limiting to {max_scenes} scenes")
@@ -809,8 +809,8 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
             logger.info(f"[Scene {i+1} Created Successfully] Lines length: {len(paragraph)} chars, Estimated duration: {duration} seconds")
             current_time += duration
     
-    # Limit the number of scenes to a reasonable range (5-15)
-    max_scenes = 15
+    # Limit the number of scenes to a reasonable range (5-16)
+    max_scenes = 16
     min_scenes = 5
     if len(scenes) > max_scenes:
         logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")

@@ -31,6 +31,11 @@
             {{ t('Refresh') }}
           </el-button>
 
+          <el-button type="primary" size="small" @click="exportLogs">
+            <el-icon><Download /></el-icon>
+            {{ t('Export') }}
+          </el-button>
+
           <el-button :type="autoRefresh ? 'success' : 'default'" size="small" @click="toggleAutoRefresh">
             {{ autoRefresh ? t('Auto Refresh On') : t('Auto Refresh Off') }}
           </el-button>
@@ -78,7 +83,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
+import { Refresh, Download } from '@element-plus/icons-vue';
 import { useI18nStore } from '../stores/i18n';
 import { useTasksStore } from '../stores/tasks';
 import { apiService } from '../services/api';
@@ -250,6 +255,42 @@ const connectWebSocket = () => {
 
 const refreshLogs = () => {
   fetchLogs();
+};
+
+const exportLogs = () => {
+  let result = [...logs.value];
+  
+  result.sort((a, b) => {
+    const dateA = new Date(a.timestamp).getTime();
+    const dateB = new Date(b.timestamp).getTime();
+    return dateA - dateB;
+  });
+
+  if (selectedTaskId.value) {
+    result = result.filter(log => log.task_id === selectedTaskId.value);
+  }
+
+  if (selectedLogLevel.value) {
+    result = result.filter(log => log.level?.toLowerCase() === selectedLogLevel.value);
+  }
+
+  const logLines = result.map(log => {
+    const time = formatTime(log.timestamp);
+    const level = log.level || 'INFO';
+    const task = log.task_id ? ` [Task #${log.task_id}]` : '';
+    return `${time} [${level}]${task} ${log.message}`;
+  });
+
+  const content = logLines.join('\n');
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `logs_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 const handleSizeChange = (size: number) => {

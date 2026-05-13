@@ -352,7 +352,7 @@ def _generate_response(prompt: str) -> str:
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
 
-        return content.replace("\n", "")
+        return content.replace("\n", "") if content else ""
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -571,6 +571,11 @@ def generate_tags(scene_script: str, visual_requirement: str = "", max_tags: int
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
+            
+            if not response or response.strip() == "":
+                logger.warning(f"LLM API returned empty response, attempt {i + 1}/{_max_retries}")
+                continue
+                
             if "Error: " in response:
                 logger.error(f"Failed to generate tags: {response}")
                 if stop_on_api_failure:
@@ -620,7 +625,7 @@ def generate_tags(scene_script: str, visual_requirement: str = "", max_tags: int
 def generate_multi_scene_script(
     video_content: str,
     language: str = "",
-    max_scenes: int = 12
+    max_scenes: int = 16
 ) -> str:
     """
     Generate multi-scene script for video.
@@ -707,9 +712,13 @@ Please return a JSON object with the following structure:
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt=prompt)
-            if response:
-                final_script = response
-                break
+            
+            if not response or response.strip() == "":
+                logger.warning(f"LLM API returned empty response, attempt {i + 1}/{_max_retries}")
+                continue
+                
+            final_script = response
+            break
         except Exception as e:
             logger.error(f"failed to generate multi-scene script: {e}")
         
@@ -764,6 +773,10 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
         logger.info("Attempting to parse JSON format")
         cleaned_script = script_text.strip()
         
+        if not cleaned_script:
+            logger.warning("Empty script text provided, falling back to text parsing")
+            raise ValueError("Empty script text")
+        
         if cleaned_script.startswith('```json') and cleaned_script.endswith('```'):
             cleaned_script = cleaned_script[7:-3].strip()
         elif cleaned_script.startswith('```') and cleaned_script.endswith('```'):
@@ -797,8 +810,8 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
                 scene_id += 1
             logger.info(f"Successfully parsed {len(scenes)} scenes from JSON format")
             
-            # 限制场景数量在合理范围内 (5-15)
-            max_scenes = 15
+            # 限制场景数量在合理范围内 (5-16)
+            max_scenes = 16
             min_scenes = 5
             if len(scenes) > max_scenes:
                 logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")
@@ -960,8 +973,8 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
         }
         scenes.append(scene)
     
-    # 限制场景数量在合理范围内 (5-15)
-    max_scenes = 15
+    # 限制场景数量在合理范围内 (5-16)
+    max_scenes = 16
     min_scenes = 5
     if len(scenes) > max_scenes:
         logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")
@@ -1156,11 +1169,16 @@ Please generate search terms in the same language as the scene script.
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
+            
+            if not response or response.strip() == "":
+                logger.warning(f"LLM API returned empty response, attempt {i + 1}/{_max_retries}")
+                continue
+                
             if "Error: " in response:
                 logger.error(f"failed to generate scene terms: {response}")
                 if stop_on_api_failure:
                     return f"Error: {response}"
-                return []
+                continue
             search_terms = json.loads(response)
             if not isinstance(search_terms, list) or not all(
                 isinstance(term, str) for term in search_terms

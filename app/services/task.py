@@ -143,7 +143,7 @@ def generate_multi_scene_script(task_id, params):
         video_script = llm.generate_multi_scene_script(
             video_content=params.video_subject,
             language=params.video_language,
-            max_scenes=15
+            max_scenes=16
         )
     else:
         # User provided script, convert to multi-scene format
