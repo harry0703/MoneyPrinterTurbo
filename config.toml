@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.18"
+project_version = "1.2.66.19"
 
 [app]
 video_source = "pexels"
@@ -57,7 +57,7 @@ video_transition_mode = "none"
 video_aspect = "portrait_3_4"
 video_clip_duration = 3
 video_count = 1
-video_style = "none"
+video_style = "animation"
 
 [whisper]
 model_size = "large-v3"

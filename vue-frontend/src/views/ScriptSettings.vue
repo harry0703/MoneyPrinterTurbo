@@ -136,7 +136,7 @@
                   <input
                     :ref="el => setFileInputRef(el, index)"
                     type="file"
-                    accept=".mp4,.mov,.avi"
+                    accept=".mp4,.mov,.avi,.flv,.mkv,.jpg,.jpeg,.png,.gif"
                     style="display: none"
                     @change="(e) => importIntroVideo(e, index)"
                   />
