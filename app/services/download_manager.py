@@ -52,12 +52,12 @@ class VideoDownloadQueue:
                     else:
                         self.failed_tasks.append(task['video_url'])
                         if task['callback']:
-                            task['callback'](success=False, error="Download failed")
+                            task['callback'](success=False, error="Download failed: video download returned False")
                 except Exception as e:
                     logger.error(f"Download failed: {e}")
                     self.failed_tasks.append(task['video_url'])
                     if task['callback']:
-                        task['callback'](success=False, error=str(e))
+                        task['callback'](success=False, error=f"Download failed: {str(e)}")
                 finally:
                     with self.lock:
                         self.active_downloads -= 1

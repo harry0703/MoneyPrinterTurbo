@@ -154,15 +154,18 @@ class LoguruHandler:
         self.log_service = log_service
 
     def __call__(self, message):
-        record = message.record
-        level = record["level"].name
+        try:
+            record = message.record
+            level = record["level"].name
 
-        extra = record.get("extra", {})
-        task_id = extra.get("task_id")
-        
-        print(f"[LoguruHandler] Received log: level={level}, message={record['message'][:50]}...")
+            extra = record.get("extra", {})
+            task_id = extra.get("task_id")
+            
+            print(f"[LoguruHandler] Received log: level={level}, message={record['message'][:50]}...")
 
-        self.log_service.add_log(level, record["message"], task_id)
+            self.log_service.add_log(level, record["message"], task_id)
+        except Exception as e:
+            print(f"[LoguruHandler] Error processing log: {e}")
 
 
 log_service = LogService()
