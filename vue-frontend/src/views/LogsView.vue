@@ -65,18 +65,6 @@
           {{ t('No logs found') }}
         </div>
       </div>
-      
-      <div class="logs-pagination" v-if="totalPages > 1">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="totalLogs"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
-      </div>
     </el-card>
   </div>
 </template>
@@ -94,10 +82,7 @@ const t = i18nStore.t;
 
 const selectedTaskId = ref('');
 const selectedLogLevel = ref('');
-const currentPage = ref(1);
-const pageSize = ref(50);
 const totalLogs = ref(0);
-const totalPages = computed(() => Math.ceil(filteredLogs.value.length / pageSize.value));
 const autoRefresh = ref(true);
 const refreshInterval = ref<number | null>(null);
 
@@ -141,9 +126,7 @@ const filteredLogs = computed(() => {
     result = result.filter(log => log.level?.toLowerCase() === selectedLogLevel.value);
   }
 
-  const start = (currentPage.value - 1) * pageSize.value;
-  const end = start + pageSize.value;
-  return result.slice(start, end);
+  return result;
 });
 
 const formatTime = (timestamp: string) => {
@@ -236,6 +219,7 @@ const connectWebSocket = () => {
         logs.value = logs.value.slice(-3000);
       }
       totalLogs.value = logs.value.length;
+      
       scrollToBottom();
     } catch (error) {
       console.error('[WS] Error parsing message:', error);
@@ -303,15 +287,6 @@ const exportLogs = () => {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-};
-
-const handleSizeChange = (size: number) => {
-  pageSize.value = size;
-  currentPage.value = 1;
-};
-
-const handleCurrentChange = (page: number) => {
-  currentPage.value = page;
 };
 
 const toggleAutoRefresh = () => {
