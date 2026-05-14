@@ -49,7 +49,7 @@
         </div>
       </div>
       
-      <div class="logs-container" ref="logsContainerRef">
+      <div class="logs-container" ref="logsContainerRef" @scroll="handleScroll">
         <div 
           v-for="(log, index) in filteredLogs" 
           :key="index" 
@@ -112,6 +112,7 @@ const logs = ref<LogEntry[]>([]);
 const logsContainerRef = ref<HTMLElement | null>(null);
 const ws = ref<WebSocket | null>(null);
 const isWebSocketConnected = ref(false);
+const shouldAutoScroll = ref(true);
 
 const wsStatus = ref({
   text: 'Disconnected',
@@ -187,10 +188,21 @@ const fetchLogs = async () => {
 
 const scrollToBottom = () => {
   setTimeout(() => {
-    if (logsContainerRef.value) {
+    if (logsContainerRef.value && shouldAutoScroll.value) {
       logsContainerRef.value.scrollTop = logsContainerRef.value.scrollHeight;
     }
   }, 100);
+};
+
+const handleScroll = () => {
+  if (!logsContainerRef.value) return;
+  
+  const container = logsContainerRef.value;
+  const { scrollTop, scrollHeight, clientHeight } = container;
+  const scrollDistanceFromBottom = scrollHeight - scrollTop - clientHeight;
+  
+  // If user is within 200px of the bottom, enable auto-scroll
+  shouldAutoScroll.value = scrollDistanceFromBottom < 200;
 };
 
 const connectWebSocket = () => {
