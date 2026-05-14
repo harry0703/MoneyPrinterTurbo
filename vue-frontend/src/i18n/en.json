@@ -217,6 +217,8 @@
     "LLM Provider Recommendation": "Recommendation for Chinese Users",
     "LLM Provider Recommendation Content": "We recommend using <strong style=\"color: #ff4d4f;\">DeepSeek</strong> or <strong style=\"color: #ff4d4f;\">Moonshot</strong> as your LLM provider<br/>- Accessible directly in China without VPN<br/>- Free credits upon registration, generally sufficient for use",
     "Settings": "Settings",
+    "Settings saved successfully": "Settings saved successfully",
+    "Failed to save settings": "Failed to save settings",
     "Video Source Settings": "<strong>Video Source Settings</strong>",
     "Click to show API Key management": "Click to show API Key management",
     "Manage Pexels and Pixabay API Keys": "Manage Pexels and Pixabay API Keys",

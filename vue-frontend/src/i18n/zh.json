@@ -214,6 +214,8 @@
     "LLM Provider Recommendation": "推荐给中国用户",
     "LLM Provider Recommendation Content": "推荐使用 <strong style=\"color: #ff4d4f;\">DeepSeek</strong> 或 <strong style=\"color: #ff4d4f;\">Moonshot</strong> 作为大模型提供商<br/>- 在中国无需 VPN 即可直接访问<br/>- 注册即有免费额度，基本够用",
     "Settings": "设置",
+    "Settings saved successfully": "设置保存成功",
+    "Failed to save settings": "设置保存失败",
     "Video Source Settings": "<strong>视频源设置</strong>",
     "Click to show API Key management": "点击以显示 API Key 管理功能",
     "Manage Pexels and Pixabay API Keys": "管理 Pexels 和 Pixabay API Keys",

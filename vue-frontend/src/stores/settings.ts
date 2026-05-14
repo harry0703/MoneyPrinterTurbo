@@ -282,7 +282,18 @@ export const useSettingsStore = defineStore('settings', {
     },
     
     saveToLocalStorage() {
-      localStorage.setItem('moneyprinter-settings', JSON.stringify(this));
+      const dataToSave = {
+        app: this.app,
+        llm: this.llm,
+        videoSources: this.videoSources,
+        whisper: this.whisper,
+        ui: this.ui,
+        video: this.video,
+        audio: this.audio,
+        subtitle: this.subtitle,
+        version: this.version
+      };
+      localStorage.setItem('moneyprinter-settings', JSON.stringify(dataToSave));
     },
 
     async checkBackendHealth(): Promise<boolean> {

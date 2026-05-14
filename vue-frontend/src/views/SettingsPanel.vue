@@ -170,10 +170,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, onMounted } from 'vue';
+import { reactive, computed, onMounted, watch } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { useI18nStore } from '../stores/i18n';
 import { Delete, Plus } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 import { apiService } from '../services/api';
 
 const props = defineProps<{
@@ -191,9 +192,33 @@ const visible = computed({
 });
 
 const i18nStore = useI18nStore();
-const t = computed(() => i18nStore.t);
+const t = i18nStore.t;
 
 const settingsStore = useSettingsStore();
+
+// Load settings into form
+const loadSettingsToForm = () => {
+  form.llmProvider = settingsStore.app.llmProvider;
+  
+  // Load LLM configuration
+  const llmConfig = settingsStore.getLLMConfig(form.llmProvider);
+  form.llmApiKey = llmConfig.apiKey || '';
+  form.llmBaseUrl = llmConfig.baseUrl || '';
+  form.llmModelName = llmConfig.modelName || '';
+  
+  // Load video source configuration
+  const pexelsKeys = settingsStore.getVideoSourceConfig('pexels');
+  form.pexelsApiKeys = pexelsKeys.length > 0 ? pexelsKeys : [''];
+  
+  const pixabayKeys = settingsStore.getVideoSourceConfig('pixabay');
+  form.pixabayApiKeys = pixabayKeys.length > 0 ? pixabayKeys : [''];
+  
+  // Load Whisper configuration
+  form.whisperDevice = settingsStore.whisper.device || 'CPU';
+  
+  // Load video encoder configuration
+  form.videoEncoder = settingsStore.app.useGpu ? 'GPU' : 'CPU';
+};
 
 const form = reactive({
   llmProvider: 'openai',
@@ -252,46 +277,46 @@ const llmTips = computed(() => {
   
   switch (provider) {
     case 'deepseek':
-      title = t.value('DeepSeek Configuration');
+      title = t('DeepSeek Configuration');
       content = `
-        <p>${t.value('API Key')}: ${t.value('DeepSeek API Key Tip').replace('API Key: ', '')}</p>
-        <p>${t.value('Base Url')}: ${t.value('DeepSeek Base Url Tip').replace('Base Url: ', '')}</p>
-        <p>${t.value('Model Name')}: ${t.value('DeepSeek Model Name Tip').replace('Model Name: ', '')}</p>
+        <p>${t('API Key')}: ${t('DeepSeek API Key Tip').replace('API Key: ', '')}</p>
+        <p>${t('Base Url')}: ${t('DeepSeek Base Url Tip').replace('Base Url: ', '')}</p>
+        <p>${t('Model Name')}: ${t('DeepSeek Model Name Tip').replace('Model Name: ', '')}</p>
       `;
       break;
     case 'moonshot':
-      title = t.value('Moonshot Configuration');
+      title = t('Moonshot Configuration');
       content = `
-        <p>${t.value('API Key')}: ${t.value('Moonshot API Key Tip').replace('API Key: ', '')}</p>
-        <p>${t.value('Base Url')}: ${t.value('Moonshot Base Url Tip').replace('Base Url: ', '')}</p>
-        <p>${t.value('Model Name')}: ${t.value('Moonshot Model Name Tip').replace('Model Name: ', '')}</p>
+        <p>${t('API Key')}: ${t('Moonshot API Key Tip').replace('API Key: ', '')}</p>
+        <p>${t('Base Url')}: ${t('Moonshot Base Url Tip').replace('Base Url: ', '')}</p>
+        <p>${t('Model Name')}: ${t('Moonshot Model Name Tip').replace('Model Name: ', '')}</p>
       `;
       break;
     case 'openai':
-      title = t.value('OpenAI Configuration');
+      title = t('OpenAI Configuration');
       content = `
-        <p>${t.value('OpenAI VPN Tip')}</p>
-        <p>${t.value('API Key')}: ${t.value('OpenAI API Key Tip').replace('API Key: ', '')}</p>
-        <p>${t.value('Base Url')}: ${t.value('OpenAI Base Url Tip').replace('Base Url: ', '')}</p>
-        <p>${t.value('Model Name')}: ${t.value('OpenAI Model Name Tip').replace('Model Name: ', '')}</p>
+        <p>${t('OpenAI VPN Tip')}</p>
+        <p>${t('API Key')}: ${t('OpenAI API Key Tip').replace('API Key: ', '')}</p>
+        <p>${t('Base Url')}: ${t('OpenAI Base Url Tip').replace('Base Url: ', '')}</p>
+        <p>${t('Model Name')}: ${t('OpenAI Model Name Tip').replace('Model Name: ', '')}</p>
       `;
       break;
     case 'ollama':
-      title = t.value('Ollama Configuration');
+      title = t('Ollama Configuration');
       content = `
-        <p>${t.value('API Key')}: ${t.value('Ollama API Key Tip').replace('API Key: ', '')}</p>
-        <p>${t.value('Base Url')}: ${t.value('Ollama Base Url Tip').replace('Base Url: ', '')}</p>
-        <p>- ${t.value('Ollama Base Url Tip 2')}</p>
-        <p>- ${t.value('Ollama Base Url Tip 3')}</p>
-        <p>${t.value('Model Name')}: ${t.value('Ollama Model Name Tip').replace('Model Name: ', '')}</p>
+        <p>${t('API Key')}: ${t('Ollama API Key Tip').replace('API Key: ', '')}</p>
+        <p>${t('Base Url')}: ${t('Ollama Base Url Tip').replace('Base Url: ', '')}</p>
+        <p>- ${t('Ollama Base Url Tip 2')}</p>
+        <p>- ${t('Ollama Base Url Tip 3')}</p>
+        <p>${t('Model Name')}: ${t('Ollama Model Name Tip').replace('Model Name: ', '')}</p>
       `;
       break;
     default:
-      title = t.value('LLM Configuration');
+      title = t('LLM Configuration');
       content = `
-        <p>${t.value('API Key')}: ${t.value('Please Enter LLM API Key')}</p>
-        <p>${t.value('Base Url')}: ${t.value('Base Url Tooltip')}</p>
-        <p>${t.value('Model Name')}: ${t.value('Model Name Tooltip')}</p>
+        <p>${t('API Key')}: ${t('Please Enter LLM API Key')}</p>
+        <p>${t('Base Url')}: ${t('Base Url Tooltip')}</p>
+        <p>${t('Model Name')}: ${t('Model Name Tooltip')}</p>
       `;
   }
   
@@ -400,56 +425,55 @@ const saveSettings = async () => {
         break;
     }
 
-    // Prepare config object to send to backend
-    const configToSave = {
+    // Prepare config object to send to backend - create plain object to avoid circular references
+    const configToSave = JSON.parse(JSON.stringify({
       app: appConfig,
       whisper: {
         device: form.whisperDevice
       }
-    };
+    }));
 
     // Send config to backend
-    await apiService.updateConfig(configToSave);
+    const response = await apiService.updateConfig(configToSave);
+    console.log('[saveSettings] Response:', response.status, response.data);
 
     // Save to local storage
     settingsStore.saveToLocalStorage();
+
+    // Show success message
+    ElMessage.success(t('Settings saved successfully'));
 
     // Close dialog
     visible.value = false;
 
     // Trigger settings saved event
     emit('settings-saved');
-  } catch (error) {
-    console.error('Failed to save settings:', error);
+  } catch (error: any) {
+    console.error('Failed to save settings:', error?.message || error);
+    ElMessage.error(t('Failed to save settings') + ': ' + (error?.message || 'Unknown error'));
   }
 };
+
+// Watch for dialog opening to reload the form
+watch(() => props.visible, async (newValue) => {
+  if (newValue) {
+    try {
+      // Fetch config from backend first
+      await settingsStore.fetchConfig();
+      // Load settings into form
+      loadSettingsToForm();
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  }
+});
 
 onMounted(async () => {
   try {
     // Fetch config from backend first
     await settingsStore.fetchConfig();
-    
-    // Load settings from state management
-    form.llmProvider = settingsStore.app.llmProvider;
-    
-    // Load LLM configuration
-    const llmConfig = settingsStore.getLLMConfig(form.llmProvider);
-    form.llmApiKey = llmConfig.apiKey || '';
-    form.llmBaseUrl = llmConfig.baseUrl || '';
-    form.llmModelName = llmConfig.modelName || '';
-    
-    // Load video source configuration
-    const pexelsKeys = settingsStore.getVideoSourceConfig('pexels');
-    form.pexelsApiKeys = pexelsKeys.length > 0 ? pexelsKeys : [''];
-    
-    const pixabayKeys = settingsStore.getVideoSourceConfig('pixabay');
-    form.pixabayApiKeys = pixabayKeys.length > 0 ? pixabayKeys : [''];
-    
-    // Load Whisper configuration
-    form.whisperDevice = settingsStore.whisper.device || 'CPU';
-    
-    // Load video encoder configuration
-    form.videoEncoder = settingsStore.app.useGpu ? 'GPU' : 'CPU';
+    // Load settings into form
+    loadSettingsToForm();
   } catch (error) {
     console.error('Failed to load settings:', error);
   }

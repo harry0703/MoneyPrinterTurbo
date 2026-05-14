@@ -793,18 +793,22 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
         data = json.loads(cleaned_script)
         if "scenes" in data and isinstance(data["scenes"], list):
             for i, scene_data in enumerate(data["scenes"]):
+                visual_content = scene_data.get("visual", "")
+                if not visual_content or visual_content.strip() == "":
+                    logger.warning(f"Scene {scene_id} parsed with empty visual requirements from LLM response")
+                
                 scene = {
                     "id": f"scene_{scene_id}",
                     "title": scene_data.get("title", f"Scene {scene_id}"),
-                    "visual": scene_data.get("visual", ""),
+                    "visual": visual_content,
                     "audio": scene_data.get("script", ""),
                     "emotion": scene_data.get("emotion", ""),
                     "script": scene_data.get("script", ""),  # 保持与原有结构兼容
-                    "camera": scene_data.get("visual", ""),  # 保持与原有结构兼容
+                    "camera": visual_content,  # 保持与原有结构兼容
                     "keywords": scene_data.get("keywords", ""),  # 新增关键词字段
                     "start_time": scene_id * 10,  # 保持与原有结构兼容
                     "end_time": (scene_id + 1) * 10,  # 保持与原有结构兼容
-                    "full_script": f"###  Scene {scene_id}: {scene_data.get('title', f'Scene {scene_id}')}\n- **Core Keywords**：{scene_data.get('keywords', '')}\n- **Visual (Visual Elements)**：\n{scene_data.get('visual', '')}\n- **Audio (Dialogue Script)**：\n[{scene_data.get('emotion', '')}] {scene_data.get('script', '')}"
+                    "full_script": f"###  Scene {scene_id}: {scene_data.get('title', f'Scene {scene_id}')}\n- **Core Keywords**：{scene_data.get('keywords', '')}\n- **Visual (Visual Elements)**：\n{visual_content}\n- **Audio (Dialogue Script)**：\n[{scene_data.get('emotion', '')}] {scene_data.get('script', '')}"
                 }
                 scenes.append(scene)
                 scene_id += 1

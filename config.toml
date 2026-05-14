@@ -1,12 +1,12 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.14"
+project_version = "1.2.66.15"
 
 [app]
 video_source = "pexels"
 hide_config = false
 pexels_api_keys = [ "Ra5z3Yw0ZUwPy6Y7DddvQTgPq8lgW1JePJu1oSDJWVvrxm6R5LBwqv0x", "OWKfbDqi48tpPqaPyJVQga7FwquH1SXDtMYULID8MPU0z6krtQJ9OwZ6",]
 pixabay_api_keys = [ "54923197-cd28f5e7418eaabd03cdd2edb",]
-llm_provider = "deepseek"
+llm_provider = "moonshot"
 stop_on_api_failure = true
 pollinations_api_key = ""
 pollinations_base_url = "https://pollinations.ai/api/v1"
@@ -16,9 +16,9 @@ ollama_model_name = "qwen:7b"
 openai_api_key = ""
 openai_base_url = ""
 openai_model_name = "gpt-4o-mini"
-moonshot_api_key = "sk-5ZAQbXRlGXxCDr6AGNETcWrEv0eaqVHYjTnD5mxAfeVDhI18"
+moonshot_api_key = "sk-0b0650da992d4c86837fdb2ebb39f30c"
 moonshot_base_url = "https://api.moonshot.cn/v1"
-moonshot_model_name = "moonshot-v1-128k"
+moonshot_model_name = "moonshot-v1-8k"
 oneapi_api_key = ""
 oneapi_base_url = ""
 oneapi_model_name = ""

@@ -631,7 +631,7 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
         if not visual_requirement or visual_requirement.strip() == "":
             # Build visual prompt based on selected language
             if language == "Chinese":
-                logger.warning(f"[场景{i+1}视觉需求为空] 尝试使用LLM生成视觉需求...")
+                logger.warning(f"[Scene {i+1} Visual Requirements Empty] Attempting to generate visual requirements using LLM...")
                 visual_prompt = f"为以下视频台词生成纯文本视觉需求，要求：1. 内容简洁规范；2. 包含画面主体、环境背景、人物动作或物体变化、运镜方式；3. 直接输出纯文本内容，不使用任何特殊标记和格式：{scene_script[:200]}"
             else:
                 logger.warning(f"[Scene {i+1} Visual Requirements Empty] Attempting to generate visual requirements using LLM...")
