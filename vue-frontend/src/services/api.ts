@@ -207,6 +207,21 @@ export const apiService = {
     const response = await api.get('/logs', { params });
     // Return the raw response data
     return response.data;
+  },
+  
+  // Scene integration related
+  scanSceneIntegration: async (taskId: string): Promise<ApiResponse> => {
+    const response = await api.post('/scene-integration/scan', { task_id: taskId });
+    return response.data;
+  },
+  
+  recoverSceneIntegration: async (taskId: string, startScene: number, endScene: number): Promise<ApiResponse> => {
+    const response = await api.post('/scene-integration/recover', { 
+      task_id: taskId, 
+      start_scene: startScene, 
+      end_scene: endScene 
+    });
+    return response.data;
   }
 };
 

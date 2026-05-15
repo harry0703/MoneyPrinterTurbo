@@ -10,15 +10,15 @@ from typing import Dict, Optional, Callable, Any, List, Tuple
 thread_local = threading.local()
 
 class TaskStatus:
-    """任务状态枚举"""
-    PENDING = "pending"      # 等待中
-    RUNNING = "running"      # 正在运行
-    COMPLETED = "completed"  # 完成
-    FAILED = "failed"        # 失败
-    CANCELLED = "cancelled"  # 已取消
+    """Task status enumeration"""
+    PENDING = "pending"      # Waiting
+    RUNNING = "running"      # Running
+    COMPLETED = "completed"  # Completed
+    FAILED = "failed"        # Failed
+    CANCELLED = "cancelled"  # Cancelled
 
 class TaskInfo:
-    """任务信息类"""
+    """Task information class"""
     def __init__(self, task_id: str, task_func: Callable, args: tuple, kwargs: dict):
         self.task_id = task_id
         self.task_func = task_func
@@ -33,7 +33,7 @@ class TaskInfo:
         self.cancelled = False
     
     def to_dict(self) -> Dict:
-        """转换为字典格式"""
+        """Convert to dictionary format"""
         return {
             'task_id': self.task_id,
             'status': self.status,
@@ -45,7 +45,7 @@ class TaskInfo:
     
     @classmethod
     def from_dict(cls, data: Dict, task_func: Callable = None, args: tuple = (), kwargs: dict = {}):
-        """从字典创建TaskInfo实例"""
+        """Create TaskInfo instance from dictionary"""
         task_info = cls(data['task_id'], task_func, args, kwargs)
         task_info.status = data['status']
         task_info.start_time = datetime.fromisoformat(data['start_time']) if data['start_time'] else None
@@ -56,12 +56,12 @@ class TaskInfo:
 
 class ThreadManager:
     def __init__(self, max_concurrent_tasks: int = 1, max_history: int = 20, save_file: str = 'tasks.json'):
-        """初始化线程管理器
+        """Initialize thread manager
         
         Args:
-            max_concurrent_tasks: 最大并发任务数，默认为1
-            max_history: 最大历史任务记录数，默认为20
-            save_file: 任务信息保存文件路径，默认为'tasks.json'
+            max_concurrent_tasks: Maximum number of concurrent tasks, default is 1
+            max_history: Maximum number of historical task records, default is 20
+            save_file: Task information save file path, default is 'tasks.json'
         """
         self.max_concurrent_tasks = max_concurrent_tasks
         self.max_history = max_history
@@ -73,52 +73,52 @@ class ThreadManager:
         self.history: List[TaskInfo] = []
         self.running = True
         
-        # 加载历史任务信息
+        # Load historical task information
         self._load_tasks()
     
     def _save_tasks(self):
-        """保存任务信息到文件"""
+        """Save task information to file"""
         try:
             with self.lock:
-                # 只保存历史任务和已完成的任务
+                # Only save historical and completed tasks
                 tasks_to_save = []
                 for task_info in self.history:
                     tasks_to_save.append(task_info.to_dict())
                 
-                # 保存到文件
+                # Save to file
                 with open(self.save_file, 'w', encoding='utf-8') as f:
                     json.dump(tasks_to_save, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logging.error(f"Failed to save tasks: {str(e)}")
     
     def _load_tasks(self):
-        """从文件加载任务信息"""
+        """Load task information from file"""
         try:
             if os.path.exists(self.save_file):
                 with open(self.save_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     for task_data in data:
-                        # 为历史任务创建TaskInfo实例（不含函数和参数）
+                        # Create TaskInfo instance for historical tasks (without function and parameters)
                         task_info = TaskInfo.from_dict(task_data)
                         self.history.append(task_info)
                     
-                # 限制历史记录数量
+                # Limit the number of historical records
                 if len(self.history) > self.max_history:
                     self.history = self.history[:self.max_history]
         except Exception as e:
             logging.error(f"Failed to load tasks: {str(e)}")
 
     def submit_task(self, task_id: str, task_func: Callable, *args, **kwargs) -> str:
-        """提交任务到后台线程
+        """Submit task to background thread
         
         Args:
-            task_id: 任务ID
-            task_func: 任务函数
-            *args: 任务函数参数
-            **kwargs: 任务函数关键字参数
+            task_id: Task ID
+            task_func: Task function
+            *args: Task function arguments
+            **kwargs: Task function keyword arguments
             
         Returns:
-            任务ID
+            Task ID
         """
         task_info = TaskInfo(task_id, task_func, args, kwargs)
         
@@ -126,12 +126,12 @@ class ThreadManager:
             self.task_infos[task_id] = task_info
             self.task_queue.put(task_id)
             
-        # 尝试执行任务
+        # Try to execute task
         self._process_queue()
         return task_id
 
     def _process_queue(self):
-        """处理任务队列"""
+        """Process task queue"""
         with self.lock:
             if len(self.threads) < self.max_concurrent_tasks and not self.task_queue.empty():
                 task_id = self.task_queue.get()
@@ -139,10 +139,10 @@ class ThreadManager:
                     self._start_task(task_id)
 
     def _start_task(self, task_id: str):
-        """启动任务
+        """Start task
         
         Args:
-            task_id: 任务ID
+            task_id: Task ID
         """
         task_info = self.task_infos.get(task_id)
         if not task_info or task_info.status != TaskStatus.PENDING:
@@ -160,10 +160,10 @@ class ThreadManager:
         thread.start()
 
     def _run_task(self, task_id: str):
-        """在后台线程中执行任务
+        """Execute task in background thread
 
         Args:
-            task_id: 任务ID
+            task_id: Task ID
         """
         task_info = self.task_infos.get(task_id)
         if not task_info:
@@ -199,94 +199,94 @@ class ThreadManager:
 
                 self._update_history(task_id)
 
-                self._process_queue()
+            self._process_queue()
 
     def _update_history(self, task_id: str):
-        """更新任务历史记录
+        """Update task history record
         
         Args:
-            task_id: 任务ID
+            task_id: Task ID
         """
         task_info = self.task_infos.get(task_id)
         if task_info:
-            # 移除已存在的相同任务ID（如果有）
+            # Remove existing task with the same ID (if any)
             self.history = [t for t in self.history if t.task_id != task_id]
-            # 添加到历史记录开头
+            # Add to the beginning of history
             self.history.insert(0, task_info)
-            # 限制历史记录数量
+            # Limit the number of historical records
             if len(self.history) > self.max_history:
                 self.history = self.history[:self.max_history]
-            # 保存任务信息到文件
+            # Save task information to file
             self._save_tasks()
 
     def is_task_running(self, task_id: str) -> bool:
-        """检查任务是否正在运行
+        """Check if task is running
         
         Args:
-            task_id: 任务ID
+            task_id: Task ID
             
         Returns:
-            是否正在运行
+            Whether task is running
         """
         with self.lock:
             return task_id in self.threads
     
     def get_task_result(self, task_id: str) -> Optional[Any]:
-        """获取任务结果
+        """Get task result
         
         Args:
-            task_id: 任务ID
+            task_id: Task ID
             
         Returns:
-            任务结果，如果任务未完成或失败则返回None
+            Task result, returns None if task is not completed or failed
         """
         with self.lock:
             task_info = self.task_infos.get(task_id)
             return task_info.result if task_info else None
     
     def get_task_error(self, task_id: str) -> Optional[Exception]:
-        """获取任务错误
+        """Get task error
         
         Args:
-            task_id: 任务ID
+            task_id: Task ID
             
         Returns:
-            任务错误，如果任务未失败则返回None
+            Task error, returns None if task did not fail
         """
         with self.lock:
             task_info = self.task_infos.get(task_id)
             return task_info.error if task_info else None
     
     def clear_task_data(self, task_id: str):
-        """清理任务数据
+        """Clear task data
         
         Args:
-            task_id: 任务ID
+            task_id: Task ID
         """
         with self.lock:
             if task_id in self.task_infos:
                 del self.task_infos[task_id]
-            # 从历史记录中移除
+            # Remove from history
             self.history = [t for t in self.history if t.task_id != task_id]
 
     def get_task_status(self, task_id: str) -> Optional[str]:
-        """获取任务状态
+        """Get task status
         
         Args:
-            task_id: 任务ID
+            task_id: Task ID
             
         Returns:
-            任务状态，如果任务不存在则返回None
+            Task status, returns None if task does not exist
         """
         with self.lock:
             task_info = self.task_infos.get(task_id)
             return task_info.status if task_info else None
 
     def get_all_tasks(self) -> List[Dict]:
-        """获取所有任务信息
+        """Get all task information
         
         Returns:
-            任务信息列表
+            Task information list
         """
         tasks = []
         with self.lock:
@@ -299,15 +299,15 @@ class ThreadManager:
                     'task_dir': task_info.task_dir
                 }
                 tasks.append(task_data)
-            # 按状态排序：运行中 > 等待中 > 其他
+            # Sort by status: Running > Pending > Others
             tasks.sort(key=lambda x: (x['status'] != TaskStatus.RUNNING, x['status'] != TaskStatus.PENDING))
         return tasks
 
     def get_history_tasks(self) -> List[Dict]:
-        """获取历史任务信息
+        """Get historical task information
         
         Returns:
-            历史任务信息列表
+            Historical task information list
         """
         tasks = []
         with self.lock:
@@ -323,13 +323,13 @@ class ThreadManager:
         return tasks
 
     def cancel_task(self, task_id: str) -> bool:
-        """取消任务
+        """Cancel task
         
         Args:
-            task_id: 任务ID
+            task_id: Task ID
             
         Returns:
-            是否取消成功
+            Whether cancellation was successful
         """
         with self.lock:
             if task_id not in self.task_infos:
@@ -337,14 +337,14 @@ class ThreadManager:
             
             task_info = self.task_infos[task_id]
             
-            # 如果任务正在运行，设置取消标志
+            # If task is running, set cancellation flag
             if task_info.status == TaskStatus.RUNNING:
                 task_info.cancelled = True
                 return True
             
-            # 如果任务在队列中，从队列中移除
+            # If task is in queue, remove from queue
             elif task_info.status == TaskStatus.PENDING:
-                # 重建队列，移除指定任务
+                # Rebuild queue, removing specified task
                 new_queue = queue.Queue()
                 while not self.task_queue.empty():
                     tid = self.task_queue.get()
@@ -354,17 +354,17 @@ class ThreadManager:
                 del self.task_infos[task_id]
                 return True
             
-            # 任务已完成或失败，直接删除
+            # Task is already completed or failed, delete directly
             else:
                 del self.task_infos[task_id]
-                # 从历史记录中移除
+                # Remove from history
                 self.history = [t for t in self.history if t.task_id != task_id]
                 return True
 
     def shutdown(self):
-        """关闭线程管理器"""
+        """Shutdown thread manager"""
         self.running = False
 
 
-# 全局线程管理器实例
+# Global thread manager instance
 thread_manager = ThreadManager()

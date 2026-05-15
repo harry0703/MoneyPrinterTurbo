@@ -136,6 +136,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useI18nStore } from '../stores/i18n';
+import { apiService } from '../services/api';
 
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
@@ -167,33 +168,44 @@ watch(startScene, (newStart) => {
 });
 
 // Scan task
-const scanTask = () => {
+const scanTask = async () => {
   if (!taskInput.value) {
     return;
   }
   
-  // Simulate scanning process
   status.value = t('Scanning task directory...');
   isRunning.value = true;
   
-  // Simulate API call
-  setTimeout(() => {
-    // Simulate scan results
-    taskFiles.value = {
-      sceneVideos: 5,
-      sceneAudio: 5,
-      subtitle: true
-    };
-    
-    startScene.value = 1;
-    endScene.value = 5;
+  try {
+    const response = await apiService.scanSceneIntegration(taskInput.value);
+    if (response.status === 200 && response.data) {
+      taskFiles.value = {
+        sceneVideos: response.data.sceneVideos,
+        sceneAudio: response.data.sceneAudio,
+        subtitle: response.data.subtitle,
+        totalScenes: response.data.totalScenes,
+        isValid: response.data.isValid
+      };
+      
+      startScene.value = 1;
+      endScene.value = response.data.sceneVideos || 1;
+    } else {
+      taskFiles.value = null;
+    }
+  } catch (error) {
+    console.error('Error scanning task:', error);
+    taskFiles.value = null;
+    status.value = t('Failed to scan task directory');
+  } finally {
     isRunning.value = false;
-    status.value = '';
-  }, 1000);
+    if (!status.value) {
+      status.value = '';
+    }
+  }
 };
 
 // Start integration
-const startIntegration = () => {
+const startIntegration = async () => {
   if (!taskInput.value || !taskFiles.value) {
     return;
   }
@@ -202,29 +214,26 @@ const startIntegration = () => {
   progress.value = 0;
   status.value = t('Starting...');
   
-  // Simulate integration process
-  let currentProgress = 0;
-  const interval = setInterval(() => {
-    currentProgress += 10;
-    progress.value = currentProgress;
+  try {
+    const response = await apiService.recoverSceneIntegration(
+      taskInput.value, 
+      startScene.value, 
+      endScene.value
+    );
     
-    if (currentProgress < 30) {
-      status.value = t('Processing scene videos...');
-    } else if (currentProgress < 60) {
-      status.value = t('Processing audio...');
-    } else if (currentProgress < 90) {
-      status.value = t('Processing subtitles...');
-    } else {
-      status.value = t('Generating final video...');
-    }
-    
-    if (currentProgress >= 100) {
-      clearInterval(interval);
-      isRunning.value = false;
+    if (response.status === 200 && response.data) {
+      progress.value = 100;
       status.value = t('Scene integration completed');
-      integrationResult.value = 'output/video_integration.mp4';
+      integrationResult.value = response.data.output_path;
+    } else {
+      status.value = t('Video integration failed');
     }
-  }, 500);
+  } catch (error) {
+    console.error('Error integrating scenes:', error);
+    status.value = t('Video integration failed');
+  } finally {
+    isRunning.value = false;
+  }
 };
 
 // Download video

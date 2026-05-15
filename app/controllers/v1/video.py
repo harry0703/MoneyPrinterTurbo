@@ -430,3 +430,60 @@ async def download_video(_: Request, file_path: str):
         filename=f"{filename}{extension}",
         media_type=f"video/{extension[1:]}",
     )
+
+
+@router.post("/scene-integration/scan", summary="Scan task directory for scene integration")
+def scan_scene_integration(request: Request, body: dict):
+    """Scan task directory for scene integration"""
+    task_id_or_path = body.get("task_id") or body.get("task_path")
+    if not task_id_or_path:
+        raise HttpException(task_id="", status_code=400, message="Task ID or path is required")
+    
+    from app.services.video import scan_task_files
+    
+    try:
+        result = scan_task_files(task_id_or_path)
+        
+        scene_videos = [s for s in result["scene_videos"] if s["video"] is not None]
+        
+        response = {
+            "sceneVideos": len(scene_videos),
+            "sceneAudio": len([s for s in result["scene_videos"] if s["audio"] is not None]),
+            "subtitle": result["global_subtitle"] is not None,
+            "totalScenes": result["total_scenes"],
+            "isValid": result["is_valid"],
+            "taskDir": result["task_dir"]
+        }
+        
+        return utils.get_response(200, response)
+    except Exception as e:
+        logger.error(f"Error scanning scene integration: {e}")
+        raise HttpException(task_id=task_id_or_path, status_code=500, message=f"Failed to scan task: {str(e)}")
+
+
+@router.post("/scene-integration/recover", summary="Recover video synthesis from existing scene files")
+def recover_scene_integration(request: Request, body: dict):
+    """Recover video synthesis from existing scene files"""
+    task_id_or_path = body.get("task_id") or body.get("task_path")
+    start_scene = body.get("start_scene", 1)
+    end_scene = body.get("end_scene", None)
+    
+    if not task_id_or_path:
+        raise HttpException(task_id="", status_code=400, message="Task ID or path is required")
+    
+    from app.services.video import recover_video_synthesis
+    
+    try:
+        output_path = recover_video_synthesis(
+            task_id_or_path,
+            start_scene=start_scene,
+            end_scene=end_scene
+        )
+        
+        if output_path and os.path.exists(output_path):
+            return utils.get_response(200, {"output_path": output_path})
+        else:
+            raise HttpException(task_id=task_id_or_path, status_code=500, message="Video integration failed")
+    except Exception as e:
+        logger.error(f"Error recovering scene integration: {e}")
+        raise HttpException(task_id=task_id_or_path, status_code=500, message=f"Failed to recover video: {str(e)}")
