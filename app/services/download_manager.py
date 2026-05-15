@@ -65,34 +65,50 @@ class VideoDownloadQueue:
             except queue.Empty:
                 continue
     
-    def _download_video(self, url, save_path):
-        """Download video from URL to save path"""
-        try:
-            # Create directory if it doesn't exist
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            
-            # Download with streaming to save memory
-            logger.info(f"Downloading video: {url}")
-            response = requests.get(url, stream=True, timeout=30)
-            response.raise_for_status()
-            
-            # Write to file in chunks
-            with open(save_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            
-            logger.info(f"Video downloaded successfully: {save_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error downloading video: {e}")
-            # Clean up partially downloaded file
-            if os.path.exists(save_path):
-                try:
-                    os.remove(save_path)
-                except:
-                    pass
-            return False
+    def _download_video(self, url, save_path, max_retries=3):
+        """Download video from URL to save path with retry logic and exponential backoff"""
+        import time
+        
+        for attempt in range(max_retries):
+            try:
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                
+                # Download with streaming to save memory
+                if attempt == 0:
+                    logger.info(f"Downloading video: {url}")
+                else:
+                    logger.info(f"Retry {attempt + 1}/{max_retries} for video: {url}")
+                
+                response = requests.get(url, stream=True, timeout=(10, 30))
+                response.raise_for_status()
+                
+                # Write to file in chunks
+                with open(save_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                
+                logger.info(f"Video downloaded successfully: {save_path}")
+                return True
+            except Exception as e:
+                logger.warning(f"Download attempt {attempt + 1}/{max_retries} failed: {e}")
+                
+                # Clean up partially downloaded file on failure
+                if os.path.exists(save_path):
+                    try:
+                        os.remove(save_path)
+                    except:
+                        pass
+                
+                # Exponential backoff: 2, 4, 8 seconds
+                if attempt < max_retries - 1:
+                    backoff_time = 2 ** (attempt + 1)
+                    logger.info(f"Waiting {backoff_time} seconds before retry...")
+                    time.sleep(backoff_time)
+        
+        logger.error(f"Failed to download video after {max_retries} attempts: {url}")
+        return False
     
     def stop(self):
         """Stop all worker threads"""

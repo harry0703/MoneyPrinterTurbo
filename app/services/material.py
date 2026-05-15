@@ -381,9 +381,13 @@ def download_videos(
     valid_video_items = []
     valid_video_urls = []
     found_duration = 0.0
-    search_videos = search_videos_pexels
-    if source == "pixabay":
-        search_videos = search_videos_pixabay
+    
+    # Determine primary and fallback sources
+    primary_source = source
+    fallback_source = "pixabay" if source == "pexels" else "pexels"
+    
+    search_videos_primary = search_videos_pexels if primary_source == "pexels" else search_videos_pixabay
+    search_videos_fallback = search_videos_pixabay if primary_source == "pexels" else search_videos_pexels
 
     # Filter out empty search terms
     valid_search_terms = [term for term in search_terms if term and term.strip()]
@@ -397,14 +401,16 @@ def download_videos(
     logger.info(f"Enhanced search terms with translations: {enhanced_search_terms}")
     valid_search_terms = enhanced_search_terms
 
+    # Search with primary source
+    logger.info(f"Searching videos from primary source: {primary_source}")
     for search_term in valid_search_terms:
-        video_items = search_videos(
+        video_items = search_videos_primary(
             search_term=search_term,
             minimum_duration=max_clip_duration,
             video_aspect=video_aspect,
             style_keyword=style_keyword,
         )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
+        logger.info(f"found {len(video_items)} videos for '{search_term}' from {primary_source}")
 
         for item in video_items:
             if item.url not in valid_video_urls:
@@ -415,9 +421,33 @@ def download_videos(
     logger.info(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
     )
+    
+    # If no videos found from primary source, try fallback source
+    if len(valid_video_items) == 0:
+        logger.warning(f"No videos found from {primary_source}, trying fallback source: {fallback_source}")
+        for search_term in valid_search_terms:
+            video_items = search_videos_fallback(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+                style_keyword=style_keyword,
+            )
+            logger.info(f"found {len(video_items)} videos for '{search_term}' from {fallback_source}")
+
+            for item in video_items:
+                if item.url not in valid_video_urls:
+                    valid_video_items.append(item)
+                    valid_video_urls.append(item.url)
+                    found_duration += item.duration
+        
+        if len(valid_video_items) > 0:
+            logger.success(f"Found {len(valid_video_items)} videos from fallback source {fallback_source}")
+    
     video_paths = []
     downloaded_paths = []
     download_count = 0
+    download_failures = 0
+    total_download_attempts = 0
 
     material_directory = config.app.get("material_directory", "").strip()
     if material_directory == "task":
@@ -432,7 +462,8 @@ def download_videos(
     
     # Function to handle download completion
     def download_callback(success, path=None, error=None):
-        nonlocal download_count, total_duration
+        nonlocal download_count, total_duration, download_failures, total_download_attempts
+        total_download_attempts += 1
         if success and path:
             downloaded_paths.append(path)
             # Get video duration
@@ -449,6 +480,7 @@ def download_videos(
             download_count += 1
             logger.info(f"Video downloaded: {path}, total downloaded: {download_count}")
         elif error:
+            download_failures += 1
             logger.error(f"Download failed: {error}")
 
     # Add download tasks to queue
@@ -498,7 +530,61 @@ def download_videos(
             break
         time.sleep(5)  # Check every 5 seconds
     
-    logger.success(f"Downloaded {len(downloaded_paths)} videos")
+    # Check if we need to fallback to alternative source due to high failure rate
+    failure_rate = download_failures / total_download_attempts if total_download_attempts > 0 else 0
+    if failure_rate > 0.5 and len(downloaded_paths) < 3:
+        logger.warning(f"High download failure rate ({failure_rate*100:.1f}%) from {primary_source}, trying fallback source: {fallback_source}")
+        
+        # Try downloading from fallback source
+        valid_video_items_fallback = []
+        for search_term in valid_search_terms:
+            video_items = search_videos_fallback(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+                style_keyword=style_keyword,
+            )
+            for item in video_items:
+                # Avoid duplicates from primary source
+                if item.url not in valid_video_urls:
+                    valid_video_items_fallback.append(item)
+        
+        # Download from fallback source
+        for item in valid_video_items_fallback:
+            if total_duration > audio_duration:
+                break
+            try:
+                url_without_query = item.url.split("?")[0]
+                url_hash = utils.md5(url_without_query)
+                video_id = f"vid-{url_hash}"
+                if material_directory:
+                    save_path = f"{material_directory}/{video_id}.mp4"
+                else:
+                    save_dir = utils.storage_dir("cache_videos")
+                    save_path = f"{save_dir}/{video_id}.mp4"
+                
+                if os.path.exists(save_path) and os.path.getsize(save_path) > 0:
+                    logger.info(f"Video already exists: {save_path}")
+                    downloaded_paths.append(save_path)
+                    seconds = min(max_clip_duration, item.duration)
+                    total_duration += seconds
+                else:
+                    logger.info(f"Adding fallback video to download queue: {item.url}")
+                    download_video(item.url, save_path, download_callback)
+                    time.sleep(2)  # Small delay between fallback downloads
+            except Exception as e:
+                logger.error(f"Failed to add fallback video: {str(e)}")
+        
+        # Wait for fallback downloads
+        fallback_start = time.time()
+        fallback_timeout = 300  # 5 minutes for fallback
+        while len(downloaded_paths) < len(valid_video_items) + len(valid_video_items_fallback) and time.time() - fallback_start < fallback_timeout:
+            status = get_download_status()
+            if status['active_downloads'] == 0 and status['queue_size'] == 0:
+                break
+            time.sleep(5)
+    
+    logger.success(f"Downloaded {len(downloaded_paths)} videos (failures: {download_failures}/{total_download_attempts})")
     return downloaded_paths
 
 
