@@ -166,15 +166,16 @@ class LoguruHandler:
                 thread_local = threading.local()
                 task_id = getattr(thread_local, 'task_id', None)
             
-            print(f"[LoguruHandler] Received log: level={level}, message={record['message'][:50]}...")
+            # print(f"[LoguruHandler] Received log: level={level}, message={record['message'][:50]}...")
 
             self.log_service.add_log(level, record["message"], task_id)
         except Exception as e:
-            print(f"[LoguruHandler] Error processing log: {e}")
+            # print(f"[LoguruHandler] Error processing log: {e}")
+            pass
 
 
 log_service = LogService()
 loguru_handler = LoguruHandler(log_service)
 handler_id = logger.add(loguru_handler, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}", level="INFO")
-print(f"[LogService] LoguruHandler registered with ID: {handler_id}")
-print(f"[LogService] Total handlers registered: {len(logger._core.handlers)}")
+# print(f"[LogService] LoguruHandler registered with ID: {handler_id}")
+# print(f"[LogService] Total handlers registered: {len(logger._core.handlers)}")
