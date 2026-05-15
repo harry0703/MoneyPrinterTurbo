@@ -1012,7 +1012,7 @@ def start_async(task_id, params: VideoParams, stop_at: str = "video"):
     return thread_manager.submit_task(task_id, start, task_id, params, stop_at)
 
 
-def start(task_id, params: VideoParams, stop_at: str = "video"):
+def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=None):
     # Check if another task is already running
     from app.services.state import is_task_running, set_task_running, set_task_completed
     

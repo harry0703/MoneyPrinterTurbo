@@ -161,6 +161,11 @@ class LoguruHandler:
             extra = record.get("extra", {})
             task_id = extra.get("task_id")
             
+            if task_id is None:
+                import threading
+                thread_local = threading.local()
+                task_id = getattr(thread_local, 'task_id', None)
+            
             print(f"[LoguruHandler] Received log: level={level}, message={record['message'][:50]}...")
 
             self.log_service.add_log(level, record["message"], task_id)

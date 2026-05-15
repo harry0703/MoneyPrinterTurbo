@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.19"
+project_version = "1.2.66.20"
 
 [app]
 video_source = "pexels"
@@ -45,7 +45,7 @@ redis_host = "localhost"
 redis_port = 6379
 redis_db = 0
 redis_password = ""
-max_concurrent_tasks = 5
+max_concurrent_tasks = 1
 ollama_api_key = "123"
 use_gpu = true
 video_quality = "ultra"
@@ -84,7 +84,7 @@ bgm_type = ""
 bgm_volume = 0.2
 subtitle_enabled = true
 subtitle_position = "custom"
-subtitle_custom_position = 75
+subtitle_custom_position = 95
 subtitle_margin = 0.05
 font_name = "MicrosoftYaHeiBold.ttc"
 text_fore_color = "#ead917"

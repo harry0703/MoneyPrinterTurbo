@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 from typing import Dict, Optional, Callable, Any, List, Tuple
 
+thread_local = threading.local()
+
 class TaskStatus:
     """任务状态枚举"""
     PENDING = "pending"      # 等待中
@@ -159,22 +161,22 @@ class ThreadManager:
 
     def _run_task(self, task_id: str):
         """在后台线程中执行任务
-        
+
         Args:
             task_id: 任务ID
         """
         task_info = self.task_infos.get(task_id)
         if not task_info:
             return
-        
+
         try:
-            # 执行任务，传递cancelled标志
+            thread_local.task_id = task_id
+
             def check_cancelled():
                 return task_info.cancelled
-            
-            # 将cancelled检查函数传递给任务函数
+
             result = task_info.task_func(*task_info.args, **task_info.kwargs, check_cancelled=check_cancelled)
-            
+
             with self.lock:
                 if not task_info.cancelled:
                     task_info.status = TaskStatus.COMPLETED
@@ -182,22 +184,21 @@ class ThreadManager:
                 else:
                     task_info.status = TaskStatus.CANCELLED
         except Exception as e:
-            # 记录错误信息
             logging.error(f"Task {task_id} failed: {str(e)}")
             with self.lock:
                 task_info.status = TaskStatus.FAILED
                 task_info.error = e
         finally:
-            # 任务完成后清理
+            if hasattr(thread_local, 'task_id'):
+                del thread_local.task_id
+
             with self.lock:
                 task_info.end_time = datetime.now()
                 if task_id in self.threads:
                     del self.threads[task_id]
-                
-                # 更新历史记录
+
                 self._update_history(task_id)
-                
-                # 处理下一个任务
+
                 self._process_queue()
 
     def _update_history(self, task_id: str):
