@@ -215,14 +215,22 @@ export const apiService = {
     return response.data;
   },
   
-  recoverSceneIntegration: async (taskId: string, startScene: number, endScene: number): Promise<ApiResponse> => {
-    const response = await api.post('/scene-integration/recover', { 
+  recoverSceneIntegration: async (taskId: string, startScene: number, endScene: number, subtitleParams?: any): Promise<ApiResponse> => {
+    const requestBody: any = { 
       task_id: taskId, 
       start_scene: startScene, 
       end_scene: endScene 
-    });
+    };
+    
+    // Add subtitle parameters if provided
+    if (subtitleParams) {
+      Object.assign(requestBody, subtitleParams);
+    }
+    
+    const response = await api.post('/scene-integration/recover', requestBody);
     return response.data;
-  }
+  },
+  
 };
 
 export const generateVideoScript = async (request: VideoScriptRequest): Promise<VideoScriptResponse> => {

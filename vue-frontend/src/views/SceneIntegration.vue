@@ -134,12 +134,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
 import { useI18nStore } from '../stores/i18n';
+import { useSettingsStore } from '../stores/settings';
 import { apiService } from '../services/api';
 
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
+const settingsStore = useSettingsStore();
 
 // Input type
 const inputType = ref('taskId');
@@ -159,6 +161,10 @@ const progress = ref(0);
 const status = ref('');
 // Integration result
 const integrationResult = ref('');
+// Current task ID for polling
+const currentTaskId = ref('');
+// Polling interval ID
+let pollInterval: number | null = null;
 
 // Watch start scene changes, update end scene
 watch(startScene, (newStart) => {
@@ -213,28 +219,102 @@ const startIntegration = async () => {
   isRunning.value = true;
   progress.value = 0;
   status.value = t('Starting...');
+  integrationResult.value = '';
+  
+  // Get latest subtitle settings from settings store
+  const subtitleParams = {
+    subtitle_enabled: settingsStore.subtitle.enable,
+    font_name: settingsStore.subtitle.font,
+    font_size: settingsStore.subtitle.fontSize,
+    text_fore_color: settingsStore.subtitle.color,
+    text_background_color: 'transparent',
+    stroke_color: settingsStore.subtitle.outlineColor,
+    stroke_width: settingsStore.subtitle.outlineWidth,
+    subtitle_position: settingsStore.subtitle.position,
+    custom_position: parseFloat(settingsStore.subtitle.customPosition) || 70.0
+  };
+  
+  // Get latest BGM settings from settings store
+  const bgmParams = {
+    bgm_type: settingsStore.audio.backgroundMusic || 'none',
+    bgm_file: '',
+    bgm_volume: parseFloat(settingsStore.audio.backgroundMusicVolume) || 0.2
+  };
   
   try {
+    // Merge subtitle and BGM parameters
+    const requestParams = { ...subtitleParams, ...bgmParams };
+    
     const response = await apiService.recoverSceneIntegration(
       taskInput.value, 
       startScene.value, 
-      endScene.value
+      endScene.value,
+      requestParams
     );
     
-    if (response.status === 200 && response.data) {
-      progress.value = 100;
-      status.value = t('Scene integration completed');
-      integrationResult.value = response.data.output_path;
+    if (response.status === 200 && response.data && response.data.task_id) {
+      currentTaskId.value = response.data.task_id;
+      status.value = t('Integration in progress...');
+      startPolling();
     } else {
       status.value = t('Video integration failed');
+      isRunning.value = false;
     }
   } catch (error) {
-    console.error('Error integrating scenes:', error);
+    console.error('Error starting integration:', error);
     status.value = t('Video integration failed');
-  } finally {
     isRunning.value = false;
   }
 };
+
+// Start polling task status
+const startPolling = () => {
+  stopPolling();
+  
+  pollInterval = window.setInterval(async () => {
+    try {
+      const response = await apiService.getTask(currentTaskId.value);
+      if (response.status === 200 && response.data) {
+        const task = response.data;
+        
+        if (task.progress !== undefined) {
+          progress.value = task.progress;
+        }
+        
+        if (task.state === 'processing' || task.state === 1) {
+          status.value = t('Integration in progress...');
+        } else if (task.state === 'complete' || task.state === 2) {
+          progress.value = 100;
+          status.value = t('Scene integration completed');
+          if (task.videos && task.videos.length > 0) {
+            integrationResult.value = task.videos[0];
+          }
+          stopPolling();
+          isRunning.value = false;
+        } else if (task.state === 'failed' || task.state === 3) {
+          status.value = t('Video integration failed');
+          stopPolling();
+          isRunning.value = false;
+        }
+      }
+    } catch (error) {
+      console.error('Error polling task status:', error);
+    }
+  }, 3000);
+};
+
+// Stop polling
+const stopPolling = () => {
+  if (pollInterval !== null) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+};
+
+// Cleanup on unmount
+onUnmounted(() => {
+  stopPolling();
+});
 
 // Download video
 const downloadVideo = () => {

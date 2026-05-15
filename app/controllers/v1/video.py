@@ -462,28 +462,54 @@ def scan_scene_integration(request: Request, body: dict):
 
 
 @router.post("/scene-integration/recover", summary="Recover video synthesis from existing scene files")
-def recover_scene_integration(request: Request, body: dict):
+def recover_scene_integration(request: Request, body: dict, background_tasks: BackgroundTasks):
     """Recover video synthesis from existing scene files"""
     task_id_or_path = body.get("task_id") or body.get("task_path")
     start_scene = body.get("start_scene", 1)
     end_scene = body.get("end_scene", None)
     
+    # Extract subtitle parameters from request
+    subtitle_params = {
+        'subtitle_enabled': body.get('subtitle_enabled'),
+        'font_name': body.get('font_name'),
+        'font_size': body.get('font_size'),
+        'text_fore_color': body.get('text_fore_color'),
+        'text_background_color': body.get('text_background_color'),
+        'stroke_color': body.get('stroke_color'),
+        'stroke_width': body.get('stroke_width'),
+        'subtitle_position': body.get('subtitle_position'),
+        'custom_position': body.get('custom_position')
+    }
+    
+    # Extract BGM parameters from request
+    bgm_params = {
+        'bgm_type': body.get('bgm_type'),
+        'bgm_file': body.get('bgm_file'),
+        'bgm_volume': body.get('bgm_volume')
+    }
+    
     if not task_id_or_path:
         raise HttpException(task_id="", status_code=400, message="Task ID or path is required")
     
-    from app.services.video import recover_video_synthesis
+    from app.services import state as sm
+    from app.models import const
     
-    try:
-        output_path = recover_video_synthesis(
-            task_id_or_path,
-            start_scene=start_scene,
-            end_scene=end_scene
-        )
-        
-        if output_path and os.path.exists(output_path):
-            return utils.get_response(200, {"output_path": output_path})
-        else:
-            raise HttpException(task_id=task_id_or_path, status_code=500, message="Video integration failed")
-    except Exception as e:
-        logger.error(f"Error recovering scene integration: {e}")
-        raise HttpException(task_id=task_id_or_path, status_code=500, message=f"Failed to recover video: {str(e)}")
+    # Generate unique task_id for tracking
+    task_id = utils.get_uuid()
+    
+    # Register task immediately so it appears in task management
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=0)
+    
+    # Submit to background tasks
+    from app.services.video import recover_video_synthesis
+    background_tasks.add_task(
+        recover_video_synthesis,
+        task_id_or_path,
+        start_scene=start_scene,
+        end_scene=end_scene,
+        task_id=task_id,
+        subtitle_params=subtitle_params,
+        bgm_params=bgm_params
+    )
+    
+    return utils.get_response(200, {"task_id": task_id})
