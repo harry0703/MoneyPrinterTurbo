@@ -1,2 +1,0 @@
-[browser]
-gatherUsageStats = false
