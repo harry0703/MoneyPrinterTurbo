@@ -3,7 +3,7 @@
     <el-card :body-style="{ padding: '20px' }">
       <template #header>
         <div class="card-header">
-          <h2 class="title">{{ t('Video Settings') }}</h2>
+          <h2 class="title">🎬 {{ t('Video Settings') }}</h2>
         </div>
       </template>
       

@@ -3,11 +3,7 @@
     <el-card :body-style="{ padding: '20px' }">
       <template #header>
         <div class="card-header">
-          <span>{{ t('Task Management') }}</span>
-          <el-button type="primary" @click="refreshTasks">
-            <el-icon><Refresh /></el-icon>
-            {{ t('Refresh') }}
-          </el-button>
+          <h2 class="title">📋 {{ t('Task Management') }}</h2>
         </div>
       </template>
       
@@ -53,7 +49,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
 import TaskStatus from '../components/TaskStatus.vue';
 import { useI18nStore } from '../stores/i18n';
 import { useTasksStore } from '../stores/tasks';
@@ -113,6 +108,13 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.title {
+  margin: 0 !important;
+  font-size: 1.2rem !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
 }
 
 .task-stats {

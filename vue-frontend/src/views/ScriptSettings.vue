@@ -4,7 +4,7 @@
     <el-card :body-style="{ padding: '20px' }" class="main-card">
       <template #header>
         <div class="card-header">
-          <h2 class="title">{{ t('Script Settings') }}</h2>
+          <h2 class="title">✏️ {{ t('Script Settings') }}</h2>
         </div>
       </template>
       

@@ -332,7 +332,7 @@ onUnmounted(() => {
 
 <style scoped>
 .logs-view {
-  padding: 20px 0;
+  width: 100%;
 }
 
 .card-header {
@@ -342,9 +342,10 @@ onUnmounted(() => {
 }
 
 .title {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 600;
+  margin: 0 !important;
+  font-size: 1.2rem !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
 }
 
 .logs-filter {
