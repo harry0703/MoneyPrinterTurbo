@@ -341,13 +341,6 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.title {
-  margin: 0 !important;
-  font-size: 1.2rem !important;
-  font-weight: 600 !important;
-  line-height: 1.5 !important;
-}
-
 .logs-filter {
   margin-bottom: 20px;
 }

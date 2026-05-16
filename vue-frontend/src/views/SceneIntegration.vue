@@ -344,12 +344,7 @@ defineExpose({
   margin-bottom: 4px;
 }
 
-.title {
-  font-weight: bold;
-  font-size: 20px;
-  margin: 0;
-  color: #333;
-}
+
 
 .integration-content {
   display: flex;

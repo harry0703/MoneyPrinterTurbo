@@ -573,11 +573,7 @@ defineExpose({
   margin-bottom: 4px;
 }
 
-.title {
-  font-size: 18px;
-  font-weight: bold;
-  margin: 0;
-}
+
 
 .settings-form {
   display: flex;

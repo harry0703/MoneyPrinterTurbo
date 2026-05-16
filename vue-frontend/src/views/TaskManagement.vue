@@ -110,13 +110,6 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.title {
-  margin: 0 !important;
-  font-size: 1.2rem !important;
-  font-weight: 600 !important;
-  line-height: 1.5 !important;
-}
-
 .task-stats {
   margin-top: 30px;
 }
