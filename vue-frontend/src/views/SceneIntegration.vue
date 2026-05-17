@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue';
+import { ref, watch, onUnmounted, onMounted } from 'vue';
 import { useI18nStore } from '../stores/i18n';
 import { useSettingsStore } from '../stores/settings';
 import { apiService } from '../services/api';
@@ -142,6 +142,8 @@ import { apiService } from '../services/api';
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
 const settingsStore = useSettingsStore();
+
+const STORAGE_KEY = 'moneyprinter-scene-integration';
 
 // Input type
 const inputType = ref('taskId');
@@ -166,12 +168,46 @@ const currentTaskId = ref('');
 // Polling interval ID
 let pollInterval: number | null = null;
 
+const loadFromLocalStorage = () => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      inputType.value = parsed.inputType || 'taskId';
+      taskInput.value = parsed.taskInput || '';
+      startScene.value = parsed.startScene || 1;
+      endScene.value = parsed.endScene || 1;
+    } catch (e) {
+      console.error('Failed to load scene integration settings from localStorage:', e);
+    }
+  }
+};
+
+const saveToLocalStorage = () => {
+  const data = {
+    inputType: inputType.value,
+    taskInput: taskInput.value,
+    startScene: startScene.value,
+    endScene: endScene.value
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+};
+
+onMounted(() => {
+  loadFromLocalStorage();
+});
+
 // Watch start scene changes, update end scene
 watch(startScene, (newStart) => {
   if (endScene.value < newStart) {
     endScene.value = newStart;
   }
+  saveToLocalStorage();
 });
+
+watch(inputType, () => saveToLocalStorage());
+watch(taskInput, () => saveToLocalStorage());
+watch(endScene, () => saveToLocalStorage());
 
 // Scan task
 const scanTask = async () => {
