@@ -158,14 +158,31 @@ def generate_video(
     logger.info(f"starting video generation: {output_file}")
     
     try:
+        from moviepy import CompositeAudioClip, afx
+        
         # Load video
         video_clip = VideoFileClip(video_path)
         
         # Load audio if provided
         if audio_path:
             audio_clip = AudioFileClip(audio_path)
-            # Set audio to video
-            video_clip = video_clip.with_audio(audio_clip)
+            
+            # Check if video already has audio
+            existing_audio = video_clip.audio
+            
+            if existing_audio:
+                # Mix BGM with existing audio (scene integration scenario)
+                logger.info("Mixing BGM with existing video audio")
+                bgm_clip = audio_clip.with_effects([
+                    afx.MultiplyVolume(params.bgm_volume if hasattr(params, 'bgm_volume') else 0.2),
+                    afx.AudioFadeOut(3),
+                    afx.AudioLoop(duration=video_clip.duration),
+                ])
+                combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
+                video_clip = video_clip.with_audio(combined_audio)
+            else:
+                # No existing audio, set BGM as main audio (normal scenario)
+                video_clip = video_clip.with_audio(audio_clip)
         
         # Add subtitles if enabled
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
