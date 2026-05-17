@@ -64,6 +64,12 @@ def create_task(
 ):
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
+    
+    # Check if another task is already running
+    from app.services.state import is_task_running
+    if is_task_running():
+        raise HttpException(task_id=task_id, status_code=400, message="Another task is already running. Please wait for it to complete.")
+    
     try:
         task = {
             "task_id": task_id,
@@ -76,10 +82,13 @@ def create_task(
             print(f"[Task Creation] voice_name received: {body.voice_name[:100]}...")
             print(f"[Task Creation] voice_name starts with 'coze|': {body.voice_name.startswith('coze|')}")
         
-        sm.state.update_task(task_id)
+        sm.state.update_task(task_id, task_type="video_generation")
         tm.start_async(task_id, body, stop_at)
-        logger.success(f"Task created: {utils.to_json(task)}")
-        return utils.get_response(200, task)
+        
+        # Get the task with task_type from state
+        created_task = sm.state.get_task(task_id)
+        logger.success(f"Task created: {utils.to_json(created_task)}")
+        return utils.get_response(200, created_task)
     except ValueError as e:
         raise HttpException(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
@@ -492,13 +501,19 @@ def recover_scene_integration(request: Request, body: dict, background_tasks: Ba
         raise HttpException(task_id="", status_code=400, message="Task ID or path is required")
     
     from app.services import state as sm
+    from app.services.state import is_task_running
     from app.models import const
+    
+    # Check if another task is already running
+    if is_task_running():
+        from app.controllers.v1.exceptions import HttpException
+        raise HttpException(task_id="", status_code=400, message="Another task is already running. Please wait for it to complete.")
     
     # Generate unique task_id for tracking
     task_id = utils.get_uuid()
     
     # Register task immediately so it appears in task management
-    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=0)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=0, task_type="scene_integration")
     
     # Submit to background tasks
     from app.services.video import recover_video_synthesis
@@ -512,4 +527,6 @@ def recover_scene_integration(request: Request, body: dict, background_tasks: Ba
         bgm_params=bgm_params
     )
     
-    return utils.get_response(200, {"task_id": task_id})
+    # Get the task with task_type from state
+    created_task = sm.state.get_task(task_id)
+    return utils.get_response(200, created_task)

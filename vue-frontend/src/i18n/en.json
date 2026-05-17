@@ -434,6 +434,9 @@
     "Running": "Running",
     "Completed": "Completed",
     "Failed": "Failed",
-    "Task": "Task"
+    "Task": "Task",
+    "Task Type": "Task Type",
+    "Video Generation": "Video Generation",
+    "Scene Integration": "Scene Integration"
   }
 }

@@ -18,6 +18,7 @@
         :retry-text="t('Retry')"
         :empty-text="t('No tasks')"
         :status-text="t('Status')"
+        :task-type-text="t('Task Type')"
         :progress-text="t('Progress')"
         :created-at-text="t('Created At')"
         :updated-at-text="t('Updated At')"

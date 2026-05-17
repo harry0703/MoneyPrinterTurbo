@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.27"
+project_version = "1.2.66.28"
 
 [app]
 video_source = "pexels"
@@ -54,10 +54,10 @@ video_brightness = 1.15
 video_contrast = 1.05
 video_concat_mode = "sequential"
 video_transition_mode = "none"
-video_aspect = "portrait_3_4"
+video_aspect = "landscape"
 video_clip_duration = 3
 video_count = 1
-video_style = "animation"
+video_style = "none"
 
 [whisper]
 model_size = "large-v3"
@@ -77,11 +77,11 @@ api_key = "sk-ehmjzsdqlcbsswaplkgzjsqjrlwyjquczplhjxoszbhdjgvn"
 hide_log = false
 language = "zh"
 tts_server = "coze-tts"
-voice_name = "coze|7468512265151741979|擎苍-Male|https://lf6-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_male_qingcang_mars_bigtts.mp3?lk3s=da27ec82&x-expires=1779101988&x-signature=ZS%2FB4kLBkPJCAnXb3TX%2ByLwUVGY%3D|无语，擎天之巨首，揽尽世间风云变幻，诸般阻碍，不过是无脉相巅峰之基石。今日之儒，来日必当十倍奉还。 无知威名，必将震慑四海八荒。|"
+voice_name = "coze|7426720361753903141|爽快思思-Female|https://lf3-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_female_shuangkuaisisi_moon_bigtts.mp3?lk3s=da27ec82&x-expires=1779115781&x-signature=CGIB9R%2BpSmdhdKeQGKpIyEDGyeM%3D|今天天气可好了，我打算和朋友一起去野餐，带上美食和饮料，找个舒适的草坪，什么烦恼都没了。你要不要和我们一起？|"
 voice_volume = 1.2
 voice_rate = 1
 bgm_type = "random"
-bgm_volume = 0.2
+bgm_volume = 0.1
 subtitle_enabled = true
 subtitle_position = "custom"
 subtitle_custom_position = 95

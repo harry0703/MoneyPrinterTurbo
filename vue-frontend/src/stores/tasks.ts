@@ -4,6 +4,7 @@ import { apiService, type ApiResponse } from '../services/api';
 export interface Task {
   task_id: string;
   status: string;
+  task_type?: string;
   progress?: number;
   videos?: string[];
   combined_videos?: string[];

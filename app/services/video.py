@@ -335,10 +335,16 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
     """
     import time
     from app.services import state as sm
-    from app.services.state import set_task_running, set_task_completed
+    from app.services.state import set_task_running, set_task_completed, is_task_running
     from app.models import const
     
     start_time = time.time()
+    
+    # Check if another task is already running
+    if is_task_running():
+        logger.error("Another task is already running. Please wait for it to complete.")
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, progress=0)
+        return None
     
     # Determine task ID and directory
     if os.path.isdir(task_id_or_path):
@@ -351,8 +357,8 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
         task_dir = utils.task_dir(task_id)
     
     # Register task in state management
-    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=0)
-    set_task_running("video_integration", task_id)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=0, task_type="scene_integration")
+    set_task_running("scene_integration", task_id)
     
     logger.info(f"\n\n## Starting video synthesis recovery for task: {task_id}")
     

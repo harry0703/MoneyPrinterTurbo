@@ -43,6 +43,10 @@
                     <el-tag :key="task.status" :type="getStatusType(task.status)">{{ getStatusText(task.status) }}</el-tag>
                   </transition>
                 </div>
+                <div class="info-item" v-if="task.task_type">
+                  <span class="label">{{ taskTypeText }}:</span>
+                  <el-tag type="info">{{ getTaskTypeText(task.task_type) }}</el-tag>
+                </div>
                 <div class="info-item" v-if="task.progress !== undefined">
                   <span class="label">{{ progressText }}:</span>
                   <transition name="fade">
@@ -105,6 +109,7 @@ const t = i18nStore.t;
 interface Task {
   task_id: string;
   status: string;
+  task_type?: string;
   progress?: number;
   videos?: string[];
   combined_videos?: string[];
@@ -124,6 +129,7 @@ interface Props {
   retryText?: string;
   emptyText?: string;
   statusText?: string;
+  taskTypeText?: string;
   progressText?: string;
   createdAtText?: string;
   updatedAtText?: string;
@@ -144,6 +150,7 @@ withDefaults(defineProps<Props>(), {
   retryText: 'Retry',
   emptyText: 'No tasks',
   statusText: 'Status',
+  taskTypeText: 'Task Type',
   progressText: 'Progress',
   createdAtText: 'Created At',
   updatedAtText: 'Updated At',
@@ -179,6 +186,14 @@ const getStatusType = (status: string): string => {
     failed: 'danger'
   };
   return typeMap[status] || 'info';
+};
+
+const getTaskTypeText = (taskType: string): string => {
+  const taskTypeMap: Record<string, string> = {
+    video_generation: t('Video Generation'),
+    scene_integration: t('Scene Integration')
+  };
+  return taskTypeMap[taskType] || taskType;
 };
 
 const formatProgress = (percentage: number): string => {

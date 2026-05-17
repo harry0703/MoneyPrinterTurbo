@@ -1021,7 +1021,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
         return None
     
     # Set task as running
-    set_task_running("complete_video", task_id)
+    set_task_running("video_generation", task_id)
     
     # Track task start time
     import time
@@ -1048,7 +1048,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     logger.info(f"stop_at: {stop_at}")
     logger.info(f"Task log file: {task_log_path}")
     logger.info(f"========================================")
-    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5, task_type="video_generation")
 
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
