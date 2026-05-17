@@ -322,7 +322,7 @@ def get_video_materials_list(request: Request):
 def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
     # check file ext
-    allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
+    allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png", "gif")
     if file.filename.endswith(allowed_suffixes):
         local_videos_dir = utils.storage_dir("local_videos", create=True)
         save_path = os.path.join(local_videos_dir, file.filename)

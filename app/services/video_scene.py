@@ -407,24 +407,19 @@ def build_scene_video(
             # Process intro video
             try:
                 # Check if intro video is actually an image
-                if intro_video_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
-                    # Handle image as intro video with specified duration
+                if intro_video_path.endswith(('.png', '.jpg', '.jpeg', '.bmp')):
+                    # Handle static images with specified duration
                     logger.info(f"Processing image as intro video with duration: {intro_duration:.1f}s")
                     
-                    # Create video from image with specified duration
                     clip = ImageClip(intro_video_path).with_duration(intro_duration)
-                    
                     clip_duration = intro_duration
                     clip_w, clip_h = clip.size
                     
-                    # Process intro clip
                     aspect = VideoAspect(video_aspect)
                     video_width, video_height = aspect.to_resolution()
                     
-                    # Process intro video differently: fit without cropping, center on blue background
                     clip = fit_intro_video_to_target(clip, video_width, video_height)
                     
-                    # Apply brightness and contrast enhancement
                     brightness_factor = config.app.get("video_brightness", 1.0)
                     contrast_factor = config.app.get("video_contrast", 1.0)
                     
@@ -436,6 +431,34 @@ def build_scene_video(
                     
                     intro_clips.append(clip)
                     logger.info(f"Image intro video processed: {intro_video_path} (duration: {intro_duration:.1f}s)")
+                elif intro_video_path.endswith('.gif'):
+                    # Handle animated GIF as video
+                    logger.info(f"Processing animated GIF as intro video")
+                    
+                    clip = VideoFileClip(intro_video_path)
+                    clip_duration = clip.duration
+                    clip_w, clip_h = clip.size
+                    
+                    if clip_duration > intro_duration:
+                        clip = clip.subclip(0, intro_duration)
+                        clip_duration = intro_duration
+                    
+                    aspect = VideoAspect(video_aspect)
+                    video_width, video_height = aspect.to_resolution()
+                    
+                    clip = fit_intro_video_to_target(clip, video_width, video_height)
+                    
+                    brightness_factor = config.app.get("video_brightness", 1.0)
+                    contrast_factor = config.app.get("video_contrast", 1.0)
+                    
+                    if brightness_factor != 1.0:
+                        clip = video_effects.brightness_enhance(clip, brightness_factor)
+                    
+                    if contrast_factor != 1.0:
+                        clip = video_effects.contrast_enhance(clip, contrast_factor)
+                    
+                    intro_clips.append(clip)
+                    logger.info(f"Animated GIF intro video processed: {intro_video_path} (duration: {clip_duration:.1f}s)")
                 else:
                     clip = VideoFileClip(intro_video_path)
                     clip_duration = clip.duration
