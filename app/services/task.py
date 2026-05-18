@@ -1013,15 +1013,15 @@ def start_async(task_id, params: VideoParams, stop_at: str = "video"):
 
 
 def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=None):
-    # Check if another task is already running
-    from app.services.state import is_task_running, set_task_running, set_task_completed
-    
-    if is_task_running():
-        logger.error("Another task is already running. Please wait for it to complete.")
-        return None
+    from app.services.state import set_task_running, set_task_completed
+    from app.models import const
+    from app.services import state as sm
     
     # Set task as running
     set_task_running("video_generation", task_id)
+    
+    # Update task state to PROCESSING
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=0)
     
     # Track task start time
     import time

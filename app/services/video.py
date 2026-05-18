@@ -335,16 +335,10 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
     """
     import time
     from app.services import state as sm
-    from app.services.state import set_task_running, set_task_completed, is_task_running
+    from app.services.state import set_task_running, set_task_completed
     from app.models import const
     
     start_time = time.time()
-    
-    # Check if another task is already running
-    if is_task_running():
-        logger.error("Another task is already running. Please wait for it to complete.")
-        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, progress=0)
-        return None
     
     # Determine task ID and directory
     if os.path.isdir(task_id_or_path):

@@ -247,10 +247,17 @@ const generateVideo = async () => {
 
     const task = await tasksStore.createTask(taskParams, 'video');
     if (task) {
-      ElMessage.success(t('Start Generating Video'));
+      // Show appropriate message based on task status
+      if (task.status === 'pending') {
+        ElMessage.info(t('Task queued, waiting for previous task to complete...'));
+      } else {
+        ElMessage.success(t('Start Generating Video'));
+      }
       router.push('/task');
     } else {
-      ElMessage.error(t('Video Generation Failed'));
+      // Show the actual error message from the backend if available
+      const errorMessage = tasksStore.error || t('Video Generation Failed');
+      ElMessage.error(errorMessage);
     }
   } catch (error) {
     console.error('Error generating video:', error);

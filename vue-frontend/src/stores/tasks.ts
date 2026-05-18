@@ -136,9 +136,11 @@ export const useTasksStore = defineStore('tasks', {
         } else {
           console.log('Invalid response:', response);
         }
-      } catch (error) {
-        this.error = 'Failed to create task';
-        console.error('Error creating task:', error);
+      } catch (error: any) {
+        // Get the error message from the backend response, or use a generic message
+        const errorMessage = error?.response?.data?.message || error?.message || 'Failed to create task';
+        this.error = errorMessage;
+        console.error('Error creating task:', errorMessage);
       } finally {
         this.loading = false;
       }

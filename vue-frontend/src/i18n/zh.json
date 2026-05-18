@@ -357,6 +357,7 @@
     "Completed": "已完成",
     "Failed": "失败",
     "Task": "任务",
+    "Task queued, waiting for previous task to complete...": "任务已排队，等待前一个任务完成...",
     "Task Type": "任务类型",
     "Video Generation": "视频生成",
     "Scene Integration": "场景集成",
