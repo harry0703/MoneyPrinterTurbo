@@ -36,18 +36,20 @@ class MemoryState(BaseState):
         self,
         task_id: str,
         state: int = const.TASK_STATE_PROCESSING,
-        progress: int = 0,
-        **kwargs,
+        progress: int = 0,** kwargs,
     ):
         progress = int(progress)
         if progress > 100:
             progress = 100
 
+        # Merge with existing task data to preserve fields like task_type
+        existing_task = self._tasks.get(task_id, {})
+        
         self._tasks[task_id] = {
+            **existing_task,  # Preserve existing fields
             "task_id": task_id,
             "state": state,
-            "progress": progress,
-            **kwargs,
+            "progress": progress,** kwargs,
         }
 
     def get_task(self, task_id: str):
