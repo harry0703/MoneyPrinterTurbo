@@ -3,6 +3,7 @@ import unittest
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -138,6 +139,55 @@ class TestVoiceService(unittest.TestCase):
             self.assertEqual(Path(voice_file).read_bytes(), b"legacy-audio")
             self.assertEqual(len(sub_maker.events), 1)
             self.assertEqual(sub_maker.events[0]["type"], "WordBoundary")
+
+    def test_azure_tts_v1_times_out_hanging_stream_sync(self):
+        """
+        验证 Azure TTS V1 在 edge_tts 同步流卡住时能够快速失败。
+
+        真实现场里，网络异常、服务端限流、voice 语言与文本不匹配时，
+        `stream_sync()` 可能长时间不返回，导致 WebUI 任务只停在
+        `start, voice name...`。这里用阻塞的 fake stream 复现该场景，
+        确认超时保护会让函数结束并返回 None。
+        """
+
+        class _HangingCommunicate:
+            def __init__(self, text, voice, rate="+0%", boundary=None):
+                self.text = text
+                self.voice = voice
+                self.rate = rate
+                self.boundary = boundary
+
+            def stream_sync(self):
+                time.sleep(10)
+                yield {"type": "audio", "data": b"unreachable"}
+
+        class _FakeSubMaker:
+            def feed(self, chunk):
+                return None
+
+            def get_srt(self):
+                return ""
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.edge_tts, "Communicate", _HangingCommunicate
+        ), patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker), patch.object(
+            vs.config,
+            "app",
+            dict(vs.config.app, edge_tts_timeout=0.05),
+        ):
+            voice_file = Path(tmp_dir) / "hanging-edge-tts.mp3"
+            started_at = time.monotonic()
+            sub_maker = vs.azure_tts_v1(
+                text="帮我生成一个花开花落的视频",
+                voice_name="en-AU-NatashaNeural-Female",
+                voice_file=str(voice_file),
+                voice_rate=1.0,
+            )
+            elapsed = time.monotonic() - started_at
+            self.assertFalse(voice_file.exists())
+
+        self.assertIsNone(sub_maker)
+        self.assertLess(elapsed, 2)
 
     def test_azure_tts_v2(self):
         voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"

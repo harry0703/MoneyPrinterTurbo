@@ -4,6 +4,12 @@ video_source = "pexels" # "pexels" or "pixabay"
 # 是否隐藏配置面板
 hide_config = false
 
+# Azure TTS V1(edge_tts) 单次流式请求超时时间，单位秒。
+# 网络异常、服务端限流或 voice 与文本语言不匹配时，edge_tts 可能长期卡住。
+# 默认 30 秒可避免 WebUI 任务无反馈；慢网络或代理环境可适当调大。
+# 设置为 0 表示禁用超时。
+edge_tts_timeout = 30
+
 # 是否校验外部 API 和素材下载的 TLS 证书。
 # 默认必须开启，避免 Pexels/Pixabay API key 和下载素材被中间人攻击篡改。
 # 只有在企业代理或自签证书环境明确需要时，才临时改为 false。
