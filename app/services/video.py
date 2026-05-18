@@ -1,10 +1,12 @@
 import glob
 import itertools
+import io
 import os
 import random
 import gc
 import shutil
 import subprocess
+from contextlib import redirect_stdout
 from typing import List
 from loguru import logger
 from moviepy import (
@@ -153,6 +155,37 @@ def _open_image_clip_with_fallback(image_path: str):
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
+
+def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileClip:
+    """
+    安静地打开视频文件，避免 MoviePy 2.1.x 把 ffmpeg 探测信息直接打印到 stdout。
+
+    背景：
+    当前依赖版本的 `FFMPEG_VideoReader` 内部存在 `print(self.infos)` 和
+    `print(ffmpeg command)`，读取无音轨的中间视频时会输出
+    `audio_found: False`。这只是输入素材 metadata，不代表最终成片没有音频，
+    但会误导 WebUI/终端用户以为生成失败。
+
+    实现：
+    1. 只在打开 VideoFileClip 的短窗口内重定向 stdout；
+    2. 默认 `audio=False`，因为项目视频素材阶段不需要保留素材原声，
+       最终音频会在 `generate_video()` 阶段统一挂载；
+    3. 如果依赖库确实输出了内容，降级为 debug 日志，便于必要时排查。
+    """
+    captured_stdout = io.StringIO()
+    with redirect_stdout(captured_stdout):
+        clip = VideoFileClip(video_path, audio=audio)
+
+    moviepy_stdout = captured_stdout.getvalue().strip()
+    if moviepy_stdout:
+        logger.debug(
+            "suppressed MoviePy video reader stdout for "
+            f"{video_path}, chars: {len(moviepy_stdout)}"
+        )
+
+    return clip
+
+
 def close_clip(clip):
     if clip is None:
         return
@@ -246,7 +279,7 @@ def combine_videos(
     subclipped_items = []
     video_duration = 0
     for video_path in video_paths:
-        clip = VideoFileClip(video_path)
+        clip = _open_video_clip_quietly(video_path)
         clip_duration = clip.duration
         clip_w, clip_h = clip.size
         close_clip(clip)
@@ -288,7 +321,9 @@ def combine_videos(
         logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
         
         try:
-            clip = VideoFileClip(subclipped_item.file_path).subclipped(subclipped_item.start_time, subclipped_item.end_time)
+            clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
+                subclipped_item.start_time, subclipped_item.end_time
+            )
             clip_duration = clip.duration
             # Not all videos are same size, so we need to resize them
             clip_w, clip_h = clip.size
@@ -538,7 +573,7 @@ def generate_video(
             _clip = _clip.with_position(("center", "center"))
         return _clip
 
-    video_clip = VideoFileClip(video_path).without_audio()
+    video_clip = _open_video_clip_quietly(video_path)
     audio_clip = AudioFileClip(audio_path).with_effects(
         [afx.MultiplyVolume(params.voice_volume)]
     )
@@ -611,7 +646,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             if ext in const.FILE_TYPE_IMAGES:
                 clip, material_source_path = _open_image_clip_with_fallback(material.url)
             else:
-                clip = VideoFileClip(material.url)
+                clip = _open_video_clip_quietly(material.url)
         except Exception:
             # 非标准扩展名或探测失败时再回退到图片模式，兼容历史上直接传本地图片路径的情况。
             try:

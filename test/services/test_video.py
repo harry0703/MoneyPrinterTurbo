@@ -3,6 +3,8 @@ import unittest
 import os
 import sys
 import types
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 from moviepy import (
@@ -67,6 +69,27 @@ class TestVideoService(unittest.TestCase):
             vd.shutil, "which", return_value=None
         ), patch.dict(sys.modules, {"imageio_ffmpeg": fake_imageio_ffmpeg}):
             self.assertEqual(vd.get_ffmpeg_binary(), "/tmp/bundled-ffmpeg")
+
+    def test_open_video_clip_quietly_suppresses_moviepy_stdout(self):
+        """
+        MoviePy 2.1.x 的 FFMPEG_VideoReader 会直接向 stdout 打印 metadata
+        和 ffmpeg 命令。项目服务层应屏蔽这类依赖库噪声，避免用户把
+        `audio_found: False` 误判为最终视频没有音频。
+        """
+        video_path = os.path.join(resources_dir, "1.png.mp4")
+        if not os.path.exists(video_path):
+            self.fail(f"test video not found: {video_path}")
+
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            clip = vd._open_video_clip_quietly(video_path)
+
+        try:
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIsNone(clip.audio)
+            self.assertGreater(clip.duration, 0)
+        finally:
+            vd.close_clip(clip)
     
     def test_wrap_text(self):
         """test text wrapping function"""
