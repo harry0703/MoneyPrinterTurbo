@@ -616,7 +616,8 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         scene_info=f"(scene {scene_num}/{total_scenes})",
         local_video_paths=local_video_paths,
         intro_video_path=actual_intro_video if actual_intro_video and os.path.exists(actual_intro_video) else None,
-        intro_duration=scene.get("intro_duration", 10))
+        intro_duration=scene.get("intro_duration", 10),
+        is_first_scene=(scene_num == 1))
     
     if result is None or not os.path.exists(combined_video_path):
         logger.error(f"failed to combine video for scene {scene_num}")
@@ -971,7 +972,8 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             scene_info=f"(video {index}/{params.video_count})",
-            local_video_paths=local_video_paths
+            local_video_paths=local_video_paths,
+            is_first_scene=(index == 1)
         )
 
         _progress += 50 / params.video_count / 2

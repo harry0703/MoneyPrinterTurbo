@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.30"
+project_version = "1.2.66.31"
 
 [app]
 video_source = "pexels"
@@ -84,10 +84,10 @@ bgm_type = "random"
 bgm_volume = 0.1
 subtitle_enabled = true
 subtitle_position = "custom"
-subtitle_custom_position = 75
+subtitle_custom_position = 95
 subtitle_margin = 0.05
 font_name = "MicrosoftYaHeiBold.ttc"
-text_fore_color = "rgb(234, 58, 23)"
+text_fore_color = "rgb(23, 146, 234)"
 text_background_color = true
 font_size = 60
 stroke_color = "#000000"

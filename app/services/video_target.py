@@ -6,9 +6,11 @@ from loguru import logger
 from moviepy import (
     AudioFileClip,
     concatenate_videoclips,
+    concatenate_audioclips,
     VideoFileClip,
     TextClip,
     CompositeVideoClip,
+    AudioClip,
 )
 from app.config.config import load_config
 from app.utils import utils
@@ -28,6 +30,7 @@ def finalize_video(
     combined_video_path: str,
     audio_file: str,
     threads: int,
+    is_first_scene: bool = False,
 ) -> str:
     """
     Finalize video by concatenating clips and adding audio
@@ -37,6 +40,7 @@ def finalize_video(
         combined_video_path: Path to save the final video
         audio_file: Path to audio file
         threads: Number of threads to use
+        is_first_scene: Whether this is the first scene (adds 0.3s delay to audio)
     
     Returns:
         Path to the final video
@@ -55,6 +59,11 @@ def finalize_video(
         # Load audio if provided
         if audio_file:
             audio_clip = AudioFileClip(audio_file)
+            
+            # Add 0.3 second delay at the beginning of the first scene's audio
+            if is_first_scene:
+                silence_clip = AudioClip(lambda t: 0, duration=0.3)
+                audio_clip = concatenate_audioclips([silence_clip, audio_clip])
             
             # Trim video to match audio duration
             video_duration_final = final_video.duration

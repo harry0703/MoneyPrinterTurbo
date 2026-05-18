@@ -374,6 +374,7 @@ def build_scene_video(
     local_video_paths: List[str] = None,
     intro_video_path: str = None,
     intro_duration: int = 10,
+    is_first_scene: bool = False,
 ) -> str:
     # Handle audio_file being None (scene videos already contain audio)
     if audio_file:
@@ -528,5 +529,6 @@ def build_scene_video(
         processed_clips=processed_clips,
         combined_video_path=combined_video_path,
         audio_file=audio_file,
-        threads=threads
+        threads=threads,
+        is_first_scene=is_first_scene
     )
