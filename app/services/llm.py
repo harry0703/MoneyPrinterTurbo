@@ -366,6 +366,8 @@ def _generate_response(prompt: str) -> str:
 
                 if not response or not getattr(response, "choices", None):
                     raise ValueError(f"[{llm_provider}] returned empty response")
+                if response.choices[0].message is None:
+                    raise ValueError(f"[{llm_provider}] returned empty message")
 
                 content = response.choices[0].message.content
                 return _normalize_text_response(content, llm_provider)
