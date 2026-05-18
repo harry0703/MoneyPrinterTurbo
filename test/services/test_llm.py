@@ -73,6 +73,26 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("Error:", result)
         self.assertIn("returned empty response", result)
 
+    def test_litellm_provider_handles_empty_message(self):
+        """
+        某些 OpenAI-compatible 网关在内容过滤或安全拦截时会返回
+        HTTP 200，但 `choices[0].message` 为 None。这里必须返回
+        可诊断的错误，而不是抛出 AttributeError。
+        """
+        self._use_litellm_provider()
+
+        fake_litellm = types.SimpleNamespace(
+            completion=lambda **kwargs: types.SimpleNamespace(
+                choices=[types.SimpleNamespace(message=None)]
+            )
+        )
+
+        with patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = llm._generate_response("test")
+
+        self.assertIn("Error:", result)
+        self.assertIn("returned empty message", result)
+
     def test_openai_provider_still_uses_existing_path(self):
         config.app["llm_provider"] = "openai"
         config.app["openai_api_key"] = ""

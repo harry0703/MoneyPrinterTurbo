@@ -364,11 +364,12 @@ def _generate_response(prompt: str) -> str:
                     drop_params=True,
                 )
 
-                if not response or not getattr(response, "choices", None):
+                if not response:
+                    raise ValueError(f"[{llm_provider}] returned empty response")
+                if not getattr(response, "choices", None):
                     raise ValueError(f"[{llm_provider}] returned empty response")
 
-                content = response.choices[0].message.content
-                return _normalize_text_response(content, llm_provider)
+                return _extract_chat_completion_text(response, llm_provider)
 
             if llm_provider == "azure":
                 client = AzureOpenAI(
