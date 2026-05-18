@@ -4,6 +4,11 @@ video_source = "pexels" # "pexels" or "pixabay"
 # 是否隐藏配置面板
 hide_config = false
 
+# 是否校验外部 API 和素材下载的 TLS 证书。
+# 默认必须开启，避免 Pexels/Pixabay API key 和下载素材被中间人攻击篡改。
+# 只有在企业代理或自签证书环境明确需要时，才临时改为 false。
+tls_verify = true
+
 # Pexels API Key
 # Register at https://www.pexels.com/api/ to get your API key.
 # You can use multiple keys to avoid rate limits.
@@ -26,7 +31,7 @@ pixabay_api_keys = []
 #   deepseek
 #   gemini
 #   ollama
-#   g4f
+#   g4f        (disabled by default; set enable_g4f=true only after accepting its risks)
 #   oneapi
 #   cloudflare
 #   minimax
@@ -75,6 +80,12 @@ oneapi_base_url = ""
 oneapi_model_name = ""
 
 ########## G4F
+# g4f relies on reverse-engineered third-party endpoints and is not recommended
+# for production. Prefer official APIs, OpenAI-compatible providers, LiteLLM,
+# Ollama, or local inference.
+# If you still need it, install the optional dependency with:
+#   uv sync --extra g4f
+enable_g4f = false
 # Visit https://github.com/xtekky/gpt4free to get more details
 # Supported model list: https://github.com/xtekky/gpt4free/blob/main/g4f/models.py
 g4f_model_name = "gpt-3.5-turbo"

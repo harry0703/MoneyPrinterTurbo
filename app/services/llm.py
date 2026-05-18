@@ -4,7 +4,6 @@ import re
 import requests
 from typing import List
 
-import g4f
 from loguru import logger
 from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
@@ -59,6 +58,28 @@ def _generate_response(prompt: str) -> str:
         llm_provider = config.app.get("llm_provider", "openai")
         logger.info(f"llm provider: {llm_provider}")
         if llm_provider == "g4f":
+            if not config.app.get("enable_g4f", False):
+                raise ValueError(
+                    "g4f provider is disabled by default because it relies on "
+                    "reverse-engineered third-party endpoints. Set enable_g4f=true "
+                    "in config.toml only if you understand and accept the security, "
+                    "reliability, and legal risks."
+                )
+
+            logger.warning(
+                "g4f provider is enabled. This provider may be unstable and carries "
+                "supply-chain and terms-of-service risks. Prefer official providers, "
+                "OpenAI-compatible APIs, LiteLLM, Ollama, or local inference for production."
+            )
+            try:
+                import g4f
+            except ImportError as e:
+                raise ValueError(
+                    "g4f package is not installed by default. Install the optional "
+                    "dependency with `uv sync --extra g4f` only if you understand "
+                    "and accept the provider risks."
+                ) from e
+
             model_name = config.app.get("g4f_model_name", "")
             if not model_name:
                 model_name = "gpt-3.5-turbo-16k-0613"
@@ -272,8 +293,12 @@ def _generate_response(prompt: str) -> str:
                     candidates = response.candidates
                     generated_text = candidates[0].content.parts[0].text
                 except (AttributeError, IndexError) as e:
-                    print("Gemini Error:", e)
-                    raise ValueError(f"[{llm_provider}] returned invalid response content")
+                    logger.warning(
+                        f"gemini returned invalid response content: {str(e)}"
+                    )
+                    raise ValueError(
+                        f"[{llm_provider}] returned invalid response content"
+                    )
 
                 return _normalize_text_response(generated_text, llm_provider)
 
@@ -532,8 +557,10 @@ Please note that you must use English for generating video search terms; Chinese
                     try:
                         search_terms = json.loads(match.group())
                     except Exception as e:
+                        # 这里保留重试流程，但必须记录 LLM 返回的非标准 JSON，
+                        # 否则后续排查搜索词为空时无法定位
+                        # 是模型格式问题还是解析逻辑问题。
                         logger.warning(f"failed to generate video terms: {str(e)}")
-                        pass
 
         if search_terms and len(search_terms) > 0:
             break

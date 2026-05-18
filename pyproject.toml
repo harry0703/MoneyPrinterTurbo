@@ -23,7 +23,6 @@ dependencies = [
     "loguru==0.7.3",
     "google-generativeai==0.8.6",
     "dashscope==1.20.14",
-    "g4f==0.5.2.2",
     "azure-cognitiveservices-speech==1.41.1",
     "redis==5.2.0",
     "python-multipart==0.0.19",
@@ -32,6 +31,11 @@ dependencies = [
     "socksio==1.0.0",
     "pydub==0.25.1",
     "litellm==1.60.0",
+]
+
+[project.optional-dependencies]
+g4f = [
+    "g4f==0.5.2.2",
 ]
 
 [tool.hatch.build.targets.wheel]

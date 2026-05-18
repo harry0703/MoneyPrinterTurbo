@@ -85,6 +85,45 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
 
+    def test_g4f_provider_requires_explicit_opt_in(self):
+        """
+        g4f 存在供应链和稳定性风险，不能因为用户把 provider 写成 g4f
+        就默认加载第三方包并访问逆向接口，必须显式启用。
+        """
+        config.app["llm_provider"] = "g4f"
+        config.app["enable_g4f"] = False
+
+        result = llm._generate_response("test")
+
+        self.assertIn("Error:", result)
+        self.assertIn("g4f provider is disabled", result)
+
+    def test_g4f_provider_uses_lazy_import_after_opt_in(self):
+        config.app["llm_provider"] = "g4f"
+        config.app["enable_g4f"] = True
+        config.app["g4f_model_name"] = "gpt-3.5-turbo"
+
+        fake_g4f = types.SimpleNamespace()
+        fake_g4f.ChatCompletion = types.SimpleNamespace(
+            create=lambda **kwargs: "hello from g4f"
+        )
+
+        with patch.dict(sys.modules, {"g4f": fake_g4f}):
+            result = llm._generate_response("test")
+
+        self.assertEqual(result, "hello from g4f")
+
+    def test_g4f_provider_reports_missing_optional_dependency(self):
+        config.app["llm_provider"] = "g4f"
+        config.app["enable_g4f"] = True
+        config.app["g4f_model_name"] = "gpt-3.5-turbo"
+
+        with patch.dict(sys.modules, {"g4f": None}):
+            result = llm._generate_response("test")
+
+        self.assertIn("Error:", result)
+        self.assertIn("g4f package is not installed by default", result)
+
 
 FOUNDRY_KEY = os.environ.get("ANTHROPIC_FOUNDRY_API_KEY", "")
 FOUNDRY_BASE = "https://amanrai-test-resource.services.ai.azure.com/anthropic"

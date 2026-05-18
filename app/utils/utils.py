@@ -6,12 +6,9 @@ import threading
 from typing import Any
 from uuid import uuid4
 
-import urllib3
 from loguru import logger
 
 from app.models import const
-
-urllib3.disable_warnings()
 
 
 def get_response(status: int, data: Any = None, message: str = ""):

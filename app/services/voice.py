@@ -1506,7 +1506,10 @@ def siliconflow_tts(
                     ]
 
                 logger.success(f"siliconflow tts succeeded: {voice_file}")
-                print("s", sub_maker.subs, sub_maker.offset)
+                logger.debug(
+                    "siliconflow subtitle timeline generated, "
+                    f"subs: {len(sub_maker.subs)}, offsets: {len(sub_maker.offset)}"
+                )
                 return sub_maker
             else:
                 logger.error(

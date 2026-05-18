@@ -17,6 +17,23 @@ _api_key_counter = 0
 _api_key_lock = threading.Lock()
 
 
+def _get_tls_verify() -> bool:
+    # 默认开启 TLS 证书校验，防止素材搜索和下载过程被中间人篡改。
+    # 仅在企业代理、自签证书等明确需要的场景下，允许用户通过
+    # `config.toml` 显式设置 `tls_verify = false` 临时关闭。
+    tls_verify = config.app.get("tls_verify", True)
+    if isinstance(tls_verify, str):
+        tls_verify = tls_verify.strip().lower() not in ("0", "false", "no", "off")
+
+    if not tls_verify:
+        logger.warning(
+            "TLS certificate verification is disabled by config.app.tls_verify=false. "
+            "Only use this in trusted proxy environments."
+        )
+
+    return bool(tls_verify)
+
+
 def get_api_key(cfg_key: str):
     api_keys = config.app.get(cfg_key)
     if not api_keys:
@@ -58,7 +75,7 @@ def search_videos_pexels(
             query_url,
             headers=headers,
             proxies=config.proxy,
-            verify=False,
+            verify=_get_tls_verify(),
             timeout=(30, 60),
         )
         response = r.json()
@@ -114,7 +131,7 @@ def search_videos_pixabay(
 
     try:
         r = requests.get(
-            query_url, proxies=config.proxy, verify=False, timeout=(30, 60)
+            query_url, proxies=config.proxy, verify=_get_tls_verify(), timeout=(30, 60)
         )
         response = r.json()
         video_items = []
@@ -176,7 +193,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
                 video_url,
                 headers=headers,
                 proxies=config.proxy,
-                verify=False,
+                verify=_get_tls_verify(),
                 timeout=(60, 240),
             ).content
         )
@@ -193,14 +210,18 @@ def save_video(video_url: str, save_dir: str = "") -> str:
             logger.warning(f"invalid video file: {video_path} => {str(e)}")
             try:
                 os.remove(video_path)
-            except Exception:
-                pass
+            except Exception as remove_error:
+                logger.warning(
+                    f"failed to remove invalid video file: {video_path}, error: {str(remove_error)}"
+                )
         finally:
             if clip is not None:
                 try:
                     clip.close()
-                except Exception:
-                    pass
+                except Exception as close_error:
+                    logger.warning(
+                        f"failed to close video clip: {video_path}, error: {str(close_error)}"
+                    )
     return ""
 
 

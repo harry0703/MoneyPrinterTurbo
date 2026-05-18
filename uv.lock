@@ -1042,7 +1042,6 @@ dependencies = [
     { name = "edge-tts" },
     { name = "fastapi" },
     { name = "faster-whisper" },
-    { name = "g4f" },
     { name = "google-generativeai" },
     { name = "litellm" },
     { name = "loguru" },
@@ -1058,6 +1057,11 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
+[package.optional-dependencies]
+g4f = [
+    { name = "g4f" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "azure-cognitiveservices-speech", specifier = "==1.41.1" },
@@ -1065,7 +1069,7 @@ requires-dist = [
     { name = "edge-tts", specifier = "==7.2.7" },
     { name = "fastapi", specifier = "==0.115.6" },
     { name = "faster-whisper", specifier = "==1.1.0" },
-    { name = "g4f", specifier = "==0.5.2.2" },
+    { name = "g4f", marker = "extra == 'g4f'", specifier = "==0.5.2.2" },
     { name = "google-generativeai", specifier = "==0.8.6" },
     { name = "litellm", specifier = "==1.60.0" },
     { name = "loguru", specifier = "==0.7.3" },
@@ -1080,6 +1084,7 @@ requires-dist = [
     { name = "streamlit", specifier = "==1.45.0" },
     { name = "uvicorn", specifier = "==0.32.1" },
 ]
+provides-extras = ["g4f"]
 
 [[package]]
 name = "moviepy"
