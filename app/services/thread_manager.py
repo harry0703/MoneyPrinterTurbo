@@ -108,7 +108,7 @@ class ThreadManager:
         except Exception as e:
             logging.error(f"Failed to load tasks: {str(e)}")
 
-    def submit_task(self, task_id: str, task_func: Callable, *args, **kwargs) -> str:
+    def submit_task(self, task_id: str, task_func: Callable, *args, **kwargs) -> Tuple[str, str]:
         """Submit task to background thread
         
         Args:
@@ -118,17 +118,26 @@ class ThreadManager:
             **kwargs: Task function keyword arguments
             
         Returns:
-            Task ID
+            Tuple of (Task ID, status message)
+            Status message indicates whether task was started immediately or queued
         """
         task_info = TaskInfo(task_id, task_func, args, kwargs)
         
         with self.lock:
             self.task_infos[task_id] = task_info
             self.task_queue.put(task_id)
+            was_started = len(self.threads) < self.max_concurrent_tasks
             
         # Try to execute task
         self._process_queue()
-        return task_id
+        
+        with self.lock:
+            current_status = self.task_infos.get(task_id, TaskInfo(task_id, task_func, args, kwargs)).status
+            
+        if current_status == TaskStatus.RUNNING:
+            return task_id, "started"
+        else:
+            return task_id, "queued"
 
     def _process_queue(self):
         """Process task queue"""

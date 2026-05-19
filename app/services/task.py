@@ -1008,7 +1008,7 @@ def start_async(task_id, params: VideoParams, stop_at: str = "video"):
         stop_at: Stop point
         
     Returns:
-        Task ID
+        Tuple of (Task ID, status message)
     """
     logger.info(f"Submitting task {task_id} to background thread")
     return thread_manager.submit_task(task_id, start, task_id, params, stop_at)

@@ -79,12 +79,20 @@ def create_task(
             print(f"[Task Creation] voice_name starts with 'coze|': {body.voice_name.startswith('coze|')}")
         
         sm.state.update_task(task_id, state=const.TASK_STATE_PENDING, progress=0, task_type="video_generation")
-        tm.start_async(task_id, body, stop_at)
+        _, queue_status = tm.start_async(task_id, body, stop_at)
         
         # Get the task with task_type from state
         created_task = sm.state.get_task(task_id)
-        logger.success(f"Task created: {utils.to_json(created_task)}")
-        return utils.get_response(200, created_task)
+        
+        # Provide appropriate message based on queue status
+        if queue_status == "queued":
+            message = "Parallel running task capacity used up and your task will be queued for next slot"
+            logger.info(f"Task {task_id} queued: {message}")
+        else:
+            message = "success"
+            logger.success(f"Task created: {utils.to_json(created_task)}")
+        
+        return utils.get_response(200, created_task, message=message)
     except ValueError as e:
         raise HttpException(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"

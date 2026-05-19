@@ -77,17 +77,17 @@ api_key = "sk-ehmjzsdqlcbsswaplkgzjsqjrlwyjquczplhjxoszbhdjgvn"
 hide_log = false
 language = "zh"
 tts_server = "coze-tts"
-voice_name = "coze|7468512265151741979|擎苍-Male|https://lf6-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_male_qingcang_mars_bigtts.mp3?lk3s=da27ec82&x-expires=1779167745&x-signature=VkwJq46VuplBl6nzmsoXQ724oP0%3D|无语，擎天之巨首，揽尽世间风云变幻，诸般阻碍，不过是无脉相巅峰之基石。今日之儒，来日必当十倍奉还。 无知威名，必将震慑四海八荒。|"
+voice_name = "coze|7468512265151741979|擎苍-Male|https://lf26-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_male_qingcang_mars_bigtts.mp3?lk3s=da27ec82&x-expires=1779276722&x-signature=ZA5TC%2FmUoELJdeq6QaXN%2BbvWbc0%3D|无语，擎天之巨首，揽尽世间风云变幻，诸般阻碍，不过是无脉相巅峰之基石。今日之儒，来日必当十倍奉还。 无知威名，必将震慑四海八荒。|"
 voice_volume = 1.2
 voice_rate = 1
 bgm_type = "random"
 bgm_volume = 0.1
 subtitle_enabled = true
 subtitle_position = "custom"
-subtitle_custom_position = 95
+subtitle_custom_position = 75
 subtitle_margin = 0.05
 font_name = "MicrosoftYaHeiBold.ttc"
-text_fore_color = "rgb(23, 146, 234)"
+text_fore_color = "rgb(234, 23, 216)"
 text_background_color = true
 font_size = 60
 stroke_color = "#000000"

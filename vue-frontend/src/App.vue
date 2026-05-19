@@ -86,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { VideoCamera, Document, Microphone, ChatLineSquare, Collection, Timer, VideoPlay, Setting } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -253,6 +253,9 @@ const generateVideo = async () => {
       } else {
         ElMessage.success(t('Start Generating Video'));
       }
+      // Reset state and wait for DOM update before navigation
+      isGenerating.value = false;
+      await nextTick();
       router.push('/task');
     } else {
       // Show the actual error message from the backend if available
@@ -263,7 +266,10 @@ const generateVideo = async () => {
     console.error('Error generating video:', error);
     ElMessage.error(t('Video Generation Failed'));
   } finally {
-    isGenerating.value = false;
+    if (isGenerating.value) {
+      isGenerating.value = false;
+      await nextTick();
+    }
   }
 };
 
@@ -278,6 +284,10 @@ onMounted(async () => {
   await settingsStore.checkBackendHealth();
   await settingsStore.fetchVersion();
   await settingsStore.fetchConfig();
+});
+
+onUnmounted(() => {
+  isGenerating.value = false;
 });
 </script>
 
