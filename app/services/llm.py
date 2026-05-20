@@ -735,6 +735,8 @@ Your output MUST conform to this JSON Schema:
     prompt += """
 """
     prompt = prompt.strip()
+    # Replace placeholders
+    prompt = prompt.replace("{json_schema}", json_schema).replace("{few_shot_examples}", few_shot_examples)
 
     # Add language instruction
     if language:
@@ -744,8 +746,7 @@ Your output MUST conform to this JSON Schema:
         detected_language = detect_language(video_content)
         prompt += f"\n- Language: {detected_language}\n- IMPORTANT: Please respond in {detected_language} language. All content, including scene titles, visual descriptions, dialogue scripts, and emotion markers, must be in {detected_language}."
 
-    # Format prompt with schema and examples
-    prompt = prompt.format(json_schema=json_schema, few_shot_examples=few_shot_examples)
+
 
     logger.info(f"generating multi-scene script for content: {video_content}")
 
