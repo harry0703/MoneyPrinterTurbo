@@ -1,11 +1,11 @@
 import threading
 import queue
-import logging
 import time
 import json
 import os
 from datetime import datetime
 from typing import Dict, Optional, Callable, Any, List, Tuple
+from loguru import logger
 
 thread_local = threading.local()
 
@@ -89,7 +89,7 @@ class ThreadManager:
                 with open(self.save_file, 'w', encoding='utf-8') as f:
                     json.dump(tasks_to_save, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logging.error(f"Failed to save tasks: {str(e)}")
+            logger.error(f"Failed to save tasks: {str(e)}")
     
     def _load_tasks(self):
         """Load task information from file"""
@@ -106,7 +106,7 @@ class ThreadManager:
                 if len(self.history) > self.max_history:
                     self.history = self.history[:self.max_history]
         except Exception as e:
-            logging.error(f"Failed to load tasks: {str(e)}")
+            logger.error(f"Failed to load tasks: {str(e)}")
 
     def submit_task(self, task_id: str, task_func: Callable, *args, **kwargs) -> Tuple[str, str]:
         """Submit task to background thread
@@ -121,22 +121,22 @@ class ThreadManager:
             Tuple of (Task ID, status message)
             Status message indicates whether task was started immediately or queued
         """
-        logging.debug(f"submit_task: task_id={task_id} submitted, threads_running={len(self.threads)}, max={self.max_concurrent_tasks}, instance_id={id(self)}")
+        logger.debug(f"submit_task: task_id={task_id} submitted, threads_running={len(self.threads)}, max={self.max_concurrent_tasks}, instance_id={id(self)}")
         task_info = TaskInfo(task_id, task_func, args, kwargs)
 
         with self.lock:
             self.task_infos[task_id] = task_info
             self.task_queue.put(task_id)
             was_started = len(self.threads) < self.max_concurrent_tasks
-            logging.debug(f"submit_task: task_id={task_id} added to queue, was_started={was_started}, queue_size={self.task_queue.qsize()}")
+            logger.debug(f"submit_task: task_id={task_id} added to queue, was_started={was_started}, queue_size={self.task_queue.qsize()}")
 
         # Try to execute task
-        logging.debug(f"submit_task: task_id={task_id} calling _process_queue")
+        logger.debug(f"submit_task: task_id={task_id} calling _process_queue")
         self._process_queue()
 
         with self.lock:
             current_status = self.task_infos.get(task_id, TaskInfo(task_id, task_func, args, kwargs)).status
-            logging.debug(f"submit_task: task_id={task_id} status after _process_queue: {current_status}")
+            logger.debug(f"submit_task: task_id={task_id} status after _process_queue: {current_status}")
 
         if current_status == TaskStatus.RUNNING:
             return task_id, "started"
@@ -145,27 +145,27 @@ class ThreadManager:
 
     def _process_queue(self):
         """Process task queue"""
-        logging.debug(f"_process_queue: ENTERING, instance_id={id(self)}")
+        logger.debug(f"_process_queue: ENTERING, instance_id={id(self)}")
         with self.lock:
             threads_count = len(self.threads)
             queue_size = self.task_queue.qsize()
-            logging.debug(f"_process_queue: threads={threads_count}, max={self.max_concurrent_tasks}, queue_size={queue_size}")
+            logger.debug(f"_process_queue: threads={threads_count}, max={self.max_concurrent_tasks}, queue_size={queue_size}")
             if threads_count < self.max_concurrent_tasks and queue_size > 0:
                 task_id = self.task_queue.get()
-                logging.debug(f"_process_queue: dequeued task_id={task_id}")
+                logger.debug(f"_process_queue: dequeued task_id={task_id}")
                 if task_id in self.task_infos:
                     task_status = self.task_infos[task_id].status
-                    logging.debug(f"_process_queue: task_id={task_id} status={task_status}")
+                    logger.debug(f"_process_queue: task_id={task_id} status={task_status}")
                     if task_status == TaskStatus.PENDING:
-                        logging.debug(f"_process_queue: starting task_id={task_id}")
+                        logger.debug(f"_process_queue: starting task_id={task_id}")
                         self._start_task(task_id)
                     else:
-                        logging.warning(f"_process_queue: task_id={task_id} not PENDING (status={task_status}), skipping")
+                        logger.warning(f"_process_queue: task_id={task_id} not PENDING (status={task_status}), skipping")
                 else:
-                    logging.warning(f"_process_queue: task_id={task_id} not in task_infos!")
+                    logger.warning(f"_process_queue: task_id={task_id} not in task_infos!")
             else:
-                logging.debug(f"_process_queue: no task started: threads_full={threads_count >= self.max_concurrent_tasks}, queue_empty={queue_size == 0}")
-        logging.debug(f"_process_queue: EXITING")
+                logger.debug(f"_process_queue: no task started: threads_full={threads_count >= self.max_concurrent_tasks}, queue_empty={queue_size == 0}")
+        logger.debug(f"_process_queue: EXITING")
 
     def _start_task(self, task_id: str):
         """Start task
@@ -173,15 +173,15 @@ class ThreadManager:
         Args:
             task_id: Task ID
         """
-        logging.info(f"[_start_task] task_id={task_id} called")
+        logger.info(f"[_start_task] task_id={task_id} called")
         task_info = self.task_infos.get(task_id)
         if not task_info or task_info.status != TaskStatus.PENDING:
-            logging.warning(f"[_start_task] task_id={task_id} not started: task_info={task_info is not None}, status={task_info.status if task_info else 'None'}")
+            logger.warning(f"[_start_task] task_id={task_id} not started: task_info={task_info is not None}, status={task_info.status if task_info else 'None'}")
             return
 
         task_info.status = TaskStatus.RUNNING
         task_info.start_time = datetime.now()
-        logging.info(f"[_start_task] task_id={task_id} status set to RUNNING")
+        logger.info(f"[_start_task] task_id={task_id} status set to RUNNING")
 
         thread = threading.Thread(
             target=self._run_task,
@@ -189,9 +189,9 @@ class ThreadManager:
         )
         thread.daemon = True
         self.threads[task_id] = thread
-        logging.info(f"[_start_task] task_id={task_id} starting thread")
+        logger.info(f"[_start_task] task_id={task_id} starting thread")
         thread.start()
-        logging.info(f"[_start_task] task_id={task_id} thread started successfully")
+        logger.info(f"[_start_task] task_id={task_id} thread started successfully")
 
     def _run_task(self, task_id: str):
         """Execute task in background thread
@@ -211,43 +211,43 @@ class ThreadManager:
 
             result = task_info.task_func(*task_info.args, **task_info.kwargs, check_cancelled=check_cancelled)
 
-            logging.info(f"[_run_task] task_id={task_id} task_func completed normally")
+            logger.info(f"[_run_task] task_id={task_id} task_func completed normally")
             with self.lock:
                 if not task_info.cancelled:
                     task_info.status = TaskStatus.COMPLETED
                     task_info.result = result
-                    logging.info(f"[_run_task] task_id={task_id} status set to COMPLETED")
+                    logger.info(f"[_run_task] task_id={task_id} status set to COMPLETED")
                 else:
                     task_info.status = TaskStatus.CANCELLED
-                    logging.info(f"[_run_task] task_id={task_id} status set to CANCELLED")
+                    logger.info(f"[_run_task] task_id={task_id} status set to CANCELLED")
         except Exception as e:
-            logging.error(f"[_run_task] task_id={task_id} task_func raised exception: {str(e)}")
+            logger.error(f"[_run_task] task_id={task_id} task_func raised exception: {str(e)}")
             with self.lock:
                 task_info.status = TaskStatus.FAILED
                 task_info.error = e
-                logging.info(f"[_run_task] task_id={task_id} status set to FAILED")
+                logger.info(f"[_run_task] task_id={task_id} status set to FAILED")
         finally:
-            logging.info(f"[_run_task] task_id={task_id} finally block entered")
+            logger.info(f"[_run_task] task_id={task_id} finally block entered")
             if hasattr(thread_local, 'task_id'):
                 del thread_local.task_id
 
-            logging.info(f"[_run_task] task_id={task_id} acquiring lock for cleanup")
+            logger.info(f"[_run_task] task_id={task_id} acquiring lock for cleanup")
             with self.lock:
                 task_info.end_time = datetime.now()
                 if task_id in self.threads:
                     del self.threads[task_id]
-                    logging.info(f"[_run_task] task_id={task_id} removed from threads, remaining_threads={len(self.threads)}")
+                    logger.info(f"[_run_task] task_id={task_id} removed from threads, remaining_threads={len(self.threads)}")
                 else:
-                    logging.warning(f"[_run_task] task_id={task_id} was NOT in threads!")
+                    logger.warning(f"[_run_task] task_id={task_id} was NOT in threads!")
 
                 self._update_history(task_id)
 
-            logging.debug(f"_run_task: task_id={task_id} lock released, calling _process_queue, instance_id={id(self)}")
+            logger.debug(f"_run_task: task_id={task_id} lock released, calling _process_queue, instance_id={id(self)}")
             try:
                 self._process_queue()
-                logging.debug(f"_run_task: task_id={task_id} _process_queue completed")
+                logger.debug(f"_run_task: task_id={task_id} _process_queue completed")
             except Exception as e:
-                logging.error(f"_run_task: task_id={task_id} _process_queue raised exception: {str(e)}")
+                logger.error(f"_run_task: task_id={task_id} _process_queue raised exception: {str(e)}")
 
     def _update_history(self, task_id: str):
         """Update task history record
@@ -416,4 +416,4 @@ class ThreadManager:
 
 # Global thread manager instance
 thread_manager = ThreadManager()
-logging.debug(f"ThreadManager: Created instance with id={id(thread_manager)}")
+logger.debug(f"ThreadManager: Created instance with id={id(thread_manager)}")
