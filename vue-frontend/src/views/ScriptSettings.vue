@@ -79,6 +79,7 @@
             style="display: none"
             @change="importScenes"
           />
+          <div class="scene-count">{{ t('Total Scenes') }}: {{ scenes.length }}</div>
         </div>
         
         <!-- Scene List -->
@@ -660,6 +661,17 @@ defineExpose({
 .scene-actions {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.scene-count {
+  margin-left: auto;
+  padding: 6px 12px;
+  background-color: #1890ff;
+  color: white;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .scenes-list {
