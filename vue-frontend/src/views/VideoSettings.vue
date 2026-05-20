@@ -138,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue';
+import { reactive, watch, onMounted, computed } from 'vue';
 import FileUploader from '../components/FileUploader.vue';
 import { useI18nStore } from '../stores/i18n';
 import { parseLabelMarkdown } from '../utils/markdownParser';
@@ -156,7 +156,13 @@ const i18nStore = useI18nStore();
 const t = i18nStore.t;
 const settingsStore = useSettingsStore();
 
-const localFiles = ref<FileItem[]>([]);
+const localFiles = computed({
+  get: () => settingsStore.video.localFiles,
+  set: (value) => {
+    settingsStore.video.localFiles = value;
+    settingsStore.saveToLocalStorage();
+  }
+});
 
 const form = reactive({
   videoSource: settingsStore.video.source,

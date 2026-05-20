@@ -26,6 +26,7 @@ interface VideoSettings {
   bitrate: string;
   brightness: number;
   contrast: number;
+  localFiles: Array<{ name: string; url?: string; status?: string; uid: string }>;
 }
 
 interface AudioSettings {
@@ -120,7 +121,8 @@ export const useSettingsStore = defineStore('settings', {
       quality: 'ultra',
       bitrate: '20M',
       brightness: 1.0,
-      contrast: 1.0
+      contrast: 1.0,
+      localFiles: []
     },
     
     // Audio settings

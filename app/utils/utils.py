@@ -94,6 +94,29 @@ def task_dir(sub_dir: str = ""):
     return d
 
 
+def delete_task_dir(task_id: str):
+    """Delete task directory and all its contents.
+    
+    Args:
+        task_id: Task ID to delete
+        
+    Returns:
+        bool: True if deleted successfully, False otherwise
+    """
+    import shutil
+    
+    task_path = os.path.join(storage_dir(), "tasks", task_id)
+    if os.path.exists(task_path):
+        try:
+            shutil.rmtree(task_path)
+            logger.info(f"Deleted task directory: {task_path}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to delete task directory {task_path}: {str(e)}")
+            return False
+    return False
+
+
 def font_dir(sub_dir: str = ""):
     d = resource_dir("fonts")
     if sub_dir:

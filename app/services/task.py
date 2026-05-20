@@ -507,6 +507,12 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         
         logger.info(f"scene {scene_num}: after preprocessing, materials count: {len(materials) if materials else 0}")
         
+        # Copy local materials to task-specific directory for isolation
+        if materials:
+            logger.info(f"scene {scene_num}: copying local materials to task directory for isolation")
+            materials = video.copy_local_materials_to_task(task_id, materials)
+            logger.info(f"scene {scene_num}: after copying to task directory, materials count: {len(materials) if materials else 0}")
+        
         # Match local videos by scene keywords for better semantic relevance
         if materials and scene_keywords:
             logger.info(f"scene {scene_num}: matching local materials with keywords: {scene_keywords}")
@@ -890,6 +896,11 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         materials = video.preprocess_video(
             materials=params.video_materials, clip_duration=params.video_clip_duration
         )
+        
+        # Copy local materials to task-specific directory for isolation
+        if materials:
+            logger.info("Copying local materials to task directory for isolation")
+            materials = video.copy_local_materials_to_task(task_id, materials)
         
         # Match local videos by scene keywords for better semantic relevance
         if materials and video_terms:

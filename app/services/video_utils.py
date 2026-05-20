@@ -712,6 +712,62 @@ def match_local_videos_by_keywords(materials, scene_keywords):
     return sorted_materials
 
 
+def copy_local_materials_to_task(task_id: str, materials: List) -> List:
+    """
+    Copy local materials to task-specific directory for isolation.
+    
+    Args:
+        task_id: Task ID for creating task-specific directory
+        materials: List of MaterialInfo objects with local file paths
+        
+    Returns:
+        List of MaterialInfo objects with updated (task-specific) paths
+    """
+    from app.models.schema import MaterialInfo
+    from app.utils import utils
+    import shutil
+    
+    if not materials:
+        return materials
+    
+    task_materials_dir = os.path.join(utils.task_dir(task_id), "materials")
+    os.makedirs(task_materials_dir, exist_ok=True)
+    
+    processed_materials = []
+    
+    for material in materials:
+        if not material or not material.url:
+            continue
+            
+        original_path = material.url
+        
+        if original_path.startswith(('http://', 'https://', 'ftp://')):
+            processed_materials.append(material)
+            continue
+        
+        original_filename = os.path.basename(original_path)
+        name, ext = os.path.splitext(original_filename)
+        unique_filename = f"{name}_{task_id[:8]}{ext}"
+        task_material_path = os.path.join(task_materials_dir, unique_filename)
+        
+        try:
+            shutil.copy2(original_path, task_material_path)
+            logger.info(f"Copied local material to task directory: {original_path} -> {task_material_path}")
+            
+            new_material = MaterialInfo(
+                provider=material.provider,
+                url=task_material_path,
+                duration=material.duration
+            )
+            processed_materials.append(new_material)
+        except Exception as e:
+            logger.warning(f"Failed to copy local material {original_path}: {str(e)}")
+            processed_materials.append(material)
+    
+    logger.info(f"Copied {len(processed_materials)} local materials to task directory: {task_materials_dir}")
+    return processed_materials
+
+
 def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0, 255)):
     """
     Fit intro video into target dimensions without cropping.

@@ -64,6 +64,7 @@ from app.services.video_utils import (
     get_bgm_file,
     preprocess_video,
     match_local_videos_by_keywords,
+    copy_local_materials_to_task,
     fit_intro_video_to_target,
     crop_clip_to_target,
     wrap_text,
