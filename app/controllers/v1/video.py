@@ -79,6 +79,7 @@ def create_task(
             print(f"[Task Creation] voice_name starts with 'coze|': {body.voice_name.startswith('coze|')}")
         
         sm.state.update_task(task_id, state=const.TASK_STATE_PENDING, progress=0, task_type="video_generation")
+        logger.debug(f"video_controller: Calling start_async for task_id={task_id}, thread_manager_id={id(tm)}")
         _, queue_status = tm.start_async(task_id, body, stop_at)
         
         # Get the task with task_type from state

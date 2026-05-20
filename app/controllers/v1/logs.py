@@ -9,7 +9,7 @@ router = new_router()
 
 @router.get("/logs", summary="Get logs")
 def get_logs(
-    level: str = Query(None, description="Log level filter (INFO, WARNING, ERROR)"),
+    level: str = Query(None, description="Log level filter (DEBUG, INFO, WARNING, ERROR)"),
     task_id: str = Query(None, description="Task ID filter"),
     limit: int = Query(100, ge=1, le=3000, description="Number of logs to return"),
     offset: int = Query(0, ge=0, description="Pagination offset")

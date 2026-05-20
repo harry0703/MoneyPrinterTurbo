@@ -1010,8 +1010,11 @@ def start_async(task_id, params: VideoParams, stop_at: str = "video"):
     Returns:
         Tuple of (Task ID, status message)
     """
+    logger.debug(f"start_async: task_id={task_id}, thread_manager_id={id(thread_manager)}")
     logger.info(f"Submitting task {task_id} to background thread")
-    return thread_manager.submit_task(task_id, start, task_id, params, stop_at)
+    result = thread_manager.submit_task(task_id, start, task_id, params, stop_at)
+    logger.debug(f"start_async: task_id={task_id} submitted, result={result}")
+    return result
 
 
 def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=None):
@@ -1035,7 +1038,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     log_handler_id = logger.add(
         task_log_path,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{line} | {message}\n",
-        level="INFO",
+        level="DEBUG",
         rotation="10 MB",
         compression="zip"
     )

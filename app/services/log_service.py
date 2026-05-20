@@ -176,6 +176,6 @@ class LoguruHandler:
 
 log_service = LogService()
 loguru_handler = LoguruHandler(log_service)
-handler_id = logger.add(loguru_handler, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}", level="INFO")
+handler_id = logger.add(loguru_handler, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}", level="DEBUG")
 # print(f"[LogService] LoguruHandler registered with ID: {handler_id}")
 # print(f"[LogService] Total handlers registered: {len(logger._core.handlers)}")
