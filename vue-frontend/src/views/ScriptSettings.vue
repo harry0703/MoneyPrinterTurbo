@@ -667,11 +667,8 @@ defineExpose({
 .scene-count {
   margin-left: auto;
   padding: 6px 12px;
-  background-color: #1890ff;
-  color: white;
-  border-radius: 4px;
+  color: #666;
   font-size: 14px;
-  font-weight: 500;
 }
 
 .scenes-list {
