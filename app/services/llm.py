@@ -629,22 +629,70 @@ def generate_multi_scene_script(
 ) -> str:
     """
     Generate multi-scene script for video.
-    
+
     Args:
         video_content: The content of the video (can be a subject or full script)
         language: Language for the script
         max_scenes: Maximum number of scenes to generate
-    
+
     Returns:
         Multi-scene script in JSON format
     """
-    # 构建提示词，避免f-string解析错误
+    # JSON Schema definition for strict output format
+    json_schema = """{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["scenes"],
+  "properties": {
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "keywords", "visual", "script", "emotion"],
+        "properties": {
+          "title": {"type": "string"},
+          "keywords": {"type": "string"},
+          "visual": {"type": "string"},
+          "script": {"type": "string"},
+          "emotion": {"type": "string"}
+        }
+      }
+    }
+  }
+}"""
+
+    # Few-shot examples in different languages
+    few_shot_examples = """# Few-Shot Examples
+
+## Example 1 (Chinese):
+Input: 人工智能正在改变我们的生活方式
+Output:
+{"scenes":[{"title":"开场引入","keywords":"人工智能,生活,改变","visual":"科技感十足的工作室，主持人面带微笑，背景是智能化家居环境。运镜：从广角推进到主持人面部。","script":"各位朋友大家好，今天我们来聊聊人工智能如何改变我们的生活。","emotion":"热情,期待"},{"title":"AI应用场景","keywords":"智能家居,语音助手,自动化","visual":"特写智能音箱设备，灯光柔和闪烁，周围是现代化家居环境。运镜：缓慢平移展示智能家居全貌。","script":"从智能家居到语音助手，从自动驾驶到智能医疗，AI正在渗透到我们生活的方方面面。","emotion":"专业,讲解"},{"title":"未来展望","keywords":"发展趋势,创新,前景","visual":"主持人站在科技感背景前，屏幕显示未来城市景象。运镜：拉远镜头展示完整场景。","script":"展望未来，AI将带来更多可能性，让我们一起期待吧！","emotion":"自信,鼓舞"}]}
+
+## Example 2 (English):
+Input: The importance of healthy eating habits
+Output:
+{"scenes":[{"title":"Introduction","keywords":"health,diet,nutrition","visual":"Bright modern kitchen, host standing by a counter with fresh fruits and vegetables. Camera: Wide shot pushing in slowly.","script":"Hello everyone! Today let's discuss why healthy eating habits matter so much for our wellbeing.","emotion":"warm,friendly"},{"title":"Balanced Diet","keywords":"proteins,vegetables,fruits","visual":"Close-up of colorful vegetables and fruits arranged on a kitchen counter. Camera: Slow pan across the ingredients.","script":"A balanced diet includes plenty of vegetables, fruits, lean proteins, and whole grains. These provide essential nutrients for our body.","emotion":"informative,clear"},{"title":"Healthy Lifestyle","keywords":"exercise,habit,wellness","visual":"Host in a gym setting with modern equipment. Camera: Medium shot with background blur.","script":"Remember, healthy eating combined with regular exercise creates the foundation for a wellness lifestyle.","emotion":"motivational,inspiring"}]}"""
+
+    # Adaptive prompts for different retry attempts
+    retry_adaptive_prompts = {
+        0: "",  # First attempt - no additional instruction
+        1: "\n\n[REMINDER] Ensure your response is valid JSON starting with `{` and ending with `}`. Check for proper bracket matching.",
+        2: "\n\n[REMINDER] JSON PARSING ERROR PREVENTION: Make sure all strings use straight quotes, no trailing commas, and all brackets are properly closed.",
+        3: "\n\n[CRITICAL] Your previous responses had JSON formatting issues. Output ONLY valid JSON like this example: {\"scenes\":[{\"title\":\"...\",\"keywords\":\"...\",\"visual\":\"...\",\"script\":\"...\",\"emotion\":\"...\"}]}",
+    }
+
+    # Build base prompt
     prompt = """
 # Role
 You are a senior video director and storyboard designer with 10 years of experience. You excel at transforming various types of text content (whether it's informative articles, stories, or marketing copy) into visually impactful and logically coherent storyboard scripts.
 
 # Goal
 Please read the user-provided [Original Text] and adapt it into a structured multi-scene script in JSON format.
+
+# JSON Schema (STRICT OUTPUT FORMAT)
+Your output MUST conform to this JSON Schema:
+{json_schema}
 
 # Constraints & Workflow
 1. **Audio-First Principle**: Audio (dialogue) is the core, and video and subtitles serve the dialogue. All visual elements and scene designs should enhance the expression of the dialogue.
@@ -653,10 +701,10 @@ Please read the user-provided [Original Text] and adapt it into a structured mul
    - Each scene should have complete content and a clear theme, with logical coherence
    - Scene content should be independent and able to clearly express a complete concept or viewpoint
 3. **Visual Transformation**:
-    - Reject boring visuals (such as "a person speaking").
-    - Must use **visual metaphors** (expressing abstract concepts with concrete objects), **dynamic graphics**, or **scene reenactment**.
-    - Visual descriptions should be **pure text, concise and standard**, including: subject, environment, action, camera movement (such as close-up, push-in, pull-out).
-    - Visual elements must be closely related to the dialogue content and able to enhance the expression of the dialogue.
+   - Reject boring visuals (such as "a person speaking").
+   - Must use **visual metaphors** (expressing abstract concepts with concrete objects), **dynamic graphics**, or **scene reenactment**.
+   - Visual descriptions should be **pure text, concise and standard**, including: subject, environment, action, camera movement (such as close-up, push-in, pull-out).
+   - Visual elements must be closely related to the dialogue content and able to enhance the expression of the dialogue.
 4. **Dialogue Optimization**: Rewrite the original text into natural spoken language and mark tone/emotion.
    - Dialogue content should be clear, fluent, and suitable for spoken expression
    - Emotion markers should accurately reflect the emotional tone of the dialogue
@@ -668,28 +716,17 @@ Please read the user-provided [Original Text] and adapt it into a structured mul
      - Ensure the content flows naturally when spoken aloud
 5. **Keyword Extraction**: Extract 3-5 core keywords for each scene.
 
-# Output Format
-Please return a JSON object with the following structure:
-{
-  "scenes": [
-    {
-      "title": "Scene title",
-      "keywords": "keyword1, keyword2, keyword3",
-      "visual": "Detailed visual requirements including subject, environment, action, and camera movement",
-      "script": "Dialogue script",
-      "emotion": "Emotion annotation"
-    }
-  ]
-}
+{few_shot_examples}
 
-# Requirements
+# CRITICAL Output Requirements
 1. Return ONLY the raw JSON object, NO markdown code blocks, NO backticks, NO explanatory text
 2. The response must start with `{` and end with `}` - nothing before or after
-3. Ensure the JSON is valid and properly formatted
-4. Include 5-18 scenes
-5. Each scene must have all required fields
-6. Visual descriptions must be detailed and specific
-7. CRITICAL: Do NOT wrap the JSON in ```json or ``` markers - output pure JSON only
+3. All string values MUST use straight double quotes (not single quotes)
+4. NO trailing commas in arrays or objects
+5. NO escape characters within string values (use proper JSON escaping if needed)
+6. Each scene object must have ALL 5 fields: title, keywords, visual, script, emotion
+7. DO NOT wrap the JSON in ```json or ``` markers - output pure JSON only
+8. The scenes array must be valid and properly formatted
 
 # Input Text
 [Original Text]:
@@ -698,7 +735,8 @@ Please return a JSON object with the following structure:
     prompt += """
 """
     prompt = prompt.strip()
-    
+
+    # Add language instruction
     if language:
         prompt += f"\n- Language: {language}\n- IMPORTANT: Please respond in {language} language. All content, including scene titles, visual descriptions, dialogue scripts, and emotion markers, must be in {language}."
     else:
@@ -706,33 +744,39 @@ Please return a JSON object with the following structure:
         detected_language = detect_language(video_content)
         prompt += f"\n- Language: {detected_language}\n- IMPORTANT: Please respond in {detected_language} language. All content, including scene titles, visual descriptions, dialogue scripts, and emotion markers, must be in {detected_language}."
 
+    # Format prompt with schema and examples
+    prompt = prompt.format(json_schema=json_schema, few_shot_examples=few_shot_examples)
+
     logger.info(f"generating multi-scene script for content: {video_content}")
-    
+
     final_script = ""
     for i in range(_max_retries):
+        # Add adaptive reminder for retries
+        adaptive_prompt = prompt + retry_adaptive_prompts.get(i, "")
+
         try:
-            response = _generate_response(prompt=prompt)
-            
+            response = _generate_response(prompt=adaptive_prompt)
+
             if not response or response.strip() == "":
                 logger.warning(f"LLM API returned empty response, attempt {i + 1}/{_max_retries}")
                 continue
-                
+
             final_script = response
             break
         except Exception as e:
             logger.error(f"failed to generate multi-scene script: {e}")
-        
+
         if i < _max_retries - 1:
             logger.warning(f"failed to generate multi-scene script, trying again... {i + 1}")
-    
+
     if not final_script or "Error: " in final_script:
         # Fallback: generate a simple multi-scene structure in JSON
         logger.warning("using fallback multi-scene script generation")
-        fallback_json = f"{{\n  \"scenes\": [\n    {{\n      \"title\": \"开场引入\",\n      \"keywords\": \"introduction, greeting, overview\",\n      \"visual\": \"主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。运镜：从远到近的推镜头，聚焦到主播面部表情。\",\n      \"script\": \"各位朋友们，今天我要和大家分享一个关于设计模式的重要话题。\",\n      \"emotion\": \"热情、亲切\"\n    }},\n    {{\n      \"title\": \"核心内容\",\n      \"keywords\": \"core content, explanation, details\",\n      \"visual\": \"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。\",\n      \"script\": \"设计模式是软件开发中的重要概念，它提供了一套解决常见问题的最佳实践。\",\n      \"emotion\": \"专业、清晰\"\n    }},\n    {{\n      \"title\": \"总结收尾\",\n      \"keywords\": \"conclusion, summary, closing\",\n      \"visual\": \"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。\",\n      \"script\": \"希望今天的分享对大家有所帮助，谢谢大家的观看！\",\n      \"emotion\": \"自信、鼓舞\"\n    }}\n  ]\n}}"
+        fallback_json = """{"scenes":[{"title":"开场引入","keywords":"introduction,greeting,overview","visual":"主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。运镜：从远到近的推镜头，聚焦到主播面部表情。","script":"各位朋友们，今天我要和大家分享一个重要话题。","emotion":"热情,亲切"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
         return fallback_json
     else:
         logger.success(f"completed multi-scene script generation: \n{final_script}")
-    
+
     return final_script.strip()
 
 
