@@ -21,7 +21,9 @@
 
           <el-select v-model="selectedLogLevel" :placeholder="t('Log Level')" class="level-select">
             <el-option :label="t('All Levels')" value="" />
+            <el-option label="DEBUG" value="debug" />
             <el-option label="INFO" value="info" />
+            <el-option label="SUCCESS" value="success" />
             <el-option label="WARNING" value="warning" />
             <el-option label="ERROR" value="error" />
           </el-select>
