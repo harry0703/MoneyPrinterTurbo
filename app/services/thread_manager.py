@@ -249,6 +249,11 @@ class ThreadManager:
                     logger.warning(f"[_run_task] task_id={task_id} was NOT in threads!")
 
                 self._update_history(task_id)
+                
+                # Remove task info to release memory (CRITICAL for memory management)
+                if task_id in self.task_infos:
+                    del self.task_infos[task_id]
+                    logger.info(f"[_run_task] task_id={task_id} removed from task_infos to release memory")
 
             print(f"[FORCE PRINT] _run_task calling _process_queue for task_id={task_id}, instance_id={id(self)}")
             logger.debug(f"_run_task: task_id={task_id} lock released, calling _process_queue, instance_id={id(self)}")
@@ -259,6 +264,11 @@ class ThreadManager:
             except Exception as e:
                 print(f"[FORCE PRINT] _run_task _process_queue FAILED for task_id={task_id}: {str(e)}")
                 logger.error(f"_run_task: task_id={task_id} _process_queue raised exception: {str(e)}")
+            
+            # Force garbage collection to release memory immediately (CRITICAL for memory management)
+            import gc
+            gc.collect()
+            logger.info(f"[_run_task] task_id={task_id} garbage collection completed")
 
     def _update_history(self, task_id: str):
         """Update task history record
