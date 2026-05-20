@@ -77,17 +77,19 @@ class ThreadManager:
         self._load_tasks()
     
     def _save_tasks(self):
-        """Save task information to file"""
+        """Save task information to file
+        
+        Note: This function assumes the caller already holds self.lock
+        """
         try:
-            with self.lock:
-                # Only save historical and completed tasks
-                tasks_to_save = []
-                for task_info in self.history:
-                    tasks_to_save.append(task_info.to_dict())
-                
-                # Save to file
-                with open(self.save_file, 'w', encoding='utf-8') as f:
-                    json.dump(tasks_to_save, f, ensure_ascii=False, indent=2)
+            # Only save historical and completed tasks
+            tasks_to_save = []
+            for task_info in self.history:
+                tasks_to_save.append(task_info.to_dict())
+            
+            # Save to file
+            with open(self.save_file, 'w', encoding='utf-8') as f:
+                json.dump(tasks_to_save, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Failed to save tasks: {str(e)}")
     
@@ -145,6 +147,7 @@ class ThreadManager:
 
     def _process_queue(self):
         """Process task queue"""
+        print(f"[FORCE PRINT] _process_queue ENTERING, instance_id={id(self)}")
         logger.debug(f"_process_queue: ENTERING, instance_id={id(self)}")
         with self.lock:
             threads_count = len(self.threads)
@@ -199,8 +202,13 @@ class ThreadManager:
         Args:
             task_id: Task ID
         """
+        # Force print to console - this MUST appear if _run_task is called
+        print(f"[FORCE PRINT] _run_task STARTED for task_id={task_id}, instance_id={id(self)}")
+        logger.info(f"[_run_task] task_id={task_id} STARTED")
+        
         task_info = self.task_infos.get(task_id)
         if not task_info:
+            print(f"[FORCE PRINT] _run_task EXITING - task_info is None for task_id={task_id}")
             return
 
         try:
@@ -242,11 +250,14 @@ class ThreadManager:
 
                 self._update_history(task_id)
 
+            print(f"[FORCE PRINT] _run_task calling _process_queue for task_id={task_id}, instance_id={id(self)}")
             logger.debug(f"_run_task: task_id={task_id} lock released, calling _process_queue, instance_id={id(self)}")
             try:
                 self._process_queue()
+                print(f"[FORCE PRINT] _run_task _process_queue COMPLETED for task_id={task_id}")
                 logger.debug(f"_run_task: task_id={task_id} _process_queue completed")
             except Exception as e:
+                print(f"[FORCE PRINT] _run_task _process_queue FAILED for task_id={task_id}: {str(e)}")
                 logger.error(f"_run_task: task_id={task_id} _process_queue raised exception: {str(e)}")
 
     def _update_history(self, task_id: str):
