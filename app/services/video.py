@@ -264,7 +264,12 @@ def combine_videos(
     threads: int = 2,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
-    audio_duration = audio_clip.duration
+    try:
+        # 这里只需要读取旁白音频时长来决定素材视频拼接长度；后续不会再使用
+        # audio_clip。读取完成后立即关闭，避免早退或异常路径泄漏文件句柄。
+        audio_duration = audio_clip.duration
+    finally:
+        close_clip(audio_clip)
     logger.info(f"audio duration: {audio_duration} seconds")
     logger.info(f"maximum clip duration: {max_clip_duration} seconds")
 

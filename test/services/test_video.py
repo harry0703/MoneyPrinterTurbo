@@ -90,6 +90,39 @@ class TestVideoService(unittest.TestCase):
             self.assertGreater(clip.duration, 0)
         finally:
             vd.close_clip(clip)
+
+    def test_combine_videos_closes_audio_clip_when_duration_read_fails(self):
+        """
+        `combine_videos()` 只需要读取旁白音频时长。即使读取 duration
+        时发生异常，也必须关闭 AudioFileClip，避免文件句柄泄漏。
+        """
+
+        class _FakeAudioReader:
+            def __init__(self):
+                self.closed = False
+
+            def close(self):
+                self.closed = True
+
+        class _BrokenAudioClip:
+            def __init__(self):
+                self.reader = _FakeAudioReader()
+
+            @property
+            def duration(self):
+                raise RuntimeError("failed to read duration")
+
+        fake_audio_clip = _BrokenAudioClip()
+
+        with patch.object(vd, "AudioFileClip", return_value=fake_audio_clip):
+            with self.assertRaises(RuntimeError):
+                vd.combine_videos(
+                    combined_video_path="/tmp/unused-combined.mp4",
+                    video_paths=[],
+                    audio_file="/tmp/unused-audio.mp3",
+                )
+
+        self.assertTrue(fake_audio_clip.reader.closed)
     
     def test_wrap_text(self):
         """test text wrapping function"""
