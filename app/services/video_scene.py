@@ -230,6 +230,8 @@ def process_scene_videos(
             # Check memory before adding to processed clips
             memory_safe_wait()
             
+            # Track source path for local material usage tracking
+            clip.source_path = subclipped_item.file_path
             processed_clips.append(clip)
             
             # Release memory more frequently
@@ -250,7 +252,7 @@ def process_scene_videos(
 def combine_scene_clips(
     scene_clips: List,
     audio_duration: float,
-) -> List:
+) -> tuple:
     """
     Combine clips for a single scene, handling duration matching
     
@@ -259,15 +261,64 @@ def combine_scene_clips(
         audio_duration: Target audio duration
     
     Returns:
-        List of clips ready for final concatenation
+        Tuple of (processed_clips, used_source_paths) where used_source_paths is a list of source paths actually used
     """
     processed_clips = []
+    used_source_paths = []
     video_duration = 0
+    
+    # Calculate total duration of provided clips
+    total_clips_duration = sum(clip.duration for clip in scene_clips)
+    
+    # If total duration is already enough, use them
+    if total_clips_duration >= audio_duration:
+        logger.info(f"Total clips duration ({total_clips_duration:.2f}s) is already enough for audio duration ({audio_duration:.2f}s), no looping needed")
+        # Add clips until reaching audio duration
+        for clip in scene_clips:
+            # Track source path for local material usage tracking
+            source_path = getattr(clip, 'source_path', None)
+            
+            # Check if adding this clip would exceed audio duration
+            if video_duration + clip.duration > audio_duration:
+                # Trim the clip to fit exactly
+                remaining_duration = audio_duration - video_duration
+                if remaining_duration > 0:
+                    logger.info(f"Trimming last clip from {clip.duration:.2f}s to {remaining_duration:.2f}s to match audio duration")
+                    clip = clip.subclipped(0, remaining_duration)
+                    if source_path:
+                        clip.source_path = source_path
+                    used_source_paths.append(source_path)
+                    processed_clips.append(clip)
+                    video_duration = audio_duration
+                break
+            used_source_paths.append(source_path)
+            processed_clips.append(clip)
+            video_duration += clip.duration
+            
+            # Release memory periodically
+            if len(processed_clips) % 10 == 0:
+                gc.collect()
+        return processed_clips, used_source_paths
     
     # Add clips from the scene
     for clip in scene_clips:
-        if video_duration > audio_duration:
+        # Track source path for local material usage tracking
+        source_path = getattr(clip, 'source_path', None)
+        
+        # Check if adding this clip would exceed audio duration
+        if video_duration + clip.duration > audio_duration:
+            # Trim the clip to fit exactly
+            remaining_duration = audio_duration - video_duration
+            if remaining_duration > 0:
+                logger.info(f"Trimming last clip from {clip.duration:.2f}s to {remaining_duration:.2f}s to match audio duration")
+                clip = clip.subclipped(0, remaining_duration)
+                if source_path:
+                    clip.source_path = source_path
+                used_source_paths.append(source_path)
+                processed_clips.append(clip)
+                video_duration = audio_duration
             break
+        used_source_paths.append(source_path)
         processed_clips.append(clip)
         video_duration += clip.duration
         
@@ -281,17 +332,20 @@ def combine_scene_clips(
         base_duration = video_duration
         if base_duration <= 0:
             logger.error(f"video duration is zero or negative ({video_duration:.2f}s), cannot loop clips")
-            return []
+            return [], []
         num_loops = int(audio_duration / base_duration) + 1
         logger.info(f"Need {num_loops} loops to match audio duration")
         
         # Only keep base clips in memory and reuse them
         base_clips = processed_clips.copy()
+        base_source_paths = used_source_paths.copy()
         for i in range(num_loops - 1):
-            for clip in base_clips:
+            for j, clip in enumerate(base_clips):
                 if video_duration >= audio_duration:
                     break
+                # Reuse clip without copying source_path (it already has it)
                 processed_clips.append(clip)
+                used_source_paths.append(base_source_paths[j])
                 video_duration += clip.duration
                 # Release memory periodically
                 if len(processed_clips) % 10 == 0:
@@ -300,7 +354,7 @@ def combine_scene_clips(
         # Force garbage collection after loop
         gc.collect()
     
-    return processed_clips
+    return processed_clips, used_source_paths
 
 
 def combine_early_scenes(
@@ -401,6 +455,9 @@ def build_scene_video(
     # Process intro video separately if provided
     intro_clips = []
     logger.info(f"build_scene_video - intro_video_path received: {intro_video_path}")
+    total_intro_duration = 0
+    has_enough_intro = False
+    
     if intro_video_path:
         # Check if intro video exists
         if os.path.exists(intro_video_path):
@@ -431,6 +488,7 @@ def build_scene_video(
                         clip = video_effects.contrast_enhance(clip, contrast_factor)
                     
                     intro_clips.append(clip)
+                    total_intro_duration = clip_duration
                     logger.info(f"Image intro video processed: {intro_video_path} (duration: {intro_duration:.1f}s)")
                 elif intro_video_path.endswith('.gif'):
                     # Handle animated GIF as video
@@ -459,6 +517,7 @@ def build_scene_video(
                         clip = video_effects.contrast_enhance(clip, contrast_factor)
                     
                     intro_clips.append(clip)
+                    total_intro_duration = clip_duration
                     logger.info(f"Animated GIF intro video processed: {intro_video_path} (duration: {clip_duration:.1f}s)")
                 else:
                     clip = VideoFileClip(intro_video_path)
@@ -488,6 +547,7 @@ def build_scene_video(
                         clip = video_effects.contrast_enhance(clip, contrast_factor)
                     
                     intro_clips.append(clip)
+                    total_intro_duration = clip.duration
                     logger.info(f"Video intro processed: {intro_video_path}")
             except Exception as e:
                 logger.error(f"Failed to process intro video: {str(e)}")
@@ -500,18 +560,36 @@ def build_scene_video(
     else:
         logger.info("No intro video provided")
     
-    # Process regular videos as a single scene
-    scene_clips = process_scene_videos(
-        scene_video_paths=video_paths,
-        video_aspect=video_aspect,
-        video_concat_mode=video_concat_mode,
-        video_transition_mode=video_transition_mode,
-        max_clip_duration=max_clip_duration,
-        local_video_paths=local_video_paths
-    )
-    
-    # Combine intro clips with scene clips
-    all_clips = intro_clips + scene_clips
+    # Check if intro duration is enough to cover audio duration
+    if intro_clips and total_intro_duration >= audio_duration:
+        logger.info(f"Intro video duration ({total_intro_duration:.2f}s) is enough to cover audio duration ({audio_duration:.2f}s). Only using intro video.")
+        
+        # Trim intro video if it exceeds audio duration
+        if total_intro_duration > audio_duration:
+            intro_clip = intro_clips[0]
+            remaining_duration = audio_duration
+            if remaining_duration > 0:
+                logger.info(f"Trimming intro video from {intro_clip.duration:.2f}s to {remaining_duration:.2f}s to match audio duration")
+                trimmed_clip = intro_clip.subclipped(0, remaining_duration)
+                intro_clips = [trimmed_clip]
+                total_intro_duration = audio_duration
+                logger.info(f"Intro video trimmed, new duration: {total_intro_duration:.2f}s")
+        
+        all_clips = intro_clips
+        has_enough_intro = True
+    else:
+        # Process regular videos as a single scene
+        scene_clips = process_scene_videos(
+            scene_video_paths=video_paths,
+            video_aspect=video_aspect,
+            video_concat_mode=video_concat_mode,
+            video_transition_mode=video_transition_mode,
+            max_clip_duration=max_clip_duration,
+            local_video_paths=local_video_paths
+        )
+        
+        # Combine intro clips with scene clips
+        all_clips = intro_clips + scene_clips
     
     # Check if we have any processed clips
     if not all_clips:
@@ -519,16 +597,28 @@ def build_scene_video(
         return None
     
     # Combine clips to match audio duration
-    processed_clips = combine_scene_clips(
+    processed_clips, used_source_paths = combine_scene_clips(
         scene_clips=all_clips,
         audio_duration=audio_duration
     )
     
+    # Filter used_source_paths to only include local materials (from local_video_paths)
+    used_local_paths = []
+    if local_video_paths:
+        for source_path in used_source_paths:
+            if source_path and source_path in local_video_paths:
+                used_local_paths.append(source_path)
+    
+    logger.info(f"Local materials actually used: {len(used_local_paths)} out of {len(local_video_paths) if local_video_paths else 0}")
+    
     # Finalize video
-    return finalize_video(
+    result = finalize_video(
         processed_clips=processed_clips,
         combined_video_path=combined_video_path,
         audio_file=audio_file,
         threads=threads,
         is_first_scene=is_first_scene
     )
+    
+    # Return both the result and the used local paths for tracking
+    return result, used_local_paths

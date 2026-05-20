@@ -304,7 +304,9 @@ def generate_scene_tags(scene_script, visual_requirement="", max_tags=3):
     return []
 
 
-def process_scene(task_id, params, scene, scene_index, total_scenes):
+def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_materials=None):
+    if used_local_materials is None:
+        used_local_materials = set()
     """
     Process a single scene:
     1. Generate audio for scene
@@ -492,50 +494,88 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     else:
         logger.info("No global video style keyword provided")
     
+    local_materials = []
+    has_local_materials = False
+    
     if params.video_source == "local" or (params.video_materials and len(params.video_materials) > 0):
         # For local source or when local materials are provided, use them first
         logger.info(f"scene {scene_num}: processing local materials. Video materials count: {len(params.video_materials) if params.video_materials else 0}")
+        logger.info(f"scene {scene_num}: already used local materials: {len(used_local_materials)}")
         
-        # Check if video source is local but no materials provided
-        if params.video_source == "local" and (not params.video_materials or len(params.video_materials) == 0):
-            logger.error(f"scene {scene_num}: video source is set to 'local' but no local materials provided")
-            return None
+        # Debug: log the actual materials content
+        if params.video_materials:
+            for i, m in enumerate(params.video_materials):
+                logger.info(f"scene {scene_num}: original material[{i}] = provider={m.provider}, url={m.url}, duration={m.duration}")
         
-        materials = video.preprocess_video(
-            materials=params.video_materials, clip_duration=(3, 5)
-        )
+        # Filter out already used local materials
+        available_materials = []
+        if params.video_materials:
+            for m in params.video_materials:
+                if m.url not in used_local_materials:
+                    available_materials.append(m)
+                    logger.info(f"scene {scene_num}: available material: {os.path.basename(m.url)}")
+                else:
+                    logger.info(f"scene {scene_num}: skipping used material: {os.path.basename(m.url)}")
         
-        logger.info(f"scene {scene_num}: after preprocessing, materials count: {len(materials) if materials else 0}")
+        logger.info(f"scene {scene_num}: available materials after filtering: {len(available_materials)}")
         
-        # Copy local materials to task-specific directory for isolation
-        if materials:
-            logger.info(f"scene {scene_num}: copying local materials to task directory for isolation")
-            materials = video.copy_local_materials_to_task(task_id, materials)
-            logger.info(f"scene {scene_num}: after copying to task directory, materials count: {len(materials) if materials else 0}")
-        
-        # Match local videos by scene keywords for better semantic relevance
-        if materials and scene_keywords:
-            logger.info(f"scene {scene_num}: matching local materials with keywords: {scene_keywords}")
-            materials = video.match_local_videos_by_keywords(materials, scene_keywords)
-            logger.info(f"scene {scene_num}: after matching, materials count: {len(materials) if materials else 0}")
-        elif materials:
-            logger.info(f"scene {scene_num}: no keywords provided for matching, using all materials")
-        elif scene_keywords:
-            logger.info(f"scene {scene_num}: no materials provided for matching, but have keywords: {scene_keywords}")
-        else:
-            logger.info(f"scene {scene_num}: no materials and no keywords provided for matching")
-        
-        if materials:
-            local_materials = [m.url for m in materials]
-            logger.success(f"scene {scene_num}: found {len(local_materials)} local materials")
-        else:
-            logger.error(f"scene {scene_num}: no local materials found. When local materials are provided, they must be used for scene start.")
-            return None
+        # If video source is local but no materials available, fall back to online
+        if params.video_source == "local" and len(available_materials) == 0:
+            logger.warning(f"scene {scene_num}: video source is set to 'local' but no available local materials (all materials already used), falling back to online videos")
+            # Don't return None, fall through to download online videos
+        elif available_materials:
+            materials = video.preprocess_video(
+                materials=available_materials, clip_duration=(3, 5)
+            )
+            
+            logger.info(f"scene {scene_num}: after preprocessing, materials count: {len(materials) if materials else 0}")
+            
+            # Copy local materials to task-specific directory for isolation
+            if materials:
+                logger.info(f"scene {scene_num}: copying local materials to task directory for isolation")
+                materials = video.copy_local_materials_to_task(task_id, materials)
+                logger.info(f"scene {scene_num}: after copying to task directory, materials count: {len(materials) if materials else 0}")
+            
+            # Match local videos by scene keywords for better semantic relevance
+            if materials and scene_keywords:
+                logger.info(f"scene {scene_num}: matching local materials with keywords: {scene_keywords}")
+                materials = video.match_local_videos_by_keywords(materials, scene_keywords)
+                logger.info(f"scene {scene_num}: after matching, materials count: {len(materials) if materials else 0}")
+            elif materials:
+                logger.info(f"scene {scene_num}: no keywords provided for matching, using all materials")
+            elif scene_keywords:
+                logger.info(f"scene {scene_num}: no materials provided for matching, but have keywords: {scene_keywords}")
+            else:
+                logger.info(f"scene {scene_num}: no materials and no keywords provided for matching")
+            
+            if materials:
+                local_materials = [m.url for m in materials]
+                logger.success(f"scene {scene_num}: found {len(local_materials)} local materials")
+                has_local_materials = True
+                # Note: Marking as used will be done AFTER build_scene_video succeeds
     
     # Add online videos as supplement if needed
-    if params.video_source != "local" or (params.video_source == "local" and len(local_materials) < len(scene_keywords)):
-        online_source = params.video_source if params.video_source != "local" else "pexels"
-        logger.info(f"scene {scene_num}: downloading supplement videos from {online_source}")
+    should_download_online = False
+    online_source = "pexels"
+    
+    if params.video_source == "local":
+        # If local source but no local materials, download online videos
+        if len(local_materials) == 0:
+            logger.warning(f"scene {scene_num}: no local materials available, downloading online videos from {online_source}")
+            should_download_online = True
+        elif len(local_materials) < len(scene_keywords):
+            logger.info(f"scene {scene_num}: local materials ({len(local_materials)}) less than keywords ({len(scene_keywords)}), downloading supplement videos from {online_source}")
+            should_download_online = True
+        else:
+            logger.info(f"scene {scene_num}: local materials ({len(local_materials)}) >= keywords ({len(scene_keywords)}), no supplement videos needed")
+    else:
+        # Non-local source, always download
+        online_source = params.video_source
+        logger.info(f"scene {scene_num}: using {online_source} as video source, downloading videos")
+        should_download_online = True
+    
+    supplement_videos = []
+    if should_download_online:
         supplement_videos = material.download_videos(
             task_id=task_id,
             search_terms=scene_keywords,
@@ -549,6 +589,8 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         
         if supplement_videos:
             logger.success(f"scene {scene_num}: downloaded {len(supplement_videos)} supplement videos")
+        else:
+            logger.warning(f"scene {scene_num}: no supplement videos downloaded")
     
     # Combine local materials (must be first) and supplement videos
     downloaded_videos = local_materials.copy()
@@ -610,7 +652,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
     if local_video_paths:
         logger.info(f"scene {scene_num}: passing {len(local_video_paths)} local video paths for quality check exemption")
     
-    result = video.build_scene_video(
+    build_result, used_local_paths = video.build_scene_video(
         combined_video_path=combined_video_path,
         video_paths=downloaded_videos,
         audio_file=audio_file,
@@ -625,11 +667,36 @@ def process_scene(task_id, params, scene, scene_index, total_scenes):
         intro_duration=scene.get("intro_duration", 10),
         is_first_scene=(scene_num == 1))
     
+    # build_result is the combined_video_path, used_local_paths contains actual used local material paths
+    result = build_result
+    
     if result is None or not os.path.exists(combined_video_path):
         logger.error(f"failed to combine video for scene {scene_num}")
         return None
     
     logger.success(f"scene {scene_num}: video clip created")
+    
+    # Mark only the local materials that were actually used in the video
+    # used_local_paths contains the actual paths of local materials used
+    if has_local_materials and available_materials and used_local_paths:
+        for m in available_materials:
+            # Check if this material's path is in used_local_paths
+            # Note: m.url might be the original path, while used_local_paths contains task-specific paths
+            material_used = False
+            for used_path in used_local_paths:
+                if used_path and (used_path == m.url or os.path.basename(used_path) == os.path.basename(m.url)):
+                    material_used = True
+                    break
+            
+            if material_used:
+                used_local_materials.add(m.url)
+                logger.info(f"scene {scene_num}: marked local material as used: {os.path.basename(m.url)}")
+            else:
+                logger.info(f"scene {scene_num}: local material NOT used in video: {os.path.basename(m.url)}")
+        logger.info(f"scene {scene_num}: total used local materials now: {len(used_local_materials)}")
+    elif has_local_materials and available_materials and not used_local_paths:
+        # No local materials were used (e.g., intro video was sufficient)
+        logger.info(f"scene {scene_num}: no local materials were used in the video (intro video may be sufficient)")
     
     # Return scene result
     return {
@@ -1290,6 +1357,9 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
     total_scenes = len(scenes)
     scene_results = []
     
+    # Track used local materials - each material should be used only once
+    used_local_materials = set()  # Stores material URLs
+    
     # Check if video source is local but no materials provided
     if params.video_source == "local" and (not params.video_materials or len(params.video_materials) == 0):
         error_msg = "Video source is set to 'local' but no local materials provided"
@@ -1317,7 +1387,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         logger.info(f"Processing scene {i+1}/{total_scenes}")
         logger.info(f"========================================")
         
-        result = process_scene(task_id, params, scene, i, total_scenes)
+        result = process_scene(task_id, params, scene, i, total_scenes, used_local_materials)
         if result:
             scene_results.append(result)
             logger.info(f"Scene {i+1} processed successfully, combined_video_path: {result.get('combined_video_path')}")

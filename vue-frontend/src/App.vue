@@ -207,7 +207,7 @@ const generateVideo = async () => {
     console.log('[Task Creation] speechVolume:', settingsStore.audio.speechVolume);
     console.log('[Task Creation] backgroundMusic:', settingsStore.audio.backgroundMusic);
     
-    const taskParams = {
+    const taskParams: any = {
       video_subject: videoSubject,
       video_script: videoScript,
       video_terms: '',
@@ -237,6 +237,15 @@ const generateVideo = async () => {
       scenes: formattedScenes,
       language: scriptStore.language || 'zh'
     };
+
+    if (settingsStore.video.source === 'local' && settingsStore.video.localFiles && settingsStore.video.localFiles.length > 0) {
+      taskParams.video_materials = settingsStore.video.localFiles.map((f: any) => ({
+        provider: 'local',
+        url: f.url,
+        duration: 0
+      }));
+      console.log('[Task Creation] Adding local video materials:', taskParams.video_materials);
+    }
     
     console.log('[Task Creation] Final taskParams:', {
       bgm_type: taskParams.bgm_type,

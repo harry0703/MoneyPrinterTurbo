@@ -757,7 +757,7 @@ def copy_local_materials_to_task(task_id: str, materials: List) -> List:
             new_material = MaterialInfo(
                 provider=material.provider,
                 url=task_material_path,
-                duration=material.duration
+                duration=round(material.duration)
             )
             processed_materials.append(new_material)
         except Exception as e:

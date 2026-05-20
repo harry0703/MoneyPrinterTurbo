@@ -185,6 +185,72 @@ const handleFileRemove = (file: FileItem) => {
   }
 };
 
+let uploadInProgress = false;
+let pendingUploads: FileItem[] = [];
+
+const uploadPendingFiles = async () => {
+  if (uploadInProgress || pendingUploads.length === 0) return;
+  uploadInProgress = true;
+
+  const toUpload = [...pendingUploads];
+  pendingUploads = [];
+
+  for (const fileItem of toUpload) {
+    const index = localFiles.value.findIndex(item => item.uid === fileItem.uid);
+    if (index === -1) continue;
+
+    try {
+      const rawFile = (fileItem as any).raw;
+      console.log('[VideoSettings] uploadPendingFiles - fileItem:', fileItem.name, 'rawFile:', !!rawFile);
+      
+      if (!rawFile) {
+        console.warn('[VideoSettings] No raw file for:', fileItem.name, ', fileItem:', fileItem);
+        continue;
+      }
+
+      console.log('[VideoSettings] Uploading file:', rawFile.name);
+      const response = await apiService.uploadVideoMaterial(rawFile);
+      console.log('[VideoSettings] Upload response:', response);
+      
+      if (response.status === 200 && response.data && response.data.file) {
+        const currentIndex = localFiles.value.findIndex(item => item.uid === fileItem.uid);
+        if (currentIndex !== -1) {
+          localFiles.value[currentIndex] = {
+            ...localFiles.value[currentIndex],
+            url: response.data.file,
+            status: 'completed'
+          };
+          console.log('[VideoSettings] Updated localFiles:', localFiles.value[currentIndex]);
+        }
+      }
+    } catch (error) {
+      console.error('[VideoSettings] Failed to upload local file:', fileItem.name, error);
+    }
+  }
+
+  uploadInProgress = false;
+  if (pendingUploads.length > 0) {
+    uploadPendingFiles();
+  }
+};
+
+watch(() => localFiles.value.length, (newLen, oldLen) => {
+  console.log('[VideoSettings] localFiles length changed:', oldLen, '->', newLen);
+  if (newLen > oldLen) {
+    const newItems = localFiles.value.slice(oldLen);
+    console.log('[VideoSettings] New items added:', newItems);
+    for (const item of newItems) {
+      console.log('[VideoSettings] Item:', item.name, 'url:', item.url, 'has raw:', !!(item as any).raw);
+      if (!item.url || item.url.startsWith('blob:')) {
+        pendingUploads.push(item);
+        console.log('[VideoSettings] Added to pending uploads:', item.name);
+      }
+    }
+    console.log('[VideoSettings] pendingUploads count:', pendingUploads.length);
+    uploadPendingFiles();
+  }
+});
+
 const setVideoQualityBasedOnGPU = () => {
   if (settingsStore.app.useGpu) {
     form.videoQuality = 'ultra';
