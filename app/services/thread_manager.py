@@ -121,6 +121,7 @@ class ThreadManager:
             Tuple of (Task ID, status message)
             Status message indicates whether task was started immediately or queued
         """
+        print(f"[DEBUG submit_task] task_id={task_id} submitted, threads_running={len(self.threads)}, max={self.max_concurrent_tasks}")
         logging.info(f"[submit_task] task_id={task_id} submitted, threads_running={len(self.threads)}, max={self.max_concurrent_tasks}")
         task_info = TaskInfo(task_id, task_func, args, kwargs)
 
@@ -128,14 +129,17 @@ class ThreadManager:
             self.task_infos[task_id] = task_info
             self.task_queue.put(task_id)
             was_started = len(self.threads) < self.max_concurrent_tasks
+            print(f"[DEBUG submit_task] task_id={task_id} added to queue, was_started={was_started}, queue_size={self.task_queue.qsize()}")
             logging.info(f"[submit_task] task_id={task_id} added to queue, was_started={was_started}")
 
         # Try to execute task
+        print(f"[DEBUG submit_task] task_id={task_id} calling _process_queue")
         logging.info(f"[submit_task] task_id={task_id} calling _process_queue")
         self._process_queue()
 
         with self.lock:
             current_status = self.task_infos.get(task_id, TaskInfo(task_id, task_func, args, kwargs)).status
+            print(f"[DEBUG submit_task] task_id={task_id} status after _process_queue: {current_status}")
             logging.info(f"[submit_task] task_id={task_id} status after _process_queue: {current_status}")
 
         if current_status == TaskStatus.RUNNING:
@@ -145,26 +149,34 @@ class ThreadManager:
 
     def _process_queue(self):
         """Process task queue"""
+        print(f"[DEBUG _process_queue] ENTERING _process_queue")
         with self.lock:
             threads_count = len(self.threads)
             queue_size = self.task_queue.qsize()
+            print(f"[DEBUG _process_queue] threads={threads_count}, max={self.max_concurrent_tasks}, queue_size={queue_size}")
             logging.info(f"[_process_queue] threads={threads_count}, max={self.max_concurrent_tasks}, queue_size={queue_size}")
             if threads_count < self.max_concurrent_tasks and queue_size > 0:
                 task_id = self.task_queue.get()
+                print(f"[DEBUG _process_queue] dequeued task_id={task_id}")
                 logging.info(f"[_process_queue] dequeued task_id={task_id}")
                 if task_id in self.task_infos:
                     task_status = self.task_infos[task_id].status
+                    print(f"[DEBUG _process_queue] task_id={task_id} status={task_status}")
                     logging.info(f"[_process_queue] task_id={task_id} status={task_status}")
                     if task_status == TaskStatus.PENDING:
+                        print(f"[DEBUG _process_queue] starting task_id={task_id}")
                         logging.info(f"[_process_queue] starting task_id={task_id}")
                         self._start_task(task_id)
                     else:
+                        print(f"[DEBUG _process_queue] WARNING: task_id={task_id} not PENDING (status={task_status}), skipping")
                         logging.warning(f"[_process_queue] task_id={task_id} not PENDING (status={task_status}), skipping")
-                        # Try next task in queue by calling _process_queue recursively (but this is getting complex, just log warning for now)
                 else:
+                    print(f"[DEBUG _process_queue] WARNING: task_id={task_id} not in task_infos!")
                     logging.warning(f"[_process_queue] task_id={task_id} not in task_infos!")
             else:
+                print(f"[DEBUG _process_queue] no task started: threads_full={threads_count >= self.max_concurrent_tasks}, queue_empty={queue_size == 0}")
                 logging.info(f"[_process_queue] no task started: threads_full={threads_count >= self.max_concurrent_tasks}, queue_empty={queue_size == 0}")
+        print(f"[DEBUG _process_queue] EXITING _process_queue")
 
     def _start_task(self, task_id: str):
         """Start task
@@ -241,11 +253,14 @@ class ThreadManager:
 
                 self._update_history(task_id)
 
+            print(f"[DEBUG _run_task] task_id={task_id} lock released, calling _process_queue")
             logging.info(f"[_run_task] task_id={task_id} lock released, calling _process_queue")
             try:
                 self._process_queue()
+                print(f"[DEBUG _run_task] task_id={task_id} _process_queue completed")
                 logging.info(f"[_run_task] task_id={task_id} _process_queue completed")
             except Exception as e:
+                print(f"[DEBUG _run_task] task_id={task_id} _process_queue raised exception: {str(e)}")
                 logging.error(f"[_run_task] task_id={task_id} _process_queue raised exception: {str(e)}")
 
     def _update_history(self, task_id: str):
