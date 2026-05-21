@@ -38,6 +38,65 @@ from moviepy import (
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import ImageFont
 
+COLOR_MAP = {
+    "black": (0, 0, 0),
+    "white": (255, 255, 255),
+    "red": (255, 0, 0),
+    "green": (0, 255, 0),
+    "blue": (0, 0, 255),
+    "yellow": (255, 255, 0),
+    "purple": (128, 0, 128),
+    "gray": (128, 128, 128),
+    "darkgray": (64, 64, 64),
+    "lightgray": (192, 192, 192),
+}
+
+def parse_color(color_str: str) -> tuple:
+    """
+    Parse a color string to an RGB tuple.
+    Supports:
+    - Named colors: "black", "white", "red", "green", "blue", etc.
+    - RGB format: "rgb(0, 0, 0)"
+    - Hex format: "#000000" or "#000"
+    """
+    color_str = color_str.strip().lower()
+    
+    # Check named colors
+    if color_str in COLOR_MAP:
+        return COLOR_MAP[color_str]
+    
+    # Check RGB format
+    if color_str.startswith("rgb(") and color_str.endswith(")"):
+        try:
+            values = color_str[4:-1].split(",")
+            r, g, b = [int(v.strip()) for v in values]
+            return (r, g, b)
+        except:
+            pass
+    
+    # Check hex format
+    if color_str.startswith("#"):
+        try:
+            hex_str = color_str[1:]
+            if len(hex_str) == 3:
+                # Short hex format: #RGB
+                r = int(hex_str[0] * 2, 16)
+                g = int(hex_str[1] * 2, 16)
+                b = int(hex_str[2] * 2, 16)
+            elif len(hex_str) == 6:
+                # Full hex format: #RRGGBB
+                r = int(hex_str[0:2], 16)
+                g = int(hex_str[2:4], 16)
+                b = int(hex_str[4:6], 16)
+            else:
+                return COLOR_MAP["black"]
+            return (r, g, b)
+        except:
+            pass
+    
+    # Default to black
+    return COLOR_MAP["black"]
+
 from app.config import config
 from app.config.config import load_config
 from app.models import const
@@ -768,7 +827,7 @@ def copy_local_materials_to_task(task_id: str, materials: List) -> List:
     return processed_materials
 
 
-def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0, 255)):
+def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0, 0)):
     """
     Fit intro video into target dimensions without cropping.
     Scales the video to fit within target, centers it on a background layer.
@@ -777,7 +836,7 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0,
         clip: VideoFileClip to process
         target_width: Target width in pixels
         target_height: Target height in pixels
-        bg_color: Background color as RGB tuple (default: blue)
+        bg_color: Background color as RGB tuple (default: black)
     
     Returns:
         Composite video clip with intro centered on background

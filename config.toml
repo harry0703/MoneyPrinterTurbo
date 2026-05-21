@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.46"
+project_version = "1.2.66.47"
 
 [app]
 video_source = "local"
@@ -84,7 +84,7 @@ bgm_type = "random"
 bgm_volume = 0.1
 subtitle_enabled = true
 subtitle_position = "custom"
-subtitle_custom_position = 75
+subtitle_custom_position = 95
 subtitle_margin = 0.05
 font_name = "MicrosoftYaHeiBold.ttc"
 text_fore_color = "rgb(243, 235, 8)"
@@ -92,6 +92,7 @@ text_background_color = true
 font_size = 60
 stroke_color = "#000000"
 stroke_width = 1.5
+output_bg_color = "black"
 
 [coze]
 api_key = "sat_5QQV8lPJCo1uK0cMUsMwQMDqPUFHAVajSQnICchJYcSwmp6cuA7MAeRd73k48m4A"

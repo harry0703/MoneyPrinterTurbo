@@ -104,6 +104,7 @@ class VideoParams(BaseModel):
         None  # Materials used to generate the video
     )
     video_style: Optional[str] = ""  # Global video style keyword
+    output_bg_color: Optional[str] = "black"  # Background color for pillarbox/letterbox bars
     
     custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore video_script and disable subtitle
     video_language: Optional[str] = ""  # auto detect

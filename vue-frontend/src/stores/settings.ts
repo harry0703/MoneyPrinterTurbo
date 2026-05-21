@@ -26,6 +26,7 @@ interface VideoSettings {
   bitrate: string;
   brightness: number;
   contrast: number;
+  outputBgColor: string;
   localFiles: Array<{ name: string; url?: string; status?: string; uid: string }>;
 }
 
@@ -122,6 +123,7 @@ export const useSettingsStore = defineStore('settings', {
       bitrate: '20M',
       brightness: 1.0,
       contrast: 1.0,
+      outputBgColor: 'black',
       localFiles: []
     },
     

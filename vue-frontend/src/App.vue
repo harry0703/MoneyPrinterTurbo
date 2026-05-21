@@ -218,6 +218,7 @@ const generateVideo = async () => {
       video_clip_duration: settingsStore.video.clipDuration,
       video_count: settingsStore.video.count,
       video_style: settingsStore.video.style,
+      output_bg_color: settingsStore.video.outputBgColor,
       tts_server: settingsStore.audio.ttsServer || 'azure-tts-v1',
       voice_name: settingsStore.audio.speechSynthesis || 'zh-CN-XiaoxiaoNeural',
       voice_rate: parseFloat(settingsStore.audio.speechRate),

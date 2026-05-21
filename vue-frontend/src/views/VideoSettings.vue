@@ -132,6 +132,22 @@
             <span class="slider-value">{{ form.videoContrast.toFixed(2) }}</span>
           </div>
         </div>
+
+        <div class="form-item">
+          <label class="form-label">{{ t('Output Background Color') }}</label>
+          <el-select v-model="form.outputBgColor" :placeholder="t('Select output background color')" class="form-select">
+            <el-option :label="t('Black')" value="black" />
+            <el-option :label="t('White')" value="white" />
+            <el-option :label="t('Red')" value="red" />
+            <el-option :label="t('Green')" value="green" />
+            <el-option :label="t('Blue')" value="blue" />
+            <el-option :label="t('Yellow')" value="yellow" />
+            <el-option :label="t('Purple')" value="purple" />
+            <el-option :label="t('Gray')" value="gray" />
+            <el-option :label="t('Dark Gray')" value="darkgray" />
+            <el-option :label="t('Light Gray')" value="lightgray" />
+          </el-select>
+        </div>
       </div>
     </el-card>
   </div>
@@ -175,7 +191,8 @@ const form = reactive({
   videoQuality: settingsStore.video.quality,
   videoBitrate: settingsStore.video.bitrate,
   videoBrightness: settingsStore.video.brightness,
-  videoContrast: settingsStore.video.contrast
+  videoContrast: settingsStore.video.contrast,
+  outputBgColor: settingsStore.video.outputBgColor
 });
 
 const handleFileRemove = (file: FileItem) => {
@@ -340,7 +357,8 @@ watch([
   () => form.videoQuality,
   () => form.videoBitrate,
   () => form.videoBrightness,
-  () => form.videoContrast
+  () => form.videoContrast,
+  () => form.outputBgColor
 ], () => {
   saveConfig();
   settingsStore.updateVideoSetting('source', form.videoSource);
@@ -354,6 +372,7 @@ watch([
   settingsStore.updateVideoSetting('bitrate', form.videoBitrate);
   settingsStore.updateVideoSetting('brightness', form.videoBrightness);
   settingsStore.updateVideoSetting('contrast', form.videoContrast);
+  settingsStore.updateVideoSetting('outputBgColor', form.outputBgColor);
 });
 
 watch(() => settingsStore.video, (newVideo) => {
@@ -369,6 +388,7 @@ watch(() => settingsStore.video, (newVideo) => {
   form.videoBitrate = newVideo.bitrate;
   form.videoBrightness = newVideo.brightness;
   form.videoContrast = newVideo.contrast;
+  form.outputBgColor = newVideo.outputBgColor;
 }, { deep: true });
 
 watch(() => settingsStore.app.useGpu, () => {

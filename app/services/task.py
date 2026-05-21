@@ -1601,6 +1601,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
             
             if video_aspect == VideoAspect.portrait_3_4:
                 from moviepy import CompositeVideoClip
+                from app.services.video_utils import parse_color
                 
                 clip_w, clip_h = video_clip.size
                 target_width, target_height = 1080, 1920
@@ -1616,10 +1617,14 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                 # Calculate offset to center vertically
                 y_offset = (target_height - new_height) // 2
                 
-                # Create background layer (black bars)
+                # Get output background color from params or config
+                output_bg_color = getattr(params, 'output_bg_color', None) or 'black'
+                bg_color = parse_color(output_bg_color)
+                
+                # Create background layer with configurable color
                 background = ColorClip(
                     size=(target_width, target_height),
-                    color=(0, 0, 0),
+                    color=bg_color,
                     duration=video_clip.duration
                 )
                 
