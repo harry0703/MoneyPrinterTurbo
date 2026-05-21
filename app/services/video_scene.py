@@ -430,6 +430,18 @@ def build_scene_video(
     intro_duration: int = 10,
     is_first_scene: bool = False,
 ) -> str:
+    # Ensure video_aspect is a valid VideoAspect enum
+    if video_aspect is None:
+        video_aspect = VideoAspect.portrait
+    elif isinstance(video_aspect, str):
+        try:
+            video_aspect = VideoAspect(video_aspect)
+        except ValueError:
+            logger.warning(f"Invalid video aspect '{video_aspect}', defaulting to 9:16")
+            video_aspect = VideoAspect.portrait
+    
+    logger.info(f"build_scene_video - Using aspect ratio: {video_aspect.value}")
+    
     # Handle audio_file being None (scene videos already contain audio)
     if audio_file:
         audio_clip = AudioFileClip(audio_file)
@@ -594,7 +606,7 @@ def build_scene_video(
     # Check if we have any processed clips
     if not all_clips:
         logger.error("No video clips were successfully processed")
-        return None
+        return None, []
     
     # Combine clips to match audio duration
     processed_clips, used_source_paths = combine_scene_clips(

@@ -304,7 +304,7 @@ def generate_scene_tags(scene_script, visual_requirement="", max_tags=3):
     return []
 
 
-def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_materials=None):
+def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_materials=None, check_cancelled=None):
     if used_local_materials is None:
         used_local_materials = set()
     """
@@ -327,6 +327,10 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
     scene_num = scene_index + 1
     scene_title = scene.get('title', scene.get('visual_requirement', ''))
     logger.info(f"\n\n## processing scene {scene_num}/{total_scenes}: {scene_title}")
+    
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled at start of scene {scene_num}")
+        return None
     
     scene_id = scene.get('id', f'scene_{scene_num}')
     scene_script = scene.get('audio', scene.get('script', ''))
@@ -380,6 +384,10 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
     os.makedirs(scene_dir, exist_ok=True)
     
     # 1. Generate audio for scene
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before generating audio for scene {scene_num}")
+        return None
+        
     logger.info(f"generating audio for scene {scene_num}")
     audio_file = path.join(scene_dir, "audio.mp3")
     logger.info(f"scene {scene_num}: audio_file={audio_file}")
@@ -409,6 +417,10 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
     logger.success(f"scene {scene_num} audio duration: {audio_duration:.2f}s")
     
     # 2. Generate subtitle for scene
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before generating subtitle for scene {scene_num}")
+        return None
+        
     logger.info(f"generating subtitle for scene {scene_num}")
     subtitle_path = ""
     if params.subtitle_enabled:
@@ -482,6 +494,10 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
             logger.success(f"scene {scene_num}: subtitle file created: {subtitle_path}")
     
     # 3. Get video materials for scene
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before getting video materials for scene {scene_num}")
+        return None
+        
     logger.info(f"getting video materials for scene {scene_num}")
     downloaded_videos = []
     local_materials = []
@@ -641,6 +657,10 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
     logger.success(f"scene {scene_num}: obtained {len(downloaded_videos)} video clips (local: {len(local_materials)}, supplement: {len(downloaded_videos) - len(local_materials)})")
     
     # 4. Combine scene video clip (without BGM)
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before combining scene {scene_num}")
+        return None
+        
     logger.info(f"combining video clip for scene {scene_num}")
     combined_video_path = path.join(scene_dir, "combined.mp4")
     
@@ -684,7 +704,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
             # Note: m.url might be the original path, while used_local_paths contains task-specific paths
             material_used = False
             for used_path in used_local_paths:
-                if used_path and (used_path == m.url or os.path.basename(used_path) == os.path.basename(m.url)):
+                if used_path and os.path.basename(used_path) == os.path.basename(m.url):
                     material_used = True
                     break
             
@@ -1143,7 +1163,13 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     result = None
     exception_occurred = None
     try:
-        result = start_multi_scene(task_id, params, stop_at, task_start_time)
+        # Check for cancellation before starting
+        if check_cancelled and check_cancelled():
+            logger.info(f"Task {task_id} cancelled before starting")
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+            return None
+            
+        result = start_multi_scene(task_id, params, stop_at, task_start_time, check_cancelled=check_cancelled)
     except Exception as e:
         exception_occurred = e
         import traceback
@@ -1309,7 +1335,7 @@ def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
     return kwargs
 
 
-def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task_start_time=None):
+def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task_start_time=None, check_cancelled=None):
     """Multi-scene video generation flow."""
 
     
@@ -1322,6 +1348,11 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         logger.info("No local materials provided by user")
     
     # 1. Generate multi-scene script
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before generating script")
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+        return None
+        
     video_script, scenes = generate_multi_scene_script(task_id, params)
     if not video_script or not scenes:
         logger.error("Multi-scene: failed to generate script, returning None")
@@ -1338,6 +1369,11 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         return {"script": video_script, "scenes": scenes}
     
     # 2. Generate terms for each scene
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before generating scene terms")
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+        return None
+        
     scene_terms_list = generate_scene_terms(task_id, params, scenes)
     if not scene_terms_list:
         logger.warning("failed to generate scene terms, continuing with defaults")
@@ -1380,6 +1416,11 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
             logger.info("No local materials provided")
     
     for i, scene in enumerate(scenes):
+        if check_cancelled and check_cancelled():
+            logger.info(f"Task {task_id} cancelled during scene processing")
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+            return None
+            
         progress = 20 + (i / total_scenes) * 40  # Progress from 20% to 60%
         sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=int(progress))
         
@@ -1387,7 +1428,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         logger.info(f"Processing scene {i+1}/{total_scenes}")
         logger.info(f"========================================")
         
-        result = process_scene(task_id, params, scene, i, total_scenes, used_local_materials)
+        result = process_scene(task_id, params, scene, i, total_scenes, used_local_materials, check_cancelled=check_cancelled)
         if result:
             scene_results.append(result)
             logger.info(f"Scene {i+1} processed successfully, combined_video_path: {result.get('combined_video_path')}")
@@ -1437,6 +1478,11 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         logger.info("Multi-scene: returning at stop_at='materials'")
         return {"scenes": scenes, "scene_results": scene_results}
     
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before combining scenes")
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+        return None
+        
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=70)
     
     # 4. Combine all scenes into final video
@@ -1446,6 +1492,11 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
     
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before final processing")
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+        return None
+        
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=90)
     
     # 5. Add background music and final processing for multi-scene video
