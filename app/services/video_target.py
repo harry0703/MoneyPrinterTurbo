@@ -11,6 +11,7 @@ from moviepy import (
     TextClip,
     CompositeVideoClip,
     AudioClip,
+    ColorClip,
 )
 from app.config.config import load_config
 from app.utils import utils
