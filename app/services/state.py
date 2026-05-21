@@ -70,22 +70,27 @@ class RedisState(BaseState):
         end = start + page_size
         tasks = []
         cursor = 0
-        total = 0
+        batch_start = 0                        # ← 追踪本批次起始索引
+        
         while True:
             cursor, keys = self._redis.scan(cursor, count=page_size)
-            total += len(keys)
-            if total > start:
-                for key in keys[max(0, start - total):end - total]:
-                    task_data = self._redis.hgetall(key)
-                    task = {
-                        k.decode("utf-8"): self._convert_to_original_type(v) for k, v in task_data.items()
-                    }
-                    tasks.append(task)
-                    if len(tasks) >= page_size:
-                        break
-            if cursor == 0 or len(tasks) >= page_size:
+            batch_len = len(keys)
+            batch_end = batch_start + batch_len  # ← 本批次结束索引
+            
+            if batch_start < end and batch_end > start:  # ← 区间重叠判断
+                slice_start = max(0, start - batch_start) # ← 用 batch_start 算
+                slice_end = min(batch_len, end - batch_start)
+                
+                for key in keys[slice_start:slice_end]:
+                ...
+                # 不再需要 page_size 提前 break
+
+            batch_start = batch_end
+
+            if cursor == 0:                    # ← SCAN 完成才退出
                 break
-        return tasks, total
+
+        return tasks, batch_start              # ← 返回准确总数
 
     def update_task(
         self,
