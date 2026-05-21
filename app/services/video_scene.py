@@ -56,6 +56,8 @@ def process_scene_videos(
     aspect = VideoAspect(video_aspect)
     video_width, video_height = aspect.to_resolution()
     
+    logger.debug(f"process_scene_videos - video_aspect: {video_aspect}, width: {video_width}, height: {video_height}")
+    
     processed_clips = []
     subclipped_items = []
     
@@ -106,10 +108,13 @@ def process_scene_videos(
                 video_ratio = video_width / video_height
                 
                 # Use unified crop function
-                if local_video_paths and subclipped_item.file_path in local_video_paths:
+                is_local = local_video_paths and subclipped_item.file_path in local_video_paths
+                if is_local:
                     max_scale = 5.0  # Allow up to 500% upscaling for local materials
+                    logger.debug(f"Processing LOCAL clip {i}: {subclipped_item.file_path}, target: {video_width}x{video_height}, max_scale: {max_scale}")
                 else:
                     max_scale = 1.5 if video_aspect == VideoAspect.portrait_3_4 else 1.10
+                    logger.debug(f"Processing ONLINE clip {i}: {subclipped_item.file_path}, target: {video_width}x{video_height}, max_scale: {max_scale}")
                 
                 # Check memory before crop
                 memory_safe_wait()
@@ -274,7 +279,7 @@ def combine_scene_clips(
     if total_clips_duration >= audio_duration:
         logger.info(f"Total clips duration ({total_clips_duration:.2f}s) is already enough for audio duration ({audio_duration:.2f}s), no looping needed")
         # Add clips until reaching audio duration
-        for clip in scene_clips:
+        for i, clip in enumerate(scene_clips):
             # Track source path for local material usage tracking
             source_path = getattr(clip, 'source_path', None)
             
@@ -283,13 +288,26 @@ def combine_scene_clips(
                 # Trim the clip to fit exactly
                 remaining_duration = audio_duration - video_duration
                 if remaining_duration > 0:
-                    logger.info(f"Trimming last clip from {clip.duration:.2f}s to {remaining_duration:.2f}s to match audio duration")
-                    clip = clip.subclipped(0, remaining_duration)
-                    if source_path:
-                        clip.source_path = source_path
-                    used_source_paths.append(source_path)
-                    processed_clips.append(clip)
-                    video_duration = audio_duration
+                    # If remaining duration is less than 1 second, use last frame of previous clip as still image
+                    if remaining_duration < 1.0 and i > 0:
+                        logger.info(f"Last clip would be {remaining_duration:.2f}s (< 1s), using still frame from previous clip to avoid visual flash")
+                        # Get the last frame from the previous clip
+                        prev_clip = processed_clips[-1]
+                        last_frame = prev_clip.to_ImageClip()
+                        last_frame = last_frame.with_duration(remaining_duration)
+                        # Copy source_path from previous clip for tracking
+                        last_frame.source_path = used_source_paths[-1]
+                        processed_clips.append(last_frame)
+                        used_source_paths.append(used_source_paths[-1])
+                        video_duration = audio_duration
+                    else:
+                        logger.info(f"Trimming last clip from {clip.duration:.2f}s to {remaining_duration:.2f}s to match audio duration")
+                        clip = clip.subclipped(0, remaining_duration)
+                        if source_path:
+                            clip.source_path = source_path
+                        used_source_paths.append(source_path)
+                        processed_clips.append(clip)
+                        video_duration = audio_duration
                 break
             used_source_paths.append(source_path)
             processed_clips.append(clip)
@@ -301,7 +319,7 @@ def combine_scene_clips(
         return processed_clips, used_source_paths
     
     # Add clips from the scene
-    for clip in scene_clips:
+    for i, clip in enumerate(scene_clips):
         # Track source path for local material usage tracking
         source_path = getattr(clip, 'source_path', None)
         
@@ -310,13 +328,26 @@ def combine_scene_clips(
             # Trim the clip to fit exactly
             remaining_duration = audio_duration - video_duration
             if remaining_duration > 0:
-                logger.info(f"Trimming last clip from {clip.duration:.2f}s to {remaining_duration:.2f}s to match audio duration")
-                clip = clip.subclipped(0, remaining_duration)
-                if source_path:
-                    clip.source_path = source_path
-                used_source_paths.append(source_path)
-                processed_clips.append(clip)
-                video_duration = audio_duration
+                # If remaining duration is less than 1 second, use last frame of previous clip as still image
+                if remaining_duration < 1.0 and i > 0:
+                    logger.info(f"Last clip would be {remaining_duration:.2f}s (< 1s), using still frame from previous clip to avoid visual flash")
+                    # Get the last frame from the previous clip
+                    prev_clip = processed_clips[-1]
+                    last_frame = prev_clip.to_ImageClip()
+                    last_frame = last_frame.with_duration(remaining_duration)
+                    # Copy source_path from previous clip for tracking
+                    last_frame.source_path = used_source_paths[-1]
+                    processed_clips.append(last_frame)
+                    used_source_paths.append(used_source_paths[-1])
+                    video_duration = audio_duration
+                else:
+                    logger.info(f"Trimming last clip from {clip.duration:.2f}s to {remaining_duration:.2f}s to match audio duration")
+                    clip = clip.subclipped(0, remaining_duration)
+                    if source_path:
+                        clip.source_path = source_path
+                    used_source_paths.append(source_path)
+                    processed_clips.append(clip)
+                    video_duration = audio_duration
             break
         used_source_paths.append(source_path)
         processed_clips.append(clip)
@@ -440,7 +471,14 @@ def build_scene_video(
             logger.warning(f"Invalid video aspect '{video_aspect}', defaulting to 9:16")
             video_aspect = VideoAspect.portrait
     
-    logger.info(f"build_scene_video - Using aspect ratio: {video_aspect.value}")
+    # For 3:4 aspect ratio, we output 9:16 video with pillarboxing
+    # This ensures the video fits mobile screens while maintaining 3:4 content area
+    is_pillarbox_mode = video_aspect == VideoAspect.portrait_3_4
+    
+    if is_pillarbox_mode:
+        logger.info(f"3:4 aspect ratio selected - outputting as 9:16 with pillarboxing")
+    
+    logger.debug(f"build_scene_video - Using aspect ratio: {video_aspect.value}")
     
     # Handle audio_file being None (scene videos already contain audio)
     if audio_file:
@@ -488,6 +526,10 @@ def build_scene_video(
                     aspect = VideoAspect(video_aspect)
                     video_width, video_height = aspect.to_resolution()
                     
+                    logger.debug(f"Intro video processing - video_aspect input: {video_aspect}")
+                    logger.debug(f"Intro video processing - VideoAspect enum: {aspect}")
+                    logger.debug(f"Intro video processing - Resolution: {video_width}x{video_height}")
+                    
                     clip = fit_intro_video_to_target(clip, video_width, video_height)
                     
                     brightness_factor = config.app.get("video_brightness", 1.0)
@@ -516,6 +558,10 @@ def build_scene_video(
                     
                     aspect = VideoAspect(video_aspect)
                     video_width, video_height = aspect.to_resolution()
+                    
+                    logger.debug(f"Intro video processing - video_aspect input: {video_aspect}")
+                    logger.debug(f"Intro video processing - VideoAspect enum: {aspect}")
+                    logger.debug(f"Intro video processing - Resolution: {video_width}x{video_height}")
                     
                     clip = fit_intro_video_to_target(clip, video_width, video_height)
                     

@@ -214,7 +214,7 @@ const generateVideo = async () => {
       video_source: settingsStore.video.source,
       video_concat_mode: settingsStore.video.concatMode,
       video_transition_mode: settingsStore.video.transitionMode === 'none' ? null : settingsStore.video.transitionMode,
-      video_aspect: settingsStore.video.aspect === 'landscape' ? '16:9' : settingsStore.video.aspect === 'portrait' ? '9:16' : settingsStore.video.aspect === 'square' ? '1:1' : '9:16',
+      video_aspect: settingsStore.video.aspect === 'landscape' ? '16:9' : settingsStore.video.aspect === 'portrait' ? '9:16' : settingsStore.video.aspect === 'portrait_3_4' ? '3:4' : settingsStore.video.aspect === 'square' ? '1:1' : '9:16',
       video_clip_duration: settingsStore.video.clipDuration,
       video_count: settingsStore.video.count,
       video_style: settingsStore.video.style,

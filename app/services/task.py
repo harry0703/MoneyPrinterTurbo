@@ -327,6 +327,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
     scene_num = scene_index + 1
     scene_title = scene.get('title', scene.get('visual_requirement', ''))
     logger.info(f"\n\n## processing scene {scene_num}/{total_scenes}: {scene_title}")
+    logger.debug(f"process_scene - video_aspect from params: {params.video_aspect}")
     
     if check_cancelled and check_cancelled():
         logger.info(f"Task {task_id} cancelled at start of scene {scene_num}")
@@ -671,6 +672,9 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
         local_video_paths.insert(0, actual_intro_video)
     if local_video_paths:
         logger.info(f"scene {scene_num}: passing {len(local_video_paths)} local video paths for quality check exemption")
+    
+    logger.debug(f"scene {scene_num}: Calling build_scene_video with video_aspect: {params.video_aspect}")
+    logger.debug(f"scene {scene_num}: Calling build_scene_video with video_aspect type: {type(params.video_aspect)}")
     
     build_result, used_local_paths = video.build_scene_video(
         combined_video_path=combined_video_path,
@@ -1151,10 +1155,24 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     logger.info(f"stop_at: {stop_at}")
     logger.info(f"Task log file: {task_log_path}")
     logger.info(f"========================================")
+    
+    # Log video aspect ratio at task start
+    logger.debug(f"Task start - video_aspect from params: {params.video_aspect}")
+    logger.debug(f"Task start - video_aspect type: {type(params.video_aspect)}")
+    
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5, task_type="video_generation")
 
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
+    
+    # Convert video_aspect from string to enum if needed
+    if type(params.video_aspect) is str:
+        try:
+            params.video_aspect = VideoAspect(params.video_aspect)
+            logger.debug(f"Converted video_aspect from string '{params.video_aspect.value}' to enum")
+        except ValueError:
+            logger.warning(f"Invalid video_aspect string '{params.video_aspect}', defaulting to 9:16")
+            params.video_aspect = VideoAspect.portrait
 
     # Unified multi-scene architecture - always use multi-scene flow
     # The old single-scene mode is mapped to a single scene in multi-scene architecture
@@ -1338,6 +1356,13 @@ def start_single_scene(task_id, params: VideoParams, stop_at: str = "video"):
 def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task_start_time=None, check_cancelled=None):
     """Multi-scene video generation flow."""
 
+    # Log the aspect ratio at the very start
+    logger.debug(f"========================================")
+    logger.debug(f"start_multi_scene - video_aspect from params: {params.video_aspect}")
+    logger.debug(f"start_multi_scene - video_aspect type: {type(params.video_aspect)}")
+    if hasattr(params.video_aspect, 'value'):
+        logger.debug(f"start_multi_scene - video_aspect.value: {params.video_aspect.value}")
+    logger.debug(f"========================================")
     
     # Print local materials list at the beginning
     if params.video_materials and len(params.video_materials) > 0:
@@ -1515,7 +1540,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
     logger.info("========================================")
     
     try:
-        from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, afx
+        from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, afx, ColorClip
         import app.services.video as video_module
         
         # Load the combined video (which already has all scene audio)
@@ -1562,6 +1587,48 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                 logger.success("BGM added to multi-scene video")
             except Exception as e:
                 logger.error(f"failed to add BGM: {str(e)}")
+        
+        # Add pillarbox bars for 3:4 aspect ratio (convert to 9:16)
+        # This must happen BEFORE subtitles are added so subtitles are positioned relative to output aspect
+        if params.video_aspect:
+            from app.models.schema import VideoAspect
+            video_aspect = params.video_aspect
+            if isinstance(video_aspect, str):
+                try:
+                    video_aspect = VideoAspect(video_aspect)
+                except ValueError:
+                    video_aspect = None
+            
+            if video_aspect == VideoAspect.portrait_3_4:
+                from moviepy import CompositeVideoClip
+                
+                clip_w, clip_h = video_clip.size
+                target_width, target_height = 1080, 1920
+                
+                # Calculate scale to fit within target width
+                scale_factor = target_width / clip_w
+                new_width = round(clip_w * scale_factor)
+                new_height = round(clip_h * scale_factor)
+                
+                # Resize clip to fit target width
+                scaled_clip = video_clip.resized(new_size=(new_width, new_height))
+                
+                # Calculate offset to center vertically
+                y_offset = (target_height - new_height) // 2
+                
+                # Create background layer (black bars)
+                background = ColorClip(
+                    size=(target_width, target_height),
+                    color=(0, 0, 0),
+                    duration=video_clip.duration
+                )
+                
+                # Composite the scaled clip on background
+                video_clip = CompositeVideoClip([
+                    background,
+                    scaled_clip.with_position(("center", y_offset))
+                ])
+                logger.info(f"Added pillarbox for 3:4 -> 9:16: {clip_w}x{clip_h} -> {target_width}x{target_height}")
         
         # Add subtitle if enabled
         if params.subtitle_enabled and scene_results:

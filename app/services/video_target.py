@@ -56,6 +56,8 @@ def finalize_video(
         final_video = concatenate_videoclips(processed_clips)
         logger.info(f"clips concatenated, total duration: {final_video.duration:.2f}s")
         
+        # Note: Pillarbox is now added at the final video generation stage (after subtitles)
+        
         # Load audio if provided
         if audio_file:
             audio_clip = AudioFileClip(audio_file)
@@ -192,6 +194,47 @@ def generate_video(
             else:
                 # No existing audio, set BGM as main audio (normal scenario)
                 video_clip = video_clip.with_audio(audio_clip)
+        
+        # Add pillarbox bars for 3:4 aspect ratio (convert to 9:16)
+        # This must happen BEFORE subtitles are added so subtitles are positioned relative to output aspect
+        if hasattr(params, 'video_aspect') and params.video_aspect:
+            from app.models.schema import VideoAspect
+            
+            video_aspect = params.video_aspect
+            if isinstance(video_aspect, str):
+                try:
+                    video_aspect = VideoAspect(video_aspect)
+                except ValueError:
+                    video_aspect = None
+            
+            if video_aspect == VideoAspect.portrait_3_4:
+                clip_w, clip_h = video_clip.size
+                target_width, target_height = 1080, 1920
+                
+                # Calculate scale to fit within target width
+                scale_factor = target_width / clip_w
+                new_width = round(clip_w * scale_factor)
+                new_height = round(clip_h * scale_factor)
+                
+                # Resize clip to fit target width
+                scaled_clip = video_clip.resized(new_size=(new_width, new_height))
+                
+                # Calculate offset to center vertically
+                y_offset = (target_height - new_height) // 2
+                
+                # Create background layer (black bars)
+                background = ColorClip(
+                    size=(target_width, target_height),
+                    color=(0, 0, 0),
+                    duration=video_clip.duration
+                )
+                
+                # Composite the scaled clip on background
+                video_clip = CompositeVideoClip([
+                    background,
+                    scaled_clip.with_position(("center", y_offset))
+                ])
+                logger.info(f"Added pillarbox for 3:4 -> 9:16: {clip_w}x{clip_h} -> {target_width}x{target_height}")
         
         # Add subtitles if enabled
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
