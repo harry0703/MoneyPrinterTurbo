@@ -2,7 +2,7 @@ project_name = "MoneyPrinterTurboCN"
 project_version = "1.2.66.49"
 
 [app]
-video_source = "local"
+video_source = "pixabay"
 hide_config = false
 pexels_api_keys = [ "Ra5z3Yw0ZUwPy6Y7DddvQTgPq8lgW1JePJu1oSDJWVvrxm6R5LBwqv0x", "OWKfbDqi48tpPqaPyJVQga7FwquH1SXDtMYULID8MPU0z6krtQJ9OwZ6",]
 pixabay_api_keys = [ "54923197-cd28f5e7418eaabd03cdd2edb",]
@@ -55,7 +55,7 @@ video_contrast = 1.05
 video_concat_mode = "sequential"
 video_transition_mode = "none"
 video_aspect = "portrait_3_4"
-video_clip_duration = 5
+video_clip_duration = 6
 video_count = 1
 video_style = "none"
 
@@ -84,7 +84,7 @@ bgm_type = "random"
 bgm_volume = 0.1
 subtitle_enabled = true
 subtitle_position = "custom"
-subtitle_custom_position = 88
+subtitle_custom_position = 85
 subtitle_margin = 0.05
 font_name = "MicrosoftYaHeiBold.ttc"
 text_fore_color = "rgb(243, 235, 8)"

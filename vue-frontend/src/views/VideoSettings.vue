@@ -135,18 +135,34 @@
 
         <div class="form-item">
           <label class="form-label">{{ t('Output Background Color') }}</label>
-          <el-select v-model="form.outputBgColor" :placeholder="t('Select output background color')" class="form-select">
-            <el-option :label="t('Black')" value="black" />
-            <el-option :label="t('White')" value="white" />
-            <el-option :label="t('Red')" value="red" />
-            <el-option :label="t('Green')" value="green" />
-            <el-option :label="t('Blue')" value="blue" />
-            <el-option :label="t('Yellow')" value="yellow" />
-            <el-option :label="t('Purple')" value="purple" />
-            <el-option :label="t('Gray')" value="gray" />
-            <el-option :label="t('Dark Gray')" value="darkgray" />
-            <el-option :label="t('Light Gray')" value="lightgray" />
-          </el-select>
+          <div class="color-select-wrapper">
+            <div class="color-preview" :style="{ backgroundColor: getColorValue(form.outputBgColor) }">
+              <span v-if="isLightColor(form.outputBgColor)" class="preview-label">{{ getColorName(form.outputBgColor) }}</span>
+              <span v-else class="preview-label light-text">{{ getColorName(form.outputBgColor) }}</span>
+            </div>
+            <div class="color-options">
+              <button
+                v-for="color in colorOptions"
+                :key="color.value"
+                class="color-option"
+                :class="{ active: form.outputBgColor === color.value }"
+                :style="{ backgroundColor: color.hex }"
+                :title="t(color.label)"
+                @click="form.outputBgColor = color.value"
+              >
+                <span v-if="form.outputBgColor === color.value" class="check-icon">✓</span>
+              </button>
+            </div>
+            <div class="custom-color-picker">
+              <el-color-picker
+                v-model="customColor"
+                show-alpha
+                class="color-picker"
+                @change="handleCustomColorChange"
+              />
+              <span class="custom-color-label">{{ t('Custom Color') }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </el-card>
@@ -154,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, onMounted, computed } from 'vue';
+import { reactive, watch, onMounted, computed, ref } from 'vue';
 import FileUploader from '../components/FileUploader.vue';
 import { useI18nStore } from '../stores/i18n';
 import { parseLabelMarkdown } from '../utils/markdownParser';
@@ -194,6 +210,59 @@ const form = reactive({
   videoContrast: settingsStore.video.contrast,
   outputBgColor: settingsStore.video.outputBgColor
 });
+
+const customColor = ref('#000000');
+
+const colorOptions = [
+  { value: 'black', label: 'Black', hex: '#000000' },
+  { value: 'white', label: 'White', hex: '#FFFFFF' },
+  { value: 'red', label: 'Red', hex: '#FF0000' },
+  { value: 'green', label: 'Green', hex: '#00FF00' },
+  { value: 'blue', label: 'Blue', hex: '#0000FF' },
+  { value: 'yellow', label: 'Yellow', hex: '#FFFF00' },
+  { value: 'purple', label: 'Purple', hex: '#800080' },
+  { value: 'gray', label: 'Gray', hex: '#808080' },
+  { value: 'darkgray', label: 'Dark Gray', hex: '#404040' },
+  { value: 'lightgray', label: 'Light Gray', hex: '#D3D3D3' },
+  { value: 'orange', label: 'Orange', hex: '#FFA500' },
+  { value: 'pink', label: 'Pink', hex: '#FFC0CB' },
+  { value: 'cyan', label: 'Cyan', hex: '#00FFFF' },
+  { value: 'brown', label: 'Brown', hex: '#A52A2A' },
+  { value: 'gold', label: 'Gold', hex: '#FFD700' },
+  { value: 'silver', label: 'Silver', hex: '#C0C0C0' },
+];
+
+const getColorValue = (colorValue: string): string => {
+  const color = colorOptions.find(c => c.value === colorValue);
+  if (color) {
+    return color.hex;
+  }
+  if (colorValue.startsWith('#')) {
+    return colorValue;
+  }
+  return '#000000';
+};
+
+const getColorName = (colorValue: string): string => {
+  const color = colorOptions.find(c => c.value === colorValue);
+  if (color) {
+    return t(color.label);
+  }
+  return colorValue;
+};
+
+const isLightColor = (colorValue: string): boolean => {
+  const hex = getColorValue(colorValue);
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5;
+};
+
+const handleCustomColorChange = (color: string) => {
+  form.outputBgColor = color;
+};
 
 const handleFileRemove = (file: FileItem) => {
   const index = localFiles.value.findIndex(item => item.uid === file.uid);
@@ -479,5 +548,109 @@ defineExpose({
 
 .mt-2 {
   margin-top: 8px;
+}
+
+.color-select-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.color-preview {
+  width: 100%;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #e4e7ed;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.color-preview:hover {
+  border-color: #409eff;
+  box-shadow: 0 0 8px rgba(64, 158, 255, 0.3);
+}
+
+.preview-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.preview-label.light-text {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.color-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.color-option {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.color-option:hover {
+  transform: scale(1.1);
+  border-color: #909399;
+}
+
+.color-option.active {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+.check-icon {
+  color: white;
+  font-size: 16px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  font-weight: bold;
+}
+
+.custom-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed #e4e7ed;
+}
+
+.color-picker {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.custom-color-label {
+  font-size: 13px;
+  color: #909399;
+}
+
+.color-picker :deep(.el-color-picker__trigger) {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  padding: 0;
+}
+
+.color-picker :deep(.el-color-picker__icon) {
+  display: none;
 }
 </style>

@@ -147,7 +147,6 @@ class ThreadManager:
 
     def _process_queue(self):
         """Process task queue"""
-        print(f"[FORCE PRINT] _process_queue ENTERING, instance_id={id(self)}")
         logger.debug(f"_process_queue: ENTERING, instance_id={id(self)}")
         with self.lock:
             threads_count = len(self.threads)
@@ -255,14 +254,11 @@ class ThreadManager:
                     del self.task_infos[task_id]
                     logger.debug(f"[_run_task] task_id={task_id} removed from task_infos to release memory")
 
-            print(f"[FORCE PRINT] _run_task calling _process_queue for task_id={task_id}, instance_id={id(self)}")
             logger.debug(f"_run_task: task_id={task_id} lock released, calling _process_queue, instance_id={id(self)}")
             try:
                 self._process_queue()
-                print(f"[FORCE PRINT] _run_task _process_queue COMPLETED for task_id={task_id}")
                 logger.debug(f"_run_task: task_id={task_id} _process_queue completed")
             except Exception as e:
-                print(f"[FORCE PRINT] _run_task _process_queue FAILED for task_id={task_id}: {str(e)}")
                 logger.error(f"_run_task: task_id={task_id} _process_queue raised exception: {str(e)}")
             
             # Force garbage collection to release memory immediately (CRITICAL for memory management)
