@@ -198,6 +198,34 @@ video_quality = "high"
 # If set, overrides quality preset
 # video_bitrate = "8M"
 
+# Video brightness (1.0 = normal)
+video_brightness = 1.0
+
+# Video contrast (1.0 = normal)
+video_contrast = 1.0
+
+# Video concatenation mode
+# Options: "sequential", "random"
+video_concat_mode = "sequential"
+
+# Video transition mode
+# Options: "none", "fade", "slide"
+video_transition_mode = "none"
+
+# Video aspect ratio
+# Options: "portrait_9_16", "portrait_3_4", "landscape_16_9", "landscape_4_3", "square"
+video_aspect = "portrait_9_16"
+
+# Video clip duration in seconds
+video_clip_duration = 6
+
+# Number of video clips to use
+video_count = 1
+
+# Video style
+# Options: "none", "cinematic", "vibrant", "muted"
+video_style = "none"
+
 
 [whisper]
 # Only effective when subtitle_provider is "whisper"
@@ -271,9 +299,11 @@ subtitle_enabled = true
 subtitle_position = "bottom"
 # Custom position percentage from top (only used when position is "custom")
 subtitle_custom_position = 70.0
+# Subtitle margin (percentage of video height)
+subtitle_margin = 0.05
 # Font name
 font_name = "MicrosoftYaHeiBold.ttc"
-# Text color (hex format)
+# Text color (hex format or rgb)
 text_fore_color = "#FFFFFF"
 # Text background color (true/false or hex color)
 text_background_color = true
@@ -283,3 +313,9 @@ font_size = 60
 stroke_color = "#000000"
 # Stroke width
 stroke_width = 1.5
+# Output background color
+output_bg_color = "black"
+
+[imagemagick]
+# ImageMagick path (only needed on Windows)
+imagemagick_path = "D:\\ProgramData\\ImageMagick-7.1.12-Q16\\magick.exe"
