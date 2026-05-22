@@ -1053,45 +1053,42 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
             lines.append(current_line)
             break
         
-        candidates = []
-        
-        for i in range(1, len(current_line)):
-            if current_line[i] in punctuation_chars or current_line[i] == ' ':
-                line1 = current_line[:i].strip()
-                line2 = current_line[i:].strip()
-                
-                if not line1 or not line2:
-                    continue
-                
-                w1, _ = get_text_size(line1)
-                w2, _ = get_text_size(line2)
-                
-                if w1 <= max_width:
-                    candidates.append((i + 1, w1, w2))
-        
         split_pos = len(current_line) // 2
         
-        if candidates:
-            best_candidate = None
-            min_diff = float('inf')
+        current_width, _ = get_text_size(current_line)
+        if current_width > max_width:
+            target_chars = 0
+            for i in range(1, len(current_line)):
+                w, _ = get_text_size(current_line[:i])
+                if w <= max_width:
+                    target_chars = i
+                else:
+                    break
             
-            for pos, w1, w2 in candidates:
-                diff = abs(w1 - w2)
-                if diff < min_diff:
-                    min_diff = diff
-                    best_candidate = pos
-            
-            if best_candidate:
-                split_pos = best_candidate
+            if target_chars > 0:
+                split_pos = target_chars
+            else:
+                split_pos = len(current_line) // 2
         
-        line = current_line[:split_pos].strip()
+        best_split_pos = split_pos
+        
+        look_range = 5
+        start_look = max(0, split_pos - look_range)
+        end_look = min(len(current_line), split_pos + look_range)
+        
+        for i in range(end_look, start_look, -1):
+            if i < len(current_line) and (current_line[i] in punctuation_chars or current_line[i] == ' '):
+                best_split_pos = i + 1
+                break
+        
+        line = current_line[:best_split_pos].strip()
         
         if not line:
             line = current_line[:max(1, len(current_line) // 2)]
-            split_pos = len(line)
+            best_split_pos = len(line)
         
         lines.append(line)
-        current_line = current_line[split_pos:].strip()
+        current_line = current_line[best_split_pos:].strip()
     
     wrapped_text = '\n'.join(lines)
     total_height = len(lines) * line_height
