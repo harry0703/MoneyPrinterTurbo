@@ -37,3 +37,4 @@ app/models/whisper-large-v3/
 vue-frontend/dist/
 vue-frontend/dist-ssr/
 vue-frontend/.vite/
+tasks.json
