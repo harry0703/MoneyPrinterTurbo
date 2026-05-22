@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "1.2.66.48"
+project_version = "1.2.66.49"
 
 [app]
 video_source = "local"
@@ -54,7 +54,7 @@ video_brightness = 1.15
 video_contrast = 1.05
 video_concat_mode = "sequential"
 video_transition_mode = "none"
-video_aspect = "landscape"
+video_aspect = "portrait_3_4"
 video_clip_duration = 5
 video_count = 1
 video_style = "none"
@@ -84,7 +84,7 @@ bgm_type = "random"
 bgm_volume = 0.1
 subtitle_enabled = true
 subtitle_position = "custom"
-subtitle_custom_position = 95
+subtitle_custom_position = 88
 subtitle_margin = 0.05
 font_name = "MicrosoftYaHeiBold.ttc"
 text_fore_color = "rgb(243, 235, 8)"

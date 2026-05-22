@@ -176,7 +176,7 @@ class ThreadManager:
         Args:
             task_id: Task ID
         """
-        logger.info(f"[_start_task] task_id={task_id} called")
+        logger.debug(f"[_start_task] task_id={task_id} called")
         task_info = self.task_infos.get(task_id)
         if not task_info or task_info.status != TaskStatus.PENDING:
             logger.warning(f"[_start_task] task_id={task_id} not started: task_info={task_info is not None}, status={task_info.status if task_info else 'None'}")
@@ -184,7 +184,7 @@ class ThreadManager:
 
         task_info.status = TaskStatus.RUNNING
         task_info.start_time = datetime.now()
-        logger.info(f"[_start_task] task_id={task_id} status set to RUNNING")
+        logger.debug(f"[_start_task] task_id={task_id} status set to RUNNING")
 
         thread = threading.Thread(
             target=self._run_task,
@@ -192,9 +192,9 @@ class ThreadManager:
         )
         thread.daemon = True
         self.threads[task_id] = thread
-        logger.info(f"[_start_task] task_id={task_id} starting thread")
+        logger.debug(f"[_start_task] task_id={task_id} starting thread")
         thread.start()
-        logger.info(f"[_start_task] task_id={task_id} thread started successfully")
+        logger.debug(f"[_start_task] task_id={task_id} thread started successfully")
 
     def _run_task(self, task_id: str):
         """Execute task in background thread
@@ -203,8 +203,8 @@ class ThreadManager:
             task_id: Task ID
         """
         # Force print to console - this MUST appear if _run_task is called
-        print(f"[FORCE PRINT] _run_task STARTED for task_id={task_id}, instance_id={id(self)}")
-        logger.info(f"[_run_task] task_id={task_id} STARTED")
+        # print(f"[FORCE PRINT] _run_task STARTED for task_id={task_id}, instance_id={id(self)}")
+        logger.debug(f"[_run_task] task_id={task_id} STARTED")
         
         task_info = self.task_infos.get(task_id)
         if not task_info:
@@ -219,32 +219,32 @@ class ThreadManager:
 
             result = task_info.task_func(*task_info.args, **task_info.kwargs, check_cancelled=check_cancelled)
 
-            logger.info(f"[_run_task] task_id={task_id} task_func completed normally")
+            logger.debug(f"[_run_task] task_id={task_id} task_func completed normally")
             with self.lock:
                 if not task_info.cancelled:
                     task_info.status = TaskStatus.COMPLETED
                     task_info.result = result
-                    logger.info(f"[_run_task] task_id={task_id} status set to COMPLETED")
+                    logger.debug(f"[_run_task] task_id={task_id} status set to COMPLETED")
                 else:
                     task_info.status = TaskStatus.CANCELLED
-                    logger.info(f"[_run_task] task_id={task_id} status set to CANCELLED")
+                    logger.debug(f"[_run_task] task_id={task_id} status set to CANCELLED")
         except Exception as e:
             logger.error(f"[_run_task] task_id={task_id} task_func raised exception: {str(e)}")
             with self.lock:
                 task_info.status = TaskStatus.FAILED
                 task_info.error = e
-                logger.info(f"[_run_task] task_id={task_id} status set to FAILED")
+                logger.debug(f"[_run_task] task_id={task_id} status set to FAILED")
         finally:
-            logger.info(f"[_run_task] task_id={task_id} finally block entered")
+            logger.debug(f"[_run_task] task_id={task_id} finally block entered")
             if hasattr(thread_local, 'task_id'):
                 del thread_local.task_id
 
-            logger.info(f"[_run_task] task_id={task_id} acquiring lock for cleanup")
+            logger.debug(f"[_run_task] task_id={task_id} acquiring lock for cleanup")
             with self.lock:
                 task_info.end_time = datetime.now()
                 if task_id in self.threads:
                     del self.threads[task_id]
-                    logger.info(f"[_run_task] task_id={task_id} removed from threads, remaining_threads={len(self.threads)}")
+                    logger.debug(f"[_run_task] task_id={task_id} removed from threads, remaining_threads={len(self.threads)}")
                 else:
                     logger.warning(f"[_run_task] task_id={task_id} was NOT in threads!")
 
@@ -253,7 +253,7 @@ class ThreadManager:
                 # Remove task info to release memory (CRITICAL for memory management)
                 if task_id in self.task_infos:
                     del self.task_infos[task_id]
-                    logger.info(f"[_run_task] task_id={task_id} removed from task_infos to release memory")
+                    logger.debug(f"[_run_task] task_id={task_id} removed from task_infos to release memory")
 
             print(f"[FORCE PRINT] _run_task calling _process_queue for task_id={task_id}, instance_id={id(self)}")
             logger.debug(f"_run_task: task_id={task_id} lock released, calling _process_queue, instance_id={id(self)}")
@@ -268,7 +268,7 @@ class ThreadManager:
             # Force garbage collection to release memory immediately (CRITICAL for memory management)
             import gc
             gc.collect()
-            logger.info(f"[_run_task] task_id={task_id} garbage collection completed")
+            logger.debug(f"[_run_task] task_id={task_id} garbage collection completed")
 
     def _update_history(self, task_id: str):
         """Update task history record
