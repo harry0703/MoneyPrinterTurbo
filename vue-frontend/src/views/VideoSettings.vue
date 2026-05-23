@@ -100,6 +100,10 @@
             <el-option :label="t('Nature/Landscape')" value="nature" />
             <el-option :label="t('Animation')" value="animation" />
             <el-option :label="t('Cartoon')" value="cartoon" />
+            <el-option :label="t('Industry')" value="industry" />
+            <el-option :label="t('Science')" value="science" />
+            <el-option :label="t('Tech')" value="tech" />
+            <el-option :label="t('Business')" value="business" />
           </el-select>
         </div>
         
