@@ -506,7 +506,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
     
     # Use global video style keyword from params
     style_keyword = params.video_style
-    if style_keyword:
+    if style_keyword and style_keyword != "none":
         logger.info(f"Using global video style keyword: {style_keyword}")
     else:
         logger.info("No global video style keyword provided")

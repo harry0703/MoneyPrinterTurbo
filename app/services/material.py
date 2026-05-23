@@ -97,7 +97,7 @@ def search_videos_pexels(
     }
     # Build search query with style keyword if provided
     full_search_term = search_term
-    if style_keyword:
+    if style_keyword and style_keyword != "none":
         full_search_term = f"{style_keyword} {search_term}"
         logger.info(f"Adding style keyword '{style_keyword}' to search term")
     
@@ -220,7 +220,7 @@ def search_videos_pixabay(
     api_key = get_api_key("pixabay_api_keys")
     # Build search query with style keyword if provided
     full_search_term = search_term
-    if style_keyword:
+    if style_keyword and style_keyword != "none":
         full_search_term = f"{style_keyword} {search_term}"
         logger.info(f"Adding style keyword '{style_keyword}' to search term")
     
