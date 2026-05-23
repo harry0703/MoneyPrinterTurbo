@@ -41,6 +41,214 @@ def normalize_language(language: str) -> Optional[str]:
     return language
 
 
+# ==============================================================================
+# Content Type Detection Module (Phase 1)
+# ==============================================================================
+
+# Content type enum
+class ContentType:
+    """Content type classifications for video scripts."""
+    NARRATIVE = "narrative"      # News, stories, event reports
+    INFORMATIVE = "informative"   # Articles, tutorials, explainers
+    DISCUSSIVE = "discussive"    # Debates, opinions, commentaries
+    UNKNOWN = "unknown"
+
+
+# Keyword-based content type indicators
+CONTENT_TYPE_KEYWORDS = {
+    # Narrative indicators - timeline, events, chronological flow
+    "narrative": {
+        "zh": [
+            "昨天", "今天", "明天", "发生", "报道", "消息", "宣布", "最新",
+            "刚刚", "目前", "此前", "随后", "当时", "事件", "事故", "会议",
+            "发布", "举行", "召开", "达成", "签署", "访问", "考察", "调查"
+        ],
+        "en": [
+            "yesterday", "today", "tomorrow", "happened", "reported", "announced",
+            "latest", "just", "currently", "previously", "later", "event",
+            "incident", "meeting", "released", "held", "signed", "visit", "investigation"
+        ],
+        "de": [
+            "gestern", "heute", "morgen", "passiert", "gemeldet", "angekündigt",
+            "ereignis", "vorfall", "sitzung", "besuch"
+        ]
+    },
+    # Informative indicators - entities, attributes, features, facts
+    "informative": {
+        "zh": [
+            "定义", "特点", "功能", "包括", "相比", "差异", "如何", "是什么",
+            "方法", "原理", "原因", "结果", "类型", "分类", "介绍", "说明",
+            "概述", "讲解", "解析", "分析", "解答", "步骤", "流程", "技巧"
+        ],
+        "en": [
+            "definition", "features", "function", "includes", "compared", "difference",
+            "how to", "what is", "method", "principle", "cause", "result", "type",
+            "introduction", "overview", "tutorial", "guide", "steps", "process", "tips"
+        ],
+        "de": [
+            "definition", "merkmale", "funktion", "beinhaltet", "unterschied",
+            "methode", "prinzip", "ursache", "ergebnis", "typ", "einleitung"
+        ]
+    },
+    # Discussive indicators - viewpoints, pros/cons, arguments
+    "discussive": {
+        "zh": [
+            "认为", "觉得", "观点", "看法", "有人说", "有人认为", "专家表示",
+            "优点", "缺点", "好处", "坏处", "一方面", "另一方面", "争议",
+            "讨论", "辩论", "支持", "反对", "同意", "不同意", "看法", "立场"
+        ],
+        "en": [
+            "think", "believe", "opinion", "viewpoint", "some people think", "experts say",
+            "pros", "cons", "advantage", "disadvantage", "on one hand", "on the other hand",
+            "controversy", "debate", "argument", "support", "oppose", "agree", "disagree"
+        ],
+        "de": [
+            "glauben", "meinen", "ansicht", "position", "vorteile", "nachteile",
+            "einerseits", "andererseits", "diskussion", "streit", "unterstützung", "ablehnung"
+        ]
+    }
+}
+
+
+def detect_content_type(text: str, language: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Detect the content type of a video script using hybrid keyword + confidence approach.
+    
+    Args:
+        text: The video script or topic text
+        language: Language of the text (optional, for targeted keyword matching)
+        
+    Returns:
+        Dict with keys:
+        - content_type: str - One of "narrative", "informative", "discussive", "unknown"
+        - confidence: float - Confidence score (0-1)
+        - detection_method: str - "keyword" or "unknown"
+        - matched_keywords: List[str] - Keywords that matched
+    """
+    logger.info(f"=== Content Type Detection Started ===")
+    logger.info(f"Input text (first 100 chars): {text[:100]}...")
+    logger.info(f"Language hint: {language or 'auto-detect'}")
+    
+    if not text or not text.strip():
+        logger.warning("Empty input text provided")
+        return {
+            "content_type": ContentType.UNKNOWN,
+            "confidence": 0.0,
+            "detection_method": "unknown",
+            "matched_keywords": []
+        }
+    
+    text_lower = text.lower()
+    
+    # Get keywords for the specified language or all languages
+    languages_to_check = []
+    if language:
+        lang_map = {
+            "chinese": ["zh"],
+            "english": ["en"],
+            "german": ["de"],
+            "portuguese": ["pt"],
+            "russian": ["ru"],
+            "turkish": ["tr"],
+            "vietnamese": ["vi"]
+        }
+        languages_to_check = lang_map.get(language.lower(), ["zh", "en", "de"])
+    else:
+        languages_to_check = ["zh", "en", "de"]
+    
+    logger.debug(f"Languages to check: {', '.join(languages_to_check)}")
+    
+    # Count keyword matches for each content type
+    type_scores = {
+        ContentType.NARRATIVE: {"score": 0, "matched": []},
+        ContentType.INFORMATIVE: {"score": 0, "matched": []},
+        ContentType.DISCUSSIVE: {"score": 0, "matched": []}
+    }
+    
+    for content_type, lang_keywords in CONTENT_TYPE_KEYWORDS.items():
+        for lang in languages_to_check:
+            if lang in lang_keywords:
+                for keyword in lang_keywords[lang]:
+                    if keyword.lower() in text_lower:
+                        type_scores[content_type]["score"] += 1
+                        type_scores[content_type]["matched"].append(keyword)
+    
+    # Log individual type scores
+    logger.info(f"Content type scores:")
+    logger.info(f"  - Narrative: {type_scores[ContentType.NARRATIVE]['score']} matches")
+    if type_scores[ContentType.NARRATIVE]['matched']:
+        logger.debug(f"    Matched keywords: {', '.join(type_scores[ContentType.NARRATIVE]['matched'])}")
+    
+    logger.info(f"  - Informative: {type_scores[ContentType.INFORMATIVE]['score']} matches")
+    if type_scores[ContentType.INFORMATIVE]['matched']:
+        logger.debug(f"    Matched keywords: {', '.join(type_scores[ContentType.INFORMATIVE]['matched'])}")
+    
+    logger.info(f"  - Discussive: {type_scores[ContentType.DISCUSSIVE]['score']} matches")
+    if type_scores[ContentType.DISCUSSIVE]['matched']:
+        logger.debug(f"    Matched keywords: {', '.join(type_scores[ContentType.DISCUSSIVE]['matched'])}")
+    
+    # Determine best match
+    best_type = ContentType.UNKNOWN
+    best_score = 0
+    matched_keywords = []
+    
+    for content_type, data in type_scores.items():
+        if data["score"] > best_score:
+            best_score = data["score"]
+            best_type = content_type
+            matched_keywords = data["matched"]
+    
+    # Calculate confidence based on score and text length
+    # More keywords matched + shorter text = higher confidence
+    # (shorter text is more likely to be a topic/title)
+    if best_score == 0:
+        confidence = 0.0
+    else:
+        # Base confidence on score
+        base_confidence = min(0.5 + best_score * 0.15, 0.95)
+        
+        # Boost confidence for shorter texts (topics/titles)
+        text_length = len(text.split())
+        if text_length < 20:
+            confidence = min(base_confidence + 0.2, 0.98)
+        elif text_length < 50:
+            confidence = min(base_confidence + 0.1, 0.95)
+        else:
+            confidence = base_confidence
+        
+        # Apply keyword concentration bonus
+        keyword_density = best_score / max(text_length, 1)
+        if keyword_density > 0.1:
+            confidence = min(confidence + 0.1, 0.98)
+    
+    # Determine confidence level
+    if confidence >= 0.8:
+        confidence_level = "HIGH"
+    elif confidence >= 0.5:
+        confidence_level = "MEDIUM"
+    elif confidence >= 0.2:
+        confidence_level = "LOW"
+    else:
+        confidence_level = "NONE"
+    
+    # Log final result
+    logger.info(f"=== Content Type Detection Result ===")
+    logger.info(f"Content type: {best_type}")
+    logger.info(f"Confidence: {confidence:.4f} ({confidence_level})")
+    logger.info(f"Detection method: {('keyword' if best_score > 0 else 'unknown')}")
+    if matched_keywords:
+        logger.info(f"Top matched keywords: {', '.join(matched_keywords[:10])}")
+    logger.info(f"=== Content Type Detection Completed ===")
+    
+    return {
+        "content_type": best_type,
+        "confidence": confidence,
+        "confidence_level": confidence_level,
+        "detection_method": "keyword" if best_score > 0 else "unknown",
+        "matched_keywords": matched_keywords[:10]  # Limit to top 10 keywords
+    }
+
+
 # Enhanced time marker patterns
 def get_time_patterns() -> List[Tuple[str, str]]:
     """

@@ -23,6 +23,7 @@ from app.models.schema import Scene, VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, video, voice
 from app.services import state as sm
 from app.services.material import extract_style_keyword
+from app.services.scene_parser import detect_content_type, ContentType
 from app.services.thread_manager import thread_manager
 from app.utils import utils
 
@@ -137,13 +138,27 @@ def generate_multi_scene_script(task_id, params):
     
     video_script = params.video_script.strip()
     
+    # Detect content type for optimized opening scene generation
+    content_to_detect = params.video_script if params.video_script else params.video_subject
+    content_type_result = detect_content_type(content_to_detect, params.video_language)
+    
+    # Log content type detection results
+    logger.info(f"=== Content Type Detection ===")
+    logger.info(f"Content Type: {content_type_result['content_type']}")
+    logger.info(f"Confidence: {content_type_result['confidence']:.4f} ({content_type_result.get('confidence_level', 'UNKNOWN')})")
+    logger.info(f"Detection Method: {content_type_result['detection_method']}")
+    if content_type_result['matched_keywords']:
+        logger.info(f"Matched Keywords: {', '.join(content_type_result['matched_keywords'])}")
+    logger.info(f"=== Content Type Detection End ===")
+    
     if not video_script:
         # User provided subject only, generate multi-scene script from scratch
         logger.info("generating multi-scene script from subject")
         video_script = llm.generate_multi_scene_script(
             video_content=params.video_subject,
             language=params.video_language,
-            max_scenes=16
+            max_scenes=16,
+            content_type=content_type_result['content_type']
         )
     else:
         # User provided script, convert to multi-scene format
@@ -151,7 +166,8 @@ def generate_multi_scene_script(task_id, params):
         video_script = llm.convert_to_multi_scene(
             video_script=video_script,
             video_subject=params.video_subject,
-            language=params.video_language
+            language=params.video_language,
+            content_type=content_type_result['content_type']
         )
     
     if not video_script or "Error: " in video_script:

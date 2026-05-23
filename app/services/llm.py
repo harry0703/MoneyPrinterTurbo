@@ -622,10 +622,157 @@ def generate_tags(scene_script: str, visual_requirement: str = "", max_tags: int
     return tags
 
 
+def _get_content_type_opening_guidance(content_type: str, language: str = "English") -> str:
+    """
+    Get content-type-specific opening scene guidance for the LLM.
+    
+    Args:
+        content_type: One of "narrative", "informative", "discussive"
+        language: Language for the guidance (determines examples and tone)
+        
+    Returns:
+        Guidance text for generating optimized opening scenes
+    """
+    
+    # Detect language for guidance
+    is_chinese = language.lower() in ["chinese", "zh"]
+    is_german = language.lower() == "german"
+    
+    if content_type == "narrative":
+        # News, stories, event reports - start with dramatic event or surprising fact
+        if is_chinese:
+            return """CONTENT TYPE: 新闻叙事类
+- 开场策略: 以戏剧性事件或惊人事实开场，立即抓住观众注意力
+- 开场钩子类型: 
+  * 突发事件: "就在今天下午三点，发生了史无前例的事情..."
+  * 惊人数据: "最新调查显示，80% 的人都不知道这个秘密..."
+  * 悬念开头: "当所有人都以为事情已经结束时，真相才刚刚浮出水面..."
+- 视觉技巧: 动态分屏、快速缩放、统计数据文字动画
+- 音频技巧: 紧迫、戏剧性的语气，使用时间敏感的措辞
+- 评估标准: 开场3秒内必须出现钩子元素"""
+        elif is_german:
+            return """CONTENT TYPE: Narrative (News/Stories)
+- Opening Strategy: Start with dramatic event or surprising fact to immediately grab attention
+- Opening Hook Types:
+  * Breaking news: "Gestern um 15 Uhr passierte etwas Beispielloses..."
+  * Surprising data: "Neueste Umfragen zeigen, dass 80% der Menschen dieses Geheimnis nicht kennen..."
+  * Suspense: "Als alle dachten, es wäre vorbei, beginnt die Wahrheit gerade erst..."
+- Visual Techniques: Dynamic split-screen, fast zoom, statistic text animations
+- Audio Techniques: Urgent, dramatic tone with time-sensitive language
+- Evaluation: Hook element must appear within first 3 seconds"""
+        else:
+            return """CONTENT TYPE: Narrative (News/Stories)
+- Opening Strategy: Start with dramatic event or surprising fact to immediately grab attention
+- Opening Hook Types:
+  * Breaking news: "Yesterday at 3 PM, something unprecedented happened..."
+  * Surprising data: "Latest surveys show that 80% of people don't know this secret..."
+  * Suspense: "When everyone thought it was over, the truth was just beginning..."
+- Visual Techniques: Dynamic split-screen, fast zoom, statistic text animations
+- Audio Techniques: Urgent, dramatic tone with time-sensitive language
+- Evaluation: Hook element must appear within first 3 seconds"""
+    
+    elif content_type == "informative":
+        # Articles, tutorials, explainers - pose curiosity-inducing question
+        if is_chinese:
+            return """CONTENT TYPE: 知识科普类
+- 开场策略: 提出引发好奇的问题，激发观众求知欲
+- 开场钩子类型:
+  * 好奇问题: "你有没有想过，为什么 AI 能够比大多数开发者更好地编写代码？"
+  * 惊人事实: "你可能不知道，你每天都在使用的这个功能，背后隐藏着一个惊人的秘密..."
+  * 反直觉开场: "与传统观念相反，最有效的学习方法往往看起来最'笨'..."
+- 视觉技巧: 神秘的特写镜头、聚光灯效果、动态问号动画
+- 音频技巧: 好奇、引人入胜的语气，提出发人深省的问题
+- 评估标准: 开场问题必须在5秒内清晰表达"""
+        elif is_german:
+            return """CONTENT TYPE: Informative (Articles/Tutorials)
+- Opening Strategy: Pose curiosity-inducing question to spark audience curiosity
+- Opening Hook Types:
+  * Curious question: "Hast du dich jemals gefragt, warum KI Code besser schreiben kann als die meisten Entwickler?"
+  * Surprising fact: "Was du vielleicht nicht weißt: Hinter dieser Funktion verbirgt sich ein erstaunliches Geheimnis..."
+  * Counterintuitive: "Entgegen der landläufigen Meinung ist die effektivste Lernmethode oft die 'dümmste'..."
+- Visual Techniques: Mysterious close-ups, spotlight effects, animated question marks
+- Audio Techniques: Curious, engaging tone with thought-provoking questions
+- Evaluation: Opening question must be clearly expressed within 5 seconds"""
+        else:
+            return """CONTENT TYPE: Informative (Articles/Tutorials)
+- Opening Strategy: Pose curiosity-inducing question to spark audience curiosity
+- Opening Hook Types:
+  * Curious question: "Have you ever wondered why AI can write code better than most developers?"
+  * Surprising fact: "What you might not know: behind this feature lies an amazing secret..."
+  * Counterintuitive: "Contrary to popular belief, the most effective learning method often looks the 'dumbest'..."
+- Visual Techniques: Mysterious close-ups, spotlight effects, animated question marks
+- Audio Techniques: Curious, engaging tone with thought-provoking questions
+- Evaluation: Opening question must be clearly expressed within 5 seconds"""
+    
+    elif content_type == "discussive":
+        # Debates, opinions, commentaries - present provocative statement
+        if is_chinese:
+            return """CONTENT TYPE: 观点讨论类
+- 开场策略: 提出引发争议的论点，激发观众思考和参与
+- 开场钩子类型:
+  * 争议观点: "70% 的专家在这个问题上持反对意见，而这可能会彻底改变你的认知..."
+  * 对比冲突: "有人说这是最好的方案，有人却认为这是灾难的开始..."
+  * 立场鲜明: "我必须直言不讳：这个被所有人追捧的方法，实际上是个陷阱！"
+- 视觉技巧: 分屏展示对立观点、对比色方案、有冲击力的文字动画
+- 音频技巧: 有争议性、充满活力的语气，突出争议性
+- 评估标准: 开场必须明确表达立场或争议点"""
+        elif is_german:
+            return """CONTENT TYPE: Discussive (Debates/Comments)
+- Opening Strategy: Present provocative statement to spark audience thinking and engagement
+- Opening Hook Types:
+  * Controversial opinion: "70% der Experten widersprechen bei diesem Thema, und das könnte Ihre Wahrnehmung völlig verändern..."
+  * Contrasting conflict: "Manche sagen, dies sei die beste Lösung, während andere glauben, es sei der Beginn einer Katastrophe..."
+  * Clear stance: "Ich muss Klartext reden: Diese von allen begehrte Methode ist tatsächlich eine Falle!"
+- Visual Techniques: Split-screen opposing views, contrasting color schemes, impactful text animations
+- Audio Techniques: Provocative, energetic tone highlighting controversy
+- Evaluation: Opening must clearly express stance or controversy"""
+        else:
+            return """CONTENT TYPE: Discussive (Debates/Comments)
+- Opening Strategy: Present provocative statement to spark audience thinking and engagement
+- Opening Hook Types:
+  * Controversial opinion: "70% of experts disagree on this issue, and it might completely change your perception..."
+  * Contrasting conflict: "Some say this is the best solution, while others believe it's the start of a disaster..."
+  * Clear stance: "I have to be blunt: this method everyone is raving about is actually a trap!"
+- Visual Techniques: Split-screen opposing views, contrasting color schemes, impactful text animations
+- Audio Techniques: Provocative, energetic tone highlighting controversy
+- Evaluation: Opening must clearly express stance or controversy"""
+    
+    else:
+        # Unknown content type - generic engaging opening
+        if is_chinese:
+            return """CONTENT TYPE: 通用类
+- 开场策略: 自然引入主题，保持观众兴趣
+- 开场要求: 
+  * 友好的问候语
+  * 简明扼要的主题介绍
+  * 适度的好奇激发元素
+- 视觉技巧: 友好、专业的画面，清晰的主题展示
+- 音频技巧: 热情、平易近人的语气"""
+        elif is_german:
+            return """CONTENT TYPE: General
+- Opening Strategy: Natural introduction to topic, maintain audience interest
+- Opening Requirements:
+  * Friendly greeting
+  * Concise topic introduction
+  * Moderate curiosity-sparking element
+- Visual Techniques: Friendly, professional visuals, clear topic presentation
+- Audio Techniques: Warm, approachable tone"""
+        else:
+            return """CONTENT TYPE: General
+- Opening Strategy: Natural introduction to topic, maintain audience interest
+- Opening Requirements:
+  * Friendly greeting
+  * Concise topic introduction
+  * Moderate curiosity-sparking element
+- Visual Techniques: Friendly, professional visuals, clear topic presentation
+- Audio Techniques: Warm, approachable tone"""
+
+
 def generate_multi_scene_script(
     video_content: str,
     language: str = "",
-    max_scenes: int = 16
+    max_scenes: int = 16,
+    content_type: str = ""
 ) -> str:
     """
     Generate multi-scene script for video.
@@ -634,6 +781,8 @@ def generate_multi_scene_script(
         video_content: The content of the video (can be a subject or full script)
         language: Language for the script
         max_scenes: Maximum number of scenes to generate
+        content_type: Content type for optimized opening scene generation (optional)
+                     Options: "narrative", "informative", "discussive"
 
     Returns:
         Multi-scene script in JSON format
@@ -746,9 +895,10 @@ Your output MUST conform to this JSON Schema:
         detected_language = detect_language(video_content)
         prompt += f"\n- Language: {detected_language}\n- IMPORTANT: Please respond in {detected_language} language. All content, including scene titles, visual descriptions, dialogue scripts, and emotion markers, must be in {detected_language}."
 
-
-
-    logger.info(f"generating multi-scene script for content: {video_content}")
+    # Add content-type-specific opening scene guidance
+    if content_type:
+        content_type_guidance = _get_content_type_opening_guidance(content_type, language or detect_language(video_content))
+        prompt += f"\n\n# Content-Type Specific Opening Scene Guidance\n{content_type_guidance}"
 
     final_script = ""
     for i in range(_max_retries):
@@ -1038,7 +1188,8 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
 def convert_to_multi_scene(
     video_script: str,
     video_subject: str = "",
-    language: str = None
+    language: str = None,
+    content_type: str = ""
 ) -> str:
     """
     Convert single-scene script to multi-scene format.
@@ -1047,6 +1198,8 @@ def convert_to_multi_scene(
         video_script: Single-scene script text
         video_subject: Video subject for context
         language: Language for the generated script
+        content_type: Content type for optimized opening scene generation (optional)
+                     Options: "narrative", "informative", "discussive"
     
     Returns:
         Multi-scene script text with visual descriptions, camera movements, and emotion annotations
@@ -1109,6 +1262,11 @@ Please read the user-provided [Original Text] and adapt it into a standardized *
 
     if language:
         prompt += f"\n- Language: {language}\n- IMPORTANT: Please respond in {language} language. All content, including scene titles, visual descriptions, dialogue scripts, and emotion markers, must be in {language}."
+
+    # Add content-type-specific opening scene guidance
+    if content_type:
+        content_type_guidance = _get_content_type_opening_guidance(content_type, language or "English")
+        prompt += f"\n\n# Content-Type Specific Opening Scene Guidance\n{content_type_guidance}"
 
     logger.info("converting single-scene script to multi-scene format")
     
