@@ -385,6 +385,9 @@ const loadConfig = async () => {
           form.videoStyle = cfg.app.video_style;
         }
       }
+      if (cfg.ui && cfg.ui.output_bg_color) {
+        form.outputBgColor = cfg.ui.output_bg_color;
+      }
     }
   } catch (error: any) {
     console.error('Failed to load config:', error);
@@ -406,6 +409,9 @@ const saveConfig = async () => {
         video_clip_duration: form.videoClipDuration,
         video_count: form.videoCount,
         video_style: form.videoStyle
+      },
+      ui: {
+        output_bg_color: form.outputBgColor
       }
     };
     await apiService.updateConfig(cfg);

@@ -64,6 +64,7 @@ def get_config(request: Request):
                 "font_size": config.ui.get("font_size", 60),
                 "stroke_color": config.ui.get("stroke_color", "#000000"),
                 "stroke_width": config.ui.get("stroke_width", 1.5),
+                "output_bg_color": config.ui.get("output_bg_color", "black"),
             },
             "app": {
                 "llm_provider": config.app.get("llm_provider", "openai"),

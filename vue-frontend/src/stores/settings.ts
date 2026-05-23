@@ -262,6 +262,7 @@ export const useSettingsStore = defineStore('settings', {
             font_size: this.subtitle.fontSize,
             stroke_color: this.subtitle.outlineColor,
             stroke_width: this.subtitle.outlineWidth,
+            output_bg_color: this.video.outputBgColor,
           }
         };
         console.log('[SettingsStore] Sending config:', JSON.stringify(subtitleConfig, null, 2));
@@ -451,6 +452,10 @@ export const useSettingsStore = defineStore('settings', {
             if (data.ui.stroke_width !== undefined) {
               this.subtitle.outlineWidth = Number(data.ui.stroke_width);
               console.log('[SettingsStore] Updated subtitle.outlineWidth from config.ui:', this.subtitle.outlineWidth);
+            }
+            if (data.ui.output_bg_color) {
+              this.video.outputBgColor = data.ui.output_bg_color;
+              console.log('[SettingsStore] Updated video.outputBgColor from config.ui:', this.video.outputBgColor);
             }
           }
 

@@ -55,7 +55,7 @@ video_contrast = 1.05
 video_concat_mode = "sequential"
 video_transition_mode = "none"
 video_aspect = "portrait_3_4"
-video_clip_duration = 6
+video_clip_duration = 5
 video_count = 1
 video_style = "none"
 
