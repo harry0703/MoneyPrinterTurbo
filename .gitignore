@@ -38,3 +38,4 @@ vue-frontend/dist/
 vue-frontend/dist-ssr/
 vue-frontend/.vite/
 tasks.json
+test/
