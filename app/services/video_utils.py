@@ -950,55 +950,76 @@ def apply_blur_effect(clip, blur_radius):
     """
     from moviepy import vfx
     
-    # For moviepy, we can use multiple applications of resize with blurring
-    # A more practical approach is to use PIL's ImageFilter or custom functions
+    # Note: The fl_image method is deprecated in moviepy 2.x
+    # We use the scaling approach which is more reliable across moviepy versions
+    # If you have scipy installed and want to use gaussian blur, 
+    # you can uncomment the scipy section below
     
-    # Check if we have scipy available for gaussian blur
-    try:
-        from scipy.ndimage import gaussian_filter
-        import numpy as np
+    # Check if scipy is available and use gaussian blur
+    # try:
+    #     from scipy.ndimage import gaussian_filter
+    #     import numpy as np
+    #     
+    #     # For video clips, we need to process each frame
+    #     def blur_frame(frame):
+    #         # Apply gaussian filter to each frame
+    #         if len(frame.shape) == 3:
+    #             # Color image
+    #             blurred = np.zeros_like(frame)
+    #             for i in range(frame.shape[2]):
+    #                 blurred[:, :, i] = gaussian_filter(frame[:, :, i], sigma=blur_radius)
+    #             return blurred
+    #         else:
+    #             # Grayscale image
+    #             return gaussian_filter(frame, sigma=blur_radius)
+    #     
+    #     # Apply blur to the clip using fl_image
+    #     blurred_clip = clip.fl_image(blur_frame)
+    #     return blurred_clip
+    #     
+    # except (ImportError, AttributeError):
+    #     # scipy not available or fl_image not available (moviepy 2.x)
+    #     pass
+    
+    # Use aggressive scaling down-up approach
+    # This creates smooth blur by downscaling to a small size then upscaling back
+    logger.info("Using scaling approach for blur effect")
+    
+    w, h = clip.size
+    
+    # Calculate target small size based on blur radius
+    # Higher blur radius = smaller intermediate size = more blur
+    # Formula: scale from 50% (radius=0) down to 5% (radius=50+)
+    # blur_radius=15 → ~35% scale
+    # blur_radius=30 → ~20% scale
+    # blur_radius=50 → ~5% scale
+    target_scale = max(0.05, 0.5 - (blur_radius / 100.0))
+    
+    small_w = max(16, int(w * target_scale))
+    small_h = max(16, int(h * target_scale))
+    
+    logger.info(f"Blur settings: radius={blur_radius}, scale={target_scale:.2%}, size={small_w}x{small_h}")
+    
+    # Apply multiple downscale-upscale passes for smoother blur
+    intermediate_clip = clip
+    
+    # Number of passes increases with blur radius
+    num_passes = min(5, max(2, blur_radius // 20))
+    
+    for pass_num in range(num_passes):
+        # Scale down with high-quality resampling (moviepy 2.x uses 'resized')
+        intermediate_clip = intermediate_clip.resized(
+            new_size=(small_w, small_h)
+        )
         
-        # For video clips, we need to process each frame
-        def blur_frame(frame):
-            # Apply gaussian filter to each frame
-            if len(frame.shape) == 3:
-                # Color image
-                blurred = np.zeros_like(frame)
-                for i in range(frame.shape[2]):
-                    blurred[:, :, i] = gaussian_filter(frame[:, :, i], sigma=blur_radius)
-                return blurred
-            else:
-                # Grayscale image
-                return gaussian_filter(frame, sigma=blur_radius)
+        # Scale back up with high-quality resampling
+        intermediate_clip = intermediate_clip.resized(
+            new_size=(w, h)
+        )
         
-        # Apply blur to the clip using fl_image
-        blurred_clip = clip.fl_image(blur_frame)
-        return blurred_clip
-        
-    except ImportError:
-        # Fallback: if scipy is not available, use multiple resize operations to simulate blur
-        # This is less effective but doesn't require additional dependencies
-        logger.warning("scipy not available, using fallback blur method")
-        
-        # Create a series of progressively smaller/larger resizes to simulate blur
-        intermediate_clip = clip
-        num_steps = max(1, blur_radius // 5)  # More steps for higher blur radius
-        
-        for i in range(num_steps):
-            # Progressively scale down and back up
-            scale_down = 1.0 - (0.2 * (i + 1) / num_steps)
-            scale_up = 1.0 / scale_down
-            
-            # Scale down
-            w, h = intermediate_clip.size
-            new_w = max(1, int(w * scale_down))
-            new_h = max(1, int(h * scale_down))
-            intermediate_clip = intermediate_clip.resized(new_size=(new_w, new_h))
-            
-            # Scale back up
-            intermediate_clip = intermediate_clip.resized(new_size=(w, h))
-        
-        return intermediate_clip
+        logger.debug(f"Blur pass {pass_num + 1}/{num_passes} completed")
+    
+    return intermediate_clip
 
 
 @memory_safe_operation
