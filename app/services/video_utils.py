@@ -827,7 +827,7 @@ def copy_local_materials_to_task(task_id: str, materials: List) -> List:
     return processed_materials
 
 
-def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0, 0)):
+def fit_intro_video_to_target(clip, target_width, target_height, bg_color_str="black", bg_type="solid", blur_radius=15):
     """
     Fit intro video into target dimensions without cropping.
     Scales the video to fit within target, centers it on a background layer.
@@ -836,7 +836,9 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0,
         clip: VideoFileClip to process
         target_width: Target width in pixels
         target_height: Target height in pixels
-        bg_color: Background color as RGB tuple (default: black)
+        bg_color_str: Background color as string (name, hex, or rgb) - used when bg_type is "solid"
+        bg_type: Background type - "solid" (solid color) or "blurred" (blurred stretched video)
+        blur_radius: Blur radius when bg_type is "blurred" (default: 15)
     
     Returns:
         Composite video clip with intro centered on background
@@ -847,6 +849,11 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0,
     
     logger.info(f"Fitting intro video: {clip_w}x{clip_h} -> {target_width}x{target_height}")
     logger.info(f"Ratios - clip: {clip_ratio:.3f}, target: {target_ratio:.3f}")
+    logger.info(f"Background type: {bg_type}, blur radius: {blur_radius if bg_type == 'blurred' else 'N/A'}")
+    logger.info(f"Background color: {bg_color_str}")
+    
+    # Parse background color
+    bg_color = parse_color(bg_color_str)
     
     # Calculate scale factor to ensure at least one dimension matches target
     # Based on aspect ratio comparison to avoid cropping
@@ -865,39 +872,133 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color=(0, 0,
     
     logger.info(f"Selected scale factor: {scale_factor:.3f}")
     
-    # Scale the video
+    # Scale the video to fit within target dimensions
     new_width = round(clip_w * scale_factor)
     new_height = round(clip_h * scale_factor)
     logger.info(f"Scaling intro video: {clip_w}x{clip_h} -> {new_width}x{new_height}")
     
     scaled_clip = clip.resized(new_size=(new_width, new_height))
     
-    # Create background layer
-    background = ColorClip(
-        size=(target_width, target_height),
-        color=bg_color,
-        duration=clip.duration
-    )
-    
-    # Center the scaled clip on background
+    # Calculate position to center the scaled clip
     x_offset = (target_width - new_width) // 2
     y_offset = (target_height - new_height) // 2
     
     logger.info(f"Positioning intro at center: x={x_offset}, y={y_offset}")
     
-    # Composite the video on background
-    composite = CompositeVideoClip(
-        [background, scaled_clip.with_position((x_offset, y_offset))],
-        size=(target_width, target_height)
-    )
+    # Create background based on bg_type
+    if bg_type == "blurred":
+        # Create blurred background
+        # First, create a stretched version of the clip to fill the entire background
+        stretched_background = clip.resized(new_size=(target_width, target_height))
+        
+        # Apply blur effect to the stretched background
+        # moviepy uses different blur implementations, we'll use a lambda-based approach
+        blurred_background = apply_blur_effect(stretched_background, blur_radius)
+        
+        # Close stretched_background to release resources
+        close_clip(stretched_background)
+        
+        # Composite: blurred background at bottom, scaled clip on top
+        composite = CompositeVideoClip(
+            [blurred_background, scaled_clip.with_position((x_offset, y_offset))],
+            size=(target_width, target_height)
+        )
+        
+        # Close blurred_background to release resources
+        close_clip(blurred_background)
+        
+        logger.info(f"Created blurred background with radius {blur_radius}")
+    else:
+        # Create solid color background (default behavior)
+        background = ColorClip(
+            size=(target_width, target_height),
+            color=bg_color,
+            duration=clip.duration
+        )
+        
+        # Composite the video on background
+        composite = CompositeVideoClip(
+            [background, scaled_clip.with_position((x_offset, y_offset))],
+            size=(target_width, target_height)
+        )
+        
+        # Close background to release resources
+        close_clip(background)
+        
+        logger.info(f"Created solid color background: {bg_color}")
+    
     composite = composite.with_duration(clip.duration)
     
     # Preserve audio if present
     if clip.audio is not None:
         composite = composite.with_audio(clip.audio)
     
-    logger.success(f"Intro video fitted successfully: {target_width}x{target_height}")
+    logger.success(f"Intro video fitted successfully: {target_width}x{target_height} with {bg_type} background")
     return composite
+
+
+def apply_blur_effect(clip, blur_radius):
+    """
+    Apply blur effect to a video clip.
+    
+    Args:
+        clip: Video clip to blur
+        blur_radius: Blur radius (higher = more blur)
+    
+    Returns:
+        Blurred video clip
+    """
+    from moviepy import vfx
+    
+    # For moviepy, we can use multiple applications of resize with blurring
+    # A more practical approach is to use PIL's ImageFilter or custom functions
+    
+    # Check if we have scipy available for gaussian blur
+    try:
+        from scipy.ndimage import gaussian_filter
+        import numpy as np
+        
+        # For video clips, we need to process each frame
+        def blur_frame(frame):
+            # Apply gaussian filter to each frame
+            if len(frame.shape) == 3:
+                # Color image
+                blurred = np.zeros_like(frame)
+                for i in range(frame.shape[2]):
+                    blurred[:, :, i] = gaussian_filter(frame[:, :, i], sigma=blur_radius)
+                return blurred
+            else:
+                # Grayscale image
+                return gaussian_filter(frame, sigma=blur_radius)
+        
+        # Apply blur to the clip using fl_image
+        blurred_clip = clip.fl_image(blur_frame)
+        return blurred_clip
+        
+    except ImportError:
+        # Fallback: if scipy is not available, use multiple resize operations to simulate blur
+        # This is less effective but doesn't require additional dependencies
+        logger.warning("scipy not available, using fallback blur method")
+        
+        # Create a series of progressively smaller/larger resizes to simulate blur
+        intermediate_clip = clip
+        num_steps = max(1, blur_radius // 5)  # More steps for higher blur radius
+        
+        for i in range(num_steps):
+            # Progressively scale down and back up
+            scale_down = 1.0 - (0.2 * (i + 1) / num_steps)
+            scale_up = 1.0 / scale_down
+            
+            # Scale down
+            w, h = intermediate_clip.size
+            new_w = max(1, int(w * scale_down))
+            new_h = max(1, int(h * scale_down))
+            intermediate_clip = intermediate_clip.resized(new_size=(new_w, new_h))
+            
+            # Scale back up
+            intermediate_clip = intermediate_clip.resized(new_size=(w, h))
+        
+        return intermediate_clip
 
 
 @memory_safe_operation

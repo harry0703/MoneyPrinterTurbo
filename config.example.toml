@@ -226,6 +226,18 @@ video_count = 1
 # Options: "none", "cinematic", "vibrant", "muted"
 video_style = "none"
 
+# Intro video background type
+# Options: "solid" (solid color background), "blurred" (blurred stretched video as background)
+intro_video_bg_type = "blurred"
+
+# Intro video background blur radius (only used when intro_video_bg_type is "blurred")
+# Higher value = more blur, recommended range: 5-50
+intro_video_bg_blur = 15
+
+# Intro video background color (only used when intro_video_bg_type is "solid")
+# Can be a color name (black, white, red, etc.) or hex code (#000000, #FFFFFF, etc.)
+intro_video_bg_color = "black"
+
 
 [whisper]
 # Only effective when subtitle_provider is "whisper"

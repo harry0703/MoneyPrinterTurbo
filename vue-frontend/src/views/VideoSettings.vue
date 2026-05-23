@@ -102,6 +102,63 @@
             <el-option :label="t('Cartoon')" value="cartoon" />
           </el-select>
         </div>
+        
+        <div class="form-group intro-video-background-group">
+          <div class="form-item">
+            <label class="form-label" v-html="parseLabelMarkdown(t('Intro Video Background Type'))"></label>
+            <el-select v-model="form.introVideoBgType" :placeholder="t('Select intro video background type')" class="form-select">
+              <el-option :label="t('Solid Color')" value="solid" />
+              <el-option :label="t('Blurred')" value="blurred" />
+            </el-select>
+          </div>
+          
+          <div v-if="form.introVideoBgType === 'blurred'" class="form-item">
+            <label class="form-label">{{ t('Intro Video Blur Intensity') }}</label>
+            <div class="slider-control">
+              <el-slider
+                v-model="form.introVideoBgBlur"
+                :min="1"
+                :max="50"
+                :step="1"
+                :show-input="true"
+                :input-size="'small'"
+              />
+              <span class="slider-value">{{ form.introVideoBgBlur }}</span>
+            </div>
+          </div>
+          
+          <div v-if="form.introVideoBgType === 'solid'" class="form-item">
+            <label class="form-label">{{ t('Intro Video Background Color') }}</label>
+            <div class="color-select-wrapper">
+              <div class="color-preview" :style="{ backgroundColor: getColorValue(form.introVideoBgColor) }">
+                <span v-if="isLightColor(form.introVideoBgColor)" class="preview-label">{{ getColorName(form.introVideoBgColor) }}</span>
+                <span v-else class="preview-label light-text">{{ getColorName(form.introVideoBgColor) }}</span>
+              </div>
+              <div class="color-options">
+                <button
+                  v-for="color in colorOptions"
+                  :key="color.value"
+                  class="color-option"
+                  :class="{ active: form.introVideoBgColor === color.value }"
+                  :style="{ backgroundColor: color.hex }"
+                  :title="t(color.label)"
+                  @click="form.introVideoBgColor = color.value"
+                >
+                  <span v-if="form.introVideoBgColor === color.value" class="check-icon">✓</span>
+                </button>
+              </div>
+              <div class="custom-color-picker">
+                <el-color-picker
+                  v-model="introVideoCustomColor"
+                  show-alpha
+                  class="color-picker"
+                  @change="handleIntroVideoCustomColorChange"
+                />
+                <span class="custom-color-label">{{ t('Custom Color') }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="form-item">
           <label class="form-label">{{ t('Video Brightness') }}</label>
@@ -208,10 +265,14 @@ const form = reactive({
   videoBitrate: settingsStore.video.bitrate,
   videoBrightness: settingsStore.video.brightness,
   videoContrast: settingsStore.video.contrast,
-  outputBgColor: settingsStore.video.outputBgColor
+  outputBgColor: settingsStore.video.outputBgColor,
+  introVideoBgType: settingsStore.video.introVideoBgType,
+  introVideoBgBlur: settingsStore.video.introVideoBgBlur,
+  introVideoBgColor: settingsStore.video.introVideoBgColor
 });
 
 const customColor = ref('#000000');
+const introVideoCustomColor = ref('#000000');
 
 const colorOptions = [
   { value: 'black', label: 'Black', hex: '#000000' },
@@ -262,6 +323,10 @@ const isLightColor = (colorValue: string): boolean => {
 
 const handleCustomColorChange = (color: string) => {
   form.outputBgColor = color;
+};
+
+const handleIntroVideoCustomColorChange = (color: string) => {
+  form.introVideoBgColor = color;
 };
 
 const handleFileRemove = (file: FileItem) => {
@@ -384,6 +449,15 @@ const loadConfig = async () => {
         if (cfg.app.video_style) {
           form.videoStyle = cfg.app.video_style;
         }
+        if (cfg.app.intro_video_bg_type) {
+          form.introVideoBgType = cfg.app.intro_video_bg_type;
+        }
+        if (cfg.app.intro_video_bg_blur !== undefined) {
+          form.introVideoBgBlur = Number(cfg.app.intro_video_bg_blur);
+        }
+        if (cfg.app.intro_video_bg_color) {
+          form.introVideoBgColor = cfg.app.intro_video_bg_color;
+        }
       }
       if (cfg.ui && cfg.ui.output_bg_color) {
         form.outputBgColor = cfg.ui.output_bg_color;
@@ -408,7 +482,10 @@ const saveConfig = async () => {
         video_aspect: form.videoAspect,
         video_clip_duration: form.videoClipDuration,
         video_count: form.videoCount,
-        video_style: form.videoStyle
+        video_style: form.videoStyle,
+        intro_video_bg_type: form.introVideoBgType,
+        intro_video_bg_blur: form.introVideoBgBlur,
+        intro_video_bg_color: form.introVideoBgColor
       },
       ui: {
         output_bg_color: form.outputBgColor
@@ -433,7 +510,10 @@ watch([
   () => form.videoBitrate,
   () => form.videoBrightness,
   () => form.videoContrast,
-  () => form.outputBgColor
+  () => form.outputBgColor,
+  () => form.introVideoBgType,
+  () => form.introVideoBgBlur,
+  () => form.introVideoBgColor
 ], () => {
   saveConfig();
   settingsStore.updateVideoSetting('source', form.videoSource);
@@ -448,6 +528,9 @@ watch([
   settingsStore.updateVideoSetting('brightness', form.videoBrightness);
   settingsStore.updateVideoSetting('contrast', form.videoContrast);
   settingsStore.updateVideoSetting('outputBgColor', form.outputBgColor);
+  settingsStore.updateVideoSetting('introVideoBgType', form.introVideoBgType);
+  settingsStore.updateVideoSetting('introVideoBgBlur', form.introVideoBgBlur);
+  settingsStore.updateVideoSetting('introVideoBgColor', form.introVideoBgColor);
 });
 
 watch(() => settingsStore.video, (newVideo) => {
@@ -464,6 +547,9 @@ watch(() => settingsStore.video, (newVideo) => {
   form.videoBrightness = newVideo.brightness;
   form.videoContrast = newVideo.contrast;
   form.outputBgColor = newVideo.outputBgColor;
+  form.introVideoBgType = newVideo.introVideoBgType;
+  form.introVideoBgBlur = newVideo.introVideoBgBlur;
+  form.introVideoBgColor = newVideo.introVideoBgColor;
 }, { deep: true });
 
 watch(() => settingsStore.app.useGpu, () => {
@@ -658,5 +744,24 @@ defineExpose({
 
 .color-picker :deep(.el-color-picker__icon) {
   display: none;
+}
+
+.form-group {
+  padding: 16px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  margin-bottom: 0;
+}
+
+.intro-video-background-group {
+  border: 1px solid #e4e7ed;
+}
+
+.intro-video-background-group .form-item {
+  margin-bottom: 16px;
+}
+
+.intro-video-background-group .form-item:last-child {
+  margin-bottom: 0;
 }
 </style>

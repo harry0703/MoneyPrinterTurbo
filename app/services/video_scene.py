@@ -530,7 +530,12 @@ def build_scene_video(
                     logger.debug(f"Intro video processing - VideoAspect enum: {aspect}")
                     logger.debug(f"Intro video processing - Resolution: {video_width}x{video_height}")
                     
-                    clip = fit_intro_video_to_target(clip, video_width, video_height)
+                    # Get intro video background configuration
+                    intro_bg_type = config.app.get("intro_video_bg_type", "solid")
+                    intro_bg_blur = config.app.get("intro_video_bg_blur", 15)
+                    intro_bg_color = config.app.get("intro_video_bg_color", "black")
+                    
+                    clip = fit_intro_video_to_target(clip, video_width, video_height, bg_color_str=intro_bg_color, bg_type=intro_bg_type, blur_radius=intro_bg_blur)
                     
                     brightness_factor = config.app.get("video_brightness", 1.0)
                     contrast_factor = config.app.get("video_contrast", 1.0)
@@ -563,7 +568,12 @@ def build_scene_video(
                     logger.debug(f"Intro video processing - VideoAspect enum: {aspect}")
                     logger.debug(f"Intro video processing - Resolution: {video_width}x{video_height}")
                     
-                    clip = fit_intro_video_to_target(clip, video_width, video_height)
+                    # Get intro video background configuration
+                    intro_bg_type = config.app.get("intro_video_bg_type", "solid")
+                    intro_bg_blur = config.app.get("intro_video_bg_blur", 15)
+                    intro_bg_color = config.app.get("intro_video_bg_color", "black")
+                    
+                    clip = fit_intro_video_to_target(clip, video_width, video_height, bg_color_str=intro_bg_color, bg_type=intro_bg_type, blur_radius=intro_bg_blur)
                     
                     brightness_factor = config.app.get("video_brightness", 1.0)
                     contrast_factor = config.app.get("video_contrast", 1.0)
@@ -593,7 +603,12 @@ def build_scene_video(
                     clip = VideoFileClip(subclip.file_path).subclipped(subclip.start_time, subclip.end_time)
                     
                     # Use fit_intro_video_to_target for intro videos - always scale to fit without cropping
-                    clip = fit_intro_video_to_target(clip, video_width, video_height)
+                    # Get intro video background configuration
+                    intro_bg_type = config.app.get("intro_video_bg_type", "solid")
+                    intro_bg_blur = config.app.get("intro_video_bg_blur", 15)
+                    intro_bg_color = config.app.get("intro_video_bg_color", "black")
+                    
+                    clip = fit_intro_video_to_target(clip, video_width, video_height, bg_color_str=intro_bg_color, bg_type=intro_bg_type, blur_radius=intro_bg_blur)
                     
                     brightness_factor = config.app.get("video_brightness", 1.0)
                     contrast_factor = config.app.get("video_contrast", 1.0)

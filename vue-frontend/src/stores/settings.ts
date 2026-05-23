@@ -27,6 +27,9 @@ interface VideoSettings {
   brightness: number;
   contrast: number;
   outputBgColor: string;
+  introVideoBgType: string;
+  introVideoBgBlur: number;
+  introVideoBgColor: string;
   localFiles: Array<{ name: string; url?: string; status?: string; uid: string }>;
 }
 
@@ -111,21 +114,24 @@ export const useSettingsStore = defineStore('settings', {
     },
     
     // Video settings
-    video: {
-      source: 'pexels',
-      concatMode: 'sequential',
-      transitionMode: 'none',
-      aspect: 'landscape',
-      clipDuration: 3,
-      count: 1,
-      style: 'none',
-      quality: 'ultra',
-      bitrate: '20M',
-      brightness: 1.0,
-      contrast: 1.0,
-      outputBgColor: 'black',
-      localFiles: []
-    },
+        video: {
+          source: 'pexels',
+          concatMode: 'sequential',
+          transitionMode: 'none',
+          aspect: 'landscape',
+          clipDuration: 3,
+          count: 1,
+          style: 'none',
+          quality: 'ultra',
+          bitrate: '20M',
+          brightness: 1.0,
+          contrast: 1.0,
+          outputBgColor: 'black',
+          introVideoBgType: 'solid',
+          introVideoBgBlur: 15,
+          introVideoBgColor: 'black',
+          localFiles: []
+        },
     
     // Audio settings
     audio: {
@@ -508,6 +514,18 @@ export const useSettingsStore = defineStore('settings', {
             if (data.app.video_style) {
               this.video.style = data.app.video_style;
               console.log('Updated video.style:', this.video.style);
+            }
+            if (data.app.intro_video_bg_type) {
+              this.video.introVideoBgType = data.app.intro_video_bg_type;
+              console.log('Updated video.introVideoBgType:', this.video.introVideoBgType);
+            }
+            if (data.app.intro_video_bg_blur !== undefined) {
+              this.video.introVideoBgBlur = Number(data.app.intro_video_bg_blur);
+              console.log('Updated video.introVideoBgBlur:', this.video.introVideoBgBlur);
+            }
+            if (data.app.intro_video_bg_color) {
+              this.video.introVideoBgColor = data.app.intro_video_bg_color;
+              console.log('Updated video.introVideoBgColor:', this.video.introVideoBgColor);
             }
             if (typeof data.app.hide_config === 'boolean') {
               this.app.hideConfig = data.app.hide_config;
