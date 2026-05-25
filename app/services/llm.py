@@ -372,11 +372,31 @@ def _generate_response(prompt: str) -> str:
                 return _extract_chat_completion_text(response, llm_provider)
 
             if llm_provider == "azure":
+                # Azure OpenAI SDK 使用 `azure_endpoint` 和 `api_version` 生成专用请求地址，
+                # 不能继续复用下面普通 OpenAI-compatible 的 `base_url` 初始化逻辑。
+                # 这里在 Azure 分支内完成请求并立即返回，避免客户端被后续 fallback
+                # 覆盖，导致用户配置的 Azure 凭证通过校验但实际请求没有被使用。
+                logger.info(f"requesting azure chat completion, model: {model_name}")
                 client = AzureOpenAI(
                     api_key=api_key,
                     api_version=api_version,
                     azure_endpoint=base_url,
                 )
+                response = client.chat.completions.create(
+                    model=model_name, messages=[{"role": "user", "content": prompt}]
+                )
+                if response:
+                    if isinstance(response, ChatCompletion):
+                        return _extract_chat_completion_text(response, llm_provider)
+                    else:
+                        raise Exception(
+                            f'[{llm_provider}] returned an invalid response: "{response}", please check your network '
+                            f"connection and try again."
+                        )
+                else:
+                    raise Exception(
+                        f"[{llm_provider}] returned an empty response, please check your network connection and try again."
+                    )
 
             if llm_provider == "modelscope":
                 content = ''

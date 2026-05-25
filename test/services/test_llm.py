@@ -105,6 +105,52 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
 
+    def test_azure_provider_uses_azure_client_directly(self):
+        """
+        Azure OpenAI 的鉴权、endpoint 和 api-version 都由 AzureOpenAI 客户端处理。
+        这个测试覆盖 issue #892：azure 分支必须直接调用 AzureOpenAI 创建的客户端，
+        不能继续落入普通 OpenAI-compatible 分支，否则会丢失 Azure 专用请求配置。
+        """
+        config.app["llm_provider"] = "azure"
+        config.app["azure_api_key"] = "azure-key"
+        config.app["azure_base_url"] = "https://example.openai.azure.com"
+        config.app["azure_model_name"] = "gpt-4o-mini"
+        config.app["azure_api_version"] = "2024-02-15-preview"
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nazure")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "AzureOpenAI", return_value=fake_client) as azure_client,
+            patch.object(llm, "OpenAI") as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        azure_client.assert_called_once_with(
+            api_key="azure-key",
+            api_version="2024-02-15-preview",
+            azure_endpoint="https://example.openai.azure.com",
+        )
+        openai_client.assert_not_called()
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "helloazure")
+
     def test_g4f_provider_requires_explicit_opt_in(self):
         """
         g4f 存在供应链和稳定性风险，不能因为用户把 provider 写成 g4f
