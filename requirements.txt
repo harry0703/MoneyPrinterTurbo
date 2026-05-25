@@ -4,11 +4,11 @@ streamlit==1.58.0
 edge_tts==7.2.7
 fastapi==0.136.3
 uvicorn==0.32.1
-openai==2.24.0
+openai==2.36.0
 faster-whisper==1.1.0
 loguru==0.7.3
 google.generativeai==0.8.6
-dashscope==1.20.14
+dashscope==1.25.18
 azure-cognitiveservices-speech==1.41.1
 redis==5.2.0
 python-multipart==0.0.27

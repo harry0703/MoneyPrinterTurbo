@@ -194,7 +194,7 @@ groq_base_url = "https://api.groq.com/openai/v1"
 # https://tongyi.aliyun.com/qianwen/
 # https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction
 qwen_api_key = ""
-qwen_model_name = "qwen-max"
+qwen_model_name = "qwen3.6-flash"
 
 
 ########## MiniMax API Key

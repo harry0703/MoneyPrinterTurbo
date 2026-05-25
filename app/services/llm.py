@@ -371,29 +371,35 @@ def _generate_response(prompt: str) -> str:
                         f"{llm_provider}: base_url is not set, please set it in the config.toml file."
                     )
 
+            # --------------------------------------2026-05-25 修改--------------------------------------
             if llm_provider == "qwen":
                 import dashscope
-                from dashscope.api_entities.dashscope_response import GenerationResponse
-
+                
                 dashscope.api_key = api_key
-                response = dashscope.Generation.call(
-                    model=model_name, messages=[{"role": "user", "content": prompt}]
+                dashscope.base_http_api_url = "https://dashscope.aliyuncs.com/api/v1"
+
+                response = dashscope.MultiModalConversation.call(
+                    model=model_name, 
+                    messages=[{"role": "user", "content": prompt}],
+                    enable_thinking=False,          # 关闭深度思考
                 )
                 if response:
-                    if isinstance(response, GenerationResponse):
-                        status_code = response.status_code
-                        if status_code != 200:
-                            raise Exception(
-                                f'[{llm_provider}] returned an error response: "{response}"'
-                            )
-
-                        return _extract_qwen_generation_text(response)
-                    else:
+                    status_code = response.status_code
+                    if status_code != 200:
                         raise Exception(
-                            f'[{llm_provider}] returned an invalid response: "{response}"'
+                            f'[{llm_provider}] returned an error response: "{response}"'
                         )
+
+                    # dashscope MultiModalConversation 的 chat 响应结构：
+                    # output.choices[0].message.content[0]["text"]。使用 MultiModal
+                    # 是为了兼容 qwen3 系列模型（含关闭深度思考的开关），旧的
+                    # Generation API 及其 `_extract_qwen_generation_text` 兜底逻辑
+                    # 与该响应形态不兼容，因此在此分支不再复用。
+                    content = response.output.choices[0].message.content[0]["text"]
+                    return _normalize_text_response(content, llm_provider)
                 else:
                     raise Exception(f"[{llm_provider}] returned an empty response")
+            # -------------------------------------------------------------------------------------------
 
             if llm_provider == "gemini":
                 import google.generativeai as genai
@@ -720,6 +726,7 @@ def generate_script(
             response = _generate_response(prompt=prompt)
             if response:
                 final_script = format_response(response)
+                logger.info(f"llm generate video script: {final_script}")
             else:
                 logging.error("gpt returned an empty response")
 
@@ -830,6 +837,7 @@ Please note that you must use English for generating video search terms; Chinese
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
+            logger.info(f"llm generate video terms: {response}")
             if "Error: " in response:
                 logger.error(f"failed to generate video script: {response}")
                 return response
@@ -1135,6 +1143,7 @@ if __name__ == "__main__":
     )
     print("######################")
     print(script)
+
     search_terms = generate_terms(
         video_subject=video_subject, video_script=script, amount=5
     )
