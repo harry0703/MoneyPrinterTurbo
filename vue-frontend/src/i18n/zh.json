@@ -484,6 +484,7 @@
     "Background Color": "背景颜色",
     "Position": "位置",
     "Margin": "边距",
+    "Select position": "选择位置",
     "Animation": "动画效果",
     "Select animation": "选择动画",
     "Fade In": "淡入",
@@ -495,6 +496,17 @@
     "Overlay Color": "遮罩颜色",
     "Preview": "预览",
     "Preview Title": "预览标题",
-    "Transparent": "透明"
+    "Transparent": "透明",
+    "Custom Color": "自定义颜色",
+    "Vertical Margin": "垂直边距",
+    "Horizontal Margin": "水平边距",
+    "Left": "左",
+    "Right": "右",
+    "Orange": "橙色",
+    "Pink": "粉色",
+    "Cyan": "青色",
+    "Brown": "棕色",
+    "Gold": "金色",
+    "Silver": "银色"
   }
 }

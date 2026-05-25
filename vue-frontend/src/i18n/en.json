@@ -480,6 +480,7 @@
     "Background Color": "Background Color",
     "Position": "Position",
     "Margin": "Margin",
+    "Select position": "Select position",
     "Animation": "Animation",
     "Select animation": "Select animation",
     "Fade In": "Fade In",
@@ -491,6 +492,17 @@
     "Overlay Color": "Overlay Color",
     "Preview": "Preview",
     "Preview Title": "Preview Title",
-    "Transparent": "Transparent"
+    "Transparent": "Transparent",
+    "Custom Color": "Custom Color",
+    "Vertical Margin": "Vertical Margin",
+    "Horizontal Margin": "Horizontal Margin",
+    "Left": "Left",
+    "Right": "Right",
+    "Orange": "Orange",
+    "Pink": "Pink",
+    "Cyan": "Cyan",
+    "Brown": "Brown",
+    "Gold": "Gold",
+    "Silver": "Silver"
   }
 }
