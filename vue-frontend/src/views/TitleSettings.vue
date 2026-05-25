@@ -297,7 +297,7 @@
           <div class="preview-section">
             <h3>{{ t('Preview') }}</h3>
             <div class="preview-container">
-              <div class="preview-video-frame" :style="{ backgroundColor: '#333' }">
+              <div class="preview-video-frame" :style="previewFrameStyle">
                 <div 
                   class="preview-title"
                   :style="previewStyle"
@@ -384,6 +384,41 @@ const isLightColor = (colorValue: string): boolean => {
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5;
 };
+
+const previewFrameStyle = computed(() => {
+  const aspect = settingsStore.video.aspect;
+  const maxDim = 480;
+  let width: number;
+  let height: number;
+
+  if (aspect === 'portrait' || aspect === 'portrait_9_16') {
+    // 9:16
+    height = maxDim;
+    width = Math.round(maxDim * 9 / 16);
+  } else if (aspect === 'landscape' || aspect === 'landscape_16_9') {
+    // 16:9
+    width = maxDim;
+    height = Math.round(maxDim * 9 / 16);
+  } else if (aspect === 'square') {
+    // 1:1
+    width = maxDim;
+    height = maxDim;
+  } else if (aspect === 'portrait_3_4') {
+    // 3:4
+    height = maxDim;
+    width = Math.round(maxDim * 3 / 4);
+  } else {
+    // Default to portrait 9:16
+    height = maxDim;
+    width = Math.round(maxDim * 9 / 16);
+  }
+
+  return {
+    backgroundColor: '#333',
+    width: `${width}px`,
+    height: `${height}px`
+  };
+});
 
 const previewStyle = computed(() => {
   const marginPercent = form.titleMargin;
@@ -952,8 +987,6 @@ defineExpose({
 }
 
 .preview-video-frame {
-  width: 320px;
-  height: 480px;
   border-radius: 12px;
   position: relative;
   overflow: hidden;
