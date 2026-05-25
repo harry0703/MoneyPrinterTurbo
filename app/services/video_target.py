@@ -31,7 +31,6 @@ def finalize_video(
     combined_video_path: str,
     audio_file: str,
     threads: int,
-    is_first_scene: bool = False,
 ) -> str:
     """
     Finalize video by concatenating clips and adding audio
@@ -41,7 +40,6 @@ def finalize_video(
         combined_video_path: Path to save the final video
         audio_file: Path to audio file
         threads: Number of threads to use
-        is_first_scene: Whether this is the first scene (adds 0.3s delay to audio)
     
     Returns:
         Path to the final video
@@ -62,11 +60,6 @@ def finalize_video(
         # Load audio if provided
         if audio_file:
             audio_clip = AudioFileClip(audio_file)
-            
-            # Add 0.3 second delay at the beginning of the first scene's audio
-            if is_first_scene:
-                silence_clip = AudioClip(lambda t: 0, duration=0.3)
-                audio_clip = concatenate_audioclips([silence_clip, audio_clip])
             
             # Trim video to match audio duration
             video_duration_final = final_video.duration
@@ -179,6 +172,11 @@ def generate_video(
         if audio_path:
             audio_clip = AudioFileClip(audio_path)
             
+            # Add 0.3 second delay at the beginning of audio to match video extension
+            first_scene_delay = 0.3
+            silence_clip = AudioClip(lambda t: 0, duration=first_scene_delay)
+            audio_clip = concatenate_audioclips([silence_clip, audio_clip])
+            
             # Check if video already has audio
             existing_audio = video_clip.audio
             
@@ -188,7 +186,7 @@ def generate_video(
                 bgm_clip = audio_clip.with_effects([
                     afx.MultiplyVolume(params.bgm_volume if hasattr(params, 'bgm_volume') else 0.2),
                     afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
+                    afx.AudioLoop(duration=video_clip.duration + first_scene_delay),
                 ])
                 combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
                 video_clip = video_clip.with_audio(combined_audio)

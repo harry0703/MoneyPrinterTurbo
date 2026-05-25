@@ -2,7 +2,7 @@ import os
 import random
 import gc
 import time
-from typing import List
+from typing import List, Union
 
 from loguru import logger
 from moviepy import (
@@ -450,8 +450,8 @@ def build_scene_video(
     combined_video_path: str,
     video_paths: List[str],
     audio_file: str,
-    video_aspect: VideoAspect = VideoAspect.portrait,
-    video_concat_mode: VideoConcatMode = VideoConcatMode.random,
+    video_aspect: Union[str, VideoAspect] = VideoAspect.portrait,
+    video_concat_mode: VideoConcatMode = VideoConcatMode.sequential,
     video_transition_mode: VideoTransitionMode = None,
     max_clip_duration: int = 5,
     threads: int = 2,
@@ -459,7 +459,6 @@ def build_scene_video(
     local_video_paths: List[str] = None,
     intro_video_path: str = None,
     intro_duration: int = 10,
-    is_first_scene: bool = False,
 ) -> str:
     # Ensure video_aspect is a valid VideoAspect enum
     if video_aspect is None:
@@ -689,8 +688,7 @@ def build_scene_video(
         processed_clips=processed_clips,
         combined_video_path=combined_video_path,
         audio_file=audio_file,
-        threads=threads,
-        is_first_scene=is_first_scene
+        threads=threads
     )
     
     # Return both the result and the used local paths for tracking
