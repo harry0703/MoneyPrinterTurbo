@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.1.0.2"
+project_version = "2.1.0.3"
 
 [app]
 video_source = "pexels"
@@ -57,7 +57,7 @@ video_transition_mode = "none"
 video_aspect = "portrait_3_4"
 video_clip_duration = 5
 video_count = 1
-video_style = "science"
+video_style = "tech"
 intro_video_bg_type = "blurred"
 intro_video_bg_blur = 48
 intro_video_bg_color = "black"
@@ -87,7 +87,7 @@ bgm_type = "random"
 bgm_volume = 0.1
 subtitle_enabled = true
 subtitle_position = "custom"
-subtitle_custom_position = 85
+subtitle_custom_position = 83
 subtitle_margin = 0.02
 font_name = "MicrosoftYaHeiBold.ttc"
 text_fore_color = "rgb(243, 235, 8)"
@@ -96,6 +96,27 @@ font_size = 60
 stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "blue"
+title_enabled = true
+title_text = "Web支持MCP"
+title_duration = 3
+title_font_name = "MicrosoftYaHeiBold.ttc"
+title_font_size = 40
+title_text_color = "#FFFFFF"
+title_stroke_color = "#FFFF00"
+title_stroke_width = 5
+title_background_color = "transparent"
+title_position = "top"
+title_margin = 0.05
+title_margin_left = 0.05
+title_margin_right = 0.05
+title_animation = "none"
+title_animation_duration = 0.3
+title_background_overlay = false
+title_overlay_color = "rgba(0,0,0,0.5)"
+title_style = ""
+title_font = "MicrosoftYaHeiBold.ttc"
+title_color = "#FF0000"
+title_bg_color = "transparent"
 
 [coze]
 api_key = "sat_5QQV8lPJCo1uK0cMUsMwQMDqPUFHAVajSQnICchJYcSwmp6cuA7MAeRd73k48m4A"

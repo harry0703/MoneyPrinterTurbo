@@ -231,6 +231,17 @@ export const apiService = {
     return response.data;
   },
   
+  // Title related
+  getTitleStyles: async (): Promise<ApiResponse> => {
+    const response = await api.get('/title-styles');
+    return response.data;
+  },
+  
+  previewTitle: async (params: any): Promise<ApiResponse> => {
+    const response = await api.post('/title-preview', params);
+    return response.data;
+  },
+  
 };
 
 export const generateVideoScript = async (request: VideoScriptRequest): Promise<VideoScriptResponse> => {

@@ -14,6 +14,27 @@ interface LLMConfigs {
   deepseek: LLMConfig;
 }
 
+interface TitleSettings {
+  enabled: boolean;
+  text: string;
+  duration: number;
+  font: string;
+  fontSize: number;
+  color: string;
+  strokeColor: string;
+  strokeWidth: number;
+  backgroundColor: string;
+  position: string;
+  margin: number;
+  marginLeft: number;
+  marginRight: number;
+  animation: string;
+  animationDuration: number;
+  backgroundOverlay: boolean;
+  overlayColor: string;
+  style: string;
+}
+
 interface VideoSettings {
   source: string;
   concatMode: string;
@@ -31,6 +52,7 @@ interface VideoSettings {
   introVideoBgBlur: number;
   introVideoBgColor: string;
   localFiles: Array<{ name: string; url?: string; status?: string; uid: string }>;
+  title: TitleSettings;
 }
 
 interface AudioSettings {
@@ -130,7 +152,27 @@ export const useSettingsStore = defineStore('settings', {
           introVideoBgType: 'solid',
           introVideoBgBlur: 15,
           introVideoBgColor: 'black',
-          localFiles: []
+          localFiles: [],
+          title: {
+            enabled: false,
+            text: '',
+            duration: 3.0,
+            font: 'MicrosoftYaHeiBold.ttc',
+            fontSize: 72,
+            color: '#FFFFFF',
+            strokeColor: '#000000',
+            strokeWidth: 2.0,
+            backgroundColor: 'transparent',
+            position: 'center',
+            margin: 0.05,
+            marginLeft: 0.05,
+            marginRight: 0.05,
+            animation: 'none',
+            animationDuration: 0.5,
+            backgroundOverlay: false,
+            overlayColor: 'rgba(0,0,0,0.5)',
+            style: 'classic'
+          }
         },
     
     // Audio settings
@@ -241,6 +283,11 @@ export const useSettingsStore = defineStore('settings', {
     
     updateVideoSetting<K extends keyof VideoSettings>(key: K, value: VideoSettings[K]) {
       this.video[key] = value;
+      this.saveToLocalStorage();
+    },
+    
+    updateTitleSetting<K extends keyof TitleSettings>(key: K, value: TitleSettings[K]) {
+      this.video.title[key] = value;
       this.saveToLocalStorage();
     },
     

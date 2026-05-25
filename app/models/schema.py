@@ -136,6 +136,24 @@ class VideoParams(BaseModel):
     n_threads: Optional[int] = 2
     paragraph_number: Optional[int] = 1
 
+    title_enabled: Optional[bool] = False
+    title_text: Optional[str] = ""
+    title_duration: Optional[float] = 3.0
+    title_font_name: Optional[str] = "MicrosoftYaHeiBold.ttc"
+    title_font_size: Optional[int] = 72
+    title_text_color: Optional[str] = "#FFFFFF"
+    title_stroke_color: Optional[str] = "#000000"
+    title_stroke_width: Optional[float] = 2.0
+    title_background_color: Union[bool, str] = "transparent"
+    title_position: Optional[str] = "center"
+    title_margin: Optional[float] = 0.05
+    title_margin_left: Optional[float] = 0.05
+    title_margin_right: Optional[float] = 0.05
+    title_animation: Optional[str] = "none"
+    title_animation_duration: Optional[float] = 0.5
+    title_background_overlay: Optional[bool] = False
+    title_overlay_color: Optional[str] = "rgba(0,0,0,0.5)"
+
 
 class SubtitleRequest(BaseModel):
     video_script: str

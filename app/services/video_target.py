@@ -168,6 +168,12 @@ def generate_video(
         # Load video
         video_clip = VideoFileClip(video_path)
         
+        # Add title if enabled
+        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
+            logger.info("Adding title to video")
+            from app.services.title import add_title_to_video
+            video_clip = add_title_to_video(video_clip, params)
+        
         # Load audio if provided
         if audio_path:
             audio_clip = AudioFileClip(audio_path)
