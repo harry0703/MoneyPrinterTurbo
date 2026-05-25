@@ -223,6 +223,9 @@ redis_password = ""
 # 文生视频时的最大并发任务数
 max_concurrent_tasks = 5
 
+# 并发任务已满后的最大排队任务数，超过后接口返回 429，避免匿名请求无限堆积
+max_queued_tasks = 100
+
 
 [whisper]
 # Only effective when subtitle_provider is "whisper"

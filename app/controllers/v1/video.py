@@ -11,6 +11,7 @@ from loguru import logger
 
 from app.config import config
 from app.controllers import base
+from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1.base import new_router
@@ -30,7 +31,7 @@ from app.models.schema import (
 )
 from app.services import state as sm
 from app.services import task as tm
-from app.utils import utils
+from app.utils import file_security, utils
 
 # 认证依赖项
 # router = new_router(dependencies=[Depends(base.verify_token)])
@@ -42,15 +43,21 @@ _redis_port = config.app.get("redis_port", 6379)
 _redis_db = config.app.get("redis_db", 0)
 _redis_password = config.app.get("redis_password", None)
 _max_concurrent_tasks = config.app.get("max_concurrent_tasks", 5)
+_max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
 redis_url = f"redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}"
 # 根据配置选择合适的任务管理器
 if _enable_redis:
     task_manager = RedisTaskManager(
-        max_concurrent_tasks=_max_concurrent_tasks, redis_url=redis_url
+        max_concurrent_tasks=_max_concurrent_tasks,
+        redis_url=redis_url,
+        max_queued_tasks=_max_queued_tasks,
     )
 else:
-    task_manager = InMemoryTaskManager(max_concurrent_tasks=_max_concurrent_tasks)
+    task_manager = InMemoryTaskManager(
+        max_concurrent_tasks=_max_concurrent_tasks,
+        max_queued_tasks=_max_queued_tasks,
+    )
 
 
 def _sanitize_upload_filename(filename: str, request_id: str) -> str:
@@ -67,35 +74,42 @@ def _sanitize_upload_filename(filename: str, request_id: str) -> str:
 
 
 def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: str) -> str:
-    # 对用户传入的相对路径做归一化，并强制要求结果仍然落在指定目录内，
-    # 这样可以阻止通过 ../ 或绝对路径逃逸到任务目录之外读取任意文件。
-    base_dir_real = os.path.realpath(base_dir)
-    resolved_path = os.path.realpath(os.path.join(base_dir_real, unsafe_path))
-
     try:
-        common_path = os.path.commonpath([base_dir_real, resolved_path])
-    except ValueError:
+        return file_security.resolve_path_within_directory(base_dir, unsafe_path)
+    except ValueError as exc:
+        logger.warning(
+            f"reject unsafe file path, request_id: {request_id}, path: {unsafe_path}, "
+            f"error: {str(exc)}"
+        )
         raise HttpException(
             task_id=request_id,
-            status_code=403,
+            status_code=404 if str(exc) == "file does not exist" else 403,
             message=f"{request_id}: invalid file path",
         )
 
-    if common_path != base_dir_real:
-        raise HttpException(
-            task_id=request_id,
-            status_code=403,
-            message=f"{request_id}: access to the requested file is forbidden",
-        )
+def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) -> str:
+    if not isinstance(file, str):
+        return file
 
-    if not os.path.isfile(resolved_path):
-        raise HttpException(
-            task_id=request_id,
-            status_code=404,
-            message=f"{request_id}: file not found",
-        )
+    if file.startswith(("http://", "https://")):
+        return file
 
-    return resolved_path
+    try:
+        resolved_path = file_security.resolve_path_within_directory(task_dir, file)
+    except ValueError as exc:
+        # 任务状态理论上只应保存任务目录内的产物路径。这里不再继续拼接 URL，
+        # 避免把异常路径包装成可访问链接；同时保留原值，便于排查历史脏数据。
+        logger.warning(
+            f"skip unsafe task output path, request_id: {request_id}, path: {file}, "
+            f"error: {str(exc)}"
+        )
+        return file
+
+    relative_path = os.path.relpath(resolved_path, task_dir).replace("\\", "/")
+    uri_path = f"tasks/{relative_path}"
+    if endpoint:
+        return f"{endpoint.rstrip('/')}/{uri_path}"
+    return f"/{uri_path}"
 
 
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
@@ -136,6 +150,14 @@ def create_task(
         task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
+    except TaskQueueFullError as e:
+        sm.state.delete_task(task_id)
+        logger.warning(
+            f"reject task because queue is full, request_id: {request_id}, task_id: {task_id}"
+        )
+        raise HttpException(
+            task_id=task_id, status_code=429, message=f"{request_id}: {str(e)}"
+        )
     except ValueError as e:
         raise HttpException(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
@@ -166,37 +188,24 @@ def get_task(
     task_id: str = Path(..., description="Task ID"),
     query: TaskQueryRequest = Depends(),
 ):
-    endpoint = config.app.get("endpoint", "")
-    if not endpoint:
-        endpoint = str(request.base_url)
-    endpoint = endpoint.rstrip("/")
-
     request_id = base.get_task_id(request)
+    endpoint = config.app.get("endpoint", "").rstrip("/")
     task = sm.state.get_task(task_id)
     if task:
         task_dir = utils.task_dir()
-
-        def file_to_uri(file):
-            if not file.startswith(endpoint):
-                _uri_path = file.replace(task_dir, "tasks").replace("\\", "/")
-                _uri_path = f"{endpoint}/{_uri_path}"
-            else:
-                _uri_path = file
-            return _uri_path
+        response_task = dict(task)
 
         if "videos" in task:
-            videos = task["videos"]
-            urls = []
-            for v in videos:
-                urls.append(file_to_uri(v))
-            task["videos"] = urls
+            response_task["videos"] = [
+                _task_file_to_uri(v, endpoint, task_dir, request_id)
+                for v in task["videos"]
+            ]
         if "combined_videos" in task:
-            combined_videos = task["combined_videos"]
-            urls = []
-            for v in combined_videos:
-                urls.append(file_to_uri(v))
-            task["combined_videos"] = urls
-        return utils.get_response(200, task)
+            response_task["combined_videos"] = [
+                _task_file_to_uri(v, endpoint, task_dir, request_id)
+                for v in task["combined_videos"]
+            ]
+        return utils.get_response(200, response_task)
 
     raise HttpException(
         task_id=task_id, status_code=404, message=f"{request_id}: task not found"
@@ -235,11 +244,14 @@ def get_bgm_list(request: Request):
     files = glob.glob(os.path.join(song_dir, suffix))
     bgm_list = []
     for file in files:
+        filename = os.path.basename(file)
         bgm_list.append(
             {
-                "name": os.path.basename(file),
+                "name": filename,
                 "size": os.path.getsize(file),
-                "file": file,
+                # 只返回文件名，避免把服务器绝对路径暴露给调用方。
+                # 服务端后续会把该文件名解析回 songs 白名单目录。
+                "file": filename,
             }
         )
     response = {"files": bgm_list}
@@ -263,7 +275,7 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
             # If the file already exists, it will be overwritten
             file.file.seek(0)
             buffer.write(file.file.read())
-        response = {"file": save_path}
+        response = {"file": safe_filename}
         return utils.get_response(200, response)
 
     raise HttpException(
@@ -284,11 +296,14 @@ def get_video_materials_list(request: Request):
     files.sort(key=lambda file_path: os.path.basename(file_path).lower())
     video_materials_list = []
     for file in files:
+        filename = os.path.basename(file)
         video_materials_list.append(
             {
-                "name": os.path.basename(file),
+                "name": filename,
                 "size": os.path.getsize(file),
-                "file": file,
+                # 与 BGM 一样，只返回文件名；创建任务时再在 local_videos
+                # 白名单目录内解析，避免 API 泄露宿主机绝对路径。
+                "file": filename,
             }
         )
     response = {"files": video_materials_list}
@@ -315,7 +330,7 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
             # If the file already exists, it will be overwritten
             file.file.seek(0)
             buffer.write(file.file.read())
-        response = {"file": save_path}
+        response = {"file": safe_filename}
         return utils.get_response(200, response)
 
     raise HttpException(

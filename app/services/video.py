@@ -31,7 +31,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services.utils import video_effects
-from app.utils import utils
+from app.utils import file_security, utils
 
 class SubClippedVideoClip:
     def __init__(self, file_path, start_time=None, end_time=None, width=None, height=None, duration=None):
@@ -55,6 +55,7 @@ audio_codec = "aac"
 audio_bitrate = "192k"
 video_codec = "libx264"
 fps = 30
+_BGM_EXTENSIONS = (".mp3",)
 
 
 def get_ffmpeg_binary():
@@ -237,8 +238,26 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if not bgm_type:
         return ""
 
-    if bgm_file and os.path.exists(bgm_file):
-        return bgm_file
+    if bgm_file:
+        song_dir = utils.song_dir()
+        try:
+            resolved_bgm_file = file_security.resolve_path_within_directory(
+                song_dir, bgm_file
+            )
+        except ValueError as exc:
+            # API 请求里的 bgm_file 来自用户输入，不能直接把任意绝对路径交给
+            # MoviePy 打开。这里强制限制到 resource/songs 目录，阻止读取
+            # /etc/passwd、配置文件、密钥等非背景音乐文件。
+            logger.warning(
+                f"reject unsafe bgm file: {bgm_file}, song_dir: {song_dir}, error: {str(exc)}"
+            )
+            return ""
+
+        if not resolved_bgm_file.lower().endswith(_BGM_EXTENSIONS):
+            logger.warning(f"reject unsupported bgm file extension: {resolved_bgm_file}")
+            return ""
+
+        return resolved_bgm_file
 
     if bgm_type == "random":
         suffix = "*.mp3"
@@ -639,23 +658,41 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
 
     # 仅返回通过预处理校验的素材，避免低分辨率图片继续进入后续的视频合成流程。
     valid_materials = []
+    local_videos_dir = utils.storage_dir("local_videos", create=True)
 
     for material in materials:
         if not material.url:
             continue
 
-        ext = utils.parse_extension(material.url)
-        material_source_path = material.url
+        try:
+            material_source_path = file_security.resolve_path_within_directory(
+                local_videos_dir, material.url
+            )
+        except ValueError as exc:
+            # local video_source 的素材路径来自 API 参数，必须限制在专用素材目录。
+            # 允许用户传文件名，也兼容历史返回的绝对路径，但不允许逃逸到系统
+            # 其他目录，避免任意文件读取或通过 MoviePy 探测本地敏感文件。
+            logger.warning(
+                f"skip unsafe local material: {material.url}, "
+                f"local_videos_dir: {local_videos_dir}, error: {str(exc)}"
+            )
+            continue
+
+        ext = utils.parse_extension(material_source_path)
         try:
             # 图片素材直接按图片方式读取，避免先走 VideoFileClip 误判后触发不稳定的回退分支。
             if ext in const.FILE_TYPE_IMAGES:
-                clip, material_source_path = _open_image_clip_with_fallback(material.url)
+                clip, material_source_path = _open_image_clip_with_fallback(
+                    material_source_path
+                )
             else:
-                clip = _open_video_clip_quietly(material.url)
+                clip = _open_video_clip_quietly(material_source_path)
         except Exception:
             # 非标准扩展名或探测失败时再回退到图片模式，兼容历史上直接传本地图片路径的情况。
             try:
-                clip, material_source_path = _open_image_clip_with_fallback(material.url)
+                clip, material_source_path = _open_image_clip_with_fallback(
+                    material_source_path
+                )
             except Exception as exc:
                 logger.warning(
                     f"skip unreadable local material: {material.url}, error: {str(exc)}"

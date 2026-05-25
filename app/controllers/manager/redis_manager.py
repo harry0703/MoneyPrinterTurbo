@@ -14,9 +14,14 @@ FUNC_MAP = {
 
 
 class RedisTaskManager(TaskManager):
-    def __init__(self, max_concurrent_tasks: int, redis_url: str):
+    def __init__(
+        self,
+        max_concurrent_tasks: int,
+        redis_url: str,
+        max_queued_tasks: int = 100,
+    ):
         self.redis_client = redis.Redis.from_url(redis_url)
-        super().__init__(max_concurrent_tasks)
+        super().__init__(max_concurrent_tasks, max_queued_tasks=max_queued_tasks)
 
     def create_queue(self):
         return "task_queue"
@@ -54,3 +59,6 @@ class RedisTaskManager(TaskManager):
 
     def is_queue_empty(self):
         return self.redis_client.llen(self.queue) == 0
+
+    def queue_size(self):
+        return self.redis_client.llen(self.queue)
