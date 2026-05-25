@@ -253,6 +253,8 @@ const generateVideo = async () => {
       title_background_color: titleSettings.backgroundColor,
       title_position: titleSettings.position,
       title_margin: titleSettings.margin,
+      title_margin_left: titleSettings.marginLeft,
+      title_margin_right: titleSettings.marginRight,
       title_animation: titleSettings.animation,
       title_animation_duration: titleSettings.animationDuration,
       title_background_overlay: titleSettings.backgroundOverlay,

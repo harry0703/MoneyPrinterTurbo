@@ -1564,7 +1564,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
         return None
         
-    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=90)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=88)
     
     # 5. Add background music and final processing for multi-scene video
     final_output_path = path.join(utils.task_dir(task_id), "final-1.mp4")
@@ -1797,6 +1797,24 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                             logger.warning("No text clips created, skipping subtitle addition")
                 except Exception as e:
                     logger.error(f"failed to add subtitle: {str(e)}")
+        
+        # 6. Add title overlay (last visual step, always tracked as a step for consistent progress reporting)
+        logger.info(f"========================================")
+        logger.info(f"Step 6: Adding title overlay (2% of progress)")
+        logger.info(f"Title enabled: {getattr(params, 'title_enabled', False)}")
+        logger.info(f"Title text: {getattr(params, 'title_text', '')[:50]}")
+        logger.info(f"[TIMESTAMP] Title step started at: {time.strftime('%H:%M:%S')}")
+        logger.info(f"========================================")
+        
+        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
+            logger.info("Adding title to multi-scene video")
+            from app.services.title import add_title_to_video
+            video_clip = add_title_to_video(video_clip, params)
+            logger.success("Title overlay added successfully")
+        else:
+            logger.info("Title step skipped (title not enabled or no title text)")
+        
+        sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=90)
         
         # Get video encoding parameters (loaded once at module initialization)
         video_encoding_params = video_module.get_video_encoding_params()
