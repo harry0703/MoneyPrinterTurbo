@@ -47,6 +47,10 @@
               <el-icon><ChatLineSquare /></el-icon>
               <span>{{ t('Subtitle Settings') }}</span>
             </el-menu-item>
+            <el-menu-item index="/title">
+              <el-icon><Memo /></el-icon>
+              <span>{{ t('Title Settings') }}</span>
+            </el-menu-item>
             <el-menu-item index="/scene">
               <el-icon><Collection /></el-icon>
               <span>{{ t('Scene Integration') }}</span>
@@ -88,7 +92,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { VideoCamera, Document, Microphone, ChatLineSquare, Collection, Timer, VideoPlay, Setting } from '@element-plus/icons-vue';
+import { VideoCamera, Document, Microphone, ChatLineSquare, Collection, Timer, VideoPlay, Setting, Memo } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { useI18nStore } from './stores/i18n';
 import { useTasksStore } from './stores/tasks';
@@ -207,6 +211,7 @@ const generateVideo = async () => {
     console.log('[Task Creation] speechVolume:', settingsStore.audio.speechVolume);
     console.log('[Task Creation] backgroundMusic:', settingsStore.audio.backgroundMusic);
     
+    const titleSettings = settingsStore.video.title;
     const taskParams: any = {
       video_subject: videoSubject,
       video_script: videoScript,
@@ -236,7 +241,24 @@ const generateVideo = async () => {
       stroke_color: settingsStore.subtitle.outlineColor,
       stroke_width: settingsStore.subtitle.outlineWidth,
       scenes: formattedScenes,
-      language: scriptStore.language || 'zh'
+      language: scriptStore.language || 'zh',
+      title_enabled: titleSettings.enabled,
+      title_text: titleSettings.text,
+      title_duration: titleSettings.duration,
+      title_font_name: titleSettings.font,
+      title_font_size: titleSettings.fontSize,
+      title_text_color: titleSettings.color,
+      title_stroke_color: titleSettings.strokeColor,
+      title_stroke_width: titleSettings.strokeWidth,
+      title_background_color: titleSettings.backgroundColor,
+      title_position: titleSettings.position,
+      title_margin: titleSettings.margin,
+      title_margin_left: titleSettings.marginLeft,
+      title_margin_right: titleSettings.marginRight,
+      title_animation: titleSettings.animation,
+      title_animation_duration: titleSettings.animationDuration,
+      title_background_overlay: titleSettings.backgroundOverlay,
+      title_overlay_color: titleSettings.overlayColor
     };
 
     if (settingsStore.video.source === 'local' && settingsStore.video.localFiles && settingsStore.video.localFiles.length > 0) {

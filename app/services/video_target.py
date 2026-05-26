@@ -31,7 +31,6 @@ def finalize_video(
     combined_video_path: str,
     audio_file: str,
     threads: int,
-    is_first_scene: bool = False,
 ) -> str:
     """
     Finalize video by concatenating clips and adding audio
@@ -41,7 +40,6 @@ def finalize_video(
         combined_video_path: Path to save the final video
         audio_file: Path to audio file
         threads: Number of threads to use
-        is_first_scene: Whether this is the first scene (adds 0.3s delay to audio)
     
     Returns:
         Path to the final video
@@ -62,11 +60,6 @@ def finalize_video(
         # Load audio if provided
         if audio_file:
             audio_clip = AudioFileClip(audio_file)
-            
-            # Add 0.3 second delay at the beginning of the first scene's audio
-            if is_first_scene:
-                silence_clip = AudioClip(lambda t: 0, duration=0.3)
-                audio_clip = concatenate_audioclips([silence_clip, audio_clip])
             
             # Trim video to match audio duration
             video_duration_final = final_video.duration
@@ -175,9 +168,20 @@ def generate_video(
         # Load video
         video_clip = VideoFileClip(video_path)
         
+        # Add title if enabled
+        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
+            logger.info("Adding title to video")
+            from app.services.title import add_title_to_video
+            video_clip = add_title_to_video(video_clip, params)
+        
         # Load audio if provided
         if audio_path:
             audio_clip = AudioFileClip(audio_path)
+            
+            # Add 0.3 second delay at the beginning of audio to match video extension
+            first_scene_delay = 0.3
+            silence_clip = AudioClip(lambda t: 0, duration=first_scene_delay)
+            audio_clip = concatenate_audioclips([silence_clip, audio_clip])
             
             # Check if video already has audio
             existing_audio = video_clip.audio
@@ -188,7 +192,7 @@ def generate_video(
                 bgm_clip = audio_clip.with_effects([
                     afx.MultiplyVolume(params.bgm_volume if hasattr(params, 'bgm_volume') else 0.2),
                     afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
+                    afx.AudioLoop(duration=video_clip.duration + first_scene_delay),
                 ])
                 combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
                 video_clip = video_clip.with_audio(combined_audio)
@@ -288,8 +292,13 @@ def generate_video(
                         _cfg = load_config()
                         ui_config = _cfg.get("ui", {})
                         subtitle_margin = ui_config.get("subtitle_margin", 0.05)
-                        max_width = video_clip.w * (1 - 2 * subtitle_margin)
-                        wrapped_text, _ = wrap_text(text, max_width=max_width, font=font_path, fontsize=int(params.font_size))
+                        # Apply 5% safety buffer to account for getbbox vs TextClip rendering difference
+                        max_width = video_clip.w * (1 - 2 * subtitle_margin) * 0.95
+                        subtitle_auto_fit = ui_config.get("subtitle_auto_fit", False)
+                        wrapped_text, _, _ = wrap_text(
+                            text, max_width=max_width, font=font_path, fontsize=int(params.font_size),
+                            auto_fit=subtitle_auto_fit
+                        )
                         
                         # Create text clip
                         # Handle transparent background

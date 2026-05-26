@@ -79,6 +79,15 @@
             </div>
           </div>
         </div>
+        
+        <div class="form-item" v-if="form.enableSubtitles">
+          <el-tooltip :content="t('Auto-fit info')" placement="top">
+            <el-checkbox v-model="form.autoFit">
+              {{ t('Prevent Line Breaks') }}
+              <span class="hint-text">({{ t('Auto-fit desc') }})</span>
+            </el-checkbox>
+          </el-tooltip>
+        </div>
       </div>
     </el-card>
   </div>
@@ -101,7 +110,8 @@ const form = reactive({
   subtitleColor: settingsStore.subtitle.color,
   subtitleFontSize: settingsStore.subtitle.fontSize,
   subtitleOutlineColor: settingsStore.subtitle.outlineColor,
-  subtitleOutlineWidth: settingsStore.subtitle.outlineWidth
+  subtitleOutlineWidth: settingsStore.subtitle.outlineWidth,
+  autoFit: settingsStore.subtitle.autoFit
 });
 
 watch(() => form.enableSubtitles, async (newValue) => {
@@ -136,6 +146,10 @@ watch(() => form.subtitleOutlineWidth, async (newValue) => {
   await settingsStore.updateSubtitleSetting('outlineWidth', newValue);
 });
 
+watch(() => form.autoFit, async (newValue) => {
+  await settingsStore.updateSubtitleSetting('autoFit', newValue);
+});
+
 watch(() => settingsStore.subtitle, (newSubtitle) => {
   console.log('[SubtitleSettings] Store subtitle changed, updating form:', newSubtitle);
   form.enableSubtitles = newSubtitle.enable;
@@ -146,6 +160,7 @@ watch(() => settingsStore.subtitle, (newSubtitle) => {
   form.subtitleFontSize = newSubtitle.fontSize;
   form.subtitleOutlineColor = newSubtitle.outlineColor;
   form.subtitleOutlineWidth = newSubtitle.outlineWidth;
+  form.autoFit = newSubtitle.autoFit;
 }, { deep: true });
 
 onMounted(() => {
@@ -157,6 +172,7 @@ onMounted(() => {
   form.subtitleFontSize = settingsStore.subtitle.fontSize;
   form.subtitleOutlineColor = settingsStore.subtitle.outlineColor;
   form.subtitleOutlineWidth = settingsStore.subtitle.outlineWidth;
+  form.autoFit = settingsStore.subtitle.autoFit;
 });
 
 defineExpose({
@@ -216,5 +232,10 @@ defineExpose({
 
 .color-picker-container {
   margin-top: 4px;
+}
+
+.hint-text {
+  font-size: 12px;
+  color: #909399;
 }
 </style>

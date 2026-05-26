@@ -14,6 +14,27 @@ interface LLMConfigs {
   deepseek: LLMConfig;
 }
 
+interface TitleSettings {
+  enabled: boolean;
+  text: string;
+  duration: number;
+  font: string;
+  fontSize: number;
+  color: string;
+  strokeColor: string;
+  strokeWidth: number;
+  backgroundColor: string;
+  position: string;
+  margin: number;
+  marginLeft: number;
+  marginRight: number;
+  animation: string;
+  animationDuration: number;
+  backgroundOverlay: boolean;
+  overlayColor: string;
+  style: string;
+}
+
 interface VideoSettings {
   source: string;
   concatMode: string;
@@ -31,6 +52,7 @@ interface VideoSettings {
   introVideoBgBlur: number;
   introVideoBgColor: string;
   localFiles: Array<{ name: string; url?: string; status?: string; uid: string }>;
+  title: TitleSettings;
 }
 
 interface AudioSettings {
@@ -56,6 +78,7 @@ interface SubtitleSettings {
   fontSize: number;
   outlineColor: string;
   outlineWidth: number;
+  autoFit: boolean;
 }
 
 interface AppSettings {
@@ -130,7 +153,27 @@ export const useSettingsStore = defineStore('settings', {
           introVideoBgType: 'solid',
           introVideoBgBlur: 15,
           introVideoBgColor: 'black',
-          localFiles: []
+          localFiles: [],
+          title: {
+            enabled: false,
+            text: '',
+            duration: 3.0,
+            font: 'MicrosoftYaHeiBold.ttc',
+            fontSize: 72,
+            color: '#FFFFFF',
+            strokeColor: '#000000',
+            strokeWidth: 2.0,
+            backgroundColor: 'transparent',
+            position: 'center',
+            margin: 0.05,
+            marginLeft: 0.05,
+            marginRight: 0.05,
+            animation: 'none',
+            animationDuration: 0.5,
+            backgroundOverlay: false,
+            overlayColor: 'rgba(0,0,0,0.5)',
+            style: 'classic'
+          }
         },
     
     // Audio settings
@@ -157,7 +200,8 @@ export const useSettingsStore = defineStore('settings', {
       color: '#FFFF00',
       fontSize: 60,
       outlineColor: '#000000',
-      outlineWidth: 1.5
+      outlineWidth: 1.5,
+      autoFit: false
     },
     
     // LLM configuration
@@ -244,6 +288,11 @@ export const useSettingsStore = defineStore('settings', {
       this.saveToLocalStorage();
     },
     
+    updateTitleSetting<K extends keyof TitleSettings>(key: K, value: TitleSettings[K]) {
+      this.video.title[key] = value;
+      this.saveToLocalStorage();
+    },
+    
     updateAudioSetting<K extends keyof AudioSettings>(key: K, value: AudioSettings[K]) {
       this.audio[key] = value;
       this.saveToLocalStorage();
@@ -263,6 +312,7 @@ export const useSettingsStore = defineStore('settings', {
             subtitle_enabled: this.subtitle.enable,
             subtitle_position: this.subtitle.position,
             subtitle_custom_position: parseFloat(this.subtitle.customPosition) || 70.0,
+            subtitle_auto_fit: this.subtitle.autoFit,
             font_name: this.subtitle.font,
             text_fore_color: this.subtitle.color,
             font_size: this.subtitle.fontSize,
@@ -435,6 +485,10 @@ export const useSettingsStore = defineStore('settings', {
             }
             if (data.ui.subtitle_margin !== undefined) {
               console.log('[SettingsStore] subtitle_margin from config.ui:', data.ui.subtitle_margin);
+            }
+            if (typeof data.ui.subtitle_auto_fit === 'boolean') {
+              this.subtitle.autoFit = data.ui.subtitle_auto_fit;
+              console.log('[SettingsStore] Updated subtitle.autoFit from config.ui:', this.subtitle.autoFit);
             }
             if (data.ui.font_name) {
               this.subtitle.font = data.ui.font_name;

@@ -85,7 +85,7 @@
                 </transition>
                 
                 <!-- 删除按钮 - 对所有状态的任务都显示 -->
-                <el-button type="danger" size="small" @click="$emit('delete', task.task_id)">
+                <el-button type="danger" size="small" @click.stop="$emit('delete', task.task_id)">
                   <el-icon><Delete /></el-icon>
                   {{ deleteText }}
                 </el-button>

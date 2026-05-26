@@ -448,6 +448,60 @@ async def download_video(_: Request, file_path: str):
     )
 
 
+@router.get("/title-styles", summary="Get available title styles")
+def get_title_styles(request: Request):
+    from app.services.title import get_available_title_styles
+    
+    styles = get_available_title_styles()
+    return utils.get_response(200, styles)
+
+
+@router.post("/title-preview", summary="Preview title style")
+def preview_title(request: Request, body: dict):
+    from app.services.title import create_title_clip
+    from app.models.schema import VideoParams
+    from app.models.schema import VideoAspect
+    
+    params = VideoParams()
+    params.title_enabled = body.get('title_enabled', True)
+    params.title_text = body.get('title_text', 'Preview Title')
+    params.title_font_name = body.get('title_font_name', 'MicrosoftYaHeiBold.ttc')
+    params.title_font_size = body.get('title_font_size', 72)
+    params.title_text_color = body.get('title_text_color', '#FFFFFF')
+    params.title_stroke_color = body.get('title_stroke_color', '#000000')
+    params.title_stroke_width = body.get('title_stroke_width', 2.0)
+    params.title_background_color = body.get('title_background_color', 'transparent')
+    params.title_position = body.get('title_position', 'center')
+    params.title_margin = body.get('title_margin', 0.05)
+    params.title_margin_left = body.get('title_margin_left', 0.05)
+    params.title_margin_right = body.get('title_margin_right', 0.05)
+    params.title_animation = body.get('title_animation', 'none')
+    params.title_animation_duration = body.get('title_animation_duration', 0.5)
+    
+    video_aspect = body.get('video_aspect', '9:16')
+    if video_aspect == '9:16':
+        width, height = 1080, 1920
+    elif video_aspect == '16:9':
+        width, height = 1920, 1080
+    elif video_aspect == '1:1':
+        width, height = 1080, 1080
+    else:
+        width, height = 1080, 1920
+    
+    title_clip = create_title_clip(width, height, params)
+    
+    if title_clip is None:
+        raise HttpException(task_id="", status_code=400, message="Failed to create title clip")
+    
+    preview_dir = utils.storage_dir("title_previews", create=True)
+    preview_path = os.path.join(preview_dir, f"title_preview_{utils.get_uuid()[:8]}.png")
+    
+    title_clip.save_frame(preview_path, t=0)
+    
+    response = {"preview_path": preview_path}
+    return utils.get_response(200, response)
+
+
 @router.post("/scene-integration/scan", summary="Scan task directory for scene integration")
 def scan_scene_integration(request: Request, body: dict):
     """Scan task directory for scene integration"""

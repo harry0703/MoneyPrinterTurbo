@@ -3,6 +3,7 @@ import VideoSettings from '../views/VideoSettings.vue';
 import ScriptSettings from '../views/ScriptSettings.vue';
 import AudioSettings from '../views/AudioSettings.vue';
 import SubtitleSettings from '../views/SubtitleSettings.vue';
+import TitleSettings from '../views/TitleSettings.vue';
 import SceneIntegration from '../views/SceneIntegration.vue';
 import TaskManagement from '../views/TaskManagement.vue';
 import LogsView from '../views/LogsView.vue';
@@ -31,6 +32,11 @@ const routes: Array<RouteRecordRaw> = [
     path: '/subtitle',
     name: 'SubtitleSettings',
     component: SubtitleSettings
+  },
+  {
+    path: '/title',
+    name: 'TitleSettings',
+    component: TitleSettings
   },
   {
     path: '/scene',

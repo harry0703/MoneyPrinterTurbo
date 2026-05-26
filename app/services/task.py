@@ -704,8 +704,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
         scene_info=f"(scene {scene_num}/{total_scenes})",
         local_video_paths=local_video_paths,
         intro_video_path=actual_intro_video if actual_intro_video and os.path.exists(actual_intro_video) else None,
-        intro_duration=scene.get("intro_duration", 10),
-        is_first_scene=(scene_num == 1))
+        intro_duration=scene.get("intro_duration", 10))
     
     # build_result is the combined_video_path, used_local_paths contains actual used local material paths
     result = build_result
@@ -788,6 +787,34 @@ def combine_all_scenes(task_id, params, scene_results):
     logger.info(f"combining {len(scene_clips)} scene clips")
     logger.info(f"total video duration: {total_video_duration:.2f}s")
     logger.info(f"scene durations: {[f'{d:.2f}s' for d in scene_durations]}")
+    
+    # Extend first frame of first scene for idle period (0.3s delay at the beginning)
+    first_scene_delay = 0.3
+    if scene_clips and first_scene_delay > 0:
+        from moviepy import ImageClip, concatenate_videoclips, AudioClip, concatenate_audioclips
+        
+        first_clip = scene_clips[0]
+        # Extract first frame and create a still frame clip
+        first_frame = first_clip.get_frame(0)
+        still_frame_clip = ImageClip(first_frame).with_duration(first_scene_delay)
+        
+        # Add audio delay to match video extension if the first clip has audio
+        if first_clip.audio:
+            silence_clip = AudioClip(lambda t: 0, duration=first_scene_delay)
+            extended_audio = concatenate_audioclips([silence_clip, first_clip.audio])
+            first_clip = first_clip.with_audio(extended_audio)
+        
+        # Concatenate still frame with original first clip
+        extended_first_clip = concatenate_videoclips([still_frame_clip, first_clip])
+        
+        # Replace first clip with extended version
+        scene_clips[0] = extended_first_clip
+        
+        # Update duration tracking
+        total_video_duration += first_scene_delay
+        scene_durations[0] += first_scene_delay
+        
+        logger.info(f"Extended first scene by {first_scene_delay}s with still frame")
     
     # Calculate audio duration (if needed)
     audio_duration = 0
@@ -1090,8 +1117,7 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             scene_info=f"(video {index}/{params.video_count})",
-            local_video_paths=local_video_paths,
-            is_first_scene=(index == 1)
+            local_video_paths=local_video_paths
         )
 
         _progress += 50 / params.video_count / 2
@@ -1538,7 +1564,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
         return None
         
-    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=90)
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=88)
     
     # 5. Add background music and final processing for multi-scene video
     final_output_path = path.join(utils.task_dir(task_id), "final-1.mp4")
@@ -1704,13 +1730,18 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                             _cfg = load_config()
                             ui_config = _cfg.get("ui", {})
                             subtitle_margin = ui_config.get("subtitle_margin", 0.05)
-                            max_width = video_width * (1 - 2 * subtitle_margin)
+                            # Apply 5% safety buffer to account for getbbox vs TextClip rendering difference
+                            max_width = video_width * (1 - 2 * subtitle_margin) * 0.95
+                            subtitle_auto_fit = ui_config.get("subtitle_auto_fit", False)
                             
                             try:
                                 # Wrap text to fit within video width
-                                wrapped_txt, txt_height = video_module.wrap_text(
-                                    phrase, max_width=max_width, font=font_path if font_path else "Arial", fontsize=int(params.font_size)
+                                wrapped_txt, txt_height, actual_fontsize = video_module.wrap_text(
+                                    phrase, max_width=max_width, font=font_path if font_path else "Arial",
+                                    fontsize=int(params.font_size), auto_fit=subtitle_auto_fit
                                 )
+                                # Use the potentially reduced font size from auto-fit
+                                _font_size = int(actual_fontsize) if subtitle_auto_fit else int(params.font_size)
                                 
                                 # Parse time string
                                 start_end = time_str.split(" --> ")
@@ -1724,7 +1755,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                                         _clip = TextClip(
                                             text=wrapped_txt,
                                             font=font_path,
-                                            font_size=int(params.font_size),
+                                            font_size=_font_size,
                                             color=params.text_fore_color,
                                             bg_color=params.text_background_color,
                                             stroke_color=params.stroke_color,
@@ -1771,6 +1802,24 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                             logger.warning("No text clips created, skipping subtitle addition")
                 except Exception as e:
                     logger.error(f"failed to add subtitle: {str(e)}")
+        
+        # 6. Add title overlay (last visual step, always tracked as a step for consistent progress reporting)
+        logger.info(f"========================================")
+        logger.info(f"Step 6: Adding title overlay (2% of progress)")
+        logger.info(f"Title enabled: {getattr(params, 'title_enabled', False)}")
+        logger.info(f"Title text: {getattr(params, 'title_text', '')[:50]}")
+        logger.info(f"[TIMESTAMP] Title step started at: {time.strftime('%H:%M:%S')}")
+        logger.info(f"========================================")
+        
+        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
+            logger.info("Adding title to multi-scene video")
+            from app.services.title import add_title_to_video
+            video_clip = add_title_to_video(video_clip, params)
+            logger.success("Title overlay added successfully")
+        else:
+            logger.info("Title step skipped (title not enabled or no title text)")
+        
+        sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=90)
         
         # Get video encoding parameters (loaded once at module initialization)
         video_encoding_params = video_module.get_video_encoding_params()
