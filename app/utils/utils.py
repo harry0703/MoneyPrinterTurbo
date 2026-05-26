@@ -185,6 +185,14 @@ def split_string_by_punctuations(s):
             txt += char
             continue
 
+        if char == "," and previous_char.isdigit() and next_char.isdigit():
+            # 英文数字里的千分位逗号不是断句符，例如 "1,000 years"。
+            # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
+            # 如果这里拆成 "1" 和 "000 years"，后续字幕聚合会无法匹配脚本原文，
+            # 进而错误回退到 Whisper。
+            txt += char
+            continue
+
         if char not in const.PUNCTUATIONS:
             txt += char
         else:

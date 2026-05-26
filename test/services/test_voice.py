@@ -4,7 +4,9 @@ import os
 import sys
 import tempfile
 import time
+from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 # add project root to python path
@@ -312,6 +314,60 @@ class TestVoiceService(unittest.TestCase):
             subtitle_content = Path(subtitle_path).read_text(encoding="utf-8")
             self.assertIn("Gemini subtitle generation should work now", subtitle_content)
             self.assertIn("Testing multiple lines", subtitle_content)
+
+    def test_script_split_keeps_thousand_separator_comma(self):
+        """
+        Edge TTS 会把 "1,000 years" 作为连续文本返回。脚本断句时不能把
+        数字中间的英文逗号当成句子边界，否则字幕聚合会出现 issue #894
+        里的 sub_items 数量少于 script_lines，并错误回退 Whisper。
+        """
+        text = (
+            "It takes about 1,000 years for a single drop of water to finish "
+            "the whole trip!"
+        )
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            [
+                (
+                    "It takes about 1,000 years for a single drop of water to finish "
+                    "the whole trip"
+                )
+            ],
+        )
+
+    def test_edge_cue_aggregation_handles_thousand_separator_comma(self):
+        """
+        复现 issue #894 的关键形态：Edge cues 中最后一句作为连续文本返回，
+        包含 `1,000 years`。脚本断句必须与 cues 聚合结果一致，不能把它
+        拆成两条字幕。
+        """
+        text = (
+            "The ocean isn't just sitting stil, it moves around the world like a massive "
+            "amusement park ride! Cold water at the North and South Poles sinks to the "
+            "bottom because it is heavy and salty. At the same time, warm water from the "
+            "sunny equator flows along the top to take its place. This creates a giant "
+            "underwater conveyor belt that travels all the way around the Earth. It takes "
+            "about 1,000 years for a single drop of water to finish the whole trip!"
+        )
+        script_lines = utils.split_string_by_punctuations(text)
+        cues = []
+        for index, line in enumerate(script_lines):
+            # Edge 的 cue content 经常没有脚本里的空格和标点布局，这里去掉空格
+            # 来模拟更严格的匹配场景。
+            cues.append(
+                SimpleNamespace(
+                    content=line.replace(" ", ""),
+                    start=timedelta(seconds=index),
+                    end=timedelta(seconds=index + 0.8),
+                )
+            )
+        sub_maker = SimpleNamespace(cues=cues)
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(sub_maker, script_lines)
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("1,000 years", sub_items[-1])
 
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1
