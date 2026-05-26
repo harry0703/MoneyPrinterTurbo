@@ -104,6 +104,7 @@
             <el-option :label="t('Science')" value="science" />
             <el-option :label="t('Tech')" value="tech" />
             <el-option :label="t('Business')" value="business" />
+            <el-option :label="t('AI')" value="ai" />
           </el-select>
         </div>
         

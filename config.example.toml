@@ -223,7 +223,7 @@ video_clip_duration = 6
 video_count = 1
 
 # Video style
-# Options: "none", "people", "nature", "animation", "cartoon", "industry", "science", "tech", "business"
+# Options: "none", "people", "nature", "animation", "cartoon", "industry", "science", "tech", "business", "ai"
 video_style = "none"
 
 # Intro video background type

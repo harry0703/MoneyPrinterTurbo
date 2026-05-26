@@ -136,6 +136,7 @@
     "Science": "Science",
     "Tech": "Technology",
     "Business": "Business",
+    "AI": "AI",
     "Audio Settings": "Audio Settings",
     "Speech Synthesis": "Speech Synthesis Voice",
     "Speech Region": "Region(:red[Required，[Get Region](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",

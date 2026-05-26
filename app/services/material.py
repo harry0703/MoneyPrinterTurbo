@@ -17,14 +17,16 @@ from app.services.download_manager import download_video, initialize_download_sy
 STYLE_KEYWORDS = {
     'people': ['people', 'human', 'lifestyle', 'person', 'character', 'humanoid'],
     'scenery': ['nature', 'landscape', 'scenery', 'travel', 'outdoor', 'environment'],
-    'animation': ['animation', 'cartoon', 'illustration', 'animated', 'cartoony']
+    'animation': ['animation', 'cartoon', 'illustration', 'animated', 'cartoony'],
+    'ai': ['ai', 'artificial intelligence', 'machine learning', 'neural', 'robot', 'digital', 'futuristic']
 }
 
 # Visual cues for each style
 VISUAL_CUES = {
     'people': ['people', 'human', 'person', 'character', 'man', 'woman', 'child', 'family', 'group', 'individual', 'lifestyle', 'portrait', 'face', 'figure', 'body'],
     'scenery': ['nature', 'landscape', 'scenery', 'travel', 'outdoor', 'environment', 'mountain', 'forest', 'ocean', 'beach', 'sky', 'sunset', 'landform', 'natural'],
-    'animation': ['animation', 'cartoon', 'illustration', 'animated', 'cartoony', 'cartoonish', 'anime', 'comic', 'drawing', 'sketch', 'digital art']
+    'animation': ['animation', 'cartoon', 'illustration', 'animated', 'cartoony', 'cartoonish', 'anime', 'comic', 'drawing', 'sketch', 'digital art'],
+    'ai': ['ai', 'artificial intelligence', 'machine learning', 'deep learning', 'neural network', 'robot', 'robotic', 'digital', 'futuristic', 'technology', 'cyber', 'automation', 'algorithm']
 }
 
 def extract_style_keyword(visual_requirement: str) -> str:
