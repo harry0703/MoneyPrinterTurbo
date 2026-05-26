@@ -1149,19 +1149,53 @@ def crop_clip_to_target(clip, target_width, target_height, max_scale=1.10):
     return clip
 
 
-def wrap_text(text, max_width, font="Arial", fontsize=60):
-    font = ImageFont.truetype(font, fontsize)
+def wrap_text(text, max_width, font="Arial", fontsize=60, auto_fit=False, min_font_ratio=0.85):
+    """Wrap text to fit within max_width.
+    
+    Args:
+        text: Text to wrap
+        max_width: Maximum width in pixels
+        font: Path to font file
+        fontsize: Font size in points
+        auto_fit: If True, try reducing font size to fit on a single line before wrapping
+        min_font_ratio: Minimum font size ratio when auto_fit is enabled (default 0.85 = 85%)
+    
+    Returns:
+        Tuple of (wrapped_text, text_height, actual_font_size)
+    """
+    actual_fontsize = fontsize
+    img_font = ImageFont.truetype(font, fontsize)
 
     def get_text_size(inner_text):
         inner_text = inner_text.strip()
         if not inner_text:
             return 0, 0
-        left, top, right, bottom = font.getbbox(inner_text)
+        left, top, right, bottom = img_font.getbbox(inner_text)
         return right - left, bottom - top
 
     width, height = get_text_size(text)
+    
+    # Auto-fit: try reducing font size to avoid line breaks
+    if auto_fit and width > max_width and fontsize > 1:
+        best_size = fontsize
+        for test_ratio in range(int(min_font_ratio * 100), 100):
+            test_size = int(fontsize * test_ratio / 100)
+            if test_size < 8:
+                break
+            img_font = ImageFont.truetype(font, test_size)
+            w, h = get_text_size(text)
+            if w <= max_width:
+                best_size = test_size
+                width, height = w, h
+                break
+        
+        if best_size < fontsize:
+            actual_fontsize = best_size
+            # Re-create font at the fitted size
+            img_font = ImageFont.truetype(font, actual_fontsize)
+    
     if width <= max_width:
-        return text, height
+        return text, height, actual_fontsize
 
     lines = []
     current_line = text.strip()
@@ -1215,7 +1249,7 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     wrapped_text = '\n'.join(lines)
     total_height = len(lines) * line_height
     
-    return wrapped_text, total_height
+    return wrapped_text, total_height, actual_fontsize
 
 def analyze_video_params(video_path):
     """

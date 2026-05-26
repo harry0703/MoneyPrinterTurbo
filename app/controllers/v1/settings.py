@@ -58,6 +58,7 @@ def get_config(request: Request):
                 "subtitle_position": config.ui.get("subtitle_position", "bottom"),
                 "subtitle_custom_position": config.ui.get("subtitle_custom_position", 70.0),
                 "subtitle_margin": config.ui.get("subtitle_margin", 0.1),
+                "subtitle_auto_fit": config.ui.get("subtitle_auto_fit", False),
                 "font_name": config.ui.get("font_name", "MicrosoftYaHeiBold.ttc"),
                 "text_fore_color": config.ui.get("text_fore_color", "#FFFFFF"),
                 "text_background_color": config.ui.get("text_background_color", True),

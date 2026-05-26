@@ -1730,13 +1730,18 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                             _cfg = load_config()
                             ui_config = _cfg.get("ui", {})
                             subtitle_margin = ui_config.get("subtitle_margin", 0.05)
-                            max_width = video_width * (1 - 2 * subtitle_margin)
+                            # Apply 5% safety buffer to account for getbbox vs TextClip rendering difference
+                            max_width = video_width * (1 - 2 * subtitle_margin) * 0.95
+                            subtitle_auto_fit = ui_config.get("subtitle_auto_fit", False)
                             
                             try:
                                 # Wrap text to fit within video width
-                                wrapped_txt, txt_height = video_module.wrap_text(
-                                    phrase, max_width=max_width, font=font_path if font_path else "Arial", fontsize=int(params.font_size)
+                                wrapped_txt, txt_height, actual_fontsize = video_module.wrap_text(
+                                    phrase, max_width=max_width, font=font_path if font_path else "Arial",
+                                    fontsize=int(params.font_size), auto_fit=subtitle_auto_fit
                                 )
+                                # Use the potentially reduced font size from auto-fit
+                                _font_size = int(actual_fontsize) if subtitle_auto_fit else int(params.font_size)
                                 
                                 # Parse time string
                                 start_end = time_str.split(" --> ")
@@ -1750,7 +1755,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                                         _clip = TextClip(
                                             text=wrapped_txt,
                                             font=font_path,
-                                            font_size=int(params.font_size),
+                                            font_size=_font_size,
                                             color=params.text_fore_color,
                                             bg_color=params.text_background_color,
                                             stroke_color=params.stroke_color,

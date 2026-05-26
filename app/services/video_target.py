@@ -292,8 +292,13 @@ def generate_video(
                         _cfg = load_config()
                         ui_config = _cfg.get("ui", {})
                         subtitle_margin = ui_config.get("subtitle_margin", 0.05)
-                        max_width = video_clip.w * (1 - 2 * subtitle_margin)
-                        wrapped_text, _ = wrap_text(text, max_width=max_width, font=font_path, fontsize=int(params.font_size))
+                        # Apply 5% safety buffer to account for getbbox vs TextClip rendering difference
+                        max_width = video_clip.w * (1 - 2 * subtitle_margin) * 0.95
+                        subtitle_auto_fit = ui_config.get("subtitle_auto_fit", False)
+                        wrapped_text, _, _ = wrap_text(
+                            text, max_width=max_width, font=font_path, fontsize=int(params.font_size),
+                            auto_fit=subtitle_auto_fit
+                        )
                         
                         # Create text clip
                         # Handle transparent background

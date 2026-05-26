@@ -26,7 +26,7 @@ def create_title_clip(
     margin_right_px = video_width * params.title_margin_right
     max_width = video_width - margin_left_px - margin_right_px
     
-    wrapped_text, text_height = wrap_text(
+    wrapped_text, text_height, _ = wrap_text(
         params.title_text,
         max_width=max_width,
         font=font_path,
