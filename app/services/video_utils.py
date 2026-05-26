@@ -641,8 +641,6 @@ def preprocess_video(materials, clip_duration=5):
                 
                 # Use moviepy to create a video from the image
                 clip = ImageClip(material.url).with_duration(actual_duration)
-                # Ensure clip has mask
-                clip = ensure_clip_has_mask(clip)
                 try:
                     clip.write_videofile(video_path, fps=24)
                     
@@ -829,27 +827,13 @@ def copy_local_materials_to_task(task_id: str, materials: List) -> List:
     return processed_materials
 
 
-def ensure_clip_has_mask(clip):
-    """Ensure a clip has a valid mask attribute for CompositeVideoClip compatibility."""
-    if hasattr(clip, 'mask') and clip.mask is not None:
-        return clip
-    
-    import numpy as np
-    w, h = clip.size
-    # Create a simple fully opaque mask
-    mask_array = np.ones((h, w), dtype=np.float32)
-    clip.mask = ImageClip(mask_array, is_mask=True, duration=clip.duration)
-    logger.info(f"Added mask attribute to clip of type: {type(clip).__name__}")
-    return clip
-
-
 def fit_intro_video_to_target(clip, target_width, target_height, bg_color_str="black", bg_type="solid", blur_radius=15):
     """
     Fit intro video into target dimensions without cropping.
     Scales the video to fit within target, centers it on a background layer.
     
     Args:
-        clip: VideoFileClip or ImageClip to process
+        clip: VideoFileClip to process
         target_width: Target width in pixels
         target_height: Target height in pixels
         bg_color_str: Background color as string (name, hex, or rgb) - used when bg_type is "solid"
@@ -859,9 +843,6 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color_str="b
     Returns:
         Composite video clip with intro centered on background
     """
-    # Ensure input clip has mask
-    clip = ensure_clip_has_mask(clip)
-    
     clip_w, clip_h = clip.size
     target_ratio = target_width / target_height
     clip_ratio = clip_w / clip_h
@@ -897,10 +878,6 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color_str="b
     logger.info(f"Scaling intro video: {clip_w}x{clip_h} -> {new_width}x{new_height}")
     
     scaled_clip = clip.resized(new_size=(new_width, new_height))
-    
-    # Preserve mask attribute if it exists on original clip
-    if hasattr(clip, 'mask') and clip.mask is not None:
-        scaled_clip.mask = clip.mask.resized(new_size=(new_width, new_height))
     
     # Calculate position to center the scaled clip
     x_offset = (target_width - new_width) // 2
@@ -955,9 +932,6 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color_str="b
     # Preserve audio if present
     if clip.audio is not None:
         composite = composite.with_audio(clip.audio)
-    
-    # Ensure composite has mask
-    composite = ensure_clip_has_mask(composite)
     
     logger.success(f"Intro video fitted successfully: {target_width}x{target_height} with {bg_type} background")
     return composite
