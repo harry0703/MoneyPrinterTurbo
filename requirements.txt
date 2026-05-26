@@ -1,20 +1,26 @@
 # Keep legacy pip install support; primary deps moved to pyproject.toml / uv.lock.
 moviepy==2.1.2
-streamlit==1.45.0
+streamlit>=1.54.0,<2
 edge_tts==7.2.7
-fastapi==0.115.6
+fastapi>=0.116.0,<0.136.3
 uvicorn==0.32.1
-openai==1.56.1
+openai>=2.30.0,<3
 faster-whisper==1.1.0
 loguru==0.7.3
 google.generativeai==0.8.6
 dashscope==1.20.14
-g4f==0.5.2.2
 azure-cognitiveservices-speech==1.41.1
 redis==5.2.0
-python-multipart==0.0.19
+python-multipart>=0.0.27,<1
 pyyaml==6.0.3
 requests==2.33.1
 socksio==1.0.0
 pydub==0.25.1
-litellm==1.60.0
+litellm>=1.83.0,<2
+cryptography>=46.0.7,<47
+gitpython>=3.1.50,<4
+idna>=3.15,<4
+urllib3>=2.7.0,<3
+
+# Optional unofficial g4f provider is intentionally not installed by default.
+# Prefer `uv sync --extra g4f` only when you explicitly accept that provider risk.

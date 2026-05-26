@@ -24,6 +24,7 @@ from app.models.schema import (
 )
 from app.services import llm, voice
 from app.services import task as tm
+from app.utils.secrets import redact_secret
 from app.utils import utils
 
 st.set_page_config(
@@ -1158,7 +1159,7 @@ with right_panel:
             if config.app["pexels_api_keys"]:
                 st.write(tr("Current Keys:"))
                 for key in config.app["pexels_api_keys"]:
-                    st.code(key)
+                    st.code(redact_secret(key))
             else:
                 st.info(tr("No Pexels API Keys currently"))
 
@@ -1175,7 +1176,10 @@ with right_panel:
 
             if config.app["pexels_api_keys"]:
                 delete_key = st.selectbox(
-                    tr("Select Pexels API Key to delete"), config.app["pexels_api_keys"], key="pexels_delete_key"
+                    tr("Select Pexels API Key to delete"),
+                    config.app["pexels_api_keys"],
+                    key="pexels_delete_key",
+                    format_func=redact_secret,
                 )
                 if st.button(tr("Delete Selected Pexels API Key")):
                     config.app["pexels_api_keys"].remove(delete_key)
@@ -1188,7 +1192,7 @@ with right_panel:
             if config.app["pixabay_api_keys"]:
                 st.write(tr("Current Keys:"))
                 for key in config.app["pixabay_api_keys"]:
-                    st.code(key)
+                    st.code(redact_secret(key))
             else:
                 st.info(tr("No Pixabay API Keys currently"))
 
@@ -1205,7 +1209,10 @@ with right_panel:
 
             if config.app["pixabay_api_keys"]:
                 delete_key = st.selectbox(
-                    tr("Select Pixabay API Key to delete"), config.app["pixabay_api_keys"], key="pixabay_delete_key"
+                    tr("Select Pixabay API Key to delete"),
+                    config.app["pixabay_api_keys"],
+                    key="pixabay_delete_key",
+                    format_func=redact_secret,
                 )
                 if st.button(tr("Delete Selected Pixabay API Key")):
                     config.app["pixabay_api_keys"].remove(delete_key)

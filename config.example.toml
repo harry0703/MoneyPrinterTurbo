@@ -15,6 +15,9 @@ edge_tts_timeout = 30
 # 只有在企业代理或自签证书环境明确需要时，才临时改为 false。
 tls_verify = true
 
+# Maximum accepted upload size for local BGM and video material files, in MiB.
+max_upload_file_size_mb = 200
+
 # Pexels API Key
 # Register at https://www.pexels.com/api/ to get your API key.
 # You can use multiple keys to avoid rate limits.
