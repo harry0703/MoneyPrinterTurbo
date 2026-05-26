@@ -252,7 +252,7 @@ const moveSceneDown = (index: number) => {
 };
 
 // Export scenes
-const exportScenes = () => {
+const exportScenes = async () => {
   if (scenes.value.length === 0) {
     ElMessage.warning('No scenes to export');
     return;
@@ -260,16 +260,46 @@ const exportScenes = () => {
   
   const scenesData = JSON.stringify(scenes.value, null, 2);
   const blob = new Blob([scenesData], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `scenes-${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const fileName = `scenes-${new Date().toISOString().split('T')[0]}.json`;
   
-  ElMessage.success('Scenes exported successfully');
+  try {
+    // Try to use File System Access API for "Save As" dialog
+    const showSaveFilePicker = (window as any).showSaveFilePicker;
+    if (showSaveFilePicker) {
+      const handle = await showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{
+          description: 'JSON File',
+          accept: { 'application/json': ['.json'] }
+        }]
+      });
+      
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      
+      ElMessage.success('Scenes exported successfully');
+    } else {
+      // Fallback for browsers that don't support File System Access API
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      ElMessage.success('Scenes exported successfully');
+    }
+  } catch (error: any) {
+    // User cancelled the save dialog or an error occurred
+    if (error.name !== 'AbortError') {
+      console.error('Export failed:', error);
+      ElMessage.error('Failed to export scenes');
+    }
+    // If user cancelled, silently do nothing
+  }
 };
 
 // Clear all scenes
