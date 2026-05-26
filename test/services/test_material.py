@@ -6,9 +6,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import requests
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
+from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import material
 
 
@@ -126,6 +129,79 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         self.assertEqual(result, [])
+
+    def test_search_pexels_retries_transient_failures_with_tls_enabled(self):
+        config.app["pexels_api_keys"] = ["pexels-key"]
+        config.app["material_api_max_retries"] = 2
+        config.app.pop("tls_verify", None)
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            json=lambda: {
+                "videos": [
+                    {
+                        "duration": 8,
+                        "video_files": [
+                            {
+                                "width": 1080,
+                                "height": 1920,
+                                "link": "https://example.com/retry-video.mp4",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+        with patch(
+            "app.services.material.requests.get",
+            side_effect=[requests.Timeout("temporary timeout"), fake_response],
+        ) as get, patch("app.services.material.time.sleep") as sleep:
+            results = material.search_videos_pexels("cat", minimum_duration=1)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(get.call_count, 2)
+        self.assertTrue(all(call.kwargs["verify"] for call in get.call_args_list))
+        sleep.assert_called_once()
+
+    def test_download_videos_balances_results_across_search_terms(self):
+        config.app["material_directory"] = ""
+
+        videos_by_term = {
+            "cats": [
+                MaterialInfo(provider="pexels", url="https://example.com/cat-1.mp4", duration=5),
+                MaterialInfo(provider="pexels", url="https://example.com/cat-2.mp4", duration=5),
+            ],
+            "dogs": [
+                MaterialInfo(provider="pexels", url="https://example.com/dog-1.mp4", duration=5),
+            ],
+        }
+
+        def fake_search(search_term, minimum_duration, video_aspect):
+            return videos_by_term[search_term]
+
+        def fake_save(video_url, save_dir=""):
+            filename = video_url.rsplit("/", 1)[-1]
+            return os.path.join("saved", filename)
+
+        with patch("app.services.material.search_videos_pexels", side_effect=fake_search), patch(
+            "app.services.material.save_video", side_effect=fake_save
+        ) as save:
+            paths = material.download_videos(
+                task_id="task",
+                search_terms=["cats", "dogs"],
+                source="pexels",
+                video_aspect=VideoAspect.portrait,
+                video_contact_mode=VideoConcatMode.sequential,
+                audio_duration=5,
+                max_clip_duration=5,
+            )
+
+        self.assertEqual(paths, [os.path.join("saved", "cat-1.mp4"), os.path.join("saved", "dog-1.mp4")])
+        self.assertEqual(
+            [call.kwargs["video_url"] for call in save.call_args_list],
+            ["https://example.com/cat-1.mp4", "https://example.com/dog-1.mp4"],
+        )
 
 
 if __name__ == "__main__":
