@@ -351,6 +351,17 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
             task_id = task_id_or_path
         task_dir = utils.task_dir(task_id)
     
+    # Create task log file for scene integration
+    task_log_path = os.path.join(task_dir, "scene_integration.log")
+    log_handler_id = logger.add(
+        task_log_path,
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{line} | {message}\n",
+        level="DEBUG",
+        rotation="10 MB",
+        compression="zip"
+    )
+    logger.info(f"Scene integration task log file: {task_log_path}")
+    
     # Register task in state management
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=0, task_type="scene_integration")
     set_task_running("scene_integration", task_id)
@@ -465,6 +476,7 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
         # Get video parameters from config
         _cfg = load_config()
         app_config = _cfg.get("app", {})
+        ui_config = _cfg.get("ui", {})
         
         # Handle BGM parameters
         if bgm_params is None:
@@ -531,19 +543,52 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
             video_subject="Recovered Video",
             video_aspect=VideoAspect(aspect_ratio),
             video_concat_mode=VideoConcatMode(app_config.get("video_concat_mode", "random")),
-            subtitle_enabled=subtitle_params.get('subtitle_enabled', app_config.get("subtitle_enabled", True)),
-            font_name=subtitle_params.get('font_name', app_config.get("font_name", "STHeitiMedium.ttc")),
-            font_size=subtitle_params.get('font_size', app_config.get("font_size", 60)),
-            text_fore_color=subtitle_params.get('text_fore_color', app_config.get("text_fore_color", "white")),
-            text_background_color=subtitle_params.get('text_background_color', app_config.get("text_background_color", "transparent")),
-            stroke_color=subtitle_params.get('stroke_color', app_config.get("stroke_color", "black")),
-            stroke_width=subtitle_params.get('stroke_width', app_config.get("stroke_width", 2)),
-            subtitle_position=subtitle_params.get('subtitle_position', app_config.get("subtitle_position", "bottom")),
-            custom_position=subtitle_params.get('custom_position', app_config.get("subtitle_custom_position", 70.0)),
-            bgm_type=bgm_params.get('bgm_type', app_config.get("bgm_type", "random")),
+            subtitle_enabled=subtitle_params.get('subtitle_enabled', app_config.get("subtitle_enabled", ui_config.get("subtitle_enabled", True))),
+            font_name=subtitle_params.get('font_name', app_config.get("font_name", ui_config.get("font_name", "STHeitiMedium.ttc"))),
+            font_size=subtitle_params.get('font_size', app_config.get("font_size", ui_config.get("font_size", 60))),
+            text_fore_color=subtitle_params.get('text_fore_color', app_config.get("text_fore_color", ui_config.get("text_fore_color", "white"))),
+            text_background_color=subtitle_params.get('text_background_color', app_config.get("text_background_color", ui_config.get("text_background_color", "transparent"))),
+            stroke_color=subtitle_params.get('stroke_color', app_config.get("stroke_color", ui_config.get("stroke_color", "black"))),
+            stroke_width=subtitle_params.get('stroke_width', app_config.get("stroke_width", ui_config.get("stroke_width", 2))),
+            subtitle_position=subtitle_params.get('subtitle_position', app_config.get("subtitle_position", ui_config.get("subtitle_position", "bottom"))),
+            custom_position=subtitle_params.get('custom_position', app_config.get("subtitle_custom_position", ui_config.get("subtitle_custom_position", 70.0))),
+            bgm_type=bgm_params.get('bgm_type', app_config.get("bgm_type", ui_config.get("bgm_type", "random"))),
             bgm_file=bgm_params.get('bgm_file', ''),
-            bgm_volume=float(bgm_params.get('bgm_volume', app_config.get("bgm_volume", 0.2)))
+            bgm_volume=float(bgm_params.get('bgm_volume', app_config.get("bgm_volume", ui_config.get("bgm_volume", 0.2)))),
+            # Title parameters from UI config (title settings are in [ui] section)
+            title_enabled=ui_config.get("title_enabled", False),
+            title_text=ui_config.get("title_text", ""),
+            title_duration=ui_config.get("title_duration", 3.0),
+            title_font_name=ui_config.get("title_font_name", ui_config.get("title_font", "MicrosoftYaHeiBold.ttc")),
+            title_font_size=ui_config.get("title_font_size", 72),
+            title_text_color=ui_config.get("title_text_color", ui_config.get("title_color", "#FFFFFF")),
+            title_stroke_color=ui_config.get("title_stroke_color", "#000000"),
+            title_stroke_width=ui_config.get("title_stroke_width", 2.0),
+            title_background_color=ui_config.get("title_background_color", ui_config.get("title_bg_color", "transparent")),
+            title_position=ui_config.get("title_position", "center"),
+            title_margin=ui_config.get("title_margin", 0.05),
+            title_margin_left=ui_config.get("title_margin_left", 0.05),
+            title_margin_right=ui_config.get("title_margin_right", 0.05),
+            title_animation=ui_config.get("title_animation", "none"),
+            title_animation_duration=ui_config.get("title_animation_duration", 0.5),
+            title_background_overlay=ui_config.get("title_background_overlay", False),
+            title_overlay_color=ui_config.get("title_overlay_color", "rgba(0,0,0,0.5)")
         )
+        
+        # Log title parameters for debugging
+        logger.info(f"=== Title Configuration ===")
+        logger.info(f"title_enabled: {params.title_enabled}")
+        logger.info(f"title_text: '{params.title_text}'")
+        logger.info(f"title_duration: {params.title_duration}")
+        logger.info(f"title_font_name: {params.title_font_name}")
+        logger.info(f"title_font_size: {params.title_font_size}")
+        logger.info(f"title_text_color: {params.title_text_color}")
+        logger.info(f"title_stroke_color: {params.title_stroke_color}")
+        logger.info(f"title_stroke_width: {params.title_stroke_width}")
+        logger.info(f"title_position: {params.title_position}")
+        logger.info(f"title_margin: {params.title_margin}")
+        logger.info(f"title_animation: {params.title_animation}")
+        logger.info(f"=== Title Configuration End ===")
         
         sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
         
@@ -653,4 +698,9 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
             return None
     
     finally:
+        # Remove log handler
+        try:
+            logger.remove(log_handler_id)
+        except:
+            pass
         set_task_completed()

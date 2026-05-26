@@ -100,13 +100,13 @@ title_enabled = true
 title_text = "Web支持MCP调试"
 title_duration = 3
 title_font_name = "MicrosoftYaHeiBold.ttc"
-title_font_size = 72
-title_text_color = "#FFFFFF"
+title_font_size = 76
+title_text_color = "#FF0000"
 title_stroke_color = "#FFFF00"
-title_stroke_width = 5
+title_stroke_width = 8
 title_background_color = "transparent"
 title_position = "top"
-title_margin = 0.07
+title_margin = 0.1
 title_margin_left = 0.05
 title_margin_right = 0.05
 title_animation = "none"
@@ -114,9 +114,6 @@ title_animation_duration = 0.3
 title_background_overlay = false
 title_overlay_color = "rgba(0,0,0,0.5)"
 title_style = ""
-title_font = "MicrosoftYaHeiBold.ttc"
-title_color = "#FF0000"
-title_bg_color = "transparent"
 
 [coze]
 api_key = "sat_5QQV8lPJCo1uK0cMUsMwQMDqPUFHAVajSQnICchJYcSwmp6cuA7MAeRd73k48m4A"

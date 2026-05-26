@@ -616,14 +616,14 @@ const loadConfig = async () => {
         if (cfg.ui.title_duration !== undefined) {
           form.titleDuration = cfg.ui.title_duration;
         }
-        if (cfg.ui.title_font !== undefined) {
-          form.titleFont = cfg.ui.title_font;
+        if (cfg.ui.title_font_name !== undefined) {
+          form.titleFont = cfg.ui.title_font_name;
         }
         if (cfg.ui.title_font_size !== undefined) {
           form.titleFontSize = cfg.ui.title_font_size;
         }
-        if (cfg.ui.title_color !== undefined) {
-          form.titleColor = cfg.ui.title_color;
+        if (cfg.ui.title_text_color !== undefined) {
+          form.titleColor = cfg.ui.title_text_color;
         }
         if (cfg.ui.title_stroke_color !== undefined) {
           form.titleStrokeColor = cfg.ui.title_stroke_color;
@@ -631,8 +631,8 @@ const loadConfig = async () => {
         if (cfg.ui.title_stroke_width !== undefined) {
           form.titleStrokeWidth = cfg.ui.title_stroke_width;
         }
-        if (cfg.ui.title_bg_color !== undefined) {
-          form.titleBackgroundColor = cfg.ui.title_bg_color;
+        if (cfg.ui.title_background_color !== undefined) {
+          form.titleBackgroundColor = cfg.ui.title_background_color;
         }
         if (cfg.ui.title_position !== undefined) {
           form.titlePosition = cfg.ui.title_position;
@@ -675,12 +675,12 @@ const saveConfig = async () => {
         title_enabled: form.titleEnabled,
         title_text: form.titleText,
         title_duration: form.titleDuration,
-        title_font: form.titleFont,
+        title_font_name: form.titleFont,
         title_font_size: form.titleFontSize,
-        title_color: form.titleColor,
+        title_text_color: form.titleColor,
         title_stroke_color: form.titleStrokeColor,
         title_stroke_width: form.titleStrokeWidth,
-        title_bg_color: form.titleBackgroundColor,
+        title_background_color: form.titleBackgroundColor,
         title_position: form.titlePosition,
         title_margin: form.titleMargin / 100,
         title_margin_left: form.titleMarginLeft / 100,
