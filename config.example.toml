@@ -1,3 +1,10 @@
+[listen]
+
+# Server binding defaults to loopback for local use. Change only behind a
+# trusted reverse proxy or firewall.
+host = "127.0.0.1"
+port = 8080
+
 [app]
 video_source = "pexels" # "pexels" or "pixabay"
 

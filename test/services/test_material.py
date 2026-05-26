@@ -1,4 +1,5 @@
 import os
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -115,6 +116,10 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
             self.assertTrue(os.path.exists(video_path))
             self.assertTrue(get.call_args.kwargs["verify"])
+            expected_hash = hashlib.sha256(
+                "https://example.com/video.mp4".encode("utf-8")
+            ).hexdigest()
+            self.assertTrue(video_path.endswith(f"vid-{expected_hash}.mp4"))
 
     def test_download_videos_accepts_plain_string_concat_mode(self):
         """

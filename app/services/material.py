@@ -215,7 +215,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         os.makedirs(save_dir)
 
     url_without_query = video_url.split("?")[0]
-    url_hash = utils.md5(url_without_query)
+    url_hash = utils.stable_hash(url_without_query)
     video_id = f"vid-{url_hash}"
     video_path = f"{save_dir}/{video_id}.mp4"
 

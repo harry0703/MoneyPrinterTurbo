@@ -205,7 +205,6 @@ def split_string_by_punctuations(s):
     result = list(filter(None, result))
     return result
 
-
 def normalize_script_for_subtitle_matching(video_script: str) -> str:
     """
     清理字幕匹配前的脚本文本。
@@ -239,10 +238,15 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
     return normalized_script
 
 
-def md5(text):
+def stable_hash(text):
     import hashlib
 
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def md5(text):
+    # Kept for compatibility with existing imports; new cache IDs use SHA-256.
+    return stable_hash(text)
 
 
 def get_system_locale():

@@ -541,6 +541,55 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("Error:", result)
         self.assertIn("g4f package is not installed by default", result)
 
+    def test_pollinations_request_uses_timeout(self):
+        config.app["llm_provider"] = "pollinations"
+        config.app["pollinations_model_name"] = "openai-fast"
+
+        fake_response = types.SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"choices": [{"message": {"content": "hello\npollinations"}}]},
+        )
+
+        with patch.object(llm.requests, "post", return_value=fake_response) as post:
+            result = llm._generate_response("Say hello")
+
+        self.assertEqual(result, "hellopollinations")
+        self.assertEqual(post.call_args.kwargs["timeout"], llm._DEFAULT_LLM_HTTP_TIMEOUT)
+
+    def test_cloudflare_request_uses_timeout(self):
+        config.app["llm_provider"] = "cloudflare"
+        config.app["cloudflare_api_key"] = "cloudflare-key"
+        config.app["cloudflare_account_id"] = "account-id"
+        config.app["cloudflare_model_name"] = "@cf/meta/llama-3.1-8b-instruct"
+
+        fake_response = types.SimpleNamespace(
+            json=lambda: {"result": {"response": "hello\ncloudflare"}}
+        )
+
+        with patch.object(llm.requests, "post", return_value=fake_response) as post:
+            result = llm._generate_response("Say hello")
+
+        self.assertEqual(result, "hellocloudflare")
+        self.assertEqual(post.call_args.kwargs["timeout"], llm._DEFAULT_LLM_HTTP_TIMEOUT)
+
+    def test_ernie_token_and_generation_requests_use_timeout(self):
+        config.app["llm_provider"] = "ernie"
+        config.app["ernie_api_key"] = "ernie-key"
+        config.app["ernie_secret_key"] = "ernie-secret"
+        config.app["ernie_base_url"] = "https://example.com/ernie"
+
+        token_response = types.SimpleNamespace(json=lambda: {"access_token": "token"})
+        generation_response = types.SimpleNamespace(json=lambda: {"result": "hello\nernie"})
+
+        with patch.object(llm.requests, "post", return_value=token_response) as post, patch.object(
+            llm.requests, "request", return_value=generation_response
+        ) as request:
+            result = llm._generate_response("Say hello")
+
+        self.assertEqual(result, "helloernie")
+        self.assertEqual(post.call_args.kwargs["timeout"], llm._DEFAULT_LLM_HTTP_TIMEOUT)
+        self.assertEqual(request.call_args.kwargs["timeout"], llm._DEFAULT_LLM_HTTP_TIMEOUT)
+
 
 class TestRuntimeEnvironmentDetection(unittest.TestCase):
     def test_container_detection_ignores_plain_linux_cgroup_file(self):

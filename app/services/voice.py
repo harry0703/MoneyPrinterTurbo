@@ -11,8 +11,8 @@ import shutil
 import threading
 import time
 from datetime import datetime
+from html import unescape
 from typing import Union
-from xml.sax.saxutils import unescape
 
 import edge_tts
 import requests
@@ -26,6 +26,7 @@ from app.config import config
 from app.utils import utils
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
+_DEFAULT_PROVIDER_HTTP_TIMEOUT = (30, 120)
 _MIMO_DEFAULT_BASE_URL = "https://api.xiaomimimo.com/v1"
 _MIMO_DEFAULT_TTS_MODEL = "mimo-v2.5-tts"
 
@@ -634,7 +635,12 @@ def siliconflow_tts(
                 f"start siliconflow tts, model: {model}, voice: {voice}, try: {i + 1}"
             )
 
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=_DEFAULT_PROVIDER_HTTP_TIMEOUT,
+            )
 
             if response.status_code == 200:
                 # 保存音频文件

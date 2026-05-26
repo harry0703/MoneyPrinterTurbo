@@ -5,7 +5,8 @@ import os
 import random
 import gc
 import shutil
-import subprocess
+# ffmpeg is invoked through an argument list with shell disabled.
+import subprocess  # nosec B404
 from contextlib import redirect_stdout
 from functools import lru_cache
 from typing import List
@@ -78,6 +79,8 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_videotoolbox",
 )
 _runtime_disabled_video_codecs = set()
+_FFMPEG_SUBPROCESS_TIMEOUT_SECONDS = 300
+_RANDOM = random.SystemRandom()
 
 
 def _prioritize_unique_source_clips(
@@ -112,8 +115,8 @@ def _prioritize_unique_source_clips(
         primary_items.append(primary_item)
         overflow_items.extend(item for item in items if item is not primary_item)
 
-    random.shuffle(primary_items)
-    random.shuffle(overflow_items)
+    _RANDOM.shuffle(primary_items)
+    _RANDOM.shuffle(overflow_items)
     logger.info(
         "prioritized unique video materials, "
         f"sources: {len(grouped_items)}, "
@@ -321,11 +324,13 @@ def concat_video_clips_with_ffmpeg(
         command = build_command(codec)
         # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
         # 从而降低画质劣化与颜色偏移风险。
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             command,
             capture_output=True,
             text=True,
             check=False,
+            shell=False,
+            timeout=_FFMPEG_SUBPROCESS_TIMEOUT_SECONDS,
         )
         if result.returncode != 0:
             error_message = (result.stderr or result.stdout or "").strip()
@@ -500,11 +505,11 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
         suffix = "*.mp3"
         song_dir = utils.song_dir()
         files = glob.glob(os.path.join(song_dir, suffix))
-        # 当背景音乐目录为空时，直接回退为“不使用 BGM”，避免 random.choice([]) 抛异常。
+        # 当背景音乐目录为空时，直接回退为“不使用 BGM”，避免 choice([]) 抛异常。
         if not files:
             logger.warning(f"no bgm files found in song directory: {song_dir}")
             return ""
-        return random.choice(files)
+        return _RANDOM.choice(files)
 
     return ""
 
@@ -615,7 +620,7 @@ def combine_videos(
                     clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
                     clip = CompositeVideoClip([background, clip_resized])
                     
-            shuffle_side = random.choice(["left", "right", "top", "bottom"])
+            shuffle_side = _RANDOM.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip
             elif transition_value == VideoTransitionMode.fade_in.value:
@@ -633,7 +638,7 @@ def combine_videos(
                     lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
                     lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
                 ]
-                shuffle_transition = random.choice(transition_funcs)
+                shuffle_transition = _RANDOM.choice(transition_funcs)
                 clip = shuffle_transition(clip)
 
             if clip.duration > max_clip_duration:

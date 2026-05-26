@@ -1318,8 +1318,8 @@ if start_button:
             player_cols = st.columns(len(video_files) * 2 + 1)
             for i, url in enumerate(video_files):
                 player_cols[i * 2 + 1].video(url)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(f"failed to render generated video preview: {str(exc)}")
 
     open_task_folder(task_id)
     logger.info(tr("Video Generation Completed"))
