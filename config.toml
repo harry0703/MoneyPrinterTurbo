@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.1.0.5"
+project_version = "2.1.0.6"
 
 [app]
 video_source = "pexels"
@@ -97,16 +97,16 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "blue"
 title_enabled = true
-title_text = "Web支持MCP"
+title_text = "Web支持MCP调试"
 title_duration = 3
 title_font_name = "MicrosoftYaHeiBold.ttc"
-title_font_size = 40
+title_font_size = 72
 title_text_color = "#FFFFFF"
 title_stroke_color = "#FFFF00"
 title_stroke_width = 5
 title_background_color = "transparent"
 title_position = "top"
-title_margin = 0.05
+title_margin = 0.07
 title_margin_left = 0.05
 title_margin_right = 0.05
 title_animation = "none"

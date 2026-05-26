@@ -216,7 +216,7 @@
                 :show-input="true"
                 :input-size="'small'"
               />
-              <span class="slider-value">{{ form.titleMargin }}%</span>
+              <span class="slider-value">{{ Math.round(form.titleMargin) }}%</span>
             </div>
           </div>
           
@@ -234,7 +234,7 @@
                   :input-size="'small'"
                   class="margin-slider"
                 />
-                <span class="margin-value">{{ form.titleMarginLeft }}%</span>
+                <span class="margin-value">{{ Math.round(form.titleMarginLeft) }}%</span>
               </div>
               <div class="margin-item">
                 <span class="margin-label">{{ t('Right') }}</span>
@@ -247,7 +247,7 @@
                   :input-size="'small'"
                   class="margin-slider"
                 />
-                <span class="margin-value">{{ form.titleMarginRight }}%</span>
+                <span class="margin-value">{{ Math.round(form.titleMarginRight) }}%</span>
               </div>
             </div>
           </div>
@@ -425,6 +425,12 @@ const previewStyle = computed(() => {
   const marginLeftPercent = form.titleMarginLeft;
   const marginRightPercent = form.titleMarginRight;
   
+  // Scale font size proportionally to the preview frame vs real video width (1080px)
+  const videoWidth = 1080;
+  const previewWidth = parseInt(previewFrameStyle.value.width);
+  const scaleFactor = previewWidth / videoWidth;
+  const scaledFontSize = Math.round(form.titleFontSize * scaleFactor);
+  
   let topPosition: string;
   if (form.titlePosition === 'top') {
     topPosition = `${marginPercent}%`;
@@ -443,15 +449,20 @@ const previewStyle = computed(() => {
   
   const maxWidthPercent = 100 - marginLeftPercent - marginRightPercent;
   
+  const scaledStrokeWidth = Math.max(1, Math.round(form.titleStrokeWidth * scaleFactor));
+  const scaledPaddingV = Math.max(2, Math.round(10 * scaleFactor));
+  const scaledPaddingH = Math.max(4, Math.round(20 * scaleFactor));
+  const scaledBorderRadius = Math.max(2, Math.round(8 * scaleFactor));
+  
   return {
     color: form.titleColor,
-    fontSize: `${form.titleFontSize}px`,
+    fontSize: `${scaledFontSize}px`,
     textShadow: form.titleStrokeColor !== 'transparent' 
-      ? `0 0 ${form.titleStrokeWidth}px ${form.titleStrokeColor}, 0 0 ${form.titleStrokeWidth}px ${form.titleStrokeColor}`
+      ? `0 0 ${scaledStrokeWidth}px ${form.titleStrokeColor}, 0 0 ${scaledStrokeWidth}px ${form.titleStrokeColor}`
       : 'none',
     backgroundColor: form.titleBackgroundColor === 'transparent' ? 'transparent' : form.titleBackgroundColor,
-    padding: form.titleBackgroundColor !== 'transparent' ? '10px 20px' : '0',
-    borderRadius: form.titleBackgroundColor !== 'transparent' ? '8px' : '0',
+    padding: form.titleBackgroundColor !== 'transparent' ? `${scaledPaddingV}px ${scaledPaddingH}px` : '0',
+    borderRadius: form.titleBackgroundColor !== 'transparent' ? `${scaledBorderRadius}px` : '0',
     position: 'absolute' as const,
     left: `${marginLeftPercent}%`,
     right: `${marginRightPercent}%`,
