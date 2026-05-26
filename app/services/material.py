@@ -1,17 +1,96 @@
 import os
 import random
-from typing import List
+import subprocess
+from typing import List, Tuple
 from urllib.parse import urlencode
 
 import requests
 from loguru import logger
-from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 from app.services.llm import add_english_translations
 from app.services.download_manager import download_video, initialize_download_system, get_download_status
+
+
+def get_video_info(video_path: str) -> Tuple[float, float]:
+    """
+    Get video duration and fps using ffprobe.
+    Returns (duration, fps). Raises Exception on failure.
+    """
+    import re
+    
+    cmd = [
+        "ffprobe",
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=duration,r_frame_rate",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        video_path
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, encoding="utf-8")
+    except FileNotFoundError:
+        raise RuntimeError("ffprobe not found. Please ensure ffmpeg is installed and in PATH.")
+
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {result.stderr.strip()}")
+
+    output = result.stdout.strip()
+    if not output:
+        raise RuntimeError(f"No video stream found in: {video_path}")
+
+    lines = output.split('\n')
+    duration = 0.0
+    fps = 0.0
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        try:
+            if duration <= 0:
+                duration = float(line)
+                continue
+        except ValueError:
+            pass
+        
+        if fps <= 0:
+            try:
+                if "/" in line:
+                    num, den = line.split("/", 1)
+                    fps = float(num) / float(den)
+                else:
+                    fps = float(line)
+            except (ValueError, ZeroDivisionError):
+                pass
+
+    if duration <= 0:
+        alt_cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            video_path
+        ]
+        try:
+            alt_result = subprocess.run(alt_cmd, capture_output=True, text=True, timeout=30, encoding="utf-8")
+            if alt_result.returncode == 0:
+                alt_output = alt_result.stdout.strip()
+                duration = float(alt_output)
+        except Exception:
+            pass
+
+    if duration <= 0:
+        raise RuntimeError(f"Could not parse duration from ffprobe output: {output}")
+
+    if fps <= 0:
+        fps = 24.0
+
+    return duration, fps
+
 
 # Style keyword mapping based on visual requirements
 STYLE_KEYWORDS = {
@@ -352,10 +431,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
 
     if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
         try:
-            clip = VideoFileClip(video_path)
-            duration = clip.duration
-            fps = clip.fps
-            clip.close()
+            duration, fps = get_video_info(video_path)
             if duration > 0 and fps > 0:
                 return video_path
         except Exception as e:
@@ -470,9 +546,7 @@ def download_videos(
             downloaded_paths.append(path)
             # Get video duration
             try:
-                clip = VideoFileClip(path)
-                duration = clip.duration
-                clip.close()
+                duration, _ = get_video_info(path)
                 seconds = min(max_clip_duration, duration)
                 total_duration += seconds
             except Exception as e:

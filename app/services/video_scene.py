@@ -541,9 +541,15 @@ def build_scene_video(
                     
                     if brightness_factor != 1.0:
                         clip = video_effects.brightness_enhance(clip, brightness_factor)
+                        # Ensure mask is preserved after effect
+                        from app.services.video_utils import ensure_clip_has_mask
+                        clip = ensure_clip_has_mask(clip)
                     
                     if contrast_factor != 1.0:
                         clip = video_effects.contrast_enhance(clip, contrast_factor)
+                        # Ensure mask is preserved after effect
+                        from app.services.video_utils import ensure_clip_has_mask
+                        clip = ensure_clip_has_mask(clip)
                     
                     intro_clips.append(clip)
                     total_intro_duration = clip_duration
@@ -579,9 +585,15 @@ def build_scene_video(
                     
                     if brightness_factor != 1.0:
                         clip = video_effects.brightness_enhance(clip, brightness_factor)
+                        # Ensure mask is preserved after effect
+                        from app.services.video_utils import ensure_clip_has_mask
+                        clip = ensure_clip_has_mask(clip)
                     
                     if contrast_factor != 1.0:
                         clip = video_effects.contrast_enhance(clip, contrast_factor)
+                        # Ensure mask is preserved after effect
+                        from app.services.video_utils import ensure_clip_has_mask
+                        clip = ensure_clip_has_mask(clip)
                     
                     intro_clips.append(clip)
                     total_intro_duration = clip_duration
@@ -614,9 +626,15 @@ def build_scene_video(
                     
                     if brightness_factor != 1.0:
                         clip = video_effects.brightness_enhance(clip, brightness_factor)
+                        # Ensure mask is preserved after effect
+                        from app.services.video_utils import ensure_clip_has_mask
+                        clip = ensure_clip_has_mask(clip)
                     
                     if contrast_factor != 1.0:
                         clip = video_effects.contrast_enhance(clip, contrast_factor)
+                        # Ensure mask is preserved after effect
+                        from app.services.video_utils import ensure_clip_has_mask
+                        clip = ensure_clip_has_mask(clip)
                     
                     intro_clips.append(clip)
                     total_intro_duration = clip.duration
@@ -643,6 +661,9 @@ def build_scene_video(
             if remaining_duration > 0:
                 logger.info(f"Trimming intro video from {intro_clip.duration:.2f}s to {remaining_duration:.2f}s to match audio duration")
                 trimmed_clip = intro_clip.subclipped(0, remaining_duration)
+                # Ensure mask is preserved after trimming
+                from app.services.video_utils import ensure_clip_has_mask
+                trimmed_clip = ensure_clip_has_mask(trimmed_clip)
                 intro_clips = [trimmed_clip]
                 total_intro_duration = audio_duration
                 logger.info(f"Intro video trimmed, new duration: {total_intro_duration:.2f}s")
