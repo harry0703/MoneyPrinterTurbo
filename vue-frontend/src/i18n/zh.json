@@ -283,6 +283,8 @@
     "Whisper Device": "Whisper 设备",
     "Video Encoder Settings": "<strong>视频编码器设置</strong>",
     "Video Encoder": "视频编码器",
+    "Video Synthesis": "<strong>视频合成</strong>",
+    "Idle Period": "空闲时间段",
     "Enable Multi-Scene Mode": "启用多场景模式",
     "When enabled, the video will be divided into multiple scenes, each with its own visual requirements and narration": "启用后，视频将被划分为多个场景，每个场景有独立的视觉需求和主播文案",
     "Smart Script Parsing": "智能脚本解析",

@@ -1747,8 +1747,9 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                                 start_end = time_str.split(" --> ")
                                 if len(start_end) == 2:
                                     # Convert to seconds
-                                    start_time = _srt_time_to_seconds(start_end[0])
-                                    end_time = _srt_time_to_seconds(start_end[1])
+                                    from app.config.config import video_idle_period as config_video_idle_period
+                                    start_time = _srt_time_to_seconds(start_end[0]) + config_video_idle_period
+                                    end_time = _srt_time_to_seconds(start_end[1]) + config_video_idle_period
                                     
                                     # Create text clip with proper encoding
                                     try:

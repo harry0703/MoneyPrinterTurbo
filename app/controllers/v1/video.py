@@ -458,9 +458,10 @@ def get_title_styles(request: Request):
 
 @router.post("/title-preview", summary="Preview title style")
 def preview_title(request: Request, body: dict):
-    from app.services.title import create_title_clip
+    from app.services.title import create_title_clip, _get_valid_font_path
     from app.models.schema import VideoParams
     from app.models.schema import VideoAspect
+    from loguru import logger
     
     params = VideoParams()
     params.title_enabled = body.get('title_enabled', True)
@@ -477,6 +478,13 @@ def preview_title(request: Request, body: dict):
     params.title_margin_right = body.get('title_margin_right', 0.05)
     params.title_animation = body.get('title_animation', 'none')
     params.title_animation_duration = body.get('title_animation_duration', 0.5)
+    
+    logger.info(f"Title preview request - text: '{params.title_text}', font: '{params.title_font_name}'")
+    
+    font_path = _get_valid_font_path(params.title_font_name)
+    logger.info(f"Resolved font path: '{font_path}', exists: {os.path.exists(font_path)}")
+    logger.info(f"Font directory: '{utils.font_dir()}'")
+    logger.info(f"Available fonts: {os.listdir(utils.font_dir())}")
     
     video_aspect = body.get('video_aspect', '9:16')
     if video_aspect == '9:16':
@@ -497,6 +505,8 @@ def preview_title(request: Request, body: dict):
     preview_path = os.path.join(preview_dir, f"title_preview_{utils.get_uuid()[:8]}.png")
     
     title_clip.save_frame(preview_path, t=0)
+    
+    logger.info(f"Title preview saved to: {preview_path}")
     
     response = {"preview_path": preview_path}
     return utils.get_response(200, response)

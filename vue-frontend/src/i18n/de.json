@@ -240,6 +240,8 @@
     "Cyan": "Cyan",
     "Brown": "Braun",
     "Gold": "Gold",
-    "Silver": "Silber"
+    "Silver": "Silber",
+    "Video Synthesis": "<strong>Video-Synthese</strong>",
+    "Idle Period": "Leerlaufzeit"
   }
 }

@@ -223,6 +223,8 @@
     "Cyan": "Бирюзовый",
     "Brown": "Коричневый",
     "Gold": "Золотой",
-    "Silver": "Серебряный"
+    "Silver": "Серебряный",
+    "Video Synthesis": "<strong>Видеосинтез</strong>",
+    "Idle Period": "Период простоя"
   }
 }
