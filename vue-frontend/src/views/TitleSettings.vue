@@ -334,14 +334,6 @@ const availableFonts = [
   'Charm-Bold.ttf',
   'Charm-Regular.ttf',
   'UTM Kabel KT.ttf',
-  // 中文艺术字体 / Chinese artistic fonts (站酷字体)
-  '站酷仓耳渔阳体-W01.ttf',  // 站酷庆科黄油体 (最细)
-  '站酷仓耳渔阳体-W02.ttf',  // 站酷庆科黄油体
-  '站酷仓耳渔阳体-W03.ttf',  // 站酷庆科黄油体
-  '站酷仓耳渔阳体-W04.ttf',  // 站酷庆科黄油体
-  '站酷仓耳渔阳体-W05.ttf',  // 站酷庆科黄油体 (最粗)
-  '站酷意大利体-01.ttf',     // 站酷意大利体
-  '站酷意大利体-02.ttf',     // 站酷意大利体
 ];
 
 const colorOptions = [
@@ -582,87 +574,6 @@ const applyStyle = async (styleName: string) => {
       titleMarginRight: 5,
       titleAnimation: 'slide_up',
       titleAnimationDuration: 0.7,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    // Chinese Artistic Style Presets / 中文艺术风格预设
-    zhanku_huangyou_light: {
-      titleFont: '站酷仓耳渔阳体-W01.ttf',
-      titleFontSize: 80,
-      titleColor: '#FFB800',
-      titleStrokeColor: '#FF6B00',
-      titleStrokeWidth: 2.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    zhanku_huangyou_medium: {
-      titleFont: '站酷仓耳渔阳体-W03.ttf',
-      titleFontSize: 80,
-      titleColor: '#FF9800',
-      titleStrokeColor: '#E65100',
-      titleStrokeWidth: 2.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    zhanku_huangyou_bold: {
-      titleFont: '站酷仓耳渔阳体-W05.ttf',
-      titleFontSize: 80,
-      titleColor: '#FF5722',
-      titleStrokeColor: '#BF360C',
-      titleStrokeWidth: 2.5,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'slide_up',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    zhanku_italian_01: {
-      titleFont: '站酷意大利体-01.ttf',
-      titleFontSize: 76,
-      titleColor: '#5D4037',
-      titleStrokeColor: '#8D6E63',
-      titleStrokeWidth: 1.5,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'slide_up',
-      titleAnimationDuration: 0.6,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    zhanku_italian_02: {
-      titleFont: '站酷意大利体-02.ttf',
-      titleFontSize: 78,
-      titleColor: '#37474F',
-      titleStrokeColor: '#546E7A',
-      titleStrokeWidth: 1.5,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.5,
       titleBackgroundOverlay: false,
       titleOverlayColor: 'rgba(0,0,0,0.5)'
     },

@@ -48,8 +48,6 @@ def _get_valid_font_path(font_name: str, text: str = "") -> str:
         "MicrosoftYaHeiBold.ttc", 
         "MicrosoftYaHeiNormal.ttc",
         "STHeitiLight.ttc",
-        "站酷仓耳渔阳体-W03.ttf",
-        "站酷意大利体-01.ttf",
         "Charm-Bold.ttf",
         "Charm-Regular.ttf",
         "UTM Kabel KT.ttf",
@@ -277,30 +275,9 @@ def add_title_to_video(
 
 
 def apply_title_style(params: VideoParams, style_name: str) -> VideoParams:
-    from app.services.title_styles import TITLE_STYLES
-    
-    if style_name not in TITLE_STYLES:
-        logger.warning(f"Title style '{style_name}' not found, using defaults")
-        return params
-    
-    style_params = TITLE_STYLES[style_name]["params"]
-    
-    for key, value in style_params.items():
-        if hasattr(params, key):
-            setattr(params, key, value)
-    
-    params.title_enabled = True
-    logger.info(f"Applied title style: {style_name}")
+    logger.warning(f"Title style '{style_name}' not supported, using defaults")
     return params
 
 
 def get_available_title_styles():
-    from app.services.title_styles import TITLE_STYLES
-    
-    return {
-        style_id: {
-            "name": style["name"],
-            "description": style["description"]
-        }
-        for style_id, style in TITLE_STYLES.items()
-    }
+    return {}
