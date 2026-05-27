@@ -166,6 +166,21 @@
         </div>
 
         <div class="form-item">
+          <label class="form-label">{{ t('Idle Period') }} (s)</label>
+          <div class="slider-control">
+            <el-slider
+              v-model="form.videoIdlePeriod"
+              :min="0.0"
+              :max="5.0"
+              :step="0.1"
+              :show-input="true"
+              :input-size="'small'"
+            />
+            <span class="slider-value">{{ form.videoIdlePeriod.toFixed(1) }}s</span>
+          </div>
+        </div>
+
+        <div class="form-item">
           <label class="form-label">{{ t('Video Brightness') }}</label>
           <div class="slider-control">
             <el-slider
@@ -265,6 +280,7 @@ const form = reactive({
   videoAspect: settingsStore.video.aspect,
   videoClipDuration: settingsStore.video.clipDuration,
   videoCount: settingsStore.video.count,
+  videoIdlePeriod: settingsStore.video.videoIdlePeriod,
   videoStyle: settingsStore.video.style,
   videoQuality: settingsStore.video.quality,
   videoBitrate: settingsStore.video.bitrate,
@@ -451,6 +467,9 @@ const loadConfig = async () => {
         if (cfg.app.video_count !== undefined) {
           form.videoCount = Number(cfg.app.video_count);
         }
+        if (cfg.app.video_idle_period !== undefined) {
+          form.videoIdlePeriod = Number(cfg.app.video_idle_period);
+        }
         if (cfg.app.video_style) {
           form.videoStyle = cfg.app.video_style;
         }
@@ -487,6 +506,7 @@ const saveConfig = async () => {
         video_aspect: form.videoAspect,
         video_clip_duration: form.videoClipDuration,
         video_count: form.videoCount,
+        video_idle_period: form.videoIdlePeriod,
         video_style: form.videoStyle,
         intro_video_bg_type: form.introVideoBgType,
         intro_video_bg_blur: form.introVideoBgBlur,
@@ -510,6 +530,7 @@ watch([
   () => form.videoAspect,
   () => form.videoClipDuration,
   () => form.videoCount,
+  () => form.videoIdlePeriod,
   () => form.videoStyle,
   () => form.videoQuality,
   () => form.videoBitrate,
@@ -527,6 +548,7 @@ watch([
   settingsStore.updateVideoSetting('aspect', form.videoAspect);
   settingsStore.updateVideoSetting('clipDuration', form.videoClipDuration);
   settingsStore.updateVideoSetting('count', form.videoCount);
+  settingsStore.updateVideoSetting('videoIdlePeriod', form.videoIdlePeriod);
   settingsStore.updateVideoSetting('style', form.videoStyle);
   settingsStore.updateVideoSetting('quality', form.videoQuality);
   settingsStore.updateVideoSetting('bitrate', form.videoBitrate);
@@ -546,6 +568,7 @@ watch(() => settingsStore.video, (newVideo) => {
   form.videoAspect = newVideo.aspect;
   form.videoClipDuration = newVideo.clipDuration;
   form.videoCount = newVideo.count;
+  form.videoIdlePeriod = newVideo.videoIdlePeriod;
   form.videoStyle = newVideo.style;
   form.videoQuality = newVideo.quality;
   form.videoBitrate = newVideo.bitrate;

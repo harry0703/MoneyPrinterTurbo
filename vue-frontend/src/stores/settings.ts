@@ -51,6 +51,7 @@ interface VideoSettings {
   introVideoBgType: string;
   introVideoBgBlur: number;
   introVideoBgColor: string;
+  videoIdlePeriod: number;
   localFiles: Array<{ name: string; url?: string; status?: string; uid: string }>;
   title: TitleSettings;
 }
@@ -153,6 +154,7 @@ export const useSettingsStore = defineStore('settings', {
           introVideoBgType: 'solid',
           introVideoBgBlur: 15,
           introVideoBgColor: 'black',
+          videoIdlePeriod: 0.3,
           localFiles: [],
           title: {
             enabled: false,
@@ -564,6 +566,10 @@ export const useSettingsStore = defineStore('settings', {
             if (data.app.video_count !== undefined) {
               this.video.count = Number(data.app.video_count);
               console.log('Updated video.count:', this.video.count);
+            }
+            if (data.app.video_idle_period !== undefined) {
+              this.video.videoIdlePeriod = Number(data.app.video_idle_period);
+              console.log('Updated video.videoIdlePeriod:', this.video.videoIdlePeriod);
             }
             if (data.app.video_style) {
               this.video.style = data.app.video_style;

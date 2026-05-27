@@ -788,19 +788,19 @@ def combine_all_scenes(task_id, params, scene_results):
     logger.info(f"total video duration: {total_video_duration:.2f}s")
     logger.info(f"scene durations: {[f'{d:.2f}s' for d in scene_durations]}")
     
-    # Extend first frame of first scene for idle period (0.3s delay at the beginning)
-    first_scene_delay = 0.3
-    if scene_clips and first_scene_delay > 0:
+    # Extend first frame of first scene for idle period
+    from app.config.config import video_idle_period as config_video_idle_period
+    if scene_clips and config_video_idle_period > 0:
         from moviepy import ImageClip, concatenate_videoclips, AudioClip, concatenate_audioclips
         
         first_clip = scene_clips[0]
         # Extract first frame and create a still frame clip
         first_frame = first_clip.get_frame(0)
-        still_frame_clip = ImageClip(first_frame).with_duration(first_scene_delay)
+        still_frame_clip = ImageClip(first_frame).with_duration(config_video_idle_period)
         
         # Add audio delay to match video extension if the first clip has audio
         if first_clip.audio:
-            silence_clip = AudioClip(lambda t: 0, duration=first_scene_delay)
+            silence_clip = AudioClip(lambda t: 0, duration=config_video_idle_period)
             extended_audio = concatenate_audioclips([silence_clip, first_clip.audio])
             first_clip = first_clip.with_audio(extended_audio)
         
@@ -811,10 +811,10 @@ def combine_all_scenes(task_id, params, scene_results):
         scene_clips[0] = extended_first_clip
         
         # Update duration tracking
-        total_video_duration += first_scene_delay
-        scene_durations[0] += first_scene_delay
+        total_video_duration += config_video_idle_period
+        scene_durations[0] += config_video_idle_period
         
-        logger.info(f"Extended first scene by {first_scene_delay}s with still frame")
+        logger.info(f"Extended first scene by {config_video_idle_period}s with still frame")
     
     # Calculate audio duration (if needed)
     audio_duration = 0

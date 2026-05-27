@@ -178,9 +178,9 @@ def generate_video(
         if audio_path:
             audio_clip = AudioFileClip(audio_path)
             
-            # Add 0.3 second delay at the beginning of audio to match video extension
-            first_scene_delay = 0.3
-            silence_clip = AudioClip(lambda t: 0, duration=first_scene_delay)
+            # Add delay at the beginning of audio to match video extension
+            from app.config.config import video_idle_period as config_video_idle_period
+            silence_clip = AudioClip(lambda t: 0, duration=config_video_idle_period)
             audio_clip = concatenate_audioclips([silence_clip, audio_clip])
             
             # Check if video already has audio
@@ -192,7 +192,7 @@ def generate_video(
                 bgm_clip = audio_clip.with_effects([
                     afx.MultiplyVolume(params.bgm_volume if hasattr(params, 'bgm_volume') else 0.2),
                     afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration + first_scene_delay),
+                    afx.AudioLoop(duration=video_clip.duration + config_video_idle_period),
                 ])
                 combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
                 video_clip = video_clip.with_audio(combined_audio)
@@ -271,7 +271,7 @@ def generate_video(
                 logger.info(f"Loaded {len(subtitle_items)} subtitles from {subtitle_path}")
                 
                 # Apply same delay as audio for subtitle timing synchronization
-                first_scene_delay = 0.3
+                from app.config.config import video_idle_period as config_video_idle_period
                 
                 # Process each subtitle item
                 for item in subtitle_items:
@@ -281,8 +281,8 @@ def generate_video(
                     start_end = time_str.split(" --> ")
                     if len(start_end) == 2:
                         # Convert to seconds
-                        start_time = _srt_time_to_seconds(start_end[0]) + first_scene_delay
-                        end_time = _srt_time_to_seconds(start_end[1]) + first_scene_delay
+                        start_time = _srt_time_to_seconds(start_end[0]) + config_video_idle_period
+                        end_time = _srt_time_to_seconds(start_end[1]) + config_video_idle_period
                         duration = end_time - start_time
                         
                         # Skip subtitles with negative or zero duration

@@ -222,6 +222,9 @@ video_clip_duration = 6
 # Number of video clips to use
 video_count = 1
 
+# Idle period (still frame) at the beginning in seconds (default 0.3)
+video_idle_period = 0.3
+
 # Video style
 # Options: "none", "people", "nature", "animation", "cartoon", "industry", "science", "tech", "business", "ai"
 video_style = "none"
