@@ -63,6 +63,15 @@ The CSR script generator produces a short coaching-style narration that introduc
 avoid, demonstrates a better response, explains why it works, and ends with a takeaway. The generated script then flows
 through the existing TTS, subtitle, BGM, and stock/local footage pipeline.
 
+For longer training content, choose `CSR Long Training`. Long-form videos are generated as a sequence of shorter sections:
+
+1. The app generates a section outline for the target training duration.
+2. Each section gets its own script, voiceover, subtitles, stock/local footage, and rendered MP4.
+3. The rendered section videos are concatenated into one final training video.
+
+This section-based workflow is intended for 15-20 minute CSR training modules because it avoids holding one large MoviePy
+composition in memory for the entire render.
+
 Included starter scenarios:
 
 - Angry refund request outside policy

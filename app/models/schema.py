@@ -78,6 +78,8 @@ class VideoParams(BaseModel):
     csr_customer_persona: Optional[str] = "frustrated customer"
     csr_policy_context: Optional[str] = ""
     csr_duration_seconds: Optional[int] = 60
+    csr_target_duration_minutes: Optional[int] = 15
+    csr_section_count: Optional[int] = 8
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None

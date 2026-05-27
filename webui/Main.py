@@ -563,6 +563,7 @@ with left_panel:
         content_modes = [
             (tr("Standard Video"), "standard"),
             (tr("CSR Training"), "csr_training"),
+            (tr("CSR Long Training"), "csr_long_training"),
         ]
         saved_content_mode = st.session_state.get("content_mode", "standard")
         saved_content_mode_index = 0
@@ -580,9 +581,10 @@ with left_panel:
         params.content_mode = content_modes[selected_content_mode][1]
         st.session_state["content_mode"] = params.content_mode
         config.ui["content_mode"] = params.content_mode
+        is_csr_mode = params.content_mode in ("csr_training", "csr_long_training")
 
         selected_csr_preset = None
-        if params.content_mode == "csr_training":
+        if is_csr_mode:
             csr_preset_names = ["Custom"] + [
                 preset["name"] for preset in csr_training_presets
             ]
@@ -599,7 +601,7 @@ with left_panel:
 
         params.video_subject = st.text_input(
             tr("CSR Training Topic")
-            if params.content_mode == "csr_training"
+            if is_csr_mode
             else tr("Video Subject"),
             value=selected_csr_preset["topic"]
             if selected_csr_preset
@@ -607,7 +609,7 @@ with left_panel:
             key="video_subject_input",
         ).strip()
 
-        if params.content_mode == "csr_training":
+        if is_csr_mode:
             csr_scenario_types = [
                 "de-escalation",
                 "refund or return",
@@ -644,13 +646,29 @@ with left_panel:
             ).strip()
             st.session_state["csr_customer_persona"] = params.csr_customer_persona
 
-            params.csr_duration_seconds = st.slider(
-                tr("Training Duration"),
-                min_value=30,
-                max_value=180,
-                value=60,
-                step=15,
-            )
+            if params.content_mode == "csr_long_training":
+                params.csr_target_duration_minutes = st.slider(
+                    tr("Training Duration Minutes"),
+                    min_value=5,
+                    max_value=30,
+                    value=15,
+                    step=5,
+                )
+                params.csr_section_count = st.slider(
+                    tr("Training Sections"),
+                    min_value=3,
+                    max_value=12,
+                    value=8,
+                    step=1,
+                )
+            else:
+                params.csr_duration_seconds = st.slider(
+                    tr("Training Duration"),
+                    min_value=30,
+                    max_value=180,
+                    value=60,
+                    step=15,
+                )
 
             params.csr_policy_context = st.text_area(
                 tr("CSR Policy Context"),
@@ -683,7 +701,46 @@ with left_panel:
             tr("Generate Video Script and Keywords"), key="auto_generate_script"
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
-                if params.content_mode == "csr_training":
+                if params.content_mode == "csr_long_training":
+                    outline = llm.generate_csr_training_outline(
+                        training_topic=params.video_subject,
+                        language=params.video_language,
+                        scenario_type=params.csr_scenario_type,
+                        customer_persona=params.csr_customer_persona,
+                        policy_context=params.csr_policy_context,
+                        target_duration_minutes=params.csr_target_duration_minutes,
+                        section_count=params.csr_section_count,
+                    )
+                    if isinstance(outline, str) and "Error: " in outline:
+                        st.error(tr(outline))
+                        st.stop()
+                    scripts = []
+                    for section in outline:
+                        section_duration_seconds = int(
+                            float(section.get("duration_minutes", 2)) * 60
+                        )
+                        section_script = llm.generate_csr_training_section_script(
+                            training_topic=params.video_subject,
+                            section_title=section.get("title", ""),
+                            section_objective=section.get("objective", ""),
+                            language=params.video_language,
+                            scenario_type=params.csr_scenario_type,
+                            customer_persona=params.csr_customer_persona,
+                            policy_context=params.csr_policy_context,
+                            duration_seconds=section_duration_seconds,
+                        )
+                        scripts.append(
+                            f"{section.get('title', 'Section')}\n{section_script}"
+                        )
+                    script = "\n\n".join(scripts)
+                    terms = [
+                        "customer service",
+                        "call center",
+                        "support agent",
+                        "office training",
+                        "help desk",
+                    ]
+                elif params.content_mode == "csr_training":
                     script = llm.generate_csr_training_script(
                         training_topic=params.video_subject,
                         language=params.video_language,
