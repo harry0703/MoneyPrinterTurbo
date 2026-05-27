@@ -334,28 +334,14 @@ const availableFonts = [
   'Charm-Bold.ttf',
   'Charm-Regular.ttf',
   'UTM Kabel KT.ttf',
-  // 英文装饰字体 / English decorative fonts
-  'Lobster-Regular.ttf',
-  'Pacifico-Regular.ttf',
-  'DancingScript-Bold.ttf',
-  'GreatVibes-Regular.ttf',
-  'PermanentMarker-Regular.ttf',
-  'BebasNeue-Regular.ttf',
-  'Oswald-Bold.ttf',
-  'FredokaOne-Regular.ttf',
-  'Righteous-Regular.ttf',
-  'Comfortaa-Bold.ttf',
-  // 中文艺术字体 / Chinese artistic fonts (需下载 / need to download)
-  'ZhanKu-QingKeHuangYou.ttf',  // 站酷庆科黄油体
-  'ZhanKu-KuHei.ttf',           // 站酷酷黑体
-  'ZhanKu-WenYi.ttf',           // 站酷文艺体
-  'ZhanKu-KuaiLe.ttf',          // 站酷快乐体
-  'PangMenZhengDao-Biaoti.ttf', // 庞门正道标题体
-  'SiYuan-SongTi.ttf',          // 思源宋体
-  'SiYuan-HeiTi.ttf',           // 思源黑体
-  'DeYi-Hei.ttf',               // 得意黑
-  'MaoKen-TangYuan.ttf',        // 猫啃网糖圆体
-  'WangQiang-ShuFa.ttf',        // 王强书法体
+  // 中文艺术字体 / Chinese artistic fonts (站酷字体)
+  '站酷仓耳渔阳体-W01.ttf',  // 站酷庆科黄油体 (最细)
+  '站酷仓耳渔阳体-W02.ttf',  // 站酷庆科黄油体
+  '站酷仓耳渔阳体-W03.ttf',  // 站酷庆科黄油体
+  '站酷仓耳渔阳体-W04.ttf',  // 站酷庆科黄油体
+  '站酷仓耳渔阳体-W05.ttf',  // 站酷庆科黄油体 (最粗)
+  '站酷意大利体-01.ttf',     // 站酷意大利体
+  '站酷意大利体-02.ttf',     // 站酷意大利体
 ];
 
 const colorOptions = [
@@ -599,170 +585,9 @@ const applyStyle = async (styleName: string) => {
       titleBackgroundOverlay: false,
       titleOverlayColor: 'rgba(0,0,0,0.5)'
     },
-    // Art/Decorative Style Presets
-    lobster_fun: {
-      titleFont: 'Lobster-Regular.ttf',
-      titleFontSize: 80,
-      titleColor: '#FF6B9D',
-      titleStrokeColor: '#C44569',
-      titleStrokeWidth: 2.5,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    pacifico_beach: {
-      titleFont: 'Pacifico-Regular.ttf',
-      titleFontSize: 76,
-      titleColor: '#00CEC9',
-      titleStrokeColor: '#0984E3',
-      titleStrokeWidth: 2.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'slide_up',
-      titleAnimationDuration: 0.6,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    bebas_impact: {
-      titleFont: 'BebasNeue-Regular.ttf',
-      titleFontSize: 100,
-      titleColor: '#FFFFFF',
-      titleStrokeColor: '#000000',
-      titleStrokeWidth: 3.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.4,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    elegant_script: {
-      titleFont: 'GreatVibes-Regular.ttf',
-      titleFontSize: 85,
-      titleColor: '#FFD700',
-      titleStrokeColor: '#8B4513',
-      titleStrokeWidth: 1.5,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.7,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    marker_casual: {
-      titleFont: 'PermanentMarker-Regular.ttf',
-      titleFontSize: 78,
-      titleColor: '#E17055',
-      titleStrokeColor: '#2D3436',
-      titleStrokeWidth: 2.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'slide_down',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    modern_rounded: {
-      titleFont: 'Comfortaa-Bold.ttf',
-      titleFontSize: 72,
-      titleColor: '#6C5CE7',
-      titleStrokeColor: '#A29BFE',
-      titleStrokeWidth: 2.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    neon_glow: {
-      titleFont: 'Righteous-Regular.ttf',
-      titleFontSize: 82,
-      titleColor: '#00FF00',
-      titleStrokeColor: '#00B894',
-      titleStrokeWidth: 3.0,
-      titleBackgroundColor: 'rgba(0,0,0,0.5)',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.6,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    playful_bold: {
-      titleFont: 'FredokaOne-Regular.ttf',
-      titleFontSize: 76,
-      titleColor: '#FD79A8',
-      titleStrokeColor: '#E84393',
-      titleStrokeWidth: 2.5,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'slide_up',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    dancing_elegant: {
-      titleFont: 'DancingScript-Bold.ttf',
-      titleFontSize: 80,
-      titleColor: '#E84393',
-      titleStrokeColor: '#FD79A8',
-      titleStrokeWidth: 1.5,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.7,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    oswald_modern: {
-      titleFont: 'Oswald-Bold.ttf',
-      titleFontSize: 88,
-      titleColor: '#FFFFFF',
-      titleStrokeColor: '#2D3436',
-      titleStrokeWidth: 2.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'top',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'slide_down',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    // 中文艺术风格预设 / Chinese Artistic Style Presets
-    zhanku_huangyou: {
-      titleFont: 'ZhanKu-QingKeHuangYou.ttf',
+    // Chinese Artistic Style Presets / 中文艺术风格预设
+    zhanku_huangyou_light: {
+      titleFont: '站酷仓耳渔阳体-W01.ttf',
       titleFontSize: 80,
       titleColor: '#FFB800',
       titleStrokeColor: '#FF6B00',
@@ -777,8 +602,40 @@ const applyStyle = async (styleName: string) => {
       titleBackgroundOverlay: false,
       titleOverlayColor: 'rgba(0,0,0,0.5)'
     },
-    zhanku_wenyi: {
-      titleFont: 'ZhanKu-WenYi.ttf',
+    zhanku_huangyou_medium: {
+      titleFont: '站酷仓耳渔阳体-W03.ttf',
+      titleFontSize: 80,
+      titleColor: '#FF9800',
+      titleStrokeColor: '#E65100',
+      titleStrokeWidth: 2.0,
+      titleBackgroundColor: 'transparent',
+      titlePosition: 'center',
+      titleMargin: 5,
+      titleMarginLeft: 5,
+      titleMarginRight: 5,
+      titleAnimation: 'fade_in',
+      titleAnimationDuration: 0.5,
+      titleBackgroundOverlay: false,
+      titleOverlayColor: 'rgba(0,0,0,0.5)'
+    },
+    zhanku_huangyou_bold: {
+      titleFont: '站酷仓耳渔阳体-W05.ttf',
+      titleFontSize: 80,
+      titleColor: '#FF5722',
+      titleStrokeColor: '#BF360C',
+      titleStrokeWidth: 2.5,
+      titleBackgroundColor: 'transparent',
+      titlePosition: 'center',
+      titleMargin: 5,
+      titleMarginLeft: 5,
+      titleMarginRight: 5,
+      titleAnimation: 'slide_up',
+      titleAnimationDuration: 0.5,
+      titleBackgroundOverlay: false,
+      titleOverlayColor: 'rgba(0,0,0,0.5)'
+    },
+    zhanku_italian_01: {
+      titleFont: '站酷意大利体-01.ttf',
       titleFontSize: 76,
       titleColor: '#5D4037',
       titleStrokeColor: '#8D6E63',
@@ -793,126 +650,46 @@ const applyStyle = async (styleName: string) => {
       titleBackgroundOverlay: false,
       titleOverlayColor: 'rgba(0,0,0,0.5)'
     },
-    zhanku_kuhei: {
-      titleFont: 'ZhanKu-KuHei.ttf',
-      titleFontSize: 85,
-      titleColor: '#FFFFFF',
-      titleStrokeColor: '#000000',
-      titleStrokeWidth: 2.5,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.4,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    pangmen_biaoti: {
-      titleFont: 'PangMenZhengDao-Biaoti.ttf',
-      titleFontSize: 95,
-      titleColor: '#FF0000',
-      titleStrokeColor: '#8B0000',
-      titleStrokeWidth: 3.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.4,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    siyuan_songti: {
-      titleFont: 'SiYuan-SongTi.ttf',
+    zhanku_italian_02: {
+      titleFont: '站酷意大利体-02.ttf',
       titleFontSize: 78,
-      titleColor: '#000000',
-      titleStrokeColor: 'transparent',
-      titleStrokeWidth: 0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    deyi_hei: {
-      titleFont: 'DeYi-Hei.ttf',
-      titleFontSize: 82,
-      titleColor: '#1A1A1A',
-      titleStrokeColor: '#404040',
+      titleColor: '#37474F',
+      titleStrokeColor: '#546E7A',
       titleStrokeWidth: 1.5,
       titleBackgroundColor: 'transparent',
       titlePosition: 'center',
       titleMargin: 5,
       titleMarginLeft: 5,
       titleMarginRight: 5,
-      titleAnimation: 'slide_down',
-      titleAnimationDuration: 0.5,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    maoken_tangyuan: {
-      titleFont: 'MaoKen-TangYuan.ttf',
-      titleFontSize: 78,
-      titleColor: '#FF6B9D',
-      titleStrokeColor: '#C44569',
-      titleStrokeWidth: 2.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
       titleAnimation: 'fade_in',
       titleAnimationDuration: 0.5,
       titleBackgroundOverlay: false,
       titleOverlayColor: 'rgba(0,0,0,0.5)'
     },
-    wangqiang_shufa: {
-      titleFont: 'WangQiang-ShuFa.ttf',
-      titleFontSize: 85,
-      titleColor: '#FFD700',
-      titleStrokeColor: '#8B4513',
-      titleStrokeWidth: 2.0,
-      titleBackgroundColor: 'transparent',
-      titlePosition: 'center',
-      titleMargin: 5,
-      titleMarginLeft: 5,
-      titleMarginRight: 5,
-      titleAnimation: 'fade_in',
-      titleAnimationDuration: 0.7,
-      titleBackgroundOverlay: false,
-      titleOverlayColor: 'rgba(0,0,0,0.5)'
-    },
-    zhanku_kuaile: {
-      titleFont: 'ZhanKu-KuaiLe.ttf',
+    charm_elegant: {
+      titleFont: 'Charm-Bold.ttf',
       titleFontSize: 76,
-      titleColor: '#FF9800',
-      titleStrokeColor: '#F57C00',
+      titleColor: '#FFFFFF',
+      titleStrokeColor: '#000000',
       titleStrokeWidth: 2.0,
       titleBackgroundColor: 'transparent',
       titlePosition: 'center',
       titleMargin: 5,
       titleMarginLeft: 5,
       titleMarginRight: 5,
-      titleAnimation: 'slide_up',
-      titleAnimationDuration: 0.5,
+      titleAnimation: 'fade_in',
+      titleAnimationDuration: 0.6,
       titleBackgroundOverlay: false,
       titleOverlayColor: 'rgba(0,0,0,0.5)'
     },
-    siyuan_heiti: {
-      titleFont: 'SiYuan-HeiTi.ttf',
-      titleFontSize: 80,
-      titleColor: '#333333',
-      titleStrokeColor: 'transparent',
-      titleStrokeWidth: 0,
+    charm_regular: {
+      titleFont: 'Charm-Regular.ttf',
+      titleFontSize: 72,
+      titleColor: '#F5F5F5',
+      titleStrokeColor: '#333333',
+      titleStrokeWidth: 1.5,
       titleBackgroundColor: 'transparent',
-      titlePosition: 'top',
+      titlePosition: 'center',
       titleMargin: 5,
       titleMarginLeft: 5,
       titleMarginRight: 5,

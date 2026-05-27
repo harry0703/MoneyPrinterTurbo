@@ -15,11 +15,10 @@
         <div class="form-item" v-if="form.enableSubtitles">
           <label class="form-label">{{ t('Font') }}</label>
           <el-select v-model="form.subtitleFont" :placeholder="t('Select font')" class="form-select">
+            <el-option label="STHeitiMedium.ttc" value="STHeitiMedium.ttc" />
             <el-option label="MicrosoftYaHeiBold.ttc" value="MicrosoftYaHeiBold.ttc" />
-            <el-option label="Arial" value="Arial" />
-            <el-option label="SimHei" value="SimHei" />
-            <el-option label="Microsoft YaHei" value="Microsoft YaHei" />
-            <el-option label="STHeiti" value="STHeiti" />
+            <el-option label="MicrosoftYaHeiNormal.ttc" value="MicrosoftYaHeiNormal.ttc" />
+            <el-option label="STHeitiLight.ttc" value="STHeitiLight.ttc" />
           </el-select>
         </div>
         

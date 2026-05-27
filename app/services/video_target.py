@@ -251,13 +251,14 @@ def generate_video(
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
             logger.info("adding subtitles to video")
             try:
-                # Load font
+                # Load font with fallback support
                 font_path = ""
                 if not params.font_name:
                     params.font_name = "STHeitiMedium.ttc"
-                font_path = os.path.join(utils.font_dir(), params.font_name)
-                if os.name == "nt":
-                    font_path = font_path.replace("\\", "/")
+                
+                # Use the same font validation logic as title.py
+                from app.services.title import _get_valid_font_path
+                font_path = _get_valid_font_path(params.font_name)
                 
                 # Create subtitle clips
                 subtitle_clips = []
@@ -269,6 +270,9 @@ def generate_video(
                 subtitle_items = file_to_subtitles(subtitle_path)
                 logger.info(f"Loaded {len(subtitle_items)} subtitles from {subtitle_path}")
                 
+                # Apply same delay as audio for subtitle timing synchronization
+                first_scene_delay = 0.3
+                
                 # Process each subtitle item
                 for item in subtitle_items:
                     index, time_str, text = item
@@ -277,8 +281,8 @@ def generate_video(
                     start_end = time_str.split(" --> ")
                     if len(start_end) == 2:
                         # Convert to seconds
-                        start_time = _srt_time_to_seconds(start_end[0])
-                        end_time = _srt_time_to_seconds(start_end[1])
+                        start_time = _srt_time_to_seconds(start_end[0]) + first_scene_delay
+                        end_time = _srt_time_to_seconds(start_end[1]) + first_scene_delay
                         duration = end_time - start_time
                         
                         # Skip subtitles with negative or zero duration

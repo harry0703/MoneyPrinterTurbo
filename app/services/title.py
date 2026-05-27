@@ -8,6 +8,54 @@ from app.services.video_utils import parse_color, wrap_text
 from app.models.schema import VideoParams
 
 
+def _get_valid_font_path(font_name: str) -> str:
+    """
+    Get a valid font path, with fallback to a system font if the specified font is not found.
+    
+    Args:
+        font_name: Name of the font file to load
+        
+    Returns:
+        Valid font path
+    """
+    font_path = os.path.join(utils.font_dir(), font_name)
+    if os.name == "nt":
+        font_path = font_path.replace("\\", "/")
+    
+    # Check if font file exists
+    if os.path.exists(font_path):
+        return font_path
+    
+    # Fallback fonts in order of preference
+    # Only include fonts that actually exist in the resource/fonts directory
+    fallback_fonts = [
+        "STHeitiMedium.ttc",
+        "MicrosoftYaHeiBold.ttc", 
+        "MicrosoftYaHeiNormal.ttc",
+        "STHeitiLight.ttc",
+        "Charm-Bold.ttf",
+        "Charm-Regular.ttf",
+        "UTM Kabel KT.ttf",
+        "站酷仓耳渔阳体-W03.ttf",  # Medium weight 黄油体
+        "站酷意大利体-01.ttf",
+        "站酷意大利体-02.ttf",
+    ]
+    
+    # Try fallback fonts
+    for fallback_font in fallback_fonts:
+        if fallback_font == font_name:
+            continue  # Skip the font we already tried
+        fallback_path = os.path.join(utils.font_dir(), fallback_font)
+        if os.name == "nt":
+            fallback_path = fallback_path.replace("\\", "/")
+        if os.path.exists(fallback_path):
+            logger.warning(f"Font '{font_name}' not found, falling back to '{fallback_font}'")
+            return fallback_path
+    
+    logger.error(f"Neither '{font_name}' nor any fallback fonts found in {utils.font_dir()}")
+    return font_path
+
+
 def create_title_clip(
     video_width: int,
     video_height: int,
@@ -18,9 +66,7 @@ def create_title_clip(
     
     logger.info(f"Creating title clip: '{params.title_text}' ({video_width}x{video_height})")
     
-    font_path = os.path.join(utils.font_dir(), params.title_font_name)
-    if os.name == "nt":
-        font_path = font_path.replace("\\", "/")
+    font_path = _get_valid_font_path(params.title_font_name)
     
     margin_left_px = video_width * params.title_margin_left
     margin_right_px = video_width * params.title_margin_right
