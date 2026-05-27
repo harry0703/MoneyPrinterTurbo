@@ -1584,6 +1584,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
     try:
         from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, afx, ColorClip
         import app.services.video as video_module
+        from app.services.video_utils import create_encoding_progress_monitor
         
         # Load the combined video (which already has all scene audio)
         logger.info(f"Loading combined video file: {final_video_path}")
@@ -1842,16 +1843,29 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         encoding_start_time = time.time()
         logger.info(f"[TIMESTAMP] Video encoding started at: {time.strftime('%H:%M:%S')} (this may take a while)...")
         
-        video_clip.write_videofile(
-            final_output_path,
-            codec=video_module.video_codec,
-            audio_codec="aac",
-            fps=video_module.fps,
-            bitrate=video_encoding_params["bitrate"],
-            preset=video_encoding_params["preset"],
-            logger=None,
-            ffmpeg_params=ffmpeg_params,
+        # Create and start progress monitor
+        progress_monitor = create_encoding_progress_monitor(
+            task_id=task_id,
+            output_file=final_output_path,
+            progress_callback=None,  # Can be added later if needed
+            log_interval=60  # Log every 60 seconds (1 minute)
         )
+        progress_monitor.start_monitoring()
+        
+        try:
+            video_clip.write_videofile(
+                final_output_path,
+                codec=video_module.video_codec,
+                audio_codec="aac",
+                fps=video_module.fps,
+                bitrate=video_encoding_params["bitrate"],
+                preset=video_encoding_params["preset"],
+                logger=None,  # Keep None to avoid MoviePy compatibility issues
+                ffmpeg_params=ffmpeg_params,
+            )
+        finally:
+            # Stop progress monitor after encoding completes
+            progress_monitor.stop_monitoring()
         
         encoding_time = time.time() - encoding_start_time
         step5_total_time = time.time() - step5_start_time

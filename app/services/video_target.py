@@ -23,6 +23,7 @@ from app.services.video_utils import (
     get_video_encoding_params,
     audio_codec,
     fps,
+    create_encoding_progress_monitor,
 )
 
 
@@ -281,9 +282,9 @@ def generate_video(
                     start_end = time_str.split(" --> ")
                     if len(start_end) == 2:
                         # Convert to seconds
-                        start_time = _srt_time_to_seconds(start_end[0]) + config_video_idle_period
+                        start_time_val = _srt_time_to_seconds(start_end[0]) + config_video_idle_period
                         end_time = _srt_time_to_seconds(start_end[1]) + config_video_idle_period
-                        duration = end_time - start_time
+                        duration = end_time - start_time_val
                         
                         # Skip subtitles with negative or zero duration
                         if duration <= 0:
@@ -336,7 +337,7 @@ def generate_video(
                             txt_clip = txt_clip.with_position(("center", "center"))
                         
                         # Set duration based on subtitle timestamps
-                        txt_clip = txt_clip.with_start(start_time).with_duration(duration)
+                        txt_clip = txt_clip.with_start(start_time_val).with_duration(duration)
                         
                         subtitle_clips.append(txt_clip)
                 
@@ -357,18 +358,31 @@ def generate_video(
         if get_video_encoding_params()["crf"] is not None:
             ffmpeg_params.extend(["-crf", str(get_video_encoding_params()["crf"])])
         
-        video_clip.write_videofile(
-            filename=output_file,
-            threads=2,
-            logger=None,
-            temp_audiofile_path=os.path.dirname(output_file),
-            audio_codec=audio_codec,
-            fps=fps,
-            codec=get_video_codec(),
-            bitrate=get_video_encoding_params()["bitrate"],
-            preset=get_video_encoding_params()["preset"],
-            ffmpeg_params=ffmpeg_params
+        # Create and start progress monitor
+        progress_monitor = create_encoding_progress_monitor(
+            task_id=None,  # task_id not available here
+            output_file=output_file,
+            progress_callback=progress_callback,
+            log_interval=60  # Log every 60 seconds (1 minute)
         )
+        progress_monitor.start_monitoring()
+        
+        try:
+            video_clip.write_videofile(
+                filename=output_file,
+                threads=2,
+                logger=None,  # Keep None to avoid MoviePy compatibility issues
+                temp_audiofile_path=os.path.dirname(output_file),
+                audio_codec=audio_codec,
+                fps=fps,
+                codec=get_video_codec(),
+                bitrate=get_video_encoding_params()["bitrate"],
+                preset=get_video_encoding_params()["preset"],
+                ffmpeg_params=ffmpeg_params
+            )
+        finally:
+            # Stop progress monitor after encoding completes
+            progress_monitor.stop_monitoring()
         
         # Close clips
         video_clip.close()

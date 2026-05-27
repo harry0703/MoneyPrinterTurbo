@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.7"
+project_version = "2.2.8"
 
 [app]
 video_source = "pexels"
@@ -101,7 +101,7 @@ output_bg_color = "black"
 title_enabled = true
 title_text = "智能体通信安全"
 title_duration = 3
-title_font_name = "Charm-Bold.ttf"
+title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 76
 title_text_color = "#FF0000"
 title_stroke_color = "#FFFF00"

@@ -98,6 +98,164 @@ def parse_color(color_str: str) -> tuple:
     return COLOR_MAP["black"]
 
 from app.config import config
+import threading
+
+
+class EncodingProgressMonitor:
+    """
+    Monitors video encoding progress by watching the output file size.
+    Provides periodic progress updates without interfering with MoviePy.
+    """
+    
+    def __init__(self, task_id=None, output_file=None, progress_callback=None, log_interval=10):
+        """
+        Initialize the progress monitor.
+        
+        Args:
+            task_id: Optional task ID for tracking and state updates
+            output_file: Path to the output video file being created
+            progress_callback: Optional callback function(progress: float, message: str)
+            log_interval: How often to log progress in seconds (default: 10)
+        """
+        self.task_id = task_id
+        self.output_file = output_file
+        self.progress_callback = progress_callback
+        self.log_interval = log_interval
+        self.monitoring = False
+        self.monitor_thread = None
+        
+    def start_monitoring(self, estimated_final_size_mb=None):
+        """
+        Start monitoring encoding progress in a background thread.
+        
+        Args:
+            estimated_final_size_mb: Estimated final file size in MB (optional)
+        """
+        self.monitoring = True
+        self.estimated_final_size = estimated_final_size_mb
+        self.start_time = time.time()
+        self.last_log_time = time.time()
+        self.last_size = 0
+        
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            daemon=True  # Thread will be killed when main thread exits
+        )
+        self.monitor_thread.start()
+        logger.info("📊 Encoding progress monitor started")
+    
+    def stop_monitoring(self):
+        """Stop the progress monitoring."""
+        self.monitoring = False
+        if self.monitor_thread:
+            self.monitor_thread.join(timeout=2)
+        logger.info("📊 Encoding progress monitor stopped")
+    
+    def _monitor_loop(self):
+        """Background thread that monitors file size."""
+        while self.monitoring:
+            try:
+                current_time = time.time()
+                
+                # Check if file exists and get its size
+                if os.path.exists(self.output_file):
+                    current_size_mb = os.path.getsize(self.output_file) / (1024 * 1024)
+                    elapsed = current_time - self.start_time
+                    
+                    # Log progress periodically
+                    if current_time - self.last_log_time >= self.log_interval:
+                        # Calculate progress percentage
+                        if self.estimated_final_size and self.estimated_final_size > 0:
+                            percentage = min(100, (current_size_mb / self.estimated_final_size) * 100)
+                        else:
+                            # Without estimated size, just log the file size
+                            percentage = 0
+                        
+                        # Calculate write speed
+                        size_diff = current_size_mb - self.last_size
+                        time_diff = current_time - self.last_log_time
+                        speed_mbps = size_diff / time_diff if time_diff > 0 else 0
+                        
+                        # Calculate ETA
+                        if percentage > 0 and self.estimated_final_size:
+                            remaining_mb = self.estimated_final_size - current_size_mb
+                            eta_seconds = remaining_mb / speed_mbps if speed_mbps > 0 else 0
+                            eta_str = f"ETA: {int(eta_seconds // 60)}m {int(eta_seconds % 60)}s"
+                        elif speed_mbps > 0 and self.estimated_final_size:
+                            remaining_mb = self.estimated_final_size - current_size_mb
+                            eta_seconds = remaining_mb / speed_mbps
+                            eta_str = f"ETA: {int(eta_seconds // 60)}m {int(eta_seconds % 60)}s"
+                        else:
+                            eta_str = "ETA: calculating..."
+                        
+                        # Log progress
+                        if percentage > 0:
+                            logger.info(
+                                f"🎬 Encoding progress: {percentage:.1f}% | "
+                                f"Size: {current_size_mb:.1f}MB | "
+                                f"Speed: {speed_mbps:.2f}MB/s | "
+                                f"Elapsed: {int(elapsed // 60)}m {int(elapsed % 60)}s | "
+                                f"{eta_str}"
+                            )
+                        else:
+                            logger.info(
+                                f"🎬 Encoding: {current_size_mb:.1f}MB written | "
+                                f"Speed: {speed_mbps:.2f}MB/s | "
+                                f"Elapsed: {int(elapsed // 60)}m {int(elapsed % 60)}s"
+                            )
+                        
+                        self.last_log_time = current_time
+                        self.last_size = current_size_mb
+                        
+                        # Update task state in state manager for UI updates
+                        if self.task_id and percentage > 0:
+                            try:
+                                from app.services import state as sm
+                                from app.models import const
+                                # Scale progress to 90-100 range (final encoding phase)
+                                scaled_progress = 90 + (percentage / 100) * 10
+                                sm.state.update_task(
+                                    self.task_id,
+                                    state=const.TASK_STATE_PROCESSING,
+                                    progress=int(scaled_progress)
+                                )
+                            except Exception as e:
+                                logger.debug(f"Failed to update task state (ignored): {e}")
+                        
+                        # Call custom progress callback if provided
+                        if self.progress_callback and percentage > 0:
+                            scaled_progress = 90 + (percentage / 100) * 10
+                            self.progress_callback(
+                                scaled_progress, 
+                                f"Encoding video: {percentage:.1f}%"
+                            )
+                
+                time.sleep(10)  # Check every 10 seconds
+                
+            except Exception as e:
+                logger.debug(f"Progress monitoring error (ignored): {e}")
+                time.sleep(10)  # Check every 10 seconds even after errors
+
+
+def create_encoding_progress_monitor(task_id=None, output_file=None, progress_callback=None, log_interval=10):
+    """
+    Factory function to create an encoding progress monitor.
+    
+    Args:
+        task_id: Optional task ID for tracking
+        output_file: Path to the output video file
+        progress_callback: Optional callback function(progress: float, message: str)
+        log_interval: How often to log progress in seconds (default: 10)
+        
+    Returns:
+        EncodingProgressMonitor instance
+    """
+    return EncodingProgressMonitor(
+        task_id=task_id,
+        output_file=output_file,
+        progress_callback=progress_callback,
+        log_interval=log_interval
+    )
 from app.config.config import load_config
 from app.models import const
 from app.models.schema import (
