@@ -226,6 +226,30 @@ class TestVideoService(unittest.TestCase):
                 )
 
         self.assertTrue(fake_audio_clip.reader.closed)
+
+    def test_combine_videos_handles_none_transition_mode(self):
+        """
+        Ensure `combine_videos` safely handles
+        `video_transition_mode=None`.
+        """
+        class _FakeAudioClip:
+            @property
+            def duration(self):
+                return 10.0
+
+            def close(self):
+                pass
+
+        with patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()):
+            # Use empty video_paths to avoid heavy video processing while
+            # still exercising transition mode normalization logic.
+            result = vd.combine_videos(
+                combined_video_path="/tmp/unused-combined.mp4",
+                video_paths=[],
+                audio_file="/tmp/unused-audio.mp3",
+                video_transition_mode=None,
+            )
+            self.assertEqual(result, "/tmp/unused-combined.mp4")
     
     def test_wrap_text(self):
         """test text wrapping function"""
