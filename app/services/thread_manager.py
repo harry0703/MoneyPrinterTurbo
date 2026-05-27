@@ -131,10 +131,10 @@ class ThreadManager:
             self.task_queue.put(task_id)
             was_started = len(self.threads) < self.max_concurrent_tasks
             logger.debug(f"[submit_task] task_id={task_id} added to queue, was_started={was_started}, queue_size={self.task_queue.qsize()}")
-
-        # Try to execute task
-        logger.debug(f"[submit_task] task_id={task_id} calling _process_queue")
-        self._process_queue()
+            
+            # Try to execute task - keep lock held to prevent race condition
+            logger.debug(f"[submit_task] task_id={task_id} calling _process_queue inside lock")
+            self._process_queue_locked()
 
         with self.lock:
             current_status = self.task_infos.get(task_id, TaskInfo(task_id, task_func, args, kwargs)).status
@@ -149,25 +149,29 @@ class ThreadManager:
         """Process task queue"""
         logger.debug(f"[_process_queue] ENTERING, instance_id={id(self)}")
         with self.lock:
-            threads_count = len(self.threads)
-            queue_size = self.task_queue.qsize()
-            logger.debug(f"[_process_queue] threads={threads_count}, max={self.max_concurrent_tasks}, queue_size={queue_size}")
-            if threads_count < self.max_concurrent_tasks and queue_size > 0:
-                task_id = self.task_queue.get()
-                logger.debug(f"[_process_queue] dequeued task_id={task_id}")
-                if task_id in self.task_infos:
-                    task_status = self.task_infos[task_id].status
-                    logger.debug(f"[_process_queue] task_id={task_id} status={task_status}")
-                    if task_status == TaskStatus.PENDING:
-                        logger.debug(f"[_process_queue] starting task_id={task_id}")
-                        self._start_task(task_id)
-                    else:
-                        logger.warning(f"[_process_queue] task_id={task_id} not PENDING (status={task_status}), skipping")
-                else:
-                    logger.warning(f"[_process_queue] task_id={task_id} not in task_infos!")
-            else:
-                logger.debug(f"[_process_queue] no task started: threads_full={threads_count >= self.max_concurrent_tasks}, queue_empty={queue_size == 0}")
+            self._process_queue_locked()
         logger.debug(f"[_process_queue] EXITING")
+    
+    def _process_queue_locked(self):
+        """Process task queue - assumes lock is already held"""
+        threads_count = len(self.threads)
+        queue_size = self.task_queue.qsize()
+        logger.debug(f"[_process_queue_locked] threads={threads_count}, max={self.max_concurrent_tasks}, queue_size={queue_size}")
+        if threads_count < self.max_concurrent_tasks and queue_size > 0:
+            task_id = self.task_queue.get()
+            logger.debug(f"[_process_queue_locked] dequeued task_id={task_id}")
+            if task_id in self.task_infos:
+                task_status = self.task_infos[task_id].status
+                logger.debug(f"[_process_queue_locked] task_id={task_id} status={task_status}")
+                if task_status == TaskStatus.PENDING:
+                    logger.debug(f"[_process_queue_locked] starting task_id={task_id}")
+                    self._start_task(task_id)
+                else:
+                    logger.warning(f"[_process_queue_locked] task_id={task_id} not PENDING (status={task_status}), skipping")
+            else:
+                logger.warning(f"[_process_queue_locked] task_id={task_id} not in task_infos!")
+        else:
+            logger.debug(f"[_process_queue_locked] no task started: threads_full={threads_count >= self.max_concurrent_tasks}, queue_empty={queue_size == 0}")
 
     def _start_task(self, task_id: str):
         """Start task
