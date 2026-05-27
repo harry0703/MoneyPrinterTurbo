@@ -240,16 +240,20 @@ class TestVideoService(unittest.TestCase):
             def close(self):
                 pass
 
-        with patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()):
-            # Use empty video_paths to avoid heavy video processing while
-            # still exercising transition mode normalization logic.
-            result = vd.combine_videos(
-                combined_video_path="/tmp/unused-combined.mp4",
-                video_paths=[],
-                audio_file="/tmp/unused-audio.mp3",
-                video_transition_mode=None,
-            )
-            self.assertEqual(result, "/tmp/unused-combined.mp4")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+            audio_file = os.path.join(temp_dir, "audio.mp3")
+
+            with patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()):
+                # Use empty video_paths to avoid heavy video processing while
+                # still exercising transition mode normalization logic.
+                result = vd.combine_videos(
+                    combined_video_path=combined_video_path,
+                    video_paths=[],
+                    audio_file=audio_file,
+                    video_transition_mode=None,
+                )
+                self.assertEqual(result, combined_video_path)
     
     def test_wrap_text(self):
         """test text wrapping function"""
