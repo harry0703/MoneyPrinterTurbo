@@ -1,6 +1,8 @@
 import os
 import random
+import math
 from typing import List
+from typing import Optional
 from urllib.parse import urlencode
 
 import requests
@@ -376,6 +378,7 @@ def download_videos(
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
     style_keyword: str = "",
+    target_number_of_clips: Optional[int] = None,
 ) -> List[str]:
     # Initialize download system
     initialize_download_system()
@@ -459,6 +462,28 @@ def download_videos(
 
     if video_concat_mode.value == VideoConcatMode.random.value:
         random.shuffle(valid_video_items)
+
+    # Calculate and limit the number of videos to download
+    total_available_videos = len(valid_video_items)
+    if target_number_of_clips is None:
+        # Calculate minimum required clips based on audio duration
+        min_required_clips = max(1, int(math.ceil(audio_duration / max_clip_duration)))
+        # Randomly select 2-3x the required clips (2 to 3 times)
+        target_number_of_clips = random.randint(min_required_clips * 2, min_required_clips * 3)
+        logger.info(f"No target specified - calculated: min_required={min_required_clips}, target={target_number_of_clips}")
+    else:
+        # Randomly select 2-3x the provided target
+        target_number_of_clips = random.randint(target_number_of_clips * 2, target_number_of_clips * 3)
+        logger.info(f"Using provided target: {target_number_of_clips}")
+    
+    # Limit the valid_video_items to our target number
+    if len(valid_video_items) > target_number_of_clips:
+        # Randomly select from available videos
+        random.shuffle(valid_video_items)
+        valid_video_items = valid_video_items[:target_number_of_clips]
+        logger.info(f"Limiting downloads to {target_number_of_clips} videos (selected from {total_available_videos} available)")
+    else:
+        logger.info(f"Downloading all {len(valid_video_items)} available videos (less than target of {target_number_of_clips})")
 
     total_duration = 0.0
     

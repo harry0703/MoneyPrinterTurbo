@@ -590,15 +590,20 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
     # Add online videos as supplement if needed
     should_download_online = False
     online_source = "pexels"
+    target_online_clips = 0
     
     if params.video_source == "local":
         # If local source but no local materials, download online videos
         if len(local_materials) == 0:
             logger.warning(f"scene {scene_num}: no local materials available, downloading online videos from {online_source}")
             should_download_online = True
+            # Calculate how many online clips are needed
+            target_online_clips = max(1, int(math.ceil(audio_duration / params.video_clip_duration)))
         elif len(local_materials) < len(scene_keywords):
             logger.info(f"scene {scene_num}: local materials ({len(local_materials)}) less than keywords ({len(scene_keywords)}), downloading supplement videos from {online_source}")
             should_download_online = True
+            # Calculate how many online clips are needed to supplement
+            target_online_clips = max(1, len(scene_keywords) - len(local_materials))
         else:
             logger.info(f"scene {scene_num}: local materials ({len(local_materials)}) >= keywords ({len(scene_keywords)}), no supplement videos needed")
     else:
@@ -606,6 +611,8 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
         online_source = params.video_source
         logger.info(f"scene {scene_num}: using {online_source} as video source, downloading videos")
         should_download_online = True
+        # Calculate how many online clips are needed
+        target_online_clips = max(1, int(math.ceil(audio_duration / params.video_clip_duration)))
     
     supplement_videos = []
     if should_download_online:
@@ -618,6 +625,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
             audio_duration=audio_duration,
             max_clip_duration=params.video_clip_duration,
             style_keyword=style_keyword,
+            target_number_of_clips=target_online_clips,
         )
         
         if supplement_videos:
@@ -1055,15 +1063,19 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         logger.info(f"\n\n## downloading videos from {online_source}")
         # Use video subject as fallback when video_terms is empty
         search_terms = video_terms if video_terms else [params.video_subject]
+        # Calculate how many clips are needed
+        total_required_duration = audio_duration * params.video_count
+        target_online_clips = max(1, int(math.ceil(total_required_duration / params.video_clip_duration)))
         supplement_videos = material.download_videos(
             task_id=task_id,
             search_terms=search_terms,
             source=online_source,
             video_aspect=params.video_aspect,
             video_concat_mode=params.video_concat_mode,
-            audio_duration=audio_duration * params.video_count,
+            audio_duration=total_required_duration,
             max_clip_duration=params.video_clip_duration,
             style_keyword=params.video_style,
+            target_number_of_clips=target_online_clips,
         )
         
         if supplement_videos:
