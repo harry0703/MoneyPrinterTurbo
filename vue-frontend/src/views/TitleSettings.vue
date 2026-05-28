@@ -17,15 +17,6 @@
         
         <div v-if="form.titleEnabled" class="title-content">
           <div class="form-item">
-            <label class="form-label">{{ t('Title Text') }}</label>
-            <el-input 
-              v-model="form.titleText" 
-              :placeholder="t('Enter video title')"
-              class="form-input"
-            />
-          </div>
-          
-          <div class="form-item">
             <label class="form-label">{{ t('Duration') }} ({{ t('seconds') }})</label>
             <div class="slider-control">
               <el-slider
@@ -294,6 +285,38 @@
             />
           </div>
           
+          <div class="form-item">
+            <div class="label-row">
+              <label class="form-label">{{ t('Title Text') }}</label>
+              <el-button 
+                size="small" 
+                type="text" 
+                @click="copyFromScenePanel"
+                :disabled="!scriptStore.videoTitle"
+              >
+                {{ t('Copy title text from scene panel') }}
+              </el-button>
+            </div>
+            <el-input 
+              v-model="form.titleText" 
+              :placeholder="t('Enter video title')"
+              type="textarea"
+              :rows="3"
+              maxlength="500"
+              show-word-limit
+              class="form-textarea"
+            />
+          </div>
+          
+          <div class="form-item">
+            <label class="form-label">{{ t('Horizontal Alignment') }}</label>
+            <el-select v-model="form.titleAlign" :placeholder="t('Select alignment')" class="form-select">
+              <el-option :label="t('Left')" value="left" />
+              <el-option :label="t('Center')" value="center" />
+              <el-option :label="t('Right')" value="right" />
+            </el-select>
+          </div>
+          
           <div class="preview-section">
             <h3>{{ t('Preview') }}</h3>
             <div class="preview-container">
@@ -302,7 +325,7 @@
                   class="preview-title"
                   :style="previewStyle"
                 >
-                  {{ form.titleText || t('Preview Title') }}
+                  {{ form.titleText || scriptStore.videoTitle || t('Preview Title') }}
                 </div>
               </div>
             </div>
@@ -365,11 +388,13 @@
 import { reactive, watch, onMounted, computed } from 'vue';
 import { useI18nStore } from '../stores/i18n';
 import { useSettingsStore } from '../stores/settings';
+import { useScriptStore } from '../stores/script';
 import { apiService } from '../services/api';
 
 const i18nStore = useI18nStore();
 const t = i18nStore.t;
 const settingsStore = useSettingsStore();
+const scriptStore = useScriptStore();
 
 const titleStyles = reactive<{ [key: string]: { name: string; description: string } }>({});
 
@@ -415,7 +440,7 @@ const colorOptions = [
 
 const form = reactive({
   titleEnabled: settingsStore.video.title.enabled,
-  titleText: settingsStore.video.title.text,
+  titleText: settingsStore.video.title.text || scriptStore.videoTitle,
   titleDuration: settingsStore.video.title.duration,
   titleFont: settingsStore.video.title.font,
   titleFontSize: settingsStore.video.title.fontSize,
@@ -431,7 +456,8 @@ const form = reactive({
   titleAnimationDuration: settingsStore.video.title.animationDuration,
   titleBackgroundOverlay: settingsStore.video.title.backgroundOverlay,
   titleOverlayColor: settingsStore.video.title.overlayColor,
-  titleStyle: settingsStore.video.title.style
+  titleStyle: settingsStore.video.title.style,
+  titleAlign: settingsStore.video.title.align || 'center'
 });
 
 const isLightColor = (colorValue: string): boolean => {
@@ -543,7 +569,7 @@ const previewStyle = computed(() => {
     top: topPosition,
     bottom: bottomPosition,
     transform: form.titlePosition === 'center' ? 'translateY(-50%)' : 'none',
-    textAlign: 'center' as const,
+    textAlign: form.titleAlign as 'left' | 'center' | 'right',
     whiteSpace: 'pre-wrap' as const,
     maxWidth: `${maxWidthPercent}%`,
     wordBreak: 'break-word' as const
@@ -767,6 +793,9 @@ const loadConfig = async () => {
         if (cfg.ui.title_style !== undefined) {
           form.titleStyle = cfg.ui.title_style;
         }
+        if (cfg.ui.title_align !== undefined) {
+          form.titleAlign = cfg.ui.title_align;
+        }
       }
     }
   } catch (error: any) {
@@ -795,13 +824,20 @@ const saveConfig = async () => {
         title_animation_duration: form.titleAnimationDuration,
         title_background_overlay: form.titleBackgroundOverlay,
         title_overlay_color: form.titleOverlayColor,
-        title_style: form.titleStyle
+        title_style: form.titleStyle,
+        title_align: form.titleAlign
       }
     };
     await apiService.updateConfig(cfg);
     console.log('[TitleSettings] Config saved:', cfg);
   } catch (error: any) {
     console.error('Failed to save config:', error);
+  }
+};
+
+const copyFromScenePanel = () => {
+  if (scriptStore.videoTitle) {
+    form.titleText = scriptStore.videoTitle;
   }
 };
 
@@ -824,6 +860,7 @@ const updateTitleSettings = () => {
   settingsStore.updateTitleSetting('backgroundOverlay', form.titleBackgroundOverlay);
   settingsStore.updateTitleSetting('overlayColor', form.titleOverlayColor);
   settingsStore.updateTitleSetting('style', form.titleStyle);
+  settingsStore.updateTitleSetting('align', form.titleAlign);
 };
 
 watch([
@@ -844,7 +881,8 @@ watch([
   () => form.titleAnimationDuration,
   () => form.titleBackgroundOverlay,
   () => form.titleOverlayColor,
-  () => form.titleStyle
+  () => form.titleStyle,
+  () => form.titleAlign
 ], () => {
   saveConfig();
   updateTitleSettings();
@@ -853,7 +891,7 @@ watch([
 watch(() => settingsStore.video.title, (newTitle) => {
   console.log('[TitleSettings] Store title changed, updating form:', newTitle);
   form.titleEnabled = newTitle.enabled;
-  form.titleText = newTitle.text;
+  form.titleText = newTitle.text || scriptStore.videoTitle;
   form.titleDuration = newTitle.duration;
   form.titleFont = newTitle.font;
   form.titleFontSize = newTitle.fontSize;
@@ -870,6 +908,7 @@ watch(() => settingsStore.video.title, (newTitle) => {
   form.titleBackgroundOverlay = newTitle.backgroundOverlay;
   form.titleOverlayColor = newTitle.overlayColor;
   form.titleStyle = newTitle.style;
+  form.titleAlign = newTitle.align || 'center';
 }, { deep: true });
 
 onMounted(async () => {
@@ -903,11 +942,18 @@ defineExpose({
   gap: 4px;
 }
 
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .form-label {
   font-weight: normal;
   font-size: 14px;
   color: #333;
-  margin-bottom: 4px;
+  margin-bottom: 0;
   line-height: 1.4;
   display: flex;
   align-items: center;

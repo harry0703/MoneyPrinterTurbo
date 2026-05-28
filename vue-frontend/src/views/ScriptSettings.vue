@@ -82,6 +82,19 @@
           <div class="scene-count">{{ t('Total Scenes') }}: {{ scenes.length }}</div>
         </div>
         
+        <!-- Title Text -->
+        <div class="form-item">
+          <label class="form-label" v-html="parseLabelMarkdown(t('Title Text'))"></label>
+          <el-input
+            v-model="form.videoTitle"
+            :placeholder="t('Enter title text')"
+            type="text"
+            maxlength="100"
+            show-word-limit
+            class="form-input"
+          />
+        </div>
+        
         <!-- Scene List -->
         <div class="scenes-list">
           <div v-for="(scene, index) in scenes" :key="scene.id" class="scene-card">
@@ -259,16 +272,20 @@ const exportScenes = async () => {
   }
   
   // Convert to snake_case for backend compatibility (avoid duplicate keys)
-  const scenesData = JSON.stringify(scenes.value.map(scene => ({
-    id: scene.id,
-    duration: scene.duration,
-    visual_requirement: scene.visual_requirement,
-    keywords: scene.keywords,
-    script: scene.script,
-    intro_video: scene.introVideo,
-    intro_video_original_path: scene.introVideoOriginalPath,
-    intro_duration: scene.introVideoDuration,
-  })), null, 2);
+  const exportData = {
+    video_title: form.videoTitle,
+    scenes: scenes.value.map(scene => ({
+      id: scene.id,
+      duration: scene.duration,
+      visual_requirement: scene.visual_requirement,
+      keywords: scene.keywords,
+      script: scene.script,
+      intro_video: scene.introVideo,
+      intro_video_original_path: scene.introVideoOriginalPath,
+      intro_duration: scene.introVideoDuration,
+    }))
+  };
+  const scenesData = JSON.stringify(exportData, null, 2);
   const blob = new Blob([scenesData], { type: 'application/json' });
   const fileName = `scenes-${new Date().toISOString().split('T')[0]}.json`;
   
@@ -340,9 +357,9 @@ const importScenes = (event: Event) => {
     try {
       const content = e.target?.result as string;
       
-      let importedScenes;
+      let importedData;
       try {
-        importedScenes = JSON.parse(content);
+        importedData = JSON.parse(content);
       } catch (parseError) {
         ElMessage.error('Invalid JSON format: ' + (parseError as Error).message);
         console.error('JSON parse error:', parseError);
@@ -350,64 +367,78 @@ const importScenes = (event: Event) => {
         return;
       }
       
-      if (Array.isArray(importedScenes)) {
-        const validScenes = importedScenes.filter((scene: any) => {
-          return scene && typeof scene === 'object' && 
-                 typeof scene.duration === 'number' &&
-                 typeof scene.visual_requirement === 'string' &&
-                 typeof scene.keywords === 'string' &&
-                 typeof scene.script === 'string';
-        });
-        
-        if (validScenes.length > 0) {
-          const formattedScenes = validScenes.map((scene: any) => {
-            let introVideo = scene.introVideo || scene.intro_video;
-            let introVideoOriginalPath = scene.introVideoOriginalPath || scene.intro_video_original_path;
-            let introVideoDuration = scene.introVideoDuration || scene.intro_duration || 10;
-            
-            if (introVideo && typeof introVideo === 'string') {
-              introVideo = introVideo.trim();
-              if (!introVideo || introVideo.length === 0) {
-                introVideo = undefined;
-                introVideoDuration = 10;
-              }
-            } else {
+      let importedScenes: any[];
+      let videoTitle = '';
+      
+      if (Array.isArray(importedData)) {
+        importedScenes = importedData;
+      } else if (importedData && typeof importedData === 'object' && Array.isArray(importedData.scenes)) {
+        importedScenes = importedData.scenes;
+        videoTitle = importedData.video_title || importedData.videoTitle || '';
+      } else {
+        ElMessage.error('Imported file must contain an array of scenes or an object with scenes property');
+        input.value = '';
+        return;
+      }
+      
+      const validScenes = importedScenes.filter((scene: any) => {
+        return scene && typeof scene === 'object' && 
+               typeof scene.duration === 'number' &&
+               typeof scene.visual_requirement === 'string' &&
+               typeof scene.keywords === 'string' &&
+               typeof scene.script === 'string';
+      });
+      
+      if (validScenes.length > 0) {
+        const formattedScenes = validScenes.map((scene: any) => {
+          let introVideo = scene.introVideo || scene.intro_video;
+          let introVideoOriginalPath = scene.introVideoOriginalPath || scene.intro_video_original_path;
+          let introVideoDuration = scene.introVideoDuration || scene.intro_duration || 10;
+          
+          if (introVideo && typeof introVideo === 'string') {
+            introVideo = introVideo.trim();
+            if (!introVideo || introVideo.length === 0) {
               introVideo = undefined;
               introVideoDuration = 10;
             }
-            
-            if (!introVideo && introVideoOriginalPath) {
-              introVideoOriginalPath = introVideoOriginalPath.trim();
-              if (!introVideoOriginalPath || introVideoOriginalPath.length === 0) {
-                introVideoOriginalPath = undefined;
-              }
-            }
-            
-            return {
-              id: scene.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
-              duration: scene.duration,
-              visual_requirement: scene.visual_requirement,
-              keywords: scene.keywords,
-              script: scene.script,
-              introVideo,
-              introVideoOriginalPath,
-              introVideoDuration
-            };
-          });
-          
-          scriptStore.updateScenes(formattedScenes);
-          
-          const scenesWithIntroVideo = formattedScenes.filter((s: any) => s.introVideo);
-          if (scenesWithIntroVideo.length > 0) {
-            ElMessage.success(`Successfully imported ${validScenes.length} scenes (${scenesWithIntroVideo.length} have intro videos - please verify file paths exist)`);
           } else {
-            ElMessage.success(`Successfully imported ${validScenes.length} scenes`);
+            introVideo = undefined;
+            introVideoDuration = 10;
           }
+          
+          if (!introVideo && introVideoOriginalPath) {
+            introVideoOriginalPath = introVideoOriginalPath.trim();
+            if (!introVideoOriginalPath || introVideoOriginalPath.length === 0) {
+              introVideoOriginalPath = undefined;
+            }
+          }
+          
+          return {
+            id: scene.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            duration: scene.duration,
+            visual_requirement: scene.visual_requirement,
+            keywords: scene.keywords,
+            script: scene.script,
+            introVideo,
+            introVideoOriginalPath,
+            introVideoDuration
+          };
+        });
+        
+        scriptStore.updateScenes(formattedScenes);
+        
+        if (videoTitle) {
+          scriptStore.updateVideoTitle(videoTitle);
+        }
+        
+        const scenesWithIntroVideo = formattedScenes.filter((s: any) => s.introVideo);
+        if (scenesWithIntroVideo.length > 0) {
+          ElMessage.success(`Successfully imported ${validScenes.length} scenes (${scenesWithIntroVideo.length} have intro videos - please verify file paths exist)`);
         } else {
-          ElMessage.error('Imported file format is incorrect - no valid scenes found');
+          ElMessage.success(`Successfully imported ${validScenes.length} scenes`);
         }
       } else {
-        ElMessage.error('Imported file must contain an array of scenes');
+        ElMessage.error('Imported file format is incorrect - no valid scenes found');
       }
     } catch (error) {
       ElMessage.error('Error importing file: ' + (error as Error).message);
@@ -537,6 +568,13 @@ watch(
   }
 );
 
+watch(
+  () => form.videoTitle,
+  (newValue) => {
+    scriptStore.updateVideoTitle(newValue);
+  }
+);
+
 // Generate video script from topic
 const handleGenerateVideoScript = async () => {
   if (!form.videoSubject) {
@@ -582,6 +620,28 @@ const parseVideoScript = async () => {
     if (response.status === 'success' || response.status === 'manual') {
       // Update scenes in store
       scriptStore.updateScenes(response.scenes);
+      
+      // Auto-generate video title from the first scene if not already set
+      if (!form.videoTitle && response.scenes.length > 0) {
+        const firstScene = response.scenes[0];
+        let generatedTitle = '';
+        
+        if (firstScene.visual_requirement && firstScene.visual_requirement.length > 0) {
+          generatedTitle = firstScene.visual_requirement;
+        } else if (firstScene.script && firstScene.script.length > 0) {
+          generatedTitle = firstScene.script;
+        }
+        
+        if (generatedTitle.length > 0) {
+          generatedTitle = generatedTitle.trim();
+          // Truncate to 100 characters
+          if (generatedTitle.length > 100) {
+            generatedTitle = generatedTitle.substring(0, 100) + '...';
+          }
+          scriptStore.updateVideoTitle(generatedTitle);
+        }
+      }
+      
       ElMessage.success(`Successfully parsed ${response.scenes.length} scenes`);
     } else {
       ElMessage.error('Failed to parse script. Please try again.');

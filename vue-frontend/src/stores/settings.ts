@@ -33,6 +33,7 @@ interface TitleSettings {
   backgroundOverlay: boolean;
   overlayColor: string;
   style: string;
+  align: string;
 }
 
 interface VideoSettings {
@@ -174,7 +175,8 @@ export const useSettingsStore = defineStore('settings', {
             animationDuration: 0.5,
             backgroundOverlay: false,
             overlayColor: 'rgba(0,0,0,0.5)',
-            style: 'classic'
+            style: 'classic',
+            align: 'center'
           }
         },
     

@@ -15,6 +15,7 @@ interface ScriptSettings {
   videoSubject: string;
   videoScript: string;
   language: string;
+  videoTitle: string;
   scenes: Scene[];
 }
 
@@ -23,6 +24,7 @@ export const useScriptStore = defineStore('script', {
     videoSubject: '',
     videoScript: '',
     language: 'auto',
+    videoTitle: '',
     scenes: []
   }),
   
@@ -39,6 +41,11 @@ export const useScriptStore = defineStore('script', {
     
     updateLanguage(value: string) {
       this.language = value;
+      this.saveToLocalStorage();
+    },
+    
+    updateVideoTitle(value: string) {
+      this.videoTitle = value;
       this.saveToLocalStorage();
     },
     
@@ -79,6 +86,7 @@ export const useScriptStore = defineStore('script', {
         videoSubject: this.videoSubject,
         videoScript: this.videoScript,
         language: this.language,
+        videoTitle: this.videoTitle,
         scenes: JSON.parse(JSON.stringify(this.scenes))
       };
       localStorage.setItem('moneyprinter-script', JSON.stringify(data));

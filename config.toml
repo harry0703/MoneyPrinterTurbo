@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.11"
+project_version = "2.2.12"
 
 [app]
 video_source = "pexels"
