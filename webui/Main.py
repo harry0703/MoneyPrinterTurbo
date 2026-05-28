@@ -245,6 +245,7 @@ if not config.app.get("hide_config", False):
                 "DeepSeek",
                 "ModelScope",
                 "Gemini",
+                "Grok",
                 "Ollama",
                 "G4f",
                 "OneAPI",
@@ -372,6 +373,20 @@ if not config.app.get("hide_config", False):
                             - **API Key**: [点击到官网申请](https://ai.google.dev/)
                             - **Base Url**: 留空
                             - **Model Name**: 比如 gemini-1.0-pro
+                            """
+
+            if llm_provider == "grok":
+                if not llm_model_name:
+                    llm_model_name = "grok-4.3"
+                if not llm_base_url:
+                    llm_base_url = "https://api.x.ai/v1"
+
+                with llm_helper:
+                    tips = """
+                            ##### Grok 配置说明
+                            - **API Key**: 填写您的 GrokAPI 密钥
+                            - **Base Url**: 填写 GrokAPI 的基础 URL
+                            - **Model Name**: 比如 grok-4.3
                             """
 
             if llm_provider == "deepseek":

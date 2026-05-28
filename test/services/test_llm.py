@@ -105,6 +105,19 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
 
+    def test_grok_provider_still_uses_existing_path(self):
+        config.app["llm_provider"] = "grok"
+        config.app["grok_api_key"] = ""
+        config.app["grok_base_url"] = "https://api.x.ai/v1"
+        config.app["grok_model_name"] = "grok-4.3"
+
+        result = llm._generate_response("test")
+
+        self.assertIn("Error:", result)
+        self.assertIn("api_key is not set", result)
+        self.assertNotIn("litellm", result.lower())
+
+
     def test_azure_provider_uses_azure_client_directly(self):
         """
         Azure OpenAI 的鉴权、endpoint 和 api-version 都由 AzureOpenAI 客户端处理。
