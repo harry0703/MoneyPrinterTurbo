@@ -313,6 +313,54 @@
   </div>
 </template>
 
+<style>
+@font-face {
+  font-family: 'Microsoft YaHei Bold';
+  src: url('/fonts/MicrosoftYaHeiBold.ttc') format('truetype');
+  font-weight: bold;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Microsoft YaHei Normal';
+  src: url('/fonts/MicrosoftYaHeiNormal.ttc') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'STHeiti Light';
+  src: url('/fonts/STHeitiLight.ttc') format('truetype');
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'STHeiti Medium';
+  src: url('/fonts/STHeitiMedium.ttc') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Charm Bold';
+  src: url('/fonts/Charm-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Charm Regular';
+  src: url('/fonts/Charm-Regular.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'UTM Kabel KT';
+  src: url('/fonts/UTM Kabel KT.ttf') format('truetype');
+  font-display: swap;
+}
+</style>
+
 <script setup lang="ts">
 import { reactive, watch, onMounted, computed } from 'vue';
 import { useI18nStore } from '../stores/i18n';
@@ -335,6 +383,16 @@ const availableFonts = [
   'Charm-Regular.ttf',
   'UTM Kabel KT.ttf',
 ];
+
+const fontNameMapping: { [key: string]: string } = {
+  'MicrosoftYaHeiBold.ttc': 'Microsoft YaHei Bold',
+  'MicrosoftYaHeiNormal.ttc': 'Microsoft YaHei Normal',
+  'STHeitiLight.ttc': 'STHeiti Light',
+  'STHeitiMedium.ttc': 'STHeiti Medium',
+  'Charm-Bold.ttf': 'Charm Bold',
+  'Charm-Regular.ttf': 'Charm Regular',
+  'UTM Kabel KT.ttf': 'UTM Kabel KT',
+};
 
 const colorOptions = [
   { value: 'black', label: 'Black', hex: '#000000' },
@@ -422,6 +480,7 @@ const previewFrameStyle = computed(() => {
 });
 
 const previewStyle = computed(() => {
+  console.log('[TitleSettings] previewStyle computed - titleFont:', form.titleFont, 'mapped:', fontNameMapping[form.titleFont]);
   const marginPercent = form.titleMargin;
   const marginLeftPercent = form.titleMarginLeft;
   const marginRightPercent = form.titleMarginRight;
@@ -455,7 +514,21 @@ const previewStyle = computed(() => {
   const scaledPaddingH = Math.max(4, Math.round(20 * scaleFactor));
   const scaledBorderRadius = Math.max(2, Math.round(8 * scaleFactor));
   
+  const mappedFont = fontNameMapping[form.titleFont] || form.titleFont;
+  let fontFamilyValue = mappedFont;
+  
+  if (mappedFont.includes('YaHei')) {
+    fontFamilyValue = `${mappedFont}, "Microsoft YaHei", "PingFang SC", sans-serif`;
+  } else if (mappedFont.includes('Heiti')) {
+    fontFamilyValue = `${mappedFont}, "STHeiti", "SimHei", sans-serif`;
+  } else if (mappedFont.includes('Charm')) {
+    fontFamilyValue = `${mappedFont}, cursive, sans-serif`;
+  } else {
+    fontFamilyValue = `${mappedFont}, sans-serif`;
+  }
+  
   return {
+    fontFamily: `${fontFamilyValue} !important`,
     color: form.titleColor,
     fontSize: `${scaledFontSize}px`,
     textShadow: form.titleStrokeColor !== 'transparent' 
@@ -1037,8 +1110,7 @@ defineExpose({
 }
 
 .preview-title {
-  font-family: 'MicrosoftYaHeiBold.ttc', sans-serif;
   color: #ffffff;
-  font-size: 36px;
+  font-family: inherit;
 }
 </style>

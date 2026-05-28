@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.10"
+project_version = "2.2.11"
 
 [app]
 video_source = "pexels"
@@ -57,7 +57,7 @@ video_transition_mode = "none"
 video_aspect = "portrait_3_4"
 video_clip_duration = 4
 video_count = 1
-video_idle_period = 0.3
+video_idle_period = 0.5
 video_style = "ai"
 intro_video_bg_type = "blurred"
 intro_video_bg_blur = 48
@@ -108,7 +108,7 @@ title_stroke_color = "#FFFF00"
 title_stroke_width = 8
 title_background_color = "transparent"
 title_position = "top"
-title_margin = 0.2
+title_margin = 0.18
 title_margin_left = 0.05
 title_margin_right = 0.05
 title_animation = "none"

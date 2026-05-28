@@ -1,3 +1,42 @@
+@font-face {
+  font-family: 'Microsoft YaHei Bold';
+  src: url('/fonts/MicrosoftYaHeiBold.ttc') format('truetype');
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: 'Microsoft YaHei Normal';
+  src: url('/fonts/MicrosoftYaHeiNormal.ttc') format('truetype');
+}
+
+@font-face {
+  font-family: 'STHeiti Light';
+  src: url('/fonts/STHeitiLight.ttc') format('truetype');
+  font-weight: 300;
+}
+
+@font-face {
+  font-family: 'STHeiti Medium';
+  src: url('/fonts/STHeitiMedium.ttc') format('truetype');
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: 'Charm Bold';
+  src: url('/fonts/Charm-Bold.ttf') format('truetype');
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: 'Charm Regular';
+  src: url('/fonts/Charm-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'UTM Kabel KT';
+  src: url('/fonts/UTM Kabel KT.ttf') format('truetype');
+}
+
 .title {
   margin: 0;
   font-size: 1.2rem;

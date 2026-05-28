@@ -41,3 +41,4 @@ tasks.json
 test/
 .qoder/
 *TEMP*.mp4
+vue-frontend/public/
