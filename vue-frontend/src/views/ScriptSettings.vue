@@ -258,7 +258,17 @@ const exportScenes = async () => {
     return;
   }
   
-  const scenesData = JSON.stringify(scenes.value, null, 2);
+  // Convert to snake_case for backend compatibility (avoid duplicate keys)
+  const scenesData = JSON.stringify(scenes.value.map(scene => ({
+    id: scene.id,
+    duration: scene.duration,
+    visual_requirement: scene.visual_requirement,
+    keywords: scene.keywords,
+    script: scene.script,
+    intro_video: scene.introVideo,
+    intro_video_original_path: scene.introVideoOriginalPath,
+    intro_duration: scene.introVideoDuration,
+  })), null, 2);
   const blob = new Blob([scenesData], { type: 'application/json' });
   const fileName = `scenes-${new Date().toISOString().split('T')[0]}.json`;
   
