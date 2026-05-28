@@ -46,6 +46,12 @@ class TestVoiceService(unittest.TestCase):
         self.loop.close()
     
     def test_siliconflow(self):
+        # SiliconFlow 的 API Key 存在 [siliconflow].api_key 中，运行时代码也是从
+        # config.siliconflow 读取；这里必须使用同一配置源，避免正确配置凭据时
+        # 测试仍然被误跳过。
+        if not vs.config.siliconflow.get("api_key"):
+            self.skipTest("siliconflow_api_key is not configured")
+
         voice_name = "siliconflow:FunAudioLLM/CosyVoice2-0.5B:alex-Male"
         voice_name = vs.parse_voice_name(voice_name)
         
@@ -192,6 +198,9 @@ class TestVoiceService(unittest.TestCase):
         self.assertLess(elapsed, 2)
 
     def test_azure_tts_v2(self):
+        if not vs.config.azure.get("speech_key") or not vs.config.azure.get("speech_region"):
+            self.skipTest("Azure speech key or region is not configured")
+
         voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
         voice_name = vs.parse_voice_name(voice_name)
         print(voice_name)

@@ -4,6 +4,7 @@ import math
 import os
 import queue
 import re
+import shutil
 import threading
 import time
 from datetime import datetime
@@ -21,6 +22,20 @@ from app.config import config
 from app.utils import utils
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
+
+
+def _configure_pydub_ffmpeg(audio_segment_cls):
+    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE") or shutil.which("ffmpeg")
+    if not configured_ffmpeg:
+        try:
+            import imageio_ffmpeg
+
+            configured_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception as exc:
+            logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
+
+    if configured_ffmpeg:
+        audio_segment_cls.converter = configured_ffmpeg
 
 
 def mktimestamp(time_unit: float) -> str:
@@ -1760,6 +1775,7 @@ def gemini_tts(
     import io
     from pydub import AudioSegment
     import google.generativeai as genai
+    _configure_pydub_ffmpeg(AudioSegment)
     
     try:
         # 配置Gemini API
