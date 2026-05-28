@@ -796,100 +796,13 @@ def combine_all_scenes(task_id, params, scene_results):
     logger.info(f"total video duration: {total_video_duration:.2f}s")
     logger.info(f"scene durations: {[f'{d:.2f}s' for d in scene_durations]}")
     
-    # Extend first frame of first scene for idle period
-    from app.config.config import video_idle_period as config_video_idle_period
-    if scene_clips and config_video_idle_period > 0:
-        from moviepy import ImageClip, concatenate_videoclips, AudioClip, concatenate_audioclips
-        
-        first_clip = scene_clips[0]
-        # Extract first frame and create a still frame clip
-        first_frame = first_clip.get_frame(0)
-        still_frame_clip = ImageClip(first_frame).with_duration(config_video_idle_period)
-        
-        # Add audio delay to match video extension if the first clip has audio
-        if first_clip.audio:
-            silence_clip = AudioClip(lambda t: 0, duration=config_video_idle_period)
-            extended_audio = concatenate_audioclips([silence_clip, first_clip.audio])
-            first_clip = first_clip.with_audio(extended_audio)
-        
-        # Concatenate still frame with original first clip
-        extended_first_clip = concatenate_videoclips([still_frame_clip, first_clip])
-        
-        # Replace first clip with extended version
-        scene_clips[0] = extended_first_clip
-        
-        # Update duration tracking
-        total_video_duration += config_video_idle_period
-        scene_durations[0] += config_video_idle_period
-        
-        logger.info(f"Extended first scene by {config_video_idle_period}s with still frame")
+    # Note: Idle period is now added AFTER video+audio+subtitle synchronization
+    # This ensures proper sync - moved to start_multi_scene() after subtitle processing
     
-    # Calculate audio duration (if needed)
-    audio_duration = 0
-    if params.bgm_file:
-        try:
-            audio_clip = video.AudioFileClip(params.bgm_file)
-            audio_duration = audio_clip.duration
-            audio_clip.close()
-            logger.info(f"BGM duration: {audio_duration:.2f} seconds")
-        except Exception as e:
-            logger.error(f"failed to get BGM duration: {e}")
-            audio_duration = 0
-    
-    # Compare video duration with audio duration
-    if audio_duration > 0:
-        logger.info(f"comparing video duration ({total_video_duration:.2f}s) with audio duration ({audio_duration:.2f}s)")
-        
-        if total_video_duration < audio_duration:
-            # Video duration is shorter than audio duration - task failure
-            logger.error(f"ERROR: Video duration ({total_video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s)")
-            logger.error("This indicates an issue with scene-level processing")
-            logger.error(f"Scene durations: {[f'{d:.2f}s' for d in scene_durations]}")
-            logger.error(f"Total video duration: {total_video_duration:.2f}s, Audio duration: {audio_duration:.2f}s")
-            # Close all clips
-            for clip in scene_clips:
-                clip.close()
-            return None
-        elif total_video_duration > audio_duration:
-            # Video duration is longer than audio duration - truncate video
-            logger.warning(f"Video duration ({total_video_duration:.2f}s) is longer than audio duration ({audio_duration:.2f}s)")
-            logger.info("Truncating video to match audio duration")
-            
-            # Calculate how much to truncate
-            truncate_duration = total_video_duration - audio_duration
-            logger.info(f"Need to truncate {truncate_duration:.2f}s from the end")
-            
-            # Process clips to truncate the excess duration
-            processed_clips = []
-            remaining_duration = audio_duration
-            
-            for i, clip in enumerate(scene_clips):
-                clip_duration = clip.duration
-                if remaining_duration > clip_duration:
-                    # Keep the entire clip
-                    processed_clips.append(clip)
-                    remaining_duration -= clip_duration
-                    logger.info(f"Keeping entire scene {i+1} ({clip_duration:.2f}s), remaining: {remaining_duration:.2f}s")
-                else:
-                    # Truncate this clip to the remaining duration
-                    logger.info(f"Truncating scene {i+1} from {clip_duration:.2f}s to {remaining_duration:.2f}s")
-                    truncated_clip = clip.subclip(0, remaining_duration)
-                    processed_clips.append(truncated_clip)
-                    remaining_duration = 0
-                    break
-            
-            # Close unused clips
-            for i, clip in enumerate(scene_clips):
-                if i >= len(processed_clips):
-                    clip.close()
-        else:
-            # Video duration matches audio duration exactly
-            logger.info("Video duration matches audio duration exactly")
-            processed_clips = scene_clips
-    else:
-        # No audio provided, use all clips
-        logger.info("No audio provided, using all video clips")
-        processed_clips = scene_clips
+    # Audio is already merged into each scene video at scene level
+    # Simply concatenate all scene clips without audio operations
+    processed_clips = scene_clips
+    logger.info(f"Audio already embedded in scene videos, concatenating {len(processed_clips)} clips")
     
     # Concatenate all scene clips to a temp file (without BGM, will be processed later)
     temp_video_path = path.join(utils.task_dir(task_id), "temp_combined_scenes.mp4")
@@ -1611,38 +1524,6 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         logger.info(f"Video loaded successfully in {video_load_time:.2f}s, duration: {video_clip.duration}s, size: {video_clip.size}")
         logger.info(f"[TIMESTAMP] Video loaded at: {time.strftime('%H:%M:%S')}")
         
-        # Get BGM file
-        logger.info(f"Getting BGM file: bgm_type={params.bgm_type}, bgm_file={params.bgm_file}")
-        bgm_file = video_module.get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
-        logger.info(f"BGM file result: {bgm_file}")
-        
-        if bgm_file:
-            try:
-                logger.info(f"Loading BGM file: {bgm_file}")
-                if not os.path.exists(bgm_file):
-                    logger.error(f"BGM file does not exist: {bgm_file}")
-                    raise FileNotFoundError(f"BGM file not found: {bgm_file}")
-                
-                logger.info(f"Processing BGM with effects: volume={params.bgm_volume}")
-                bgm_clip = AudioFileClip(bgm_file).with_effects([
-                    afx.MultiplyVolume(params.bgm_volume),
-                    afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
-                ])
-                logger.info("BGM loaded and processed successfully")
-                
-                logger.info("Getting existing audio from video...")
-                existing_audio = video_clip.audio
-                logger.info(f"Existing audio loaded, duration: {existing_audio.duration if existing_audio else 'None'}s")
-                
-                logger.info("Combining existing audio with BGM...")
-                combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
-                video_clip = video_clip.with_audio(combined_audio)
-                
-                logger.success("BGM added to multi-scene video")
-            except Exception as e:
-                logger.error(f"failed to add BGM: {str(e)}")
-        
         # Add pillarbox bars for 3:4 aspect ratio (convert to 9:16)
         # This must happen BEFORE subtitles are added so subtitles are positioned relative to output aspect
         if params.video_aspect:
@@ -1760,9 +1641,10 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                                 start_end = time_str.split(" --> ")
                                 if len(start_end) == 2:
                                     # Convert to seconds
-                                    from app.config.config import video_idle_period as config_video_idle_period
-                                    start_time = _srt_time_to_seconds(start_end[0]) + config_video_idle_period
-                                    end_time = _srt_time_to_seconds(start_end[1]) + config_video_idle_period
+                                    # Note: No idle period adjustment needed here as video/audio already contains it
+                                    # from combine_all_scenes() processing
+                                    start_time = _srt_time_to_seconds(start_end[0])
+                                    end_time = _srt_time_to_seconds(start_end[1])
                                     
                                     # Create text clip with proper encoding
                                     try:
@@ -1816,6 +1698,55 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                             logger.warning("No text clips created, skipping subtitle addition")
                 except Exception as e:
                     logger.error(f"failed to add subtitle: {str(e)}")
+        
+        # Add idle period by extending first frame (after video+audio+subtitles are synchronized)
+        from app.config.config import video_idle_period as config_video_idle_period
+        if config_video_idle_period > 0:
+            from moviepy import ImageClip, concatenate_videoclips, AudioClip, concatenate_audioclips
+            
+            # Extract first frame and create a still frame clip
+            first_frame = video_clip.get_frame(0)
+            still_frame_clip = ImageClip(first_frame).with_duration(config_video_idle_period)
+            
+            # Add audio silence to match video extension
+            if video_clip.audio:
+                silence_clip = AudioClip(lambda t: 0, duration=config_video_idle_period)
+                extended_audio = concatenate_audioclips([silence_clip, video_clip.audio])
+                video_clip = video_clip.with_audio(extended_audio)
+            
+            # Concatenate still frame with original video
+            video_clip = concatenate_videoclips([still_frame_clip, video_clip])
+            
+            logger.info(f"Extended video by {config_video_idle_period}s with still frame")
+        
+        # Add BGM
+        logger.info(f"Getting BGM file: bgm_type={params.bgm_type}, bgm_file={params.bgm_file}")
+        bgm_file = video_module.get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
+        logger.info(f"BGM file result: {bgm_file}")
+        
+        if bgm_file and os.path.exists(bgm_file):
+            try:
+                logger.info(f"Loading BGM file: {bgm_file}")
+                
+                logger.info(f"Processing BGM with effects: volume={params.bgm_volume}")
+                bgm_clip = AudioFileClip(bgm_file).with_effects([
+                    afx.MultiplyVolume(params.bgm_volume),
+                    afx.AudioFadeOut(3),
+                    afx.AudioLoop(duration=video_clip.duration),
+                ])
+                logger.info("BGM loaded and processed successfully")
+                
+                logger.info("Getting existing audio from video...")
+                existing_audio = video_clip.audio
+                logger.info(f"Existing audio loaded, duration: {existing_audio.duration if existing_audio else 'None'}s")
+                
+                logger.info("Combining existing audio with BGM...")
+                combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
+                video_clip = video_clip.with_audio(combined_audio)
+                
+                logger.success("BGM added to multi-scene video")
+            except Exception as e:
+                logger.error(f"failed to add BGM: {str(e)}")
         
         # 6. Add title overlay (last visual step, always tracked as a step for consistent progress reporting)
         logger.info(f"========================================")

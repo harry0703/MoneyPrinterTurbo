@@ -271,9 +271,6 @@ def generate_video(
                 subtitle_items = file_to_subtitles(subtitle_path)
                 logger.info(f"Loaded {len(subtitle_items)} subtitles from {subtitle_path}")
                 
-                # Apply same delay as audio for subtitle timing synchronization
-                from app.config.config import video_idle_period as config_video_idle_period
-                
                 # Process each subtitle item
                 for item in subtitle_items:
                     index, time_str, text = item
@@ -282,8 +279,10 @@ def generate_video(
                     start_end = time_str.split(" --> ")
                     if len(start_end) == 2:
                         # Convert to seconds
-                        start_time_val = _srt_time_to_seconds(start_end[0]) + config_video_idle_period
-                        end_time = _srt_time_to_seconds(start_end[1]) + config_video_idle_period
+                        # Note: No idle period adjustment needed here as video/audio already contains it
+                        # from combine_all_scenes() processing
+                        start_time_val = _srt_time_to_seconds(start_end[0])
+                        end_time = _srt_time_to_seconds(start_end[1])
                         duration = end_time - start_time_val
                         
                         # Skip subtitles with negative or zero duration
