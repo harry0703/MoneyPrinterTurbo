@@ -111,7 +111,10 @@ class TestVideoService(unittest.TestCase):
 
             # moviepy get video info
             clip = VideoFileClip(materials[0].url)
-            print(clip)
+            try:
+                print(clip)
+            finally:
+                clip.close()
 
             # clean generated test video file
             if os.path.exists(materials[0].url):
