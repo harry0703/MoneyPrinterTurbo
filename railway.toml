@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────────
+# Clipp Engine — railway.toml
+#
+# Place this file in the ROOT of your MoneyPrinterTurbo fork.
+# Railway reads this automatically when deploying the service.
+# ─────────────────────────────────────────────────────────────
+
+[build]
+# Use Dockerfile — required because we need system packages
+# (FFmpeg, ImageMagick) that Nixpacks cannot install
+builder       = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand          = "./start.sh"
+healthcheckPath       = "/api/v1/health"
+healthcheckTimeout    = 300     # 5 minutes — engine takes time to initialise
+restartPolicyType     = "ON_FAILURE"
+restartPolicyMaxRetries = 3

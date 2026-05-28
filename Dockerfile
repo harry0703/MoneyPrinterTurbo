@@ -1,74 +1,91 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+# ─────────────────────────────────────────────────────────────
+# Clipp Engine — Production Dockerfile
+# Target: Railway container deployment
+#
+# This Dockerfile is placed in the root of the
+# MoneyPrinterTurbo repository (your fork).
+# Railway builds this when the engine service deploys.
+# ─────────────────────────────────────────────────────────────
 
-# Set the working directory in the container
-WORKDIR /MoneyPrinterTurbo
+FROM python:3.11-slim AS base
 
-# 设置/MoneyPrinterTurbo目录权限为777
-RUN chmod 777 /MoneyPrinterTurbo
+# Prevent Python from writing .pyc files and buffering stdout
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
 
-ENV PYTHONPATH="/MoneyPrinterTurbo"
+# ── System dependencies ──────────────────────────────────────
+# FFmpeg:       video clip assembly and encoding
+# ImageMagick:  subtitle rendering and frame manipulation
+# fonts-*:      text rendering for subtitles
+# curl:         health checks and API calls
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    imagemagick \
+    libmagickwand-dev \
+    libmagickcore-dev \
+    libmagickcore-6.q16-6 \
+    fonts-dejavu-core \
+    fonts-liberation \
+    fontconfig \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install system dependencies with domestic mirrors first for stability
-RUN echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources.list && \
-    echo "deb http://mirrors.aliyun.com/debian-security bullseye-security main" >> /etc/apt/sources.list && \
-    ( \
-        for i in 1 2 3; do \
-            echo "Attempt $i: Using Aliyun mirror"; \
-            apt-get update && apt-get install -y --no-install-recommends \
-                git \
-                imagemagick \
-                ffmpeg && break || \
-            echo "Attempt $i failed, retrying..."; \
-            if [ $i -eq 3 ]; then \
-                echo "Aliyun mirror failed, switching to Tsinghua mirror"; \
-                sed -i 's/mirrors.aliyun.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
-                sed -i 's/mirrors.aliyun.com\/debian-security/mirrors.tuna.tsinghua.edu.cn\/debian-security/g' /etc/apt/sources.list && \
-                ( \
-                    apt-get update && apt-get install -y --no-install-recommends \
-                        git \
-                        imagemagick \
-                        ffmpeg || \
-                    ( \
-                        echo "Tsinghua mirror failed, switching to default Debian mirror"; \
-                        sed -i 's/mirrors.tuna.tsinghua.edu.cn/deb.debian.org/g' /etc/apt/sources.list && \
-                        sed -i 's/mirrors.tuna.tsinghua.edu.cn\/debian-security/security.debian.org/g' /etc/apt/sources.list; \
-                        apt-get update && apt-get install -y --no-install-recommends \
-                            git \
-                            imagemagick \
-                            ffmpeg; \
-                    ); \
-                ); \
-            fi; \
-            sleep 5; \
-        done \
-    ) && rm -rf /var/lib/apt/lists/*
+# ── Fix ImageMagick security policy ─────────────────────────
+# Default Debian policy blocks operations MPT needs.
+# This unlocks PDF, PS, EPS, video-related patterns.
+RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
+      sed -i \
+        -e 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' \
+        -e 's/rights="none" pattern="PS"/rights="read|write" pattern="PS"/' \
+        -e 's/rights="none" pattern="PS2"/rights="read|write" pattern="PS2"/' \
+        -e 's/rights="none" pattern="PS3"/rights="read|write" pattern="PS3"/' \
+        -e 's/rights="none" pattern="EPS"/rights="read|write" pattern="EPS"/' \
+        -e 's/rights="none" pattern="LABEL"/rights="read|write" pattern="LABEL"/' \
+        /etc/ImageMagick-6/policy.xml; \
+    fi
 
-# Fix security policy for ImageMagick
-RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
+# Update font cache
+RUN fc-cache -fv
 
-# Copy only the requirements.txt first to leverage Docker cache
+WORKDIR /app
+
+# ── Python dependencies ──────────────────────────────────────
+# Copy requirements first for Docker layer caching.
+# Unchanged requirements = no pip re-install on code changes.
 COPY requirements.txt ./
 
-# Install Python dependencies with domestic mirrors first and retry logic
-RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com --retries 3 --timeout 60 -r requirements.txt || \
-    pip install --no-cache-dir -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/ --trusted-host mirrors.tuna.tsinghua.edu.cn --retries 3 --timeout 60 -r requirements.txt || \
-    pip install --no-cache-dir --retries 3 --timeout 60 -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Now copy the rest of the codebase into the image
+# ── Application code ─────────────────────────────────────────
 COPY . .
 
-# Expose the port the app runs on
-EXPOSE 8501
+# ── Runtime directories ───────────────────────────────────────
+RUN mkdir -p \
+    storage/tasks \
+    resource/songs \
+    resource/fonts \
+    resource/backgrounds \
+    logs
 
-# Command to run the application
-CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False"]
+# ── Copy Railway-specific files ───────────────────────────────
+COPY railway/start.sh ./start.sh
+COPY railway/generate-config.sh ./generate-config.sh
+COPY railway/config.toml.template ./config.toml.template
 
-# 1. Build the Docker image using the following command
-# docker build -t moneyprinterturbo .
+RUN chmod +x start.sh generate-config.sh
 
-# 2. Run the Docker container using the following command
-## For Linux or MacOS:
-# docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
-## For Windows:
-# docker run -v ${PWD}/config.toml:/MoneyPrinterTurbo/config.toml -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
+# ── Health check ─────────────────────────────────────────────
+# Railway uses this to verify the container is healthy
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8080}/api/v1/health || exit 1
+
+# ── Default port (overridden by Railway's $PORT) ─────────────
+EXPOSE 8080
+
+CMD ["./start.sh"]

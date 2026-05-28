@@ -1,0 +1,4 @@
+# This file is intentionally empty.
+# config.toml is GENERATED at container startup by railway/generate-config.sh
+# from environment variables injected by Railway.
+# See railway/generate-config.sh for the actual template.
