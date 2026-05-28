@@ -44,7 +44,7 @@ materials, video subtitles, and video background music before synthesizing a hig
   supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
-- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
+- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope**, **OpenVINO** (Intel CPU/GPU/NPU) and more
 
 ## Video Demos 📺
 
@@ -291,14 +291,14 @@ A list of all supported voices can be viewed here: [Voice List](./docs/voice-lis
 
 ## Subtitle Generation 📜
 
-Currently, there are 2 ways to generate subtitles:
+Currently, there are 3 ways to generate subtitles:
 
 - **edge**: Faster generation speed, better performance, no specific requirements for computer configuration, but the
-  quality may be unstable
-- **whisper**: Slower generation speed, poorer performance, specific requirements for computer configuration, but more
-  reliable quality
+  quality may be unstable.
+- **whisper**: Uses `faster-whisper` for local transcription. Slower generation speed, but more reliable quality.
+- **openvino**: **Optimized for Intel hardware (CPU, GPU, NPU)**. Uses OpenVINO GenAI for high-performance local transcription.
 
-You can switch between them by modifying the `subtitle_provider` in the `config.toml` configuration file
+You can switch between them by modifying the `subtitle_provider` in the `config.toml` configuration file.
 
 It is recommended to use `edge` mode, and switch to `whisper` mode if the quality of the subtitles generated is not
 satisfactory.
@@ -327,6 +327,41 @@ MoneyPrinterTurbo
   │          preprocessor_config.json
   │          tokenizer.json
   │          vocabulary.json
+```
+
+### OpenVINO Optimization (Intel Hardware) 🚀
+
+MoneyPrinterTurbo now supports **OpenVINO** for both transcription and local LLM inference, providing significant acceleration on Intel CPUs, Integrated GPUs, Discrete GPUs (Arc), and NPUs.
+
+#### 1. Setup OpenVINO Whisper
+To use OpenVINO for subtitles, you need to export the Whisper model to OpenVINO format using `optimum-cli`:
+
+```shell
+pip install optimum[openvino]
+optimum-cli export openvino --model openai/whisper-large-v3 --weight-format int8 models/whisper-large-v3-openvino
+```
+
+In `config.toml`, set:
+```toml
+subtitle_provider = "openvino"
+
+[whisper]
+model_size = "large-v3" # Should match the exported folder name suffix
+device = "AUTO"         # CPU, GPU, NPU, or AUTO
+```
+
+#### 2. Setup OpenVINO LLM
+You can also run LLMs (like Llama-3, Qwen, etc.) locally using OpenVINO. Export your preferred model:
+
+```shell
+optimum-cli export openvino --model Meta-Llama-3-8B-Instruct --weight-format int4 models/llama-3-8b-instruct-openvino
+```
+
+In `config.toml`, set:
+```toml
+llm_provider = "openvino"
+openvino_model_name = "llama-3-8b-instruct"
+openvino_device = "GPU" # Options: CPU, GPU, NPU, AUTO
 ```
 
 ## Background Music 🎵

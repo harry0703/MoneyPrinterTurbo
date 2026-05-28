@@ -7,6 +7,12 @@ try:
     from faster_whisper import WhisperModel
 except ImportError:
     WhisperModel = None
+
+try:
+    import openvino_genai as ov_genai
+except ImportError:
+    ov_genai = None
+
 from loguru import logger
 
 from app.config import config
@@ -16,9 +22,112 @@ model_size = config.whisper.get("model_size", "large-v3")
 device = config.whisper.get("device", "cpu")
 compute_type = config.whisper.get("compute_type", "int8")
 model = None
+ov_pipeline = None
 
 
 def create(audio_file, subtitle_file: str = ""):
+    subtitle_provider = config.app.get("subtitle_provider", "edge")
+    if subtitle_provider == "openvino":
+        return create_with_openvino(audio_file, subtitle_file)
+    return create_with_whisper(audio_file, subtitle_file)
+
+
+def create_with_openvino(audio_file, subtitle_file: str = ""):
+    global ov_pipeline
+    if ov_genai is None:
+        logger.warning("openvino-genai not available, skipping openvino subtitle generation")
+        return ""
+
+    if not ov_pipeline:
+        model_path = f"{utils.root_dir()}/models/whisper-{model_size}-openvino"
+        if not os.path.isdir(model_path):
+            # Fallback to a default or hope it's available in a known location
+            # In a real scenario, users should export the model using optimum-cli
+            model_path = f"whisper-{model_size}"
+
+        logger.info(
+            f"loading OpenVINO model: {model_path}, device: {device}"
+        )
+        try:
+            ov_pipeline = ov_genai.WhisperPipeline(model_path, device)
+        except Exception as e:
+            logger.error(
+                f"failed to load OpenVINO model: {e} \n\n"
+                f"********************************************\n"
+                f"Please ensure you have exported the model to OpenVINO format. \n"
+                f"Example: optimum-cli export openvino --model openai/whisper-large-v3 --weight-format int8 models/whisper-large-v3-openvino \n"
+                f"********************************************\n\n"
+            )
+            return None
+
+    logger.info(f"start OpenVINO transcription, output file: {subtitle_file}")
+    if not subtitle_file:
+        subtitle_file = f"{audio_file}.srt"
+
+    from pydub import AudioSegment
+    import numpy as np
+
+    audio = AudioSegment.from_file(audio_file)
+    audio = audio.set_frame_rate(16000).set_channels(1)
+    samples = np.array(audio.get_array_of_samples())
+    # Normalize to [-1, 1]
+    if audio.sample_width == 2:
+        samples = samples.astype(np.float32) / 32768.0
+    elif audio.sample_width == 4:
+        samples = samples.astype(np.float32) / 2147483648.0
+    raw_audio = samples.tolist()
+
+    # OpenVINO GenAI WhisperPipeline expects raw audio data as list of floats
+    result = ov_pipeline.generate(raw_audio, return_timestamps=True)
+
+    start = timer()
+    subtitles = []
+
+    def recognized(seg_text, seg_start, seg_end):
+        seg_text = seg_text.strip()
+        if not seg_text:
+            return
+
+        msg = "[%.2fs -> %.2fs] %s" % (seg_start, seg_end, seg_text)
+        logger.debug(msg)
+
+        subtitles.append(
+            {"msg": seg_text, "start_time": seg_start, "end_time": seg_end}
+        )
+
+    for chunk in result.chunks:
+        seg_text = chunk.text.strip()
+        # OpenVINO GenAI WhisperPipeline timestamps are in milliseconds as per current documentation
+        seg_start = chunk.start_ts / 1000.0
+        seg_end = chunk.end_ts / 1000.0
+
+        # Follow the same logic as faster-whisper to handle punctuation if available
+        # However, chunks from OpenVINO are already segments.
+        recognized(seg_text, seg_start, seg_end)
+
+    end = timer()
+    diff = end - start
+    logger.info(f"complete, elapsed: {diff:.2f} s")
+
+    idx = 1
+    lines = []
+    for subtitle in subtitles:
+        text = subtitle.get("msg")
+        if text:
+            lines.append(
+                utils.text_to_srt(
+                    idx, text, subtitle.get("start_time"), subtitle.get("end_time")
+                )
+            )
+            idx += 1
+
+    sub = "\n".join(lines) + "\n"
+    with open(subtitle_file, "w", encoding="utf-8") as f:
+        f.write(sub)
+    logger.info(f"subtitle file created: {subtitle_file}")
+
+
+def create_with_whisper(audio_file, subtitle_file: str = ""):
     global model
     if WhisperModel is None:
         logger.warning("faster_whisper not available, skipping whisper subtitle generation")
