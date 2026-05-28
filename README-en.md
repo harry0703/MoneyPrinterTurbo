@@ -405,7 +405,7 @@ To enablerepo look-ups and downloads online, pass 'local files only=False' as in
 
 or
 
-An error occured while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
+An error occurred while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
 An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the
 specified revision on the local disk. Please check your internet connection and try again.
 Trying to load the model directly from the local cache, if it exists.
