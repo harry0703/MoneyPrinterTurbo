@@ -695,8 +695,217 @@ Please note that you must use English for generating video search terms; Chinese
         if i < _max_retries:
             logger.warning(f"failed to generate video terms, trying again... {i + 1}")
 
-    logger.success(f"completed: \n{search_terms}")
+    logger.success(f"completed: \\n{search_terms}")
     return search_terms
+
+
+def generate_scene_prompts(
+    video_script: str,
+    scene_count: int = 5,
+    language: str = "",
+) -> list:
+    """Generate visual scene descriptions from a video script.
+
+    Each scene includes a natural language description AND an English visual
+    prompt optimized for Flux.1 image generation. The visual_prompt is always
+    in English for best Flux.1 quality, while the description can be in any
+    language.
+
+    Returns:
+        List of dicts: [{"index": 0, "description": "...", "visual_prompt": "..."}]
+    """
+    lang_hint = ""
+    if language:
+        lang_hint = f"\n- Your scene descriptions should be in {language}, but visual_prompt MUST be in English."
+
+    prompt = f"""You are a video scene designer. Given a video script, break it down into {scene_count} visual scenes.
+
+For each scene, provide:
+1. A brief description of what the scene shows (matching the script's narrative)
+2. An English visual_prompt optimized for AI image generation (Flux.1). This MUST be in English and descriptive enough to generate a high-quality image.
+
+The visual_prompt should describe:
+- The scene composition (subject, background, lighting)
+- The visual style (cinematic, realistic, illustrative, etc.)
+- Key colors and mood
+- Camera angle/perspective
+
+⚠️ CRITICAL: The visual_prompt MUST be in ENGLISH (for the image generator).
+{lang_hint}
+
+Video script:
+{video_script}
+
+Return ONLY a JSON array:
+[
+  {{"index": 0, "description": "...", "visual_prompt": "..."}},
+  ...
+]
+"""
+    logger.info(f"generating {scene_count} scene prompts from script...")
+
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt=prompt)
+            if not response:
+                continue
+
+            # Extract JSON array
+            match = re.search(r"\[.*\]", response, re.DOTALL)
+            if not match:
+                logger.warning(f"no JSON array found in response (attempt {i+1})")
+                continue
+
+            scenes = json.loads(match.group())
+            if not isinstance(scenes, list) or len(scenes) == 0:
+                logger.warning(f"invalid scenes format (attempt {i+1})")
+                continue
+
+            # Validate each scene has required fields
+            valid = True
+            for s in scenes:
+                if "visual_prompt" not in s or "description" not in s:
+                    valid = False
+                    break
+            if not valid:
+                logger.warning(f"scenes missing required fields (attempt {i+1})")
+                continue
+
+            logger.success(
+                f"generated {len(scenes)} scene prompts"
+            )
+            return scenes
+
+        except Exception as e:
+            logger.warning(f"failed to generate scene prompts: {e} (attempt {i+1})")
+
+    logger.error("failed to generate scene prompts after all retries")
+    return []
+
+
+def generate_script_with_visuals(
+    video_subject: str,
+    paragraph_number: int = 5,
+    language: str = "",
+) -> dict:
+    """Generate video script AND visual prompts in a single LLM call.
+
+    Replaces the two-step flow (generate_script → generate_scene_prompts) with
+    one call that outputs both paragraphs and Flux-optimized visual prompts.
+    Cuts one full LLM round trip and ensures visual prompts are tightly
+    aligned with each paragraph's narrative.
+
+    Returns:
+        {
+            "script": "full concatenated script text",
+            "scenes": [
+                {
+                    "index": 0,
+                    "description": "paragraph text in target language",
+                    "visual_prompt": "English Flux prompt"
+                },
+                ...
+            ]
+        }
+    """
+    lang_hint = ""
+    if language:
+        lang_hint = (
+            f"\n- Write the paragraph text in {language}."
+            f"\n- The scene descriptions and visual_prompt MUST be in English."
+        )
+
+    prompt = f"""You are an award-winning micro-film director. Your job is to turn a topic into a compelling short video.
+
+Given the topic: "{video_subject}"
+
+## Your Task
+
+1. **Write a script** with exactly {paragraph_number} paragraphs. Identify the narrative turning points (轉折處) — where the story shifts in emotion, perspective, or stakes. Place scene transitions at these turning points.
+
+2. **Design cinematic scenes** for each paragraph. Each scene should be a specific, visually striking image that matches the emotional tone of that paragraph. Think like a director: what does the camera see? What's the lighting? What's the focal point?
+
+3. **Match every scene to its paragraph**. The audience should see the image WHILE hearing the paragraph text. The visual must reinforce the narrative.
+
+## Scene Design Rules
+- Every scene MUST be a concrete, photographable moment — no abstract concepts
+- Describe camera angle, lighting, color palette, and composition
+- Use cinematic terminology: wide shot, close-up, dutch angle, golden hour, chiaroscuro, etc.
+- The visual_prompt MUST be in English and optimized for AI image generation
+- Each visual_prompt should be 2-3 sentences, rich in visual detail
+
+{lang_hint}
+
+## Output Format
+Return ONLY a JSON object:
+{{
+  "title": "video title",
+  "script": "full concatenated script text",
+  "scenes": [
+    {{
+      "index": 0,
+      "paragraph_range": [0, 0],
+      "description": "what this scene shows (matching paragraph {{paragraph_range}})",
+      "emotional_tone": "e.g., hopeful, tense, nostalgic",
+      "visual_prompt": "English Flux prompt: camera angle, lighting, composition, colors, mood"
+    }}
+  ]
+}}
+
+⚠️ visual_prompt MUST be English. Cinematic quality is the top priority.
+"""
+
+    logger.info(f"generating director-quality script + visuals for: {video_subject[:60]}...")
+
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt=prompt)
+            if not response:
+                continue
+
+            # Extract JSON object
+            match = re.search(r"\{.*\}", response, re.DOTALL)
+            if not match:
+                logger.warning(f"no JSON found (attempt {i+1})")
+                continue
+
+            data = json.loads(match.group())
+            if not isinstance(data, dict) or "script" not in data or "scenes" not in data:
+                logger.warning(f"invalid format (attempt {i+1})")
+                continue
+
+            scenes = data["scenes"]
+            if not isinstance(scenes, list) or len(scenes) == 0:
+                logger.warning(f"empty scenes (attempt {i+1})")
+                continue
+
+            # Validate each scene has required fields
+            valid = True
+            for s in scenes:
+                if "visual_prompt" not in s or "description" not in s:
+                    logger.warning(f"scene missing visual_prompt or description (attempt {i+1})")
+                    valid = False
+                    break
+            if not valid:
+                continue
+
+            # Ensure indices
+            for idx, s in enumerate(scenes):
+                s.setdefault("index", idx)
+                if "paragraph_range" not in s:
+                    s["paragraph_range"] = [idx, idx]
+
+            logger.success(
+                f"director cut: {len(data['script'])} chars + "
+                f"{len(scenes)} cinematic scenes in one pass"
+            )
+            return data
+
+        except Exception as e:
+            logger.warning(f"failed (attempt {i+1}): {e}")
+
+    logger.error("failed to generate director script+visuals after all retries")
+    return {}
 
 
 if __name__ == "__main__":
@@ -706,9 +915,8 @@ if __name__ == "__main__":
     )
     print("######################")
     print(script)
-    search_terms = generate_terms(
-        video_subject=video_subject, video_script=script, amount=5
-    )
+    scenes = generate_scene_prompts(video_script=script, scene_count=3)
     print("######################")
-    print(search_terms)
+    for s in scenes:
+        print(f"Scene {s['index']}: {s['visual_prompt'][:80]}...")
     

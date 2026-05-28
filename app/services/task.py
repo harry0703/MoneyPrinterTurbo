@@ -60,13 +60,15 @@ def generate_terms(task_id, params, video_script):
     return video_terms
 
 
-def save_script_data(task_id, video_script, video_terms, params):
+def save_script_data(task_id, video_script, video_terms, params, scene_prompts=None):
     script_file = path.join(utils.task_dir(task_id), "script.json")
     script_data = {
         "script": video_script,
         "search_terms": video_terms,
         "params": params,
     }
+    if scene_prompts:
+        script_data["scene_prompts"] = scene_prompts
 
     with open(script_file, "w", encoding="utf-8") as f:
         f.write(utils.to_json(script_data))
@@ -163,7 +165,62 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     return subtitle_path
 
 
-def get_video_materials(task_id, params, video_terms, audio_duration):
+def _get_ai_image_materials(task_id, params, scene_prompts, audio_duration):
+    """Generate AI images via ComfyUI and create Ken Burns clips."""
+    import os
+    from app.services import image_gen, video as video_svc
+    from app.utils import utils
+
+    logger.info("\n\n## generating AI images for scenes")
+    task_dir = utils.task_dir(task_id)
+
+    # Generate images via ComfyUI Flux.1
+    gen = image_gen.ComfyUIImageGen(
+        width=params.ai_image_width if hasattr(params, 'ai_image_width') else 540,
+        height=params.ai_image_height if hasattr(params, 'ai_image_height') else 960,
+    )
+
+    sm.state.update_task(task_id, progress=42)
+    image_paths = gen.generate_scenes(scene_prompts, prefix_base=f"mpt_{task_id[:8]}")
+    valid_images = [p for p in image_paths if p is not None]
+
+    if not valid_images:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("no AI images generated.")
+        return None
+
+    logger.info(f"generated {len(valid_images)}/{len(scene_prompts)} images")
+
+    # Calculate duration per scene
+    clip_duration = getattr(params, 'video_clip_duration', 5)
+    total_needed = audio_duration * (params.video_count if hasattr(params, 'video_count') else 1)
+    per_scene = max(clip_duration, total_needed / len(valid_images))
+
+    # Create Ken Burns clips
+    sm.state.update_task(task_id, progress=45)
+    kb_dir = os.path.join(task_dir, "ken_burns")
+    os.makedirs(kb_dir, exist_ok=True)
+
+    durations = [per_scene] * len(valid_images)
+    kb_clips = video_svc.create_ken_burns_clips(
+        image_paths=[str(p) for p in valid_images],
+        durations=durations,
+        output_dir=kb_dir,
+    )
+    valid_clips = [c for c in kb_clips if c is not None]
+
+    if not valid_clips:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("no Ken Burns clips created.")
+        return None
+
+    logger.success(f"created {len(valid_clips)} Ken Burns clips")
+    return valid_clips
+
+
+def get_video_materials(task_id, params, video_terms, audio_duration, scene_prompts=None):
+    if params.video_source == "ai_image" and scene_prompts:
+        return _get_ai_image_materials(task_id, params, scene_prompts, audio_duration)
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
@@ -251,8 +308,31 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
-    # 1. Generate script
-    video_script = generate_script(task_id, params)
+    # 1. Generate script (and scene prompts if ai_image mode)
+    video_script = ""
+    scene_prompts = None
+    video_terms = ""
+
+    if params.video_source == "ai_image":
+        # One-pass: script + visual prompts in a single LLM call
+        scene_count = getattr(params, 'ai_scene_count', 5)
+        logger.info(f"generating script + {scene_count} scene visuals in one LLM call")
+        result = llm.generate_script_with_visuals(
+            video_subject=params.video_subject,
+            paragraph_number=scene_count,
+            language=params.video_language or "",
+        )
+        if not result or "script" not in result:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to generate script with visuals.")
+            return
+        video_script = result["script"]
+        scene_prompts = result.get("scenes", [])
+        video_terms = [s.get("description", "") for s in scene_prompts]
+        logger.success(f"one-pass: {len(scene_prompts)} scenes with visual prompts")
+    else:
+        # Standard mode: script only
+        video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
@@ -265,15 +345,15 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         )
         return {"script": video_script}
 
-    # 2. Generate terms
-    video_terms = ""
-    if params.video_source != "local":
+    # 2. Generate terms (only for non-ai_image modes)
+    # ai_image mode already has video_terms & scene_prompts from step 1
+    if params.video_source != "ai_image" and params.video_source != "local":
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             return
 
-    save_script_data(task_id, video_script, video_terms, params)
+    save_script_data(task_id, video_script, video_terms, params, scene_prompts)
 
     if stop_at == "terms":
         sm.state.update_task(
@@ -320,7 +400,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 5. Get video materials
     downloaded_videos = get_video_materials(
-        task_id, params, video_terms, audio_duration
+        task_id, params, video_terms, audio_duration, scene_prompts
     )
     if not downloaded_videos:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
