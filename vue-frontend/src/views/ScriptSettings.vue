@@ -337,6 +337,8 @@ const clearScenes = () => {
   }
   
   scriptStore.updateScenes([]);
+  scriptStore.updateVideoTitle('');
+  form.videoTitle = '';
   ElMessage.success('All scenes cleared successfully');
 };
 
@@ -634,9 +636,9 @@ const parseVideoScript = async () => {
         
         if (generatedTitle.length > 0) {
           generatedTitle = generatedTitle.trim();
-          // Truncate to 100 characters
-          if (generatedTitle.length > 100) {
-            generatedTitle = generatedTitle.substring(0, 100) + '...';
+          // Truncate to 16 characters
+          if (generatedTitle.length > 16) {
+            generatedTitle = generatedTitle.substring(0, 16);
           }
           scriptStore.updateVideoTitle(generatedTitle);
         }
