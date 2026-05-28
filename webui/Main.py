@@ -253,6 +253,7 @@ if not config.app.get("hide_config", False):
                 "ERNIE",
                 "Pollinations",
                 "LiteLLM",
+                "OpenVINO",
             ]
             saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
             saved_llm_provider_index = 0
@@ -446,16 +447,32 @@ if not config.app.get("hide_config", False):
                             - **Model Name**: LiteLLM format — `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, `gemini/gemini-2.5-flash`. See [full provider list](https://docs.litellm.ai/docs/providers)
                             """
 
+            if llm_provider == "openvino":
+                if not llm_model_name:
+                    llm_model_name = "Llama-3.2-1B-Instruct"
+                with llm_helper:
+                    tips = """
+                            ##### OpenVINO Configuration
+                            - **Model Name**: The name of the model, e.g., `Llama-3.2-1B-Instruct`.
+                            - **Model Path**: Optional. Path to the exported OpenVINO model directory. Defaults to `models/<model_name>-openvino`.
+                            - **Device**: Select the inference device (CPU, GPU, NPU, AUTO) below.
+                            """
+
             if tips and config.ui["language"] == "zh":
                 st.warning(
                     "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
                 )
                 st.info(tips)
 
-            st_llm_api_key = st.text_input(
-                tr("API Key"), value=llm_api_key, type="password"
-            )
-            st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
+            st_llm_api_key = None
+            if llm_provider != "openvino":
+                st_llm_api_key = st.text_input(
+                    tr("API Key"), value=llm_api_key, type="password"
+                )
+
+            st_llm_base_url = None
+            if llm_provider != "openvino":
+                st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
             st_llm_model_name = ""
             if llm_provider != "ernie":
                 st_llm_model_name = st.text_input(
@@ -487,8 +504,80 @@ if not config.app.get("hide_config", False):
                 if st_llm_account_id:
                     config.app[f"{llm_provider}_account_id"] = st_llm_account_id
 
-        # 右侧面板 - API 密钥设置
+            if llm_provider == "openvino":
+                saved_openvino_device = config.app.get("openvino_device", "CPU")
+                openvino_devices = ["CPU", "GPU", "NPU", "AUTO"]
+                try:
+                    saved_openvino_device_index = openvino_devices.index(saved_openvino_device)
+                except ValueError:
+                    saved_openvino_device_index = 0
+
+                st_openvino_device = st.selectbox(
+                    tr("OpenVINO Device"),
+                    options=openvino_devices,
+                    index=saved_openvino_device_index
+                )
+                config.app["openvino_device"] = st_openvino_device
+
+                saved_openvino_model_path = config.app.get("openvino_model_path", "")
+                st_openvino_model_path = st.text_input(
+                    tr("OpenVINO Model Path"),
+                    value=saved_openvino_model_path
+                )
+                config.app["openvino_model_path"] = st_openvino_model_path
+
+        # 右侧面板 - 其他设置
         with right_config_panel:
+            st.write(tr("Subtitle Settings"))
+            subtitle_providers = [
+                "Edge",
+                "Whisper",
+                "OpenVINO",
+            ]
+            saved_subtitle_provider = config.app.get("subtitle_provider", "edge").lower()
+            saved_subtitle_provider_index = 0
+            for i, provider in enumerate(subtitle_providers):
+                if provider.lower() == saved_subtitle_provider:
+                    saved_subtitle_provider_index = i
+                    break
+
+            subtitle_provider = st.selectbox(
+                tr("Subtitle Provider"),
+                options=subtitle_providers,
+                index=saved_subtitle_provider_index,
+            )
+            config.app["subtitle_provider"] = subtitle_provider.lower()
+
+            if subtitle_provider.lower() in ["whisper", "openvino"]:
+                whisper_devices = ["CPU", "GPU", "NPU", "AUTO"] if subtitle_provider.lower() == "openvino" else ["cpu", "cuda"]
+                saved_whisper_device = config.whisper.get("device", "CPU")
+                try:
+                    saved_whisper_device_index = whisper_devices.index(saved_whisper_device)
+                except ValueError:
+                    saved_whisper_device_index = 0
+
+                whisper_device = st.selectbox(
+                    tr("Whisper Device"),
+                    options=whisper_devices,
+                    index=saved_whisper_device_index,
+                )
+                config.whisper["device"] = whisper_device
+
+                whisper_model_sizes = ["tiny", "base", "small", "medium", "large-v1", "large-v2", "large-v3"]
+                saved_whisper_model_size = config.whisper.get("model_size", "large-v3")
+                try:
+                    saved_whisper_model_size_index = whisper_model_sizes.index(saved_whisper_model_size)
+                except ValueError:
+                    saved_whisper_model_size_index = 6
+
+                whisper_model_size = st.selectbox(
+                    tr("Whisper Model Size"),
+                    options=whisper_model_sizes,
+                    index=saved_whisper_model_size_index,
+                )
+                config.whisper["model_size"] = whisper_model_size
+
+            st.write(tr("Video Source Settings"))
 
             def get_keys_from_config(cfg_key):
                 api_keys = config.app.get(cfg_key, [])

@@ -44,6 +44,7 @@ pixabay_api_keys = []
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 #   litellm     (100+ providers via LiteLLM gateway)
+#   openvino    (Local inference using Intel hardware)
 llm_provider = "openai"
 
 ########## Pollinations AI Settings
@@ -144,6 +145,17 @@ modelscope_api_key = ""
 modelscope_base_url = "https://api-inference.modelscope.cn/v1/"
 modelscope_model_name = "Qwen/Qwen3-32B"
 
+########## OpenVINO Local LLM Settings
+# Local inference on Intel CPU, GPU, or NPU.
+# Model should be exported to OpenVINO format using optimum-cli.
+# Example: models/Llama-3.2-1B-Instruct-openvino
+openvino_model_name = "Llama-3.2-1B-Instruct"
+# Path to the exported OpenVINO model directory.
+# Defaults to models/<openvino_model_name>-openvino
+openvino_model_path = ""
+# Inference device: "CPU", "GPU", "NPU", or "AUTO"
+openvino_device = "CPU"
+
 ########## LiteLLM (AI Gateway — 100+ providers)
 # LiteLLM routes to any LLM provider via a unified interface.
 # Use this for providers not directly supported above: Anthropic (native API),
@@ -160,7 +172,7 @@ modelscope_model_name = "Qwen/Qwen3-32B"
 #           "gemini/gemini-2.5-flash", "ollama/llama3"
 litellm_model_name = "openai/gpt-4o-mini"
 
-# Subtitle Provider, "edge" or "whisper"
+# Subtitle Provider, "edge", "whisper" or "openvino"
 # If empty, the subtitle will not be generated
 subtitle_provider = "edge"
 
@@ -233,20 +245,20 @@ max_queued_tasks = 100
 
 
 [whisper]
-# Only effective when subtitle_provider is "whisper"
+# Only effective when subtitle_provider is "whisper" or "openvino"
 
-# Run on GPU with FP16
-# model = WhisperModel(model_size, device="cuda", compute_type="float16")
+# For "whisper" (faster-whisper) provider:
+#   Run on GPU with FP16: compute_type="float16", device="cuda"
+#   Run on GPU with INT8: compute_type="int8_float16", device="cuda"
+#   Run on CPU with INT8: compute_type="int8", device="cpu"
 
-# Run on GPU with INT8
-# model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
-
-# Run on CPU with INT8
-# model = WhisperModel(model_size, device="cpu", compute_type="int8")
+# For "openvino" provider:
+#   device can be "CPU", "GPU", "NPU", or "AUTO"
 
 # recommended model_size: "large-v3"
 model_size = "large-v3"
-# if you want to use GPU, set device="cuda"
+# if you want to use GPU for faster-whisper, set device="cuda"
+# if you want to use OpenVINO, set device="CPU", "GPU", or "NPU"
 device = "CPU"
 compute_type = "int8"
 

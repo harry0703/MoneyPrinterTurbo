@@ -31,11 +31,17 @@ dependencies = [
     "socksio==1.0.0",
     "pydub==0.25.1",
     "litellm==1.60.0",
+    "openvino-genai~=2025.0.0",
+    "openvino-tokenizers~=2025.0.0",
 ]
 
 [project.optional-dependencies]
 g4f = [
     "g4f==0.5.2.2",
+]
+test = [
+    "pytest>=9.0.3",
+    "playwright>=1.60.0",
 ]
 
 [tool.hatch.build.targets.wheel]

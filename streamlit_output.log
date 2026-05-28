@@ -1,0 +1,11 @@
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8501
+  Network URL: http://192.168.0.2:8501
+  External URL: http://34.27.142.64:8501
+
+2026-05-28 12:42:42.792 | INFO     | app.config.config:load_config:23 - load config from file: /app/config.toml
+2026-05-28 12:42:42.797 | INFO     | app.config.config:<module>:83 - MoneyPrinterTurbo v1.2.8
+******** sys.path ********
+['./webui/Main.py', './webui', '/app/.venv/bin', '/home/jules/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python311.zip', '/home/jules/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11', '/home/jules/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/lib-dynload', '/app/.venv/lib/python3.11/site-packages', '/app']
