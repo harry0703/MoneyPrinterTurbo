@@ -451,11 +451,16 @@ def combine_videos(
 
 
 def wrap_text(text, max_width, font="Arial", fontsize=60):
-    # Create ImageFont
+    # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
+    # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
+    # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
     font = ImageFont.truetype(font, fontsize)
+    max_width = int(max_width)
 
     def get_text_size(inner_text):
         inner_text = inner_text.strip()
+        if not inner_text:
+            return 0, fontsize
         left, top, right, bottom = font.getbbox(inner_text)
         return right - left, bottom - top
 
@@ -463,44 +468,49 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     if width <= max_width:
         return text, height
 
-    processed = True
+    def split_long_token(token):
+        # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
+        # 退化为字符级拆分。关键点是：检测到 candidate 超宽时，先提交上一个
+        # 仍然合法的 current，再把当前字符放入下一行，不能把超宽字符塞回上一行。
+        lines = []
+        current = ""
+        for char in token:
+            candidate = f"{current}{char}"
+            candidate_width, _ = get_text_size(candidate)
+            if candidate_width <= max_width or not current:
+                current = candidate
+                continue
+            lines.append(current)
+            current = char
+        if current:
+            lines.append(current)
+        return lines
 
-    _wrapped_lines_ = []
+    lines = []
+    current = ""
     words = text.split(" ")
-    _txt_ = ""
     for word in words:
-        _before = _txt_
-        _txt_ += f"{word} "
-        _width, _height = get_text_size(_txt_)
-        if _width <= max_width:
+        candidate = f"{current} {word}".strip() if current else word
+        candidate_width, _ = get_text_size(candidate)
+        if candidate_width <= max_width:
+            current = candidate
             continue
-        else:
-            if _txt_.strip() == word.strip():
-                processed = False
-                break
-            _wrapped_lines_.append(_before)
-            _txt_ = f"{word} "
-    _wrapped_lines_.append(_txt_)
-    if processed:
-        _wrapped_lines_ = [line.strip() for line in _wrapped_lines_]
-        result = "\n".join(_wrapped_lines_).strip()
-        height = len(_wrapped_lines_) * height
-        return result, height
 
-    _wrapped_lines_ = []
-    chars = list(text)
-    _txt_ = ""
-    for word in chars:
-        _txt_ += word
-        _width, _height = get_text_size(_txt_)
-        if _width <= max_width:
-            continue
+        if current:
+            lines.append(current)
+
+        word_width, _ = get_text_size(word)
+        if word_width <= max_width:
+            current = word
         else:
-            _wrapped_lines_.append(_txt_)
-            _txt_ = ""
-    _wrapped_lines_.append(_txt_)
-    result = "\n".join(_wrapped_lines_).strip()
-    height = len(_wrapped_lines_) * height
+            lines.extend(split_long_token(word))
+            current = ""
+
+    if current:
+        lines.append(current)
+
+    result = "\n".join(line.strip() for line in lines if line.strip()).strip()
+    height = len(lines) * height
     return result, height
 
 
