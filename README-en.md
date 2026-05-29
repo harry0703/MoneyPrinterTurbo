@@ -203,7 +203,7 @@ Notes:
 
 ```shell
 brew install imagemagick
-````
+```
 
 ###### Ubuntu
 
