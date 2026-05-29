@@ -1193,13 +1193,14 @@ def tts(
 
 
 def convert_rate_to_percent(rate: float) -> str:
-    if rate == 1.0:
-        return "+0%"
+    # edge-tts requires a sign-prefixed percentage (e.g. "+0%", "-20%").
+    # Rounding can yield 0 for rates near but not equal to 1.0 (e.g. 1.004,
+    # 0.997); those must still be returned as "+0%", not the unsigned "0%"
+    # which edge-tts rejects with ValueError: Invalid rate '0%'.
     percent = round((rate - 1.0) * 100)
-    if percent > 0:
+    if percent >= 0:
         return f"+{percent}%"
-    else:
-        return f"{percent}%"
+    return f"{percent}%"
 
 
 def ensure_file_path_exists(file_path: str) -> None:
