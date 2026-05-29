@@ -149,6 +149,25 @@ class TestVideoService(unittest.TestCase):
             if os.path.exists(bgm_path):
                 os.remove(bgm_path)
 
+    def test_get_bgm_file_accepts_project_relative_song_path(self):
+        """
+        用户在 WebUI 中可能直接填写 ./resource/songs/xxx.mp3。该路径虽然是
+        项目根目录相对路径，但实际文件仍在 resource/songs 白名单目录内，
+        应该被接受，避免自定义背景音乐被误判为不存在。
+        """
+        song_dir = utils.song_dir()
+        bgm_path = os.path.join(song_dir, "test-relative-bgm.mp3")
+        Path(bgm_path).write_bytes(b"fake-mp3")
+
+        try:
+            self.assertEqual(
+                vd.get_bgm_file(bgm_file="./resource/songs/test-relative-bgm.mp3"),
+                bgm_path,
+            )
+        finally:
+            if os.path.exists(bgm_path):
+                os.remove(bgm_path)
+
     def test_get_bgm_file_rejects_path_outside_song_directory(self):
         """
         用户传入的 bgm_file 不能直接作为本地路径打开，否则可能读取系统文件。

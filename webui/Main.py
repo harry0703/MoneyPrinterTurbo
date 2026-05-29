@@ -914,8 +914,11 @@ with middle_panel:
             custom_bgm_file = st.text_input(
                 tr("Custom Background Music File"), key="custom_bgm_file_input"
             )
-            if custom_bgm_file and os.path.exists(custom_bgm_file):
-                params.bgm_file = custom_bgm_file
+            if custom_bgm_file:
+                # 这里不直接用 os.path.exists 判断，因为用户常见输入是
+                # output000.mp3，这个文件名需要由服务层映射到 resource/songs
+                # 目录后再校验。服务层会统一限制目录和文件类型，避免任意路径读取。
+                params.bgm_file = custom_bgm_file.strip()
                 # st.write(f":red[已选择自定义背景音乐]：**{custom_bgm_file}**")
         params.bgm_volume = st.selectbox(
             tr("Background Music Volume"),

@@ -234,6 +234,28 @@ def delete_files(files: List[str] | str):
         except Exception as e:
             logger.debug(f"failed to delete file {file}: {str(e)}")
 
+
+def _resolve_bgm_file_path(song_dir: str, bgm_file: str) -> str:
+    # 背景音乐只允许读取 resource/songs 目录内的文件，避免用户输入任意路径后
+    # 被 MoviePy 打开。这里兼容两种常见输入：
+    # 1. output000.mp3：来自 BGM 列表或用户只填写文件名
+    # 2. ./resource/songs/output000.mp3：用户按项目目录结构填写的相对路径
+    # 两种写法最终都会再次通过 resource/songs 白名单校验，不能绕过目录限制。
+    try:
+        return file_security.resolve_path_within_directory(song_dir, bgm_file)
+    except ValueError as song_dir_exc:
+        if os.path.isabs(bgm_file):
+            raise song_dir_exc
+
+        project_relative_file = os.path.join(utils.root_dir(), bgm_file)
+        try:
+            return file_security.resolve_path_within_directory(
+                song_dir, project_relative_file
+            )
+        except ValueError as root_dir_exc:
+            raise ValueError(str(root_dir_exc)) from song_dir_exc
+
+
 def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if not bgm_type:
         return ""
@@ -241,9 +263,7 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if bgm_file:
         song_dir = utils.song_dir()
         try:
-            resolved_bgm_file = file_security.resolve_path_within_directory(
-                song_dir, bgm_file
-            )
+            resolved_bgm_file = _resolve_bgm_file_path(song_dir, bgm_file)
         except ValueError as exc:
             # API 请求里的 bgm_file 来自用户输入，不能直接把任意绝对路径交给
             # MoviePy 打开。这里强制限制到 resource/songs 目录，阻止读取
