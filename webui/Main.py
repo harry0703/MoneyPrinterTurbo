@@ -1,96 +1,107 @@
 import streamlit as st
 import os
-import sys
+import asyncio
+import tempfile
+import nest_asyncio
+import json
 
-# Path setup
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+nest_asyncio.apply()
 
-# Page config - MUST be first
+# ── Config File Path ──
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_PATH = os.path.join(ROOT_DIR, "config.json")
+
+def load_config():
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {
+            "openai_api_key": "",
+            "openrouter_api_key": "",
+            "pexels_api_key": "",
+            "pixabay_api_key": "",
+            "llm_provider": "OpenAI",
+            "model_name": "",
+            "base_url": ""
+        }
+
+def save_config(data: dict):
+    try:
+        with open(CONFIG_PATH, "w") as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+video_subject = ""
+
 st.set_page_config(
     page_title="BrainReel — AI Video Generator",
     page_icon="🎬",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-# ── Custom CSS ──────────────────────────────────────────
 st.markdown("""
 <style>
-/* Google Font */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
     background-color: #0e0e0e;
     color: #f0f0f0;
 }
-
-/* Hide default Streamlit elements */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-header {visibility: hidden;}
-
-/* Sidebar */
+header {visibility: visible !important;}
+[data-testid="stAppDeployButton"] { display: none !important; }
+button[data-testid="collapsedControl"] {
+    visibility: visible !important;
+    display: flex !important;
+    opacity: 1 !important;
+    background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
+    border-radius: 8px !important;
+    border: none !important;
+    width: 40px !important;
+    height: 40px !important;
+    box-shadow: 0 4px 15px rgba(124,58,237,0.5) !important;
+}
+button[data-testid="collapsedControl"] svg { fill: white !important; }
+button[data-testid="expandedControl"] {
+    visibility: visible !important;
+    display: flex !important;
+    opacity: 1 !important;
+    background: rgba(255,255,255,0.1) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    border-radius: 8px !important;
+    width: 36px !important;
+    height: 36px !important;
+}
+button[data-testid="expandedControl"] svg { fill: #f0f0f0 !important; }
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
     border-right: 1px solid #2a2a4a;
 }
-
-/* Logo area */
-.brand-logo {
-    text-align: center;
-    padding: 20px 0 10px 0;
-}
+.brand-logo { text-align: center; padding: 20px 0 10px 0; }
 .brand-title {
-    font-size: 28px;
-    font-weight: 700;
+    font-size: 28px; font-weight: 700;
     background: linear-gradient(90deg, #a78bfa, #60a5fa);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin: 0;
 }
-.brand-sub {
-    font-size: 12px;
-    color: #888;
-    margin-top: 4px;
-}
-
-/* Cards */
-.card {
-    background: #1a1a2e;
-    border: 1px solid #2a2a4a;
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
-}
+.brand-sub { font-size: 12px; color: #888; margin-top: 4px; }
 .card-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #a78bfa;
-    margin-bottom: 12px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    font-size: 14px; font-weight: 600; color: #a78bfa;
+    margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;
 }
-
-/* Buttons */
 .stButton > button {
     background: linear-gradient(90deg, #7c3aed, #2563eb);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    padding: 10px 24px;
-    width: 100%;
-    transition: opacity 0.2s;
+    color: white; border: none; border-radius: 8px;
+    font-weight: 600; padding: 10px 24px;
+    width: 100%; transition: opacity 0.2s;
 }
-.stButton > button:hover {
-    opacity: 0.85;
-    color: white;
-}
-
-/* Inputs */
+.stButton > button:hover { opacity: 0.85; color: white; }
 .stTextInput > div > div > input,
 .stTextArea > div > div > textarea,
 .stSelectbox > div > div {
@@ -99,49 +110,81 @@ section[data-testid="stSidebar"] {
     border-radius: 8px !important;
     color: #f0f0f0 !important;
 }
-
-/* Tabs */
 .stTabs [data-baseweb="tab-list"] {
-    background: #1a1a2e;
-    border-radius: 10px;
-    padding: 4px;
-    gap: 4px;
+    background: #1a1a2e; border-radius: 10px; padding: 4px; gap: 4px;
 }
 .stTabs [data-baseweb="tab"] {
-    background: transparent;
-    border-radius: 8px;
-    color: #888;
-    font-weight: 600;
-    padding: 8px 16px;
+    background: transparent; border-radius: 8px;
+    color: #888; font-weight: 600; padding: 8px 16px;
 }
 .stTabs [aria-selected="true"] {
     background: linear-gradient(90deg, #7c3aed, #2563eb) !important;
     color: white !important;
 }
-
-/* Status badge */
 .badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
+    display: inline-block; padding: 3px 10px;
+    border-radius: 20px; font-size: 11px; font-weight: 600;
 }
 .badge-ready { background: #064e3b; color: #34d399; }
 .badge-warn  { background: #451a03; color: #fb923c; }
-
-/* Section header */
 .section-header {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: #555;
-    margin: 20px 0 8px 0;
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 2px; color: #555; margin: 20px 0 8px 0;
 }
+.key-status {
+    font-size: 12px; padding: 4px 10px;
+    border-radius: 6px; margin-top: 4px;
+    display: inline-block;
+}
+.key-set { background: #064e3b; color: #34d399; }
+.key-empty { background: #1a1a2e; color: #555; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Sidebar ─────────────────────────────────────────────
+VOICE_MAP = {
+    "en-US-AriaNeural — English Female 🇺🇸": "en-US-AriaNeural",
+    "en-US-GuyNeural — English Male 🇺🇸": "en-US-GuyNeural",
+    "ur-PK-UzmaNeural — Urdu Female 🇵🇰": "ur-PK-UzmaNeural",
+    "ur-PK-AsadNeural — Urdu Male 🇵🇰": "ur-PK-AsadNeural",
+    "hi-IN-SwaraNeural — Hindi Female 🇮🇳": "hi-IN-SwaraNeural",
+    "hi-IN-MadhurNeural — Hindi Male 🇮🇳": "hi-IN-MadhurNeural",
+    "ar-SA-ZariyahNeural — Arabic Female 🇸🇦": "ar-SA-ZariyahNeural",
+    "zh-CN-XiaoxiaoNeural — Chinese Female 🇨🇳": "zh-CN-XiaoxiaoNeural",
+}
+
+PREVIEW_TEXTS = {
+    "en-US-AriaNeural": "Hello! I am Aria. I will be the voice of your video.",
+    "en-US-GuyNeural": "Hello! I am Guy. I will be the voice of your video.",
+    "ur-PK-UzmaNeural": "السلام علیکم! میں آپ کی ویڈیو کی آواز ہوں۔",
+    "ur-PK-AsadNeural": "السلام علیکم! میں آپ کی ویڈیو کی آواز ہوں۔",
+    "hi-IN-SwaraNeural": "नमस्ते! मैं आपके वीडियो की आवाज़ हूँ।",
+    "hi-IN-MadhurNeural": "नमस्ते! मैं आपके वीडियो की आवाज़ हूँ।",
+    "ar-SA-ZariyahNeural": "مرحبا! أنا صوت الفيديو الخاص بك.",
+    "zh-CN-XiaoxiaoNeural": "你好！我是你视频的声音。",
+}
+
+async def generate_preview(voice_name: str, text: str) -> bytes:
+    import edge_tts
+    tts = edge_tts.Communicate(text, voice_name)
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+        tmp_path = f.name
+    await tts.save(tmp_path)
+    with open(tmp_path, "rb") as f:
+        audio_bytes = f.read()
+    os.unlink(tmp_path)
+    return audio_bytes
+
+def run_preview(voice_name: str, text: str) -> bytes:
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(generate_preview(voice_name, text))
+    finally:
+        loop.close()
+
+# ── Config Load ──
+cfg = load_config()
+
+# ── Sidebar ──
 with st.sidebar:
     st.markdown("""
     <div class="brand-logo">
@@ -149,232 +192,208 @@ with st.sidebar:
         <div class="brand-sub">AI Faceless Video Generator</div>
     </div>
     """, unsafe_allow_html=True)
-
     st.markdown("---")
-
     st.markdown('<div class="section-header">Navigation</div>',
                 unsafe_allow_html=True)
-
     page = st.radio(
         label="",
-        options=["🎬 Generate Video", "⚙️ Settings", "📜 History", "📊 Analytics"],
+        options=["🎬 Generate Video", "⚙️ Settings",
+                 "📜 History", "📊 Analytics"],
         label_visibility="collapsed"
     )
-
     st.markdown("---")
-
-    # Quick status
     st.markdown('<div class="section-header">Status</div>',
                 unsafe_allow_html=True)
-
-    api_configured = False
-    try:
-        from app.config import config
-        llm_key = getattr(config, 'openai_api_key', '') or ''
-        api_configured = len(str(llm_key)) > 10
-    except Exception:
-        pass
-
-    if api_configured:
-        st.markdown('<span class="badge badge-ready">✓ API Ready</span>',
-                    unsafe_allow_html=True)
+    api_set = bool(
+        cfg.get("openai_api_key") or cfg.get("openrouter_api_key")
+    )
+    if api_set:
+        st.markdown(
+            '<span class="badge badge-ready">✓ API Ready</span>',
+            unsafe_allow_html=True)
     else:
-        st.markdown('<span class="badge badge-warn">⚠ API Not Set</span>',
-                    unsafe_allow_html=True)
-
+        st.markdown(
+            '<span class="badge badge-warn">⚠ API Not Set</span>',
+            unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     st.caption("v2.0 · BrainReel Edition")
 
-# ── Main Content ────────────────────────────────────────
-
-# ---- PAGE: Generate Video ----
+# ── Generate Video ──
 if page == "🎬 Generate Video":
     st.markdown("## 🎬 Generate Video")
     st.caption("Fill in the details below and let AI do the magic!")
-
     tab1, tab2, tab3 = st.tabs(["📝 Script", "🎨 Style", "🔊 Voice & Music"])
 
     with tab1:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown('<div class="card-title">📝 Video Script</div>',
                     unsafe_allow_html=True)
-
-        video_subject = st.text_input(
-            "Video Topic / Subject",
-            placeholder="e.g. 5 mind-blowing facts about black holes",
-        )
-
-        script_mode = st.radio(
-            "Script Mode",
-            ["🤖 AI Auto Generate", "✍️ Write Manually"],
-            horizontal=True,
-        )
-
+        video_subject = st.text_input("Video Topic / Subject",
+            placeholder="e.g. 5 mind-blowing facts about black holes")
+        script_mode = st.radio("Script Mode",
+            ["🤖 AI Auto Generate", "✍️ Write Manually"], horizontal=True)
         if script_mode == "✍️ Write Manually":
-            video_script = st.text_area(
-                "Your Script",
-                placeholder="Write your video script here...",
-                height=200,
-            )
-        else:
-            video_script = ""
-
+            st.text_area("Your Script",
+                         placeholder="Yahan script likho...", height=180)
         col1, col2 = st.columns(2)
         with col1:
-            video_language = st.selectbox(
-                "Language",
-                ["English", "Urdu", "Hindi", "Chinese", "Spanish"],
-            )
+            st.selectbox("Language",
+                ["English", "Urdu", "Hindi", "Arabic", "Chinese"])
         with col2:
-            video_length = st.selectbox(
-                "Video Length",
-                ["30 seconds", "1 minute", "3 minutes", "5 minutes"],
-            )
-
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.selectbox("Video Length",
+                ["30 seconds", "1 minute", "3 minutes", "5 minutes"])
 
     with tab2:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown('<div class="card-title">🎨 Visual Style</div>',
                     unsafe_allow_html=True)
-
         col1, col2 = st.columns(2)
         with col1:
-            video_aspect = st.selectbox(
-                "Aspect Ratio",
-                ["9:16 (Vertical / TikTok)", "16:9 (Horizontal / YouTube)"],
-            )
+            st.selectbox("Aspect Ratio",
+                ["9:16 (Vertical / TikTok)", "16:9 (Horizontal / YouTube)"])
         with col2:
-            video_source = st.selectbox(
-                "Video Source",
-                ["Pexels (Free)", "Pixabay (Free)", "Local Files"],
-            )
-
+            st.selectbox("Video Source",
+                ["Pexels (Free)", "Pixabay (Free)", "Local Files"])
         st.markdown("**Subtitle Settings**")
         col3, col4 = st.columns(2)
         with col3:
-            font_size = st.slider("Font Size", 30, 100, 60)
+            st.slider("Font Size", 30, 100, 60)
         with col4:
-            subtitle_position = st.selectbox(
-                "Position", ["Bottom", "Center", "Top"]
-            )
-
-        subtitle_color = st.color_picker("Subtitle Color", "#FFFFFF")
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.selectbox("Position", ["Bottom", "Center", "Top"])
+        st.color_picker("Subtitle Color", "#FFFFFF")
 
     with tab3:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown('<div class="card-title">🔊 Voice & Music</div>',
                     unsafe_allow_html=True)
-
-        voice_option = st.selectbox(
-            "TTS Voice",
-            [
-                "en-US-AriaNeural (English Female)",
-                "en-US-GuyNeural (English Male)",
-                "ur-PK-UzmaNeural (Urdu Female) 🇵🇰",
-                "ur-PK-AsadNeural (Urdu Male) 🇵🇰",
-                "hi-IN-SwaraNeural (Hindi Female)",
-            ],
-        )
-
-        music_volume = st.slider("Background Music Volume", 0, 100, 30)
-
-        bg_music = st.selectbox(
-            "Background Music",
-            ["Random", "Calm", "Upbeat", "Cinematic", "No Music"],
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
+        voice_display = st.selectbox("TTS Voice", list(VOICE_MAP.keys()))
+        selected_voice = VOICE_MAP[voice_display]
+        col_prev, col_empty = st.columns([1, 2])
+        with col_prev:
+            preview_btn = st.button("🔊 Preview Voice")
+        if preview_btn:
+            with st.spinner("🎙️ Voice generate ho rahi hai..."):
+                try:
+                    preview_text = PREVIEW_TEXTS.get(
+                        selected_voice, "Hello! This is a preview.")
+                    audio_bytes = run_preview(selected_voice, preview_text)
+                    st.audio(audio_bytes, format="audio/mp3")
+                    st.success("✅ Preview ready!")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
+        st.slider("Background Music Volume", 0, 100, 30)
+        st.selectbox("Background Music",
+            ["Random", "Calm", "Upbeat", "Cinematic", "No Music"])
 
     st.markdown("<br>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        if st.button("🚀 Generate Video", use_container_width=True):
+            if not video_subject:
+                st.error("⚠️ Video topic enter karo pehle!")
+            else:
+                with st.status("🎬 Generating...", expanded=True) as status:
+                    st.write("📝 Script likh raha hai...")
+                    st.write("🖼️ Clips fetch ho rahe hain...")
+                    st.write("🔊 Voiceover ban raha hai...")
+                    st.write("🎬 Video compose ho rahi hai...")
+                    status.update(label="✅ Done!",
+                                  state="complete", expanded=False)
+                st.success("🎉 Video ready!")
+                st.info("💡 Abhi demo mode hai — API keys Settings mein daalo!")
 
-    col_gen1, col_gen2, col_gen3 = st.columns([1, 2, 1])
-    with col_gen2:
-        generate_btn = st.button("🚀 Generate Video", use_container_width=True)
-
-    if generate_btn:
-        if not video_subject and not video_script:
-            st.error("⚠️ Please enter a video topic or script first!")
-        else:
-            with st.status("🎬 Generating your video...", expanded=True) as status:
-                st.write("📝 Writing script...")
-                st.write("🖼️ Fetching video clips...")
-                st.write("🔊 Generating voiceover...")
-                st.write("🎬 Composing final video...")
-                status.update(
-                    label="✅ Video ready!",
-                    state="complete",
-                    expanded=False,
-                )
-            st.success("🎉 Video generated successfully!")
-            st.info("💡 Full generation logic coming soon — connect your API keys in Settings first!")
-
-# ---- PAGE: Settings ----
+# ── Settings ──
 elif page == "⚙️ Settings":
     st.markdown("## ⚙️ Settings")
-    st.caption("Configure your API keys, models, and preferences.")
+    st.caption("API keys aur models configure karo.")
+    s1, s2 = st.tabs(["🔑 API Keys", "🤖 Models"])
 
-    s_tab1, s_tab2 = st.tabs(["🔑 API Keys", "🤖 Models"])
-
-    with s_tab1:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+    with s1:
         st.markdown('<div class="card-title">🔑 API Keys</div>',
                     unsafe_allow_html=True)
 
-        openai_key = st.text_input("OpenAI API Key", type="password",
-                                    placeholder="sk-...")
-        openrouter_key = st.text_input("OpenRouter API Key", type="password",
-                                        placeholder="sk-or-...")
-        pexels_key = st.text_input("Pexels API Key", type="password",
-                                    placeholder="Your Pexels key")
-        pixabay_key = st.text_input("Pixabay API Key", type="password",
-                                     placeholder="Your Pixabay key")
+        openai_key = st.text_input(
+            "OpenAI API Key",
+            value=cfg.get("openai_api_key", ""),
+            type="password", placeholder="sk-...")
+        st.markdown(
+            f'<span class="key-status {"key-set" if cfg.get("openai_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("openai_api_key") else "○ Empty"}</span>',
+            unsafe_allow_html=True)
 
+        openrouter_key = st.text_input(
+            "OpenRouter API Key",
+            value=cfg.get("openrouter_api_key", ""),
+            type="password", placeholder="sk-or-...")
+        st.markdown(
+            f'<span class="key-status {"key-set" if cfg.get("openrouter_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("openrouter_api_key") else "○ Empty"}</span>',
+            unsafe_allow_html=True)
+
+        pexels_key = st.text_input(
+            "Pexels API Key",
+            value=cfg.get("pexels_api_key", ""),
+            type="password", placeholder="Pexels key")
+        st.markdown(
+            f'<span class="key-status {"key-set" if cfg.get("pexels_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("pexels_api_key") else "○ Empty"}</span>',
+            unsafe_allow_html=True)
+
+        pixabay_key = st.text_input(
+            "Pixabay API Key",
+            value=cfg.get("pixabay_api_key", ""),
+            type="password", placeholder="Pixabay key")
+        st.markdown(
+            f'<span class="key-status {"key-set" if cfg.get("pixabay_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("pixabay_api_key") else "○ Empty"}</span>',
+            unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 Save API Keys"):
-            st.success("✅ Keys saved!")
-        st.markdown('</div>', unsafe_allow_html=True)
+            cfg["openai_api_key"] = openai_key
+            cfg["openrouter_api_key"] = openrouter_key
+            cfg["pexels_api_key"] = pexels_key
+            cfg["pixabay_api_key"] = pixabay_key
+            if save_config(cfg):
+                st.success("✅ Keys save ho gayi! ✔")
+                st.rerun()
+            else:
+                st.error("❌ Save nahi hua!")
 
-    with s_tab2:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+    with s2:
         st.markdown('<div class="card-title">🤖 Model Settings</div>',
                     unsafe_allow_html=True)
-
+        providers = ["OpenAI", "OpenRouter", "DeepSeek",
+                     "Moonshot", "Google Gemini", "Ollama"]
+        current_provider = cfg.get("llm_provider", "OpenAI")
+        provider_idx = providers.index(current_provider) \
+            if current_provider in providers else 0
         llm_provider = st.selectbox(
-            "LLM Provider",
-            ["OpenAI", "OpenRouter", "DeepSeek", "Moonshot",
-             "Google Gemini", "Ollama (Local)"],
-        )
+            "LLM Provider", providers, index=provider_idx)
         model_name = st.text_input(
             "Model Name",
-            placeholder="e.g. gpt-4o / deepseek-chat",
-        )
+            value=cfg.get("model_name", ""),
+            placeholder="gpt-4o / deepseek-chat")
         base_url = st.text_input(
             "Base URL (optional)",
-            placeholder="Leave empty for default",
-        )
-
+            value=cfg.get("base_url", ""),
+            placeholder="Default ke liye khali chhodo")
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 Save Model Settings"):
-            st.success("✅ Model settings saved!")
-        st.markdown('</div>', unsafe_allow_html=True)
+            cfg["llm_provider"] = llm_provider
+            cfg["model_name"] = model_name
+            cfg["base_url"] = base_url
+            if save_config(cfg):
+                st.success("✅ Model settings save ho gayi!")
+                st.rerun()
+            else:
+                st.error("❌ Save nahi hua!")
 
-# ---- PAGE: History ----
 elif page == "📜 History":
     st.markdown("## 📜 Video History")
-    st.caption("Your previously generated videos.")
+    st.info("🎬 Abhi koi video nahi — Generate Video pe jao!")
 
-    st.info("🎬 No videos generated yet. Go to Generate Video to create your first one!")
-
-# ---- PAGE: Analytics ----
 elif page == "📊 Analytics":
     st.markdown("## 📊 Analytics")
-    st.caption("Track your video generation stats.")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Videos Generated", "0")
-    with col2:
-        st.metric("Total Duration", "0 min")
-    with col3:
-        st.metric("Success Rate", "—")
-
-    st.info("📊 Analytics will populate as you generate videos!")
+    c1, c2, c3 = st.columns(3)
+    with c1: st.metric("Videos Generated", "0")
+    with c2: st.metric("Total Duration", "0 min")
+    with c3: st.metric("Success Rate", "—")
+    st.info("📊 Videos generate hone ke baad stats ayenge!")
