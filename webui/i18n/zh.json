@@ -13,6 +13,8 @@
     "Video Subject": "视频主题（给定一个关键词，:red[AI自动生成]视频文案）",
     "Script Language": "生成视频脚本的语言（一般情况AI会自动根据你输入的主题语言输出）",
     "Generate Video Script and Keywords": "点击使用AI根据**主题**生成 【视频文案】 和 【视频关键词】",
+    "Paragraph Number": "段落数量（控制文案长度，1 段最短）",
+    "Custom Prompt": "自定义提示词（可选，如语气/受众/风格，:blue[将与系统提示词结合]，让文案更个性化）",
     "Auto Detect": "自动检测",
     "Video Script": "视频文案（:blue[①可不填，使用AI生成  ②合理使用标点断句，有助于生成字幕]）",
     "Generate Video Keywords": "点击使用AI根据**文案**生成【视频关键词】",

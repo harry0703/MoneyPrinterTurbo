@@ -64,6 +64,8 @@ if "video_script" not in st.session_state:
     st.session_state["video_script"] = ""
 if "video_terms" not in st.session_state:
     st.session_state["video_terms"] = ""
+if "video_script_prompt" not in st.session_state:
+    st.session_state["video_script_prompt"] = ""
 if "ui_language" not in st.session_state:
     st.session_state["ui_language"] = config.ui.get("language", system_locale)
 if "local_video_materials" not in st.session_state:
@@ -553,12 +555,30 @@ with left_panel:
         )
         params.video_language = video_languages[selected_index][1]
 
+        params.paragraph_number = st.slider(
+            tr("Paragraph Number"),
+            min_value=1,
+            max_value=10,
+            value=1,
+            key="paragraph_number_input",
+        )
+
+        params.video_script_prompt = st.text_area(
+            tr("Custom Prompt"),
+            value=st.session_state["video_script_prompt"],
+            height=80,
+            key="video_script_prompt_input",
+        )
+
         if st.button(
             tr("Generate Video Script and Keywords"), key="auto_generate_script"
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
                 script = llm.generate_script(
-                    video_subject=params.video_subject, language=params.video_language
+                    video_subject=params.video_subject,
+                    language=params.video_language,
+                    paragraph_number=params.paragraph_number,
+                    custom_prompt=params.video_script_prompt,
                 )
                 terms = llm.generate_terms(params.video_subject, script)
                 if "Error: " in script:

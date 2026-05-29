@@ -13,6 +13,8 @@
     "Video Subject": "Video Subject (Provide a keyword, :red[AI will automatically generate] video script)",
     "Script Language": "Language for Generating Video Script (AI will automatically output based on the language of your subject)",
     "Generate Video Script and Keywords": "Click to use AI to generate [Video Script] and [Video Keywords] based on **subject**",
+    "Paragraph Number": "Number of paragraphs (controls script length)",
+    "Custom Prompt": "Custom prompt (optional, e.g. tone / audience / style — combined with the system prompt)",
     "Auto Detect": "Auto Detect",
     "Video Script": "Video Script (:blue[① Optional, AI generated  ② Proper punctuation helps with subtitle generation])",
     "Generate Video Keywords": "Click to use AI to generate [Video Keywords] based on **script**",

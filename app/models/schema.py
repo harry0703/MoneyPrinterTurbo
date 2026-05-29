@@ -106,6 +106,7 @@ class VideoParams(BaseModel):
     stroke_width: float = 1.5
     n_threads: Optional[int] = 2
     paragraph_number: Optional[int] = 1
+    video_script_prompt: Optional[str] = ""  # custom prompt appended to the system prompt
 
 
 class SubtitleRequest(BaseModel):
@@ -152,6 +153,7 @@ class VideoScriptParams:
     video_subject: Optional[str] = "春天的花海"
     video_language: Optional[str] = ""
     paragraph_number: Optional[int] = 1
+    prompt: Optional[str] = ""
 
 
 class VideoTermsParams:

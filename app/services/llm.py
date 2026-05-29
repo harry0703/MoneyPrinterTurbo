@@ -459,7 +459,10 @@ def _generate_response(prompt: str) -> str:
 
 
 def generate_script(
-    video_subject: str, language: str = "", paragraph_number: int = 1
+    video_subject: str,
+    language: str = "",
+    paragraph_number: int = 1,
+    custom_prompt: str = "",
 ) -> str:
     prompt = f"""
 # Role: Video Script Generator
@@ -483,6 +486,12 @@ Generate a script for a video, depending on the subject of the video.
 """.strip()
     if language:
         prompt += f"\n- language: {language}"
+    if custom_prompt and custom_prompt.strip():
+        prompt += (
+            "\n\n## Additional Style & Creative Direction "
+            "(follow strictly, but keep all constraints above):\n"
+            f"{custom_prompt.strip()}"
+        )
 
     final_script = ""
     logger.info(f"subject: {video_subject}")
