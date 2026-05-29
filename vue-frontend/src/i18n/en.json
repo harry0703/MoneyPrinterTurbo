@@ -271,7 +271,7 @@
     "Video Encoder Settings": "<strong>Video Encoder Settings</strong>",
     "Video Encoder": "Video Encoder",
     "Video Synthesis": "<strong>Video Synthesis</strong>",
-    "Idle Period": "Idle Period",
+    "Silence Prefix": "Silence Prefix",
     "Enable Multi-Scene Mode": "Enable Multi-Scene Mode",
     "When enabled, the video will be divided into multiple scenes, each with its own visual requirements and narration": "When enabled, the video will be divided into multiple scenes, each with its own visual requirements and narration",
     "Smart Script Parsing": "Smart Script Parsing",

@@ -20,6 +20,9 @@ class HttpException(Exception):
 
         if status_code == 400:
             logger.warning(msg)
+        elif status_code == 404:
+            # 404 is normal for stale/legacy task IDs after server restart
+            logger.info(msg)
         else:
             logger.error(msg)
 

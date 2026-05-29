@@ -126,6 +126,32 @@ def finalize_video(
         
         logger.success(f"final video saved to: {combined_video_path}")
         
+        # Verify the output file is valid before closing clips
+        if os.path.exists(combined_video_path):
+            file_size = os.path.getsize(combined_video_path)
+            if file_size == 0:
+                logger.error(f"Output video file is EMPTY: {combined_video_path}")
+                close_clip(final_video)
+                if audio_file:
+                    close_clip(audio_clip)
+                for clip in processed_clips:
+                    close_clip(clip)
+                return None
+            # Quick validation: try to read the file back to ensure it's valid
+            try:
+                _verify_clip = VideoFileClip(combined_video_path)
+                _verify_duration = _verify_clip.duration
+                close_clip(_verify_clip)
+                logger.info(f"Output file validated: {combined_video_path} ({file_size} bytes, {_verify_duration:.2f}s)")
+            except Exception as ve:
+                logger.error(f"Output video file validation failed: {combined_video_path} - {ve}")
+                close_clip(final_video)
+                if audio_file:
+                    close_clip(audio_clip)
+                for clip in processed_clips:
+                    close_clip(clip)
+                return None
+        
         # Close all clips
         close_clip(final_video)
         if audio_file:
@@ -164,42 +190,24 @@ def generate_video(
     logger.info(f"starting video generation: {output_file}")
     
     try:
-        from moviepy import CompositeAudioClip, afx
+        from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, ColorClip, AudioClip, afx, ImageClip, concatenate_videoclips, concatenate_audioclips
         
         # Load video
         video_clip = VideoFileClip(video_path)
         
-        # Add title if enabled
-        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
-            logger.info("Adding title to video")
-            from app.services.title import add_title_to_video
-            video_clip = add_title_to_video(video_clip, params)
-        
-        # Load audio if provided
-        if audio_path:
-            audio_clip = AudioFileClip(audio_path)
-            
-            # Add delay at the beginning of audio to match video extension
-            from app.config.config import video_idle_period as config_video_idle_period
-            silence_clip = AudioClip(lambda t: 0, duration=config_video_idle_period)
-            audio_clip = concatenate_audioclips([silence_clip, audio_clip])
-            
-            # Check if video already has audio
-            existing_audio = video_clip.audio
-            
-            if existing_audio:
-                # Mix BGM with existing audio (scene integration scenario)
-                logger.info("Mixing BGM with existing video audio")
-                bgm_clip = audio_clip.with_effects([
-                    afx.MultiplyVolume(params.bgm_volume if hasattr(params, 'bgm_volume') else 0.2),
-                    afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration + config_video_idle_period),
-                ])
-                combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
-                video_clip = video_clip.with_audio(combined_audio)
+        # Validate that the video clip was loaded correctly (duration must be available)
+        try:
+            _duration = video_clip.duration
+        except AttributeError:
+            logger.error(f"Failed to load video: {video_path} - clip duration not available")
+            if os.path.exists(video_path):
+                file_size = os.path.getsize(video_path)
+                logger.error(f"Video file exists but duration not readable. File size: {file_size} bytes")
+                if file_size == 0:
+                    logger.error("Video file is EMPTY (0 bytes) - source file may not have been written correctly")
             else:
-                # No existing audio, set BGM as main audio (normal scenario)
-                video_clip = video_clip.with_audio(audio_clip)
+                logger.error(f"Video file does not exist: {video_path}")
+            raise ValueError(f"Cannot read video duration from: {video_path}") from None
         
         # Add pillarbox bars for 3:4 aspect ratio (convert to 9:16)
         # This must happen BEFORE subtitles are added so subtitles are positioned relative to output aspect
@@ -248,6 +256,52 @@ def generate_video(
                 ])
                 logger.info(f"Added pillarbox for 3:4 -> 9:16: {clip_w}x{clip_h} -> {target_width}x{target_height}")
         
+        # Add Silence Prefix FIRST (before audio and subtitles)
+        from app.config.config import silence_duration as config_silence_duration
+        silence_duration = 0
+        if config_silence_duration > 0:
+            
+            # Extract first frame and create a still frame clip (CLEAN - no subtitles yet!)
+            # Ensure frame is in RGB format (0-255)
+            import numpy as np
+            first_frame = video_clip.get_frame(0)
+            if len(first_frame.shape) == 2:
+                # Convert grayscale to RGB
+                first_frame = np.stack([first_frame] * 3, axis=-1)
+            
+            # Create still frame with explicit duration
+            still_frame_clip = ImageClip(first_frame, duration=config_silence_duration)
+            
+            logger.info(f"DEBUG - Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
+            logger.info(f"DEBUG - Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
+            
+            # Add audio silence to match video extension (CRITICAL - keeps audio in sync!)
+            if video_clip.audio:
+                silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
+                extended_audio = concatenate_audioclips([silence_clip, video_clip.audio])
+                video_clip = video_clip.with_audio(extended_audio)
+                logger.info(f"DEBUG - Audio extended successfully: audio duration={getattr(video_clip.audio, 'duration', 'NOT SET')}")
+            
+            # Concatenate still frame with original video
+            video_clip = concatenate_videoclips([still_frame_clip, video_clip])
+            logger.info(f"DEBUG - After concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
+            
+            # Ensure duration is explicitly set
+            if not hasattr(video_clip, 'duration') or video_clip.duration is None:
+                expected_duration = still_frame_clip.duration + (getattr(video_clip, 'duration', 0) if hasattr(video_clip, 'duration') else 0)
+                video_clip.duration = expected_duration
+                logger.info(f"DEBUG - Duration was NOT set! Setting to {expected_duration}s")
+            
+            silence_duration = config_silence_duration
+            
+            logger.info(f"Silence Prefix prepended: {silence_duration}s clean still frame (no subtitles)")
+        
+        # Add title AFTER Silence Prefix so it starts from the beginning of the still frame
+        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
+            logger.info("Adding title to video")
+            from app.services.title import add_title_to_video
+            video_clip = add_title_to_video(video_clip, params)
+        
         # Add subtitles if enabled
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
             logger.info("adding subtitles to video")
@@ -278,11 +332,9 @@ def generate_video(
                     # Parse time string
                     start_end = time_str.split(" --> ")
                     if len(start_end) == 2:
-                        # Convert to seconds
-                        # Note: No idle period adjustment needed here as video/audio already contains it
-                        # from combine_all_scenes() processing
-                        start_time_val = _srt_time_to_seconds(start_end[0])
-                        end_time = _srt_time_to_seconds(start_end[1])
+                        # Convert to seconds - add Silence Prefix offset!
+                        start_time_val = _srt_time_to_seconds(start_end[0]) + silence_duration
+                        end_time = _srt_time_to_seconds(start_end[1]) + silence_duration
                         duration = end_time - start_time_val
                         
                         # Skip subtitles with negative or zero duration
@@ -348,6 +400,31 @@ def generate_video(
                     logger.success("subtitles added to video")
             except Exception as e:
                 logger.error(f"failed to add subtitles: {e}")
+        
+        # Load audio if provided (AFTER all other processing)
+        if audio_path:
+            audio_clip = AudioFileClip(audio_path)
+            
+            # Add delay at the beginning of audio to match video extension
+            silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
+            audio_clip = concatenate_audioclips([silence_clip, audio_clip])
+            
+            # Check if video already has audio
+            existing_audio = video_clip.audio
+            
+            if existing_audio:
+                # Mix BGM with existing audio (scene integration scenario)
+                logger.info("Mixing BGM with existing video audio")
+                bgm_clip = audio_clip.with_effects([
+                    afx.MultiplyVolume(params.bgm_volume if hasattr(params, 'bgm_volume') else 0.2),
+                    afx.AudioFadeOut(3),
+                    afx.AudioLoop(duration=video_clip.duration),
+                ])
+                combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
+                video_clip = video_clip.with_audio(combined_audio)
+            else:
+                # No existing audio, set BGM as main audio (normal scenario)
+                video_clip = video_clip.with_audio(audio_clip)
         
         # Write final video
         logger.info(f"writing final video to: {output_file}")

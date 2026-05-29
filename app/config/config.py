@@ -84,8 +84,8 @@ project_description = _cfg.get(
 project_version = _cfg.get("project_version", "1.2.6")
 reload_debug = False
 
-# Idle period (still frame) at the beginning
-video_idle_period = app.get("video_idle_period", 0.3)
+# Silence Prefix duration — still frame at the very beginning of the final video
+silence_duration = app.get("silence_duration", 0.3)
 
 imagemagick_path = app.get("imagemagick_path", "")
 if imagemagick_path and os.path.isfile(imagemagick_path):

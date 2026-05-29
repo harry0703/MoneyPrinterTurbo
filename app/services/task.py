@@ -1536,7 +1536,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                     video_aspect = None
             
             if video_aspect == VideoAspect.portrait_3_4:
-                from moviepy import CompositeVideoClip
+                from moviepy import CompositeVideoClip, ColorClip
                 from app.services.video_utils import parse_color
                 
                 clip_w, clip_h = video_clip.size
@@ -1570,6 +1570,54 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                     scaled_clip.with_position(("center", y_offset))
                 ])
                 logger.info(f"Added pillarbox for 3:4 -> 9:16: {clip_w}x{clip_h} -> {target_width}x{target_height}")
+        
+        # Add Silence Prefix FIRST (before subtitles and title)
+        from app.config.config import silence_duration as config_silence_duration
+        silence_duration = 0
+        if config_silence_duration > 0:
+            from moviepy import ImageClip, concatenate_videoclips, AudioClip, concatenate_audioclips
+            
+            # Extract first frame and create a still frame clip (CLEAN - no subtitles yet!)
+            # Ensure frame is in RGB format (0-255)
+            import numpy as np
+            first_frame = video_clip.get_frame(0)
+            if len(first_frame.shape) == 2:
+                # Convert grayscale to RGB
+                first_frame = np.stack([first_frame] * 3, axis=-1)
+            
+            # Create still frame with explicit duration
+            still_frame_clip = ImageClip(first_frame, duration=config_silence_duration)
+            
+            logger.info(f"DEBUG - Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
+            logger.info(f"DEBUG - Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
+            
+            # Add audio silence to match video extension (CRITICAL - keeps audio in sync!)
+            if video_clip.audio:
+                silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
+                extended_audio = concatenate_audioclips([silence_clip, video_clip.audio])
+                video_clip = video_clip.with_audio(extended_audio)
+                logger.info(f"DEBUG - Audio extended successfully: audio duration={getattr(video_clip.audio, 'duration', 'NOT SET')}")
+            
+            # Concatenate still frame with original video
+            video_clip = concatenate_videoclips([still_frame_clip, video_clip])
+            logger.info(f"DEBUG - After concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
+            
+            # Ensure duration is explicitly set
+            if not hasattr(video_clip, 'duration') or video_clip.duration is None:
+                expected_duration = still_frame_clip.duration + (getattr(video_clip, 'duration', 0) if hasattr(video_clip, 'duration') else 0)
+                video_clip.duration = expected_duration
+                logger.info(f"DEBUG - Duration was NOT set! Setting to {expected_duration}s")
+            
+            silence_duration = config_silence_duration
+            
+            logger.info(f"Silence Prefix prepended: {silence_duration}s clean still frame (no subtitles)")
+        
+        # Add title AFTER Silence Prefix so it starts from the beginning of the still frame
+        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
+            logger.info("Adding title to multi-scene video")
+            from app.services.title import add_title_to_video
+            video_clip = add_title_to_video(video_clip, params)
+            logger.success("Title overlay added successfully")
         
         # Add subtitle if enabled
         if params.subtitle_enabled and scene_results:
@@ -1640,11 +1688,9 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                                 # Parse time string
                                 start_end = time_str.split(" --> ")
                                 if len(start_end) == 2:
-                                    # Convert to seconds
-                                    # Note: No idle period adjustment needed here as video/audio already contains it
-                                    # from combine_all_scenes() processing
-                                    start_time = _srt_time_to_seconds(start_end[0])
-                                    end_time = _srt_time_to_seconds(start_end[1])
+                                    # Convert to seconds - add Silence Prefix offset!
+                                    start_time = _srt_time_to_seconds(start_end[0]) + silence_duration
+                                    end_time = _srt_time_to_seconds(start_end[1]) + silence_duration
                                     
                                     # Create text clip with proper encoding
                                     try:
@@ -1699,26 +1745,6 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                 except Exception as e:
                     logger.error(f"failed to add subtitle: {str(e)}")
         
-        # Add idle period by extending first frame (after video+audio+subtitles are synchronized)
-        from app.config.config import video_idle_period as config_video_idle_period
-        if config_video_idle_period > 0:
-            from moviepy import ImageClip, concatenate_videoclips, AudioClip, concatenate_audioclips
-            
-            # Extract first frame and create a still frame clip
-            first_frame = video_clip.get_frame(0)
-            still_frame_clip = ImageClip(first_frame).with_duration(config_video_idle_period)
-            
-            # Add audio silence to match video extension
-            if video_clip.audio:
-                silence_clip = AudioClip(lambda t: 0, duration=config_video_idle_period)
-                extended_audio = concatenate_audioclips([silence_clip, video_clip.audio])
-                video_clip = video_clip.with_audio(extended_audio)
-            
-            # Concatenate still frame with original video
-            video_clip = concatenate_videoclips([still_frame_clip, video_clip])
-            
-            logger.info(f"Extended video by {config_video_idle_period}s with still frame")
-        
         # Add BGM
         logger.info(f"Getting BGM file: bgm_type={params.bgm_type}, bgm_file={params.bgm_file}")
         bgm_file = video_module.get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
@@ -1747,22 +1773,6 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                 logger.success("BGM added to multi-scene video")
             except Exception as e:
                 logger.error(f"failed to add BGM: {str(e)}")
-        
-        # 6. Add title overlay (last visual step, always tracked as a step for consistent progress reporting)
-        logger.info(f"========================================")
-        logger.info(f"Step 6: Adding title overlay (2% of progress)")
-        logger.info(f"Title enabled: {getattr(params, 'title_enabled', False)}")
-        logger.info(f"Title text: {getattr(params, 'title_text', '')[:50]}")
-        logger.info(f"[TIMESTAMP] Title step started at: {time.strftime('%H:%M:%S')}")
-        logger.info(f"========================================")
-        
-        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
-            logger.info("Adding title to multi-scene video")
-            from app.services.title import add_title_to_video
-            video_clip = add_title_to_video(video_clip, params)
-            logger.success("Title overlay added successfully")
-        else:
-            logger.info("Title step skipped (title not enabled or no title text)")
         
         sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=90)
         

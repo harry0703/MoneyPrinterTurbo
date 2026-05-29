@@ -261,6 +261,9 @@ def add_title_to_video(
     layers.append(title_clip)
     
     title_section = CompositeVideoClip(layers, size=(video_width, video_height))
+    # MoviePy v2: CompositeVideoClip with explicit size may not auto-compute duration
+    # Explicitly set to avoid "Attribute 'duration' not set" downstream
+    title_section.duration = title_duration
     
     remaining_video = video_clip.subclipped(title_duration) if video_clip.duration > title_duration else None
     

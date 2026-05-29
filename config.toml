@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.13"
+project_version = "2.2.16"
 
 [app]
 video_source = "pexels"
@@ -57,7 +57,8 @@ video_transition_mode = "none"
 video_aspect = "portrait_3_4"
 video_clip_duration = 4
 video_count = 1
-video_idle_period = 0.5
+# Silence Prefix duration — still frame at the very beginning of the final video (seconds)
+silence_duration = 0.5
 video_style = "ai"
 intro_video_bg_type = "blurred"
 intro_video_bg_blur = 48
@@ -100,18 +101,18 @@ stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
 title_text = "五大智能体技术"
-title_duration = 3
+title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 108
-title_text_color = "#FFFFFF"
-title_stroke_color = "#00FF00"
+title_text_color = "#A52A2A"
+title_stroke_color = "#D3D3D3"
 title_stroke_width = 8
 title_background_color = "transparent"
 title_position = "top"
 title_margin = 0.18
 title_margin_left = 0.05
 title_margin_right = 0.05
-title_animation = "none"
+title_animation = "fade_out"
 title_animation_duration = 0.3
 title_background_overlay = true
 title_overlay_color = "rgba(0, 0, 0, 0.98)"

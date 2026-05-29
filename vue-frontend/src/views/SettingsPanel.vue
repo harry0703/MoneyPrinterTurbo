@@ -165,17 +165,17 @@
         </template>
         
         <el-form :model="form" label-width="150px">
-          <el-form-item :label="t('Idle Period')">
+          <el-form-item :label="t('Silence Prefix')">
             <div class="slider-control">
               <el-slider
-                v-model="form.videoIdlePeriod"
+                v-model="form.silenceDuration"
                 :min="0.0"
                 :max="5.0"
                 :step="0.1"
                 :show-input="true"
                 :input-size="'small'"
               />
-              <span class="slider-value">{{ form.videoIdlePeriod.toFixed(1) }}s</span>
+              <span class="slider-value">{{ form.silenceDuration.toFixed(1) }}s</span>
             </div>
           </el-form-item>
         </el-form>
@@ -241,8 +241,8 @@ const loadSettingsToForm = () => {
   // Load video encoder configuration
   form.videoEncoder = settingsStore.app.useGpu ? 'GPU' : 'CPU';
   
-  // Load idle period configuration
-  form.videoIdlePeriod = settingsStore.video.videoIdlePeriod;
+  // Load Silence Prefix configuration
+  form.silenceDuration = settingsStore.video.silenceDuration;
 };
 
 const form = reactive({
@@ -256,7 +256,7 @@ const form = reactive({
   pixabayApiKeys: [''],
   whisperDevice: 'CPU',
   videoEncoder: 'CPU',
-  videoIdlePeriod: 0.3
+  silenceDuration: 0.3
 });
 
 // API Key management methods
@@ -424,8 +424,8 @@ const saveSettings = async () => {
     // Save video encoder configuration
     settingsStore.updateAppSetting('useGpu', form.videoEncoder === 'GPU');
     
-    // Save idle period configuration
-    settingsStore.updateVideoSetting('videoIdlePeriod', form.videoIdlePeriod);
+    // Save Silence Prefix configuration
+    settingsStore.updateVideoSetting('silenceDuration', form.silenceDuration);
 
     // Build app config based on LLM provider
     const appConfig: Record<string, any> = {
@@ -433,7 +433,7 @@ const saveSettings = async () => {
       use_gpu: form.videoEncoder === 'GPU',
       pexels_api_keys: pexelsKeys,
       pixabay_api_keys: pixabayKeys,
-      video_idle_period: form.videoIdlePeriod
+      silence_duration: form.silenceDuration
     };
 
     // Add LLM specific configs based on provider

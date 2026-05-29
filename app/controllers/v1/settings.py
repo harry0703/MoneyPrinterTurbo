@@ -79,7 +79,7 @@ def get_config(request: Request):
                 "video_aspect": config.app.get("video_aspect", "landscape"),
                 "video_clip_duration": config.app.get("video_clip_duration", 3),
                 "video_count": config.app.get("video_count", 1),
-                "video_idle_period": config.app.get("video_idle_period", 0.3),
+                "silence_duration": config.app.get("silence_duration", 0.3),
                 "video_style": config.app.get("video_style", "none"),
                 "intro_video_bg_type": config.app.get("intro_video_bg_type", "solid"),
                 "intro_video_bg_blur": config.app.get("intro_video_bg_blur", 15),
