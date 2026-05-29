@@ -2,6 +2,7 @@
 
 MoneyPrinterTurbo fork — AI video generation engine for Clipp.
 
+
 ## What This Is
 
 This is a fork of [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) with
