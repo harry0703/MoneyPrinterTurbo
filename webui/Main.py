@@ -7,7 +7,6 @@ import json
 
 nest_asyncio.apply()
 
-# ── Config File Path ──
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(ROOT_DIR, "config.json")
 
@@ -163,6 +162,50 @@ PREVIEW_TEXTS = {
     "zh-CN-XiaoxiaoNeural": "你好！我是你视频的声音。",
 }
 
+MODEL_LISTS = {
+    "OpenAI": [
+        "gpt-4o", "gpt-4o-mini", "gpt-4-turbo",
+        "gpt-3.5-turbo", "Custom (type below)"
+    ],
+    "OpenRouter": [
+        "deepseek/deepseek-chat",
+        "deepseek/deepseek-r1",
+        "google/gemini-flash-1.5",
+        "google/gemini-pro-1.5",
+        "meta-llama/llama-3.1-8b-instruct:free",
+        "meta-llama/llama-3.3-70b-instruct",
+        "mistralai/mixtral-8x7b-instruct",
+        "mistralai/mistral-7b-instruct:free",
+        "anthropic/claude-3-haiku",
+        "anthropic/claude-3.5-sonnet",
+        "qwen/qwen-2.5-72b-instruct",
+        "microsoft/phi-3-medium-128k-instruct:free",
+        "Custom (type below)"
+    ],
+    "DeepSeek": [
+        "deepseek-chat",
+        "deepseek-reasoner",
+        "Custom (type below)"
+    ],
+    "Moonshot": [
+        "moonshot-v1-8k",
+        "moonshot-v1-32k",
+        "moonshot-v1-128k",
+        "Custom (type below)"
+    ],
+    "Google Gemini": [
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-2.0-flash",
+        "Custom (type below)"
+    ],
+    "Ollama": [
+        "llama3", "llama3.1", "mistral",
+        "qwen2.5", "deepseek-r1",
+        "Custom (type below)"
+    ],
+}
+
 async def generate_preview(voice_name: str, text: str) -> bytes:
     import edge_tts
     tts = edge_tts.Communicate(text, voice_name)
@@ -181,7 +224,6 @@ def run_preview(voice_name: str, text: str) -> bytes:
     finally:
         loop.close()
 
-# ── Config Load ──
 cfg = load_config()
 
 # ── Sidebar ──
@@ -205,8 +247,7 @@ with st.sidebar:
     st.markdown('<div class="section-header">Status</div>',
                 unsafe_allow_html=True)
     api_set = bool(
-        cfg.get("openai_api_key") or cfg.get("openrouter_api_key")
-    )
+        cfg.get("openai_api_key") or cfg.get("openrouter_api_key"))
     if api_set:
         st.markdown(
             '<span class="badge badge-ready">✓ API Ready</span>',
@@ -297,7 +338,7 @@ if page == "🎬 Generate Video":
                     status.update(label="✅ Done!",
                                   state="complete", expanded=False)
                 st.success("🎉 Video ready!")
-                st.info("💡 Abhi demo mode hai — API keys Settings mein daalo!")
+                st.info("💡 Abhi demo mode — API keys Settings mein daalo!")
 
 # ── Settings ──
 elif page == "⚙️ Settings":
@@ -314,36 +355,40 @@ elif page == "⚙️ Settings":
             value=cfg.get("openai_api_key", ""),
             type="password", placeholder="sk-...")
         st.markdown(
-            f'<span class="key-status {"key-set" if cfg.get("openai_api_key") else "key-empty"}">'
-            f'{"✓ Set hai" if cfg.get("openai_api_key") else "○ Empty"}</span>',
-            unsafe_allow_html=True)
+            f'<span class="key-status '
+            f'{"key-set" if cfg.get("openai_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("openai_api_key") else "○ Empty"}'
+            f'</span>', unsafe_allow_html=True)
 
         openrouter_key = st.text_input(
             "OpenRouter API Key",
             value=cfg.get("openrouter_api_key", ""),
             type="password", placeholder="sk-or-...")
         st.markdown(
-            f'<span class="key-status {"key-set" if cfg.get("openrouter_api_key") else "key-empty"}">'
-            f'{"✓ Set hai" if cfg.get("openrouter_api_key") else "○ Empty"}</span>',
-            unsafe_allow_html=True)
+            f'<span class="key-status '
+            f'{"key-set" if cfg.get("openrouter_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("openrouter_api_key") else "○ Empty"}'
+            f'</span>', unsafe_allow_html=True)
 
         pexels_key = st.text_input(
             "Pexels API Key",
             value=cfg.get("pexels_api_key", ""),
             type="password", placeholder="Pexels key")
         st.markdown(
-            f'<span class="key-status {"key-set" if cfg.get("pexels_api_key") else "key-empty"}">'
-            f'{"✓ Set hai" if cfg.get("pexels_api_key") else "○ Empty"}</span>',
-            unsafe_allow_html=True)
+            f'<span class="key-status '
+            f'{"key-set" if cfg.get("pexels_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("pexels_api_key") else "○ Empty"}'
+            f'</span>', unsafe_allow_html=True)
 
         pixabay_key = st.text_input(
             "Pixabay API Key",
             value=cfg.get("pixabay_api_key", ""),
             type="password", placeholder="Pixabay key")
         st.markdown(
-            f'<span class="key-status {"key-set" if cfg.get("pixabay_api_key") else "key-empty"}">'
-            f'{"✓ Set hai" if cfg.get("pixabay_api_key") else "○ Empty"}</span>',
-            unsafe_allow_html=True)
+            f'<span class="key-status '
+            f'{"key-set" if cfg.get("pixabay_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("pixabay_api_key") else "○ Empty"}'
+            f'</span>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 Save API Keys"):
@@ -352,7 +397,7 @@ elif page == "⚙️ Settings":
             cfg["pexels_api_key"] = pexels_key
             cfg["pixabay_api_key"] = pixabay_key
             if save_config(cfg):
-                st.success("✅ Keys save ho gayi! ✔")
+                st.success("✅ Keys save ho gayi!")
                 st.rerun()
             else:
                 st.error("❌ Save nahi hua!")
@@ -360,6 +405,7 @@ elif page == "⚙️ Settings":
     with s2:
         st.markdown('<div class="card-title">🤖 Model Settings</div>',
                     unsafe_allow_html=True)
+
         providers = ["OpenAI", "OpenRouter", "DeepSeek",
                      "Moonshot", "Google Gemini", "Ollama"]
         current_provider = cfg.get("llm_provider", "OpenAI")
@@ -367,14 +413,36 @@ elif page == "⚙️ Settings":
             if current_provider in providers else 0
         llm_provider = st.selectbox(
             "LLM Provider", providers, index=provider_idx)
-        model_name = st.text_input(
-            "Model Name",
-            value=cfg.get("model_name", ""),
-            placeholder="gpt-4o / deepseek-chat")
+
+        model_options = MODEL_LISTS.get(
+            llm_provider, ["Custom (type below)"])
+        saved_model = cfg.get("model_name", "")
+
+        if saved_model in model_options:
+            default_idx = model_options.index(saved_model)
+        else:
+            default_idx = len(model_options) - 1
+
+        selected_model = st.selectbox(
+            "Model (List se chuno)",
+            model_options,
+            index=default_idx
+        )
+
+        if selected_model == "Custom (type below)":
+            model_name = st.text_input(
+                "Ya khud likho (Custom Model)",
+                value=saved_model if saved_model not in model_options else "",
+                placeholder="koi bhi naya model likho"
+            )
+        else:
+            model_name = selected_model
+
         base_url = st.text_input(
             "Base URL (optional)",
             value=cfg.get("base_url", ""),
             placeholder="Default ke liye khali chhodo")
+
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 Save Model Settings"):
             cfg["llm_provider"] = llm_provider
