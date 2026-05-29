@@ -817,7 +817,23 @@ def combine_all_scenes(task_id, params, scene_results):
         )
         
         if result:
-            logger.success(f"combined scenes created: {temp_video_path}")
+            # Verify the combined video can be read and has valid duration
+            try:
+                temp_clip = video.VideoFileClip(temp_video_path)
+                if not hasattr(temp_clip, 'duration') or temp_clip.duration is None:
+                    logger.error(f"Combined video has no duration: {temp_video_path}")
+                    temp_clip.close()
+                    for clip in processed_clips:
+                        clip.close()
+                    return None
+                logger.success(f"combined scenes created: {temp_video_path} (duration: {temp_clip.duration:.2f}s)")
+                temp_clip.close()
+            except Exception as e:
+                logger.error(f"Failed to verify combined video: {e}")
+                for clip in processed_clips:
+                    clip.close()
+                return None
+            
             # Close all clips
             for clip in processed_clips:
                 clip.close()
@@ -1536,7 +1552,8 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                     video_aspect = None
             
             if video_aspect == VideoAspect.portrait_3_4:
-                from moviepy import CompositeVideoClip, ColorClip
+                from moviepy import ColorClip
+                from app.utils.composite_clip_factory import create_composite_video_clip
                 from app.services.video_utils import parse_color
                 
                 clip_w, clip_h = video_clip.size
@@ -1565,7 +1582,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                 )
                 
                 # Composite the scaled clip on background
-                video_clip = CompositeVideoClip([
+                video_clip = create_composite_video_clip([
                     background,
                     scaled_clip.with_position(("center", y_offset))
                 ])
@@ -1575,7 +1592,11 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         from app.config.config import silence_duration as config_silence_duration
         silence_duration = 0
         if config_silence_duration > 0:
-            from moviepy import ImageClip, concatenate_videoclips, AudioClip, concatenate_audioclips
+            from moviepy import ImageClip, AudioClip, concatenate_audioclips
+            from app.utils.composite_clip_factory import safe_concatenate_videoclips, ensure_clip_duration
+            
+            # Ensure video_clip has duration first
+            video_clip = ensure_clip_duration(video_clip)
             
             # Extract first frame and create a still frame clip (CLEAN - no subtitles yet!)
             # Ensure frame is in RGB format (0-255)
@@ -1588,25 +1609,19 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
             # Create still frame with explicit duration
             still_frame_clip = ImageClip(first_frame, duration=config_silence_duration)
             
-            logger.info(f"DEBUG - Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
-            logger.info(f"DEBUG - Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
+            logger.debug(f"- Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
+            logger.debug(f"- Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
             
             # Add audio silence to match video extension (CRITICAL - keeps audio in sync!)
             if video_clip.audio:
                 silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
                 extended_audio = concatenate_audioclips([silence_clip, video_clip.audio])
                 video_clip = video_clip.with_audio(extended_audio)
-                logger.info(f"DEBUG - Audio extended successfully: audio duration={getattr(video_clip.audio, 'duration', 'NOT SET')}")
+                logger.debug(f"- Audio extended successfully: audio duration={getattr(video_clip.audio, 'duration', 'NOT SET')}")
             
-            # Concatenate still frame with original video
-            video_clip = concatenate_videoclips([still_frame_clip, video_clip])
-            logger.info(f"DEBUG - After concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
-            
-            # Ensure duration is explicitly set
-            if not hasattr(video_clip, 'duration') or video_clip.duration is None:
-                expected_duration = still_frame_clip.duration + (getattr(video_clip, 'duration', 0) if hasattr(video_clip, 'duration') else 0)
-                video_clip.duration = expected_duration
-                logger.info(f"DEBUG - Duration was NOT set! Setting to {expected_duration}s")
+            # Concatenate still frame with original video using safe version
+            video_clip = safe_concatenate_videoclips([still_frame_clip, video_clip])
+            logger.debug(f"- After safe_concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
             
             silence_duration = config_silence_duration
             
@@ -1636,7 +1651,8 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
             if subtitle_path and os.path.exists(subtitle_path):
                 logger.info("adding subtitle to multi-scene video")
                 try:
-                    from moviepy import TextClip, CompositeVideoClip
+                    from moviepy import TextClip
+                    from app.utils.composite_clip_factory import create_composite_video_clip
                     from moviepy.video.tools.subtitles import SubtitlesClip
                     import app.services.subtitle as subtitle_module
                     
@@ -1736,7 +1752,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                         if text_clips:
                             logger.info(f"Adding {len(text_clips)} text clips to video")
                             try:
-                                video_clip = CompositeVideoClip([video_clip, *text_clips])
+                                video_clip = create_composite_video_clip([video_clip, *text_clips])
                                 logger.success("subtitle added to multi-scene video")
                             except Exception as e:
                                 logger.error(f"Failed to composite video with subtitles: {e}")

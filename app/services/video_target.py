@@ -9,10 +9,10 @@ from moviepy import (
     concatenate_audioclips,
     VideoFileClip,
     TextClip,
-    CompositeVideoClip,
     AudioClip,
     ColorClip,
 )
+from app.utils.composite_clip_factory import create_composite_video_clip, safe_concatenate_videoclips, ensure_clip_duration
 from app.config.config import load_config
 from app.utils import utils
 from app.services.video_utils import wrap_text
@@ -53,7 +53,8 @@ def finalize_video(
     logger.debug(f"concatenating {len(processed_clips)} clips in memory")
     try:
         # Concatenate all clips at once (no intermediate encoding)
-        final_video = concatenate_videoclips(processed_clips)
+        final_video = safe_concatenate_videoclips(processed_clips)
+        
         logger.info(f"clips concatenated, total duration: {final_video.duration:.2f}s")
         
         # Note: Pillarbox is now added at the final video generation stage (after subtitles)
@@ -190,7 +191,7 @@ def generate_video(
     logger.info(f"starting video generation: {output_file}")
     
     try:
-        from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, ColorClip, AudioClip, afx, ImageClip, concatenate_videoclips, concatenate_audioclips
+        from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, ColorClip, AudioClip, afx, ImageClip, concatenate_videoclips, concatenate_audioclips
         
         # Load video
         video_clip = VideoFileClip(video_path)
@@ -250,7 +251,7 @@ def generate_video(
                 )
                 
                 # Composite the scaled clip on background
-                video_clip = CompositeVideoClip([
+                video_clip = create_composite_video_clip([
                     background,
                     scaled_clip.with_position(("center", y_offset))
                 ])
@@ -258,6 +259,7 @@ def generate_video(
         
         # Add Silence Prefix FIRST (before audio and subtitles)
         from app.config.config import silence_duration as config_silence_duration
+        logger.debug(f"- Loaded silence_duration from config: {config_silence_duration}")
         silence_duration = 0
         if config_silence_duration > 0:
             
@@ -272,25 +274,22 @@ def generate_video(
             # Create still frame with explicit duration
             still_frame_clip = ImageClip(first_frame, duration=config_silence_duration)
             
-            logger.info(f"DEBUG - Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
-            logger.info(f"DEBUG - Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
+            logger.debug(f"- Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
+            logger.debug(f"- Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
             
             # Add audio silence to match video extension (CRITICAL - keeps audio in sync!)
             if video_clip.audio:
                 silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
                 extended_audio = concatenate_audioclips([silence_clip, video_clip.audio])
                 video_clip = video_clip.with_audio(extended_audio)
-                logger.info(f"DEBUG - Audio extended successfully: audio duration={getattr(video_clip.audio, 'duration', 'NOT SET')}")
+                logger.debug(f"- Audio extended successfully: audio duration={getattr(video_clip.audio, 'duration', 'NOT SET')}")
             
-            # Concatenate still frame with original video
-            video_clip = concatenate_videoclips([still_frame_clip, video_clip])
-            logger.info(f"DEBUG - After concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
+            # Store original video duration before concatenation
+            original_duration = getattr(video_clip, 'duration', 0)
             
-            # Ensure duration is explicitly set
-            if not hasattr(video_clip, 'duration') or video_clip.duration is None:
-                expected_duration = still_frame_clip.duration + (getattr(video_clip, 'duration', 0) if hasattr(video_clip, 'duration') else 0)
-                video_clip.duration = expected_duration
-                logger.info(f"DEBUG - Duration was NOT set! Setting to {expected_duration}s")
+            # Concatenate still frame with original video using safe version
+            video_clip = safe_concatenate_videoclips([still_frame_clip, video_clip])
+            logger.debug(f"- After safe_concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
             
             silence_duration = config_silence_duration
             
@@ -299,8 +298,21 @@ def generate_video(
         # Add title AFTER Silence Prefix so it starts from the beginning of the still frame
         if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
             logger.info("Adding title to video")
+            # Ensure video_clip has duration before passing to add_title_to_video
+            video_clip = ensure_clip_duration(video_clip)
+            logger.debug(f"- Before add_title_to_video: duration={getattr(video_clip, 'duration', 'NOT SET')}")
             from app.services.title import add_title_to_video
-            video_clip = add_title_to_video(video_clip, params)
+            try:
+                video_clip = add_title_to_video(video_clip, params)
+                logger.debug(f"- After add_title_to_video returned: duration={getattr(video_clip, 'duration', 'NOT SET')}")
+            except Exception as e:
+                logger.error(f"DEBUG - Exception in add_title_to_video: {type(e).__name__}: {e}")
+                raise
+            # Validate: ensure the returned clip has a valid duration
+            if not hasattr(video_clip, 'duration') or video_clip.duration is None:
+                logger.error("add_title_to_video returned a clip without valid duration")
+                raise ValueError("Title clip duration not available") from None
+            logger.info(f"Title added, video duration: {getattr(video_clip, 'duration', 'NOT SET')}s")
         
         # Add subtitles if enabled
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
@@ -396,13 +408,17 @@ def generate_video(
                 
                 # Composite video with subtitles
                 if subtitle_clips:
-                    video_clip = CompositeVideoClip([video_clip] + subtitle_clips)
+                    video_clip = create_composite_video_clip([video_clip] + subtitle_clips)
                     logger.success("subtitles added to video")
+                    logger.debug(f"- After subtitle processing: duration={getattr(video_clip, 'duration', 'NOT SET')}")
             except Exception as e:
                 logger.error(f"failed to add subtitles: {e}")
         
+        logger.debug(f"- Before loading audio: duration={getattr(video_clip, 'duration', 'NOT SET')}")
+        
         # Load audio if provided (AFTER all other processing)
         if audio_path:
+            logger.debug(f"- Processing audio: audio_path={audio_path}")
             audio_clip = AudioFileClip(audio_path)
             
             # Add delay at the beginning of audio to match video extension
@@ -415,10 +431,13 @@ def generate_video(
             if existing_audio:
                 # Mix BGM with existing audio (scene integration scenario)
                 logger.info("Mixing BGM with existing video audio")
+                video_duration = getattr(video_clip, 'duration', None)
+                if video_duration is None:
+                    video_duration = getattr(video_clip, 'end', 120)
                 bgm_clip = audio_clip.with_effects([
                     afx.MultiplyVolume(params.bgm_volume if hasattr(params, 'bgm_volume') else 0.2),
                     afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
+                    afx.AudioLoop(duration=video_duration),
                 ])
                 combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
                 video_clip = video_clip.with_audio(combined_audio)
@@ -429,10 +448,32 @@ def generate_video(
         # Write final video
         logger.info(f"writing final video to: {output_file}")
         
+        # Final safeguard: ensure video_clip has a valid duration before writing
+        if not hasattr(video_clip, 'duration') or video_clip.duration is None:
+            logger.error(f"CRITICAL: video_clip has no duration attribute before write_videofile")
+            # Try to compute duration from other properties
+            if hasattr(video_clip, 'end') and hasattr(video_clip, 'start'):
+                video_clip.duration = video_clip.end - video_clip.start
+                logger.info(f"Set duration from end-start: {video_clip.duration}")
+            elif hasattr(video_clip, 'end'):
+                video_clip.duration = video_clip.end
+                logger.info(f"Set duration from end: {video_clip.duration}")
+            else:
+                logger.error("Cannot determine video duration, setting default of 60 seconds")
+                video_clip.duration = 60
+        
         # Build ffmpeg parameters
         ffmpeg_params = ["-pix_fmt", "yuv420p"]
         if get_video_encoding_params()["crf"] is not None:
             ffmpeg_params.extend(["-crf", str(get_video_encoding_params()["crf"])])
+        
+        # Final check before writing
+        logger.debug(f"- Final check before write_videofile:")
+        logger.debug(f"- video_clip type: {type(video_clip)}")
+        logger.debug(f"- hasattr duration: {hasattr(video_clip, 'duration')}")
+        logger.debug(f"- duration value: {getattr(video_clip, 'duration', 'NOT SET')}")
+        logger.debug(f"- hasattr end: {hasattr(video_clip, 'end')}")
+        logger.debug(f"- end value: {getattr(video_clip, 'end', 'NOT SET')}")
         
         # Create and start progress monitor
         progress_monitor = create_encoding_progress_monitor(

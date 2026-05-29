@@ -4,6 +4,7 @@ from loguru import logger
 from moviepy import TextClip, CompositeVideoClip, ColorClip, vfx
 
 from app.utils import utils
+from app.utils.composite_clip_factory import create_composite_video_clip, safe_concatenate_videoclips
 from app.services.video_utils import parse_color, wrap_text
 from app.models.schema import VideoParams
 
@@ -210,6 +211,12 @@ def create_title_clip(
     
     txt_clip = txt_clip.with_position(position)
     
+    # Ensure txt_clip has duration (MoviePy v2 requirement)
+    if not hasattr(txt_clip, 'duration') or txt_clip.duration is None:
+        # Set a default duration that will be overridden later
+        txt_clip.duration = 5.0
+        txt_clip.end = 5.0
+    
     animation_duration = params.title_animation_duration
     if params.title_animation == "fade_in":
         txt_clip = txt_clip.with_effects([vfx.FadeIn(animation_duration)])
@@ -238,14 +245,39 @@ def add_title_to_video(
     if not params.title_enabled or not params.title_text:
         return video_clip
     
+    logger.debug(f"add_title_to_video - Input video_clip duration: {getattr(video_clip, 'duration', 'NOT SET')}")
+    
+    # Ensure input video_clip has duration before proceeding
+    if not hasattr(video_clip, 'duration') or video_clip.duration is None:
+        # Try to compute duration from end and start
+        if hasattr(video_clip, 'end'):
+            video_start = getattr(video_clip, 'start', 0)
+            video_clip.duration = video_clip.end - video_start
+            logger.debug(f"add_title_to_video - Computed duration from end: {video_clip.duration}")
+        else:
+            logger.error(f"DEBUG add_title_to_video - Cannot determine video_clip duration, cannot add title")
+            return video_clip
+    
     video_width, video_height = video_clip.size
     title_duration = params.title_duration
+    logger.debug(f"add_title_to_video - title_duration: {title_duration}")
     
     title_clip = create_title_clip(video_width, video_height, params)
     if title_clip is None:
         return video_clip
     
+    # Check if title_clip has duration before calling with_duration
+    title_clip_has_duration = hasattr(title_clip, 'duration') and title_clip.duration is not None
+    logger.debug(f"add_title_to_video - title_clip has duration: {title_clip_has_duration}, value: {getattr(title_clip, 'duration', 'NOT SET')}")
+    
+    # Ensure title_clip has duration before calling with_duration
+    if not title_clip_has_duration:
+        title_clip.duration = title_duration
+        title_clip.end = title_duration
+        logger.debug(f"add_title_to_video - Set title_clip duration to {title_duration} before with_duration")
+    
     title_clip = title_clip.with_duration(title_duration)
+    logger.debug(f"add_title_to_video - title_clip duration after with_duration: {getattr(title_clip, 'duration', 'NOT SET')}")
     
     layers = []
     if params.title_background_overlay:
@@ -257,22 +289,48 @@ def add_title_to_video(
         )
         layers.append(overlay)
     
-    layers.append(video_clip.subclipped(0, title_duration))
+    # Get subclip and ensure it has duration
+    video_subclip = video_clip.subclipped(0, title_duration)
+    video_subclip_duration = getattr(video_subclip, 'duration', None)
+    if video_subclip_duration is None:
+        video_subclip.duration = title_duration
+        video_subclip.end = title_duration
+        logger.debug(f"add_title_to_video - Set subclip duration to {title_duration}")
+    layers.append(video_subclip)
     layers.append(title_clip)
     
-    title_section = CompositeVideoClip(layers, size=(video_width, video_height))
-    # MoviePy v2: CompositeVideoClip with explicit size may not auto-compute duration
-    # Explicitly set to avoid "Attribute 'duration' not set" downstream
-    title_section.duration = title_duration
+    title_section = create_composite_video_clip(layers, size=(video_width, video_height))
+    title_section_duration = getattr(title_section, 'duration', 'NOT SET')
+    logger.debug(f"add_title_to_video - title_section duration: {title_section_duration}")
+    # Ensure title_section has duration
+    if title_section_duration == 'NOT SET' or title_section_duration is None:
+        logger.error(f"DEBUG add_title_to_video - title_section has no duration!")
+        title_section.duration = title_duration
+        title_section.end = title_duration
+        logger.debug(f"add_title_to_video - Set title_section duration to {title_duration}")
     
-    remaining_video = video_clip.subclipped(title_duration) if video_clip.duration > title_duration else None
+    # Safe way to get video_clip duration
+    video_duration = getattr(video_clip, 'duration', None)
+    remaining_video = None
+    if video_duration and video_duration > title_duration:
+        remaining_video = video_clip.subclipped(title_duration)
+        # Ensure remaining_video has duration
+        remaining_duration = getattr(remaining_video, 'duration', None)
+        if remaining_duration is None:
+            remaining_duration = video_duration - title_duration
+            remaining_video.duration = remaining_duration
+            remaining_video.end = remaining_duration
+            logger.debug(f"add_title_to_video - Set remaining_video duration to {remaining_duration}")
+    
+    logger.debug(f"add_title_to_video - remaining_video exists: {remaining_video is not None}, duration: {getattr(remaining_video, 'duration', 'NOT SET')}")
     
     if remaining_video:
-        from moviepy import concatenate_videoclips
-        final_video = concatenate_videoclips([title_section, remaining_video])
+        final_video = safe_concatenate_videoclips([title_section, remaining_video])
+        logger.debug(f"add_title_to_video - After safe_concatenate_videoclips, duration: {getattr(final_video, 'duration', 'NOT SET')}")
     else:
         final_video = title_section
     
+    logger.debug(f"add_title_to_video - Returning final_video with duration: {getattr(final_video, 'duration', 'NOT SET')}")
     logger.success(f"Title added to video successfully")
     return final_video
 

@@ -27,7 +27,6 @@ from moviepy import (
     AudioFileClip,
     ColorClip,
     CompositeAudioClip,
-    CompositeVideoClip,
     ImageClip,
     TextClip,
     VideoFileClip,
@@ -35,6 +34,7 @@ from moviepy import (
     vfx,
     concatenate_videoclips,
 )
+from app.utils.composite_clip_factory import create_composite_video_clip
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import ImageFont
 
@@ -1057,7 +1057,7 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color_str="b
         close_clip(stretched_background)
         
         # Composite: blurred background at bottom, scaled clip on top
-        composite = CompositeVideoClip(
+        composite = create_composite_video_clip(
             [blurred_background, scaled_clip.with_position((x_offset, y_offset))],
             size=(target_width, target_height)
         )
@@ -1075,7 +1075,7 @@ def fit_intro_video_to_target(clip, target_width, target_height, bg_color_str="b
         )
         
         # Composite the video on background
-        composite = CompositeVideoClip(
+        composite = create_composite_video_clip(
             [background, scaled_clip.with_position((x_offset, y_offset))],
             size=(target_width, target_height)
         )

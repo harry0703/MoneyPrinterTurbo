@@ -28,7 +28,6 @@ from moviepy import (
     AudioFileClip,
     ColorClip,
     CompositeAudioClip,
-    CompositeVideoClip,
     ImageClip,
     TextClip,
     VideoFileClip,

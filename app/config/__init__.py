@@ -33,7 +33,7 @@ except pytz.exceptions.UnknownTimeZoneError:
 def __init_logger():
     # _log_file = utils.storage_dir("logs/server.log")
     # Use default log level for now to avoid circular import
-    _lvl = "INFO"
+    _lvl = "DEBUG"
     root_dir = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     )
