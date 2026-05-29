@@ -76,7 +76,6 @@ RUN mkdir -p \
 # ── Copy Railway-specific files ───────────────────────────────
 COPY railway/start.sh ./start.sh
 COPY railway/generate-config.sh ./generate-config.sh
-COPY railway/config.toml.template ./config.toml.template
 
 RUN chmod +x start.sh generate-config.sh
 
