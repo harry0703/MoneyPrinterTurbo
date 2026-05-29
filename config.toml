@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.17"
+project_version = "2.2.18"
 
 [app]
 video_source = "pexels"
@@ -57,8 +57,7 @@ video_transition_mode = "none"
 video_aspect = "portrait_3_4"
 video_clip_duration = 4
 video_count = 1
-# Silence Prefix duration — still frame at the very beginning of the final video (seconds)
-silence_duration = 0.5
+silence_duration = 2
 video_style = "ai"
 intro_video_bg_type = "blurred"
 intro_video_bg_blur = 48

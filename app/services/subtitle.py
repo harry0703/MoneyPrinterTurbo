@@ -408,7 +408,7 @@ def merge_subtitles(subtitle_files, output_file):
         return None
 
 
-def merge_scene_subtitles(task_id, scene_results, output_file=None):
+def merge_scene_subtitles(task_id, scene_results, output_file=None, silence_duration=0):
     """
     Merge subtitles from multiple scenes, adjusting timestamps based on scene durations.
     
@@ -416,6 +416,7 @@ def merge_scene_subtitles(task_id, scene_results, output_file=None):
         task_id: Task ID for logging and file paths
         scene_results: List of scene results, each containing subtitle_path and duration info
         output_file: Optional output file path, defaults to task directory
+        silence_duration: Duration of silence prefix to add to all subtitle timestamps
         
     Returns:
         Path to the merged subtitle file, or None if failed
@@ -426,7 +427,7 @@ def merge_scene_subtitles(task_id, scene_results, output_file=None):
         
         # Collect all scene subtitles and adjust timestamps
         all_subtitles = []
-        current_offset = 0
+        current_offset = silence_duration  # Start with silence duration offset
         
         for scene_result in scene_results:
             scene_subtitle = scene_result.get("subtitle_path")

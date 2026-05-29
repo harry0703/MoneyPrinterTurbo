@@ -257,43 +257,9 @@ def generate_video(
                 ])
                 logger.info(f"Added pillarbox for 3:4 -> 9:16: {clip_w}x{clip_h} -> {target_width}x{target_height}")
         
-        # Add Silence Prefix FIRST (before audio and subtitles)
-        from app.config.config import silence_duration as config_silence_duration
-        logger.debug(f"- Loaded silence_duration from config: {config_silence_duration}")
+        # Silence Prefix is handled at scene integration level (start_multi_scene), NOT here
+        # This ensures consistent timing across all scenes
         silence_duration = 0
-        if config_silence_duration > 0:
-            
-            # Extract first frame and create a still frame clip (CLEAN - no subtitles yet!)
-            # Ensure frame is in RGB format (0-255)
-            import numpy as np
-            first_frame = video_clip.get_frame(0)
-            if len(first_frame.shape) == 2:
-                # Convert grayscale to RGB
-                first_frame = np.stack([first_frame] * 3, axis=-1)
-            
-            # Create still frame with explicit duration
-            still_frame_clip = ImageClip(first_frame, duration=config_silence_duration)
-            
-            logger.debug(f"- Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
-            logger.debug(f"- Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
-            
-            # Add audio silence to match video extension (CRITICAL - keeps audio in sync!)
-            if video_clip.audio:
-                silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
-                extended_audio = concatenate_audioclips([silence_clip, video_clip.audio])
-                video_clip = video_clip.with_audio(extended_audio)
-                logger.debug(f"- Audio extended successfully: audio duration={getattr(video_clip.audio, 'duration', 'NOT SET')}")
-            
-            # Store original video duration before concatenation
-            original_duration = getattr(video_clip, 'duration', 0)
-            
-            # Concatenate still frame with original video using safe version
-            video_clip = safe_concatenate_videoclips([still_frame_clip, video_clip])
-            logger.debug(f"- After safe_concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
-            
-            silence_duration = config_silence_duration
-            
-            logger.info(f"Silence Prefix prepended: {silence_duration}s clean still frame (no subtitles)")
         
         # Add title AFTER Silence Prefix so it starts from the beginning of the still frame
         if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
@@ -344,9 +310,9 @@ def generate_video(
                     # Parse time string
                     start_end = time_str.split(" --> ")
                     if len(start_end) == 2:
-                        # Convert to seconds - add Silence Prefix offset!
-                        start_time_val = _srt_time_to_seconds(start_end[0]) + silence_duration
-                        end_time = _srt_time_to_seconds(start_end[1]) + silence_duration
+                        # Convert to seconds - silence prefix handled at scene integration level
+                        start_time_val = _srt_time_to_seconds(start_end[0])
+                        end_time = _srt_time_to_seconds(start_end[1])
                         duration = end_time - start_time_val
                         
                         # Skip subtitles with negative or zero duration
@@ -421,10 +387,6 @@ def generate_video(
             logger.debug(f"- Processing audio: audio_path={audio_path}")
             audio_clip = AudioFileClip(audio_path)
             
-            # Add delay at the beginning of audio to match video extension
-            silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
-            audio_clip = concatenate_audioclips([silence_clip, audio_clip])
-            
             # Check if video already has audio
             existing_audio = video_clip.audio
             
@@ -434,6 +396,9 @@ def generate_video(
                 video_duration = getattr(video_clip, 'duration', None)
                 if video_duration is None:
                     video_duration = getattr(video_clip, 'end', 120)
+                # BGM should NOT have additional silence prefix because:
+                # - Scene-level audio has no silence prefix (handled at scene integration level)
+                # - Adding delay here would desynchronize BGM from video
                 bgm_clip = audio_clip.with_effects([
                     afx.MultiplyVolume(params.bgm_volume if hasattr(params, 'bgm_volume') else 0.2),
                     afx.AudioFadeOut(3),
@@ -443,6 +408,9 @@ def generate_video(
                 video_clip = video_clip.with_audio(combined_audio)
             else:
                 # No existing audio, set BGM as main audio (normal scenario)
+                # In normal scenario, we need to add silence prefix to BGM to match video
+                silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
+                audio_clip = concatenate_audioclips([silence_clip, audio_clip])
                 video_clip = video_clip.with_audio(audio_clip)
         
         # Write final video

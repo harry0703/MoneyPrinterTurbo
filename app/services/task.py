@@ -1638,7 +1638,9 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         if params.subtitle_enabled and scene_results:
             # Use the new merge_scene_subtitles function to merge subtitles
             from app.services import subtitle
-            merged_subtitle_path = subtitle.merge_scene_subtitles(task_id, scene_results)
+            merged_subtitle_path = subtitle.merge_scene_subtitles(
+                task_id, scene_results, silence_duration=silence_duration
+            )
             
             # Use merged subtitle if available, otherwise fall back to first scene
             if merged_subtitle_path and os.path.exists(merged_subtitle_path):
@@ -1704,9 +1706,9 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                                 # Parse time string
                                 start_end = time_str.split(" --> ")
                                 if len(start_end) == 2:
-                                    # Convert to seconds - add Silence Prefix offset!
-                                    start_time = _srt_time_to_seconds(start_end[0]) + silence_duration
-                                    end_time = _srt_time_to_seconds(start_end[1]) + silence_duration
+                                    # Time already includes silence prefix from merged_subtitle.srt
+                                    start_time = _srt_time_to_seconds(start_end[0])
+                                    end_time = _srt_time_to_seconds(start_end[1])
                                     
                                     # Create text clip with proper encoding
                                     try:

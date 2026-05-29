@@ -660,8 +660,8 @@ def close_clip(clip):
             try:
                 clip.reader.close()
             except Exception as e:
-                # Ignore handle invalid errors
-                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                # Ignore handle invalid and access denied errors
+                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
                     logger.error(f"failed to close clip reader: {str(e)}")
             
         # close audio resources
@@ -671,13 +671,13 @@ def close_clip(clip):
                     try:
                         clip.audio.reader.close()
                     except Exception as e:
-                        # Ignore handle invalid errors
-                        if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                        # Ignore handle invalid and access denied errors
+                        if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
                             logger.error(f"failed to close audio reader: {str(e)}")
                 clip.audio.close()
             except Exception as e:
-                # Ignore handle invalid errors
-                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                # Ignore handle invalid and access denied errors
+                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
                     logger.error(f"failed to close audio clip: {str(e)}")
             finally:
                 try:
@@ -692,13 +692,13 @@ def close_clip(clip):
                     try:
                         clip.mask.reader.close()
                     except Exception as e:
-                        # Ignore handle invalid errors
-                        if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                        # Ignore handle invalid and access denied errors
+                        if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
                             logger.error(f"failed to close mask reader: {str(e)}")
                 clip.mask.close()
             except Exception as e:
-                # Ignore handle invalid errors
-                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+                # Ignore handle invalid and access denied errors
+                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
                     logger.error(f"failed to close mask clip: {str(e)}")
             finally:
                 try:
@@ -720,8 +720,8 @@ def close_clip(clip):
         try:
             clip.close()
         except Exception as e:
-            # Ignore handle invalid errors
-            if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower():
+            # Ignore handle invalid and access denied errors
+            if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
                 logger.error(f"failed to close clip: {str(e)}")
             
     except Exception as e:
