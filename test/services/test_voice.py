@@ -378,6 +378,17 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(sub_items), len(script_lines))
         self.assertIn("1,000 years", sub_items[-1])
 
+    def test_convert_rate_to_percent_signs_zero_rate(self):
+        # Rates near but not exactly 1.0 round to 0 percent. edge-tts rejects
+        # an unsigned "0%" (ValueError: Invalid rate '0%'), so the helper must
+        # emit a sign-prefixed "+0%". Regression test for that crash.
+        self.assertEqual(vs.convert_rate_to_percent(1.0), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(1.004), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(0.997), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(1.5), "+50%")
+        self.assertEqual(vs.convert_rate_to_percent(0.8), "-20%")
+
+
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v2
