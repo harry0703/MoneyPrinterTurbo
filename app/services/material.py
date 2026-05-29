@@ -266,7 +266,8 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
-    if video_contact_mode.value == VideoConcatMode.random.value:
+    concat_mode_value = getattr(video_contact_mode, "value", video_contact_mode)
+    if concat_mode_value == VideoConcatMode.random.value:
         random.shuffle(valid_video_items)
 
     total_duration = 0.0
