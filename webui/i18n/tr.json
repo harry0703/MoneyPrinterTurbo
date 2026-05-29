@@ -100,6 +100,25 @@
     "Hide Log": "Günlüğü Gizle",
     "Hide Basic Settings": "Temel Ayarları Gizle\n\nGizlendiği takdirde, temel ayarlar paneli sayfada görüntülenmeyecektir.\n\nTekrar görüntülemek için `config.toml` dosyasında `hide_config = false` olarak ayarlayın",
     "LLM Settings": "**LLM Ayarları**",
-    "Video Source Settings": "**Video Kaynağı Ayarları**"
+    "Video Source Settings": "**Video Kaynağı Ayarları**",
+    "Custom Audio File": "Özel Ses Dosyası",
+    "Custom audio will be used directly. TTS synthesis will be skipped for this task.": "Özel ses doğrudan kullanılacak. Bu görev için TTS sentezi atlanacak.",
+    "Click to show API Key management": "API Anahtarı yönetimini göstermek için tıklayın",
+    "Manage Pexels and Pixabay API Keys": "Pexels ve Pixabay API Anahtarlarını Yönet",
+    "Current Keys:": "Mevcut Anahtarlar:",
+    "No Pexels API Keys currently": "Şu anda Pexels API Anahtarı yok",
+    "Add Pexels API Key": "Pexels API Anahtarı Ekle",
+    "Pexels API Key added successfully": "Pexels API Anahtarı başarıyla eklendi",
+    "This API Key already exists": "Bu API Anahtarı zaten mevcut",
+    "Please enter a valid API Key": "Lütfen geçerli bir API Anahtarı girin",
+    "Select Pexels API Key to delete": "Silinecek Pexels API Anahtarını seçin",
+    "Delete Selected Pexels API Key": "Seçili Pexels API Anahtarını Sil",
+    "Pexels API Key deleted successfully": "Pexels API Anahtarı başarıyla silindi",
+    "No Pixabay API Keys currently": "Şu anda Pixabay API Anahtarı yok",
+    "Add Pixabay API Key": "Pixabay API Anahtarı Ekle",
+    "Pixabay API Key added successfully": "Pixabay API Anahtarı başarıyla eklendi",
+    "Select Pixabay API Key to delete": "Silinecek Pixabay API Anahtarını seçin",
+    "Delete Selected Pixabay API Key": "Seçili Pixabay API Anahtarını Sil",
+    "Pixabay API Key deleted successfully": "Pixabay API Anahtarı başarıyla silindi"
   }
 }
