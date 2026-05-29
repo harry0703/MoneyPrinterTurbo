@@ -9,6 +9,9 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
+from clipp_auth import ClippAuthMiddleware
+from clipp_health import register_health
+
 from app.config import config
 from app.models.exception import HttpException
 from app.router import root_api_router
@@ -26,35 +29,53 @@ def validation_exception_handler(request: Request, e: RequestValidationError):
     return JSONResponse(
         status_code=400,
         content=utils.get_response(
-            status=400, data=e.errors(), message="field required"
+            status=400,
+            data=e.errors(),
+            message="field required",
         ),
     )
 
 
 def get_application() -> FastAPI:
-    """Initialize FastAPI application.
+    """Initialize FastAPI application."""
 
-    Returns:
-       FastAPI: Application object instance.
-
-    """
     instance = FastAPI(
         title=config.project_name,
         description=config.project_description,
         version=config.project_version,
         debug=False,
     )
+
+    # Routers
     instance.include_router(root_api_router)
+
+    # Exception handlers
     instance.add_exception_handler(HttpException, exception_handler)
-    instance.add_exception_handler(RequestValidationError, validation_exception_handler)
+    instance.add_exception_handler(
+        RequestValidationError,
+        validation_exception_handler,
+    )
+
+    # Health endpoint registration
+    register_health(instance)
+
+    # Middleware
+    instance.add_middleware(ClippAuthMiddleware)
+
     return instance
 
 
 app = get_application()
 
-# Configures the CORS middleware for the FastAPI app
+# CORS configuration
 cors_allowed_origins_str = os.getenv("CORS_ALLOWED_ORIGINS", "")
-origins = cors_allowed_origins_str.split(",") if cors_allowed_origins_str else ["*"]
+
+origins = (
+    cors_allowed_origins_str.split(",")
+    if cors_allowed_origins_str
+    else ["*"]
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -63,20 +84,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Static task files
 task_dir = utils.task_dir()
+
 app.mount(
-    "/tasks", StaticFiles(directory=task_dir, html=True, follow_symlink=True), name=""
+    "/tasks",
+    StaticFiles(
+        directory=task_dir,
+        html=True,
+        follow_symlink=True,
+    ),
+    name="tasks",
 )
 
+# Public files
 public_dir = utils.public_dir()
-app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
 
-
-@app.on_event("shutdown")
-def shutdown_event():
-    logger.info("shutdown event")
+app.mount(
+    "/",
+    StaticFiles(
+        directory=public_dir,
+        html=True,
+    ),
+    name="public",
+)
 
 
 @app.on_event("startup")
 def startup_event():
     logger.info("startup event")
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    logger.info("shutdown event")
