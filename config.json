@@ -1,0 +1,9 @@
+{
+  "openai_api_key": "",
+  "openrouter_api_key": "",
+  "pexels_api_key": "",
+  "pixabay_api_key": "",
+  "llm_provider": "OpenAI",
+  "model_name": "",
+  "base_url": ""
+}
