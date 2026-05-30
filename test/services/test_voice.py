@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import unittest
 import os
 import sys
@@ -286,6 +287,97 @@ class TestVoiceService(unittest.TestCase):
         subtitle_content = Path(subtitle_file).read_text(encoding="utf-8")
         self.assertIn("Gemini subtitle generation should work now", subtitle_content)
         self.assertIn("Testing multiple lines", subtitle_content)
+
+    def test_mimo_tts_uses_openai_compatible_audio_response(self):
+        """
+        验证 Xiaomi MiMo TTS 可以消费 OpenAI-compatible 的音频响应结构。
+
+        这里用 fake OpenAI client 和 fake AudioSegment 覆盖真实网络与 ffmpeg，
+        确认运行时代码会把待合成文本放到 assistant message，并把返回的
+        base64 WAV 音频导出到项目后续流程使用的音频文件。
+        """
+
+        class _FakeAudio:
+            def __init__(self):
+                self.data = base64.b64encode(b"RIFF-fake-wav").decode("utf-8")
+
+        class _FakeMessage:
+            def __init__(self):
+                self.audio = _FakeAudio()
+
+        class _FakeChoice:
+            def __init__(self):
+                self.message = _FakeMessage()
+
+        class _FakeCompletion:
+            def __init__(self):
+                self.choices = [_FakeChoice()]
+
+        class _FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                return _FakeCompletion()
+
+        class _FakeAudioSegment:
+            def __len__(self):
+                return 1800
+
+            def export(self, output_file, format):
+                Path(output_file).write_bytes(b"fake-mp3")
+
+        fake_completions = _FakeCompletions()
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=fake_completions)
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs,
+            "OpenAI",
+            return_value=fake_client,
+        ) as openai_client, patch(
+            "pydub.AudioSegment.from_file",
+            return_value=_FakeAudioSegment(),
+        ), patch.object(
+            vs.config,
+            "app",
+            dict(
+                vs.config.app,
+                mimo_api_key="mimo-key",
+                mimo_base_url="https://api.xiaomimimo.com/v1",
+                mimo_tts_model_name="mimo-v2.5-tts",
+                mimo_tts_style_prompt="用清晰的中文旁白朗读。",
+            ),
+        ):
+            voice_file = str(Path(tmp_dir) / "mimo-tts.mp3")
+            sub_maker = vs.mimo_tts(
+                text="小米语音合成测试。第二句话。",
+                voice_name="冰糖",
+                voice_rate=1.0,
+                voice_file=voice_file,
+                voice_volume=1.0,
+            )
+            generated_audio = Path(voice_file).read_bytes()
+
+        openai_client.assert_called_once_with(
+            api_key="mimo-key",
+            base_url="https://api.xiaomimimo.com/v1",
+        )
+        self.assertEqual(fake_completions.kwargs["model"], "mimo-v2.5-tts")
+        self.assertEqual(
+            fake_completions.kwargs["messages"],
+            [
+                {"role": "user", "content": "用清晰的中文旁白朗读。"},
+                {"role": "assistant", "content": "小米语音合成测试。第二句话。"},
+            ],
+        )
+        self.assertEqual(
+            fake_completions.kwargs["audio"],
+            {"format": "wav", "voice": "冰糖"},
+        )
+        self.assertEqual(generated_audio, b"fake-mp3")
+        self.assertIsNotNone(sub_maker)
+        self.assertEqual(getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"])
+        self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
 
     def test_generate_subtitle_keeps_edge_provider_for_gemini_legacy_submaker(self):
         """

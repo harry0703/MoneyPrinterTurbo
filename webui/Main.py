@@ -705,6 +705,7 @@ with middle_panel:
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
             ("gemini-tts", "Google Gemini TTS"),
+            ("mimo-tts", "Xiaomi MiMo TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -734,6 +735,9 @@ with middle_panel:
         elif selected_tts_server == "gemini-tts":
             # 获取Gemini TTS的声音列表
             filtered_voices = voice.get_gemini_voices()
+        elif selected_tts_server == "mimo-tts":
+            # 获取 Xiaomi MiMo TTS 的预置音色列表
+            filtered_voices = voice.get_mimo_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -876,6 +880,32 @@ with middle_panel:
             )
 
             config.siliconflow["api_key"] = siliconflow_api_key
+
+        # 当选择 Xiaomi MiMo TTS 时，复用 MiMo LLM provider 的 API Key。
+        # 这样用户如果同时使用 MiMo 生成文案和语音，只需要维护一份密钥。
+        if selected_tts_server == "mimo-tts" or (
+            voice_name and voice.is_mimo_voice(voice_name)
+        ):
+            saved_mimo_api_key = config.app.get("mimo_api_key", "")
+
+            mimo_api_key = st.text_input(
+                tr("MiMo API Key"),
+                value=saved_mimo_api_key,
+                type="password",
+                key="mimo_tts_api_key_input",
+            )
+
+            st.info(
+                tr("MiMo TTS Settings")
+                + ":\n"
+                + "- "
+                + tr("Uses Xiaomi MiMo V2.5 TTS preset voices")
+                + "\n"
+                + "- "
+                + tr("Speed and volume are currently handled by the provider defaults")
+            )
+
+            config.app["mimo_api_key"] = mimo_api_key
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),

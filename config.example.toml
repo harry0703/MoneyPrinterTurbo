@@ -137,6 +137,10 @@ minimax_model_name = "MiniMax-M2.7"
 mimo_api_key = ""
 mimo_base_url = "https://api.xiaomimimo.com/v1"
 mimo_model_name = "mimo-v2.5-pro"
+# Xiaomi MiMo TTS uses the same API key and base_url as MiMo LLM.
+mimo_tts_model_name = "mimo-v2.5-tts"
+# Optional natural language style prompt for MiMo TTS.
+mimo_tts_style_prompt = "请用自然、清晰、适合短视频旁白的语气朗读。"
 
 ########## DeepSeek API Key
 # Visit https://platform.deepseek.com/api_keys to get your API key
