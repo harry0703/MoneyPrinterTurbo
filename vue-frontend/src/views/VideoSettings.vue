@@ -176,7 +176,6 @@
               :show-input="true"
               :input-size="'small'"
             />
-            <span class="slider-value">{{ form.silenceDuration.toFixed(1) }}s</span>
           </div>
         </div>
 
@@ -191,7 +190,6 @@
               :show-input="true"
               :input-size="'small'"
             />
-            <span class="slider-value">{{ form.videoBrightness.toFixed(2) }}</span>
           </div>
         </div>
 
@@ -206,7 +204,6 @@
               :show-input="true"
               :input-size="'small'"
             />
-            <span class="slider-value">{{ form.videoContrast.toFixed(2) }}</span>
           </div>
         </div>
 

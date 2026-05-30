@@ -1508,365 +1508,42 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=88)
     
     # 5. Add background music and final processing for multi-scene video
+    # Use the shared process_final_video function for consistency with scene integration
     final_output_path = path.join(utils.task_dir(task_id), "final-1.mp4")
     step5_start_time = time.time()
     
-    # For multi-scene mode, we need to add BGM to the combined video
-    # The combined video already has all scene audio, so we just need to add BGM
     logger.info("========================================")
-    logger.info("Step 5: Adding background music and final processing")
+    logger.info("Step 5: Using shared process_final_video for final processing")
     logger.info(f"Combined video path: {final_video_path}")
     logger.info(f"Final output path: {final_output_path}")
-    logger.info(f"BGM type: {params.bgm_type}")
-    logger.info(f"Subtitle enabled: {params.subtitle_enabled}")
     logger.info(f"[TIMESTAMP] Step 5 started at: {time.strftime('%H:%M:%S')}")
     logger.info("========================================")
     
     try:
-        from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, afx, ColorClip
-        import app.services.video as video_module
-        from app.services.video_utils import create_encoding_progress_monitor
+        from app.services.video_target import process_final_video
         
-        # Load the combined video (which already has all scene audio)
-        logger.info(f"Loading combined video file: {final_video_path}")
-        if not os.path.exists(final_video_path):
-            logger.error(f"Combined video file does not exist: {final_video_path}")
-            raise FileNotFoundError(f"Combined video not found: {final_video_path}")
+        logger.info("Calling process_final_video (shared flow for both video generation and scene integration)")
         
-        video_load_start = time.time()
-        logger.info(f"[TIMESTAMP] Reading video file with VideoFileClip... ({time.strftime('%H:%M:%S')})")
-        video_clip = VideoFileClip(final_video_path)
-        video_load_time = time.time() - video_load_start
-        logger.info(f"Video loaded successfully in {video_load_time:.2f}s, duration: {video_clip.duration}s, size: {video_clip.size}")
-        logger.info(f"[TIMESTAMP] Video loaded at: {time.strftime('%H:%M:%S')}")
-        
-        # Add pillarbox bars for 3:4 aspect ratio (convert to 9:16)
-        # This must happen BEFORE subtitles are added so subtitles are positioned relative to output aspect
-        if params.video_aspect:
-            from app.models.schema import VideoAspect
-            video_aspect = params.video_aspect
-            if isinstance(video_aspect, str):
-                try:
-                    video_aspect = VideoAspect(video_aspect)
-                except ValueError:
-                    video_aspect = None
-            
-            if video_aspect == VideoAspect.portrait_3_4:
-                from moviepy import ColorClip
-                from app.utils.composite_clip_factory import create_composite_video_clip
-                from app.services.video_utils import parse_color
-                
-                clip_w, clip_h = video_clip.size
-                target_width, target_height = 1080, 1920
-                
-                # Calculate scale to fit within target width
-                scale_factor = target_width / clip_w
-                new_width = round(clip_w * scale_factor)
-                new_height = round(clip_h * scale_factor)
-                
-                # Resize clip to fit target width
-                scaled_clip = video_clip.resized(new_size=(new_width, new_height))
-                
-                # Calculate offset to center vertically
-                y_offset = (target_height - new_height) // 2
-                
-                # Get output background color from params or config
-                output_bg_color = getattr(params, 'output_bg_color', None) or 'black'
-                bg_color = parse_color(output_bg_color)
-                
-                # Create background layer with configurable color
-                background = ColorClip(
-                    size=(target_width, target_height),
-                    color=bg_color,
-                    duration=video_clip.duration
-                )
-                
-                # Composite the scaled clip on background
-                video_clip = create_composite_video_clip([
-                    background,
-                    scaled_clip.with_position(("center", y_offset))
-                ])
-                logger.info(f"Added pillarbox for 3:4 -> 9:16: {clip_w}x{clip_h} -> {target_width}x{target_height}")
-        
-        # Load config for silence duration first
-        from app.config.config import silence_duration as config_silence_duration
-        silence_duration = 0
-        
-        # Add Silence Prefix FIRST
-        if config_silence_duration > 0:
-            from moviepy import ImageClip
-            from app.utils.composite_clip_factory import safe_concatenate_videoclips, ensure_clip_duration
-            
-            # Ensure video_clip has duration first
-            video_clip = ensure_clip_duration(video_clip)
-            
-            # Extract first frame and create a still frame clip
-            # Ensure frame is in RGB format (0-255)
-            import numpy as np
-            first_frame = video_clip.get_frame(0)
-            if len(first_frame.shape) == 2:
-                # Convert grayscale to RGB
-                first_frame = np.stack([first_frame] * 3, axis=-1)
-            
-            # Create still frame with explicit duration
-            still_frame_clip = ImageClip(first_frame, duration=config_silence_duration)
-            
-            logger.debug(f"- Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
-            logger.debug(f"- Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
-            
-            # Concatenate still frame with original video using safe version.
-            # The still_frame (ImageClip, no audio) naturally creates a silence gap in the
-            # audio track equal to its duration. Do NOT prepend audio silence separately —
-            # that would double-shift the audio, causing voice-to-subtitle desync.
-            video_clip = safe_concatenate_videoclips([still_frame_clip, video_clip])
-            logger.debug(f"- After safe_concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
-            
-            silence_duration = config_silence_duration
-            
-            logger.info(f"Silence Prefix prepended: {silence_duration}s clean still frame")
-        
-        # Add title AFTER Silence Prefix so it starts at the beginning of the still frame
-        if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
-            logger.info("Adding title to multi-scene video")
-            from app.services.title import add_title_to_video
-            video_clip_before_title = video_clip
-            video_clip = add_title_to_video(video_clip, params)
-            if video_clip is not video_clip_before_title:
-                logger.success("Title overlay added successfully")
-            # Note: add_title_to_video logs its own error if title creation fails
-        
-        # Add subtitle if enabled - with silence prefix offset
-        if params.subtitle_enabled and scene_results:
-            # Use the new merge_scene_subtitles function to merge subtitles
-            from app.services import subtitle
-            merged_subtitle_path = subtitle.merge_scene_subtitles(
-                task_id, scene_results, silence_duration=silence_duration
-            )
-            
-            # Use merged subtitle if available, otherwise fall back to first scene
-            using_merged_subtitle = False
-            if merged_subtitle_path and os.path.exists(merged_subtitle_path):
-                subtitle_path = merged_subtitle_path
-                using_merged_subtitle = True
-                logger.info(f"using merged subtitle file: {subtitle_path}")
-            else:
-                subtitle_path = scene_results[0].get("subtitle_path")
-                logger.warning(f"merged subtitle not available, falling back to first scene subtitle: {subtitle_path}")
-            
-            if subtitle_path and os.path.exists(subtitle_path):
-                logger.info("adding subtitle to multi-scene video")
-                try:
-                    from moviepy import TextClip
-                    from app.utils.composite_clip_factory import create_composite_video_clip
-                    from moviepy.video.tools.subtitles import SubtitlesClip
-                    import app.services.subtitle as subtitle_module
-                    
-                    # Load font
-                    font_path = ""
-                    if not params.font_name:
-                        params.font_name = "STHeitiMedium.ttc"
-                    font_path = os.path.join(utils.font_dir(), params.font_name)
-                    if os.name == "nt":
-                        font_path = font_path.replace("\\", "/")
-                    
-                    # Load subtitles
-                    subtitle_lines = subtitle_module.file_to_subtitles(subtitle_path)
-                    if subtitle_lines:
-                        logger.info(f"Loaded {len(subtitle_lines)} subtitles from {subtitle_path}")
-                        
-                        # Create text clips
-                        text_clips = []
-                        video_width, video_height = video_clip.size
-                        
-                        # Check if font file exists
-                        if not os.path.exists(font_path):
-                            logger.warning(f"Font file not found: {font_path}, using default font")
-                            font_path = None  # Use default font
-                        
-                        # Use subtitle_lines directly
-                        for i, (index, time_str, text) in enumerate(subtitle_lines):
-                            phrase = text
-                            logger.debug(f"Processing subtitle {i+1}: {phrase[:50]}...")
-                            
-                            # Get subtitle margin from config (default 0.05 = 5% on each side)
-                            # Reload config to get latest values
-                            _cfg = load_config()
-                            ui_config = _cfg.get("ui", {})
-                            subtitle_margin = ui_config.get("subtitle_margin", 0.05)
-                            # Apply 5% safety buffer to account for getbbox vs TextClip rendering difference
-                            max_width = video_width * (1 - 2 * subtitle_margin) * 0.95
-                            subtitle_auto_fit = ui_config.get("subtitle_auto_fit", False)
-                            
-                            try:
-                                # Wrap text to fit within video width
-                                wrapped_txt, txt_height, actual_fontsize = video_module.wrap_text(
-                                    phrase, max_width=max_width, font=font_path if font_path else "Arial",
-                                    fontsize=int(params.font_size), auto_fit=subtitle_auto_fit
-                                )
-                                # Use the potentially reduced font size from auto-fit
-                                _font_size = int(actual_fontsize) if subtitle_auto_fit else int(params.font_size)
-                                
-                                # Parse time string
-                                start_end = time_str.split(" --> ")
-                                if len(start_end) == 2:
-                                    # Merged subtitles already include silence prefix offset.
-                                    # Fallback subtitles (from first scene) do NOT, so add it here.
-                                    start_time = _srt_time_to_seconds(start_end[0])
-                                    end_time = _srt_time_to_seconds(start_end[1])
-                                    if not using_merged_subtitle:
-                                        start_time += silence_duration
-                                        end_time += silence_duration
-                                    
-                                    # Create text clip with proper encoding
-                                    try:
-                                        _clip = TextClip(
-                                            text=wrapped_txt,
-                                            font=font_path,
-                                            font_size=_font_size,
-                                            color=params.text_fore_color,
-                                            bg_color=params.text_background_color,
-                                            stroke_color=params.stroke_color,
-                                            stroke_width=int(params.stroke_width),
-                                            method='label'  # Use label method for better text rendering
-                                        )
-                                        
-                                        duration = end_time - start_time
-                                        _clip = _clip.with_start(start_time)
-                                        _clip = _clip.with_end(end_time)
-                                        _clip = _clip.with_duration(duration)
-                                        
-                                        # Position subtitle
-                                        margin_px = video_height * subtitle_margin
-                                        if params.subtitle_position == "bottom":
-                                            _clip = _clip.with_position(("center", video_height - margin_px - _clip.h))
-                                        elif params.subtitle_position == "top":
-                                            _clip = _clip.with_position(("center", margin_px))
-                                        elif params.subtitle_position == "custom":
-                                            max_y = video_height - _clip.h - margin_px
-                                            min_y = margin_px
-                                            custom_y = (video_height - _clip.h) * (params.custom_position / 100)
-                                            custom_y = max(min_y, min(custom_y, max_y))
-                                            _clip = _clip.with_position(("center", custom_y))
-                                        else:  # center
-                                            _clip = _clip.with_position(("center", "center"))
-                                        
-                                        text_clips.append(_clip)
-                                        logger.debug(f"Created text clip for subtitle {i+1}")
-                                    except Exception as e:
-                                        logger.error(f"Failed to create text clip: {e}")
-                            except Exception as e:
-                                logger.error(f"Failed to process subtitle {i+1}: {e}")
-                        
-                        # Composite video with subtitles
-                        if text_clips:
-                            logger.info(f"Adding {len(text_clips)} text clips to video")
-                            try:
-                                video_clip = create_composite_video_clip([video_clip, *text_clips])
-                                logger.success("subtitle added to multi-scene video")
-                            except Exception as e:
-                                logger.error(f"Failed to composite video with subtitles: {e}")
-                        else:
-                            logger.warning("No text clips created, skipping subtitle addition")
-                except Exception as e:
-                    logger.error(f"failed to add subtitle: {str(e)}")
-        
-        # Add BGM
-        logger.info(f"Getting BGM file: bgm_type={params.bgm_type}, bgm_file={params.bgm_file}")
-        bgm_file = video_module.get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
-        logger.info(f"BGM file result: {bgm_file}")
-        
-        if bgm_file and os.path.exists(bgm_file):
-            try:
-                logger.info(f"Loading BGM file: {bgm_file}")
-                
-                logger.info(f"Processing BGM with effects: volume={params.bgm_volume}")
-                bgm_clip = AudioFileClip(bgm_file).with_effects([
-                    afx.MultiplyVolume(params.bgm_volume),
-                    afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
-                ])
-                logger.info("BGM loaded and processed successfully")
-                
-                logger.info("Getting existing audio from video...")
-                existing_audio = video_clip.audio
-                logger.info(f"Existing audio loaded, duration: {existing_audio.duration if existing_audio else 'None'}s")
-                
-                logger.info("Combining existing audio with BGM...")
-                combined_audio = CompositeAudioClip([existing_audio, bgm_clip])
-                video_clip = video_clip.with_audio(combined_audio)
-                
-                logger.success("BGM added to multi-scene video")
-            except Exception as e:
-                logger.error(f"failed to add BGM: {str(e)}")
-        
-        sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=90)
-        
-        # Get video encoding parameters (loaded once at module initialization)
-        video_encoding_params = video_module.get_video_encoding_params()
-        
-        # Write final video
-        logger.info(f"========================================")
-        logger.info(f"[TIMESTAMP] Starting final video encoding at: {time.strftime('%H:%M:%S')}")
-        logger.info(f"Writing final video to: {final_output_path}")
-        logger.info(f"Encoding parameters: codec={video_module.video_codec}, fps={video_module.fps}, bitrate={video_encoding_params['bitrate']}")
-        logger.info("========================================")
-        
-        logger.info(f"using video encoding: bitrate={video_encoding_params['bitrate']}, codec={video_module.video_codec}")
-        
-        # Build ffmpeg parameters
-        ffmpeg_params = ["-pix_fmt", "yuv420p"]
-        if video_encoding_params["crf"] is not None:
-            ffmpeg_params.extend(["-crf", str(video_encoding_params["crf"])])
-        
-        encoding_start_time = time.time()
-        logger.info(f"[TIMESTAMP] Video encoding started at: {time.strftime('%H:%M:%S')} (this may take a while)...")
-        
-        # Create and start progress monitor
-        progress_monitor = create_encoding_progress_monitor(
+        # Use the shared process_final_video function
+        # This handles: pillarbox, silence prefix, title, subtitles, BGM, and final encoding
+        output_path = process_final_video(
             task_id=task_id,
+            params=params,
+            scene_results=scene_results,
+            combined_video_path=final_video_path,
+            subtitle_file=None,  # Will be merged from scene_results
+            audio_file=None,      # Will use BGM from params
             output_file=final_output_path,
-            progress_callback=None,  # Can be added later if needed
-            log_interval=60  # Log every 60 seconds (1 minute)
+            progress_callback=None
         )
-        progress_monitor.start_monitoring()
         
-        try:
-            video_clip.write_videofile(
-                final_output_path,
-                codec=video_module.video_codec,
-                audio_codec="aac",
-                fps=video_module.fps,
-                bitrate=video_encoding_params["bitrate"],
-                preset=video_encoding_params["preset"],
-                logger=None,  # Keep None to avoid MoviePy compatibility issues
-                ffmpeg_params=ffmpeg_params,
-            )
-        finally:
-            # Stop progress monitor after encoding completes
-            progress_monitor.stop_monitoring()
-        
-        encoding_time = time.time() - encoding_start_time
-        step5_total_time = time.time() - step5_start_time
-        
-        # Use close_clip function for proper cleanup
-        video_module.close_clip(video_clip)
-        
-        logger.info(f"========================================")
-        logger.info(f"[TIMESTAMP] Video encoding completed at: {time.strftime('%H:%M:%S')}")
-        logger.info(f"Video encoding took: {encoding_time:.2f}s")
-        logger.info(f"Step 5 total time: {step5_total_time:.2f}s")
-        logger.success(f"Final video created: {final_output_path}")
-        
-        # Calculate total task duration from submission to final video creation
-        if task_start_time:
-            total_duration = time.time() - task_start_time
-            hours = int(total_duration // 3600)
-            minutes = int((total_duration % 3600) // 60)
-            seconds = int(total_duration % 60)
-            formatted_duration = f"{hours}:{minutes:02d}:{seconds:02d}"
-            logger.info(f"Total task duration: {formatted_duration}")
-        logger.info("========================================")
-        
+        if output_path and os.path.exists(output_path):
+            final_output_path = output_path
+            logger.success(f"Final video created via shared process_final_video: {final_output_path}")
+        else:
+            logger.error("process_final_video returned None or file not found")
+            raise Exception("Failed to generate final video")
+            
     except Exception as e:
         logger.error(f"========================================")
         logger.error(f"Multi-scene EXCEPTION: {str(e)}")
@@ -1874,6 +1551,8 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
     
+    logger.success(f"Task {task_id} finished, generated multi-scene video")
+        
     logger.success(f"task {task_id} finished, generated multi-scene video")
     
     # Collect all scene clips for reference
