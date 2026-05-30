@@ -113,6 +113,20 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertTrue(os.path.exists(video_path))
             self.assertTrue(get.call_args.kwargs["verify"])
 
+    def test_download_videos_accepts_plain_string_concat_mode(self):
+        """
+        download_videos 可能被服务层或测试直接传入字符串模式，而不是
+        VideoConcatMode 枚举。这里用空搜索词避免真实网络请求，只验证
+        字符串 "random" 不会再因为访问 `.value` 抛 AttributeError。
+        """
+        result = material.download_videos(
+            task_id="string-concat-mode",
+            search_terms=[],
+            video_contact_mode="random",
+        )
+
+        self.assertEqual(result, [])
+
 
 if __name__ == "__main__":
     unittest.main()
