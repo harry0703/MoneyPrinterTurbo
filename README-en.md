@@ -159,7 +159,7 @@ docker-compose up
 
 #### ② Access the Web Interface
 
-Open your browser and visit http://0.0.0.0:8501
+Open your browser and visit http://127.0.0.1:8501
 
 #### ③ Access the API Interface
 
@@ -223,15 +223,13 @@ Note that you need to execute the following commands in the `root directory` of 
 
 ###### Windows
 
-```shell
-uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```powershell
+.\webui.bat
 ```
 
-If you have already activated the virtual environment manually, you can still run:
-
-```bat
-webui.bat
-```
+You can also run `webui.bat` in CMD.
+`webui.bat` prefers the project `.venv` or bundled Python from the portable package. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`.
+To allow other devices on your LAN to access the WebUI, run `set MPT_WEBUI_HOST=0.0.0.0` before running `webui.bat`.
 
 ###### MacOS or Linux
 

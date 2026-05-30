@@ -161,7 +161,7 @@ docker-compose up
 
 #### ② 访问Web界面
 
-打开浏览器，访问 http://0.0.0.0:8501
+打开浏览器，访问 http://127.0.0.1:8501
 
 #### ③ 访问API文档
 
@@ -225,15 +225,13 @@ pip install -r requirements.txt
 
 ###### Windows
 
-```shell
-uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+```powershell
+.\webui.bat
 ```
 
-如果你已经手动激活了虚拟环境，也可以直接执行：
-
-```bat
-webui.bat
-```
+在 CMD 中也可以执行 `webui.bat`。
+`webui.bat` 会优先使用项目 `.venv` 或一键包内置 Python；如果没有找到项目 Python，但已安装 `uv`，会自动切换为 `uv run streamlit`。
+如需允许局域网内其他设备访问 WebUI，可以先执行 `set MPT_WEBUI_HOST=0.0.0.0`，再运行 `webui.bat`。
 
 ###### MacOS or Linux
 
