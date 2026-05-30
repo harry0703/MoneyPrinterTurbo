@@ -69,6 +69,14 @@ if "ui_language" not in st.session_state:
 if "local_video_materials" not in st.session_state:
     # 记住用户最近一次已经落盘的本地素材，避免仅修改文案后二次生成时丢失素材列表。
     st.session_state["local_video_materials"] = []
+if "content_mode" not in st.session_state:
+    st.session_state["content_mode"] = config.ui.get("content_mode", "standard")
+if "csr_scenario_type" not in st.session_state:
+    st.session_state["csr_scenario_type"] = "de-escalation"
+if "csr_customer_persona" not in st.session_state:
+    st.session_state["csr_customer_persona"] = "frustrated customer"
+if "csr_policy_context" not in st.session_state:
+    st.session_state["csr_policy_context"] = ""
 
 # 加载语言文件
 locales = utils.load_locales(i18n_dir)
@@ -109,6 +117,44 @@ support_locales = [
     "vi-VN",
     "th-TH",
     "tr-TR",
+]
+
+csr_training_presets = [
+    {
+        "name": "Angry refund request outside policy",
+        "topic": "Handling an angry customer requesting a refund outside the return window",
+        "scenario_type": "refund or return",
+        "persona": "angry customer who feels the policy is unfair",
+        "policy": "Acknowledge the customer's frustration before explaining policy. Do not blame the customer, argue, or promise an exception you are not authorized to make. Confirm the purchase details, explain the return window clearly, offer approved alternatives such as store credit, troubleshooting, replacement eligibility, or escalation when criteria are met.",
+    },
+    {
+        "name": "Delayed shipment with no instant fix",
+        "topic": "Explaining a delayed shipment when the representative cannot guarantee a delivery date",
+        "scenario_type": "shipping delay",
+        "persona": "stressed customer who needs the order urgently",
+        "policy": "Use empathy and ownership language. Verify the order status before giving an answer. Do not guarantee a delivery date unless the carrier or internal system confirms it. Provide the most accurate available status, next check-in steps, approved compensation options, and escalation criteria.",
+    },
+    {
+        "name": "Billing dispute and unexpected charge",
+        "topic": "Responding to a customer disputing an unexpected charge on their account",
+        "scenario_type": "billing dispute",
+        "persona": "confused customer worried they were overcharged",
+        "policy": "Protect account privacy before discussing billing details. Verify identity according to policy. Review the charge, explain it in plain language, avoid admitting fault before confirming facts, document the dispute, and offer the approved refund, credit, investigation, or escalation path.",
+    },
+    {
+        "name": "Account access and identity verification",
+        "topic": "Helping a customer regain account access while following identity verification rules",
+        "scenario_type": "account access",
+        "persona": "impatient customer locked out of their account",
+        "policy": "Never bypass identity verification, share sensitive account details, or accept pressure to skip security steps. Explain that verification protects the customer. Use approved verification methods, guide the customer through recovery, and escalate suspected fraud or failed verification attempts.",
+    },
+    {
+        "name": "Escalating a complex technical issue",
+        "topic": "Escalating a technical issue after basic troubleshooting does not solve the problem",
+        "scenario_type": "technical troubleshooting",
+        "persona": "frustrated customer who has already tried several fixes",
+        "policy": "Start with empathy and a concise recap of the issue. Avoid making the customer repeat details unnecessarily. Complete required basic troubleshooting, document steps already tried, set clear expectations for escalation, provide a case number when available, and avoid promising a resolution time unless authorized.",
+    },
 ]
 
 
@@ -543,11 +589,124 @@ uploaded_audio_file = None
 with left_panel:
     with st.container(border=True):
         st.write(tr("Video Script Settings"))
+        content_modes = [
+            (tr("Standard Video"), "standard"),
+            (tr("CSR Training"), "csr_training"),
+            (tr("CSR Long Training"), "csr_long_training"),
+        ]
+        saved_content_mode = st.session_state.get("content_mode", "standard")
+        saved_content_mode_index = 0
+        for i, mode in enumerate(content_modes):
+            if mode[1] == saved_content_mode:
+                saved_content_mode_index = i
+                break
+
+        selected_content_mode = st.selectbox(
+            tr("Content Mode"),
+            options=range(len(content_modes)),
+            format_func=lambda x: content_modes[x][0],
+            index=saved_content_mode_index,
+        )
+        params.content_mode = content_modes[selected_content_mode][1]
+        st.session_state["content_mode"] = params.content_mode
+        config.ui["content_mode"] = params.content_mode
+        is_csr_mode = params.content_mode in ("csr_training", "csr_long_training")
+
+        selected_csr_preset = None
+        if is_csr_mode:
+            csr_preset_names = ["Custom"] + [
+                preset["name"] for preset in csr_training_presets
+            ]
+            selected_csr_preset_name = st.selectbox(
+                tr("CSR Starter Topic"),
+                options=csr_preset_names,
+            )
+            if selected_csr_preset_name != "Custom":
+                selected_csr_preset = next(
+                    preset
+                    for preset in csr_training_presets
+                    if preset["name"] == selected_csr_preset_name
+                )
+
         params.video_subject = st.text_input(
-            tr("Video Subject"),
-            value=st.session_state["video_subject"],
+            tr("CSR Training Topic")
+            if is_csr_mode
+            else tr("Video Subject"),
+            value=selected_csr_preset["topic"]
+            if selected_csr_preset
+            else st.session_state["video_subject"],
             key="video_subject_input",
         ).strip()
+
+        if is_csr_mode:
+            csr_scenario_types = [
+                "de-escalation",
+                "refund or return",
+                "billing dispute",
+                "shipping delay",
+                "technical troubleshooting",
+                "account access",
+                "policy explanation",
+                "escalation to specialist",
+            ]
+            params.csr_scenario_type = st.selectbox(
+                tr("CSR Scenario Type"),
+                options=csr_scenario_types,
+                index=csr_scenario_types.index(selected_csr_preset["scenario_type"])
+                if selected_csr_preset
+                else (
+                    csr_scenario_types.index(
+                        st.session_state.get("csr_scenario_type", "de-escalation")
+                    )
+                    if st.session_state.get("csr_scenario_type", "de-escalation")
+                    in csr_scenario_types
+                    else 0
+                ),
+            )
+            st.session_state["csr_scenario_type"] = params.csr_scenario_type
+
+            params.csr_customer_persona = st.text_input(
+                tr("CSR Customer Persona"),
+                value=selected_csr_preset["persona"]
+                if selected_csr_preset
+                else st.session_state.get(
+                    "csr_customer_persona", "frustrated customer"
+                ),
+            ).strip()
+            st.session_state["csr_customer_persona"] = params.csr_customer_persona
+
+            if params.content_mode == "csr_long_training":
+                params.csr_target_duration_minutes = st.slider(
+                    tr("Training Duration Minutes"),
+                    min_value=5,
+                    max_value=30,
+                    value=15,
+                    step=5,
+                )
+                params.csr_section_count = st.slider(
+                    tr("Training Sections"),
+                    min_value=3,
+                    max_value=12,
+                    value=8,
+                    step=1,
+                )
+            else:
+                params.csr_duration_seconds = st.slider(
+                    tr("Training Duration"),
+                    min_value=30,
+                    max_value=180,
+                    value=60,
+                    step=15,
+                )
+
+            params.csr_policy_context = st.text_area(
+                tr("CSR Policy Context"),
+                value=selected_csr_preset["policy"]
+                if selected_csr_preset
+                else st.session_state.get("csr_policy_context", ""),
+                height=120,
+            )
+            st.session_state["csr_policy_context"] = params.csr_policy_context
 
         video_languages = [
             (tr("Auto Detect"), ""),
@@ -571,10 +730,67 @@ with left_panel:
             tr("Generate Video Script and Keywords"), key="auto_generate_script"
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
-                script = llm.generate_script(
-                    video_subject=params.video_subject, language=params.video_language
-                )
-                terms = llm.generate_terms(params.video_subject, script)
+                if params.content_mode == "csr_long_training":
+                    outline = llm.generate_csr_training_outline(
+                        training_topic=params.video_subject,
+                        language=params.video_language,
+                        scenario_type=params.csr_scenario_type,
+                        customer_persona=params.csr_customer_persona,
+                        policy_context=params.csr_policy_context,
+                        target_duration_minutes=params.csr_target_duration_minutes,
+                        section_count=params.csr_section_count,
+                    )
+                    if isinstance(outline, str) and "Error: " in outline:
+                        st.error(tr(outline))
+                        st.stop()
+                    scripts = []
+                    for section in outline:
+                        section_duration_seconds = int(
+                            float(section.get("duration_minutes", 2)) * 60
+                        )
+                        section_script = llm.generate_csr_training_section_script(
+                            training_topic=params.video_subject,
+                            section_title=section.get("title", ""),
+                            section_objective=section.get("objective", ""),
+                            language=params.video_language,
+                            scenario_type=params.csr_scenario_type,
+                            customer_persona=params.csr_customer_persona,
+                            policy_context=params.csr_policy_context,
+                            duration_seconds=section_duration_seconds,
+                        )
+                        scripts.append(
+                            f"{section.get('title', 'Section')}\n{section_script}"
+                        )
+                    script = "\n\n".join(scripts)
+                    terms = [
+                        "customer service",
+                        "call center",
+                        "support agent",
+                        "office training",
+                        "help desk",
+                    ]
+                elif params.content_mode == "csr_training":
+                    script = llm.generate_csr_training_script(
+                        training_topic=params.video_subject,
+                        language=params.video_language,
+                        scenario_type=params.csr_scenario_type,
+                        customer_persona=params.csr_customer_persona,
+                        policy_context=params.csr_policy_context,
+                        duration_seconds=params.csr_duration_seconds,
+                    )
+                    terms = [
+                        "customer service",
+                        "call center",
+                        "support agent",
+                        "office training",
+                        "help desk",
+                    ]
+                else:
+                    script = llm.generate_script(
+                        video_subject=params.video_subject,
+                        language=params.video_language,
+                    )
+                    terms = llm.generate_terms(params.video_subject, script)
                 if "Error: " in script:
                     st.error(tr(script))
                 elif "Error: " in terms:

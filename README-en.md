@@ -44,7 +44,45 @@ materials, video subtitles, and video background music before synthesizing a hig
   supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
+- [x] Supports **Customer Service Representative training mode**, including starter training topics, customer personas,
+  policy context, and structured coaching scripts for new representative onboarding
 - [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
+
+## CSR Training Mode 🎧
+
+MoneyPrinterTurbo can be used as a microlearning generator for customer service representative training. In the WebUI,
+choose `CSR Training` from `Content Mode`, then select or customize:
+
+- training topic
+- scenario type
+- customer persona
+- company policy or knowledge context
+- target training duration
+
+The CSR script generator produces a short coaching-style narration that introduces the customer situation, shows what to
+avoid, demonstrates a better response, explains why it works, and ends with a takeaway. The generated script then flows
+through the existing TTS, subtitle, BGM, and stock/local footage pipeline.
+
+For longer training content, choose `CSR Long Training`. Long-form videos are generated as a sequence of shorter sections:
+
+1. The app generates a section outline for the target training duration.
+2. Each section gets its own script, voiceover, subtitles, stock/local footage, and rendered MP4.
+3. The rendered section videos are concatenated into one final training video.
+
+This section-based workflow is intended for 15-20 minute CSR training modules because it avoids holding one large MoviePy
+composition in memory for the entire render.
+
+Included starter scenarios:
+
+- Angry refund request outside policy
+- Delayed shipment with no instant fix
+- Billing dispute and unexpected charge
+- Account access and identity verification
+- Escalating a complex technical issue
+
+For best results, paste your actual support policy, escalation rules, and knowledge-base guidance into the policy context
+field. The built-in policy examples are generic training defaults and should not be treated as company-specific legal,
+financial, medical, or compliance advice.
 
 ## Video Demos 📺
 

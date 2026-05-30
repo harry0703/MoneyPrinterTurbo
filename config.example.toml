@@ -45,7 +45,7 @@ pixabay_api_keys = []
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 #   litellm     (100+ providers via LiteLLM gateway)
-llm_provider = "openai"
+llm_provider = "gemini"
 
 ########## Pollinations AI Settings
 # Visit https://pollinations.ai/ to learn more

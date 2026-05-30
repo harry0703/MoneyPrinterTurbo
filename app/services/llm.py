@@ -544,6 +544,212 @@ Generate a script for a video, depending on the subject of the video.
     return final_script.strip()
 
 
+def generate_csr_training_script(
+    training_topic: str,
+    language: str = "",
+    scenario_type: str = "de-escalation",
+    customer_persona: str = "frustrated customer",
+    policy_context: str = "",
+    duration_seconds: int = 60,
+) -> str:
+    prompt = f"""
+# Role: Customer Service Training Script Generator
+
+## Goal:
+Create a concise spoken script for a customer service representative training video.
+
+## Required training structure:
+1. Open with the customer service situation.
+2. Show what the representative should avoid.
+3. Show the better response.
+4. Explain why the better response works.
+5. End with one memorable takeaway.
+
+## Constraints:
+1. Return only the words that should be spoken in the training video.
+2. Do not use markdown, headings, bullet points, scene labels, speaker labels, timestamps, or stage directions.
+3. Keep the script practical, realistic, and suitable for workplace training.
+4. Use clear, coach-like language for new customer service representatives.
+5. Do not invent legal, medical, financial, or company-specific policy unless it is provided in the policy context.
+6. If policy context is provided, follow it closely and avoid contradicting it.
+7. Aim for about {duration_seconds} seconds of narration.
+8. Respond in the same language as the training topic unless a language is explicitly provided.
+
+# Training Inputs:
+- training topic: {training_topic}
+- scenario type: {scenario_type}
+- customer persona: {customer_persona}
+- policy context: {policy_context or "No company-specific policy provided."}
+""".strip()
+    if language:
+        prompt += f"\n- language: {language}"
+
+    logger.info(f"csr training topic: {training_topic}")
+
+    final_script = ""
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt=prompt)
+            if response:
+                final_script = response.replace("*", "").replace("#", "").strip()
+                final_script = re.sub(r"^\s*(scenario|avoid|better response|explanation|takeaway)\s*:\s*", "", final_script, flags=re.I | re.M)
+            else:
+                logging.error("llm returned an empty response")
+
+            if final_script:
+                break
+        except Exception as e:
+            logger.error(f"failed to generate csr training script: {e}")
+
+        if i < _max_retries:
+            logger.warning(
+                f"failed to generate csr training script, trying again... {i + 1}"
+            )
+
+    if "Error: " in final_script:
+        logger.error(f"failed to generate csr training script: {final_script}")
+    else:
+        logger.success(f"completed csr training script: \n{final_script}")
+    return final_script.strip()
+
+
+def _extract_json_array(response: str):
+    try:
+        return json.loads(response)
+    except Exception:
+        match = re.search(r"\[.*]", response, flags=re.S)
+        if match:
+            return json.loads(match.group())
+        raise
+
+
+def generate_csr_training_outline(
+    training_topic: str,
+    language: str = "",
+    scenario_type: str = "de-escalation",
+    customer_persona: str = "frustrated customer",
+    policy_context: str = "",
+    target_duration_minutes: int = 15,
+    section_count: int = 8,
+) -> list[dict]:
+    prompt = f"""
+# Role: Customer Service Training Course Designer
+
+## Goal:
+Create a section outline for a {target_duration_minutes}-minute customer service representative training video.
+
+## Constraints:
+1. Return only a JSON array.
+2. The array must contain exactly {section_count} objects.
+3. Each object must have these keys: "title", "objective", "duration_minutes".
+4. Section titles must be short and workplace-training friendly.
+5. Objectives must be practical and specific to new customer service representatives.
+6. The duration_minutes values must add up to about {target_duration_minutes}.
+7. Use the policy context when deciding what each section should teach.
+8. Do not invent company-specific policy beyond the provided policy context.
+
+## Context:
+- training topic: {training_topic}
+- scenario type: {scenario_type}
+- customer persona: {customer_persona}
+- policy context: {policy_context or "No company-specific policy provided."}
+""".strip()
+    if language:
+        prompt += f"\n- language: {language}"
+
+    logger.info(f"generating csr long-form outline: {training_topic}")
+    response = ""
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt)
+            if "Error: " in response:
+                return response
+            outline = _extract_json_array(response)
+            if isinstance(outline, list) and outline:
+                cleaned = []
+                for index, item in enumerate(outline[:section_count]):
+                    if not isinstance(item, dict):
+                        continue
+                    cleaned.append(
+                        {
+                            "title": str(
+                                item.get("title") or f"Section {index + 1}"
+                            ).strip(),
+                            "objective": str(item.get("objective") or "").strip(),
+                            "duration_minutes": float(
+                                item.get(
+                                    "duration_minutes",
+                                    target_duration_minutes / section_count,
+                                )
+                            ),
+                        }
+                    )
+                if cleaned:
+                    return cleaned
+        except Exception as e:
+            logger.warning(f"failed to generate csr outline: {str(e)}")
+
+        if i < _max_retries:
+            logger.warning(f"retrying csr outline generation... {i + 1}")
+
+    return f"Error: failed to generate csr training outline: {response}"
+
+
+def generate_csr_training_section_script(
+    training_topic: str,
+    section_title: str,
+    section_objective: str,
+    language: str = "",
+    scenario_type: str = "de-escalation",
+    customer_persona: str = "frustrated customer",
+    policy_context: str = "",
+    duration_seconds: int = 120,
+) -> str:
+    prompt = f"""
+# Role: Customer Service Training Section Writer
+
+## Goal:
+Write one section of a longer customer service representative training video.
+
+## Constraints:
+1. Return only the narration that should be spoken.
+2. Do not use markdown, headings, speaker labels, timestamps, or stage directions.
+3. Keep this section focused on the section objective.
+4. Use realistic customer service language and coach new representatives clearly.
+5. Include one short customer/representative example when helpful.
+6. Follow the policy context and do not invent company-specific rules.
+7. Aim for about {duration_seconds} seconds of narration.
+8. Make the section flow naturally as part of a longer training video.
+
+## Course Context:
+- training topic: {training_topic}
+- section title: {section_title}
+- section objective: {section_objective}
+- scenario type: {scenario_type}
+- customer persona: {customer_persona}
+- policy context: {policy_context or "No company-specific policy provided."}
+""".strip()
+    if language:
+        prompt += f"\n- language: {language}"
+
+    logger.info(f"generating csr section script: {section_title}")
+    final_script = ""
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt)
+            if response:
+                final_script = response.replace("*", "").replace("#", "").strip()
+            if final_script:
+                break
+        except Exception as e:
+            logger.warning(f"failed to generate csr section script: {str(e)}")
+
+        if i < _max_retries:
+            logger.warning(f"retrying csr section script... {i + 1}")
+
+    return final_script.strip()
+
+
 def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
     prompt = f"""
 # Role: Video Search Terms Generator

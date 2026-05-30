@@ -129,6 +129,67 @@ def concat_video_clips_with_ffmpeg(
         delete_files(concat_list_file)
 
 
+def concat_videos_with_audio(video_files: List[str], output_file: str, threads: int = 2):
+    output_dir = os.path.dirname(output_file)
+    concat_list_file = os.path.join(output_dir, "ffmpeg-final-concat-list.txt")
+    with open(concat_list_file, "w", encoding="utf-8") as fp:
+        for video_file in video_files:
+            absolute_path = os.path.abspath(video_file)
+            fp.write(f"file '{_escape_ffmpeg_concat_path(absolute_path)}'\n")
+
+    base_command = [
+        get_ffmpeg_binary(),
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        concat_list_file,
+    ]
+    copy_command = base_command + ["-c", "copy", output_file]
+    encode_command = base_command + [
+        "-c:v",
+        video_codec,
+        "-c:a",
+        audio_codec,
+        "-b:a",
+        audio_bitrate,
+        "-threads",
+        str(threads or 2),
+        "-pix_fmt",
+        "yuv420p",
+        output_file,
+    ]
+
+    try:
+        result = subprocess.run(
+            copy_command,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return output_file
+
+        logger.warning(
+            "stream-copy final concat failed, retrying with re-encode: "
+            f"{(result.stderr or result.stdout or '').strip()}"
+        )
+        result = subprocess.run(
+            encode_command,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            error_message = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(error_message or "ffmpeg final concat failed")
+        return output_file
+    finally:
+        delete_files(concat_list_file)
+
+
 def _sanitize_image_file(image_path: str) -> str:
     # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
     # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
