@@ -2047,6 +2047,32 @@ def _build_subtitle_formatter():
     return formatter
 
 
+# علامات التشكيل العربية + التطويل (ـ) — تُزال قبل المقارنة.
+_ARABIC_DIACRITICS = re.compile("[\u0610-\u061A\u064B-\u065F\u0670\u0640\u06D6-\u06ED]")
+
+
+def _normalize_arabic(text: str) -> str:
+    """توحيد أشكال الحروف العربية المتغيّرة لمطابقة أكثر تسامحاً.
+
+    edge-tts قد يُرجع شكلاً مختلفاً عن نص السكربت (مثل ا بدل أ). نوحّد:
+    - الألف بأشكالها (أ إ آ ٱ) → ا
+    - الياء/الألف المقصورة/الهمزة على نبرة (ى ئ) → ي
+    - التاء المربوطة (ة) → ه، والواو المهموزة (ؤ) → و
+    - إزالة التشكيل والتطويل
+    دالة محايدة تماماً تجاه اللغات غير العربية.
+    """
+    text = _ARABIC_DIACRITICS.sub("", text)
+    for src, dst in (
+        ("أإآٱ", "ا"),
+        ("ىئ", "ي"),
+        ("ة", "ه"),
+        ("ؤ", "و"),
+    ):
+        for ch in src:
+            text = text.replace(ch, dst)
+    return text
+
+
 def _match_script_line(script_lines: list[str], current_text: str, sub_index: int) -> str:
     """
     尝试把当前累计的字幕文本，与脚本中的某一条标准断句匹配起来。
@@ -2075,6 +2101,14 @@ def _match_script_line(script_lines: list[str], current_text: str, sub_index: in
     current_text_normalized = re.sub(r"\W+", "", current_text)
     target_line_normalized = re.sub(r"\W+", "", target_line)
     if current_text_normalized == target_line_normalized:
+        return target_line.strip()
+
+    # طبقة أخيرة للعربية: edge-tts قد يُرجع أشكال حروف مختلفة (أ/إ/آ→ا، ى→ي،
+    # ة→ه) أو علامات تشكيل، فيفشل التطابق الحرفي. نوحّد الأشكال قبل المقارنة.
+    # لا أثر على اللغات الأخرى لأن التطبيع لا يلمس حروفها.
+    current_ar = re.sub(r"\W+", "", _normalize_arabic(current_text))
+    target_ar = re.sub(r"\W+", "", _normalize_arabic(target_line))
+    if current_ar and current_ar == target_ar:
         return target_line.strip()
 
     return ""
