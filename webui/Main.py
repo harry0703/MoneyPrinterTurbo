@@ -1,11 +1,8 @@
 import streamlit as st
 import os
-import asyncio
 import tempfile
-import nest_asyncio
 import json
-
-nest_asyncio.apply()
+import subprocess
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(ROOT_DIR, "config.json")
@@ -32,6 +29,23 @@ def save_config(data: dict):
         return True
     except Exception:
         return False
+
+def run_preview(voice_name: str, text: str) -> bytes:
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+        tmp_path = f.name
+    try:
+        subprocess.run([
+            "edge-tts",
+            "--voice", voice_name,
+            "--text", text,
+            "--write-media", tmp_path
+        ], check=True, capture_output=True)
+        with open(tmp_path, "rb") as f:
+            audio_bytes = f.read()
+        return audio_bytes
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 video_subject = ""
 
@@ -205,24 +219,6 @@ MODEL_LISTS = {
         "Custom (type below)"
     ],
 }
-
-async def generate_preview(voice_name: str, text: str) -> bytes:
-    import edge_tts
-    tts = edge_tts.Communicate(text, voice_name)
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-        tmp_path = f.name
-    await tts.save(tmp_path)
-    with open(tmp_path, "rb") as f:
-        audio_bytes = f.read()
-    os.unlink(tmp_path)
-    return audio_bytes
-
-def run_preview(voice_name: str, text: str) -> bytes:
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(generate_preview(voice_name, text))
-    finally:
-        loop.close()
 
 cfg = load_config()
 
@@ -426,15 +422,13 @@ elif page == "⚙️ Settings":
         selected_model = st.selectbox(
             "Model (List se chuno)",
             model_options,
-            index=default_idx
-        )
+            index=default_idx)
 
         if selected_model == "Custom (type below)":
             model_name = st.text_input(
                 "Ya khud likho (Custom Model)",
                 value=saved_model if saved_model not in model_options else "",
-                placeholder="koi bhi naya model likho"
-            )
+                placeholder="koi bhi naya model likho")
         else:
             model_name = selected_model
 
