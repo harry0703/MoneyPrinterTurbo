@@ -1588,17 +1588,19 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                 ])
                 logger.info(f"Added pillarbox for 3:4 -> 9:16: {clip_w}x{clip_h} -> {target_width}x{target_height}")
         
-        # Add Silence Prefix FIRST (before subtitles and title)
+        # Load config for silence duration first
         from app.config.config import silence_duration as config_silence_duration
         silence_duration = 0
+        
+        # Add Silence Prefix FIRST
         if config_silence_duration > 0:
-            from moviepy import ImageClip, AudioClip, concatenate_audioclips
+            from moviepy import ImageClip
             from app.utils.composite_clip_factory import safe_concatenate_videoclips, ensure_clip_duration
             
             # Ensure video_clip has duration first
             video_clip = ensure_clip_duration(video_clip)
             
-            # Extract first frame and create a still frame clip (CLEAN - no subtitles yet!)
+            # Extract first frame and create a still frame clip
             # Ensure frame is in RGB format (0-255)
             import numpy as np
             first_frame = video_clip.get_frame(0)
@@ -1612,29 +1614,28 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
             logger.debug(f"- Still frame clip created: type={type(still_frame_clip)}, duration={getattr(still_frame_clip, 'duration', 'NOT SET')}")
             logger.debug(f"- Original video clip before concat: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
             
-            # Add audio silence to match video extension (CRITICAL - keeps audio in sync!)
-            if video_clip.audio:
-                silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
-                extended_audio = concatenate_audioclips([silence_clip, video_clip.audio])
-                video_clip = video_clip.with_audio(extended_audio)
-                logger.debug(f"- Audio extended successfully: audio duration={getattr(video_clip.audio, 'duration', 'NOT SET')}")
-            
-            # Concatenate still frame with original video using safe version
+            # Concatenate still frame with original video using safe version.
+            # The still_frame (ImageClip, no audio) naturally creates a silence gap in the
+            # audio track equal to its duration. Do NOT prepend audio silence separately —
+            # that would double-shift the audio, causing voice-to-subtitle desync.
             video_clip = safe_concatenate_videoclips([still_frame_clip, video_clip])
             logger.debug(f"- After safe_concatenate_videoclips: type={type(video_clip)}, duration={getattr(video_clip, 'duration', 'NOT SET')}")
             
             silence_duration = config_silence_duration
             
-            logger.info(f"Silence Prefix prepended: {silence_duration}s clean still frame (no subtitles)")
+            logger.info(f"Silence Prefix prepended: {silence_duration}s clean still frame")
         
-        # Add title AFTER Silence Prefix so it starts from the beginning of the still frame
+        # Add title AFTER Silence Prefix so it starts at the beginning of the still frame
         if hasattr(params, 'title_enabled') and params.title_enabled and hasattr(params, 'title_text') and params.title_text:
             logger.info("Adding title to multi-scene video")
             from app.services.title import add_title_to_video
+            video_clip_before_title = video_clip
             video_clip = add_title_to_video(video_clip, params)
-            logger.success("Title overlay added successfully")
+            if video_clip is not video_clip_before_title:
+                logger.success("Title overlay added successfully")
+            # Note: add_title_to_video logs its own error if title creation fails
         
-        # Add subtitle if enabled
+        # Add subtitle if enabled - with silence prefix offset
         if params.subtitle_enabled and scene_results:
             # Use the new merge_scene_subtitles function to merge subtitles
             from app.services import subtitle
@@ -1643,8 +1644,10 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
             )
             
             # Use merged subtitle if available, otherwise fall back to first scene
+            using_merged_subtitle = False
             if merged_subtitle_path and os.path.exists(merged_subtitle_path):
                 subtitle_path = merged_subtitle_path
+                using_merged_subtitle = True
                 logger.info(f"using merged subtitle file: {subtitle_path}")
             else:
                 subtitle_path = scene_results[0].get("subtitle_path")
@@ -1706,9 +1709,13 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
                                 # Parse time string
                                 start_end = time_str.split(" --> ")
                                 if len(start_end) == 2:
-                                    # Time already includes silence prefix from merged_subtitle.srt
+                                    # Merged subtitles already include silence prefix offset.
+                                    # Fallback subtitles (from first scene) do NOT, so add it here.
                                     start_time = _srt_time_to_seconds(start_end[0])
                                     end_time = _srt_time_to_seconds(start_end[1])
+                                    if not using_merged_subtitle:
+                                        start_time += silence_duration
+                                        end_time += silence_duration
                                     
                                     # Create text clip with proper encoding
                                     try:

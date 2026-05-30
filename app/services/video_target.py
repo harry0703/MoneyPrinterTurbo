@@ -269,6 +269,7 @@ def generate_video(
             logger.debug(f"- Before add_title_to_video: duration={getattr(video_clip, 'duration', 'NOT SET')}")
             from app.services.title import add_title_to_video
             try:
+                video_clip_before_title = video_clip
                 video_clip = add_title_to_video(video_clip, params)
                 logger.debug(f"- After add_title_to_video returned: duration={getattr(video_clip, 'duration', 'NOT SET')}")
             except Exception as e:
@@ -278,7 +279,8 @@ def generate_video(
             if not hasattr(video_clip, 'duration') or video_clip.duration is None:
                 logger.error("add_title_to_video returned a clip without valid duration")
                 raise ValueError("Title clip duration not available") from None
-            logger.info(f"Title added, video duration: {getattr(video_clip, 'duration', 'NOT SET')}s")
+            if video_clip is not video_clip_before_title:
+                logger.info(f"Title added, video duration: {getattr(video_clip, 'duration', 'NOT SET')}s")
         
         # Add subtitles if enabled
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
@@ -408,9 +410,7 @@ def generate_video(
                 video_clip = video_clip.with_audio(combined_audio)
             else:
                 # No existing audio, set BGM as main audio (normal scenario)
-                # In normal scenario, we need to add silence prefix to BGM to match video
-                silence_clip = AudioClip(lambda t: 0, duration=config_silence_duration)
-                audio_clip = concatenate_audioclips([silence_clip, audio_clip])
+                # Silence prefix is handled at scene integration level (start_multi_scene), NOT here
                 video_clip = video_clip.with_audio(audio_clip)
         
         # Write final video

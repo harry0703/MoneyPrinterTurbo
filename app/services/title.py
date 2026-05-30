@@ -264,6 +264,8 @@ def add_title_to_video(
     
     title_clip = create_title_clip(video_width, video_height, params)
     if title_clip is None:
+        logger.error(f"Failed to create title clip for text '{params.title_text}' — title will NOT appear in final video. "
+                     f"Check font availability and rendering configuration.")
         return video_clip
     
     # Check if title_clip has duration before calling with_duration
