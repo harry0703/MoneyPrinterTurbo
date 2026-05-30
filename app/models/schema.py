@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, List, Optional, Union
 
 import pydantic
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import config
 
@@ -105,7 +105,9 @@ class VideoParams(BaseModel):
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
     n_threads: Optional[int] = 2
-    paragraph_number: Optional[int] = 1
+    paragraph_number: int = Field(default=1, ge=1, le=10)
+    video_script_prompt: str = Field(default="", max_length=2000)
+    custom_system_prompt: str = Field(default="", max_length=8000)
 
 
 class SubtitleRequest(BaseModel):
@@ -145,13 +147,17 @@ class VideoScriptParams:
     {
       "video_subject": "春天的花海",
       "video_language": "",
-      "paragraph_number": 1
+      "paragraph_number": 1,
+      "video_script_prompt": "",
+      "custom_system_prompt": ""
     }
     """
 
     video_subject: Optional[str] = "春天的花海"
     video_language: Optional[str] = ""
-    paragraph_number: Optional[int] = 1
+    paragraph_number: int = Field(default=1, ge=1, le=10)
+    video_script_prompt: str = Field(default="", max_length=2000)
+    custom_system_prompt: str = Field(default="", max_length=8000)
 
 
 class VideoTermsParams:

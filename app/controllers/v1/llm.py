@@ -25,6 +25,8 @@ def generate_video_script(request: Request, body: VideoScriptRequest):
         video_subject=body.video_subject,
         language=body.video_language,
         paragraph_number=body.paragraph_number,
+        video_script_prompt=body.video_script_prompt,
+        custom_system_prompt=body.custom_system_prompt,
     )
     response = {"video_script": video_script}
     return utils.get_response(200, response)

@@ -64,6 +64,12 @@ if "video_script" not in st.session_state:
     st.session_state["video_script"] = ""
 if "video_terms" not in st.session_state:
     st.session_state["video_terms"] = ""
+if "video_script_prompt" not in st.session_state:
+    st.session_state["video_script_prompt"] = ""
+if "custom_system_prompt" not in st.session_state:
+    st.session_state["custom_system_prompt"] = llm.DEFAULT_SCRIPT_SYSTEM_PROMPT
+if "use_custom_system_prompt" not in st.session_state:
+    st.session_state["use_custom_system_prompt"] = False
 if "ui_language" not in st.session_state:
     st.session_state["ui_language"] = config.ui.get("language", system_locale)
 if "local_video_materials" not in st.session_state:
@@ -548,8 +554,7 @@ with left_panel:
         st.write(tr("Video Script Settings"))
         params.video_subject = st.text_input(
             tr("Video Subject"),
-            value=st.session_state["video_subject"],
-            key="video_subject_input",
+            key="video_subject",
         ).strip()
 
         video_languages = [
@@ -570,12 +575,49 @@ with left_panel:
         )
         params.video_language = video_languages[selected_index][1]
 
+        with st.expander(tr("Advanced Script Settings"), expanded=False):
+            params.paragraph_number = st.slider(
+                tr("Script Paragraph Number"),
+                min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
+                max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
+                value=st.session_state.get("paragraph_number_input", 1),
+                key="paragraph_number_input",
+            )
+            params.video_script_prompt = st.text_area(
+                tr("Custom Script Requirements"),
+                height=100,
+                max_chars=llm.MAX_SCRIPT_PROMPT_LENGTH,
+                placeholder=tr("Custom Script Requirements Placeholder"),
+                key="video_script_prompt",
+            ).strip()
+
+            use_custom_system_prompt = st.checkbox(
+                tr("Use Custom System Prompt"),
+                help=tr("Use Custom System Prompt Help"),
+                key="use_custom_system_prompt",
+            )
+
+            if use_custom_system_prompt:
+                custom_system_prompt = st.text_area(
+                    tr("Custom System Prompt"),
+                    height=240,
+                    max_chars=llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
+                    key="custom_system_prompt",
+                ).strip()
+                params.custom_system_prompt = custom_system_prompt
+            else:
+                params.custom_system_prompt = ""
+
         if st.button(
             tr("Generate Video Script and Keywords"), key="auto_generate_script"
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
                 script = llm.generate_script(
-                    video_subject=params.video_subject, language=params.video_language
+                    video_subject=params.video_subject,
+                    language=params.video_language,
+                    paragraph_number=params.paragraph_number,
+                    video_script_prompt=params.video_script_prompt,
+                    custom_system_prompt=params.custom_system_prompt,
                 )
                 terms = llm.generate_terms(params.video_subject, script)
                 if "Error: " in script:

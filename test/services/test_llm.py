@@ -6,10 +6,85 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
+from app.models.schema import VideoScriptRequest
 from app.services import llm
+
+
+class TestScriptPromptOptions(unittest.TestCase):
+    def test_build_script_prompt_appends_advanced_requirements(self):
+        """
+        高级文案要求只作为附加约束，不替换默认系统提示词。
+        这样普通用户不配置时仍然走稳定默认规则，高级用户也能细化风格。
+        """
+        prompt = llm.build_script_prompt(
+            video_subject="咖啡",
+            language="zh-CN",
+            paragraph_number=3,
+            video_script_prompt="语气轻松，面向程序员",
+        )
+
+        self.assertIn("# Role: Video Script Generator", prompt)
+        self.assertIn("- video subject: 咖啡", prompt)
+        self.assertIn("- number of paragraphs: 3", prompt)
+        self.assertIn("- language: zh-CN", prompt)
+        self.assertIn("# Additional User Requirements:", prompt)
+        self.assertIn("语气轻松，面向程序员", prompt)
+
+    def test_custom_system_prompt_keeps_runtime_context(self):
+        """
+        自定义 system prompt 会替换默认脚本规则，但视频主题、语言、段落数
+        仍由服务层统一追加，避免高级用户漏写必要上下文。
+        """
+        prompt = llm.build_script_prompt(
+            video_subject="露营",
+            language="en",
+            paragraph_number=2,
+            custom_system_prompt="Only write cinematic narration.",
+        )
+
+        self.assertNotIn("# Role: Video Script Generator", prompt)
+        self.assertIn("Only write cinematic narration.", prompt)
+        self.assertIn("- video subject: 露营", prompt)
+        self.assertIn("- number of paragraphs: 2", prompt)
+        self.assertIn("- language: en", prompt)
+
+    def test_generate_script_sends_custom_prompt_to_llm(self):
+        captured = {}
+
+        def fake_generate_response(prompt):
+            captured["prompt"] = prompt
+            return "第一段。\n\n第二段。"
+
+        with patch.object(llm, "_generate_response", side_effect=fake_generate_response):
+            result = llm.generate_script(
+                video_subject="咖啡",
+                language="zh-CN",
+                paragraph_number=2,
+                video_script_prompt="开头更有悬念",
+            )
+
+        self.assertEqual(result, "第一段。\n\n第二段。")
+        self.assertIn("- number of paragraphs: 2", captured["prompt"])
+        self.assertIn("开头更有悬念", captured["prompt"])
+
+    def test_video_script_request_rejects_invalid_advanced_options(self):
+        """
+        API 请求模型需要限制高级 prompt 参数，避免外部调用绕过 WebUI
+        传入异常段落数或超长提示词，导致模型成本和结果不可控。
+        """
+        with self.assertRaises(ValidationError):
+            VideoScriptRequest(video_subject="咖啡", paragraph_number=0)
+
+        with self.assertRaises(ValidationError):
+            VideoScriptRequest(
+                video_subject="咖啡",
+                video_script_prompt="x" * (llm.MAX_SCRIPT_PROMPT_LENGTH + 1),
+            )
 
 
 class TestLiteLLMProvider(unittest.TestCase):

@@ -13,6 +13,27 @@ from app.config import config
 _max_retries = 5
 _DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 _DEPRECATED_GEMINI_MODELS = {"gemini-pro", "gemini-1.0-pro"}
+MIN_SCRIPT_PARAGRAPH_NUMBER = 1
+MAX_SCRIPT_PARAGRAPH_NUMBER = 10
+MAX_SCRIPT_PROMPT_LENGTH = 2000
+MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
+
+DEFAULT_SCRIPT_SYSTEM_PROMPT = """
+# Role: Video Script Generator
+
+## Goals:
+Generate a script for a video, depending on the subject of the video.
+
+## Constrains:
+1. the script is to be returned as a string with the specified number of paragraphs.
+2. do not under any circumstance reference this prompt in your response.
+3. get straight to the point, don't start with unnecessary things like, "welcome to this video".
+4. you must not include any type of markdown or formatting in the script, never use a title.
+5. only return the raw content of the script.
+6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
+7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
+8. respond in the same language as the video subject.
+""".strip()
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
@@ -470,34 +491,102 @@ def _generate_response(prompt: str) -> str:
         return f"Error: {str(e)}"
 
 
-def generate_script(
-    video_subject: str, language: str = "", paragraph_number: int = 1
+def _limit_script_text(text: str | None, max_length: int, field_name: str) -> str:
+    value = (text or "").strip()
+    if len(value) <= max_length:
+        return value
+
+    # API 层已经用 Pydantic 做长度校验；这里继续兜底，是为了保护
+    # WebUI 或内部服务直接调用 generate_script 时不会把超长提示词发送给模型，
+    # 避免 token 成本异常和请求失败。
+    logger.warning(
+        f"{field_name} is too long and will be truncated to {max_length} characters."
+    )
+    return value[:max_length]
+
+
+def _normalize_script_paragraph_number(paragraph_number: int | None) -> int:
+    try:
+        value = int(paragraph_number or MIN_SCRIPT_PARAGRAPH_NUMBER)
+    except (TypeError, ValueError):
+        value = MIN_SCRIPT_PARAGRAPH_NUMBER
+
+    if value < MIN_SCRIPT_PARAGRAPH_NUMBER or value > MAX_SCRIPT_PARAGRAPH_NUMBER:
+        # WebUI 和 API 都会限制范围；这里兜底处理内部调用，避免异常参数直接扩大
+        # LLM 生成成本或生成空结果。
+        logger.warning(
+            "script paragraph_number is out of range and will be clamped: "
+            f"{value}"
+        )
+        return max(MIN_SCRIPT_PARAGRAPH_NUMBER, min(value, MAX_SCRIPT_PARAGRAPH_NUMBER))
+
+    return value
+
+
+def build_script_prompt(
+    video_subject: str,
+    language: str = "",
+    paragraph_number: int = 1,
+    video_script_prompt: str = "",
+    custom_system_prompt: str = "",
 ) -> str:
-    prompt = f"""
-# Role: Video Script Generator
+    paragraph_number = _normalize_script_paragraph_number(paragraph_number)
+    video_script_prompt = _limit_script_text(
+        video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
+    )
+    custom_system_prompt = _limit_script_text(
+        custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
+    )
 
-## Goals:
-Generate a script for a video, depending on the subject of the video.
-
-## Constrains:
-1. the script is to be returned as a string with the specified number of paragraphs.
-2. do not under any circumstance reference this prompt in your response.
-3. get straight to the point, don't start with unnecessary things like, "welcome to this video".
-4. you must not include any type of markdown or formatting in the script, never use a title.
-5. only return the raw content of the script.
-6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
-7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
-8. respond in the same language as the video subject.
+    # 将“脚本生成规则”和“运行时上下文”分开拼接。这样高级用户即使覆盖默认
+    # system prompt，也不会漏掉视频主题、语言、段落数这些每次生成都必须带上的参数。
+    prompt = custom_system_prompt or DEFAULT_SCRIPT_SYSTEM_PROMPT
+    prompt += f"""
 
 # Initialization:
 - video subject: {video_subject}
 - number of paragraphs: {paragraph_number}
-""".strip()
+""".rstrip()
     if language:
         prompt += f"\n- language: {language}"
+    if video_script_prompt:
+        prompt += f"""
 
+# Additional User Requirements:
+{video_script_prompt}
+""".rstrip()
+
+    return prompt
+
+
+def generate_script(
+    video_subject: str,
+    language: str = "",
+    paragraph_number: int = 1,
+    video_script_prompt: str = "",
+    custom_system_prompt: str = "",
+) -> str:
+    paragraph_number = _normalize_script_paragraph_number(paragraph_number)
+    video_script_prompt = _limit_script_text(
+        video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
+    )
+    custom_system_prompt = _limit_script_text(
+        custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
+    )
+    prompt = build_script_prompt(
+        video_subject=video_subject,
+        language=language,
+        paragraph_number=paragraph_number,
+        video_script_prompt=video_script_prompt,
+        custom_system_prompt=custom_system_prompt,
+    )
     final_script = ""
-    logger.info(f"subject: {video_subject}")
+    logger.info(
+        "generating video script: "
+        f"subject={video_subject}, paragraph_number={paragraph_number}, "
+        f"has_custom_prompt={bool(video_script_prompt.strip())}, "
+        f"has_custom_system_prompt={bool(custom_system_prompt.strip())}"
+    )
 
     def format_response(response):
         # Clean the script
