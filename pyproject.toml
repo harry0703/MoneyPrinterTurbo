@@ -31,6 +31,8 @@ dependencies = [
     "socksio==1.0.0",
     "pydub==0.25.1",
     "litellm==1.60.0",
+    "nest_asyncio>=1.6.0",
+"edge-tts>=6.1.9",
 ]
 
 [project.optional-dependencies]
