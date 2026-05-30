@@ -15,7 +15,7 @@ from xml.sax.saxutils import unescape
 
 import edge_tts
 import requests
-from edge_tts import SubMaker, submaker
+from edge_tts import SubMaker
 from loguru import logger
 from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -1818,7 +1818,6 @@ def gemini_tts(
         SubMaker对象或None
     """
     import base64
-    import json
     import io
     from pydub import AudioSegment
     import google.generativeai as genai

@@ -167,7 +167,6 @@ from fastapi import Query
 
 @router.get("/tasks", response_model=TaskQueryResponse, summary="Get all tasks")
 def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
-    request_id = base.get_task_id(request)
     tasks, total = sm.state.get_all_tasks(page, page_size)
 
     response = {
