@@ -99,7 +99,10 @@ def _generate_response(prompt: str) -> str:
                 model_name = config.app.get("ollama_model_name")
                 base_url = config.app.get("ollama_base_url", "")
                 if not base_url:
-                    base_url = "http://localhost:11434/v1"
+                    if config.in_docker():
+                        base_url = "http://host.docker.internal:11434/v1"
+                    else:
+                        base_url = "http://localhost:11434/v1"
             elif llm_provider == "openai":
                 api_key = config.app.get("openai_api_key")
                 model_name = config.app.get("openai_model_name")

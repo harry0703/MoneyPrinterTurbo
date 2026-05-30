@@ -5,6 +5,10 @@ import socket
 import toml
 from loguru import logger
 
+
+def in_docker() -> bool:
+    return os.path.isfile("/.dockerenv") or os.path.isfile("/proc/1/cgroup")
+
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 config_file = f"{root_dir}/config.toml"
 

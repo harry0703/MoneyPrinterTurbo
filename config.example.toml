@@ -20,14 +20,14 @@ tls_verify = true
 # You can use multiple keys to avoid rate limits.
 # For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
-pexels_api_keys = []
+pexels_api_keys = [hA0lomPo4h57sbjo51zWjjjGKqlWhl17KpPj31nJvHnXKtOgfm4HieI2]
 
 # Pixabay API Key
 # Register at https://pixabay.com/api/docs/ to get your API key.
 # You can use multiple keys to avoid rate limits.
 # For example: pixabay_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
-pixabay_api_keys = []
+pixabay_api_keys = [56067304-ef39d6a9b77f7fdb5d44ab85f]
 
 # 支持的提供商 (Supported providers):
 #   openai
