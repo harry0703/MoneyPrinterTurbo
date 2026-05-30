@@ -41,6 +41,7 @@ pixabay_api_keys = []
 #   oneapi
 #   cloudflare
 #   minimax
+#   mimo       (Xiaomi MiMo)
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 #   litellm     (100+ providers via LiteLLM gateway)
@@ -129,6 +130,13 @@ qwen_model_name = "qwen-max"
 minimax_api_key = ""
 minimax_base_url = "https://api.minimax.io/v1"
 minimax_model_name = "MiniMax-M2.7"
+
+########## Xiaomi MiMo API Key
+# Xiaomi MiMo API is OpenAI-compatible.
+# Visit https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call to get more details.
+mimo_api_key = ""
+mimo_base_url = "https://api.xiaomimimo.com/v1"
+mimo_model_name = "mimo-v2.5-pro"
 
 ########## DeepSeek API Key
 # Visit https://platform.deepseek.com/api_keys to get your API key

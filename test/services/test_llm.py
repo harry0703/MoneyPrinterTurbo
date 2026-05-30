@@ -117,6 +117,48 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
 
+    def test_mimo_provider_uses_openai_compatible_client(self):
+        """
+        MiMo 官方接口兼容 OpenAI Chat Completions 协议。这里用 fake OpenAI
+        client 验证 provider 会使用 MiMo 独立配置和默认 base_url，不依赖
+        真实网络或私有 API Key。
+        """
+        config.app["llm_provider"] = "mimo"
+        config.app["mimo_api_key"] = "mimo-key"
+        config.app["mimo_base_url"] = ""
+        config.app["mimo_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nmimo")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="mimo-key",
+            base_url="https://api.xiaomimimo.com/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "mimo-v2.5-pro",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hellomimo")
+
 
     def test_azure_provider_uses_azure_client_directly(self):
         """

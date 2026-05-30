@@ -251,6 +251,7 @@ if not config.app.get("hide_config", False):
                 "OneAPI",
                 "Cloudflare",
                 "ERNIE",
+                "MiMo",
                 "Pollinations",
                 "LiteLLM",
             ]
@@ -400,6 +401,19 @@ if not config.app.get("hide_config", False):
                             - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
                             - **Base Url**: 固定为 https://api.deepseek.com
                             - **Model Name**: 固定为 deepseek-chat
+                            """
+
+            if llm_provider == "mimo":
+                if not llm_model_name:
+                    llm_model_name = "mimo-v2.5-pro"
+                if not llm_base_url:
+                    llm_base_url = "https://api.xiaomimimo.com/v1"
+                with llm_helper:
+                    tips = """
+                            ##### Xiaomi MiMo 配置说明
+                            - **API Key**: [点击到官网申请](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
+                            - **Base Url**: 固定为 https://api.xiaomimimo.com/v1
+                            - **Model Name**: 默认 mimo-v2.5-pro，也可以按官方文档填写其它可用模型
                             """
 
             if llm_provider == "modelscope":
