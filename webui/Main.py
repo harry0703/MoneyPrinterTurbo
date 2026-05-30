@@ -3,6 +3,8 @@ import os
 import tempfile
 import json
 import subprocess
+import requests
+import re
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(ROOT_DIR, "config.json")
@@ -46,6 +48,216 @@ def run_preview(voice_name: str, text: str) -> bytes:
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
+# ── Video Generation Functions ──
+
+def generate_script(topic: str, duration: str,
+                    language: str, cfg: dict) -> str:
+    """OpenRouter se script generate karo"""
+    
+    duration_words = {
+        "30 seconds": "80-100",
+        "1 minute": "150-180",
+        "3 minutes": "450-500",
+        "5 minutes": "750-800",
+    }
+    word_count = duration_words.get(duration, "150-180")
+    
+    lang_map = {
+        "English": "English",
+        "Urdu": "Urdu (Roman script)",
+        "Hindi": "Hindi",
+        "Arabic": "Arabic",
+        "Chinese": "Chinese",
+    }
+    lang = lang_map.get(language, "English")
+    
+    prompt = f"""Write a engaging faceless YouTube video script about: {topic}
+Language: {lang}
+Word count: {word_count} words
+Style: Engaging, informative, conversational
+NO stage directions, NO [Music], NO [Scene], just pure narration text.
+Start directly with a hook. End with a call to action."""
+
+    openrouter_key = cfg.get("openrouter_api_key") or \
+        os.environ.get("OPENROUTER_API_KEY", "")
+    model = cfg.get("model_name") or \
+        "google/gemma-4-26b-a4b-it:free"
+
+    headers = {
+        "Authorization": f"Bearer {openrouter_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://huggingface.co",
+        "X-Title": "BrainReel"
+    }
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 1000,
+    }
+    resp = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers=headers,
+        json=payload,
+        timeout=30
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+def generate_voice(script: str, voice: str) -> str:
+    """Edge-TTS se voice file banao"""
+    with tempfile.NamedTemporaryFile(
+            suffix=".mp3", delete=False,
+            dir="/tmp") as f:
+        voice_path = f.name
+    subprocess.run([
+        "edge-tts",
+        "--voice", voice,
+        "--text", script,
+        "--write-media", voice_path
+    ], check=True, capture_output=True)
+    return voice_path
+
+def fetch_pexels_videos(keyword: str, count: int,
+                         cfg: dict) -> list:
+    """Pexels se video clips fetch karo"""
+    pexels_key = cfg.get("pexels_api_key") or \
+        os.environ.get("PEXELS_API_KEY", "")
+    
+    headers = {"Authorization": pexels_key}
+    params = {
+        "query": keyword,
+        "per_page": count,
+        "orientation": "portrait",
+        "size": "medium"
+    }
+    resp = requests.get(
+        "https://api.pexels.com/videos/search",
+        headers=headers,
+        params=params,
+        timeout=15
+    )
+    resp.raise_for_status()
+    videos = resp.json().get("videos", [])
+    
+    urls = []
+    for v in videos:
+        files = v.get("video_files", [])
+        # HD file dhundo
+        for f in files:
+            if f.get("quality") in ["hd", "sd"] and \
+               f.get("file_type") == "video/mp4":
+                urls.append(f["link"])
+                break
+    return urls
+
+def download_video(url: str, idx: int) -> str:
+    """Video download karo"""
+    path = f"/tmp/clip_{idx}.mp4"
+    resp = requests.get(url, timeout=30, stream=True)
+    with open(path, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=8192):
+            f.write(chunk)
+    return path
+
+def compose_video(clip_paths: list, voice_path: str,
+                  aspect: str, font_size: int,
+                  subtitle_color: str,
+                  position: str, script: str) -> str:
+    """FFmpeg se final video banao"""
+    
+    output_path = "/tmp/brainreel_output.mp4"
+    
+    # Aspect ratio
+    if "9:16" in aspect:
+        width, height = 1080, 1920
+    else:
+        width, height = 1920, 1080
+
+    # Voice duration nikalo
+    result = subprocess.run([
+        "ffprobe", "-v", "quiet",
+        "-show_entries", "format=duration",
+        "-of", "csv=p=0", voice_path
+    ], capture_output=True, text=True)
+    
+    try:
+        total_duration = float(result.stdout.strip())
+    except Exception:
+        total_duration = 60.0
+
+    # Clips ko scale aur crop karo
+    clip_duration = total_duration / max(len(clip_paths), 1)
+    scaled_clips = []
+    
+    for i, clip in enumerate(clip_paths):
+        out = f"/tmp/scaled_{i}.mp4"
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", clip,
+            "-t", str(clip_duration),
+            "-vf",
+            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}",
+            "-c:v", "libx264",
+            "-an", out
+        ], capture_output=True)
+        scaled_clips.append(out)
+
+    # Clips concat karo
+    concat_list = "/tmp/concat.txt"
+    with open(concat_list, "w") as f:
+        for clip in scaled_clips:
+            f.write(f"file '{clip}'\n")
+
+    concat_out = "/tmp/concat_out.mp4"
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concat_list,
+        "-c", "copy",
+        concat_out
+    ], capture_output=True)
+
+    # Subtitle position
+    pos_map = {
+        "Bottom": f"(w-text_w)/2:h-{font_size*3}",
+        "Center": "(w-text_w)/2:(h-text_h)/2",
+        "Top": f"(w-text_w)/2:{font_size}",
+    }
+    pos = pos_map.get(position, f"(w-text_w)/2:h-{font_size*3}")
+
+    # Hex color → FFmpeg format
+    color = subtitle_color.lstrip("#")
+    r, g, b = int(color[0:2], 16), \
+               int(color[2:4], 16), \
+               int(color[4:6], 16)
+    ffmpeg_color = f"#{color}"
+
+    # Subtitle ke liye script clean karo
+    clean_script = re.sub(r'[^\w\s.,!?]', '', script)
+    clean_script = clean_script[:200] + "..."
+
+    # Final video — voice + video + subtitle
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-i", concat_out,
+        "-i", voice_path,
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-shortest",
+        "-vf",
+        f"drawtext=text='{clean_script}':"
+        f"fontsize={font_size}:"
+        f"fontcolor={ffmpeg_color}:"
+        f"x={pos.split(':')[0]}:"
+        f"y={pos.split(':')[1]}:"
+        f"box=1:boxcolor=black@0.5:boxborderw=5",
+        output_path
+    ], capture_output=True)
+
+    return output_path
 
 video_subject = ""
 
@@ -237,7 +449,9 @@ with st.sidebar:
     st.markdown('<div class="section-header">Status</div>',
                 unsafe_allow_html=True)
     api_set = bool(
-        cfg.get("openai_api_key") or cfg.get("openrouter_api_key"))
+        cfg.get("openai_api_key") or
+        cfg.get("openrouter_api_key") or
+        os.environ.get("OPENROUTER_API_KEY"))
     if api_set:
         st.markdown(
             '<span class="badge badge-ready">✓ API Ready</span>',
@@ -266,15 +480,20 @@ if page == "🎬 Generate Video":
             ["🤖 AI Auto Generate", "✍️ Write Manually"],
             horizontal=True)
         if script_mode == "✍️ Write Manually":
-            st.text_area("Your Script",
-                         placeholder="Yahan script likho...",
-                         height=180)
+            manual_script = st.text_area(
+                "Your Script",
+                placeholder="Yahan script likho...",
+                height=180)
+        else:
+            manual_script = ""
         col1, col2 = st.columns(2)
         with col1:
-            st.selectbox("Language",
+            video_language = st.selectbox(
+                "Language",
                 ["English", "Urdu", "Hindi", "Arabic", "Chinese"])
         with col2:
-            st.selectbox("Video Length",
+            video_length = st.selectbox(
+                "Video Length",
                 ["30 seconds", "1 minute", "3 minutes", "5 minutes"])
 
     with tab2:
@@ -282,19 +501,23 @@ if page == "🎬 Generate Video":
                     unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            st.selectbox("Aspect Ratio",
+            video_aspect = st.selectbox(
+                "Aspect Ratio",
                 ["9:16 (Vertical / TikTok)",
                  "16:9 (Horizontal / YouTube)"])
         with col2:
-            st.selectbox("Video Source",
-                ["Pexels (Free)", "Pixabay (Free)", "Local Files"])
+            video_source = st.selectbox(
+                "Video Source",
+                ["Pexels (Free)", "Pixabay (Free)"])
         st.markdown("**Subtitle Settings**")
         col3, col4 = st.columns(2)
         with col3:
-            st.slider("Font Size", 30, 100, 60)
+            font_size = st.slider("Font Size", 30, 100, 60)
         with col4:
-            st.selectbox("Position", ["Bottom", "Center", "Top"])
-        st.color_picker("Subtitle Color", "#FFFFFF")
+            subtitle_position = st.selectbox(
+                "Position", ["Bottom", "Center", "Top"])
+        subtitle_color = st.color_picker(
+            "Subtitle Color", "#FFFFFF")
 
     with tab3:
         st.markdown('<div class="card-title">🔊 Voice & Music</div>',
@@ -323,138 +546,51 @@ if page == "🎬 Generate Video":
     st.markdown("<br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        if st.button("🚀 Generate Video", use_container_width=True):
-            if not video_subject:
-                st.error("⚠️ Video topic enter karo pehle!")
-            else:
-                with st.status(
-                        "🎬 Generating...", expanded=True) as status:
-                    st.write("📝 Script likh raha hai...")
-                    st.write("🖼️ Clips fetch ho rahe hain...")
-                    st.write("🔊 Voiceover ban raha hai...")
-                    st.write("🎬 Video compose ho rahi hai...")
-                    status.update(label="✅ Done!",
-                                  state="complete", expanded=False)
-                st.success("🎉 Video ready!")
-                st.info("💡 Abhi demo mode — API keys Settings mein daalo!")
+        generate_btn = st.button(
+            "🚀 Generate Video", use_container_width=True)
 
-elif page == "⚙️ Settings":
-    st.markdown("## ⚙️ Settings")
-    st.caption("API keys aur models configure karo.")
-    s1, s2 = st.tabs(["🔑 API Keys", "🤖 Models"])
-
-    with s1:
-        st.markdown('<div class="card-title">🔑 API Keys</div>',
-                    unsafe_allow_html=True)
-        openai_key = st.text_input(
-            "OpenAI API Key",
-            value=cfg.get("openai_api_key", ""),
-            type="password", placeholder="sk-...")
-        st.markdown(
-            f'<span class="key-status '
-            f'{"key-set" if cfg.get("openai_api_key") else "key-empty"}">'
-            f'{"✓ Set hai" if cfg.get("openai_api_key") else "○ Empty"}'
-            f'</span>', unsafe_allow_html=True)
-
-        openrouter_key = st.text_input(
-            "OpenRouter API Key",
-            value=cfg.get("openrouter_api_key", ""),
-            type="password", placeholder="sk-or-...")
-        st.markdown(
-            f'<span class="key-status '
-            f'{"key-set" if cfg.get("openrouter_api_key") else "key-empty"}">'
-            f'{"✓ Set hai" if cfg.get("openrouter_api_key") else "○ Empty"}'
-            f'</span>', unsafe_allow_html=True)
-
-        pexels_key = st.text_input(
-            "Pexels API Key",
-            value=cfg.get("pexels_api_key", ""),
-            type="password", placeholder="Pexels key")
-        st.markdown(
-            f'<span class="key-status '
-            f'{"key-set" if cfg.get("pexels_api_key") else "key-empty"}">'
-            f'{"✓ Set hai" if cfg.get("pexels_api_key") else "○ Empty"}'
-            f'</span>', unsafe_allow_html=True)
-
-        pixabay_key = st.text_input(
-            "Pixabay API Key",
-            value=cfg.get("pixabay_api_key", ""),
-            type="password", placeholder="Pixabay key")
-        st.markdown(
-            f'<span class="key-status '
-            f'{"key-set" if cfg.get("pixabay_api_key") else "key-empty"}">'
-            f'{"✓ Set hai" if cfg.get("pixabay_api_key") else "○ Empty"}'
-            f'</span>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("💾 Save API Keys"):
-            cfg["openai_api_key"] = openai_key
-            cfg["openrouter_api_key"] = openrouter_key
-            cfg["pexels_api_key"] = pexels_key
-            cfg["pixabay_api_key"] = pixabay_key
-            if save_config(cfg):
-                st.success("✅ Keys save ho gayi!")
-                st.rerun()
-            else:
-                st.error("❌ Save nahi hua!")
-
-    with s2:
-        st.markdown('<div class="card-title">🤖 Model Settings</div>',
-                    unsafe_allow_html=True)
-        providers = ["OpenAI", "OpenRouter", "DeepSeek",
-                     "Moonshot", "Google Gemini", "Ollama"]
-        current_provider = cfg.get("llm_provider", "OpenAI")
-        provider_idx = providers.index(current_provider) \
-            if current_provider in providers else 0
-        llm_provider = st.selectbox(
-            "LLM Provider", providers, index=provider_idx)
-
-        model_options = MODEL_LISTS.get(
-            llm_provider, ["Custom (type below)"])
-        saved_model = cfg.get("model_name", "")
-
-        if saved_model in model_options:
-            default_idx = model_options.index(saved_model)
+    if generate_btn:
+        if not video_subject and not manual_script:
+            st.error("⚠️ Video topic ya script enter karo pehle!")
         else:
-            default_idx = len(model_options) - 1
+            pexels_key = cfg.get("pexels_api_key") or \
+                os.environ.get("PEXELS_API_KEY", "")
+            openrouter_key = cfg.get("openrouter_api_key") or \
+                os.environ.get("OPENROUTER_API_KEY", "")
 
-        selected_model = st.selectbox(
-            "Model (List se chuno)",
-            model_options, index=default_idx)
-
-        if selected_model == "Custom (type below)":
-            model_name = st.text_input(
-                "Ya khud likho (Custom Model)",
-                value=saved_model
-                if saved_model not in model_options else "",
-                placeholder="koi bhi naya model likho")
-        else:
-            model_name = selected_model
-
-        base_url = st.text_input(
-            "Base URL (optional)",
-            value=cfg.get("base_url", ""),
-            placeholder="Default ke liye khali chhodo")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("💾 Save Model Settings"):
-            cfg["llm_provider"] = llm_provider
-            cfg["model_name"] = model_name
-            cfg["base_url"] = base_url
-            if save_config(cfg):
-                st.success("✅ Model settings save ho gayi!")
-                st.rerun()
+            if not openrouter_key:
+                st.error("❌ OpenRouter API key Settings mein daalo!")
+            elif not pexels_key:
+                st.error("❌ Pexels API key Settings mein daalo!")
             else:
-                st.error("❌ Save nahi hua!")
+                try:
+                    # Step 1 — Script
+                    with st.status(
+                            "🎬 Video ban rahi hai...",
+                            expanded=True) as status:
 
-elif page == "📜 History":
-    st.markdown("## 📜 Video History")
-    st.info("🎬 Abhi koi video nahi — Generate Video pe jao!")
+                        st.write("📝 Step 1/4 — Script generate ho rahi hai...")
+                        if manual_script:
+                            final_script = manual_script
+                        else:
+                            final_script = generate_script(
+                                video_subject, video_length,
+                                video_language, cfg)
+                        st.write(f"✅ Script ready! ({len(final_script.split())} words)")
 
-elif page == "📊 Analytics":
-    st.markdown("## 📊 Analytics")
-    c1, c2, c3 = st.columns(3)
-    with c1: st.metric("Videos Generated", "0")
-    with c2: st.metric("Total Duration", "0 min")
-    with c3: st.metric("Success Rate", "—")
-    st.info("📊 Videos generate hone ke baad stats ayenge!")
+                        # Step 2 — Voice
+                        st.write("🎙️ Step 2/4 — Voice generate ho rahi hai...")
+                        voice_path = generate_voice(
+                            final_script, selected_voice)
+                        st.write("✅ Voice ready!")
+
+                        # Step 3 — Videos
+                        st.write("🖼️ Step 3/4 — Video clips fetch ho rahe hain...")
+                        keyword = video_subject or \
+                            final_script.split()[:3]
+                        if isinstance(keyword, list):
+                            keyword = " ".join(keyword)
+                        video_urls = fetch_pexels_videos(
+                            keyword, 5, cfg)
+                        if not video_urls:
+ 
