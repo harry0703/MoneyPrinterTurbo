@@ -31,7 +31,8 @@ def save_config(data: dict):
         return False
 
 def run_preview(voice_name: str, text: str) -> bytes:
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+            suffix=".mp3", delete=False) as f:
         tmp_path = f.name
     try:
         subprocess.run([
@@ -41,8 +42,7 @@ def run_preview(voice_name: str, text: str) -> bytes:
             "--write-media", tmp_path
         ], check=True, capture_output=True)
         with open(tmp_path, "rb") as f:
-            audio_bytes = f.read()
-        return audio_bytes
+            return f.read()
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
@@ -197,21 +197,16 @@ MODEL_LISTS = {
         "Custom (type below)"
     ],
     "DeepSeek": [
-        "deepseek-chat",
-        "deepseek-reasoner",
+        "deepseek-chat", "deepseek-reasoner",
         "Custom (type below)"
     ],
     "Moonshot": [
-        "moonshot-v1-8k",
-        "moonshot-v1-32k",
-        "moonshot-v1-128k",
-        "Custom (type below)"
+        "moonshot-v1-8k", "moonshot-v1-32k",
+        "moonshot-v1-128k", "Custom (type below)"
     ],
     "Google Gemini": [
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
-        "gemini-2.0-flash",
-        "Custom (type below)"
+        "gemini-1.5-flash", "gemini-1.5-pro",
+        "gemini-2.0-flash", "Custom (type below)"
     ],
     "Ollama": [
         "llama3", "llama3.1", "mistral",
@@ -222,7 +217,6 @@ MODEL_LISTS = {
 
 cfg = load_config()
 
-# ── Sidebar ──
 with st.sidebar:
     st.markdown("""
     <div class="brand-logo">
@@ -255,22 +249,26 @@ with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
     st.caption("v2.0 · BrainReel Edition")
 
-# ── Generate Video ──
 if page == "🎬 Generate Video":
     st.markdown("## 🎬 Generate Video")
     st.caption("Fill in the details below and let AI do the magic!")
-    tab1, tab2, tab3 = st.tabs(["📝 Script", "🎨 Style", "🔊 Voice & Music"])
+    tab1, tab2, tab3 = st.tabs(
+        ["📝 Script", "🎨 Style", "🔊 Voice & Music"])
 
     with tab1:
         st.markdown('<div class="card-title">📝 Video Script</div>',
                     unsafe_allow_html=True)
-        video_subject = st.text_input("Video Topic / Subject",
+        video_subject = st.text_input(
+            "Video Topic / Subject",
             placeholder="e.g. 5 mind-blowing facts about black holes")
-        script_mode = st.radio("Script Mode",
-            ["🤖 AI Auto Generate", "✍️ Write Manually"], horizontal=True)
+        script_mode = st.radio(
+            "Script Mode",
+            ["🤖 AI Auto Generate", "✍️ Write Manually"],
+            horizontal=True)
         if script_mode == "✍️ Write Manually":
             st.text_area("Your Script",
-                         placeholder="Yahan script likho...", height=180)
+                         placeholder="Yahan script likho...",
+                         height=180)
         col1, col2 = st.columns(2)
         with col1:
             st.selectbox("Language",
@@ -285,7 +283,8 @@ if page == "🎬 Generate Video":
         col1, col2 = st.columns(2)
         with col1:
             st.selectbox("Aspect Ratio",
-                ["9:16 (Vertical / TikTok)", "16:9 (Horizontal / YouTube)"])
+                ["9:16 (Vertical / TikTok)",
+                 "16:9 (Horizontal / YouTube)"])
         with col2:
             st.selectbox("Video Source",
                 ["Pexels (Free)", "Pixabay (Free)", "Local Files"])
@@ -300,7 +299,8 @@ if page == "🎬 Generate Video":
     with tab3:
         st.markdown('<div class="card-title">🔊 Voice & Music</div>',
                     unsafe_allow_html=True)
-        voice_display = st.selectbox("TTS Voice", list(VOICE_MAP.keys()))
+        voice_display = st.selectbox(
+            "TTS Voice", list(VOICE_MAP.keys()))
         selected_voice = VOICE_MAP[voice_display]
         col_prev, col_empty = st.columns([1, 2])
         with col_prev:
@@ -310,7 +310,8 @@ if page == "🎬 Generate Video":
                 try:
                     preview_text = PREVIEW_TEXTS.get(
                         selected_voice, "Hello! This is a preview.")
-                    audio_bytes = run_preview(selected_voice, preview_text)
+                    audio_bytes = run_preview(
+                        selected_voice, preview_text)
                     st.audio(audio_bytes, format="audio/mp3")
                     st.success("✅ Preview ready!")
                 except Exception as e:
@@ -326,7 +327,8 @@ if page == "🎬 Generate Video":
             if not video_subject:
                 st.error("⚠️ Video topic enter karo pehle!")
             else:
-                with st.status("🎬 Generating...", expanded=True) as status:
+                with st.status(
+                        "🎬 Generating...", expanded=True) as status:
                     st.write("📝 Script likh raha hai...")
                     st.write("🖼️ Clips fetch ho rahe hain...")
                     st.write("🔊 Voiceover ban raha hai...")
@@ -336,7 +338,6 @@ if page == "🎬 Generate Video":
                 st.success("🎉 Video ready!")
                 st.info("💡 Abhi demo mode — API keys Settings mein daalo!")
 
-# ── Settings ──
 elif page == "⚙️ Settings":
     st.markdown("## ⚙️ Settings")
     st.caption("API keys aur models configure karo.")
@@ -345,7 +346,6 @@ elif page == "⚙️ Settings":
     with s1:
         st.markdown('<div class="card-title">🔑 API Keys</div>',
                     unsafe_allow_html=True)
-
         openai_key = st.text_input(
             "OpenAI API Key",
             value=cfg.get("openai_api_key", ""),
@@ -401,7 +401,6 @@ elif page == "⚙️ Settings":
     with s2:
         st.markdown('<div class="card-title">🤖 Model Settings</div>',
                     unsafe_allow_html=True)
-
         providers = ["OpenAI", "OpenRouter", "DeepSeek",
                      "Moonshot", "Google Gemini", "Ollama"]
         current_provider = cfg.get("llm_provider", "OpenAI")
@@ -421,13 +420,13 @@ elif page == "⚙️ Settings":
 
         selected_model = st.selectbox(
             "Model (List se chuno)",
-            model_options,
-            index=default_idx)
+            model_options, index=default_idx)
 
         if selected_model == "Custom (type below)":
             model_name = st.text_input(
                 "Ya khud likho (Custom Model)",
-                value=saved_model if saved_model not in model_options else "",
+                value=saved_model
+                if saved_model not in model_options else "",
                 placeholder="koi bhi naya model likho")
         else:
             model_name = selected_model
