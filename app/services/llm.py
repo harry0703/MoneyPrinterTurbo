@@ -99,7 +99,7 @@ def _generate_response(prompt: str) -> str:
                 model_name = config.app.get("ollama_model_name")
                 base_url = config.app.get("ollama_base_url", "")
                 if not base_url:
-                    base_url = "http://localhost:11434/v1"
+                    base_url = config.get_default_ollama_base_url()
             elif llm_provider == "openai":
                 api_key = config.app.get("openai_api_key")
                 model_name = config.app.get("openai_model_name")

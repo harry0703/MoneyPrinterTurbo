@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -117,6 +118,89 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
 
+    def _use_ollama_provider(self, base_url=""):
+        config.app["llm_provider"] = "ollama"
+        config.app["ollama_api_key"] = ""
+        config.app["ollama_base_url"] = base_url
+        config.app["ollama_model_name"] = "llama3"
+
+    def _assert_ollama_base_url(self, expected_base_url: str):
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nollama")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="ollama",
+            base_url=expected_base_url,
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "helloollama")
+
+    def test_ollama_default_base_url_uses_localhost_outside_container(self):
+        """
+        普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。
+        """
+        self._use_ollama_provider()
+
+        with patch.object(config, "is_running_in_container", return_value=False):
+            self._assert_ollama_base_url("http://localhost:11434/v1")
+
+    def test_ollama_default_base_url_uses_host_gateway_inside_container(self):
+        """
+        容器内运行时，localhost 指向容器自身；默认改为 host.docker.internal，
+        方便 Docker Desktop 用户访问宿主机上的 Ollama。
+        """
+        self._use_ollama_provider()
+
+        with (
+            patch.object(config, "is_running_in_container", return_value=True),
+            patch.object(config, "_can_resolve_hostname", return_value=True),
+        ):
+            self._assert_ollama_base_url("http://host.docker.internal:11434/v1")
+
+    def test_ollama_default_base_url_falls_back_to_container_gateway(self):
+        """
+        原生 Linux Docker 里不一定能解析 host.docker.internal。此时使用容器
+        默认网关作为兜底地址，比直接返回不可解析的 hostname 更稳。
+        """
+        self._use_ollama_provider()
+
+        with (
+            patch.object(config, "is_running_in_container", return_value=True),
+            patch.object(config, "_can_resolve_hostname", return_value=False),
+            patch.object(config, "get_container_default_gateway_ip", return_value="172.17.0.1"),
+        ):
+            self._assert_ollama_base_url("http://172.17.0.1:11434/v1")
+
+    def test_ollama_explicit_base_url_takes_precedence(self):
+        """
+        用户手动配置的 ollama_base_url 优先级最高，不受容器检测影响。
+        """
+        self._use_ollama_provider(base_url="http://ollama:11434/v1")
+
+        with patch.object(config, "is_running_in_container", return_value=True):
+            self._assert_ollama_base_url("http://ollama:11434/v1")
+
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
         MiMo 官方接口兼容 OpenAI Chat Completions 协议。这里用 fake OpenAI
@@ -158,7 +242,6 @@ class TestLiteLLMProvider(unittest.TestCase):
             },
         )
         self.assertEqual(result, "hellomimo")
-
 
     def test_azure_provider_uses_azure_client_directly(self):
         """
@@ -244,6 +327,78 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         self.assertIn("Error:", result)
         self.assertIn("g4f package is not installed by default", result)
+
+
+class TestRuntimeEnvironmentDetection(unittest.TestCase):
+    def test_container_detection_ignores_plain_linux_cgroup_file(self):
+        """
+        普通 Linux 也有 /proc/1/cgroup，不能因为文件存在就判定为容器。
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cgroup_path = Path(tmp_dir) / "cgroup"
+            cgroup_path.write_text("0::/init.scope\n", encoding="utf-8")
+
+            self.assertFalse(
+                config.is_running_in_container(
+                    dockerenv_path=str(Path(tmp_dir) / "missing-dockerenv"),
+                    containerenv_path=str(Path(tmp_dir) / "missing-containerenv"),
+                    cgroup_path=str(cgroup_path),
+                )
+            )
+
+    def test_container_detection_accepts_dockerenv_marker(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dockerenv_path = Path(tmp_dir) / ".dockerenv"
+            dockerenv_path.write_text("", encoding="utf-8")
+
+            self.assertTrue(
+                config.is_running_in_container(
+                    dockerenv_path=str(dockerenv_path),
+                    containerenv_path=str(Path(tmp_dir) / "missing-containerenv"),
+                    cgroup_path=str(Path(tmp_dir) / "missing-cgroup"),
+                )
+            )
+
+    def test_container_detection_accepts_cgroup_container_marker(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cgroup_path = Path(tmp_dir) / "cgroup"
+            cgroup_path.write_text(
+                "0::/system.slice/docker-abcdef.scope\n",
+                encoding="utf-8",
+            )
+
+            self.assertTrue(
+                config.is_running_in_container(
+                    dockerenv_path=str(Path(tmp_dir) / "missing-dockerenv"),
+                    containerenv_path=str(Path(tmp_dir) / "missing-containerenv"),
+                    cgroup_path=str(cgroup_path),
+                )
+            )
+
+    def test_container_gateway_ip_decodes_default_route(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            route_path = Path(tmp_dir) / "route"
+            route_path.write_text(
+                "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n"
+                "eth0\t00000000\t010011AC\t0003\t0\t0\t0\t00000000\t0\t0\t0\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                config.get_container_default_gateway_ip(str(route_path)),
+                "172.17.0.1",
+            )
+
+    def test_container_gateway_ip_ignores_missing_default_route(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            route_path = Path(tmp_dir) / "route"
+            route_path.write_text(
+                "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n"
+                "eth0\t0011AC0A\t00000000\t0001\t0\t0\t0\t00FFFFFF\t0\t0\t0\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(config.get_container_default_gateway_ip(str(route_path)), "")
 
 
 FOUNDRY_KEY = os.environ.get("ANTHROPIC_FOUNDRY_API_KEY", "")

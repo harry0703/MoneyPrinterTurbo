@@ -284,15 +284,18 @@ if not config.app.get("hide_config", False):
                 if not llm_model_name:
                     llm_model_name = "qwen:7b"
                 if not llm_base_url:
-                    llm_base_url = "http://localhost:11434/v1"
+                    llm_base_url = config.get_default_ollama_base_url()
 
                 with llm_helper:
-                    tips = """
+                    docker_hint = ""
+                    if config.is_running_in_container():
+                        docker_hint = "\n                            > 检测到容器环境，未配置 Base Url 时会默认使用 `http://host.docker.internal:11434/v1`\n"
+                    tips = f"""
                             ##### Ollama配置说明
                             - **API Key**: 随便填写，比如 123
                             - **Base Url**: 一般为 http://localhost:11434/v1
                                 - 如果 `MoneyPrinterTurbo` 和 `Ollama` **不在同一台机器上**，需要填写 `Ollama` 机器的IP地址
-                                - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`
+                                - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`{docker_hint}
                             - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
                             """
 
