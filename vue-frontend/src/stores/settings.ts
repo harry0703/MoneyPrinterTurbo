@@ -521,6 +521,84 @@ export const useSettingsStore = defineStore('settings', {
               this.video.outputBgColor = data.ui.output_bg_color;
               console.log('[SettingsStore] Updated video.outputBgColor from config.ui:', this.video.outputBgColor);
             }
+            
+            // Load title settings from config.ui
+            if (typeof data.ui.title_enabled === 'boolean') {
+              this.video.title.enabled = data.ui.title_enabled;
+              console.log('[SettingsStore] Updated video.title.enabled from config.ui:', this.video.title.enabled);
+            }
+            if (data.ui.title_text !== undefined) {
+              this.video.title.text = data.ui.title_text;
+              console.log('[SettingsStore] Updated video.title.text from config.ui:', this.video.title.text);
+            }
+            if (data.ui.title_duration !== undefined) {
+              this.video.title.duration = Number(data.ui.title_duration);
+              console.log('[SettingsStore] Updated video.title.duration from config.ui:', this.video.title.duration);
+            }
+            if (data.ui.title_font_name !== undefined) {
+              this.video.title.font = data.ui.title_font_name;
+              console.log('[SettingsStore] Updated video.title.font from config.ui:', this.video.title.font);
+            }
+            if (data.ui.title_font_size !== undefined) {
+              this.video.title.fontSize = Number(data.ui.title_font_size);
+              console.log('[SettingsStore] Updated video.title.fontSize from config.ui:', this.video.title.fontSize);
+            }
+            if (data.ui.title_text_color !== undefined) {
+              this.video.title.color = data.ui.title_text_color;
+              console.log('[SettingsStore] Updated video.title.color from config.ui:', this.video.title.color);
+            }
+            if (data.ui.title_stroke_color !== undefined) {
+              this.video.title.strokeColor = data.ui.title_stroke_color;
+              console.log('[SettingsStore] Updated video.title.strokeColor from config.ui:', this.video.title.strokeColor);
+            }
+            if (data.ui.title_stroke_width !== undefined) {
+              this.video.title.strokeWidth = Number(data.ui.title_stroke_width);
+              console.log('[SettingsStore] Updated video.title.strokeWidth from config.ui:', this.video.title.strokeWidth);
+            }
+            if (data.ui.title_background_color !== undefined) {
+              this.video.title.backgroundColor = data.ui.title_background_color;
+              console.log('[SettingsStore] Updated video.title.backgroundColor from config.ui:', this.video.title.backgroundColor);
+            }
+            if (data.ui.title_position !== undefined) {
+              this.video.title.position = data.ui.title_position;
+              console.log('[SettingsStore] Updated video.title.position from config.ui:', this.video.title.position);
+            }
+            if (data.ui.title_margin !== undefined) {
+              this.video.title.margin = Number(data.ui.title_margin);
+              console.log('[SettingsStore] Updated video.title.margin from config.ui:', this.video.title.margin);
+            }
+            if (data.ui.title_margin_left !== undefined) {
+              this.video.title.marginLeft = Number(data.ui.title_margin_left);
+              console.log('[SettingsStore] Updated video.title.marginLeft from config.ui:', this.video.title.marginLeft);
+            }
+            if (data.ui.title_margin_right !== undefined) {
+              this.video.title.marginRight = Number(data.ui.title_margin_right);
+              console.log('[SettingsStore] Updated video.title.marginRight from config.ui:', this.video.title.marginRight);
+            }
+            if (data.ui.title_animation !== undefined) {
+              this.video.title.animation = data.ui.title_animation;
+              console.log('[SettingsStore] Updated video.title.animation from config.ui:', this.video.title.animation);
+            }
+            if (data.ui.title_animation_duration !== undefined) {
+              this.video.title.animationDuration = Number(data.ui.title_animation_duration);
+              console.log('[SettingsStore] Updated video.title.animationDuration from config.ui:', this.video.title.animationDuration);
+            }
+            if (typeof data.ui.title_background_overlay === 'boolean') {
+              this.video.title.backgroundOverlay = data.ui.title_background_overlay;
+              console.log('[SettingsStore] Updated video.title.backgroundOverlay from config.ui:', this.video.title.backgroundOverlay);
+            }
+            if (data.ui.title_overlay_color !== undefined) {
+              this.video.title.overlayColor = data.ui.title_overlay_color;
+              console.log('[SettingsStore] Updated video.title.overlayColor from config.ui:', this.video.title.overlayColor);
+            }
+            if (data.ui.title_style !== undefined) {
+              this.video.title.style = data.ui.title_style;
+              console.log('[SettingsStore] Updated video.title.style from config.ui:', this.video.title.style);
+            }
+            if (data.ui.title_align !== undefined) {
+              this.video.title.align = data.ui.title_align;
+              console.log('[SettingsStore] Updated video.title.align from config.ui:', this.video.title.align);
+            }
           }
 
           if (data.app) {
