@@ -422,3 +422,5 @@ Click to view the [`LICENSE`](LICENSE) file
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date)
+
+Documentation improvement for OSS contribution assignment.
