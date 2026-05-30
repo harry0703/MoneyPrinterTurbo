@@ -593,4 +593,172 @@ if page == "🎬 Generate Video":
                         video_urls = fetch_pexels_videos(
                             keyword, 5, cfg)
                         if not video_urls:
- 
+                            st.warning(
+                                "⚠️ Pexels clips nahi mile — "
+                                "topic change karo!")
+                            status.update(
+                                label="❌ Failed",
+                                state="error")
+                            st.stop()
+
+                        clip_paths = []
+                        for i, url in enumerate(video_urls[:5]):
+                            p = download_video(url, i)
+                            clip_paths.append(p)
+                        st.write(f"✅ {len(clip_paths)} clips ready!")
+
+                        # Step 4 — Compose
+                        st.write("🎬 Step 4/4 — Video compose ho rahi hai...")
+                        output_path = compose_video(
+                            clip_paths, voice_path,
+                            video_aspect, font_size,
+                            subtitle_color, subtitle_position,
+                            final_script)
+                        st.write("✅ Video ready!")
+
+                        status.update(
+                            label="🎉 Video Ban Gayi!",
+                            state="complete",
+                            expanded=False)
+
+                    # Script dikao
+                    with st.expander("📝 Generated Script dekho"):
+                        st.write(final_script)
+
+                    # Download button
+                    if os.path.exists(output_path):
+                        with open(output_path, "rb") as f:
+                            video_bytes = f.read()
+                        st.video(video_bytes)
+                        st.download_button(
+                            label="⬇️ Video Download Karo",
+                            data=video_bytes,
+                            file_name=f"brainreel_{video_subject[:20]}.mp4",
+                            mime="video/mp4",
+                            use_container_width=True
+                        )
+
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+                    st.info("💡 API keys check karo Settings mein!")
+
+elif page == "⚙️ Settings":
+    st.markdown("## ⚙️ Settings")
+    st.caption("API keys aur models configure karo.")
+    s1, s2 = st.tabs(["🔑 API Keys", "🤖 Models"])
+
+    with s1:
+        st.markdown('<div class="card-title">🔑 API Keys</div>',
+                    unsafe_allow_html=True)
+        openai_key = st.text_input(
+            "OpenAI API Key",
+            value=cfg.get("openai_api_key", ""),
+            type="password", placeholder="sk-...")
+        st.markdown(
+            f'<span class="key-status '
+            f'{"key-set" if cfg.get("openai_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("openai_api_key") else "○ Empty"}'
+            f'</span>', unsafe_allow_html=True)
+
+        openrouter_key = st.text_input(
+            "OpenRouter API Key",
+            value=cfg.get("openrouter_api_key", ""),
+            type="password", placeholder="sk-or-...")
+        st.markdown(
+            f'<span class="key-status '
+            f'{"key-set" if cfg.get("openrouter_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("openrouter_api_key") else "○ Empty"}'
+            f'</span>', unsafe_allow_html=True)
+
+        pexels_key = st.text_input(
+            "Pexels API Key",
+            value=cfg.get("pexels_api_key", ""),
+            type="password", placeholder="Pexels key")
+        st.markdown(
+            f'<span class="key-status '
+            f'{"key-set" if cfg.get("pexels_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("pexels_api_key") else "○ Empty"}'
+            f'</span>', unsafe_allow_html=True)
+
+        pixabay_key = st.text_input(
+            "Pixabay API Key",
+            value=cfg.get("pixabay_api_key", ""),
+            type="password", placeholder="Pixabay key")
+        st.markdown(
+            f'<span class="key-status '
+            f'{"key-set" if cfg.get("pixabay_api_key") else "key-empty"}">'
+            f'{"✓ Set hai" if cfg.get("pixabay_api_key") else "○ Empty"}'
+            f'</span>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("💾 Save API Keys"):
+            cfg["openai_api_key"] = openai_key
+            cfg["openrouter_api_key"] = openrouter_key
+            cfg["pexels_api_key"] = pexels_key
+            cfg["pixabay_api_key"] = pixabay_key
+            if save_config(cfg):
+                st.success("✅ Keys save ho gayi!")
+                st.rerun()
+            else:
+                st.error("❌ Save nahi hua!")
+
+    with s2:
+        st.markdown('<div class="card-title">🤖 Model Settings</div>',
+                    unsafe_allow_html=True)
+        providers = ["OpenAI", "OpenRouter", "DeepSeek",
+                     "Moonshot", "Google Gemini", "Ollama"]
+        current_provider = cfg.get("llm_provider", "OpenAI")
+        provider_idx = providers.index(current_provider) \
+            if current_provider in providers else 0
+        llm_provider = st.selectbox(
+            "LLM Provider", providers, index=provider_idx)
+
+        model_options = MODEL_LISTS.get(
+            llm_provider, ["Custom (type below)"])
+        saved_model = cfg.get("model_name", "")
+
+        if saved_model in model_options:
+            default_idx = model_options.index(saved_model)
+        else:
+            default_idx = len(model_options) - 1
+
+        selected_model = st.selectbox(
+            "Model (List se chuno)",
+            model_options, index=default_idx)
+
+        if selected_model == "Custom (type below)":
+            model_name = st.text_input(
+                "Ya khud likho (Custom Model)",
+                value=saved_model
+                if saved_model not in model_options else "",
+                placeholder="koi bhi naya model likho")
+        else:
+            model_name = selected_model
+
+        base_url = st.text_input(
+            "Base URL (optional)",
+            value=cfg.get("base_url", ""),
+            placeholder="Default ke liye khali chhodo")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("💾 Save Model Settings"):
+            cfg["llm_provider"] = llm_provider
+            cfg["model_name"] = model_name
+            cfg["base_url"] = base_url
+            if save_config(cfg):
+                st.success("✅ Model settings save ho gayi!")
+                st.rerun()
+            else:
+                st.error("❌ Save nahi hua!")
+
+elif page == "📜 History":
+    st.markdown("## 📜 Video History")
+    st.info("🎬 Abhi koi video nahi — Generate Video pe jao!")
+
+elif page == "📊 Analytics":
+    st.markdown("## 📊 Analytics")
+    c1, c2, c3 = st.columns(3)
+    with c1: st.metric("Videos Generated", "0")
+    with c2: st.metric("Total Duration", "0 min")
+    with c3: st.metric("Success Rate", "—")
+    st.info("📊 Videos generate hone ke baad stats ayenge!")
