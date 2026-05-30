@@ -47,9 +47,9 @@ class TestVoiceService(unittest.TestCase):
         self.loop.close()
     
     def test_siliconflow(self):
-        # SiliconFlow 的 API Key 存在 [siliconflow].api_key 中，运行时代码也是从
-        # config.siliconflow 读取；这里必须使用同一配置源，避免正确配置凭据时
-        # 测试仍然被误跳过。
+        # SiliconFlow 의 API Key 는 [siliconflow].api_key 에 저장되며, 런타임 코드도
+        # config.siliconflow 에서 읽습니다. 여기서도 동일한 설정 소스를 사용해야,
+        # 자격 증명이 올바르게 설정되어 있는데도 테스트가 잘못 건너뛰어지는 것을 방지할 수 있습니다.
         if not vs.config.siliconflow.get("api_key"):
             self.skipTest("siliconflow_api_key is not configured")
 
@@ -60,10 +60,10 @@ class TestVoiceService(unittest.TestCase):
             parts = voice_name.split(":")
             if len(parts) >= 3:
                 model = parts[1]
-                # 移除性别后缀，例如 "alex-Male" -> "alex"
+                # 성별 접미사 제거, 예: "alex-Male" -> "alex"
                 voice_with_gender = parts[2]
                 voice = voice_with_gender.split("-")[0]
-                # 构建完整的voice参数，格式为 "model:voice"
+                # 완전한 voice 파라미터 구성, 형식은 "model:voice"
                 full_voice = f"{model}:{voice}"
                 voice_file = f"{temp_dir}/tts-siliconflow-{voice}.mp3"
                 subtitle_file = f"{temp_dir}/tts-siliconflow-{voice}.srt"
@@ -98,12 +98,12 @@ class TestVoiceService(unittest.TestCase):
 
     def test_azure_tts_v1_supports_legacy_edge_tts_without_boundary(self):
         """
-        验证 Azure TTS V1 在旧版 edge_tts 依赖残留时仍可继续工作。
+        구버전 edge_tts 의존성이 남아 있을 때도 Azure TTS V1 이 계속 동작함을 검증합니다.
 
-        这个回归场景对应 Windows 便携包更新失败后，现场环境还停留在旧版
-        edge_tts 的情况：
-        1. `Communicate.__init__()` 不接受 `boundary`
-        2. 只有异步 `stream()`，没有 `stream_sync()`
+        이 회귀 시나리오는 Windows 포터블 패키지 업데이트 실패 후 현장 환경이 여전히 구버전
+        edge_tts 에 머물러 있는 경우에 해당합니다:
+        1. `Communicate.__init__()` 가 `boundary` 를 받지 않음
+        2. 비동기 `stream()` 만 있고 `stream_sync()` 가 없음
         """
 
         class _LegacyCommunicate:
@@ -151,12 +151,12 @@ class TestVoiceService(unittest.TestCase):
 
     def test_azure_tts_v1_times_out_hanging_stream_sync(self):
         """
-        验证 Azure TTS V1 在 edge_tts 同步流卡住时能够快速失败。
+        edge_tts 동기 스트림이 멈췄을 때 Azure TTS V1 이 빠르게 실패할 수 있음을 검증합니다.
 
-        真实现场里，网络异常、服务端限流、voice 语言与文本不匹配时，
-        `stream_sync()` 可能长时间不返回，导致 WebUI 任务只停在
-        `start, voice name...`。这里用阻塞的 fake stream 复现该场景，
-        确认超时保护会让函数结束并返回 None。
+        실제 현장에서는 네트워크 이상, 서버 측 속도 제한, voice 언어와 텍스트 불일치 시
+        `stream_sync()` 가 오랫동안 반환되지 않아 WebUI 작업이
+        `start, voice name...` 에서만 멈출 수 있습니다. 여기서는 블로킹되는 fake stream 으로 이 시나리오를 재현하여,
+        타임아웃 보호가 함수를 종료시키고 None 을 반환하는지 확인합니다.
         """
 
         class _HangingCommunicate:
@@ -222,9 +222,9 @@ class TestVoiceService(unittest.TestCase):
 
     def test_gemini_tts_uses_legacy_submaker_fields(self):
         """
-        验证 Gemini TTS 在 edge_tts 7.x 环境下仍会返回项目兼容的字幕结构，
-        并且可以被 `subtitle_provider=edge` 的字幕生成链路直接消费，
-        避免再次回退 Whisper。
+        Gemini TTS 가 edge_tts 7.x 환경에서도 프로젝트 호환 자막 구조를 반환하며,
+        `subtitle_provider=edge` 의 자막 생성 체인에서 직접 소비될 수 있어
+        다시 Whisper 로 폴백하지 않음을 검증합니다.
         """
 
         class _InlineData:
@@ -290,11 +290,11 @@ class TestVoiceService(unittest.TestCase):
 
     def test_mimo_tts_uses_openai_compatible_audio_response(self):
         """
-        验证 Xiaomi MiMo TTS 可以消费 OpenAI-compatible 的音频响应结构。
+        Xiaomi MiMo TTS 가 OpenAI-compatible 한 오디오 응답 구조를 소비할 수 있음을 검증합니다.
 
-        这里用 fake OpenAI client 和 fake AudioSegment 覆盖真实网络与 ffmpeg，
-        确认运行时代码会把待合成文本放到 assistant message，并把返回的
-        base64 WAV 音频导出到项目后续流程使用的音频文件。
+        여기서는 fake OpenAI client 와 fake AudioSegment 로 실제 네트워크와 ffmpeg 를 대체하여,
+        런타임 코드가 합성할 텍스트를 assistant message 에 넣고, 반환된
+        base64 WAV 오디오를 프로젝트 후속 흐름에서 사용하는 오디오 파일로 내보내는지 확인합니다.
         """
 
         class _FakeAudio:
@@ -381,8 +381,8 @@ class TestVoiceService(unittest.TestCase):
 
     def test_generate_subtitle_keeps_edge_provider_for_gemini_legacy_submaker(self):
         """
-        验证 Gemini TTS 返回的 legacy 字幕结构在 edge provider 下可以直接产出
-        SRT，不会因为匹配失败而回退到 Whisper。
+        Gemini TTS 가 반환한 legacy 자막 구조가 edge provider 에서 SRT 를 직접 생성할 수 있으며,
+        매칭 실패로 인해 Whisper 로 폴백하지 않음을 검증합니다.
         """
         script = "Gemini subtitle generation should work now. Testing multiple lines."
         sub_maker = vs.populate_legacy_submaker_with_full_text(
@@ -418,9 +418,9 @@ class TestVoiceService(unittest.TestCase):
 
     def test_script_split_keeps_thousand_separator_comma(self):
         """
-        Edge TTS 会把 "1,000 years" 作为连续文本返回。脚本断句时不能把
-        数字中间的英文逗号当成句子边界，否则字幕聚合会出现 issue #894
-        里的 sub_items 数量少于 script_lines，并错误回退 Whisper。
+        Edge TTS 는 "1,000 years" 를 연속된 텍스트로 반환합니다. 스크립트 문장 분리 시
+        숫자 중간의 영문 쉼표를 문장 경계로 취급해서는 안 됩니다. 그렇지 않으면 자막 집계에서 issue #894 처럼
+        sub_items 수가 script_lines 보다 적어지고, 잘못 Whisper 로 폴백하게 됩니다.
         """
         text = (
             "It takes about 1,000 years for a single drop of water to finish "
@@ -439,9 +439,9 @@ class TestVoiceService(unittest.TestCase):
 
     def test_edge_cue_aggregation_handles_thousand_separator_comma(self):
         """
-        复现 issue #894 的关键形态：Edge cues 中最后一句作为连续文本返回，
-        包含 `1,000 years`。脚本断句必须与 cues 聚合结果一致，不能把它
-        拆成两条字幕。
+        issue #894 의 핵심 형태를 재현합니다: Edge cues 의 마지막 문장이 연속된 텍스트로 반환되며
+        `1,000 years` 를 포함합니다. 스크립트 문장 분리는 cues 집계 결과와 일치해야 하며,
+        이를 두 개의 자막으로 분할해서는 안 됩니다.
         """
         text = (
             "The ocean isn't just sitting stil, it moves around the world like a massive "
@@ -454,8 +454,8 @@ class TestVoiceService(unittest.TestCase):
         script_lines = utils.split_string_by_punctuations(text)
         cues = []
         for index, line in enumerate(script_lines):
-            # Edge 的 cue content 经常没有脚本里的空格和标点布局，这里去掉空格
-            # 来模拟更严格的匹配场景。
+            # Edge 의 cue content 는 종종 스크립트의 공백과 구두점 배치가 없으므로, 여기서는 공백을 제거하여
+            # 더 엄격한 매칭 시나리오를 모사합니다.
             cues.append(
                 SimpleNamespace(
                     content=line.replace(" ", ""),

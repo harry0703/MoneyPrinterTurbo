@@ -50,7 +50,7 @@ h1 {
 """
 st.markdown(streamlit_style, unsafe_allow_html=True)
 
-# 定义资源目录
+# 리소스 디렉터리를 정의합니다
 font_dir = os.path.join(root_dir, "resource", "fonts")
 song_dir = os.path.join(root_dir, "resource", "songs")
 i18n_dir = os.path.join(root_dir, "webui", "i18n")
@@ -73,13 +73,13 @@ if "use_custom_system_prompt" not in st.session_state:
 if "ui_language" not in st.session_state:
     st.session_state["ui_language"] = config.ui.get("language", system_locale)
 if "local_video_materials" not in st.session_state:
-    # 记住用户最近一次已经落盘的本地素材，避免仅修改文案后二次生成时丢失素材列表。
+    # 사용자가 가장 최근에 디스크에 저장한 로컬 소재를 기억하여, 문구만 수정하고 재생성할 때 소재 목록이 사라지지 않도록 합니다.
     st.session_state["local_video_materials"] = []
 
-# 加载语言文件
+# 언어 파일을 로드합니다
 locales = utils.load_locales(i18n_dir)
 
-# 创建一个顶部栏，包含标题和语言选择
+# 제목과 언어 선택을 포함하는 상단 바를 만듭니다
 title_col, lang_col = st.columns([3, 1])
 
 with title_col:
@@ -94,7 +94,7 @@ with lang_col:
             selected_index = i
 
     selected_language = st.selectbox(
-        "Language / 语言",
+        "Language / 언어",
         options=display_languages,
         index=selected_index,
         key="top_language_selector",
@@ -139,15 +139,15 @@ def get_all_songs():
 
 def open_task_folder(task_id):
     try:
-        # task_id 应始终是服务端生成的 UUID。这里先做格式校验，避免异常值
-        # 通过路径拼接访问任务目录之外的位置，也避免后续打开目录时触发
-        # 平台 shell 对特殊字符的解释。
+        # task_id는 항상 서버 측에서 생성한 UUID여야 합니다. 여기서 먼저 형식을 검증하여, 비정상 값이
+        # 경로 결합을 통해 작업 디렉터리 밖의 위치에 접근하는 것을 막고, 이후 디렉터리를 열 때
+        # 플랫폼 shell이 특수 문자를 해석하는 것도 방지합니다.
         normalized_task_id = str(UUID(str(task_id)))
         tasks_root = os.path.abspath(os.path.join(root_dir, "storage", "tasks"))
         path = os.path.abspath(os.path.join(tasks_root, normalized_task_id))
 
-        # 即使 UUID 校验通过，也再次确认最终路径仍在任务根目录内，避免
-        # 未来调用方调整 task_id 来源时引入路径穿越风险。
+        # UUID 검증을 통과하더라도, 최종 경로가 여전히 작업 루트 디렉터리 내에 있는지 다시 확인하여,
+        # 향후 호출자가 task_id의 출처를 변경할 때 경로 탈출 위험이 생기지 않도록 합니다.
         if not path.startswith(tasks_root + os.sep):
             logger.warning(f"invalid task folder path: {path}")
             return
@@ -180,14 +180,14 @@ def init_log():
     _lvl = "DEBUG"
 
     def format_record(record):
-        # 获取日志记录中的文件全路径
+        # 로그 레코드에서 파일의 전체 경로를 가져옵니다
         file_path = record["file"].path
-        # 将绝对路径转换为相对于项目根目录的路径
+        # 절대 경로를 프로젝트 루트 디렉터리 기준 상대 경로로 변환합니다
         relative_path = os.path.relpath(file_path, root_dir)
-        # 更新记录中的文件路径
+        # 레코드의 파일 경로를 갱신합니다
         record["file"].path = f"./{relative_path}"
-        # 返回修改后的格式字符串
-        # 您可以根据需要调整这里的格式
+        # 수정된 포맷 문자열을 반환합니다
+        # 필요에 따라 여기 포맷을 조정할 수 있습니다
         record["message"] = record["message"].replace(root_dir, ".")
 
         _format = (
@@ -217,7 +217,7 @@ def tr(key):
     return loc.get("Translation", {}).get(key, key)
 
 
-# 创建基础设置折叠框
+# 기본 설정 접이식 박스를 만듭니다
 if not config.app.get("hide_config", False):
     with st.expander(tr("Basic Settings"), expanded=False):
         config_panels = st.columns(3)
@@ -225,21 +225,21 @@ if not config.app.get("hide_config", False):
         middle_config_panel = config_panels[1]
         right_config_panel = config_panels[2]
 
-        # 左侧面板 - 日志设置
+        # 왼쪽 패널 - 로그 설정
         with left_config_panel:
-            # 是否隐藏配置面板
+            # 설정 패널 숨김 여부
             hide_config = st.checkbox(
                 tr("Hide Basic Settings"), value=config.app.get("hide_config", False)
             )
             config.app["hide_config"] = hide_config
 
-            # 是否禁用日志显示
+            # 로그 표시 비활성화 여부
             hide_log = st.checkbox(
                 tr("Hide Log"), value=config.ui.get("hide_log", False)
             )
             config.ui["hide_log"] = hide_log
 
-        # 中间面板 - LLM 设置
+        # 가운데 패널 - LLM 설정
 
         with middle_config_panel:
             st.write(tr("LLM Settings"))
@@ -295,14 +295,14 @@ if not config.app.get("hide_config", False):
                 with llm_helper:
                     docker_hint = ""
                     if config.is_running_in_container():
-                        docker_hint = "\n                            > 检测到容器环境，未配置 Base Url 时会默认使用 `http://host.docker.internal:11434/v1`\n"
+                        docker_hint = "\n                            > 컨테이너 환경이 감지되었습니다. Base Url을 설정하지 않으면 기본값으로 `http://host.docker.internal:11434/v1` 이 사용됩니다\n"
                     tips = f"""
-                            ##### Ollama配置说明
-                            - **API Key**: 随便填写，比如 123
-                            - **Base Url**: 一般为 http://localhost:11434/v1
-                                - 如果 `MoneyPrinterTurbo` 和 `Ollama` **不在同一台机器上**，需要填写 `Ollama` 机器的IP地址
-                                - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`{docker_hint}
-                            - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
+                            ##### Ollama 설정 안내
+                            - **API Key**: 아무 값이나 입력하세요. 예: 123
+                            - **Base Url**: 일반적으로 http://localhost:11434/v1 입니다
+                                - 만약 `MoneyPrinterTurbo` 와 `Ollama` 가 **같은 머신에 있지 않다면**, `Ollama` 머신의 IP 주소를 입력해야 합니다
+                                - 만약 `MoneyPrinterTurbo` 를 `Docker` 로 배포했다면, `http://host.docker.internal:11434/v1` 입력을 권장합니다{docker_hint}
+                            - **Model Name**: `ollama list` 로 확인하세요. 예: `qwen:7b`
                             """
 
             if llm_provider == "openai":
@@ -310,11 +310,11 @@ if not config.app.get("hide_config", False):
                     llm_model_name = "gpt-3.5-turbo"
                 with llm_helper:
                     tips = """
-                            ##### OpenAI 配置说明
-                            > 需要VPN开启全局流量模式
-                            - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
-                            - **Base Url**: 官方 OpenAI 可留空；如果使用 OpenAI 兼容供应商（例如 OpenRouter），请填写对应的兼容接口地址
-                            - **Model Name**: 填写**有权限**的模型；如果使用兼容供应商，请填写该平台支持的模型 ID
+                            ##### OpenAI 설정 안내
+                            > VPN으로 전체 트래픽 모드를 활성화해야 합니다
+                            - **API Key**: [공식 사이트에서 발급받기](https://platform.openai.com/api-keys)
+                            - **Base Url**: 공식 OpenAI 는 비워둘 수 있습니다. OpenAI 호환 공급자(예: OpenRouter)를 사용하는 경우 해당 호환 인터페이스 주소를 입력하세요
+                            - **Model Name**: **권한이 있는** 모델을 입력하세요. 호환 공급자를 사용하는 경우 해당 플랫폼이 지원하는 모델 ID 를 입력하세요
                             """
 
             if llm_provider == "moonshot":
@@ -322,22 +322,22 @@ if not config.app.get("hide_config", False):
                     llm_model_name = "moonshot-v1-8k"
                 with llm_helper:
                     tips = """
-                            ##### Moonshot 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.moonshot.cn/console/api-keys)
-                            - **Base Url**: 固定为 https://api.moonshot.cn/v1
-                            - **Model Name**: 比如 moonshot-v1-8k，[点击查看模型列表](https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8)
+                            ##### Moonshot 설정 안내
+                            - **API Key**: [공식 사이트에서 발급받기](https://platform.moonshot.cn/console/api-keys)
+                            - **Base Url**: https://api.moonshot.cn/v1 로 고정됩니다
+                            - **Model Name**: 예: moonshot-v1-8k, [모델 목록 보기](https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8)
                             """
             if llm_provider == "oneapi":
                 if not llm_model_name:
                     llm_model_name = (
-                        "claude-3-5-sonnet-20240620"  # 默认模型，可以根据需要调整
+                        "claude-3-5-sonnet-20240620"  # 기본 모델, 필요에 따라 조정할 수 있습니다
                     )
                 with llm_helper:
                     tips = """
-                        ##### OneAPI 配置说明
-                        - **API Key**: 填写您的 OneAPI 密钥
-                        - **Base Url**: 填写 OneAPI 的基础 URL
-                        - **Model Name**: 填写您要使用的模型名称，例如 claude-3-5-sonnet-20240620
+                        ##### OneAPI 설정 안내
+                        - **API Key**: OneAPI 키를 입력하세요
+                        - **Base Url**: OneAPI 의 기본 URL 을 입력하세요
+                        - **Model Name**: 사용할 모델 이름을 입력하세요. 예: claude-3-5-sonnet-20240620
                         """
 
             if llm_provider == "qwen":
@@ -345,10 +345,10 @@ if not config.app.get("hide_config", False):
                     llm_model_name = "qwen-max"
                 with llm_helper:
                     tips = """
-                            ##### 通义千问Qwen 配置说明
-                            - **API Key**: [点击到官网申请](https://dashscope.console.aliyun.com/apiKey)
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 qwen-max，[点击查看模型列表](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction#3ef6d0bcf91wy)
+                            ##### Tongyi Qianwen Qwen 설정 안내
+                            - **API Key**: [공식 사이트에서 발급받기](https://dashscope.console.aliyun.com/apiKey)
+                            - **Base Url**: 비워두세요
+                            - **Model Name**: 예: qwen-max, [모델 목록 보기](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction#3ef6d0bcf91wy)
                             """
 
             if llm_provider == "g4f":
@@ -356,20 +356,20 @@ if not config.app.get("hide_config", False):
                     llm_model_name = "gpt-3.5-turbo"
                 with llm_helper:
                     tips = """
-                            ##### gpt4free 配置说明
-                            > [GitHub开源项目](https://github.com/xtekky/gpt4free)，可以免费使用GPT模型，但是**稳定性较差**
-                            - **API Key**: 随便填写，比如 123
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 gpt-3.5-turbo，[点击查看模型列表](https://github.com/xtekky/gpt4free/blob/main/g4f/models.py#L308)
+                            ##### gpt4free 설정 안내
+                            > [GitHub 오픈소스 프로젝트](https://github.com/xtekky/gpt4free), GPT 모델을 무료로 사용할 수 있지만 **안정성은 다소 떨어집니다**
+                            - **API Key**: 아무 값이나 입력하세요. 예: 123
+                            - **Base Url**: 비워두세요
+                            - **Model Name**: 예: gpt-3.5-turbo, [모델 목록 보기](https://github.com/xtekky/gpt4free/blob/main/g4f/models.py#L308)
                             """
             if llm_provider == "azure":
                 with llm_helper:
                     tips = """
-                            ##### Azure 配置说明
-                            > [点击查看如何部署模型](https://learn.microsoft.com/zh-cn/azure/ai-services/openai/how-to/create-resource)
-                            - **API Key**: [点击到Azure后台创建](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)
-                            - **Base Url**: 留空
-                            - **Model Name**: 填写你实际的部署名
+                            ##### Azure 설정 안내
+                            > [모델 배포 방법 보기](https://learn.microsoft.com/zh-cn/azure/ai-services/openai/how-to/create-resource)
+                            - **API Key**: [Azure 콘솔에서 생성하기](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)
+                            - **Base Url**: 비워두세요
+                            - **Model Name**: 실제 배포 이름을 입력하세요
                             """
 
             if llm_provider == "gemini":
@@ -378,11 +378,11 @@ if not config.app.get("hide_config", False):
 
                 with llm_helper:
                     tips = """
-                            ##### Gemini 配置说明
-                            > 需要VPN开启全局流量模式
-                            - **API Key**: [点击到官网申请](https://ai.google.dev/)
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 gemini-1.0-pro
+                            ##### Gemini 설정 안내
+                            > VPN으로 전체 트래픽 모드를 활성화해야 합니다
+                            - **API Key**: [공식 사이트에서 발급받기](https://ai.google.dev/)
+                            - **Base Url**: 비워두세요
+                            - **Model Name**: 예: gemini-1.0-pro
                             """
 
             if llm_provider == "grok":
@@ -393,10 +393,10 @@ if not config.app.get("hide_config", False):
 
                 with llm_helper:
                     tips = """
-                            ##### Grok 配置说明
-                            - **API Key**: 填写您的 GrokAPI 密钥
-                            - **Base Url**: 填写 GrokAPI 的基础 URL
-                            - **Model Name**: 比如 grok-4.3
+                            ##### Grok 설정 안내
+                            - **API Key**: Grok API 키를 입력하세요
+                            - **Base Url**: Grok API 의 기본 URL 을 입력하세요
+                            - **Model Name**: 예: grok-4.3
                             """
 
             if llm_provider == "deepseek":
@@ -406,10 +406,10 @@ if not config.app.get("hide_config", False):
                     llm_base_url = "https://api.deepseek.com"
                 with llm_helper:
                     tips = """
-                            ##### DeepSeek 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
-                            - **Base Url**: 固定为 https://api.deepseek.com
-                            - **Model Name**: 固定为 deepseek-chat
+                            ##### DeepSeek 설정 안내
+                            - **API Key**: [공식 사이트에서 발급받기](https://platform.deepseek.com/api_keys)
+                            - **Base Url**: https://api.deepseek.com 로 고정됩니다
+                            - **Model Name**: deepseek-chat 로 고정됩니다
                             """
 
             if llm_provider == "mimo":
@@ -419,10 +419,10 @@ if not config.app.get("hide_config", False):
                     llm_base_url = "https://api.xiaomimimo.com/v1"
                 with llm_helper:
                     tips = """
-                            ##### Xiaomi MiMo 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
-                            - **Base Url**: 固定为 https://api.xiaomimimo.com/v1
-                            - **Model Name**: 默认 mimo-v2.5-pro，也可以按官方文档填写其它可用模型
+                            ##### Xiaomi MiMo 설정 안내
+                            - **API Key**: [공식 사이트에서 발급받기](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
+                            - **Base Url**: https://api.xiaomimimo.com/v1 로 고정됩니다
+                            - **Model Name**: 기본값은 mimo-v2.5-pro 이며, 공식 문서에 따라 다른 사용 가능한 모델을 입력할 수도 있습니다
                             """
 
             if llm_provider == "modelscope":
@@ -432,19 +432,19 @@ if not config.app.get("hide_config", False):
                     llm_base_url = "https://api-inference.modelscope.cn/v1/"
                 with llm_helper:
                     tips = """
-                            ##### ModelScope 配置说明
-                            - **API Key**: [点击到官网申请](https://modelscope.cn/docs/model-service/API-Inference/intro)
-                            - **Base Url**: 固定为 https://api-inference.modelscope.cn/v1/
-                            - **Model Name**: 比如 Qwen/Qwen3-32B，[点击查看模型列表](https://modelscope.cn/models?filter=inference_type&page=1)
+                            ##### ModelScope 설정 안내
+                            - **API Key**: [공식 사이트에서 발급받기](https://modelscope.cn/docs/model-service/API-Inference/intro)
+                            - **Base Url**: https://api-inference.modelscope.cn/v1/ 로 고정됩니다
+                            - **Model Name**: 예: Qwen/Qwen3-32B, [모델 목록 보기](https://modelscope.cn/models?filter=inference_type&page=1)
                             """
 
             if llm_provider == "ernie":
                 with llm_helper:
                     tips = """
-                            ##### 百度文心一言 配置说明
-                            - **API Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
-                            - **Secret Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
-                            - **Base Url**: 填写 **请求地址** [点击查看文档](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)
+                            ##### Baidu ERNIE Bot 설정 안내
+                            - **API Key**: [공식 사이트에서 발급받기](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
+                            - **Secret Key**: [공식 사이트에서 발급받기](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
+                            - **Base Url**: **요청 주소** 를 입력하세요 [문서 보기](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)
                             """
 
             if llm_provider == "pollinations":
@@ -471,7 +471,7 @@ if not config.app.get("hide_config", False):
 
             if tips and config.ui["language"] == "zh":
                 st.warning(
-                    "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
+                    "중국 사용자는 LLM 제공자로 **DeepSeek** 또는 **Moonshot** 사용을 권장합니다\n- 중국 내에서 바로 접속할 수 있어 VPN이 필요 없습니다 \n- 가입 시 크레딧이 제공되어 기본적인 사용에는 충분합니다"
                 )
                 st.info(tips)
 
@@ -510,7 +510,7 @@ if not config.app.get("hide_config", False):
                 if st_llm_account_id:
                     config.app[f"{llm_provider}_account_id"] = st_llm_account_id
 
-        # 右侧面板 - API 密钥设置
+        # 오른쪽 패널 - API 키 설정
         with right_config_panel:
 
             def get_keys_from_config(cfg_key):
@@ -677,7 +677,7 @@ with middle_panel:
         config.app["video_source"] = params.video_source
 
         if params.video_source == "local":
-            # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
+            # Streamlit의 파일 형식 검증은 확장자 대소문자를 구분하므로, 여기서는 대문자와 소문자 두 형태를 모두 허용합니다.
             local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
             uploaded_files = st.file_uploader(
                 "Upload Local Files",
@@ -699,7 +699,7 @@ with middle_panel:
             video_concat_modes[selected_index][1]
         )
 
-        # 视频转场模式
+        # 비디오 전환 모드
         video_transition_modes = [
             (tr("None"), VideoTransitionMode.none.value),
             (tr("Shuffle"), VideoTransitionMode.shuffle.value),
@@ -744,7 +744,7 @@ with middle_panel:
     with st.container(border=True):
         st.write(tr("Audio Settings"))
 
-        # 添加TTS服务器选择下拉框
+        # TTS 서버 선택 드롭다운 박스를 추가합니다
         tts_servers = [
             ("azure-tts-v1", "Azure TTS V1"),
             ("azure-tts-v2", "Azure TTS V2"),
@@ -753,7 +753,7 @@ with middle_panel:
             ("mimo-tts", "Xiaomi MiMo TTS"),
         ]
 
-        # 获取保存的TTS服务器，默认为v1
+        # 저장된 TTS 서버를 가져옵니다. 기본값은 v1입니다
         saved_tts_server = config.ui.get("tts_server", "azure-tts-v1")
         saved_tts_server_index = 0
         for i, (server_value, _) in enumerate(tts_servers):
@@ -771,30 +771,30 @@ with middle_panel:
         selected_tts_server = tts_servers[selected_tts_server_index][0]
         config.ui["tts_server"] = selected_tts_server
 
-        # 根据选择的TTS服务器获取声音列表
+        # 선택한 TTS 서버에 따라 음성 목록을 가져옵니다
         filtered_voices = []
 
         if selected_tts_server == "siliconflow":
-            # 获取硅基流动的声音列表
+            # SiliconFlow의 음성 목록을 가져옵니다
             filtered_voices = voice.get_siliconflow_voices()
         elif selected_tts_server == "gemini-tts":
-            # 获取Gemini TTS的声音列表
+            # Gemini TTS의 음성 목록을 가져옵니다
             filtered_voices = voice.get_gemini_voices()
         elif selected_tts_server == "mimo-tts":
-            # 获取 Xiaomi MiMo TTS 的预置音色列表
+            # Xiaomi MiMo TTS의 사전 설정 음색 목록을 가져옵니다
             filtered_voices = voice.get_mimo_voices()
         else:
-            # 获取Azure的声音列表
+            # Azure의 음성 목록을 가져옵니다
             all_voices = voice.get_all_azure_voices(filter_locals=None)
 
-            # 根据选择的TTS服务器筛选声音
+            # 선택한 TTS 서버에 따라 음성을 필터링합니다
             for v in all_voices:
                 if selected_tts_server == "azure-tts-v2":
-                    # V2版本的声音名称中包含"v2"
+                    # V2 버전의 음성 이름에는 "v2"가 포함됩니다
                     if "V2" in v:
                         filtered_voices.append(v)
                 else:
-                    # V1版本的声音名称中不包含"v2"
+                    # V1 버전의 음성 이름에는 "v2"가 포함되지 않습니다
                     if "V2" not in v:
                         filtered_voices.append(v)
 
@@ -808,21 +808,21 @@ with middle_panel:
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
 
-        # 检查保存的声音是否在当前筛选的声音列表中
+        # 저장된 음성이 현재 필터링된 음성 목록에 있는지 확인합니다
         if saved_voice_name in friendly_names:
             saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
         else:
-            # 如果不在，则根据当前UI语言选择一个默认声音
+            # 없으면 현재 UI 언어에 따라 기본 음성을 하나 선택합니다
             for i, v in enumerate(filtered_voices):
                 if v.lower().startswith(st.session_state["ui_language"].lower()):
                     saved_voice_name_index = i
                     break
 
-        # 如果没有找到匹配的声音，使用第一个声音
+        # 일치하는 음성을 찾지 못하면 첫 번째 음성을 사용합니다
         if saved_voice_name_index >= len(friendly_names) and friendly_names:
             saved_voice_name_index = 0
 
-        # 确保有声音可选
+        # 선택 가능한 음성이 있는지 확인합니다
         if friendly_names:
             selected_friendly_name = st.selectbox(
                 tr("Speech Synthesis"),
@@ -838,7 +838,7 @@ with middle_panel:
             params.voice_name = voice_name
             config.ui["voice_name"] = voice_name
         else:
-            # 如果没有声音可选，显示提示信息
+            # 선택 가능한 음성이 없으면 안내 메시지를 표시합니다
             st.warning(
                 tr(
                     "No voices available for the selected TTS server. Please select another server."
@@ -847,7 +847,7 @@ with middle_panel:
             params.voice_name = ""
             config.ui["voice_name"] = ""
 
-        # 只有在有声音可选时才显示试听按钮
+        # 선택 가능한 음성이 있을 때만 미리듣기 버튼을 표시합니다
         if friendly_names and st.button(tr("Play Voice")):
             play_content = params.video_subject
             if not play_content:
@@ -880,7 +880,7 @@ with middle_panel:
                     if os.path.exists(audio_file):
                         os.remove(audio_file)
 
-        # 当选择V2版本或者声音是V2声音时，显示服务区域和API key输入框
+        # V2 버전을 선택했거나 음성이 V2 음성일 때, 서비스 지역과 API key 입력란을 표시합니다
         if selected_tts_server == "azure-tts-v2" or (
             voice_name and voice.is_azure_v2_voice(voice_name)
         ):
@@ -900,7 +900,7 @@ with middle_panel:
             config.azure["speech_region"] = azure_speech_region
             config.azure["speech_key"] = azure_speech_key
 
-        # 当选择硅基流动时，显示API key输入框和说明信息
+        # SiliconFlow를 선택했을 때, API key 입력란과 설명 정보를 표시합니다
         if selected_tts_server == "siliconflow" or (
             voice_name and voice.is_siliconflow_voice(voice_name)
         ):
@@ -913,7 +913,7 @@ with middle_panel:
                 key="siliconflow_api_key_input",
             )
 
-            # 显示硅基流动的说明信息
+            # SiliconFlow의 설명 정보를 표시합니다
             st.info(
                 tr("SiliconFlow TTS Settings")
                 + ":\n"
@@ -926,8 +926,8 @@ with middle_panel:
 
             config.siliconflow["api_key"] = siliconflow_api_key
 
-        # 当选择 Xiaomi MiMo TTS 时，复用 MiMo LLM provider 的 API Key。
-        # 这样用户如果同时使用 MiMo 生成文案和语音，只需要维护一份密钥。
+        # Xiaomi MiMo TTS를 선택했을 때, MiMo LLM provider의 API Key를 재사용합니다.
+        # 이렇게 하면 사용자가 MiMo로 문구와 음성을 동시에 생성하더라도 키를 하나만 관리하면 됩니다.
         if selected_tts_server == "mimo-tts" or (
             voice_name and voice.is_mimo_voice(voice_name)
         ):
@@ -1004,11 +1004,11 @@ with middle_panel:
                 tr("Custom Background Music File"), key="custom_bgm_file_input"
             )
             if custom_bgm_file:
-                # 这里不直接用 os.path.exists 判断，因为用户常见输入是
-                # output000.mp3，这个文件名需要由服务层映射到 resource/songs
-                # 目录后再校验。服务层会统一限制目录和文件类型，避免任意路径读取。
+                # 여기서는 os.path.exists로 직접 판단하지 않습니다. 사용자가 흔히 입력하는 값이
+                # output000.mp3이기 때문이며, 이 파일명은 서비스 계층에서 resource/songs
+                # 디렉터리로 매핑한 뒤 검증해야 합니다. 서비스 계층은 디렉터리와 파일 형식을 통일하여 제한해, 임의 경로 읽기를 방지합니다.
                 params.bgm_file = custom_bgm_file.strip()
-                # st.write(f":red[已选择自定义背景音乐]：**{custom_bgm_file}**")
+                # st.write(f":red[사용자 지정 배경 음악이 선택되었습니다]：**{custom_bgm_file}**")
         params.bgm_volume = st.selectbox(
             tr("Background Music Volume"),
             options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
@@ -1174,8 +1174,8 @@ if start_button:
 
     if uploaded_audio_file:
         task_dir = utils.task_dir(task_id)
-        # 上传文件名来自浏览器，不能直接拼到磁盘路径里；这里只保留扩展名，
-        # 并使用固定文件名保存到当前任务目录，避免路径穿越或特殊字符问题。
+        # 업로드 파일명은 브라우저에서 오므로 디스크 경로에 직접 이어 붙일 수 없습니다. 여기서는 확장자만 남기고,
+        # 고정된 파일명으로 현재 작업 디렉터리에 저장하여 경로 탈출이나 특수 문자 문제를 방지합니다.
         _, audio_ext = os.path.splitext(os.path.basename(uploaded_audio_file.name))
         audio_ext = audio_ext.lower() or ".mp3"
         custom_audio_path = os.path.join(task_dir, f"custom-audio{audio_ext}")
@@ -1185,7 +1185,7 @@ if start_button:
 
     if uploaded_files:
         local_videos_dir = utils.storage_dir("local_videos", create=True)
-        # 每次重新上传时都以本次选择的素材为准，避免旧素材不断重复追加。
+        # 다시 업로드할 때마다 이번에 선택한 소재를 기준으로 삼아, 이전 소재가 계속 중복으로 추가되지 않도록 합니다.
         params.video_materials = []
         persisted_local_materials = []
         for file in uploaded_files:
@@ -1203,10 +1203,10 @@ if start_button:
                         "duration": m.duration,
                     }
                 )
-        # 将已上传并保存到本地的视频素材写入会话，供后续只改文案时直接复用。
+        # 업로드되어 로컬에 저장된 비디오 소재를 세션에 기록하여, 이후 문구만 수정할 때 바로 재사용할 수 있게 합니다.
         st.session_state["local_video_materials"] = persisted_local_materials
     elif params.video_source == "local" and st.session_state["local_video_materials"]:
-        # 当用户没有重新上传文件时，复用最近一次已经保存到磁盘的本地素材列表。
+        # 사용자가 파일을 다시 업로드하지 않은 경우, 가장 최근에 디스크에 저장한 로컬 소재 목록을 재사용합니다.
         params.video_materials = []
         for material in st.session_state["local_video_materials"]:
             m = MaterialInfo()

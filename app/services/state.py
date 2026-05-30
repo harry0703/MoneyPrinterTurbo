@@ -77,9 +77,9 @@ class RedisState(BaseState):
             batch_size = len(keys)
             total += batch_size
 
-            # Redis SCAN 是分批返回 key。分页切片必须基于“当前批次起始索引”
-            # 计算，而不能用累积后的 total 反推，否则第一页会切到空数组，
-            # 第二页也可能只返回部分数据。
+            # Redis SCAN은 key를 배치 단위로 반환한다. 페이지 슬라이싱은 반드시 "현재 배치의 시작 인덱스"를
+            # 기준으로 계산해야 하며, 누적된 total로 역산하면 안 된다. 그렇지 않으면 첫 페이지가 빈 배열로 잘리고,
+            # 두 번째 페이지도 일부 데이터만 반환될 수 있다.
             if batch_start < end and total > start:
                 slice_start = max(0, start - batch_start)
                 slice_end = min(batch_size, end - batch_start)
@@ -91,8 +91,8 @@ class RedisState(BaseState):
                     }
                     tasks.append(task)
 
-            # 即使当前页已经取满，也要继续 SCAN 到 cursor=0，
-            # 因为调用方需要准确 total 来渲染分页信息。
+            # 현재 페이지가 이미 가득 찼더라도 cursor=0이 될 때까지 계속 SCAN해야 한다.
+            # 호출자가 페이지네이션 정보를 렌더링하기 위해 정확한 total을 필요로 하기 때문이다.
             if cursor == 0:
                 break
         return tasks, total

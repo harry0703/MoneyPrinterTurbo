@@ -33,7 +33,7 @@ from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
 
-# 认证依赖项
+# 인증 의존성
 # router = new_router(dependencies=[Depends(base.verify_token)])
 router = new_router()
 
@@ -46,7 +46,7 @@ _max_concurrent_tasks = config.app.get("max_concurrent_tasks", 5)
 _max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
 redis_url = f"redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}"
-# 根据配置选择合适的任务管理器
+# 설정에 따라 적절한 작업 관리자를 선택합니다
 if _enable_redis:
     task_manager = RedisTaskManager(
         max_concurrent_tasks=_max_concurrent_tasks,
@@ -61,8 +61,8 @@ else:
 
 
 def _sanitize_upload_filename(filename: str, request_id: str) -> str:
-    # 浏览器或客户端有时会附带目录信息，甚至可能夹带 ../ 这类穿越片段。
-    # 这里只保留纯文件名，避免上传接口把文件写到目标目录之外。
+    # 브라우저나 클라이언트는 때때로 디렉터리 정보를 함께 보내거나, 심지어 ../ 같은 경로 탈출 조각을 끼워 넣기도 합니다.
+    # 여기서는 순수한 파일명만 남겨, 업로드 인터페이스가 대상 디렉터리 밖에 파일을 쓰지 않도록 합니다.
     normalized_name = (filename or "").replace("\\", "/").split("/")[-1].strip()
     if not normalized_name or normalized_name in {".", ".."}:
         raise HttpException(
@@ -97,8 +97,8 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
     try:
         resolved_path = file_security.resolve_path_within_directory(task_dir, file)
     except ValueError as exc:
-        # 任务状态理论上只应保存任务目录内的产物路径。这里不再继续拼接 URL，
-        # 避免把异常路径包装成可访问链接；同时保留原值，便于排查历史脏数据。
+        # 작업 상태에는 원칙적으로 작업 디렉터리 내의 산출물 경로만 저장되어야 합니다. 여기서는 더 이상 URL을 이어 붙이지 않아,
+        # 비정상 경로가 접근 가능한 링크로 포장되는 것을 방지합니다. 동시에 원래 값은 그대로 두어, 과거의 잘못된 데이터를 추적하기 쉽게 합니다.
         logger.warning(
             f"skip unsafe task output path, request_id: {request_id}, path: {file}, "
             f"error: {str(exc)}"
@@ -249,8 +249,8 @@ def get_bgm_list(request: Request):
             {
                 "name": filename,
                 "size": os.path.getsize(file),
-                # 只返回文件名，避免把服务器绝对路径暴露给调用方。
-                # 服务端后续会把该文件名解析回 songs 白名单目录。
+                # 파일명만 반환하여, 서버의 절대 경로가 호출자에게 노출되지 않도록 합니다.
+                # 서버 측에서는 이후 이 파일명을 songs 화이트리스트 디렉터리로 다시 해석합니다.
                 "file": filename,
             }
         )
@@ -291,8 +291,8 @@ def get_video_materials_list(request: Request):
     files = []
     for suffix in allowed_suffixes:
         files.extend(glob.glob(os.path.join(local_videos_dir, f"*.{suffix}")))
-    # 文件系统枚举顺序不稳定，直接返回会导致“顺序拼接”在不同机器或不同
-    # 时刻表现不一致。这里统一按文件名排序，至少保证服务端返回顺序可预测。
+    # 파일 시스템의 열거 순서는 일정하지 않아, 그대로 반환하면 "순서대로 이어 붙이기"가 머신마다 또는 시점마다
+    # 다르게 동작할 수 있습니다. 여기서는 파일명 기준으로 통일하여 정렬하여, 적어도 서버 반환 순서를 예측 가능하게 보장합니다.
     files.sort(key=lambda file_path: os.path.basename(file_path).lower())
     video_materials_list = []
     for file in files:
@@ -301,8 +301,8 @@ def get_video_materials_list(request: Request):
             {
                 "name": filename,
                 "size": os.path.getsize(file),
-                # 与 BGM 一样，只返回文件名；创建任务时再在 local_videos
-                # 白名单目录内解析，避免 API 泄露宿主机绝对路径。
+                # BGM과 마찬가지로 파일명만 반환합니다. 작업 생성 시 local_videos
+                # 화이트리스트 디렉터리 내에서 다시 해석하여, API가 호스트의 절대 경로를 노출하지 않도록 합니다.
                 "file": filename,
             }
         )
@@ -321,7 +321,7 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     # check file ext
     allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
     normalized_filename = safe_filename.lower()
-    # 统一按小写扩展名校验，兼容 .MOV 这类大写后缀文件。
+    # 소문자 확장자 기준으로 통일하여 검증하여, .MOV 같은 대문자 확장자 파일도 호환합니다.
     if normalized_filename.endswith(allowed_suffixes):
         local_videos_dir = utils.storage_dir("local_videos", create=True)
         save_path = os.path.join(local_videos_dir, safe_filename)

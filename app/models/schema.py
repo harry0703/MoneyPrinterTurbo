@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.config import config
 
-# 忽略 Pydantic 的特定警告
+# Pydantic의 특정 경고를 무시합니다
 warnings.filterwarnings(
     "ignore",
     category=UserWarning,

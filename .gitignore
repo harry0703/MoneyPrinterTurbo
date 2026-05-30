@@ -28,9 +28,16 @@ venv/
 .venv
 
 # Debug and test files
-CLAUDE.md
 debug/
 debug_*.py
 test_*.py
 !test/services/test_*.py
 streamlit.log
+
+# Claude 관련 파일
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.claudeignore
+.mcp.json
+.anthropic/

@@ -186,10 +186,10 @@ def split_string_by_punctuations(s):
             continue
 
         if char == "," and previous_char.isdigit() and next_char.isdigit():
-            # 英文数字里的千分位逗号不是断句符，例如 "1,000 years"。
-            # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
-            # 如果这里拆成 "1" 和 "000 years"，后续字幕聚合会无法匹配脚本原文，
-            # 进而错误回退到 Whisper。
+            # 영문 숫자의 천 단위 구분 쉼표는 문장을 끊는 기호가 아닙니다. 예를 들어 "1,000 years"가 그렇습니다.
+            # Edge TTS의 word boundary는 보통 이런 숫자 전체를 연속된 내용으로 반환합니다.
+            # 만약 여기서 "1"과 "000 years"로 쪼개면, 이후 자막 집계가 원본 스크립트와 일치하지 못하고,
+            # 그로 인해 잘못 Whisper로 폴백하게 됩니다.
             txt += char
             continue
 

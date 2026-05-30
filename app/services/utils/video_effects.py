@@ -15,9 +15,9 @@ def fadeout_transition(clip: Clip, t: float) -> Clip:
 def slidein_transition(clip: Clip, t: float, side: str) -> Clip:
     width, height = clip.size
 
-    # MoviePy 内置 SlideIn 在当前这条处理链里对全屏素材不稳定，
-    # 会出现“逻辑上应用了转场，但画面几乎看不出变化”的情况。
-    # 这里改成显式黑底 + 位移动画，保证转场效果可见且行为可控。
+    # MoviePy 내장 SlideIn은 현재 처리 체인에서 전체 화면 소재에 대해 불안정하여,
+    # "논리적으로는 전환이 적용됐지만 화면 변화가 거의 보이지 않는" 상황이 발생한다.
+    # 여기서는 명시적인 검은 배경 + 위치 이동 애니메이션으로 바꿔, 전환 효과가 보이고 동작이 제어 가능하도록 보장한다.
     def position(current_time: float):
         progress = min(max(current_time / max(t, 0.001), 0), 1)
 
@@ -45,7 +45,7 @@ def slideout_transition(clip: Clip, t: float, side: str) -> Clip:
     width, height = clip.size
     transition_start = max(clip.duration - t, 0)
 
-    # SlideOut 同样改成显式位移，保证片段末尾能稳定滑出画面。
+    # SlideOut도 마찬가지로 명시적인 위치 이동으로 바꿔, 클립 끝부분이 안정적으로 화면 밖으로 슬라이드되도록 보장한다.
     def position(current_time: float):
         if current_time <= transition_start:
             return (0, 0)

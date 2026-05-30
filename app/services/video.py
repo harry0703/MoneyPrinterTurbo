@@ -50,8 +50,8 @@ class SubClippedVideoClip:
 
 
 audio_codec = "aac"
-# Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
-# 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
+# Docker 환경의 ffmpeg/AAC 조합은 기본 설정에서 음질 변동이 발생하기 쉬우므로,
+# 여기서 오디오 비트레이트를 명시적으로 높여, 완성 단계에서 기본값이 너무 낮아 뚜렷한 음질 손상이 생기는 것을 방지한다.
 audio_bitrate = "192k"
 video_codec = "libx264"
 fps = 30
@@ -59,8 +59,8 @@ _BGM_EXTENSIONS = (".mp3",)
 
 
 def get_ffmpeg_binary():
-    # 优先复用用户在 config.toml / 环境变量里显式指定的 ffmpeg，可避免
-    # Windows 便携包、Docker、自定义安装目录等场景下 PATH 不一致。
+    # 사용자가 config.toml / 환경 변수에 명시적으로 지정한 ffmpeg를 우선 재사용하여,
+    # Windows 휴대용 패키지, Docker, 커스텀 설치 디렉터리 등에서 PATH가 일치하지 않는 문제를 방지한다.
     configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
     if configured_ffmpeg:
         return configured_ffmpeg
@@ -82,7 +82,7 @@ def get_ffmpeg_binary():
 
 
 def _escape_ffmpeg_concat_path(file_path: str) -> str:
-    # concat demuxer 使用单引号包裹路径，路径中的单引号需要先转义。
+    # concat demuxer는 경로를 작은따옴표로 감싸므로, 경로에 포함된 작은따옴표는 먼저 이스케이프해야 한다.
     return file_path.replace("'", "'\\''")
 
 
@@ -114,8 +114,8 @@ def concat_video_clips_with_ffmpeg(
     ]
 
     try:
-        # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
-        # 从而降低画质劣化与颜色偏移风险。
+        # ffmpeg로 이어붙이기와 인코딩을 한 번만 수행하여, MoviePy가 구간별로 병합하며 반복적으로 재인코딩하는 것을 피하고,
+        # 이를 통해 화질 저하와 색상 변형 위험을 줄인다.
         result = subprocess.run(
             command,
             capture_output=True,
@@ -130,14 +130,14 @@ def concat_video_clips_with_ffmpeg(
 
 
 def _sanitize_image_file(image_path: str) -> str:
-    # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
-    # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
+    # 일부 로컬 이미지는 Pillow로 열 수는 있지만, 손상된 EXIF/eXIf 메타데이터 때문에
+    # ImageClip이 파싱 단계에서 곧바로 예외를 던질 수 있다. 여기서 "깨끗한 이미지"로 다시 내보내, 손상된 메타데이터를 제거한다.
     image_root, _ = os.path.splitext(image_path)
     sanitized_path = f"{image_root}.sanitized.png"
 
     with Image.open(image_path) as image:
         image.load()
-        # 统一导出为 PNG，避免 JPEG/PNG 不同元数据路径继续把坏块带过去。
+        # 일괄적으로 PNG로 내보내, JPEG/PNG의 서로 다른 메타데이터 경로가 손상된 블록을 계속 끌고 가는 것을 방지한다.
         cleaned_image = Image.new(image.mode, image.size)
         cleaned_image.putdata(list(image.getdata()))
         cleaned_image.save(sanitized_path)
@@ -146,7 +146,7 @@ def _sanitize_image_file(image_path: str) -> str:
 
 
 def _open_image_clip_with_fallback(image_path: str):
-    # 优先直接打开原始图片；如果因为损坏元数据失败，再尝试生成无元数据副本。
+    # 원본 이미지를 직접 여는 것을 우선하되, 손상된 메타데이터로 인해 실패하면 메타데이터 없는 사본을 생성해 다시 시도한다.
     try:
         return ImageClip(image_path), image_path
     except Exception as exc:
@@ -159,19 +159,19 @@ def _open_image_clip_with_fallback(image_path: str):
 
 def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileClip:
     """
-    安静地打开视频文件，避免 MoviePy 2.1.x 把 ffmpeg 探测信息直接打印到 stdout。
+    조용히 비디오 파일을 열어, MoviePy 2.1.x가 ffmpeg 탐지 정보를 stdout에 직접 출력하는 것을 방지한다.
 
-    背景：
-    当前依赖版本的 `FFMPEG_VideoReader` 内部存在 `print(self.infos)` 和
-    `print(ffmpeg command)`，读取无音轨的中间视频时会输出
-    `audio_found: False`。这只是输入素材 metadata，不代表最终成片没有音频，
-    但会误导 WebUI/终端用户以为生成失败。
+    배경:
+    현재 의존성 버전의 `FFMPEG_VideoReader` 내부에는 `print(self.infos)`와
+    `print(ffmpeg command)`가 있어, 오디오 트랙이 없는 중간 비디오를 읽을 때
+    `audio_found: False`를 출력한다. 이는 입력 소재의 metadata일 뿐 최종 완성본에 오디오가 없다는 뜻은 아니지만,
+    WebUI/터미널 사용자가 생성이 실패했다고 오해하게 만든다.
 
-    实现：
-    1. 只在打开 VideoFileClip 的短窗口内重定向 stdout；
-    2. 默认 `audio=False`，因为项目视频素材阶段不需要保留素材原声，
-       最终音频会在 `generate_video()` 阶段统一挂载；
-    3. 如果依赖库确实输出了内容，降级为 debug 日志，便于必要时排查。
+    구현:
+    1. VideoFileClip을 여는 짧은 구간에서만 stdout을 리다이렉트한다.
+    2. 기본값을 `audio=False`로 둔다. 프로젝트의 비디오 소재 단계에서는 소재의 원본 음성을 유지할 필요가 없고,
+       최종 오디오는 `generate_video()` 단계에서 일괄적으로 입혀지기 때문이다.
+    3. 의존성 라이브러리가 실제로 무언가를 출력했다면 debug 로그로 낮춰, 필요할 때 진단하기 쉽게 한다.
     """
     captured_stdout = io.StringIO()
     with redirect_stdout(captured_stdout):
@@ -236,11 +236,11 @@ def delete_files(files: List[str] | str):
 
 
 def _resolve_bgm_file_path(song_dir: str, bgm_file: str) -> str:
-    # 背景音乐只允许读取 resource/songs 目录内的文件，避免用户输入任意路径后
-    # 被 MoviePy 打开。这里兼容两种常见输入：
-    # 1. output000.mp3：来自 BGM 列表或用户只填写文件名
-    # 2. ./resource/songs/output000.mp3：用户按项目目录结构填写的相对路径
-    # 两种写法最终都会再次通过 resource/songs 白名单校验，不能绕过目录限制。
+    # 배경 음악은 resource/songs 디렉터리 내의 파일만 읽도록 허용하여, 사용자가 임의의 경로를 입력해
+    # MoviePy가 열게 되는 것을 방지한다. 여기서는 흔한 두 가지 입력을 호환한다.
+    # 1. output000.mp3: BGM 목록에서 왔거나 사용자가 파일명만 입력한 경우
+    # 2. ./resource/songs/output000.mp3: 사용자가 프로젝트 디렉터리 구조에 맞춰 입력한 상대 경로
+    # 두 표기 모두 최종적으로 resource/songs 화이트리스트 검증을 다시 거치므로, 디렉터리 제한을 우회할 수 없다.
     try:
         return file_security.resolve_path_within_directory(song_dir, bgm_file)
     except ValueError as song_dir_exc:
@@ -265,9 +265,9 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
         try:
             resolved_bgm_file = _resolve_bgm_file_path(song_dir, bgm_file)
         except ValueError as exc:
-            # API 请求里的 bgm_file 来自用户输入，不能直接把任意绝对路径交给
-            # MoviePy 打开。这里强制限制到 resource/songs 目录，阻止读取
-            # /etc/passwd、配置文件、密钥等非背景音乐文件。
+            # API 요청의 bgm_file은 사용자 입력에서 오므로, 임의의 절대 경로를 그대로
+            # MoviePy에 넘겨 열어서는 안 된다. 여기서 resource/songs 디렉터리로 강제 제한하여
+            # /etc/passwd, 설정 파일, 키 등 배경 음악이 아닌 파일을 읽는 것을 차단한다.
             logger.warning(
                 f"reject unsafe bgm file: {bgm_file}, song_dir: {song_dir}, error: {str(exc)}"
             )
@@ -283,7 +283,7 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
         suffix = "*.mp3"
         song_dir = utils.song_dir()
         files = glob.glob(os.path.join(song_dir, suffix))
-        # 当背景音乐目录为空时，直接回退为“不使用 BGM”，避免 random.choice([]) 抛异常。
+        # 배경 음악 디렉터리가 비어 있으면 곧바로 "BGM 미사용"으로 폴백하여, random.choice([])가 예외를 던지는 것을 방지한다.
         if not files:
             logger.warning(f"no bgm files found in song directory: {song_dir}")
             return ""
@@ -304,15 +304,15 @@ def combine_videos(
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
-        # 这里只需要读取旁白音频时长来决定素材视频拼接长度；后续不会再使用
-        # audio_clip。读取完成后立即关闭，避免早退或异常路径泄漏文件句柄。
+        # 여기서는 소재 비디오 이어붙이기 길이를 결정하기 위해 내레이션 오디오 길이만 읽으면 되고, 이후
+        # audio_clip은 다시 사용하지 않는다. 읽기를 마치면 즉시 닫아, 조기 반환이나 예외 경로에서 파일 핸들이 누수되는 것을 방지한다.
         audio_duration = audio_clip.duration
     finally:
         close_clip(audio_clip)
     logger.info(f"audio duration: {audio_duration} seconds")
     logger.info(f"maximum clip duration: {max_clip_duration} seconds")
 
-    # 兼容 API 直接调用时未传转场模式的情况，避免后续访问 .value 时崩溃。
+    # API를 직접 호출할 때 전환 모드를 전달하지 않은 경우를 호환하여, 이후 .value에 접근할 때 크래시가 나는 것을 방지한다.
     transition_value = getattr(video_transition_mode, "value", video_transition_mode)
     output_dir = os.path.dirname(combined_video_path)
 
@@ -333,9 +333,9 @@ def combine_videos(
         while start_time < clip_duration:
             end_time = min(start_time + max_clip_duration, clip_duration)
 
-            # 保留所有有效分段。
-            # 这样既不会丢掉“整段视频本身就短于 max_clip_duration”的素材，
-            # 也不会吞掉长视频最后剩下的一小段尾部内容。
+            # 유효한 모든 구간을 보존한다.
+            # 이렇게 하면 "영상 전체가 애초에 max_clip_duration보다 짧은" 소재를 잃지 않고,
+            # 긴 영상의 마지막에 남은 짧은 꼬리 구간도 삼키지 않는다.
             if end_time > start_time:
                 subclipped_items.append(
                     SubClippedVideoClip(
@@ -471,9 +471,9 @@ def combine_videos(
 
 
 def wrap_text(text, max_width, font="Arial", fontsize=60):
-    # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
-    # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
-    # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
+    # 자막 줄바꿈은 반드시 TextClip을 실제로 생성하기 전에 완료해야 한다. 그렇지 않으면 MoviePy가 원본 텍스트 기준으로만
+    # 렌더링 영역을 계산한다. 여기서는 PIL로 현재 폰트와 폰트 크기에 맞춰 너비를 측정하여, 각 줄이 최대한
+    # 영상의 사용 가능한 너비 안에 들어오도록 하고, 큰 폰트나 긴 중국어 문장이 화면 밖으로 넘치는 것을 방지한다.
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
@@ -489,9 +489,9 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         return text, height
 
     def split_long_token(token):
-        # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
-        # 退化为字符级拆分。关键点是：检测到 candidate 超宽时，先提交上一个
-        # 仍然合法的 current，再把当前字符放入下一行，不能把超宽字符塞回上一行。
+        # 하나의 token 자체가 너비를 초과하는 경우(공백 없는 긴 중국어 문장이나 지나치게 긴 영어 단어에서 흔함),
+        # 문자 단위 분할로 전환한다. 핵심은, candidate가 너비를 초과한 것을 감지하면 먼저 아직
+        # 유효한 직전 current를 확정하고, 현재 문자를 다음 줄에 넣는 것이다. 너비 초과 문자를 이전 줄에 다시 밀어 넣어서는 안 된다.
         lines = []
         current = ""
         for char in token:
@@ -566,9 +566,9 @@ def generate_video(
         logger.info(f"  ⑤ font: {font_path}")
 
     def resolve_subtitle_background_color():
-        # 兼容历史参数：API 里 `text_background_color` 既可能是布尔值，
-        # 也可能是实际颜色字符串。统一在这里归一化，避免把 True/False
-        # 直接传给 TextClip 后出现不可预期的渲染结果。
+        # 과거 파라미터 호환: API의 `text_background_color`는 불리언 값일 수도 있고
+        # 실제 색상 문자열일 수도 있다. 여기서 일괄적으로 정규화하여, True/False를
+        # TextClip에 그대로 전달했을 때 예측 불가능한 렌더링 결과가 나오는 것을 방지한다.
         if isinstance(params.text_background_color, bool):
             return "#000000" if params.text_background_color else None
         return params.text_background_color
@@ -584,10 +584,10 @@ def generate_video(
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
         vertical_padding = int(params.font_size * 0.35)
-        # MoviePy 在 `method=label` 下会自动收缩文本框高度，遇到多行字幕、
-        # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
-        # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
-        # 背景框与文字本身都能完整渲染出来。
+        # MoviePy는 `method=label`에서 텍스트 박스 높이를 자동으로 줄이는데, 여러 줄 자막,
+        # 테두리, 배경색이 있으면 마지막 줄의 아래 절반이 잘리기 쉽다. 여기서는
+        # 행 간격과 추가 상하 여백까지 함께 계산해 더 보수적인 높이를 명시적으로 전달하여, 자막
+        # 배경 박스와 글자 자체가 모두 온전히 렌더링되도록 보장한다.
         size = (
             int(max_width),
             int(txt_height + vertical_padding + (interline * line_count)),
@@ -664,8 +664,8 @@ def generate_video(
             logger.error(f"failed to add bgm: {str(e)}")
 
     video_clip = video_clip.with_audio(audio_clip)
-    # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
-    # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
+    # 입력 오디오의 샘플레이트를 명시적으로 그대로 사용하고, 가져올 수 없으면 MoviePy 기본값인 44100Hz로 폴백한다.
+    # 이렇게 하면 서로 다른 실행 환경, 특히 Docker 환경에서 다시 리샘플링하며 생기는 음질 변동을 줄일 수 있다.
     output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
     video_clip.write_videofile(
         output_file,
@@ -682,11 +682,11 @@ def generate_video(
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
-    # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
+    # WebUI는 일부 재생성 상황에서 빈 소재 목록을 전달할 수 있으므로, 여기서 곧바로 빈 결과를 반환하여 NoneType 예외가 발생하는 것을 방지한다.
     if not materials:
         return []
 
-    # 仅返回通过预处理校验的素材，避免低分辨率图片继续进入后续的视频合成流程。
+    # 전처리 검증을 통과한 소재만 반환하여, 저해상도 이미지가 이후 영상 합성 과정으로 계속 들어가는 것을 방지한다.
     valid_materials = []
     local_videos_dir = utils.storage_dir("local_videos", create=True)
 
@@ -699,9 +699,9 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 local_videos_dir, material.url
             )
         except ValueError as exc:
-            # local video_source 的素材路径来自 API 参数，必须限制在专用素材目录。
-            # 允许用户传文件名，也兼容历史返回的绝对路径，但不允许逃逸到系统
-            # 其他目录，避免任意文件读取或通过 MoviePy 探测本地敏感文件。
+            # local video_source의 소재 경로는 API 파라미터에서 오므로, 반드시 전용 소재 디렉터리로 제한해야 한다.
+            # 사용자가 파일명을 전달하는 것을 허용하고 과거에 반환된 절대 경로도 호환하지만, 시스템의
+            # 다른 디렉터리로 벗어나는 것은 허용하지 않아, 임의 파일 읽기나 MoviePy를 통한 로컬 민감 파일 탐지를 방지한다.
             logger.warning(
                 f"skip unsafe local material: {material.url}, "
                 f"local_videos_dir: {local_videos_dir}, error: {str(exc)}"
@@ -710,7 +710,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
 
         ext = utils.parse_extension(material_source_path)
         try:
-            # 图片素材直接按图片方式读取，避免先走 VideoFileClip 误判后触发不稳定的回退分支。
+            # 이미지 소재는 곧바로 이미지 방식으로 읽어, 먼저 VideoFileClip을 거치다 오판하여 불안정한 폴백 분기를 유발하는 것을 방지한다.
             if ext in const.FILE_TYPE_IMAGES:
                 clip, material_source_path = _open_image_clip_with_fallback(
                     material_source_path
@@ -718,7 +718,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             else:
                 clip = _open_video_clip_quietly(material_source_path)
         except Exception:
-            # 非标准扩展名或探测失败时再回退到图片模式，兼容历史上直接传本地图片路径的情况。
+            # 비표준 확장자이거나 탐지에 실패한 경우 이미지 모드로 폴백하여, 과거에 로컬 이미지 경로를 직접 전달하던 경우를 호환한다.
             try:
                 clip, material_source_path = _open_image_clip_with_fallback(
                     material_source_path
@@ -733,13 +733,13 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             height = clip.size[1]
             if width < 480 or height < 480:
                 logger.warning(f"low resolution material: {width}x{height}, minimum 480x480 required")
-                # 探测到低分辨率素材后立即关闭资源，并且不要把该素材返回给后续流程。
+                # 저해상도 소재를 감지하면 즉시 리소스를 닫고, 해당 소재를 이후 과정으로 반환하지 않는다.
                 close_clip(clip)
                 continue
 
             if ext in const.FILE_TYPE_IMAGES:
                 logger.info(f"processing image: {material_source_path}")
-                # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
+                # 크기를 탐지하면서 소재를 이미 한 번 열었으므로, 여기서 먼저 탐지용 핸들을 해제한 뒤, 내보내기에 쓸 이미지 clip을 다시 생성한다.
                 close_clip(clip)
                 # Create an image clip and set its duration to 3 seconds
                 clip = (
@@ -768,7 +768,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
             else:
-                # 普通视频素材只需要读取尺寸做校验，校验完成后立即释放句柄即可。
+                # 일반 비디오 소재는 검증을 위해 크기만 읽으면 되며, 검증이 끝나면 즉시 핸들을 해제하면 된다.
                 close_clip(clip)
         except Exception:
             close_clip(clip)

@@ -1,5 +1,5 @@
 name: 🐛 Bug | Bug Report
-description: 报告错误或异常问题 | Report an error or unexpected behavior
+description: 오류 또는 예기치 않은 동작 보고 | Report an error or unexpected behavior
 title: "[Bug]: "
 labels:
   - bug
@@ -8,31 +8,31 @@ body:
   - type: markdown
     attributes:
       value: |
-        **提交问题前，请确保您已阅读以下文档：[Getting Started (English)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#system-requirements-) 或 [快速开始 (中文)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-)。**
+        **이슈를 제출하기 전에 다음 문서를 먼저 읽어주세요: [Getting Started (English)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#system-requirements-) 또는 [빠른 시작 (중국어)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-).**
         
-        **Before submitting an issue, please make sure you've read the following documentation: [Getting Started (English)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#system-requirements-) or [快速开始 (Chinese)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-).**
+        **Before submitting an issue, please make sure you've read the following documentation: [Getting Started (English)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#system-requirements-) or [빠른 시작 (Korean)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-).**
         
   - type: textarea
     attributes:
-      label: 问题描述 | Current Behavior
+      label: 문제 설명 | Current Behavior
       description: |
-        描述您遇到的问题
+        발생한 문제를 설명해 주세요
         Describe the issue you're experiencing
       placeholder: |
-        当我执行...操作时，程序出现了...问题
+        ...작업을 수행할 때 프로그램에 ...문제가 발생했습니다
         When I perform..., the program shows...
     validations:
       required: true
   - type: textarea
     attributes:
-      label: 重现步骤 | Steps to Reproduce
+      label: 재현 단계 | Steps to Reproduce
       description: |
-        详细描述如何重现此问题
+        이 문제를 어떻게 재현하는지 자세히 설명해 주세요
         Describe in detail how to reproduce this issue
       placeholder: |
-        1. 打开...
-        2. 点击...
-        3. 出现错误...
+        1. ...을 엽니다
+        2. ...을 클릭합니다
+        3. 오류가 발생합니다...
         
         1. Open...
         2. Click on...
@@ -41,47 +41,47 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: 错误日志 | Error Logs
+      label: 오류 로그 | Error Logs
       description: |
-        请提供相关错误信息或日志（注意不要包含敏感信息）
+        관련 오류 메시지나 로그를 제공해 주세요 (민감한 정보가 포함되지 않도록 주의하세요)
         Please provide any error messages or logs (be careful not to include sensitive information)
       placeholder: |
-        错误信息、日志或截图...
+        오류 메시지, 로그 또는 스크린샷...
         Error messages, logs, or screenshots...
     validations:
       required: true
   - type: input
     attributes:
-      label: Python 版本 | Python Version
+      label: Python 버전 | Python Version
       description: |
-        您使用的 Python 版本
+        사용 중인 Python 버전
         The Python version you're using
       placeholder: v3.13.0, v3.10.0, etc.
     validations:
       required: true
   - type: input
     attributes:
-      label: 操作系统 | Operating System
+      label: 운영체제 | Operating System
       description: |
-        您的操作系统信息
+        사용 중인 운영체제 정보
         Your operating system information
       placeholder: macOS 14.1, Windows 11, Ubuntu 22.04, etc.
     validations:
       required: true
   - type: input
     attributes:
-      label: MoneyPrinterTurbo 版本 | Version
+      label: MoneyPrinterTurbo 버전 | Version
       description: |
-        您使用的 MoneyPrinterTurbo 版本
+        사용 중인 MoneyPrinterTurbo 버전
         The version of MoneyPrinterTurbo you're using
       placeholder: v1.2.2, etc.
     validations:
       required: true
   - type: textarea
     attributes:
-      label: 补充信息 | Additional Information
+      label: 추가 정보 | Additional Information
       description: |
-        其他对解决问题有帮助的信息（如截图、视频等）
+        문제 해결에 도움이 되는 기타 정보 (스크린샷, 동영상 등)
         Any other information that might help solve the issue (screenshots, videos, etc.)
     validations:
       required: false

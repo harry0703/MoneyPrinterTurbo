@@ -1,6 +1,6 @@
-# 说明：
-# 1. 主依赖来源统一收敛到 pyproject.toml。
-# 2. 运行环境通过 uv.lock 固定，避免不同机器解析出不同版本组合。
+# 안내:
+# 1. 주요 의존성 출처를 pyproject.toml 로 일원화합니다.
+# 2. 실행 환경은 uv.lock 으로 고정하여, 머신마다 서로 다른 버전 조합이 해석되는 것을 방지합니다.
 [build-system]
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
@@ -42,5 +42,5 @@ g4f = [
 packages = ["app"]
 
 [tool.uv]
-# 当前项目以应用运行形态为主，不作为可发布的 Python 包安装。
+# 현재 프로젝트는 애플리케이션 실행 형태를 위주로 하며, 배포 가능한 Python 패키지로 설치하지 않습니다.
 package = false

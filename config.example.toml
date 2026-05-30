@@ -1,39 +1,39 @@
 [app]
 video_source = "pexels" # "pexels" or "pixabay"
 
-# 是否隐藏配置面板
+# 설정 패널을 숨길지 여부
 hide_config = false
 
-# Azure TTS V1(edge_tts) 单次流式请求超时时间，单位秒。
-# 网络异常、服务端限流或 voice 与文本语言不匹配时，edge_tts 可能长期卡住。
-# 默认 30 秒可避免 WebUI 任务无反馈；慢网络或代理环境可适当调大。
-# 设置为 0 表示禁用超时。
+# Azure TTS V1(edge_tts)의 단일 스트리밍 요청 타임아웃 시간 (단위: 초).
+# 네트워크 이상, 서버 측 속도 제한, 또는 voice와 텍스트 언어가 맞지 않을 경우 edge_tts가 오래 멈출 수 있습니다.
+# 기본값 30초는 WebUI 작업이 응답 없이 멈추는 것을 방지합니다. 느린 네트워크나 프록시 환경에서는 적절히 늘릴 수 있습니다.
+# 0으로 설정하면 타임아웃을 비활성화합니다.
 edge_tts_timeout = 30
 
-# 是否校验外部 API 和素材下载的 TLS 证书。
-# 默认必须开启，避免 Pexels/Pixabay API key 和下载素材被中间人攻击篡改。
-# 只有在企业代理或自签证书环境明确需要时，才临时改为 false。
+# 외부 API 및 소재 다운로드의 TLS 인증서를 검증할지 여부.
+# Pexels/Pixabay API key와 다운로드한 소재가 중간자 공격으로 변조되는 것을 막기 위해 기본적으로 반드시 켜야 합니다.
+# 기업 프록시나 자체 서명 인증서 환경에서 명확히 필요한 경우에만 일시적으로 false로 변경하세요.
 tls_verify = true
 
 # Pexels API Key
 # Register at https://www.pexels.com/api/ to get your API key.
 # You can use multiple keys to avoid rate limits.
 # For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
-# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+# 형식에 특히 주의하세요. Key는 영문 큰따옴표로 감싸고, 여러 개의 Key는 쉼표로 구분합니다
 pexels_api_keys = []
 
 # Pixabay API Key
 # Register at https://pixabay.com/api/docs/ to get your API key.
 # You can use multiple keys to avoid rate limits.
 # For example: pixabay_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
-# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+# 형식에 특히 주의하세요. Key는 영문 큰따옴표로 감싸고, 여러 개의 Key는 쉼표로 구분합니다
 pixabay_api_keys = []
 
-# 支持的提供商 (Supported providers):
+# 지원되는 제공업체 (Supported providers):
 #   openai
-#   moonshot    (月之暗面)
+#   moonshot    (Moonshot AI)
 #   azure
-#   qwen        (通义千问)
+#   qwen        (통이쳰원 Qwen)
 #   deepseek
 #   gemini
 #   ollama
@@ -42,8 +42,8 @@ pixabay_api_keys = []
 #   cloudflare
 #   minimax
 #   mimo       (Xiaomi MiMo)
-#   ernie       (文心一言)
-#   modelscope  (魔搭社区)
+#   ernie       (어니봇 ERNIE)
+#   modelscope  (ModelScope 커뮤니티)
 #   litellm     (100+ providers via LiteLLM gateway)
 llm_provider = "openai"
 
@@ -64,14 +64,14 @@ ollama_model_name = ""
 
 ########## OpenAI API Key
 # Get your API key at https://platform.openai.com/api-keys
-# 也可以填写兼容 OpenAI Chat Completions 协议的供应商密钥，
-# 例如 OpenRouter 这类提供自定义 base_url 的平台。
+# OpenAI Chat Completions 프로토콜과 호환되는 제공업체의 키를 입력할 수도 있습니다.
+# 예를 들어 OpenRouter처럼 사용자 지정 base_url을 제공하는 플랫폼이 있습니다.
 openai_api_key = ""
 # No need to set it unless you want to use your own proxy
-# 如果使用兼容 OpenAI 接口的平台，请在这里填写对应的 base_url。
+# OpenAI 호환 인터페이스를 제공하는 플랫폼을 사용하는 경우 여기에 해당 base_url을 입력하세요.
 openai_base_url = ""
 # Check your available models at https://platform.openai.com/account/limits
-# 如果使用兼容供应商，请填写该平台要求的模型 ID。
+# 호환 제공업체를 사용하는 경우 해당 플랫폼이 요구하는 모델 ID를 입력하세요.
 openai_model_name = "gpt-4o-mini"
 
 ########## Moonshot API Key
@@ -140,7 +140,7 @@ mimo_model_name = "mimo-v2.5-pro"
 # Xiaomi MiMo TTS uses the same API key and base_url as MiMo LLM.
 mimo_tts_model_name = "mimo-v2.5-tts"
 # Optional natural language style prompt for MiMo TTS.
-mimo_tts_style_prompt = "请用自然、清晰、适合短视频旁白的语气朗读。"
+mimo_tts_style_prompt = "자연스럽고 명료하며 숏폼 동영상 내레이션에 어울리는 어조로 읽어주세요."
 
 ########## DeepSeek API Key
 # Visit https://platform.deepseek.com/api_keys to get your API key
@@ -189,11 +189,11 @@ subtitle_provider = "edge"
 #
 # FFMPEG
 #
-# 通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
-# 但是如果你的环境有问题，无法自动下载，可能会遇到如下错误：
+# 일반적으로 ffmpeg는 자동으로 다운로드되고 자동으로 감지됩니다.
+# 그러나 환경에 문제가 있어 자동 다운로드가 안 되는 경우 다음과 같은 오류가 발생할 수 있습니다:
 #   RuntimeError: No ffmpeg exe could be found.
 #   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
-# 此时你可以手动下载 ffmpeg 并设置 ffmpeg_path，下载地址：https://www.gyan.dev/ffmpeg/builds/
+# 이 경우 ffmpeg를 수동으로 다운로드하고 ffmpeg_path를 설정할 수 있습니다. 다운로드 주소: https://www.gyan.dev/ffmpeg/builds/
 
 # Under normal circumstances, ffmpeg is downloaded automatically and detected automatically.
 # However, if there is an issue with your environment that prevents automatic downloading, you might encounter the following error:
@@ -204,10 +204,10 @@ subtitle_provider = "edge"
 # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 #########################################################################################
 
-# 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口
-# 比如 http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
-# 如果你需要使用域名对外提供服务（一般会用nginx做代理），则可以设置为你的域名
-# 比如 https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# 동영상이 성공적으로 생성되면 API 서비스가 제공하는 동영상 다운로드 엔드포인트로, 기본값은 현재 서비스의 주소와 수신 포트입니다
+# 예: http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# 도메인을 사용해 외부에 서비스를 제공해야 하는 경우(일반적으로 nginx를 프록시로 사용), 본인의 도메인으로 설정할 수 있습니다
+# 예: https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
 # endpoint="https://xxxx.com"
 
 # When the video is successfully generated, the API service provides a download endpoint for the video, defaulting to the service's current address and listening port.
@@ -223,10 +223,10 @@ endpoint = ""
 # material_directory = "/user/harry/videos"  # Indicates that video materials will be downloaded to a specified folder
 # material_directory = "task"                # Indicates that video materials will be downloaded to the current task's folder, this method does not allow sharing of already downloaded video materials
 
-# 视频素材存放位置
-# material_directory = ""                    #表示将视频素材下载到默认的文件夹，默认文件夹为当前项目下的 ./storage/cache_videos
-# material_directory = "/user/harry/videos"  #表示将视频素材下载到指定的文件夹中
-# material_directory = "task"                #表示将视频素材下载到当前任务的文件夹中，这种方式无法共享已经下载的视频素材
+# 동영상 소재 저장 위치
+# material_directory = ""                    # 동영상 소재를 기본 폴더에 다운로드함을 의미합니다. 기본 폴더는 현재 프로젝트 아래의 ./storage/cache_videos 입니다
+# material_directory = "/user/harry/videos"  # 동영상 소재를 지정한 폴더에 다운로드함을 의미합니다
+# material_directory = "task"                # 동영상 소재를 현재 작업의 폴더에 다운로드함을 의미합니다. 이 방식은 이미 다운로드한 동영상 소재를 공유할 수 없습니다
 
 material_directory = ""
 
@@ -237,10 +237,10 @@ redis_port = 6379
 redis_db = 0
 redis_password = ""
 
-# 文生视频时的最大并发任务数
+# 텍스트로 동영상을 생성할 때의 최대 동시 작업 수
 max_concurrent_tasks = 5
 
-# 并发任务已满后的最大排队任务数，超过后接口返回 429，避免匿名请求无限堆积
+# 동시 작업이 가득 찬 후의 최대 대기열 작업 수. 초과 시 API가 429를 반환하여 익명 요청이 무한히 쌓이는 것을 방지합니다
 max_queued_tasks = 100
 
 
@@ -285,14 +285,14 @@ api_key = ""
 
 [ui]
 # UI related settings
-# 是否隐藏日志信息
+# 로그 정보를 숨길지 여부
 # Whether to hide logs in the UI
 hide_log = false
 
-# 字幕位置设置 (Subtitle position settings)
-# 可选值 (Available values): "top", "center", "bottom", "custom"
+# 자막 위치 설정 (Subtitle position settings)
+# 선택 가능한 값 (Available values): "top", "center", "bottom", "custom"
 # subtitle_position = "custom"
-# 自定义位置，表示离顶部的百分比 (0-100)，仅当 subtitle_position = "custom" 时生效
+# 사용자 지정 위치로, 상단으로부터의 백분율 (0-100)을 의미하며, subtitle_position = "custom"일 때만 적용됩니다
 # Custom position as percentage from top (0-100), only effective when subtitle_position = "custom"
 # custom_position = 70.0
 

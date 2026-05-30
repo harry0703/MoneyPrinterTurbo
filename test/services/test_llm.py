@@ -18,8 +18,8 @@ from app.services import llm
 class TestScriptPromptOptions(unittest.TestCase):
     def test_build_script_prompt_appends_advanced_requirements(self):
         """
-        高级文案要求只作为附加约束，不替换默认系统提示词。
-        这样普通用户不配置时仍然走稳定默认规则，高级用户也能细化风格。
+        고급 문안 요구사항은 추가 제약으로만 작용하며, 기본 시스템 프롬프트를 대체하지 않습니다.
+        이렇게 하면 일반 사용자가 설정하지 않아도 안정적인 기본 규칙을 따르고, 고급 사용자는 스타일을 세밀하게 조정할 수 있습니다.
         """
         prompt = llm.build_script_prompt(
             video_subject="咖啡",
@@ -37,8 +37,8 @@ class TestScriptPromptOptions(unittest.TestCase):
 
     def test_custom_system_prompt_keeps_runtime_context(self):
         """
-        自定义 system prompt 会替换默认脚本规则，但视频主题、语言、段落数
-        仍由服务层统一追加，避免高级用户漏写必要上下文。
+        사용자 지정 system prompt 는 기본 스크립트 규칙을 대체하지만, 영상 주제, 언어, 단락 수는
+        여전히 서비스 계층에서 일괄 추가하여 고급 사용자가 필수 컨텍스트를 누락하지 않도록 합니다.
         """
         prompt = llm.build_script_prompt(
             video_subject="露营",
@@ -74,8 +74,8 @@ class TestScriptPromptOptions(unittest.TestCase):
 
     def test_video_script_request_rejects_invalid_advanced_options(self):
         """
-        API 请求模型需要限制高级 prompt 参数，避免外部调用绕过 WebUI
-        传入异常段落数或超长提示词，导致模型成本和结果不可控。
+        API 요청 모델은 고급 prompt 파라미터를 제한해야 하며, 외부 호출이 WebUI 를 우회하여
+        비정상적인 단락 수나 지나치게 긴 프롬프트를 전달해 모델 비용과 결과를 통제 불가능하게 만드는 것을 방지합니다.
         """
         with self.assertRaises(ValidationError):
             VideoScriptRequest(video_subject="咖啡", paragraph_number=0)
@@ -101,11 +101,11 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_litellm_provider_returns_normalized_text(self):
         """
-        验证 LiteLLM provider 的主路径不依赖真实网络和私有 API key。
+        LiteLLM provider 의 주 경로가 실제 네트워크와 비공개 API key 에 의존하지 않음을 검증합니다.
 
-        这里用 fake module 注入 `sys.modules`，直接覆盖动态 import 的
-        `litellm.completion()`，确保测试稳定覆盖 `_generate_response()` 里的
-        litellm 分支。
+        여기서는 fake module 을 `sys.modules` 에 주입하여 동적 import 된
+        `litellm.completion()` 을 직접 덮어쓰고, 테스트가 `_generate_response()` 내의
+        litellm 분기를 안정적으로 커버하도록 합니다.
         """
         self._use_litellm_provider()
 
@@ -151,9 +151,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_litellm_provider_handles_empty_message(self):
         """
-        某些 OpenAI-compatible 网关在内容过滤或安全拦截时会返回
-        HTTP 200，但 `choices[0].message` 为 None。这里必须返回
-        可诊断的错误，而不是抛出 AttributeError。
+        일부 OpenAI-compatible 게이트웨이는 콘텐츠 필터링이나 보안 차단 시
+        HTTP 200 을 반환하지만 `choices[0].message` 가 None 입니다. 이때는
+        AttributeError 를 던지는 대신 진단 가능한 오류를 반환해야 합니다.
         """
         self._use_litellm_provider()
 
@@ -233,7 +233,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_ollama_default_base_url_uses_localhost_outside_container(self):
         """
-        普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。
+        일반 로컬 머신에서 실행할 때 Ollama 는 기본적으로 여전히 localhost 를 사용하여 기존 사용자에게 영향을 주지 않습니다.
         """
         self._use_ollama_provider()
 
@@ -242,8 +242,8 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_ollama_default_base_url_uses_host_gateway_inside_container(self):
         """
-        容器内运行时，localhost 指向容器自身；默认改为 host.docker.internal，
-        方便 Docker Desktop 用户访问宿主机上的 Ollama。
+        컨테이너 내에서 실행할 때 localhost 는 컨테이너 자신을 가리킵니다. 기본값을 host.docker.internal 로 변경하여
+        Docker Desktop 사용자가 호스트 머신의 Ollama 에 접근하기 쉽도록 합니다.
         """
         self._use_ollama_provider()
 
@@ -255,8 +255,8 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_ollama_default_base_url_falls_back_to_container_gateway(self):
         """
-        原生 Linux Docker 里不一定能解析 host.docker.internal。此时使用容器
-        默认网关作为兜底地址，比直接返回不可解析的 hostname 更稳。
+        네이티브 Linux Docker 에서는 host.docker.internal 을 해석하지 못할 수 있습니다. 이때 컨테이너의
+        기본 게이트웨이를 폴백 주소로 사용하는 것이, 해석 불가능한 hostname 을 그대로 반환하는 것보다 안정적입니다.
         """
         self._use_ollama_provider()
 
@@ -269,7 +269,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_ollama_explicit_base_url_takes_precedence(self):
         """
-        用户手动配置的 ollama_base_url 优先级最高，不受容器检测影响。
+        사용자가 수동으로 설정한 ollama_base_url 이 가장 높은 우선순위를 가지며, 컨테이너 감지의 영향을 받지 않습니다.
         """
         self._use_ollama_provider(base_url="http://ollama:11434/v1")
 
@@ -278,9 +278,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
-        MiMo 官方接口兼容 OpenAI Chat Completions 协议。这里用 fake OpenAI
-        client 验证 provider 会使用 MiMo 独立配置和默认 base_url，不依赖
-        真实网络或私有 API Key。
+        MiMo 공식 인터페이스는 OpenAI Chat Completions 프로토콜과 호환됩니다. 여기서는 fake OpenAI
+        client 로 provider 가 MiMo 전용 설정과 기본 base_url 을 사용하며,
+        실제 네트워크나 비공개 API Key 에 의존하지 않음을 검증합니다.
         """
         config.app["llm_provider"] = "mimo"
         config.app["mimo_api_key"] = "mimo-key"
@@ -320,9 +320,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_azure_provider_uses_azure_client_directly(self):
         """
-        Azure OpenAI 的鉴权、endpoint 和 api-version 都由 AzureOpenAI 客户端处理。
-        这个测试覆盖 issue #892：azure 分支必须直接调用 AzureOpenAI 创建的客户端，
-        不能继续落入普通 OpenAI-compatible 分支，否则会丢失 Azure 专用请求配置。
+        Azure OpenAI 의 인증, endpoint, api-version 은 모두 AzureOpenAI 클라이언트가 처리합니다.
+        이 테스트는 issue #892 를 커버합니다: azure 분기는 AzureOpenAI 가 생성한 클라이언트를 직접 호출해야 하며,
+        일반 OpenAI-compatible 분기로 떨어져서는 안 됩니다. 그렇지 않으면 Azure 전용 요청 설정을 잃게 됩니다.
         """
         config.app["llm_provider"] = "azure"
         config.app["azure_api_key"] = "azure-key"
@@ -366,8 +366,8 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_g4f_provider_requires_explicit_opt_in(self):
         """
-        g4f 存在供应链和稳定性风险，不能因为用户把 provider 写成 g4f
-        就默认加载第三方包并访问逆向接口，必须显式启用。
+        g4f 는 공급망 및 안정성 위험이 있으므로, 사용자가 provider 를 g4f 로 지정했다는 이유만으로
+        기본적으로 서드파티 패키지를 로드하고 리버스 인터페이스에 접근해서는 안 되며, 반드시 명시적으로 활성화해야 합니다.
         """
         config.app["llm_provider"] = "g4f"
         config.app["enable_g4f"] = False
@@ -407,7 +407,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 class TestRuntimeEnvironmentDetection(unittest.TestCase):
     def test_container_detection_ignores_plain_linux_cgroup_file(self):
         """
-        普通 Linux 也有 /proc/1/cgroup，不能因为文件存在就判定为容器。
+        일반 Linux 에도 /proc/1/cgroup 이 존재하므로, 파일이 있다는 이유만으로 컨테이너로 판정해서는 안 됩니다.
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             cgroup_path = Path(tmp_dir) / "cgroup"

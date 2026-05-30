@@ -1,5 +1,5 @@
-name: ✨ 增加功能 | Feature Request
-description: 为此项目提出一个新想法或建议 | Suggest a new idea for this project
+name: ✨ 기능 추가 | Feature Request
+description: 이 프로젝트에 대한 새로운 아이디어나 제안 제출 | Suggest a new idea for this project
 title: "[Feature]: "
 labels:
   - enhancement
@@ -7,23 +7,23 @@ labels:
 body:
   - type: textarea
     attributes:
-      label: 需求描述 | Problem Statement
+      label: 요구사항 설명 | Problem Statement
       description: |
-        请描述您希望解决的问题或需求 
+        해결하고자 하는 문제나 요구사항을 설명해 주세요
         Please describe the problem you want to solve
       placeholder: |
-        我在使用过程中遇到了...
+        사용하는 과정에서 ...을 겪었습니다
         I encountered... when using this project
     validations:
       required: true
   - type: textarea
     attributes:
-      label: 建议的解决方案 | Proposed Solution
+      label: 제안하는 해결 방안 | Proposed Solution
       description: |
-        请描述您认为可行的解决方案或实现方式
+        실현 가능하다고 생각하는 해결 방안이나 구현 방식을 설명해 주세요
         Please describe your suggested solution or implementation
       placeholder: |
-        可以考虑添加...功能来解决这个问题
+        이 문제를 해결하기 위해 ...기능을 추가하는 것을 고려할 수 있습니다
         Consider adding... feature to address this issue
     validations:
       required: true

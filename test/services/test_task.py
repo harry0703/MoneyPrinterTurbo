@@ -21,8 +21,8 @@ class TestTaskService(unittest.TestCase):
 
     def test_generate_script_forwards_advanced_prompt_options(self):
         """
-        任务生成入口和 WebUI/API 共用 VideoParams。这里验证自动生成文案时，
-        高级提示词参数会继续传到 LLM 服务层，避免只在 /scripts 接口生效。
+        작업 생성 진입점과 WebUI/API 는 VideoParams 를 공유합니다. 여기서는 문안을 자동 생성할 때
+        고급 프롬프트 파라미터가 LLM 서비스 계층까지 계속 전달되어, /scripts 인터페이스에서만 적용되지 않도록 검증합니다.
         """
         params = VideoParams(
             video_subject="咖啡",

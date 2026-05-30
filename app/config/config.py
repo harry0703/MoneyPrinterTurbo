@@ -17,16 +17,16 @@ def is_running_in_container(
     cgroup_path: str = "/proc/1/cgroup",
 ) -> bool:
     """
-    判断当前进程是否运行在容器内。
+    현재 프로세스가 컨테이너 내부에서 실행 중인지 판단합니다.
 
-    这个判断主要用于 Ollama 默认地址选择：
-    - 普通本机运行时，`localhost` 指向用户机器本身；
-    - Docker 容器内，`localhost` 指向容器自己，访问宿主机 Ollama
-      通常需要使用 `host.docker.internal`。
+    이 판단은 주로 Ollama 기본 주소 선택에 사용됩니다.
+    - 일반적인 로컬 실행 시 `localhost`는 사용자 머신 자신을 가리킵니다.
+    - Docker 컨테이너 내부에서는 `localhost`가 컨테이너 자신을 가리키므로,
+      호스트의 Ollama에 접근하려면 보통 `host.docker.internal`을 사용해야 합니다.
 
-    不能只判断 `/proc/1/cgroup` 是否存在，因为普通 Linux 也会有这个文件。
-    这里只在检测到明确的容器标记时返回 True，避免误伤非 Docker Linux 用户。
-    参数保留为可注入路径，便于单元测试覆盖不同运行环境。
+    `/proc/1/cgroup` 파일의 존재 여부만으로는 판단할 수 없습니다. 일반 Linux에도 이 파일이 있기 때문입니다.
+    여기서는 명확한 컨테이너 표시가 감지된 경우에만 True를 반환하여, Docker가 아닌 Linux 사용자를 잘못 판단하지 않도록 합니다.
+    파라미터는 주입 가능한 경로로 유지하여, 단위 테스트에서 다양한 실행 환경을 다룰 수 있게 합니다.
     """
     if os.path.isfile(dockerenv_path) or os.path.isfile(containerenv_path):
         return True
@@ -49,9 +49,9 @@ def _can_resolve_hostname(hostname: str) -> bool:
 
 
 def _decode_linux_route_gateway(hex_gateway: str) -> str:
-    # /proc/net/route 里的 Gateway 是 16 进制小端序，例如 010011AC 表示
-    # 172.17.0.1。这里单独解析，是为了在原生 Linux Docker 没有
-    # host.docker.internal DNS 记录时，还能尝试访问容器默认网关上的宿主机。
+    # /proc/net/route 안의 Gateway는 16진수 리틀엔디언이며, 예를 들어 010011AC는
+    # 172.17.0.1을 의미합니다. 여기서 별도로 파싱하는 이유는, 네이티브 Linux Docker에서
+    # host.docker.internal DNS 레코드가 없을 때 컨테이너 기본 게이트웨이의 호스트에 접근을 시도하기 위함입니다.
     if len(hex_gateway) != 8:
         raise ValueError("invalid gateway length")
 
@@ -64,12 +64,12 @@ def _decode_linux_route_gateway(hex_gateway: str) -> str:
 
 def get_container_default_gateway_ip(route_path: str = "/proc/net/route") -> str:
     """
-    读取 Linux 容器里的默认网关 IP。
+    Linux 컨테이너 안의 기본 게이트웨이 IP를 읽습니다.
 
-    Docker Desktop 通常提供 `host.docker.internal`，但原生 Linux Docker
-    默认不一定提供这个 DNS 名称。默认网关通常可以作为访问宿主机服务的
-    兜底地址；如果用户的 Ollama 只监听 127.0.0.1，则仍需要用户让
-    Ollama 监听宿主机网卡或手动配置 `ollama_base_url`。
+    Docker Desktop은 보통 `host.docker.internal`을 제공하지만, 네이티브 Linux Docker는
+    기본적으로 이 DNS 이름을 제공하지 않을 수 있습니다. 기본 게이트웨이는 보통 호스트 서비스에 접근하기 위한
+    대체 주소로 사용할 수 있습니다. 다만 사용자의 Ollama가 127.0.0.1만 수신 중이라면,
+    여전히 Ollama가 호스트 네트워크 인터페이스를 수신하도록 하거나 `ollama_base_url`을 수동으로 설정해야 합니다.
     """
     try:
         with open(route_path, mode="r", encoding="utf-8") as fp:
@@ -98,10 +98,11 @@ def get_container_default_gateway_ip(route_path: str = "/proc/net/route") -> str
 
 def get_default_ollama_base_url() -> str:
     """
-    返回 Ollama 的默认 OpenAI-compatible base_url。
+    Ollama의 기본 OpenAI-compatible base_url을 반환합니다.
 
-    用户显式配置 `ollama_base_url` 时不会走这里；这里只处理“未配置时的
-    最佳默认值”。容器内默认指向宿主机，普通本机运行默认指向 localhost。
+    사용자가 `ollama_base_url`을 명시적으로 설정한 경우에는 이 경로를 거치지 않습니다. 여기서는
+    "설정되지 않았을 때의 최적 기본값"만 처리합니다. 컨테이너 내부에서는 기본적으로 호스트를 가리키고,
+    일반적인 로컬 실행에서는 기본적으로 localhost를 가리킵니다.
     """
     if not is_running_in_container():
         return "http://localhost:11434/v1"

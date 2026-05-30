@@ -25,8 +25,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pexels_uses_tls_verification_by_default(self):
         """
-        默认路径必须开启 TLS 校验，避免素材 API key 和返回的素材 URL
-        在公共网络或不可信代理环境中被中间人攻击截获或篡改。
+        기본 경로에서는 TLS 검증을 활성화해야 하며, 이를 통해 소재 API key 와 반환된 소재 URL 이
+        공용 네트워크나 신뢰할 수 없는 프록시 환경에서 중간자 공격으로 가로채이거나 변조되는 것을 방지합니다.
         """
         config.app["pexels_api_keys"] = ["pexels-key"]
         config.app.pop("tls_verify", None)
@@ -57,8 +57,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_allows_explicit_tls_disable_for_proxy(self):
         """
-        少数企业代理会使用自签证书。该场景必须显式配置关闭 TLS 校验，
-        不能再由代码硬编码默认关闭。
+        일부 기업 프록시는 자체 서명 인증서를 사용합니다. 이 시나리오에서는 명시적으로 TLS 검증 비활성화를 설정해야 하며,
+        더 이상 코드에 기본 비활성화를 하드코딩해서는 안 됩니다.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.app["tls_verify"] = False
@@ -115,9 +115,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_download_videos_accepts_plain_string_concat_mode(self):
         """
-        download_videos 可能被服务层或测试直接传入字符串模式，而不是
-        VideoConcatMode 枚举。这里用空搜索词避免真实网络请求，只验证
-        字符串 "random" 不会再因为访问 `.value` 抛 AttributeError。
+        download_videos 는 서비스 계층이나 테스트에서 VideoConcatMode 열거형 대신
+        문자열 모드를 직접 전달받을 수 있습니다. 여기서는 빈 검색어를 사용해 실제 네트워크 요청을 피하고,
+        문자열 "random" 이 더 이상 `.value` 접근으로 인해 AttributeError 를 던지지 않는지만 검증합니다.
         """
         result = material.download_videos(
             task_id="string-concat-mode",

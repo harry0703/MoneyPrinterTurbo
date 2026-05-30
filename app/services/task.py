@@ -84,8 +84,8 @@ def generate_audio(task_id, params, video_script):
         - sub_maker: subtitle maker object if TTS is used, None otherwise
     '''
     logger.info("\n\n## generating audio")
-    # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
-    # 这里统一做兼容读取，避免直调接口时抛属性错误。
+    # /audio 및 /subtitle 요청 모델에는 custom_audio_file이 포함되지 않으므로,
+    # 여기서 일괄적으로 호환 처리하여 인터페이스를 직접 호출할 때 속성 오류가 발생하지 않도록 한다.
     custom_audio_file = getattr(params, "custom_audio_file", None)
     if not custom_audio_file or not os.path.exists(custom_audio_file):
         if custom_audio_file:
@@ -337,8 +337,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
-    # 仅完整视频生成流程才需要处理视频拼接模式；
-    # 这样可以避免 /subtitle 和 /audio 这类请求访问不存在的字段。
+    # 전체 영상 생성 흐름에서만 영상 이어붙이기 모드를 처리하면 된다.
+    # 이렇게 하면 /subtitle, /audio 같은 요청이 존재하지 않는 필드에 접근하는 것을 방지할 수 있다.
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 

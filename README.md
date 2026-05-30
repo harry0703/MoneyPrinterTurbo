@@ -8,51 +8,51 @@
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
 </p>
 <br>
-<h3>简体中文 | <a href="README-en.md">English</a></h3>
+<h3>한국어 | <a href="README-en.md">English</a></h3>
 <div align="center">
   <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
 <br>
-只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
+동영상 <b>주제</b> 또는 <b>키워드</b> 하나만 제공하면, 동영상 대본, 동영상 소재, 동영상 자막, 동영상 배경음악을 전자동으로 생성한 뒤 고화질 숏폼 동영상으로 합성할 수 있습니다.
 <br>
 
-<h4>Web界面</h4>
+<h4>웹 인터페이스</h4>
 
 ![](docs/webui.jpg)
 
-<h4>API界面</h4>
+<h4>API 인터페이스</h4>
 
 ![](docs/api.jpg)
 
 </div>
 
-## 功能特性 🎯
+## 기능 특징 🎯
 
-- [x] 完整的 **MVC架构**，代码 **结构清晰**，易于维护，支持 `API` 和 `Web界面`
-- [x] 支持视频文案 **AI自动生成**，也可以**自定义文案**
-- [x] 支持多种 **高清视频** 尺寸
-    - [x] 竖屏 9:16，`1080x1920`
-    - [x] 横屏 16:9，`1920x1080`
-- [x] 支持 **批量视频生成**，可以一次生成多个视频，然后选择一个最满意的
-- [x] 支持 **视频片段时长** 设置，方便调节素材切换频率
-- [x] 支持 **中文** 和 **英文** 视频文案
-- [x] 支持 **多种语音** 合成，可 **实时试听** 效果
-- [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、`颜色`、`大小`，同时支持`字幕描边`设置
-- [x] 支持 **背景音乐**，随机或者指定音乐文件，可设置`背景音乐音量`
-- [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
-- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
-    - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
+- [x] 완전한 **MVC 아키텍처**, **구조가 명확한** 코드로 유지보수가 쉽고, `API`와 `웹 인터페이스`를 지원
+- [x] 동영상 대본 **AI 자동 생성**을 지원하며, **직접 대본 작성**도 가능
+- [x] 다양한 **고화질 동영상** 해상도 지원
+    - [x] 세로형 9:16, `1080x1920`
+    - [x] 가로형 16:9, `1920x1080`
+- [x] **일괄 동영상 생성** 지원, 한 번에 여러 동영상을 생성한 뒤 가장 마음에 드는 것을 선택 가능
+- [x] **동영상 클립 길이** 설정 지원, 소재 전환 빈도를 편하게 조절 가능
+- [x] **한국어** 및 **영어** 동영상 대본 지원
+- [x] **다양한 음성** 합성 지원, **실시간 미리듣기**로 효과 확인 가능
+- [x] **자막 생성** 지원, `글꼴`, `위치`, `색상`, `크기`를 조정할 수 있으며 `자막 외곽선` 설정도 지원
+- [x] **배경음악** 지원, 랜덤 또는 지정한 음악 파일을 사용하고 `배경음악 볼륨` 설정 가능
+- [x] 동영상 소재는 **고화질**이면서 **저작권 무료**이며, 자신의 **로컬 소재**도 사용 가능
+- [x] **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **통이쳰원**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **어니봇(ERNIE)**, **Pollinations**, **ModelScope** 등 다양한 모델 연동 지원
+    - 중국 사용자에게는 대형 언어 모델 제공업체로 **DeepSeek** 또는 **Moonshot** 사용을 권장합니다(중국 내에서 바로 접속 가능하며 VPN이 필요 없습니다. 가입만 해도 크레딧을 제공하며 대체로 충분합니다)
 
-## 视频演示 📺
+## 동영상 데모 📺
 
-### 竖屏 9:16
+### 세로형 9:16
 
 <table>
 <thead>
 <tr>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《如何增加生活的乐趣》</th>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《金钱的作用》<br>更真实的合成声音</th>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《生命的意义是什么》</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《삶의 즐거움을 늘리는 방법》</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《돈의 역할》<br>더 자연스러운 합성 음성</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji> 《삶의 의미란 무엇인가》</th>
 </tr>
 </thead>
 <tbody>
@@ -64,13 +64,13 @@
 </tbody>
 </table>
 
-### 横屏 16:9
+### 가로형 16:9
 
 <table>
 <thead>
 <tr>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji>《生命的意义是什么》</th>
-<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji>《为什么要运动》</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji>《삶의 의미란 무엇인가》</th>
+<th align="center"><g-emoji class="g-emoji" alias="arrow_forward">▶️</g-emoji>《왜 운동을 해야 하는가》</th>
 </tr>
 </thead>
 <tbody>
@@ -81,73 +81,72 @@
 </tbody>
 </table>
 
-## 配置要求 📦
+## 사양 요구사항 📦
 
-- 建议系统：Windows 10 或 MacOS 11.0 以上，或主流 Linux 发行版
-- GPU 不是必需项，但如果你希望本地转录、更快的视频处理或更顺畅的批量生成体验，建议使用带显存的独立显卡
+- 권장 운영체제: Windows 10 또는 MacOS 11.0 이상, 또는 주요 Linux 배포판
+- GPU는 필수가 아니지만, 로컬 전사, 더 빠른 동영상 처리, 더 원활한 일괄 생성 경험을 원한다면 전용 메모리를 갖춘 독립 그래픽카드 사용을 권장합니다
 
-| 项目 | 最低配置 | 推荐配置 | 理想配置 |
+| 항목 | 최소 사양 | 권장 사양 | 이상적 사양 |
 | --- | --- | --- | --- |
-| CPU | 4 核 | 6 到 8 核 | 8 核及以上 |
-| RAM | 4 GB | 8 GB | 16 GB 及以上 |
-| GPU | 非必须 | 4 GB 显存及以上 | 8 GB 显存及以上 |
+| CPU | 4 코어 | 6~8 코어 | 8 코어 이상 |
+| RAM | 4 GB | 8 GB | 16 GB 이상 |
+| GPU | 필수 아님 | VRAM 4 GB 이상 | VRAM 8 GB 이상 |
 
-- 如果你主要依赖云端 LLM、云端 TTS 和在线素材源，CPU 与内存比 GPU 更重要
-- 如果你启用 `faster-whisper`、批量生成或更重的本地处理链路，GPU 会明显提升速度
+- 주로 클라우드 LLM, 클라우드 TTS, 온라인 소재 소스에 의존한다면 GPU보다 CPU와 메모리가 더 중요합니다
+- `faster-whisper`, 일괄 생성, 또는 더 무거운 로컬 처리 파이프라인을 사용한다면 GPU가 속도를 눈에 띄게 향상시킵니다
 
 
-## 快速开始 🚀
+## 빠른 시작 🚀
 
-### 推荐使用方式
+### 권장 사용 방식
 
-- Windows 用户：优先使用一键启动包，适合快速体验
-- MacOS / Linux 用户：优先使用 `uv sync --frozen` 进行本地部署
-- 想要隔离运行环境：优先使用 Docker 部署
+- Windows 사용자: 원클릭 실행 패키지를 우선 사용하면 빠르게 체험하기에 적합합니다
+- MacOS / Linux 사용자: `uv sync --frozen`을 사용한 로컬 배포를 우선 사용하세요
+- 실행 환경을 격리하고 싶다면: Docker 배포를 우선 사용하세요
 
-### 在 Google Colab 中运行
-免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
+### Google Colab에서 실행하기
+로컬 환경 구성 없이, 클릭 한 번으로 Google Colab에서 MoneyPrinterTurbo를 바로 체험해 보세요
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
 
 
-### Windows一键启动包
+### Windows 원클릭 실행 패키지
 
-下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
-当前提供的安装包仍是 `v1.2.6` 的旧打包版本，建议下载后先执行 `update.bat` 更新到最新代码。
+원클릭 실행 패키지를 다운로드한 뒤 압축을 풀어 바로 사용하세요(경로에 **한글/중국어**, **특수 문자**, **공백**이 없어야 합니다)
+현재 제공되는 설치 패키지는 여전히 `v1.2.6`의 구버전 빌드이므로, 다운로드 후 먼저 `update.bat`을 실행하여 최신 코드로 업데이트하는 것을 권장합니다.
 
-- 百度网盘（v1.2.6）: https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx 提取码: sbqx
+- 바이두 클라우드(v1.2.6): https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx 추출 코드: sbqx
 - Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
 
-下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
+다운로드 후에는 먼저 `update.bat`을 **더블클릭하여 실행**해 **최신 코드**로 업데이트한 다음, `start.bat`을 더블클릭하여 시작하는 것을 권장합니다
 
-启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
+시작하면 브라우저가 자동으로 열립니다(빈 화면이 뜨면 **Chrome** 또는 **Edge**로 여는 것을 권장합니다)
 
-## 安装部署 📥
+## 설치 및 배포 📥
 
-### 前提条件
+### 사전 조건
 
-- 尽量不要使用 **中文路径**，避免出现一些无法预料的问题
-- 请确保你的 **网络** 是正常的，VPN需要打开`全局流量`模式
+- 예기치 못한 문제를 피하기 위해 가능한 한 **한글/중국어 경로**를 사용하지 마세요
+- **네트워크**가 정상인지 확인하세요. VPN은 `전역 트래픽` 모드를 켜야 합니다
 
-#### ① 克隆代码
+#### ① 코드 클론
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 ```
 
-#### ② 修改配置文件（可选，建议启动后也可以在 WebUI 里面配置）
+#### ② 설정 파일 수정(선택 사항이며, 시작 후 WebUI 안에서 설정해도 됩니다)
 
-- 将 `config.example.toml` 文件复制一份，命名为 `config.toml`
-- 按照 `config.toml` 文件中的说明，配置好 `pexels_api_keys` 和 `llm_provider`，并根据 llm_provider 对应的服务商，配置相关的
-  API Key
+- `config.example.toml` 파일을 복사하여 `config.toml`로 이름을 변경하세요
+- `config.toml` 파일의 설명에 따라 `pexels_api_keys`와 `llm_provider`를 설정하고, llm_provider에 해당하는 서비스 제공업체에 맞춰 관련 API Key를 설정하세요
 
-### Docker部署 🐳
+### Docker 배포 🐳
 
-#### ① 启动Docker
+#### ① Docker 시작
 
-如果未安装 Docker，请先安装 https://www.docker.com/products/docker-desktop/
+Docker가 설치되어 있지 않다면 먼저 https://www.docker.com/products/docker-desktop/ 에서 설치하세요
 
-如果是Windows系统，请参考微软的文档：
+Windows 시스템이라면 Microsoft 문서를 참고하세요:
 
 1. https://learn.microsoft.com/zh-cn/windows/wsl/install
 2. https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers
@@ -157,26 +156,26 @@ cd MoneyPrinterTurbo
 docker-compose up
 ```
 
-> 注意：最新版的docker安装时会自动以插件的形式安装docker compose，启动命令调整为docker compose up
+> 참고: 최신 버전의 docker는 설치 시 docker compose를 플러그인 형태로 자동 설치하므로, 시작 명령은 docker compose up으로 변경됩니다
 
-#### ② 访问Web界面
+#### ② 웹 인터페이스 접속
 
-打开浏览器，访问 http://127.0.0.1:8501
+브라우저를 열고 http://127.0.0.1:8501 에 접속하세요
 
-#### ③ 访问API文档
+#### ③ API 문서 접속
 
-打开浏览器，访问 http://0.0.0.0:8080/docs 或者 http://0.0.0.0:8080/redoc
+브라우저를 열고 http://0.0.0.0:8080/docs 또는 http://0.0.0.0:8080/redoc 에 접속하세요
 
-### 手动部署 📦
+### 수동 배포 📦
 
-> 视频教程
+> 동영상 튜토리얼
 
-- 完整的使用演示：https://v.douyin.com/iFhnwsKY/
-- 如何在Windows上部署：https://v.douyin.com/iFyjoW3M
+- 전체 사용 데모: https://v.douyin.com/iFhnwsKY/
+- Windows에서 배포하는 방법: https://v.douyin.com/iFyjoW3M
 
-#### ① 创建虚拟环境
+#### ① 가상 환경 생성
 
-推荐使用 [uv](https://docs.astral.sh/uv/) 管理 Python 环境和依赖，默认使用 Python `3.11`
+Python 환경과 의존성 관리를 위해 [uv](https://docs.astral.sh/uv/) 사용을 권장하며, 기본적으로 Python `3.11`을 사용합니다
 
 ```shell
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
@@ -185,7 +184,7 @@ uv python install 3.11
 uv sync --frozen
 ```
 
-如果你暂时不使用 `uv`，也可以继续使用 `venv + pip`
+당분간 `uv`를 사용하지 않는다면, 계속해서 `venv + pip`을 사용해도 됩니다
 
 ```shell
 python3.11 -m venv .venv
@@ -193,18 +192,17 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-说明：
-- `pyproject.toml` 是主依赖定义文件
-- `uv.lock` 是锁文件，建议默认执行 `uv sync --frozen`
-- `requirements.txt` 仅保留给旧的 `pip` 安装方式兼容使用
+설명:
+- `pyproject.toml`은 주요 의존성 정의 파일입니다
+- `uv.lock`은 잠금 파일이며, 기본적으로 `uv sync --frozen` 실행을 권장합니다
+- `requirements.txt`는 기존 `pip` 설치 방식과의 호환을 위해서만 남겨두었습니다
 
-#### ② 安装好 ImageMagick
+#### ② ImageMagick 설치
 
 - Windows:
-    - 下载 https://imagemagick.org/script/download.php 选择Windows版本，切记一定要选择 **静态库** 版本，比如
-      ImageMagick-7.1.1-32-Q16-x64-**static**.exe
-    - 安装下载好的 ImageMagick，**注意不要修改安装路径**
-    - 修改 `配置文件 config.toml` 中的 `imagemagick_path` 为你的 **实际安装路径**
+    - https://imagemagick.org/script/download.php 에서 다운로드할 때 Windows 버전을 선택하되, 반드시 **정적 라이브러리(static)** 버전을 선택하세요. 예: ImageMagick-7.1.1-32-Q16-x64-**static**.exe
+    - 다운로드한 ImageMagick을 설치하되, **설치 경로를 변경하지 마세요**
+    - `설정 파일 config.toml`의 `imagemagick_path`를 본인의 **실제 설치 경로**로 수정하세요
 
 - MacOS:
   ```shell
@@ -219,9 +217,9 @@ pip install -r requirements.txt
   sudo yum install ImageMagick
   ```
 
-#### ③ 启动Web界面 🌐
+#### ③ 웹 인터페이스 시작 🌐
 
-注意需要到 MoneyPrinterTurbo 项目 `根目录` 下执行以下命令
+다음 명령은 MoneyPrinterTurbo 프로젝트의 `루트 디렉터리`에서 실행해야 합니다
 
 ###### Windows
 
@@ -229,9 +227,9 @@ pip install -r requirements.txt
 .\webui.bat
 ```
 
-在 CMD 中也可以执行 `webui.bat`。
-`webui.bat` 会优先使用项目 `.venv` 或一键包内置 Python；如果没有找到项目 Python，但已安装 `uv`，会自动切换为 `uv run streamlit`。
-如需允许局域网内其他设备访问 WebUI，可以先执行 `set MPT_WEBUI_HOST=0.0.0.0`，再运行 `webui.bat`。
+CMD에서도 `webui.bat`을 실행할 수 있습니다.
+`webui.bat`은 프로젝트의 `.venv` 또는 원클릭 패키지에 내장된 Python을 우선 사용합니다. 프로젝트 Python을 찾지 못했지만 `uv`가 설치되어 있다면 자동으로 `uv run streamlit`으로 전환됩니다.
+같은 로컬 네트워크의 다른 기기에서 WebUI에 접속하도록 허용하려면, 먼저 `set MPT_WEBUI_HOST=0.0.0.0`을 실행한 다음 `webui.bat`을 실행하세요.
 
 ###### MacOS or Linux
 
@@ -239,77 +237,76 @@ pip install -r requirements.txt
 uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
 ```
 
-如果你已经手动激活了虚拟环境，也可以直接执行：
+가상 환경을 이미 수동으로 활성화한 경우 다음을 바로 실행해도 됩니다:
 
 ```shell
 sh webui.sh
 ```
 
-启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
+시작하면 브라우저가 자동으로 열립니다(빈 화면이 뜨면 **Chrome** 또는 **Edge**로 여는 것을 권장합니다)
 
-#### ④ 启动API服务 🚀
+#### ④ API 서비스 시작 🚀
 
 ```shell
 uv run python main.py
 ```
 
-如果你已经手动激活了虚拟环境，也可以直接执行：
+가상 환경을 이미 수동으로 활성화한 경우 다음을 바로 실행해도 됩니다:
 
 ```shell
 python main.py
 ```
 
-## 特别感谢 🙏
+## 특별 감사 🙏
 
-由于该项目的 **部署** 和 **使用**，对于一些小白用户来说，还是 **有一定的门槛**，在此特别感谢
-**录咖（AI智能 多媒体服务平台）** 网站基于该项目，提供的免费`AI视频生成器`服务，可以不用部署，直接在线使用，非常方便。
+이 프로젝트의 **배포**와 **사용**은 일부 초보 사용자에게는 **어느 정도 진입 장벽**이 있습니다. 이에 이 프로젝트를 기반으로 무료 `AI 동영상 생성기` 서비스를 제공하는 **录咖(AI 지능형 멀티미디어 서비스 플랫폼)** 웹사이트에 특별히 감사드립니다. 배포 없이 온라인에서 바로 사용할 수 있어 매우 편리합니다.
 
-- 中文版：https://reccloud.cn
-- 英文版：https://reccloud.com
+- 중국어판: https://reccloud.cn
+- 영어판: https://reccloud.com
 
 ![](docs/reccloud.cn.jpg)
 
-## 感谢赞助 🙏
+## 후원 감사 🙏
 
-感谢佐糖 https://picwish.cn 对该项目的支持和赞助，使得该项目能够持续的更新和维护。
+이 프로젝트에 대한 지원과 후원으로 지속적인 업데이트와 유지보수를 가능하게 해준 佐糖(PicWish) https://picwish.cn 에 감사드립니다.
 
-佐糖专注于**图像处理领域**，提供丰富的**图像处理工具**，将复杂操作极致简化，真正实现让图像处理更简单。
+佐糖(PicWish)은 **이미지 처리 분야**에 특화되어 있으며, 다양한 **이미지 처리 도구**를 제공하여 복잡한 작업을 극도로 단순화함으로써 이미지 처리를 진정으로 더 쉽게 만듭니다.
 
 ![picwish.jpg](docs/picwish.jpg)
 
-启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc 直接在线调试接口，快速体验。
+시작한 후에는 `API 문서` http://127.0.0.1:8080/docs 또는 http://127.0.0.1:8080/redoc 에서 온라인으로 바로 API를 디버깅하며 빠르게 체험할 수 있습니다.
 
-## 语音合成 🗣
+## 음성 합성 🗣
 
-所有支持的声音列表，可以查看：[声音列表](./docs/voice-list.txt)
+지원되는 모든 음성 목록은 다음에서 확인할 수 있습니다: [음성 목록](./docs/voice-list.txt)
 
-2024-04-16 v1.1.2 新增了9种Azure的语音合成声音，需要配置API KEY，该声音合成的更加真实。
+2024-04-16 v1.1.2에서는 Azure 음성 합성 음성 9종이 추가되었습니다. API KEY 설정이 필요하며, 이 음성 합성은 더욱 자연스럽습니다.
 
-## 字幕生成 📜
+## 자막 생성 📜
 
-当前支持2种字幕生成方式：
+현재 2가지 자막 생성 방식을 지원합니다:
 
-- **edge**: 生成`速度快`，性能更好，对电脑配置没有要求，但是质量可能不稳定
-- **whisper**: 生成`速度慢`，性能较差，对电脑配置有一定要求，但是`质量更可靠`。
+- **edge**: 생성 `속도가 빠르고` 성능이 더 좋으며 컴퓨터 사양에 대한 요구가 없지만, 품질이 불안정할 수 있습니다
+- **whisper**: 생성 `속도가 느리고` 성능이 떨어지며 컴퓨터 사양에 대한 일정 수준의 요구가 있지만, `품질이 더 안정적`입니다.
 
-可以修改 `config.toml` 配置文件中的 `subtitle_provider` 进行切换
+`config.toml` 설정 파일의 `subtitle_provider`를 수정하여 전환할 수 있습니다
 
-建议使用 `edge` 模式，如果生成的字幕质量不好，再切换到 `whisper` 模式
+`edge` 모드 사용을 권장하며, 생성된 자막의 품질이 좋지 않으면 `whisper` 모드로 전환하세요
 
-> 注意：
+> 참고:
 
-1. whisper 模式下需要到 HuggingFace 下载一个模型文件，大约 3GB 左右，请确保网络通畅
-2. 如果留空，表示不生成字幕。
+1. whisper 모드에서는 HuggingFace에서 약 3GB 정도의 모델 파일을 다운로드해야 하므로 네트워크가 원활한지 확인하세요
+2. 비워두면 자막을 생성하지 않음을 의미합니다.
 
-> 由于国内无法访问 HuggingFace，可以使用以下方法下载 `whisper-large-v3` 的模型文件
+> 중국 내에서는 HuggingFace에 접속할 수 없으므로, 다음 방법으로 `whisper-large-v3` 모델 파일을 다운로드할 수 있습니다
 
-下载地址：
+다운로드 주소:
 
-- 百度网盘: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
-- 夸克网盘：https://pan.quark.cn/s/3ee3d991d64b
+- 바이두 클라우드: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
+- 콰크 클라우드: https://pan.quark.cn/s/3ee3d991d64b
 
-模型下载后解压，整个目录放到 `.\MoneyPrinterTurbo\models` 里面，
-最终的文件路径应该是这样: `.\MoneyPrinterTurbo\models\whisper-large-v3`
+모델을 다운로드한 후 압축을 풀고, 전체 디렉터리를 `.\MoneyPrinterTurbo\models` 안에 넣으세요.
+최종 파일 경로는 다음과 같아야 합니다: `.\MoneyPrinterTurbo\models\whisper-large-v3`
 
 ```
 MoneyPrinterTurbo  
@@ -322,80 +319,79 @@ MoneyPrinterTurbo
   │          vocabulary.json
 ```
 
-## 背景音乐 🎵
+## 배경음악 🎵
 
-用于视频的背景音乐，位于项目的 `resource/songs` 目录下。
-> 当前项目里面放了一些默认的音乐，来自于 YouTube 视频，如有侵权，请删除。
+동영상에 사용되는 배경음악은 프로젝트의 `resource/songs` 디렉터리에 있습니다.
+> 현재 프로젝트에는 YouTube 동영상에서 가져온 몇 가지 기본 음악이 포함되어 있습니다. 저작권 침해가 있다면 삭제해 주세요.
 
-## 字幕字体 🅰
+## 자막 글꼴 🅰
 
-用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
+동영상 자막 렌더링에 사용되는 글꼴은 프로젝트의 `resource/fonts` 디렉터리에 있으며, 자신의 글꼴을 넣을 수도 있습니다.
 
-## 常见问题 🤔
+## 자주 묻는 질문 🤔
 
 ### ❓RuntimeError: No ffmpeg exe could be found
 
-通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
-但是如果你的环境有问题，无法自动下载，可能会遇到如下错误：
+일반적으로 ffmpeg는 자동으로 다운로드되고 자동으로 감지됩니다.
+그러나 환경에 문제가 있어 자동 다운로드가 안 되는 경우 다음과 같은 오류가 발생할 수 있습니다:
 
 ```
 RuntimeError: No ffmpeg exe could be found.
 Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
 ```
 
-此时你可以从 https://www.gyan.dev/ffmpeg/builds/ 下载ffmpeg，解压后，设置 `ffmpeg_path` 为你的实际安装路径即可。
+이 경우 https://www.gyan.dev/ffmpeg/builds/ 에서 ffmpeg를 다운로드하고 압축을 푼 뒤, `ffmpeg_path`를 본인의 실제 설치 경로로 설정하면 됩니다.
 
 ```toml
 [app]
-# 请根据你的实际路径设置，注意 Windows 路径分隔符为 \\
+# 본인의 실제 경로에 맞게 설정하세요. Windows 경로 구분자는 \\ 임에 주의하세요
 ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 ```
 
-### ❓ImageMagick的安全策略阻止了与临时文件@/tmp/tmpur5hyyto.txt相关的操作
+### ❓ImageMagick의 보안 정책이 임시 파일 @/tmp/tmpur5hyyto.txt 관련 작업을 차단합니다
 
-可以在ImageMagick的配置文件policy.xml中找到这些策略。
-这个文件通常位于 /etc/ImageMagick-`X`/ 或 ImageMagick 安装目录的类似位置。
-修改包含`pattern="@"`的条目，将`rights="none"`更改为`rights="read|write"`以允许对文件的读写操作。
+이러한 정책은 ImageMagick의 설정 파일 policy.xml에서 찾을 수 있습니다.
+이 파일은 일반적으로 /etc/ImageMagick-`X`/ 또는 ImageMagick 설치 디렉터리의 유사한 위치에 있습니다.
+`pattern="@"`를 포함하는 항목을 수정하여, `rights="none"`을 `rights="read|write"`로 변경하면 해당 파일에 대한 읽기/쓰기 작업이 허용됩니다.
 
 ### ❓OSError: [Errno 24] Too many open files
 
-这个问题是由于系统打开文件数限制导致的，可以通过修改系统的文件打开数限制来解决。
+이 문제는 시스템의 열린 파일 수 제한 때문에 발생하며, 시스템의 열린 파일 수 제한을 수정하여 해결할 수 있습니다.
 
-查看当前限制
+현재 제한 확인
 
 ```shell
 ulimit -n
 ```
 
-如果过低，可以调高一些，比如
+너무 낮으면 다음과 같이 좀 더 높일 수 있습니다
 
 ```shell
 ulimit -n 10240
 ```
 
-### ❓Whisper 模型下载失败，出现如下错误
+### ❓Whisper 모델 다운로드에 실패하고 다음과 같은 오류가 발생합니다
 
 LocalEntryNotfoundEror: Cannot find an appropriate cached snapshotfolderfor the specified revision on the local disk and
 outgoing trafic has been disabled.
 To enablerepo look-ups and downloads online, pass 'local files only=False' as input.
 
-或者
+또는
 
 An error occurred while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
 An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the
 specified revision on the local disk. Please check your internet connection and try again.
 Trying to load the model directly from the local cache, if it exists.
 
-解决方法：[点击查看如何从网盘手动下载模型](#%E5%AD%97%E5%B9%95%E7%94%9F%E6%88%90-)
+해결 방법: [클라우드에서 모델을 수동으로 다운로드하는 방법 보기](#%E5%AD%97%E5%B9%95%E7%94%9F%E6%88%90-)
 
-## 反馈建议 📢
+## 피드백 및 제안 📢
 
-- 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues)
-  或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。
+- [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) 또는 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)를 제출할 수 있습니다.
 
-## 许可证 📝
+## 라이선스 📝
 
-点击查看 [`LICENSE`](LICENSE) 文件
+[`LICENSE`](LICENSE) 파일을 클릭하여 확인하세요
 
 ## Star History
 

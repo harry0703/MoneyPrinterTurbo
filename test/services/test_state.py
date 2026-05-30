@@ -45,11 +45,11 @@ class TestRedisState(unittest.TestCase):
 
     def test_get_all_tasks_paginates_across_scan_batches(self):
         """
-        Redis SCAN 分批返回 key 时，分页切片必须按当前批次起始位置计算。
+        Redis SCAN 이 key 를 배치로 나누어 반환할 때, 페이지 슬라이스는 현재 배치의 시작 위치를 기준으로 계산해야 합니다.
 
-        这个用例复现 PR #890 描述的 18 条任务、page_size=10 场景：
-        第一批 10 条，第二批 8 条。旧逻辑第一页会返回空列表，第二页
-        只返回 2 条；修复后第一页返回 10 条，第二页返回剩余 8 条。
+        이 케이스는 PR #890 에서 설명한 18개 작업, page_size=10 시나리오를 재현합니다:
+        첫 번째 배치 10개, 두 번째 배치 8개. 기존 로직에서는 첫 페이지가 빈 목록을 반환하고 두 번째 페이지는
+        2개만 반환했습니다. 수정 후에는 첫 페이지가 10개, 두 번째 페이지가 나머지 8개를 반환합니다.
         """
         state = self._build_state([10, 8])
 
