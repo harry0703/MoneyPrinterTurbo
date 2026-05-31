@@ -71,6 +71,8 @@
     "Font Color": "Subtitle Font Color",
     "Stroke Color": "Subtitle Outline Color",
     "Stroke Width": "Subtitle Outline Width",
+    "Rounded Subtitle Background": "Enable rounded translucent subtitle background",
+    "Rounded Subtitle Background Help": "Disabled by default. When enabled, subtitle backgrounds use a rounded translucent style that better fits the text width.",
     "Generate Video": "Generate Video",
     "Video Script and Subject Cannot Both Be Empty": "Video Subject and Video Script cannot both be empty",
     "Generating Video": "Generating video, please wait...",

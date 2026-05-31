@@ -71,6 +71,8 @@
     "Font Color": "字幕颜色",
     "Stroke Color": "描边颜色",
     "Stroke Width": "描边粗细",
+    "Rounded Subtitle Background": "启用圆角半透明字幕背景",
+    "Rounded Subtitle Background Help": "默认关闭。开启后字幕背景会显示为更贴合文字宽度的圆角半透明样式。",
     "Generate Video": "生成视频",
     "Video Script and Subject Cannot Both Be Empty": "视频主题 和 视频文案，不能同时为空",
     "Generating Video": "正在生成视频，请稍候...",

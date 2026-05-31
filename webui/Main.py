@@ -1084,6 +1084,15 @@ with right_panel:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+        saved_rounded_subtitle_background = config.ui.get(
+            "rounded_subtitle_background", False
+        )
+        params.rounded_subtitle_background = st.checkbox(
+            tr("Rounded Subtitle Background"),
+            value=saved_rounded_subtitle_background,
+            help=tr("Rounded Subtitle Background Help"),
+        )
+        config.ui["rounded_subtitle_background"] = params.rounded_subtitle_background
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels and Pixabay API Keys"))
 

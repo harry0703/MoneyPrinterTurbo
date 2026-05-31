@@ -100,6 +100,7 @@ class VideoParams(BaseModel):
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
+    rounded_subtitle_background: bool = False
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
@@ -123,6 +124,7 @@ class SubtitleRequest(BaseModel):
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
+    rounded_subtitle_background: bool = False
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5

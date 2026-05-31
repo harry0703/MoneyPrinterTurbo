@@ -311,5 +311,29 @@ class TestVideoService(unittest.TestCase):
         except Exception as e:
             self.fail(f"test wrap_text failed: {str(e)}")
 
+    def test_rounded_subtitle_background_clip_has_transparent_corners(self):
+        """
+        圆角字幕背景只在用户显式开启时使用。这里直接验证生成的 RGBA
+        背景具备透明圆角和半透明中心，避免后续改动把圆角效果退化成实心矩形。
+        """
+        clip = vd._rounded_subtitle_background_clip(
+            width=120,
+            height=48,
+            color="#123456",
+            alpha=140,
+            radius=16,
+        )
+        try:
+            frame = clip.get_frame(0)
+            mask = clip.mask.get_frame(0)
+
+            self.assertEqual(frame.shape[0:2], (48, 120))
+            self.assertEqual(tuple(frame[24, 60]), (18, 52, 86))
+            self.assertEqual(mask[0, 0], 0)
+            self.assertGreater(mask[24, 60], 0.5)
+            self.assertLess(mask[24, 60], 0.6)
+        finally:
+            clip.close()
+
 if __name__ == "__main__":
     unittest.main() 
