@@ -130,6 +130,10 @@
     "Pixabay API Key added successfully": "Pixabay API Key 添加成功",
     "Select Pixabay API Key to delete": "选择要删除的 Pixabay API Key",
     "Delete Selected Pixabay API Key": "删除选定的 Pixabay API Key",
-    "Pixabay API Key deleted successfully": "Pixabay API Key 删除成功"
+    "Pixabay API Key deleted successfully": "Pixabay API Key 删除成功",
+    "Rounded Subtitle Background": "圆角字幕背景",
+    "Subtitle Background Opacity": "字幕背景不透明度",
+    "Subtitle Background Corner Radius": "字幕背景圆角半径",
+    "100% keeps the original opaque background": "100% 保持原始不透明背景"
   }
 }

@@ -1084,6 +1084,29 @@ with right_panel:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+
+        # Subtitle background styling (opt-in). Defaults keep the original
+        # solid, fully opaque rectangle so existing output is unchanged.
+        params.subtitle_background_rounded = st.checkbox(
+            tr("Rounded Subtitle Background"),
+            value=config.ui.get("subtitle_background_rounded", False),
+        )
+        config.ui["subtitle_background_rounded"] = params.subtitle_background_rounded
+        bg_cols = st.columns(2)
+        with bg_cols[0]:
+            params.subtitle_background_opacity = st.slider(
+                tr("Subtitle Background Opacity"), 0, 100,
+                int(config.ui.get("subtitle_background_opacity", 100)),
+                help=tr("100% keeps the original opaque background"),
+            )
+            config.ui["subtitle_background_opacity"] = params.subtitle_background_opacity
+        with bg_cols[1]:
+            params.subtitle_background_radius = st.slider(
+                tr("Subtitle Background Corner Radius"), 0, 60,
+                int(config.ui.get("subtitle_background_radius", 20)),
+                disabled=not params.subtitle_background_rounded,
+            )
+            config.ui["subtitle_background_radius"] = params.subtitle_background_radius
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels and Pixabay API Keys"))
 

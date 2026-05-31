@@ -117,6 +117,10 @@
     "Pixabay API Key added successfully": "Chave de API do Pixabay adicionada com sucesso",
     "Select Pixabay API Key to delete": "Selecione a chave de API do Pixabay para excluir",
     "Delete Selected Pixabay API Key": "Excluir chave de API do Pixabay selecionada",
-    "Pixabay API Key deleted successfully": "Chave de API do Pixabay excluída com sucesso"
+    "Pixabay API Key deleted successfully": "Chave de API do Pixabay excluída com sucesso",
+    "Rounded Subtitle Background": "Fundo de legenda arredondado",
+    "Subtitle Background Opacity": "Opacidade do fundo da legenda",
+    "Subtitle Background Corner Radius": "Raio do canto do fundo",
+    "100% keeps the original opaque background": "100% mantém o fundo opaco original"
   }
 }

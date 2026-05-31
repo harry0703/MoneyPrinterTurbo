@@ -117,6 +117,10 @@
     "Pixabay API Key added successfully": "Pixabay-API-Schlüssel erfolgreich hinzugefügt",
     "Select Pixabay API Key to delete": "Wählen Sie den zu löschenden Pixabay-API-Schlüssel aus",
     "Delete Selected Pixabay API Key": "Ausgewählten Pixabay-API-Schlüssel löschen",
-    "Pixabay API Key deleted successfully": "Pixabay-API-Schlüssel erfolgreich gelöscht"
+    "Pixabay API Key deleted successfully": "Pixabay-API-Schlüssel erfolgreich gelöscht",
+    "Rounded Subtitle Background": "Abgerundeter Untertitelhintergrund",
+    "Subtitle Background Opacity": "Deckkraft des Untertitelhintergrunds",
+    "Subtitle Background Corner Radius": "Eckenradius des Untertitelhintergrunds",
+    "100% keeps the original opaque background": "100 % behält den ursprünglichen undurchsichtigen Hintergrund"
   }
 }

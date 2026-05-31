@@ -117,6 +117,10 @@
     "Pixabay API Key added successfully": "Thêm API Key Pixabay thành công",
     "Select Pixabay API Key to delete": "Chọn API Key Pixabay để xóa",
     "Delete Selected Pixabay API Key": "Xóa API Key Pixabay đã chọn",
-    "Pixabay API Key deleted successfully": "Xóa API Key Pixabay thành công"
+    "Pixabay API Key deleted successfully": "Xóa API Key Pixabay thành công",
+    "Rounded Subtitle Background": "Nền phụ đề bo góc",
+    "Subtitle Background Opacity": "Độ mờ nền phụ đề",
+    "Subtitle Background Corner Radius": "Bán kính góc nền phụ đề",
+    "100% keeps the original opaque background": "100% giữ nền mờ đục ban đầu"
   }
 }

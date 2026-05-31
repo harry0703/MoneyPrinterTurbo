@@ -119,6 +119,10 @@
     "Pixabay API Key added successfully": "Pixabay API Anahtarı başarıyla eklendi",
     "Select Pixabay API Key to delete": "Silinecek Pixabay API Anahtarını seçin",
     "Delete Selected Pixabay API Key": "Seçili Pixabay API Anahtarını Sil",
-    "Pixabay API Key deleted successfully": "Pixabay API Anahtarı başarıyla silindi"
+    "Pixabay API Key deleted successfully": "Pixabay API Anahtarı başarıyla silindi",
+    "Rounded Subtitle Background": "Yuvarlatılmış altyazı arka planı",
+    "Subtitle Background Opacity": "Altyazı arka plan opaklığı",
+    "Subtitle Background Corner Radius": "Altyazı arka plan köşe yarıçapı",
+    "100% keeps the original opaque background": "%100 orijinal opak arka planı korur"
   }
 }

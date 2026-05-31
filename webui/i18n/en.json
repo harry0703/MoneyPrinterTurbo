@@ -130,6 +130,10 @@
     "Pixabay API Key added successfully": "Pixabay API Key added successfully",
     "Select Pixabay API Key to delete": "Select Pixabay API Key to delete",
     "Delete Selected Pixabay API Key": "Delete Selected Pixabay API Key",
-    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully"
+    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully",
+    "Rounded Subtitle Background": "Rounded Subtitle Background",
+    "Subtitle Background Opacity": "Subtitle Background Opacity",
+    "Subtitle Background Corner Radius": "Subtitle Background Corner Radius",
+    "100% keeps the original opaque background": "100% keeps the original opaque background"
   }
 }

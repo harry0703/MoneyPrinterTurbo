@@ -100,6 +100,11 @@ class VideoParams(BaseModel):
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
+    # Opt-in subtitle background styling. Defaults preserve the original solid,
+    # fully opaque rectangle so existing output is unchanged.
+    subtitle_background_rounded: Optional[bool] = False
+    subtitle_background_opacity: Optional[int] = 100  # 0-100 (%); 100 = opaque
+    subtitle_background_radius: Optional[int] = 20  # px corner radius when rounded
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
@@ -123,6 +128,9 @@ class SubtitleRequest(BaseModel):
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
+    subtitle_background_rounded: Optional[bool] = False
+    subtitle_background_opacity: Optional[int] = 100
+    subtitle_background_radius: Optional[int] = 20
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5

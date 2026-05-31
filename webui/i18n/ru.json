@@ -100,6 +100,10 @@
     "Hide Log": "Скрыть журнал",
     "Hide Basic Settings": "Скрыть основные настройки\n\nПри скрытии панель основных настроек не будет отображаться на странице.\n\nДля повторного отображения установите `hide_config = false` в `config.toml`",
     "LLM Settings": "**Настройки LLM**",
-    "Video Source Settings": "**Настройки источника видео**"
+    "Video Source Settings": "**Настройки источника видео**",
+    "Rounded Subtitle Background": "Скруглённый фон субтитров",
+    "Subtitle Background Opacity": "Непрозрачность фона субтитров",
+    "Subtitle Background Corner Radius": "Радиус скругления фона",
+    "100% keeps the original opaque background": "100% сохраняет исходный непрозрачный фон"
   }
 }
