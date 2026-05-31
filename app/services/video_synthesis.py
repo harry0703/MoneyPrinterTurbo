@@ -375,7 +375,8 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
             title_animation=ui_config.get("title_animation", "none"),
             title_animation_duration=ui_config.get("title_animation_duration", 0.5),
             title_background_overlay=ui_config.get("title_background_overlay", False),
-            title_overlay_color=ui_config.get("title_overlay_color", "rgba(0,0,0,0.5)")
+            title_overlay_color=ui_config.get("title_overlay_color", "rgba(0,0,0,0.5)"),
+            title_align=ui_config.get("title_align", "center")
         )
         
         # Log title parameters for debugging
@@ -390,6 +391,7 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
         logger.info(f"title_stroke_width: {params.title_stroke_width}")
         logger.info(f"title_position: {params.title_position}")
         logger.info(f"title_margin: {params.title_margin}")
+        logger.info(f"title_align: {params.title_align}")
         logger.info(f"title_animation: {params.title_animation}")
         logger.info(f"=== Title Configuration End ===")
         

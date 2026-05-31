@@ -476,6 +476,7 @@ def preview_title(request: Request, body: dict):
     params.title_margin = body.get('title_margin', 0.05)
     params.title_margin_left = body.get('title_margin_left', 0.05)
     params.title_margin_right = body.get('title_margin_right', 0.05)
+    params.title_align = body.get('title_align', 'center')
     params.title_animation = body.get('title_animation', 'none')
     params.title_animation_duration = body.get('title_animation_duration', 0.5)
     

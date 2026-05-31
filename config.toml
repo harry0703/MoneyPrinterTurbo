@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.22"
+project_version = "2.2.23"
 
 [app]
 video_source = "pexels"
@@ -99,13 +99,13 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "字节跳动要搞芯片了"
+title_text = "C++推理引擎\n秒杀框架"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 102
 title_text_color = "#0000FF"
-title_stroke_color = "#D3D3D3"
-title_stroke_width = 8
+title_stroke_color = "#FFD700"
+title_stroke_width = 7
 title_background_color = "transparent"
 title_position = "top"
 title_margin = 0.18

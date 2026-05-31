@@ -258,7 +258,8 @@ const generateVideo = async () => {
       title_animation: titleSettings.animation,
       title_animation_duration: titleSettings.animationDuration,
       title_background_overlay: titleSettings.backgroundOverlay,
-      title_overlay_color: titleSettings.overlayColor
+      title_overlay_color: titleSettings.overlayColor,
+      title_align: titleSettings.align
     };
 
     if (settingsStore.video.source === 'local' && settingsStore.video.localFiles && settingsStore.video.localFiles.length > 0) {

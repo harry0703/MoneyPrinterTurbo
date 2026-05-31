@@ -153,6 +153,7 @@ class VideoParams(BaseModel):
     title_animation_duration: Optional[float] = 0.5
     title_background_overlay: Optional[bool] = False
     title_overlay_color: Optional[str] = "rgba(0,0,0,0.5)"
+    title_align: Optional[str] = "center"
 
 
 class SubtitleRequest(BaseModel):
