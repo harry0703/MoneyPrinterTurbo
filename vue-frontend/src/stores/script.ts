@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 
 interface Scene {
   id: string;
+  title: string;
   duration: number;
   visual_requirement: string;
   keywords: string;

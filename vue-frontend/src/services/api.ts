@@ -74,6 +74,7 @@ export interface ParseScriptRequest {
 
 export interface Scene {
   id: string;
+  title: string;
   duration: number;
   visual_requirement: string;
   keywords: string;
@@ -86,6 +87,7 @@ export interface Scene {
 export interface ParseScriptResponse {
   status: string;
   scenes: Scene[];
+  video_title?: string;
   evaluation?: any;
 }
 

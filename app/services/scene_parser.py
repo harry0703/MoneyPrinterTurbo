@@ -378,6 +378,96 @@ def extract_keywords_from_script(script: str) -> str:
     return ""
 
 
+def generate_video_title(video_script: str, language: str = None) -> str:
+    """
+    Generate an attractive and surprising video title from the entire video script.
+    
+    Args:
+        video_script: The complete video script text
+        language: Language for the title (e.g., "Chinese", "English")
+    
+    Returns:
+        An attractive and surprising video title (max 16 characters for Chinese)
+    """
+    import app.services.llm as llm_service
+    
+    if not video_script or not video_script.strip():
+        return ""
+    
+    # Build prompt for generating an attractive title
+    if language == "Chinese":
+        prompt = f"""# Role: Video Title Expert
+
+## Goal:
+Generate an attractive and surprising video title from the given video script.
+
+## Constraints:
+1. The title must be within 16 characters (Chinese characters)
+2. The title should be ATTENTION-GRABBING and SURPRISING
+3. Use dramatic, curiosity-inducing, or shocking words when appropriate
+4. Avoid generic, boring titles
+5. The title should make viewers want to click and watch
+6. Respond in Chinese
+
+## Guidelines:
+- Use power words: 竟然、居然、99%、所有人、没想到、震惊、揭秘、惊天、必看
+- Create curiosity gaps: 不知道的秘密、被隐藏的真相、惊人发现
+- Use numbers: 数据、比例、排名
+- Be bold and surprising, not safe
+
+## Video Script:
+{video_script[:500]}
+
+## Output:
+Only output the title, no explanation, no quotes, no markdown. Start directly with the title."""
+
+    else:
+        prompt = f"""# Role: Video Title Expert
+
+## Goal:
+Generate an attractive and surprising video title from the given video script.
+
+## Constraints:
+1. The title should be concise (within 60 characters)
+2. The title should be ATTENTION-GRABBING and SURPRISING
+3. Use dramatic, curiosity-inducing, or shocking words when appropriate
+4. Avoid generic, boring titles
+5. The title should make viewers want to click and watch
+6. Respond in English
+
+## Guidelines:
+- Use power words: SHOCKING, UNBELIEVABLE, 99%, EVERYONE, NEVER, REVEALED, SECRET, MUST-WATCH
+- Create curiosity gaps: Hidden Truth, What They Don't Tell You, Amazing Discovery
+- Use numbers: data, percentages, rankings
+- Be bold and surprising, not safe
+
+## Video Script:
+{video_script[:500]}
+
+## Output:
+Only output the title, no explanation, no quotes, no markdown. Start directly with the title."""
+
+    logger.info(f"Generating attractive video title for script (length: {len(video_script)})")
+    
+    try:
+        title = llm_service._generate_response(prompt)
+        
+        if title and "Error: " not in title:
+            # Clean up the title
+            title = title.strip()
+            # Remove any leading/trailing quotes or markdown
+            title = title.strip('"\'#*')
+            logger.info(f"Generated video title: '{title}'")
+            return title
+        else:
+            logger.warning(f"Failed to generate video title: {title}")
+            return ""
+            
+    except Exception as e:
+        logger.error(f"Exception while generating video title: {str(e)}")
+        return ""
+
+
 def detect_scene_format(script: str) -> Dict[str, Any]:
     """
     Detect if the script is already divided into scenes.
@@ -791,6 +881,25 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     Args:
         script: Script text to parse
         language: Language for the generated content
+    
+    Returns:
+        Dict with keys:
+        - video_title: str - An attractive and surprising video title
+        - scenes: List of scene dictionaries with structure:
+            [
+                {
+                    "id": "...",
+                    "title": "...",
+                    "script": "...",
+                    "duration": 10,
+                    "start_time": 0,
+                    "end_time": 10,
+                    "visual_requirement": "...",
+                    "keywords": "...",
+                    "emotion": "..."
+                },
+                ...
+            ]
     """
     import app.services.llm as llm_service
     
@@ -799,6 +908,10 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     language = normalize_language(language)
     
     logger.info(f"Starting to parse script with LLM, script length: {len(script)}, language: {language}")
+    
+    # Generate an attractive and surprising video title first
+    video_title = generate_video_title(script, language=language)
+    logger.info(f"Generated video title: '{video_title}'")
     
     # Generate multi-scene script using LLM
     # Use script as both subject and script since we want to process the entire script
@@ -1026,7 +1139,10 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     elif len(scenes) < min_scenes:
         logger.warning(f"Found {len(scenes)} scenes, which is less than the recommended minimum of {min_scenes} scenes")
     
-    return scenes
+    return {
+        "video_title": video_title,
+        "scenes": scenes
+    }
 
 
 def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True, language: str = None) -> Dict[str, Any]:
@@ -1058,14 +1174,17 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
     logger.info("Using LLM to parse script for multi-scene construction")
     
     scenes = []
+    video_title = ""
     
     # Step 2: Parse with LLM
     for attempt in range(max_retries):
         try:
-            scenes = parse_script_with_llm(script, language=language)
+            result = parse_script_with_llm(script, language=language)
             
-            if scenes:
-                logger.info(f"LLM parsing attempt {attempt + 1} successful, got {len(scenes)} scenes")
+            if result and "scenes" in result and len(result["scenes"]) > 0:
+                scenes = result["scenes"]
+                video_title = result.get("video_title", "")
+                logger.info(f"LLM parsing attempt {attempt + 1} successful, got {len(scenes)} scenes, video_title: '{video_title}'")
                 break
             else:
                 logger.warning(f"LLM parsing attempt {attempt + 1} returned empty scenes")
@@ -1100,6 +1219,7 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
             return {
                 "status": "success",
                 "scenes": scenes,
+                "video_title": video_title,
                 "evaluation": evaluation
             }
         elif evaluation["auto_reject"]:
@@ -1108,6 +1228,7 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
             return {
                 "status": "manual",
                 "scenes": scenes,
+                "video_title": video_title,
                 "evaluation": evaluation
             }
         else:
@@ -1116,6 +1237,7 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
             return {
                 "status": "manual",
                 "scenes": scenes,
+                "video_title": video_title,
                 "evaluation": evaluation
             }
     else:
@@ -1123,6 +1245,7 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
         return {
             "status": "manual",
             "scenes": scenes,
+            "video_title": video_title,
             "evaluation": evaluation
         }
 
