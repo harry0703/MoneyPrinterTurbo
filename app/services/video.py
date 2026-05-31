@@ -20,7 +20,8 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageFont
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 from app.models import const
 from app.models.schema import (
@@ -573,6 +574,27 @@ def generate_video(
             return "#000000" if params.text_background_color else None
         return params.text_background_color
 
+    def _hex_to_rgb(color):
+        # تحويل لون hex (#RRGGBB) إلى RGB؛ يرجع أسود عند أي قيمة غير صالحة.
+        if isinstance(color, str) and color.startswith("#") and len(color) == 7:
+            try:
+                return (int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16))
+            except ValueError:
+                return (0, 0, 0)
+        return (0, 0, 0)
+
+    def _rounded_bg_clip(width, height, rgb, alpha, radius):
+        # خلفية ترجمة شفافة بزوايا دائرية: نرسم مستطيلاً مستدير الزوايا
+        # على قناة ألفا (RGBA) عبر PIL، ثم نحوّله إلى ImageClip شفاف.
+        img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle(
+            [0, 0, width - 1, height - 1],
+            radius=radius,
+            fill=(rgb[0], rgb[1], rgb[2], alpha),
+        )
+        return ImageClip(np.array(img), transparent=True)
+
     def create_text_clip(subtitle_item):
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
@@ -588,23 +610,56 @@ def generate_video(
         # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
         # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
         # 背景框与文字本身都能完整渲染出来。
-        size = (
-            int(max_width),
-            int(txt_height + vertical_padding + (interline * line_count)),
-        )
+        clip_h = int(txt_height + vertical_padding + (interline * line_count))
+        bg_color = resolve_subtitle_background_color()
 
-        _clip = TextClip(
-            text=wrapped_txt,
-            font=font_path,
-            font_size=params.font_size,
-            color=params.text_fore_color,
-            bg_color=resolve_subtitle_background_color(),
-            stroke_color=params.stroke_color,
-            stroke_width=params.stroke_width,
-            interline=interline,
-            size=size,
-            text_align="center",
-        )
+        if bg_color is None:
+            # بلا خلفية: نُبقي السلوك الأصلي (نص بعرض الإطار الأقصى).
+            _clip = TextClip(
+                text=wrapped_txt,
+                font=font_path,
+                font_size=params.font_size,
+                color=params.text_fore_color,
+                bg_color=None,
+                stroke_color=params.stroke_color,
+                stroke_width=params.stroke_width,
+                interline=interline,
+                size=(int(max_width), clip_h),
+                text_align="center",
+            )
+        else:
+            # خلفية شفافة سوداء خفيفة بزوايا دائرية تُحيط بالنص بإحكام:
+            # 1) نقيس عرض النص الفعلي لنُحكِم الصندوق حوله.
+            try:
+                _font = ImageFont.truetype(font_path, params.font_size)
+                text_w = max(
+                    int(_font.getbbox(line)[2] - _font.getbbox(line)[0])
+                    for line in wrapped_txt.split("\n")
+                )
+            except Exception:
+                text_w = int(max_width)
+            pad_x = int(params.font_size * 0.6)
+            box_w = min(int(max_width), text_w + 2 * pad_x)
+            radius = max(8, int(params.font_size * 0.4))
+            # 2) نص بخلفية شفافة فوق خلفية مستديرة شبه شفافة (ألفا ≈ 55%).
+            _txt = TextClip(
+                text=wrapped_txt,
+                font=font_path,
+                font_size=params.font_size,
+                color=params.text_fore_color,
+                bg_color=None,
+                stroke_color=params.stroke_color,
+                stroke_width=params.stroke_width,
+                interline=interline,
+                size=(box_w, clip_h),
+                text_align="center",
+            )
+            _bg = _rounded_bg_clip(
+                box_w, clip_h, _hex_to_rgb(bg_color), alpha=140, radius=radius
+            )
+            _clip = CompositeVideoClip(
+                [_bg, _txt.with_position("center")], size=(box_w, clip_h)
+            )
         duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
