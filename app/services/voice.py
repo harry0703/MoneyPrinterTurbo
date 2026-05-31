@@ -15,7 +15,7 @@ from xml.sax.saxutils import unescape
 
 import edge_tts
 import requests
-from edge_tts import SubMaker, submaker
+from edge_tts import SubMaker
 from loguru import logger
 from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -1818,7 +1818,6 @@ def gemini_tts(
         SubMaker对象或None
     """
     import base64
-    import json
     import io
     from pydub import AudioSegment
     import google.generativeai as genai
@@ -2047,6 +2046,30 @@ def _build_subtitle_formatter():
     return formatter
 
 
+# 阿拉伯语变音符号和 Tatweel 拉长符在 edge-tts 返回文本中可能出现，
+# 这些字符不影响语义，但会导致脚本文本和字幕 cue 字符串精确匹配失败。
+_ARABIC_DIACRITICS = re.compile("[\u0610-\u061A\u064B-\u065F\u0670\u0640\u06D6-\u06ED]")
+
+
+def _normalize_arabic(text: str) -> str:
+    """统一阿拉伯语常见字母变体，提升字幕 cue 与脚本行的匹配容错率。
+
+    edge-tts 对阿拉伯语可能返回与原脚本不同的字母形态，例如把 أ/إ/آ
+    归一成 ا，或者携带变音符号。这里仅在最后一层匹配兜底中使用，
+    不改变原始字幕文本，避免影响最终展示内容。
+    """
+    text = _ARABIC_DIACRITICS.sub("", text)
+    for src, dst in (
+        ("أإآٱ", "ا"),
+        ("ىئ", "ي"),
+        ("ة", "ه"),
+        ("ؤ", "و"),
+    ):
+        for ch in src:
+            text = text.replace(ch, dst)
+    return text
+
+
 def _match_script_line(script_lines: list[str], current_text: str, sub_index: int) -> str:
     """
     尝试把当前累计的字幕文本，与脚本中的某一条标准断句匹配起来。
@@ -2075,6 +2098,13 @@ def _match_script_line(script_lines: list[str], current_text: str, sub_index: in
     current_text_normalized = re.sub(r"\W+", "", current_text)
     target_line_normalized = re.sub(r"\W+", "", target_line)
     if current_text_normalized == target_line_normalized:
+        return target_line.strip()
+
+    # 最后一层阿拉伯语容错：edge-tts 返回的字母形态、变音符号或 Tatweel
+    # 可能和脚本不同。只在常规匹配失败后归一化比较，非阿拉伯语文本不会受影响。
+    current_ar = re.sub(r"\W+", "", _normalize_arabic(current_text))
+    target_ar = re.sub(r"\W+", "", _normalize_arabic(target_line))
+    if current_ar and current_ar == target_ar:
         return target_line.strip()
 
     return ""

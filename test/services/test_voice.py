@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import unittest
-import os
 import sys
 import tempfile
 import time
@@ -469,6 +468,67 @@ class TestVoiceService(unittest.TestCase):
 
         self.assertEqual(len(sub_items), len(script_lines))
         self.assertIn("1,000 years", sub_items[-1])
+
+    def test_script_split_supports_arabic_punctuation(self):
+        """
+        阿拉伯语脚本常用 ، ؛ ؟ 作为自然断句标点。断句阶段必须识别这些
+        标点，否则 edge-tts cue 的停顿边界和脚本行边界会错位。
+        """
+        text = "مرحبا بالعالم، كيف حالك؟ هذا اختبار؛ يعمل بشكل جيد."
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            [
+                "مرحبا بالعالم",
+                "كيف حالك",
+                "هذا اختبار",
+                "يعمل بشكل جيد",
+            ],
+        )
+
+    def test_match_script_line_normalizes_arabic_letter_forms(self):
+        """
+        edge-tts 可能把阿拉伯语中的不同字母形态归一化，或返回带变音符号、
+        Tatweel 的 cue 文本。匹配时应容错，但最终字幕仍保留原始脚本文案。
+        """
+        script_lines = ["أهلاً وسهلاً بك في المدرسة"]
+
+        matched = vs._match_script_line(
+            script_lines,
+            "اهلا وسهلا بك في المدرسه",
+            0,
+        )
+
+        self.assertEqual(matched, script_lines[0])
+
+    def test_edge_cue_aggregation_handles_arabic_variant_forms(self):
+        """
+        复现阿拉伯语字幕失败的核心路径：脚本包含 أ/ة 等字母形态，edge cue
+        返回 ا/ه 等归一化形态时，聚合仍应生成完整字幕，避免回退 Whisper。
+        """
+        text = "أهلاً وسهلاً بك في المدرسة؟ هذا اختبار رائع، شكراً لك."
+        script_lines = utils.split_string_by_punctuations(text)
+        cue_texts = [
+            "اهلا وسهلا بك في المدرسه",
+            "هذا اختبار رائع",
+            "شكرا لك",
+        ]
+        sub_maker = SimpleNamespace(
+            cues=[
+                SimpleNamespace(
+                    content=cue_text,
+                    start=timedelta(seconds=index),
+                    end=timedelta(seconds=index + 0.8),
+                )
+                for index, cue_text in enumerate(cue_texts)
+            ]
+        )
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(sub_maker, script_lines)
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("أهلاً وسهلاً بك في المدرسة", sub_items[0])
+        self.assertIn("شكراً لك", sub_items[-1])
 
     def test_convert_rate_to_percent_signs_zero_rate(self):
         # Rates near but not exactly 1.0 round to 0 percent. edge-tts rejects
