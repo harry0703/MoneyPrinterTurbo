@@ -49,12 +49,7 @@ def run_preview(voice_name: str, text: str) -> bytes:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
-# ── Video Generation Functions ──
-
-def generate_script(topic: str, duration: str,
-                    language: str, cfg: dict) -> str:
-    """OpenRouter se script generate karo"""
-    
+def generate_script(topic, duration, language, cfg):
     duration_words = {
         "30 seconds": "80-100",
         "1 minute": "150-180",
@@ -62,27 +57,27 @@ def generate_script(topic: str, duration: str,
         "5 minutes": "750-800",
     }
     word_count = duration_words.get(duration, "150-180")
-    
     lang_map = {
         "English": "English",
-        "Urdu": "Urdu (Roman script)",
+        "Urdu": "Urdu",
         "Hindi": "Hindi",
         "Arabic": "Arabic",
         "Chinese": "Chinese",
     }
     lang = lang_map.get(language, "English")
-    
-    prompt = f"""Write a engaging faceless YouTube video script about: {topic}
+    prompt = f"""Write an engaging faceless YouTube video script about: {topic}
 Language: {lang}
 Word count: {word_count} words
 Style: Engaging, informative, conversational
-NO stage directions, NO [Music], NO [Scene], just pure narration text.
-Start directly with a hook. End with a call to action."""
+NO stage directions, NO [Music], NO [Scene], just pure narration.
+Start with a hook. End with a call to action."""
 
     openrouter_key = cfg.get("openrouter_api_key") or \
         os.environ.get("OPENROUTER_API_KEY", "")
     model = cfg.get("model_name") or \
-        "google/gemma-4-26b-a4b-it:free"
+        "mistralai/mistral-7b-instruct:free"
+    base_url = cfg.get("base_url") or \
+        "https://openrouter.ai/api/v1"
 
     headers = {
         "Authorization": f"Bearer {openrouter_key}",
@@ -96,19 +91,17 @@ Start directly with a hook. End with a call to action."""
         "max_tokens": 1000,
     }
     resp = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
+        f"{base_url}/chat/completions",
         headers=headers,
         json=payload,
-        timeout=30
+        timeout=60
     )
     resp.raise_for_status()
     return resp.json()["choices"][0]["message"]["content"]
 
-def generate_voice(script: str, voice: str) -> str:
-    """Edge-TTS se voice file banao"""
+def generate_voice(script, voice):
     with tempfile.NamedTemporaryFile(
-            suffix=".mp3", delete=False,
-            dir="/tmp") as f:
+            suffix=".mp3", delete=False, dir="/tmp") as f:
         voice_path = f.name
     subprocess.run([
         "edge-tts",
@@ -118,12 +111,9 @@ def generate_voice(script: str, voice: str) -> str:
     ], check=True, capture_output=True)
     return voice_path
 
-def fetch_pexels_videos(keyword: str, count: int,
-                         cfg: dict) -> list:
-    """Pexels se video clips fetch karo"""
+def fetch_pexels_videos(keyword, count, cfg):
     pexels_key = cfg.get("pexels_api_key") or \
         os.environ.get("PEXELS_API_KEY", "")
-    
     headers = {"Authorization": pexels_key}
     params = {
         "query": keyword,
@@ -139,72 +129,56 @@ def fetch_pexels_videos(keyword: str, count: int,
     )
     resp.raise_for_status()
     videos = resp.json().get("videos", [])
-    
     urls = []
     for v in videos:
-        files = v.get("video_files", [])
-        # HD file dhundo
-        for f in files:
+        for f in v.get("video_files", []):
             if f.get("quality") in ["hd", "sd"] and \
                f.get("file_type") == "video/mp4":
                 urls.append(f["link"])
                 break
     return urls
 
-def download_video(url: str, idx: int) -> str:
-    """Video download karo"""
+def download_video(url, idx):
     path = f"/tmp/clip_{idx}.mp4"
-    resp = requests.get(url, timeout=30, stream=True)
+    resp = requests.get(url, timeout=60, stream=True)
     with open(path, "wb") as f:
         for chunk in resp.iter_content(chunk_size=8192):
             f.write(chunk)
     return path
 
-def compose_video(clip_paths: list, voice_path: str,
-                  aspect: str, font_size: int,
-                  subtitle_color: str,
-                  position: str, script: str) -> str:
-    """FFmpeg se final video banao"""
-    
+def compose_video(clip_paths, voice_path, aspect,
+                  font_size, subtitle_color, position, script):
     output_path = "/tmp/brainreel_output.mp4"
-    
-    # Aspect ratio
     if "9:16" in aspect:
         width, height = 1080, 1920
     else:
         width, height = 1920, 1080
 
-    # Voice duration nikalo
     result = subprocess.run([
         "ffprobe", "-v", "quiet",
         "-show_entries", "format=duration",
         "-of", "csv=p=0", voice_path
     ], capture_output=True, text=True)
-    
     try:
         total_duration = float(result.stdout.strip())
     except Exception:
         total_duration = 60.0
 
-    # Clips ko scale aur crop karo
     clip_duration = total_duration / max(len(clip_paths), 1)
     scaled_clips = []
-    
     for i, clip in enumerate(clip_paths):
         out = f"/tmp/scaled_{i}.mp4"
         subprocess.run([
-            "ffmpeg", "-y",
-            "-i", clip,
+            "ffmpeg", "-y", "-i", clip,
             "-t", str(clip_duration),
             "-vf",
-            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"scale={width}:{height}:"
+            f"force_original_aspect_ratio=increase,"
             f"crop={width}:{height}",
-            "-c:v", "libx264",
-            "-an", out
+            "-c:v", "libx264", "-an", out
         ], capture_output=True)
         scaled_clips.append(out)
 
-    # Clips concat karo
     concat_list = "/tmp/concat.txt"
     with open(concat_list, "w") as f:
         for clip in scaled_clips:
@@ -213,33 +187,22 @@ def compose_video(clip_paths: list, voice_path: str,
     concat_out = "/tmp/concat_out.mp4"
     subprocess.run([
         "ffmpeg", "-y",
-        "-f", "concat",
-        "-safe", "0",
+        "-f", "concat", "-safe", "0",
         "-i", concat_list,
-        "-c", "copy",
-        concat_out
+        "-c", "copy", concat_out
     ], capture_output=True)
 
-    # Subtitle position
     pos_map = {
-        "Bottom": f"(w-text_w)/2:h-{font_size*3}",
+        "Bottom": f"(w-text_w)/2:h-{font_size * 3}",
         "Center": "(w-text_w)/2:(h-text_h)/2",
         "Top": f"(w-text_w)/2:{font_size}",
     }
-    pos = pos_map.get(position, f"(w-text_w)/2:h-{font_size*3}")
-
-    # Hex color → FFmpeg format
+    pos = pos_map.get(position, f"(w-text_w)/2:h-{font_size * 3}")
     color = subtitle_color.lstrip("#")
-    r, g, b = int(color[0:2], 16), \
-               int(color[2:4], 16), \
-               int(color[4:6], 16)
     ffmpeg_color = f"#{color}"
+    clean_script = re.sub(r"[^\w\s.,!?]", "", script)
+    clean_script = clean_script[:150] + "..."
 
-    # Subtitle ke liye script clean karo
-    clean_script = re.sub(r'[^\w\s.,!?]', '', script)
-    clean_script = clean_script[:200] + "..."
-
-    # Final video — voice + video + subtitle
     subprocess.run([
         "ffmpeg", "-y",
         "-i", concat_out,
@@ -256,7 +219,6 @@ def compose_video(clip_paths: list, voice_path: str,
         f"box=1:boxcolor=black@0.5:boxborderw=5",
         output_path
     ], capture_output=True)
-
     return output_path
 
 video_subject = ""
@@ -506,9 +468,7 @@ if page == "🎬 Generate Video":
                 ["9:16 (Vertical / TikTok)",
                  "16:9 (Horizontal / YouTube)"])
         with col2:
-            video_source = st.selectbox(
-                "Video Source",
-                ["Pexels (Free)", "Pixabay (Free)"])
+            st.selectbox("Video Source", ["Pexels (Free)"])
         st.markdown("**Subtitle Settings**")
         col3, col4 = st.columns(2)
         with col3:
@@ -549,6 +509,16 @@ if page == "🎬 Generate Video":
         generate_btn = st.button(
             "🚀 Generate Video", use_container_width=True)
 
+    # ── Session State Reset Button ──
+    if "gen_step" in st.session_state and \
+            st.session_state.gen_step > 0:
+        if st.button("🔄 Naya Video Banao — Reset"):
+            for key in ["gen_step", "gen_script",
+                        "gen_voice", "gen_clips", "gen_output"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
     if generate_btn:
         if not video_subject and not manual_script:
             st.error("⚠️ Video topic ya script enter karo pehle!")
@@ -563,71 +533,97 @@ if page == "🎬 Generate Video":
             elif not pexels_key:
                 st.error("❌ Pexels API key Settings mein daalo!")
             else:
+                # Session state init
+                if "gen_step" not in st.session_state:
+                    st.session_state.gen_step = 0
+                if "gen_script" not in st.session_state:
+                    st.session_state.gen_script = ""
+                if "gen_voice" not in st.session_state:
+                    st.session_state.gen_voice = ""
+                if "gen_clips" not in st.session_state:
+                    st.session_state.gen_clips = []
+                if "gen_output" not in st.session_state:
+                    st.session_state.gen_output = ""
+
                 try:
-                    # Step 1 — Script
-                    with st.status(
-                            "🎬 Video ban rahi hai...",
-                            expanded=True) as status:
+                    progress = st.progress(0)
+                    status_box = st.empty()
 
-                        st.write("📝 Step 1/4 — Script generate ho rahi hai...")
+                    # Step 1
+                    if st.session_state.gen_step < 1:
+                        status_box.info(
+                            "📝 Step 1/4 — Script generate ho rahi hai...")
                         if manual_script:
-                            final_script = manual_script
+                            st.session_state.gen_script = manual_script
                         else:
-                            final_script = generate_script(
-                                video_subject, video_length,
-                                video_language, cfg)
-                        st.write(f"✅ Script ready! ({len(final_script.split())} words)")
+                            st.session_state.gen_script = \
+                                generate_script(
+                                    video_subject, video_length,
+                                    video_language, cfg)
+                        st.session_state.gen_step = 1
+                    progress.progress(25)
+                    status_box.success(
+                        f"✅ Step 1 Done! Script ready "
+                        f"({len(st.session_state.gen_script.split())} words)")
 
-                        # Step 2 — Voice
-                        st.write("🎙️ Step 2/4 — Voice generate ho rahi hai...")
-                        voice_path = generate_voice(
-                            final_script, selected_voice)
-                        st.write("✅ Voice ready!")
+                    # Step 2
+                    if st.session_state.gen_step < 2:
+                        status_box.info(
+                            "🎙️ Step 2/4 — Voice generate ho rahi hai...")
+                        st.session_state.gen_voice = generate_voice(
+                            st.session_state.gen_script,
+                            selected_voice)
+                        st.session_state.gen_step = 2
+                    progress.progress(50)
+                    status_box.success("✅ Step 2 Done! Voice ready!")
 
-                        # Step 3 — Videos
-                        st.write("🖼️ Step 3/4 — Video clips fetch ho rahe hain...")
+                    # Step 3
+                    if st.session_state.gen_step < 3:
+                        status_box.info(
+                            "🖼️ Step 3/4 — Video clips fetch ho rahe hain...")
                         keyword = video_subject or \
-                            final_script.split()[:3]
-                        if isinstance(keyword, list):
-                            keyword = " ".join(keyword)
+                            " ".join(
+                                st.session_state.gen_script.split()[:3])
                         video_urls = fetch_pexels_videos(
                             keyword, 5, cfg)
                         if not video_urls:
-                            st.warning(
-                                "⚠️ Pexels clips nahi mile — "
-                                "topic change karo!")
-                            status.update(
-                                label="❌ Failed",
-                                state="error")
+                            st.warning("⚠️ Pexels clips nahi mile!")
                             st.stop()
-
                         clip_paths = []
                         for i, url in enumerate(video_urls[:5]):
                             p = download_video(url, i)
                             clip_paths.append(p)
-                        st.write(f"✅ {len(clip_paths)} clips ready!")
+                        st.session_state.gen_clips = clip_paths
+                        st.session_state.gen_step = 3
+                    progress.progress(75)
+                    status_box.success(
+                        f"✅ Step 3 Done! "
+                        f"{len(st.session_state.gen_clips)} clips ready!")
 
-                        # Step 4 — Compose
-                        st.write("🎬 Step 4/4 — Video compose ho rahi hai...")
+                    # Step 4
+                    if st.session_state.gen_step < 4:
+                        status_box.info(
+                            "🎬 Step 4/4 — Video compose ho rahi hai... "
+                            "⏳ 2-3 min lagenge, page mat band karo!")
                         output_path = compose_video(
-                            clip_paths, voice_path,
+                            st.session_state.gen_clips,
+                            st.session_state.gen_voice,
                             video_aspect, font_size,
                             subtitle_color, subtitle_position,
-                            final_script)
-                        st.write("✅ Video ready!")
+                            st.session_state.gen_script)
+                        st.session_state.gen_output = output_path
+                        st.session_state.gen_step = 4
+                    progress.progress(100)
+                    status_box.success("🎉 Video ban gayi!")
 
-                        status.update(
-                            label="🎉 Video Ban Gayi!",
-                            state="complete",
-                            expanded=False)
-
-                    # Script dikao
+                    # Script expander
                     with st.expander("📝 Generated Script dekho"):
-                        st.write(final_script)
+                        st.write(st.session_state.gen_script)
 
-                    # Download button
-                    if os.path.exists(output_path):
-                        with open(output_path, "rb") as f:
+                    # Video + Download
+                    if os.path.exists(st.session_state.gen_output):
+                        with open(
+                                st.session_state.gen_output, "rb") as f:
                             video_bytes = f.read()
                         st.video(video_bytes)
                         st.download_button(
@@ -640,7 +636,10 @@ if page == "🎬 Generate Video":
 
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
-                    st.info("💡 API keys check karo Settings mein!")
+                    st.warning(
+                        "💡 Connecting aaya tha? "
+                        "Dobara Generate dabao — "
+                        "wahan se continue hoga!")
 
 elif page == "⚙️ Settings":
     st.markdown("## ⚙️ Settings")
