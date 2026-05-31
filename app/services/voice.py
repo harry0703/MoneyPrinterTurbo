@@ -9,6 +9,7 @@ import re
 import shutil
 import threading
 import time
+import unicodedata
 from datetime import datetime
 from typing import Union
 from xml.sax.saxutils import unescape
@@ -2064,6 +2065,11 @@ def _match_script_line(script_lines: list[str], current_text: str, sub_index: in
         return ""
 
     target_line = script_lines[sub_index]
+
+    # Normalize to NFC to handle Vietnamese combining diacritical marks.
+    current_text = unicodedata.normalize("NFC", current_text)
+    target_line = unicodedata.normalize("NFC", target_line)
+
     if current_text == target_line:
         return target_line.strip()
 
@@ -2227,9 +2233,31 @@ def create_subtitle(sub_maker: SubMaker, text: str, subtitle_file: str):
 
         if len(sub_items) != len(script_lines):
             logger.warning(
-                f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}"
+                f"sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}, "
+                f"filling remaining {len(script_lines) - len(sub_items)} lines to avoid fallback"
             )
-            return
+            formatter = _build_subtitle_formatter()
+            last_end_100ns = 1000000000
+            if sub_items:
+                last_line = sub_items[-1]
+                time_match = re.findall(r"(\d+:\d+:\d+,\d+)", last_line)
+                if len(time_match) >= 2:
+                    parts = time_match[-1].replace(",", ".").split(":")
+                    last_end_100ns = int(
+                        (int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2]))
+                        * 10000000
+                    )
+            for i in range(len(sub_items), len(script_lines)):
+                start_100ns = last_end_100ns + (i - len(sub_items)) * 30000000
+                end_100ns = start_100ns + 30000000
+                sub_items.append(
+                    formatter(
+                        idx=len(sub_items) + 1,
+                        start_time=start_100ns,
+                        end_time=end_100ns,
+                        sub_text=script_lines[i],
+                    )
+                )
 
         _write_subtitle_items(sub_items, subtitle_file)
     except Exception as e:
