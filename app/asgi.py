@@ -52,9 +52,20 @@ def get_application() -> FastAPI:
 
 app = get_application()
 
-# Configures the CORS middleware for the FastAPI app
+# Configures the CORS middleware for the FastAPI app.
+# Never pair a wildcard origin with allow_credentials=True. By default we only
+# trust same-host browser origins; widen via the CORS_ALLOWED_ORIGINS env var
+# (comma-separated list of full origins, e.g. "https://app.example.com").
 cors_allowed_origins_str = os.getenv("CORS_ALLOWED_ORIGINS", "")
-origins = cors_allowed_origins_str.split(",") if cors_allowed_origins_str else ["*"]
+if cors_allowed_origins_str:
+    origins = [o.strip() for o in cors_allowed_origins_str.split(",") if o.strip()]
+else:
+    origins = [
+        "http://localhost:8501",
+        "http://127.0.0.1:8501",
+        f"http://localhost:{config.listen_port}",
+        f"http://127.0.0.1:{config.listen_port}",
+    ]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -64,8 +75,10 @@ app.add_middleware(
 )
 
 task_dir = utils.task_dir()
+# follow_symlink is intentionally disabled: a symlink placed inside the task
+# directory must not be able to expose files elsewhere on the host.
 app.mount(
-    "/tasks", StaticFiles(directory=task_dir, html=True, follow_symlink=True), name=""
+    "/tasks", StaticFiles(directory=task_dir, html=True), name=""
 )
 
 public_dir = utils.public_dir()

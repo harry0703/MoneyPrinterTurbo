@@ -172,7 +172,10 @@ ui = _cfg.get(
 hostname = socket.gethostname()
 
 log_level = _cfg.get("log_level", "DEBUG")
-listen_host = _cfg.get("listen_host", "0.0.0.0")
+# Bind to loopback by default so the API is not exposed to the LAN/internet.
+# Only set listen_host = "0.0.0.0" in config.toml after enabling api_key auth
+# and putting the service behind a trusted network or reverse proxy.
+listen_host = _cfg.get("listen_host", "127.0.0.1")
 listen_port = _cfg.get("listen_port", 8080)
 project_name = _cfg.get("project_name", "MoneyPrinterTurbo")
 project_description = _cfg.get(

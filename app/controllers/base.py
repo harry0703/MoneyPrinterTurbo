@@ -1,3 +1,4 @@
+import secrets
 from uuid import uuid4
 
 from fastapi import Request
@@ -19,9 +20,25 @@ def get_api_key(request: Request):
 
 
 def verify_token(request: Request):
-    token = get_api_key(request)
-    if token != config.app.get("api_key", ""):
-        request_id = get_task_id(request)
+    # Fail closed: if no api_key is configured, reject all API requests rather
+    # than silently allowing access. Set a non-empty api_key in config.toml
+    # [app] section to enable the HTTP API.
+    configured_key = config.app.get("api_key", "") or ""
+    token = get_api_key(request) or ""
+    request_id = get_task_id(request)
+
+    if not configured_key:
+        raise HttpException(
+            task_id=request_id,
+            status_code=401,
+            message=(
+                "API access is disabled: set a non-empty 'api_key' in the [app] "
+                "section of config.toml and send it in the 'x-api-key' header."
+            ),
+        )
+
+    # Constant-time comparison avoids leaking the key length/contents via timing.
+    if not secrets.compare_digest(token, configured_key):
         request_url = request.url
         user_agent = request.headers.get("user-agent")
         raise HttpException(

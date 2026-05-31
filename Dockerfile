@@ -4,8 +4,10 @@ FROM python:3.11-slim-bullseye
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
 
-# 设置/MoneyPrinterTurbo目录权限为777
-RUN chmod 777 /MoneyPrinterTurbo
+# Create a non-root user to run the app (defense in depth). UID/GID 1000 makes
+# bind-mounted volumes easy to share with the typical host user.
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid 1000 --create-home appuser
 
 ENV PYTHONPATH="/MoneyPrinterTurbo"
 
@@ -55,8 +57,13 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trus
     pip install --no-cache-dir -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/ --trusted-host mirrors.tuna.tsinghua.edu.cn --retries 3 --timeout 60 -r requirements.txt || \
     pip install --no-cache-dir --retries 3 --timeout 60 -r requirements.txt
 
-# Now copy the rest of the codebase into the image
-COPY . .
+# Now copy the rest of the codebase into the image, owned by the non-root user
+COPY --chown=appuser:appuser . .
+
+# Drop root privileges for the running container.
+# NOTE: bind-mounted volumes (./storage, ./config.toml) must be writable by
+# UID 1000. If you hit permission errors, run:  chown -R 1000:1000 ./storage
+USER appuser
 
 # Expose the port the app runs on
 EXPOSE 8501

@@ -6,7 +6,7 @@ from typing import Union
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from loguru import logger
 
 from app.config import config
@@ -33,9 +33,8 @@ from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
 
-# 认证依赖项
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+# 认证依赖项：所有 /api/v1 路由都要求通过 x-api-key 校验。
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
@@ -71,6 +70,37 @@ def _sanitize_upload_filename(filename: str, request_id: str) -> str:
             message=f"{request_id}: invalid filename",
         )
     return normalized_name
+
+
+def _save_upload_within_limit(file: UploadFile, save_path: str, request_id: str) -> None:
+    # Stream the upload to disk in chunks and abort if it exceeds the limit, so
+    # a single (or many) large uploads cannot exhaust memory or fill the disk.
+    max_bytes = int(config.app.get("max_upload_size_mb", 512)) * 1024 * 1024
+    written = 0
+    file.file.seek(0)
+    try:
+        with open(save_path, "wb+") as buffer:
+            while True:
+                chunk = file.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_bytes:
+                    raise HttpException(
+                        task_id=request_id,
+                        status_code=413,
+                        message=f"{request_id}: uploaded file exceeds the "
+                        f"{max_bytes // (1024 * 1024)} MB limit",
+                    )
+                buffer.write(chunk)
+    except HttpException:
+        # Remove the partially written file before re-raising.
+        if os.path.exists(save_path):
+            try:
+                os.remove(save_path)
+            except OSError:
+                pass
+        raise
 
 
 def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: str) -> str:
@@ -267,11 +297,8 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     if safe_filename.lower().endswith("mp3"):
         song_dir = utils.song_dir()
         save_path = os.path.join(song_dir, safe_filename)
-        # save file
-        with open(save_path, "wb+") as buffer:
-            # If the file already exists, it will be overwritten
-            file.file.seek(0)
-            buffer.write(file.file.read())
+        # save file (size-limited, streamed to disk; existing file is overwritten)
+        _save_upload_within_limit(file, save_path, request_id)
         response = {"file": safe_filename}
         return utils.get_response(200, response)
 
@@ -322,11 +349,8 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     if normalized_filename.endswith(allowed_suffixes):
         local_videos_dir = utils.storage_dir("local_videos", create=True)
         save_path = os.path.join(local_videos_dir, safe_filename)
-        # save file
-        with open(save_path, "wb+") as buffer:
-            # If the file already exists, it will be overwritten
-            file.file.seek(0)
-            buffer.write(file.file.read())
+        # save file (size-limited, streamed to disk; existing file is overwritten)
+        _save_upload_within_limit(file, save_path, request_id)
         response = {"file": safe_filename}
         return utils.get_response(200, response)
 
@@ -345,14 +369,36 @@ async def stream_video(request: Request, file_path: str):
 
     length = video_size
     if range_header:
-        range_ = range_header.split("bytes=")[1]
-        start, end = [int(part) if part else None for part in range_.split("-")]
-        if start is None:
-            start = video_size - end
-            end = video_size - 1
-        if end is None:
-            end = video_size - 1
-        length = end - start + 1
+        # The Range header is attacker-controlled; parse defensively and reject
+        # malformed/out-of-bounds ranges with 416 instead of raising a 500.
+        try:
+            if "bytes=" not in range_header:
+                raise ValueError("unsupported range unit")
+            range_ = range_header.split("bytes=")[1].split(",")[0]
+            raw_start, raw_end = range_.split("-")
+            start = int(raw_start) if raw_start else None
+            end = int(raw_end) if raw_end else None
+
+            if start is None:
+                # suffix range: last `end` bytes
+                if end is None or end <= 0:
+                    raise ValueError("invalid suffix range")
+                start = max(0, video_size - end)
+                end = video_size - 1
+            else:
+                if end is None:
+                    end = video_size - 1
+
+            if start < 0 or end < start or start >= video_size:
+                raise ValueError("range out of bounds")
+            end = min(end, video_size - 1)
+            length = end - start + 1
+        except (ValueError, IndexError):
+            return JSONResponse(
+                status_code=416,
+                content=utils.get_response(416, message="invalid Range header"),
+                headers={"Content-Range": f"bytes */{video_size}"},
+            )
 
     def file_iterator(file_path, offset=0, bytes_to_read=None):
         with open(file_path, "rb") as f:

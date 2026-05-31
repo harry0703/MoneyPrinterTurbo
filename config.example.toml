@@ -1,6 +1,15 @@
 [app]
 video_source = "pexels" # "pexels" or "pixabay"
 
+# HTTP API authentication key (REQUIRED to use the FastAPI endpoints).
+# All /api/v1 routes require this value to be sent in the "x-api-key" header.
+# If left empty, the API rejects every request (fail closed). Generate a long
+# random value, e.g.  python -c "import secrets; print(secrets.token_urlsafe(32))"
+api_key = ""
+
+# Maximum size (in MB) accepted by the BGM / video material upload endpoints.
+max_upload_size_mb = 512
+
 # 是否隐藏配置面板
 hide_config = false
 
