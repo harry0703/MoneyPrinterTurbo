@@ -1,6 +1,7 @@
 import json
 import locale
 import os
+from functools import lru_cache
 from pathlib import Path
 import threading
 from typing import Any
@@ -221,7 +222,10 @@ def get_system_locale():
         return "en"
 
 
+@lru_cache(maxsize=None)
 def load_locales(i18n_dir):
+    # Locale files are static at runtime; cache the parsed result to avoid
+    # re-reading every JSON file from disk on each Streamlit rerun.
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:
