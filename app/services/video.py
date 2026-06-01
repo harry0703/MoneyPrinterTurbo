@@ -902,6 +902,12 @@ def create_ken_burns_clip(
         f"[KenBurns] {Path(image_path).name} → {duration:.1f}s, zoom {zoom_ratio:.2f}x"
     )
 
+    # Validate inputs
+    if duration <= 0:
+        raise ValueError(f"duration must be positive, got {duration}")
+    if fps <= 0:
+        raise ValueError(f"fps must be positive, got {fps}")
+
     # Read source dimensions for ffmpeg zoompan target
     with Image.open(image_path) as img:
         sw, sh = img.size
@@ -910,9 +916,11 @@ def create_ken_burns_clip(
     # zoompan: z increases linearly from 1.0 to zoom_ratio over the clip
     zoom_per_frame = (zoom_ratio - 1.0) / max(total_frames, 1)
 
-    # Use zoompan: 'min(zoom+step, zoom_ratio)' ensures a smooth linear ramp
-    # zexpr = zoom expression evaluated per frame
-    zexpr = f"min(zoom+{zoom_per_frame},{zoom_ratio})"
+    # Direction-aware clamping: min() for zoom-in, max() for zoom-out
+    if zoom_ratio >= 1.0:
+        zexpr = f"min(zoom+{zoom_per_frame},{zoom_ratio})"
+    else:
+        zexpr = f"max(zoom+{zoom_per_frame},{zoom_ratio})"
 
     vf = (
         f"zoompan="

@@ -19,7 +19,7 @@ from app.config import config
 # ─── Default Settings ────────────────────────────────────────────────────────
 
 COMFYUI_URL = "http://localhost:8188"
-OUTPUT_DIR = Path("/home/alanpaul1969/ComfyUI/output")
+DEFAULT_OUTPUT_DIR = "./comfyui_output"  # relative to MPT root
 
 # Flux.1-dev model paths (fp8 for VRAM efficiency on shared GPU)
 UNET_NAME = "flux1-dev-fp8.safetensors"
@@ -52,6 +52,9 @@ class ComfyUIImageGen:
         self.seed = seed
         self.timeout = timeout
         self.comfyui_url = config.app.get("comfyui_url", COMFYUI_URL)
+        # Resolve output dir: config > env > default, with path traversal protection
+        raw_dir = config.app.get("comfyui_output_dir", "") or DEFAULT_OUTPUT_DIR
+        self.output_dir = Path(raw_dir).resolve()
 
     # ── Workflow Builder ─────────────────────────────────────────────────
 
@@ -164,24 +167,37 @@ class ComfyUIImageGen:
                     history = json.loads(resp.read())
                 if prompt_id in history:
                     return history[prompt_id]
-            except Exception:
-                pass
+            except (urllib.error.URLError, ConnectionResetError, TimeoutError):
+                # Network/connection issues are retryable
+                logger.debug(f"[ImageGen] ComfyUI not ready, retrying...")
+            except json.JSONDecodeError as e:
+                # Bad response — likely transient, retry once then escalate
+                logger.warning(f"[ImageGen] unparseable ComfyUI response: {e}")
             time.sleep(3)
         raise TimeoutError(
             f"ComfyUI generation timed out after {self.timeout}s for {prompt_id}"
         )
 
     def _get_output_path(self, history: dict, prefix: str) -> Optional[Path]:
-        """Extract the first output image path from history."""
+        """Extract the first output image path from history.
+
+        Uses exact prefix matching to avoid false positives
+        (e.g. prefix='mpt_01' won't match 'mpt_01_extra').
+        """
         for node_data in history.get("outputs", {}).values():
             for img in node_data.get("images", []):
                 fname = img["filename"]
                 subfolder = img.get("subfolder", "")
-                if prefix in fname:
+                # Exact prefix match: filename must start with prefix
+                # and the next char must be _ or end-of-prefix
+                if fname.startswith(prefix) and (
+                    len(fname) == len(prefix)
+                    or fname[len(prefix)] in ("_", ".")
+                ):
                     path = (
-                        OUTPUT_DIR / subfolder / fname
+                        self.output_dir / subfolder / fname
                         if subfolder
-                        else OUTPUT_DIR / fname
+                        else self.output_dir / fname
                     )
                     if path.exists():
                         return path
