@@ -153,6 +153,12 @@ def _generate_response(prompt: str) -> str:
                 model_name = config.app.get("azure_model_name")
                 base_url = config.app.get("azure_base_url", "")
                 api_version = config.app.get("azure_api_version", "2024-02-15-preview")
+            elif llm_provider == "awsbedrock":
+                access_key_id = config.app.get("awsbedrock_access_key_id")
+                secret_access_key = config.app.get("awsbedrock_secret_access_key")
+                region = config.app.get("awsbedrock_region", "us-east-1")
+                model_name = config.app.get("awsbedrock_model_name")
+                base_url = ""
             elif llm_provider == "gemini":
                 api_key = config.app.get("gemini_api_key")
                 model_name = config.app.get("gemini_model_name")
@@ -265,7 +271,7 @@ def _generate_response(prompt: str) -> str:
             elif llm_provider == "litellm":
                 model_name = config.app.get("litellm_model_name")
 
-            if llm_provider not in ["pollinations", "ollama", "litellm"]:  # Skip validation for providers that don't require API key
+            if llm_provider not in ["pollinations", "ollama", "litellm", "awsbedrock"]:  # Skip validation for providers that don't require API key
                 if not api_key:
                     raise ValueError(
                         f"{llm_provider}: api_key is not set, please set it in the config.toml file."
@@ -453,6 +459,42 @@ def _generate_response(prompt: str) -> str:
                     raise Exception(
                         f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                     )
+
+            if llm_provider == "awsbedrock":
+                if not access_key_id:
+                    raise ValueError(
+                        f"{llm_provider}: awsbedrock_access_key_id is not set, please set it in the config.toml file."
+                    )
+                if not secret_access_key:
+                    raise ValueError(
+                        f"{llm_provider}: awsbedrock_secret_access_key is not set, please set it in the config.toml file."
+                    )
+                if not model_name:
+                    raise ValueError(
+                        f"{llm_provider}: awsbedrock_model_name is not set, please set it in the config.toml file."
+                    )
+
+                import boto3
+
+                client = boto3.client(
+                    "bedrock-runtime",
+                    region_name=region,
+                    aws_access_key_id=access_key_id,
+                    aws_secret_access_key=secret_access_key,
+                )
+                response = client.converse(
+                    modelId=model_name,
+                    messages=[{"role": "user", "content": [{"text": prompt}]}],
+                )
+
+                try:
+                    content = response["output"]["message"]["content"][0]["text"]
+                except (KeyError, IndexError, TypeError) as e:
+                    raise ValueError(
+                        f"[{llm_provider}] returned invalid response content"
+                    ) from e
+
+                return _normalize_text_response(content, llm_provider)
 
             if llm_provider == "modelscope":
                 content = ''
