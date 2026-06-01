@@ -127,6 +127,17 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.app.get("openai_base_url", "")
                 if not base_url:
                     base_url = "https://api.openai.com/v1"
+            elif llm_provider == "aihubmix":
+                api_key = config.app.get("aihubmix_api_key")
+                model_name = config.app.get("aihubmix_model_name")
+                base_url = config.app.get("aihubmix_base_url", "")
+                # AIHubMix 兼容 OpenAI Chat Completions 协议。这里使用独立
+                # provider 保存合作方的默认网关和推荐模型，避免把推广链接、
+                # 默认模型等合作配置混进普通 OpenAI provider，影响现有用户。
+                if not base_url:
+                    base_url = "https://aihubmix.com/v1"
+                if not model_name:
+                    model_name = "gpt-5.4-mini"
             elif llm_provider == "oneapi":
                 api_key = config.app.get("oneapi_api_key")
                 model_name = config.app.get("oneapi_model_name")

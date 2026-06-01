@@ -27,24 +27,30 @@ materials, video subtitles, and video background music before synthesizing a hig
 
 </div>
 
+<p align="center">
+  <sub>
+    Thanks to <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> for sponsoring this project. AIHubMix deeply adapts to OpenAI, Claude, Gemini, DeepSeek, Zhipu, Qwen, and other leading models, providing one-stop access to GPT-5.5, deepseek-v4-flash, and 700+ models including free options with production-grade stability.
+  </sub>
+</p>
+
 ## Features 🎯
 
 - [x] Complete **MVC architecture**, **clearly structured** code, easy to maintain, supports both `API`
-  and `Web interface`
+      and `Web interface`
 - [x] Supports **AI-generated** video copy, as well as **customized copy**
 - [x] Supports various **high-definition video** sizes
-    - [x] Portrait 9:16, `1080x1920`
-    - [x] Landscape 16:9, `1920x1080`
+  - [x] Portrait 9:16, `1080x1920`
+  - [x] Landscape 16:9, `1920x1080`
 - [x] Supports **batch video generation**, allowing the creation of multiple videos at once, then selecting the most
-  satisfactory one
+      satisfactory one
 - [x] Supports setting the **duration of video clips**, facilitating adjustments to material switching frequency
 - [x] Supports video copy in both **Chinese** and **English**
 - [x] Supports **multiple voice** synthesis, with **real-time preview** of effects
 - [x] Supports **subtitle generation**, with adjustable `font`, `position`, `color`, `size`, and also
-  supports `subtitle outlining`
+      supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
-- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
+- [x] Supports integration with various models such as **OpenAI**, **AIHubMix**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
 
 ## Video Demos 📺
 
@@ -87,11 +93,11 @@ materials, video subtitles, and video background music before synthesizing a hig
 - Recommended platforms: Windows 10+, macOS 11+, or a mainstream Linux distribution
 - A GPU is not required, but it is recommended if you want faster local transcription, faster video processing, or smoother batch generation
 
-| Item | Minimum | Recommended | Optimal |
-| --- | --- | --- | --- |
-| CPU | 4 cores | 6 to 8 cores | 8+ cores |
-| RAM | 4 GB | 8 GB | 16+ GB |
-| GPU | Not required | 4+ GB VRAM | 8+ GB VRAM |
+| Item | Minimum      | Recommended  | Optimal    |
+| ---- | ------------ | ------------ | ---------- |
+| CPU  | 4 cores      | 6 to 8 cores | 8+ cores   |
+| RAM  | 4 GB         | 8 GB         | 16+ GB     |
+| GPU  | Not required | 4+ GB VRAM   | 8+ GB VRAM |
 
 - If you mainly rely on cloud LLMs, cloud TTS, and online material sources, CPU and RAM matter more than GPU
 - If you use `faster-whisper`, batch generation, or heavier local processing, a GPU will improve throughput noticeably
@@ -104,11 +110,11 @@ materials, video subtitles, and video background music before synthesizing a hig
 - MacOS / Linux users: use `uv sync --frozen` for the primary local setup path
 - If you want a more isolated runtime: use Docker deployment
 
-### Run in Google Colab 
+### Run in Google Colab
+
 Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
 
 ### Windows
 
@@ -139,6 +145,7 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 - Copy the `config.example.toml` file and rename it to `config.toml`
 - Follow the instructions in the `config.toml` file to configure `pexels_api_keys` and `llm_provider`, and according to
   the llm_provider's service provider, set up the corresponding API Key
+- To use the recommended multi-model provider, you can set `llm_provider` to `aihubmix` and enter the corresponding API key.
 
 ### Docker Deployment 🐳
 
@@ -187,6 +194,7 @@ pip install -r requirements.txt
 ```
 
 Notes:
+
 - `pyproject.toml` is now the primary dependency manifest.
 - `uv.lock` pins the resolved environment, so `uv sync --frozen` is recommended by default.
 - `requirements.txt` is kept only for legacy `pip`-based installation.
@@ -330,6 +338,7 @@ MoneyPrinterTurbo
 ## Background Music 🎵
 
 Background music for videos is located in the project's `resource/songs` directory.
+
 > The current project includes some default music from YouTube videos. If there are copyright issues, please delete
 > them.
 

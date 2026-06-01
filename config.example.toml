@@ -31,6 +31,7 @@ pixabay_api_keys = []
 
 # 支持的提供商 (Supported providers):
 #   openai
+#   aihubmix   (OpenAI-compatible AI model gateway)
 #   moonshot    (月之暗面)
 #   azure
 #   qwen        (通义千问)
@@ -73,6 +74,13 @@ openai_base_url = ""
 # Check your available models at https://platform.openai.com/account/limits
 # 如果使用兼容供应商，请填写该平台要求的模型 ID。
 openai_model_name = "gpt-4o-mini"
+
+########## AIHubMix API Key
+# AIHubMix is OpenAI-compatible and can use one API key to access multiple models.
+# Visit https://aihubmix.com/?aff=CEve to register and get your API key.
+aihubmix_api_key = ""
+aihubmix_base_url = "https://aihubmix.com/v1"
+aihubmix_model_name = "gpt-5.4-mini"
 
 ########## Moonshot API Key
 # Visit https://platform.moonshot.cn/console/api-keys to get your API key.
