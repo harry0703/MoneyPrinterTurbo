@@ -134,10 +134,10 @@ qwen_model_name = "qwen-max"
 ########## MiniMax API Key
 # Visit https://platform.minimax.io to get your API key
 # MiniMax API is OpenAI-compatible
-# Available models: MiniMax-M2.7 (default), MiniMax-M2.7-highspeed
+# Available models: MiniMax-M3 (default), MiniMax-M2.7, MiniMax-M2.7-highspeed
 minimax_api_key = ""
 minimax_base_url = "https://api.minimax.io/v1"
-minimax_model_name = "MiniMax-M2.7"
+minimax_model_name = "MiniMax-M3"
 
 ########## Xiaomi MiMo API Key
 # Xiaomi MiMo API is OpenAI-compatible.
