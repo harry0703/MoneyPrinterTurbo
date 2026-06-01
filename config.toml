@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.25"
+project_version = "2.2.26"
 
 [app]
 video_source = "pexels"
@@ -99,7 +99,7 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "C++推理引擎\n秒杀框架"
+title_text = "AI首次独立发现Nginx漏洞"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 102

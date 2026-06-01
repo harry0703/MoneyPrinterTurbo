@@ -27,6 +27,7 @@
     "Scene": "Scene",
     "Delete": "Delete",
     "Copy": "Copy",
+    "Apply": "Apply",
     "Move Up": "Move Up",
     "Move Down": "Move Down",
     "Duration (seconds)": "Duration (seconds)",

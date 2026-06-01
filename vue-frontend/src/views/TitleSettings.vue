@@ -891,7 +891,7 @@ watch([
 watch(() => settingsStore.video.title, (newTitle) => {
   console.log('[TitleSettings] Store title changed, updating form:', newTitle);
   form.titleEnabled = newTitle.enabled;
-  form.titleText = newTitle.text || scriptStore.videoTitle;
+  form.titleText = newTitle.text;
   form.titleDuration = newTitle.duration;
   form.titleFont = newTitle.font;
   form.titleFontSize = newTitle.fontSize;
