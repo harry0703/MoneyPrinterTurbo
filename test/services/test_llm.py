@@ -16,6 +16,33 @@ from app.services import llm
 
 
 class TestScriptPromptOptions(unittest.TestCase):
+    def test_normalize_text_response_removes_think_blocks(self):
+        """
+        reasoning 模型可能返回 `<think>...</think>`。脚本生成链路必须只保留
+        最终正文，避免思考过程进入字幕和配音。
+        """
+        result = llm._normalize_text_response(
+            "<think>\nI should reason here.\n</think>\n测试成功",
+            "minimax",
+        )
+
+        self.assertEqual(result, "测试成功")
+
+    def test_normalize_text_response_rejects_think_only_response(self):
+        """
+        如果模型只返回思考块而没有最终答案，应视为空内容，触发重试或明确错误。
+        """
+        with self.assertRaises(ValueError):
+            llm._normalize_text_response("<think>hidden reasoning</think>", "minimax")
+
+    def test_normalize_text_response_removes_unclosed_think_block(self):
+        """
+        某些网关可能因为截断只返回未闭合的 `<think>`。这种内容同样不能
+        进入最终脚本；如果清理后没有正文，就应该按空响应处理。
+        """
+        with self.assertRaises(ValueError):
+            llm._normalize_text_response("<think>hidden reasoning", "minimax")
+
     def test_build_script_prompt_appends_advanced_requirements(self):
         """
         高级文案要求只作为附加约束，不替换默认系统提示词。
