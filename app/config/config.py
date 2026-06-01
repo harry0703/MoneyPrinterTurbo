@@ -162,6 +162,7 @@ whisper = _cfg.get("whisper", {})
 proxy = _cfg.get("proxy", {})
 azure = _cfg.get("azure", {})
 siliconflow = _cfg.get("siliconflow", {})
+listen = _cfg.get("listen", {})
 ui = _cfg.get(
     "ui",
     {
@@ -172,8 +173,8 @@ ui = _cfg.get(
 hostname = socket.gethostname()
 
 log_level = _cfg.get("log_level", "DEBUG")
-listen_host = _cfg.get("listen_host", "0.0.0.0")
-listen_port = _cfg.get("listen_port", 8080)
+listen_host = _cfg.get("listen_host", listen.get("host", "127.0.0.1"))
+listen_port = _cfg.get("listen_port", listen.get("port", 8080))
 project_name = _cfg.get("project_name", "MoneyPrinterTurbo")
 project_description = _cfg.get(
     "project_description",

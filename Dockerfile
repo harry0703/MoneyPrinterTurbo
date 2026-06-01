@@ -4,8 +4,9 @@ FROM python:3.11-slim-bullseye
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
 
-# 设置/MoneyPrinterTurbo目录权限为777
-RUN chmod 777 /MoneyPrinterTurbo
+RUN groupadd --system mpt && \
+    useradd --system --gid mpt --home-dir /MoneyPrinterTurbo --shell /usr/sbin/nologin mpt && \
+    chown mpt:mpt /MoneyPrinterTurbo
 
 ENV PYTHONPATH="/MoneyPrinterTurbo"
 
@@ -44,9 +45,6 @@ RUN echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources
         done \
     ) && rm -rf /var/lib/apt/lists/*
 
-# Fix security policy for ImageMagick
-RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
-
 # Copy only the requirements.txt first to leverage Docker cache
 COPY requirements.txt ./
 
@@ -56,7 +54,10 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trus
     pip install --no-cache-dir --retries 3 --timeout 60 -r requirements.txt
 
 # Now copy the rest of the codebase into the image
-COPY . .
+COPY --chown=mpt:mpt . .
+RUN mkdir -p /MoneyPrinterTurbo/storage && chown -R mpt:mpt /MoneyPrinterTurbo/storage
+
+USER mpt
 
 # Expose the port the app runs on
 EXPOSE 8501
@@ -69,6 +70,6 @@ CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","
 
 # 2. Run the Docker container using the following command
 ## For Linux or MacOS:
-# docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
+# docker run -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 127.0.0.1:8501:8501 moneyprinterturbo
 ## For Windows:
-# docker run -v ${PWD}/config.toml:/MoneyPrinterTurbo/config.toml -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
+# docker run -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 127.0.0.1:8501:8501 moneyprinterturbo

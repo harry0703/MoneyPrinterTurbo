@@ -1,6 +1,7 @@
 import os
 import random
 import threading
+import time
 from typing import List
 from urllib.parse import urlencode
 
@@ -52,6 +53,49 @@ def get_api_key(cfg_key: str):
         return api_keys[_api_key_counter % len(api_keys)]
 
 
+def _get_material_api_max_retries() -> int:
+    retries = config.app.get("material_api_max_retries", 3)
+    try:
+        return max(1, int(retries))
+    except (TypeError, ValueError):
+        return 3
+
+
+def _get_material_api_retry_backoff_seconds() -> float:
+    backoff = config.app.get("material_api_retry_backoff_seconds", 1.0)
+    try:
+        return max(0.0, float(backoff))
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def _get_json_with_retries(url: str, **request_kwargs):
+    max_retries = _get_material_api_max_retries()
+    backoff_seconds = _get_material_api_retry_backoff_seconds()
+    timeout = request_kwargs.pop("timeout", (30, 60))
+    last_error = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.get(url, timeout=timeout, **request_kwargs)
+            if hasattr(response, "raise_for_status"):
+                response.raise_for_status()
+            return response.json()
+        except requests.RequestException as exc:
+            last_error = exc
+        except ValueError as exc:
+            last_error = exc
+
+        if attempt < max_retries:
+            logger.warning(
+                f"material API request failed, retrying {attempt}/{max_retries}: {last_error}"
+            )
+            if backoff_seconds:
+                time.sleep(backoff_seconds * attempt)
+
+    raise last_error
+
+
 def search_videos_pexels(
     search_term: str,
     minimum_duration: int,
@@ -71,14 +115,13 @@ def search_videos_pexels(
     logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
 
     try:
-        r = requests.get(
+        response = _get_json_with_retries(
             query_url,
             headers=headers,
             proxies=config.proxy,
             verify=_get_tls_verify(),
             timeout=(30, 60),
         )
-        response = r.json()
         video_items = []
         if "videos" not in response:
             logger.error(f"search videos failed: {response}")
@@ -130,10 +173,9 @@ def search_videos_pixabay(
     logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
 
     try:
-        r = requests.get(
+        response = _get_json_with_retries(
             query_url, proxies=config.proxy, verify=_get_tls_verify(), timeout=(30, 60)
         )
-        response = r.json()
         video_items = []
         if "hits" not in response:
             logger.error(f"search videos failed: {response}")
@@ -173,7 +215,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         os.makedirs(save_dir)
 
     url_without_query = video_url.split("?")[0]
-    url_hash = utils.md5(url_without_query)
+    url_hash = utils.stable_hash(url_without_query)
     video_id = f"vid-{url_hash}"
     video_path = f"{save_dir}/{video_id}.mp4"
 
@@ -234,8 +276,8 @@ def download_videos(
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
 ) -> List[str]:
-    valid_video_items = []
-    valid_video_urls = []
+    videos_by_term = {}
+    seen_video_urls = set()
     found_duration = 0.0
     search_videos = search_videos_pexels
     if source == "pixabay":
@@ -249,14 +291,17 @@ def download_videos(
         )
         logger.info(f"found {len(video_items)} videos for '{search_term}'")
 
+        unique_items = []
         for item in video_items:
-            if item.url not in valid_video_urls:
-                valid_video_items.append(item)
-                valid_video_urls.append(item.url)
+            if item.url not in seen_video_urls:
+                unique_items.append(item)
+                seen_video_urls.add(item.url)
                 found_duration += item.duration
+        if unique_items:
+            videos_by_term[search_term] = unique_items
 
     logger.info(
-        f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
+        f"found videos from {len(videos_by_term)} search terms, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
     )
     video_paths = []
 
@@ -266,13 +311,28 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
+    valid_video_items = []
+    ordered_terms = list(videos_by_term.keys())
     concat_mode_value = getattr(video_contact_mode, "value", video_contact_mode)
     if concat_mode_value == VideoConcatMode.random.value:
-        random.shuffle(valid_video_items)
+        for items in videos_by_term.values():
+            random.shuffle(items)
+        random.shuffle(ordered_terms)
+
+    max_items_per_term = max((len(items) for items in videos_by_term.values()), default=0)
+    for item_index in range(max_items_per_term):
+        for search_term in ordered_terms:
+            items = videos_by_term[search_term]
+            if item_index < len(items):
+                valid_video_items.append(items[item_index])
 
     total_duration = 0.0
+    downloaded_urls = set()
     for item in valid_video_items:
         try:
+            if item.url in downloaded_urls:
+                logger.warning(f"skipping duplicate video URL: {item.url}")
+                continue
             logger.info(f"downloading video: {item.url}")
             saved_video_path = save_video(
                 video_url=item.url, save_dir=material_directory
@@ -280,6 +340,7 @@ def download_videos(
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
                 video_paths.append(saved_video_path)
+                downloaded_urls.add(item.url)
                 seconds = min(max_clip_duration, item.duration)
                 total_duration += seconds
                 if total_duration > audio_duration:

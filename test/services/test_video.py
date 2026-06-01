@@ -503,6 +503,25 @@ class TestVideoService(unittest.TestCase):
             clip for clip in ordered_clips if clip.source_file_path == "a.mp4"
         )
         self.assertEqual(first_a_clip, full_clip)
+
+    def test_concat_video_clips_runs_ffmpeg_without_shell_and_with_timeout(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_file = os.path.join(tmp_dir, "combined.mp4")
+            fake_result = types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+            with patch.object(vd, "get_ffmpeg_binary", return_value="/usr/bin/ffmpeg"), patch.object(
+                vd.subprocess, "run", return_value=fake_result
+            ) as run:
+                vd.concat_video_clips_with_ffmpeg(
+                    clip_files=[os.path.join(tmp_dir, "clip-1.mp4")],
+                    output_file=output_file,
+                    threads=1,
+                    output_dir=tmp_dir,
+                )
+
+        self.assertIsInstance(run.call_args.args[0], list)
+        self.assertFalse(run.call_args.kwargs["shell"])
+        self.assertEqual(run.call_args.kwargs["timeout"], vd._FFMPEG_SUBPROCESS_TIMEOUT_SECONDS)
     
     def test_wrap_text(self):
         """test text wrapping function"""

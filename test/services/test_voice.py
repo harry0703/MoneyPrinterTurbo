@@ -41,9 +41,12 @@ class TestVoiceService(unittest.TestCase):
     def setUp(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+        self.original_siliconflow_config = dict(vs.config.siliconflow)
     
     def tearDown(self):
         self.loop.close()
+        vs.config.siliconflow.clear()
+        vs.config.siliconflow.update(self.original_siliconflow_config)
 
     def test_get_all_azure_voices(self):
         voices = vs.get_all_azure_voices()
@@ -623,6 +626,23 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(vs.convert_rate_to_percent(1.5), "+50%")
         self.assertEqual(vs.convert_rate_to_percent(0.8), "-20%")
 
+    def test_siliconflow_tts_uses_timeout_for_each_attempt(self):
+        vs.config.siliconflow["api_key"] = "test-key"
+        fake_response = SimpleNamespace(status_code=500, text="server error")
+
+        with patch.object(vs.requests, "post", return_value=fake_response) as post:
+            result = vs.siliconflow_tts(
+                text="hello",
+                model="FunAudioLLM/CosyVoice2-0.5B",
+                voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                voice_rate=1.0,
+                voice_file=str(Path(temp_dir) / "unused-siliconflow.mp3"),
+            )
+
+        self.assertIsNone(result)
+        self.assertEqual(post.call_count, 3)
+        for call in post.call_args_list:
+            self.assertEqual(call.kwargs["timeout"], vs._DEFAULT_PROVIDER_HTTP_TIMEOUT)
 
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1

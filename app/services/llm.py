@@ -36,6 +36,7 @@ Generate a script for a video, depending on the subject of the video.
 7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
 8. respond in the same language as the video subject.
 """.strip()
+_DEFAULT_LLM_HTTP_TIMEOUT = (30, 120)
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
@@ -280,7 +281,12 @@ def _generate_response(prompt: str) -> str:
                     }
                     
                     # Make the API request
-                    response = requests.post(base_url, headers=headers, json=payload)
+                    response = requests.post(
+                        base_url,
+                        headers=headers,
+                        json=payload,
+                        timeout=_DEFAULT_LLM_HTTP_TIMEOUT,
+                    )
                     response.raise_for_status()
                     result = response.json()
                     
@@ -403,6 +409,7 @@ def _generate_response(prompt: str) -> str:
                             {"role": "user", "content": prompt},
                         ]
                     },
+                    timeout=_DEFAULT_LLM_HTTP_TIMEOUT,
                 )
                 result = response.json()
                 logger.info(result)
@@ -415,7 +422,8 @@ def _generate_response(prompt: str) -> str:
                         "grant_type": "client_credentials",
                         "client_id": api_key,
                         "client_secret": secret_key,
-                    }
+                    },
+                    timeout=_DEFAULT_LLM_HTTP_TIMEOUT,
                 )
                 access_token = response.json().get("access_token")
                 url = f"{base_url}?access_token={access_token}"
@@ -434,7 +442,11 @@ def _generate_response(prompt: str) -> str:
                 headers = {"Content-Type": "application/json"}
 
                 response = requests.request(
-                    "POST", url, headers=headers, data=payload
+                    "POST",
+                    url,
+                    headers=headers,
+                    data=payload,
+                    timeout=_DEFAULT_LLM_HTTP_TIMEOUT,
                 ).json()
                 return _normalize_text_response(response.get("result"), llm_provider)
 

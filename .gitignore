@@ -33,4 +33,5 @@ debug/
 debug_*.py
 test_*.py
 !test/services/test_*.py
+!test/controllers/test_*.py
 streamlit.log

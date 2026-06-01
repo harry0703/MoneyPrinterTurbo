@@ -2,6 +2,7 @@ import glob
 import os
 import pathlib
 import shutil
+from contextlib import suppress
 from typing import Union
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
@@ -33,9 +34,7 @@ from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
 
-# 认证依赖项
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
@@ -44,6 +43,8 @@ _redis_db = config.app.get("redis_db", 0)
 _redis_password = config.app.get("redis_password", None)
 _max_concurrent_tasks = config.app.get("max_concurrent_tasks", 5)
 _max_queued_tasks = config.app.get("max_queued_tasks", 100)
+_max_upload_file_size_mb = config.app.get("max_upload_file_size_mb", 200)
+_max_upload_file_size_bytes = int(_max_upload_file_size_mb) * 1024 * 1024
 
 redis_url = f"redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}"
 # 根据配置选择合适的任务管理器
@@ -86,6 +87,39 @@ def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: 
             status_code=404 if str(exc) == "file does not exist" else 403,
             message=f"{request_id}: invalid file path",
         )
+
+
+def _write_upload_file_with_limit(
+    upload_file: UploadFile,
+    save_path: str,
+    max_bytes: int,
+    request_id: str,
+    chunk_size: int = 1024 * 1024,
+) -> None:
+    bytes_written = 0
+    upload_file.file.seek(0)
+    try:
+        with open(save_path, "wb+") as buffer:
+            while True:
+                chunk = upload_file.file.read(chunk_size)
+                if not chunk:
+                    break
+                bytes_written += len(chunk)
+                if bytes_written > max_bytes:
+                    raise HttpException(
+                        task_id=request_id,
+                        status_code=413,
+                        message=(
+                            f"{request_id}: uploaded file exceeds "
+                            f"{max_bytes} bytes"
+                        ),
+                    )
+                buffer.write(chunk)
+    except Exception:
+        with suppress(FileNotFoundError):
+            os.remove(save_path)
+        raise
+
 
 def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) -> str:
     if not isinstance(file, str):
@@ -264,14 +298,15 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
     safe_filename = _sanitize_upload_filename(file.filename, request_id)
     # check file ext
-    if safe_filename.lower().endswith("mp3"):
+    if pathlib.Path(safe_filename).suffix.lower() == ".mp3":
         song_dir = utils.song_dir()
         save_path = os.path.join(song_dir, safe_filename)
-        # save file
-        with open(save_path, "wb+") as buffer:
-            # If the file already exists, it will be overwritten
-            file.file.seek(0)
-            buffer.write(file.file.read())
+        _write_upload_file_with_limit(
+            upload_file=file,
+            save_path=save_path,
+            max_bytes=_max_upload_file_size_bytes,
+            request_id=request_id,
+        )
         response = {"file": safe_filename}
         return utils.get_response(200, response)
 
@@ -322,11 +357,12 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     if normalized_filename.endswith(allowed_suffixes):
         local_videos_dir = utils.storage_dir("local_videos", create=True)
         save_path = os.path.join(local_videos_dir, safe_filename)
-        # save file
-        with open(save_path, "wb+") as buffer:
-            # If the file already exists, it will be overwritten
-            file.file.seek(0)
-            buffer.write(file.file.read())
+        _write_upload_file_with_limit(
+            upload_file=file,
+            save_path=save_path,
+            max_bytes=_max_upload_file_size_bytes,
+            request_id=request_id,
+        )
         response = {"file": safe_filename}
         return utils.get_response(200, response)
 
