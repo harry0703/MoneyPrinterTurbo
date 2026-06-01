@@ -46,6 +46,7 @@ pixabay_api_keys = []
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 #   litellm     (100+ providers via LiteLLM gateway)
+#   awsbedrock  (AWS Bedrock, native Converse API)
 llm_provider = "openai"
 
 ########## Pollinations AI Settings
@@ -179,6 +180,27 @@ modelscope_model_name = "Qwen/Qwen3-32B"
 #           "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
 #           "gemini/gemini-2.5-flash", "ollama/llama3"
 litellm_model_name = "openai/gpt-4o-mini"
+
+########## AWS Bedrock
+# Uses the native Bedrock Runtime Converse API (not OpenAI-compatible).
+# Create an IAM user/role with `bedrock:InvokeModel` permission and request
+# access to the desired foundation models in the Bedrock console first.
+# Docs: https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
+awsbedrock_access_key_id = ""
+awsbedrock_secret_access_key = ""
+awsbedrock_region = "us-east-1"
+# Model id in Bedrock format. Full list of supported model ids:
+# https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
+# Examples:
+#   "anthropic.claude-sonnet-4-6"
+#   "us.anthropic.claude-sonnet-4-6"  (cross-region inference profile)
+#   "anthropic.claude-haiku-4-5-20251001-v1:0"
+#   "amazon.nova-pro-v1:0"
+#   "meta.llama3-3-70b-instruct-v1:0"
+#   "mistral.mistral-large-2402-v1:0"
+# Note: some newer models can only be invoked via an inference profile id
+# (the "us." / "eu." / "apac." prefixed form).
+awsbedrock_model_name = "anthropic.claude-haiku-4-5-20251001-v1:0"
 
 # Subtitle Provider, "edge" or "whisper"
 # If empty, the subtitle will not be generated

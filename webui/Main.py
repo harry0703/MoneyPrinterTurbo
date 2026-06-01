@@ -252,6 +252,7 @@ if not config.app.get("hide_config", False):
                 ("AIHubMix（推荐）", "aihubmix"),
                 ("Moonshot", "moonshot"),
                 ("Azure", "azure"),
+                ("AWS Bedrock", "awsbedrock"),
                 ("Qwen", "qwen"),
                 ("DeepSeek", "deepseek"),
                 ("ModelScope", "modelscope"),
@@ -497,6 +498,25 @@ if not config.app.get("hide_config", False):
                             - **Model Name**: LiteLLM format — `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, `gemini/gemini-2.5-flash`. See [full provider list](https://docs.litellm.ai/docs/providers)
                             """
 
+            if llm_provider == "awsbedrock":
+                if not llm_model_name:
+                    llm_model_name = "anthropic.claude-haiku-4-5-20251001-v1:0"
+                with llm_helper:
+                    tips = """
+                            ##### AWS Bedrock Configuration
+                            > Uses the native Bedrock Converse API. Request model access in the AWS console and prepare IAM credentials with the `bedrock:InvokeModel` permission.
+                            - **Access Key ID / Secret Access Key**: your AWS IAM credentials
+                            - **Region**: region where the model is available, e.g. us-east-1
+                            - **Model Name**: Bedrock model id. See the [full model id list](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html). Examples:
+                                - `anthropic.claude-sonnet-4-6`
+                                - `us.anthropic.claude-sonnet-4-6` (cross-region inference profile)
+                                - `anthropic.claude-haiku-4-5-20251001-v1:0`
+                                - `amazon.nova-pro-v1:0`
+                                - `meta.llama3-1-70b-instruct-v1:0`
+                                - `mistral.mistral-large-2407-v1:0`
+                            > Note: some newer models can only be invoked via an inference profile id (the `us.` / `eu.` / `apac.` prefixed form).
+                            """
+
             if tips and config.ui["language"] == "zh":
                 # AIHubMix 自身就是 OpenAI-compatible 聚合平台；用户主动选择
                 # 该 provider 时，再显示 DeepSeek/Moonshot 的通用推荐会造成
@@ -507,12 +527,16 @@ if not config.app.get("hide_config", False):
                     )
                 st.info(tips)
 
-            st_llm_api_key = st.text_input(
-                tr("API Key"), value=llm_api_key, type="password"
-            )
-            st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
+            if llm_provider == "awsbedrock":
+                st_llm_api_key = ""
+                st_llm_base_url = ""
+            else:
+                st_llm_api_key = st.text_input(
+                    tr("API Key"), value=llm_api_key, type="password"
+                )
+                st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
             st_llm_model_name = ""
-            if llm_provider != "ernie":
+            if llm_provider not in ["ernie", "awsbedrock"]:
                 st_llm_model_name = st.text_input(
                     tr("Model Name"),
                     value=llm_model_name,
@@ -541,6 +565,34 @@ if not config.app.get("hide_config", False):
                 )
                 if st_llm_account_id:
                     config.app[f"{llm_provider}_account_id"] = st_llm_account_id
+
+            if llm_provider == "awsbedrock":
+                st_aws_access_key_id = st.text_input(
+                    tr("AWS Access Key ID"),
+                    value=config.app.get("awsbedrock_access_key_id", ""),
+                )
+                st_aws_secret_access_key = st.text_input(
+                    tr("AWS Secret Access Key"),
+                    value=config.app.get("awsbedrock_secret_access_key", ""),
+                    type="password",
+                )
+                st_aws_model_name = st.text_input(
+                    tr("Model Name"),
+                    value=llm_model_name,
+                    key="awsbedrock_model_name_input",
+                )
+                st_aws_region = st.text_input(
+                    tr("AWS Region"),
+                    value=config.app.get("awsbedrock_region", "") or "us-east-1",
+                )
+                if st_aws_access_key_id:
+                    config.app["awsbedrock_access_key_id"] = st_aws_access_key_id
+                if st_aws_secret_access_key:
+                    config.app["awsbedrock_secret_access_key"] = st_aws_secret_access_key
+                if st_aws_model_name:
+                    config.app["awsbedrock_model_name"] = st_aws_model_name
+                if st_aws_region:
+                    config.app["awsbedrock_region"] = st_aws_region
 
         # 右侧面板 - API 密钥设置
         with right_config_panel:
