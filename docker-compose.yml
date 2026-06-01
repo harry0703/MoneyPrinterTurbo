@@ -1,4 +1,7 @@
 x-common-volumes: &common-volumes
+  # Create config.toml from config.example.toml and set [app].api_key before
+  # using the API service. config.toml is gitignored and persists on the host.
+  - ./config.toml:/MoneyPrinterTurbo/config.toml
   - mpt-storage:/MoneyPrinterTurbo/storage
 
 services:

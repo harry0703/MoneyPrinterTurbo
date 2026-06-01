@@ -8,6 +8,10 @@ port = 8080
 [app]
 video_source = "pexels" # "pexels" or "pixabay"
 
+# API key required by /api/v1/* endpoints. Generate a strong random value in
+# config.toml before enabling the API service; do not reuse provider API keys.
+api_key = ""
+
 # 是否隐藏配置面板
 hide_config = false
 
