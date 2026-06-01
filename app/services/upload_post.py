@@ -4,6 +4,8 @@ Upload-Post API integration for cross-posting videos to TikTok and Instagram.
 Docs: https://docs.upload-post.com
 """
 import os
+from typing import Optional
+
 import requests
 from loguru import logger
 from app.config import config
@@ -31,7 +33,7 @@ class UploadPostService:
         self,
         video_path: str,
         title: str,
-        platforms: list = None,
+        platforms: Optional[list] = None,
         privacy_level: str = "PUBLIC_TO_EVERYONE"
     ) -> dict:
         """
@@ -132,7 +134,7 @@ class UploadPostService:
 upload_post_service = UploadPostService()
 
 
-def cross_post_video(video_path: str, title: str, platforms: list = None) -> dict:
+def cross_post_video(video_path: str, title: str, platforms: Optional[list] = None) -> dict:
     """
     Convenience function to cross-post a video.
     
