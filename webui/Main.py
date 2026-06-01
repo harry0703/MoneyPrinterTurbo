@@ -24,6 +24,7 @@ from app.models.schema import (
 )
 from app.services import llm, voice
 from app.services import task as tm
+from app.services import voice_clone as vc
 from app.utils import utils
 
 st.set_page_config(
@@ -751,6 +752,7 @@ with middle_panel:
             ("siliconflow", "SiliconFlow TTS"),
             ("gemini-tts", "Google Gemini TTS"),
             ("mimo-tts", "Xiaomi MiMo TTS"),
+            ("voice-clone", tr("Voice Clone") + " 🎙️"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -783,6 +785,12 @@ with middle_panel:
         elif selected_tts_server == "mimo-tts":
             # 获取 Xiaomi MiMo TTS 的预置音色列表
             filtered_voices = voice.get_mimo_voices()
+        elif selected_tts_server == "voice-clone":
+            # 获取声纹克隆音色列表
+            cloned_voices = vc.voice_clone_manager.list_voices()
+            filtered_voices = [
+                f"clone:{v.voice_id}-Female" for v in cloned_voices
+            ]
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -951,6 +959,163 @@ with middle_panel:
             )
 
             config.app["mimo_api_key"] = mimo_api_key
+
+        # Voice Clone form — shown when voice-clone TTS server is selected
+        if selected_tts_server == "voice-clone":
+            st.markdown("---")
+            st.subheader("🎙️ " + tr("Voice Clone"))
+
+            # Check if voice clone engine is configured
+            clone_engine = vc.get_voice_clone_engine()
+            if clone_engine is None:
+                st.warning(
+                    tr(
+                        "Voice clone engine is not configured. "
+                        "Set 'voice_clone_engine' and 'voice_clone_api_url' in config.toml, "
+                        "then restart the webui. See config.example.toml for details."
+                    )
+                )
+            else:
+                engine_ok = False
+                with st.spinner(tr("Checking voice clone engine status...")):
+                    engine_ok = clone_engine.health_check()
+
+                if engine_ok:
+                    st.success(
+                        tr("Voice clone engine is connected") + f" ✅"
+                    )
+                else:
+                    st.error(
+                        tr("Cannot connect to voice clone engine. Please ensure the service is running.")
+                        + f" ({config.app.get('voice_clone_api_url', '')})"
+                    )
+
+                # Create new voice clone
+                with st.expander(tr("Create New Voice Clone"), expanded=False):
+                    clone_name = st.text_input(
+                        tr("Voice Name"),
+                        placeholder=tr("e.g., my-voice"),
+                        key="clone_name_input",
+                    )
+                    clone_prompt_text = st.text_area(
+                        tr("Reference Text"),
+                        placeholder=tr(
+                            "Type exactly what is spoken in the reference audio, e.g., 你好，这是我的声音样本"
+                        ),
+                        key="clone_prompt_text_input",
+                        height=80,
+                    )
+                    clone_prompt_lang = st.selectbox(
+                        tr("Reference Language"),
+                        options=["zh", "en"],
+                        format_func=lambda x: "中文" if x == "zh" else "English",
+                        key="clone_prompt_lang_select",
+                    )
+                    clone_audio_file = st.file_uploader(
+                        tr("Reference Audio"),
+                        type=["wav", "mp3", "m4a", "ogg", "flac"],
+                        accept_multiple_files=False,
+                        key="clone_audio_uploader",
+                        help=tr(
+                            "Upload a short audio clip (3-15 seconds) of a clear voice. "
+                            "The content should match the reference text above."
+                        ),
+                    )
+                    if clone_audio_file:
+                        st.audio(clone_audio_file, format="audio/wav")
+
+                    if st.button(tr("Clone Voice"), type="primary", key="clone_voice_btn"):
+                        if not clone_name.strip():
+                            st.error(tr("Please enter a voice name"))
+                        elif not clone_prompt_text.strip():
+                            st.error(tr("Please enter the reference text"))
+                        elif not clone_audio_file:
+                            st.error(tr("Please upload a reference audio file"))
+                        else:
+                            with st.spinner(tr("Cloning voice... This may take a minute.")):
+                                try:
+                                    audio_bytes = clone_audio_file.read()
+                                    voice_obj = vc.voice_clone_manager.save_voice(
+                                        name=clone_name.strip(),
+                                        audio_bytes=audio_bytes,
+                                        prompt_text=clone_prompt_text.strip(),
+                                        prompt_lang=clone_prompt_lang,
+                                        engine=config.app.get("voice_clone_engine", "gpt_sovits"),
+                                    )
+                                    st.success(
+                                        tr("Voice cloned successfully!")
+                                        + f" (ID: {voice_obj.voice_id})"
+                                    )
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"{tr('Failed to clone voice')}: {str(e)}")
+
+                # Preview section for existing cloned voices
+                cloned_voices = vc.voice_clone_manager.list_voices()
+                if cloned_voices:
+                    st.markdown("---")
+                    st.subheader(tr("Preview Cloned Voice"))
+
+                    voice_options = {
+                        f"clone:{v.voice_id}": v.name
+                        for v in cloned_voices
+                    }
+                    selected_clone_voice = st.selectbox(
+                        tr("Select Cloned Voice to Preview"),
+                        options=list(voice_options.keys()),
+                        format_func=lambda x: voice_options.get(x, x),
+                        key="clone_preview_select",
+                    )
+
+                    if selected_clone_voice:
+                        clone_voice_id = vc.parse_voice_clone_id(selected_clone_voice)
+                        clone_voice = vc.voice_clone_manager.get_voice(clone_voice_id)
+
+                        if clone_voice:
+                            st.caption(
+                                f"📝 {tr('Reference Text')}: _{clone_voice.prompt_text}_"
+                            )
+                            st.caption(
+                                f"🌐 {tr('Language')}: {clone_voice.prompt_lang}  |  "
+                                f"⚙️ {tr('Engine')}: {clone_voice.engine}"
+                            )
+
+                            preview_text = st.text_input(
+                                tr("Preview Text"),
+                                value=tr("你好，这是我的AI克隆声音，听起来很自然。"),
+                                key="clone_preview_text",
+                            )
+
+                            col1, col2 = st.columns([1, 1])
+                            with col1:
+                                if st.button(tr("Preview"), key="clone_preview_btn"):
+                                    with st.spinner(tr("Synthesizing preview...")):
+                                        preview_dir = os.path.join(
+                                            vc.voice_clone_manager.storage_dir,
+                                            clone_voice_id,
+                                        )
+                                        os.makedirs(preview_dir, exist_ok=True)
+                                        preview_file = os.path.join(
+                                            preview_dir, "preview.mp3"
+                                        )
+                                        result = vc.synthesize_cloned_voice(
+                                            text=preview_text.strip(),
+                                            voice_id=clone_voice_id,
+                                            voice_file=preview_file,
+                                            speed=1.0,
+                                        )
+                                        if result and os.path.exists(preview_file):
+                                            st.audio(preview_file, format="audio/mp3")
+                                        else:
+                                            st.error(tr("Preview failed. Check engine connection."))
+                            with col2:
+                                if st.button(tr("Delete Voice"), key="clone_delete_btn", type="secondary"):
+                                    vc.voice_clone_manager.delete_voice(clone_voice_id)
+                                    st.success(tr("Voice deleted"))
+                                    st.rerun()
+                else:
+                    if clone_engine and engine_ok:
+                        st.info(tr("No cloned voices yet. Create one above!"))
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),

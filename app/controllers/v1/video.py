@@ -27,10 +27,14 @@ from app.models.schema import (
     TaskResponse,
     TaskVideoRequest,
     VideoMaterialUploadResponse,
-    VideoMaterialRetrieveResponse
+    VideoMaterialRetrieveResponse,
+    VoiceCloneCreateResponse,
+    VoiceCloneListResponse,
+    VoiceClonePreviewResponse,
 )
 from app.services import state as sm
 from app.services import task as tm
+from app.services import voice_clone as vc
 from app.utils import file_security, utils
 
 # 认证依赖项
@@ -398,3 +402,222 @@ async def download_video(request: Request, file_path: str):
         filename=f"{filename}{extension}",
         media_type=f"video/{extension[1:]}",
     )
+
+
+###############################################################################
+# Voice Clone endpoints
+###############################################################################
+
+
+@router.post(
+    "/voice_clone",
+    response_model=VoiceCloneCreateResponse,
+    summary="Create a cloned voice from a short reference audio",
+)
+def create_voice_clone(
+    request: Request,
+    name: str = Query(..., description="Human-readable name for this voice"),
+    prompt_text: str = Query(..., description="Transcript of what the reference audio says"),
+    prompt_lang: str = Query("zh", description="Language of the reference audio (zh/en)"),
+    audio_file: UploadFile = File(..., description="Reference audio file (WAV/MP3, 3-15 seconds)"),
+):
+    """上传一段几秒钟的参考音频，创建一个 AI 音色克隆。
+
+    参考音频建议:
+    - 时长 3-15 秒
+    - 清晰的人声，无背景噪音
+    - 与 prompt_text 内容一致
+    """
+    request_id = base.get_task_id(request)
+
+    # Validate file extension
+    allowed_exts = (".wav", ".mp3", ".m4a", ".ogg", ".flac")
+    safe_filename = _sanitize_upload_filename(audio_file.filename, request_id)
+    if not safe_filename.lower().endswith(allowed_exts):
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: Only audio files are allowed ({', '.join(allowed_exts)})",
+        )
+
+    # Validate prompt_text
+    if not prompt_text.strip():
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: prompt_text is required",
+        )
+
+    # Check engine availability
+    engine = vc.get_voice_clone_engine()
+    if engine is None:
+        raise HttpException(
+            task_id=request_id,
+            status_code=503,
+            message=(
+                f"{request_id}: Voice clone engine is not configured. "
+                "Set 'voice_clone_engine' and 'voice_clone_api_url' in config.toml."
+            ),
+        )
+
+    try:
+        audio_bytes = audio_file.file.read()
+        voice = vc.voice_clone_manager.save_voice(
+            name=name.strip(),
+            audio_bytes=audio_bytes,
+            prompt_text=prompt_text.strip(),
+            prompt_lang=prompt_lang.strip(),
+            engine=config.app.get("voice_clone_engine", "gpt_sovits"),
+        )
+        logger.success(f"Voice clone created: {voice.voice_id} ({voice.name})")
+        return utils.get_response(200, voice.to_dict())
+
+    except ValueError as e:
+        raise HttpException(
+            task_id=request_id, status_code=400, message=f"{request_id}: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to create voice clone: {str(e)}")
+        raise HttpException(
+            task_id=request_id,
+            status_code=500,
+            message=f"{request_id}: Failed to create voice clone: {str(e)}",
+        )
+
+
+@router.get(
+    "/voice_clone",
+    response_model=VoiceCloneListResponse,
+    summary="List all saved cloned voices",
+)
+def list_voice_clones(request: Request):
+    """获取所有已保存的克隆音色列表。"""
+    voices = vc.voice_clone_manager.list_voices()
+    return utils.get_response(
+        200, {"voices": [v.to_dict() for v in voices]}
+    )
+
+
+@router.delete(
+    "/voice_clone/{voice_id}",
+    response_model=VoiceCloneListResponse,
+    summary="Delete a saved cloned voice",
+)
+def delete_voice_clone(
+    request: Request,
+    voice_id: str = Path(..., description="Voice ID to delete"),
+):
+    """删除一个已保存的克隆音色。"""
+    request_id = base.get_task_id(request)
+    if not vc.voice_clone_manager.get_voice(voice_id):
+        raise HttpException(
+            task_id=request_id,
+            status_code=404,
+            message=f"{request_id}: voice not found: {voice_id}",
+        )
+    vc.voice_clone_manager.delete_voice(voice_id)
+    logger.success(f"Voice clone deleted: {voice_id}")
+    return utils.get_response(200, {"voice_id": voice_id})
+
+
+@router.post(
+    "/voice_clone/{voice_id}/preview",
+    response_model=VoiceClonePreviewResponse,
+    summary="Preview TTS with a cloned voice",
+)
+def preview_voice_clone(
+    request: Request,
+    voice_id: str = Path(..., description="Voice ID"),
+    text: str = Query("你好，这是我的AI克隆声音。", description="Text to synthesize for preview"),
+):
+    """使用克隆的音色合成一段试听音频。"""
+    request_id = base.get_task_id(request)
+
+    voice = vc.voice_clone_manager.get_voice(voice_id)
+    if voice is None:
+        raise HttpException(
+            task_id=request_id,
+            status_code=404,
+            message=f"{request_id}: voice not found: {voice_id}",
+        )
+
+    preview_dir = os.path.join(vc.voice_clone_manager.storage_dir, voice_id)
+    preview_file = os.path.join(preview_dir, "preview.mp3")
+
+    audio_bytes = vc.synthesize_cloned_voice(
+        text=text.strip(),
+        voice_id=voice_id,
+        voice_file=preview_file,
+        speed=1.0,
+    )
+
+    if audio_bytes is None:
+        raise HttpException(
+            task_id=request_id,
+            status_code=500,
+            message=f"{request_id}: Voice clone synthesis failed",
+        )
+
+    # Return the audio file
+    return FileResponse(
+        path=preview_file,
+        media_type="audio/mpeg",
+        filename="preview.mp3",
+    )
+
+
+@router.get(
+    "/voice_clone/{voice_id}/preview",
+    response_model=VoiceClonePreviewResponse,
+    summary="Get preview audio for a cloned voice",
+)
+def get_voice_clone_preview(
+    request: Request,
+    voice_id: str = Path(..., description="Voice ID"),
+):
+    """获取克隆音色的试听音频文件。"""
+    request_id = base.get_task_id(request)
+
+    voice = vc.voice_clone_manager.get_voice(voice_id)
+    if voice is None:
+        raise HttpException(
+            task_id=request_id,
+            status_code=404,
+            message=f"{request_id}: voice not found: {voice_id}",
+        )
+
+    preview_file = os.path.join(vc.voice_clone_manager.storage_dir, voice_id, "preview.mp3")
+    if not os.path.isfile(preview_file):
+        raise HttpException(
+            task_id=request_id,
+            status_code=404,
+            message=f"{request_id}: preview audio not found. Generate it first with POST.",
+        )
+
+    return FileResponse(
+        path=preview_file,
+        media_type="audio/mpeg",
+        filename="preview.mp3",
+    )
+
+
+@router.get(
+    "/voice_clone/voices",
+    response_model=VoiceCloneListResponse,
+    summary="List all cloned voices (for dropdown use)",
+)
+def get_voice_clone_voice_list(request: Request):
+    """获取克隆音色的简化列表，用于前端下拉框。"""
+    voices = vc.voice_clone_manager.list_voices()
+    voice_list = []
+    for v in voices:
+        voice_list.append(
+            {
+                "voice_id": v.voice_id,
+                "name": v.name,
+                "display_name": f"clone:{v.voice_id}-Female",
+                "prompt_lang": v.prompt_lang,
+                "engine": v.engine,
+            }
+        )
+    return utils.get_response(200, {"voices": voice_list})
