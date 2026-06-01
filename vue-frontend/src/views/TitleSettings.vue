@@ -835,6 +835,13 @@ const saveConfig = async () => {
   }
 };
 
+// Watch for changes to scriptStore.videoTitle
+watch(() => scriptStore.videoTitle, (newTitle) => {
+  if (newTitle) {
+    form.titleText = newTitle;
+  }
+});
+
 const copyFromScenePanel = () => {
   if (scriptStore.videoTitle) {
     form.titleText = scriptStore.videoTitle;
@@ -889,9 +896,8 @@ watch([
 });
 
 watch(() => settingsStore.video.title, (newTitle) => {
-  console.log('[TitleSettings] Store title changed, updating form:', newTitle);
   form.titleEnabled = newTitle.enabled;
-  form.titleText = newTitle.text;
+  form.titleText = newTitle.text || '';
   form.titleDuration = newTitle.duration;
   form.titleFont = newTitle.font;
   form.titleFontSize = newTitle.fontSize;
@@ -917,7 +923,8 @@ onMounted(async () => {
 });
 
 defineExpose({
-  form
+  form,
+  copyFromScenePanel
 });
 </script>
 

@@ -84,12 +84,7 @@
         
         <!-- Title Text -->
         <div class="form-item">
-          <div class="label-row">
-            <label class="form-label" v-html="parseLabelMarkdown(t('Title Text'))"></label>
-            <el-button size="small" type="text" @click="applyTitleToSettings" :disabled="!form.videoTitle">
-              {{ t('Apply') }}
-            </el-button>
-          </div>
+          <label class="form-label" v-html="parseLabelMarkdown(t('Title Text'))"></label>
           <el-input
             v-model="form.videoTitle"
             :placeholder="t('Enter title text')"
@@ -180,7 +175,6 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useScriptStore } from '../stores/script';
 import { useI18nStore } from '../stores/i18n';
-import { useSettingsStore } from '../stores/settings';
 import { ElMessage } from 'element-plus';
 import { VideoCamera } from '@element-plus/icons-vue';
 import { parseLabelMarkdown } from '../utils/markdownParser';
@@ -189,7 +183,6 @@ import api from '../services/api';
 
 const scriptStore = useScriptStore();
 const i18nStore = useI18nStore();
-const settingsStore = useSettingsStore();
 const t = i18nStore.t;
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -271,13 +264,6 @@ const moveSceneDown = (index: number) => {
     newScenes[index] = newScenes[index + 1];
     newScenes[index + 1] = temp;
     scriptStore.updateScenes(newScenes);
-  }
-};
-
-const applyTitleToSettings = () => {
-  if (form.videoTitle) {
-    settingsStore.updateTitleSetting('text', form.videoTitle);
-    ElMessage.success(t('Title applied to settings'));
   }
 };
 
@@ -754,16 +740,16 @@ defineExpose({
   opacity: 0.9;
 }
 
-.label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.form-label {
+  font-size: 14px;
+  margin-bottom: 4px;
+  margin-top: 0;
+  padding: 0;
 }
 
-/* 卡片布局样式 */
-.main-card {
-  margin-bottom: 20px;
+.form-input {
+  width: 100%;
+  margin-top: 0;
 }
 
 .scene-card-container {
