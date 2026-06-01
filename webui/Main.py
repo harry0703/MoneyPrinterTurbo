@@ -45,6 +45,63 @@ streamlit_style = """
 <style>
 h1 {
     padding-top: 0 !important;
+    margin-bottom: 0.5rem !important;
+}
+.stContainer {
+    gap: 1rem;
+}
+[data-testid="stVerticalBlock"] {
+    gap: 0.75rem;
+}
+.stCheckbox > label {
+    font-weight: 500;
+}
+.stSelectbox > label,
+.stSlider > label,
+.stTextInput > label,
+.stFileUploader > label {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+[data-testid="stFileUploadDropzone"] {
+    border: 2px dashed #e0e0e0;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    transition: all 0.3s ease;
+}
+[data-testid="stFileUploadDropzone"]:hover {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #e8edf5 0%, #d5dce8 100%);
+}
+.stButton > button {
+    width: 100%;
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    transition: all 0.3s ease;
+}
+.stButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+div[data-testid="stExpander"] {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+div[data-testid="stExpander"] > details > summary {
+    font-weight: 500;
+}
+hr {
+    margin: 1.5rem 0;
+    border: none;
+    border-top: 1px solid #e0e0e0;
+}
+.stRadio > div {
+    display: flex;
+    gap: 1rem;
+}
+.stRadio > label {
+    font-weight: 500;
 }
 </style>
 """
@@ -732,27 +789,13 @@ with middle_panel:
         )
 
         # 视频转场模式
-        video_transition_modes = [
-            (tr("None"), VideoTransitionMode.none.value),
-            (tr("Shuffle"), VideoTransitionMode.shuffle.value),
-            (tr("FadeIn"), VideoTransitionMode.fade_in.value),
-            (tr("FadeOut"), VideoTransitionMode.fade_out.value),
-            (tr("SlideIn"), VideoTransitionMode.slide_in.value),
-            (tr("SlideOut"), VideoTransitionMode.slide_out.value),
-        ]
-        selected_index = st.selectbox(
-            tr("Video Transition Mode"),
-            options=range(len(video_transition_modes)),
-            format_func=lambda x: video_transition_modes[x][0],
-            index=0,
-        )
-        params.video_transition_mode = VideoTransitionMode(
-            video_transition_modes[selected_index][1]
-        )
-
         video_aspect_ratios = [
-            (tr("Portrait"), VideoAspect.portrait.value),
-            (tr("Landscape"), VideoAspect.landscape.value),
+            ("竖屏 9:16 (抖音/快手)", VideoAspect.portrait_9_16.value),
+            ("横屏 16:9 (YouTube/B站)", VideoAspect.landscape_16_9.value),
+            ("正方形 1:1 (Instagram)", VideoAspect.square_1_1.value),
+            ("竖屏 3:4 (小红书)", VideoAspect.portrait_3_4.value),
+            ("横屏 4:3 (传统电视)", VideoAspect.landscape_4_3.value),
+            ("横屏 21:9 (宽屏电影)", VideoAspect.landscape_21_9.value),
         ]
         selected_index = st.selectbox(
             tr("Video Ratio"),
@@ -764,15 +807,6 @@ with middle_panel:
             ],  # The label is displayed to the user
         )
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
-
-        params.video_clip_duration = st.selectbox(
-            tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], index=1
-        )
-        params.video_count = st.selectbox(
-            tr("Number of Videos Generated Simultaneously"),
-            options=[1, 2, 3, 4, 5],
-            index=0,
-        )
         
         video_quality_options = [
             (tr("Low"), "low"),
@@ -791,7 +825,46 @@ with middle_panel:
         params.video_quality = video_quality_options[selected_index][1]
         config.ui["video_quality"] = params.video_quality
         
-        with st.expander(tr("Advanced Video Quality Settings"), expanded=False):
+        with st.expander(tr("Advanced Video Settings"), expanded=False):
+            st.write(tr("Video Transition Mode"))
+            video_transition_modes = [
+                (tr("None"), VideoTransitionMode.none.value),
+                (tr("Shuffle"), VideoTransitionMode.shuffle.value),
+                (tr("FadeIn"), VideoTransitionMode.fade_in.value),
+                (tr("FadeOut"), VideoTransitionMode.fade_out.value),
+                (tr("SlideIn"), VideoTransitionMode.slide_in.value),
+                (tr("SlideOut"), VideoTransitionMode.slide_out.value),
+            ]
+            selected_index = st.selectbox(
+                "",
+                options=range(len(video_transition_modes)),
+                format_func=lambda x: video_transition_modes[x][0],
+                index=0,
+                label_visibility="collapsed"
+            )
+            params.video_transition_mode = VideoTransitionMode(
+                video_transition_modes[selected_index][1]
+            )
+            
+            st.write(tr("Clip Duration"))
+            params.video_clip_duration = st.selectbox(
+                "",
+                options=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+                index=1,
+                label_visibility="collapsed"
+            )
+            
+            st.write(tr("Number of Videos Generated Simultaneously"))
+            params.video_count = st.selectbox(
+                "",
+                options=[1, 2, 3, 4, 5],
+                index=0,
+                label_visibility="collapsed"
+            )
+            
+            st.divider()
+            
+            st.write(tr("Advanced Video Quality Settings"))
             custom_video_bitrate = st.text_input(
                 tr("Custom Video Bitrate (e.g., 10M)"),
                 value=config.ui.get("video_bitrate", ""),
@@ -1070,16 +1143,17 @@ with middle_panel:
         params.bgm_type = bgm_options[selected_index][1]
 
         # Show or hide components based on the selection
-        if params.bgm_type == "custom":
-            custom_bgm_file = st.text_input(
-                tr("Custom Background Music File"), key="custom_bgm_file_input"
-            )
-            if custom_bgm_file:
-                # 这里不直接用 os.path.exists 判断，因为用户常见输入是
-                # output000.mp3，这个文件名需要由服务层映射到 resource/songs
-                # 目录后再校验。服务层会统一限制目录和文件类型，避免任意路径读取。
-                params.bgm_file = custom_bgm_file.strip()
-                # st.write(f":red[已选择自定义背景音乐]：**{custom_bgm_file}**")
+    if params.bgm_type == "custom":
+        custom_bgm_file_types = ["mp3", "wav", "m4a", "aac", "flac", "ogg"]
+        uploaded_bgm_file = st.file_uploader(
+            tr("Upload Custom Background Music"),
+            type=custom_bgm_file_types + [file_type.upper() for file_type in custom_bgm_file_types],
+            accept_multiple_files=False,
+            key="custom_bgm_file_uploader",
+        )
+        if uploaded_bgm_file:
+            st.audio(uploaded_bgm_file, format="audio/mp3")
+            st.info(tr("Custom background music uploaded successfully"))
         params.bgm_volume = st.selectbox(
             tr("Background Music Volume"),
             options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
@@ -1164,6 +1238,174 @@ with right_panel:
             help=tr("Rounded Subtitle Background Help"),
         )
         config.ui["rounded_subtitle_background"] = params.rounded_subtitle_background
+        
+        # Subtitle animations
+        subtitle_animations = [
+            (tr("None"), "none"),
+            (tr("Fade In/Out"), "fade"),
+            (tr("Slide Up"), "slide_up"),
+            (tr("Slide Down"), "slide_down"),
+            (tr("Slide Left"), "slide_left"),
+            (tr("Slide Right"), "slide_right"),
+            (tr("Pop In"), "pop"),
+        ]
+        saved_subtitle_animation = config.ui.get("subtitle_animation", "fade")
+        saved_animation_index = 0
+        for i, (_, anim_value) in enumerate(subtitle_animations):
+            if anim_value == saved_subtitle_animation:
+                saved_animation_index = i
+                break
+        selected_index = st.selectbox(
+            tr("Subtitle Animation"),
+            index=saved_animation_index,
+            options=range(len(subtitle_animations)),
+            format_func=lambda x: subtitle_animations[x][0],
+        )
+        params.subtitle_animation = subtitle_animations[selected_index][1]
+        config.ui["subtitle_animation"] = params.subtitle_animation
+        
+        # Subtitle preview
+        st.write(tr("Subtitle Preview"))
+        bg_color = "rgba(0,0,0,0.5)" if params.rounded_subtitle_background else "transparent"
+        border_radius = "10px" if params.rounded_subtitle_background else "0"
+        
+        # Calculate actual video resolution based on aspect
+        aspect = VideoAspect(params.video_aspect)
+        actual_width, actual_height = aspect.to_resolution()
+        
+        # Determine preview size - use fixed width for consistency
+        max_preview_width = 320
+        preview_width = min(max_preview_width, max_preview_width)
+        preview_height = int(preview_width * actual_height / actual_width)
+        
+        # Determine subtitle position
+        top_position = "auto"
+        bottom_position = "10px"
+        center_position = "auto"
+        custom_pct = getattr(params, "custom_position", 70.0)
+        
+        if params.subtitle_position == "top":
+            top_position = "10px"
+            bottom_position = "auto"
+        elif params.subtitle_position == "center":
+            top_position = "50%"
+            bottom_position = "auto"
+            center_position = "-50%"
+        elif params.subtitle_position == "custom":
+            top_position = f"{custom_pct}%"
+            bottom_position = "auto"
+        
+        # Get font from params
+        font_name = params.font_name if params.font_name else "MicrosoftYaHeiBold.ttc"
+        
+        # Calculate font size proportionally to preview size
+        # Original font size is for 1080p, scale it down for preview
+        preview_font_size = int(params.font_size * preview_width / actual_width * 1.2)
+        
+        preview_html = f"""
+        <div style="
+            position: relative;
+            width: {preview_width}px;
+            height: {preview_height}px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            border-radius: 8px;
+            overflow: hidden;
+        ">
+            <div style="
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                background-image: url('https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=beautiful%20natural%20landscape&image_size=square_hd');
+                background-size: cover;
+                background-position: center;
+                opacity: 0.4;
+            "></div>
+            <div style="
+                position: absolute;
+                bottom: 5px;
+                right: 5px;
+                color: white;
+                font-size: 10px;
+                background: rgba(0,0,0,0.5);
+                padding: 2px 6px;
+                border-radius: 4px;
+            ">{actual_width}x{actual_height}</div>
+            <div style="
+                position: absolute;
+                width: 100%;
+                display: flex;
+                justify-content: center;
+                top: {top_position};
+                bottom: {bottom_position};
+                transform: translateY({center_position});
+                padding: 0 5%;
+                box-sizing: border-box;
+            ">
+                <span style="
+                    color: {params.text_fore_color};
+                    font-size: {preview_font_size}px;
+                    font-weight: bold;
+                    text-shadow: 
+                        -{params.stroke_width}px -{params.stroke_width}px 0 {params.stroke_color},
+                        {params.stroke_width}px -{params.stroke_width}px 0 {params.stroke_color},
+                        -{params.stroke_width}px {params.stroke_width}px 0 {params.stroke_color},
+                        {params.stroke_width}px {params.stroke_width}px 0 {params.stroke_color};
+                    background-color: {bg_color};
+                    padding: {max(2, preview_font_size//6)}px {max(6, preview_font_size//3)}px;
+                    border-radius: {border_radius};
+                    white-space: nowrap;
+                    max-width: 100%;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    line-height: 1.2;
+                    animation: subtitle_{params.subtitle_animation} 2s ease-in-out infinite;
+                ">
+                    这是中文字幕预览
+                </span>
+            </div>
+        </div>
+        <style>
+            @keyframes subtitle_none {{
+                0%, 100% {{ opacity: 1; transform: none; }}
+            }}
+            @keyframes subtitle_fade {{
+                0%, 100% {{ opacity: 0.3; }}
+                50% {{ opacity: 1; }}
+            }}
+            @keyframes subtitle_slide_up {{
+                0% {{ opacity: 0; transform: translateY(20px); }}
+                20%, 80% {{ opacity: 1; transform: translateY(0); }}
+                100% {{ opacity: 0; transform: translateY(-20px); }}
+            }}
+            @keyframes subtitle_slide_down {{
+                0% {{ opacity: 0; transform: translateY(-20px); }}
+                20%, 80% {{ opacity: 1; transform: translateY(0); }}
+                100% {{ opacity: 0; transform: translateY(20px); }}
+            }}
+            @keyframes subtitle_slide_left {{
+                0% {{ opacity: 0; transform: translateX(30px); }}
+                20%, 80% {{ opacity: 1; transform: translateX(0); }}
+                100% {{ opacity: 0; transform: translateX(-30px); }}
+            }}
+            @keyframes subtitle_slide_right {{
+                0% {{ opacity: 0; transform: translateX(-30px); }}
+                20%, 80% {{ opacity: 1; transform: translateX(0); }}
+                100% {{ opacity: 0; transform: translateX(30px); }}
+            }}
+            @keyframes subtitle_pop {{
+                0% {{ opacity: 0; transform: scale(0.5); }}
+                20% {{ opacity: 1; transform: scale(1.1); }}
+                30%, 80% {{ opacity: 1; transform: scale(1); }}
+                100% {{ opacity: 0; transform: scale(0.8); }}
+            }}
+        </style>
+        """
+        st.components.v1.html(preview_html, height=preview_height + 40)
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels and Pixabay API Keys"))
 
@@ -1262,6 +1504,17 @@ if start_button:
         with open(custom_audio_path, "wb") as f:
             f.write(uploaded_audio_file.getbuffer())
         params.custom_audio_file = custom_audio_path
+    
+    # Handle custom background music upload
+    if params.bgm_type == "custom" and "custom_bgm_file_uploader" in st.session_state and st.session_state.custom_bgm_file_uploader:
+        task_dir = utils.task_dir(task_id)
+        uploaded_bgm_file = st.session_state.custom_bgm_file_uploader
+        _, bgm_ext = os.path.splitext(os.path.basename(uploaded_bgm_file.name))
+        bgm_ext = bgm_ext.lower() or ".mp3"
+        custom_bgm_path = os.path.join(task_dir, f"custom-bgm{bgm_ext}")
+        with open(custom_bgm_path, "wb") as f:
+            f.write(uploaded_bgm_file.getbuffer())
+        params.custom_bgm_file = custom_bgm_path
 
     if uploaded_files:
         local_videos_dir = utils.storage_dir("local_videos", create=True)

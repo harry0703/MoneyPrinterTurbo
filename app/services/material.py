@@ -55,10 +55,16 @@ def get_api_key(cfg_key: str):
 def search_videos_pexels(
     search_term: str,
     minimum_duration: int,
-    video_aspect: VideoAspect = VideoAspect.portrait,
+    video_aspect: VideoAspect = VideoAspect.portrait_9_16,
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
-    video_orientation = aspect.name
+    # 根据视频比例确定方向
+    if aspect in [VideoAspect.portrait_9_16, VideoAspect.portrait_3_4]:
+        video_orientation = "portrait"
+    elif aspect in [VideoAspect.landscape_16_9, VideoAspect.landscape_4_3, VideoAspect.landscape_21_9]:
+        video_orientation = "landscape"
+    else:  # square
+        video_orientation = "square"
     video_width, video_height = aspect.to_resolution()
     api_key = get_api_key("pexels_api_keys")
     headers = {
@@ -112,7 +118,7 @@ def search_videos_pexels(
 def search_videos_pixabay(
     search_term: str,
     minimum_duration: int,
-    video_aspect: VideoAspect = VideoAspect.portrait,
+    video_aspect: VideoAspect = VideoAspect.portrait_9_16,
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
 
@@ -229,7 +235,7 @@ def download_videos(
     task_id: str,
     search_terms: List[str],
     source: str = "pexels",
-    video_aspect: VideoAspect = VideoAspect.portrait,
+    video_aspect: VideoAspect = VideoAspect.portrait_9_16,
     video_contact_mode: VideoConcatMode = VideoConcatMode.random,
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,

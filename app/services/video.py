@@ -348,7 +348,11 @@ def _resolve_bgm_file_path(song_dir: str, bgm_file: str) -> str:
             raise ValueError(str(root_dir_exc)) from song_dir_exc
 
 
-def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
+def get_bgm_file(bgm_type: str = "random", bgm_file: str = "", custom_bgm_file: str = ""):
+    if custom_bgm_file and os.path.exists(custom_bgm_file):
+        logger.info(f"using custom background music file: {custom_bgm_file}")
+        return custom_bgm_file
+
     if not bgm_type:
         return ""
 
@@ -388,7 +392,7 @@ def combine_videos(
     combined_video_path: str,
     video_paths: List[str],
     audio_file: str,
-    video_aspect: VideoAspect = VideoAspect.portrait,
+    video_aspect: VideoAspect = VideoAspect.portrait_9_16,
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     video_transition_mode: VideoTransitionMode = None,
     max_clip_duration: int = 5,
@@ -808,22 +812,121 @@ def generate_video(
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
+        
+        # Get subtitle position
         if params.subtitle_position == "bottom":
-            _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
+            final_y = video_height * 0.95 - _clip.h
         elif params.subtitle_position == "top":
-            _clip = _clip.with_position(("center", video_height * 0.05))
+            final_y = video_height * 0.05
         elif params.subtitle_position == "custom":
             # Ensure the subtitle is fully within the screen bounds
             margin = 10  # Additional margin, in pixels
             max_y = video_height - _clip.h - margin
             min_y = margin
             custom_y = (video_height - _clip.h) * (params.custom_position / 100)
-            custom_y = max(
+            final_y = max(
                 min_y, min(custom_y, max_y)
             )  # Constrain the y value within the valid range
-            _clip = _clip.with_position(("center", custom_y))
         else:  # center
-            _clip = _clip.with_position(("center", "center"))
+            final_y = video_height // 2 - _clip.h // 2
+        
+        final_x = video_width // 2 - _clip.w // 2
+        
+        # Apply subtitle animation
+        animation = getattr(params, "subtitle_animation", "none")
+        animation_duration = min(0.3, duration / 4)  # Animation duration, max 0.3s
+        
+        if animation == "fade":
+            # Fade in/out effect
+            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
+            _clip = _clip.with_position((final_x, final_y))
+        elif animation == "slide_up":
+            # Slide up from below
+            def slide_up_pos(t):
+                if t < animation_duration:
+                    # Fade in and slide up
+                    y = final_y + 100 * (1 - t / animation_duration)
+                elif t > duration - animation_duration:
+                    # Fade out and slide up
+                    y = final_y - 100 * ((t - (duration - animation_duration)) / animation_duration)
+                else:
+                    y = final_y
+                return (final_x, y)
+            _clip = _clip.with_position(slide_up_pos)
+            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
+        elif animation == "slide_down":
+            # Slide down from above
+            def slide_down_pos(t):
+                if t < animation_duration:
+                    # Fade in and slide down
+                    y = final_y - 100 * (1 - t / animation_duration)
+                elif t > duration - animation_duration:
+                    # Fade out and slide down
+                    y = final_y + 100 * ((t - (duration - animation_duration)) / animation_duration)
+                else:
+                    y = final_y
+                return (final_x, y)
+            _clip = _clip.with_position(slide_down_pos)
+            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
+        elif animation == "slide_left":
+            # Slide left from right
+            def slide_left_pos(t):
+                if t < animation_duration:
+                    # Fade in and slide left
+                    x = final_x + 150 * (1 - t / animation_duration)
+                elif t > duration - animation_duration:
+                    # Fade out and slide left
+                    x = final_x - 150 * ((t - (duration - animation_duration)) / animation_duration)
+                else:
+                    x = final_x
+                return (x, final_y)
+            _clip = _clip.with_position(slide_left_pos)
+            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
+        elif animation == "slide_right":
+            # Slide right from left
+            def slide_right_pos(t):
+                if t < animation_duration:
+                    # Fade in and slide right
+                    x = final_x - 150 * (1 - t / animation_duration)
+                elif t > duration - animation_duration:
+                    # Fade out and slide right
+                    x = final_x + 150 * ((t - (duration - animation_duration)) / animation_duration)
+                else:
+                    x = final_x
+                return (x, final_y)
+            _clip = _clip.with_position(slide_right_pos)
+            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
+        elif animation == "pop":
+            # Pop in/out with scale effect
+            def pop_transform(get_frame, t):
+                frame = get_frame(t)
+                if t < animation_duration:
+                    scale = 0.5 + 0.6 * (t / animation_duration)
+                elif t > duration - animation_duration:
+                    scale = 1.1 - 0.3 * ((t - (duration - animation_duration)) / animation_duration)
+                else:
+                    scale = 1.0
+                
+                if scale != 1.0:
+                    from PIL import Image
+                    import numpy as np
+                    img = Image.fromarray(frame)
+                    new_size = (int(img.width * scale), int(img.height * scale))
+                    img_resized = img.resize(new_size, Image.LANCZOS)
+                    new_frame = np.zeros_like(frame)
+                    offset_x = (new_frame.shape[1] - img_resized.width) // 2
+                    offset_y = (new_frame.shape[0] - img_resized.height) // 2
+                    new_frame[offset_y:offset_y+img_resized.height, offset_x:offset_x+img_resized.width] = np.array(img_resized)
+                    return new_frame
+                return frame
+            
+            _clip = _clip.fl(pop_transform)
+            _clip = _clip.with_position((final_x, final_y))
+            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
+        else:  # none
+            # No animation
+            _clip = _clip.with_position((final_x, final_y))
+        
         return _clip
 
     video_clip = _open_video_clip_quietly(video_path)
@@ -848,7 +951,7 @@ def generate_video(
             text_clips.append(clip)
         video_clip = CompositeVideoClip([video_clip, *text_clips])
 
-    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
+    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file, custom_bgm_file=getattr(params, "custom_bgm_file", ""))
     if bgm_file:
         try:
             bgm_clip = AudioFileClip(bgm_file).with_effects(
@@ -978,6 +1081,14 @@ def _process_image_with_enhanced_effects(image_path: str, duration: int = 4) -> 
         # 如果处理失败，回退到简单的图片转视频
         return _process_image_simple(image_path, duration)
     
+    # 确保宽度和高度都是偶数（H.264编码要求）
+    w, h = clip.size
+    new_w = w if w % 2 == 0 else w + 1
+    new_h = h if h % 2 == 0 else h + 1
+    if new_w != w or new_h != h:
+        clip = clip.resized((new_w, new_h))
+        logger.info(f"resized image from {w}x{h} to {new_w}x{new_h} for H.264 encoding")
+    
     # 设置时长
     clip = clip.with_duration(duration)
     w, h = clip.size
@@ -1058,14 +1169,14 @@ def _process_image_with_enhanced_effects(image_path: str, duration: int = 4) -> 
         close_clip(clip)
         if bg_clip:
             close_clip(bg_clip)
-        if final_clip and final_clip != clip:
+        if final_clip:
             close_clip(final_clip)
         return _process_image_simple(image_path, duration)
     finally:
         close_clip(clip)
         if bg_clip:
             close_clip(bg_clip)
-        if final_clip and final_clip != clip:
+        if final_clip:
             close_clip(final_clip)
 
 
@@ -1074,6 +1185,15 @@ def _process_image_simple(image_path: str, duration: int = 4) -> str:
     简单的图片转视频处理，作为动画效果失败时的回退方案
     """
     clip, safe_image_path = _open_image_clip_with_fallback(image_path)
+    
+    # 确保宽度和高度都是偶数（H.264编码要求）
+    w, h = clip.size
+    new_w = w if w % 2 == 0 else w + 1
+    new_h = h if h % 2 == 0 else h + 1
+    if new_w != w or new_h != h:
+        clip = clip.resized((new_w, new_h))
+        logger.info(f"resized image from {w}x{h} to {new_w}x{new_h} for H.264 encoding")
+    
     clip = clip.with_duration(duration)
     
     video_file = f"{safe_image_path}.mp4"
