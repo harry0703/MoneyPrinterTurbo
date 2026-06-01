@@ -44,7 +44,23 @@ class TestVoiceService(unittest.TestCase):
     
     def tearDown(self):
         self.loop.close()
-    
+
+    def test_get_all_azure_voices(self):
+        voices = vs.get_all_azure_voices()
+        # 数据已从内联字符串迁移到 azure_voices.json，确保仍能完整加载
+        self.assertEqual(len(voices), 331)
+        # 结果应为 "Name-Gender" 格式且已排序
+        self.assertEqual(voices, sorted(voices))
+        for v in voices:
+            self.assertTrue(v.endswith("-Male") or v.endswith("-Female"))
+
+    def test_get_all_azure_voices_filtered(self):
+        filtered = vs.get_all_azure_voices(filter_locals=["zh-CN", "en-US"])
+        self.assertTrue(len(filtered) > 0)
+        self.assertTrue(
+            all(v.startswith(("zh-CN", "en-US")) for v in filtered)
+        )
+
     def test_siliconflow(self):
         # SiliconFlow 的 API Key 存在 [siliconflow].api_key 中，运行时代码也是从
         # config.siliconflow 读取；这里必须使用同一配置源，避免正确配置凭据时
