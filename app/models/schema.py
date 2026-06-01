@@ -109,6 +109,11 @@ class VideoParams(BaseModel):
     paragraph_number: int = Field(default=1, ge=1, le=10)
     video_script_prompt: str = Field(default="", max_length=2000)
     custom_system_prompt: str = Field(default="", max_length=8000)
+    
+    # 视频质量配置
+    video_quality: Optional[str] = "high"  # 视频质量：low, medium, high, ultra
+    video_bitrate: Optional[str] = None  # 视频码率，如 "8M"，如果设置会覆盖 video_quality
+    video_crf: Optional[int] = None  # CRF 值，范围 0-51，越小画质越好，如果设置会覆盖 video_quality
 
 
 class SubtitleRequest(BaseModel):

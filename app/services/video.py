@@ -66,7 +66,39 @@ audio_codec = "aac"
 audio_bitrate = "192k"
 video_codec = "libx264"
 fps = 30
+# 视频质量相关配置 - 默认值
+video_bitrate = "8M"  # 提升视频码率，增强清晰度
+video_crf = 23  # CRF 值越小画质越好，范围 0-51，推荐 18-28
+video_preset = "slow"  # 编码预设，越慢画质越好（ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow）
+video_pix_fmt = "yuv420p"  # 像素格式，保证兼容性
 _BGM_EXTENSIONS = (".mp3",)
+
+# 视频质量预设配置
+VIDEO_QUALITY_PRESETS = {
+    "low": {"bitrate": "4M", "crf": 28, "preset": "fast"},
+    "medium": {"bitrate": "6M", "crf": 25, "preset": "medium"},
+    "high": {"bitrate": "8M", "crf": 23, "preset": "slow"},
+    "ultra": {"bitrate": "16M", "crf": 18, "preset": "veryslow"},
+}
+
+
+def get_video_quality_params(params):
+    """根据用户配置获取视频质量参数"""
+    # 从预设获取基础值
+    quality = getattr(params, "video_quality", "high")
+    preset = VIDEO_QUALITY_PRESETS.get(quality, VIDEO_QUALITY_PRESETS["high"])
+    
+    bitrate = preset["bitrate"]
+    crf = preset["crf"]
+    preset_name = preset["preset"]
+    
+    # 如果用户单独设置了码率或CRF，覆盖预设值
+    if getattr(params, "video_bitrate", None):
+        bitrate = params.video_bitrate
+    if getattr(params, "video_crf", None):
+        crf = params.video_crf
+    
+    return bitrate, crf, preset_name
 
 
 def _prioritize_unique_source_clips(
@@ -160,10 +192,16 @@ def concat_video_clips_with_ffmpeg(
         concat_list_file,
         "-c:v",
         video_codec,
+        "-b:v",
+        video_bitrate,
+        "-crf",
+        str(video_crf),
+        "-preset",
+        video_preset,
         "-threads",
         str(threads or 2),
         "-pix_fmt",
-        "yuv420p",
+        video_pix_fmt,
         output_file,
     ]
 
@@ -478,7 +516,15 @@ def combine_videos(
                 
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            clip.write_videofile(
+                clip_file, 
+                logger=None, 
+                fps=fps, 
+                codec=video_codec,
+                bitrate=video_bitrate,
+                preset=video_preset,
+                ffmpeg_params=["-crf", str(video_crf), "-pix_fmt", video_pix_fmt]
+            )
 
             # Store clip duration before closing
             clip_duration_saved = clip.duration
@@ -652,6 +698,10 @@ def generate_video(
     logger.info(f"  ③ subtitle: {subtitle_path}")
     logger.info(f"  ④ output: {output_file}")
 
+    # 获取视频质量参数
+    bitrate, crf, preset_name = get_video_quality_params(params)
+    logger.info(f"  ⑤ video quality: bitrate={bitrate}, crf={crf}, preset={preset_name}")
+
     # https://github.com/harry0703/MoneyPrinterTurbo/issues/217
     # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'final-1.mp4.tempTEMP_MPY_wvf_snd.mp3'
     # write into the same directory as the output file
@@ -665,7 +715,7 @@ def generate_video(
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
-        logger.info(f"  ⑤ font: {font_path}")
+        logger.info(f"  ⑥ font: {font_path}")
 
     def resolve_subtitle_background_color():
         # 兼容历史参数：API 里 `text_background_color` 既可能是布尔值，
@@ -825,6 +875,10 @@ def generate_video(
         threads=params.n_threads or 2,
         logger=None,
         fps=fps,
+        codec=video_codec,
+        bitrate=bitrate,
+        preset=preset_name,
+        ffmpeg_params=["-crf", str(crf), "-pix_fmt", video_pix_fmt]
     )
     video_clip.close()
     del video_clip
@@ -890,30 +944,11 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 logger.info(f"processing image: {material_source_path}")
                 # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
                 close_clip(clip)
-                # Create an image clip and set its duration to 3 seconds
-                clip = (
-                    ImageClip(material_source_path)
-                    .with_duration(clip_duration)
-                    .with_position("center")
+                # 使用更丰富的动画效果处理图片
+                video_file = _process_image_with_enhanced_effects(
+                    material_source_path, 
+                    clip_duration
                 )
-                # Apply a zoom effect using the resize method.
-                # A lambda function is used to make the zoom effect dynamic over time.
-                # The zoom effect starts from the original size and gradually scales up to 120%.
-                # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-                # Note: 1 represents 100% size, so 1.2 represents 120% size.
-                zoom_clip = clip.resized(
-                    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-                )
-
-                # Optionally, create a composite video clip containing the zoomed clip.
-                # This is useful when you want to add other elements to the video.
-                final_clip = CompositeVideoClip([zoom_clip])
-
-                # Output the video to a file.
-                video_file = f"{material_source_path}.mp4"
-                final_clip.write_videofile(video_file, fps=30, logger=None)
-                close_clip(clip)
-                close_clip(final_clip)
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
             else:
@@ -926,3 +961,130 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
         valid_materials.append(material)
 
     return valid_materials
+
+
+def _process_image_with_enhanced_effects(image_path: str, duration: int = 4) -> str:
+    """
+    使用增强的动画效果处理图片
+    支持的效果：随机选择缩放、平移、旋转等组合
+    """
+    import random
+    
+    # 使用现有的安全打开图片的函数
+    try:
+        clip, safe_image_path = _open_image_clip_with_fallback(image_path)
+    except Exception as e:
+        logger.warning(f"failed to open image for effects: {image_path}, error: {e}")
+        # 如果处理失败，回退到简单的图片转视频
+        return _process_image_simple(image_path, duration)
+    
+    # 设置时长
+    clip = clip.with_duration(duration)
+    w, h = clip.size
+    
+    # 随机选择动画效果
+    effect_type = random.choice(['zoom', 'pan_left', 'pan_right', 'pan_up', 'pan_down', 'rotate_slow'])
+    logger.info(f"applying image effect: {effect_type}")
+    
+    final_clip = None
+    bg_clip = None
+    
+    try:
+        if effect_type == 'zoom':
+            # 从原始大小缩放到 1.2 倍
+            def zoom(t):
+                return 1 + 0.2 * (t / duration)
+            final_clip = clip.resized(zoom)
+        elif effect_type == 'pan_left':
+            # 从右向左平移
+            def pan_left(t):
+                x = int((w * 1.2 - w) * (1 - t / duration))
+                return (x, 'center')
+            # 创建一个稍大的背景，然后移动图片
+            bg_clip = ColorClip(size=(int(w * 1.2), h), color=(0, 0, 0)).with_duration(duration)
+            panned_clip = clip.with_position(pan_left)
+            final_clip = CompositeVideoClip([bg_clip, panned_clip]).cropped(x1=int(w * 0.1), y1=0, x2=int(w * 1.1), y2=h)
+        elif effect_type == 'pan_right':
+            # 从左向右平移
+            def pan_right(t):
+                x = -int((w * 1.2 - w) * (t / duration))
+                return (x, 'center')
+            bg_clip = ColorClip(size=(int(w * 1.2), h), color=(0, 0, 0)).with_duration(duration)
+            panned_clip = clip.with_position(pan_right)
+            final_clip = CompositeVideoClip([bg_clip, panned_clip]).cropped(x1=int(w * 0.1), y1=0, x2=int(w * 1.1), y2=h)
+        elif effect_type == 'pan_up':
+            # 从下向上平移
+            def pan_up(t):
+                y = int((h * 1.2 - h) * (1 - t / duration))
+                return ('center', y)
+            bg_clip = ColorClip(size=(w, int(h * 1.2)), color=(0, 0, 0)).with_duration(duration)
+            panned_clip = clip.with_position(pan_up)
+            final_clip = CompositeVideoClip([bg_clip, panned_clip]).cropped(x1=0, y1=int(h * 0.1), x2=w, y2=int(h * 1.1))
+        elif effect_type == 'pan_down':
+            # 从上向下平移
+            def pan_down(t):
+                y = -int((h * 1.2 - h) * (t / duration))
+                return ('center', y)
+            bg_clip = ColorClip(size=(w, int(h * 1.2)), color=(0, 0, 0)).with_duration(duration)
+            panned_clip = clip.with_position(pan_down)
+            final_clip = CompositeVideoClip([bg_clip, panned_clip]).cropped(x1=0, y1=int(h * 0.1), x2=w, y2=int(h * 1.1))
+        elif effect_type == 'rotate_slow':
+            # 缓慢旋转
+            def rotate(t):
+                return 2 * (t / duration)
+            final_clip = clip.rotate(rotate, expand=False)
+        else:
+            # 默认使用轻微缩放
+            def zoom(t):
+                return 1 + 0.15 * (t / duration)
+            final_clip = clip.resized(zoom)
+        
+        # 输出视频
+        video_file = f"{safe_image_path}.mp4"
+        logger.info(f"writing image video: {video_file}")
+        final_clip.write_videofile(
+            video_file, 
+            fps=fps, 
+            logger=None,
+            codec=video_codec,
+            bitrate=video_bitrate,
+            preset=video_preset,
+            ffmpeg_params=["-crf", str(video_crf), "-pix_fmt", video_pix_fmt]
+        )
+        return video_file
+    except Exception as e:
+        logger.warning(f"failed to apply image effect: {effect_type}, error: {e}, falling back to simple processing")
+        # 如果动画效果失败，回退到简单处理
+        close_clip(clip)
+        if bg_clip:
+            close_clip(bg_clip)
+        if final_clip and final_clip != clip:
+            close_clip(final_clip)
+        return _process_image_simple(image_path, duration)
+    finally:
+        close_clip(clip)
+        if bg_clip:
+            close_clip(bg_clip)
+        if final_clip and final_clip != clip:
+            close_clip(final_clip)
+
+
+def _process_image_simple(image_path: str, duration: int = 4) -> str:
+    """
+    简单的图片转视频处理，作为动画效果失败时的回退方案
+    """
+    clip, safe_image_path = _open_image_clip_with_fallback(image_path)
+    clip = clip.with_duration(duration)
+    
+    video_file = f"{safe_image_path}.mp4"
+    clip.write_videofile(
+        video_file, 
+        fps=fps, 
+        logger=None,
+        codec=video_codec,
+        bitrate=video_bitrate,
+        preset=video_preset,
+        ffmpeg_params=["-crf", str(video_crf), "-pix_fmt", video_pix_fmt]
+    )
+    close_clip(clip)
+    return video_file

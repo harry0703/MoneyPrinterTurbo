@@ -766,13 +766,52 @@ with middle_panel:
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
 
         params.video_clip_duration = st.selectbox(
-            tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10], index=1
+            tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], index=1
         )
         params.video_count = st.selectbox(
             tr("Number of Videos Generated Simultaneously"),
             options=[1, 2, 3, 4, 5],
             index=0,
         )
+        
+        video_quality_options = [
+            (tr("Low"), "low"),
+            (tr("Medium"), "medium"),
+            (tr("High"), "high"),
+            (tr("Ultra"), "ultra"),
+        ]
+        saved_video_quality = config.ui.get("video_quality", "high")
+        saved_video_quality_index = [v[1] for v in video_quality_options].index(saved_video_quality)
+        selected_index = st.selectbox(
+            tr("Video Quality"),
+            options=range(len(video_quality_options)),
+            format_func=lambda x: video_quality_options[x][0],
+            index=saved_video_quality_index,
+        )
+        params.video_quality = video_quality_options[selected_index][1]
+        config.ui["video_quality"] = params.video_quality
+        
+        with st.expander(tr("Advanced Video Quality Settings"), expanded=False):
+            custom_video_bitrate = st.text_input(
+                tr("Custom Video Bitrate (e.g., 10M)"),
+                value=config.ui.get("video_bitrate", ""),
+                placeholder=tr("Leave empty to use preset"),
+            )
+            if custom_video_bitrate:
+                params.video_bitrate = custom_video_bitrate.strip()
+                config.ui["video_bitrate"] = custom_video_bitrate.strip()
+            else:
+                params.video_bitrate = None
+                
+            custom_video_crf = st.slider(
+                tr("Custom CRF (Constant Rate Factor)"),
+                min_value=0,
+                max_value=51,
+                value=config.ui.get("video_crf", 23),
+                help=tr("Lower values mean better quality, higher file size"),
+            )
+            params.video_crf = custom_video_crf
+            config.ui["video_crf"] = custom_video_crf
     with st.container(border=True):
         st.write(tr("Audio Settings"))
 
