@@ -2,15 +2,23 @@ import json
 import logging
 import re
 import requests
+import os
 from typing import List
 
 from loguru import logger
 from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
+try:
+    import openvino_genai as ov_genai
+except ImportError:
+    ov_genai = None
+
 from app.config import config
+from app.utils import utils
 
 _max_retries = 5
+_ov_llm_pipeline = None
 _DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 _DEPRECATED_GEMINI_MODELS = {"gemini-pro", "gemini-1.0-pro"}
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
@@ -247,8 +255,10 @@ def _generate_response(prompt: str) -> str:
 
             elif llm_provider == "litellm":
                 model_name = config.app.get("litellm_model_name")
+            elif llm_provider == "openvino":
+                model_name = config.app.get("openvino_model_name")
 
-            if llm_provider not in ["pollinations", "ollama", "litellm"]:  # Skip validation for providers that don't require API key
+            if llm_provider not in ["pollinations", "ollama", "litellm", "openvino"]:  # Skip validation for providers that don't require API key
                 if not api_key:
                     raise ValueError(
                         f"{llm_provider}: api_key is not set, please set it in the config.toml file."
@@ -409,6 +419,27 @@ def _generate_response(prompt: str) -> str:
                     raise ValueError(f"[{llm_provider}] returned empty response")
 
                 return _extract_chat_completion_text(response, llm_provider)
+
+            if llm_provider == "openvino":
+                global _ov_llm_pipeline
+                if ov_genai is None:
+                    raise ValueError("openvino-genai package is not installed.")
+
+                device = config.app.get("openvino_device", "CPU")
+                model_path = config.app.get("openvino_model_path", "")
+                if not model_path:
+                    model_path = f"{utils.root_dir()}/models/{model_name}-openvino"
+
+                if not os.path.isdir(model_path):
+                    raise ValueError(f"OpenVINO model directory not found: {model_path}")
+
+                if _ov_llm_pipeline is None:
+                    logger.info(f"loading OpenVINO LLM model: {model_path}, device: {device}")
+                    _ov_llm_pipeline = ov_genai.LLMPipeline(model_path, device)
+
+                # Simple non-streaming generation
+                content = _ov_llm_pipeline.generate(prompt, max_new_tokens=1024)
+                return _normalize_text_response(content, llm_provider)
 
             if llm_provider == "azure":
                 # Azure OpenAI SDK 使用 `azure_endpoint` 和 `api_version` 生成专用请求地址，

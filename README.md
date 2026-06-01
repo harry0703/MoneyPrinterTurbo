@@ -40,7 +40,7 @@
 - [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、`颜色`、`大小`，同时支持`字幕描边`设置
 - [x] 支持 **背景音乐**，随机或者指定音乐文件，可设置`背景音乐音量`
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
-- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
+- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope**、**OpenVINO** (Intel CPU/GPU/NPU) 等多种模型接入
     - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
 
 ## 视频演示 📺
@@ -287,12 +287,13 @@ python main.py
 
 ## 字幕生成 📜
 
-当前支持2种字幕生成方式：
+当前支持3种字幕生成方式：
 
-- **edge**: 生成`速度快`，性能更好，对电脑配置没有要求，但是质量可能不稳定
-- **whisper**: 生成`速度慢`，性能较差，对电脑配置有一定要求，但是`质量更可靠`。
+- **edge**: 生成`速度快`，性能更好，对电脑配置没有要求，但是质量可能不稳定。
+- **whisper**: 使用 `faster-whisper`。生成`速度慢`，性能较差，对电脑配置有一定要求，但是`质量更可靠`。
+- **openvino**: **针对英特尔硬件（CPU、GPU、NPU）优化**。使用 OpenVINO GenAI 实现高性能本地转录。
 
-可以修改 `config.toml` 配置文件中的 `subtitle_provider` 进行切换
+可以修改 `config.toml` 配置文件中的 `subtitle_provider` 进行切换。
 
 建议使用 `edge` 模式，如果生成的字幕质量不好，再切换到 `whisper` 模式
 
@@ -320,6 +321,41 @@ MoneyPrinterTurbo
   │          preprocessor_config.json
   │          tokenizer.json
   │          vocabulary.json
+```
+
+### OpenVINO 优化（英特尔硬件加速） 🚀
+
+MoneyPrinterTurbo 现在支持 **OpenVINO** 用于语音转录和本地 LLM 推理，在英特尔 CPU、集成显卡、独立显卡 (Arc) 和 NPU 上提供显著的加速。
+
+#### 1. 设置 OpenVINO Whisper
+要使用 OpenVINO 生成字幕，需要使用 `optimum-cli` 将 Whisper 模型导出为 OpenVINO 格式：
+
+```shell
+pip install optimum[openvino]
+optimum-cli export openvino --model openai/whisper-large-v3 --weight-format int8 models/whisper-large-v3-openvino
+```
+
+在 `config.toml` 中设置：
+```toml
+subtitle_provider = "openvino"
+
+[whisper]
+model_size = "large-v3" # 应与导出的文件夹名称后缀匹配
+device = "AUTO"         # CPU, GPU, NPU, 或 AUTO
+```
+
+#### 2. 设置 OpenVINO LLM
+你也可以使用 OpenVINO 在本地运行大模型（如 Llama-3, Qwen 等）。导出你喜欢的模型：
+
+```shell
+optimum-cli export openvino --model Meta-Llama-3-8B-Instruct --weight-format int4 models/llama-3-8b-instruct-openvino
+```
+
+在 `config.toml` 中设置：
+```toml
+llm_provider = "openvino"
+openvino_model_name = "llama-3-8b-instruct"
+openvino_device = "GPU" # 选项: CPU, GPU, NPU, AUTO
 ```
 
 ## 背景音乐 🎵
