@@ -57,12 +57,6 @@
               :title="taskFiles.sceneAudio > 0 ? `✅ ${t('Scene Audio')}: ${taskFiles.sceneAudio} ${t('items')}` : '⚠️ ' + t('No scene audio found')"
               :closable="false"
             />
-            
-            <el-alert
-              :type="taskFiles.subtitle ? 'success' : 'warning'"
-              :title="taskFiles.subtitle ? `✅ ${t('Subtitle File')}: 1 ${t('items')}` : '⚠️ ' + t('No subtitle file found')"
-              :closable="false"
-            />
           </div>
           
           <!-- Scene Range Selection -->
