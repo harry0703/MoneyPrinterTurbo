@@ -276,6 +276,70 @@ class TestVideoService(unittest.TestCase):
                     video_transition_mode=None,
                 )
                 self.assertEqual(result, combined_video_path)
+
+    def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
+        """
+        随机模式下，一个长素材会被拆成多个片段。调度层应先让每个源素材
+        至少出现一次，再使用同一源素材的其他切片，降低用户感知到的重复。
+        """
+        clips = [
+            vd.SubClippedVideoClip("a.mp4", 0, 4, source_file_path="a.mp4"),
+            vd.SubClippedVideoClip("a.mp4", 4, 8, source_file_path="a.mp4"),
+            vd.SubClippedVideoClip("b.mp4", 0, 4, source_file_path="b.mp4"),
+            vd.SubClippedVideoClip("b.mp4", 4, 8, source_file_path="b.mp4"),
+            vd.SubClippedVideoClip("c.mp4", 0, 4, source_file_path="c.mp4"),
+        ]
+
+        ordered_clips = vd._prioritize_unique_source_clips(
+            subclipped_items=clips,
+            concat_mode=vd.VideoConcatMode.random,
+        )
+
+        self.assertCountEqual(ordered_clips, clips)
+        first_round_sources = [clip.source_file_path for clip in ordered_clips[:3]]
+        self.assertCountEqual(first_round_sources, ["a.mp4", "b.mp4", "c.mp4"])
+
+    def test_prioritize_unique_source_clips_keeps_sequential_order(self):
+        """
+        顺序模式本身只取每个素材的首段，不应被随机调度逻辑改变顺序。
+        """
+        clips = [
+            vd.SubClippedVideoClip("a.mp4", 0, 4, source_file_path="a.mp4"),
+            vd.SubClippedVideoClip("b.mp4", 0, 4, source_file_path="b.mp4"),
+            vd.SubClippedVideoClip("c.mp4", 0, 4, source_file_path="c.mp4"),
+        ]
+
+        ordered_clips = vd._prioritize_unique_source_clips(
+            subclipped_items=clips,
+            concat_mode=vd.VideoConcatMode.sequential,
+        )
+
+        self.assertEqual(ordered_clips, clips)
+
+    def test_prioritize_unique_source_clips_prefers_long_primary_clip(self):
+        """
+        同一个源素材的最后一个切片可能短于目标片段时长。首轮去重时应优先
+        选择较长片段，否则会因为累计时长不足而提前复用素材。
+        """
+        short_tail = vd.SubClippedVideoClip(
+            "a.mp4", 6, 6.5, source_file_path="a.mp4"
+        )
+        full_clip = vd.SubClippedVideoClip(
+            "a.mp4", 0, 3, source_file_path="a.mp4"
+        )
+        other_source = vd.SubClippedVideoClip(
+            "b.mp4", 0, 3, source_file_path="b.mp4"
+        )
+
+        ordered_clips = vd._prioritize_unique_source_clips(
+            subclipped_items=[short_tail, full_clip, other_source],
+            concat_mode=vd.VideoConcatMode.random,
+        )
+
+        first_a_clip = next(
+            clip for clip in ordered_clips if clip.source_file_path == "a.mp4"
+        )
+        self.assertEqual(first_a_clip, full_clip)
     
     def test_wrap_text(self):
         """test text wrapping function"""

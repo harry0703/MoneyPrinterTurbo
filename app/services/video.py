@@ -35,12 +35,22 @@ from app.services.utils import video_effects
 from app.utils import file_security, utils
 
 class SubClippedVideoClip:
-    def __init__(self, file_path, start_time=None, end_time=None, width=None, height=None, duration=None):
+    def __init__(
+        self,
+        file_path,
+        start_time=None,
+        end_time=None,
+        width=None,
+        height=None,
+        duration=None,
+        source_file_path=None,
+    ):
         self.file_path = file_path
         self.start_time = start_time
         self.end_time = end_time
         self.width = width
         self.height = height
+        self.source_file_path = source_file_path or file_path
         if duration is None:
             self.duration = end_time - start_time
         else:
@@ -57,6 +67,49 @@ audio_bitrate = "192k"
 video_codec = "libx264"
 fps = 30
 _BGM_EXTENSIONS = (".mp3",)
+
+
+def _prioritize_unique_source_clips(
+    subclipped_items: List[SubClippedVideoClip],
+    concat_mode: VideoConcatMode,
+) -> List[SubClippedVideoClip]:
+    """
+    优先让每个源素材只出现一次，降低成片里同一素材反复出现的概率。
+
+    线上素材经常会遇到“一个长视频被切成多个短片段”的情况。旧逻辑在
+    random 模式下直接打乱所有短片段，导致同一个源视频的多个切片可能
+    分布在开头和中间，用户会感知为素材重复。本函数只调整片段顺序：
+    先放每个源文件里最长的一个片段，剩余片段作为兜底；当素材总时长不足时，
+    仍然允许后续片段补齐音频长度，避免破坏视频生成成功率。优先选择最长
+    片段是为了避免随机选中视频尾部的零碎短片段，导致明明有足够素材却过早复用。
+    """
+    if not subclipped_items:
+        return []
+
+    concat_mode_value = getattr(concat_mode, "value", concat_mode)
+    if concat_mode_value != VideoConcatMode.random.value:
+        return subclipped_items
+
+    grouped_items: dict[str, list[SubClippedVideoClip]] = {}
+    for item in subclipped_items:
+        grouped_items.setdefault(item.source_file_path, []).append(item)
+
+    primary_items = []
+    overflow_items = []
+    for items in grouped_items.values():
+        primary_item = max(items, key=lambda item: item.duration)
+        primary_items.append(primary_item)
+        overflow_items.extend(item for item in items if item is not primary_item)
+
+    random.shuffle(primary_items)
+    random.shuffle(overflow_items)
+    logger.info(
+        "prioritized unique video materials, "
+        f"sources: {len(grouped_items)}, "
+        f"primary clips: {len(primary_items)}, "
+        f"fallback clips: {len(overflow_items)}"
+    )
+    return primary_items + overflow_items
 
 
 def get_ffmpeg_binary():
@@ -345,6 +398,7 @@ def combine_videos(
                         end_time=end_time,
                         width=clip_w,
                         height=clip_h,
+                        source_file_path=video_path,
                     )
                 )
 
@@ -352,18 +406,24 @@ def combine_videos(
             if video_concat_mode.value == VideoConcatMode.sequential.value:
                 break
 
-    # random subclipped_items order
-    if video_concat_mode.value == VideoConcatMode.random.value:
-        random.shuffle(subclipped_items)
+    subclipped_items = _prioritize_unique_source_clips(
+        subclipped_items=subclipped_items,
+        concat_mode=video_concat_mode,
+    )
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration > audio_duration:
+        if video_duration >= audio_duration:
             break
         
-        logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
+        logger.debug(
+            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
+            f"source: {os.path.basename(subclipped_item.source_file_path)}, "
+            f"current duration: {video_duration:.2f}s, "
+            f"remaining: {audio_duration - video_duration:.2f}s"
+        )
         
         try:
             clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
@@ -424,7 +484,15 @@ def combine_videos(
             clip_duration_saved = clip.duration
             close_clip(clip)
 
-            processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip_duration_saved, width=clip_w, height=clip_h))
+            processed_clips.append(
+                SubClippedVideoClip(
+                    file_path=clip_file,
+                    duration=clip_duration_saved,
+                    width=clip_w,
+                    height=clip_h,
+                    source_file_path=subclipped_item.source_file_path,
+                )
+            )
             video_duration += clip_duration_saved
             
         except Exception as e:
