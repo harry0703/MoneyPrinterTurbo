@@ -295,8 +295,13 @@ def _generate_response(prompt: str) -> str:
                                 f'[{llm_provider}] returned an error response: "{response}"'
                             )
 
-                        content = response["output"]["text"]
-                        return content.replace("\n", "")
+                        output = response["output"]
+                        choices = output.get("choices", [])
+                        if choices:
+                            content = choices[0]["message"]["content"]
+                        else:
+                            content = output.get("text")
+                        return _normalize_text_response(content, llm_provider)
                     else:
                         raise Exception(
                             f'[{llm_provider}] returned an invalid response: "{response}"'

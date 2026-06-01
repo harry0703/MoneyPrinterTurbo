@@ -473,6 +473,49 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("g4f package is not installed by default", result)
 
 
+class TestQwenProvider(unittest.TestCase):
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        config.app["llm_provider"] = "qwen"
+        config.app["qwen_api_key"] = "qwen-key"
+        config.app["qwen_model_name"] = "qwen-max"
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    def test_qwen_provider_reads_chat_message_content(self):
+        class FakeGenerationResponse(dict):
+            def __init__(self):
+                super().__init__(
+                    output={
+                        "choices": [
+                            {"message": {"role": "assistant", "content": "hello\nqwen"}}
+                        ]
+                    }
+                )
+                self.status_code = 200
+
+        fake_dashscope = types.SimpleNamespace(
+            api_key="",
+            Generation=types.SimpleNamespace(call=lambda **kwargs: FakeGenerationResponse()),
+        )
+        fake_response_module = types.SimpleNamespace(
+            GenerationResponse=FakeGenerationResponse
+        )
+
+        with patch.dict(
+            sys.modules,
+            {
+                "dashscope": fake_dashscope,
+                "dashscope.api_entities": types.SimpleNamespace(),
+                "dashscope.api_entities.dashscope_response": fake_response_module,
+            },
+        ):
+            result = llm._generate_response("Say hello")
+
+        self.assertEqual(result, "helloqwen")
+
 class TestRuntimeEnvironmentDetection(unittest.TestCase):
     def test_container_detection_ignores_plain_linux_cgroup_file(self):
         """
