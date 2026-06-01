@@ -1,6 +1,14 @@
 [app]
 video_source = "pexels" # "pexels" or "pixabay"
 
+# ComfyUI settings (used when video_source = "ai_image")
+# ComfyUI API base URL (default: http://localhost:8188)
+comfyui_url = "http://localhost:8188"
+# ComfyUI output directory — where generated images are saved.
+# Must match ComfyUI's --output-directory if changed from default.
+# Default: ./comfyui_output (relative to MPT root)
+comfyui_output_dir = ""
+
 # 是否隐藏配置面板
 hide_config = false
 

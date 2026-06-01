@@ -110,6 +110,11 @@ class VideoParams(BaseModel):
     video_script_prompt: str = Field(default="", max_length=2000)
     custom_system_prompt: str = Field(default="", max_length=8000)
 
+    # AI Image Generation (video_source="ai_image")
+    ai_scene_count: Optional[int] = 5        # Number of scenes to generate
+    ai_image_width: Optional[int] = 540      # Flux 9:16 native (2x upscale to 1080p)
+    ai_image_height: Optional[int] = 960     # Flux 9:16 native (2x upscale to 1920p)
+
 
 class SubtitleRequest(BaseModel):
     video_script: str
