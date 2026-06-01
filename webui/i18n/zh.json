@@ -132,6 +132,9 @@
     "Pixabay API Key added successfully": "Pixabay API Key 添加成功",
     "Select Pixabay API Key to delete": "选择要删除的 Pixabay API Key",
     "Delete Selected Pixabay API Key": "删除选定的 Pixabay API Key",
-    "Pixabay API Key deleted successfully": "Pixabay API Key 删除成功"
+    "Pixabay API Key deleted successfully": "Pixabay API Key 删除成功",
+    "Advanced Video Settings": "高级视频设置",
+    "Video Encoder": "视频编码器",
+    "Video Encoder Help": "高级选项。默认 libx264 最稳定；选择硬件编码器时，如果当前 FFmpeg、显卡或驱动不可用，会自动回退到 libx264。"
   }
 }

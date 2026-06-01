@@ -773,6 +773,29 @@ with middle_panel:
             options=[1, 2, 3, 4, 5],
             index=0,
         )
+
+        with st.expander(tr("Advanced Video Settings"), expanded=False):
+            video_codec_options = [
+                ("libx264 (CPU)", "libx264"),
+                ("NVIDIA NVENC (h264_nvenc)", "h264_nvenc"),
+                ("AMD AMF (h264_amf)", "h264_amf"),
+                ("Intel QSV (h264_qsv)", "h264_qsv"),
+                ("Windows MediaFoundation (h264_mf)", "h264_mf"),
+                ("macOS VideoToolbox (h264_videotoolbox)", "h264_videotoolbox"),
+            ]
+            saved_video_codec = config.app.get("video_codec", "libx264")
+            saved_video_codec_values = [item[1] for item in video_codec_options]
+            if saved_video_codec not in saved_video_codec_values:
+                saved_video_codec = "libx264"
+            selected_codec_index = saved_video_codec_values.index(saved_video_codec)
+            selected_codec_index = st.selectbox(
+                tr("Video Encoder"),
+                options=range(len(video_codec_options)),
+                index=selected_codec_index,
+                format_func=lambda x: video_codec_options[x][0],
+                help=tr("Video Encoder Help"),
+            )
+            config.app["video_codec"] = video_codec_options[selected_codec_index][1]
     with st.container(border=True):
         st.write(tr("Audio Settings"))
 

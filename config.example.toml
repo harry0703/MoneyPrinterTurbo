@@ -210,6 +210,16 @@ subtitle_provider = "edge"
 # In such cases, you can manually download ffmpeg and set the ffmpeg_path, download link: https://www.gyan.dev/ffmpeg/builds/
 
 # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
+
+# 视频编码器。默认 libx264 最稳定；高级用户可以尝试硬件编码器提升速度。
+# 如果当前 FFmpeg 或硬件驱动不支持所选编码器，程序会自动回退到 libx264。
+# 可选值: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
+# video_codec = "libx264"
+
+# Video encoder. libx264 is the safest default; advanced users can try hardware encoders.
+# If the selected encoder is not supported by the current FFmpeg or driver, the app falls back to libx264.
+# Available values: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
+# video_codec = "libx264"
 #########################################################################################
 
 # 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口
