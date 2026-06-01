@@ -1035,15 +1035,22 @@ def mimo_tts(
 
 
 def _format_text(text: str) -> str:
-    # text = text.replace("\n", " ")
+    """
+    清理字幕对齐前的脚本文本。
+
+    这里不能只在 LLM 生成阶段处理，因为用户也可能手动粘贴脚本，或通过
+    API 直接传入包含 Markdown 标记的文本。TTS 通常不会朗读 `---`、
+    `___`、`***` 这类分隔符行，也不会朗读 `_` 这种强调标记；如果字幕
+    对齐仍保留这些字符，`create_subtitle()` 会一直等待不存在的 cue，
+    最终导致字幕文件缺失并在 Whisper fallback 校正时补出全 0 时间轴。
+    """
     text = text.replace("[", " ")
     text = text.replace("]", " ")
     text = text.replace("(", " ")
     text = text.replace(")", " ")
     text = text.replace("{", " ")
     text = text.replace("}", " ")
-    text = text.strip()
-    return text
+    return utils.normalize_script_for_subtitle_matching(text)
 
 
 def _build_subtitle_formatter():
@@ -1093,8 +1100,8 @@ def _match_script_line(script_lines: list[str], current_text: str, sub_index: in
 
     这里复用了项目原有的“按标点拆脚本，再逐段比对”的思路：
     1. 优先精确匹配；
-    2. 再做一次去常规标点后的匹配；
-    3. 最后做一次更激进的非单词字符清洗匹配。
+    2. 再做一次去标点和 Markdown `_` 格式符后的匹配；
+    3. 最后做一次阿拉伯语字符形态归一化匹配。
 
     这样可以兼容：
     - TTS 返回里可能缺失或单独拆分的标点；
@@ -1107,20 +1114,15 @@ def _match_script_line(script_lines: list[str], current_text: str, sub_index: in
     if current_text == target_line:
         return target_line.strip()
 
-    current_text_normalized = re.sub(r"[^\w\s]", "", current_text)
-    target_line_normalized = re.sub(r"[^\w\s]", "", target_line)
-    if current_text_normalized == target_line_normalized:
-        return target_line.strip()
-
-    current_text_normalized = re.sub(r"\W+", "", current_text)
-    target_line_normalized = re.sub(r"\W+", "", target_line)
+    current_text_normalized = re.sub(r"[_\W]+", "", current_text)
+    target_line_normalized = re.sub(r"[_\W]+", "", target_line)
     if current_text_normalized == target_line_normalized:
         return target_line.strip()
 
     # 最后一层阿拉伯语容错：edge-tts 返回的字母形态、变音符号或 Tatweel
     # 可能和脚本不同。只在常规匹配失败后归一化比较，非阿拉伯语文本不会受影响。
-    current_ar = re.sub(r"\W+", "", _normalize_arabic(current_text))
-    target_ar = re.sub(r"\W+", "", _normalize_arabic(target_line))
+    current_ar = re.sub(r"[_\W]+", "", _normalize_arabic(current_text))
+    target_ar = re.sub(r"[_\W]+", "", _normalize_arabic(target_line))
     if current_ar and current_ar == target_ar:
         return target_line.strip()
 

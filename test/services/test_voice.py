@@ -546,6 +546,73 @@ class TestVoiceService(unittest.TestCase):
         self.assertIn("أهلاً وسهلاً بك في المدرسة", sub_items[0])
         self.assertIn("شكراً لك", sub_items[-1])
 
+    def test_create_subtitle_ignores_markdown_separator_lines(self):
+        """
+        用户手动脚本可能包含 `---` 这类 Markdown 分隔符。TTS 不会朗读
+        这些符号行，字幕聚合也不应把它们当成目标字幕行，否则后续真实
+        字幕会卡住并回退到 Whisper。
+        """
+        text = "第一段\n---\n第二段"
+        sub_maker = SimpleNamespace(
+            cues=[
+                SimpleNamespace(
+                    content="第一段",
+                    start=timedelta(seconds=0),
+                    end=timedelta(seconds=0.8),
+                ),
+                SimpleNamespace(
+                    content="第二段",
+                    start=timedelta(seconds=1),
+                    end=timedelta(seconds=1.8),
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            vs.create_subtitle(
+                sub_maker=sub_maker,
+                text=text,
+                subtitle_file=str(subtitle_file),
+            )
+
+            subtitle_content = subtitle_file.read_text(encoding="utf-8")
+
+        self.assertIn("第一段", subtitle_content)
+        self.assertIn("第二段", subtitle_content)
+        self.assertNotIn("---", subtitle_content)
+        self.assertNotIn("00:00:00,000 --> 00:00:00,000", subtitle_content)
+
+    def test_create_subtitle_ignores_markdown_underscore_marks(self):
+        """
+        `_` 常被用户用作 Markdown 强调标记，但 TTS 返回的 cue 通常不包含
+        这些格式符。匹配时应忽略 `_`，避免生成空字幕或回退到 Whisper。
+        """
+        text = "这是_a_测试。"
+        sub_maker = SimpleNamespace(
+            cues=[
+                SimpleNamespace(
+                    content="这是a测试",
+                    start=timedelta(seconds=0),
+                    end=timedelta(seconds=0.8),
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            vs.create_subtitle(
+                sub_maker=sub_maker,
+                text=text,
+                subtitle_file=str(subtitle_file),
+            )
+
+            subtitle_content = subtitle_file.read_text(encoding="utf-8")
+
+        self.assertIn("这是a测试", subtitle_content)
+        self.assertNotIn("这是_a_测试", subtitle_content)
+        self.assertNotIn("00:00:00,000 --> 00:00:00,000", subtitle_content)
+
     def test_convert_rate_to_percent_signs_zero_rate(self):
         # Rates near but not exactly 1.0 round to 0 percent. edge-tts rejects
         # an unsigned "0%" (ValueError: Invalid rate '0%'), so the helper must
