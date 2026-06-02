@@ -10,13 +10,12 @@ fail() { echo -e "${RED}[Error]${NC} $1"; exit 1; }
 
 export PORT="${PORT:-8080}"
 
-# Print MPT's config.py so we know EXACTLY how it reads the API key
-echo "=== MPT config.py source ==="
-find /app -path "*/config/config.py" 2>/dev/null | while read f; do
-    echo "--- Found: $f ---"
-    cat "$f"
-done
-echo "=== end config.py ==="
+# Find ALL python files mentioning openai_api_key or api_key
+echo "=== Searching for API key references in MPT source ==="
+grep -r "openai_api_key\|api_key\|load_config\|config\.get" /app --include="*.py" -l 2>/dev/null | head -10
+echo "=== Key field names used ==="
+grep -r "openai_api_key\|openai.*key\|api_key" /app --include="*.py" -h 2>/dev/null | grep -v "^#" | head -30
+echo "=== end search ==="
 
 log "Generating config.toml (port=${PORT})..."
 ./generate-config.sh
