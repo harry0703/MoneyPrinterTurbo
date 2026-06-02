@@ -171,7 +171,7 @@ docker-compose up
 
 #### ③ 访问API文档
 
-打开浏览器，访问 http://0.0.0.0:8080/docs 或者 http://0.0.0.0:8080/redoc
+打开浏览器，访问 http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc
 
 ### 手动部署 📦
 
@@ -205,28 +205,7 @@ pip install -r requirements.txt
 - `uv.lock` 是锁文件，建议默认执行 `uv sync --frozen`
 - `requirements.txt` 仅保留给旧的 `pip` 安装方式兼容使用
 
-#### ② 安装好 ImageMagick
-
-- Windows:
-  - 下载 https://imagemagick.org/script/download.php 选择Windows版本，切记一定要选择 **静态库** 版本，比如
-    ImageMagick-7.1.1-32-Q16-x64-**static**.exe
-  - 安装下载好的 ImageMagick，**注意不要修改安装路径**
-  - 修改 `配置文件 config.toml` 中的 `imagemagick_path` 为你的 **实际安装路径**
-
-- MacOS:
-  ```shell
-  brew install imagemagick
-  ```
-- Ubuntu
-  ```shell
-  sudo apt-get install imagemagick
-  ```
-- CentOS
-  ```shell
-  sudo yum install ImageMagick
-  ```
-
-#### ③ 启动Web界面 🌐
+#### ② 启动Web界面 🌐
 
 注意需要到 MoneyPrinterTurbo 项目 `根目录` 下执行以下命令
 
@@ -254,7 +233,7 @@ sh webui.sh
 
 启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
 
-#### ④ 启动API服务 🚀
+#### ③ 启动API服务 🚀
 
 ```shell
 uv run python main.py
@@ -284,20 +263,30 @@ python main.py
 
 ![picwish.jpg](docs/picwish.jpg)
 
-启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc 直接在线调试接口，快速体验。
-
 ## 语音合成 🗣
 
 所有支持的声音列表，可以查看：[声音列表](./docs/voice-list.txt)
 
-2024-04-16 v1.1.2 新增了9种Azure的语音合成声音，需要配置API KEY，该声音合成的更加真实。
+默认 TTS 服务是 **Edge TTS**（免费，不需要 API Key）。在 WebUI 中它显示为 **“Azure TTS V1”**，两者指的是同一个免费服务。你可以在 `config.toml` 中设置 `voice_name`，也可以直接在 WebUI 的声音下拉框中选择。
+
+> **说明：** WebUI 中的 “Azure TTS V1”（Edge TTS，免费）和 “Azure TTS V2”（付费 Azure Speech SDK）是两个不同选项，只有 V2 需要配置 Azure API Key。
+
+如果你希望使用质量更高的 **Azure TTS V2** 声音，需要在 `config.toml` 中配置 Azure Speech 凭据：
+
+```toml
+[azure]
+speech_key = "your-azure-speech-key"
+speech_region = "eastus"
+```
+
+Azure TTS V2 需要开通 [Azure Speech Services](https://portal.azure.com/) 订阅。v1.1.2 新增的 9 种 Azure 声音整体会比 Edge TTS 更自然。
 
 ## 字幕生成 📜
 
 当前支持2种字幕生成方式：
 
-- **edge**: 生成`速度快`，性能更好，对电脑配置没有要求，但是质量可能不稳定
-- **whisper**: 生成`速度慢`，性能较差，对电脑配置有一定要求，但是`质量更可靠`。
+- **edge**: 使用 Edge TTS 返回的时间戳对齐字幕。速度快，不需要 GPU，普通机器也可以运行；但复杂句子的时间戳偶尔可能不够准确。
+- **whisper**: 使用本地 `faster-whisper` 转写生成后的音频，并生成更细粒度的时间戳。速度较慢（CPU 上通常需要几秒到约 1 分钟，取决于模型大小），需要下载模型（`large-v3-turbo` 约 250 MB，`large-v3` 约 3 GB），但不依赖 TTS provider 的时间戳，字幕准确性通常更好。
 
 可以修改 `config.toml` 配置文件中的 `subtitle_provider` 进行切换
 
@@ -359,11 +348,11 @@ Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variabl
 ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 ```
 
-### ❓ImageMagick的安全策略阻止了与临时文件@/tmp/tmpur5hyyto.txt相关的操作
+### ❓ImageMagick 相关错误
 
-可以在ImageMagick的配置文件policy.xml中找到这些策略。
-这个文件通常位于 /etc/ImageMagick-`X`/ 或 ImageMagick 安装目录的类似位置。
-修改包含`pattern="@"`的条目，将`rights="none"`更改为`rights="read|write"`以允许对文件的读写操作。
+> **当前版本已经不需要 ImageMagick。**
+>
+> 项目升级到 **MoviePy 2.x** 后，字幕渲染已经改为使用 **Pillow**，不再依赖 ImageMagick。如果你仍然看到 ImageMagick 相关错误，通常说明运行的是旧版本代码。请先执行 `git pull` 更新代码，Windows 用户也可以运行 `update.bat` 更新。
 
 ### ❓OSError: [Errno 24] Too many open files
 
@@ -383,16 +372,20 @@ ulimit -n 10240
 
 ### ❓Whisper 模型下载失败，出现如下错误
 
-LocalEntryNotfoundEror: Cannot find an appropriate cached snapshotfolderfor the specified revision on the local disk and
-outgoing trafic has been disabled.
-To enablerepo look-ups and downloads online, pass 'local files only=False' as input.
+```
+LocalEntryNotFoundError: Cannot find an appropriate cached snapshot folder for the specified revision on the local disk and
+outgoing traffic has been disabled.
+To enable repo look-ups and downloads online, pass 'local_files_only=False' as input.
+```
 
 或者
 
+```
 An error occurred while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
 An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the
 specified revision on the local disk. Please check your internet connection and try again.
 Trying to load the model directly from the local cache, if it exists.
+```
 
 解决方法：[点击查看如何从网盘手动下载模型](#%E5%AD%97%E5%B9%95%E7%94%9F%E6%88%90-)
 
