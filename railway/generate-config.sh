@@ -9,22 +9,14 @@ GEMINI_KEY="${GEMINI_API_KEY:-}"
 DEEPSEEK_KEY="${DEEPSEEK_API_KEY:-}"
 PEXELS_KEYS="${PEXELS_API_KEYS:-}"
 
-# Write config using printf to avoid heredoc variable expansion issues
-# (API keys with special chars like +/= break heredoc expansion)
+# Write all keys at TOP LEVEL — MPT v1.2.8 reads flat config, not sections
 printf '%s\n' \
 "# Auto-generated at container startup" \
 "" \
 "listen_host = \"0.0.0.0\"" \
 "listen_port = ${APP_PORT}" \
-"llm_provider = \"${LLM}\"" \
 "" \
-"[app]" \
-"host = \"0.0.0.0\"" \
-"port = ${APP_PORT}" \
-"log_level = \"INFO\"" \
-"" \
-"[llm]" \
-"provider = \"${LLM}\"" \
+"# LLM config — all at top level as MPT v1.2.8 expects" \
 "llm_provider = \"${LLM}\"" \
 "openai_api_key = \"${OPENAI_KEY}\"" \
 "openai_model_name = \"gpt-4o-mini\"" \
@@ -35,16 +27,18 @@ printf '%s\n' \
 "deepseek_base_url = \"https://api.deepseek.com/v1\"" \
 "deepseek_model_name = \"deepseek-chat\"" \
 "" \
-"[media]" \
+"# Video sources" \
 "pexels_api_keys = [\"${PEXELS_KEYS}\"]" \
 "" \
-"[storage]" \
+"# Storage" \
 "tasks_dir = \"./storage/tasks\"" \
+"" \
+"[app]" \
+"host = \"0.0.0.0\"" \
+"port = ${APP_PORT}" \
+"log_level = \"INFO\"" \
 > "$CONFIG_PATH"
 
 echo "[Config] Generated config.toml with llm_provider=${LLM}"
 echo "[Config] OpenAI key set: $([ -n "${OPENAI_KEY}" ] && echo YES || echo NO)"
 echo "[Config] Gemini key set: $([ -n "${GEMINI_KEY}" ] && echo YES || echo NO)"
-echo "[Config] --- config.toml contents ---"
-cat "$CONFIG_PATH"
-echo "[Config] --- end config.toml ---"
