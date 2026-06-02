@@ -1,5 +1,8 @@
 FROM python:3.11-slim AS base
 
+# Cache bust — increment this to force a full Railway rebuild
+ARG CACHE_BUST=2
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive
