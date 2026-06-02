@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+# let's begin
 
 CONFIG_PATH="./config.toml"
 APP_PORT="${PORT:-8080}"
