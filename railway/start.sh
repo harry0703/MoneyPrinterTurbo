@@ -11,23 +11,8 @@ fail() { echo -e "${RED}[Error]${NC} $1"; exit 1; }
 
 export PORT="${PORT:-8080}"
 
-# Generate real config FIRST — overwrite placeholder baked into image
 log "Generating config.toml (port=${PORT})..."
 ./generate-config.sh
-
-# Force Python to re-read config before uvicorn imports the app
-# This patches the in-memory config object with the real API key
-log "Preloading config into Python..."
-python3 -c "
-import toml, os, sys
-cfg = toml.load('./config.toml')
-key = cfg.get('openai_api_key', '')
-if not key or key == 'PLACEHOLDER':
-    print('[FATAL] openai_api_key is empty in config.toml!')
-    sys.exit(1)
-print(f'[Config] openai_api_key loaded: {key[:8]}...{key[-4:]}')
-print(f'[Config] llm_provider: {cfg.get(\"llm_provider\", \"NOT SET\")}')
-" || fail "Config validation failed"
 
 log "Verifying FFmpeg..."
 ffmpeg -version 2>&1 | head -1 || fail "FFmpeg not found"
