@@ -9,14 +9,12 @@ GEMINI_KEY="${GEMINI_API_KEY:-}"
 DEEPSEEK_KEY="${DEEPSEEK_API_KEY:-}"
 PEXELS_KEYS="${PEXELS_API_KEYS:-}"
 
-# Write all keys at TOP LEVEL — MPT v1.2.8 reads flat config, not sections
+# MPT reads ALL LLM keys from config.app — they MUST be inside [app] section
+# Source: app/services/llm.py → config.app.get("openai_api_key")
 printf '%s\n' \
 "# Auto-generated at container startup" \
 "" \
-"listen_host = \"0.0.0.0\"" \
-"listen_port = ${APP_PORT}" \
-"" \
-"# LLM config — all at top level as MPT v1.2.8 expects" \
+"[app]" \
 "llm_provider = \"${LLM}\"" \
 "openai_api_key = \"${OPENAI_KEY}\"" \
 "openai_model_name = \"gpt-4o-mini\"" \
@@ -26,19 +24,11 @@ printf '%s\n' \
 "deepseek_api_key = \"${DEEPSEEK_KEY}\"" \
 "deepseek_base_url = \"https://api.deepseek.com/v1\"" \
 "deepseek_model_name = \"deepseek-chat\"" \
-"" \
-"# Video sources" \
 "pexels_api_keys = [\"${PEXELS_KEYS}\"]" \
 "" \
-"# Storage" \
+"[storage]" \
 "tasks_dir = \"./storage/tasks\"" \
-"" \
-"[app]" \
-"host = \"0.0.0.0\"" \
-"port = ${APP_PORT}" \
-"log_level = \"INFO\"" \
 > "$CONFIG_PATH"
 
-echo "[Config] Generated config.toml with llm_provider=${LLM}"
+echo "[Config] Generated config.toml — llm_provider=${LLM}"
 echo "[Config] OpenAI key set: $([ -n "${OPENAI_KEY}" ] && echo YES || echo NO)"
-echo "[Config] Gemini key set: $([ -n "${GEMINI_KEY}" ] && echo YES || echo NO)"
