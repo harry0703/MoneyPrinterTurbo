@@ -18,7 +18,7 @@ port = ${APP_PORT}
 log_level = "${LOG_LEVEL:-INFO}"
 
 [llm]
-provider = "${LLM_PROVIDER:-pollinations}"
+provider = "${LLM_PROVIDER:-gemini}"
 deepseek_api_key = "${DEEPSEEK_API_KEY:-}"
 deepseek_base_url = "https://api.deepseek.com/v1"
 deepseek_model_name = "deepseek-chat"
@@ -26,6 +26,7 @@ openai_api_key = "${OPENAI_API_KEY:-}"
 openai_base_url = "https://api.openai.com/v1"
 openai_model_name = "gpt-4o-mini"
 gemini_api_key = "${GEMINI_API_KEY:-}"
+gemini_model_name = "gemini-1.5-flash"
 
 [video]
 pexels_api_keys = ["${PEXELS_API_KEYS}"]
@@ -40,4 +41,4 @@ tasks_dir = "./storage/tasks"
 default_voice = "${DEFAULT_VOICE:-en-US-AriaNeural}"
 TOML
 
-echo "[Config] Generated config.toml with listen_port=${APP_PORT}"
+echo "[Config] Generated config.toml with listen_port=${APP_PORT} llm_provider=${LLM_PROVIDER:-gemini}"
