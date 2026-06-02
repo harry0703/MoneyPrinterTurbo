@@ -710,6 +710,222 @@ Please note that you must use English for generating video search terms; Chinese
     return search_terms
 
 
+# =============================================================================
+# Social publishing metadata (Vietnamese-first)
+#
+# Turns a generated script into ready-to-publish metadata (title, caption,
+# hashtags) tuned for the short-video platforms popular in Vietnam such as
+# TikTok, YouTube Shorts, Instagram Reels and Facebook Reels. Defaults to
+# Vietnamese so VN creators get natural, platform-appropriate copy out of the
+# box, but any language can be requested.
+# =============================================================================
+
+# Per-platform limits. `title_max`/`caption_max` are conservative character
+# budgets; `hashtag_count` is how many tags to request.
+SOCIAL_PLATFORMS = {
+    "tiktok": {"title_max": 100, "caption_max": 2200, "hashtag_count": 5},
+    "youtube_shorts": {"title_max": 100, "caption_max": 5000, "hashtag_count": 3},
+    "instagram_reels": {"title_max": 125, "caption_max": 2200, "hashtag_count": 8},
+    "facebook_reels": {"title_max": 125, "caption_max": 2200, "hashtag_count": 5},
+}
+DEFAULT_SOCIAL_PLATFORM = "tiktok"
+DEFAULT_SOCIAL_LANGUAGE = "vi"
+
+SOCIAL_PLATFORM_LABELS = {
+    "tiktok": "TikTok",
+    "youtube_shorts": "YouTube Shorts",
+    "instagram_reels": "Instagram Reels",
+    "facebook_reels": "Facebook Reels",
+}
+
+# Sensible Vietnamese defaults used only when the LLM is unavailable so the
+# feature still returns something usable instead of failing the whole task.
+_DEFAULT_VI_HASHTAGS = [
+    "#xuhuong",
+    "#fyp",
+    "#viral",
+    "#trending",
+    "#vietnam",
+    "#reels",
+    "#tiktok",
+    "#viralvideo",
+]
+
+
+def _resolve_social_platform(platform: str | None) -> str:
+    value = (platform or "").strip().lower()
+    return value if value in SOCIAL_PLATFORMS else DEFAULT_SOCIAL_PLATFORM
+
+
+def _clamp_text(text, max_length: int) -> str:
+    value = ("" if text is None else str(text)).strip()
+    if max_length and len(value) > max_length:
+        return value[:max_length].rstrip()
+    return value
+
+
+def _normalize_hashtags(raw, count: int) -> List[str]:
+    """Normalize arbitrary LLM hashtag output into clean ``#tag`` strings.
+
+    Accepts either a list or a free-form string, removes spaces/punctuation
+    inside a tag (Vietnamese letters are preserved), de-duplicates
+    case-insensitively, and clamps the result to ``count`` tags.
+    """
+    if isinstance(raw, str):
+        # A free-form string may contain several space/comma separated tags.
+        candidates = re.split(r"[\s,]+", raw)
+    elif isinstance(raw, (list, tuple)):
+        # A JSON array already delimits tags: treat each entry as one tag so a
+        # multi-word entry like "du lich" becomes "#dulich" rather than two tags.
+        candidates = [str(entry) for entry in raw]
+    else:
+        candidates = []
+
+    seen = set()
+    result: List[str] = []
+    for item in candidates:
+        # Keep unicode word characters (Vietnamese letters included); this also
+        # strips a leading '#', spaces, and punctuation.
+        tag = re.sub(r"[^\w]", "", item, flags=re.UNICODE)
+        if not tag:
+            continue
+        key = tag.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(f"#{tag}")
+        if count and len(result) >= count:
+            break
+    return result
+
+
+def build_social_metadata_prompt(
+    video_subject: str,
+    video_script: str = "",
+    language: str = DEFAULT_SOCIAL_LANGUAGE,
+    platform: str = DEFAULT_SOCIAL_PLATFORM,
+) -> str:
+    platform = _resolve_social_platform(platform)
+    spec = SOCIAL_PLATFORMS[platform]
+    label = SOCIAL_PLATFORM_LABELS.get(platform, platform)
+    language = (language or DEFAULT_SOCIAL_LANGUAGE).strip() or DEFAULT_SOCIAL_LANGUAGE
+
+    prompt = f"""
+# Role: Short-Video Social Media Copywriter
+
+## Goal
+Write engaging publishing metadata for a short video that will be posted on {label}.
+
+## Constraints
+1. Respond ONLY with a single valid minified JSON object. No markdown, no code fences, no commentary.
+2. The JSON must contain exactly these keys: "title", "caption", "hashtags".
+3. "title": a catchy hook, at most {spec['title_max']} characters.
+4. "caption": an engaging description that ends with a call to action, at most {spec['caption_max']} characters. Do not put hashtags inside the caption.
+5. "hashtags": a JSON array of exactly {spec['hashtag_count']} strings. Each must start with '#', contain no spaces, and be relevant to the topic and to {label}.
+6. Write "title" and "caption" in this language: {language}. For Vietnamese, use natural, modern, social-media style wording (it is fine to use diacritic-free hashtags, which are common on Vietnamese social media).
+
+## Output Example
+{{"title": "...", "caption": "...", "hashtags": ["#example", "#video"]}}
+
+## Context
+### Video Subject
+{video_subject}
+
+### Video Script
+{video_script}
+""".strip()
+    return prompt
+
+
+def _parse_social_metadata(response: str, platform: str) -> dict:
+    spec = SOCIAL_PLATFORMS[_resolve_social_platform(platform)]
+
+    data = None
+    try:
+        data = json.loads(response)
+    except Exception:
+        # LLMs sometimes wrap JSON in prose or code fences; recover the object.
+        match = re.search(r"\{.*\}", response or "", re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+
+    if not isinstance(data, dict):
+        raise ValueError("social metadata response is not a JSON object")
+
+    title = _clamp_text(data.get("title", ""), spec["title_max"])
+    caption = _clamp_text(data.get("caption", ""), spec["caption_max"])
+    hashtags = _normalize_hashtags(data.get("hashtags", []), spec["hashtag_count"])
+
+    if not title and not caption:
+        raise ValueError("social metadata response is missing both title and caption")
+
+    return {"title": title, "caption": caption, "hashtags": hashtags}
+
+
+def _fallback_social_metadata(
+    video_subject: str, video_script: str, platform: str
+) -> dict:
+    spec = SOCIAL_PLATFORMS[_resolve_social_platform(platform)]
+    subject = (video_subject or "").strip()
+    script = (video_script or "").strip()
+
+    title = subject
+    if not title and script:
+        # Use the first sentence of the script as a last-resort title.
+        title = re.split(r"(?<=[.!?。！？])\s+", script)[0]
+
+    return {
+        "title": _clamp_text(title, spec["title_max"]),
+        "caption": _clamp_text(script or subject, spec["caption_max"]),
+        "hashtags": _normalize_hashtags(_DEFAULT_VI_HASHTAGS, spec["hashtag_count"]),
+    }
+
+
+def generate_social_metadata(
+    video_subject: str,
+    video_script: str = "",
+    language: str = DEFAULT_SOCIAL_LANGUAGE,
+    platform: str = DEFAULT_SOCIAL_PLATFORM,
+) -> dict:
+    """Generate social publishing metadata (title, caption, hashtags).
+
+    Returns a dict ``{"title": str, "caption": str, "hashtags": List[str]}``.
+    Falls back to a Vietnamese heuristic if the LLM is unavailable so callers
+    always receive a usable result.
+    """
+    platform = _resolve_social_platform(platform)
+    prompt = build_social_metadata_prompt(
+        video_subject=video_subject,
+        video_script=video_script,
+        language=language,
+        platform=platform,
+    )
+    logger.info(
+        f"generating social metadata: platform={platform}, language={language}"
+    )
+
+    response = ""
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt)
+            if isinstance(response, str) and "Error: " in response:
+                logger.error(f"failed to generate social metadata: {response}")
+                break
+            metadata = _parse_social_metadata(response, platform)
+            logger.success(f"completed: \n{metadata}")
+            return metadata
+        except Exception as e:
+            logger.warning(f"failed to parse social metadata: {str(e)}")
+
+        if i < _max_retries:
+            logger.warning(
+                f"failed to generate social metadata, trying again... {i + 1}"
+            )
+
+    logger.warning("falling back to heuristic Vietnamese social metadata")
+    return _fallback_social_metadata(video_subject, video_script, platform)
+
+
 if __name__ == "__main__":
     video_subject = "生命的意义是什么"
     script = generate_script(
