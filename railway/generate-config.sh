@@ -29,9 +29,6 @@ gemini_model_name = "gemini-1.5-flash"
 deepseek_api_key = "${DEEPSEEK_API_KEY:-}"
 deepseek_base_url = "https://api.deepseek.com/v1"
 deepseek_model_name = "deepseek-chat"
-moonshot_api_key = "${MOONSHOT_API_KEY:-}"
-moonshot_base_url = "https://api.moonshot.cn/v1"
-moonshot_model_name = "moonshot-v1-8k"
 
 [media]
 pexels_api_keys = ["${PEXELS_API_KEYS}"]
@@ -41,7 +38,7 @@ tasks_dir = "./storage/tasks"
 TOML
 
 echo "[Config] Generated config.toml with listen_port=${APP_PORT} llm_provider=${LLM}"
-
-# Show key presence (not value) for debugging
 echo "[Config] OpenAI key set: $([ -n "${OPENAI_API_KEY:-}" ] && echo YES || echo NO)"
 echo "[Config] Gemini key set: $([ -n "${GEMINI_API_KEY:-}" ] && echo YES || echo NO)"
+echo "[Config] Full config.toml contents:"
+cat "$CONFIG_PATH"
