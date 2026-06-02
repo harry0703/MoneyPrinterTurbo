@@ -62,6 +62,8 @@
     "Font Color": "Цвет шрифта субтитров",
     "Stroke Color": "Цвет обводки субтитров",
     "Stroke Width": "Ширина обводки субтитров",
+    "Enable Subtitle Background": "Включить фон субтитров",
+    "Subtitle Background Color": "Цвет фона субтитров",
     "Generate Video": "Создать видео",
     "Video Script and Subject Cannot Both Be Empty": "Тема и сценарий видео не могут быть пустыми одновременно",
     "Generating Video": "Создание видео, пожалуйста подождите...",

@@ -74,6 +74,8 @@
     "Font Color": "Schriftfarbe",
     "Stroke Color": "Kontur",
     "Stroke Width": "Breite der Untertitelkontur",
+    "Enable Subtitle Background": "Untertitelhintergrund aktivieren",
+    "Subtitle Background Color": "Farbe des Untertitelhintergrunds",
     "Rounded Subtitle Background": "Abgerundeten halbtransparenten Untertitelhintergrund aktivieren",
     "Rounded Subtitle Background Help": "Standardmäßig deaktiviert. Wenn aktiviert, verwenden Untertitelhintergründe einen abgerundeten, halbtransparenten Stil, der sich besser an die Textbreite anpasst.",
     "Generate Video": "Generiere Videos durch KI",

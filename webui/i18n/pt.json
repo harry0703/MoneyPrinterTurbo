@@ -62,6 +62,8 @@
     "Font Color": "Cor da Fonte da Legenda",
     "Stroke Color": "Cor do Contorno da Legenda",
     "Stroke Width": "Largura do Contorno da Legenda",
+    "Enable Subtitle Background": "Ativar fundo da legenda",
+    "Subtitle Background Color": "Cor do fundo da legenda",
     "Generate Video": "Gerar Vídeo",
     "Video Script and Subject Cannot Both Be Empty": "O Tema do Vídeo e o Roteiro do Vídeo não podem estar ambos vazios",
     "Generating Video": "Gerando vídeo, por favor aguarde...",

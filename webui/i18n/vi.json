@@ -71,6 +71,8 @@
     "Font Color": "Màu Chữ Phụ Đề",
     "Stroke Color": "Màu Viền Phụ Đề",
     "Stroke Width": "Độ Rộng Viền Phụ Đề",
+    "Enable Subtitle Background": "Bật nền phụ đề",
+    "Subtitle Background Color": "Màu nền phụ đề",
     "Rounded Subtitle Background": "Bật nền phụ đề bo tròn, mờ trong suốt",
     "Rounded Subtitle Background Help": "Mặc định tắt. Khi được bật, nền phụ đề sẽ dùng kiểu bo tròn mờ trong suốt, vừa khít với độ rộng của chữ.",
     "Generate Video": "Tạo Video",

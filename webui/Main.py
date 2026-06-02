@@ -1139,15 +1139,49 @@ with right_panel:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+
+        subtitle_bg_cols = st.columns([0.4, 0.6])
+        saved_subtitle_background_enabled = config.ui.get(
+            "subtitle_background_enabled", True
+        )
+        with subtitle_bg_cols[0]:
+            subtitle_background_enabled = st.checkbox(
+                tr("Enable Subtitle Background"),
+                value=saved_subtitle_background_enabled,
+            )
+        config.ui["subtitle_background_enabled"] = subtitle_background_enabled
+        if subtitle_background_enabled:
+            with subtitle_bg_cols[1]:
+                saved_subtitle_background_color = config.ui.get(
+                    "subtitle_background_color", "#000000"
+                )
+                params.text_background_color = st.color_picker(
+                    tr("Subtitle Background Color"),
+                    saved_subtitle_background_color,
+                )
+                config.ui["subtitle_background_color"] = params.text_background_color
+        else:
+            params.text_background_color = False
+
         saved_rounded_subtitle_background = config.ui.get(
             "rounded_subtitle_background", False
         )
+        # 背景关闭时，圆角背景没有可渲染的底色。这里禁用控件并保留原配置，
+        # 用户下次重新开启字幕背景后，可以继续使用之前保存的圆角偏好。
         params.rounded_subtitle_background = st.checkbox(
             tr("Rounded Subtitle Background"),
-            value=saved_rounded_subtitle_background,
+            value=(
+                saved_rounded_subtitle_background
+                if subtitle_background_enabled
+                else False
+            ),
             help=tr("Rounded Subtitle Background Help"),
+            disabled=not subtitle_background_enabled,
         )
-        config.ui["rounded_subtitle_background"] = params.rounded_subtitle_background
+        if subtitle_background_enabled:
+            config.ui["rounded_subtitle_background"] = (
+                params.rounded_subtitle_background
+            )
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels and Pixabay API Keys"))
 

@@ -62,6 +62,8 @@
     "Font Color": "Altyazı Font Rengi",
     "Stroke Color": "Altyazı Çerçeve Rengi",
     "Stroke Width": "Altyazı Çerçeve Kalınlığı",
+    "Enable Subtitle Background": "Altyazı arka planını etkinleştir",
+    "Subtitle Background Color": "Altyazı arka plan rengi",
     "Generate Video": "Video Oluştur",
     "Video Script and Subject Cannot Both Be Empty": "Video Konusu ve Video Senaryosu aynı anda boş olamaz",
     "Generating Video": "Video oluşturuluyor, lütfen bekleyin...",
