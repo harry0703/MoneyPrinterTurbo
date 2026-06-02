@@ -4,6 +4,8 @@ from app.controllers.v1.base import new_router
 from app.models.schema import (
     VideoScriptRequest,
     VideoScriptResponse,
+    VideoSocialMetadataRequest,
+    VideoSocialMetadataResponse,
     VideoTermsRequest,
     VideoTermsResponse,
 )
@@ -45,3 +47,20 @@ def generate_video_terms(request: Request, body: VideoTermsRequest):
     )
     response = {"video_terms": video_terms}
     return utils.get_response(200, response)
+
+
+@router.post(
+    "/social-metadata",
+    response_model=VideoSocialMetadataResponse,
+    summary="Generate social publishing metadata",
+)
+def generate_video_social_metadata(
+    request: Request, body: VideoSocialMetadataRequest
+):
+    metadata = llm.generate_social_metadata(
+        video_subject=body.video_subject,
+        video_script=body.video_script,
+        language=body.language,
+        platform=body.platform,
+    )
+    return utils.get_response(200, metadata)
