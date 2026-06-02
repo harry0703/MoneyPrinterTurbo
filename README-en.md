@@ -170,7 +170,7 @@ Open your browser and visit http://127.0.0.1:8501
 
 #### ③ Access the API Interface
 
-Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redoc
+Open your browser and visit http://127.0.0.1:8080/docs or http://127.0.0.1:8080/redoc
 
 ### Manual Deployment 📦
 
@@ -199,33 +199,7 @@ Notes:
 - `uv.lock` pins the resolved environment, so `uv sync --frozen` is recommended by default.
 - `requirements.txt` is kept only for legacy `pip`-based installation.
 
-#### ② Install ImageMagick
-
-###### Windows:
-
-- Download https://imagemagick.org/script/download.php Choose the Windows version, make sure to select the **static library** version, such as ImageMagick-7.1.1-32-Q16-x64-**static**.exe
-- Install the downloaded ImageMagick, **do not change the installation path**
-- Modify the `config.toml` configuration file, set `imagemagick_path` to your actual installation path
-
-###### MacOS:
-
-```shell
-brew install imagemagick
-```
-
-###### Ubuntu
-
-```shell
-sudo apt-get install imagemagick
-```
-
-###### CentOS
-
-```shell
-sudo yum install ImageMagick
-```
-
-#### ③ Launch the Web Interface 🌐
+#### ② Launch the Web Interface 🌐
 
 Note that you need to execute the following commands in the `root directory` of the MoneyPrinterTurbo project
 
@@ -253,7 +227,7 @@ sh webui.sh
 
 After launching, the browser will open automatically
 
-#### ④ Launch the API Service 🚀
+#### ③ Launch the API Service 🚀
 
 ```shell
 uv run python main.py
@@ -286,23 +260,28 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 ![picwish.jpg](docs/picwish.com.jpg)
 
-After launching, you can view the `API documentation` at http://127.0.0.1:8080/docs and directly test the interface
-online for a quick experience.
-
 ## Voice Synthesis 🗣
 
 A list of all supported voices can be viewed here: [Voice List](./docs/voice-list.txt)
 
-2024-04-16 v1.1.2 Added 9 new Azure voice synthesis voices that require API KEY configuration. These voices sound more realistic.
+The default TTS provider is **Edge TTS** (free, no API key required). To switch voices, set `voice_name` in `config.toml` or select one from the WebUI voice dropdown.
+
+To use higher-quality **Azure TTS** voices, configure your Azure Speech credentials in `config.toml`:
+
+```toml
+[azure]
+speech_key = "your-azure-speech-key"
+speech_region = "eastus"
+```
+
+Azure voices require an [Azure Speech Services](https://portal.azure.com/) subscription. The 9 Azure voices added in v1.1.2 sound noticeably more natural than Edge TTS for most use cases.
 
 ## Subtitle Generation 📜
 
 Currently, there are 2 ways to generate subtitles:
 
-- **edge**: Faster generation speed, better performance, no specific requirements for computer configuration, but the
-  quality may be unstable
-- **whisper**: Slower generation speed, poorer performance, specific requirements for computer configuration, but more
-  reliable quality
+- **edge**: Uses Edge TTS timestamps to align subtitles. Fast, no GPU required, works on any machine. Accuracy depends on the TTS timing signal — occasionally misaligns on complex sentences.
+- **whisper**: Runs `faster-whisper` locally to transcribe the generated audio and produce word-level timestamps. Slower (a few seconds to ~1 minute per clip on CPU depending on model size), requires downloading a model (~250 MB for `large-v3-turbo`, ~3 GB for `large-v3`), but produces more accurate subtitles regardless of TTS provider.
 
 You can switch between them by modifying the `subtitle_provider` in the `config.toml` configuration file
 
@@ -370,23 +349,9 @@ ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 
 ### ❓ImageMagick is not installed on your computer
 
-[issue 33](https://github.com/harry0703/MoneyPrinterTurbo/issues/33)
-
-1. Follow the `example configuration` provided `download address` to
-   install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-30-Q16-x64-static.exe, using the static library
-2. Do not install in a path with Chinese characters to avoid unpredictable issues
-
-[issue 54](https://github.com/harry0703/MoneyPrinterTurbo/issues/54#issuecomment-2017842022)
-
-For Linux systems, you can manually install it, refer to https://cn.linux-console.net/?p=16978
-
-Thanks to [@wangwenqiao666](https://github.com/wangwenqiao666) for their research and exploration
-
-### ❓ImageMagick's security policy prevents operations related to temporary file @/tmp/tmpur5hyyto.txt
-
-You can find these policies in ImageMagick's configuration file policy.xml.
-This file is usually located in /etc/ImageMagick-`X`/ or a similar location in the ImageMagick installation directory.
-Modify the entry containing `pattern="@"`, change `rights="none"` to `rights="read|write"` to allow read and write operations on files.
+> **This error no longer applies to the current version.**
+>
+> Since the project upgraded to **MoviePy 2.x**, subtitle rendering uses **Pillow** instead of ImageMagick. You do not need to install ImageMagick. If you are seeing this error, you may be running an older version of the code — run `git pull` to update, or use `update.bat` on Windows.
 
 ### ❓OSError: [Errno 24] Too many open files
 
@@ -406,16 +371,20 @@ ulimit -n 10240
 
 ### ❓Whisper model download failed, with the following error
 
-LocalEntryNotfoundEror: Cannot find an appropriate cached snapshotfolderfor the specified revision on the local disk and
-outgoing trafic has been disabled.
-To enablerepo look-ups and downloads online, pass 'local files only=False' as input.
+```
+LocalEntryNotFoundError: Cannot find an appropriate cached snapshot folder for the specified revision on the local disk and
+outgoing traffic has been disabled.
+To enable repo look-ups and downloads online, pass 'local_files_only=False' as input.
+```
 
 or
 
+```
 An error occurred while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
 An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the
 specified revision on the local disk. Please check your internet connection and try again.
 Trying to load the model directly from the local cache, if it exists.
+```
 
 Solution: [Click to see how to manually download the model from netdisk](#subtitle-generation-)
 
