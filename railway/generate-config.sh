@@ -4,7 +4,7 @@ set -euo pipefail
 CONFIG_PATH="./config.toml"
 APP_PORT="${PORT:-8080}"
 APP_HOST="0.0.0.0"
-LLM="${LLM_PROVIDER:-gemini}"
+LLM="${LLM_PROVIDER:-pollinations}"
 
 cat > "$CONFIG_PATH" << TOML
 # Auto-generated at container startup — do not edit
