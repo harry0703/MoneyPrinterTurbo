@@ -10,6 +10,14 @@ fail() { echo -e "${RED}[Error]${NC} $1"; exit 1; }
 
 export PORT="${PORT:-8080}"
 
+# Print MPT's config.py so we know EXACTLY how it reads the API key
+echo "=== MPT config.py source ==="
+find /app -path "*/config/config.py" 2>/dev/null | while read f; do
+    echo "--- Found: $f ---"
+    cat "$f"
+done
+echo "=== end config.py ==="
+
 log "Generating config.toml (port=${PORT})..."
 ./generate-config.sh
 
