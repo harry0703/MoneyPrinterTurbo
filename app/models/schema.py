@@ -178,6 +178,24 @@ class VideoTermsParams:
     amount: Optional[int] = 5
 
 
+
+class VideoSocialMetadataParams:
+    """
+    Parameters for generating social-publishing metadata (title, caption,
+    hashtags) for short-video platforms popular in Vietnam.
+    {
+      "video_subject": "",
+      "video_script": "",
+      "language": "vi",
+      "platform": "tiktok"
+    }
+    """
+
+    video_subject: Optional[str] = "Khám phá Việt Nam"
+    video_script: Optional[str] = ""
+    language: Optional[str] = "vi"
+    platform: Optional[str] = "tiktok"
+
 class BaseResponse(BaseModel):
     status: int = 200
     message: Optional[str] = "success"
@@ -197,6 +215,10 @@ class VideoScriptRequest(VideoScriptParams, BaseModel):
 
 
 class VideoTermsRequest(VideoTermsParams, BaseModel):
+    pass
+
+
+class VideoSocialMetadataRequest(VideoSocialMetadataParams, BaseModel):
     pass
 
 
@@ -280,6 +302,21 @@ class VideoTermsResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {"video_terms": ["sky", "tree"]},
+            },
+        }
+
+
+class VideoSocialMetadataResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "title": "5 mẹo du lịch Việt Nam bạn nhất định phải biết!",
+                    "caption": "Bỏ túi ngay 5 mẹo này trước chuyến đi nhé! Lưu lại và theo dõi để xem thêm.",
+                    "hashtags": ["#dulich", "#vietnam", "#xuhuong", "#fyp", "#review"],
+                },
             },
         }
 
