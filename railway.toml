@@ -13,6 +13,6 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 healthcheckPath       = "/api/v1/health"
-healthcheckTimeout    = 300     # 5 minutes — engine takes time to initialise
+healthcheckTimeout    = 600     # 10 minutes — give engine time during video processing
 restartPolicyType     = "ON_FAILURE"
 restartPolicyMaxRetries = 3
