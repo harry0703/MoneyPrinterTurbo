@@ -12,7 +12,6 @@ builder       = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand          = "./start.sh"
 healthcheckPath       = "/api/v1/health"
 healthcheckTimeout    = 300     # 5 minutes — engine takes time to initialise
 restartPolicyType     = "ON_FAILURE"
