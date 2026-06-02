@@ -836,10 +836,23 @@ def generate_video(
         animation = getattr(params, "subtitle_animation", "none")
         animation_duration = min(0.3, duration / 4)  # Animation duration, max 0.3s
         
+        # Apply fade in/out using compatible methods
         if animation == "fade":
             # Fade in/out effect
-            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
             _clip = _clip.with_position((final_x, final_y))
+            # Try multiple methods for fade in/out
+            try:
+                # Try crossfadein/crossfadeout first
+                _clip = _clip.crossfadein(animation_duration)
+                _clip = _clip.crossfadeout(animation_duration)
+            except AttributeError:
+                try:
+                    # Try vfx.fadein/fadeout
+                    from moviepy import vfx
+                    _clip = _clip.fx(vfx.fadein, animation_duration)
+                    _clip = _clip.fx(vfx.fadeout, animation_duration)
+                except Exception as e:
+                    logger.warning(f"Failed to apply fade animation: {e}")
         elif animation == "slide_up":
             # Slide up from below
             def slide_up_pos(t):
@@ -853,7 +866,6 @@ def generate_video(
                     y = final_y
                 return (final_x, y)
             _clip = _clip.with_position(slide_up_pos)
-            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
         elif animation == "slide_down":
             # Slide down from above
             def slide_down_pos(t):
@@ -867,7 +879,6 @@ def generate_video(
                     y = final_y
                 return (final_x, y)
             _clip = _clip.with_position(slide_down_pos)
-            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
         elif animation == "slide_left":
             # Slide left from right
             def slide_left_pos(t):
@@ -881,7 +892,6 @@ def generate_video(
                     x = final_x
                 return (x, final_y)
             _clip = _clip.with_position(slide_left_pos)
-            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
         elif animation == "slide_right":
             # Slide right from left
             def slide_right_pos(t):
@@ -895,7 +905,6 @@ def generate_video(
                     x = final_x
                 return (x, final_y)
             _clip = _clip.with_position(slide_right_pos)
-            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
         elif animation == "pop":
             # Pop in/out with scale effect
             def pop_transform(get_frame, t):
@@ -922,7 +931,6 @@ def generate_video(
             
             _clip = _clip.fl(pop_transform)
             _clip = _clip.with_position((final_x, final_y))
-            _clip = _clip.crossfadein(animation_duration).crossfadeout(animation_duration)
         else:  # none
             # No animation
             _clip = _clip.with_position((final_x, final_y))
@@ -942,14 +950,32 @@ def generate_video(
         )
 
     if subtitle_path and os.path.exists(subtitle_path):
-        sub = SubtitlesClip(
-            subtitles=subtitle_path, encoding="utf-8", make_textclip=make_textclip
-        )
-        text_clips = []
-        for item in sub.subtitles:
-            clip = create_text_clip(subtitle_item=item)
-            text_clips.append(clip)
-        video_clip = CompositeVideoClip([video_clip, *text_clips])
+        logger.info(f"Loading subtitles from: {subtitle_path}")
+        # 读取字幕文件内容检查
+        try:
+            with open(subtitle_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                logger.info(f"Subtitle content preview: {content[:200]}")
+        except Exception as e:
+            logger.warning(f"Failed to read subtitle file: {e}")
+        
+        # 使用 SubtitlesClip
+        try:
+            sub = SubtitlesClip(
+                subtitles=subtitle_path, 
+                encoding="utf-8", 
+                make_textclip=make_textclip
+            )
+            text_clips = []
+            for item in sub.subtitles:
+                logger.info(f"Processing subtitle: {item}")
+                clip = create_text_clip(subtitle_item=item)
+                text_clips.append(clip)
+            if text_clips:
+                video_clip = CompositeVideoClip([video_clip, *text_clips])
+                logger.info(f"Added {len(text_clips)} subtitle clips")
+        except Exception as e:
+            logger.error(f"Error processing subtitles: {e}")
 
     bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file, custom_bgm_file=getattr(params, "custom_bgm_file", ""))
     if bgm_file:
@@ -1208,3 +1234,64 @@ def _process_image_simple(image_path: str, duration: int = 4) -> str:
     )
     close_clip(clip)
     return video_file
+
+
+def create_solid_color_videos(task_id: str, bg_color: tuple, duration: int, audio_duration: float, video_aspect: VideoAspect) -> list:
+    """
+    创建纯色背景视频
+    
+    Args:
+        task_id: 任务ID
+        bg_color: RGB颜色元组
+        duration: 单个视频片段的时长
+        audio_duration: 总音频时长
+        video_aspect: 视频比例
+    
+    Returns:
+        视频文件路径列表
+    """
+    from app.utils import utils
+    
+    # 获取尺寸
+    aspect = VideoAspect(video_aspect)
+    width, height = aspect.to_resolution()
+    
+    # 确保宽度和高度都是偶数
+    width = width if width % 2 == 0 else width + 1
+    height = height if height % 2 == 0 else height + 1
+    
+    task_dir = utils.task_dir(task_id)
+    video_files = []
+    
+    # 计算需要多少个视频片段
+    num_clips = max(1, int(audio_duration / duration) + 1)
+    logger.info(f"creating {num_clips} solid color video clips with duration {duration}s each")
+    
+    for i in range(num_clips):
+        clip_path = os.path.join(task_dir, f"solid-bg-{i}.mp4")
+        
+        try:
+            # 创建纯色背景
+            clip = ColorClip(size=(width, height), color=bg_color).with_duration(duration)
+            
+            # 写入视频文件
+            clip.write_videofile(
+                clip_path,
+                fps=fps,
+                logger=None,
+                codec=video_codec,
+                bitrate=video_bitrate,
+                preset=video_preset,
+                ffmpeg_params=["-crf", str(video_crf), "-pix_fmt", video_pix_fmt]
+            )
+            
+            video_files.append(clip_path)
+            logger.info(f"created solid color video: {clip_path}")
+            
+            close_clip(clip)
+        except Exception as e:
+            logger.error(f"failed to create solid color video {i}: {e}")
+            close_clip(clip)
+            continue
+    
+    return video_files

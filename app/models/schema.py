@@ -127,6 +127,9 @@ class VideoParams(BaseModel):
     video_quality: Optional[str] = "high"  # 视频质量：low, medium, high, ultra
     video_bitrate: Optional[str] = None  # 视频码率，如 "8M"，如果设置会覆盖 video_quality
     video_crf: Optional[int] = None  # CRF 值，范围 0-51，越小画质越好，如果设置会覆盖 video_quality
+    
+    # 纯色背景配置
+    solid_bg_color: Optional[str] = "#667eea"  # 纯色背景颜色，格式为十六进制颜色码
 
 
 class SubtitleRequest(BaseModel):

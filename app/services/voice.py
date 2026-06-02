@@ -1315,6 +1315,44 @@ def _get_audio_duration_from_file(audio_file: str) -> float:
         logger.error(f"Failed to get audio duration from file: {str(e)}")
         return 0.0
 
+def get_all_voices() -> list[str]:
+    """
+    获取所有可用的配音声音列表
+    包括Azure、SiliconFlow、Gemini和MiMo的声音
+    """
+    voices = []
+    
+    # 添加Azure声音
+    try:
+        azure_voices = get_all_azure_voices()
+        voices.extend(azure_voices)
+    except Exception as e:
+        logger.warning(f"Failed to get Azure voices: {e}")
+    
+    # 添加SiliconFlow声音
+    try:
+        siliconflow_voices = get_siliconflow_voices()
+        voices.extend(siliconflow_voices)
+    except Exception as e:
+        logger.warning(f"Failed to get SiliconFlow voices: {e}")
+    
+    # 添加Gemini声音
+    try:
+        gemini_voices = get_gemini_voices()
+        voices.extend(gemini_voices)
+    except Exception as e:
+        logger.warning(f"Failed to get Gemini voices: {e}")
+    
+    # 添加MiMo声音
+    try:
+        mimo_voices = get_mimo_voices()
+        voices.extend(mimo_voices)
+    except Exception as e:
+        logger.warning(f"Failed to get MiMo voices: {e}")
+    
+    return voices
+
+
 def get_audio_duration(target: Union[str, SubMaker]) -> float:
     """
     获取音频时长

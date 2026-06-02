@@ -176,6 +176,31 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             )
             return None
         return [material_info.url for material_info in materials]
+    elif params.video_source == "solid_color":
+        logger.info("\n\n## creating solid color background")
+        # 创建纯色背景视频
+        bg_color = getattr(params, "solid_bg_color", "#667eea")
+        # 解析颜色
+        if bg_color.startswith('#'):
+            bg_color = bg_color[1:]
+            if len(bg_color) == 3:
+                bg_color = ''.join([c * 2 for c in bg_color])
+            bg_color = tuple(int(bg_color[i:i+2], 16) for i in (0, 2, 4))
+        
+        # 创建纯色背景视频
+        solid_videos = video.create_solid_color_videos(
+            task_id=task_id,
+            bg_color=bg_color,
+            duration=params.video_clip_duration,
+            audio_duration=audio_duration * params.video_count,
+            video_aspect=params.video_aspect
+        )
+        
+        if not solid_videos:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to create solid color videos.")
+            return None
+        return solid_videos
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         downloaded_videos = material.download_videos(
