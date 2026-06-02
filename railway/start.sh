@@ -10,20 +10,8 @@ fail() { echo -e "${RED}[Error]${NC} $1"; exit 1; }
 
 export PORT="${PORT:-8080}"
 
-# CRITICAL: Generate config BEFORE anything else
-# MPT reads config.toml at Python module import time,
-# so we must write it before uvicorn starts
-log "Finding all config.toml files in container..."
-find / -name "config.toml" 2>/dev/null | head -20
-log "Content of /app/config.toml if exists:"
-cat /app/config.toml 2>/dev/null || echo "NOT FOUND at /app/config.toml"
-
 log "Generating config.toml (port=${PORT})..."
 ./generate-config.sh
-
-# Verify config was written with correct llm_provider
-log "Config verification:"
-grep "llm_provider" ./config.toml || echo "WARNING: llm_provider not found in config"
 
 log "Verifying FFmpeg..."
 ffmpeg -version 2>&1 | head -1 || fail "FFmpeg not found"
