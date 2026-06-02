@@ -264,9 +264,11 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 A list of all supported voices can be viewed here: [Voice List](./docs/voice-list.txt)
 
-The default TTS provider is **Edge TTS** (free, no API key required). To switch voices, set `voice_name` in `config.toml` or select one from the WebUI voice dropdown.
+The default TTS provider is **Edge TTS** (free, no API key required). In the WebUI it appears as **"Azure TTS V1"** — this is the same thing. To switch voices, set `voice_name` in `config.toml` or select one from the WebUI voice dropdown.
 
-To use higher-quality **Azure TTS** voices, configure your Azure Speech credentials in `config.toml`:
+> **Note:** "Azure TTS V1" (Edge TTS, free) and "Azure TTS V2" (paid Azure Speech SDK) are two different options in the WebUI. Only V2 requires an Azure API key.
+
+To use higher-quality **Azure TTS V2** voices, configure your Azure Speech credentials in `config.toml`:
 
 ```toml
 [azure]
@@ -274,7 +276,7 @@ speech_key = "your-azure-speech-key"
 speech_region = "eastus"
 ```
 
-Azure voices require an [Azure Speech Services](https://portal.azure.com/) subscription. The 9 Azure voices added in v1.1.2 sound noticeably more natural than Edge TTS for most use cases.
+Azure TTS V2 voices require an [Azure Speech Services](https://portal.azure.com/) subscription. The 9 Azure voices added in v1.1.2 sound noticeably more natural than Edge TTS for most use cases.
 
 ## Subtitle Generation 📜
 
