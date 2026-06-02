@@ -11,7 +11,7 @@ from pydantic import ValidationError
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
-from app.models.schema import VideoScriptRequest
+from app.models.schema import VideoScriptRequest, VideoSocialMetadataRequest
 from app.services import llm
 
 
@@ -516,6 +516,118 @@ class TestRuntimeEnvironmentDetection(unittest.TestCase):
             )
 
             self.assertEqual(config.get_container_default_gateway_ip(str(route_path)), "")
+
+
+
+class TestSocialMetadata(unittest.TestCase):
+    """Vietnamese-first social publishing metadata (title/caption/hashtags)."""
+
+    def test_build_prompt_includes_platform_language_and_limits(self):
+        prompt = llm.build_social_metadata_prompt(
+            video_subject="Du lịch Đà Nẵng",
+            video_script="Đà Nẵng có biển đẹp và đồ ăn ngon.",
+            language="vi",
+            platform="tiktok",
+        )
+        self.assertIn("TikTok", prompt)
+        self.assertIn("language: vi", prompt)
+        self.assertIn("Du lịch Đà Nẵng", prompt)
+        self.assertIn("Đà Nẵng có biển đẹp", prompt)
+        # tiktok requests 5 hashtags
+        self.assertIn("array of exactly 5 strings", prompt)
+
+    def test_unknown_platform_falls_back_to_default(self):
+        prompt = llm.build_social_metadata_prompt(
+            video_subject="x", platform="zalo-unsupported"
+        )
+        # Default platform is TikTok
+        self.assertIn("TikTok", prompt)
+
+    def test_normalize_hashtags_from_string_dedupes_and_clamps(self):
+        tags = llm._normalize_hashtags("#fyp fyp, xuhuong #Xuhuong viral", count=2)
+        self.assertEqual(tags, ["#fyp", "#xuhuong"])
+
+    def test_normalize_hashtags_from_list_keeps_vietnamese_and_strips_spaces(self):
+        tags = llm._normalize_hashtags(
+            ["du lich", "#việt nam", "  ", "@bad!chars"], count=5
+        )
+        # internal spaces removed, leading # stripped/re-added, punctuation dropped
+        self.assertEqual(tags, ["#dulich", "#việtnam", "#badchars"])
+
+    def test_clamp_text_truncates(self):
+        self.assertEqual(llm._clamp_text("abcdefgh", 4), "abcd")
+        self.assertEqual(llm._clamp_text("  hi  ", 100), "hi")
+        self.assertEqual(llm._clamp_text(None, 10), "")
+
+    def test_parse_social_metadata_parses_clean_json(self):
+        raw = (
+            '{"title": "Tiêu đề", "caption": "Mô tả hấp dẫn", '
+            '"hashtags": ["#fyp", "#xuhuong", "#viral", "#a", "#b", "#c"]}'
+        )
+        result = llm._parse_social_metadata(raw, "tiktok")
+        self.assertEqual(result["title"], "Tiêu đề")
+        self.assertEqual(result["caption"], "Mô tả hấp dẫn")
+        # clamped to tiktok's 5 hashtags
+        self.assertEqual(len(result["hashtags"]), 5)
+
+    def test_parse_social_metadata_recovers_embedded_json(self):
+        raw = 'Sure! Here you go: {"title": "T", "caption": "C", "hashtags": ["#x"]} thanks'
+        result = llm._parse_social_metadata(raw, "tiktok")
+        self.assertEqual(result["title"], "T")
+        self.assertEqual(result["hashtags"], ["#x"])
+
+    def test_parse_social_metadata_rejects_non_object(self):
+        with self.assertRaises(ValueError):
+            llm._parse_social_metadata("[1, 2, 3]", "tiktok")
+
+    def test_parse_social_metadata_requires_title_or_caption(self):
+        with self.assertRaises(ValueError):
+            llm._parse_social_metadata('{"hashtags": ["#x"]}', "tiktok")
+
+    def test_generate_social_metadata_uses_llm_response(self):
+        payload = (
+            '{"title": "5 mẹo hay", "caption": "Lưu lại ngay nhé!", '
+            '"hashtags": ["#meovat", "#xuhuong", "#fyp"]}'
+        )
+        with patch.object(llm, "_generate_response", return_value=payload):
+            result = llm.generate_social_metadata(
+                video_subject="Mẹo vặt", video_script="...", platform="tiktok"
+            )
+        self.assertEqual(result["title"], "5 mẹo hay")
+        self.assertEqual(result["caption"], "Lưu lại ngay nhé!")
+        self.assertEqual(result["hashtags"], ["#meovat", "#xuhuong", "#fyp"])
+
+    def test_generate_social_metadata_falls_back_on_llm_error(self):
+        with patch.object(
+            llm, "_generate_response", return_value="Error: api_key is not set"
+        ):
+            result = llm.generate_social_metadata(
+                video_subject="Phở Hà Nội",
+                video_script="Phở là món ăn nổi tiếng.",
+                platform="tiktok",
+            )
+        # Fallback derives a usable title and Vietnamese default hashtags.
+        self.assertEqual(result["title"], "Phở Hà Nội")
+        self.assertIn("Phở", result["caption"])
+        self.assertEqual(len(result["hashtags"]), 5)
+        self.assertTrue(all(t.startswith("#") for t in result["hashtags"]))
+
+    def test_generate_social_metadata_falls_back_on_invalid_json(self):
+        with patch.object(
+            llm, "_generate_response", return_value="not json at all"
+        ):
+            result = llm.generate_social_metadata(
+                video_subject="Cà phê sữa đá", platform="instagram_reels"
+            )
+        self.assertEqual(result["title"], "Cà phê sữa đá")
+        # instagram_reels requests 8 hashtags
+        self.assertEqual(len(result["hashtags"]), 8)
+
+    def test_request_model_defaults_to_vietnamese_tiktok(self):
+        body = VideoSocialMetadataRequest(video_subject="Test")
+        self.assertEqual(body.language, "vi")
+        self.assertEqual(body.platform, "tiktok")
+
 
 
 FOUNDRY_KEY = os.environ.get("ANTHROPIC_FOUNDRY_API_KEY", "")
