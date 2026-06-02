@@ -796,6 +796,36 @@ with middle_panel:
                 help=tr("Video Encoder Help"),
             )
             config.app["video_codec"] = video_codec_options[selected_codec_index][1]
+
+        render_backends = [
+            (tr("Local (default)"), "local"),
+            ("Rendobar (cloud)", "rendobar"),
+        ]
+        saved_backend = config.app.get("render_backend", "local")
+        backend_index = next(
+            (i for i, b in enumerate(render_backends) if b[1] == saved_backend), 0
+        )
+        selected_backend_index = st.selectbox(
+            tr("Render Backend"),
+            options=range(len(render_backends)),
+            format_func=lambda x: render_backends[x][0],
+            index=backend_index,
+        )
+        params.render_backend = render_backends[selected_backend_index][1]
+        config.app["render_backend"] = params.render_backend
+
+        if params.render_backend == "rendobar":
+            rendobar_api_key = st.text_input(
+                "Rendobar API Key",
+                value=config.app.get("rendobar_api_key", ""),
+                type="password",
+            )
+            config.app["rendobar_api_key"] = rendobar_api_key
+            st.caption(
+                "Renders on Rendobar's cloud instead of locally. "
+                "Get an API key at https://rendobar.com/ffmpeg/"
+            )
+
     with st.container(border=True):
         st.write(tr("Audio Settings"))
 

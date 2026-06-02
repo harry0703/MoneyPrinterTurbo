@@ -225,6 +225,23 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     return ""
 
 
+class SourcedPath(str):
+    """A clip path that also remembers the URL it came from.
+
+    It IS a str, so it behaves like the path everywhere downstream. An optional
+    render backend can read `.source_url` to fetch the clip from its origin
+    instead of re-uploading it.
+    """
+
+    source_url: str = ""
+
+
+def _sourced(path: str, url: str) -> "SourcedPath":
+    sp = SourcedPath(path)
+    sp.source_url = url
+    return sp
+
+
 def download_videos(
     task_id: str,
     search_terms: List[str],
@@ -271,22 +288,30 @@ def download_videos(
         random.shuffle(valid_video_items)
 
     total_duration = 0.0
+    # A render backend can fetch the clips by URL directly, so there is no need to
+    # download (and later re-upload) them. We still select enough clips to cover
+    # the audio, using the duration the provider already reported.
+    skip_local_download = config.app.get("render_backend") == "rendobar"
     for item in valid_video_items:
         try:
-            logger.info(f"downloading video: {item.url}")
-            saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
-            )
-            if saved_video_path:
+            if skip_local_download:
+                video_paths.append(_sourced(item.url, item.url))
+            else:
+                logger.info(f"downloading video: {item.url}")
+                saved_video_path = save_video(
+                    video_url=item.url, save_dir=material_directory
+                )
+                if not saved_video_path:
+                    continue
                 logger.info(f"video saved: {saved_video_path}")
-                video_paths.append(saved_video_path)
-                seconds = min(max_clip_duration, item.duration)
-                total_duration += seconds
-                if total_duration > audio_duration:
-                    logger.info(
-                        f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
-                    )
-                    break
+                video_paths.append(_sourced(saved_video_path, item.url))
+            seconds = min(max_clip_duration, item.duration or max_clip_duration)
+            total_duration += seconds
+            if total_duration > audio_duration:
+                logger.info(
+                    f"selected videos cover {total_duration} seconds, enough for the audio"
+                )
+                break
         except Exception as e:
             logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
     logger.success(f"downloaded {len(video_paths)} videos")

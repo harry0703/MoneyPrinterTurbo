@@ -10,6 +10,7 @@ from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, video, voice, upload_post
 from app.services import state as sm
+from app.services.render import RenderContext, render_with_fallback
 from app.utils import utils
 
 
@@ -212,33 +213,26 @@ def generate_final_videos(
         combined_video_path = path.join(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
-        logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
-        video.combine_videos(
-            combined_video_path=combined_video_path,
-            video_paths=downloaded_videos,
-            audio_file=audio_file,
-            video_aspect=params.video_aspect,
-            video_concat_mode=video_concat_mode,
-            video_transition_mode=video_transition_mode,
-            max_clip_duration=params.video_clip_duration,
-            threads=params.n_threads,
-        )
-
-        _progress += 50 / params.video_count / 2
-        sm.state.update_task(task_id, progress=_progress)
-
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
-        logger.info(f"\n\n## generating video: {index} => {final_video_path}")
-        video.generate_video(
-            video_path=combined_video_path,
-            audio_path=audio_file,
-            subtitle_path=subtitle_path,
-            output_file=final_video_path,
-            params=params,
+        logger.info(
+            f"\n\n## rendering video: {index} "
+            f"(backend: {params.render_backend or 'local'}) => {final_video_path}"
+        )
+        render_with_fallback(
+            RenderContext(
+                params=params,
+                video_paths=downloaded_videos,
+                audio_file=audio_file,
+                subtitle_path=subtitle_path,
+                combined_video_path=combined_video_path,
+                final_video_path=final_video_path,
+                video_concat_mode=video_concat_mode,
+                video_transition_mode=video_transition_mode,
+            )
         )
 
-        _progress += 50 / params.video_count / 2
+        _progress += 50 / params.video_count
         sm.state.update_task(task_id, progress=_progress)
 
         final_video_paths.append(final_video_path)
