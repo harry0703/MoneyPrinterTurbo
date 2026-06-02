@@ -1139,6 +1139,30 @@ with right_panel:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+        saved_subtitle_background_enabled = config.ui.get(
+            "subtitle_background_enabled", True
+        )
+        bg_cols = st.columns([0.4, 0.6])
+        with bg_cols[0]:
+            subtitle_background_enabled = st.checkbox(
+                tr("Enable Subtitle Background"),
+                value=saved_subtitle_background_enabled,
+            )
+        config.ui["subtitle_background_enabled"] = subtitle_background_enabled
+        if subtitle_background_enabled:
+            with bg_cols[1]:
+                saved_subtitle_background_color = config.ui.get(
+                    "subtitle_background_color", "#000000"
+                )
+                subtitle_background_color = st.color_picker(
+                    tr("Subtitle Background Color"),
+                    saved_subtitle_background_color,
+                )
+                config.ui["subtitle_background_color"] = subtitle_background_color
+            params.text_background_color = subtitle_background_color
+        else:
+            params.text_background_color = False
+
         saved_rounded_subtitle_background = config.ui.get(
             "rounded_subtitle_background", False
         )
@@ -1146,6 +1170,7 @@ with right_panel:
             tr("Rounded Subtitle Background"),
             value=saved_rounded_subtitle_background,
             help=tr("Rounded Subtitle Background Help"),
+            disabled=not subtitle_background_enabled,
         )
         config.ui["rounded_subtitle_background"] = params.rounded_subtitle_background
     with st.expander(tr("Click to show API Key management"), expanded=False):
