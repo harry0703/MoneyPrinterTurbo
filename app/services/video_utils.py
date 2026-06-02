@@ -656,65 +656,89 @@ def close_clip(clip):
         
     try:
         # close main resources
-        if hasattr(clip, 'reader') and clip.reader is not None:
-            try:
-                clip.reader.close()
-            except Exception as e:
-                # Ignore handle invalid and access denied errors
-                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
-                    logger.error(f"failed to close clip reader: {str(e)}")
+        try:
+            if hasattr(clip, 'reader'):
+                reader = clip.reader
+                if reader is not None:
+                    try:
+                        reader.close()
+                    except Exception as e:
+                        # Ignore handle invalid and access denied errors
+                        if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
+                            logger.error(f"failed to close clip reader: {str(e)}")
+        except Exception:
+            pass
             
         # close audio resources
-        if hasattr(clip, 'audio') and clip.audio is not None:
-            try:
-                if hasattr(clip.audio, 'reader') and clip.audio.reader is not None:
+        try:
+            if hasattr(clip, 'audio'):
+                audio = clip.audio
+                if audio is not None:
                     try:
-                        clip.audio.reader.close()
+                        if hasattr(audio, 'reader'):
+                            audio_reader = audio.reader
+                            if audio_reader is not None:
+                                try:
+                                    audio_reader.close()
+                                except Exception as e:
+                                    # Ignore handle invalid and access denied errors
+                                    if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
+                                        logger.error(f"failed to close audio reader: {str(e)}")
+                        audio.close()
                     except Exception as e:
                         # Ignore handle invalid and access denied errors
                         if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
-                            logger.error(f"failed to close audio reader: {str(e)}")
-                clip.audio.close()
-            except Exception as e:
-                # Ignore handle invalid and access denied errors
-                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
-                    logger.error(f"failed to close audio clip: {str(e)}")
-            finally:
-                try:
-                    del clip.audio
-                except:
-                    pass
+                            logger.error(f"failed to close audio clip: {str(e)}")
+                    finally:
+                        try:
+                            del clip.audio
+                        except:
+                            pass
+        except Exception:
+            pass
             
         # close mask resources
-        if hasattr(clip, 'mask') and clip.mask is not None:
-            try:
-                if hasattr(clip.mask, 'reader') and clip.mask.reader is not None:
+        try:
+            if hasattr(clip, 'mask'):
+                mask = clip.mask
+                if mask is not None:
                     try:
-                        clip.mask.reader.close()
+                        if hasattr(mask, 'reader'):
+                            mask_reader = mask.reader
+                            if mask_reader is not None:
+                                try:
+                                    mask_reader.close()
+                                except Exception as e:
+                                    # Ignore handle invalid and access denied errors
+                                    if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
+                                        logger.error(f"failed to close mask reader: {str(e)}")
+                        mask.close()
                     except Exception as e:
                         # Ignore handle invalid and access denied errors
                         if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
-                            logger.error(f"failed to close mask reader: {str(e)}")
-                clip.mask.close()
-            except Exception as e:
-                # Ignore handle invalid and access denied errors
-                if "句柄无效" not in str(e) and "invalid handle" not in str(e).lower() and "[WinError 5]" not in str(e) and "拒绝访问" not in str(e):
-                    logger.error(f"failed to close mask clip: {str(e)}")
-            finally:
-                try:
-                    del clip.mask
-                except:
-                    pass
+                            logger.error(f"failed to close mask clip: {str(e)}")
+                    finally:
+                        try:
+                            del clip.mask
+                        except:
+                            pass
+        except Exception:
+            pass
             
         # handle child clips in composite clips
-        if hasattr(clip, 'clips') and clip.clips:
-            for child_clip in clip.clips:
-                if child_clip is not clip:  # avoid possible circular references
-                    close_clip(child_clip)
+        try:
+            if hasattr(clip, 'clips'):
+                child_clips = clip.clips
+                if child_clips:
+                    for child_clip in child_clips:
+                        if child_clip is not clip:  # avoid possible circular references
+                            close_clip(child_clip)
             
-        # clear clip list
-        if hasattr(clip, 'clips'):
-            clip.clips = []
+            # clear clip list
+            if hasattr(clip, 'clips'):
+                clip.clips = []
+        except Exception:
+            pass
             
         # Try to close the clip itself
         try:

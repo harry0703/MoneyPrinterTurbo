@@ -2,7 +2,9 @@ import os
 import random
 import gc
 import time
+import tempfile
 from typing import List, Union
+from PIL import Image
 
 from loguru import logger
 from moviepy import (
@@ -514,11 +516,32 @@ def build_scene_video(
             # Process intro video
             try:
                 # Check if intro video is actually an image
+                temp_jpg_path = None
                 if intro_video_path.endswith(('.png', '.jpg', '.jpeg', '.bmp')):
                     # Handle static images with specified duration
                     logger.info(f"Processing image as intro video with duration: {intro_duration:.1f}s")
                     
-                    clip = ImageClip(intro_video_path).with_duration(intro_duration)
+                    # If it's a PNG, convert to a temporary JPG first to avoid issues
+                    processed_image_path = intro_video_path
+                    if intro_video_path.lower().endswith('.png'):
+                        try:
+                            # Open the PNG image
+                            with Image.open(intro_video_path) as img:
+                                # Convert to RGB (JPG doesn't support alpha)
+                                if img.mode in ('RGBA', 'P'):
+                                    img = img.convert('RGB')
+                                # Create a temporary JPG file
+                                temp_fd, temp_jpg_path = tempfile.mkstemp(suffix='.jpg')
+                                os.close(temp_fd)  # Close the file descriptor since we just need the path
+                                # Save as JPG with high quality
+                                img.save(temp_jpg_path, 'JPEG', quality=95)
+                                processed_image_path = temp_jpg_path
+                                logger.info(f"Converted PNG intro to temporary JPG: {temp_jpg_path}")
+                        except Exception as e:
+                            logger.error(f"Failed to convert PNG to JPG, using original PNG: {e}")
+                            processed_image_path = intro_video_path
+                    
+                    clip = ImageClip(processed_image_path).with_duration(intro_duration)
                     clip_duration = intro_duration
                     clip_w, clip_h = clip.size
                     
@@ -623,6 +646,14 @@ def build_scene_video(
                     logger.info(f"Video intro processed: {intro_video_path}")
             except Exception as e:
                 logger.error(f"Failed to process intro video: {str(e)}")
+            finally:
+                # Clean up temporary JPG file if we created one
+                if temp_jpg_path and os.path.exists(temp_jpg_path):
+                    try:
+                        os.remove(temp_jpg_path)
+                        logger.info(f"Cleaned up temporary JPG: {temp_jpg_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up temporary JPG: {e}")
             
             # Remove intro video from regular video paths if it exists
             normalized_intro_path = os.path.abspath(intro_video_path)

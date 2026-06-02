@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.27"
+project_version = "2.2.28"
 
 [app]
 video_source = "pexels"
@@ -99,12 +99,12 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "揭秘\n数据墙惊天内幕"
+title_text = "7月新规堵死技术外流"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 102
-title_text_color = "#0000FF"
-title_stroke_color = "#FFA500"
+title_text_color = "#A52A2A"
+title_stroke_color = "#FFFFFF"
 title_stroke_width = 8.5
 title_background_color = "transparent"
 title_position = "top"
