@@ -123,29 +123,6 @@ def _prioritize_unique_source_clips(
     return primary_items + overflow_items
 
 
-def get_ffmpeg_binary():
-    # 优先复用用户在 config.toml / 环境变量里显式指定的 ffmpeg，可避免
-    # Windows 便携包、Docker、自定义安装目录等场景下 PATH 不一致。
-    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
-    if configured_ffmpeg:
-        return configured_ffmpeg
-
-    system_ffmpeg = shutil.which("ffmpeg")
-    if system_ffmpeg:
-        return system_ffmpeg
-
-    try:
-        import imageio_ffmpeg
-
-        bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        if bundled_ffmpeg:
-            return bundled_ffmpeg
-    except Exception as exc:
-        logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
-
-    return "ffmpeg"
-
-
 def _get_configured_video_codec() -> str:
     """
     读取用户配置的视频编码器。
@@ -216,7 +193,7 @@ def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
         )
         return _DEFAULT_VIDEO_CODEC
 
-    ffmpeg_binary = get_ffmpeg_binary()
+    ffmpeg_binary = utils.get_ffmpeg_binary()
     if not _ffmpeg_encoder_exists(ffmpeg_binary, selected_codec):
         logger.warning(
             f"ffmpeg encoder {selected_codec} is not available, "
@@ -271,8 +248,6 @@ def _write_videofile_with_codec_fallback(clip, output_file: str, codec: str, **k
             reason=str(exc),
             **kwargs,
         )
-
-
 def _escape_ffmpeg_concat_path(file_path: str) -> str:
     # concat demuxer 使用单引号包裹路径，路径中的单引号需要先转义。
     return file_path.replace("'", "'\\''")
@@ -300,7 +275,7 @@ def concat_video_clips_with_ffmpeg(
 
     def build_command(codec: str) -> list[str]:
         return [
-            get_ffmpeg_binary(),
+            utils.get_ffmpeg_binary(),
             "-y",
             "-f",
             "concat",

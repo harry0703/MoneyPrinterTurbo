@@ -202,6 +202,59 @@ def is_mimo_voice(voice_name: str):
     return voice_name.startswith("mimo:")
 
 
+def generate_silent_audio(duration: float, output_file: str) -> bool:
+    """
+    Generate a silent MP3 file of the specified duration.
+    """
+    try:
+        ensure_file_path_exists(output_file)
+        # Use ffmpeg to generate silence
+        # anullsrc produces silent audio
+        command = [
+            utils.get_ffmpeg_binary(),
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"anullsrc=r=44100:cl=mono",
+            "-t",
+            str(duration),
+            "-acodec",
+            "libmp3lame",
+            output_file,
+        ]
+        import subprocess
+
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            logger.info(f"silent audio generated: {output_file}, duration: {duration}s")
+            return True
+        else:
+            error_message = (result.stderr or result.stdout or "").strip()
+            logger.error(f"failed to generate silent audio: {error_message}")
+            return False
+    except Exception as e:
+        logger.error(f"failed to generate silent audio: {str(e)}")
+        return False
+
+
+def estimate_duration_from_text(text: str) -> float:
+    """
+    Estimate the duration in seconds to read the given text.
+    Heuristic: ~4 characters per second for mixed CJK/English.
+    """
+    if not text:
+        return 0.0
+    # Basic heuristic: 4 characters per second
+    # This can be adjusted based on language if needed.
+    return max(5.0, len(text) / 4.0)
+
+
 def tts(
     text: str,
     voice_name: str,
@@ -209,6 +262,20 @@ def tts(
     voice_file: str,
     voice_volume: float = 1.0,
 ) -> Union[SubMaker, None]:
+    logger.debug(f"tts called with voice_name: '{voice_name}'")
+    if not voice_name or voice_name.lower() == "none":
+        logger.info("no voice synthesis requested, generating silent audio")
+        duration = estimate_duration_from_text(text)
+        if generate_silent_audio(duration, voice_file):
+            # Return a SubMaker with a single silent cue for the whole duration
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            return populate_legacy_submaker_with_full_text(
+                sub_maker=sub_maker,
+                text=text,
+                audio_duration_seconds=duration,
+            )
+        return None
+
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
     elif is_siliconflow_voice(voice_name):

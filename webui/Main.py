@@ -263,6 +263,7 @@ if not config.app.get("hide_config", False):
                 ("Cloudflare", "cloudflare"),
                 ("ERNIE", "ernie"),
                 ("MiMo", "mimo"),
+                ("MiniMax", "minimax"),
                 ("Pollinations", "pollinations"),
                 ("LiteLLM", "litellm"),
             ]
@@ -801,6 +802,7 @@ with middle_panel:
 
         # 添加TTS服务器选择下拉框
         tts_servers = [
+            ("none", tr("No Voice")),
             ("azure-tts-v1", "Azure TTS V1"),
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
@@ -829,7 +831,9 @@ with middle_panel:
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
 
-        if selected_tts_server == "siliconflow":
+        if selected_tts_server == "none":
+            filtered_voices = ["none"]
+        elif selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
             filtered_voices = voice.get_siliconflow_voices()
         elif selected_tts_server == "gemini-tts":
@@ -854,9 +858,13 @@ with middle_panel:
                         filtered_voices.append(v)
 
         friendly_names = {
-            v: v.replace("Female", tr("Female"))
-            .replace("Male", tr("Male"))
-            .replace("Neural", "")
+            v: (
+                v.replace("Female", tr("Female"))
+                .replace("Male", tr("Male"))
+                .replace("Neural", "")
+                if v != "none"
+                else tr("None")
+            )
             for v in filtered_voices
         }
 
@@ -902,8 +910,8 @@ with middle_panel:
             params.voice_name = ""
             config.ui["voice_name"] = ""
 
-        # 只有在有声音可选时才显示试听按钮
-        if friendly_names and st.button(tr("Play Voice")):
+        # 只有在有声音可选且不是 "none" 时才显示试听按钮
+        if friendly_names and selected_tts_server != "none" and st.button(tr("Play Voice")):
             play_content = params.video_subject
             if not play_content:
                 play_content = params.video_script

@@ -181,7 +181,7 @@ project_description = _cfg.get(
     "<br><small>Supported by <a href='https://aihubmix.com/?aff=CEve'>AIHubMix</a></small>",
 )
 project_version = _cfg.get("project_version", "1.2.9")
-reload_debug = False
+reload_debug = True
 
 app["redis_host"] = os.getenv(
     "MPT_APP_REDIS_HOST",

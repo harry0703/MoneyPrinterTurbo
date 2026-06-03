@@ -101,6 +101,7 @@
     "Xiaohongshu": "Xiaohongshu (Xiaohongshu support is coming soon)",
     "Local file": "Local file",
     "Play Voice": "Play Voice",
+    "No Voice": "No Voice",
     "Voice Example": "This is an example text for testing speech synthesis",
     "Synthesizing Voice": "Synthesizing voice, please wait...",
     "TTS Provider": "Select the voice synthesis provider",
