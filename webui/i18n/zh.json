@@ -51,6 +51,7 @@
     "Speech Rate": "朗读速度（1.0表示1倍速）",
     "Custom Audio File": "自定义音频文件",
     "Custom audio will be used directly. TTS synthesis will be skipped for this task.": "将直接使用自定义音频，本次任务会跳过 TTS 语音合成。",
+    "No Voice": "无配音（不合成语音）",
     "Male": "男性",
     "Female": "女性",
     "Background Music": "背景音乐",

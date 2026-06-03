@@ -2,6 +2,7 @@ import json
 import locale
 import os
 import re
+import shutil
 from functools import lru_cache
 from pathlib import Path
 import threading
@@ -119,6 +120,42 @@ def public_dir(sub_dir: str = ""):
     if not os.path.exists(d):
         os.makedirs(d)
     return d
+
+
+def get_ffmpeg_binary() -> str:
+    """
+    解析当前进程应该使用的 FFmpeg 可执行文件。
+
+    增加原因：
+    1. 视频编码、静音音频生成、pydub 音频转码都依赖 FFmpeg；
+    2. Windows 便携包、Docker 和用户自定义安装目录经常出现 PATH 不一致；
+    3. 集中解析可以让所有调用方使用同一套优先级，减少某条链路能跑、
+       另一条链路找不到 FFmpeg 的现场问题。
+
+    优先级：
+    1. IMAGEIO_FFMPEG_EXE：MoviePy/imageio 约定的显式配置；
+    2. 系统 PATH 中的 ffmpeg；
+    3. imageio-ffmpeg 依赖提供的内置二进制；
+    4. 字符串 "ffmpeg" 兜底，交给 subprocess 在运行时暴露更具体错误。
+    """
+    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
+    if configured_ffmpeg:
+        return configured_ffmpeg
+
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+
+    try:
+        import imageio_ffmpeg
+
+        bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        if bundled_ffmpeg:
+            return bundled_ffmpeg
+    except Exception as exc:
+        logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
+
+    return "ffmpeg"
 
 
 def run_in_background(func, *args, **kwargs):

@@ -124,26 +124,14 @@ def _prioritize_unique_source_clips(
 
 
 def get_ffmpeg_binary():
-    # 优先复用用户在 config.toml / 环境变量里显式指定的 ffmpeg，可避免
-    # Windows 便携包、Docker、自定义安装目录等场景下 PATH 不一致。
-    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
-    if configured_ffmpeg:
-        return configured_ffmpeg
+    """
+    兼容历史上直接从 video 服务读取 FFmpeg 路径的调用方。
 
-    system_ffmpeg = shutil.which("ffmpeg")
-    if system_ffmpeg:
-        return system_ffmpeg
-
-    try:
-        import imageio_ffmpeg
-
-        bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        if bundled_ffmpeg:
-            return bundled_ffmpeg
-    except Exception as exc:
-        logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
-
-    return "ffmpeg"
+    真正的解析逻辑已经抽到 `app.utils.utils.get_ffmpeg_binary()`，视频、语音
+    和后续新增链路都应复用同一套优先级；这里保留薄包装，避免外部脚本或
+    旧测试直接导入 `app.services.video.get_ffmpeg_binary` 时出现 AttributeError。
+    """
+    return utils.get_ffmpeg_binary()
 
 
 def _get_configured_video_codec() -> str:
@@ -216,7 +204,7 @@ def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
         )
         return _DEFAULT_VIDEO_CODEC
 
-    ffmpeg_binary = get_ffmpeg_binary()
+    ffmpeg_binary = utils.get_ffmpeg_binary()
     if not _ffmpeg_encoder_exists(ffmpeg_binary, selected_codec):
         logger.warning(
             f"ffmpeg encoder {selected_codec} is not available, "
@@ -300,7 +288,7 @@ def concat_video_clips_with_ffmpeg(
 
     def build_command(codec: str) -> list[str]:
         return [
-            get_ffmpeg_binary(),
+            utils.get_ffmpeg_binary(),
             "-y",
             "-f",
             "concat",

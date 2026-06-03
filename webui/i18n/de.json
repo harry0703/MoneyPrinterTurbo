@@ -54,6 +54,7 @@
     "Speech Rate": "Lesegeschwindigkeit (1,0 bedeutet 1x)",
     "Custom Audio File": "Benutzerdefinierte Audiodatei",
     "Custom audio will be used directly. TTS synthesis will be skipped for this task.": "Die benutzerdefinierte Audiodatei wird direkt verwendet. Die TTS-Synthese wird für diese Aufgabe übersprungen.",
+    "No Voice": "Keine Stimme (keine Sprachsynthese)",
     "Male": "Männlich",
     "Female": "Weiblich",
     "Background Music": "Hintergrundmusik",

@@ -7,9 +7,10 @@ import math
 import os
 import queue
 import re
-import shutil
+import subprocess
 import threading
 import time
+import unicodedata
 from datetime import datetime
 from typing import Union
 from xml.sax.saxutils import unescape
@@ -28,18 +29,15 @@ from app.utils import utils
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
 _MIMO_DEFAULT_BASE_URL = "https://api.xiaomimimo.com/v1"
 _MIMO_DEFAULT_TTS_MODEL = "mimo-v2.5-tts"
+NO_VOICE_NAME = "no-voice"
+# `none` 是 PR #981 里曾使用过的无配音标识。这里短期兼容这个值，避免
+# 已经手动调用过该分支的 API 用户升级后立即失效；WebUI 和新代码统一使用
+# 更明确的 `no-voice`。
+_NO_VOICE_ALIASES = {NO_VOICE_NAME, "none"}
 
 
 def _configure_pydub_ffmpeg(audio_segment_cls):
-    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE") or shutil.which("ffmpeg")
-    if not configured_ffmpeg:
-        try:
-            import imageio_ffmpeg
-
-            configured_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        except Exception as exc:
-            logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
-
+    configured_ffmpeg = utils.get_ffmpeg_binary()
     if configured_ffmpeg:
         audio_segment_cls.converter = configured_ffmpeg
 
@@ -202,6 +200,104 @@ def is_mimo_voice(voice_name: str):
     return voice_name.startswith("mimo:")
 
 
+def is_no_voice(voice_name: str | None) -> bool:
+    """
+    判断用户是否明确选择了“无配音”模式。
+
+    这里刻意不把空字符串当成无配音：空 voice 更可能是配置损坏、旧版本
+    WebUI 状态丢失或接口参数缺失。只有明确的 sentinel 才进入静音分支，
+    这样可以避免把真实错误伪装成正常生成。
+    """
+    return str(voice_name or "").strip().lower() in _NO_VOICE_ALIASES
+
+
+def estimate_no_voice_duration(text: str) -> float:
+    """
+    为无配音模式估算一个稳定的视频时间轴长度。
+
+    无配音仍需要一个音频占位来驱动现有素材裁剪、字幕时间轴和最终合成。
+    估算策略尽量简单：
+    1. 中文等 CJK 字符按约 4.2 字/秒估算；
+    2. 英文/数字按约 2.7 词/秒估算；
+    3. 其他语种文字按约 4.0 字符/秒兜底估算，覆盖俄语、阿拉伯语、
+       日文假名、韩文等非 ASCII 文本；
+    4. 每个断句补一点停顿，让字幕切换不至于过于紧凑；
+    5. 最少 3 秒，避免极短脚本生成 0 秒音频。
+    """
+    normalized_text = (text or "").strip()
+    if not normalized_text:
+        return 3.0
+
+    cjk_chars = len(re.findall(r"[\u4e00-\u9fff]", normalized_text))
+    words = len(re.findall(r"[A-Za-z0-9]+", normalized_text))
+    ascii_word_chars = sum(len(word) for word in re.findall(r"[A-Za-z0-9]+", normalized_text))
+    other_text_chars = 0
+    for char in normalized_text:
+        # Unicode category 以 L 开头表示各语种字母，N 表示数字。前面已经单独
+        # 统计了 CJK 和 ASCII 单词，这里只统计剩余文字，避免英文被重复计时。
+        category = unicodedata.category(char)
+        if category.startswith(("L", "N")):
+            other_text_chars += 1
+    other_text_chars = max(other_text_chars - cjk_chars - ascii_word_chars, 0)
+    sentence_count = max(len(utils.split_string_by_punctuations(normalized_text)), 1)
+
+    cjk_duration = cjk_chars / 4.2
+    word_duration = words / 2.7
+    other_text_duration = other_text_chars / 4.0
+    pause_duration = max(sentence_count - 1, 0) * 0.35
+    return max(3.0, cjk_duration + word_duration + other_text_duration + pause_duration)
+
+
+def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
+    """
+    生成 MP3 静音音频，作为“无配音”模式的时间轴占位。
+
+    使用 FFmpeg 的 anullsrc 直接生成静音，比先构造临时 WAV 再转码更少中间
+    文件。失败时返回 False，让上层按普通 TTS 失败路径处理并记录日志。
+    """
+    ensure_file_path_exists(output_file)
+    duration_seconds = max(float(duration_seconds or 0), 0.1)
+    ffmpeg_binary = utils.get_ffmpeg_binary()
+    command = [
+        ffmpeg_binary,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "anullsrc=r=44100:cl=mono",
+        "-t",
+        f"{duration_seconds:.3f}",
+        "-codec:a",
+        "libmp3lame",
+        "-q:a",
+        "4",
+        output_file,
+    ]
+
+    logger.info(
+        f"generating silent audio for no-voice mode, duration: {duration_seconds:.2f}s"
+    )
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        logger.error(
+            "failed to generate silent audio: "
+            f"{(result.stderr or result.stdout or '').strip()}"
+        )
+        return False
+    if not os.path.exists(output_file) or os.path.getsize(output_file) <= 0:
+        logger.error(
+            "silent audio output file is missing or empty, "
+            f"file: {output_file}, duration: {duration_seconds:.2f}s"
+        )
+        return False
+    return True
+
+
 def tts(
     text: str,
     voice_name: str,
@@ -209,6 +305,18 @@ def tts(
     voice_file: str,
     voice_volume: float = 1.0,
 ) -> Union[SubMaker, None]:
+    if is_no_voice(voice_name):
+        duration_seconds = estimate_no_voice_duration(text)
+        if not generate_silent_audio(duration_seconds, voice_file):
+            return None
+
+        sub_maker = ensure_legacy_submaker_fields(SubMaker())
+        return populate_legacy_submaker_with_full_text(
+            sub_maker=sub_maker,
+            text=text,
+            audio_duration_seconds=duration_seconds,
+        )
+
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
     elif is_siliconflow_voice(voice_name):

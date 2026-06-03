@@ -262,6 +262,7 @@ if not config.app.get("hide_config", False):
                 ("OneAPI", "oneapi"),
                 ("Cloudflare", "cloudflare"),
                 ("ERNIE", "ernie"),
+                ("MiniMax", "minimax"),
                 ("MiMo", "mimo"),
                 ("Pollinations", "pollinations"),
                 ("LiteLLM", "litellm"),
@@ -801,6 +802,7 @@ with middle_panel:
 
         # 添加TTS服务器选择下拉框
         tts_servers = [
+            (voice.NO_VOICE_NAME, tr("No Voice")),
             ("azure-tts-v1", "Azure TTS V1"),
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
@@ -829,7 +831,11 @@ with middle_panel:
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
 
-        if selected_tts_server == "siliconflow":
+        if selected_tts_server == voice.NO_VOICE_NAME:
+            # 无配音是显式模式，只提供一个稳定 sentinel。这样普通 TTS 的空配置
+            # 不会被误判为静音，后端也能继续通过同一条音频/字幕流程生成视频。
+            filtered_voices = [voice.NO_VOICE_NAME]
+        elif selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
             filtered_voices = voice.get_siliconflow_voices()
         elif selected_tts_server == "gemini-tts":
@@ -853,12 +859,15 @@ with middle_panel:
                     if "V2" not in v:
                         filtered_voices.append(v)
 
-        friendly_names = {
-            v: v.replace("Female", tr("Female"))
-            .replace("Male", tr("Male"))
-            .replace("Neural", "")
-            for v in filtered_voices
-        }
+        if selected_tts_server == voice.NO_VOICE_NAME:
+            friendly_names = {voice.NO_VOICE_NAME: tr("No Voice")}
+        else:
+            friendly_names = {
+                v: v.replace("Female", tr("Female"))
+                .replace("Male", tr("Male"))
+                .replace("Neural", "")
+                for v in filtered_voices
+            }
 
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
@@ -902,8 +911,12 @@ with middle_panel:
             params.voice_name = ""
             config.ui["voice_name"] = ""
 
-        # 只有在有声音可选时才显示试听按钮
-        if friendly_names and st.button(tr("Play Voice")):
+        # 无配音模式会生成静音占位音频，不展示试听按钮，避免用户误以为需要测试声音。
+        if (
+            friendly_names
+            and selected_tts_server != voice.NO_VOICE_NAME
+            and st.button(tr("Play Voice"))
+        ):
             play_content = params.video_subject
             if not play_content:
                 play_content = params.video_script

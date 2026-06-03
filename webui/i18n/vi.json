@@ -51,6 +51,7 @@
     "Speech Rate": "Tốc độ đọc (1.0 biểu thị tốc độ gốc)",
     "Custom Audio File": "Tệp Âm Thanh Tùy Chỉnh",
     "Custom audio will be used directly. TTS synthesis will be skipped for this task.": "Âm thanh tùy chỉnh sẽ được dùng trực tiếp. Bước tổng hợp giọng nói (TTS) sẽ được bỏ qua cho tác vụ này.",
+    "No Voice": "Không có giọng đọc (không tổng hợp giọng nói)",
     "Male": "Nam",
     "Female": "Nữ",
     "Background Music": "Âm Nhạc Nền",

@@ -42,6 +42,7 @@
     "Speech Key": "API-ключ (:red[Обязательно，[Получить API-ключ](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "Громкость речи (1.0 соответствует 100%)",
     "Speech Rate": "Скорость речи (1.0 означает обычную скорость)",
+    "No Voice": "Без озвучки (без синтеза речи)",
     "Male": "Мужской",
     "Female": "Женский",
     "Background Music": "Фоновая музыка",

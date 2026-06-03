@@ -15,6 +15,7 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
         required_keys = {
             "Enable Subtitle Background",
             "Subtitle Background Color",
+            "No Voice",
         }
 
         for locale_file in i18n_dir.glob("*.json"):

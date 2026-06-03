@@ -42,6 +42,7 @@
     "Speech Key": "Chave da API(:red[Obrigatório，[Obter Chave da API](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "Volume da Fala (1.0 representa 100%)",
     "Speech Rate": "Velocidade da Fala (1.0 significa velocidade 1x)",
+    "No Voice": "Sem voz (sem sintese de fala)",
     "Male": "Masculino",
     "Female": "Feminino",
     "Background Music": "Música de Fundo",

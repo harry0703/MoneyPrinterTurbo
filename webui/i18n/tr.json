@@ -49,6 +49,7 @@
     "Speech Key": "API Anahtarı (:red[Gerekli, [API Anahtarı Al](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Volume": "Konuşma Ses Seviyesi (1.0, %100 anlamına gelir)",
     "Speech Rate": "Konuşma Hızı (1.0, 1x hız anlamına gelir)",
+    "No Voice": "Ses yok (konuşma sentezi yok)",
     "Male": "Erkek",
     "Female": "Kadın",
     "Background Music": "Arka Plan Müziği",
