@@ -673,3 +673,101 @@ if page == "🎬  Generate Video":
                             st.session_state["gen_output"] = out
                             st.session_state["gen_step"] = 4
                         prog.progress(100)
+# Results
+                        final_dur = get_duration(st.session_state["gen_output"])
+                        stat.success(
+                            f"🎉 Video ban gayi! Length: {final_dur:.1f}s")
+
+                        with st.expander("📝 Generated Script dekho"):
+                            st.write(st.session_state["gen_script"])
+
+                        if os.path.exists(st.session_state["gen_output"]):
+                            with open(st.session_state["gen_output"],"rb") as f:
+                                vbytes = f.read()
+                            st.video(vbytes)
+                            st.download_button(
+                                "⬇️ Video Download Karo",
+                                data=vbytes,
+                                file_name=f"brainreel_{video_subject[:20]}.mp4",
+                                mime="video/mp4",
+                                use_container_width=True)
+
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        st.warning(
+                            "💡 Connecting aaya tha? "
+                            "Dobara Generate dabao — wahan se continue hoga!")
+
+# ══════════════════════════════════════
+# SETTINGS PAGE
+# ══════════════════════════════════════
+elif page == "⚙️  Settings":
+    st.markdown("## ⚙️ Settings")
+    st.caption("API keys aur models configure karo.")
+    s1, s2 = st.tabs(["🔑 API Keys","🤖 Models"])
+
+    with s1:
+        st.markdown('<div class="card-title">🔑 API Keys</div>',
+                    unsafe_allow_html=True)
+        for label, key, ph in [
+            ("OpenAI API Key","openai_api_key","sk-..."),
+            ("OpenRouter API Key","openrouter_api_key","sk-or-..."),
+            ("Pexels API Key","pexels_api_key","Pexels key"),
+            ("Pixabay API Key","pixabay_api_key","Pixabay key"),
+        ]:
+            val = st.text_input(label, value=cfg.get(key,""),
+                                type="password", placeholder=ph, key=f"inp_{key}")
+            st.markdown(
+                f'<span class="key-status {"key-set" if cfg.get(key) else "key-empty"}">'
+                f'{"✓ Set hai" if cfg.get(key) else "○ Empty"}</span>',
+                unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("💾 Save API Keys"):
+            for _, key, __ in [
+                ("","openai_api_key",""),
+                ("","openrouter_api_key",""),
+                ("","pexels_api_key",""),
+                ("","pixabay_api_key",""),
+            ]:
+                cfg[key] = st.session_state.get(f"inp_{key}","")
+            if save_config(cfg):
+                st.success("✅ Keys save ho gayi!")
+                st.rerun()
+            else:
+                st.error("❌ Save nahi hua!")
+
+    with s2:
+        st.markdown('<div class="card-title">🤖 Model Settings</div>',
+                    unsafe_allow_html=True)
+        providers = ["OpenAI","OpenRouter","DeepSeek",
+                     "Moonshot","Google Gemini","Ollama"]
+        curr = cfg.get("llm_provider","OpenAI")
+        pidx = providers.index(curr) if curr in providers else 0
+        llm_provider = st.selectbox("LLM Provider", providers, index=pidx)
+
+        opts = MODEL_LISTS.get(llm_provider, ["Custom (type below)"])
+        saved = cfg.get("model_name","")
+        didx = opts.index(saved) if saved in opts else len(opts)-1
+        sel = st.selectbox("Model (List se chuno)", opts, index=didx)
+
+        if sel == "Custom (type below)":
+            model_name = st.text_input("Ya khud likho",
+                value=saved if saved not in opts else "",
+                placeholder="koi bhi model")
+        else:
+            model_name = sel
+
+        base_url = st.text_input("Base URL (optional)",
+            value=cfg.get("base_url",""),
+            placeholder="Default ke liye khali chhodo")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("💾 Save Model Settings"):
+            cfg.update({"llm_provider":llm_provider,
+                        "model_name":model_name,"base_url":base_url})
+            if save_config(cfg):
+                st.success("✅ Saved!")
+                st.rerun()
+            else:
+                st.error("❌ Save nahi hua!")
