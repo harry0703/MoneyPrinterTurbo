@@ -56,9 +56,14 @@ RUN chmod +x start.sh generate-config.sh
 RUN rm -f config.toml config.example.toml && \
     printf 'listen_host = "0.0.0.0"\nlisten_port = 8080\nllm_provider = "openai"\nopenai_api_key = "PLACEHOLDER"\nopenai_model_name = "gpt-4o-mini"\nopenai_base_url = "https://api.openai.com/v1"\ngemini_api_key = ""\npexels_api_keys = ["PLACEHOLDER"]\ntasks_dir = "./storage/tasks"\n' > config.toml
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+# Long interval — don't kill container during CPU-intensive video encoding
+# start-period gives MPT time to fully initialise before checks begin
+HEALTHCHECK --interval=120s --timeout=15s --start-period=180s --retries=5 \
     CMD curl -f http://localhost:${PORT:-8080}/api/v1/health || exit 1
 
 EXPOSE 8080
+
+# Debug: print the actual config.py source so we can see exactly how MPT reads keys
+RUN cat /app/app/config/config.py > /app/debug_config.py 2>/dev/null ||     find /app -name "config.py" | head -5 > /app/debug_paths.txt
 
 ENTRYPOINT ["./start.sh"]
