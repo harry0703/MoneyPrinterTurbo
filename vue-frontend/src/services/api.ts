@@ -70,6 +70,7 @@ export interface VideoTermsResponse {
 export interface ParseScriptRequest {
   video_script: string;
   language: string | null;
+  host_visible?: boolean;
 }
 
 export interface Scene {

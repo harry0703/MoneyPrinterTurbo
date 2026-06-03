@@ -153,7 +153,6 @@
     "Speed: Range [0.25, 4.0], default is 1.0": "Hız: Aralık [0.25, 4.0], varsayılan 1.0",
     "Volume: Uses Speech Volume setting, default 1.0 maps to gain 0": "Ses Seviyesi: Konuşma Ses Seviyesi ayarını kullanır, varsayılan 1.0 gain 0'a eşittir",
     "Hide Log": "Günlüğü Gizle",
-    "Hide Basic Settings": "Temel Ayarları Gizle\n\nGizlendiği takdirde, temel ayarlar paneli sayfada görüntülenmeyecektir.\n\nTekrar görüntülemek için `config.toml` dosyasında `hide_config = false` olarak ayarlayın",
     "LLM Settings": "<strong>LLM Ayarları</strong>",
     "Video Source Settings": "<strong>Video Kaynağı Ayarları</strong>",
     "Scene Integration": "Sahne Entegrasyonu",

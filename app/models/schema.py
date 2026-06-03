@@ -112,6 +112,7 @@ class VideoParams(BaseModel):
     # Multi-scene mode settings
     multi_scene_enabled: Optional[bool] = False  # Enable multi-scene mode
     scenes: Optional[List[dict]] = None  # Scene data for multi-scene mode
+    host_visible: Optional[bool] = True  # Whether the video host appears on camera
 
     voice_name: Optional[str] = ""
     voice_volume: Optional[float] = 1.0

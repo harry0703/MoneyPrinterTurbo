@@ -153,7 +153,6 @@
     "Speed: Range [0.25, 4.0], default is 1.0": "Velocidade: Intervalo [0.25, 4.0], o padrão é 1.0",
     "Volume: Uses Speech Volume setting, default 1.0 maps to gain 0": "Volume: Usa a configuração de Volume de Fala, o padrão 1.0 corresponde ao ganho 0",
     "Hide Log": "Ocultar Log",
-    "Hide Basic Settings": "Ocultar Configurações Básicas\n\nOculto, o painel de configurações básicas não será exibido na página.\n\nSe precisar exibi-lo novamente, defina `hide_config = false` em `config.toml`",
     "LLM Settings": "<strong>Configurações do LLM</strong>",
     "Video Source Settings": "<strong>Configurações da Fonte do Vídeo</strong>",
     "Click to show API Key management": "Clique para mostrar o gerenciamento de chaves de API",

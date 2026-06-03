@@ -118,13 +118,14 @@ def generate_multi_scene_script(task_id, params):
     """
     Generate multi-scene script for video.
     If multi-scene mode is enabled and user provides a subject, generate multi-scene script.
-    If user provides a script, convert it to multi-scene format.
-    If user provides scenes directly, use them as-is.
+    If user provides a script, convert to multi-scene format.
+    If user provides scenes directly, use them as-is (host_visible only affects LLM generation).
     
     Returns:
         Tuple of (script_text, scenes_list)
     """
     logger.info("\n\n## generating multi-scene script")
+    logger.info(f"[Task] host_visible parameter value: {params.host_visible}")
     
     # Check if user provided scenes directly
     if params.scenes and len(params.scenes) > 0:
@@ -135,6 +136,10 @@ def generate_multi_scene_script(task_id, params):
             combined_script += f"[Scene {i+1}] {scene.get('title', '')}\n"
             combined_script += f"{scene.get('script', '')}\n\n"
         return combined_script, params.scenes
+    
+    # Log params.host_visible value
+    logger.info(f"[generate_multi_scene_script] Checking host_visible directly: {params.host_visible}")
+    logger.info(f"[generate_multi_scene_script] hasattr(params, 'host_visible'): {hasattr(params, 'host_visible')}")
     
     video_script = params.video_script.strip()
     
@@ -154,20 +159,26 @@ def generate_multi_scene_script(task_id, params):
     if not video_script:
         # User provided subject only, generate multi-scene script from scratch
         logger.info("generating multi-scene script from subject")
+        host_visible_to_send = params.host_visible
+        logger.info(f"[generate_multi_scene_script] Sending host_visible to LLM: {host_visible_to_send}")
         video_script = llm.generate_multi_scene_script(
             video_content=params.video_subject,
             language=params.video_language,
             max_scenes=16,
-            content_type=content_type_result['content_type']
+            content_type=content_type_result['content_type'],
+            host_visible=host_visible_to_send
         )
     else:
         # User provided script, convert to multi-scene format
         logger.info("converting provided script to multi-scene format")
+        host_visible_to_send = params.host_visible
+        logger.info(f"[convert_to_multi_scene] Sending host_visible to LLM: {host_visible_to_send}")
         video_script = llm.convert_to_multi_scene(
             video_script=video_script,
             video_subject=params.video_subject,
             language=params.video_language,
-            content_type=content_type_result['content_type']
+            content_type=content_type_result['content_type'],
+            host_visible=host_visible_to_send
         )
     
     if not video_script or "Error: " in video_script:

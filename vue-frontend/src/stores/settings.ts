@@ -53,6 +53,7 @@ interface VideoSettings {
   introVideoBgBlur: number;
   introVideoBgColor: string;
   silenceDuration: number;
+  hostVisible: boolean;
   localFiles: Array<{ name: string; url?: string; status?: string; uid: string }>;
   title: TitleSettings;
 }
@@ -87,7 +88,6 @@ interface AppSettings {
   llmProvider: string;
   videoSource: string;
   useGpu: boolean;
-  hideConfig: boolean;
 }
 
 interface VideoSources {
@@ -135,7 +135,6 @@ export const useSettingsStore = defineStore('settings', {
       llmProvider: 'openai',
       videoSource: 'pexels',
       useGpu: false,
-      hideConfig: false
     },
     
     // Video settings
@@ -156,6 +155,7 @@ export const useSettingsStore = defineStore('settings', {
           introVideoBgBlur: 15,
           introVideoBgColor: 'black',
           silenceDuration: 0.3,
+          hostVisible: true,
           localFiles: [],
           title: {
             enabled: false,
@@ -667,13 +667,13 @@ export const useSettingsStore = defineStore('settings', {
               this.video.introVideoBgColor = data.app.intro_video_bg_color;
               console.log('Updated video.introVideoBgColor:', this.video.introVideoBgColor);
             }
-            if (typeof data.app.hide_config === 'boolean') {
-              this.app.hideConfig = data.app.hide_config;
-              console.log('Updated hideConfig:', this.app.hideConfig);
-            }
             if (typeof data.app.use_gpu === 'boolean') {
               this.app.useGpu = data.app.use_gpu;
               console.log('Updated useGpu:', this.app.useGpu);
+            }
+            if (typeof data.app.host_visible === 'boolean') {
+              this.video.hostVisible = data.app.host_visible;
+              console.log('Updated hostVisible:', this.video.hostVisible);
             }
             if (Array.isArray(data.app.pexels_api_keys)) {
               this.videoSources.pexelsApiKeys = data.app.pexels_api_keys;

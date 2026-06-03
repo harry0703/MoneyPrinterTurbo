@@ -175,6 +175,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useScriptStore } from '../stores/script';
 import { useI18nStore } from '../stores/i18n';
+import { useSettingsStore } from '../stores/settings';
 import { ElMessage } from 'element-plus';
 import { VideoCamera } from '@element-plus/icons-vue';
 import { parseLabelMarkdown } from '../utils/markdownParser';
@@ -183,6 +184,7 @@ import api from '../services/api';
 
 const scriptStore = useScriptStore();
 const i18nStore = useI18nStore();
+const settingsStore = useSettingsStore();
 const t = i18nStore.t;
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -621,7 +623,8 @@ const parseVideoScript = async () => {
     const language = form.language === 'auto' ? null : form.language;
     const response = await apiParseVideoScript({
       video_script: form.videoScript,
-      language: language
+      language: language,
+      host_visible: settingsStore.video.hostVisible
     });
     
     if (response.status === 'success' || response.status === 'manual') {

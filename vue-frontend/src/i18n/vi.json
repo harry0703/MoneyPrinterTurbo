@@ -153,7 +153,6 @@
     "Speed: Range [0.25, 4.0], default is 1.0": "Tốc độ: Phạm vi [0.25, 4.0], mặc định là 1.0",
     "Volume: Uses Speech Volume setting, default 1.0 maps to gain 0": "Âm lượng: Sử dụng cài đặt Âm lượng Giọng nói, mặc định 1.0 tương ứng với tăng ích 0",
     "Hide Log": "Ẩn Nhật Ký",
-    "Hide Basic Settings": "Ẩn Cài Đặt Cơ Bản\n\nẨn, thanh cài đặt cơ bản sẽ không hiển thị trên trang web.\n\nNếu bạn muốn hiển thị lại, vui lòng đặt `hide_config = false` trong `config.toml`",
     "LLM Settings": "<strong>Cài Đặt LLM</strong>",
     "Video Source Settings": "<strong>Cài Đặt Nguồn Video</strong>",
     "Click to show API Key management": "Nhấn để hiển thị quản lý API Key",

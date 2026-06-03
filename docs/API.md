@@ -402,7 +402,6 @@ MoneyPrinterTurboCN 提供了一套完整的 RESTful API 接口，用于视频�
     "app": {
       "llm_provider": "deepseek",
       "video_source": "pexels",
-      "hide_config": false,
       "use_gpu": true,
       "pexels_api_keys": ["Ra5z3Yw0ZUwPy..."],
       "pixabay_api_keys": ["54923197-..."],

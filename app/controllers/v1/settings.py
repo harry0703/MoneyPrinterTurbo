@@ -84,7 +84,7 @@ def get_config(request: Request):
                 "intro_video_bg_type": config.app.get("intro_video_bg_type", "solid"),
                 "intro_video_bg_blur": config.app.get("intro_video_bg_blur", 15),
                 "intro_video_bg_color": config.app.get("intro_video_bg_color", "black"),
-                "hide_config": config.app.get("hide_config", False),
+                "host_visible": config.app.get("host_visible", True),
                 "use_gpu": config.app.get("use_gpu", False),
                 "pexels_api_keys": config.app.get("pexels_api_keys", []),
                 "pixabay_api_keys": config.app.get("pixabay_api_keys", []),

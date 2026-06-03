@@ -153,7 +153,6 @@
     "Speed: Range [0.25, 4.0], default is 1.0": "Скорость: Диапазон [0.25, 4.0], по умолчанию 1.0",
     "Volume: Uses Speech Volume setting, default 1.0 maps to gain 0": "Громкость: Использует настройку громкости речи, по умолчанию 1.0 соответствует усилению 0",
     "Hide Log": "Скрыть журнал",
-    "Hide Basic Settings": "Скрыть основные настройки\n\nПри скрытии панель основных настроек не будет отображаться на странице.\n\nДля повторного отображения установите `hide_config = false` в `config.toml`",
     "LLM Settings": "<strong>Настройки LLM</strong>",
     "Video Source Settings": "<strong>Настройки источника видео</strong>",
     "Scene Integration": "Интеграция сцен",
