@@ -1,18 +1,20 @@
 # ─────────────────────────────────────────────────────────────
 # Clipp Engine — railway.toml
-#
-# Place this file in the ROOT of your MoneyPrinterTurbo fork.
-# Railway reads this automatically when deploying the service.
 # ─────────────────────────────────────────────────────────────
 
 [build]
-# Use Dockerfile — required because we need system packages
-# (FFmpeg, ImageMagick) that Nixpacks cannot install
-builder       = "DOCKERFILE"
+builder        = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-healthcheckPath       = "/api/v1/health"
-healthcheckTimeout    = 600     # 10 minutes — give engine time during video processing
-restartPolicyType     = "ON_FAILURE"
-restartPolicyMaxRetries = 3
+# Health check: confirm process is alive, not that it's idle.
+# /api/v1/health always returns 200 while the process is running.
+# Long timeout (10min) prevents Railway from killing a busy container.
+healthcheckPath    = "/api/v1/health"
+healthcheckTimeout = 600
+
+# NEVER restart on failure — Railway's health check fires during
+# CPU-intensive encoding and incorrectly triggers restarts.
+# Tasks are in-memory; a restart wipes all in-progress work.
+# The worker detects engine restarts and re-queues jobs automatically.
+restartPolicyType = "NEVER"
