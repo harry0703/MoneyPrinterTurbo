@@ -230,10 +230,9 @@ if "log_records" not in st.session_state:
     st.session_state["log_records"] = []
 if "video_history" not in st.session_state:
     st.session_state["video_history"] = []
-if "show_modal" not in st.session_state:
-    st.session_state["show_modal"] = False
-if "modal_video_path" not in st.session_state:
-    st.session_state["modal_video_path"] = None
+# 用于跟踪配置变化，自动恢复预览状态
+if "prev_config" not in st.session_state:
+    st.session_state["prev_config"] = None
 
 
 def get_all_fonts():
@@ -282,8 +281,12 @@ top_header_html = """
 st.markdown(top_header_html, unsafe_allow_html=True)
 
 
-# 使用Streamlit columns实现左右分栏
-col1, col2 = st.columns([45, 55])
+# 使用Streamlit columns实现三栏布局，比例2:3:1
+col1, col2, col3 = st.columns([2, 3, 1])
+
+# 在开始读取配置之前，先收集所有的配置值用于比较
+# 这些配置值会在后面读取，但我们需要提前捕获变化
+# 我们将在读取完所有配置后再进行比较
 
 # ==================== 左侧：配置选项 ====================
 with col1:
@@ -481,74 +484,102 @@ with col1:
     
     # 音频设置
     with st.expander("🎵 音频设置", expanded=False):
-        voice_provider = st.selectbox(
-            "配音提供商",
-            options=["azure", "siliconflow", "gemini", "mimo"],
+        # 添加配音来源选项
+        voice_source = st.selectbox(
+            "配音来源",
+            options=["tts", "local"],
             index=0,
-            format_func=lambda x: {
-                "azure": "Azure",
-                "siliconflow": "硅基流动",
-                "gemini": "Gemini",
-                "mimo": "小米Mimo"
-            }[x]
+            format_func=lambda x: "AI配音" if x == "tts" else "上传配音"
         )
         
-        # 根据提供商获取声音列表
-        if voice_provider == "azure":
-            voice_names = voice.get_all_azure_voices()
-        elif voice_provider == "siliconflow":
-            voice_names = voice.get_siliconflow_voices()
-        elif voice_provider == "gemini":
-            voice_names = voice.get_gemini_voices()
-        else:
-            voice_names = voice.get_mimo_voices()
+        custom_voice_files = None
+        custom_voice_path = None
         
-        if voice_names:
-            voice_name = st.selectbox(
-                "配音声音",
-                options=voice_names,
-                index=0
+        if voice_source == "tts":
+            voice_provider = st.selectbox(
+                "配音提供商",
+                options=["azure", "siliconflow", "gemini", "mimo"],
+                index=0,
+                format_func=lambda x: {
+                    "azure": "Azure",
+                    "siliconflow": "硅基流动",
+                    "gemini": "Gemini",
+                    "mimo": "小米Mimo"
+                }[x]
+            )
+        
+        # 根据配音来源处理
+        if voice_source == "tts":
+            # 根据提供商获取声音列表
+            if voice_provider == "azure":
+                voice_names = voice.get_all_azure_voices()
+            elif voice_provider == "siliconflow":
+                voice_names = voice.get_siliconflow_voices()
+            elif voice_provider == "gemini":
+                voice_names = voice.get_gemini_voices()
+            else:
+                voice_names = voice.get_mimo_voices()
+            
+            if voice_names:
+                voice_name = st.selectbox(
+                    "配音声音",
+                    options=voice_names,
+                    index=0
+                )
+                
+                # 试听按钮
+                if st.button("🎧 试听配音", key="preview_voice"):
+                    try:
+                        with st.spinner("正在生成试听音频..."):
+                            test_text = video_script[:50] if video_script else "你好，这是一段测试音频，用来试听配音效果。"
+                            temp_voice_file = os.path.join("storage", "temp", f"preview_{uuid4()}.mp3")
+                            os.makedirs(os.path.dirname(temp_voice_file), exist_ok=True)
+                            
+                            voice.tts(
+                                text=test_text,
+                                voice_name=voice_name,
+                                voice_file=temp_voice_file,
+                                voice_rate=1.0,
+                                voice_volume=1.0
+                            )
+                            
+                            st.audio(temp_voice_file, format="audio/mp3")
+                            st.success("✅ 试听音频生成成功！")
+                    except Exception as e:
+                        st.error(f"试听失败：{e}")
+            else:
+                voice_name = ""
+                st.warning("⚠️ 未找到可用的配音声音")
+            
+            voice_volume = st.slider(
+                "配音音量",
+                min_value=0.0,
+                max_value=2.0,
+                value=1.0,
+                step=0.1
             )
             
-            # 试听按钮
-            if st.button("🎧 试听配音", key="preview_voice"):
-                try:
-                    with st.spinner("正在生成试听音频..."):
-                        test_text = video_script[:50] if video_script else "你好，这是一段测试音频，用来试听配音效果。"
-                        temp_voice_file = os.path.join("storage", "temp", f"preview_{uuid4()}.mp3")
-                        os.makedirs(os.path.dirname(temp_voice_file), exist_ok=True)
-                        
-                        voice.tts(
-                            text=test_text,
-                            voice_name=voice_name,
-                            voice_file=temp_voice_file,
-                            voice_rate=1.0,
-                            voice_volume=1.0
-                        )
-                        
-                        st.audio(temp_voice_file, format="audio/mp3")
-                        st.success("✅ 试听音频生成成功！")
-                except Exception as e:
-                    st.error(f"试听失败：{e}")
+            voice_rate = st.slider(
+                "配音语速",
+                min_value=0.5,
+                max_value=2.0,
+                value=1.0,
+                step=0.1
+            )
         else:
+            # 上传配音
             voice_name = ""
-            st.warning("⚠️ 未找到可用的配音声音")
-        
-        voice_volume = st.slider(
-            "配音音量",
-            min_value=0.0,
-            max_value=2.0,
-            value=1.0,
-            step=0.1
-        )
-        
-        voice_rate = st.slider(
-            "配音语速",
-            min_value=0.5,
-            max_value=2.0,
-            value=1.0,
-            step=0.1
-        )
+            voice_volume = 1.0
+            voice_rate = 1.0
+            custom_voice_files = st.file_uploader(
+                "上传配音音频文件（支持多个，按顺序拼接）",
+                type=["mp3", "wav", "flac", "m4a"],
+                accept_multiple_files=True
+            )
+            if custom_voice_files:
+                st.success(f"已上传 {len(custom_voice_files)} 个配音文件")
+                # 预览第一个音频
+                st.audio(custom_voice_files[0], format="audio/mp3")
         
         bgm_type = st.selectbox(
             "背景音乐类型",
@@ -805,6 +836,45 @@ with col1:
                 if tts_model_name:
                     config.app[f"{tts_provider}_model_name"] = tts_model_name
     
+    # 在读取完所有配置后，进行配置变化检测
+    # 收集当前配置 - 只使用明确存在的配置项
+    current_config = {
+        "video_subject": video_subject,
+        "video_script": video_script,
+        "video_terms": video_terms,
+        "video_aspect": video_aspect,
+        "video_source": video_source,
+        "solid_bg_color": solid_bg_color,
+        "video_concat_mode": video_concat_mode,
+        "subtitle_enabled": subtitle_enabled,
+        "font_name": font_name,
+        "text_fore_color": text_fore_color,
+    }
+    
+    # 添加配音相关配置（确保变量存在）
+    if 'voice_source' in locals():
+        current_config["voice_source"] = voice_source
+    if 'voice_provider' in locals():
+        current_config["voice_provider"] = voice_provider
+    if 'voice_name' in locals():
+        current_config["voice_name"] = voice_name
+    
+    # 检测配置是否变化
+    if st.session_state["prev_config"] is not None and st.session_state["generated_video_path"] is not None:
+        config_changed = False
+        for key, value in current_config.items():
+            if key in st.session_state["prev_config"] and st.session_state["prev_config"][key] != value:
+                config_changed = True
+                break
+        
+        if config_changed:
+            # 配置变化，恢复预览状态
+            st.session_state["generated_video_path"] = None
+            st.rerun()
+    
+    # 更新前一个配置
+    st.session_state["prev_config"] = current_config
+    
     # 生成按钮
     st.markdown("<hr>", unsafe_allow_html=True)
     
@@ -836,6 +906,24 @@ with col1:
                 with open(bgm_path, "wb") as f:
                     f.write(uploaded_bgm.getvalue())
                 custom_bgm_path = bgm_path
+            
+            # 处理自定义配音文件 - 先简化，只支持单个文件
+            custom_voice_path = None
+            try:
+                if 'voice_source' in locals() and voice_source == "local" and custom_voice_files is not None and len(custom_voice_files) > 0:
+                    temp_voice_dir = os.path.join("storage", "temp", task_id)
+                    os.makedirs(temp_voice_dir, exist_ok=True)
+                    
+                    # 只保存第一个文件
+                    uploaded_file = custom_voice_files[0]
+                    file_path = os.path.join(temp_voice_dir, uploaded_file.name)
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_file.getvalue())
+                    custom_voice_path = file_path
+                    st.session_state["log_records"].append(f"🎵 使用配音文件：{custom_voice_path}")
+            except Exception as e:
+                st.session_state["log_records"].append(f"⚠️ 处理配音文件时出错：{e}")
+                custom_voice_path = None
             
             # 处理本地素材上传
             video_materials = None
@@ -874,6 +962,7 @@ with col1:
                 bgm_type=bgm_type,
                 bgm_volume=bgm_volume if bgm_type != "none" else 0,
                 custom_bgm_file=custom_bgm_path,
+                custom_audio_file=custom_voice_path,
                 subtitle_enabled=subtitle_enabled,
                 subtitle_position=subtitle_position,
                 custom_position=custom_position,
@@ -906,81 +995,102 @@ with col1:
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                status_text.text("🚀 正在启动视频生成任务...")
-                st.session_state["log_records"].append("🚀 正在启动视频生成任务...")
+                status_text.text("正在启动视频生成任务...")
+                st.session_state["log_records"].append("正在启动视频生成任务...")
                 
                 progress_bar.progress(10)
                 
-                # 实际执行任务 - tm.start()是同步执行的，会完整执行所有步骤
+                # 实际执行任务 - tm.start() 是同步执行的，会完整执行所有步骤
                 try:
                     result = tm.start(task_id=task_id, params=params)
-                    st.session_state["log_records"].append(f"✅ 任务执行中，任务ID：{task_id}")
+                    st.session_state["log_records"].append(f"任务执行中，任务ID：{task_id}")
+                    st.session_state["log_records"].append(f"任务返回结果：{result}")
+                    if result:
+                        for key, value in result.items():
+                            st.session_state["log_records"].append(f"  - {key}: {value}")
                     
                     progress_bar.progress(100)
-                    status_text.text("✅ 视频生成完成！")
-                    st.session_state["log_records"].append("✅ 视频生成完成！")
+                    status_text.text("视频生成完成！")
+                    st.session_state["log_records"].append("视频生成完成！")
                     
                     # 从返回结果中获取视频路径
-                    if result and "videos" in result and len(result["videos"]) > 0:
-                        video_path = result["videos"][0]
-                        if os.path.exists(video_path):
-                            st.session_state["generated_video_path"] = video_path
-                            st.success("✅ 视频生成完成！")
-                            st.session_state["log_records"].append(f"✅ 视频文件：{video_path}")
-                            # 添加到历史记录
-                            if video_path not in st.session_state["video_history"]:
-                                st.session_state["video_history"].append(video_path)
-                        else:
-                            st.session_state["log_records"].append(f"⚠️ 返回的视频文件不存在：{video_path}")
-                            # 尝试在任务目录中查找
+                    video_found = False
+                    try:
+                        if result and "videos" in result and len(result["videos"]) > 0:
+                            video_path = result["videos"][0]
+                            st.session_state["log_records"].append(f"尝试使用返回的视频路径：{video_path}")
+                            st.session_state["log_records"].append(f"  - 是否存在：{os.path.exists(video_path)}")
+                            
+                            # 尝试标准化路径
+                            normalized_path = os.path.abspath(os.path.normpath(video_path))
+                            st.session_state["log_records"].append(f"  - 标准化路径：{normalized_path}")
+                            
+                            if os.path.exists(normalized_path):
+                                st.session_state["generated_video_path"] = normalized_path
+                                st.success("视频生成完成！")
+                                st.session_state["log_records"].append(f"视频文件：{normalized_path}")
+                                video_found = True
+                                # 添加到历史记录
+                                if normalized_path not in st.session_state["video_history"]:
+                                    st.session_state["video_history"].append(normalized_path)
+                            else:
+                                st.session_state["log_records"].append(f"返回的视频文件不存在，尝试其他方式查找")
+                    except Exception as e:
+                        st.session_state["log_records"].append(f"处理返回结果时出错：{e}")
+                    
+                    # 如果没找到，在任务目录中查找
+                    if not video_found:
+                        try:
                             task_dir = os.path.join(root_dir, "storage", "tasks", task_id)
-                            st.session_state["log_records"].append(f"🔍 尝试查找任务目录：{task_dir}")
+                            task_dir = os.path.abspath(os.path.normpath(task_dir))
+                            st.session_state["log_records"].append(f"尝试查找任务目录：{task_dir}")
+                            
                             if os.path.exists(task_dir):
-                                st.session_state["log_records"].append(f"📂 任务目录内容：{os.listdir(task_dir)}")
-                                video_files = [f for f in os.listdir(task_dir) if f.endswith(".mp4") and "final" in f]
-                                if not video_files:
-                                    video_files = [f for f in os.listdir(task_dir) if f.endswith(".mp4")]
-                                if video_files:
-                                    video_path = os.path.join(task_dir, video_files[0])
+                                task_contents = os.listdir(task_dir)
+                                st.session_state["log_records"].append(f"任务目录内容：{task_contents}")
+                                
+                                # 查找所有 mp4 文件
+                                video_files = []
+                                for f in task_contents:
+                                    if f.endswith(".mp4"):
+                                        full_path = os.path.join(task_dir, f)
+                                        size = os.path.getsize(full_path)
+                                        st.session_state["log_records"].append(f"  - 发现文件：{f} ({size} bytes)")
+                                        video_files.append((f, size))
+                                
+                                # 优先找带 final 的
+                                final_videos = [f for f in video_files if "final" in f[0]]
+                                if final_videos:
+                                    # 选最大的那个
+                                    final_videos.sort(key=lambda x: x[1], reverse=True)
+                                    video_path = os.path.join(task_dir, final_videos[0][0])
+                                elif video_files:
+                                    # 选最大的那个
+                                    video_files.sort(key=lambda x: x[1], reverse=True)
+                                    video_path = os.path.join(task_dir, video_files[0][0])
+                                else:
+                                    video_path = None
+                                
+                                if video_path and os.path.exists(video_path):
                                     st.session_state["generated_video_path"] = video_path
-                                    st.success("✅ 视频生成完成！")
-                                    st.session_state["log_records"].append(f"✅ 找到视频文件：{video_path}")
+                                    st.success("视频生成完成！")
+                                    st.session_state["log_records"].append(f"找到视频文件：{video_path}")
                                     # 添加到历史记录
                                     if video_path not in st.session_state["video_history"]:
                                         st.session_state["video_history"].append(video_path)
                                 else:
-                                    st.warning("⚠️ 任务已完成，但未找到视频文件")
-                                    st.session_state["log_records"].append("⚠️ 未找到视频文件")
+                                    st.warning("任务已完成，但未找到视频文件")
+                                    st.session_state["log_records"].append("未找到视频文件")
                             else:
-                                st.warning("⚠️ 任务已完成，但任务目录不存在")
-                                st.session_state["log_records"].append(f"⚠️ 任务目录不存在：{task_dir}")
-                    else:
-                        # 尝试在任务目录中查找视频
-                        task_dir = os.path.join(root_dir, "storage", "tasks", task_id)
-                        st.session_state["log_records"].append(f"🔍 尝试查找任务目录：{task_dir}")
-                        if os.path.exists(task_dir):
-                            st.session_state["log_records"].append(f"📂 任务目录内容：{os.listdir(task_dir)}")
-                            video_files = [f for f in os.listdir(task_dir) if f.endswith(".mp4") and "final" in f]
-                            if not video_files:
-                                video_files = [f for f in os.listdir(task_dir) if f.endswith(".mp4")]
-                            if video_files:
-                                video_path = os.path.join(task_dir, video_files[0])
-                                st.session_state["generated_video_path"] = video_path
-                                st.success("✅ 视频生成完成！")
-                                st.session_state["log_records"].append(f"✅ 找到视频文件：{video_path}")
-                                # 添加到历史记录
-                                if video_path not in st.session_state["video_history"]:
-                                    st.session_state["video_history"].append(video_path)
-                            else:
-                                st.warning("⚠️ 任务已完成，但未找到视频文件")
-                                st.session_state["log_records"].append("⚠️ 未找到视频文件")
-                        else:
-                            st.warning("⚠️ 任务已完成，但任务目录不存在")
-                            st.session_state["log_records"].append(f"⚠️ 任务目录不存在：{task_dir}")
+                                st.warning("任务已完成，但任务目录不存在")
+                                st.session_state["log_records"].append(f"任务目录不存在：{task_dir}")
+                        except Exception as e:
+                            st.session_state["log_records"].append(f"查找视频文件时出错：{e}")
+                            st.error(f"查找视频文件时出错：{e}")
                     
                 except Exception as e:
                     st.error(f"任务执行失败：{e}")
-                    st.session_state["log_records"].append(f"❌ 错误：{e}")
+                    st.session_state["log_records"].append(f"错误：{e}")
                     st.session_state["show_floating_progress"] = False
             
             except Exception as e:
@@ -989,7 +1099,7 @@ with col1:
     
     # 日志显示区域
     st.markdown('<div style="margin-top:20px;"></div>', unsafe_allow_html=True)
-    with st.expander("📋 生成日志", expanded=False):
+    with st.expander("生成日志", expanded=False):
         logs = st.session_state.get("log_records", [])
         if logs:
             for log in logs:
@@ -998,7 +1108,7 @@ with col1:
             st.markdown("暂无日志记录")
     st.markdown('<div style="margin-bottom:30px;"></div>', unsafe_allow_html=True)
 
-# ==================== 右侧：预览区域 ====================
+# ==================== 中间：预览区域 ====================
 with col2:
     
     # 计算当前选择的视频比例，用于预览显示
@@ -1078,37 +1188,39 @@ with col2:
         
         # 渲染预览
         st.markdown(preview_html, unsafe_allow_html=True)
+
+
+# ==================== 右侧：历史视频列表 ====================
+with col3:
+    st.subheader("📁 视频历史")
     
-    # 视频历史列表
     if len(st.session_state["video_history"]) > 0:
-        st.markdown("---")
-        st.subheader("📁 视频历史")
+        # 反向显示历史（最新的在上面）
+        reversed_history = list(reversed(st.session_state["video_history"]))
+        num_videos = len(reversed_history)
         
-        # 创建视频历史图标列表
-        history_html = '<div class="video-history-container">'
-        
-        for idx, video_path in enumerate(st.session_state["video_history"]):
+        for idx, video_path in enumerate(reversed_history):
             if os.path.exists(video_path):
-                # 创建一个可点击的按钮
-                history_html += f'<div class="video-history-item" onclick="st.set_page_config()">'
-                history_html += f'<span class="video-index">#{len(st.session_state["video_history"]) - idx}</span>'
-                history_html += f'<span class="play-icon">▶</span>'
-                history_html += '</div>'
-        
-        history_html += '</div>'
-        st.markdown(history_html, unsafe_allow_html=True)
-        
-        # 使用Streamlit按钮替代HTML，因为onclick在Streamlit中不直接工作
-        st.write("点击视频图标播放：")
-        cols = st.columns(min(5, len(st.session_state["video_history"])))
-        for idx, video_path in enumerate(reversed(st.session_state["video_history"])):
-            if os.path.exists(video_path):
-                col_idx = idx % 5
-                with cols[col_idx]:
-                    if st.button(f"▶ 视频 #{len(st.session_state['video_history']) - idx}", key=f"play_video_{idx}"):
-                        st.session_state["show_modal"] = True
-                        st.session_state["modal_video_path"] = video_path
+                video_num = num_videos - idx
+                
+                # 每个历史视频项
+                with st.container():
+                    # 显示视频缩略图
+                    st.markdown(f"""
+                    <div style="margin-bottom:12px;padding:10px;background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);border-radius:8px;">
+                        <div style="font-weight:600;margin-bottom:8px;color:#333;">🎬 视频 #{video_num}</div>
+                        <div style="font-size:12px;color:#666;margin-bottom:8px;">
+                            {os.path.basename(video_path)}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 使用按钮实现点击功能
+                    if st.button(f"▶️ 播放 #{video_num}", key=f"history_video_{idx}", use_container_width=True):
+                        st.session_state["generated_video_path"] = video_path
                         st.rerun()
+    else:
+        st.info("暂无视频历史记录，生成视频后将显示在这里")
 
 
 # ==================== 右上角进度信息 ====================
@@ -1119,36 +1231,4 @@ if st.session_state.get("show_floating_progress"):
         st.session_state["show_floating_progress"] = False
         st.rerun()
 
-# ==================== 视频播放弹窗 ====================
-if st.session_state.get("show_modal") and st.session_state.get("modal_video_path"):
-    video_path = st.session_state["modal_video_path"]
-    
-    # 使用 Streamlit 的 expander 或者自定义 HTML 实现弹窗
-    modal_html = f"""
-    <div class="modal-overlay" id="videoModal">
-        <div class="modal-content">
-            <button class="modal-close" onclick="document.getElementById('videoModal').style.display='none';">&times;</button>
-            <h3 style="margin-top:0;">🎬 视频播放</h3>
-        </div>
-    </div>
-    <script>
-        function closeModal() {{
-            document.getElementById('videoModal').style.display = 'none';
-        }}
-    </script>
-    """
-    
-    # 由于 Streamlit 的限制，我们使用一个更简单的方式：全屏显示视频
-    st.markdown('<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">', unsafe_allow_html=True)
-    
-    # 关闭按钮
-    if st.button("❌ 关闭", key="close_modal"):
-        st.session_state["show_modal"] = False
-        st.session_state["modal_video_path"] = None
-        st.rerun()
-    
-    # 视频播放器
-    if os.path.exists(video_path):
-        st.video(video_path)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+

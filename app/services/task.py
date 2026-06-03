@@ -87,36 +87,9 @@ def generate_audio(task_id, params, video_script):
     # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
     # 这里统一做兼容读取，避免直调接口时抛属性错误。
     custom_audio_file = getattr(params, "custom_audio_file", None)
-    if not custom_audio_file or not os.path.exists(custom_audio_file):
-        if custom_audio_file:
-            logger.warning(
-                f"custom audio file not found: {custom_audio_file}, using TTS to generate audio."
-            )
-        else:
-            logger.info("no custom audio file provided, using TTS to generate audio.")
-        audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
-        sub_maker = voice.tts(
-            text=video_script,
-            voice_name=voice.parse_voice_name(params.voice_name),
-            voice_rate=params.voice_rate,
-            voice_file=audio_file,
-        )
-        if sub_maker is None:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-            logger.error(
-                """failed to generate audio:
-1. check if the language of the voice matches the language of the video script.
-2. check if the network is available. If you are in China, it is recommended to use a VPN and enable the global traffic mode.
-            """.strip()
-            )
-            return None, None, None
-        audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
-        if audio_duration == 0:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-            logger.error("failed to get audio duration.")
-            return None, None, None
-        return audio_file, audio_duration, sub_maker
-    else:
+    
+    # 简单处理自定义音频文件 - 先回退到原来的简单逻辑
+    if custom_audio_file and os.path.exists(custom_audio_file):
         logger.info(f"using custom audio file: {custom_audio_file}")
         audio_duration = voice.get_audio_duration(custom_audio_file)
         if audio_duration == 0:
@@ -124,6 +97,31 @@ def generate_audio(task_id, params, video_script):
             logger.error("failed to get audio duration from custom audio file.")
             return None, None, None
         return custom_audio_file, audio_duration, None
+    
+    # 使用 TTS
+    logger.info("no custom audio file, using TTS to generate audio.")
+    audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
+    sub_maker = voice.tts(
+        text=video_script,
+        voice_name=voice.parse_voice_name(params.voice_name),
+        voice_rate=params.voice_rate,
+        voice_file=audio_file,
+    )
+    if sub_maker is None:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error(
+            """failed to generate audio:
+1. check if the language of the voice matches the language of the video script.
+2. check if the network is available. If you are in China, it is recommended to use a VPN and enable the global traffic mode.
+            """.strip()
+        )
+        return None, None, None
+    audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
+    if audio_duration == 0:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("failed to get audio duration.")
+        return None, None, None
+    return audio_file, audio_duration, sub_maker
 
 def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     '''
@@ -274,6 +272,7 @@ def generate_final_videos(
 
 def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
+    logger.info(f"params.custom_audio_file: {getattr(params, 'custom_audio_file', None)}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
     # 1. Generate script
@@ -379,6 +378,14 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.success(
         f"task {task_id} finished, generated {len(final_video_paths)} videos."
     )
+    
+    # 验证生成的视频文件
+    for i, video_path in enumerate(final_video_paths):
+        if os.path.exists(video_path):
+            file_size = os.path.getsize(video_path)
+            logger.success(f"Video {i+1} generated: {video_path} ({file_size} bytes)")
+        else:
+            logger.error(f"Video {i+1} NOT found: {video_path}")
 
     # 7. Cross-post to TikTok/Instagram (if enabled)
     cross_post_results = []
@@ -391,9 +398,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             )
             cross_post_results.append(result)
             if result.get('success'):
-                logger.info(f"✅ Cross-posted: {video_path}")
+                logger.info(f"Cross-posted: {video_path}")
             else:
-                logger.warning(f"⚠️ Failed to cross-post: {video_path} - {result.get('error', 'Unknown error')}")
+                logger.warning(f"Failed to cross-post: {video_path} - {result.get('error', 'Unknown error')}")
 
     kwargs = {
         "videos": final_video_paths,

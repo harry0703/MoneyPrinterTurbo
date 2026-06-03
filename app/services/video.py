@@ -101,6 +101,99 @@ def get_video_quality_params(params):
     return bitrate, crf, preset_name
 
 
+def concatenate_audio_files(audio_files, output_file):
+    """
+    拼接多个音频文件为一个文件
+    
+    Args:
+        audio_files: 音频文件路径列表
+        output_file: 输出文件路径
+    """
+    import tempfile
+    from pathlib import Path
+    
+    logger.info(f"starting to concatenate {len(audio_files)} audio files")
+    
+    try:
+        # 方法1: 使用 MoviePy 拼接
+        clips = []
+        for audio_file in audio_files:
+            if os.path.exists(audio_file):
+                try:
+                    clip = AudioFileClip(audio_file)
+                    clips.append(clip)
+                    logger.info(f"loaded audio file: {audio_file}, duration: {clip.duration}s")
+                except Exception as e:
+                    logger.error(f"failed to load audio file {audio_file}: {e}")
+        
+        if clips:
+            from moviepy import concatenate_audioclips
+            final_clip = concatenate_audioclips(clips)
+            final_clip.write_audiofile(
+                output_file,
+                codec=audio_codec,
+                bitrate=audio_bitrate
+            )
+            
+            # 关闭所有剪辑
+            for clip in clips:
+                close_clip(clip)
+            close_clip(final_clip)
+            
+            if os.path.exists(output_file):
+                logger.info(f"successfully concatenated audio to: {output_file}")
+                return True
+    
+    except Exception as e:
+        logger.error(f"failed to concatenate audio with MoviePy: {e}")
+    
+    # 方法2: 使用 ffmpeg 拼接作为备选
+    try:
+        logger.info("trying ffmpeg as fallback for audio concatenation")
+        
+        # 创建临时的 concat 文件
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            for audio_file in audio_files:
+                if os.path.exists(audio_file):
+                    f.write(f"file '{_escape_ffmpeg_concat_path(audio_file)}'\n")
+            concat_file = f.name
+        
+        try:
+            ffmpeg_cmd = [
+                get_ffmpeg_binary(),
+                '-y',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_file,
+                '-c:a', audio_codec,
+                '-b:a', audio_bitrate,
+                output_file
+            ]
+            
+            logger.info(f"running ffmpeg command: {' '.join(ffmpeg_cmd)}")
+            result = subprocess.run(
+                ffmpeg_cmd,
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0 and os.path.exists(output_file):
+                logger.info(f"successfully concatenated audio with ffmpeg: {output_file}")
+                return True
+            else:
+                logger.error(f"ffmpeg concatenation failed: {result.stderr}")
+                
+        finally:
+            # 删除临时文件
+            if os.path.exists(concat_file):
+                os.unlink(concat_file)
+    
+    except Exception as e:
+        logger.error(f"failed to concatenate audio with ffmpeg: {e}")
+    
+    return False
+
+
 def _prioritize_unique_source_clips(
     subclipped_items: List[SubClippedVideoClip],
     concat_mode: VideoConcatMode,
