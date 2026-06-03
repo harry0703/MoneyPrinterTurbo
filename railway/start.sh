@@ -18,7 +18,13 @@ log "Verifying FFmpeg..."
 ffmpeg -version 2>&1 | head -1 || fail "FFmpeg not found"
 
 log "Starting MPT on 0.0.0.0:${PORT}..."
+
+# Single worker — MPT task state is in-memory and not safe to share.
+# Health check is kept lightweight (always returns 200) so it never
+# blocks on encoding. Railway restart policy is set to NEVER in
+# railway.toml to prevent mid-job container kills.
 exec python -m uvicorn app.asgi:app \
     --host 0.0.0.0 \
     --port "${PORT}" \
+    --workers 1 \
     --log-level warning
