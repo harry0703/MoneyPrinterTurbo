@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.28.1"
+project_version = "2.2.28.2"
 
 [app]
 video_source = "pexels"
@@ -99,7 +99,7 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "硅基智能再升级"
+title_text = "华为芯片惊天突破"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 102

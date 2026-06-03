@@ -166,17 +166,14 @@
         
         <el-form :model="form" label-width="150px">
           <el-form-item :label="t('Silence Prefix')">
-            <div class="slider-control">
-              <el-slider
-                v-model="form.silenceDuration"
-                :min="0.0"
-                :max="5.0"
-                :step="0.1"
-                :show-input="true"
-                :input-size="'small'"
-              />
-              <span class="slider-value">{{ form.silenceDuration.toFixed(1) }}s</span>
-            </div>
+            <el-slider
+              v-model="form.silenceDuration"
+              :min="0.0"
+              :max="5.0"
+              :step="0.1"
+              :show-input="true"
+              :input-size="'small'"
+            />
           </el-form-item>
           
           <el-form-item :label="t('Host Visible')">
