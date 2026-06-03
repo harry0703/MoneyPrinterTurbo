@@ -49,6 +49,20 @@ def run_preview(voice_name: str, text: str) -> bytes:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
+# ── FIX 2 — Script Clean karo [Hook] etc hatao ──
+def clean_script_for_tts(script: str) -> str:
+    # [Hook], [Section 1], [Intro] etc hatao
+    script = re.sub(r'\[.*?\]', '', script)
+    # **Bold** hatao
+    script = re.sub(r'\*\*(.*?)\*\*', r'\1', script)
+    # # Headers hatao
+    script = re.sub(r'#+\s*', '', script)
+    # Extra newlines hatao
+    script = re.sub(r'\n+', ' ', script)
+    # Extra spaces hatao
+    script = re.sub(r'\s+', ' ', script).strip()
+    return script
+
 def generate_script(topic, duration, language, cfg):
     duration_words = {
         "30 seconds": "80-100",
@@ -69,8 +83,10 @@ def generate_script(topic, duration, language, cfg):
 Language: {lang}
 Word count: {word_count} words
 Style: Engaging, informative, conversational
-NO stage directions, NO [Music], NO [Scene], just pure narration.
-Start with a hook. End with a call to action."""
+IMPORTANT: Write ONLY pure narration text.
+NO [Hook], NO [Section], NO stage directions, NO markdown, NO headers.
+Just clean spoken words from start to finish.
+Start directly with an engaging hook sentence."""
 
     openrouter_key = cfg.get("openrouter_api_key") or \
         os.environ.get("OPENROUTER_API_KEY", "")
@@ -88,7 +104,7 @@ Start with a hook. End with a call to action."""
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1000,
+        "max_tokens": 1500,
     }
     resp = requests.post(
         f"{base_url}/chat/completions",
@@ -97,19 +113,34 @@ Start with a hook. End with a call to action."""
         timeout=60
     )
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    raw = resp.json()["choices"][0]["message"]["content"]
+    # Clean karo chahe phir bhi kuch aa jaye
+    return clean_script_for_tts(raw)
 
 def generate_voice(script, voice):
+    # FIX 2 — Voice ke liye bhi clean karo
+    clean = clean_script_for_tts(script)
     with tempfile.NamedTemporaryFile(
             suffix=".mp3", delete=False, dir="/tmp") as f:
         voice_path = f.name
     subprocess.run([
         "edge-tts",
         "--voice", voice,
-        "--text", script,
+        "--text", clean,
         "--write-media", voice_path
     ], check=True, capture_output=True)
     return voice_path
+
+def get_duration(path: str) -> float:
+    result = subprocess.run([
+        "ffprobe", "-v", "quiet",
+        "-show_entries", "format=duration",
+        "-of", "csv=p=0", path
+    ], capture_output=True, text=True)
+    try:
+        return float(result.stdout.strip())
+    except Exception:
+        return 30.0
 
 def fetch_pexels_videos(keyword, count, cfg):
     pexels_key = cfg.get("pexels_api_key") or \
@@ -146,39 +177,81 @@ def download_video(url, idx):
             f.write(chunk)
     return path
 
+# ── FIX 1 + 3 — Subtitles + Full Length ──
+def generate_srt(script: str, total_duration: float) -> str:
+    """Script se SRT subtitle file banao"""
+    # Sentences split karo
+    sentences = re.split(r'(?<=[.!?])\s+', script.strip())
+    sentences = [s.strip() for s in sentences if s.strip()]
+
+    if not sentences:
+        return ""
+
+    srt_content = ""
+    time_per_sentence = total_duration / len(sentences)
+
+    for i, sentence in enumerate(sentences):
+        start = i * time_per_sentence
+        end = (i + 1) * time_per_sentence
+
+        # SRT time format
+        def fmt(t):
+            h = int(t // 3600)
+            m = int((t % 3600) // 60)
+            s = int(t % 60)
+            ms = int((t % 1) * 1000)
+            return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+        srt_content += f"{i+1}\n"
+        srt_content += f"{fmt(start)} --> {fmt(end)}\n"
+        srt_content += f"{sentence}\n\n"
+
+    return srt_content
+
 def compose_video(clip_paths, voice_path, aspect,
                   font_size, subtitle_color, position, script):
     output_path = "/tmp/brainreel_output.mp4"
+
     if "9:16" in aspect:
         width, height = 1080, 1920
     else:
         width, height = 1920, 1080
 
-    result = subprocess.run([
-        "ffprobe", "-v", "quiet",
-        "-show_entries", "format=duration",
-        "-of", "csv=p=0", voice_path
-    ], capture_output=True, text=True)
-    try:
-        total_duration = float(result.stdout.strip())
-    except Exception:
-        total_duration = 60.0
+    # FIX 3 — Voice ki actual duration nikalo
+    total_duration = get_duration(voice_path)
+    st.write(f"⏱️ Voice duration: {total_duration:.1f} seconds")
 
+    # Clips scale + loop karo agar zaroorat ho
     clip_duration = total_duration / max(len(clip_paths), 1)
     scaled_clips = []
+
     for i, clip in enumerate(clip_paths):
         out = f"/tmp/scaled_{i}.mp4"
-        subprocess.run([
-            "ffmpeg", "-y", "-i", clip,
+        clip_dur = get_duration(clip)
+
+        # FIX 3 — Agar clip chhota hai toh loop karo
+        if clip_dur < clip_duration:
+            loop_count = int(clip_duration / clip_dur) + 2
+            loop_flag = ["-stream_loop", str(loop_count)]
+        else:
+            loop_flag = []
+
+        cmd = ["ffmpeg", "-y"] + loop_flag + [
+            "-i", clip,
             "-t", str(clip_duration),
             "-vf",
             f"scale={width}:{height}:"
             f"force_original_aspect_ratio=increase,"
             f"crop={width}:{height}",
-            "-c:v", "libx264", "-an", out
-        ], capture_output=True)
-        scaled_clips.append(out)
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-an", out
+        ]
+        subprocess.run(cmd, capture_output=True)
+        if os.path.exists(out):
+            scaled_clips.append(out)
 
+    # Clips concat karo
     concat_list = "/tmp/concat.txt"
     with open(concat_list, "w") as f:
         for clip in scaled_clips:
@@ -187,38 +260,77 @@ def compose_video(clip_paths, voice_path, aspect,
     concat_out = "/tmp/concat_out.mp4"
     subprocess.run([
         "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0",
+        "-f", "concat",
+        "-safe", "0",
         "-i", concat_list,
-        "-c", "copy", concat_out
+        "-t", str(total_duration),  # FIX 3 — Full duration!
+        "-c:v", "libx264",
+        "-preset", "fast",
+        concat_out
     ], capture_output=True)
 
-    pos_map = {
-        "Bottom": f"(w-text_w)/2:h-{font_size * 3}",
-        "Center": "(w-text_w)/2:(h-text_h)/2",
-        "Top": f"(w-text_w)/2:{font_size}",
-    }
-    pos = pos_map.get(position, f"(w-text_w)/2:h-{font_size * 3}")
-    color = subtitle_color.lstrip("#")
-    ffmpeg_color = f"#{color}"
-    clean_script = re.sub(r"[^\w\s.,!?]", "", script)
-    clean_script = clean_script[:150] + "..."
+    # FIX 1 — SRT subtitle file banao
+    clean = clean_script_for_tts(script)
+    srt_content = generate_srt(clean, total_duration)
+    srt_path = "/tmp/subtitles.srt"
+    with open(srt_path, "w", encoding="utf-8") as f:
+        f.write(srt_content)
 
-    subprocess.run([
+    # Subtitle color
+    color = subtitle_color.lstrip("#")
+    ffmpeg_color = f"&H00{color[4:6]}{color[2:4]}{color[0:2]}&"
+
+    # Position
+    pos_map = {
+        "Bottom": "Alignment=2",
+        "Center": "Alignment=5",
+        "Top": "Alignment=8",
+    }
+    align = pos_map.get(position, "Alignment=2")
+
+    # ASS style ke saath subtitles
+    ass_style = (
+        f"FontSize={font_size},"
+        f"PrimaryColour={ffmpeg_color},"
+        f"OutlineColour=&H00000000&,"
+        f"BackColour=&H80000000&,"
+        f"Bold=1,"
+        f"Outline=2,"
+        f"Shadow=1,"
+        f"{align}"
+    )
+
+    # FIX 3 — -t se exact duration
+    # FIX 1 — subtitles filter use karo
+    result = subprocess.run([
         "ffmpeg", "-y",
         "-i", concat_out,
         "-i", voice_path,
-        "-c:v", "libx264",
-        "-c:a", "aac",
-        "-shortest",
+        "-t", str(total_duration),  # FIX 3 — Exact length!
         "-vf",
-        f"drawtext=text='{clean_script}':"
-        f"fontsize={font_size}:"
-        f"fontcolor={ffmpeg_color}:"
-        f"x={pos.split(':')[0]}:"
-        f"y={pos.split(':')[1]}:"
-        f"box=1:boxcolor=black@0.5:boxborderw=5",
+        f"subtitles={srt_path}:force_style='{ass_style}'",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-c:a", "aac",
+        "-map", "0:v",
+        "-map", "1:a",
         output_path
-    ], capture_output=True)
+    ], capture_output=True, text=True)
+
+    if not os.path.exists(output_path):
+        # Fallback — subtitles ke bina
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", concat_out,
+            "-i", voice_path,
+            "-t", str(total_duration),
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            "-map", "0:v",
+            "-map", "1:a",
+            output_path
+        ], capture_output=True)
+
     return output_path
 
 video_subject = ""
@@ -423,7 +535,7 @@ with st.sidebar:
             '<span class="badge badge-warn">⚠ API Not Set</span>',
             unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    st.caption("v2.0 · BrainReel Edition")
+    st.caption("v2.1 · BrainReel Edition")
 
 if page == "🎬 Generate Video":
     st.markdown("## 🎬 Generate Video")
@@ -444,7 +556,7 @@ if page == "🎬 Generate Video":
         if script_mode == "✍️ Write Manually":
             manual_script = st.text_area(
                 "Your Script",
-                placeholder="Yahan script likho...",
+                placeholder="Yahan script likho — sirf narration text...",
                 height=180)
         else:
             manual_script = ""
@@ -472,7 +584,7 @@ if page == "🎬 Generate Video":
         st.markdown("**Subtitle Settings**")
         col3, col4 = st.columns(2)
         with col3:
-            font_size = st.slider("Font Size", 30, 100, 60)
+            font_size = st.slider("Font Size", 20, 80, 40)
         with col4:
             subtitle_position = st.selectbox(
                 "Position", ["Bottom", "Center", "Top"])
@@ -509,7 +621,6 @@ if page == "🎬 Generate Video":
         generate_btn = st.button(
             "🚀 Generate Video", use_container_width=True)
 
-    # ── Session State Reset Button ──
     if "gen_step" in st.session_state and \
             st.session_state.gen_step > 0:
         if st.button("🔄 Naya Video Banao — Reset"):
@@ -533,7 +644,6 @@ if page == "🎬 Generate Video":
             elif not pexels_key:
                 st.error("❌ Pexels API key Settings mein daalo!")
             else:
-                # Session state init
                 if "gen_step" not in st.session_state:
                     st.session_state.gen_step = 0
                 if "gen_script" not in st.session_state:
@@ -549,12 +659,13 @@ if page == "🎬 Generate Video":
                     progress = st.progress(0)
                     status_box = st.empty()
 
-                    # Step 1
+                    # Step 1 — Script
                     if st.session_state.gen_step < 1:
                         status_box.info(
                             "📝 Step 1/4 — Script generate ho rahi hai...")
                         if manual_script:
-                            st.session_state.gen_script = manual_script
+                            st.session_state.gen_script = \
+                                clean_script_for_tts(manual_script)
                         else:
                             st.session_state.gen_script = \
                                 generate_script(
@@ -563,10 +674,10 @@ if page == "🎬 Generate Video":
                         st.session_state.gen_step = 1
                     progress.progress(25)
                     status_box.success(
-                        f"✅ Step 1 Done! Script ready "
+                        f"✅ Step 1 Done! "
                         f"({len(st.session_state.gen_script.split())} words)")
 
-                    # Step 2
+                    # Step 2 — Voice
                     if st.session_state.gen_step < 2:
                         status_box.info(
                             "🎙️ Step 2/4 — Voice generate ho rahi hai...")
@@ -577,7 +688,7 @@ if page == "🎬 Generate Video":
                     progress.progress(50)
                     status_box.success("✅ Step 2 Done! Voice ready!")
 
-                    # Step 3
+                    # Step 3 — Clips
                     if st.session_state.gen_step < 3:
                         status_box.info(
                             "🖼️ Step 3/4 — Video clips fetch ho rahe hain...")
@@ -585,12 +696,12 @@ if page == "🎬 Generate Video":
                             " ".join(
                                 st.session_state.gen_script.split()[:3])
                         video_urls = fetch_pexels_videos(
-                            keyword, 5, cfg)
+                            keyword, 6, cfg)
                         if not video_urls:
                             st.warning("⚠️ Pexels clips nahi mile!")
                             st.stop()
                         clip_paths = []
-                        for i, url in enumerate(video_urls[:5]):
+                        for i, url in enumerate(video_urls[:6]):
                             p = download_video(url, i)
                             clip_paths.append(p)
                         st.session_state.gen_clips = clip_paths
@@ -598,13 +709,13 @@ if page == "🎬 Generate Video":
                     progress.progress(75)
                     status_box.success(
                         f"✅ Step 3 Done! "
-                        f"{len(st.session_state.gen_clips)} clips ready!")
+                        f"{len(st.session_state.gen_clips)} clips!")
 
-                    # Step 4
+                    # Step 4 — Compose
                     if st.session_state.gen_step < 4:
                         status_box.info(
-                            "🎬 Step 4/4 — Video compose ho rahi hai... "
-                            "⏳ 2-3 min lagenge, page mat band karo!")
+                            "🎬 Step 4/4 — Video compose ho rahi hai..."
+                            " ⏳ Ruko mat jaana!")
                         output_path = compose_video(
                             st.session_state.gen_clips,
                             st.session_state.gen_voice,
@@ -616,12 +727,15 @@ if page == "🎬 Generate Video":
                     progress.progress(100)
                     status_box.success("🎉 Video ban gayi!")
 
-                    # Script expander
-                    with st.expander("📝 Generated Script dekho"):
+                    with st.expander("📝 Generated Script"):
                         st.write(st.session_state.gen_script)
 
-                    # Video + Download
                     if os.path.exists(st.session_state.gen_output):
+                        # Duration check
+                        final_dur = get_duration(
+                            st.session_state.gen_output)
+                        st.info(f"📹 Video length: {final_dur:.1f} seconds")
+
                         with open(
                                 st.session_state.gen_output, "rb") as f:
                             video_bytes = f.read()
@@ -637,9 +751,8 @@ if page == "🎬 Generate Video":
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
                     st.warning(
-                        "💡 Connecting aaya tha? "
-                        "Dobara Generate dabao — "
-                        "wahan se continue hoga!")
+                        "💡 Connecting aaya? "
+                        "Dobara Generate dabao — continue hoga!")
 
 elif page == "⚙️ Settings":
     st.markdown("## ⚙️ Settings")
