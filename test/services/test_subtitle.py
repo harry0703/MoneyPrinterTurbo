@@ -43,6 +43,50 @@ class TestSubtitleService(unittest.TestCase):
         self.assertNotIn("---", corrected_srt)
         self.assertNotIn("00:00:00,000 --> 00:00:00,000", corrected_srt)
 
+    def test_file_to_subtitles_keeps_last_block_without_trailing_newline(self):
+        """
+        The final subtitle must be parsed even when the SRT file does not end
+        with a trailing blank line. Many tools omit it, and previously the last
+        block was silently dropped because only a blank line flushed a block.
+        """
+        srt_without_trailing_blank = (
+            "1\n"
+            "00:00:00,000 --> 00:00:01,000\n"
+            "Hello\n\n"
+            "2\n"
+            "00:00:01,000 --> 00:00:02,000\n"
+            "World"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(srt_without_trailing_blank, encoding="utf-8")
+
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0][2], "Hello")
+        self.assertEqual(items[1][2], "World")
+
+    def test_file_to_subtitles_parses_blocks_with_trailing_newline(self):
+        """A normal SRT ending in a blank line still parses all blocks."""
+        srt_with_trailing_blank = (
+            "1\n"
+            "00:00:00,000 --> 00:00:01,000\n"
+            "Hello\n\n"
+            "2\n"
+            "00:00:01,000 --> 00:00:02,000\n"
+            "World\n\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(srt_with_trailing_blank, encoding="utf-8")
+
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+
+        self.assertEqual([item[2] for item in items], ["Hello", "World"])
+
 
 if __name__ == "__main__":
     unittest.main()
