@@ -107,8 +107,8 @@ def generate_bg_music(duration, style, volume):
     vol = (volume / 100.0) * 0.06
     dur = duration + 5
     exprs = {
-        "Calm":    f"{vol}*sin(2*PI*t*220)+{vol*0.5}*sin(2*PI*t*330)+{vol*0.3}*sin(2=PI*t*440)",
-        "Upbeat":  f"{vol}*sin(2=PI*t*330)+{vol*0.7}*sin(2*PI*t*440)+{vol*0.5}*sin(2*PI*t*550)",
+        "Calm":    f"{vol}*sin(2*PI*t*220)+{vol*0.5}*sin(2*PI*t*330)+{vol*0.3}*sin(2*PI*t*440)",
+        "Upbeat":  f"{vol}*sin(2*PI*t*330)+{vol*0.7}*sin(2*PI*t*440)+{vol*0.5}*sin(2*PI*t*550)",
         "Cinematic":f"{vol}*sin(2*PI*t*110)+{vol*0.4}*sin(2*PI*t*165)+{vol*0.2}*sin(2*PI*t*220)",
         "Random":  f"{vol}*sin(2*PI*t*220)+{vol*0.4}*sin(2*PI*t*275)+{vol*0.3}*sin(2*PI*t*330)",
     }
@@ -289,67 +289,52 @@ MODEL_LISTS = {
     "Ollama":["llama3","llama3.1","mistral","qwen2.5","deepseek-r1","Custom (type below)"],
 }
 
-# ── PAGE CONFIG ──
 st.set_page_config(page_title="BrainReel",page_icon="🎬",
                    layout="wide",initial_sidebar_state="collapsed")
 
 cfg = load_config()
 
 # ══════════════════════════════════════
-# WELCOME SCREEN (FIXED RAW HTML BUG & DESIGN UPGRADE)
+# WELCOME SCREEN
 # ══════════════════════════════════════
 if "welcome_done" not in st.session_state:
     st.session_state.welcome_done = False
 
 if not st.session_state.welcome_done:
     user_name = cfg.get("user_name","Creator")
-    
-    # Custom Global CSS for Welcome Page
     st.markdown("""
 <style>
-.stApp { background: #060913 !important; }
-.main .block-container { padding: 0 !important; max-width: 100% !important; }
-#MainMenu, footer, header { visibility: hidden !important; }
-.stButton>button {
-    background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 14px !important;
-    padding: 15px 45px !important;
-    font-size: 15px !important;
-    font-weight: 700 !important;
-    letter-spacing: 3px !important;
-    text-transform: uppercase !important;
-    box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4) !important;
-    transition: all 0.3s ease-out !important;
-    width: 100% !important;
-}
-.stButton>button:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 12px 30px rgba(124, 58, 237, 0.6) !important;
-}
-</style>""", unsafe_allow_html=True)
+.stApp{background:#0B0F1A!important}
+.main .block-container{padding:0!important;max-width:100%!important}
+#MainMenu,footer,header{visibility:hidden!important}
+.stButton>button{
+    background:linear-gradient(135deg,#1a3a6b,#2F80FF)!important;
+    color:white!important;border:none!important;
+    border-radius:30px!important;padding:16px 50px!important;
+    font-size:14px!important;font-weight:700!important;
+    letter-spacing:4px!important;text-transform:uppercase!important;
+    box-shadow:0 0 25px #2F80FF60!important;
+    transition:all 0.3s!important;width:100%!important;}
+</style>""",unsafe_allow_html=True)
 
-    # Clean HTML block without any markdown indentation spaces
-    st.markdown(f"""
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;900&family=Orbitron:wght@800&display=swap" rel="stylesheet">
-<div style="min-height: 78vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; font-family: 'Montserrat', sans-serif;">
-    <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; padding: 50px 40px; max-width: 600px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.4);">
-        <div style="letter-spacing: 10px; font-size: 13px; font-weight: 400; color: #a78bfa; margin-bottom: 8px;">WELCOME TO</div>
-        <div style="letter-spacing: 4px; font-size: 46px; font-weight: 900; background: linear-gradient(90deg, #a78bfa, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-family: 'Orbitron', sans-serif; margin-bottom: 20px; filter: drop-shadow(0 2px 10px rgba(124,58,237,0.3));">BRAINREEL</div>
-        <div style="width: 80px; height: 2px; background: linear-gradient(90deg, #7c3aed, #2563eb); margin: 0 auto 24px;"></div>
-        <div style="font-size: 11px; color: #9ca3af; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 35px; font-weight: 500;">Make Your Life Fast With AI</div>
-        <div style="font-size: 22px; color: #f3f4f6; margin-bottom: 10px; font-weight: 400;">Welcome back, <span style="color: #60a5fa; font-weight: 600;">{user_name}</span> 👋</div>
-        <div style="font-size: 14px; color: #9ca3af; margin-bottom: 25px; letter-spacing: 0.5px;">🎬 AI-Powered Faceless Video Engine</div>
-        <div style="font-size: 11px; color: rgba(255,255,255,0.25); letter-spacing: 2px; text-transform: uppercase;">OpenRouter &nbsp;•&nbsp; Pexels &nbsp;•&nbsp; Edge-TTS &nbsp;•&nbsp; FFmpeg</div>
-    </div>
+    welcome_html = f"""
+<link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;900&family=Orbitron:wght@900&display=swap' rel='stylesheet'>
+<div style='min-height:70vh;background:#0B0F1A;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;font-family:Montserrat,Inter,sans-serif;'>
+<div style='letter-spacing:8px;font-size:15px;font-weight:300;color:#a0c4ff;margin-bottom:6px;text-shadow:0 0 12px #2F80FF,0 0 30px #2F80FF60;'>WELCOME</div>
+<div style='letter-spacing:5px;font-size:12px;font-weight:300;color:#444;margin-bottom:12px;'>TO</div>
+<div style='letter-spacing:6px;font-size:46px;font-weight:900;color:#2F80FF;font-family:Orbitron,Montserrat,sans-serif;margin-bottom:28px;text-shadow:0 0 30px #2F80FF90,0 0 60px #2F80FF40;'>BRAINREEL</div>
+<div style='width:100px;height:1px;background:linear-gradient(90deg,transparent,#2F80FF,transparent);margin:0 auto 28px;'></div>
+<div style='font-size:11px;color:#555;letter-spacing:5px;text-transform:uppercase;margin-bottom:30px;'>Make Your Life Fast With AI</div>
+<div style='font-size:20px;color:#ccc;margin-bottom:12px;'>Welcome back, <span style="color:#2F80FF;font-weight:700;">{user_name}</span> 👋</div>
+<div style='font-size:12px;color:#777;margin-bottom:8px;letter-spacing:1px;'>🎬 AI-Powered Faceless Video Generator</div>
+<div style='font-size:10px;color:#2F80FF50;letter-spacing:2px;margin-bottom:50px;'>OpenRouter &nbsp;•&nbsp; Pexels &nbsp;•&nbsp; Edge-TTS &nbsp;•&nbsp; FFmpeg</div>
 </div>
-<div style="text-align: center; font-size: 10px; color: #4b5563; letter-spacing: 2px; text-transform: uppercase; padding-bottom: 20px; font-family: 'Montserrat', sans-serif;">
-    Revamped &amp; Engineered — Ahsan Raza
-</div>
-""", unsafe_allow_html=True)
+<div style='text-align:center;font-size:9px;color:#1e2535;letter-spacing:2px;text-transform:uppercase;padding-bottom:12px;'>Revamped &amp; Engineered — Ahsan Raza</div>
+"""
+    cleaned_html = "".join([line.strip() for line in welcome_html.split("\n")])
+    st.markdown(cleaned_html, unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns([1, 1.2, 1])
+    c1,c2,c3 = st.columns([1,1,1])
     with c2:
         if st.button("✨  ENTER  BRAINREEL  ✨", use_container_width=True):
             st.session_state.welcome_done = True
@@ -416,12 +401,9 @@ section[data-testid="stSidebar"]{
     margin-top:4px;display:inline-block;}
 .key-set{background:#064e3b;color:#34d399;}
 .key-empty{background:#1a1a2e;color:#555;}
-
-/* HIGH VISIBILITY WATERMARK CSS FIX */
 .watermark{font-size:10px;color:#94a3b8;letter-spacing:2px;
     text-transform:uppercase;text-align:center;font-weight:600;
     padding:12px 0 4px;border-top:1px solid #2d3748;}
-
 div[data-testid="stRadio"] label{font-size:16px!important;padding:10px 8px!important;}
 </style>
 """,unsafe_allow_html=True)
