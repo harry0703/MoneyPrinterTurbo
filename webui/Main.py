@@ -133,20 +133,41 @@ def get_duration(path):
 
 def generate_bg_music(duration, style, volume):
     if style == "No Music" or volume == 0: return None
-    path = "/tmp/bg.aac"
-    vol = (volume / 100.0) * 0.06
-    dur = duration + 5
-    exprs = {
-        "Calm":    f"{vol}*sin(2*PI*t*220)+{vol*0.5}*sin(2*PI*t*330)+{vol*0.3}*sin(2*PI*t*440)",
-        "Upbeat":  f"{vol}*sin(2*PI*t*330)+{vol*0.7}*sin(2*PI*t*440)+{vol*0.5}*sin(2*PI*t*550)",
-        "Cinematic":f"{vol}*sin(2*PI*t*110)+{vol*0.4}*sin(2*PI*t*165)+{vol*0.2}*sin(2*PI*t*220)",
-        "Random":  f"{vol}*sin(2*PI*t*220)+{vol*0.4}*sin(2*PI*t*275)+{vol*0.3}*sin(2*PI*t*330)",
+    path = "/tmp/bg_music.aac"
+    vol  = round((volume / 100.0) * 0.25, 4)  # 0-100 → 0.0-0.25 amplitude
+    dur  = int(duration) + 5
+
+    freq_map = {
+        "Calm":      [("220","0.5"),("330","0.3"),("440","0.2")],
+        "Upbeat":    [("330","0.5"),("440","0.3"),("550","0.2")],
+        "Cinematic": [("110","0.6"),("165","0.3"),("220","0.1")],
+        "Random":    [("220","0.5"),("275","0.3"),("330","0.2")],
     }
-    expr = exprs.get(style, exprs["Calm"])
-    subprocess.run(["ffmpeg","-y","-f","lavfi","-i",
-                    f"aevalsrc={expr}:s=44100:d={dur}",
-                    "-c:a","aac",path], capture_output=True)
-    return path if os.path.exists(path) else None
+    tones = freq_map.get(style, freq_map["Calm"])
+
+    inputs_cmd, labels, weights = [], [], []
+    for i, (freq, w) in enumerate(tones):
+        inputs_cmd += ["-f","lavfi","-i",
+                       f"sine=frequency={freq}:duration={dur}:sample_rate=44100"]
+        labels.append(f"[{i}:a]")
+        weights.append(w)
+
+    mix_filter = (
+        "".join(labels)
+        + f"amix=inputs={len(tones)}:weights={chr(39)}{'|'.join(weights)}{chr(39)}:normalize=0,"
+        + f"volume={vol}[bgout]"
+    )
+    cmd = ["ffmpeg","-y"] + inputs_cmd + [
+        "-filter_complex", mix_filter,
+        "-map","[bgout]","-t",str(dur),
+        "-c:a","aac","-ar","44100","-b:a","128k", path
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if os.path.exists(path) and os.path.getsize(path) > 500:
+        return path
+    if result.returncode != 0:
+        print(f"[BG Music Warning] {result.stderr[-300:]}")
+    return None
 
 def fetch_pexels(keyword, count, cfg):
     key = cfg.get("pexels_api_key") or os.environ.get("PEXELS_API_KEY","")
@@ -233,8 +254,8 @@ def compose_video(clips, voice_path, vtt_path, aspect,
         cmd = ["ffmpeg","-y","-i",cout,"-i",voice_path,"-i",bg,
                "-t",str(dur),
                "-filter_complex",
-               "[1:a]volume=1.0[v];[2:a]volume=1.0[b];[v][b]amix=inputs=2:duration=first[a]",
-               "-map","0:v","-map","[a]",
+               "[1:a]volume=1.0[va];[2:a]volume=0.5[ba];[va][ba]amix=inputs=2:duration=first:normalize=0[aout]",
+               "-map","0:v","-map","[aout]",
                "-vf",sub_f,
                "-c:v","libx264","-preset","ultrafast","-c:a","aac",out]
     else:
@@ -249,8 +270,8 @@ def compose_video(clips, voice_path, vtt_path, aspect,
         if bg:
             subprocess.run(["ffmpeg","-y","-i",cout,"-i",voice_path,"-i",bg,
                 "-t",str(dur),
-                "-filter_complex","[1:a]volume=1.0[v];[2:a]volume=1.0[b];[v][b]amix=inputs=2:duration=first[a]",
-                "-map","0:v","-map","[a]",
+                "-filter_complex","[1:a]volume=1.0[va];[2:a]volume=0.5[ba];[va][ba]amix=inputs=2:duration=first:normalize=0[aout]",
+                "-map","0:v","-map","[aout]",
                 "-c:v","libx264","-preset","ultrafast","-c:a","aac",out], capture_output=True)
         else:
             subprocess.run(["ffmpeg","-y","-i",cout,"-i",voice_path,
