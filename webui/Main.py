@@ -5,12 +5,17 @@ import edge_tts
 
 # ── Colab / Jupyter async compatibility ──────────────────────────────────────
 try:
+    import asyncio
+    # uvloop ko bypass karne ke liye default policy set karein
+    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    
     import nest_asyncio
     nest_asyncio.apply()
-except ImportError:
+except Exception as e:
     pass
 
 def _run_async(coro):
+    
     """Sync wrapper — safely runs async code in Streamlit / Colab."""
     try:
         loop = asyncio.get_event_loop()
