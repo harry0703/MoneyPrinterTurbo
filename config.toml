@@ -1,8 +1,8 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.2.28.2"
+project_version = "2.2.28.3"
 
 [app]
-video_source = "local"
+video_source = "pexels"
 host_visible = false
 pexels_api_keys = [ "Ra5z3Yw0ZUwPy6Y7DddvQTgPq8lgW1JePJu1oSDJWVvrxm6R5LBwqv0x", "OWKfbDqi48tpPqaPyJVQga7FwquH1SXDtMYULID8MPU0z6krtQJ9OwZ6",]
 pixabay_api_keys = [ "54923197-cd28f5e7418eaabd03cdd2edb",]
@@ -99,12 +99,12 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "3万元AI迷你机震惊全场"
+title_text = "老黄掀桌了"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 102
-title_text_color = "#A52A2A"
-title_stroke_color = "#FFFFFF"
+title_text_color = "#0000FF"
+title_stroke_color = "#FFFF00"
 title_stroke_width = 8.5
 title_background_color = "transparent"
 title_position = "top"

@@ -46,7 +46,7 @@
             :placeholder="t('Enter video script')"
             type="textarea"
             :rows="6"
-            maxlength="5000"
+            maxlength="10000"
             show-word-limit
             class="form-textarea"
           />
