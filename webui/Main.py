@@ -1,6 +1,27 @@
 import streamlit as st
-import os, json, subprocess, requests, re
+import os, json, subprocess, requests, re, asyncio
 import time as time_module
+import edge_tts
+
+# ── Colab / Jupyter async compatibility ──────────────────────────────────────
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
+
+def _run_async(coro):
+    """Sync wrapper — safely runs async code in Streamlit / Colab."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            raise RuntimeError
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+# ─────────────────────────────────────────────────────────────────────────────
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(ROOT_DIR, "config.json")
@@ -38,16 +59,29 @@ def get_rate_pitch(speed, deep):
     pitch_str = f"+{pitch}Hz" if pitch >= 0 else f"{pitch}Hz"
     return rate_str, pitch_str
 
+async def _async_preview(voice, text, tmp, rate_str, pitch_str):
+    communicate = edge_tts.Communicate(text, voice, rate=rate_str, pitch=pitch_str)
+    await communicate.save(tmp)
+
 def run_preview(voice, text, speed=50, deep=50):
     ts = int(time_module.time())
     tmp = f"/tmp/prev_{ts}.mp3"
     rate_str, pitch_str = get_rate_pitch(speed, deep)
-    cmd = ["edge-tts","--voice",voice,"--text",text,"--write-media",tmp]
-    if rate_str != "+0%": cmd.append(f"--rate={rate_str}")
-    if pitch_str != "+0Hz": cmd.append(f"--pitch={pitch_str}")
-    subprocess.run(cmd, check=True, capture_output=True)
-    with open(tmp,"rb") as f:
+    _run_async(_async_preview(voice, text, tmp, rate_str, pitch_str))
+    with open(tmp, "rb") as f:
         return f.read()
+
+async def _async_generate_voice(text, voice, vp, vtt, rate_str, pitch_str):
+    communicate = edge_tts.Communicate(text, voice, rate=rate_str, pitch=pitch_str)
+    submaker = edge_tts.SubMaker()
+    with open(vp, "wb") as audio_file:
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_file.write(chunk["data"])
+            elif chunk["type"] == "WordBoundary":
+                submaker.create_boundary(chunk)
+    with open(vtt, "w", encoding="utf-8") as f:
+        f.write(submaker.generate_subs())
 
 def generate_voice(script, voice, speed=50, deep=50):
     clean = clean_script(script)
@@ -55,12 +89,8 @@ def generate_voice(script, voice, speed=50, deep=50):
     vp = f"/tmp/voice_{ts}.mp3"
     vtt = f"/tmp/subs_{ts}.vtt"
     rate_str, pitch_str = get_rate_pitch(speed, deep)
-    cmd = ["edge-tts","--voice",voice,"--text",clean,
-           "--write-media",vp,"--write-subtitles",vtt]
-    if rate_str != "+0%": cmd.append(f"--rate={rate_str}")
-    if pitch_str != "+0Hz": cmd.append(f"--pitch={pitch_str}")
-    subprocess.run(cmd, check=True, capture_output=True)
-    return vp, vtt if os.path.exists(vtt) else None
+    _run_async(_async_generate_voice(clean, voice, vp, vtt, rate_str, pitch_str))
+    return vp, (vtt if os.path.exists(vtt) else None)
 
 def vtt_to_sec(t):
     try:
@@ -317,8 +347,12 @@ if not st.session_state.welcome_done:
     transition:all 0.3s!important;width:100%!important;}
 </style>""",unsafe_allow_html=True)
 
+    # Load Google Fonts separately so Streamlit renders HTML correctly
+    st.markdown("""<style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;900&family=Orbitron:wght@900&display=swap');
+</style>""", unsafe_allow_html=True)
+
     welcome_html = f"""
-<link href='https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;900&family=Orbitron:wght@900&display=swap' rel='stylesheet'>
 <div style='min-height:70vh;background:#0B0F1A;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;font-family:Montserrat,Inter,sans-serif;'>
 <div style='letter-spacing:8px;font-size:15px;font-weight:300;color:#a0c4ff;margin-bottom:6px;text-shadow:0 0 12px #2F80FF,0 0 30px #2F80FF60;'>WELCOME</div>
 <div style='letter-spacing:5px;font-size:12px;font-weight:300;color:#444;margin-bottom:12px;'>TO</div>
