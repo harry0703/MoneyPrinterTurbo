@@ -72,16 +72,36 @@ def run_preview(voice, text, speed=50, deep=50):
         return f.read()
 
 async def _async_generate_voice(text, voice, vp, vtt, rate_str, pitch_str):
+    """Generate TTS audio and a word-by-word VTT (one word per cue, exact timing)."""
     communicate = edge_tts.Communicate(text, voice, rate=rate_str, pitch=pitch_str)
-    submaker = edge_tts.SubMaker()
+    word_boundaries = []          # list of {word, start_sec, dur_sec}
+
     with open(vp, "wb") as audio_file:
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 audio_file.write(chunk["data"])
             elif chunk["type"] == "WordBoundary":
-                submaker.create_boundary(chunk)
-    with open(vtt, "w", encoding="utf-8") as f:
-        f.write(submaker.generate_subs())
+                # Microsoft returns offset/duration in 100-nanosecond ticks
+                word_boundaries.append({
+                    "word":  chunk["text"],
+                    "start": chunk["offset"]   / 10_000_000,
+                    "dur":   chunk["duration"] / 10_000_000,
+                })
+
+    # Write VTT: one word per cue, no overlap, minimum 100 ms display
+    if word_boundaries and vtt:
+        with open(vtt, "w", encoding="utf-8") as f:
+            f.write("WEBVTT\n\n")
+            for i, wb in enumerate(word_boundaries):
+                s = wb["start"]
+                e = s + wb["dur"]
+                # End just before next word to prevent screen overlap
+                if i + 1 < len(word_boundaries):
+                    e = min(e, word_boundaries[i + 1]["start"] - 0.05)
+                e = max(e, s + 0.10)     # at least 100 ms visible
+                sm = f"{int(s // 60):02d}:{s % 60:06.3f}"
+                em = f"{int(e // 60):02d}:{e % 60:06.3f}"
+                f.write(f"{sm} --> {em}\n{wb['word']}\n\n")
 
 def generate_voice(script, voice, speed=50, deep=50):
     clean = clean_script(script)
@@ -191,10 +211,21 @@ def download_clip(url, idx):
     return path
 
 def compose_video(clips, voice_path, vtt_path, aspect,
-                  font_size, color, position, script, bg_style, bg_vol):
+                  font_size, color, position, script, bg_style, bg_vol, max_dur_secs=None):
     out = "/tmp/final.mp4"
     W,H = (1080,1920) if "9:16" in aspect else (1920,1080)
+    # ── B2 FIX: enforce user-selected duration cap ───────────────────────────
+    voice_dur = get_duration(voice_path)
+    if max_dur_secs and voice_dur > max_dur_secs:
+        trimmed = "/tmp/voice_trimmed.mp3"
+        subprocess.run(["ffmpeg","-y","-i",voice_path,
+                        "-t",str(max_dur_secs),"-c:a","copy",trimmed],
+                       capture_output=True)
+        if os.path.exists(trimmed) and os.path.getsize(trimmed) > 500:
+            voice_path = trimmed
     dur = get_duration(voice_path)
+    if max_dur_secs: dur = min(dur, max_dur_secs)   # hard cap
+    # ─────────────────────────────────────────────────────────────────────────
     cdur = dur / max(len(clips), 1)
 
     scaled = []
@@ -246,6 +277,8 @@ def compose_video(clips, voice_path, vtt_path, aspect,
              f"OutlineColour=&H00000000&,"
              f"BackColour=&H80000000&,"
              f"Bold=1,Outline=2,Shadow=1,"
+             f"MarginV=50,"
+             f"MaxLines=1,"
              f"Alignment={align}'")
 
     bg = generate_bg_music(dur, bg_style, bg_vol)
@@ -301,6 +334,19 @@ Start immediately with a strong hook."""
 
 ETA_MAP = {"30 seconds":"~2 min","1 minute":"~3 min",
            "3 minutes":"~7 min","5 minutes":"~15 min"}
+
+# Compose-step estimated seconds (longest step)
+COMPOSE_ETA = {"30 seconds":90,"1 minute":150,
+               "3 minutes":360,"5 minutes":600}
+
+def _fmt_time(secs):
+    """Format seconds → '1m 23s' or '45s'."""
+    secs = max(0, int(secs))
+    return f"{secs//60}m {secs%60}s" if secs >= 60 else f"{secs}s"
+
+# Hard duration cap in seconds — enforced via ffmpeg trim
+DURATION_SECS = {"30 seconds":30,"1 minute":60,
+                 "3 minutes":180,"5 minutes":300}
 
 VOICE_MAP = {
     "en-US-AriaNeural — English Female 🇺🇸":"en-US-AriaNeural",
@@ -402,372 +448,4 @@ if not st.session_state.welcome_done:
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-html,body,[class*="css"]{font-family:'Inter',sans-serif;background-color:#0e0e0e;color:#f0f0f0;}
-#MainMenu{visibility:hidden;}footer{visibility:hidden;}
-header{visibility:visible!important;}
-[data-testid="stAppDeployButton"]{display:none!important;}
-button[data-testid="collapsedControl"]{
-    visibility:visible!important;display:flex!important;opacity:1!important;
-    background:linear-gradient(135deg,#7c3aed,#2563eb)!important;
-    border-radius:8px!important;border:none!important;
-    width:40px!important;height:40px!important;
-    box-shadow:0 4px 15px rgba(124,58,237,0.5)!important;}
-button[data-testid="collapsedControl"] svg{fill:white!important;}
-button[data-testid="expandedControl"]{
-    visibility:visible!important;display:flex!important;opacity:1!important;
-    background:rgba(255,255,255,0.1)!important;
-    border:1px solid rgba(255,255,255,0.2)!important;
-    border-radius:8px!important;width:36px!important;height:36px!important;}
-button[data-testid="expandedControl"] svg{fill:#f0f0f0!important;}
-section[data-testid="stSidebar"]{
-    background:linear-gradient(180deg,#1a1a2e 0%,#16213e 100%);
-    border-right:1px solid #2a2a4a;}
-.brand-logo{text-align:center;padding:20px 0 10px 0;}
-.brand-title{font-size:28px;font-weight:700;
-    background:linear-gradient(90deg,#a78bfa,#60a5fa);
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;}
-.brand-sub{font-size:12px;color:#888;margin-top:4px;}
-.card-title{font-size:14px;font-weight:600;color:#a78bfa;
-    margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;}
-.stButton>button{
-    background:linear-gradient(90deg,#7c3aed,#2563eb);
-    color:white;border:none;border-radius:8px;
-    font-weight:600;padding:10px 24px;width:100%;transition:opacity 0.2s;}
-.stButton>button:hover{opacity:0.85;color:white;}
-.stTextInput>div>div>input,
-.stTextArea>div>div>textarea,
-.stSelectbox>div>div{
-    background:#0e0e1a!important;border:1px solid #2a2a4a!important;
-    border-radius:8px!important;color:#f0f0f0!important;}
-.stTabs [data-baseweb="tab-list"]{
-    background:#1a1a2e;border-radius:10px;padding:4px;gap:4px;}
-.stTabs [data-baseweb="tab"]{
-    background:transparent;border-radius:8px;
-    color:#888;font-weight:600;padding:14px 22px;font-size:15px;}
-.stTabs [aria-selected="true"]{
-    background:linear-gradient(90deg,#7c3aed,#2563eb)!important;color:white!important;}
-.badge{display:inline-block;padding:3px 10px;border-radius:20px;
-    font-size:11px;font-weight:600;}
-.badge-ready{background:#064e3b;color:#34d399;}
-.badge-warn{background:#451a03;color:#fb923c;}
-.section-header{font-size:11px;text-transform:uppercase;
-    letter-spacing:2px;color:#555;margin:20px 0 8px 0;}
-.key-status{font-size:12px;padding:4px 10px;border-radius:6px;
-    margin-top:4px;display:inline-block;}
-.key-set{background:#064e3b;color:#34d399;}
-.key-empty{background:#1a1a2e;color:#555;}
-.watermark{font-size:10px;color:#94a3b8;letter-spacing:2px;
-    text-transform:uppercase;text-align:center;font-weight:600;
-    padding:12px 0 4px;border-top:1px solid #2d3748;}
-div[data-testid="stRadio"] label{font-size:16px!important;padding:10px 8px!important;}
-</style>
-""",unsafe_allow_html=True)
-
-# ══════════════════════════════════════
-# SIDEBAR
-# ══════════════════════════════════════
-with st.sidebar:
-    st.markdown("""
-    <div class="brand-logo">
-        <div class="brand-title">🎬 BrainReel</div>
-        <div class="brand-sub">AI Faceless Video Generator</div>
-    </div>""",unsafe_allow_html=True)
-    st.markdown("---")
-    st.markdown('<div class="section-header">Navigation</div>',unsafe_allow_html=True)
-    page = st.radio(label="",
-                    options=["🎬  Generate Video","⚙️  Settings"],
-                    label_visibility="collapsed")
-    st.markdown("---")
-    st.markdown('<div class="section-header">Status</div>',unsafe_allow_html=True)
-    api_set = bool(cfg.get("openai_api_key") or cfg.get("openrouter_api_key")
-                   or os.environ.get("OPENROUTER_API_KEY"))
-    st.markdown(
-        f'<span class="badge {"badge-ready" if api_set else "badge-warn"}">'
-        f'{"✓ API Ready" if api_set else "⚠ API Not Set"}</span>',
-        unsafe_allow_html=True)
-    st.markdown("<br><br>",unsafe_allow_html=True)
-    st.caption("v3.0 · BrainReel Edition")
-    st.markdown(
-        '<div class="watermark">Revamped &amp; Engineered — Ahsan Raza</div>',
-        unsafe_allow_html=True)
-
-# ══════════════════════════════════════
-# GENERATE VIDEO PAGE
-# ══════════════════════════════════════
-if page == "🎬  Generate Video":
-    st.markdown("## 🎬 Generate Video")
-    st.caption("Fill in the details and let AI do the magic!")
-
-    tab1, tab2, tab3 = st.tabs(
-        ["📝  Script", "🎨  Style", "🔊  Voice & Music"])
-
-    with tab1:
-        st.markdown('<div class="card-title">📝 Video Script</div>',
-                    unsafe_allow_html=True)
-        video_subject = st.text_input("Video Topic / Subject",
-            placeholder="e.g. 5 mind-blowing facts about space")
-        script_mode = st.radio("Script Mode",
-            ["🤖 AI Auto Generate","✍️ Write Manually"], horizontal=True)
-        if script_mode == "✍️ Write Manually":
-            manual_script = st.text_area("Your Script",
-                placeholder="Sirf narration text — koi [brackets] nahi...",
-                height=180)
-        else:
-            manual_script = ""
-        col1, col2 = st.columns(2)
-        with col1:
-            video_language = st.selectbox("Language",
-                ["English","Urdu","Hindi","Arabic","Chinese"])
-        with col2:
-            video_length = st.selectbox("Video Length",
-                ["30 seconds","1 minute","3 minutes","5 minutes"])
-
-    with tab2:
-        st.markdown('<div class="card-title">🎨 Visual Style</div>',
-                    unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            video_aspect = st.selectbox("Aspect Ratio",
-                ["9:16 (Vertical / TikTok)","16:9 (Horizontal / YouTube)"])
-        with col2:
-            st.selectbox("Video Source",["Pexels (Free)"])
-        st.markdown("**Subtitle Settings**")
-        col3, col4 = st.columns(2)
-        with col3:
-            font_size = st.slider("Font Size", 20, 80, 42)
-        with col4:
-            subtitle_position = st.selectbox("Position",
-                ["Bottom","Center","Top"])
-        subtitle_color = st.color_picker("Subtitle Color","#FFFFFF")
-
-    with tab3:
-        st.markdown('<div class="card-title">🔊 Voice & Music</div>',
-                    unsafe_allow_html=True)
-
-        voice_display = st.selectbox("TTS Voice", list(VOICE_MAP.keys()))
-        selected_voice = VOICE_MAP[voice_display]
-
-        col_a, col_b = st.columns(2)
-        with col_a:
-            voice_speed = st.slider("🏃 Voice Speed", 0, 100, 50,
-                help="0%=Slow | 50%=Normal | 100%=Fast")
-        with col_b:
-            voice_deep = st.slider("🎵 Voice Deepness", 0, 100, 50,
-                help="0%=High | 50%=Normal | 100%=Deep")
-
-        col_p, col_e = st.columns([1, 2])
-        with col_p:
-            if st.button("🔊 Preview Voice"):
-                with st.spinner("🎙️ Preview ban raha hai..."):
-                    try:
-                        prev_text = PREVIEW_TEXTS.get(
-                            selected_voice, "Hello! This is a preview.")
-                        ab = run_preview(selected_voice, prev_text,
-                                         voice_speed, voice_deep)
-                        st.audio(ab, format="audio/mp3")
-                        st.success("✅ Preview ready!")
-                    except Exception as e:
-                        st.error(f"❌ {e}")
-
-        st.markdown("---")
-
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            bg_music = st.selectbox("🎵 Background Music",
-                ["No Music","Calm","Upbeat","Cinematic","Random"])
-        with col_m2:
-            bg_volume = st.slider("🔉 BG Volume", 0, 100, 30,
-                disabled=(bg_music == "No Music"))
-
-        st.markdown("---")
-
-        eta = ETA_MAP.get(video_length, "~3 min")
-        st.info(f"⏱️ Estimated generation time: **{eta}** for {video_length}")
-
-        if st.session_state.get("gen_step", 0) > 0:
-            if st.button("🔄 Reset — Naya Video"):
-                for k in ["gen_step","gen_script","gen_voice",
-                          "gen_vtt","gen_clips","gen_output"]:
-                    st.session_state.pop(k, None)
-                st.rerun()
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns([1, 2, 1])
-        with c2:
-            gen_btn = st.button("🚀 Generate Video", use_container_width=True)
-
-        if gen_btn:
-            if not video_subject and not manual_script:
-                st.error("⚠️ Topic ya script enter karo pehle!")
-            else:
-                pexels_key = (cfg.get("pexels_api_key") or
-                              os.environ.get("PEXELS_API_KEY",""))
-                or_key = (cfg.get("openrouter_api_key") or
-                          os.environ.get("OPENROUTER_API_KEY",""))
-                if not or_key:
-                    st.error("❌ OpenRouter key Settings mein daalo!")
-                elif not pexels_key:
-                    st.error("❌ Pexels key Settings mein daalo!")
-                else:
-                    defs = {"gen_step":0,"gen_script":"","gen_voice":"",
-                            "gen_vtt":None,"gen_clips":[],"gen_output":""}
-                    for k,v in defs.items():
-                        if k not in st.session_state:
-                            st.session_state[k] = v
-
-                    try:
-                        prog = st.progress(0)
-                        stat = st.empty()
-
-                        if st.session_state["gen_step"] < 1:
-                            stat.info("📝 Step 1/4 — Script generate ho rahi hai...")
-                            if manual_script:
-                                st.session_state["gen_script"] = clean_script(manual_script)
-                            else:
-                                st.session_state["gen_script"] = generate_script_api(
-                                    video_subject, video_length, video_language, cfg)
-                            st.session_state["gen_step"] = 1
-                        prog.progress(25)
-                        stat.success(
-                            f"✅ Step 1 — Script ready! "
-                            f"({len(st.session_state['gen_script'].split())} words)")
-
-                        if st.session_state["gen_step"] < 2:
-                            stat.info("🎙️ Step 2/4 — Voice generate ho rahi hai...")
-                            vp, vtt = generate_voice(
-                                st.session_state["gen_script"],
-                                selected_voice, voice_speed, voice_deep)
-                            st.session_state["gen_voice"] = vp
-                            st.session_state["gen_vtt"] = vtt
-                            st.session_state["gen_step"] = 2
-                        prog.progress(50)
-                        stat.success("✅ Step 2 — Voice + Subtitles ready!")
-
-                        if st.session_state["gen_step"] < 3:
-                            stat.info("🖼️ Step 3/4 — Video clips fetch ho rahe hain...")
-                            kw = video_subject or \
-                                " ".join(st.session_state["gen_script"].split()[:3])
-                            urls = fetch_pexels(kw, 6, cfg)
-                            if not urls:
-                                st.warning("⚠️ Pexels clips nahi mile — topic change karo!")
-                                st.stop()
-                            clips = [download_clip(u, i)
-                                     for i, u in enumerate(urls[:6])]
-                            st.session_state["gen_clips"] = clips
-                            st.session_state["gen_step"] = 3
-                        prog.progress(75)
-                        stat.success(
-                            f"✅ Step 3 — "
-                            f"{len(st.session_state['gen_clips'])} clips ready!")
-
-                        if st.session_state["gen_step"] < 4:
-                            stat.info(
-                                "🎬 Step 4/4 — Video compose ho rahi hai... "
-                                "⏳ Page band mat karo!")
-                            out = compose_video(
-                                st.session_state["gen_clips"],
-                                st.session_state["gen_voice"],
-                                st.session_state["gen_vtt"],
-                                video_aspect, font_size,
-                                subtitle_color, subtitle_position,
-                                st.session_state["gen_script"],
-                                bg_music, bg_volume)
-                            st.session_state["gen_output"] = out
-                            st.session_state["gen_step"] = 4
-                        prog.progress(100)
-
-                        final_dur = get_duration(st.session_state["gen_output"])
-                        stat.success(
-                            f"🎉 Video ban gayi! Length: {final_dur:.1f}s")
-
-                        with st.expander("📝 Generated Script dekho"):
-                            st.write(st.session_state["gen_script"])
-
-                        if os.path.exists(st.session_state["gen_output"]):
-                            with open(st.session_state["gen_output"],"rb") as f:
-                                vbytes = f.read()
-                            st.video(vbytes)
-                            st.download_button(
-                                "⬇️ Video Download Karo",
-                                data=vbytes,
-                                file_name=f"brainreel_{video_subject[:20]}.mp4",
-                                mime="video/mp4",
-                                use_container_width=True)
-
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
-                        st.warning(
-                            "💡 Connecting aaya tha? "
-                            "Dobara Generate dabao — wahan se continue hoga!")
-
-elif page == "⚙️  Settings":
-    st.markdown("## ⚙️ Settings")
-    st.caption("API keys aur models configure karo.")
-    s1, s2 = st.tabs(["🔑 API Keys","🤖 Models"])
-
-    with s1:
-        st.markdown('<div class="card-title">🔑 API Keys</div>',
-                    unsafe_allow_html=True)
-        for label, key, ph in [
-            ("OpenAI API Key","openai_api_key","sk-..."),
-            ("OpenRouter API Key","openrouter_api_key","sk-or-..."),
-            ("Pexels API Key","pexels_api_key","Pexels key"),
-            ("Pixabay API Key","pixabay_api_key","Pixabay key"),
-        ]:
-            val = st.text_input(label, value=cfg.get(key,""),
-                                type="password", placeholder=ph, key=f"inp_{key}")
-            st.markdown(
-                f'<span class="key-status {"key-set" if cfg.get(key) else "key-empty"}">'
-                f'{"✓ Set hai" if cfg.get(key) else "○ Empty"}</span>',
-                unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("💾 Save API Keys"):
-            for _, key, __ in [
-                ("","openai_api_key",""),
-                ("","openrouter_api_key",""),
-                ("","pexels_api_key",""),
-                ("","pixabay_api_key",""),
-            ]:
-                cfg[key] = st.session_state.get(f"inp_{key}","")
-            if save_config(cfg):
-                st.success("✅ Keys save ho gayi!")
-                st.rerun()
-            else:
-                st.error("❌ Save nahi hua!")
-
-    with s2:
-        st.markdown('<div class="card-title">🤖 Model Settings</div>',
-                    unsafe_allow_html=True)
-        providers = ["OpenAI","OpenRouter","DeepSeek",
-                     "Moonshot","Google Gemini","Ollama"]
-        curr = cfg.get("llm_provider","OpenAI")
-        pidx = providers.index(curr) if curr in providers else 0
-        llm_provider = st.selectbox("LLM Provider", providers, index=pidx)
-
-        opts = MODEL_LISTS.get(llm_provider, ["Custom (type below)"])
-        saved = cfg.get("model_name","")
-        didx = opts.index(saved) if saved in opts else len(opts)-1
-        sel = st.selectbox("Model (List se chuno)", opts, index=didx)
-
-        if sel == "Custom (type below)":
-            model_name = st.text_input("Ya khud likho",
-                value=saved if saved not in opts else "",
-                placeholder="koi bhi model")
-        else:
-            model_name = sel
-
-        base_url = st.text_input("Base URL (optional)",
-            value=cfg.get("base_url",""),
-            placeholder="Default ke liye khali chhodo")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("💾 Save Model Settings"):
-            cfg.update({"llm_provider":llm_provider,
-                        "model_name":model_name,"base_url":base_url})
-            if save_config(cfg):
-                st.success("✅ Saved!")
-                st.rerun()
-            else:
-                st.error("❌ Save nahi hua!")
+ht
