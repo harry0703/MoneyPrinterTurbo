@@ -11,11 +11,38 @@ from pydantic import ValidationError
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
-from app.models.schema import VideoScriptRequest
+from app.models.schema import VideoScriptRequest, VideoSocialMetadataRequest
 from app.services import llm
 
 
 class TestScriptPromptOptions(unittest.TestCase):
+    def test_normalize_text_response_removes_think_blocks(self):
+        """
+        reasoning 模型可能返回 `<think>...</think>`。脚本生成链路必须只保留
+        最终正文，避免思考过程进入字幕和配音。
+        """
+        result = llm._normalize_text_response(
+            "<think>\nI should reason here.\n</think>\n测试成功",
+            "minimax",
+        )
+
+        self.assertEqual(result, "测试成功")
+
+    def test_normalize_text_response_rejects_think_only_response(self):
+        """
+        如果模型只返回思考块而没有最终答案，应视为空内容，触发重试或明确错误。
+        """
+        with self.assertRaises(ValueError):
+            llm._normalize_text_response("<think>hidden reasoning</think>", "minimax")
+
+    def test_normalize_text_response_removes_unclosed_think_block(self):
+        """
+        某些网关可能因为截断只返回未闭合的 `<think>`。这种内容同样不能
+        进入最终脚本；如果清理后没有正文，就应该按空响应处理。
+        """
+        with self.assertRaises(ValueError):
+            llm._normalize_text_response("<think>hidden reasoning", "minimax")
+
     def test_build_script_prompt_appends_advanced_requirements(self):
         """
         高级文案要求只作为附加约束，不替换默认系统提示词。
@@ -180,6 +207,117 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("Error:", result)
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
+
+    def _use_qwen_provider(self):
+        config.app["llm_provider"] = "qwen"
+        config.app["qwen_api_key"] = "qwen-key"
+        config.app["qwen_model_name"] = "qwen-max"
+
+    def _patch_dashscope_generation(self, response):
+        class FakeGenerationResponse(dict):
+            pass
+
+        fake_response = FakeGenerationResponse(response)
+        fake_response.status_code = response.get("status_code", 200)
+        fake_dashscope = types.SimpleNamespace(
+            api_key="",
+            Generation=types.SimpleNamespace(call=lambda **kwargs: fake_response),
+        )
+        fake_dashscope_response = types.SimpleNamespace(
+            GenerationResponse=FakeGenerationResponse
+        )
+
+        return patch.dict(
+            sys.modules,
+            {
+                "dashscope": fake_dashscope,
+                "dashscope.api_entities": types.SimpleNamespace(),
+                "dashscope.api_entities.dashscope_response": fake_dashscope_response,
+            },
+        )
+
+    def test_qwen_provider_reads_chat_choices_content(self):
+        """
+        DashScope chat 模式会把文本放在 `output.choices[0].message.content`。
+        这里覆盖 issue #966 报告的 `output.text is None` 场景，避免再次触发
+        `'NoneType' object has no attribute 'replace'`。
+        """
+        self._use_qwen_provider()
+        response = {
+            "output": {
+                "text": None,
+                "choices": [{"message": {"content": "你好\n世界"}}],
+            }
+        }
+
+        with self._patch_dashscope_generation(response):
+            result = llm._generate_response("Say hello")
+
+        self.assertEqual(result, "你好世界")
+
+    def test_qwen_provider_falls_back_to_output_text(self):
+        """保留旧 DashScope completion 响应结构的兼容路径。"""
+        self._use_qwen_provider()
+        response = {"output": {"text": "旧格式\n响应"}}
+
+        with self._patch_dashscope_generation(response):
+            result = llm._generate_response("Say hello")
+
+        self.assertEqual(result, "旧格式响应")
+
+    def test_qwen_provider_reports_empty_text(self):
+        """Qwen 空响应应返回可诊断错误，而不是底层 AttributeError。"""
+        self._use_qwen_provider()
+        response = {"output": {"text": None, "choices": [{"message": {"content": None}}]}}
+
+        with self._patch_dashscope_generation(response):
+            result = llm._generate_response("Say hello")
+
+        self.assertIn("Error:", result)
+        self.assertIn("returned empty text content", result)
+        self.assertNotIn("NoneType", result)
+
+    def test_aihubmix_provider_uses_openai_compatible_client(self):
+        """
+        AIHubMix 是 OpenAI-compatible 网关。这里用 fake OpenAI client
+        验证独立 provider 会使用合作方默认地址和推荐模型，避免真实网络
+        或私有 API Key 影响测试稳定性。
+        """
+        config.app["llm_provider"] = "aihubmix"
+        config.app["aihubmix_api_key"] = "aihubmix-key"
+        config.app["aihubmix_base_url"] = ""
+        config.app["aihubmix_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\naihubmix")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="aihubmix-key",
+            base_url="https://aihubmix.com/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "gpt-5.4-mini",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "helloaihubmix")
 
     def test_grok_provider_still_uses_existing_path(self):
         config.app["llm_provider"] = "grok"
@@ -474,6 +612,171 @@ class TestRuntimeEnvironmentDetection(unittest.TestCase):
             )
 
             self.assertEqual(config.get_container_default_gateway_ip(str(route_path)), "")
+
+
+class TestSocialMetadata(unittest.TestCase):
+    """通用短视频发布文案元数据生成。"""
+
+    def test_build_prompt_auto_language_uses_source_language(self):
+        """
+        language 默认 auto 时，不应该固定成某个国家或语种，而是让模型
+        跟随视频主题和脚本的语言，扩大 API 适用范围。
+        """
+        prompt = llm.build_social_metadata_prompt(
+            video_subject="上海一日游",
+            video_script="今天带你快速看完上海经典路线。",
+            language="auto",
+            platform="tiktok",
+        )
+
+        self.assertIn("TikTok", prompt)
+        self.assertIn("Use the same language as the video subject and script", prompt)
+        self.assertIn("上海一日游", prompt)
+        self.assertIn("array of exactly 5 strings", prompt)
+
+    def test_build_prompt_accepts_explicit_language(self):
+        prompt = llm.build_social_metadata_prompt(
+            video_subject="Coffee tips",
+            language="en-US",
+            platform="youtube_shorts",
+        )
+
+        self.assertIn("YouTube Shorts", prompt)
+        self.assertIn('Write "title" and "caption" in this language: en-US', prompt)
+        self.assertIn("array of exactly 3 strings", prompt)
+
+    def test_unknown_platform_falls_back_to_tiktok(self):
+        prompt = llm.build_social_metadata_prompt(
+            video_subject="x",
+            platform="unsupported-platform",
+        )
+
+        self.assertIn("TikTok", prompt)
+
+    def test_normalize_hashtags_from_string_dedupes_and_clamps(self):
+        tags = llm._normalize_hashtags("#fyp fyp, trending #Trending viral", count=2)
+
+        self.assertEqual(tags, ["#fyp", "#trending"])
+
+    def test_normalize_hashtags_from_list_keeps_unicode_letters(self):
+        tags = llm._normalize_hashtags(
+            ["上海 旅行", "#việt nam", "  ", "@bad!chars"], count=5
+        )
+
+        self.assertEqual(tags, ["#上海旅行", "#việtnam", "#badchars"])
+
+    def test_parse_social_metadata_recovers_embedded_json(self):
+        raw = 'Sure: {"title":"T","caption":"C","hashtags":["#x"]} thanks'
+        result = llm._parse_social_metadata(raw, "tiktok")
+
+        self.assertEqual(result["title"], "T")
+        self.assertEqual(result["caption"], "C")
+        self.assertEqual(result["hashtags"], ["#x"])
+
+    def test_parse_social_metadata_requires_title_or_caption(self):
+        with self.assertRaises(ValueError):
+            llm._parse_social_metadata('{"hashtags":["#x"]}', "tiktok")
+
+    def test_generate_social_metadata_uses_llm_response(self):
+        payload = (
+            '{"title":"上海一日游","caption":"收藏这条路线，下次直接出发！",'
+            '"hashtags":["#上海","#旅行","#shorts"]}'
+        )
+        with patch.object(llm, "_generate_response", return_value=payload):
+            result = llm.generate_social_metadata(
+                video_subject="上海一日游",
+                video_script="今天带你快速看完上海经典路线。",
+                language="zh-CN",
+                platform="tiktok",
+            )
+
+        self.assertEqual(result["title"], "上海一日游")
+        self.assertEqual(result["caption"], "收藏这条路线，下次直接出发！")
+        self.assertEqual(result["hashtags"], ["#上海", "#旅行", "#shorts"])
+
+    def test_generate_social_metadata_falls_back_to_generic_hashtags(self):
+        with patch.object(
+            llm, "_generate_response", return_value="Error: api_key is not set"
+        ):
+            result = llm.generate_social_metadata(
+                video_subject="Coffee tips",
+                video_script="Save these three coffee tips.",
+                platform="instagram_reels",
+            )
+
+        self.assertEqual(result["title"], "Coffee tips")
+        self.assertEqual(result["caption"], "Save these three coffee tips.")
+        self.assertEqual(len(result["hashtags"]), 8)
+        self.assertEqual(result["hashtags"][0], "#shorts")
+
+    def test_request_model_defaults_to_auto_language_tiktok(self):
+        body = VideoSocialMetadataRequest(video_subject="Test")
+
+        self.assertEqual(body.language, "auto")
+        self.assertEqual(body.platform, "tiktok")
+
+    def test_request_model_rejects_oversized_social_metadata_fields(self):
+        """
+        外部 API 不能接受无限长的脚本和语言参数，否则会直接放大 LLM
+        token 成本。schema 层先拦截，服务层再做内部调用兜底。
+        """
+        with self.assertRaises(ValidationError):
+            VideoSocialMetadataRequest(video_subject="x" * 501)
+
+        with self.assertRaises(ValidationError):
+            VideoSocialMetadataRequest(video_subject="x", video_script="x" * 8001)
+
+        with self.assertRaises(ValidationError):
+            VideoSocialMetadataRequest(video_subject="x", language="x" * 65)
+
+    def test_build_prompt_clamps_direct_service_inputs(self):
+        prompt = llm.build_social_metadata_prompt(
+            video_subject="x" * 600,
+            video_script="y" * 9000,
+            language="en",
+        )
+
+        self.assertIn("x" * llm.MAX_SOCIAL_SUBJECT_LENGTH, prompt)
+        self.assertNotIn("x" * (llm.MAX_SOCIAL_SUBJECT_LENGTH + 1), prompt)
+        self.assertIn("y" * llm.MAX_SOCIAL_SCRIPT_LENGTH, prompt)
+        self.assertNotIn("y" * (llm.MAX_SOCIAL_SCRIPT_LENGTH + 1), prompt)
+
+    def test_social_metadata_endpoint_response_shape(self):
+        from fastapi.testclient import TestClient
+
+        from app.asgi import app
+
+        request_body = {
+            "video_subject": "Tokyo coffee shops",
+            "video_script": "Three quiet coffee shops for your next Tokyo morning.",
+            "language": "en",
+            "platform": "youtube_shorts",
+        }
+        llm_response = (
+            '{"title":"3 Quiet Tokyo Coffee Shops",'
+            '"caption":"Save these spots for your next Tokyo morning.",'
+            '"hashtags":["#Tokyo","#Coffee","#Shorts"]}'
+        )
+
+        with patch.object(llm, "_generate_response", return_value=llm_response):
+            response = TestClient(app).post(
+                "/api/v1/social-metadata",
+                json=request_body,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "title": "3 Quiet Tokyo Coffee Shops",
+                    "caption": "Save these spots for your next Tokyo morning.",
+                    "hashtags": ["#Tokyo", "#Coffee", "#Shorts"],
+                },
+            },
+        )
 
 
 FOUNDRY_KEY = os.environ.get("ANTHROPIC_FOUNDRY_API_KEY", "")

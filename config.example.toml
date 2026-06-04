@@ -31,6 +31,7 @@ pixabay_api_keys = []
 
 # 支持的提供商 (Supported providers):
 #   openai
+#   aihubmix   (OpenAI-compatible AI model gateway)
 #   moonshot    (月之暗面)
 #   azure
 #   qwen        (通义千问)
@@ -73,6 +74,13 @@ openai_base_url = ""
 # Check your available models at https://platform.openai.com/account/limits
 # 如果使用兼容供应商，请填写该平台要求的模型 ID。
 openai_model_name = "gpt-4o-mini"
+
+########## AIHubMix API Key
+# AIHubMix is OpenAI-compatible and can use one API key to access multiple models.
+# Visit https://aihubmix.com/?aff=CEve to register and get your API key.
+aihubmix_api_key = ""
+aihubmix_base_url = "https://aihubmix.com/v1"
+aihubmix_model_name = "gpt-5.4-mini"
 
 ########## Moonshot API Key
 # Visit https://platform.moonshot.cn/console/api-keys to get your API key.
@@ -124,12 +132,13 @@ qwen_model_name = "qwen-max"
 
 
 ########## MiniMax API Key
-# Visit https://platform.minimax.io to get your API key
+# Visit https://platform.minimax.io or https://platform.minimaxi.com to get your API key
 # MiniMax API is OpenAI-compatible
-# Available models: MiniMax-M2.7 (default), MiniMax-M2.7-highspeed
+# Available models: MiniMax-M3 (default), MiniMax-M2.7, MiniMax-M2.7-highspeed
+# If your API key returns 401 on api.minimax.io, try the China endpoint: https://api.minimaxi.com/v1
 minimax_api_key = ""
 minimax_base_url = "https://api.minimax.io/v1"
-minimax_model_name = "MiniMax-M2.7"
+minimax_model_name = "MiniMax-M3"
 
 ########## Xiaomi MiMo API Key
 # Xiaomi MiMo API is OpenAI-compatible.
@@ -202,6 +211,16 @@ subtitle_provider = "edge"
 # In such cases, you can manually download ffmpeg and set the ffmpeg_path, download link: https://www.gyan.dev/ffmpeg/builds/
 
 # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
+
+# 视频编码器。默认 libx264 最稳定；高级用户可以尝试硬件编码器提升速度。
+# 如果当前 FFmpeg 或硬件驱动不支持所选编码器，程序会自动回退到 libx264。
+# 可选值: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
+# video_codec = "libx264"
+
+# Video encoder. libx264 is the safest default; advanced users can try hardware encoders.
+# If the selected encoder is not supported by the current FFmpeg or driver, the app falls back to libx264.
+# Available values: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
+# video_codec = "libx264"
 #########################################################################################
 
 # 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口

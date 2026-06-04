@@ -51,6 +51,7 @@
     "Speech Rate": "Speech Rate (1.0 means 1x speed)",
     "Custom Audio File": "Custom Audio File",
     "Custom audio will be used directly. TTS synthesis will be skipped for this task.": "Custom audio will be used directly. TTS synthesis will be skipped for this task.",
+    "No Voice": "No Voice (skip speech synthesis)",
     "Male": "Male",
     "Female": "Female",
     "Background Music": "Background Music",
@@ -71,6 +72,8 @@
     "Font Color": "Subtitle Font Color",
     "Stroke Color": "Subtitle Outline Color",
     "Stroke Width": "Subtitle Outline Width",
+    "Enable Subtitle Background": "Enable subtitle background",
+    "Subtitle Background Color": "Subtitle background color",
     "Rounded Subtitle Background": "Enable rounded translucent subtitle background",
     "Rounded Subtitle Background Help": "Disabled by default. When enabled, subtitle backgrounds use a rounded translucent style that better fits the text width.",
     "Generate Video": "Generate Video",
@@ -132,6 +135,9 @@
     "Pixabay API Key added successfully": "Pixabay API Key added successfully",
     "Select Pixabay API Key to delete": "Select Pixabay API Key to delete",
     "Delete Selected Pixabay API Key": "Delete Selected Pixabay API Key",
-    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully"
+    "Pixabay API Key deleted successfully": "Pixabay API Key deleted successfully",
+    "Advanced Video Settings": "Advanced Video Settings",
+    "Video Encoder": "Video Encoder",
+    "Video Encoder Help": "Advanced option. libx264 is the safest default. When a hardware encoder is selected, the app falls back to libx264 if the current FFmpeg, GPU, or driver cannot use it."
   }
 }

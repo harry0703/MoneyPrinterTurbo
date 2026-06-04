@@ -27,24 +27,30 @@ materials, video subtitles, and video background music before synthesizing a hig
 
 </div>
 
+<p align="center">
+  <sub>
+    Thanks to <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> for sponsoring this project. AIHubMix deeply adapts to OpenAI, Claude, Gemini, DeepSeek, Zhipu, Qwen, and other leading models, providing one-stop access to GPT-5.5, deepseek-v4-flash, and 700+ models including free options with production-grade stability.
+  </sub>
+</p>
+
 ## Features 🎯
 
 - [x] Complete **MVC architecture**, **clearly structured** code, easy to maintain, supports both `API`
-  and `Web interface`
+      and `Web interface`
 - [x] Supports **AI-generated** video copy, as well as **customized copy**
 - [x] Supports various **high-definition video** sizes
-    - [x] Portrait 9:16, `1080x1920`
-    - [x] Landscape 16:9, `1920x1080`
+  - [x] Portrait 9:16, `1080x1920`
+  - [x] Landscape 16:9, `1920x1080`
 - [x] Supports **batch video generation**, allowing the creation of multiple videos at once, then selecting the most
-  satisfactory one
+      satisfactory one
 - [x] Supports setting the **duration of video clips**, facilitating adjustments to material switching frequency
 - [x] Supports video copy in both **Chinese** and **English**
 - [x] Supports **multiple voice** synthesis, with **real-time preview** of effects
 - [x] Supports **subtitle generation**, with adjustable `font`, `position`, `color`, `size`, and also
-  supports `subtitle outlining`
+      supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
-- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
+- [x] Supports integration with various models such as **OpenAI**, **AIHubMix**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
 
 ## Video Demos 📺
 
@@ -87,11 +93,11 @@ materials, video subtitles, and video background music before synthesizing a hig
 - Recommended platforms: Windows 10+, macOS 11+, or a mainstream Linux distribution
 - A GPU is not required, but it is recommended if you want faster local transcription, faster video processing, or smoother batch generation
 
-| Item | Minimum | Recommended | Optimal |
-| --- | --- | --- | --- |
-| CPU | 4 cores | 6 to 8 cores | 8+ cores |
-| RAM | 4 GB | 8 GB | 16+ GB |
-| GPU | Not required | 4+ GB VRAM | 8+ GB VRAM |
+| Item | Minimum      | Recommended  | Optimal    |
+| ---- | ------------ | ------------ | ---------- |
+| CPU  | 4 cores      | 6 to 8 cores | 8+ cores   |
+| RAM  | 4 GB         | 8 GB         | 16+ GB     |
+| GPU  | Not required | 4+ GB VRAM   | 8+ GB VRAM |
 
 - If you mainly rely on cloud LLMs, cloud TTS, and online material sources, CPU and RAM matter more than GPU
 - If you use `faster-whisper`, batch generation, or heavier local processing, a GPU will improve throughput noticeably
@@ -104,11 +110,11 @@ materials, video subtitles, and video background music before synthesizing a hig
 - MacOS / Linux users: use `uv sync --frozen` for the primary local setup path
 - If you want a more isolated runtime: use Docker deployment
 
-### Run in Google Colab 
+### Run in Google Colab
+
 Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
 
 ### Windows
 
@@ -139,6 +145,7 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 - Copy the `config.example.toml` file and rename it to `config.toml`
 - Follow the instructions in the `config.toml` file to configure `pexels_api_keys` and `llm_provider`, and according to
   the llm_provider's service provider, set up the corresponding API Key
+- To use the recommended multi-model provider, you can set `llm_provider` to `aihubmix` and enter the corresponding API key.
 
 ### Docker Deployment 🐳
 
@@ -163,7 +170,7 @@ Open your browser and visit http://127.0.0.1:8501
 
 #### ③ Access the API Interface
 
-Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redoc
+Open your browser and visit http://127.0.0.1:8080/docs or http://127.0.0.1:8080/redoc
 
 ### Manual Deployment 📦
 
@@ -187,37 +194,12 @@ pip install -r requirements.txt
 ```
 
 Notes:
+
 - `pyproject.toml` is now the primary dependency manifest.
 - `uv.lock` pins the resolved environment, so `uv sync --frozen` is recommended by default.
 - `requirements.txt` is kept only for legacy `pip`-based installation.
 
-#### ② Install ImageMagick
-
-###### Windows:
-
-- Download https://imagemagick.org/script/download.php Choose the Windows version, make sure to select the **static library** version, such as ImageMagick-7.1.1-32-Q16-x64-**static**.exe
-- Install the downloaded ImageMagick, **do not change the installation path**
-- Modify the `config.toml` configuration file, set `imagemagick_path` to your actual installation path
-
-###### MacOS:
-
-```shell
-brew install imagemagick
-```
-
-###### Ubuntu
-
-```shell
-sudo apt-get install imagemagick
-```
-
-###### CentOS
-
-```shell
-sudo yum install ImageMagick
-```
-
-#### ③ Launch the Web Interface 🌐
+#### ② Launch the Web Interface 🌐
 
 Note that you need to execute the following commands in the `root directory` of the MoneyPrinterTurbo project
 
@@ -245,7 +227,7 @@ sh webui.sh
 
 After launching, the browser will open automatically
 
-#### ④ Launch the API Service 🚀
+#### ③ Launch the API Service 🚀
 
 ```shell
 uv run python main.py
@@ -278,23 +260,30 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 ![picwish.jpg](docs/picwish.com.jpg)
 
-After launching, you can view the `API documentation` at http://127.0.0.1:8080/docs and directly test the interface
-online for a quick experience.
-
 ## Voice Synthesis 🗣
 
 A list of all supported voices can be viewed here: [Voice List](./docs/voice-list.txt)
 
-2024-04-16 v1.1.2 Added 9 new Azure voice synthesis voices that require API KEY configuration. These voices sound more realistic.
+The default TTS provider is **Edge TTS** (free, no API key required). In the WebUI it appears as **"Azure TTS V1"** — this is the same thing. To switch voices, set `voice_name` in `config.toml` or select one from the WebUI voice dropdown.
+
+> **Note:** "Azure TTS V1" (Edge TTS, free) and "Azure TTS V2" (paid Azure Speech SDK) are two different options in the WebUI. Only V2 requires an Azure API key.
+
+To use higher-quality **Azure TTS V2** voices, configure your Azure Speech credentials in `config.toml`:
+
+```toml
+[azure]
+speech_key = "your-azure-speech-key"
+speech_region = "eastus"
+```
+
+Azure TTS V2 voices require an [Azure Speech Services](https://portal.azure.com/) subscription. The 9 Azure voices added in v1.1.2 sound noticeably more natural than Edge TTS for most use cases.
 
 ## Subtitle Generation 📜
 
 Currently, there are 2 ways to generate subtitles:
 
-- **edge**: Faster generation speed, better performance, no specific requirements for computer configuration, but the
-  quality may be unstable
-- **whisper**: Slower generation speed, poorer performance, specific requirements for computer configuration, but more
-  reliable quality
+- **edge**: Uses Edge TTS timestamps to align subtitles. Fast, no GPU required, works on any machine. Accuracy depends on the TTS timing signal — occasionally misaligns on complex sentences.
+- **whisper**: Runs `faster-whisper` locally to transcribe the generated audio and produce word-level timestamps. Slower (a few seconds to ~1 minute per clip on CPU depending on model size), requires downloading a model (~250 MB for `large-v3-turbo`, ~3 GB for `large-v3`), but produces more accurate subtitles regardless of TTS provider.
 
 You can switch between them by modifying the `subtitle_provider` in the `config.toml` configuration file
 
@@ -330,6 +319,7 @@ MoneyPrinterTurbo
 ## Background Music 🎵
 
 Background music for videos is located in the project's `resource/songs` directory.
+
 > The current project includes some default music from YouTube videos. If there are copyright issues, please delete
 > them.
 
@@ -361,23 +351,9 @@ ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 
 ### ❓ImageMagick is not installed on your computer
 
-[issue 33](https://github.com/harry0703/MoneyPrinterTurbo/issues/33)
-
-1. Follow the `example configuration` provided `download address` to
-   install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-30-Q16-x64-static.exe, using the static library
-2. Do not install in a path with Chinese characters to avoid unpredictable issues
-
-[issue 54](https://github.com/harry0703/MoneyPrinterTurbo/issues/54#issuecomment-2017842022)
-
-For Linux systems, you can manually install it, refer to https://cn.linux-console.net/?p=16978
-
-Thanks to [@wangwenqiao666](https://github.com/wangwenqiao666) for their research and exploration
-
-### ❓ImageMagick's security policy prevents operations related to temporary file @/tmp/tmpur5hyyto.txt
-
-You can find these policies in ImageMagick's configuration file policy.xml.
-This file is usually located in /etc/ImageMagick-`X`/ or a similar location in the ImageMagick installation directory.
-Modify the entry containing `pattern="@"`, change `rights="none"` to `rights="read|write"` to allow read and write operations on files.
+> **This error no longer applies to the current version.**
+>
+> Since the project upgraded to **MoviePy 2.x**, subtitle rendering uses **Pillow** instead of ImageMagick. You do not need to install ImageMagick. If you are seeing this error, you may be running an older version of the code — run `git pull` to update, or use `update.bat` on Windows.
 
 ### ❓OSError: [Errno 24] Too many open files
 
@@ -397,16 +373,20 @@ ulimit -n 10240
 
 ### ❓Whisper model download failed, with the following error
 
-LocalEntryNotfoundEror: Cannot find an appropriate cached snapshotfolderfor the specified revision on the local disk and
-outgoing trafic has been disabled.
-To enablerepo look-ups and downloads online, pass 'local files only=False' as input.
+```
+LocalEntryNotFoundError: Cannot find an appropriate cached snapshot folder for the specified revision on the local disk and
+outgoing traffic has been disabled.
+To enable repo look-ups and downloads online, pass 'local_files_only=False' as input.
+```
 
 or
 
+```
 An error occurred while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
 An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the
 specified revision on the local disk. Please check your internet connection and try again.
 Trying to load the model directly from the local cache, if it exists.
+```
 
 Solution: [Click to see how to manually download the model from netdisk](#subtitle-generation-)
 

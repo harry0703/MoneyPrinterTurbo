@@ -81,10 +81,16 @@ class TestSecurityControls(unittest.TestCase):
 
 class TestVideoService(unittest.TestCase):
     def setUp(self):
+        self.original_app_config = dict(config.app)
         self.test_img_path = os.path.join(resources_dir, "1.png")
+        vd._runtime_disabled_video_codecs.clear()
+        vd._ffmpeg_encoder_exists.cache_clear()
     
     def tearDown(self):
-        pass
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        vd._runtime_disabled_video_codecs.clear()
+        vd._ffmpeg_encoder_exists.cache_clear()
     
     def test_preprocess_video(self):
         if not os.path.exists(self.test_img_path):
@@ -179,7 +185,7 @@ class TestVideoService(unittest.TestCase):
     def test_get_ffmpeg_binary_uses_configured_env_path(self):
         """配置中显式指定 ffmpeg 时，应优先使用该路径。"""
         with patch.dict(os.environ, {"IMAGEIO_FFMPEG_EXE": "/tmp/custom-ffmpeg"}, clear=True):
-            self.assertEqual(vd.get_ffmpeg_binary(), "/tmp/custom-ffmpeg")
+            self.assertEqual(utils.get_ffmpeg_binary(), "/tmp/custom-ffmpeg")
 
     def test_get_ffmpeg_binary_falls_back_to_imageio_ffmpeg(self):
         """
@@ -191,9 +197,166 @@ class TestVideoService(unittest.TestCase):
         )
 
         with patch.dict(os.environ, {}, clear=True), patch.object(
-            vd.shutil, "which", return_value=None
+            utils.shutil, "which", return_value=None
         ), patch.dict(sys.modules, {"imageio_ffmpeg": fake_imageio_ffmpeg}):
-            self.assertEqual(vd.get_ffmpeg_binary(), "/tmp/bundled-ffmpeg")
+            self.assertEqual(utils.get_ffmpeg_binary(), "/tmp/bundled-ffmpeg")
+
+    def test_get_effective_video_codec_falls_back_when_encoder_missing(self):
+        """
+        用户选择的硬件编码器必须先经过 FFmpeg encoder 列表检测。检测不到
+        时直接回退 libx264，避免生成任务在写文件阶段才失败。
+        """
+        config.app["video_codec"] = "h264_nvenc"
+
+        with patch.object(vd, "_ffmpeg_encoder_exists", return_value=False):
+            self.assertEqual(vd._get_effective_video_codec(), "libx264")
+
+    def test_ffmpeg_encoder_exists_falls_back_when_probe_fails(self):
+        """
+        Windows 上用户配置的 ffmpeg 可能因为路径损坏、权限或杀软拦截而无法
+        正常执行。encoder 探测失败时必须返回 False，让上层稳定回退 libx264。
+        """
+        with patch.object(
+            vd.subprocess,
+            "run",
+            side_effect=OSError("permission denied"),
+        ):
+            self.assertFalse(vd._ffmpeg_encoder_exists("C:/ffmpeg/bin/ffmpeg.exe", "h264_nvenc"))
+
+    def test_write_videofile_falls_back_after_runtime_encoder_failure(self):
+        """
+        FFmpeg 声明支持某个硬件编码器，不代表当前显卡或驱动一定可用。
+        首次实际编码失败后，应立即用 libx264 重试，并在本进程禁用该编码器。
+        """
+
+        class _FakeClip:
+            def __init__(self):
+                self.codecs = []
+
+            def write_videofile(self, output_file, codec, **kwargs):
+                self.codecs.append(codec)
+                if codec == "h264_nvenc":
+                    raise RuntimeError("nvenc device not available")
+
+        fake_clip = _FakeClip()
+
+        with patch.object(vd, "_ffmpeg_encoder_exists", return_value=True):
+            used_codec = vd._write_videofile_with_codec_fallback(
+                fake_clip,
+                "/tmp/fake.mp4",
+                codec="h264_nvenc",
+                logger=None,
+                fps=30,
+            )
+
+        self.assertEqual(used_codec, "libx264")
+        self.assertEqual(fake_clip.codecs, ["h264_nvenc", "libx264"])
+        self.assertIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
+    def test_write_videofile_does_not_disable_codec_when_fallback_also_fails(self):
+        """
+        如果 libx264 兜底也失败，失败原因更可能是输出路径、权限、文件占用等
+        通用问题，不能误判为硬件编码器不可用。
+        """
+
+        class _FakeClip:
+            def write_videofile(self, output_file, codec, **kwargs):
+                raise RuntimeError(f"{codec} cannot write output")
+
+        with patch.object(vd, "_ffmpeg_encoder_exists", return_value=True):
+            with self.assertRaises(RuntimeError):
+                vd._write_videofile_with_codec_fallback(
+                    _FakeClip(),
+                    "/tmp/fake.mp4",
+                    codec="h264_nvenc",
+                    logger=None,
+                    fps=30,
+                )
+
+        self.assertNotIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
+    def test_format_ffmpeg_concat_path_normalizes_windows_path(self):
+        """
+        concat demuxer 的文件列表对 Windows 反斜杠较敏感，写入 list 前统一
+        转成正斜杠，并继续保留单引号转义。
+        """
+        with patch.object(vd.os.path, "abspath", return_value=r"C:\Users\Harry's Videos\clip.mp4"):
+            self.assertEqual(
+                vd._format_ffmpeg_concat_path(r"C:\Users\Harry's Videos\clip.mp4"),
+                "C:/Users/Harry'\\''s Videos/clip.mp4",
+            )
+
+    def test_concat_video_clips_falls_back_after_runtime_encoder_failure(self):
+        """
+        最终 ffmpeg concat 阶段也要具备同样的回退能力。这里用 mock 模拟
+        h264_nvenc 编码失败，确认会自动再用 libx264 执行一次。
+        """
+        config.app["video_codec"] = "h264_nvenc"
+
+        def fake_run(command, capture_output, text, check):
+            codec_index = command.index("-c:v") + 1
+            codec = command[codec_index]
+            if codec == "h264_nvenc":
+                return types.SimpleNamespace(
+                    returncode=1,
+                    stdout="",
+                    stderr="nvenc device not available",
+                )
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with patch.object(vd, "_ffmpeg_encoder_exists", return_value=True):
+                with patch.object(vd.subprocess, "run", side_effect=fake_run) as run:
+                    vd.concat_video_clips_with_ffmpeg(
+                        clip_files=[clip_file],
+                        output_file=output_file,
+                        threads=1,
+                        output_dir=temp_dir,
+                    )
+
+        used_codecs = [
+            call.args[0][call.args[0].index("-c:v") + 1]
+            for call in run.call_args_list
+        ]
+        self.assertEqual(used_codecs, ["h264_nvenc", "libx264"])
+        self.assertIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
+    def test_concat_video_clips_does_not_disable_codec_when_fallback_also_fails(self):
+        """
+        concat 阶段如果 libx264 也失败，说明可能是输入 list、路径或输出权限
+        问题，不能把硬件编码器加入运行时禁用列表。
+        """
+        config.app["video_codec"] = "h264_nvenc"
+
+        def fake_run(command, capture_output, text, check):
+            codec_index = command.index("-c:v") + 1
+            codec = command[codec_index]
+            return types.SimpleNamespace(
+                returncode=1,
+                stdout="",
+                stderr=f"{codec} cannot write output",
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with patch.object(vd, "_ffmpeg_encoder_exists", return_value=True):
+                with patch.object(vd.subprocess, "run", side_effect=fake_run):
+                    with self.assertRaises(RuntimeError):
+                        vd.concat_video_clips_with_ffmpeg(
+                            clip_files=[clip_file],
+                            output_file=output_file,
+                            threads=1,
+                            output_dir=temp_dir,
+                        )
+
+        self.assertNotIn("h264_nvenc", vd._runtime_disabled_video_codecs)
 
     def test_open_video_clip_quietly_suppresses_moviepy_stdout(self):
         """
@@ -276,6 +439,70 @@ class TestVideoService(unittest.TestCase):
                     video_transition_mode=None,
                 )
                 self.assertEqual(result, combined_video_path)
+
+    def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
+        """
+        随机模式下，一个长素材会被拆成多个片段。调度层应先让每个源素材
+        至少出现一次，再使用同一源素材的其他切片，降低用户感知到的重复。
+        """
+        clips = [
+            vd.SubClippedVideoClip("a.mp4", 0, 4, source_file_path="a.mp4"),
+            vd.SubClippedVideoClip("a.mp4", 4, 8, source_file_path="a.mp4"),
+            vd.SubClippedVideoClip("b.mp4", 0, 4, source_file_path="b.mp4"),
+            vd.SubClippedVideoClip("b.mp4", 4, 8, source_file_path="b.mp4"),
+            vd.SubClippedVideoClip("c.mp4", 0, 4, source_file_path="c.mp4"),
+        ]
+
+        ordered_clips = vd._prioritize_unique_source_clips(
+            subclipped_items=clips,
+            concat_mode=vd.VideoConcatMode.random,
+        )
+
+        self.assertCountEqual(ordered_clips, clips)
+        first_round_sources = [clip.source_file_path for clip in ordered_clips[:3]]
+        self.assertCountEqual(first_round_sources, ["a.mp4", "b.mp4", "c.mp4"])
+
+    def test_prioritize_unique_source_clips_keeps_sequential_order(self):
+        """
+        顺序模式本身只取每个素材的首段，不应被随机调度逻辑改变顺序。
+        """
+        clips = [
+            vd.SubClippedVideoClip("a.mp4", 0, 4, source_file_path="a.mp4"),
+            vd.SubClippedVideoClip("b.mp4", 0, 4, source_file_path="b.mp4"),
+            vd.SubClippedVideoClip("c.mp4", 0, 4, source_file_path="c.mp4"),
+        ]
+
+        ordered_clips = vd._prioritize_unique_source_clips(
+            subclipped_items=clips,
+            concat_mode=vd.VideoConcatMode.sequential,
+        )
+
+        self.assertEqual(ordered_clips, clips)
+
+    def test_prioritize_unique_source_clips_prefers_long_primary_clip(self):
+        """
+        同一个源素材的最后一个切片可能短于目标片段时长。首轮去重时应优先
+        选择较长片段，否则会因为累计时长不足而提前复用素材。
+        """
+        short_tail = vd.SubClippedVideoClip(
+            "a.mp4", 6, 6.5, source_file_path="a.mp4"
+        )
+        full_clip = vd.SubClippedVideoClip(
+            "a.mp4", 0, 3, source_file_path="a.mp4"
+        )
+        other_source = vd.SubClippedVideoClip(
+            "b.mp4", 0, 3, source_file_path="b.mp4"
+        )
+
+        ordered_clips = vd._prioritize_unique_source_clips(
+            subclipped_items=[short_tail, full_clip, other_source],
+            concat_mode=vd.VideoConcatMode.random,
+        )
+
+        first_a_clip = next(
+            clip for clip in ordered_clips if clip.source_file_path == "a.mp4"
+        )
+        self.assertEqual(first_a_clip, full_clip)
     
     def test_wrap_text(self):
         """test text wrapping function"""

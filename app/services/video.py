@@ -7,6 +7,7 @@ import gc
 import shutil
 import subprocess
 from contextlib import redirect_stdout
+from functools import lru_cache
 from typing import List
 from loguru import logger
 import numpy as np
@@ -23,6 +24,7 @@ from moviepy import (
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import Image, ImageDraw, ImageFont
 
+from app.config import config
 from app.models import const
 from app.models.schema import (
     MaterialInfo,
@@ -35,12 +37,22 @@ from app.services.utils import video_effects
 from app.utils import file_security, utils
 
 class SubClippedVideoClip:
-    def __init__(self, file_path, start_time=None, end_time=None, width=None, height=None, duration=None):
+    def __init__(
+        self,
+        file_path,
+        start_time=None,
+        end_time=None,
+        width=None,
+        height=None,
+        duration=None,
+        source_file_path=None,
+    ):
         self.file_path = file_path
         self.start_time = start_time
         self.end_time = end_time
         self.width = width
         self.height = height
+        self.source_file_path = source_file_path or file_path
         if duration is None:
             self.duration = end_time - start_time
         else:
@@ -54,37 +66,216 @@ audio_codec = "aac"
 # Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
 # 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
 audio_bitrate = "192k"
-video_codec = "libx264"
 fps = 30
 _BGM_EXTENSIONS = (".mp3",)
+_DEFAULT_VIDEO_CODEC = "libx264"
+_SUPPORTED_VIDEO_CODECS = (
+    "libx264",
+    "h264_nvenc",
+    "h264_amf",
+    "h264_qsv",
+    "h264_mf",
+    "h264_videotoolbox",
+)
+_runtime_disabled_video_codecs = set()
+
+
+def _prioritize_unique_source_clips(
+    subclipped_items: List[SubClippedVideoClip],
+    concat_mode: VideoConcatMode,
+) -> List[SubClippedVideoClip]:
+    """
+    优先让每个源素材只出现一次，降低成片里同一素材反复出现的概率。
+
+    线上素材经常会遇到“一个长视频被切成多个短片段”的情况。旧逻辑在
+    random 模式下直接打乱所有短片段，导致同一个源视频的多个切片可能
+    分布在开头和中间，用户会感知为素材重复。本函数只调整片段顺序：
+    先放每个源文件里最长的一个片段，剩余片段作为兜底；当素材总时长不足时，
+    仍然允许后续片段补齐音频长度，避免破坏视频生成成功率。优先选择最长
+    片段是为了避免随机选中视频尾部的零碎短片段，导致明明有足够素材却过早复用。
+    """
+    if not subclipped_items:
+        return []
+
+    concat_mode_value = getattr(concat_mode, "value", concat_mode)
+    if concat_mode_value != VideoConcatMode.random.value:
+        return subclipped_items
+
+    grouped_items: dict[str, list[SubClippedVideoClip]] = {}
+    for item in subclipped_items:
+        grouped_items.setdefault(item.source_file_path, []).append(item)
+
+    primary_items = []
+    overflow_items = []
+    for items in grouped_items.values():
+        primary_item = max(items, key=lambda item: item.duration)
+        primary_items.append(primary_item)
+        overflow_items.extend(item for item in items if item is not primary_item)
+
+    random.shuffle(primary_items)
+    random.shuffle(overflow_items)
+    logger.info(
+        "prioritized unique video materials, "
+        f"sources: {len(grouped_items)}, "
+        f"primary clips: {len(primary_items)}, "
+        f"fallback clips: {len(overflow_items)}"
+    )
+    return primary_items + overflow_items
 
 
 def get_ffmpeg_binary():
-    # 优先复用用户在 config.toml / 环境变量里显式指定的 ffmpeg，可避免
-    # Windows 便携包、Docker、自定义安装目录等场景下 PATH 不一致。
-    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
-    if configured_ffmpeg:
-        return configured_ffmpeg
+    """
+    兼容历史上直接从 video 服务读取 FFmpeg 路径的调用方。
 
-    system_ffmpeg = shutil.which("ffmpeg")
-    if system_ffmpeg:
-        return system_ffmpeg
+    真正的解析逻辑已经抽到 `app.utils.utils.get_ffmpeg_binary()`，视频、语音
+    和后续新增链路都应复用同一套优先级；这里保留薄包装，避免外部脚本或
+    旧测试直接导入 `app.services.video.get_ffmpeg_binary` 时出现 AttributeError。
+    """
+    return utils.get_ffmpeg_binary()
 
+
+def _get_configured_video_codec() -> str:
+    """
+    读取用户配置的视频编码器。
+
+    该配置面向高级用户，用于尝试启用 NVENC/AMF/QSV/VideoToolbox 等硬件
+    编码。这里刻意只允许固定白名单，避免开放任意 FFmpeg 参数后，用户填错
+    参数导致输出格式不可控，甚至让生成任务在后续阶段才失败。
+    """
+    configured_codec = str(
+        config.app.get("video_codec", _DEFAULT_VIDEO_CODEC) or _DEFAULT_VIDEO_CODEC
+    ).strip()
+    if configured_codec not in _SUPPORTED_VIDEO_CODECS:
+        logger.warning(
+            f"unsupported video codec configured: {configured_codec}, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+    return configured_codec
+
+
+@lru_cache(maxsize=16)
+def _ffmpeg_encoder_exists(ffmpeg_binary: str, codec: str) -> bool:
+    """
+    检查当前 FFmpeg 是否声明支持指定编码器。
+
+    这只能证明 FFmpeg 编译时包含该 encoder，不能证明当前机器硬件和驱动
+    一定可用。因此实际编码失败时仍会再回退到 libx264。
+    """
     try:
-        import imageio_ffmpeg
+        result = subprocess.run(
+            [ffmpeg_binary, "-hide_banner", "-encoders"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.warning(
+            "failed to inspect ffmpeg encoders, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}: {str(exc)}"
+        )
+        return False
 
-        bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        if bundled_ffmpeg:
-            return bundled_ffmpeg
+    if result.returncode != 0:
+        logger.warning(
+            "failed to inspect ffmpeg encoders, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}: {(result.stderr or result.stdout or '').strip()}"
+        )
+        return False
+    return codec in result.stdout
+
+
+def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
+    """
+    返回本次实际使用的视频编码器。
+
+    用户选择硬件编码器时，先做 FFmpeg encoder 列表检测；如果本进程里已经
+    实际编码失败过，也直接回退，避免一个任务里每个片段都重复失败。
+    """
+    selected_codec = preferred_codec or _get_configured_video_codec()
+    if selected_codec == _DEFAULT_VIDEO_CODEC:
+        return _DEFAULT_VIDEO_CODEC
+
+    if selected_codec in _runtime_disabled_video_codecs:
+        logger.warning(
+            f"video codec {selected_codec} was disabled after a runtime failure, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+
+    ffmpeg_binary = utils.get_ffmpeg_binary()
+    if not _ffmpeg_encoder_exists(ffmpeg_binary, selected_codec):
+        logger.warning(
+            f"ffmpeg encoder {selected_codec} is not available, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+
+    return selected_codec
+
+
+def _disable_runtime_video_codec(codec: str, reason: str):
+    if codec == _DEFAULT_VIDEO_CODEC:
+        return
+    _runtime_disabled_video_codecs.add(codec)
+    logger.warning(
+        f"video codec {codec} failed, fallback to {_DEFAULT_VIDEO_CODEC}. "
+        f"reason: {reason}"
+    )
+
+
+def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason: str, **kwargs):
+    """
+    硬件编码失败后用 libx264 重试，只有重试成功才禁用该硬件编码器。
+
+    Windows 上 FFmpeg 失败原因比较复杂：可能是显卡/驱动不支持，也可能是输出
+    文件被占用、目录权限、杀软拦截等通用 IO 问题。只有 libx264 能成功写出时，
+    才能判断原始失败大概率来自硬件编码器本身，避免误伤后续任务。
+    """
+    clip.write_videofile(output_file, codec=_DEFAULT_VIDEO_CODEC, **kwargs)
+    _disable_runtime_video_codec(failed_codec, reason)
+    return _DEFAULT_VIDEO_CODEC
+
+
+def _write_videofile_with_codec_fallback(clip, output_file: str, codec: str, **kwargs):
+    """
+    使用指定编码器写出视频，失败时自动用 libx264 重试一次。
+
+    硬件编码器是否可用不仅取决于 FFmpeg，还取决于显卡、驱动和当前运行环境。
+    生成任务不能因为高级编码器不可用而整体失败，所以这里把回退集中处理。
+    """
+    effective_codec = _get_effective_video_codec(codec)
+    try:
+        clip.write_videofile(output_file, codec=effective_codec, **kwargs)
+        return effective_codec
     except Exception as exc:
-        logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
-
-    return "ffmpeg"
+        if effective_codec == _DEFAULT_VIDEO_CODEC:
+            raise
+        return _fallback_write_videofile(
+            clip,
+            output_file,
+            failed_codec=effective_codec,
+            reason=str(exc),
+            **kwargs,
+        )
 
 
 def _escape_ffmpeg_concat_path(file_path: str) -> str:
     # concat demuxer 使用单引号包裹路径，路径中的单引号需要先转义。
     return file_path.replace("'", "'\\''")
+
+
+def _format_ffmpeg_concat_path(file_path: str) -> str:
+    """
+    生成 concat demuxer 文件列表中的路径。
+
+    FFmpeg 官方文档要求 concat list 中的特殊字符和空格需要转义；Windows
+    绝对路径里的反斜杠也容易被解析成转义字符。这里统一转成正斜杠形式，
+    让 `C:\\Users\\...` 变成 `C:/Users/...`，再处理单引号，兼容 macOS/Linux。
+    """
+    absolute_path = os.path.abspath(file_path)
+    return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
 
 
 def concat_video_clips_with_ffmpeg(
@@ -93,28 +284,29 @@ def concat_video_clips_with_ffmpeg(
     concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
     with open(concat_list_file, "w", encoding="utf-8") as fp:
         for clip_file in clip_files:
-            absolute_path = os.path.abspath(clip_file)
-            fp.write(f"file '{_escape_ffmpeg_concat_path(absolute_path)}'\n")
+            fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
 
-    command = [
-        get_ffmpeg_binary(),
-        "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        concat_list_file,
-        "-c:v",
-        video_codec,
-        "-threads",
-        str(threads or 2),
-        "-pix_fmt",
-        "yuv420p",
-        output_file,
-    ]
+    def build_command(codec: str) -> list[str]:
+        return [
+            utils.get_ffmpeg_binary(),
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            concat_list_file,
+            "-c:v",
+            codec,
+            "-threads",
+            str(threads or 2),
+            "-pix_fmt",
+            "yuv420p",
+            output_file,
+        ]
 
-    try:
+    def run_concat(codec: str):
+        command = build_command(codec)
         # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
         # 从而降低画质劣化与颜色偏移风险。
         result = subprocess.run(
@@ -126,6 +318,18 @@ def concat_video_clips_with_ffmpeg(
         if result.returncode != 0:
             error_message = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(error_message or "ffmpeg concat failed")
+        return codec
+
+    try:
+        effective_codec = _get_effective_video_codec()
+        try:
+            return run_concat(effective_codec)
+        except Exception as exc:
+            if effective_codec == _DEFAULT_VIDEO_CODEC:
+                raise
+            result_codec = run_concat(_DEFAULT_VIDEO_CODEC)
+            _disable_runtime_video_codec(effective_codec, str(exc))
+            return result_codec
     finally:
         delete_files(concat_list_file)
 
@@ -345,6 +549,7 @@ def combine_videos(
                         end_time=end_time,
                         width=clip_w,
                         height=clip_h,
+                        source_file_path=video_path,
                     )
                 )
 
@@ -352,18 +557,24 @@ def combine_videos(
             if video_concat_mode.value == VideoConcatMode.sequential.value:
                 break
 
-    # random subclipped_items order
-    if video_concat_mode.value == VideoConcatMode.random.value:
-        random.shuffle(subclipped_items)
+    subclipped_items = _prioritize_unique_source_clips(
+        subclipped_items=subclipped_items,
+        concat_mode=video_concat_mode,
+    )
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration > audio_duration:
+        if video_duration >= audio_duration:
             break
         
-        logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
+        logger.debug(
+            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
+            f"source: {os.path.basename(subclipped_item.source_file_path)}, "
+            f"current duration: {video_duration:.2f}s, "
+            f"remaining: {audio_duration - video_duration:.2f}s"
+        )
         
         try:
             clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
@@ -418,13 +629,27 @@ def combine_videos(
                 
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            _write_videofile_with_codec_fallback(
+                clip,
+                clip_file,
+                codec=_get_configured_video_codec(),
+                logger=None,
+                fps=fps,
+            )
 
             # Store clip duration before closing
             clip_duration_saved = clip.duration
             close_clip(clip)
 
-            processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip_duration_saved, width=clip_w, height=clip_h))
+            processed_clips.append(
+                SubClippedVideoClip(
+                    file_path=clip_file,
+                    duration=clip_duration_saved,
+                    width=clip_w,
+                    height=clip_h,
+                    source_file_path=subclipped_item.source_file_path,
+                )
+            )
             video_duration += clip_duration_saved
             
         except Exception as e:
@@ -748,8 +973,10 @@ def generate_video(
     # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
     # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
     output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
-    video_clip.write_videofile(
-        output_file,
+    _write_videofile_with_codec_fallback(
+        video_clip,
+        output_file=output_file,
+        codec=_get_configured_video_codec(),
         audio_codec=audio_codec,
         audio_fps=output_audio_fps,
         audio_bitrate=audio_bitrate,

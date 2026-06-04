@@ -244,38 +244,48 @@ if not config.app.get("hide_config", False):
 
         with middle_config_panel:
             st.write(tr("LLM Settings"))
-            llm_providers = [
-                "OpenAI",
-                "Moonshot",
-                "Azure",
-                "Qwen",
-                "DeepSeek",
-                "ModelScope",
-                "Gemini",
-                "Grok",
-                "Ollama",
-                "G4f",
-                "OneAPI",
-                "Cloudflare",
-                "ERNIE",
-                "MiMo",
-                "Pollinations",
-                "LiteLLM",
+            # 下拉框需要展示“AIHubMix（推荐）”这类面向用户的文案，
+            # 但配置文件和后端逻辑必须继续使用稳定的小写 provider id。
+            # 因此这里显式维护 display label 和 provider id 的映射，避免
+            # UI 文案变化污染 `config.app["llm_provider"]`。
+            llm_provider_options = [
+                ("OpenAI", "openai"),
+                ("AIHubMix（推荐）", "aihubmix"),
+                ("Moonshot", "moonshot"),
+                ("Azure", "azure"),
+                ("Qwen", "qwen"),
+                ("DeepSeek", "deepseek"),
+                ("ModelScope", "modelscope"),
+                ("Gemini", "gemini"),
+                ("Grok", "grok"),
+                ("Ollama", "ollama"),
+                ("G4f", "g4f"),
+                ("OneAPI", "oneapi"),
+                ("Cloudflare", "cloudflare"),
+                ("ERNIE", "ernie"),
+                ("MiniMax", "minimax"),
+                ("MiMo", "mimo"),
+                ("Pollinations", "pollinations"),
+                ("LiteLLM", "litellm"),
             ]
-            saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
+            llm_provider_labels = [label for label, _ in llm_provider_options]
+            llm_provider_values = {
+                label: provider_id for label, provider_id in llm_provider_options
+            }
+            saved_llm_provider = config.app.get("llm_provider", "openai").lower()
             saved_llm_provider_index = 0
-            for i, provider in enumerate(llm_providers):
-                if provider.lower() == saved_llm_provider:
+            for i, (_, provider_id) in enumerate(llm_provider_options):
+                if provider_id == saved_llm_provider:
                     saved_llm_provider_index = i
                     break
 
-            llm_provider = st.selectbox(
+            llm_provider_label = st.selectbox(
                 tr("LLM Provider"),
-                options=llm_providers,
+                options=llm_provider_labels,
                 index=saved_llm_provider_index,
             )
             llm_helper = st.container()
-            llm_provider = llm_provider.lower()
+            llm_provider = llm_provider_values[llm_provider_label]
             config.app["llm_provider"] = llm_provider
 
             llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
@@ -316,6 +326,25 @@ if not config.app.get("hide_config", False):
                             - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
                             - **Base Url**: 官方 OpenAI 可留空；如果使用 OpenAI 兼容供应商（例如 OpenRouter），请填写对应的兼容接口地址
                             - **Model Name**: 填写**有权限**的模型；如果使用兼容供应商，请填写该平台支持的模型 ID
+                            """
+
+            if llm_provider == "aihubmix":
+                if not llm_model_name:
+                    llm_model_name = "gpt-5.4-mini"
+                if not llm_base_url:
+                    llm_base_url = "https://aihubmix.com/v1"
+                with llm_helper:
+                    tips = """
+                            ##### AIHubMix 配置说明
+                            - **注册链接**: [点击注册 AIHubMix](https://aihubmix.com/?aff=CEve)
+                            - **Base Url**: 预填 https://aihubmix.com/v1
+                            - **推荐模型**: 默认 gpt-5.4-mini，也可以填写 AIHubMix 支持的免费模型或其它模型 ID
+
+                            推荐理由：
+                            - **模型全**: Claude、GPT、Gemini、Grok、DeepSeek、通义等 700+ 模型一站覆盖
+                            - **稳定**: 无限并发，永远在线，集群部署于谷歌云，长期为众多知名应用提供高并发服务
+                            - **能力完整**: 文本、图片生成、视频生成、TTS、STT、向量嵌入、Rerank，多模态场景全搞定
+                            - **计费透明**: 按量付费，无会员无包月，免费模型可使用
                             """
 
             if llm_provider == "moonshot":
@@ -471,9 +500,13 @@ if not config.app.get("hide_config", False):
                             """
 
             if tips and config.ui["language"] == "zh":
-                st.warning(
-                    "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
-                )
+                # AIHubMix 自身就是 OpenAI-compatible 聚合平台；用户主动选择
+                # 该 provider 时，再显示 DeepSeek/Moonshot 的通用推荐会造成
+                # 信息干扰，也不利于保持合作入口的轻量、清晰。
+                if llm_provider != "aihubmix":
+                    st.warning(
+                        "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
+                    )
                 st.info(tips)
 
             st_llm_api_key = st.text_input(
@@ -742,11 +775,35 @@ with middle_panel:
             options=[1, 2, 3, 4, 5],
             index=0,
         )
+
+        with st.expander(tr("Advanced Video Settings"), expanded=False):
+            video_codec_options = [
+                ("libx264 (CPU)", "libx264"),
+                ("NVIDIA NVENC (h264_nvenc)", "h264_nvenc"),
+                ("AMD AMF (h264_amf)", "h264_amf"),
+                ("Intel QSV (h264_qsv)", "h264_qsv"),
+                ("Windows MediaFoundation (h264_mf)", "h264_mf"),
+                ("macOS VideoToolbox (h264_videotoolbox)", "h264_videotoolbox"),
+            ]
+            saved_video_codec = config.app.get("video_codec", "libx264")
+            saved_video_codec_values = [item[1] for item in video_codec_options]
+            if saved_video_codec not in saved_video_codec_values:
+                saved_video_codec = "libx264"
+            selected_codec_index = saved_video_codec_values.index(saved_video_codec)
+            selected_codec_index = st.selectbox(
+                tr("Video Encoder"),
+                options=range(len(video_codec_options)),
+                index=selected_codec_index,
+                format_func=lambda x: video_codec_options[x][0],
+                help=tr("Video Encoder Help"),
+            )
+            config.app["video_codec"] = video_codec_options[selected_codec_index][1]
     with st.container(border=True):
         st.write(tr("Audio Settings"))
 
         # 添加TTS服务器选择下拉框
         tts_servers = [
+            (voice.NO_VOICE_NAME, tr("No Voice")),
             ("azure-tts-v1", "Azure TTS V1"),
             ("azure-tts-v2", "Azure TTS V2"),
             ("siliconflow", "SiliconFlow TTS"),
@@ -776,7 +833,11 @@ with middle_panel:
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
 
-        if selected_tts_server == "siliconflow":
+        if selected_tts_server == voice.NO_VOICE_NAME:
+            # 无配音是显式模式，只提供一个稳定 sentinel。这样普通 TTS 的空配置
+            # 不会被误判为静音，后端也能继续通过同一条音频/字幕流程生成视频。
+            filtered_voices = [voice.NO_VOICE_NAME]
+        elif selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
             filtered_voices = voice.get_siliconflow_voices()
         elif selected_tts_server == "gemini-tts":
@@ -806,12 +867,15 @@ with middle_panel:
                     if "V2" not in v:
                         filtered_voices.append(v)
 
-        friendly_names = {
-            v: v.replace("Female", tr("Female"))
-            .replace("Male", tr("Male"))
-            .replace("Neural", "")
-            for v in filtered_voices
-        }
+        if selected_tts_server == voice.NO_VOICE_NAME:
+            friendly_names = {voice.NO_VOICE_NAME: tr("No Voice")}
+        else:
+            friendly_names = {
+                v: v.replace("Female", tr("Female"))
+                .replace("Male", tr("Male"))
+                .replace("Neural", "")
+                for v in filtered_voices
+            }
 
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
@@ -855,8 +919,12 @@ with middle_panel:
             params.voice_name = ""
             config.ui["voice_name"] = ""
 
-        # 只有在有声音可选时才显示试听按钮
-        if friendly_names and st.button(tr("Play Voice")):
+        # 无配音模式会生成静音占位音频，不展示试听按钮，避免用户误以为需要测试声音。
+        if (
+            friendly_names
+            and selected_tts_server != voice.NO_VOICE_NAME
+            and st.button(tr("Play Voice"))
+        ):
             play_content = params.video_subject
             if not play_content:
                 play_content = params.video_script
@@ -1249,15 +1317,49 @@ with right_panel:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
             params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+
+        subtitle_bg_cols = st.columns([0.4, 0.6])
+        saved_subtitle_background_enabled = config.ui.get(
+            "subtitle_background_enabled", True
+        )
+        with subtitle_bg_cols[0]:
+            subtitle_background_enabled = st.checkbox(
+                tr("Enable Subtitle Background"),
+                value=saved_subtitle_background_enabled,
+            )
+        config.ui["subtitle_background_enabled"] = subtitle_background_enabled
+        if subtitle_background_enabled:
+            with subtitle_bg_cols[1]:
+                saved_subtitle_background_color = config.ui.get(
+                    "subtitle_background_color", "#000000"
+                )
+                params.text_background_color = st.color_picker(
+                    tr("Subtitle Background Color"),
+                    saved_subtitle_background_color,
+                )
+                config.ui["subtitle_background_color"] = params.text_background_color
+        else:
+            params.text_background_color = False
+
         saved_rounded_subtitle_background = config.ui.get(
             "rounded_subtitle_background", False
         )
+        # 背景关闭时，圆角背景没有可渲染的底色。这里禁用控件并保留原配置，
+        # 用户下次重新开启字幕背景后，可以继续使用之前保存的圆角偏好。
         params.rounded_subtitle_background = st.checkbox(
             tr("Rounded Subtitle Background"),
-            value=saved_rounded_subtitle_background,
+            value=(
+                saved_rounded_subtitle_background
+                if subtitle_background_enabled
+                else False
+            ),
             help=tr("Rounded Subtitle Background Help"),
+            disabled=not subtitle_background_enabled,
         )
-        config.ui["rounded_subtitle_background"] = params.rounded_subtitle_background
+        if subtitle_background_enabled:
+            config.ui["rounded_subtitle_background"] = (
+                params.rounded_subtitle_background
+            )
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels and Pixabay API Keys"))
 
