@@ -1,0 +1,31 @@
+name: Daily Video Generator
+
+on:
+  schedule:
+    # 
+    - cron: '0 7 * * *'
+  workflow_dispatch: # هذا يتيح لك تشغيل الأتمتة يدوياً في أي وقت للتجربة
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-framework: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Run MoneyPrinterTurbo
+      env:
+        PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: |
+        # هنا يتم تشغيل الأمر الرئيسي للأداة لإنشاء الفيديو تلقائياً
+        python main.py --prompt " قصص غريبة"
