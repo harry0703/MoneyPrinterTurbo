@@ -161,6 +161,13 @@ def file_to_subtitles(filename):
                 current_times, current_text = None, ""
             elif current_times:
                 current_text += line
+
+    # Flush the final block. SRT files whose last subtitle is not followed by a
+    # trailing blank line never hit the blank-line branch above, so without this
+    # the last subtitle would be silently dropped.
+    if current_times:
+        index += 1
+        times_texts.append((index, current_times.strip(), current_text.strip()))
     return times_texts
 
 
