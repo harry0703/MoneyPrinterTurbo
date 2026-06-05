@@ -101,7 +101,11 @@ def _extract_qwen_generation_text(response) -> str:
     """
     output = _get_response_field(response, "output")
     choices = _get_response_field(output, "choices") if output else None
-    if choices:
+    if choices is not None:
+        if not choices:
+            logger.warning("Qwen returned an empty choices list")
+            raise ValueError("[qwen] returned empty choices")
+
         first_choice = choices[0]
         message = _get_response_field(first_choice, "message")
         content = _get_response_field(message, "content") if message else None
