@@ -112,6 +112,7 @@ support_locales = [
     "de-DE",
     "en-US",
     "fr-FR",
+    "ru-RU",
     "vi-VN",
     "th-TH",
     "tr-TR",
@@ -247,9 +248,12 @@ if not config.app.get("hide_config", False):
             # 但配置文件和后端逻辑必须继续使用稳定的小写 provider id。
             # 因此这里显式维护 display label 和 provider id 的映射，避免
             # UI 文案变化污染 `config.app["llm_provider"]`。
+            aihubmix_label = f"AIHubMix ({tr('Recommended')})"
+            if config.ui.get("language") == "zh":
+                aihubmix_label = "AIHubMix（推荐）"
             llm_provider_options = [
                 ("OpenAI", "openai"),
-                ("AIHubMix（推荐）", "aihubmix"),
+                (aihubmix_label, "aihubmix"),
                 ("Moonshot", "moonshot"),
                 ("Azure", "azure"),
                 ("Qwen", "qwen"),
@@ -713,7 +717,7 @@ with middle_panel:
             # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
             local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
             uploaded_files = st.file_uploader(
-                "Upload Local Files",
+                tr("Upload Local Files"),
                 type=local_file_types + [file_type.upper() for file_type in local_file_types],
                 accept_multiple_files=True,
             )
@@ -1198,10 +1202,10 @@ with right_panel:
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels and Pixabay API Keys"))
 
-        col1, col2 = st.tabs(["Pexels API Keys", "Pixabay API Keys"])
+        col1, col2 = st.tabs([tr("Pexels API Keys"), tr("Pixabay API Keys")])
 
         with col1:
-            st.subheader("Pexels API Keys")
+            st.subheader(tr("Pexels API Keys"))
             if config.app["pexels_api_keys"]:
                 st.write(tr("Current Keys:"))
                 for key in config.app["pexels_api_keys"]:
@@ -1230,7 +1234,7 @@ with right_panel:
                     st.success(tr("Pexels API Key deleted successfully"))
 
         with col2:
-            st.subheader("Pixabay API Keys")
+            st.subheader(tr("Pixabay API Keys"))
 
             if config.app["pixabay_api_keys"]:
                 st.write(tr("Current Keys:"))
