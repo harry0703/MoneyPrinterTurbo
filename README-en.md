@@ -17,6 +17,12 @@
 Simply provide a <b>topic</b> or <b>keyword</b> for a video, and it will automatically generate the video copy, video
 materials, video subtitles, and video background music before synthesizing a high-definition short video.
 
+<p align="center">
+  <sub>
+    Thanks to <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> for sponsoring this project. AIHubMix deeply adapts to OpenAI, Claude, Gemini, DeepSeek, Zhipu, Qwen, and other leading models, providing one-stop access to GPT-5.5, deepseek-v4-flash, and 700+ models including free options with production-grade stability.
+  </sub>
+</p>
+
 ### WebUI
 
 ![](docs/webui-en.jpg)
@@ -26,12 +32,6 @@ materials, video subtitles, and video background music before synthesizing a hig
 ![](docs/api.jpg)
 
 </div>
-
-<p align="center">
-  <sub>
-    Thanks to <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> for sponsoring this project. AIHubMix deeply adapts to OpenAI, Claude, Gemini, DeepSeek, Zhipu, Qwen, and other leading models, providing one-stop access to GPT-5.5, deepseek-v4-flash, and 700+ models including free options with production-grade stability.
-  </sub>
-</p>
 
 ## Features 🎯
 
