@@ -26,6 +26,7 @@
         :download-text="t('Download')"
         :delete-text="t('Delete')"
         :cancel-text="t('Cancel')"
+        :sequence-number-text="t('Task #')"
         @refresh="refreshTasks"
         @delete="deleteTask"
         @cancel="cancelTask"

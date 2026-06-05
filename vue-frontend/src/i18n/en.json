@@ -467,6 +467,7 @@
     "Completed": "Completed",
     "Failed": "Failed",
     "Task": "Task",
+    "Task #": "Task #",
     "Task queued, waiting for previous task to complete...": "Task queued, waiting for previous task to complete...",
     "Task Type": "Task Type",
     "Video Generation": "Video Generation",

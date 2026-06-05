@@ -272,9 +272,21 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
         # Collect video paths
         video_paths = [s["video"] for s in valid_scenes]
         
+        # Get scene integration task directory for the final video
+        # Use the provided task_id parameter for the scene integration task
+        scene_integration_task_dir = utils.task_dir(task_id)
+        logger.info(f"Scene integration task directory: {scene_integration_task_dir}")
+        
+        # Record the original video generation task ID (where scenes are located)
+        original_task_id = os.path.basename(task_dir)
+        original_task_info_path = os.path.join(scene_integration_task_dir, "original_task_id.txt")
+        with open(original_task_info_path, 'w') as f:
+            f.write(original_task_id)
+        logger.info(f"Original video generation task ID recorded: {original_task_id}")
+        
         # Determine output path with scene range format
-        # Use the actual start and end scene values already calculated
-        output_path = os.path.join(task_dir, f"scenes_{actual_start_scene}_to_{actual_end_scene}.mp4")
+        # Use the scene integration task directory instead of scenes directory
+        output_path = os.path.join(scene_integration_task_dir, f"scenes_{actual_start_scene}_to_{actual_end_scene}.mp4")
         
         # Get video parameters from config
         _cfg = load_config()
@@ -418,7 +430,8 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
                 scene_results.append(scene_result)
             
             # Use combine_all_scenes function
-            combined_video_path = os.path.join(task_dir, "temp_combined_scenes.mp4")
+            # Use scene integration task directory for temporary file
+            combined_video_path = os.path.join(scene_integration_task_dir, "temp_combined_scenes.mp4")
             
             # Import combine_all_scenes from task module
             from app.services.task import combine_all_scenes

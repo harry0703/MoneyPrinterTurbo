@@ -24,11 +24,14 @@ class BaseState(ABC):
 class MemoryState(BaseState):
     def __init__(self):
         self._tasks = {}
+        self._task_sequence_counter = 0
 
     def get_all_tasks(self, page: int, page_size: int):
         start = (page - 1) * page_size
         end = start + page_size
         tasks = list(self._tasks.values())
+        # Sort tasks by sequence_number
+        tasks.sort(key=lambda x: x.get("sequence_number", 0))
         total = len(tasks)
         return tasks[start:end], total
 
@@ -45,11 +48,19 @@ class MemoryState(BaseState):
         # Merge with existing task data to preserve fields like task_type
         existing_task = self._tasks.get(task_id, {})
         
+        # Add sequence number for new tasks
+        if not existing_task:
+            self._task_sequence_counter += 1
+            sequence_number = self._task_sequence_counter
+        else:
+            sequence_number = existing_task.get("sequence_number", self._task_sequence_counter)
+        
         self._tasks[task_id] = {
             **existing_task,  # Preserve existing fields
             "task_id": task_id,
             "state": state,
-            "progress": progress,** kwargs,
+            "progress": progress,
+            "sequence_number": sequence_number,** kwargs,
         }
 
     def get_task(self, task_id: str):
@@ -66,28 +77,27 @@ class RedisState(BaseState):
         import redis
 
         self._redis = redis.StrictRedis(host=host, port=port, db=db, password=password)
+        self._sequence_counter_key = "task_sequence_counter"
 
     def get_all_tasks(self, page: int, page_size: int):
         start = (page - 1) * page_size
         end = start + page_size
         tasks = []
         cursor = 0
-        total = 0
         while True:
             cursor, keys = self._redis.scan(cursor, count=page_size)
-            total += len(keys)
-            if total > start:
-                for key in keys[max(0, start - total):end - total]:
-                    task_data = self._redis.hgetall(key)
-                    task = {
-                        k.decode("utf-8"): self._convert_to_original_type(v) for k, v in task_data.items()
-                    }
-                    tasks.append(task)
-                    if len(tasks) >= page_size:
-                        break
-            if cursor == 0 or len(tasks) >= page_size:
+            for key in keys:
+                task_data = self._redis.hgetall(key)
+                task = {
+                    k.decode("utf-8"): self._convert_to_original_type(v) for k, v in task_data.items()
+                }
+                tasks.append(task)
+            if cursor == 0:
                 break
-        return tasks, total
+        # Sort tasks by sequence_number
+        tasks.sort(key=lambda x: x.get("sequence_number", 0))
+        total = len(tasks)
+        return tasks[start:end], total
 
     def update_task(
         self,
@@ -100,10 +110,24 @@ class RedisState(BaseState):
         if progress > 100:
             progress = 100
 
+        # Check if task already exists
+        existing_task_data = self._redis.hgetall(task_id)
+        is_new_task = not existing_task_data
+        
+        # Get sequence number for new tasks
+        if is_new_task:
+            sequence_number = self._redis.incr(self._sequence_counter_key)
+        else:
+            existing_seq_num = self._redis.hget(task_id, "sequence_number")
+            sequence_number = int(existing_seq_num.decode("utf-8")) if existing_seq_num else self._redis.get(self._sequence_counter_key)
+            if sequence_number is None:
+                sequence_number = 1
+
         fields = {
             "task_id": task_id,
             "state": state,
             "progress": progress,
+            "sequence_number": sequence_number,
             **kwargs,
         }
 

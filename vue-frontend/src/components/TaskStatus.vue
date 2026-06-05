@@ -37,6 +37,10 @@
           <el-collapse-item v-for="task in tasks" :key="task.task_id" :title="getTaskTitle(task)" :name="task.task_id">
             <div class="task-details">
               <div class="task-info">
+                <div class="info-item" v-if="task.sequence_number">
+                  <span class="label">{{ sequenceNumberText }}:</span>
+                  <el-tag type="primary">#{{ task.sequence_number }}</el-tag>
+                </div>
                 <div class="info-item">
                   <span class="label">{{ statusText }}:</span>
                   <transition name="fade" mode="out-in">
@@ -116,6 +120,7 @@ interface Task {
   error?: string;
   created_at?: string;
   updated_at?: string;
+  sequence_number?: number;
 }
 
 interface Props {
@@ -137,6 +142,7 @@ interface Props {
   downloadText?: string;
   deleteText?: string;
   cancelText?: string;
+  sequenceNumberText?: string;
 }
 
 withDefaults(defineProps<Props>(), {
@@ -157,7 +163,8 @@ withDefaults(defineProps<Props>(), {
   errorText: 'Error',
   downloadText: 'Download',
   deleteText: 'Delete',
-  cancelText: 'Cancel'
+  cancelText: 'Cancel',
+  sequenceNumberText: 'Task #'
 });
 
 const emit = defineEmits(['refresh', 'delete', 'cancel']);
@@ -165,7 +172,8 @@ const emit = defineEmits(['refresh', 'delete', 'cancel']);
 const activeNames = ref<string[]>([]);
 
 const getTaskTitle = (task: Task): string => {
-  return `${t('Task')} ${task.task_id} - ${getStatusText(task.status)}`;
+  const taskNumber = task.sequence_number ? `#${task.sequence_number}` : '';
+  return `${t('Task')} ${taskNumber} ${task.task_id} - ${getStatusText(task.status)}`;
 };
 
 const getStatusText = (status: string): string => {
