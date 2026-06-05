@@ -210,8 +210,12 @@ const generateVideo = async () => {
     console.log('[Task Creation] speechRate:', settingsStore.audio.speechRate);
     console.log('[Task Creation] speechVolume:', settingsStore.audio.speechVolume);
     console.log('[Task Creation] backgroundMusic:', settingsStore.audio.backgroundMusic);
+    console.log('[Task Creation] hostVisible:', settingsStore.video.hostVisible);
     
     const titleSettings = settingsStore.video.title;
+    const hostVisibleValue = settingsStore.video.hostVisible;
+    console.log('[Task Creation] hostVisibleValue:', hostVisibleValue, 'type:', typeof hostVisibleValue);
+    
     const taskParams: any = {
       video_subject: videoSubject,
       video_script: videoScript,
@@ -224,6 +228,7 @@ const generateVideo = async () => {
       video_count: settingsStore.video.count,
       video_style: settingsStore.video.style,
       output_bg_color: settingsStore.video.outputBgColor,
+      host_visible: hostVisibleValue !== undefined ? hostVisibleValue : false,
       tts_server: settingsStore.audio.ttsServer || 'azure-tts-v1',
       voice_name: settingsStore.audio.speechSynthesis || 'zh-CN-XiaoxiaoNeural',
       voice_rate: parseFloat(settingsStore.audio.speechRate),

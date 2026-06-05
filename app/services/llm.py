@@ -772,7 +772,8 @@ def generate_multi_scene_script(
     video_content: str,
     language: str = "",
     max_scenes: int = 16,
-    content_type: str = ""
+    content_type: str = "",
+    host_visible: bool = True
 ) -> str:
     """
     Generate multi-scene script for video.
@@ -783,10 +784,14 @@ def generate_multi_scene_script(
         max_scenes: Maximum number of scenes to generate
         content_type: Content type for optimized opening scene generation (optional)
                      Options: "narrative", "informative", "discussive"
+        host_visible: Whether the video host appears on camera. If False, visuals
+                     should focus on objects, graphics, and scenes without showing
+                     the host/presenter.
 
     Returns:
         Multi-scene script in JSON format
     """
+    logger.info(f"[LLM] generate_multi_scene_script called with host_visible={host_visible}")
     # JSON Schema definition for strict output format
     json_schema = """{
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -810,8 +815,9 @@ def generate_multi_scene_script(
   }
 }"""
 
-    # Few-shot examples in different languages
-    few_shot_examples = """# Few-Shot Examples
+    # Few-shot examples in different languages - conditional based on host_visible
+    if host_visible:
+        few_shot_examples = """# Few-Shot Examples
 
 ## Example 1 (Chinese):
 Input: 人工智能正在改变我们的生活方式
@@ -822,6 +828,18 @@ Output:
 Input: The importance of healthy eating habits
 Output:
 {"scenes":[{"title":"Introduction","keywords":"health,diet,nutrition","visual":"Bright modern kitchen, host standing by a counter with fresh fruits and vegetables. Camera: Wide shot pushing in slowly.","script":"Hello everyone! Today let's discuss why healthy eating habits matter so much for our wellbeing.","emotion":"warm,friendly"},{"title":"Balanced Diet","keywords":"proteins,vegetables,fruits","visual":"Close-up of colorful vegetables and fruits arranged on a kitchen counter. Camera: Slow pan across the ingredients.","script":"A balanced diet includes plenty of vegetables, fruits, lean proteins, and whole grains. These provide essential nutrients for our body.","emotion":"informative,clear"},{"title":"Healthy Lifestyle","keywords":"exercise,habit,wellness","visual":"Host in a gym setting with modern equipment. Camera: Medium shot with background blur.","script":"Remember, healthy eating combined with regular exercise creates the foundation for a wellness lifestyle.","emotion":"motivational,inspiring"}]}"""
+    else:
+        few_shot_examples = """# Few-Shot Examples
+
+## Example 1 (Chinese):
+Input: 人工智能正在改变我们的生活方式
+Output:
+{"scenes":[{"title":"开场引入","keywords":"人工智能,生活,改变","visual":"科技感十足的工作室，大屏幕显示智能化家居环境的动态画面。运镜：从广角推进到屏幕显示内容。","script":"各位朋友大家好，今天我们来聊聊人工智能如何改变我们的生活。","emotion":"热情,期待"},{"title":"AI应用场景","keywords":"智能家居,语音助手,自动化","visual":"特写智能音箱设备，灯光柔和闪烁，周围是现代化家居环境。运镜：缓慢平移展示智能家居全貌。","script":"从智能家居到语音助手，从自动驾驶到智能医疗，AI正在渗透到我们生活的方方面面。","emotion":"专业,讲解"},{"title":"未来展望","keywords":"发展趋势,创新,前景","visual":"科技感背景屏幕显示未来城市景象的动画。运镜：拉远镜头展示完整场景。","script":"展望未来，AI将带来更多可能性，让我们一起期待吧！","emotion":"自信,鼓舞"}]}
+
+## Example 2 (English):
+Input: The importance of healthy eating habits
+Output:
+{"scenes":[{"title":"Introduction","keywords":"health,diet,nutrition","visual":"Bright modern kitchen with fresh fruits and vegetables arranged on counter. Camera: Wide shot pushing in slowly.","script":"Hello everyone! Today let's discuss why healthy eating habits matter so much for our wellbeing.","emotion":"warm,friendly"},{"title":"Balanced Diet","keywords":"proteins,vegetables,fruits","visual":"Close-up of colorful vegetables and fruits arranged on a kitchen counter. Camera: Slow pan across the ingredients.","script":"A balanced diet includes plenty of vegetables, fruits, lean proteins, and whole grains. These provide essential nutrients for our body.","emotion":"informative,clear"},{"title":"Healthy Lifestyle","keywords":"exercise,habit,wellness","visual":"Modern gym equipment with motivational graphics displayed on screens. Camera: Medium shot with background blur.","script":"Remember, healthy eating combined with regular exercise creates the foundation for a wellness lifestyle.","emotion":"motivational,inspiring"}]}"""
 
     # Adaptive prompts for different retry attempts
     retry_adaptive_prompts = {
@@ -854,6 +872,7 @@ Your output MUST conform to this JSON Schema:
    - Must use **visual metaphors** (expressing abstract concepts with concrete objects), **dynamic graphics**, or **scene reenactment**.
    - Visual descriptions should be **pure text, concise and standard**, including: subject, environment, action, camera movement (such as close-up, push-in, pull-out).
    - Visual elements must be closely related to the dialogue content and able to enhance the expression of the dialogue.
+   - **Host Visibility**: {host_visibility_instruction}
 4. **Dialogue Optimization**: Rewrite the original text into natural spoken language and mark tone/emotion.
    - Dialogue content should be clear, fluent, and suitable for spoken expression
    - Emotion markers should accurately reflect the emotional tone of the dialogue
@@ -884,8 +903,15 @@ Your output MUST conform to this JSON Schema:
     prompt += """
 """
     prompt = prompt.strip()
+    
+    # Add host visibility instruction
+    if host_visible:
+        host_visibility_instruction = "Host is visible on camera. Include host/presenter in visual descriptions, showing facial expressions and gestures."
+    else:
+        host_visibility_instruction = "Host is NOT visible on camera. Do NOT include any person, host, or presenter in visual descriptions. Focus on objects, scenes, graphics, and text-based visuals only."
+    
     # Replace placeholders
-    prompt = prompt.replace("{json_schema}", json_schema).replace("{few_shot_examples}", few_shot_examples)
+    prompt = prompt.replace("{json_schema}", json_schema).replace("{few_shot_examples}", few_shot_examples).replace("{host_visibility_instruction}", host_visibility_instruction)
 
     # Add language instruction
     if language:
@@ -923,7 +949,10 @@ Your output MUST conform to this JSON Schema:
     if not final_script or "Error: " in final_script:
         # Fallback: generate a simple multi-scene structure in JSON
         logger.warning("using fallback multi-scene script generation")
-        fallback_json = """{"scenes":[{"title":"开场引入","keywords":"introduction,greeting,overview","visual":"主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。运镜：从远到近的推镜头，聚焦到主播面部表情。","script":"各位朋友们，今天我要和大家分享一个重要话题。","emotion":"热情,亲切"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
+        if host_visible:
+            fallback_json = """{"scenes":[{"title":"开场引入","keywords":"introduction,greeting,overview","visual":"主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。运镜：从远到近的推镜头，聚焦到主播面部表情。","script":"各位朋友们，今天我要和大家分享一个重要话题。","emotion":"热情,亲切"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
+        else:
+            fallback_json = """{"scenes":[{"title":"开场引入","keywords":"introduction,greeting,overview","visual":"现代化工作室的全景，大屏幕显示主题内容。运镜：从远到近的推镜头，聚焦到屏幕上的主题文字。","script":"各位朋友们，今天我要和大家分享一个重要话题。","emotion":"热情,亲切"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"屏幕显示总结要点，背景是现代化的办公环境。运镜：拉远镜头，展示完整场景。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
         return fallback_json
     else:
         logger.success(f"completed multi-scene script generation: \n{final_script}")
@@ -1189,7 +1218,8 @@ def convert_to_multi_scene(
     video_script: str,
     video_subject: str = "",
     language: str = None,
-    content_type: str = ""
+    content_type: str = "",
+    host_visible: bool = True
 ) -> str:
     """
     Convert single-scene script to multi-scene format.
@@ -1200,10 +1230,18 @@ def convert_to_multi_scene(
         language: Language for the generated script
         content_type: Content type for optimized opening scene generation (optional)
                      Options: "narrative", "informative", "discussive"
+        host_visible: Whether the video host appears on camera. If False, visuals
+                     should focus on objects, graphics, and scenes without showing
+                     the host/presenter.
     
     Returns:
         Multi-scene script text with visual descriptions, camera movements, and emotion annotations
     """
+    logger.info(f"[LLM] convert_to_multi_scene called with host_visible={host_visible}")
+    
+    # Host visibility instruction
+    host_visibility_instruction = "Host is visible on camera. Include host/presenter in visual descriptions, showing facial expressions and gestures." if host_visible else "Host is NOT visible on camera. Do NOT include any person, host, or presenter in visual descriptions. Focus on objects, scenes, graphics, and text-based visuals only."
+    
     prompt = f"""
 # Role
 You are a senior video director and storyboard designer with 10 years of experience. You excel at transforming various types of text content (whether it's informative articles, stories, or marketing copy) into visually impactful and logically coherent storyboard scripts.
@@ -1222,6 +1260,7 @@ Please read the user-provided [Original Text] and adapt it into a standardized *
     - Must use **visual metaphors** (expressing abstract concepts with concrete objects), **dynamic graphics**, or **scene reenactment**.
     - Visual descriptions should be **pure text, concise and standard**, including: subject, environment, action, camera movement (such as close-up, push-in, pull-out).
     - Visual elements must be closely related to the dialogue content and able to enhance the expression of the dialogue.
+    - **Host Visibility**: {host_visibility_instruction}
     - **Format Requirements**: Use clear, straightforward language without special formatting or markers.
 4. **Dialogue Optimization**: Rewrite the original text into natural spoken language and mark tone/emotion.
    - Dialogue content should be clear, fluent, and suitable for spoken expression
@@ -1295,13 +1334,18 @@ Please read the user-provided [Original Text] and adapt it into a standardized *
         
         # Fallback: create a simple multi-scene structure from original script
         logger.warning("using fallback script conversion")
+        
+        # Host visibility for fallback
+        host_visual_1 = "主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。\n    - 运镜：从远到近的推镜头，聚焦到主播面部表情。" if host_visible else "现代化工作室的全景，大屏幕显示主题内容。\n    - 运镜：从远到近的推镜头，聚焦到屏幕上的主题文字。"
+        host_visual_3 = "回到主播画面，主播面带微笑，背景屏幕显示总结要点。\n    - 运镜：拉远镜头，展示完整的工作室环境。" if host_visible else "屏幕显示总结要点，背景是现代化的办公环境。\n    - 运镜：拉远镜头，展示完整场景。"
+        
         # Split the script into 3 parts
         script_lines = video_script.split('\n')
         total_lines = len(script_lines)
         
         if total_lines <= 1:
             # Very short script, create minimal structure
-            fallback_script = f"###  场景 1：开场引入\n- **Visual (画面视觉)**：\n    - 主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。\n    - 运镜：从远到近的推镜头，聚焦到主播面部表情。\n- **Audio (口播文案)**：\n    - ([热情、亲切]) {video_script}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {video_script}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - 回到主播画面，主播面带微笑，背景屏幕显示总结要点。\n    - 运镜：拉远镜头，展示完整的工作室环境。\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {video_script}"
+            fallback_script = f"###  场景 1：开场引入\n- **Visual (画面视觉)**：\n    - {host_visual_1}\n- **Audio (口播文案)**：\n    - ([热情、亲切]) {video_script}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {video_script}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - {host_visual_3}\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {video_script}"
         else:
             # Split into 3 roughly equal parts
             part1_end = total_lines // 3
@@ -1311,12 +1355,117 @@ Please read the user-provided [Original Text] and adapt it into a standardized *
             part2 = '\n'.join(script_lines[part1_end:part2_end])
             part3 = '\n'.join(script_lines[part2_end:])
             
-            fallback_script = f"###  场景 1：开场引入\n- **Visual (画面视觉)**：\n    - 主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。\n    - 运镜：从远到近的推镜头，聚焦到主播面部表情。\n- **Audio (口播文案)**：\n    - ([热情、亲切]) {part1}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {part2}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - 回到主播画面，主播面带微笑，背景屏幕显示总结要点。\n    - 运镜：拉远镜头，展示完整的工作室环境。\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {part3}"
+            fallback_script = f"###  场景 1：开场引入\n- **Visual (画面视觉)**：\n    - {host_visual_1}\n- **Audio (口播文案)**：\n    - ([热情、亲切]) {part1}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {part2}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - {host_visual_3}\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {part3}"
         return fallback_script
     else:
         logger.success(f"completed script conversion: \n{final_script}")
     
     return final_script.strip()
+
+
+def update_scenes_visuals(
+    scenes: List[dict],
+    host_visible: bool = True,
+    language: str = "zh"
+) -> List[dict]:
+    """
+    Update existing scenes' visual descriptions based on host_visible setting.
+    If host_visible is False, ensure visuals don't include host/person.
+    If host_visible is True, add appropriate host visuals.
+
+    Args:
+        scenes: List of existing scene dictionaries
+        host_visible: Whether the video host appears on camera
+        language: Language for the visual descriptions
+
+    Returns:
+        List of updated scene dictionaries with revised visuals
+    """
+    logger.info(f"Updating scenes based on host_visible: {host_visible}")
+
+    # Host visibility instruction for prompt
+    host_visibility_instruction = (
+        "Host is visible on camera. Include host/presenter in visual descriptions, showing facial expressions and gestures."
+        if host_visible
+        else "Host is NOT visible on camera. Do NOT include any person, host, or presenter in visual descriptions. Focus on objects, scenes, graphics, and text-based visuals only."
+    )
+
+    # Convert scenes to JSON for LLM processing
+    scenes_json = json.dumps(scenes, ensure_ascii=False)
+
+    prompt = f"""
+# Role: Scene Visual Updater
+You are a senior video director and storyboard designer.
+
+# Goal
+Update the visual descriptions (camera/visual field) of provided scenes based on the host visibility requirement.
+
+# Host Visibility Requirement
+{host_visibility_instruction}
+
+# Constraints
+1. Keep all scene titles, scripts, keywords, and emotions unchanged
+2. Only update the visual/camera descriptions
+3. Maintain the same number of scenes
+4. Visual descriptions should be:
+   - Clear and concise
+   - Include subject, environment, action, and camera movement
+   - Closely related to the scene's content
+5. Return ONLY the updated scenes in valid JSON format, nothing else
+
+# Original Scenes (JSON):
+{scenes_json}
+
+Please update the visual/camera descriptions according to the host visibility requirement and return the scenes JSON in the same structure.
+""".strip()
+
+    updated_scenes = None
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt=prompt)
+            if response:
+                # Try to parse the response
+                updated_scenes = parse_multi_scene_script(response)
+                if updated_scenes and len(updated_scenes) > 0:
+                    logger.success(f"Successfully updated {len(updated_scenes)} scenes visuals")
+                    break
+        except Exception as e:
+            logger.error(f"Failed to update scenes visuals: {e}")
+
+        if i < _max_retries - 1:
+            logger.warning(f"Failed to update scenes visuals, trying again... {i + 1}")
+
+    # If we couldn't update via LLM, try simple keyword replacement
+    if not updated_scenes or len(updated_scenes) != len(scenes):
+        logger.warning("Falling back to simple keyword replacement for scene visuals")
+        updated_scenes = []
+        for scene in scenes:
+            updated_scene = scene.copy()
+            visual = scene.get('visual', scene.get('camera', ''))
+
+            if not host_visible:
+                # Remove host/person keywords from visual
+                keywords_to_remove = ['主持人', '主播', 'host', 'presenter', 'person', '人物', '他', '她', 'them']
+                for keyword in keywords_to_remove:
+                    visual = visual.replace(keyword, '')
+
+                # Replace host-specific visuals with object/scene-focused alternatives
+                replacements = {
+                    '主持人站在': '展示',
+                    '主播': '屏幕',
+                    'host standing': 'displaying',
+                    'presenter': 'graphics',
+                }
+                for old, new in replacements.items():
+                    if old in visual:
+                        visual = visual.replace(old, new)
+
+            updated_scene['visual'] = visual.strip()
+            if 'camera' in updated_scene:
+                updated_scene['camera'] = visual.strip()
+            updated_scenes.append(updated_scene)
+
+    return updated_scenes
 
 
 def generate_scene_terms(

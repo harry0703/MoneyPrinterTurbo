@@ -166,17 +166,18 @@
         
         <el-form :model="form" label-width="150px">
           <el-form-item :label="t('Silence Prefix')">
-            <div class="slider-control">
-              <el-slider
-                v-model="form.silenceDuration"
-                :min="0.0"
-                :max="5.0"
-                :step="0.1"
-                :show-input="true"
-                :input-size="'small'"
-              />
-              <span class="slider-value">{{ form.silenceDuration.toFixed(1) }}s</span>
-            </div>
+            <el-slider
+              v-model="form.silenceDuration"
+              :min="0.0"
+              :max="5.0"
+              :step="0.1"
+              :show-input="true"
+              :input-size="'small'"
+            />
+          </el-form-item>
+          
+          <el-form-item :label="t('Host Visible')">
+            <el-switch v-model="form.hostVisible" :active-text="t('Visible')" :inactive-text="t('Hidden')" />
           </el-form-item>
         </el-form>
       </el-card>
@@ -243,6 +244,9 @@ const loadSettingsToForm = () => {
   
   // Load Silence Prefix configuration
   form.silenceDuration = settingsStore.video.silenceDuration;
+  
+  // Load Host Visible configuration
+  form.hostVisible = settingsStore.video.hostVisible;
 };
 
 const form = reactive({
@@ -256,7 +260,8 @@ const form = reactive({
   pixabayApiKeys: [''],
   whisperDevice: 'CPU',
   videoEncoder: 'CPU',
-  silenceDuration: 0.3
+  silenceDuration: 0.3,
+  hostVisible: true
 });
 
 // API Key management methods
@@ -426,6 +431,9 @@ const saveSettings = async () => {
     
     // Save Silence Prefix configuration
     settingsStore.updateVideoSetting('silenceDuration', form.silenceDuration);
+    
+    // Save Host Visible configuration
+    settingsStore.updateVideoSetting('hostVisible', form.hostVisible);
 
     // Build app config based on LLM provider
     const appConfig: Record<string, any> = {
@@ -433,7 +441,8 @@ const saveSettings = async () => {
       use_gpu: form.videoEncoder === 'GPU',
       pexels_api_keys: pexelsKeys,
       pixabay_api_keys: pixabayKeys,
-      silence_duration: form.silenceDuration
+      silence_duration: form.silenceDuration,
+      host_visible: form.hostVisible
     };
 
     // Add LLM specific configs based on provider

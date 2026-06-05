@@ -54,10 +54,11 @@ def generate_video_terms(request: Request, body: VideoTermsRequest):
 def parse_video_script(request: Request, body: dict = Body(...)):
     video_script = body.get("video_script")
     language = body.get("language")
+    host_visible = body.get("host_visible", True)
     
     if not video_script:
         return utils.get_response(400, {"error": "Video script is required"})
     
-    result = scene_parser.auto_parse_script(video_script, language=language)
+    result = scene_parser.auto_parse_script(video_script, language=language, host_visible=host_visible)
     logger.info(f"Parse script result: status={result['status']}, scenes_count={len(result.get('scenes', []))}")
     return utils.get_response(200, result)

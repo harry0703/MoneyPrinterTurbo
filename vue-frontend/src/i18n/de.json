@@ -153,7 +153,6 @@
     "Speed: Range [0.25, 4.0], default is 1.0": "Geschwindigkeit: Bereich [0.25, 4.0], Standardwert ist 1.0",
     "Volume: Uses Speech Volume setting, default 1.0 maps to gain 0": "Lautstärke: Verwendet die Sprachlautstärke-Einstellung, Standardwert 1.0 entspricht Verstärkung 0",
     "Hide Log": "Protokoll ausblenden",
-    "Hide Basic Settings": "Basis-Einstellungen ausblenden\n\nWenn diese Option deaktiviert ist, wird die Basis-Einstellungen-Leiste nicht auf der Seite angezeigt.\n\nWenn Sie sie erneut anzeigen möchten, setzen Sie `hide_config = false` in `config.toml`",
     "LLM Settings": "<strong>LLM-Einstellungen</strong>",
     "Video Source Settings": "<strong>Videoquellen-Einstellungen</strong>",
     "Click to show API Key management": "Klicken Sie hier, um die API-Schlüsselverwaltung anzuzeigen",

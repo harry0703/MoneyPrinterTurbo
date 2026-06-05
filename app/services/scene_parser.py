@@ -874,13 +874,16 @@ def evaluate_scenes(scenes: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, Any]]:
+def parse_script_with_llm(script: str, language: str = None, host_visible: bool = True) -> List[Dict[str, Any]]:
     """
     Parse script using LLM to divide it into scenes.
     
     Args:
         script: Script text to parse
         language: Language for the generated content
+        host_visible: Whether the video host appears on camera. If False, visuals
+                     should focus on objects, graphics, and scenes without showing
+                     the host/presenter.
     
     Returns:
         Dict with keys:
@@ -907,7 +910,7 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     # This is important for proper language comparisons in scene generation
     language = normalize_language(language)
     
-    logger.info(f"Starting to parse script with LLM, script length: {len(script)}, language: {language}")
+    logger.info(f"Starting to parse script with LLM, script length: {len(script)}, language: {language}, host_visible: {host_visible}")
     
     # Generate an attractive and surprising video title first
     video_title = generate_video_title(script, language=language)
@@ -915,7 +918,7 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     
     # Generate multi-scene script using LLM
     # Use script as both subject and script since we want to process the entire script
-    multi_scene_script = llm_service.generate_multi_scene_script(video_content=script, language=language)
+    multi_scene_script = llm_service.generate_multi_scene_script(video_content=script, language=language, host_visible=host_visible)
     logger.info(f"Generated multi-scene script: {multi_scene_script[:500]}...")
     
     # Parse the generated multi-scene script
@@ -1145,7 +1148,7 @@ def parse_script_with_llm(script: str, language: str = None) -> List[Dict[str, A
     }
 
 
-def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True, language: str = None) -> Dict[str, Any]:
+def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True, language: str = None, host_visible: bool = True) -> Dict[str, Any]:
     """
     Automatically parse script with retry mechanism.
     
@@ -1154,6 +1157,9 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
         max_retries: Maximum number of retry attempts for LLM parsing
         auto_mode: If True, auto-accept high scores and auto-retry low scores
         language: Language for the generated content
+        host_visible: Whether the video host appears on camera. If False, visuals
+                     should focus on objects, graphics, and scenes without showing
+                     the host/presenter.
     
     Returns:
         Dict with keys:
@@ -1171,7 +1177,7 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
     
     # Step 1: Always use LLM to parse script for multi-scene construction
     # regardless of whether it's already divided
-    logger.info("Using LLM to parse script for multi-scene construction")
+    logger.info(f"Using LLM to parse script for multi-scene construction, host_visible: {host_visible}")
     
     scenes = []
     video_title = ""
@@ -1179,7 +1185,7 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
     # Step 2: Parse with LLM
     for attempt in range(max_retries):
         try:
-            result = parse_script_with_llm(script, language=language)
+            result = parse_script_with_llm(script, language=language, host_visible=host_visible)
             
             if result and "scenes" in result and len(result["scenes"]) > 0:
                 scenes = result["scenes"]

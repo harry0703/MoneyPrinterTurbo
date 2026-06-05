@@ -54,7 +54,7 @@ def __init_logger():
         _format = (
             "<green>{time:%Y-%m-%d %H:%M:%S}</> | "
             + "<level>{level}</> | "
-            + '"{file.path}:{line}":<blue> {function}</> '
+            + '"{file.path}:{line}" '
             + "- <level>{message}</>"
             + "\n"
         )
