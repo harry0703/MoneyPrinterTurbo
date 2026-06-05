@@ -277,6 +277,18 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("returned empty text content", result)
         self.assertNotIn("NoneType", result)
 
+    def test_qwen_provider_reports_empty_choices(self):
+        """Qwen chat 响应 choices 为空时应返回明确错误。"""
+        self._use_qwen_provider()
+        response = {"output": {"text": None, "choices": []}}
+
+        with self._patch_dashscope_generation(response):
+            result = llm._generate_response("Say hello")
+
+        self.assertIn("Error:", result)
+        self.assertIn("returned empty choices", result)
+        self.assertNotIn("NoneType", result)
+
     def test_aihubmix_provider_uses_openai_compatible_client(self):
         """
         AIHubMix 是 OpenAI-compatible 网关。这里用 fake OpenAI client
