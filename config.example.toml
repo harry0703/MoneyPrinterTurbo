@@ -122,6 +122,14 @@ grok_api_key = ""
 grok_model_name = "grok-4.3"
 grok_base_url = "https://api.x.ai/v1"
 
+########## Groq API Key
+# Visit https://console.groq.com/keys to get your api keys
+# API documentation: https://console.groq.com/docs/api-reference
+# Available models: https://console.groq.com/docs/api-reference#models-list
+groq_api_key = ""
+groq_model_name = "llama-3.3-70b-versatile"
+groq_base_url = "https://api.groq.com/openai/v1"
+
 ########## Qwen API Key
 # Visit https://dashscope.console.aliyun.com/apiKey to get your API key
 # Visit below links to get more details

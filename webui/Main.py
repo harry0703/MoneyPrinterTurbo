@@ -3,6 +3,7 @@ import sys
 import webbrowser
 from uuid import UUID, uuid4
 
+import requests
 import streamlit as st
 from loguru import logger
 
@@ -217,6 +218,35 @@ def tr(key):
     loc = locales.get(st.session_state["ui_language"], {})
     return loc.get("Translation", {}).get(key, key)
 
+@st.cache_data(ttl=300, show_spinner=False)
+def get_groq_model_ids(api_key: str, base_url: str) -> list[str]:
+    if not api_key:
+        return []
+
+    normalized_base_url = (base_url or "https://api.groq.com/openai/v1").strip().rstrip("/")
+    models_url = f"{normalized_base_url}/models"
+
+    try:
+        response = requests.get(
+            models_url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("data", [])
+
+        model_ids = []
+        for item in data:
+            if isinstance(item, dict):
+                model_id = item.get("id")
+                if isinstance(model_id, str) and model_id.strip():
+                    model_ids.append(model_id.strip())
+
+        return sorted(set(model_ids))
+    except Exception as e:
+        logger.warning(f"failed to fetch groq models: {e}")
+        return []
 
 # 创建基础设置折叠框
 if not config.app.get("hide_config", False):
@@ -261,6 +291,7 @@ if not config.app.get("hide_config", False):
                 ("ModelScope", "modelscope"),
                 ("Gemini", "gemini"),
                 ("Grok", "grok"),
+                ("Groq", "groq"),
                 ("Ollama", "ollama"),
                 ("G4f", "g4f"),
                 ("OneAPI", "oneapi"),
@@ -432,6 +463,20 @@ if not config.app.get("hide_config", False):
                             - **Model Name**: 比如 grok-4.3
                             """
 
+            if llm_provider == "groq":
+                if not llm_model_name:
+                    llm_model_name = "llama-3.3-70b-versatile"
+                if not llm_base_url:
+                    llm_base_url = "https://api.groq.com/openai/v1"
+
+                with llm_helper:
+                    tips = """
+                            ##### Groq 配置说明
+                            - **API Key**: [点击到官网申请](https://console.groq.com/keys)
+                            - **Base Url**: 固定为 https://api.groq.com/openai/v1
+                            - **Model Name**: 比如 llama-3.3-70b-versatile
+                            """
+
             if llm_provider == "deepseek":
                 if not llm_model_name:
                     llm_model_name = "deepseek-chat"
@@ -518,11 +563,45 @@ if not config.app.get("hide_config", False):
             st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
             st_llm_model_name = ""
             if llm_provider != "ernie":
-                st_llm_model_name = st.text_input(
-                    tr("Model Name"),
-                    value=llm_model_name,
-                    key=f"{llm_provider}_model_name_input",
-                )
+                if llm_provider == "groq":
+                    effective_api_key = st_llm_api_key or llm_api_key
+                    effective_base_url = st_llm_base_url or llm_base_url
+                    groq_models = get_groq_model_ids(
+                        api_key=effective_api_key,
+                        base_url=effective_base_url,
+                    )
+
+                    if groq_models:
+                        selected_index = 0
+                        if llm_model_name in groq_models:
+                            selected_index = groq_models.index(llm_model_name)
+
+                        st_llm_model_name = st.selectbox(
+                            tr("Model Name"),
+                            options=groq_models,
+                            index=selected_index,
+                            key="groq_model_name_select",
+                        )
+                    else:
+                        st_llm_model_name = st.text_input(
+                            tr("Model Name"),
+                            value=llm_model_name,
+                            key="groq_model_name_input",
+                        )
+                        if effective_api_key:
+                            st.caption(
+                                "Unable to load Groq model list right now. You can still enter a model name manually."
+                            )
+                        else:
+                            st.caption(
+                                "Add a Groq API key to load available models automatically."
+                            )
+                else:
+                    st_llm_model_name = st.text_input(
+                        tr("Model Name"),
+                        value=llm_model_name,
+                        key=f"{llm_provider}_model_name_input",
+                    )
                 if st_llm_model_name:
                     config.app[f"{llm_provider}_model_name"] = st_llm_model_name
             else:
