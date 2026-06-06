@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, List, Optional, Union
 
 import pydantic
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import config
 
@@ -100,12 +100,15 @@ class VideoParams(BaseModel):
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
+    rounded_subtitle_background: bool = False
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
     n_threads: Optional[int] = 2
-    paragraph_number: Optional[int] = 1
+    paragraph_number: int = Field(default=1, ge=1, le=10)
+    video_script_prompt: str = Field(default="", max_length=2000)
+    custom_system_prompt: str = Field(default="", max_length=8000)
 
 
 class SubtitleRequest(BaseModel):
@@ -121,6 +124,7 @@ class SubtitleRequest(BaseModel):
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
+    rounded_subtitle_background: bool = False
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
@@ -145,13 +149,17 @@ class VideoScriptParams:
     {
       "video_subject": "春天的花海",
       "video_language": "",
-      "paragraph_number": 1
+      "paragraph_number": 1,
+      "video_script_prompt": "",
+      "custom_system_prompt": ""
     }
     """
 
     video_subject: Optional[str] = "春天的花海"
     video_language: Optional[str] = ""
-    paragraph_number: Optional[int] = 1
+    paragraph_number: int = Field(default=1, ge=1, le=10)
+    video_script_prompt: str = Field(default="", max_length=2000)
+    custom_system_prompt: str = Field(default="", max_length=8000)
 
 
 class VideoTermsParams:
@@ -168,6 +176,22 @@ class VideoTermsParams:
         "春天的花海，如诗如画般展现在眼前。万物复苏的季节里，大地披上了一袭绚丽多彩的盛装。金黄的迎春、粉嫩的樱花、洁白的梨花、艳丽的郁金香……"
     )
     amount: Optional[int] = 5
+
+
+class VideoSocialMetadataParams:
+    """
+    {
+      "video_subject": "A day in Shanghai",
+      "video_script": "",
+      "language": "auto",
+      "platform": "tiktok"
+    }
+    """
+
+    video_subject: Optional[str] = Field(default="A day in Shanghai", max_length=500)
+    video_script: Optional[str] = Field(default="", max_length=8000)
+    language: Optional[str] = Field(default="auto", max_length=64)
+    platform: Optional[str] = Field(default="tiktok", max_length=64)
 
 
 class BaseResponse(BaseModel):
@@ -189,6 +213,10 @@ class VideoScriptRequest(VideoScriptParams, BaseModel):
 
 
 class VideoTermsRequest(VideoTermsParams, BaseModel):
+    pass
+
+
+class VideoSocialMetadataRequest(VideoSocialMetadataParams, BaseModel):
     pass
 
 
@@ -272,6 +300,21 @@ class VideoTermsResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {"video_terms": ["sky", "tree"]},
+            },
+        }
+
+
+class VideoSocialMetadataResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "title": "A Day in Shanghai You Should Not Miss",
+                    "caption": "Save this quick Shanghai inspiration and follow for more short travel ideas.",
+                    "hashtags": ["#shorts", "#travel", "#shanghai", "#viral", "#fyp"],
+                },
             },
         }
 

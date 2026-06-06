@@ -1,6 +1,9 @@
 import json
 import locale
 import os
+import re
+import shutil
+from functools import lru_cache
 from pathlib import Path
 import threading
 from typing import Any
@@ -119,6 +122,42 @@ def public_dir(sub_dir: str = ""):
     return d
 
 
+def get_ffmpeg_binary() -> str:
+    """
+    解析当前进程应该使用的 FFmpeg 可执行文件。
+
+    增加原因：
+    1. 视频编码、静音音频生成、pydub 音频转码都依赖 FFmpeg；
+    2. Windows 便携包、Docker 和用户自定义安装目录经常出现 PATH 不一致；
+    3. 集中解析可以让所有调用方使用同一套优先级，减少某条链路能跑、
+       另一条链路找不到 FFmpeg 的现场问题。
+
+    优先级：
+    1. IMAGEIO_FFMPEG_EXE：MoviePy/imageio 约定的显式配置；
+    2. 系统 PATH 中的 ffmpeg；
+    3. imageio-ffmpeg 依赖提供的内置二进制；
+    4. 字符串 "ffmpeg" 兜底，交给 subprocess 在运行时暴露更具体错误。
+    """
+    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
+    if configured_ffmpeg:
+        return configured_ffmpeg
+
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+
+    try:
+        import imageio_ffmpeg
+
+        bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        if bundled_ffmpeg:
+            return bundled_ffmpeg
+    except Exception as exc:
+        logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
+
+    return "ffmpeg"
+
+
 def run_in_background(func, *args, **kwargs):
     def run():
         try:
@@ -204,6 +243,39 @@ def split_string_by_punctuations(s):
     return result
 
 
+def normalize_script_for_subtitle_matching(video_script: str) -> str:
+    """
+    清理字幕匹配前的脚本文本。
+
+    用户可能手动输入 Markdown 分隔符、标题强调或 `_` 这类格式符号。
+    这些字符通常不会出现在 TTS/Whisper 的识别结果里；如果继续参与
+    字幕逐行匹配，脚本行数量会大于真实字幕行数量，最终可能补出
+    `00:00:00,000 --> 00:00:00,000`，导致剪辑软件无法导入 SRT。
+    """
+    video_script = video_script or ""
+    underscore_count = video_script.count("_")
+    video_script = video_script.replace("_", "")
+    cleaned_lines = []
+    removed_separator_lines = 0
+    for line in video_script.splitlines():
+        line = line.strip()
+        # Markdown 分隔符或强调符号单独成行时不会被 TTS 朗读，必须从
+        # 脚本行里移除，避免字幕聚合卡在这类“不可发声”的目标行上。
+        if re.fullmatch(r"[-*_]{3,}", line):
+            removed_separator_lines += 1
+            continue
+        cleaned_lines.append(line)
+
+    normalized_script = "\n".join(cleaned_lines).strip()
+    if underscore_count or removed_separator_lines:
+        logger.debug(
+            "normalized script for subtitle matching, "
+            f"removed underscores: {underscore_count}, "
+            f"removed markdown separator lines: {removed_separator_lines}"
+        )
+    return normalized_script
+
+
 def md5(text):
     import hashlib
 
@@ -221,7 +293,10 @@ def get_system_locale():
         return "en"
 
 
+@lru_cache(maxsize=None)
 def load_locales(i18n_dir):
+    # WebUI 每次交互都会触发 Streamlit 重新执行脚本，语言文件运行期不会变化，
+    # 因此缓存解析结果，避免反复读取和解析所有 i18n JSON 文件。
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:

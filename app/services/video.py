@@ -7,8 +7,10 @@ import gc
 import shutil
 import subprocess
 from contextlib import redirect_stdout
+from functools import lru_cache
 from typing import List
 from loguru import logger
+import numpy as np
 from moviepy import (
     AudioFileClip,
     ColorClip,
@@ -20,8 +22,9 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
+from app.config import config
 from app.models import const
 from app.models.schema import (
     MaterialInfo,
@@ -34,12 +37,22 @@ from app.services.utils import video_effects
 from app.utils import file_security, utils
 
 class SubClippedVideoClip:
-    def __init__(self, file_path, start_time=None, end_time=None, width=None, height=None, duration=None):
+    def __init__(
+        self,
+        file_path,
+        start_time=None,
+        end_time=None,
+        width=None,
+        height=None,
+        duration=None,
+        source_file_path=None,
+    ):
         self.file_path = file_path
         self.start_time = start_time
         self.end_time = end_time
         self.width = width
         self.height = height
+        self.source_file_path = source_file_path or file_path
         if duration is None:
             self.duration = end_time - start_time
         else:
@@ -53,37 +66,216 @@ audio_codec = "aac"
 # Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
 # 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
 audio_bitrate = "192k"
-video_codec = "libx264"
 fps = 30
 _BGM_EXTENSIONS = (".mp3",)
+_DEFAULT_VIDEO_CODEC = "libx264"
+_SUPPORTED_VIDEO_CODECS = (
+    "libx264",
+    "h264_nvenc",
+    "h264_amf",
+    "h264_qsv",
+    "h264_mf",
+    "h264_videotoolbox",
+)
+_runtime_disabled_video_codecs = set()
+
+
+def _prioritize_unique_source_clips(
+    subclipped_items: List[SubClippedVideoClip],
+    concat_mode: VideoConcatMode,
+) -> List[SubClippedVideoClip]:
+    """
+    优先让每个源素材只出现一次，降低成片里同一素材反复出现的概率。
+
+    线上素材经常会遇到“一个长视频被切成多个短片段”的情况。旧逻辑在
+    random 模式下直接打乱所有短片段，导致同一个源视频的多个切片可能
+    分布在开头和中间，用户会感知为素材重复。本函数只调整片段顺序：
+    先放每个源文件里最长的一个片段，剩余片段作为兜底；当素材总时长不足时，
+    仍然允许后续片段补齐音频长度，避免破坏视频生成成功率。优先选择最长
+    片段是为了避免随机选中视频尾部的零碎短片段，导致明明有足够素材却过早复用。
+    """
+    if not subclipped_items:
+        return []
+
+    concat_mode_value = getattr(concat_mode, "value", concat_mode)
+    if concat_mode_value != VideoConcatMode.random.value:
+        return subclipped_items
+
+    grouped_items: dict[str, list[SubClippedVideoClip]] = {}
+    for item in subclipped_items:
+        grouped_items.setdefault(item.source_file_path, []).append(item)
+
+    primary_items = []
+    overflow_items = []
+    for items in grouped_items.values():
+        primary_item = max(items, key=lambda item: item.duration)
+        primary_items.append(primary_item)
+        overflow_items.extend(item for item in items if item is not primary_item)
+
+    random.shuffle(primary_items)
+    random.shuffle(overflow_items)
+    logger.info(
+        "prioritized unique video materials, "
+        f"sources: {len(grouped_items)}, "
+        f"primary clips: {len(primary_items)}, "
+        f"fallback clips: {len(overflow_items)}"
+    )
+    return primary_items + overflow_items
 
 
 def get_ffmpeg_binary():
-    # 优先复用用户在 config.toml / 环境变量里显式指定的 ffmpeg，可避免
-    # Windows 便携包、Docker、自定义安装目录等场景下 PATH 不一致。
-    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
-    if configured_ffmpeg:
-        return configured_ffmpeg
+    """
+    兼容历史上直接从 video 服务读取 FFmpeg 路径的调用方。
 
-    system_ffmpeg = shutil.which("ffmpeg")
-    if system_ffmpeg:
-        return system_ffmpeg
+    真正的解析逻辑已经抽到 `app.utils.utils.get_ffmpeg_binary()`，视频、语音
+    和后续新增链路都应复用同一套优先级；这里保留薄包装，避免外部脚本或
+    旧测试直接导入 `app.services.video.get_ffmpeg_binary` 时出现 AttributeError。
+    """
+    return utils.get_ffmpeg_binary()
 
+
+def _get_configured_video_codec() -> str:
+    """
+    读取用户配置的视频编码器。
+
+    该配置面向高级用户，用于尝试启用 NVENC/AMF/QSV/VideoToolbox 等硬件
+    编码。这里刻意只允许固定白名单，避免开放任意 FFmpeg 参数后，用户填错
+    参数导致输出格式不可控，甚至让生成任务在后续阶段才失败。
+    """
+    configured_codec = str(
+        config.app.get("video_codec", _DEFAULT_VIDEO_CODEC) or _DEFAULT_VIDEO_CODEC
+    ).strip()
+    if configured_codec not in _SUPPORTED_VIDEO_CODECS:
+        logger.warning(
+            f"unsupported video codec configured: {configured_codec}, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+    return configured_codec
+
+
+@lru_cache(maxsize=16)
+def _ffmpeg_encoder_exists(ffmpeg_binary: str, codec: str) -> bool:
+    """
+    检查当前 FFmpeg 是否声明支持指定编码器。
+
+    这只能证明 FFmpeg 编译时包含该 encoder，不能证明当前机器硬件和驱动
+    一定可用。因此实际编码失败时仍会再回退到 libx264。
+    """
     try:
-        import imageio_ffmpeg
+        result = subprocess.run(
+            [ffmpeg_binary, "-hide_banner", "-encoders"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.warning(
+            "failed to inspect ffmpeg encoders, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}: {str(exc)}"
+        )
+        return False
 
-        bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        if bundled_ffmpeg:
-            return bundled_ffmpeg
+    if result.returncode != 0:
+        logger.warning(
+            "failed to inspect ffmpeg encoders, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}: {(result.stderr or result.stdout or '').strip()}"
+        )
+        return False
+    return codec in result.stdout
+
+
+def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
+    """
+    返回本次实际使用的视频编码器。
+
+    用户选择硬件编码器时，先做 FFmpeg encoder 列表检测；如果本进程里已经
+    实际编码失败过，也直接回退，避免一个任务里每个片段都重复失败。
+    """
+    selected_codec = preferred_codec or _get_configured_video_codec()
+    if selected_codec == _DEFAULT_VIDEO_CODEC:
+        return _DEFAULT_VIDEO_CODEC
+
+    if selected_codec in _runtime_disabled_video_codecs:
+        logger.warning(
+            f"video codec {selected_codec} was disabled after a runtime failure, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+
+    ffmpeg_binary = utils.get_ffmpeg_binary()
+    if not _ffmpeg_encoder_exists(ffmpeg_binary, selected_codec):
+        logger.warning(
+            f"ffmpeg encoder {selected_codec} is not available, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+
+    return selected_codec
+
+
+def _disable_runtime_video_codec(codec: str, reason: str):
+    if codec == _DEFAULT_VIDEO_CODEC:
+        return
+    _runtime_disabled_video_codecs.add(codec)
+    logger.warning(
+        f"video codec {codec} failed, fallback to {_DEFAULT_VIDEO_CODEC}. "
+        f"reason: {reason}"
+    )
+
+
+def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason: str, **kwargs):
+    """
+    硬件编码失败后用 libx264 重试，只有重试成功才禁用该硬件编码器。
+
+    Windows 上 FFmpeg 失败原因比较复杂：可能是显卡/驱动不支持，也可能是输出
+    文件被占用、目录权限、杀软拦截等通用 IO 问题。只有 libx264 能成功写出时，
+    才能判断原始失败大概率来自硬件编码器本身，避免误伤后续任务。
+    """
+    clip.write_videofile(output_file, codec=_DEFAULT_VIDEO_CODEC, **kwargs)
+    _disable_runtime_video_codec(failed_codec, reason)
+    return _DEFAULT_VIDEO_CODEC
+
+
+def _write_videofile_with_codec_fallback(clip, output_file: str, codec: str, **kwargs):
+    """
+    使用指定编码器写出视频，失败时自动用 libx264 重试一次。
+
+    硬件编码器是否可用不仅取决于 FFmpeg，还取决于显卡、驱动和当前运行环境。
+    生成任务不能因为高级编码器不可用而整体失败，所以这里把回退集中处理。
+    """
+    effective_codec = _get_effective_video_codec(codec)
+    try:
+        clip.write_videofile(output_file, codec=effective_codec, **kwargs)
+        return effective_codec
     except Exception as exc:
-        logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
-
-    return "ffmpeg"
+        if effective_codec == _DEFAULT_VIDEO_CODEC:
+            raise
+        return _fallback_write_videofile(
+            clip,
+            output_file,
+            failed_codec=effective_codec,
+            reason=str(exc),
+            **kwargs,
+        )
 
 
 def _escape_ffmpeg_concat_path(file_path: str) -> str:
     # concat demuxer 使用单引号包裹路径，路径中的单引号需要先转义。
     return file_path.replace("'", "'\\''")
+
+
+def _format_ffmpeg_concat_path(file_path: str) -> str:
+    """
+    生成 concat demuxer 文件列表中的路径。
+
+    FFmpeg 官方文档要求 concat list 中的特殊字符和空格需要转义；Windows
+    绝对路径里的反斜杠也容易被解析成转义字符。这里统一转成正斜杠形式，
+    让 `C:\\Users\\...` 变成 `C:/Users/...`，再处理单引号，兼容 macOS/Linux。
+    """
+    absolute_path = os.path.abspath(file_path)
+    return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
 
 
 def concat_video_clips_with_ffmpeg(
@@ -92,28 +284,29 @@ def concat_video_clips_with_ffmpeg(
     concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
     with open(concat_list_file, "w", encoding="utf-8") as fp:
         for clip_file in clip_files:
-            absolute_path = os.path.abspath(clip_file)
-            fp.write(f"file '{_escape_ffmpeg_concat_path(absolute_path)}'\n")
+            fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
 
-    command = [
-        get_ffmpeg_binary(),
-        "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        concat_list_file,
-        "-c:v",
-        video_codec,
-        "-threads",
-        str(threads or 2),
-        "-pix_fmt",
-        "yuv420p",
-        output_file,
-    ]
+    def build_command(codec: str) -> list[str]:
+        return [
+            utils.get_ffmpeg_binary(),
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            concat_list_file,
+            "-c:v",
+            codec,
+            "-threads",
+            str(threads or 2),
+            "-pix_fmt",
+            "yuv420p",
+            output_file,
+        ]
 
-    try:
+    def run_concat(codec: str):
+        command = build_command(codec)
         # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
         # 从而降低画质劣化与颜色偏移风险。
         result = subprocess.run(
@@ -125,6 +318,18 @@ def concat_video_clips_with_ffmpeg(
         if result.returncode != 0:
             error_message = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(error_message or "ffmpeg concat failed")
+        return codec
+
+    try:
+        effective_codec = _get_effective_video_codec()
+        try:
+            return run_concat(effective_codec)
+        except Exception as exc:
+            if effective_codec == _DEFAULT_VIDEO_CODEC:
+                raise
+            result_codec = run_concat(_DEFAULT_VIDEO_CODEC)
+            _disable_runtime_video_codec(effective_codec, str(exc))
+            return result_codec
     finally:
         delete_files(concat_list_file)
 
@@ -234,6 +439,28 @@ def delete_files(files: List[str] | str):
         except Exception as e:
             logger.debug(f"failed to delete file {file}: {str(e)}")
 
+
+def _resolve_bgm_file_path(song_dir: str, bgm_file: str) -> str:
+    # 背景音乐只允许读取 resource/songs 目录内的文件，避免用户输入任意路径后
+    # 被 MoviePy 打开。这里兼容两种常见输入：
+    # 1. output000.mp3：来自 BGM 列表或用户只填写文件名
+    # 2. ./resource/songs/output000.mp3：用户按项目目录结构填写的相对路径
+    # 两种写法最终都会再次通过 resource/songs 白名单校验，不能绕过目录限制。
+    try:
+        return file_security.resolve_path_within_directory(song_dir, bgm_file)
+    except ValueError as song_dir_exc:
+        if os.path.isabs(bgm_file):
+            raise song_dir_exc
+
+        project_relative_file = os.path.join(utils.root_dir(), bgm_file)
+        try:
+            return file_security.resolve_path_within_directory(
+                song_dir, project_relative_file
+            )
+        except ValueError as root_dir_exc:
+            raise ValueError(str(root_dir_exc)) from song_dir_exc
+
+
 def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if not bgm_type:
         return ""
@@ -241,9 +468,7 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if bgm_file:
         song_dir = utils.song_dir()
         try:
-            resolved_bgm_file = file_security.resolve_path_within_directory(
-                song_dir, bgm_file
-            )
+            resolved_bgm_file = _resolve_bgm_file_path(song_dir, bgm_file)
         except ValueError as exc:
             # API 请求里的 bgm_file 来自用户输入，不能直接把任意绝对路径交给
             # MoviePy 打开。这里强制限制到 resource/songs 目录，阻止读取
@@ -324,6 +549,7 @@ def combine_videos(
                         end_time=end_time,
                         width=clip_w,
                         height=clip_h,
+                        source_file_path=video_path,
                     )
                 )
 
@@ -331,18 +557,24 @@ def combine_videos(
             if video_concat_mode.value == VideoConcatMode.sequential.value:
                 break
 
-    # random subclipped_items order
-    if video_concat_mode.value == VideoConcatMode.random.value:
-        random.shuffle(subclipped_items)
+    subclipped_items = _prioritize_unique_source_clips(
+        subclipped_items=subclipped_items,
+        concat_mode=video_concat_mode,
+    )
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration > audio_duration:
+        if video_duration >= audio_duration:
             break
         
-        logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
+        logger.debug(
+            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
+            f"source: {os.path.basename(subclipped_item.source_file_path)}, "
+            f"current duration: {video_duration:.2f}s, "
+            f"remaining: {audio_duration - video_duration:.2f}s"
+        )
         
         try:
             clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
@@ -397,13 +629,27 @@ def combine_videos(
                 
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            _write_videofile_with_codec_fallback(
+                clip,
+                clip_file,
+                codec=_get_configured_video_codec(),
+                logger=None,
+                fps=fps,
+            )
 
             # Store clip duration before closing
             clip_duration_saved = clip.duration
             close_clip(clip)
 
-            processed_clips.append(SubClippedVideoClip(file_path=clip_file, duration=clip_duration_saved, width=clip_w, height=clip_h))
+            processed_clips.append(
+                SubClippedVideoClip(
+                    file_path=clip_file,
+                    duration=clip_duration_saved,
+                    width=clip_w,
+                    height=clip_h,
+                    source_file_path=subclipped_item.source_file_path,
+                )
+            )
             video_duration += clip_duration_saved
             
         except Exception as e:
@@ -514,6 +760,39 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     return result, height
 
 
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    # 字幕背景色来自 API/WebUI 参数，可能为空或格式不规范。这里统一只接受
+    # #RRGGBB 形式，非法值回退为黑色，避免 PIL 渲染阶段抛出异常中断任务。
+    if isinstance(color, str) and color.startswith("#") and len(color) == 7:
+        try:
+            return (int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16))
+        except ValueError:
+            pass
+    return (0, 0, 0)
+
+
+def _rounded_subtitle_background_clip(
+    width: int,
+    height: int,
+    color: str,
+    alpha: int = 140,
+    radius: int = 16,
+) -> ImageClip:
+    # 新字幕背景仅在用户显式开启时使用：通过 RGBA 图片绘制圆角半透明底板，
+    # 再交给 MoviePy 作为透明 ImageClip 参与合成。这样默认路径完全不变，
+    # 同时可以低成本试验更柔和的字幕视觉效果。
+    rgb = _hex_to_rgb(color)
+    safe_alpha = max(0, min(255, int(alpha)))
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle(
+        [0, 0, max(0, width - 1), max(0, height - 1)],
+        radius=max(0, int(radius)),
+        fill=(rgb[0], rgb[1], rgb[2], safe_alpha),
+    )
+    return ImageClip(np.array(img), transparent=True)
+
+
 def generate_video(
     video_path: str,
     audio_path: str,
@@ -568,23 +847,70 @@ def generate_video(
         # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
         # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
         # 背景框与文字本身都能完整渲染出来。
-        size = (
-            int(max_width),
-            int(txt_height + vertical_padding + (interline * line_count)),
+        clip_h = int(txt_height + vertical_padding + (interline * line_count))
+        bg_color = resolve_subtitle_background_color()
+        rounded_bg_enabled = bool(
+            getattr(params, "rounded_subtitle_background", False) and bg_color
         )
 
-        _clip = TextClip(
-            text=wrapped_txt,
-            font=font_path,
-            font_size=params.font_size,
-            color=params.text_fore_color,
-            bg_color=resolve_subtitle_background_color(),
-            stroke_color=params.stroke_color,
-            stroke_width=params.stroke_width,
-            interline=interline,
-            size=size,
-            text_align="center",
-        )
+        if rounded_bg_enabled:
+            # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
+            # PIL 测量最长一行文字，再加水平内边距，避免短字幕出现过宽底板。
+            try:
+                font = ImageFont.truetype(font_path, params.font_size)
+                text_w = max(
+                    int(font.getbbox(line)[2] - font.getbbox(line)[0])
+                    for line in wrapped_txt.split("\n")
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"failed to measure subtitle text width, fallback to max width: {str(exc)}"
+                )
+                text_w = int(max_width)
+
+            pad_x = int(params.font_size * 0.6)
+            box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
+            radius = max(8, int(params.font_size * 0.4))
+            text_clip = TextClip(
+                text=wrapped_txt,
+                font=font_path,
+                font_size=params.font_size,
+                color=params.text_fore_color,
+                bg_color=None,
+                stroke_color=params.stroke_color,
+                stroke_width=params.stroke_width,
+                interline=interline,
+                size=(box_w, clip_h),
+                text_align="center",
+            )
+            bg_clip = _rounded_subtitle_background_clip(
+                width=box_w,
+                height=clip_h,
+                color=bg_color,
+                alpha=140,
+                radius=radius,
+            )
+            _clip = CompositeVideoClip(
+                [bg_clip, text_clip.with_position("center")],
+                size=(box_w, clip_h),
+            )
+        else:
+            size = (
+                int(max_width),
+                clip_h,
+            )
+            _clip = TextClip(
+                text=wrapped_txt,
+                font=font_path,
+                font_size=params.font_size,
+                color=params.text_fore_color,
+                bg_color=bg_color,
+                stroke_color=params.stroke_color,
+                stroke_width=params.stroke_width,
+                interline=interline,
+                size=size,
+                text_align="center",
+            )
         duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
@@ -647,8 +973,10 @@ def generate_video(
     # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
     # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
     output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
-    video_clip.write_videofile(
-        output_file,
+    _write_videofile_with_codec_fallback(
+        video_clip,
+        output_file=output_file,
+        codec=_get_configured_video_codec(),
         audio_codec=audio_codec,
         audio_fps=output_audio_fps,
         audio_bitrate=audio_bitrate,

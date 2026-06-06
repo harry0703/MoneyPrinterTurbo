@@ -1,6 +1,6 @@
 import asyncio
+import base64
 import unittest
-import os
 import sys
 import tempfile
 import time
@@ -44,7 +44,115 @@ class TestVoiceService(unittest.TestCase):
     
     def tearDown(self):
         self.loop.close()
-    
+
+    def test_get_all_azure_voices(self):
+        voices = vs.get_all_azure_voices()
+        # 数据已从内联字符串迁移到 azure_voices.json，确保仍能完整加载
+        self.assertEqual(len(voices), 331)
+        # 结果应为 "Name-Gender" 格式且已排序
+        self.assertEqual(voices, sorted(voices))
+        for v in voices:
+            self.assertTrue(v.endswith("-Male") or v.endswith("-Female"))
+
+    def test_get_all_azure_voices_filtered(self):
+        filtered = vs.get_all_azure_voices(filter_locals=["zh-CN", "en-US"])
+        self.assertTrue(len(filtered) > 0)
+        self.assertTrue(
+            all(v.startswith(("zh-CN", "en-US")) for v in filtered)
+        )
+
+    def test_no_voice_tts_generates_silent_audio_and_subtitle_timeline(self):
+        """
+        无配音模式不调用任何外部 TTS provider，只生成静音音频作为时间轴占位。
+        这里 mock FFmpeg，验证请求参数、输出文件和 legacy 字幕结构都符合后续
+        视频合成链路的预期。
+        """
+
+        def fake_run(command, capture_output, text, check):
+            self.assertEqual(command[0], "/tmp/fake-ffmpeg")
+            self.assertIn("anullsrc=r=44100:cl=mono", command)
+            Path(command[-1]).write_bytes(b"fake-silent-mp3")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.utils,
+            "get_ffmpeg_binary",
+            return_value="/tmp/fake-ffmpeg",
+        ), patch.object(vs.subprocess, "run", side_effect=fake_run):
+            voice_file = str(Path(tmp_dir) / "silent.mp3")
+            sub_maker = vs.tts(
+                text="第一句话。Second sentence.",
+                voice_name=vs.NO_VOICE_NAME,
+                voice_rate=1.0,
+                voice_file=voice_file,
+            )
+
+            self.assertEqual(Path(voice_file).read_bytes(), b"fake-silent-mp3")
+
+        self.assertIsNotNone(sub_maker)
+        self.assertEqual(getattr(sub_maker, "subs", []), ["第一句话", "Second sentence"])
+        self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
+        self.assertGreater(vs.get_audio_duration(sub_maker), 0)
+
+    def test_no_voice_alias_none_is_supported_temporarily(self):
+        """
+        兼容 PR #981 曾使用过的 none sentinel，避免少量直接调用 API 的用户
+        升级后立即失效。新 UI 和新代码仍统一使用 no-voice。
+        """
+        self.assertTrue(vs.is_no_voice("none"))
+        self.assertTrue(vs.is_no_voice(vs.NO_VOICE_NAME))
+        self.assertFalse(vs.is_no_voice(""))
+
+    def test_no_voice_duration_estimates_non_ascii_languages(self):
+        """
+        无配音没有真实 TTS 音频，只能根据脚本文字估算阅读时间。俄语、阿拉伯语、
+        日文假名、韩文等非 ASCII 文本也必须参与估算，不能都落到最短 3 秒。
+        """
+        russian_text = (
+            "Это длинный тестовый сценарий без озвучки. "
+            "Он должен получить достаточно времени для чтения субтитров."
+        )
+        arabic_text = "هذا اختبار طويل بدون تعليق صوتي، ويجب أن يحصل على وقت كاف لقراءة الترجمة."
+
+        self.assertGreater(vs.estimate_no_voice_duration(russian_text), 8.0)
+        self.assertGreater(vs.estimate_no_voice_duration(arabic_text), 8.0)
+
+    def test_generate_silent_audio_rejects_missing_output_file(self):
+        """
+        即使 FFmpeg 进程返回成功，也要确认输出文件真实存在且非空。这样可以把
+        异常收敛在 TTS 阶段，而不是拖到后续视频合成阶段才暴露。
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.utils,
+            "get_ffmpeg_binary",
+            return_value="/tmp/fake-ffmpeg",
+        ), patch.object(
+            vs.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=0, stdout="", stderr=""),
+        ):
+            voice_file = str(Path(tmp_dir) / "missing-silent.mp3")
+
+            self.assertFalse(vs.generate_silent_audio(3.0, voice_file))
+
+    def test_empty_voice_name_does_not_enable_no_voice_mode(self):
+        """
+        空 voice 通常意味着配置缺失或接口参数错误，不能自动切到无配音模式。
+        否则用户填错 TTS 配置时也会得到一个“成功”的静音视频，定位成本更高。
+        """
+        sentinel = object()
+
+        with patch.object(vs, "azure_tts_v1", return_value=sentinel) as azure_tts_v1:
+            result = vs.tts(
+                text="empty voice should still use the default TTS path",
+                voice_name="",
+                voice_rate=1.0,
+                voice_file="/tmp/empty-voice.mp3",
+            )
+
+        self.assertIs(result, sentinel)
+        azure_tts_v1.assert_called_once()
+
     def test_siliconflow(self):
         # SiliconFlow 的 API Key 存在 [siliconflow].api_key 中，运行时代码也是从
         # config.siliconflow 读取；这里必须使用同一配置源，避免正确配置凭据时
@@ -287,6 +395,97 @@ class TestVoiceService(unittest.TestCase):
         self.assertIn("Gemini subtitle generation should work now", subtitle_content)
         self.assertIn("Testing multiple lines", subtitle_content)
 
+    def test_mimo_tts_uses_openai_compatible_audio_response(self):
+        """
+        验证 Xiaomi MiMo TTS 可以消费 OpenAI-compatible 的音频响应结构。
+
+        这里用 fake OpenAI client 和 fake AudioSegment 覆盖真实网络与 ffmpeg，
+        确认运行时代码会把待合成文本放到 assistant message，并把返回的
+        base64 WAV 音频导出到项目后续流程使用的音频文件。
+        """
+
+        class _FakeAudio:
+            def __init__(self):
+                self.data = base64.b64encode(b"RIFF-fake-wav").decode("utf-8")
+
+        class _FakeMessage:
+            def __init__(self):
+                self.audio = _FakeAudio()
+
+        class _FakeChoice:
+            def __init__(self):
+                self.message = _FakeMessage()
+
+        class _FakeCompletion:
+            def __init__(self):
+                self.choices = [_FakeChoice()]
+
+        class _FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                return _FakeCompletion()
+
+        class _FakeAudioSegment:
+            def __len__(self):
+                return 1800
+
+            def export(self, output_file, format):
+                Path(output_file).write_bytes(b"fake-mp3")
+
+        fake_completions = _FakeCompletions()
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=fake_completions)
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs,
+            "OpenAI",
+            return_value=fake_client,
+        ) as openai_client, patch(
+            "pydub.AudioSegment.from_file",
+            return_value=_FakeAudioSegment(),
+        ), patch.object(
+            vs.config,
+            "app",
+            dict(
+                vs.config.app,
+                mimo_api_key="mimo-key",
+                mimo_base_url="https://api.xiaomimimo.com/v1",
+                mimo_tts_model_name="mimo-v2.5-tts",
+                mimo_tts_style_prompt="用清晰的中文旁白朗读。",
+            ),
+        ):
+            voice_file = str(Path(tmp_dir) / "mimo-tts.mp3")
+            sub_maker = vs.mimo_tts(
+                text="小米语音合成测试。第二句话。",
+                voice_name="冰糖",
+                voice_rate=1.0,
+                voice_file=voice_file,
+                voice_volume=1.0,
+            )
+            generated_audio = Path(voice_file).read_bytes()
+
+        openai_client.assert_called_once_with(
+            api_key="mimo-key",
+            base_url="https://api.xiaomimimo.com/v1",
+        )
+        self.assertEqual(fake_completions.kwargs["model"], "mimo-v2.5-tts")
+        self.assertEqual(
+            fake_completions.kwargs["messages"],
+            [
+                {"role": "user", "content": "用清晰的中文旁白朗读。"},
+                {"role": "assistant", "content": "小米语音合成测试。第二句话。"},
+            ],
+        )
+        self.assertEqual(
+            fake_completions.kwargs["audio"],
+            {"format": "wav", "voice": "冰糖"},
+        )
+        self.assertEqual(generated_audio, b"fake-mp3")
+        self.assertIsNotNone(sub_maker)
+        self.assertEqual(getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"])
+        self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
+
     def test_generate_subtitle_keeps_edge_provider_for_gemini_legacy_submaker(self):
         """
         验证 Gemini TTS 返回的 legacy 字幕结构在 edge provider 下可以直接产出
@@ -377,6 +576,134 @@ class TestVoiceService(unittest.TestCase):
 
         self.assertEqual(len(sub_items), len(script_lines))
         self.assertIn("1,000 years", sub_items[-1])
+
+    def test_script_split_supports_arabic_punctuation(self):
+        """
+        阿拉伯语脚本常用 ، ؛ ؟ 作为自然断句标点。断句阶段必须识别这些
+        标点，否则 edge-tts cue 的停顿边界和脚本行边界会错位。
+        """
+        text = "مرحبا بالعالم، كيف حالك؟ هذا اختبار؛ يعمل بشكل جيد."
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            [
+                "مرحبا بالعالم",
+                "كيف حالك",
+                "هذا اختبار",
+                "يعمل بشكل جيد",
+            ],
+        )
+
+    def test_match_script_line_normalizes_arabic_letter_forms(self):
+        """
+        edge-tts 可能把阿拉伯语中的不同字母形态归一化，或返回带变音符号、
+        Tatweel 的 cue 文本。匹配时应容错，但最终字幕仍保留原始脚本文案。
+        """
+        script_lines = ["أهلاً وسهلاً بك في المدرسة"]
+
+        matched = vs._match_script_line(
+            script_lines,
+            "اهلا وسهلا بك في المدرسه",
+            0,
+        )
+
+        self.assertEqual(matched, script_lines[0])
+
+    def test_edge_cue_aggregation_handles_arabic_variant_forms(self):
+        """
+        复现阿拉伯语字幕失败的核心路径：脚本包含 أ/ة 等字母形态，edge cue
+        返回 ا/ه 等归一化形态时，聚合仍应生成完整字幕，避免回退 Whisper。
+        """
+        text = "أهلاً وسهلاً بك في المدرسة؟ هذا اختبار رائع، شكراً لك."
+        script_lines = utils.split_string_by_punctuations(text)
+        cue_texts = [
+            "اهلا وسهلا بك في المدرسه",
+            "هذا اختبار رائع",
+            "شكرا لك",
+        ]
+        sub_maker = SimpleNamespace(
+            cues=[
+                SimpleNamespace(
+                    content=cue_text,
+                    start=timedelta(seconds=index),
+                    end=timedelta(seconds=index + 0.8),
+                )
+                for index, cue_text in enumerate(cue_texts)
+            ]
+        )
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(sub_maker, script_lines)
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("أهلاً وسهلاً بك في المدرسة", sub_items[0])
+        self.assertIn("شكراً لك", sub_items[-1])
+
+    def test_create_subtitle_ignores_markdown_separator_lines(self):
+        """
+        用户手动脚本可能包含 `---` 这类 Markdown 分隔符。TTS 不会朗读
+        这些符号行，字幕聚合也不应把它们当成目标字幕行，否则后续真实
+        字幕会卡住并回退到 Whisper。
+        """
+        text = "第一段\n---\n第二段"
+        sub_maker = SimpleNamespace(
+            cues=[
+                SimpleNamespace(
+                    content="第一段",
+                    start=timedelta(seconds=0),
+                    end=timedelta(seconds=0.8),
+                ),
+                SimpleNamespace(
+                    content="第二段",
+                    start=timedelta(seconds=1),
+                    end=timedelta(seconds=1.8),
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            vs.create_subtitle(
+                sub_maker=sub_maker,
+                text=text,
+                subtitle_file=str(subtitle_file),
+            )
+
+            subtitle_content = subtitle_file.read_text(encoding="utf-8")
+
+        self.assertIn("第一段", subtitle_content)
+        self.assertIn("第二段", subtitle_content)
+        self.assertNotIn("---", subtitle_content)
+        self.assertNotIn("00:00:00,000 --> 00:00:00,000", subtitle_content)
+
+    def test_create_subtitle_ignores_markdown_underscore_marks(self):
+        """
+        `_` 常被用户用作 Markdown 强调标记，但 TTS 返回的 cue 通常不包含
+        这些格式符。匹配时应忽略 `_`，避免生成空字幕或回退到 Whisper。
+        """
+        text = "这是_a_测试。"
+        sub_maker = SimpleNamespace(
+            cues=[
+                SimpleNamespace(
+                    content="这是a测试",
+                    start=timedelta(seconds=0),
+                    end=timedelta(seconds=0.8),
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            vs.create_subtitle(
+                sub_maker=sub_maker,
+                text=text,
+                subtitle_file=str(subtitle_file),
+            )
+
+            subtitle_content = subtitle_file.read_text(encoding="utf-8")
+
+        self.assertIn("这是a测试", subtitle_content)
+        self.assertNotIn("这是_a_测试", subtitle_content)
+        self.assertNotIn("00:00:00,000 --> 00:00:00,000", subtitle_content)
 
     def test_convert_rate_to_percent_signs_zero_rate(self):
         # Rates near but not exactly 1.0 round to 0 percent. edge-tts rejects
