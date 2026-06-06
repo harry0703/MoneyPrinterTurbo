@@ -343,6 +343,49 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
 
+    def test_groq_provider_requires_api_key(self):
+        config.app["llm_provider"] = "groq"
+        config.app["groq_api_key"] = ""
+        config.app["groq_base_url"] = "https://api.groq.com/openai/v1"
+        config.app["groq_model_name"] = "llama-3.3-70b-versatile"
+
+        result = llm._generate_response("test")
+
+        self.assertIn("Error:", result)
+        self.assertIn("api_key is not set", result)
+        self.assertNotIn("litellm", result.lower())
+
+    def test_groq_provider_uses_default_base_url(self):
+        config.app["llm_provider"] = "groq"
+        config.app["groq_api_key"] = "groq-test-key"
+        config.app["groq_base_url"] = ""
+        config.app["groq_model_name"] = "llama-3.3-70b-versatile"
+
+        fake_response = types.SimpleNamespace(
+            choices=[
+                types.SimpleNamespace(
+                    message=types.SimpleNamespace(content="hello\ngroq")
+                )
+            ]
+        )
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(
+                completions=types.SimpleNamespace(create=lambda **kwargs: fake_response)
+            )
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="groq-test-key",
+            base_url="https://api.groq.com/openai/v1",
+        )
+        self.assertEqual(result, "hellogroq")
+
     def _use_ollama_provider(self, base_url=""):
         config.app["llm_provider"] = "ollama"
         config.app["ollama_api_key"] = ""
