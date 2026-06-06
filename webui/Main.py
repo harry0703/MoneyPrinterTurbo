@@ -1124,24 +1124,103 @@ if start_button:
             if m.url:
                 params.video_materials.append(m)
 
+    import queue
+    import threading
+    import time
+    
+    # Use session_state to store logs (safe for multi-thread access)
+    if "ui_logs" not in st.session_state:
+        st.session_state.ui_logs = []
+    
     log_container = st.empty()
-    log_records = []
-
+    log_queue = queue.Queue()  # Thread-safe queue for logs
+    
     def log_received(msg):
-        if config.ui["hide_log"]:
+        """Thread-safe log receiver - puts all logs in queue."""
+        if config.ui.get("hide_log", False):
             return
-        with log_container:
-            log_records.append(msg)
-            st.code("\n".join(log_records))
-
-    logger.add(log_received)
+        # All logs go to queue (thread-safe approach)
+        log_queue.put(msg)
+    
+    # Remove any existing loguru handlers to avoid conflicts
+    logger.remove()
+    # Add custom handler that puts logs in queue
+    logger.add(log_received, format="{message}")
+    
+    # Update UI with queued logs
+    def update_logs_ui():
+        """Fetch logs from queue and display them."""
+        try:
+            # Extract all available logs from queue
+            has_new_logs = False
+            while True:
+                try:
+                    msg = log_queue.get_nowait()
+                    st.session_state.ui_logs.append(msg)
+                    has_new_logs = True
+                except queue.Empty:
+                    break
+            
+            # Display logs if any
+            if len(st.session_state.ui_logs) > 0:
+                with log_container:
+                    # Show last 300 records
+                    display_logs = st.session_state.ui_logs[-300:]
+                    st.code("\n".join(display_logs), language="log")
+            
+            return has_new_logs
+        except Exception as e:
+            logger.error(f"Failed to update logs UI: {str(e)}")
+            return False
 
     st.toast(tr("Generating Video"))
     logger.info(tr("Start Generating Video"))
     logger.info(utils.to_json(params))
     scroll_to_bottom()
 
-    result = tm.start(task_id=task_id, params=params)
+    # Real-time log display during task execution
+    # Execute task in a separate thread while main thread monitors logs
+    task_result = {"result": None, "done": False}
+    task_exception = {"error": None}
+    
+    def execute_task_thread():
+        """Execute task in background thread."""
+        try:
+            task_result["result"] = tm.start(task_id=task_id, params=params)
+        except Exception as e:
+            task_exception["error"] = e
+            logger.error(f"Task execution error: {str(e)}")
+        finally:
+            task_result["done"] = True
+    
+    # Start task in background thread
+    task_thread = threading.Thread(target=execute_task_thread, daemon=False)
+    task_thread.start()
+    
+    # Monitor logs and display in real-time
+    update_interval = 0.3  # Update UI every 300ms
+    last_update_time = time.time()
+    
+    while not task_result["done"]:
+        # Check if it's time to update UI
+        current_time = time.time()
+        if current_time - last_update_time >= update_interval:
+            update_logs_ui()
+            last_update_time = current_time
+        time.sleep(0.05)  # Small sleep to prevent busy waiting
+    
+    # Wait for task thread to finish
+    task_thread.join(timeout=5)
+    
+    # Final log update
+    update_logs_ui()
+    
+    # Get task result
+    if task_exception["error"]:
+        raise task_exception["error"]
+    
+    result = task_result["result"]
+    
     if not result or "videos" not in result:
         st.error(tr("Video Generation Failed"))
         logger.error(tr("Video Generation Failed"))
