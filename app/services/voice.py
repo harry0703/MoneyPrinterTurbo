@@ -1370,12 +1370,12 @@ def tts(
     voice_name: str,
     voice_rate: float,
     voice_file: str,
-    voice_volume: float = 1.0,
+    voice_volume: float = 1.8,
     emotion: str = "",
     is_preview: bool = False,
 ) -> Union[SubMaker, None]:
     if is_azure_v2_voice(voice_name):
-        return azure_tts_v2(text, voice_name, voice_file)
+        result = azure_tts_v2(text, voice_name, voice_file)
     elif is_siliconflow_voice(voice_name):
         # 从voice_name中提取模型和声音
         # 格式: siliconflow:model:voice-Gender
@@ -1387,12 +1387,12 @@ def tts(
             voice = voice_with_gender.split("-")[0]
             # 构建完整的voice参数，格式为 "model:voice"
             full_voice = f"{model}:{voice}"
-            return siliconflow_tts(
+            result = siliconflow_tts(
                 text, model, full_voice, voice_rate, voice_file, voice_volume
             )
         else:
             logger.error(f"Invalid siliconflow voice name format: {voice_name}")
-            return None
+            result = None
     elif is_gemini_voice(voice_name):
         # 从voice_name中提取声音名称
         # 格式: gemini:voice-Gender
@@ -1401,10 +1401,10 @@ def tts(
             # 移除性别后缀，例如 "Zephyr-Female" -> "Zephyr"
             voice_with_gender = parts[1]
             voice = voice_with_gender.split("-")[0]
-            return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
+            result = gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
-            return None
+            result = None
     elif is_coze_voice(voice_name):
         # 从voice_name中提取voice_id、preview_audio和preview_text
         # 格式: coze|voice_id|voice_name-gender|preview_audio|preview_text|emotions
@@ -1417,14 +1417,34 @@ def tts(
             # 提取preview_text (parts[4])
             preview_text = parts[4] if len(parts) > 4 else ""
             # 使用传入的emotion参数
-            return coze_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text, emotion, is_preview)
+            result = coze_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text, emotion, is_preview)
         else:
             logger.error(f"Invalid coze voice name format: {voice_name}")
-            return None
+            result = None
     else:
         # Default to Azure TTS v1 (Edge TTS)
         logger.info(f"[TTS] Using Azure TTS v1 for voice: {voice_name}")
-        return azure_tts_v1(text, voice_name, voice_rate, voice_file)
+        result = azure_tts_v1(text, voice_name, voice_rate, voice_file, voice_volume)
+    
+    # Apply volume adjustment to the generated audio file if needed
+    if result is not None and voice_volume != 1.0 and os.path.exists(voice_file):
+        try:
+            from moviepy import AudioFileClip
+            logger.info(f"Applying volume adjustment: {voice_volume}x")
+            audio_clip = AudioFileClip(voice_file)
+            # Apply volume multiplier
+            audio_clip = audio_clip.volumex(voice_volume)
+            # Write back to the same file
+            temp_file = voice_file + ".temp.mp3"
+            audio_clip.write_audiofile(temp_file, codec='mp3')
+            audio_clip.close()
+            # Replace original file with adjusted one
+            os.replace(temp_file, voice_file)
+            logger.info(f"Volume adjustment applied successfully")
+        except Exception as e:
+            logger.warning(f"Failed to apply volume adjustment: {e}")
+    
+    return result
 
 
 def convert_rate_to_percent(rate: float) -> str:
@@ -1438,7 +1458,7 @@ def convert_rate_to_percent(rate: float) -> str:
 
 
 def azure_tts_v1(
-    text: str, voice_name: str, voice_rate: float, voice_file: str
+    text: str, voice_name: str, voice_rate: float, voice_file: str, voice_volume: float = 1.0
 ) -> Union[SubMaker, None]:
     voice_name = parse_voice_name(voice_name)
     text = text.strip()
@@ -1979,16 +1999,31 @@ def coze_tts(
                 logger.error(f"Audio data length: {len(audio_bytes)} bytes")
                 return None
         
-        # Merge audio segments
+        # Merge audio segments and apply volume adjustment
         if len(audio_segments) == 1:
-            # Only one segment, export directly
-            audio_segments[0].export(voice_file, format="mp3")
+            # Only one segment, apply volume and export
+            audio_segment = audio_segments[0]
+            if voice_volume != 1.0:
+                logger.info(f"Applying volume adjustment in Coze TTS: {voice_volume}x")
+                # pydub uses dB, convert volume multiplier to dB
+                # volume_multiplier = 10^(dB/20) => dB = 20*log10(volume_multiplier)
+                import math
+                volume_change_db = 20 * math.log10(voice_volume)
+                audio_segment = audio_segment + volume_change_db
+            audio_segment.export(voice_file, format="mp3")
         else:
-            # Multiple segments, merge and export
+            # Multiple segments, merge, apply volume, and export
             logger.info(f"Merging {len(audio_segments)} audio segments")
             combined = audio_segments[0]
             for i in range(1, len(audio_segments)):
                 combined += audio_segments[i]
+            
+            if voice_volume != 1.0:
+                logger.info(f"Applying volume adjustment in Coze TTS: {voice_volume}x")
+                import math
+                volume_change_db = 20 * math.log10(voice_volume)
+                combined = combined + volume_change_db
+            
             combined.export(voice_file, format="mp3")
         
         logger.info(f"completed, output file: {voice_file}")

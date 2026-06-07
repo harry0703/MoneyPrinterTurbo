@@ -115,7 +115,7 @@ class VideoParams(BaseModel):
     host_visible: Optional[bool] = True  # Whether the video host appears on camera
 
     voice_name: Optional[str] = ""
-    voice_volume: Optional[float] = 1.0
+    voice_volume: Optional[float] = 1.8  # Increased default volume for social media compatibility (WeChat, Douyin, etc.)
     voice_rate: Optional[float] = 1.0
     voice_emotion: Optional[str] = ""
     tts_server: Optional[str] = "azure-tts-v1"  # TTS server type (azure-tts-v1, azure-tts-v2, siliconflow, gemini-tts, coze-tts)
@@ -161,7 +161,7 @@ class SubtitleRequest(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
-    voice_volume: Optional[float] = 1.0
+    voice_volume: Optional[float] = 1.8  # Increased default volume for social media compatibility
     voice_rate: Optional[float] = 1.2
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
@@ -182,7 +182,7 @@ class AudioRequest(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
-    voice_volume: Optional[float] = 1.0
+    voice_volume: Optional[float] = 1.8  # Increased default volume for social media compatibility
     voice_rate: Optional[float] = 1.2
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""

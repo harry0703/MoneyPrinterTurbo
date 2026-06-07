@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.3.1"
+project_version = "2.3.2"
 
 [app]
 host_visible = false
@@ -99,16 +99,16 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "老黄掀桌了"
+title_text = "新华网AI\n惊天涨停"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
-title_font_size = 102
-title_text_color = "#0000FF"
+title_font_size = 96
+title_text_color = "#FF0000"
 title_stroke_color = "#FFFF00"
 title_stroke_width = 8.5
 title_background_color = "transparent"
 title_position = "top"
-title_margin = 0.18
+title_margin = 0.19
 title_margin_left = 0.05
 title_margin_right = 0.05
 title_animation = "fade_out"
