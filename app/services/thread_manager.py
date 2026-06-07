@@ -31,12 +31,14 @@ class TaskInfo:
         self.error = None
         self.task_dir = kwargs.get('task_dir', '')
         self.cancelled = False
+        self.submit_time = datetime.now()  # Track submission time for proper ordering
     
     def to_dict(self) -> Dict:
         """Convert to dictionary format"""
         return {
             'task_id': self.task_id,
             'status': self.status,
+            'submit_time': self.submit_time.isoformat() if self.submit_time else None,
             'start_time': self.start_time.isoformat() if self.start_time else None,
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'task_dir': self.task_dir,
@@ -48,6 +50,7 @@ class TaskInfo:
         """Create TaskInfo instance from dictionary"""
         task_info = cls(data['task_id'], task_func, args, kwargs)
         task_info.status = data['status']
+        task_info.submit_time = datetime.fromisoformat(data['submit_time']) if data.get('submit_time') else None
         task_info.start_time = datetime.fromisoformat(data['start_time']) if data['start_time'] else None
         task_info.end_time = datetime.fromisoformat(data['end_time']) if data['end_time'] else None
         task_info.task_dir = data.get('task_dir', '')
@@ -363,13 +366,19 @@ class ThreadManager:
                 task_data = {
                     'task_id': task_info.task_id,
                     'status': task_info.status,
+                    'submit_time': task_info.submit_time.isoformat() if task_info.submit_time else None,
                     'start_time': task_info.start_time.isoformat() if task_info.start_time else None,
                     'end_time': task_info.end_time.isoformat() if task_info.end_time else None,
                     'task_dir': task_info.task_dir
                 }
                 tasks.append(task_data)
-            # Sort by status: Running > Pending > Others
-            tasks.sort(key=lambda x: (x['status'] != TaskStatus.RUNNING, x['status'] != TaskStatus.PENDING))
+            # Sort by status priority and then by submission time (oldest first)
+            # Priority: Running > Pending > Others
+            tasks.sort(key=lambda x: (
+                x['status'] != TaskStatus.RUNNING, 
+                x['status'] != TaskStatus.PENDING,
+                x['submit_time']
+            ))
         return tasks
 
     def get_history_tasks(self) -> List[Dict]:
@@ -384,6 +393,7 @@ class ThreadManager:
                 task_data = {
                     'task_id': task_info.task_id,
                     'status': task_info.status,
+                    'submit_time': task_info.submit_time.isoformat() if task_info.submit_time else None,
                     'start_time': task_info.start_time.isoformat() if task_info.start_time else None,
                     'end_time': task_info.end_time.isoformat() if task_info.end_time else None,
                     'task_dir': task_info.task_dir

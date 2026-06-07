@@ -30,8 +30,12 @@ class MemoryState(BaseState):
         start = (page - 1) * page_size
         end = start + page_size
         tasks = list(self._tasks.values())
-        # Sort tasks by sequence_number
-        tasks.sort(key=lambda x: x.get("sequence_number", 0))
+        # Sort tasks by status priority first (Running > Pending > Others), then by sequence_number
+        tasks.sort(key=lambda x: (
+            x.get("state", 0) != const.TASK_STATE_PROCESSING,
+            x.get("state", 0) != const.TASK_STATE_PENDING,
+            x.get("sequence_number", 0)
+        ))
         total = len(tasks)
         return tasks[start:end], total
 
@@ -94,8 +98,12 @@ class RedisState(BaseState):
                 tasks.append(task)
             if cursor == 0:
                 break
-        # Sort tasks by sequence_number
-        tasks.sort(key=lambda x: x.get("sequence_number", 0))
+        # Sort tasks by status priority first (Running > Pending > Others), then by sequence_number
+        tasks.sort(key=lambda x: (
+            x.get("state", 0) != const.TASK_STATE_PROCESSING,
+            x.get("state", 0) != const.TASK_STATE_PENDING,
+            x.get("sequence_number", 0)
+        ))
         total = len(tasks)
         return tasks[start:end], total
 
