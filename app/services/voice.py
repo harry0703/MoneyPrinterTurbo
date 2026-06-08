@@ -2191,7 +2191,7 @@ def qwen_tts(
         
         # 配置Qwen API (使用HTTP API)
         api_key = config.qwen.get("api_key", "")
-        base_url = config.qwen.get("base_url", "https://dashscope.aliyuncs.com")
+        base_url = "https://dashscope.aliyuncs.com/api/v1"  # 硬编码Qwen API端点
         
         if not api_key:
             logger.warning("Qwen API key is not set, using text-to-speech fallback")

@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.3.6.2"
+project_version = "2.3.6.3"
 
 [app]
 host_visible = false
@@ -81,7 +81,7 @@ api_key = "sk-ehmjzsdqlcbsswaplkgzjsqjrlwyjquczplhjxoszbhdjgvn"
 hide_log = false
 language = "zh"
 tts_server = "qwen-tts"
-voice_name = "qwen|Cherry|Cherry-Female||"
+voice_name = "qwen|Ethan|Ethan-Male||"
 voice_volume = 1.3
 voice_rate = 1
 bgm_type = "random"
@@ -123,7 +123,6 @@ api_key = "sat_5QQV8lPJCo1uK0cMUsMwQMDqPUFHAVajSQnICchJYcSwmp6cuA7MAeRd73k48m4A"
 
 [qwen]
 api_key = "sk-79f1b2aa20a942b4be3933e383ad5709"
-base_url = "https://dashscope.aliyuncs.com/api/v1"
 
 [imagemagick]
 imagemagick_path = "D:\\ProgramData\\ImageMagick-7.1.12-Q16\\magick.exe"
