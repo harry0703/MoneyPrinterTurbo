@@ -139,18 +139,34 @@ def get_qwen_voices(force_refresh=False) -> list[str]:
     
     logger.info("Loading Qwen voices from hardcoded list")
     
-    # 定义默认中文声音列表 (Qwen-TTS语音名称)
+    # 定义默认中文声音列表 (Qwen-TTS 官方语音列表)
     voices_with_id_gender = [
-        ("Cherry", "Cherry", "Female"),
-        ("Ethan", "Ethan", "Male"),
-        ("Luna", "Luna", "Female"),
-        ("Marcus", "Marcus", "Male"),
-        ("Olive", "Olive", "Female"),
-        ("Ryan", "Ryan", "Male"),
-        ("Stella", "Stella", "Female"),
-        ("Victoria", "Victoria", "Female"),
-        ("Zachary", "Zachary", "Male"),
-        ("Zoe", "Zoe", "Female"),
+        ("Cherry", "芊悦", "Female"),
+        ("Serena", "苏瑶", "Female"),
+        ("Ethan", "晨煦", "Male"),
+        ("Chelsie", "千雪", "Female"),
+        ("Momo", "茉兔", "Female"),
+        ("Vivian", "十三", "Female"),
+        ("Moon", "月白", "Male"),
+        ("Maia", "四月", "Female"),
+        ("Kai", "凯", "Male"),
+        ("Nofish", "不吃鱼", "Male"),
+        ("Bella", "萌宝", "Female"),
+        ("Jennifer", "詹妮弗", "Female"),
+        ("Ryan", "甜茶", "Male"),
+        ("Katerina", "卡捷琳娜", "Female"),
+        ("Aiden", "艾登", "Male"),
+        ("Eldric Sage", "沧明子", "Male"),
+        ("Mia", "乖小妹", "Female"),
+        ("Mochi", "沙小弥", "Male"),
+        ("Bellona", "燕铮莺", "Female"),
+        ("Vincent", "田叔", "Male"),
+        ("Bunny", "萌小姬", "Female"),
+        ("Neil", "阿闻", "Male"),
+        ("Elias", "墨讲师", "Female"),
+        ("Arthur", "徐大爷", "Male"),
+        ("Nini", "邻家妹妹", "Female"),
+        ("Seren", "小婉", "Female"),
     ]
 
     voices = []
