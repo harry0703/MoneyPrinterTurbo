@@ -752,10 +752,11 @@ export const useSettingsStore = defineStore('settings', {
             this.llm.coze.apiKey = data.coze.api_key;
             console.log('Updated coze config:', this.llm.coze);
           }
-
+          
+          // Load qwen config
           if (data.qwen && data.qwen.api_key) {
             this.audio.qwenApiKey = data.qwen.api_key;
-            console.log('Updated qwen api key:', this.audio.qwenApiKey);
+            console.log('[SettingsStore] Updated qwenApiKey from config:', this.audio.qwenApiKey);
           }
 
           this.saveToLocalStorage();

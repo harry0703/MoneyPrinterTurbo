@@ -137,118 +137,32 @@ def get_qwen_voices(force_refresh=False) -> list[str]:
             logger.info(f"Using cached Qwen voices (age: {cache_age:.1f}s)")
             return cache_entry['voices']
     
-    logger.info("Fetching Qwen voices from API")
+    logger.info("Loading Qwen voices from hardcoded list")
     
-    # 定义默认中文声音列表
+    # 定义默认中文声音列表 (Qwen-TTS语音名称)
     voices_with_id_gender = [
-        ("7426720361732915209", "湾区大叔", "Male"),
-        ("7426720361732915210", "财阀千金", "Female"),
-        ("7426720361732915211", "青叔", "Male"),
-        ("7426720361732915212", "御姐", "Female"),
-        ("7426720361732915213", "阳光少年", "Male"),
-        ("7426720361732915214", "可爱少女", "Female"),
-        ("7426720361732915215", "温和大叔", "Male"),
-        ("7426720361732915216", "甜美女生", "Female"),
-        ("7426720361732915217", "成熟男声", "Male"),
-        ("7426720361732915218", "温柔女声", "Female"),
+        ("Cherry", "Cherry", "Female"),
+        ("Ethan", "Ethan", "Male"),
+        ("Luna", "Luna", "Female"),
+        ("Marcus", "Marcus", "Male"),
+        ("Olive", "Olive", "Female"),
+        ("Ryan", "Ryan", "Male"),
+        ("Stella", "Stella", "Female"),
+        ("Victoria", "Victoria", "Female"),
+        ("Zachary", "Zachary", "Male"),
+        ("Zoe", "Zoe", "Female"),
     ]
 
     voices = []
 
     try:
-        # 配置Qwen API
         api_key = config.qwen.get("api_key", "")
-        base_url = config.qwen.get("base_url", "https://api.qwenlm.cn/v1")
         
-        if not api_key:
-            # 如果没有API key，返回默认的语音列表
-            logger.info("No Qwen API key found, using DEFAULT hardcoded voices")
-            for voice_id, voice_name, gender in voices_with_id_gender:
-                voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
-            logger.info(f"Qwen loaded {len(voices)} DEFAULT hardcoded voices (no API key): {voices}")
-            # 更新缓存
-            _voice_cache['qwen'] = {
-                'voices': voices,
-                'timestamp': current_time,
-                'api_key': api_key
-            }
-            return voices
-        
-        # Qwen TTS声音列表API endpoint (阿里云DashScope)
-        url = f"{base_url}/api/text2speech/voices"
-        
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                # 解析响应
-                data = response.json()
-                logger.info(f"Qwen voices API response: {data}")
-
-                # 阿里云DashScope API响应格式: {"code": 0, "output": {"voices": [...]}, "message": "success"}
-                output_data = data.get("output", {})
-                voice_list = output_data.get("voices", [])
-
-                if len(voice_list) > 0:
-                    for voice in voice_list:
-                        # 根据阿里云Qwen API文档，使用正确的字段名
-                        voice_id = voice.get("voice_id", "")
-                        voice_name = voice.get("name", "")
-                        preview_audio = voice.get("preview_audio", "")
-                        preview_text = voice.get("preview_text", "")
-                        gender = voice.get("gender", "")
-                        language_code = voice.get("language_code", "")
-                        
-                        # 只添加中文声音 (language_code 为 "zh")
-                        if language_code and language_code != "zh":
-                            continue
-                        
-                        if not gender:
-                            # 尝试从name中提取性别信息
-                            if voice_name:
-                                if any(gender_term in voice_name for gender_term in ["女", "姐", "妹", "美", "靓"]):
-                                    gender = "Female"
-                                elif any(gender_term in voice_name for gender_term in ["男", "哥", "爷", "叔", "兄", "弟"]):
-                                    gender = "Male"
-                        if not gender:
-                            gender = "Unknown"
-                        gender = gender.title()
-                        
-                        if voice_id and voice_name:
-                            voices.append(f"qwen|{voice_id}|{voice_name}-{gender}|{preview_audio}|{preview_text}")
-                            logger.info(f"Found Chinese voice: {voice_id} - {voice_name} ({gender})")
-                    logger.info(f"Qwen loaded {len(voices)} voices from API")
-                else:
-                    logger.warning(f"Qwen API response does not contain voices data. Response: {data}")
-                    # 使用默认列表
-                    for voice_id, voice_name, gender in voices_with_id_gender:
-                        voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
-            else:
-                # API调用失败，返回默认列表
-                error_msg = f"Failed to get Qwen voices from API: {response.status_code}"
-                if response.text:
-                    error_msg += f" - {response.text[:200]}"
-                logger.error(error_msg)
-                logger.warning("Using default hardcoded voices since API request failed. Please check your API key and network connectivity.")
-                for voice_id, voice_name, gender in voices_with_id_gender:
-                    voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
-        except requests.exceptions.RequestException as e:
-            # 网络请求异常，返回默认列表
-            logger.error(f"Network error while fetching Qwen voices: {str(e)}")
-            logger.warning("Using default hardcoded voices due to network error.")
-            for voice_id, voice_name, gender in voices_with_id_gender:
-                voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
-        
-        # 如果没有从API获取到任何声音，使用默认列表
-        if len(voices) == 0:
-            logger.warning("No voices fetched from API, using DEFAULT hardcoded voices")
-            for voice_id, voice_name, gender in voices_with_id_gender:
-                voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
+        # 使用硬编码的语音列表
+        logger.info("Using hardcoded Qwen voices")
+        for voice_id, voice_name, gender in voices_with_id_gender:
+            voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
+        logger.info(f"Qwen loaded {len(voices)} hardcoded voices: {voices}")
         
         # 更新缓存
         _voice_cache['qwen'] = {
@@ -261,7 +175,7 @@ def get_qwen_voices(force_refresh=False) -> list[str]:
         return voices
     except Exception as e:
         # 发生异常，返回默认列表
-        logger.error(f"Error getting Qwen voices from API: {str(e)}")
+        logger.error(f"Error getting Qwen voices: {str(e)}")
         for voice_id, voice_name, gender in voices_with_id_gender:
             voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
         logger.info(f"Qwen loaded {len(voices)} DEFAULT hardcoded voices (exception occurred): {voices}")
@@ -2275,22 +2189,15 @@ def qwen_tts(
             except Exception as e:
                 logger.error(f"Error downloading preview audio: {str(e)}")
         
-        # 配置Qwen API (遵循阿里云Model Studio规范)
+        # 配置Qwen API (使用HTTP API)
         api_key = config.qwen.get("api_key", "")
         base_url = config.qwen.get("base_url", "https://dashscope.aliyuncs.com")
         
         if not api_key:
-            logger.error("Qwen API key is not set")
+            logger.warning("Qwen API key is not set, using text-to-speech fallback")
             return None
         
-        # Qwen TTS API endpoint (阿里云规范)
-        url = f"{base_url}/api/text2speech/v1"
-        
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "X-DashScope-Async": "false"
-        }
+        logger.info(f"Using Qwen TTS with base_url: {base_url}")
         
         # Text segmentation processing - Qwen API limit is typically 5000 characters
         max_segment_length = 5000
@@ -2324,68 +2231,98 @@ def qwen_tts(
         for i, segment in enumerate(segments):
             logger.info(f"Processing segment {i+1}/{len(segments)}, length: {len(segment)}")
             
-            # 阿里云Qwen TTS API请求格式
-            payload = {
-                "model": "qwen-tts-v1",
-                "input": {
-                    "text": segment
-                },
-                "parameters": {
-                    "voice_id": voice_id,
-                    "format": "mp3",
-                    "sample_rate": 24000,
-                    "speed": float(voice_rate),
-                    "language": "zh"
+            try:
+                # 使用HTTP API调用Qwen TTS (Qwen-TTS)
+                url = f"{base_url}/services/aigc/multimodal-generation/generation"
+                
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
                 }
-            }
-            
-            response = requests.post(url, json=payload, headers=headers)
-            
-            logger.info(f"Qwen TTS API response status for segment {i+1}: {response.status_code}")
-            
-            if response.status_code == 200:
-                try:
-                    # 阿里云Qwen TTS API返回JSON格式，包含base64编码的音频数据
-                    response_data = response.json()
-                    logger.debug(f"Qwen TTS API response: {response_data}")
-                    
-                    if response_data.get("code") == 0 and response_data.get("output"):
-                        audio_base64 = response_data["output"].get("audio", "")
-                        if audio_base64:
-                            import base64
-                            audio_bytes = base64.b64decode(audio_base64)
-                            audio_segment = AudioSegment.from_file(
-                                io.BytesIO(audio_bytes),
-                                format="mp3"
-                            )
-                            audio_segments.append(audio_segment)
-                        else:
-                            logger.error(f"Qwen TTS API returned empty audio for segment {i+1}")
-                            return None
-                    else:
-                        error_msg = response_data.get("message", "Unknown error")
-                        logger.error(f"Qwen TTS API error for segment {i+1}: {error_msg}")
-                        return None
-                except ValueError:
-                    # 如果不是JSON响应，尝试直接解析为二进制音频
-                    logger.info("Qwen TTS API returned non-JSON response, treating as raw audio")
-                    audio_bytes = response.content
+                
+                payload = {
+                    "model": "qwen3-tts-flash",
+                    "input": {
+                        "text": segment,
+                        "voice": voice_id
+                    },
+                    "parameters": {
+                        "format": "mp3",
+                        "sample_rate": 24000
+                    }
+                }
+                
+                logger.info(f"Qwen TTS API request URL: {url}")
+                
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
+                
+                logger.info(f"Qwen TTS API response status: {response.status_code}")
+                
+                if response.status_code == 200:
                     try:
-                        audio_segment = AudioSegment.from_file(
-                            io.BytesIO(audio_bytes),
-                            format="mp3"
-                        )
-                        audio_segments.append(audio_segment)
-                    except Exception as e:
-                        logger.error(f"Failed to load audio for segment {i+1}: {e}")
-                        logger.error(f"Audio data length: {len(audio_bytes)} bytes")
+                        response_data = response.json()
+                        logger.debug(f"Qwen TTS response: {response_data}")
+                        
+                        if response_data.get("output") and response_data["output"].get("audio"):
+                            audio_output = response_data["output"]["audio"]
+                            logger.debug(f"Audio output: {audio_output}")
+                            
+                            audio_url = audio_output.get("url") if isinstance(audio_output, dict) else getattr(audio_output, 'url', None)
+                            audio_data = audio_output.get("data") if isinstance(audio_output, dict) else getattr(audio_output, 'data', None)
+                            
+                            if audio_url:
+                                # 下载音频文件
+                                logger.info(f"Downloading audio from URL: {audio_url}")
+                                audio_response = requests.get(audio_url, timeout=30)
+                                if audio_response.status_code == 200:
+                                    audio_bytes = audio_response.content
+                                    logger.info(f"Downloaded audio, size: {len(audio_bytes)} bytes")
+                                    try:
+                                        audio_segment = AudioSegment.from_file(
+                                            io.BytesIO(audio_bytes)
+                                        )
+                                        audio_segments.append(audio_segment)
+                                        logger.info(f"Successfully decoded audio for segment {i+1}")
+                                    except Exception as e:
+                                        logger.error(f"Failed to decode audio: {e}")
+                                        # 尝试保存到文件调试
+                                        temp_file = "qwen_debug_audio.mp3"
+                                        with open(temp_file, 'wb') as f:
+                                            f.write(audio_bytes)
+                                        logger.info(f"Saved audio to {temp_file} for debugging")
+                                        return None
+                                else:
+                                    logger.error(f"Failed to download audio: {audio_response.status_code}")
+                                    return None
+                            elif audio_data:
+                                # 解码base64音频数据
+                                logger.info(f"Decoding base64 audio, data size: {len(audio_data)} chars")
+                                import base64
+                                audio_bytes = base64.b64decode(audio_data)
+                                audio_segment = AudioSegment.from_file(
+                                    io.BytesIO(audio_bytes)
+                                )
+                                audio_segments.append(audio_segment)
+                                logger.info(f"Decoded base64 audio for segment {i+1}")
+                            else:
+                                logger.error(f"No audio URL or data in response for segment {i+1}")
+                                return None
+                        else:
+                            logger.error(f"Invalid response format for segment {i+1}")
+                            return None
+                    except (ValueError, KeyError) as e:
+                        logger.error(f"Failed to parse Qwen TTS response: {e}")
                         return None
-            else:
-                error_msg = f"Qwen TTS API request failed for segment {i+1}: {response.status_code}"
-                if response.text:
-                    error_msg += f" - {response.text[:200]}"
-                logger.error(error_msg)
-                logger.warning("Please check your Qwen API key and network connectivity. Using default voices.")
+                else:
+                    error_msg = f"Qwen TTS API failed: {response.status_code}"
+                    if response.text:
+                        error_msg += f" - {response.text[:500]}"
+                    logger.error(error_msg)
+                    return None
+                    
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Qwen TTS API exception for segment {i+1}: {error_msg}")
                 return None
         
         # Merge audio segments and apply volume adjustment

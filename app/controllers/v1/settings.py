@@ -112,7 +112,6 @@ def get_config(request: Request):
             },
             "qwen": {
                 "api_key": config.qwen.get("api_key", ""),
-                "base_url": config.qwen.get("base_url", "https://api.qwenlm.cn/v1"),
             },
             "whisper": {
                 "device": config.whisper.get("device", "CPU"),
