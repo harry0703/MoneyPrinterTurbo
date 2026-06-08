@@ -548,7 +548,7 @@ def scan_scene_integration(request: Request, body: dict):
 
 
 @router.post("/scene-integration/recover", summary="Recover video synthesis from existing scene files")
-def recover_scene_integration(request: Request, body: dict, background_tasks: BackgroundTasks):
+def recover_scene_integration(request: Request, body: dict):
     """Recover video synthesis from existing scene files"""
     task_id_or_path = body.get("task_id") or body.get("task_path")
     start_scene = body.get("start_scene", 1)
@@ -579,8 +579,7 @@ def recover_scene_integration(request: Request, body: dict, background_tasks: Ba
     
     from app.services import state as sm
     from app.models import const
-    
-    # Task will be queued if another task is running (handled by thread_manager)
+    from app.services.task import thread_manager
     
     # Generate unique task_id for tracking
     task_id = utils.get_uuid()
@@ -588,9 +587,10 @@ def recover_scene_integration(request: Request, body: dict, background_tasks: Ba
     # Register task immediately so it appears in task management
     sm.state.update_task(task_id, state=const.TASK_STATE_PENDING, progress=0, task_type="scene_integration")
     
-    # Submit to background tasks
+    # Submit to thread manager for proper concurrency control
     from app.services.video import recover_video_synthesis
-    background_tasks.add_task(
+    _, queue_status = thread_manager.submit_task(
+        task_id,
         recover_video_synthesis,
         task_id_or_path,
         start_scene=start_scene,
@@ -602,4 +602,13 @@ def recover_scene_integration(request: Request, body: dict, background_tasks: Ba
     
     # Get the task with task_type from state
     created_task = sm.state.get_task(task_id)
-    return utils.get_response(200, created_task)
+    
+    # Provide appropriate message based on queue status
+    if queue_status == "queued":
+        message = "Parallel running task capacity used up and your task will be queued for next slot"
+        logger.info(f"Scene integration task {task_id} queued: {message}")
+    else:
+        message = "success"
+        logger.success(f"Scene integration task created: {utils.to_json(created_task)}")
+    
+    return utils.get_response(200, created_task, message=message)

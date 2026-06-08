@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.3.5"
+project_version = "2.3.6"
 
 [app]
 host_visible = false
@@ -52,13 +52,13 @@ video_quality = "ultra"
 video_bitrate = "20M"
 video_brightness = 1.15
 video_contrast = 1.05
-video_concat_mode = "sequential"
+video_concat_mode = "random"
 video_transition_mode = "none"
 video_aspect = "landscape"
 video_clip_duration = 4
 video_count = 1
 silence_duration = 0.5
-video_style = "tech"
+video_style = "ai"
 intro_video_bg_type = "blurred"
 intro_video_bg_blur = 48
 intro_video_bg_color = "black"
@@ -99,10 +99,10 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "AI智能体通信揭秘"
+title_text = "黄仁勋的Token经济"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
-title_font_size = 96
+title_font_size = 92
 title_text_color = "#FFFFFF"
 title_stroke_color = "#404040"
 title_stroke_width = 8.5
