@@ -78,6 +78,11 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_videotoolbox",
 )
 _runtime_disabled_video_codecs = set()
+_VIDEO_DURATION_SAFETY_BUFFER_SECONDS = 0.1
+
+
+def _has_enough_video_duration(video_duration: float, audio_duration: float) -> bool:
+    return video_duration >= audio_duration + _VIDEO_DURATION_SAFETY_BUFFER_SECONDS
 
 
 def _prioritize_unique_source_clips(
@@ -566,7 +571,7 @@ def combine_videos(
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration >= audio_duration:
+        if _has_enough_video_duration(video_duration, audio_duration):
             break
         
         logger.debug(
@@ -655,12 +660,12 @@ def combine_videos(
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
     
-    # loop processed clips until the video duration matches or exceeds the audio duration.
-    if video_duration < audio_duration:
-        logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
+    # Loop processed clips until the video duration includes a small safety buffer.
+    if not _has_enough_video_duration(video_duration, audio_duration):
+        logger.warning(f"video duration ({video_duration:.2f}s) does not exceed audio duration ({audio_duration:.2f}s) with buffer, looping clips to match audio length.")
         base_clips = processed_clips.copy()
         for clip in itertools.cycle(base_clips):
-            if video_duration >= audio_duration:
+            if _has_enough_video_duration(video_duration, audio_duration):
                 break
             processed_clips.append(clip)
             video_duration += clip.duration

@@ -440,6 +440,12 @@ class TestVideoService(unittest.TestCase):
                 )
                 self.assertEqual(result, combined_video_path)
 
+    def test_video_duration_requires_safety_buffer(self):
+        """视频素材时长刚好等于音频时长时仍应继续补充一点缓冲。"""
+        self.assertFalse(vd._has_enough_video_duration(10.0, 10.0))
+        self.assertFalse(vd._has_enough_video_duration(10.09, 10.0))
+        self.assertTrue(vd._has_enough_video_duration(10.1, 10.0))
+
     def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
         """
         随机模式下，一个长素材会被拆成多个片段。调度层应先让每个源素材
