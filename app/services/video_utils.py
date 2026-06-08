@@ -53,10 +53,11 @@ COLOR_MAP = {
 
 def parse_color(color_str: str) -> tuple:
     """
-    Parse a color string to an RGB tuple.
+    Parse a color string to an RGB or RGBA tuple.
     Supports:
     - Named colors: "black", "white", "red", "green", "blue", etc.
     - RGB format: "rgb(0, 0, 0)"
+    - RGBA format: "rgba(0, 0, 0, 0.5)"
     - Hex format: "#000000" or "#000"
     """
     color_str = color_str.strip().lower()
@@ -64,6 +65,20 @@ def parse_color(color_str: str) -> tuple:
     # Check named colors
     if color_str in COLOR_MAP:
         return COLOR_MAP[color_str]
+    
+    # Check RGBA format
+    if color_str.startswith("rgba(") and color_str.endswith(")"):
+        try:
+            values = color_str[5:-1].split(",")
+            r = int(values[0].strip())
+            g = int(values[1].strip())
+            b = int(values[2].strip())
+            a = float(values[3].strip())
+            # Convert alpha from 0-1 to 0-255
+            a_int = int(a * 255)
+            return (r, g, b, a_int)
+        except:
+            pass
     
     # Check RGB format
     if color_str.startswith("rgb(") and color_str.endswith(")"):

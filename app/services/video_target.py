@@ -15,7 +15,7 @@ from moviepy import (
 from app.utils.composite_clip_factory import create_composite_video_clip, safe_concatenate_videoclips, ensure_clip_duration
 from app.config.config import load_config
 from app.utils import utils
-from app.services.video_utils import wrap_text
+from app.services.video_utils import wrap_text, parse_color
 
 from app.services.video_utils import (
     close_clip,
@@ -315,6 +315,7 @@ def process_final_video(
                 try:
                     from app.services.title import _get_valid_font_path
                     from app.services.subtitle import file_to_subtitles, _srt_time_to_seconds
+                    from app.services.video_utils import parse_color
                     
                     font_path = ""
                     if not params.font_name:
@@ -364,14 +365,16 @@ def process_final_video(
                             bg_color = params.text_background_color
                             if bg_color == 'transparent':
                                 bg_color = None
+                            else:
+                                bg_color = parse_color(bg_color) if bg_color else None
                             
                             txt_clip = TextClip(
                                 text=wrapped_text,
                                 font=font_path,
                                 font_size=int(params.font_size),
-                                color=params.text_fore_color,
+                                color=parse_color(params.text_fore_color),
                                 bg_color=bg_color,
-                                stroke_color=params.stroke_color,
+                                stroke_color=parse_color(params.stroke_color),
                                 stroke_width=int(params.stroke_width),
                             )
                             
@@ -619,6 +622,7 @@ def generate_video(
                 
                 # Import file_to_subtitles function
                 from app.services.subtitle import file_to_subtitles, _srt_time_to_seconds
+                from app.services.video_utils import parse_color
                 
                 # Parse subtitle file
                 subtitle_items = file_to_subtitles(subtitle_path)
@@ -660,14 +664,16 @@ def generate_video(
                         bg_color = params.text_background_color
                         if bg_color == 'transparent':
                             bg_color = None
+                        else:
+                            bg_color = parse_color(bg_color) if bg_color else None
                         
                         txt_clip = TextClip(
                             text=wrapped_text,
                             font=font_path,
                             font_size=int(params.font_size),
-                            color=params.text_fore_color,
+                            color=parse_color(params.text_fore_color),
                             bg_color=bg_color,
-                            stroke_color=params.stroke_color,
+                            stroke_color=parse_color(params.stroke_color),
                             stroke_width=int(params.stroke_width),
                         )
                         
