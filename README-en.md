@@ -239,6 +239,24 @@ If you have already activated the virtual environment manually, you can still ru
 python main.py
 ```
 
+#### ④ Pure CLI Mode (No Browser) ⌨️
+
+If you cannot use a browser or port forwarding, you can generate videos directly from the command line:
+
+```shell
+uv run python cli.py --video-subject "The Role of Money"
+```
+
+You can also provide local materials and control the stop stage:
+
+```shell
+uv run python cli.py \
+  --video-subject "The Role of Money" \
+  --video-source local \
+  --video-materials "storage/local_videos/1.mp4,storage/local_videos/2.mp4" \
+  --stop-at video
+```
+
 ## Special Thanks 🙏
 
 Due to the **deployment** and **usage** of this project, there is a certain threshold for some beginner users. We would
