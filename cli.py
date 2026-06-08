@@ -9,6 +9,13 @@ from app.services import task as tm
 from app.utils import utils
 
 
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError(f"video-count must be >= 1, got {parsed}")
+    return parsed
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="MoneyPrinterTurbo command line video generation"
@@ -33,10 +40,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         choices=["script", "terms", "audio", "subtitle", "materials", "video"],
         help="pipeline stop stage",
     )
-    parser.add_argument("--video-count", type=int, default=1, help="output video count")
+    parser.add_argument(
+        "--video-count", type=_positive_int, default=1, help="output video count (>=1)"
+    )
     parser.add_argument("--video-aspect", default="9:16", help="video aspect ratio")
     parser.add_argument("--voice-name", default="", help="tts voice name")
-    parser.add_argument("--subtitle-enabled", action="store_true", default=False)
+    parser.add_argument("--subtitle-enabled", action="store_true")
     parser.add_argument("--task-id", default="", help="custom task id")
     return parser.parse_args(argv)
 
@@ -47,10 +56,12 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         video_terms = [term.strip() for term in video_terms.split(",") if term.strip()]
 
     video_materials = None
-    if args.video_materials.strip():
+    materials_arg = args.video_materials or ""
+    if materials_arg.strip():
         video_materials = [
+            # Actual duration will be detected during video processing; use 0 as placeholder.
             MaterialInfo(provider="local", url=item.strip(), duration=0)
-            for item in args.video_materials.split(",")
+            for item in materials_arg.split(",")
             if item.strip()
         ]
 
