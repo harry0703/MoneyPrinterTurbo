@@ -65,6 +65,7 @@ interface AudioSettings {
   speechKey: string;
   siliconflowApiKey: string;
   cozeApiKey: string;
+  qwenApiKey: string;
   voiceEmotion: string;
   speechVolume: string;
   speechRate: string;
@@ -188,6 +189,7 @@ export const useSettingsStore = defineStore('settings', {
       speechKey: '',
       siliconflowApiKey: '',
       cozeApiKey: '',
+      qwenApiKey: '',
       voiceEmotion: '',
       speechVolume: '1.0',
       speechRate: '1.0',
@@ -749,6 +751,11 @@ export const useSettingsStore = defineStore('settings', {
             this.llm.coze = this.llm.coze || { apiKey: '', baseUrl: '', modelName: '' };
             this.llm.coze.apiKey = data.coze.api_key;
             console.log('Updated coze config:', this.llm.coze);
+          }
+
+          if (data.qwen && data.qwen.api_key) {
+            this.audio.qwenApiKey = data.qwen.api_key;
+            console.log('Updated qwen api key:', this.audio.qwenApiKey);
           }
 
           this.saveToLocalStorage();

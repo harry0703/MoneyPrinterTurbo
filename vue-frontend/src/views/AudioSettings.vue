@@ -16,6 +16,7 @@
             <el-option :label="t('SiliconFlow TTS')" value="siliconflow" />
             <el-option :label="t('Google Gemini TTS')" value="gemini-tts" />
             <el-option :label="t('Coze TTS')" value="coze-tts" />
+            <el-option :label="t('Qwen TTS')" value="qwen-tts" />
           </el-select>
         </div>
 
@@ -151,6 +152,33 @@
           </div>
         </div>
 
+        <div v-if="form.ttsServer === 'qwen-tts'" class="qwen-settings-panel">
+          <div class="form-item">
+            <label class="form-label">{{ t('Qwen API Key') }}</label>
+            <el-input
+              v-model="form.qwenApiKey"
+              :placeholder="t('Enter API Key')"
+              type="password"
+              show-password
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <el-alert
+              :title="t('Qwen TTS Settings:')"
+              type="info"
+              :closable="false"
+            >
+              <ul>
+                <li>{{ t('Speech rate range [0.5, 2.0], default value is 1.0') }}</li>
+                <li>{{ t('Volume range [0.1, 2.0], default value is 1.0') }}</li>
+                <li>{{ t('Get API Key from Aliyun DashScope') }} <a href="https://help.aliyun.com/zh/model-studio/tts-model/" target="_blank">https://help.aliyun.com/zh/model-studio/tts-model/</a></li>
+              </ul>
+            </el-alert>
+          </div>
+        </div>
+
         <div class="form-item">
           <label class="form-label">{{ t('Speaking Volume (1.0 means 100%)') }}</label>
           <el-select v-model="form.speechVolume" :placeholder="t('Select volume')" class="form-select">
@@ -265,6 +293,7 @@ const form = reactive({
   speechKey: settingsStore.audio.speechKey,
   siliconflowApiKey: settingsStore.audio.siliconflowApiKey,
   cozeApiKey: settingsStore.audio.cozeApiKey,
+  qwenApiKey: settingsStore.audio.qwenApiKey,
   voiceEmotion: settingsStore.audio.voiceEmotion,
   speechVolume: settingsStore.audio.speechVolume,
   speechRate: settingsStore.audio.speechRate,
@@ -448,6 +477,9 @@ const loadConfig = async () => {
       if (cfg.coze) {
         form.cozeApiKey = cfg.coze.api_key || '';
       }
+      if (cfg.qwen) {
+        form.qwenApiKey = cfg.qwen.api_key || '';
+      }
     }
   } catch (error: any) {
     console.error('Failed to load config:', error);
@@ -474,6 +506,9 @@ const saveConfig = async () => {
       },
       coze: {
         api_key: form.cozeApiKey
+      },
+      qwen: {
+        api_key: form.qwenApiKey
       }
     };
     await apiService.updateConfig(cfg);

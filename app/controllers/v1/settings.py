@@ -19,7 +19,7 @@ def get_voices(request: Request, tts_server: str = "azure-tts-v1", force_refresh
     Get voice list based on TTS server selection.
 
     Args:
-        tts_server: TTS server type (azure-tts-v1, azure-tts-v2, siliconflow, gemini-tts, coze-tts)
+        tts_server: TTS server type (azure-tts-v1, azure-tts-v2, siliconflow, gemini-tts, coze-tts, qwen-tts)
         force_refresh: Force refresh voice cache (for Coze TTS)
     """
     try:
@@ -29,6 +29,8 @@ def get_voices(request: Request, tts_server: str = "azure-tts-v1", force_refresh
             voices = voice.get_gemini_voices()
         elif tts_server == "coze-tts":
             voices = voice.get_coze_voices(force_refresh=force_refresh)
+        elif tts_server == "qwen-tts":
+            voices = voice.get_qwen_voices(force_refresh=force_refresh)
         else:
             all_voices = voice.get_all_azure_voices(filter_locals=None)
             if tts_server == "azure-tts-v2":
@@ -108,6 +110,10 @@ def get_config(request: Request):
             "coze": {
                 "api_key": config.coze.get("api_key", ""),
             },
+            "qwen": {
+                "api_key": config.qwen.get("api_key", ""),
+                "base_url": config.qwen.get("base_url", "https://api.qwenlm.cn/v1"),
+            },
             "whisper": {
                 "device": config.whisper.get("device", "CPU"),
             }
@@ -146,6 +152,10 @@ def update_config(request: Request, cfg: dict):
         if "coze" in cfg:
             for key, value in cfg["coze"].items():
                 config.coze[key] = value
+
+        if "qwen" in cfg:
+            for key, value in cfg["qwen"].items():
+                config.qwen[key] = value
 
         if "whisper" in cfg:
             for key, value in cfg["whisper"].items():

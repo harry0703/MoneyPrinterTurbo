@@ -49,6 +49,7 @@ def save_config():
     _cfg["azure"] = azure
     _cfg["siliconflow"] = siliconflow
     _cfg["coze"] = coze
+    _cfg["qwen"] = qwen
     _cfg["ui"] = ui
     
     # 保存到文件
@@ -64,6 +65,7 @@ proxy = _cfg.get("proxy", {})
 azure = _cfg.get("azure", {})
 siliconflow = _cfg.get("siliconflow", {})
 coze = _cfg.get("coze", {})
+qwen = _cfg.get("qwen", {})
 ui = _cfg.get(
     "ui",
     {
