@@ -363,10 +363,12 @@ def process_final_video(
                             )
                             
                             bg_color = params.text_background_color
-                            if bg_color == 'transparent':
+                            if bg_color == 'transparent' or bg_color is False:
                                 bg_color = None
+                            elif isinstance(bg_color, str):
+                                bg_color = parse_color(bg_color)
                             else:
-                                bg_color = parse_color(bg_color) if bg_color else None
+                                bg_color = None
                             
                             txt_clip = TextClip(
                                 text=wrapped_text,
@@ -662,10 +664,12 @@ def generate_video(
                         # Create text clip
                         # Handle transparent background
                         bg_color = params.text_background_color
-                        if bg_color == 'transparent':
+                        if bg_color == 'transparent' or bg_color is False:
                             bg_color = None
+                        elif isinstance(bg_color, str):
+                            bg_color = parse_color(bg_color)
                         else:
-                            bg_color = parse_color(bg_color) if bg_color else None
+                            bg_color = None
                         
                         txt_clip = TextClip(
                             text=wrapped_text,
