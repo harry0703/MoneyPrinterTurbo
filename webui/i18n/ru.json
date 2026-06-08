@@ -160,6 +160,21 @@
     "Custom Position (% from top)": "Пользовательское положение (% от верхнего края)",
     "Please enter a value between 0 and 100": "Введите значение от 0 до 100",
     "Please enter a valid number": "Введите корректное число",
-    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов"
+    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов",
+    "Preset Management": "Управление пресетами",
+    "Preset Name": "Название пресета",
+    "Export Preset JSON": "Экспорт пресета в JSON",
+    "Save Preset": "Сохранить пресет",
+    "Please enter a preset name": "Введите название пресета",
+    "Preset saved successfully": "Пресет успешно сохранен",
+    "Saved Presets": "Сохраненные пресеты",
+    "Load Selected Preset": "Загрузить выбранный пресет",
+    "Delete Selected Preset": "Удалить выбранный пресет",
+    "Preset loaded successfully": "Пресет успешно загружен",
+    "Preset deleted successfully": "Пресет успешно удален",
+    "No presets found": "Пресеты не найдены",
+    "Import Preset JSON": "Импорт пресета JSON",
+    "Import Preset": "Импортировать пресет",
+    "Invalid preset file": "Некорректный файл пресета"
   }
 }
