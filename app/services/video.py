@@ -314,7 +314,11 @@ def _format_ffmpeg_concat_path(file_path: str) -> str:
 
 
 def concat_video_clips_with_ffmpeg(
-    clip_files: List[str], output_file: str, threads: int, output_dir: str
+    clip_files: List[str],
+    output_file: str,
+    threads: int,
+    output_dir: str,
+    max_duration: float | None = None,
 ):
     concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
     with open(concat_list_file, "w", encoding="utf-8") as fp:
@@ -322,7 +326,7 @@ def concat_video_clips_with_ffmpeg(
             fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
 
     def build_command(codec: str) -> list[str]:
-        return [
+        command = [
             utils.get_ffmpeg_binary(),
             "-y",
             "-f",
@@ -337,8 +341,11 @@ def concat_video_clips_with_ffmpeg(
             str(threads or 2),
             "-pix_fmt",
             "yuv420p",
-            output_file,
         ]
+        if max_duration is not None and max_duration > 0:
+            command.extend(["-t", f"{max_duration:.3f}"])
+        command.append(output_file)
+        return command
 
     def run_concat(codec: str):
         command = build_command(codec)
@@ -719,14 +726,6 @@ def combine_videos(
         logger.warning("no clips available for merging")
         return combined_video_path
     
-    # if there is only one clip, use it directly
-    if len(processed_clips) == 1:
-        logger.info("using single clip directly")
-        shutil.copy(processed_clips[0].file_path, combined_video_path)
-        delete_files([processed_clips[0].file_path])
-        logger.info("video combining completed")
-        return combined_video_path
-
     clip_files = [clip.file_path for clip in processed_clips]
     logger.info(f"concatenating {len(clip_files)} clips with ffmpeg")
     concat_video_clips_with_ffmpeg(
@@ -734,6 +733,7 @@ def combine_videos(
         output_file=combined_video_path,
         threads=threads,
         output_dir=output_dir,
+        max_duration=audio_duration,
     )
     
     # clean temp files
