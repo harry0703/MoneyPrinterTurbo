@@ -346,25 +346,34 @@ def get_qwen_voices(force_refresh=False) -> list[str]:
             voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
         logger.info(f"Qwen loaded {len(voices)} hardcoded voices")
         
-        # 加载克隆的声音 - 优先从本地文件加载，备用从API获取
+        # 加载克隆的声音 - 优先从独立配置文件加载，备用从API获取
         cloned_voices = []
         
-        # 优先从本地JSON文件加载克隆声音（可提供更丰富的显示信息）
-        file_cloned_voices = load_cloned_voices_from_files()
-        if file_cloned_voices:
-            cloned_voices.extend(file_cloned_voices)
-            logger.info(f"Qwen loaded {len(file_cloned_voices)} cloned voices from local files")
+        # 优先从独立配置文件加载克隆声音
+        from app.config.cloned_voices import cloned_voices_config
+        config_cloned_voices = cloned_voices_config.get_voices(provider="qwen")
+        if config_cloned_voices:
+            for voice_data in config_cloned_voices:
+                voice_id = voice_data.get("voiceId", "")
+                display_name = voice_data.get("displayName", "")
+                gender = voice_data.get("gender", "") or "Unknown"
+                target_model = voice_data.get("model", "")
+                
+                if voice_id and display_name:
+                    cloned_voices.append((voice_id, display_name, gender, target_model))
+            
+            logger.info(f"Qwen loaded {len(cloned_voices)} cloned voices from cloned_voices.json")
         
-        # 如果本地文件没有，且有API key，则从API获取
+        # 如果配置中没有，且有API key，则从API获取
         if not cloned_voices and api_key:
             api_cloned_voices = fetch_cloned_voices_from_api(api_key)
             if api_cloned_voices:
                 cloned_voices.extend(api_cloned_voices)
                 logger.info(f"Qwen loaded {len(api_cloned_voices)} cloned voices from API")
         
-        # 如果本地和API都没有，记录信息
+        # 如果都没有，记录信息
         if not cloned_voices:
-            logger.info("No cloned voices found (neither in local files nor API)")
+            logger.info("No cloned voices found (neither in config nor API)")
         
         # 添加克隆声音到列表
         if cloned_voices:

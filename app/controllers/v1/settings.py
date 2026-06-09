@@ -168,6 +168,138 @@ def update_config(request: Request, cfg: dict):
         return utils.get_response(500, {"error": str(e)})
 
 
+from app.config.cloned_voices import cloned_voices_config
+
+
+@router.get("/cloned-voices", summary="Get cloned voices list")
+def get_cloned_voices(request: Request):
+    """Get the list of cloned voices from configuration."""
+    try:
+        cloned_voices = cloned_voices_config.get_voices()
+        return utils.get_response(200, {"voices": cloned_voices})
+    except Exception as e:
+        logger.error(f"Failed to get cloned voices: {str(e)}")
+        return utils.get_response(500, {"error": str(e)})
+
+
+@router.get("/cloned-voices/providers", summary="Get cloned voice providers")
+def get_cloned_voice_providers(request: Request):
+    """Get list of available voice providers."""
+    try:
+        providers = cloned_voices_config.get_providers()
+        return utils.get_response(200, {"providers": providers})
+    except Exception as e:
+        logger.error(f"Failed to get cloned voice providers: {str(e)}")
+        return utils.get_response(500, {"error": str(e)})
+
+
+@router.get("/cloned-voices/models/{provider}", summary="Get models for a provider")
+def get_cloned_voice_models(request: Request, provider: str):
+    """Get list of models for a specific provider."""
+    try:
+        models = cloned_voices_config.get_models(provider)
+        return utils.get_response(200, {"models": models})
+    except Exception as e:
+        logger.error(f"Failed to get cloned voice models: {str(e)}")
+        return utils.get_response(500, {"error": str(e)})
+
+
+@router.post("/cloned-voices", summary="Add or update cloned voice")
+def add_cloned_voice(request: Request, voice_data: dict):
+    """
+    Add or update a cloned voice.
+    
+    Args:
+        voice_data: Dictionary containing:
+            - voiceId: Unique voice identifier (required)
+            - displayName: Display name for the voice (required)
+            - gender: Voice gender (optional)
+            - model: Target model for TTS synthesis (required)
+            - brief: Description of the voice (optional)
+            - provider: Voice provider (optional, default: "qwen")
+            - region: Service region (optional)
+    """
+    try:
+        required_fields = ["voiceId", "displayName", "model"]
+        for field in required_fields:
+            if field not in voice_data:
+                return utils.get_response(400, {"error": f"Missing required field: {field}"})
+        
+        if "provider" not in voice_data:
+            voice_data["provider"] = "qwen"
+        
+        cloned_voices_config.add_voice(voice_data)
+        logger.info(f"Added/updated cloned voice: {voice_data['displayName']}")
+        
+        all_voices = cloned_voices_config.get_voices()
+        return utils.get_response(200, {"message": "Voice saved successfully", "voices": all_voices})
+    except Exception as e:
+        logger.error(f"Failed to add cloned voice: {str(e)}")
+        return utils.get_response(500, {"error": str(e)})
+
+
+@router.delete("/cloned-voices/{voice_id}", summary="Delete cloned voice")
+def delete_cloned_voice(request: Request, voice_id: str):
+    """Delete a cloned voice by voiceId."""
+    try:
+        success = cloned_voices_config.delete_voice(voice_id)
+        
+        if success:
+            logger.info(f"Deleted cloned voice: {voice_id}")
+            all_voices = cloned_voices_config.get_voices()
+            return utils.get_response(200, {"message": "Voice deleted successfully", "voices": all_voices})
+        else:
+            return utils.get_response(404, {"error": "Voice not found"})
+    except Exception as e:
+        logger.error(f"Failed to delete cloned voice: {str(e)}")
+        return utils.get_response(500, {"error": str(e)})
+
+
+@router.post("/cloned-voices/import", summary="Import cloned voices from JSON")
+def import_cloned_voices(request: Request, data: dict):
+    """
+    Import cloned voices from JSON data.
+    
+    Args:
+        data: Dictionary containing:
+            - json_data: JSON string or list of voice objects
+    """
+    try:
+        json_data = data.get("json_data", "")
+        
+        if not json_data:
+            return utils.get_response(400, {"error": "JSON data is required"})
+        
+        # Parse JSON data
+        if isinstance(json_data, str):
+            import json
+            try:
+                voices = json.loads(json_data)
+            except json.JSONDecodeError as e:
+                return utils.get_response(400, {"error": f"Invalid JSON: {str(e)}"})
+        elif isinstance(json_data, list):
+            voices = json_data
+        else:
+            return utils.get_response(400, {"error": "JSON data must be a list of voice objects"})
+        
+        if not isinstance(voices, list):
+            voices = [voices]
+        
+        # Set default provider if not specified
+        for voice_data in voices:
+            if "provider" not in voice_data:
+                voice_data["provider"] = "qwen"
+        
+        cloned_voices_config.import_voices(voices)
+        logger.info(f"Imported {len(voices)} cloned voices")
+        
+        all_voices = cloned_voices_config.get_voices()
+        return utils.get_response(200, {"message": f"Imported {len(voices)} voices successfully", "voices": all_voices})
+    except Exception as e:
+        logger.error(f"Failed to import cloned voices: {str(e)}")
+        return utils.get_response(500, {"error": str(e)})
+
+
 @router.post("/audio/preview", summary="Preview audio (play voice)")
 def preview_audio(request: Request, params: dict):
     """

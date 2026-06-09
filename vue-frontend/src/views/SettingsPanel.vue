@@ -182,6 +182,110 @@
         </el-form>
       </el-card>
       
+      <el-card :body-style="{ padding: '20px' }" class="mt-4">
+        <template #header>
+          <span v-html="t('Cloned Voices Setting')"></span>
+        </template>
+        
+        <div class="voice-actions mt-4">
+          <el-button 
+            type="primary" 
+            plain 
+            size="small" 
+            @click="showAddVoiceModal = true"
+          >
+            <el-icon><Plus /></el-icon>
+            {{ t('Add Voice') }}
+          </el-button>
+          <label class="el-button el-button--success el-button--plain el-button--small ml-2">
+            <el-icon><Upload /></el-icon>
+            {{ t('Import JSON') }}
+            <input 
+              type="file" 
+              accept=".json" 
+              class="voice-file-upload"
+              @change="handleFileUpload"
+            />
+          </label>
+        </div>
+        
+        <div v-if="clonedVoices.length === 0" class="empty-state">
+          <el-empty 
+            description="No cloned voices configured. Click 'Add Voice' or 'Import JSON' to add."
+          />
+        </div>
+        
+        <el-table 
+          v-else 
+          :data="clonedVoices" 
+          border 
+          class="mt-4"
+          :max-height="300"
+        >
+          <el-table-column label="Display Name" prop="displayName" />
+          <el-table-column label="Voice ID" prop="voiceId" width="300" />
+          <el-table-column label="Gender" prop="gender" />
+          <el-table-column label="Model" prop="model" width="200" />
+          <el-table-column label="Actions" width="120">
+            <template #default="scope">
+              <el-button 
+                size="small" 
+                @click="editVoice(scope.row)"
+              >
+                <el-icon><Edit /></el-icon>
+              </el-button>
+              <el-button 
+                size="small" 
+                type="danger" 
+                @click="deleteVoice(scope.row.voiceId)"
+              >
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+      
+      <!-- Add/Edit Voice Modal -->
+      <el-dialog 
+        v-model="showAddVoiceModal" 
+        :title="editingVoice ? t('Edit Voice') : t('Add Cloned Voice')"
+        width="500px"
+      >
+        <el-form :model="voiceForm" label-width="120px">
+          <el-form-item :label="t('Display Name')" required>
+            <el-input v-model="voiceForm.displayName" />
+          </el-form-item>
+          <el-form-item :label="t('Voice ID')" required>
+            <el-input v-model="voiceForm.voiceId" placeholder="e.g., qwen-tts-vc-xxx" />
+          </el-form-item>
+          <el-form-item :label="t('Gender')">
+            <el-select v-model="voiceForm.gender">
+              <el-option label="Male" value="Male" />
+              <el-option label="Female" value="Female" />
+              <el-option label="Unknown" value="" />
+            </el-select>
+          </el-form-item>
+          <el-form-item :label="t('Model')" required>
+            <el-input v-model="voiceForm.model" placeholder="e.g., qwen3-tts-vc-2026-01-22" />
+          </el-form-item>
+          <el-form-item :label="t('Brief')">
+            <el-input v-model="voiceForm.brief" type="textarea" :rows="2" />
+          </el-form-item>
+          <el-form-item :label="t('Provider')">
+            <el-input v-model="voiceForm.provider" />
+          </el-form-item>
+          <el-form-item :label="t('Region')">
+            <el-input v-model="voiceForm.region" />
+          </el-form-item>
+        </el-form>
+        
+        <template #footer>
+          <el-button @click="showAddVoiceModal = false">{{ t('Cancel') }}</el-button>
+          <el-button type="primary" @click="saveVoice">{{ t('Save') }}</el-button>
+        </template>
+      </el-dialog>
+      
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="visible = false">{{ t('Cancel') }}</el-button>
@@ -193,10 +297,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, onMounted, watch } from 'vue';
+import { reactive, ref, computed, onMounted, watch } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { useI18nStore } from '../stores/i18n';
-import { Delete, Plus } from '@element-plus/icons-vue';
+import { Delete, Plus, Edit, Upload } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { apiService } from '../services/api';
 
@@ -263,6 +367,155 @@ const form = reactive({
   silenceDuration: 0.3,
   hostVisible: true
 });
+
+// Cloned voices data
+const clonedVoices = reactive<Array<{
+  voiceId: string;
+  displayName: string;
+  gender: string;
+  model: string;
+  brief?: string;
+  provider?: string;
+  region?: string;
+}>>([]);
+
+const showAddVoiceModal = ref(false);
+const editingVoice = ref<typeof clonedVoices[0] | null>(null);
+
+const voiceForm = reactive({
+  voiceId: '',
+  displayName: '',
+  gender: '',
+  model: '',
+  brief: '',
+  provider: '',
+  region: ''
+});
+
+// Cloned voices methods
+const loadClonedVoices = async () => {
+  try {
+    const response = await apiService.getClonedVoices();
+    if (response.data && response.data.voices) {
+      clonedVoices.splice(0, clonedVoices.length, ...response.data.voices);
+    }
+  } catch (error) {
+    console.error('Failed to load cloned voices:', error);
+  }
+};
+
+const editVoice = (voice: typeof clonedVoices[0]) => {
+  editingVoice.value = voice;
+  voiceForm.voiceId = voice.voiceId;
+  voiceForm.displayName = voice.displayName;
+  voiceForm.gender = voice.gender || '';
+  voiceForm.model = voice.model;
+  voiceForm.brief = voice.brief || '';
+  voiceForm.provider = voice.provider || '';
+  voiceForm.region = voice.region || '';
+  showAddVoiceModal.value = true;
+};
+
+const saveVoice = async () => {
+  if (!voiceForm.voiceId || !voiceForm.displayName || !voiceForm.model) {
+    ElMessage.error('Voice ID, Display Name, and Model are required');
+    return;
+  }
+  
+  try {
+    const voiceData = {
+      voiceId: voiceForm.voiceId,
+      displayName: voiceForm.displayName,
+      gender: voiceForm.gender,
+      model: voiceForm.model,
+      brief: voiceForm.brief,
+      provider: voiceForm.provider,
+      region: voiceForm.region
+    };
+    
+    const response = await apiService.saveClonedVoice(voiceData);
+    if (response.data && response.data.voices) {
+      clonedVoices.splice(0, clonedVoices.length, ...response.data.voices);
+    }
+    
+    ElMessage.success(editingVoice.value ? 'Voice updated successfully' : 'Voice added successfully');
+    showAddVoiceModal.value = false;
+    editingVoice.value = null;
+    resetVoiceForm();
+  } catch (error: any) {
+    console.error('Failed to save voice:', error);
+    ElMessage.error('Failed to save voice: ' + (error?.message || 'Unknown error'));
+  }
+};
+
+const deleteVoice = async (voiceId: string) => {
+  try {
+    const response = await apiService.deleteClonedVoice(voiceId);
+    if (response.data && response.data.voices) {
+      clonedVoices.splice(0, clonedVoices.length, ...response.data.voices);
+    }
+    ElMessage.success('Voice deleted successfully');
+  } catch (error: any) {
+    console.error('Failed to delete voice:', error);
+    ElMessage.error('Failed to delete voice: ' + (error?.message || 'Unknown error'));
+  }
+};
+
+const handleFileUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  
+  if (!file) {
+    return;
+  }
+  
+  if (!file.name.endsWith('.json')) {
+    ElMessage.error('Please select a JSON file');
+    target.value = '';
+    return;
+  }
+  
+  try {
+    const reader = new FileReader();
+    
+    reader.onload = async (e) => {
+      try {
+        const jsonData = e.target?.result as string;
+        const response = await apiService.importClonedVoices(jsonData);
+        
+        if (response.data && response.data.voices) {
+          clonedVoices.splice(0, clonedVoices.length, ...response.data.voices);
+        }
+        
+        ElMessage.success('Voices imported successfully');
+      } catch (error: any) {
+        console.error('Failed to import voices:', error);
+        ElMessage.error('Failed to import voices: ' + (error?.message || 'Unknown error'));
+      }
+    };
+    
+    reader.onerror = () => {
+      ElMessage.error('Failed to read file');
+    };
+    
+    reader.readAsText(file);
+  } catch (error: any) {
+    console.error('Failed to handle file:', error);
+    ElMessage.error('Failed to process file: ' + (error?.message || 'Unknown error'));
+  }
+  
+  target.value = '';
+};
+
+const resetVoiceForm = () => {
+  voiceForm.voiceId = '';
+  voiceForm.displayName = '';
+  voiceForm.gender = '';
+  voiceForm.model = '';
+  voiceForm.brief = '';
+  voiceForm.provider = '';
+  voiceForm.region = '';
+};
 
 // API Key management methods
 const addPexelsApiKey = () => {
@@ -497,10 +750,9 @@ const saveSettings = async () => {
 watch(() => props.visible, async (newValue) => {
   if (newValue) {
     try {
-      // Fetch config from backend first
       await settingsStore.fetchConfig();
-      // Load settings into form
       loadSettingsToForm();
+      await loadClonedVoices();
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -509,10 +761,9 @@ watch(() => props.visible, async (newValue) => {
 
 onMounted(async () => {
   try {
-    // Fetch config from backend first
     await settingsStore.fetchConfig();
-    // Load settings into form
     loadSettingsToForm();
+    await loadClonedVoices();
   } catch (error) {
     console.error('Failed to load settings:', error);
   }
@@ -578,5 +829,14 @@ onMounted(async () => {
 
 .mt-2 {
   margin-top: 8px;
+}
+
+.voice-file-upload {
+  display: none;
+}
+
+.voice-actions {
+  display: flex;
+  gap: 8px;
 }
 </style>

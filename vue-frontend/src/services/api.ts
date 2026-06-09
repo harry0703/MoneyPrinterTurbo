@@ -245,6 +245,27 @@ export const apiService = {
     return response.data;
   },
   
+  // Cloned voices related
+  getClonedVoices: async (): Promise<ApiResponse> => {
+    const response = await api.get('/cloned-voices');
+    return response.data;
+  },
+  
+  saveClonedVoice: async (voiceData: any): Promise<ApiResponse> => {
+    const response = await api.post('/cloned-voices', voiceData);
+    return response.data;
+  },
+  
+  deleteClonedVoice: async (voiceId: string): Promise<ApiResponse> => {
+    const response = await api.delete(`/cloned-voices/${voiceId}`);
+    return response.data;
+  },
+  
+  importClonedVoices: async (jsonData: any): Promise<ApiResponse> => {
+    const response = await api.post('/cloned-voices/import', { json_data: jsonData });
+    return response.data;
+  },
+  
 };
 
 export const generateVideoScript = async (request: VideoScriptRequest): Promise<VideoScriptResponse> => {
