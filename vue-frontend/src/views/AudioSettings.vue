@@ -350,6 +350,13 @@ const voiceList = computed<Voice[]>(() => {
           previewAudio: parts.length >= 4 ? parts[3] : ''
         });
       }
+    } else if (v.startsWith('qwen|')) {
+      const parts = v.split('|');
+      if (parts.length >= 3) {
+        const voiceNameGender = parts[2];
+        const label = voiceNameGender.replace('Female', t('Female')).replace('Male', t('Male'));
+        voices.push({ label, value: v });
+      }
     } else if (v.startsWith('siliconflow:')) {
       const parts = v.split(':');
       if (parts.length >= 3) {
