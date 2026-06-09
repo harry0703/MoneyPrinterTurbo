@@ -2287,7 +2287,7 @@ def coze_tts(
             payload = {
                 "voice_id": voice_id,
                 "speed": float(voice_rate),  # Coze API expects float
-                "sample_rate": 8000,  # Default sample rate
+                "sample_rate": 24000,  # Updated to 24kHz for better audio quality
                 "input": segment,  # Use input parameter instead of text
                 "language_code": "zh"  # Apply Chinese language code for all Coze voices
             }
