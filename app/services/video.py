@@ -157,6 +157,46 @@ def _open_image_clip_with_fallback(image_path: str):
         return ImageClip(sanitized_path), sanitized_path
 
 
+def _downscale_image_if_large(image_path: str, max_side: int = 1920):
+    """
+    把超大尺寸的本地图片缩放到合理上限后再交给 MoviePy 导出。
+
+    背景：
+    image -> video 这一步会把每一帧解码成 rgb24 原始像素喂给 ffmpeg
+    （W * H * 3 字节/帧）。用户上传的手机/相机 JPG 经常有 4000~6000px，
+    单帧就能占几十 MB，CompositeVideoClip + 多帧缓冲叠加后在 Railway 这类
+    内存受限环境里直接把 ffmpeg 子进程压垮，表现为 `BrokenPipe`。
+
+    这里在导出前用 Pillow 把最长边限制到 `max_side`（默认 1920，足够覆盖
+    1080p 竖屏短视频；后续 `combine_videos` 还会按目标比例再缩放）。
+
+    返回 (用于导出的图片路径, 是否生成了临时缩放文件)。
+    若图片本就不大或缩放失败，则回退到原始路径，绝不因为这步阻断流程。
+    """
+    try:
+        with Image.open(image_path) as img:
+            width, height = img.size
+            longest = max(width, height)
+            if longest <= max_side:
+                return image_path, False
+
+            scale = max_side / float(longest)
+            new_size = (max(1, int(width * scale)), max(1, int(height * scale)))
+            resized = img.convert("RGB").resize(new_size, Image.LANCZOS)
+            scaled_path = f"{image_path}.scaled.jpg"
+            resized.save(scaled_path, format="JPEG", quality=90)
+            logger.info(
+                f"downscaled oversized image {width}x{height} -> {new_size[0]}x{new_size[1]} "
+                f"to bound encode memory: {scaled_path}"
+            )
+            return scaled_path, True
+    except Exception as exc:
+        # 缩放只是内存优化，失败时退回原图继续，由下游 try/except 兜底。
+        logger.warning(f"failed to downscale image {image_path}, using original: {str(exc)}")
+
+    return image_path, False
+
+
 def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileClip:
     """
     安静地打开视频文件，避免 MoviePy 2.1.x 把 ffmpeg 探测信息直接打印到 stdout。
@@ -721,38 +761,59 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 logger.info(f"processing image: {material_source_path}")
                 # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
                 close_clip(clip)
-                # Create an image clip and set its duration to 3 seconds
-                clip = (
-                    ImageClip(material_source_path)
-                    .with_duration(clip_duration)
-                    .with_position("center")
+                # 超大图先缩放再导出，避免 rgb24 整帧像素把 ffmpeg 子进程压垮（BrokenPipe）。
+                encode_source_path, scaled_temp = _downscale_image_if_large(
+                    material_source_path
                 )
-                # Apply a zoom effect using the resize method.
-                # A lambda function is used to make the zoom effect dynamic over time.
-                # The zoom effect starts from the original size and gradually scales up to 120%.
-                # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-                # Note: 1 represents 100% size, so 1.2 represents 120% size.
-                zoom_clip = clip.resized(
-                    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-                )
+                final_clip = None
+                try:
+                    # Create an image clip and set its duration to 3 seconds
+                    clip = (
+                        ImageClip(encode_source_path)
+                        .with_duration(clip_duration)
+                        .with_position("center")
+                    )
+                    # Apply a zoom effect using the resize method.
+                    # A lambda function is used to make the zoom effect dynamic over time.
+                    # The zoom effect starts from the original size and gradually scales up to 120%.
+                    # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
+                    # Note: 1 represents 100% size, so 1.2 represents 120% size.
+                    zoom_clip = clip.resized(
+                        lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+                    )
 
-                # Optionally, create a composite video clip containing the zoomed clip.
-                # This is useful when you want to add other elements to the video.
-                final_clip = CompositeVideoClip([zoom_clip])
+                    # CompositeVideoClip 把时变缩放的帧统一到固定画布尺寸，
+                    # 这是导出能成功的前提，不能去掉。
+                    final_clip = CompositeVideoClip([zoom_clip])
 
-                # Output the video to a file.
-                video_file = f"{material_source_path}.mp4"
-                final_clip.write_videofile(video_file, fps=30, logger=None)
-                close_clip(clip)
-                close_clip(final_clip)
+                    # Output the video to a file. 静态图无需 30fps，24fps 已足够且省内存。
+                    video_file = f"{material_source_path}.mp4"
+                    final_clip.write_videofile(video_file, fps=24, logger=None)
+                finally:
+                    close_clip(clip)
+                    close_clip(final_clip)
+                    # 清理缩放产生的临时文件，避免在 local_videos 目录里堆积。
+                    if scaled_temp and os.path.exists(encode_source_path):
+                        try:
+                            os.remove(encode_source_path)
+                        except Exception as remove_error:
+                            logger.warning(
+                                f"failed to remove scaled temp image: "
+                                f"{encode_source_path}, error: {str(remove_error)}"
+                            )
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
             else:
                 # 普通视频素材只需要读取尺寸做校验，校验完成后立即释放句柄即可。
                 close_clip(clip)
-        except Exception:
+        except Exception as exc:
+            # 单个素材处理失败（如某张图把 ffmpeg 压垮触发 BrokenPipe）不应让整个任务崩溃。
+            # 跳过这条素材，让剩余素材继续，只要最终还有可用素材即可完成生成。
             close_clip(clip)
-            raise
+            logger.warning(
+                f"skip material that failed preprocessing: {material.url}, error: {str(exc)}"
+            )
+            continue
 
         valid_materials.append(material)
 
