@@ -655,6 +655,12 @@ if not config.app.get("hide_config", False):
             )
             save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
+            coverr_api_key = get_keys_from_config("coverr_api_keys")
+            coverr_api_key = st.text_input(
+                tr("Coverr API Key"), value=coverr_api_key, type="password"
+            )
+            save_keys_to_config("coverr_api_keys", coverr_api_key)
+
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
 left_panel = panel[0]
@@ -772,6 +778,7 @@ with middle_panel:
         video_sources = [
             (tr("Pexels"), "pexels"),
             (tr("Pixabay"), "pixabay"),
+            (tr("Coverr"), "coverr"),
             (tr("Local file"), "local"),
             (tr("TikTok"), "douyin"),
             (tr("Bilibili"), "bilibili"),
@@ -838,6 +845,13 @@ with middle_panel:
             (tr("Portrait"), VideoAspect.portrait.value),
             (tr("Landscape"), VideoAspect.landscape.value),
         ]
+        # Coverr 库 99% 是 16:9 横屏,默认竖屏会让画面被大量黑边包围。
+        # 用 source-specific widget key 让每个 source 各自记忆 aspect 选择:
+        #   - 首次切到 coverr → 默认 Landscape(index=1)
+        #   - 其他 source 沿用 Portrait(index=0)
+        #   - 用户在某 source 下手动改过 aspect,session_state 会记住,
+        #     下次回到同一 source 时尊重用户选择,不会再被强制覆盖。
+        default_aspect_index = 1 if params.video_source == "coverr" else 0
         selected_index = st.selectbox(
             tr("Video Ratio"),
             options=range(
@@ -846,6 +860,8 @@ with middle_panel:
             format_func=lambda x: video_aspect_ratios[x][
                 0
             ],  # The label is displayed to the user
+            index=default_aspect_index,
+            key=f"video_aspect_for_{params.video_source}",
         )
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
 
@@ -1279,9 +1295,13 @@ with right_panel:
                 params.rounded_subtitle_background
             )
     with st.expander(tr("Click to show API Key management"), expanded=False):
-        st.subheader(tr("Manage Pexels and Pixabay API Keys"))
+        st.subheader(tr("Manage Pexels, Pixabay and Coverr API Keys"))
 
-        col1, col2 = st.tabs([tr("Pexels API Keys"), tr("Pixabay API Keys")])
+        col1, col2, col3 = st.tabs([
+            tr("Pexels API Keys"),
+            tr("Pixabay API Keys"),
+            tr("Coverr API Keys"),
+        ])
 
         with col1:
             st.subheader(tr("Pexels API Keys"))
@@ -1342,6 +1362,42 @@ with right_panel:
                     config.save_config()
                     st.success(tr("Pixabay API Key deleted successfully"))
 
+        with col3:
+            st.subheader(tr("Coverr API Keys"))
+
+            # 与 pexels/pixabay 不同,coverr_api_keys 是 PR 新增配置项,
+            # 老用户的 config.toml 不一定包含,这里先兜底初始化为空列表,
+            # 防止下面 .append / 索引访问触发 KeyError。
+            if "coverr_api_keys" not in config.app or config.app["coverr_api_keys"] is None:
+                config.app["coverr_api_keys"] = []
+
+            if config.app["coverr_api_keys"]:
+                st.write(tr("Current Keys:"))
+                for key in config.app["coverr_api_keys"]:
+                    st.code(key)
+            else:
+                st.info(tr("No Coverr API Keys currently"))
+
+            new_key = st.text_input(tr("Add Coverr API Key"), key="coverr_new_key")
+            if st.button(tr("Add Coverr API Key")):
+                if new_key and new_key not in config.app["coverr_api_keys"]:
+                    config.app["coverr_api_keys"].append(new_key)
+                    config.save_config()
+                    st.success(tr("Coverr API Key added successfully"))
+                elif new_key in config.app["coverr_api_keys"]:
+                    st.warning(tr("This API Key already exists"))
+                else:
+                    st.error(tr("Please enter a valid API Key"))
+
+            if config.app["coverr_api_keys"]:
+                delete_key = st.selectbox(
+                    tr("Select Coverr API Key to delete"), config.app["coverr_api_keys"], key="coverr_delete_key"
+                )
+                if st.button(tr("Delete Selected Coverr API Key")):
+                    config.app["coverr_api_keys"].remove(delete_key)
+                    config.save_config()
+                    st.success(tr("Coverr API Key deleted successfully"))
+
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:
     config.save_config()
@@ -1351,7 +1407,7 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source not in ["pexels", "pixabay", "local"]:
+    if params.video_source not in ["pexels", "pixabay", "coverr", "local"]:
         st.error(tr("Please Select a Valid Video Source"))
         scroll_to_bottom()
         st.stop()
@@ -1363,6 +1419,11 @@ if start_button:
 
     if params.video_source == "pixabay" and not config.app.get("pixabay_api_keys", ""):
         st.error(tr("Please Enter the Pixabay API Key"))
+        scroll_to_bottom()
+        st.stop()
+
+    if params.video_source == "coverr" and not config.app.get("coverr_api_keys", ""):
+        st.error(tr("Please Enter the Coverr API Key"))
         scroll_to_bottom()
         st.stop()
 

@@ -149,6 +149,17 @@
     "Pixabay API Key added successfully": "Pixabay-API-Schlüssel erfolgreich hinzugefügt",
     "Select Pixabay API Key to delete": "Wählen Sie den zu löschenden Pixabay-API-Schlüssel aus",
     "Delete Selected Pixabay API Key": "Ausgewählten Pixabay-API-Schlüssel löschen",
-    "Pixabay API Key deleted successfully": "Pixabay-API-Schlüssel erfolgreich gelöscht"
+    "Pixabay API Key deleted successfully": "Pixabay-API-Schlüssel erfolgreich gelöscht",
+    "Manage Pexels, Pixabay and Coverr API Keys": "Pexels-, Pixabay- und Coverr-API-Schlüssel verwalten",
+    "Coverr": "Coverr",
+    "Coverr API Key": "Coverr API-Schlüssel ([API-Schlüssel holen](https://coverr.co/developers?ctx=header_navigation))",
+    "Coverr API Keys": "Coverr API-Schlüssel",
+    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein",
+    "No Coverr API Keys currently": "Derzeit keine Coverr API-Schlüssel",
+    "Add Coverr API Key": "Coverr API-Schlüssel hinzufügen",
+    "Coverr API Key added successfully": "Coverr API-Schlüssel erfolgreich hinzugefügt",
+    "Select Coverr API Key to delete": "Coverr API-Schlüssel zum Löschen auswählen",
+    "Delete Selected Coverr API Key": "Ausgewählten Coverr API-Schlüssel löschen",
+    "Coverr API Key deleted successfully": "Coverr API-Schlüssel erfolgreich gelöscht"
   }
 }
