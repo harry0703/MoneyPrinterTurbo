@@ -113,9 +113,175 @@ def get_gemini_voices() -> list[str]:
     return result
 
 
+def load_cloned_voices_from_files() -> list:
+    """
+    从本地JSON文件加载克隆的声音列表
+    
+    JSON文件格式示例：
+    [
+        {
+            "voiceId": "qwen-tts-vc-myvoice-voice-xxx",
+            "displayName": "擎苍",
+            "gender": "Male",
+            "model": "qwen3-tts-vc-2026-01-22",
+            "brief": "Created via qwen3-tts-vc-2026-01-22",
+            "provider": "Qwen",
+            "region": "Beijing"
+        }
+    ]
+    
+    Returns:
+        克隆声音列表，每个元素包含 (voice_id, display_name, gender, target_model)
+    """
+    cloned_voices = []
+    
+    import json
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    for filename in os.listdir(project_root):
+        if filename.endswith('.json'):
+            json_path = os.path.join(project_root, filename)
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                if isinstance(data, list):
+                    for item in data:
+                        voice_id = item.get('voiceId', '') or item.get('voice_id', '')
+                        display_name = item.get('displayName', '') or item.get('name', '') or item.get('display_name', '')
+                        gender = item.get('gender', '') or 'Unknown'
+                        target_model = item.get('model', '') or item.get('target_model', '')
+                        
+                        if voice_id and display_name:
+                            if not any(v[0] == voice_id for v in cloned_voices):
+                                cloned_voices.append((voice_id, display_name, gender, target_model))
+                                logger.info(f"Loaded cloned voice from file: {display_name} ({gender}) - {voice_id} (model: {target_model})")
+                elif isinstance(data, dict):
+                    voice_id = data.get('voiceId', '') or data.get('voice_id', '')
+                    display_name = data.get('displayName', '') or data.get('name', '') or data.get('display_name', '')
+                    gender = data.get('gender', '') or 'Unknown'
+                    target_model = data.get('model', '') or data.get('target_model', '')
+                    
+                    if voice_id and display_name:
+                        cloned_voices.append((voice_id, display_name, gender, target_model))
+                        logger.info(f"Loaded cloned voice from file: {display_name} ({gender}) - {voice_id} (model: {target_model})")
+            except Exception as e:
+                logger.warning(f"Failed to load cloned voices from {filename}: {str(e)}")
+    
+    return cloned_voices
+
+
+def fetch_cloned_voices_from_api(api_key: str) -> list:
+    """
+    通过HTTP API获取Qwen TTS克隆声音列表（作为本地文件的备用）
+    
+    根据官方文档：https://docs.qwencloud.com/api-reference/speech-synthesis/voice-cloning/qwen/list-voices
+    
+    Args:
+        api_key: Qwen API key
+        
+    Returns:
+        克隆声音列表，每个元素包含 (voice_id, display_name, gender, target_model)
+    """
+    cloned_voices = []
+    
+    if not api_key:
+        logger.warning("Qwen API key is not set, skipping API fetch for cloned voices")
+        return cloned_voices
+    
+    base_url = "https://dashscope.aliyuncs.com/api/v1"
+    url = f"{base_url}/services/audio/tts/customization"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    
+    # 尝试获取Qwen克隆声音 (qwen-voice-enrollment)
+    # 根据官方文档：https://docs.qwencloud.com/api-reference/speech-synthesis/voice-cloning/qwen/list-voices
+    qwen_payload = {
+        "model": "qwen-voice-enrollment",
+        "input": {
+            "action": "list",
+            "page_size": 50,
+            "page_index": 0
+        }
+    }
+    
+    # 尝试获取CosyVoice克隆声音 (voice-enrollment)
+    # 根据官方文档：https://docs.qwencloud.com/api-reference/speech-synthesis/voice-cloning/cosyvoice/list-voices
+    cosyvoice_payload = {
+        "model": "voice-enrollment",
+        "input": {
+            "action": "list_voice",
+            "page_size": 50,
+            "page_index": 0
+        }
+    }
+    
+    for payload in [qwen_payload, cosyvoice_payload]:
+        try:
+            model_name = payload["model"]
+            logger.info(f"Fetching cloned voices from Qwen TTS API (model: {model_name})")
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            
+            if response.status_code == 200:
+                try:
+                    response_data = response.json()
+                    logger.debug(f"Cloned voices API response ({model_name}): {response_data}")
+                    
+                    # 解析响应
+                    voice_list = []
+                    if response_data.get("output"):
+                        voice_list = response_data["output"].get("voice_list", [])
+                        if not voice_list and "voices" in response_data["output"]:
+                            voice_list = response_data["output"]["voices"]
+                    elif response_data.get("data"):
+                        voice_list = response_data["data"].get("voice_list", []) or response_data["data"].get("voices", [])
+                    
+                    for voice in voice_list:
+                        # 获取voice_id
+                        voice_id = voice.get("voice_id", "") or voice.get("voice", "") or voice.get("voiceId", "")
+                        
+                        # 获取display_name
+                        display_name = voice.get("name", "") or voice.get("display_name", "") or voice.get("displayName", "")
+                        if not display_name and voice_id:
+                            parts = voice_id.split("-")
+                            if len(parts) >= 4:
+                                display_name = parts[3]
+                        
+                        # 获取gender
+                        gender = voice.get("gender", "") or "Unknown"
+                        
+                        # 获取target_model（克隆声音必需的合成模型）
+                        target_model = voice.get("target_model", "") or ""
+                        
+                        if voice_id:
+                            if not any(v[0] == voice_id for v in cloned_voices):
+                                if not display_name:
+                                    display_name = voice_id[:20] + "..." if len(voice_id) > 20 else voice_id
+                                
+                                cloned_voices.append((voice_id, display_name, gender, target_model))
+                                logger.info(f"Fetched cloned voice from API: {display_name} ({gender}) - {voice_id} (model: {target_model})")
+                    
+                    if cloned_voices:
+                        logger.info(f"Successfully fetched {len(cloned_voices)} cloned voices from API")
+                        
+                except ValueError as e:
+                    logger.error(f"Failed to parse cloned voices API response ({model_name}): {e}")
+            else:
+                logger.debug(f"Cloned voices API request failed ({model_name}): {response.status_code} - {response.text[:200]}")
+                
+        except Exception as e:
+            logger.debug(f"Error fetching cloned voices from API: {str(e)}")
+    
+    return cloned_voices
+
+
 def get_qwen_voices(force_refresh=False) -> list[str]:
     """
-    获取Qwen TTS的声音列表
+    获取Qwen TTS的声音列表，包括克隆的声音
     
     Args:
         force_refresh: 是否强制刷新缓存
@@ -178,7 +344,33 @@ def get_qwen_voices(force_refresh=False) -> list[str]:
         logger.info("Using hardcoded Qwen voices")
         for voice_id, voice_name, gender in voices_with_id_gender:
             voices.append(f"qwen|{voice_id}|{voice_name}-{gender}||")
-        logger.info(f"Qwen loaded {len(voices)} hardcoded voices: {voices}")
+        logger.info(f"Qwen loaded {len(voices)} hardcoded voices")
+        
+        # 加载克隆的声音 - 优先从本地文件加载，备用从API获取
+        cloned_voices = []
+        
+        # 优先从本地JSON文件加载克隆声音（可提供更丰富的显示信息）
+        file_cloned_voices = load_cloned_voices_from_files()
+        if file_cloned_voices:
+            cloned_voices.extend(file_cloned_voices)
+            logger.info(f"Qwen loaded {len(file_cloned_voices)} cloned voices from local files")
+        
+        # 如果本地文件没有，且有API key，则从API获取
+        if not cloned_voices and api_key:
+            api_cloned_voices = fetch_cloned_voices_from_api(api_key)
+            if api_cloned_voices:
+                cloned_voices.extend(api_cloned_voices)
+                logger.info(f"Qwen loaded {len(api_cloned_voices)} cloned voices from API")
+        
+        # 如果本地和API都没有，记录信息
+        if not cloned_voices:
+            logger.info("No cloned voices found (neither in local files nor API)")
+        
+        # 添加克隆声音到列表
+        if cloned_voices:
+            for voice_id, display_name, gender, target_model in cloned_voices:
+                voices.append(f"qwen|{voice_id}|{display_name}-{gender}|{target_model}|")
+            logger.info(f"Qwen loaded {len(cloned_voices)} cloned voices total: {[v[1] for v in cloned_voices]}")
         
         # 更新缓存
         _voice_cache['qwen'] = {
@@ -1520,17 +1712,25 @@ def tts(
             logger.error(f"Invalid coze voice name format: {voice_name}")
             result = None
     elif is_qwen_voice(voice_name):
-        # 从voice_name中提取voice_id、preview_audio和preview_text
-        # 格式: qwen|voice_id|voice_name-gender|preview_audio|preview_text
+        # 从voice_name中提取voice_id、target_model、preview_audio和preview_text
+        # 格式: qwen|voice_id|voice_name-gender|target_model或preview_audio|preview_text
         parts = voice_name.split("|")
         if len(parts) >= 2:
-            # 提取voice_id，例如 "qwen|7426720361732915209|xiaoyi-Female|https://...|preview_text" -> "7426720361732915209"
             voice_id = parts[1]
-            # 提取preview_audio URL (parts[3])
-            preview_audio = parts[3] if len(parts) > 3 else ""
-            # 提取preview_text (parts[4])
-            preview_text = parts[4] if len(parts) > 4 else ""
-            result = qwen_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text, is_preview)
+            # 判断是否为克隆声音（voice_id包含qwen-tts-vc-）
+            is_cloned = "qwen-tts-vc-" in voice_id
+            
+            if is_cloned:
+                # 克隆声音格式: qwen|voice_id|name-gender|target_model|
+                target_model = parts[3] if len(parts) > 3 else ""
+                preview_audio = ""
+                preview_text = ""
+                result = qwen_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text, is_preview, target_model)
+            else:
+                # 普通声音格式: qwen|voice_id|voice_name-gender|preview_audio|preview_text
+                preview_audio = parts[3] if len(parts) > 3 else ""
+                preview_text = parts[4] if len(parts) > 4 else ""
+                result = qwen_tts(text, voice_id, voice_rate, voice_file, voice_volume, preview_audio, preview_text, is_preview)
         else:
             logger.error(f"Invalid qwen voice name format: {voice_name}")
             result = None
@@ -2162,6 +2362,7 @@ def qwen_tts(
     preview_audio: str = "",
     preview_text: str = "",
     is_preview: bool = False,
+    target_model: str = "",
 ) -> Union[SubMaker, None]:
     """
     使用Qwen TTS生成语音
@@ -2256,8 +2457,11 @@ def qwen_tts(
                     "Content-Type": "application/json",
                 }
                 
+                # 使用target_model（克隆声音）或默认模型
+                model = target_model if target_model else "qwen3-tts-flash"
+                
                 payload = {
-                    "model": "qwen3-tts-flash",
+                    "model": model,
                     "input": {
                         "text": segment,
                         "voice": voice_id
@@ -2267,6 +2471,8 @@ def qwen_tts(
                         "sample_rate": 24000
                     }
                 }
+                
+                logger.info(f"Qwen TTS using model: {model}")
                 
                 logger.info(f"Qwen TTS API request URL: {url}")
                 
