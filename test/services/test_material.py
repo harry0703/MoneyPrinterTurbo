@@ -148,10 +148,12 @@ class TestCoverrProvider(unittest.TestCase):
 
     # ---------------- Tests for search_videos_coverr ----------------
 
-    def test_search_coverr_parses_hits_and_encodes_url(self):
+    def test_search_coverr_uses_mp4_download_url(self):
         """
-        search_videos_coverr 应把每个 hit 转成 MaterialInfo，并把
-        (id, mp4_url) 编码进 url 字段供下载时拆解。
+        search_videos_coverr 应把每个 hit 转成 MaterialInfo，并把 urls.mp4_download
+        直接作为 MaterialInfo.url。
+        按 Coverr 官方文档 (api.coverr.co/docs/videos/#download-a-video),
+        GET mp4_download 本身就被 Coverr 计入下载统计,无需额外 PATCH ping。
         同时验证 Authorization header 使用 Bearer scheme。
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
@@ -188,10 +190,9 @@ class TestCoverrProvider(unittest.TestCase):
         item = results[0]
         self.assertEqual(item.provider, "coverr")
         self.assertEqual(item.duration, 11)
-        self.assertTrue(item.url.startswith("coverr://"))
-        self.assertIn("S1YbPl1NfI", item.url)
-        self.assertIn(
-            "https://storage.coverr.co/videos/abc?token=xyz", item.url
+        # url 字段就是 mp4_download URL,不再做 coverr://id|url 编码
+        self.assertEqual(
+            item.url, "https://storage.coverr.co/videos/abc/download?token=xyz"
         )
         # Bearer auth + TLS verify on by default
         self.assertEqual(
@@ -244,12 +245,12 @@ class TestCoverrProvider(unittest.TestCase):
                     {
                         "id": "shortvid",
                         "duration": 3,  # below minimum
-                        "urls": {"mp4": "https://example.com/a.mp4"},
+                        "urls": {"mp4_download": "https://example.com/a.mp4"},
                     },
                     {
                         "id": "stringdur",
                         "duration": "10.500000",  # string accepted
-                        "urls": {"mp4": "https://example.com/b.mp4"},
+                        "urls": {"mp4_download": "https://example.com/b.mp4"},
                     },
                 ]
             }
@@ -262,10 +263,10 @@ class TestCoverrProvider(unittest.TestCase):
 
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].duration, 10)
-        self.assertIn("stringdur", results[0].url)
+        self.assertEqual(results[0].url, "https://example.com/b.mp4")
 
     def test_search_coverr_skips_invalid_items(self):
-        """缺 id 或缺 urls.mp4 的条目应被跳过,不应抛异常。"""
+        """缺 id 或缺 urls.mp4_download 的条目应被跳过,不应抛异常。"""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
         config.proxy.clear()
@@ -273,19 +274,19 @@ class TestCoverrProvider(unittest.TestCase):
         fake_response = SimpleNamespace(
             json=lambda: {
                 "hits": [
-                    {  # missing urls.mp4
-                        "id": "no-mp4",
+                    {  # missing urls.mp4_download
+                        "id": "no-download",
                         "duration": 10,
                         "urls": {"mp4_preview": "https://example.com/preview.mp4"},
                     },
                     {  # missing id
                         "duration": 10,
-                        "urls": {"mp4": "https://example.com/x.mp4"},
+                        "urls": {"mp4_download": "https://example.com/x.mp4"},
                     },
                     {  # valid baseline
                         "id": "good",
                         "duration": 10,
-                        "urls": {"mp4": "https://example.com/good.mp4"},
+                        "urls": {"mp4_download": "https://example.com/good.mp4"},
                     },
                 ]
             }
@@ -297,7 +298,7 @@ class TestCoverrProvider(unittest.TestCase):
             results = material.search_videos_coverr("x", minimum_duration=1)
 
         self.assertEqual(len(results), 1)
-        self.assertIn("good", results[0].url)
+        self.assertEqual(results[0].url, "https://example.com/good.mp4")
 
     def test_search_coverr_returns_empty_on_failure(self):
         """
@@ -328,63 +329,15 @@ class TestCoverrProvider(unittest.TestCase):
                 results = material.search_videos_coverr("x", minimum_duration=1)
             self.assertEqual(results, [])
 
-    # ---------------- Tests for _ping_coverr_download ----------------
-
-    def test_ping_coverr_download_sends_patch_with_bearer_auth(self):
-        """
-        合规性 ping 必须使用 PATCH + Bearer auth,落到正确的 stats endpoint。
-        """
-        config.proxy.clear()
-        config.app.pop("tls_verify", None)
-
-        fake_response = SimpleNamespace(status_code=204)
-        with patch(
-            "app.services.material.requests.patch", return_value=fake_response
-        ) as patch_call:
-            material._ping_coverr_download("vid-abc", "coverr-key")
-
-        call = patch_call.call_args
-        # URL 必须是 stats/downloads endpoint
-        self.assertIn("/videos/vid-abc/stats/downloads", call.args[0])
-        # Bearer auth
-        self.assertEqual(
-            call.kwargs["headers"]["Authorization"], "Bearer coverr-key"
-        )
-
-    def test_ping_coverr_download_swallows_failures(self):
-        """
-        ping 失败不能阻断下载流程 —— 视频已经在硬盘上,
-        失败只能记 warning,绝不能 raise。
-        """
-        config.proxy.clear()
-        config.app.pop("tls_verify", None)
-
-        # Subtest A: HTTP non-204 status -> warning, no raise
-        with self.subTest("non-204 status"):
-            fake_response = SimpleNamespace(status_code=500)
-            with patch(
-                "app.services.material.requests.patch",
-                return_value=fake_response,
-            ):
-                # 不应抛任何异常
-                material._ping_coverr_download("vid-x", "coverr-key")
-
-        # Subtest B: network exception -> swallowed
-        with self.subTest("network exception"):
-            with patch(
-                "app.services.material.requests.patch",
-                side_effect=requests.ConnectionError("boom"),
-            ):
-                material._ping_coverr_download("vid-y", "coverr-key")
-
     # ---------------- Tests for download_videos coverr branch ----------------
 
-    def test_download_videos_decodes_coverr_url_and_pings(self):
+    def test_download_videos_passes_mp4_download_url_to_save_video(self):
         """
-        download_videos 在 source="coverr" 时:
+        在 source="coverr" 时:
           1. dispatch 到 search_videos_coverr
-          2. 把 item.url 的 coverr://<id>|<mp4_url> 拆开,只把 mp4_url 传给 save_video
-          3. 下载成功后才 ping,且 ping 携带正确的 video_id
+          2. coverr item 走通用下载路径:save_video 收到的就是 mp4_download URL
+             (不再有 coverr://id|url 编码,也不再调用 PATCH ping)
+          3. 返回保存路径
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -393,10 +346,7 @@ class TestCoverrProvider(unittest.TestCase):
 
         fake_item = material.MaterialInfo()
         fake_item.provider = "coverr"
-        fake_item.url = (
-            f"{material.COVERR_URL_PREFIX}vid-XYZ|"
-            "https://storage.coverr.co/videos/abc?token=xyz"
-        )
+        fake_item.url = "https://storage.coverr.co/videos/abc/download?token=xyz"
         fake_item.duration = 10
 
         with patch(
@@ -405,9 +355,7 @@ class TestCoverrProvider(unittest.TestCase):
         ) as search, patch(
             "app.services.material.save_video",
             return_value="/tmp/coverr-saved.mp4",
-        ) as save, patch(
-            "app.services.material._ping_coverr_download"
-        ) as ping:
+        ) as save:
             result = material.download_videos(
                 task_id="t-coverr",
                 search_terms=["nature"],
@@ -419,85 +367,14 @@ class TestCoverrProvider(unittest.TestCase):
         # 1. dispatch
         self.assertEqual(search.call_count, 1)
 
-        # 2. save_video 收到的是 mp4 直链,不带 coverr:// 前缀也不带 |id 段
+        # 2. save_video 收到的就是 mp4_download URL,原样传入
         save_url = save.call_args.kwargs.get("video_url") or save.call_args.args[0]
         self.assertEqual(
-            save_url, "https://storage.coverr.co/videos/abc?token=xyz"
+            save_url, "https://storage.coverr.co/videos/abc/download?token=xyz"
         )
-        self.assertNotIn("coverr://", save_url)
-        self.assertNotIn("|", save_url)
 
-        # 3. 下载成功后 ping,且 video_id 正确
-        self.assertEqual(ping.call_count, 1)
-        ping_kwargs = ping.call_args.kwargs
-        self.assertEqual(ping_kwargs.get("video_id"), "vid-XYZ")
-        self.assertEqual(ping_kwargs.get("api_key"), "coverr-key")
-
-        # 4. 整体返回值正确
+        # 3. 返回值正确
         self.assertEqual(result, ["/tmp/coverr-saved.mp4"])
-
-    def test_download_videos_skips_ping_on_failure_or_malformed_url(self):
-        """
-        合规性保护:
-          - save_video 返回 "" (下载失败) → 不能 ping
-          - item.url 缺 | 分隔符 → 跳过该 item,不能 ping 也不能下载
-        """
-        config.app["coverr_api_keys"] = ["coverr-key"]
-        config.app.pop("tls_verify", None)
-        config.app.pop("material_directory", None)
-        config.proxy.clear()
-
-        # Subtest A: save_video failed
-        with self.subTest("save_video fails -> no ping"):
-            fake_item = material.MaterialInfo()
-            fake_item.provider = "coverr"
-            fake_item.url = (
-                f"{material.COVERR_URL_PREFIX}vid-A|https://example.com/a.mp4"
-            )
-            fake_item.duration = 10
-
-            with patch(
-                "app.services.material.search_videos_coverr",
-                return_value=[fake_item],
-            ), patch(
-                "app.services.material.save_video", return_value=""
-            ), patch(
-                "app.services.material._ping_coverr_download"
-            ) as ping:
-                material.download_videos(
-                    task_id="t-fail",
-                    search_terms=["x"],
-                    source="coverr",
-                    audio_duration=5,
-                    max_clip_duration=5,
-                )
-            self.assertEqual(ping.call_count, 0)
-
-        # Subtest B: malformed url (missing |)
-        with self.subTest("malformed url -> skip item entirely"):
-            fake_item = material.MaterialInfo()
-            fake_item.provider = "coverr"
-            fake_item.url = f"{material.COVERR_URL_PREFIX}only-an-id"  # no |
-            fake_item.duration = 10
-
-            with patch(
-                "app.services.material.search_videos_coverr",
-                return_value=[fake_item],
-            ), patch(
-                "app.services.material.save_video", return_value="/tmp/x.mp4"
-            ) as save, patch(
-                "app.services.material._ping_coverr_download"
-            ) as ping:
-                result = material.download_videos(
-                    task_id="t-bad",
-                    search_terms=["x"],
-                    source="coverr",
-                    audio_duration=5,
-                    max_clip_duration=5,
-                )
-            self.assertEqual(save.call_count, 0)
-            self.assertEqual(ping.call_count, 0)
-            self.assertEqual(result, [])
 
 
 if __name__ == "__main__":

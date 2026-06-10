@@ -16,12 +16,6 @@ from app.utils import utils
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
 
-# Coverr provider 的 url 编码 scheme:
-#   item.url = f"{COVERR_URL_PREFIX}{video_id}|{mp4_url}"
-# 下载时拆开拿到 video_id 用于合规性 ping。
-# 复用 url 字段是为了避免改动 MaterialInfo schema(会影响 API 反序列化)。
-COVERR_URL_PREFIX = "coverr://"
-
 
 def _get_tls_verify() -> bool:
     # 默认开启 TLS 证书校验，防止素材搜索和下载过程被中间人篡改。
@@ -190,8 +184,10 @@ def search_videos_coverr(
         resize + letterbox 逻辑统一处理
       - duration 字段同时存在 number 和 string 两种形态,本函数都接受
 
-    返回的 MaterialInfo.url 为 f"{COVERR_URL_PREFIX}{video_id}|{mp4_url}" 格式,
-    供 download_videos 拆出 video_id 完成合规性 ping。
+    本函数使用 urls.mp4_download 字段作为下载地址 —— 按 Coverr 官方文档
+    (https://api.coverr.co/docs/videos/#download-a-video) 的说法,
+    GET 这个 URL 本身就被 Coverr 当作一次合法的 download 事件计入统计,
+    无需再调用 PATCH /videos/:id/stats/downloads。
     """
     api_key = get_api_key("coverr_api_keys")
     headers = {"Authorization": f"Bearer {api_key}"}
@@ -229,13 +225,13 @@ def search_videos_coverr(
                 continue
 
             video_id = v.get("id")
-            mp4_url = (v.get("urls") or {}).get("mp4")
-            if not video_id or not mp4_url:
+            mp4_download_url = (v.get("urls") or {}).get("mp4_download")
+            if not video_id or not mp4_download_url:
                 continue
 
             item = MaterialInfo()
             item.provider = "coverr"
-            item.url = f"{COVERR_URL_PREFIX}{video_id}|{mp4_url}"
+            item.url = mp4_download_url
             item.duration = duration
             video_items.append(item)
         return video_items
@@ -243,33 +239,6 @@ def search_videos_coverr(
         logger.error(f"search videos failed: {str(e)}")
 
     return []
-
-
-def _ping_coverr_download(video_id: str, api_key: str) -> None:
-    """
-    Coverr 合规性要求:用户实际下载视频后必须 ping 一次
-    PATCH /videos/<id>/stats/downloads,否则 Coverr 会审查并可能吊销 API key。
-    详见 https://api.coverr.co/docs/videos/#download-a-video
-
-    此 ping 失败不应阻断下载流程 —— 视频已经在用户硬盘上,
-    只是 Coverr 端的统计落不到。记 warning 即可。
-    """
-    url = f"https://api.coverr.co/videos/{video_id}/stats/downloads"
-    headers = {"Authorization": f"Bearer {api_key}"}
-    try:
-        r = requests.patch(
-            url,
-            headers=headers,
-            proxies=config.proxy,
-            verify=_get_tls_verify(),
-            timeout=(10, 10),
-        )
-        if r.status_code != 204:
-            logger.warning(
-                f"coverr download ping returned status {r.status_code} for id={video_id}"
-            )
-    except Exception as e:
-        logger.warning(f"coverr download ping failed for id={video_id}: {str(e)}")
 
 
 def save_video(video_url: str, save_dir: str = "") -> str:
@@ -382,31 +351,12 @@ def download_videos(
     total_duration = 0.0
     for item in valid_video_items:
         try:
-            coverr_video_id = None
-            download_url = item.url
-            if item.provider == "coverr":
-                if not item.url.startswith(COVERR_URL_PREFIX):
-                    logger.error(
-                        f"coverr item missing scheme prefix, skipping: {item.url}"
-                    )
-                    continue
-                payload = item.url[len(COVERR_URL_PREFIX):]
-                coverr_video_id, sep, download_url = payload.partition("|")
-                if not sep or not coverr_video_id or not download_url:
-                    logger.error(f"malformed coverr url, skipping: {item.url}")
-                    continue
-
-            logger.info(f"downloading video: {download_url}")
+            logger.info(f"downloading video: {item.url}")
             saved_video_path = save_video(
-                video_url=download_url, save_dir=material_directory
+                video_url=item.url, save_dir=material_directory
             )
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
-                if coverr_video_id:
-                    _ping_coverr_download(
-                        video_id=coverr_video_id,
-                        api_key=get_api_key("coverr_api_keys"),
-                    )
                 video_paths.append(saved_video_path)
                 seconds = min(max_clip_duration, item.duration)
                 total_duration += seconds
