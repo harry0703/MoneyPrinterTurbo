@@ -212,6 +212,8 @@ def _generate_response(prompt: str) -> str:
             elif llm_provider == "groq":
                 api_key = config.app.get("groq_api_key")
                 model_name = config.app.get("groq_model_name")
+                if not model_name:
+                    model_name = "llama-3.3-70b-versatile"
                 base_url = config.app.get("groq_base_url", "")
                 if not base_url:
                     base_url = "https://api.groq.com/openai/v1"

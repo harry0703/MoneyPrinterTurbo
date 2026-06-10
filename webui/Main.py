@@ -590,7 +590,7 @@ if not config.app.get("hide_config", False):
                         )
                         if effective_api_key:
                             st.caption(
-                                "Unable to load Groq model list right now. You can still enter a model name manually."
+                                "Unable to load Groq model list right now. You can still enter a model name manually — note it won't be validated until generation."
                             )
                         else:
                             st.caption(
