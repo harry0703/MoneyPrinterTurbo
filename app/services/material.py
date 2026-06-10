@@ -165,6 +165,82 @@ def search_videos_pixabay(
     return []
 
 
+def search_videos_coverr(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
+    """
+    Coverr (https://coverr.co) - free HD/4K stock videos,
+    subject to Coverr license terms (https://coverr.co/license).
+
+    Coverr API notes (based on official docs at api.coverr.co/docs/):
+      - 鉴权: Authorization: Bearer <api_key>
+      - 搜索端点: GET /videos?query=...,响应结构 {"hits": [...], ...}
+      - 加 ?urls=true 在搜索响应里直接返回 mp4 直链
+      - URL 是 signed JWT(绑定 API key,无过期时间)
+      - Coverr 库以 16:9 横屏为主,9:16 portrait 占比极低(约 1%)
+        因此本函数不做 aspect_ratio 过滤,由下游 video.py 的
+        resize + letterbox 逻辑统一处理
+      - duration 字段同时存在 number 和 string 两种形态,本函数都接受
+
+    本函数使用 urls.mp4_download 字段作为下载地址 —— 按 Coverr 官方文档
+    (https://api.coverr.co/docs/videos/#download-a-video) 的说法,
+    GET 这个 URL 本身就被 Coverr 当作一次合法的 download 事件计入统计,
+    无需再调用 PATCH /videos/:id/stats/downloads。
+    """
+    api_key = get_api_key("coverr_api_keys")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    params = {
+        "query": search_term,
+        "page_size": 20,
+        "urls": "true",
+        "sort": "popular",
+    }
+    query_url = f"https://api.coverr.co/videos?{urlencode(params)}"
+    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+
+    try:
+        r = requests.get(
+            query_url,
+            headers=headers,
+            proxies=config.proxy,
+            verify=_get_tls_verify(),
+            timeout=(30, 60),
+        )
+        response = r.json()
+        video_items: List[MaterialInfo] = []
+
+        if not isinstance(response, dict) or "hits" not in response:
+            logger.error(f"search videos failed: {response}")
+            return video_items
+
+        for v in response["hits"]:
+            # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
+            try:
+                duration = int(float(v.get("duration") or 0))
+            except (TypeError, ValueError):
+                continue
+            if duration < minimum_duration:
+                continue
+
+            video_id = v.get("id")
+            mp4_download_url = (v.get("urls") or {}).get("mp4_download")
+            if not video_id or not mp4_download_url:
+                continue
+
+            item = MaterialInfo()
+            item.provider = "coverr"
+            item.url = mp4_download_url
+            item.duration = duration
+            video_items.append(item)
+        return video_items
+    except Exception as e:
+        logger.error(f"search videos failed: {str(e)}")
+
+    return []
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -240,6 +316,8 @@ def download_videos(
     search_videos = search_videos_pexels
     if source == "pixabay":
         search_videos = search_videos_pixabay
+    elif source == "coverr":
+        search_videos = search_videos_coverr
 
     for search_term in search_terms:
         video_items = search_videos(

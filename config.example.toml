@@ -29,6 +29,19 @@ pexels_api_keys = []
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 pixabay_api_keys = []
 
+# Coverr API Key
+# Register at https://coverr.co/developers?ctx=header_navigation to get your API key instantly.
+# Free tier (Demo) is limited to 50 requests/hour — sufficient for a few
+# video tasks per hour. Upgrade to Pro/Ultimate subscription for 2000/hour.
+# Coverr provides free HD/4K stock videos (subject to Coverr license terms,
+# see https://coverr.co/license), mostly 16:9 landscape; if
+# you generate 9:16 short-form videos, prefer Pexels/Pixabay as primary
+# and use Coverr to widen the catalog for landscape/cinematic content.
+# You can use multiple keys to avoid rate limits.
+# For example: coverr_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+coverr_api_keys = []
+
 # 支持的提供商 (Supported providers):
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)

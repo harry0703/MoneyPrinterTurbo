@@ -50,6 +50,7 @@ materials, video subtitles, and video background music before synthesizing a hig
       supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
+- [x] Supports multiple stock video providers: **Pexels**, **Pixabay**, and **Coverr** (free HD/4K stock videos, subject to [Coverr license terms](https://coverr.co/license); mostly 16:9 landscape; register at [coverr.co/developers](https://coverr.co/developers?ctx=header_navigation), Demo tier 50 requests/hour)
 - [x] Supports integration with various models such as **OpenAI**, **AIHubMix**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
 
 ## Video Demos 📺
