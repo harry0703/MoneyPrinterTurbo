@@ -33,7 +33,8 @@ pixabay_api_keys = []
 # Register at https://coverr.co/developers?ctx=header_navigation to get your API key instantly.
 # Free tier (Demo) is limited to 50 requests/hour — sufficient for a few
 # video tasks per hour. Upgrade to Pro/Ultimate subscription for 2000/hour.
-# Coverr provides free CC0 HD/4K stock videos, mostly 16:9 landscape; if
+# Coverr provides free HD/4K stock videos (subject to Coverr license terms,
+# see https://coverr.co/license), mostly 16:9 landscape; if
 # you generate 9:16 short-form videos, prefer Pexels/Pixabay as primary
 # and use Coverr to widen the catalog for landscape/cinematic content.
 # You can use multiple keys to avoid rate limits.

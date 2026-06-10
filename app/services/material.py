@@ -177,7 +177,8 @@ def search_videos_coverr(
     video_aspect: VideoAspect = VideoAspect.portrait,
 ) -> List[MaterialInfo]:
     """
-    Coverr (https://coverr.co) - free CC0 HD/4K stock videos.
+    Coverr (https://coverr.co) - free HD/4K stock videos,
+    subject to Coverr license terms (https://coverr.co/license).
 
     Coverr API notes (based on official docs at api.coverr.co/docs/):
       - 鉴权: Authorization: Bearer <api_key>
