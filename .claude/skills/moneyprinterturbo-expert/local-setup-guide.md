@@ -1,5 +1,11 @@
 # Guia de despacho: instalar e rodar o MoneyPrinterTurbo no PC do usuário
 
+> **Atalho para Windows:** o repositório inclui instaladores tudo-em-um
+> prontos em [`instaladores/`](../../../instaladores/README.md) (autoria
+> THM TECNOLOGIA): instalação completa em fluxo único, conexão do iPhone por
+> QR Code na Wi-Fi local e acesso remoto via Tailscale. Se o usuário está no
+> Windows, prefira entregá-los em vez de executar os passos manuais abaixo.
+
 > **Para a conversa/agente que for executar este guia:** sua missão é deixar o
 > MoneyPrinterTurbo rodando de forma **prática e visual** no computador do
 > usuário — ou seja, a **WebUI aberta no navegador** em
@@ -25,7 +31,7 @@ Pergunte/detecte e escolha **um** caminho:
 | Modo | Quando usar | Pré-requisitos |
 |---|---|---|
 | **A. Docker** (mais simples) | Docker Desktop já instalado ou o usuário aceita instalá-lo | Docker + Docker Compose |
-| **B. Python nativo** (mais leve) | Sem Docker; controle total | Python 3.11 ou 3.12 (**não** 3.13+), FFmpeg, ImageMagick |
+| **B. Python nativo** (mais leve) | Sem Docker; controle total | Python 3.11 ou 3.12 (**não** 3.13+). FFmpeg e ImageMagick são **opcionais**: o app usa o FFmpeg embutido do pacote `imageio-ffmpeg` como fallback (`utils.get_ffmpeg_binary()`), e o MoviePy 2.x renderiza legendas via Pillow, sem ImageMagick |
 
 Detecção rápida:
 
