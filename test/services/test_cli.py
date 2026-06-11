@@ -70,6 +70,40 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.video_source, "coverr")
 
+    def test_local_material_filename_resolved_to_absolute_path(self):
+        """After preprocess_video, material.url should be an absolute path, not a bare filename."""
+        import os
+        import tempfile
+        from app.utils import utils
+        from app.services import video as vd
+        from app.models.schema import MaterialInfo
+
+        local_videos_dir = utils.storage_dir("local_videos", create=True)
+        # Create a minimal valid video file for testing
+        test_filename = "_cli_test_resolve.mp4"
+        test_filepath = os.path.join(local_videos_dir, test_filename)
+        # We need a real video file; use a tiny one via moviepy
+        try:
+            from moviepy import ColorClip
+            clip = ColorClip(size=(640, 640), color=(0, 0, 0), duration=1)
+            clip.write_videofile(test_filepath, fps=1, logger=None)
+            clip.close()
+        except Exception:
+            self.skipTest("moviepy not available for creating test video")
+
+        try:
+            materials = [MaterialInfo(provider="local", url=test_filename, duration=0)]
+            result = vd.preprocess_video(materials=materials, clip_duration=4)
+            self.assertTrue(len(result) > 0, "preprocess_video should return valid materials")
+            self.assertTrue(
+                os.path.isabs(result[0].url),
+                f"material url should be absolute path, got: {result[0].url}",
+            )
+            self.assertEqual(result[0].url, test_filepath)
+        finally:
+            if os.path.exists(test_filepath):
+                os.remove(test_filepath)
+
 
 if __name__ == "__main__":
     unittest.main()
