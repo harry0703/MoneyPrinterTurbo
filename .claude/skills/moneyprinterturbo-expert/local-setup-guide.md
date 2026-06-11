@@ -1,10 +1,11 @@
 # Guia de despacho: instalar e rodar o MoneyPrinterTurbo no PC do usuário
 
-> **Atalho para Windows:** o repositório inclui instaladores tudo-em-um
-> prontos em [`instaladores/`](../../../instaladores/README.md) (autoria
-> THM TECNOLOGIA): instalação completa em fluxo único, conexão do iPhone por
-> QR Code na Wi-Fi local e acesso remoto via Tailscale. Se o usuário está no
-> Windows, prefira entregá-los em vez de executar os passos manuais abaixo.
+> **Atalho para Windows:** o repositório inclui o instalador **DEMO** em
+> [`instaladores/`](../../../instaladores/README.md) (autoria THM TECNOLOGIA),
+> com instalação completa em fluxo único. Os instaladores da versão BR
+> Completa (todos os provedores de IA, iPhone local e remoto) são distribuídos
+> pela THM TECNOLOGIA mediante contato (Telegram: t.me/rdllmsu) — se o
+> usuário for o proprietário, ele já os possui.
 
 > **Para a conversa/agente que for executar este guia:** sua missão é deixar o
 > MoneyPrinterTurbo rodando de forma **prática e visual** no computador do

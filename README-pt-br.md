@@ -8,7 +8,7 @@
   <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
 </p>
 
-<h3>Português (Brasil) | <a href="README-en.md">English</a> | <a href="README.md">简体中文</a> | <a href="README-ar.md">العربية</a></h3>
+<h3>Português (Brasil) | <a href="README-en.md">English</a> | <a href="README-zh.md">简体中文</a> | <a href="README-ar.md">العربية</a></h3>
 
 É só você dar um <b>assunto</b> ou uma <b>palavra-chave</b> para o vídeo, e ele gera automaticamente o roteiro,
 os vídeos de fundo, as legendas sincronizadas e a música — e monta um vídeo curto em alta definição, pronto
@@ -32,11 +32,12 @@ chaves — terminando com o aplicativo aberto na tela, com ícone na Área de Tr
 
 | Instalador | O que faz |
 |---|---|
-| [Instalar-MoneyPrinterTurbo-TUDO-EM-UM.bat](instaladores/Instalar-MoneyPrinterTurbo-TUDO-EM-UM.bat) | Instalação completa em fluxo único |
-| [Conectar-iPhone-UM-CLIQUE.bat](instaladores/Conectar-iPhone-UM-CLIQUE.bat) | Usar pelo iPhone/iPad em casa (QR Code) |
-| [iPhone-Em-Qualquer-Lugar-TAILSCALE.bat](instaladores/iPhone-Em-Qualquer-Lugar-TAILSCALE.bat) | Usar pelo iPhone em qualquer lugar (4G/5G) |
+| [Instalar-MoneyPrinterTurbo-DEMO.bat](instaladores/Instalar-MoneyPrinterTurbo-DEMO.bat) | **Versão DEMO gratuita** — instalação completa em fluxo único |
 
-Detalhes, ordem de uso e código-fonte auditável: [instaladores/README.md](instaladores/README.md)
+A **Ferramenta BR Completa** (todos os provedores de IA, uso pelo iPhone em casa
+e via 4G/5G, instalação assistida e suporte) é obtida por contato direto:
+💬 Telegram: [t.me/rdllmsu](https://t.me/rdllmsu). Detalhes e
+código-fonte auditável: [instaladores/README.md](instaladores/README.md)
 
 ## Recursos 🎯
 
@@ -73,7 +74,7 @@ Detalhes, ordem de uso e código-fonte auditável: [instaladores/README.md](inst
 
 ### Caminhos recomendados
 
-- **Windows**: use os [instaladores tudo-em-um](#instalação-com-um-clique-windows-️) deste repositório — é o caminho mais fácil
+- **Windows**: use o [instalador DEMO](#instalação-com-um-clique-windows-️) deste repositório — é o caminho mais fácil
 - **macOS / Linux**: use `uv sync --frozen` como caminho principal de instalação local
 - Se quiser um ambiente mais isolado: use a implantação com Docker
 
