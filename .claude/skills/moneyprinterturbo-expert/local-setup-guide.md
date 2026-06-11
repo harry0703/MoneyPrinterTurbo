@@ -4,7 +4,7 @@
 > [`instaladores/`](../../../instaladores/README.md) (autoria THM TECNOLOGIA),
 > com instalação completa em fluxo único. Os instaladores da versão BR
 > Completa (todos os provedores de IA, iPhone local e remoto) são distribuídos
-> pela THM TECNOLOGIA mediante contato (thales@thmtecnologia.com) — se o
+> pela THM TECNOLOGIA mediante contato (Telegram: t.me/rdllmsu) — se o
 > usuário for o proprietário, ele já os possui.
 
 > **Para a conversa/agente que for executar este guia:** sua missão é deixar o

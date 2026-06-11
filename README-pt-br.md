@@ -36,7 +36,7 @@ chaves — terminando com o aplicativo aberto na tela, com ícone na Área de Tr
 
 A **Ferramenta BR Completa** (todos os provedores de IA, uso pelo iPhone em casa
 e via 4G/5G, instalação assistida e suporte) é obtida por contato direto:
-📧 [thales@thmtecnologia.com](mailto:thales@thmtecnologia.com). Detalhes e
+💬 Telegram: [t.me/rdllmsu](https://t.me/rdllmsu). Detalhes e
 código-fonte auditável: [instaladores/README.md](instaladores/README.md)
 
 ## Recursos 🎯

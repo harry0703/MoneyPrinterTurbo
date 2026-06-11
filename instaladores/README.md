@@ -45,7 +45,7 @@ Inclui tudo da DEMO **mais**:
 
 **Para obter a versão completa, entre em contato:**
 
-### 📧 [thales@thmtecnologia.com](mailto:thales@thmtecnologia.com?subject=Quero%20a%20Ferramenta%20BR%20Completa%20-%20MoneyPrinterTurbo)
+### 💬 Telegram: [t.me/rdllmsu](https://t.me/rdllmsu)
 
 ## Auditoria e código-fonte
 

@@ -50,7 +50,7 @@ Shorts e YouTube. Tudo rodando no seu computador.
 
 ### 💎 Quer a Ferramenta BR Completa?
 
-**Entre em contato:** 📧 <a href="mailto:thales@thmtecnologia.com?subject=Quero%20a%20Ferramenta%20BR%20Completa%20-%20MoneyPrinterTurbo">**thales@thmtecnologia.com**</a>
+**Chame no Telegram:** 💬 <a href="https://t.me/rdllmsu">**t.me/rdllmsu**</a>
 
 <sub>Resposta rápida • Instalação assistida • Suporte em português</sub>
 
@@ -83,5 +83,5 @@ autoria). Os serviços de instalação assistida, acesso via iPhone e suporte s�
 THM TECNOLOGIA.
 
 <div align="center">
-<sub>© 2026 THM TECNOLOGIA — 📧 thales@thmtecnologia.com</sub>
+<sub>© 2026 THM TECNOLOGIA — 💬 Telegram: <a href="https://t.me/rdllmsu">t.me/rdllmsu</a></sub>
 </div>

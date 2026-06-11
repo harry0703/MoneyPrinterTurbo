@@ -58,7 +58,7 @@ try {
   Write-Host ''
   Write-Host '  ========================================================' -ForegroundColor Green
   Write-Host '     MONEYPRINTERTURBO - VERSAO DEMONSTRACAO (DEMO)' -ForegroundColor Green
-  Write-Host '     Experimente gratis. Versao BR Completa: thales@thmtecnologia.com' -ForegroundColor Green
+  Write-Host '     Experimente gratis. Versao BR Completa no Telegram: t.me/rdllmsu' -ForegroundColor Green
   Write-Host '  ========================================================' -ForegroundColor Green
 
   # ============ PASSO 1: PYTHON ============
@@ -178,7 +178,7 @@ try {
     '  - Instalacao assistida e suporte da THM TECNOLOGIA',
     '',
     'Para obter a versao completa, entre em contato:',
-    '  E-mail: thales@thmtecnologia.com',
+    '  Telegram: https://t.me/rdllmsu',
     '',
     '(c) 2026 THM TECNOLOGIA'
   ) -join [Environment]::NewLine
@@ -422,7 +422,7 @@ sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -F
   Write-Host '     "MoneyPrinterTurbo" da sua Area de Trabalho' -ForegroundColor White
   Write-Host ''
   Write-Host '   Versao BR COMPLETA (iPhone, todos os provedores de IA,' -ForegroundColor Yellow
-  Write-Host '   suporte THM): thales@thmtecnologia.com' -ForegroundColor Yellow
+  Write-Host '   suporte THM) no Telegram: t.me/rdllmsu' -ForegroundColor Yellow
   Write-Host '  ========================================================' -ForegroundColor Green
 }
 catch {
