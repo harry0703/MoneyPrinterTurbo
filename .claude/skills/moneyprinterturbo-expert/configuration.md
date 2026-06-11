@@ -48,7 +48,7 @@ Set `llm_provider`, then fill that provider's keys. Pattern is always
 | `gemini` | direct Google SDK, default `gemini-2.5-flash` |
 | `qwen` | DashScope SDK, e.g. `qwen-max` |
 | `deepseek`, `moonshot`, `minimax`, `mimo`, `modelscope`, `siliconflow`, `aihubmix`, `oneapi`, `cloudflare`, `litellm`, `grok`, `groq`, `ernie` | OpenAI-compatible or dedicated branches in `llm.py::_generate_response()` |
-| `ollama` | local; `ollama_base_url` + `ollama_model_name`. Inside Docker the code auto-detects containers (`/.dockerenv`, `/proc/1/cgroup`) and rewrites localhost to `host.docker.internal` / the gateway IP |
+| `ollama` | local; `ollama_base_url` + `ollama_model_name`. Inside Docker the code auto-detects containers (`/.dockerenv`, `/run/.containerenv`, `/proc/1/cgroup` markers) and rewrites localhost to `host.docker.internal` / the gateway IP |
 | `g4f` | free reverse-engineered providers; disabled unless explicitly opted in |
 | `pollinations` | free, API key optional |
 

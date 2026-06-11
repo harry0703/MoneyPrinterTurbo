@@ -16,7 +16,8 @@ rendering outside Docker, ImageMagick with a permissive policy.
 ## Run with Docker
 
 ```bash
-docker compose up                    # webui :8501 (docker-compose.gpu.yml for CUDA whisper)
+docker compose up                    # uses docker-compose.yml; webui on :8501
+# docker compose -f docker-compose.gpu.yml up   # for CUDA whisper support
 # mount config + storage:
 #   -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml
 #   -v $(pwd)/storage:/MoneyPrinterTurbo/storage
@@ -79,9 +80,11 @@ curl -X POST http://localhost:8080/api/v1/videos -H 'Content-Type: application/j
 1. `app/services/utils/video_effects.py` — add `mytransition_transition(clip, t=1)`
    using MoviePy effects.
 2. Add the enum member to `VideoTransitionMode` in `app/models/schema.py`.
-3. Wire the case in `combine_videos()`'s transition dispatch
-   (`app/services/video.py`) — `Shuffle` mode picks randomly among available
-   transitions, so new ones join it automatically if added to its pool.
+3. Wire it in `combine_videos()`'s transition dispatch
+   (`app/services/video.py`): add an `elif transition_value == VideoTransitionMode.mytransition.value`
+   branch, **and** append the function to the hard-coded `transition_funcs`
+   list in the `shuffle` branch — random selection does not pick up new
+   transitions automatically.
 4. Expose in WebUI transition selector.
 
 ## Debug common failures
