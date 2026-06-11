@@ -1078,6 +1078,9 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             else:
                 # 普通视频素材只需要读取尺寸做校验，校验完成后立即释放句柄即可。
                 close_clip(clip)
+                # Update url to the resolved absolute path so that downstream
+                # stages (combine_videos) can open the file without re-resolving.
+                material.url = material_source_path
         except Exception:
             close_clip(clip)
             raise

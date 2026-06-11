@@ -246,6 +246,24 @@ uv run python main.py
 python main.py
 ```
 
+#### ④ 纯命令行方式（无浏览器）⌨️
+
+如果你无法使用浏览器或端口转发，可以直接在命令行生成视频：
+
+```shell
+uv run python cli.py --video-subject "金钱的作用"
+```
+
+也可以指定本地素材并仅运行到某个阶段：
+
+```shell
+uv run python cli.py \
+  --video-subject "金钱的作用" \
+  --video-source local \
+  --video-materials "1.mp4,2.mp4" \
+  --stop-at video
+```
+
 ## 特别感谢 🙏
 
 由于该项目的 **部署** 和 **使用**，对于一些小白用户来说，还是 **有一定的门槛**，在此特别感谢
