@@ -181,6 +181,14 @@ def _generate_response(prompt: str) -> str:
                     base_url = "https://aihubmix.com/v1"
                 if not model_name:
                     model_name = "gpt-5.4-mini"
+            elif llm_provider == "aimlapi":
+                api_key = config.app.get("aimlapi_api_key")
+                model_name = config.app.get("aimlapi_model_name")
+                base_url = config.app.get("aimlapi_base_url", "")
+                if not base_url:
+                    base_url = "https://api.aimlapi.com/v1"
+                if not model_name:
+                    model_name = "openai/gpt-4o-mini"
             elif llm_provider == "oneapi":
                 api_key = config.app.get("oneapi_api_key")
                 model_name = config.app.get("oneapi_model_name")
