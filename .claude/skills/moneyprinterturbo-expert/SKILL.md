@@ -78,6 +78,11 @@ The single source of truth for request parameters is
   invocations, full API request/poll/download flows, driving the pipeline
   from Python, config.toml presets (free / local / production), subtitle
   styling and prompt-customization payloads, quota-free smoke tests.
+- **[local-setup-guide.md](local-setup-guide.md)** — dispatch guide (in
+  Portuguese) for an agent installing and running everything on the user's
+  PC: Docker vs native Python paths per OS, free API keys, config, WebUI
+  launch and visual verification, troubleshooting. Use when the task is
+  "set this up on my machine".
 
 ## Conventions and gotchas (always relevant)
 
