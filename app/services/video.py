@@ -6,6 +6,7 @@ import random
 import gc
 import shutil
 import subprocess
+import tempfile
 from contextlib import redirect_stdout
 from functools import lru_cache
 from typing import List
@@ -973,6 +974,7 @@ def generate_video(
     # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
     # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
     output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
+    temp_audio_dir = tempfile.gettempdir()
     _write_videofile_with_codec_fallback(
         video_clip,
         output_file=output_file,
@@ -980,7 +982,7 @@ def generate_video(
         audio_codec=audio_codec,
         audio_fps=output_audio_fps,
         audio_bitrate=audio_bitrate,
-        temp_audiofile_path=output_dir,
+        temp_audiofile_path=temp_audio_dir,
         threads=params.n_threads or 2,
         logger=None,
         fps=fps,
