@@ -55,6 +55,21 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 1)
         log_error.assert_called_once()
 
+    def test_subtitle_enabled_by_default(self):
+        args = cli.parse_args(["--video-subject", "test"])
+        params = cli.build_video_params(args)
+        self.assertTrue(params.subtitle_enabled)
+
+    def test_subtitle_disabled_with_no_flag(self):
+        args = cli.parse_args(["--video-subject", "test", "--no-subtitle-enabled"])
+        params = cli.build_video_params(args)
+        self.assertFalse(params.subtitle_enabled)
+
+    def test_coverr_video_source_accepted(self):
+        args = cli.parse_args(["--video-subject", "test", "--video-source", "coverr"])
+        params = cli.build_video_params(args)
+        self.assertEqual(params.video_source, "coverr")
+
 
 if __name__ == "__main__":
     unittest.main()

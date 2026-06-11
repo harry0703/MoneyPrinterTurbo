@@ -26,7 +26,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--video-source",
         default="pexels",
-        choices=["pexels", "pixabay", "local"],
+        choices=["pexels", "pixabay", "coverr", "local"],
         help="video material source",
     )
     parser.add_argument(
@@ -45,7 +45,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--video-aspect", default="9:16", help="video aspect ratio")
     parser.add_argument("--voice-name", default="", help="tts voice name")
-    parser.add_argument("--subtitle-enabled", action="store_true")
+    parser.add_argument(
+        "--subtitle-enabled",
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help="enable subtitles (default: enabled, use --no-subtitle-enabled to disable)",
+    )
     parser.add_argument("--task-id", default="", help="custom task id")
     return parser.parse_args(argv)
 

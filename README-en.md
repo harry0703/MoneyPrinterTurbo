@@ -253,7 +253,7 @@ You can also provide local materials and control the stop stage:
 uv run python cli.py \
   --video-subject "The Role of Money" \
   --video-source local \
-  --video-materials "storage/local_videos/1.mp4,storage/local_videos/2.mp4" \
+  --video-materials "1.mp4,2.mp4" \
   --stop-at video
 ```
 

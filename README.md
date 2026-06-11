@@ -259,7 +259,7 @@ uv run python cli.py --video-subject "金钱的作用"
 uv run python cli.py \
   --video-subject "金钱的作用" \
   --video-source local \
-  --video-materials "storage/local_videos/1.mp4,storage/local_videos/2.mp4" \
+  --video-materials "1.mp4,2.mp4" \
   --stop-at video
 ```
 
