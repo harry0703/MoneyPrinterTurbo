@@ -183,7 +183,7 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             search_terms=video_terms,
             source=params.video_source,
             video_aspect=params.video_aspect,
-            video_contact_mode=params.video_concat_mode,
+            video_concat_mode=params.video_concat_mode,
             audio_duration=audio_duration * params.video_count,
             max_clip_duration=params.video_clip_duration,
         )
