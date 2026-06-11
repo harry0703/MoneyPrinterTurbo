@@ -1,9 +1,9 @@
 # ------------------------------------------------------------
-#  (c) 2026 THM TECNOLOGIA - Todos os direitos reservados.
+#  (c) 2026 THM TECNOLOGIA. Distribuido sob licenca MIT;
 #  Autoria, engenharia e auditoria: THM TECNOLOGIA
 #  Pacote oficial de instalacao e distribuicao do
 #  MoneyPrinterTurbo (software base sob licenca MIT).
-#  Proibida a redistribuicao sem os devidos creditos.
+#  a manutencao deste aviso de autoria e obrigatoria.
 # ------------------------------------------------------------
 # ============================================================
 #  MONEYPRINTERTURBO - INSTALADOR COMPLETO (fluxo unico)
@@ -102,7 +102,8 @@ try {
     if (Test-Path $tmpx) { Remove-Item $tmpx -Recurse -Force }
     Expand-Archive -Path $zip -DestinationPath $tmpx -Force
     $inner = Get-ChildItem $tmpx -Directory | Select-Object -First 1
-    Move-Item $inner.FullName $installDir
+    if (-not (Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir | Out-Null }
+    Copy-Item (Join-Path $inner.FullName '*') $installDir -Recurse -Force
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     Remove-Item $tmpx -Recurse -Force -ErrorAction SilentlyContinue
     Ok ('Programa instalado em ' + $installDir)
@@ -134,27 +135,34 @@ try {
   $cfg = Join-Path $installDir 'config.toml'
   if (-not (Test-Path $cfg)) {
     Copy-Item (Join-Path $installDir 'config.example.toml') $cfg
+  }
+  $cfgText = Get-Content -Raw $cfg
+  $needPexels = $cfgText.Contains('pexels_api_keys = []')
+  $needLlm = $cfgText.Contains('llm_provider = "openai"') -and $cfgText.Contains('openai_api_key = ""')
+  if ($needPexels -or $needLlm) {
     Info 'Abrindo a pagina do Pexels no navegador (chave gratuita de videos)...'
-    Start-Process 'https://www.pexels.com/api/'
-    $pexels = [Microsoft.VisualBasic.Interaction]::InputBox(
+    if ($needPexels) { Start-Process 'https://www.pexels.com/api/' }
+    $pexels = ''
+    if ($needPexels) { $pexels = [Microsoft.VisualBasic.Interaction]::InputBox(
       "1 de 2 - CHAVE DO PEXELS (videos de fundo, gratuita)`n`nA pagina do Pexels abriu no seu navegador.`nCrie a conta (ou entre), copie sua API Key e cole aqui embaixo.`n`nSe quiser fazer isso depois, deixe em branco e clique OK.",
-      'MoneyPrinterTurbo - Chave do Pexels', '')
+      'MoneyPrinterTurbo - Chave do Pexels', '') }
     if ($pexels.Trim()) {
       (Get-Content -Raw $cfg) -replace [regex]::Escape('pexels_api_keys = []'), ('pexels_api_keys = ["' + $pexels.Trim() + '"]') | Set-Content $cfg
       Ok 'Chave do Pexels salva.'
-    } else { Info 'Pexels deixado para depois (da para editar o config.toml).' }
-    $llm = [Microsoft.VisualBasic.Interaction]::InputBox(
+    } elseif ($needPexels) { Info 'Pexels deixado para depois (rode o instalador de novo para preencher).' }
+    $llm = ''
+    if ($needLlm) { $llm = [Microsoft.VisualBasic.Interaction]::InputBox(
       "2 de 2 - CHAVE DO LLM (escreve os roteiros)`n`nSe voce tem uma chave da OpenAI, cole aqui.`n`nSe NAO tem, deixe em branco e clique OK:`nsera usado o Pollinations, que e gratuito e nao precisa de chave.",
-      'MoneyPrinterTurbo - Chave do LLM (opcional)', '')
+      'MoneyPrinterTurbo - Chave do LLM (opcional)', '') }
     if ($llm.Trim()) {
       (Get-Content -Raw $cfg) -replace [regex]::Escape('openai_api_key = ""'), ('openai_api_key = "' + $llm.Trim() + '"') | Set-Content $cfg
       Ok 'Chave OpenAI salva.'
-    } else {
+    } elseif ($needLlm) {
       (Get-Content -Raw $cfg) -replace [regex]::Escape('llm_provider = "openai"'), 'llm_provider = "pollinations"' | Set-Content $cfg
       Ok 'Configurado o modo gratuito (Pollinations).'
     }
   } else {
-    Ok 'Configuracao ja existente. Mantendo suas chaves.'
+    Ok 'Chaves ja preenchidas anteriormente. Mantendo.'
   }
 
   # ============ PASSO 5: MODO APLICATIVO + ICONE ============

@@ -1,10 +1,10 @@
 # Instaladores Oficiais — MoneyPrinterTurbo
 
-> **© 2026 THM TECNOLOGIA — Todos os direitos reservados.**
-> Autoria, engenharia e auditoria dos instaladores: **THM TECNOLOGIA**.
-> O software base (MoneyPrinterTurbo) permanece sob a licença MIT original
-> (ver [LICENSE](../LICENSE)). É proibida a redistribuição destes
-> instaladores sem os devidos créditos.
+> **© 2026 THM TECNOLOGIA** — autoria, engenharia e auditoria dos instaladores.
+> Estes arquivos são distribuídos sob a **mesma licença MIT** do repositório
+> (ver [LICENSE](../LICENSE)). Conforme a licença MIT, **a manutenção do aviso
+> de copyright/autoria da THM TECNOLOGIA é obrigatória** em todas as cópias e
+> redistribuições.
 
 Pacote de instalação **tudo-em-um** para pessoas leigas: um download, um
 duplo clique, zero configuração manual. Cada instalador carrega o aviso de
@@ -46,7 +46,11 @@ firewall/Tailscale, que pedem a confirmação padrão do Windows (UAC) — a ún
 
 ## Segurança e privacidade
 
+- **QR Codes gerados 100% localmente** (biblioteca qrcode.js, MIT, embutida):
+  nenhum endereço privado é enviado a serviços externos.
 - Nada é exposto à internet pública: o acesso local fica restrito à sua rede
-  Wi-Fi, e o acesso remoto trafega por túnel criptografado do Tailscale.
+  Wi-Fi (regra de firewall escopada ao executável do programa), e o acesso
+  remoto só aceita conexões vindas da faixa do Tailscale (100.64.0.0/10),
+  por túnel criptografado.
 - As chaves digitadas ficam apenas no `config.toml` local do seu computador.
 - Encerrar tudo: botão direito no ícone da bandeja → **Encerrar**.

@@ -31,7 +31,7 @@ Pergunte/detecte e escolha **um** caminho:
 | Modo | Quando usar | Pré-requisitos |
 |---|---|---|
 | **A. Docker** (mais simples) | Docker Desktop já instalado ou o usuário aceita instalá-lo | Docker + Docker Compose |
-| **B. Python nativo** (mais leve) | Sem Docker; controle total | Python 3.11 ou 3.12 (**não** 3.13+), FFmpeg, ImageMagick |
+| **B. Python nativo** (mais leve) | Sem Docker; controle total | Python 3.11 ou 3.12 (**não** 3.13+). FFmpeg e ImageMagick são **opcionais**: o app usa o FFmpeg embutido do pacote `imageio-ffmpeg` como fallback (`utils.get_ffmpeg_binary()`), e o MoviePy 2.x renderiza legendas via Pillow, sem ImageMagick |
 
 Detecção rápida:
 

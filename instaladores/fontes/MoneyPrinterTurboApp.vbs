@@ -1,5 +1,5 @@
 ' ------------------------------------------------------------
-'  (c) 2026 THM TECNOLOGIA - Todos os direitos reservados.
+'  (c) 2026 THM TECNOLOGIA. Distribuido sob licenca MIT.
 '  Autoria, engenharia e auditoria: THM TECNOLOGIA
 ' ------------------------------------------------------------
 ' Inicia o MoneyPrinterTurbo em modo aplicativo, sem janela preta.

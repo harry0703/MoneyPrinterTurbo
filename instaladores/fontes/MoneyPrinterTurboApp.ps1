@@ -1,9 +1,9 @@
 # ------------------------------------------------------------
-#  (c) 2026 THM TECNOLOGIA - Todos os direitos reservados.
+#  (c) 2026 THM TECNOLOGIA. Distribuido sob licenca MIT;
 #  Autoria, engenharia e auditoria: THM TECNOLOGIA
 #  Pacote oficial de instalacao e distribuicao do
 #  MoneyPrinterTurbo (software base sob licenca MIT).
-#  Proibida a redistribuicao sem os devidos creditos.
+#  a manutencao deste aviso de autoria e obrigatoria.
 # ------------------------------------------------------------
 # ============================================================
 #  MoneyPrinterTurbo - Modo Aplicativo
@@ -54,7 +54,7 @@ function New-MptIcon {
 
 # ---------- Programa instalado? ----------
 if (-not (Test-Path $python)) {
-  Show-Error ("O MoneyPrinterTurbo nao foi encontrado em " + $script:installDir + ".`n`nExecute primeiro o instalar-moneyprinterturbo.bat")
+  Show-Error ("O MoneyPrinterTurbo nao foi encontrado em " + $script:installDir + ".`n`nExecute primeiro o Instalar-MoneyPrinterTurbo-TUDO-EM-UM.bat")
   exit 1
 }
 
