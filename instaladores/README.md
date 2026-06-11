@@ -1,56 +1,63 @@
-# Instaladores Oficiais — MoneyPrinterTurbo
+# Instalador DEMO — MoneyPrinterTurbo BR
 
-> **© 2026 THM TECNOLOGIA** — autoria, engenharia e auditoria dos instaladores.
-> Estes arquivos são distribuídos sob a **mesma licença MIT** do repositório
-> (ver [LICENSE](../LICENSE)). Conforme a licença MIT, **a manutenção do aviso
-> de copyright/autoria da THM TECNOLOGIA é obrigatória** em todas as cópias e
-> redistribuições.
+> **© 2026 THM TECNOLOGIA** — autoria, engenharia e auditoria.
+> Distribuído sob a licença MIT do repositório (ver [LICENSE](../LICENSE)), com
+> **manutenção obrigatória do aviso de autoria** em todas as cópias.
 
-Pacote de instalação **tudo-em-um** para pessoas leigas: um download, um
-duplo clique, zero configuração manual. Cada instalador carrega o aviso de
-autoria da THM TECNOLOGIA no cabeçalho e dentro do código embutido.
+## ⬇ Download
 
-## Downloads (Windows)
+**[Instalar-MoneyPrinterTurbo-DEMO.bat](Instalar-MoneyPrinterTurbo-DEMO.bat)** —
+clique no link → botão **Download raw file** → salve e dê **duplo clique**.
 
-| Arquivo | O que faz |
-|---|---|
-| **[Instalar-MoneyPrinterTurbo-TUDO-EM-UM.bat](Instalar-MoneyPrinterTurbo-TUDO-EM-UM.bat)** | Instalação completa em fluxo único: instala o Python sozinho (winget ou python.org, sem reiniciar), baixa o programa (sem Git), instala dependências, pede as chaves em janelinhas (abre a página do Pexels sozinho), cria o Modo Aplicativo + ícone na Área de Trabalho e termina com a interface aberta. Retomável e idempotente. |
-| **[Conectar-iPhone-UM-CLIQUE.bat](Conectar-iPhone-UM-CLIQUE.bat)** | iPhone/iPad na mesma Wi-Fi: autoriza o firewall sozinho (1 clique de UAC), liga o servidor invisível e mostra um QR Code na tela — aponte a câmera do iPhone e toque em "Adicionar à Tela de Início". Ícone azul na bandeja com opções. |
-| **[iPhone-Em-Qualquer-Lugar-TAILSCALE.bat](iPhone-Em-Qualquer-Lugar-TAILSCALE.bat)** | iPhone em qualquer lugar (4G/5G): instala o Tailscale sozinho, abre o login (Google/Apple/Microsoft), libera o firewall e mostra 2 QR Codes — um para instalar o app Tailscale no iPhone (primeira vez) e outro para acessar a interface de qualquer rede, por túnel criptografado. Ícone roxo na bandeja. |
+## O que a DEMO instala (tudo automático, em um clique)
 
-**Como baixar:** clique no arquivo acima → botão **Raw** / **Download raw file** → salve e dê duplo clique.
+1. **Python** — detecta ou instala sozinho (winget ou python.org), sem reiniciar
+2. **O programa** — baixa direto do GitHub (sem precisar de Git)
+3. **Dependências** — com barra de progresso e instrução clara
+4. **Configuração DEMO** — interface em português, roteiros pelo provedor de IA
+   gratuito, e a chave gratuita do Pexels pedida em uma janelinha
+5. **Modo Aplicativo** — ícone na Área de Trabalho, tela de carregamento,
+   janela própria (sem cara de navegador) e ícone na bandeja do sistema
+6. **Abre o programa** ao final, pronto para gerar o primeiro vídeo
 
-## Ordem de uso
+É retomável (rodar de novo continua de onde parou) e termina com o aplicativo
+aberto na tela.
 
-1. `Instalar-MoneyPrinterTurbo-TUDO-EM-UM.bat` — sempre primeiro (instala tudo).
-2. `Conectar-iPhone-UM-CLIQUE.bat` — opcional, para usar pelo celular em casa.
-3. `iPhone-Em-Qualquer-Lugar-TAILSCALE.bat` — opcional, para usar fora de casa.
+## Limitações da DEMO
+
+- Roteiros apenas pelo provedor de IA gratuito (Pollinations)
+- Painel de configurações avançadas bloqueado
+- Sem acesso pelo iPhone/iPad
+- Sem instalação assistida e sem suporte
+
+## 💎 Ferramenta BR Completa
+
+Inclui tudo da DEMO **mais**:
+
+- **Todos os provedores de IA** liberados (OpenAI, Gemini, DeepSeek e outros)
+- **Painel de configurações liberado**
+- **Uso pelo iPhone/iPad em casa**: um clique no PC mostra um QR Code — a
+  câmera do iPhone abre a ferramenta, que vira um app na tela de início
+- **Uso pelo iPhone em qualquer lugar** (4G/5G): acesso remoto por túnel
+  criptografado, configurado automaticamente
+- **Instalação assistida** e configuração das suas chaves
+- **Suporte direto da THM TECNOLOGIA**, em português
+
+**Para obter a versão completa, entre em contato:**
+
+### 📧 [thales@thmtecnologia.com](mailto:thales@thmtecnologia.com?subject=Quero%20a%20Ferramenta%20BR%20Completa%20-%20MoneyPrinterTurbo)
 
 ## Auditoria e código-fonte
 
-Os `.bat` carregam o instalador real (PowerShell) embutido em Base64,
-decodificado via `certutil` (nativo do Windows). Para auditoria, os
-códigos-fonte legíveis estão em [`fontes/`](fontes/):
+O `.bat` carrega o instalador real (PowerShell) embutido em Base64, decodificado
+via `certutil` (nativo do Windows), com verificação de integridade. Os fontes
+legíveis para auditoria estão em [`fontes/`](fontes/):
 
 | Fonte | Papel |
 |---|---|
-| `instalador-completo.ps1` | Instalador principal (6 passos; embute os dois arquivos do app) |
+| `instalador-demo.ps1` | Instalador DEMO (6 passos) |
 | `MoneyPrinterTurboApp.ps1` | Modo Aplicativo: splash, servidor oculto, janela própria, bandeja |
-| `MoneyPrinterTurboApp.vbs` | Bootstrapper invisível (sem janela preta) |
-| `ConectariPhone.ps1` | Conector Wi-Fi local com QR Code e firewall automático |
-| `AcessoRemotoiPhone.ps1` | Acesso remoto via Tailscale com QR Codes e login assistido |
+| `MoneyPrinterTurboApp.vbs` | Inicialização invisível (sem janela preta) |
 
-Nenhum instalador requer privilégios de administrador, exceto as etapas de
-firewall/Tailscale, que pedem a confirmação padrão do Windows (UAC) — a única
-"autorização" que o sistema operacional não permite automatizar, por segurança.
-
-## Segurança e privacidade
-
-- **QR Codes gerados 100% localmente** (biblioteca qrcode.js, MIT, embutida):
-  nenhum endereço privado é enviado a serviços externos.
-- Nada é exposto à internet pública: o acesso local fica restrito à sua rede
-  Wi-Fi (regra de firewall escopada ao executável do programa), e o acesso
-  remoto só aceita conexões vindas da faixa do Tailscale (100.64.0.0/10),
-  por túnel criptografado.
-- As chaves digitadas ficam apenas no `config.toml` local do seu computador.
-- Encerrar tudo: botão direito no ícone da bandeja → **Encerrar**.
+Nenhuma etapa exige privilégios de administrador. As chaves digitadas ficam
+apenas no `config.toml` local do seu computador, e nada é exposto à internet.
