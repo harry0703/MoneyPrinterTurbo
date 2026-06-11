@@ -74,6 +74,10 @@ The single source of truth for request parameters is
 - **[recipes.md](recipes.md)** — step-by-step guides: run locally / via
   Docker, add a new LLM provider, add a new TTS provider, add a new stock
   video source, add a transition effect, debug common failures.
+- **[examples.md](examples.md)** — copy-paste-ready practical examples: CLI
+  invocations, full API request/poll/download flows, driving the pipeline
+  from Python, config.toml presets (free / local / production), subtitle
+  styling and prompt-customization payloads, quota-free smoke tests.
 
 ## Conventions and gotchas (always relevant)
 
