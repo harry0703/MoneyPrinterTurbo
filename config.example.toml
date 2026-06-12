@@ -65,8 +65,12 @@ llm_provider = "openai"
 # Visit https://pollinations.ai/ to learn more
 # API Key is optional - leave empty for public access
 pollinations_api_key = ""
-# Default base URL for Pollinations API
-pollinations_base_url = "https://pollinations.ai/api/v1"
+# Base URL for Pollinations API.
+# Leave empty to use the default endpoint (https://text.pollinations.ai/openai).
+# Note: the old "https://pollinations.ai/api/v1" endpoint no longer accepts
+# requests (returns 405 Method Not Allowed), so only set this if you have a
+# working custom endpoint.
+pollinations_base_url = ""
 # Default model for text generation
 pollinations_model_name = "openai-fast"
 
