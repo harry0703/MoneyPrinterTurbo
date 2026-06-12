@@ -694,6 +694,22 @@ def generate_script(
     return final_script.strip()
 
 
+def _strip_code_fence(text: str) -> str:
+    """Strip a surrounding markdown code fence from an LLM response.
+
+    Non-OpenAI providers (Claude, Gemini, …) frequently wrap JSON output in a
+    ```json … ``` fence even when asked to return raw JSON. Removing it lets the
+    first json.loads() succeed instead of falling through to the regex recovery
+    path (and spuriously logging a warning). Mirrors the DOTALL handling already
+    used in _parse_social_metadata().
+    """
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z0-9]*\s*", "", t)
+        t = re.sub(r"\s*```$", "", t)
+    return t.strip()
+
+
 def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
     prompt = f"""
 # Role: Video Search Terms Generator
@@ -731,7 +747,7 @@ Please note that you must use English for generating video search terms; Chinese
             if "Error: " in response:
                 logger.error(f"failed to generate video script: {response}")
                 return response
-            search_terms = json.loads(response)
+            search_terms = json.loads(_strip_code_fence(response))
             if not isinstance(search_terms, list) or not all(
                 isinstance(term, str) for term in search_terms
             ):
@@ -741,7 +757,7 @@ Please note that you must use English for generating video search terms; Chinese
         except Exception as e:
             logger.warning(f"failed to generate video terms: {str(e)}")
             if response:
-                match = re.search(r"\[.*]", response)
+                match = re.search(r"\[.*]", response, re.DOTALL)
                 if match:
                     try:
                         search_terms = json.loads(match.group())
@@ -931,7 +947,7 @@ def _parse_social_metadata(response: str, platform: str) -> dict:
 
     data = None
     try:
-        data = json.loads(response)
+        data = json.loads(_strip_code_fence(response))
     except Exception:
         # 部分模型会在 JSON 外层包一段说明文字或 markdown fence。
         # API 调用方只需要稳定结构，所以这里尝试提取第一个 JSON object。
