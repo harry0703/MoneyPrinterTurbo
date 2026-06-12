@@ -755,6 +755,23 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     if current:
         lines.append(current)
 
+    line_start_punctuation = "，。！？；：、,.!?;:)]}）】》」』”’"
+    for index in range(1, len(lines)):
+        # 中文长句按字符拆分时，最后一个句号、逗号等闭合标点可能被单独
+        # 放到下一行，导致字幕背景被异常撑高，视觉上像一个小点掉在正文
+        # 下方。这里在不重新设计换行算法的前提下，把上一行最后一个字
+        # 移到标点行前面，让标点跟随文字显示，兼容中英文常见闭合标点。
+        if not lines[index] or lines[index][0] not in line_start_punctuation:
+            continue
+        if len(lines[index - 1]) <= 1:
+            continue
+
+        candidate = f"{lines[index - 1][-1]}{lines[index]}"
+        candidate_width, _ = get_text_size(candidate)
+        if candidate_width <= max_width:
+            lines[index] = candidate
+            lines[index - 1] = lines[index - 1][:-1]
+
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
     height = len(lines) * height
     return result, height
@@ -791,6 +808,42 @@ def _rounded_subtitle_background_clip(
         fill=(rgb[0], rgb[1], rgb[2], safe_alpha),
     )
     return ImageClip(np.array(img), transparent=True)
+
+
+def _get_visible_center_position(
+    text_clip: TextClip,
+    container_width: int,
+    container_height: int,
+) -> tuple[int, int]:
+    """
+    按文字真实可见像素把 TextClip 放到背景容器中心。
+
+    MoviePy 的 TextClip 会按字体行高和 baseline 创建透明画布。很多字体的
+    可见字形并不在这个画布的几何中心，直接 `with_position("center")`
+    会把整块透明画布居中，导致字幕看起来偏上或偏下。这里读取 TextClip
+    的透明 mask，只根据实际有像素的 bbox 计算偏移，让用户看到的文字
+    在字幕背景里视觉居中。
+    """
+    x = int(round((container_width - text_clip.w) / 2))
+    y = int(round((container_height - text_clip.h) / 2))
+
+    try:
+        if text_clip.mask is None:
+            return x, y
+
+        mask_frame = text_clip.mask.get_frame(0)
+        ys, _ = np.where(mask_frame > 0.01)
+        if len(ys) == 0:
+            return x, y
+
+        visible_top = int(ys.min())
+        visible_bottom = int(ys.max())
+        visible_height = visible_bottom - visible_top + 1
+        y = int(round((container_height - visible_height) / 2 - visible_top))
+    except Exception as exc:
+        logger.debug(f"failed to center subtitle text by visible mask: {str(exc)}")
+
+    return x, y
 
 
 def generate_video(
@@ -837,21 +890,34 @@ def generate_video(
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
         max_width = video_width * 0.9
+        bg_color = resolve_subtitle_background_color()
+        rounded_bg_enabled = bool(
+            getattr(params, "rounded_subtitle_background", False) and bg_color
+        )
+        has_subtitle_background = bool(bg_color)
+        pad_x = int(params.font_size * 0.6) if has_subtitle_background else 0
+        # 字幕背景需要给文字左右留出明确内边距。先从可用宽度中扣除
+        # padding 再换行，避免长英文或大字号刚好撑满 90% 视频宽度后，
+        # 文字贴到背景框边缘，看起来像被裁切。普通矩形背景和圆角背景
+        # 都走这条逻辑；无背景字幕则保持原有最大宽度。
+        text_max_width = max(1, int(max_width) - 2 * pad_x)
         wrapped_txt, txt_height = wrap_text(
-            phrase, max_width=max_width, font=font_path, fontsize=params.font_size
+            phrase,
+            max_width=text_max_width,
+            font=font_path,
+            fontsize=params.font_size,
         )
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
         vertical_padding = int(params.font_size * 0.35)
+        text_clip_margin_y = max(
+            int(params.font_size * 0.3), int(params.stroke_width * 2)
+        )
         # MoviePy 在 `method=label` 下会自动收缩文本框高度，遇到多行字幕、
         # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
         # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
         # 背景框与文字本身都能完整渲染出来。
         clip_h = int(txt_height + vertical_padding + (interline * line_count))
-        bg_color = resolve_subtitle_background_color()
-        rounded_bg_enabled = bool(
-            getattr(params, "rounded_subtitle_background", False) and bg_color
-        )
 
         if rounded_bg_enabled:
             # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
@@ -868,7 +934,6 @@ def generate_video(
                 )
                 text_w = int(max_width)
 
-            pad_x = int(params.font_size * 0.6)
             box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
             radius = max(8, int(params.font_size * 0.4))
             text_clip = TextClip(
@@ -880,9 +945,11 @@ def generate_video(
                 stroke_color=params.stroke_color,
                 stroke_width=params.stroke_width,
                 interline=interline,
-                size=(box_w, clip_h),
+                size=(box_w, None),
                 text_align="center",
+                margin=(0, text_clip_margin_y),
             )
+            clip_h = max(clip_h, text_clip.h)
             bg_clip = _rounded_subtitle_background_clip(
                 width=box_w,
                 height=clip_h,
@@ -890,9 +957,41 @@ def generate_video(
                 alpha=140,
                 radius=radius,
             )
+            text_position = _get_visible_center_position(text_clip, box_w, clip_h)
             _clip = CompositeVideoClip(
-                [bg_clip, text_clip.with_position("center")],
+                [bg_clip, text_clip.with_position(text_position)],
                 size=(box_w, clip_h),
+            )
+        elif bg_color:
+            size = (
+                int(max_width),
+                clip_h,
+            )
+            text_clip = TextClip(
+                text=wrapped_txt,
+                font=font_path,
+                font_size=params.font_size,
+                color=params.text_fore_color,
+                bg_color=None,
+                stroke_color=params.stroke_color,
+                stroke_width=params.stroke_width,
+                interline=interline,
+                size=(int(max_width), None),
+                text_align="center",
+                margin=(0, text_clip_margin_y),
+            )
+            size = (size[0], max(size[1], text_clip.h))
+            bg_clip = _rounded_subtitle_background_clip(
+                width=size[0],
+                height=size[1],
+                color=bg_color,
+                alpha=255,
+                radius=0,
+            )
+            text_position = _get_visible_center_position(text_clip, size[0], size[1])
+            _clip = CompositeVideoClip(
+                [bg_clip, text_clip.with_position(text_position)],
+                size=size,
             )
         else:
             size = (
@@ -904,7 +1003,7 @@ def generate_video(
                 font=font_path,
                 font_size=params.font_size,
                 color=params.text_fore_color,
-                bg_color=bg_color,
+                bg_color=None,
                 stroke_color=params.stroke_color,
                 stroke_width=params.stroke_width,
                 interline=interline,
