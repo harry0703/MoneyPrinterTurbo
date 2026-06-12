@@ -288,7 +288,10 @@ endpoint = ""
 
 material_directory = ""
 
-# Used for state management of the task
+# Used for state management of the task.
+# Redis is expected to be private to this app. Do not expose it to untrusted
+# writers, because task state is deserialized for compatibility with existing
+# records.
 enable_redis = false
 redis_host = "localhost"
 redis_port = 6379

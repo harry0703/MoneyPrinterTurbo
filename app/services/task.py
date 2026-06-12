@@ -10,7 +10,7 @@ from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, video, voice, upload_post
 from app.services import state as sm
-from app.utils import utils
+from app.utils import file_security, utils
 
 
 def generate_script(task_id, params):
@@ -78,6 +78,24 @@ def save_script_data(task_id, video_script, video_terms, params):
         f.write(utils.to_json(script_data))
 
 
+def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> str:
+    requested_file = (custom_audio_file or "").strip()
+    if not requested_file:
+        return ""
+
+    try:
+        return file_security.resolve_path_within_directory(
+            utils.task_dir(task_id),
+            requested_file,
+        )
+    except ValueError as exc:
+        logger.warning(
+            "custom audio file is unavailable or outside the task directory, "
+            f"task_id: {task_id}, error: {str(exc)}"
+        )
+        return ""
+
+
 def generate_audio(task_id, params, video_script):
     '''
     Generate audio for the video script.
@@ -92,11 +110,12 @@ def generate_audio(task_id, params, video_script):
     logger.info("\n\n## generating audio")
     # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
     # 这里统一做兼容读取，避免直调接口时抛属性错误。
-    custom_audio_file = getattr(params, "custom_audio_file", None)
-    if not custom_audio_file or not os.path.exists(custom_audio_file):
-        if custom_audio_file:
+    requested_custom_audio_file = getattr(params, "custom_audio_file", None)
+    custom_audio_file = resolve_custom_audio_file(task_id, requested_custom_audio_file)
+    if not custom_audio_file:
+        if requested_custom_audio_file:
             logger.warning(
-                f"custom audio file not found: {custom_audio_file}, using TTS to generate audio."
+                "custom audio file not found or not allowed, using TTS to generate audio."
             )
         else:
             logger.info("no custom audio file provided, using TTS to generate audio.")
