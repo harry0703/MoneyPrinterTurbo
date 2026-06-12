@@ -220,7 +220,7 @@ sudo yum install ImageMagick
 ###### Windows
 
 ```shell
-uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False --server.showEmailPrompt=False
 ```
 
 إذا كنت قد فعّلت البيئة الافتراضية يدوياً، فما زال بإمكانك تشغيل:
@@ -232,7 +232,7 @@ webui.bat
 ###### MacOS أو Linux
 
 ```shell
-uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False --server.showEmailPrompt=False
 ```
 
 إذا كنت قد فعّلت البيئة الافتراضية يدوياً، فما زال بإمكانك تشغيل:

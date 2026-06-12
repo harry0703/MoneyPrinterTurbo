@@ -49,4 +49,4 @@ if not "%SELECTED_WEBUI_PORT%"=="%MPT_WEBUI_PORT%" (
 set "MPT_WEBUI_PORT=%SELECTED_WEBUI_PORT%"
 
 echo ***** WebUI address: http://%MPT_WEBUI_HOST%:%MPT_WEBUI_PORT% *****
-%STREAMLIT_CMD% run .\webui\Main.py --server.address=%MPT_WEBUI_HOST% --server.port=%MPT_WEBUI_PORT% --browser.serverAddress=%MPT_WEBUI_HOST% --browser.gatherUsageStats=False --server.enableCORS=True
+%STREAMLIT_CMD% run .\webui\Main.py --server.address=%MPT_WEBUI_HOST% --server.port=%MPT_WEBUI_PORT% --browser.serverAddress=%MPT_WEBUI_HOST% --browser.gatherUsageStats=False --server.showEmailPrompt=False --server.enableCORS=True
