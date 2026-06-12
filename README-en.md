@@ -17,12 +17,6 @@
 Simply provide a <b>topic</b> or <b>keyword</b> for a video, and it will automatically generate the video copy, video
 materials, video subtitles, and video background music before synthesizing a high-definition short video.
 
-<p align="center">
-  <sub>
-    Thanks to <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> for sponsoring this project. AIHubMix deeply adapts to OpenAI, Claude, Gemini, DeepSeek, Zhipu, Qwen, and other leading models, providing one-stop access to GPT-5.5, deepseek-v4-flash, and 700+ models including free options with production-grade stability.
-  </sub>
-</p>
-
 ### WebUI
 
 ![](docs/webui-en.jpg)
@@ -32,6 +26,46 @@ materials, video subtitles, and video background music before synthesizing a hig
 ![](docs/api.jpg)
 
 </div>
+
+## Special Thanks 🙏
+
+<table align="center">
+  <tr>
+    <td align="center" width="160">
+      <a href="https://aihubmix.com/?aff=CEve"><strong>AIHubMix</strong></a>
+    </td>
+    <td align="left">
+      <sub>Thanks to <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> for sponsoring this project. AIHubMix deeply adapts to OpenAI, Claude, Gemini, DeepSeek, Zhipu, Qwen, and other leading models, providing one-stop access to GPT-5.5, deepseek-v4-flash, and 700+ models including free options with production-grade stability.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><img src="docs/sponsors/byteplus-logo.svg" alt="BytePlus" height="25"></a><br>
+      <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>BytePlus ModelArk</strong></a>
+    </td>
+    <td align="left">
+      <sub>Thanks to Dola Seed for sponsoring this project! <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">Dola Seed 2.0</a> is a full-modal general large model independently developed by ByteDance for the global market. Built on a unified multimodal architecture, it supports joint understanding and generation of text, images, audio, and video. It natively enables agent collaboration, with strong reasoning, long-task execution, tool integration, and coding capabilities. Register via this link to get 500,000 tokens of free inference quota per model.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
+      <a href="https://reccloud.com"><strong>RecCloud</strong></a>
+    </td>
+    <td align="left">
+      <sub>Due to the <strong>deployment</strong> and <strong>usage</strong> of this project, there is a certain threshold for some beginner users. We would like to express our special thanks to <a href="https://reccloud.com">RecCloud (AI-Powered Multimedia Service Platform)</a> for providing a free <code>AI Video Generator</code> service based on this project. It allows for online use without deployment, which is very convenient. Chinese version: <a href="https://reccloud.cn">https://reccloud.cn</a>, English version: <a href="https://reccloud.com">https://reccloud.com</a></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://picwish.com"><img src="docs/sponsors/picwish-logo.svg" alt="Picwish" height="36"></a><br>
+      <a href="https://picwish.com"><strong>Picwish</strong></a>
+    </td>
+    <td align="left">
+      <sub>Thanks to <a href="https://picwish.com">Picwish</a> for supporting and sponsoring this project, enabling continuous updates and maintenance. Picwish focuses on the <strong>image processing field</strong>, providing a rich set of <strong>image processing tools</strong> that extremely simplify complex operations, truly making image processing easier.</sub>
+    </td>
+  </tr>
+</table>
 
 ## Features 🎯
 
@@ -119,9 +153,9 @@ Want to try MoneyPrinterTurbo without setting up a local environment? Run it dir
 
 ### Windows
 
-The downloadable package is still the older `v1.2.6` bundled build. After downloading, run `update.bat` first to bring it up to the latest code.
+Download the latest Windows one-click package from GitHub Releases, then extract it directly.
 
-Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
+- GitHub Release: https://github.com/harry0703/MoneyPrinterTurbo/releases/latest
 
 After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
 
@@ -257,27 +291,6 @@ uv run python cli.py \
   --video-materials "1.mp4,2.mp4" \
   --stop-at video
 ```
-
-## Special Thanks 🙏
-
-Due to the **deployment** and **usage** of this project, there is a certain threshold for some beginner users. We would
-like to express our special thanks to
-
-**RecCloud (AI-Powered Multimedia Service Platform)** for providing a free `AI Video Generator` service based on this
-project. It allows for online use without deployment, which is very convenient.
-
-- Chinese version: https://reccloud.cn
-- English version: https://reccloud.com
-
-![](docs/reccloud.com.jpg)
-
-## Thanks for Sponsorship 🙏
-
-Thanks to Picwish https://picwish.com for supporting and sponsoring this project, enabling continuous updates and maintenance.
-
-Picwish focuses on the **image processing field**, providing a rich set of **image processing tools** that extremely simplify complex operations, truly making image processing easier.
-
-![picwish.jpg](docs/picwish.com.jpg)
 
 ## Voice Synthesis 🗣
 

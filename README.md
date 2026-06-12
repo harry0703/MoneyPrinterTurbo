@@ -17,12 +17,6 @@
 只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
 <br>
 
-<p align="center">
-  <sub>
-    感谢 <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> 对本项目的赞助。AIHubMix 深度适配 OpenAI、Claude、Gemini、DeepSeek、智谱、千问等全球顶级最新模型，一站式快速接入 GPT-5.5、deepseek-v4-flash 等 700+ 模型（含多个免费模型），提供企业级生产稳定性保障。
-  </sub>
-</p>
-
 <h4>Web界面</h4>
 
 ![](docs/webui.jpg)
@@ -32,6 +26,46 @@
 ![](docs/api.jpg)
 
 </div>
+
+## 特别感谢 🙏
+
+<table align="center">
+  <tr>
+    <td align="center" width="160">
+      <a href="https://aihubmix.com/?aff=CEve"><strong>AIHubMix</strong></a>
+    </td>
+    <td align="left">
+      <sub>感谢 <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> 对本项目的赞助。AIHubMix 深度适配 OpenAI、Claude、Gemini、DeepSeek、智谱、千问等全球顶级最新模型，一站式快速接入 GPT-5.5、deepseek-v4-flash 等 700+ 模型（含多个免费模型），提供企业级生产稳定性保障。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://www.volcengine.com/activity/codingplan?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><img src="docs/sponsors/volcengine-logo.svg" alt="火山引擎" height="32"></a><br>
+      <a href="https://ai.volcengine.com/activity/agentplan?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>方舟 Agent Plan</strong></a>
+    </td>
+    <td align="left">
+      <sub>感谢 <a href="https://ai.volcengine.com/activity/agentplan?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">方舟 Agent Plan</a> 对本项目的赞助。模型自由，工具不限，最新支持 MiniMax-M3 与 GLM-5.1，受邀下单叠加 9.5 折！集合主流优秀国产编程模型，多生态兼容，无缝融入您的工具链，依托字节资源保障和工程能力，更大容量，更快、更稳、更丝滑！</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
+      <a href="https://reccloud.cn"><strong>录咖 AI</strong></a>
+    </td>
+    <td align="left">
+      <sub>由于该项目的 <strong>部署</strong> 和 <strong>使用</strong>，对于一些小白用户来说，还是 <strong>有一定的门槛</strong>，在此特别感谢 <a href="https://reccloud.cn">录咖（AI智能 多媒体服务平台）</a> 网站基于该项目，提供的免费 <code>AI视频生成器</code> 服务，可以不用部署，直接在线使用，非常方便。中文版：<a href="https://reccloud.cn">https://reccloud.cn</a>，英文版：<a href="https://reccloud.com">https://reccloud.com</a></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://picwish.cn"><img src="docs/sponsors/picwish-logo.svg" alt="佐糖" height="36"></a><br>
+      <a href="https://picwish.cn"><strong>佐糖</strong></a>
+    </td>
+    <td align="left">
+      <sub>感谢 <a href="https://picwish.cn">佐糖</a> 对该项目的支持和赞助，使得该项目能够持续的更新和维护。佐糖专注于<strong>图像处理领域</strong>，提供丰富的<strong>图像处理工具</strong>，将复杂操作极致简化，真正实现让图像处理更简单。</sub>
+    </td>
+  </tr>
+</table>
 
 ## 功能特性 🎯
 
@@ -119,10 +153,8 @@
 ### Windows一键启动包
 
 下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
-当前提供的安装包仍是 `v1.2.6` 的旧打包版本，建议下载后先执行 `update.bat` 更新到最新代码。
 
-- 百度网盘（v1.2.6）: https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx 提取码: sbqx
-- Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
+- GitHub Release: https://github.com/harry0703/MoneyPrinterTurbo/releases/latest
 
 下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
 
@@ -263,24 +295,6 @@ uv run python cli.py \
   --video-materials "1.mp4,2.mp4" \
   --stop-at video
 ```
-
-## 特别感谢 🙏
-
-由于该项目的 **部署** 和 **使用**，对于一些小白用户来说，还是 **有一定的门槛**，在此特别感谢
-**录咖（AI智能 多媒体服务平台）** 网站基于该项目，提供的免费`AI视频生成器`服务，可以不用部署，直接在线使用，非常方便。
-
-- 中文版：https://reccloud.cn
-- 英文版：https://reccloud.com
-
-![](docs/reccloud.cn.jpg)
-
-## 感谢赞助 🙏
-
-感谢佐糖 https://picwish.cn 对该项目的支持和赞助，使得该项目能够持续的更新和维护。
-
-佐糖专注于**图像处理领域**，提供丰富的**图像处理工具**，将复杂操作极致简化，真正实现让图像处理更简单。
-
-![picwish.jpg](docs/picwish.jpg)
 
 ## 语音合成 🗣
 
