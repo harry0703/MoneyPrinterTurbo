@@ -39,8 +39,14 @@ def generate_terms(task_id, params, video_script):
     logger.info("\n\n## generating video terms")
     video_terms = params.video_terms
     if not video_terms:
+        # 开启素材按文案顺序匹配后，关键词本身也必须按脚本叙事顺序生成；
+        # 否则后续即使顺序下载和顺序拼接，也只能复用一组全局主题词，
+        # 无法改善“后面内容的画面提前出现”的问题。
         video_terms = llm.generate_terms(
-            video_subject=params.video_subject, video_script=video_script, amount=5
+            video_subject=params.video_subject,
+            video_script=video_script,
+            amount=8 if params.match_materials_to_script else 5,
+            match_script_order=params.match_materials_to_script,
         )
     else:
         if isinstance(video_terms, str):
@@ -178,14 +184,21 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         return [material_info.url for material_info in materials]
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
+        # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
+        # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
         downloaded_videos = material.download_videos(
             task_id=task_id,
             search_terms=video_terms,
             source=params.video_source,
             video_aspect=params.video_aspect,
-            video_concat_mode=params.video_concat_mode,
+            video_concat_mode=(
+                VideoConcatMode.sequential
+                if params.match_materials_to_script
+                else params.video_concat_mode
+            ),
             audio_duration=audio_duration * params.video_count,
             max_clip_duration=params.video_clip_duration,
+            match_script_order=params.match_materials_to_script,
         )
         if not downloaded_videos:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
@@ -201,9 +214,14 @@ def generate_final_videos(
 ):
     final_video_paths = []
     combined_video_paths = []
-    video_concat_mode = (
-        params.video_concat_mode if params.video_count == 1 else VideoConcatMode.random
-    )
+    # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
+    # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
+    if params.match_materials_to_script:
+        video_concat_mode = VideoConcatMode.sequential
+    elif params.video_count == 1:
+        video_concat_mode = params.video_concat_mode
+    else:
+        video_concat_mode = VideoConcatMode.random
     video_transition_mode = params.video_transition_mode
 
     _progress = 50

@@ -309,16 +309,34 @@ def download_videos(
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
+    match_script_order: bool = False,
 ) -> List[str]:
-    valid_video_items = []
-    valid_video_urls = []
-    found_duration = 0.0
     search_videos = search_videos_pexels
     if source == "pixabay":
         search_videos = search_videos_pixabay
     elif source == "coverr":
         search_videos = search_videos_coverr
 
+    material_directory = config.app.get("material_directory", "").strip()
+    if material_directory == "task":
+        material_directory = utils.task_dir(task_id)
+    elif material_directory and not os.path.isdir(material_directory):
+        material_directory = ""
+
+    if match_script_order:
+        return _download_videos_by_script_order(
+            task_id=task_id,
+            search_terms=search_terms,
+            search_videos=search_videos,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
+
+    valid_video_items = []
+    valid_video_urls = []
+    found_duration = 0.0
     for search_term in search_terms:
         video_items = search_videos(
             search_term=search_term,
@@ -337,12 +355,6 @@ def download_videos(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
     )
     video_paths = []
-
-    material_directory = config.app.get("material_directory", "").strip()
-    if material_directory == "task":
-        material_directory = utils.task_dir(task_id)
-    elif material_directory and not os.path.isdir(material_directory):
-        material_directory = ""
 
     concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
     if concat_mode_value == VideoConcatMode.random.value:
@@ -368,6 +380,93 @@ def download_videos(
         except Exception as e:
             logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
     logger.success(f"downloaded {len(video_paths)} videos")
+    return video_paths
+
+
+def _download_videos_by_script_order(
+    task_id: str,
+    search_terms: List[str],
+    search_videos,
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """
+    按脚本文案顺序下载素材。
+
+    默认下载逻辑会把所有关键词的候选素材合并成一个大列表；如果第一个
+    关键词返回很多结果，最终下载时可能一直消耗这个关键词的素材，后续
+    脚本主题就排不上时间线。这里按关键词分组后轮询下载：
+    第 1 轮取每个关键词的第 1 个候选，第 2 轮取每个关键词的第 2 个候选。
+    这样在不重写视频合成引擎的前提下，尽量保证素材顺序贴近文案顺序。
+    """
+    logger.info("downloading videos with script-order material matching")
+    candidate_groups = []
+    valid_video_urls = set()
+    found_duration = 0.0
+
+    for search_term in search_terms:
+        video_items = search_videos(
+            search_term=search_term,
+            minimum_duration=max_clip_duration,
+            video_aspect=video_aspect,
+        )
+        logger.info(f"found {len(video_items)} videos for '{search_term}'")
+
+        term_items = []
+        for item in video_items:
+            if item.url in valid_video_urls:
+                continue
+            term_items.append(item)
+            valid_video_urls.add(item.url)
+            found_duration += item.duration
+
+        if term_items:
+            candidate_groups.append((search_term, term_items))
+
+    logger.info(
+        f"found total ordered video candidates: {sum(len(items) for _, items in candidate_groups)}, "
+        f"required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
+    )
+
+    video_paths = []
+    total_duration = 0.0
+    candidate_index = 0
+    while candidate_groups and total_duration <= audio_duration:
+        has_candidate = False
+        for search_term, term_items in candidate_groups:
+            if candidate_index >= len(term_items):
+                continue
+
+            has_candidate = True
+            item = term_items[candidate_index]
+            try:
+                logger.info(
+                    f"downloading ordered video for '{search_term}': {item.url}"
+                )
+                saved_video_path = save_video(
+                    video_url=item.url, save_dir=material_directory
+                )
+                if saved_video_path:
+                    logger.info(f"video saved: {saved_video_path}")
+                    video_paths.append(saved_video_path)
+                    total_duration += min(max_clip_duration, item.duration)
+                    if total_duration > audio_duration:
+                        logger.info(
+                            f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
+                        )
+                        break
+            except Exception as e:
+                logger.error(
+                    f"failed to download ordered video: {utils.to_json(item)} => {str(e)}"
+                )
+
+        if not has_candidate:
+            break
+        candidate_index += 1
+
+    logger.success(f"downloaded {len(video_paths)} ordered videos")
     return video_paths
 
 

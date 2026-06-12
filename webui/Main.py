@@ -71,6 +71,10 @@ if "custom_system_prompt" not in st.session_state:
     st.session_state["custom_system_prompt"] = llm.DEFAULT_SCRIPT_SYSTEM_PROMPT
 if "use_custom_system_prompt" not in st.session_state:
     st.session_state["use_custom_system_prompt"] = False
+if "match_materials_to_script" not in st.session_state:
+    st.session_state["match_materials_to_script"] = bool(
+        config.app.get("match_materials_to_script", False)
+    )
 if "ui_language" not in st.session_state:
     st.session_state["ui_language"] = config.ui.get("language", system_locale)
 if "local_video_materials" not in st.session_state:
@@ -682,6 +686,9 @@ middle_panel = panel[1]
 right_panel = panel[2]
 
 params = VideoParams(video_subject="")
+params.match_materials_to_script = bool(
+    st.session_state.get("match_materials_to_script", False)
+)
 uploaded_files = []
 uploaded_audio_file = None
 
@@ -755,7 +762,12 @@ with left_panel:
                     video_script_prompt=params.video_script_prompt,
                     custom_system_prompt=params.custom_system_prompt,
                 )
-                terms = llm.generate_terms(params.video_subject, script)
+                terms = llm.generate_terms(
+                    params.video_subject,
+                    script,
+                    amount=8 if params.match_materials_to_script else 5,
+                    match_script_order=params.match_materials_to_script,
+                )
                 if "Error: " in script:
                     st.error(tr(script))
                 elif "Error: " in terms:
@@ -772,7 +784,12 @@ with left_panel:
                 st.stop()
 
             with st.spinner(tr("Generating Video Keywords")):
-                terms = llm.generate_terms(params.video_subject, params.video_script)
+                terms = llm.generate_terms(
+                    params.video_subject,
+                    params.video_script,
+                    amount=8 if params.match_materials_to_script else 5,
+                    match_script_order=params.match_materials_to_script,
+                )
                 if "Error: " in terms:
                     st.error(tr(terms))
                 else:
@@ -889,6 +906,15 @@ with middle_panel:
         )
 
         with st.expander(tr("Advanced Video Settings"), expanded=False):
+            # 默认关闭，避免影响老用户的随机素材体验。开启后只改变关键词和素材
+            # 下载/拼接顺序，用于改善画面主题早于或晚于旁白的问题。
+            params.match_materials_to_script = st.checkbox(
+                tr("Match Materials to Script Order"),
+                help=tr("Match Materials to Script Order Help"),
+                key="match_materials_to_script",
+            )
+            config.app["match_materials_to_script"] = params.match_materials_to_script
+
             video_codec_options = [
                 ("libx264 (CPU)", "libx264"),
                 ("NVIDIA NVENC (h264_nvenc)", "h264_nvenc"),

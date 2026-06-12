@@ -129,6 +129,55 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
         self.assertEqual(result, [])
 
+    def test_download_videos_can_round_robin_terms_in_script_order(self):
+        """
+        开启按文案顺序匹配素材后，不能让第一个关键词的多个候选先把
+        音频时长填满。这里模拟两个关键词各有多个候选，验证下载顺序是
+        term1-第1个、term2-第1个、term1-第2个，贴近脚本叙事顺序。
+        """
+        search_results = {
+            "opening city": [
+                material.MaterialInfo(provider="pexels", url="https://v.example/a1.mp4", duration=3),
+                material.MaterialInfo(provider="pexels", url="https://v.example/a2.mp4", duration=3),
+            ],
+            "middle office": [
+                material.MaterialInfo(provider="pexels", url="https://v.example/b1.mp4", duration=3),
+                material.MaterialInfo(provider="pexels", url="https://v.example/b2.mp4", duration=3),
+            ],
+        }
+        downloaded_urls = []
+
+        def fake_search(search_term, minimum_duration, video_aspect):
+            return search_results[search_term]
+
+        def fake_save_video(video_url, save_dir=""):
+            downloaded_urls.append(video_url)
+            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(material, "search_videos_pexels", side_effect=fake_search),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+        ):
+            result = material.download_videos(
+                task_id="ordered-materials",
+                search_terms=["opening city", "middle office"],
+                source="pexels",
+                audio_duration=7,
+                max_clip_duration=3,
+                match_script_order=True,
+            )
+
+        self.assertEqual(
+            downloaded_urls,
+            [
+                "https://v.example/a1.mp4",
+                "https://v.example/b1.mp4",
+                "https://v.example/a2.mp4",
+            ],
+        )
+        self.assertEqual(result, ["/tmp/a1.mp4", "/tmp/b1.mp4", "/tmp/a2.mp4"])
+
 
 class TestCoverrProvider(unittest.TestCase):
     """

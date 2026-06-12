@@ -44,6 +44,28 @@ class TestTaskService(unittest.TestCase):
             video_script_prompt="语气轻松",
             custom_system_prompt="Only write short narration.",
         )
+
+    def test_generate_terms_uses_script_order_mode_when_enabled(self):
+        """
+        默认模式不受影响；只有用户显式开启素材按文案顺序匹配时，任务层才
+        要求 LLM 生成有序关键词，并适当增加关键词数量以覆盖更多脚本片段。
+        """
+        params = VideoParams(
+            video_subject="城市通勤",
+            video_script="",
+            match_materials_to_script=True,
+        )
+
+        with patch.object(tm.llm, "generate_terms", return_value=["city", "train"]) as generate:
+            result = tm.generate_terms("task-id", params, "先城市，再地铁")
+
+        self.assertEqual(result, ["city", "train"])
+        generate.assert_called_once_with(
+            video_subject="城市通勤",
+            video_script="先城市，再地铁",
+            amount=8,
+            match_script_order=True,
+        )
     
     def test_task_local_materials(self):
         task_id = "00000000-0000-0000-0000-000000000000"

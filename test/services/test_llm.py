@@ -99,6 +99,30 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIn("- number of paragraphs: 2", captured["prompt"])
         self.assertIn("开头更有悬念", captured["prompt"])
 
+    def test_generate_terms_can_request_script_ordered_keywords(self):
+        """
+        按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，
+        只验证服务层会把“按脚本叙事顺序输出”的约束写入 prompt，避免
+        后续素材下载虽然顺序化，但关键词仍然是全局无序主题词。
+        """
+        captured = {}
+
+        def fake_generate_response(prompt):
+            captured["prompt"] = prompt
+            return '["opening city", "middle office", "final sunset"]'
+
+        with patch.object(llm, "_generate_response", side_effect=fake_generate_response):
+            result = llm.generate_terms(
+                video_subject="startup story",
+                video_script="First city. Then office. Finally sunset.",
+                amount=3,
+                match_script_order=True,
+            )
+
+        self.assertEqual(result, ["opening city", "middle office", "final sunset"])
+        self.assertIn("chronological stock-video search terms", captured["prompt"])
+        self.assertIn("same order as the script narration", captured["prompt"])
+
     def test_video_script_request_rejects_invalid_advanced_options(self):
         """
         API 请求模型需要限制高级 prompt 参数，避免外部调用绕过 WebUI
