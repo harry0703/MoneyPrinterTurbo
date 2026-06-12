@@ -124,7 +124,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         result = material.download_videos(
             task_id="string-concat-mode",
             search_terms=[],
-            video_contact_mode="random",
+            video_concat_mode="random",
         )
 
         self.assertEqual(result, [])
