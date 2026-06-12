@@ -45,6 +45,7 @@ coverr_api_keys = []
 # 支持的提供商 (Supported providers):
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)
+#   aimlapi     (OpenAI-compatible multi-model AI API)
 #   moonshot    (月之暗面)
 #   azure
 #   qwen        (通义千问)
@@ -98,6 +99,13 @@ openai_model_name = "gpt-4o-mini"
 aihubmix_api_key = ""
 aihubmix_base_url = "https://aihubmix.com/v1"
 aihubmix_model_name = "gpt-5.4-mini"
+
+########## AIML API Key
+# AIML API is OpenAI-compatible and can use one API key to access multiple model families.
+# Visit https://aimlapi.com/app/keys to create your API key.
+aimlapi_api_key = ""
+aimlapi_base_url = "https://api.aimlapi.com/v1"
+aimlapi_model_name = "openai/gpt-4o-mini"
 
 ########## Moonshot API Key
 # Visit https://platform.moonshot.cn/console/api-keys to get your API key.

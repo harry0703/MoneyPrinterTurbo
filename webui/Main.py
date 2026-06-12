@@ -284,6 +284,7 @@ if not config.app.get("hide_config", False):
             llm_provider_options = [
                 ("OpenAI", "openai"),
                 (aihubmix_label, "aihubmix"),
+                ("AIML API", "aimlapi"),
                 ("Moonshot", "moonshot"),
                 ("Azure", "azure"),
                 ("Qwen", "qwen"),
@@ -379,6 +380,19 @@ if not config.app.get("hide_config", False):
                             - **稳定**: 无限并发，永远在线，集群部署于谷歌云，长期为众多知名应用提供高并发服务
                             - **能力完整**: 文本、图片生成、视频生成、TTS、STT、向量嵌入、Rerank，多模态场景全搞定
                             - **计费透明**: 按量付费，无会员无包月，免费模型可使用
+                            """
+
+            if llm_provider == "aimlapi":
+                if not llm_model_name:
+                    llm_model_name = "openai/gpt-4o-mini"
+                if not llm_base_url:
+                    llm_base_url = "https://api.aimlapi.com/v1"
+                with llm_helper:
+                    tips = """
+                            ##### AIML API Configuration
+                            - **API Key**: create one at https://aimlapi.com/app/keys
+                            - **Base Url**: https://api.aimlapi.com/v1
+                            - **Model Name**: for example `openai/gpt-4o-mini`, `openai/gpt-4o`, `anthropic/claude-sonnet-4.5`, or `google/gemini-3-flash-preview`
                             """
 
             if llm_provider == "moonshot":
