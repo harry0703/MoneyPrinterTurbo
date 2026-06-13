@@ -52,7 +52,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="enable subtitles (default: enabled, use --no-subtitle-enabled to disable)",
     )
     parser.add_argument("--task-id", default="", help="custom task id")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+
+    if args.video_source == "local" and not (args.video_materials or "").strip():
+        parser.error("--video-materials is required when --video-source is local")
+
+    if args.video_source == "local" and args.stop_at == "terms":
+        parser.error(
+            "--stop-at terms has no effect with --video-source local "
+            "(search terms are not generated for local sources)"
+        )
+
+    return args
 
 
 def build_video_params(args: argparse.Namespace) -> VideoParams:
