@@ -59,6 +59,8 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
     video_terms = args.video_terms
     if video_terms:
         video_terms = [term.strip() for term in video_terms.split(",") if term.strip()]
+        if not video_terms:
+            video_terms = None
 
     video_materials = None
     materials_arg = args.video_materials or ""
@@ -69,6 +71,9 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
             for item in materials_arg.split(",")
             if item.strip()
         ]
+
+    if args.video_source == "local" and not video_materials:
+        raise ValueError("Error: --video-materials must be provided and contain valid paths when --video-source is 'local'.")
 
     return VideoParams(
         video_subject=args.video_subject,
