@@ -75,4 +75,5 @@ echo "***** WebUI address: http://$MPT_WEBUI_HOST:$MPT_WEBUI_PORT *****"
   --server.port="$MPT_WEBUI_PORT" \
   --browser.serverAddress="$MPT_WEBUI_HOST" \
   --browser.gatherUsageStats=False \
+  --server.showEmailPrompt=False \
   --server.enableCORS=True

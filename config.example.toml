@@ -19,6 +19,8 @@ tls_verify = true
 # Register at https://www.pexels.com/api/ to get your API key.
 # You can use multiple keys to avoid rate limits.
 # For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
+# 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 pexels_api_keys = []
 
@@ -26,6 +28,8 @@ pexels_api_keys = []
 # Register at https://pixabay.com/api/docs/ to get your API key.
 # You can use multiple keys to avoid rate limits.
 # For example: pixabay_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
+# 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 pixabay_api_keys = []
 
@@ -39,6 +43,8 @@ pixabay_api_keys = []
 # and use Coverr to widen the catalog for landscape/cinematic content.
 # You can use multiple keys to avoid rate limits.
 # For example: coverr_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
+# 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 coverr_api_keys = []
 

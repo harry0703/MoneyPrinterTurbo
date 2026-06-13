@@ -255,7 +255,7 @@ pip install -r requirements.txt
 ###### MacOS or Linux
 
 ```shell
-uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False --server.showEmailPrompt=False
 ```
 
 如果你已经手动激活了虚拟环境，也可以直接执行：

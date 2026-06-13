@@ -251,7 +251,7 @@ To allow other devices on your LAN to access the WebUI, run `set MPT_WEBUI_HOST=
 ###### MacOS or Linux
 
 ```shell
-uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False
+uv run streamlit run ./webui/Main.py --browser.gatherUsageStats=False --server.showEmailPrompt=False
 ```
 
 If you have already activated the virtual environment manually, you can still run:
