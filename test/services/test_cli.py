@@ -70,6 +70,112 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.video_source, "coverr")
 
+    def test_build_video_params_with_script_video_and_audio_options(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-language",
+                "en",
+                "--paragraph-number",
+                "3",
+                "--video-script-prompt",
+                "use a lighter tone",
+                "--custom-system-prompt",
+                "write concise short-form scripts",
+                "--video-concat-mode",
+                "sequential",
+                "--video-transition-mode",
+                "fade-in",
+                "--video-clip-duration",
+                "4",
+                "--match-materials-to-script",
+                "--voice-volume",
+                "1.2",
+                "--voice-rate",
+                "1.1",
+                "--bgm-type",
+                "custom",
+                "--bgm-file",
+                "output001.mp3",
+                "--bgm-volume",
+                "0.3",
+            ]
+        )
+
+        params = cli.build_video_params(args)
+
+        self.assertEqual(params.video_language, "en")
+        self.assertEqual(params.paragraph_number, 3)
+        self.assertEqual(params.video_script_prompt, "use a lighter tone")
+        self.assertEqual(params.custom_system_prompt, "write concise short-form scripts")
+        self.assertEqual(params.video_concat_mode, "sequential")
+        self.assertEqual(params.video_transition_mode, "FadeIn")
+        self.assertEqual(params.video_clip_duration, 4)
+        self.assertTrue(params.match_materials_to_script)
+        self.assertEqual(params.voice_volume, 1.2)
+        self.assertEqual(params.voice_rate, 1.1)
+        self.assertEqual(params.bgm_type, "custom")
+        self.assertEqual(params.bgm_file, "output001.mp3")
+        self.assertEqual(params.bgm_volume, 0.3)
+
+    def test_build_video_params_with_subtitle_style_options(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--font-name",
+                "MicrosoftYaHeiBold.ttc",
+                "--subtitle-position",
+                "custom",
+                "--custom-position",
+                "42.5",
+                "--text-fore-color",
+                "#AABBCC",
+                "--font-size",
+                "72",
+                "--stroke-color",
+                "#112233",
+                "--stroke-width",
+                "2.5",
+                "--subtitle-background-color",
+                "#000001",
+                "--rounded-subtitle-background",
+            ]
+        )
+
+        params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_name, "MicrosoftYaHeiBold.ttc")
+        self.assertEqual(params.subtitle_position, "custom")
+        self.assertEqual(params.custom_position, 42.5)
+        self.assertEqual(params.text_fore_color, "#AABBCC")
+        self.assertEqual(params.font_size, 72)
+        self.assertEqual(params.stroke_color, "#112233")
+        self.assertEqual(params.stroke_width, 2.5)
+        self.assertEqual(params.text_background_color, "#000001")
+        self.assertTrue(params.rounded_subtitle_background)
+
+    def test_subtitle_background_can_be_disabled_from_cli(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--no-subtitle-background-enabled",
+                "--rounded-subtitle-background",
+            ]
+        )
+
+        params = cli.build_video_params(args)
+
+        self.assertFalse(params.text_background_color)
+        self.assertFalse(params.rounded_subtitle_background)
+
+    def test_bgm_type_none_maps_to_disabled_background_music(self):
+        args = cli.parse_args(["--video-subject", "test", "--bgm-type", "none"])
+        params = cli.build_video_params(args)
+        self.assertEqual(params.bgm_type, "")
+
     def test_local_material_filename_resolved_to_absolute_path(self):
         """After preprocess_video, material.url should be an absolute path, not a bare filename."""
         import os
