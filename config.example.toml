@@ -225,6 +225,12 @@ video_count = 1
 # Silence Prefix duration — still frame at the very beginning of the final video (seconds, default 0.3)
 silence_duration = 0.3
 
+# Console log level: controls what is printed to the terminal
+# Options: TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL
+# Only affects terminal/console output. The Logs UI and log files always capture at DEBUG level.
+# Set to "DEBUG" to see all details, "INFO" for a cleaner console, "WARNING" for minimal output.
+console_log_level = "INFO"
+
 # Video style
 # Options: "none", "people", "nature", "animation", "cartoon", "industry", "science", "tech", "business", "ai"
 video_style = "none"

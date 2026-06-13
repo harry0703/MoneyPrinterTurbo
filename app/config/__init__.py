@@ -3,6 +3,7 @@ import sys
 
 from loguru import logger
 import pytz
+import toml
 
 from app.utils import utils
 
@@ -30,13 +31,31 @@ try:
 except pytz.exceptions.UnknownTimeZoneError:
     local_tz = pytz.timezone('Asia/Shanghai')
 
-def __init_logger():
-    # _log_file = utils.storage_dir("logs/server.log")
-    # Use default log level for now to avoid circular import
-    _lvl = "DEBUG"
+
+def _read_console_log_level():
+    """Read console_log_level directly from config.toml to avoid circular import."""
     root_dir = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     )
+    config_file = os.path.join(root_dir, "config", "config.toml")
+    if not os.path.isfile(config_file):
+        config_file = os.path.join(root_dir, "config.toml")
+    if not os.path.isfile(config_file):
+        return "DEBUG"
+    try:
+        cfg = toml.load(config_file)
+    except Exception:
+        return "DEBUG"
+    return cfg.get("app", {}).get("console_log_level", "DEBUG")
+
+
+def __init_logger():
+    root_dir = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    )
+
+    # Read console log level from config.toml (bypasses circular import with config.py)
+    _console_lvl = _read_console_log_level()
 
     def format_record(record):
         # 获取日志记录中的文件全路径
@@ -63,7 +82,7 @@ def __init_logger():
     logger.remove()
     logger.add(
         sys.stdout,
-        level=_lvl,
+        level=_console_lvl,
         format=format_record,
         colorize=True
     )
