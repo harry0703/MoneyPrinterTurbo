@@ -1,6 +1,8 @@
 import json
 import logging
 import re
+import shutil
+import subprocess
 import requests
 from typing import List
 
@@ -151,6 +153,47 @@ def _generate_response(prompt: str) -> str:
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
             )
+        elif llm_provider == "chatgpt_cli":
+            cli_command = config.app.get("chatgpt_cli_command", "chatgpt")
+            cli_args = config.app.get("chatgpt_cli_args", "").strip()
+            cli_timeout = int(config.app.get("chatgpt_cli_timeout", 120)) or None
+
+            if not cli_command:
+                raise ValueError(
+                    "chatgpt_cli: command is not set, please set chatgpt_cli_command in config.toml"
+                )
+
+            if not shutil.which(cli_command.split()[0]):
+                raise ValueError(
+                    f"chatgpt_cli: '{cli_command}' not found in PATH. "
+                    "Install a ChatGPT CLI tool first (e.g. chatgpt-cli, sgpt, llm)."
+                )
+
+            cmd = cli_command
+            if cli_args:
+                cmd += f" {cli_args}"
+
+            logger.info(f"chatgpt_cli: running '{cmd}'")
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                timeout=cli_timeout,
+            )
+
+            if result.returncode != 0:
+                stderr = result.stderr.strip()
+                raise RuntimeError(
+                    f"chatgpt_cli: command exited with code {result.returncode}: {stderr}"
+                )
+
+            content = result.stdout.strip()
+            if not content:
+                raise ValueError("chatgpt_cli: command returned empty output")
+
+            return _normalize_text_response(content, llm_provider)
         else:
             api_version = ""  # for azure
             if llm_provider == "moonshot":
@@ -318,7 +361,7 @@ def _generate_response(prompt: str) -> str:
             elif llm_provider == "litellm":
                 model_name = config.app.get("litellm_model_name")
 
-            if llm_provider not in ["pollinations", "ollama", "litellm"]:  # Skip validation for providers that don't require API key
+            if llm_provider not in ["pollinations", "ollama", "litellm", "chatgpt_cli"]:  # Skip validation for providers that don't require API key
                 if not api_key:
                     raise ValueError(
                         f"{llm_provider}: api_key is not set, please set it in the config.toml file."

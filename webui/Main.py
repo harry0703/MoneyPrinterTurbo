@@ -306,6 +306,7 @@ if not config.app.get("hide_config", False):
                 ("MiMo", "mimo"),
                 ("Pollinations", "pollinations"),
                 ("LiteLLM", "litellm"),
+                ("ChatGPT CLI", "chatgpt_cli"),
             ]
             llm_provider_labels = [label for label, _ in llm_provider_options]
             llm_provider_values = {
@@ -563,6 +564,29 @@ if not config.app.get("hide_config", False):
                             > [LiteLLM](https://github.com/BerriAI/litellm) routes to 100+ LLM providers via a unified interface.
                             > Set your provider's API key as an env var: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.
                             - **Model Name**: LiteLLM format — `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, `gemini/gemini-2.5-flash`. See [full provider list](https://docs.litellm.ai/docs/providers)
+                            """
+
+            if llm_provider == "chatgpt_cli":
+                with llm_helper:
+                    tips = """
+                            ##### ChatGPT CLI Configuration
+                            > Use any installed CLI tool that wraps ChatGPT — no API credits needed.
+                            > The prompt is sent via stdin, response read from stdout.
+                            - **API Key**: Not needed — leave empty
+                            - **Base Url**: Not needed — set `chatgpt_cli_command` in config.toml instead
+                            - **Model Name**: Not needed — configured in your CLI tool
+
+                            Supported CLI tools:
+                            - [chatgpt-cli](https://github.com/nicolo-ribaudo/chatgpt-cli) — `chatgpt`
+                            - [ShellGPT](https://github.com/TheR1D/shell_gpt) — `sgpt`
+                            - [llm](https://github.com/simonw/llm) — `llm -m chatgpt`
+
+                            Edit `config.toml` to set:
+                            ```
+                            chatgpt_cli_command = "chatgpt"
+                            chatgpt_cli_args = ""
+                            chatgpt_cli_timeout = 120
+                            ```
                             """
 
             if tips and config.ui["language"] == "zh":

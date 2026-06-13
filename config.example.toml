@@ -66,7 +66,21 @@ coverr_api_keys = []
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 #   litellm     (100+ providers via LiteLLM gateway)
+#   chatgpt_cli (use any local ChatGPT CLI tool — no API credits needed)
 llm_provider = "openai"
+
+########## ChatGPT CLI Settings
+# Use a local CLI tool (chatgpt-cli, sgpt, etc.) instead of the OpenAI API.
+# The command receives the prompt on stdin and must print the response on stdout.
+# Example commands:
+#   chatgpt              (https://github.com/nicolo-ribaudo/chatgpt-cli)
+#   sgpt                 (https://github.com/TheR1D/shell_gpt)
+#   llm -m chatgpt       (https://github.com/simonw/llm)
+chatgpt_cli_command = "chatgpt"
+# Optional extra arguments appended after the command (space-separated).
+chatgpt_cli_args = ""
+# Timeout in seconds for the CLI process (0 = no timeout).
+chatgpt_cli_timeout = 120
 
 ########## Pollinations AI Settings
 # Visit https://pollinations.ai/ to learn more
