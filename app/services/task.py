@@ -424,6 +424,7 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
         voice_name=voice.parse_voice_name(params.voice_name),
         voice_rate=params.voice_rate,
         voice_file=audio_file,
+        voice_volume=params.voice_volume,
         emotion=getattr(params, 'voice_emotion', ''),
         is_preview=False,
     )
@@ -890,6 +891,7 @@ def generate_audio(task_id, params, video_script):
             voice_name=voice.parse_voice_name(params.voice_name),
             voice_rate=params.voice_rate,
             voice_file=audio_file,
+            voice_volume=params.voice_volume,
             emotion=getattr(params, 'voice_emotion', ''),
         )
         # 检查音频文件是否存在，即使sub_maker为None（如Coze预览音频的情况）

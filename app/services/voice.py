@@ -1748,19 +1748,40 @@ def tts(
         logger.info(f"[TTS] Using Azure TTS v1 for voice: {voice_name}")
         result = azure_tts_v1(text, voice_name, voice_rate, voice_file, voice_volume)
     
-    # Apply volume adjustment to the generated audio file if needed
+    # --- Speed post-processing for providers that don't support native speed ---
+    # Coze, SiliconFlow, and Edge TTS (Azure v1) apply speed via their APIs.
+    # Qwen, Gemini, and Azure v2 do NOT support speed natively — apply via pydub.
+    _native_speed_providers = (
+        is_coze_voice(voice_name) or
+        is_siliconflow_voice(voice_name) or
+        not (is_azure_v2_voice(voice_name) or is_gemini_voice(voice_name) or is_qwen_voice(voice_name))
+    )
+
+    if not _native_speed_providers and voice_rate != 1.0 and os.path.exists(voice_file):
+        try:
+            from pydub import AudioSegment
+            logger.info(f"Applying speed adjustment via pydub: {voice_rate}x (provider does not support native speed)")
+            audio_seg = AudioSegment.from_file(voice_file)
+            # Change speed by resampling: higher rate = higher pitch + shorter duration
+            new_frame_rate = int(audio_seg.frame_rate * voice_rate)
+            adjusted = audio_seg._spawn(audio_seg.raw_data, overrides={'frame_rate': new_frame_rate})
+            adjusted = adjusted.set_frame_rate(audio_seg.frame_rate)
+            adjusted.export(voice_file, format="mp3")
+            logger.info(f"Speed adjustment applied successfully")
+        except Exception as e:
+            logger.warning(f"Failed to apply speed adjustment: {e}")
+
+    # Apply volume adjustment for providers that return a SubMaker (i.e. don't handle volume internally).
+    # Coze, Qwen, SiliconFlow, Gemini handle volume inside their own functions and return None.
     if result is not None and voice_volume != 1.0 and os.path.exists(voice_file):
         try:
             from moviepy import AudioFileClip
             logger.info(f"Applying volume adjustment: {voice_volume}x")
             audio_clip = AudioFileClip(voice_file)
-            # Apply volume multiplier
             audio_clip = audio_clip.volumex(voice_volume)
-            # Write back to the same file
             temp_file = voice_file + ".temp.mp3"
             audio_clip.write_audiofile(temp_file, codec='mp3')
             audio_clip.close()
-            # Replace original file with adjusted one
             os.replace(temp_file, voice_file)
             logger.info(f"Volume adjustment applied successfully")
         except Exception as e:
