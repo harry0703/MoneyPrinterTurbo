@@ -120,7 +120,7 @@ def scan_task_files(task_id_or_path: str) -> dict:
     return result
 
 
-def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_scene=None, end_scene=None, task_id: str = None, subtitle_params: dict = None, bgm_params: dict = None) -> str:
+def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_scene=None, end_scene=None, task_id: str = None, subtitle_params: dict = None, bgm_params: dict = None, check_cancelled=None) -> str:
     """
     Recover video synthesis from existing task files.
     

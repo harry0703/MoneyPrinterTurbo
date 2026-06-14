@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.4.10"
+project_version = "2.4.11"
 
 [app]
 host_visible = false
@@ -100,7 +100,7 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "小米发布MiMo Code"
+title_text = "小米编码智能体竟免费"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 92

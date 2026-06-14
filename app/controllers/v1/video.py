@@ -593,9 +593,10 @@ def recover_scene_integration(request: Request, body: dict):
         task_id,
         recover_video_synthesis,
         task_id_or_path,
-        start_scene=start_scene,
-        end_scene=end_scene,
-        task_id=task_id,
+        None,           # progress_callback
+        start_scene,    # start_scene
+        end_scene,      # end_scene
+        task_id,        # task_id (for recover_video_synthesis)
         subtitle_params=subtitle_params,
         bgm_params=bgm_params
     )

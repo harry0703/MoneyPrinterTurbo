@@ -1,4 +1,4 @@
-moviepy==2.1.2
+moviepy==2.2.1
 edge_tts==6.1.19
 fastapi==0.115.6
 uvicorn==0.32.1
