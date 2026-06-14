@@ -53,7 +53,6 @@ from app.services.video_scene import (
 # Re-export video target functions
 from app.services.video_target import (
     finalize_video,
-    generate_video,
     process_final_video,
 )
 
