@@ -500,34 +500,28 @@ def get_video_encoding_params():
         "crf": crf
     }
 
-# Cache for video codec detection
-_cached_video_codec = None
+# Cache for video codec detection: (use_gpu_value, codec_string)
+# Storing the use_gpu value alongside the codec allows us to detect config
+# changes and only re-run the expensive `ffmpeg -encoders` subprocess when
+# the GPU setting has actually changed.
+_cached_codec_entry: tuple = None  # (use_gpu: bool, codec: str)
 
 # Select video encoder based on configuration
 def get_video_codec():
     """Select appropriate video encoder based on configuration and system environment"""
-    global _cached_video_codec
-    
+    global _cached_codec_entry
+
     use_gpu = config.app.get("use_gpu", False)
-    
-    # Log GPU configuration status for video codec
-    # logger.info(f"GPU configuration for video codec: use_gpu={use_gpu}")
-    
-    # If use_gpu is True, always recheck GPU support (clear cache)
-    if use_gpu:
-        # logger.info("use_gpu=True, clearing codec cache and rechecking GPU support")
-        _cached_video_codec = None
-    
-    # Return cached result if available
-    if _cached_video_codec is not None:
-        logger.info(f"Using cached video codec: {_cached_video_codec}")
-        return _cached_video_codec
-    
+
+    # Return cached result if the use_gpu setting hasn't changed
+    if _cached_codec_entry is not None and _cached_codec_entry[0] == use_gpu:
+        return _cached_codec_entry[1]
+
     if not use_gpu:
         logger.info("Video encoder: CPU mode selected (libx264)")
-        _cached_video_codec = "libx264"  # CPU encoder
-        return _cached_video_codec
-    
+        _cached_codec_entry = (False, "libx264")
+        return "libx264"
+
     # Check if GPU encoding is supported
     try:
         import subprocess
@@ -545,90 +539,34 @@ def get_video_codec():
         
         # Check for NVIDIA GPU support
         if "h264_nvenc" in result.stdout:
-            # logger.info("Video encoder: NVIDIA GPU mode selected (h264_nvenc) - GPU acceleration enabled")
-            _cached_video_codec = "h264_nvenc"
-            return _cached_video_codec
+            codec = "h264_nvenc"
+            logger.info(f"Video encoder: NVIDIA GPU mode selected ({codec})")
         # Check for AMD GPU support
         elif "h264_amf" in result.stdout:
-            logger.info("Video encoder: AMD GPU mode selected (h264_amf) - GPU acceleration enabled")
-            _cached_video_codec = "h264_amf"
-            return _cached_video_codec
+            codec = "h264_amf"
+            logger.info(f"Video encoder: AMD GPU mode selected ({codec})")
         # Check for Intel GPU support
         elif "h264_qsv" in result.stdout:
-            logger.info("Video encoder: Intel GPU mode selected (h264_qsv) - GPU acceleration enabled")
-            _cached_video_codec = "h264_qsv"
-            return _cached_video_codec
+            codec = "h264_qsv"
+            logger.info(f"Video encoder: Intel GPU mode selected ({codec})")
         else:
             # GPU fallback: use_gpu=True but no GPU encoder available
-            fallback_reason = "No supported GPU encoder found in FFmpeg"
-            logger.warning(f"============================================")
-            logger.warning(f"GPU FALLBACK DETECTED")
-            logger.warning(f"============================================")
-            logger.warning(f"Configuration: use_gpu=True")
-            logger.warning(f"Reason: {fallback_reason}")
-            logger.warning(f"Details:")
-            logger.warning(f"  - NVIDIA GPU encoder (h264_nvenc): NOT FOUND")
-            logger.warning(f"  - AMD GPU encoder (h264_amf): NOT FOUND")
-            logger.warning(f"  - Intel GPU encoder (h264_qsv): NOT FOUND")
-            logger.warning(f"Action: Falling back to CPU encoder (libx264)")
-            logger.warning(f"To enable GPU encoding:")
-            logger.warning(f"  1. Ensure GPU drivers are properly installed")
-            logger.warning(f"  2. Install FFmpeg with GPU support (h264_nvenc/h264_amf/h264_qsv)")
-            logger.warning(f"  3. Verify GPU encoder availability with: ffmpeg -encoders | grep h264")
-            logger.warning(f"============================================")
-            logger.debug(f"Available encoders: {result.stdout[:1000]}...")  # Log first 1000 chars of encoder list
-            _cached_video_codec = "libx264"
-            return _cached_video_codec
+            logger.warning("GPU FALLBACK: No supported GPU encoder found in FFmpeg, using libx264")
+            codec = "libx264"
+        _cached_codec_entry = (True, codec)
+        return codec
     except subprocess.TimeoutExpired:
-        # GPU fallback: timeout while checking GPU support
-        fallback_reason = "Timeout while checking GPU encoder availability"
-        logger.warning(f"============================================")
-        logger.warning(f"GPU FALLBACK DETECTED")
-        logger.warning(f"============================================")
-        logger.warning(f"Configuration: use_gpu=True")
-        logger.warning(f"Reason: {fallback_reason}")
-        logger.warning(f"Details: FFmpeg command 'ffmpeg -encoders' timed out after 10 seconds")
-        logger.warning(f"Action: Falling back to CPU encoder (libx264)")
-        logger.warning(f"Possible causes:")
-        logger.warning(f"  - FFmpeg executable is not responding")
-        logger.warning(f"  - System performance issues")
-        logger.warning(f"  - Corrupted FFmpeg installation")
-        logger.warning(f"============================================")
-        _cached_video_codec = "libx264"
-        return _cached_video_codec
+        logger.warning("GPU FALLBACK: FFmpeg '-encoders' timed out, using libx264")
+        _cached_codec_entry = (True, "libx264")
+        return "libx264"
     except FileNotFoundError:
-        # GPU fallback: FFmpeg executable not found
-        fallback_reason = "FFmpeg executable not found"
-        logger.warning(f"============================================")
-        logger.warning(f"GPU FALLBACK DETECTED")
-        logger.warning(f"============================================")
-        logger.warning(f"Configuration: use_gpu=True")
-        logger.warning(f"Reason: {fallback_reason}")
-        logger.warning(f"Details: FFmpeg executable not found at path: {ffmpeg_exe}")
-        logger.warning(f"Action: Falling back to CPU encoder (libx264)")
-        logger.warning(f"Solution:")
-        logger.warning(f"  1. Install FFmpeg from https://www.gyan.dev/ffmpeg/builds/")
-        logger.warning(f"  2. Set ffmpeg_path in config.toml")
-        logger.warning(f"  3. Or set IMAGEIO_FFMPEG_EXE environment variable")
-        logger.warning(f"============================================")
-        _cached_video_codec = "libx264"
-        return _cached_video_codec
+        logger.warning(f"GPU FALLBACK: FFmpeg executable not found at '{ffmpeg_exe}', using libx264")
+        _cached_codec_entry = (True, "libx264")
+        return "libx264"
     except Exception as e:
-        # GPU fallback: unexpected error
-        fallback_reason = f"Unexpected error while checking GPU support: {type(e).__name__}"
-        logger.warning(f"============================================")
-        logger.warning(f"GPU FALLBACK DETECTED")
-        logger.warning(f"============================================")
-        logger.warning(f"Configuration: use_gpu=True")
-        logger.warning(f"Reason: {fallback_reason}")
-        logger.warning(f"Error details: {str(e)}")
-        logger.warning(f"Action: Falling back to CPU encoder (libx264)")
-        logger.warning(f"Debug information:")
-        logger.warning(f"  - FFmpeg executable: {ffmpeg_exe}")
-        logger.warning(f"  - Error type: {type(e).__name__}")
-        logger.warning(f"============================================")
-        _cached_video_codec = "libx264"
-        return _cached_video_codec
+        logger.warning(f"GPU FALLBACK: {type(e).__name__}: {e}, using libx264")
+        _cached_codec_entry = (True, "libx264")
+        return "libx264"
 
 video_codec = get_video_codec()
 video_encoding_params = get_video_encoding_params()
