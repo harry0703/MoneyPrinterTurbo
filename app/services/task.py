@@ -24,6 +24,7 @@ from app.services import state as sm
 from app.services.material import extract_style_keyword
 from app.services.scene_parser import detect_content_type, ContentType
 from app.services.thread_manager import thread_manager
+from app.services.video_target import concat_videos_stream_copy
 from app.utils import utils
 
 # Helper functions for subtitle time conversion
@@ -725,55 +726,93 @@ def process_scene(task_id, params, scene, scene_index, total_scenes, used_local_
 def combine_all_scenes(task_id, params, scene_results):
     """
     Combine all scene clips into final video with background music.
-    
+
+    Uses FFmpeg's concat demuxer with -c copy (zero re-encoding) when possible,
+    falling back to MoviePy re-encode if stream-copy is not viable.
+
     Args:
         task_id: Task ID
         params: Video parameters
         scene_results: List of scene result dictionaries
-    
+
     Returns:
         Final video path (temp file without BGM, will be processed by process_final_video)
     """
     logger.info("\n\n## combining all scenes into final video")
-    
-    # Collect all scene video clips
-    scene_clips = []
+
+    # Collect valid scene file paths (for fast path) and clips (for slow path)
+    scene_paths = []
     total_video_duration = 0
     scene_durations = []
-    
+
     for result in scene_results:
-        if result and os.path.exists(result.get('combined_video_path', '')):
-            # Load each scene video as a clip
-            try:
-                clip = video.VideoFileClip(result['combined_video_path'])
-                scene_clips.append(clip)
-                scene_duration = clip.duration
-                scene_durations.append(scene_duration)
-                total_video_duration += scene_duration
-                logger.info(f"loaded scene clip: {result['combined_video_path']} (duration: {scene_duration:.2f}s)")
-            except Exception as e:
-                logger.error(f"failed to load scene clip {result['combined_video_path']}: {e}")
-    
-    if not scene_clips:
+        video_path = result.get('combined_video_path', '') if result else ''
+        if video_path and os.path.exists(video_path):
+            scene_paths.append(video_path)
+        else:
+            logger.warning(f"scene video missing: {video_path}")
+
+    if not scene_paths:
         logger.error("no scene clips available for final combination")
         return None
-    
+
+    temp_video_path = path.join(utils.task_dir(task_id), "temp_combined_scenes.mp4")
+
+    # --- Fast path: FFmpeg concat demuxer with -c copy (zero re-encoding) ---
+    # Scene videos all come from the same build_scene_video() pipeline, so they share
+    # codec, resolution, fps and pixel format — safe for stream-copy concatenation.
+    fast_path_ok = False
+    if len(scene_paths) >= 2:
+        logger.info(
+            f"Attempting fast-path concat for {len(scene_paths)} scenes (no re-encoding)"
+        )
+        fast_path_ok = concat_videos_stream_copy(scene_paths, temp_video_path)
+
+    if fast_path_ok:
+        # Verify the output is valid
+        try:
+            temp_clip = video.VideoFileClip(temp_video_path)
+            if not hasattr(temp_clip, 'duration') or temp_clip.duration is None:
+                logger.warning("fast-path output has no duration; falling back to re-encode")
+                temp_clip.close()
+                fast_path_ok = False
+            else:
+                logger.success(
+                    f"combined scenes created (fast-path): {temp_video_path} "
+                    f"(duration: {temp_clip.duration:.2f}s)"
+                )
+                temp_clip.close()
+                return temp_video_path
+        except Exception as e:
+            logger.warning(f"fast-path output verification failed ({e}); falling back")
+            fast_path_ok = False
+
+    # --- Slow path: load clips into MoviePy, concatenate, re-encode ---
+    logger.info(f"Using MoviePy re-encode path for {len(scene_paths)} scenes")
+    scene_clips = []
+    for p in scene_paths:
+        try:
+            clip = video.VideoFileClip(p)
+            scene_clips.append(clip)
+            dur = clip.duration
+            scene_durations.append(dur)
+            total_video_duration += dur
+            logger.info(f"loaded scene clip: {p} (duration: {dur:.2f}s)")
+        except Exception as e:
+            logger.error(f"failed to load scene clip {p}: {e}")
+
+    if not scene_clips:
+        logger.error("no scene clips could be loaded for final combination")
+        return None
+
     logger.info(f"combining {len(scene_clips)} scene clips")
     logger.info(f"total video duration: {total_video_duration:.2f}s")
     logger.info(f"scene durations: {[f'{d:.2f}s' for d in scene_durations]}")
-    
-    # Note: Idle period is now added AFTER video+audio+subtitle synchronization
-    # This ensures proper sync - moved to start_multi_scene() after subtitle processing
-    
+
     # Audio is already merged into each scene video at scene level
-    # Simply concatenate all scene clips without audio operations
     processed_clips = scene_clips
     logger.info(f"Audio already embedded in scene videos, concatenating {len(processed_clips)} clips")
-    
-    # Concatenate all scene clips to a temp file (without BGM, will be processed later)
-    temp_video_path = path.join(utils.task_dir(task_id), "temp_combined_scenes.mp4")
-    
-    # Finalize video
+
     try:
         result = video.finalize_video(
             processed_clips=processed_clips,
@@ -781,9 +820,8 @@ def combine_all_scenes(task_id, params, scene_results):
             audio_file=None,  # No audio here, will be added later
             threads=params.n_threads
         )
-        
+
         if result:
-            # Verify the combined video can be read and has valid duration
             try:
                 temp_clip = video.VideoFileClip(temp_video_path)
                 if not hasattr(temp_clip, 'duration') or temp_clip.duration is None:
@@ -799,21 +837,18 @@ def combine_all_scenes(task_id, params, scene_results):
                 for clip in processed_clips:
                     clip.close()
                 return None
-            
-            # Close all clips
+
             for clip in processed_clips:
                 clip.close()
             return temp_video_path
         else:
             logger.error("failed to finalize video")
-            # Close all clips
             for clip in processed_clips:
                 clip.close()
             return None
-            
+
     except Exception as e:
         logger.error(f"failed to combine scenes: {e}")
-        # Close all clips
         for clip in processed_clips:
             clip.close()
         return None

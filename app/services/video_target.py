@@ -1,6 +1,7 @@
 import os
+import subprocess
 import time
-from typing import List
+from typing import List, Optional
 
 from loguru import logger
 from moviepy import (
@@ -25,6 +26,99 @@ from app.services.video_utils import (
     fps,
     create_encoding_progress_monitor,
 )
+
+
+def _get_ffmpeg_exe() -> str:
+    """Return the FFmpeg executable path, respecting the IMAGEIO_FFMPEG_EXE env var."""
+    return os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
+
+
+def concat_videos_stream_copy(
+    video_paths: List[str],
+    output_path: str,
+) -> bool:
+    """
+    Concatenate MP4 files using FFmpeg's concat demuxer with -c copy (no re-encoding).
+
+    This is dramatically faster than loading clips into MoviePy and re-encoding,
+    but requires all inputs to share the same codec, resolution, fps and pixel format —
+    which is guaranteed when they all come from the same build_scene_video() pipeline.
+
+    Args:
+        video_paths: Ordered list of absolute paths to scene MP4 files.
+        output_path: Destination MP4 path.
+
+    Returns:
+        True on success, False on any failure (caller should fall back to slow path).
+    """
+    if len(video_paths) < 2:
+        logger.debug("concat_videos_stream_copy: fewer than 2 paths, skipping fast-path")
+        return False
+
+    ffmpeg_exe = _get_ffmpeg_exe()
+    list_path = output_path + ".concat.txt"
+
+    try:
+        # Write the concat list file (FFmpeg concat demuxer format)
+        with open(list_path, "w", encoding="utf-8") as fh:
+            for p in video_paths:
+                # FFmpeg requires single-quoted paths with internal quotes escaped
+                escaped = p.replace("'", r"'\''")
+                fh.write(f"file '{escaped}'\n")
+        logger.debug(f"concat_videos_stream_copy: wrote concat list to {list_path}")
+
+        result = subprocess.run(
+            [
+                ffmpeg_exe,
+                "-y",                       # overwrite without asking
+                "-f", "concat",
+                "-safe", "0",
+                "-i", list_path,
+                "-c", "copy",               # zero re-encoding
+                "-movflags", "+faststart",  # web-friendly moov atom placement
+                output_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+
+        if result.returncode != 0:
+            logger.warning(
+                f"concat_videos_stream_copy: FFmpeg exited with code {result.returncode}; "
+                f"falling back to re-encode path. stderr: {result.stderr[:500]}"
+            )
+            return False
+
+        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            logger.warning("concat_videos_stream_copy: output file is missing or empty; falling back")
+            return False
+
+        size_mb = os.path.getsize(output_path) / (1024 * 1024)
+        logger.success(
+            f"concat_videos_stream_copy: {len(video_paths)} scenes stitched in "
+            f"{output_path} ({size_mb:.1f} MB) — no re-encoding"
+        )
+        return True
+
+    except subprocess.TimeoutExpired:
+        logger.warning("concat_videos_stream_copy: FFmpeg timed out; falling back to re-encode path")
+        return False
+    except FileNotFoundError:
+        logger.warning(
+            f"concat_videos_stream_copy: FFmpeg not found at '{ffmpeg_exe}'; falling back"
+        )
+        return False
+    except Exception as exc:
+        logger.warning(f"concat_videos_stream_copy: unexpected error ({exc}); falling back")
+        return False
+    finally:
+        # Always clean up the temporary concat list file
+        try:
+            if os.path.exists(list_path):
+                os.remove(list_path)
+        except OSError:
+            pass
 
 
 def finalize_video(
