@@ -741,31 +741,37 @@ def _get_content_type_opening_guidance(content_type: str, language: str = "Engli
         # Unknown content type - generic engaging opening
         if is_chinese:
             return """CONTENT TYPE: 通用类
-- 开场策略: 自然引入主题，保持观众兴趣
-- 开场要求: 
-  * 友好的问候语
-  * 简明扼要的主题介绍
-  * 适度的好奇激发元素
-- 视觉技巧: 友好、专业的画面，清晰的主题展示
-- 音频技巧: 热情、平易近人的语气"""
+- 开场策略: 用有冲击力的钩子直接切入主题，禁止使用"大家好""欢迎来到"等套话
+- 开场钩子类型（任选其一）:
+  * 发人深省的提问: "你有没有想过，为什么...？"
+  * 惊人事实/数据: "99%的人都不知道..."
+  * 反直觉断言: "与你想象的完全相反..."
+  * 场景代入: "想象一下，如果有一天..."
+- 视觉技巧: 有冲击力的画面或数据可视化，快速吸引注意力
+- 音频技巧: 充满张力的语气，制造紧迫感或好奇心
+- 评估标准: 开场3秒内必须出现钩子，绝不以问候语开头"""
         elif is_german:
             return """CONTENT TYPE: General
-- Opening Strategy: Natural introduction to topic, maintain audience interest
-- Opening Requirements:
-  * Friendly greeting
-  * Concise topic introduction
-  * Moderate curiosity-sparking element
-- Visual Techniques: Friendly, professional visuals, clear topic presentation
-- Audio Techniques: Warm, approachable tone"""
+- Opening Strategy: Hook the audience immediately with an impactful opening — NO generic greetings like "Hallo zusammen"
+- Opening Hook Types (choose one):
+  * Thought-provoking question: "Hast du dich jemals gefragt, warum...?"
+  * Surprising fact/data: "99% der Menschen wissen nicht, dass..."
+  * Counterintuitive claim: "Ganz anders als du denkst..."
+  * Scene-setting: "Stell dir vor, was passieren würde, wenn..."
+- Visual Techniques: Impactful visuals or data visualization to grab attention fast
+- Audio Techniques: Tense, curious tone creating urgency or curiosity
+- Evaluation: Hook must appear within first 3 seconds, never start with a greeting"""
         else:
             return """CONTENT TYPE: General
-- Opening Strategy: Natural introduction to topic, maintain audience interest
-- Opening Requirements:
-  * Friendly greeting
-  * Concise topic introduction
-  * Moderate curiosity-sparking element
-- Visual Techniques: Friendly, professional visuals, clear topic presentation
-- Audio Techniques: Warm, approachable tone"""
+- Opening Strategy: Hook the audience immediately with an impactful opening — NO generic greetings like "Hello everyone"
+- Opening Hook Types (choose one):
+  * Thought-provoking question: "Have you ever wondered why...?"
+  * Surprising fact/data: "99% of people don't know that..."
+  * Counterintuitive claim: "Contrary to what you might think..."
+  * Scene-setting: "Imagine what would happen if..."
+- Visual Techniques: Impactful visuals or data visualization to grab attention fast
+- Audio Techniques: Tense, curious tone creating urgency or curiosity
+- Evaluation: Hook must appear within first 3 seconds, never start with a greeting"""
 
 
 def generate_multi_scene_script(
@@ -822,24 +828,24 @@ def generate_multi_scene_script(
 ## Example 1 (Chinese):
 Input: 人工智能正在改变我们的生活方式
 Output:
-{"scenes":[{"title":"开场引入","keywords":"人工智能,生活,改变","visual":"科技感十足的工作室，主持人面带微笑，背景是智能化家居环境。运镜：从广角推进到主持人面部。","script":"各位朋友大家好，今天我们来聊聊人工智能如何改变我们的生活。","emotion":"热情,期待"},{"title":"AI应用场景","keywords":"智能家居,语音助手,自动化","visual":"特写智能音箱设备，灯光柔和闪烁，周围是现代化家居环境。运镜：缓慢平移展示智能家居全貌。","script":"从智能家居到语音助手，从自动驾驶到智能医疗，AI正在渗透到我们生活的方方面面。","emotion":"专业,讲解"},{"title":"未来展望","keywords":"发展趋势,创新,前景","visual":"主持人站在科技感背景前，屏幕显示未来城市景象。运镜：拉远镜头展示完整场景。","script":"展望未来，AI将带来更多可能性，让我们一起期待吧！","emotion":"自信,鼓舞"}]}
+{"scenes":[{"title":"震撼开场","keywords":"人工智能,变革,未来","visual":"科技感十足的工作室，主持人表情严肃，背景大屏幕闪烁着数据流。运镜：快速推进到主持人面部特写。","script":"你有没有想过，未来十年，你的工作可能被一个程序完全取代？","emotion":"严肃,引人深思"},{"title":"AI应用场景","keywords":"智能家居,语音助手,自动化","visual":"特写智能音箱设备，灯光柔和闪烁，周围是现代化家居环境。运镜：缓慢平移展示智能家居全貌。","script":"从智能家居到语音助手，从自动驾驶到智能医疗，AI正在渗透到我们生活的方方面面。","emotion":"专业,讲解"},{"title":"未来展望","keywords":"发展趋势,创新,前景","visual":"主持人站在科技感背景前，屏幕显示未来城市景象。运镜：拉远镜头展示完整场景。","script":"展望未来，AI将带来更多可能性，让我们一起期待吧！","emotion":"自信,鼓舞"}]}
 
 ## Example 2 (English):
 Input: The importance of healthy eating habits
 Output:
-{"scenes":[{"title":"Introduction","keywords":"health,diet,nutrition","visual":"Bright modern kitchen, host standing by a counter with fresh fruits and vegetables. Camera: Wide shot pushing in slowly.","script":"Hello everyone! Today let's discuss why healthy eating habits matter so much for our wellbeing.","emotion":"warm,friendly"},{"title":"Balanced Diet","keywords":"proteins,vegetables,fruits","visual":"Close-up of colorful vegetables and fruits arranged on a kitchen counter. Camera: Slow pan across the ingredients.","script":"A balanced diet includes plenty of vegetables, fruits, lean proteins, and whole grains. These provide essential nutrients for our body.","emotion":"informative,clear"},{"title":"Healthy Lifestyle","keywords":"exercise,habit,wellness","visual":"Host in a gym setting with modern equipment. Camera: Medium shot with background blur.","script":"Remember, healthy eating combined with regular exercise creates the foundation for a wellness lifestyle.","emotion":"motivational,inspiring"}]}"""
+{"scenes":[{"title":"Shocking Start","keywords":"health,diet,crisis","visual":"Close-up of a heart monitor beeping erratically, then cut to host in a bright kitchen. Camera: Quick zoom out from monitor to reveal host.","script":"Did you know that poor eating habits kill more people every year than smoking, accidents, and violence combined?","emotion":"serious,urgent"},{"title":"Balanced Diet","keywords":"proteins,vegetables,fruits","visual":"Close-up of colorful vegetables and fruits arranged on a kitchen counter. Camera: Slow pan across the ingredients.","script":"A balanced diet includes plenty of vegetables, fruits, lean proteins, and whole grains. These provide essential nutrients for our body.","emotion":"informative,clear"},{"title":"Healthy Lifestyle","keywords":"exercise,habit,wellness","visual":"Host in a gym setting with modern equipment. Camera: Medium shot with background blur.","script":"Remember, healthy eating combined with regular exercise creates the foundation for a wellness lifestyle.","emotion":"motivational,inspiring"}]}"""
     else:
         few_shot_examples = """# Few-Shot Examples
 
 ## Example 1 (Chinese):
 Input: 人工智能正在改变我们的生活方式
 Output:
-{"scenes":[{"title":"开场引入","keywords":"人工智能,生活,改变","visual":"科技感十足的工作室，大屏幕显示智能化家居环境的动态画面。运镜：从广角推进到屏幕显示内容。","script":"各位朋友大家好，今天我们来聊聊人工智能如何改变我们的生活。","emotion":"热情,期待"},{"title":"AI应用场景","keywords":"智能家居,语音助手,自动化","visual":"特写智能音箱设备，灯光柔和闪烁，周围是现代化家居环境。运镜：缓慢平移展示智能家居全貌。","script":"从智能家居到语音助手，从自动驾驶到智能医疗，AI正在渗透到我们生活的方方面面。","emotion":"专业,讲解"},{"title":"未来展望","keywords":"发展趋势,创新,前景","visual":"科技感背景屏幕显示未来城市景象的动画。运镜：拉远镜头展示完整场景。","script":"展望未来，AI将带来更多可能性，让我们一起期待吧！","emotion":"自信,鼓舞"}]}
+{"scenes":[{"title":"震撼开场","keywords":"人工智能,变革,未来","visual":"数据流在黑色背景中快速流动，聚光灯照亮中央的AI芯片。运镜：从芯片特写快速拉远展示数据网络。","script":"就在你听这段话的这一秒钟，AI已经做出了十亿个决策——而你浑然不知。","emotion":"紧迫,震撼"},{"title":"AI应用场景","keywords":"智能家居,语音助手,自动化","visual":"特写智能音箱设备，灯光柔和闪烁，周围是现代化家居环境。运镜：缓慢平移展示智能家居全貌。","script":"从智能家居到语音助手，从自动驾驶到智能医疗，AI正在渗透到我们生活的方方面面。","emotion":"专业,讲解"},{"title":"未来展望","keywords":"发展趋势,创新,前景","visual":"科技感背景屏幕显示未来城市景象的动画。运镜：拉远镜头展示完整场景。","script":"展望未来，AI将带来更多可能性，让我们一起期待吧！","emotion":"自信,鼓舞"}]}
 
 ## Example 2 (English):
 Input: The importance of healthy eating habits
 Output:
-{"scenes":[{"title":"Introduction","keywords":"health,diet,nutrition","visual":"Bright modern kitchen with fresh fruits and vegetables arranged on counter. Camera: Wide shot pushing in slowly.","script":"Hello everyone! Today let's discuss why healthy eating habits matter so much for our wellbeing.","emotion":"warm,friendly"},{"title":"Balanced Diet","keywords":"proteins,vegetables,fruits","visual":"Close-up of colorful vegetables and fruits arranged on a kitchen counter. Camera: Slow pan across the ingredients.","script":"A balanced diet includes plenty of vegetables, fruits, lean proteins, and whole grains. These provide essential nutrients for our body.","emotion":"informative,clear"},{"title":"Healthy Lifestyle","keywords":"exercise,habit,wellness","visual":"Modern gym equipment with motivational graphics displayed on screens. Camera: Medium shot with background blur.","script":"Remember, healthy eating combined with regular exercise creates the foundation for a wellness lifestyle.","emotion":"motivational,inspiring"}]}"""
+{"scenes":[{"title":"Shocking Start","keywords":"health,diet,crisis","visual":"Animated infographic showing a ticking clock with food icons spinning around it. Camera: Fast zoom into the clock face.","script":"Every single meal you eat is either adding years to your life — or taking them away. Which one are you choosing?","emotion":"serious,thought-provoking"},{"title":"Balanced Diet","keywords":"proteins,vegetables,fruits","visual":"Close-up of colorful vegetables and fruits arranged on a kitchen counter. Camera: Slow pan across the ingredients.","script":"A balanced diet includes plenty of vegetables, fruits, lean proteins, and whole grains. These provide essential nutrients for our body.","emotion":"informative,clear"},{"title":"Healthy Lifestyle","keywords":"exercise,habit,wellness","visual":"Modern gym equipment with motivational graphics displayed on screens. Camera: Medium shot with background blur.","script":"Remember, healthy eating combined with regular exercise creates the foundation for a wellness lifestyle.","emotion":"motivational,inspiring"}]}"""
 
     # Adaptive prompts for different retry attempts
     retry_adaptive_prompts = {
@@ -864,7 +870,7 @@ Your output MUST conform to this JSON Schema:
 # Constraints & Workflow
 1. **Audio-First Principle**: Audio (dialogue) is the core, and video and subtitles serve the dialogue. All visual elements and scene designs should enhance the expression of the dialogue.
 2. **Semantic Scene Division**: Analyze the semantic structure of the article, identify logical turning points, and divide the content into 5-15 scenes (including opening, main body, and conclusion)
-   - **Opening Scene**: Should include natural greetings and background introduction, avoid directly entering the topic to make the video start more smoothly
+   - **Opening Scene**: MUST start with a powerful hook — NOT a generic greeting like "大家好" or "Hello everyone". Use one of: a thought-provoking question ("你有没有想过..."), a surprising fact/statistic, a bold controversial statement, or an impactful scene-setting line. Get straight to the point while grabbing attention in the first 3 seconds.
    - Each scene should have complete content and a clear theme, with logical coherence
    - Scene content should be independent and able to clearly express a complete concept or viewpoint
 3. **Visual Transformation**:
@@ -950,9 +956,9 @@ Your output MUST conform to this JSON Schema:
         # Fallback: generate a simple multi-scene structure in JSON
         logger.warning("using fallback multi-scene script generation")
         if host_visible:
-            fallback_json = """{"scenes":[{"title":"开场引入","keywords":"introduction,greeting,overview","visual":"主播站在明亮的工作室中，背景是现代化的办公环境，前方有一个大屏幕显示主题。运镜：从远到近的推镜头，聚焦到主播面部表情。","script":"各位朋友们，今天我要和大家分享一个重要话题。","emotion":"热情,亲切"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
+            fallback_json = """{"scenes":[{"title":"震撼开场","keywords":"hook,impact,surprise","visual":"主播表情认真，背景屏幕显示醒目的数据或画面。运镜：快速推进到主播面部特写。","script":"你知道吗？接下来我要告诉你的这件事，可能会彻底改变你的看法。","emotion":"严肃,引人入胜"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
         else:
-            fallback_json = """{"scenes":[{"title":"开场引入","keywords":"introduction,greeting,overview","visual":"现代化工作室的全景，大屏幕显示主题内容。运镜：从远到近的推镜头，聚焦到屏幕上的主题文字。","script":"各位朋友们，今天我要和大家分享一个重要话题。","emotion":"热情,亲切"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"屏幕显示总结要点，背景是现代化的办公环境。运镜：拉远镜头，展示完整场景。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
+            fallback_json = """{"scenes":[{"title":"震撼开场","keywords":"hook,impact,surprise","visual":"大屏幕显示醒目的数据或画面，聚光灯聚焦到主题文字。运镜：快速推进到屏幕特写。","script":"就在你看到这段话的这一刻，世界上正在发生一件你可能完全不知道的事。","emotion":"紧迫,震撼"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"屏幕显示总结要点，背景是现代化的办公环境。运镜：拉远镜头，展示完整场景。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
         return fallback_json
     else:
         logger.success(f"completed multi-scene script generation: \n{final_script}")
@@ -1252,7 +1258,7 @@ Please read the user-provided [Original Text] and adapt it into a standardized *
 # Constraints & Workflow
 1. **Audio-First Principle**: Audio (dialogue) is the core, and video and subtitles serve the dialogue. All visual elements and scene designs should enhance the expression of the dialogue.
 2. **Semantic Scene Division**: Analyze the semantic structure of the article, identify logical turning points, and divide the content into 5-15 scenes (including opening, main body, and conclusion)
-   - **Opening Scene**: Should include natural greetings and background introduction, avoid directly entering the topic to make the video start more smoothly
+   - **Opening Scene**: MUST start with a powerful hook — NOT a generic greeting like "大家好" or "Hello everyone". Use one of: a thought-provoking question ("你有没有想过..."), a surprising fact/statistic, a bold controversial statement, or an impactful scene-setting line. Get straight to the point while grabbing attention in the first 3 seconds.
    - Each scene should have complete content and a clear theme, with logical coherence
    - Scene content should be independent and able to clearly express a complete concept or viewpoint
 3. **Visual Transformation**:
@@ -1345,7 +1351,7 @@ Please read the user-provided [Original Text] and adapt it into a standardized *
         
         if total_lines <= 1:
             # Very short script, create minimal structure
-            fallback_script = f"###  场景 1：开场引入\n- **Visual (画面视觉)**：\n    - {host_visual_1}\n- **Audio (口播文案)**：\n    - ([热情、亲切]) {video_script}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {video_script}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - {host_visual_3}\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {video_script}"
+            fallback_script = f"###  场景 1：震撼开场\n- **Visual (画面视觉)**：\n    - {host_visual_1}\n- **Audio (口播文案)**：\n    - ([严肃、引人入胜]) {video_script}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {video_script}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - {host_visual_3}\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {video_script}"
         else:
             # Split into 3 roughly equal parts
             part1_end = total_lines // 3
@@ -1355,7 +1361,7 @@ Please read the user-provided [Original Text] and adapt it into a standardized *
             part2 = '\n'.join(script_lines[part1_end:part2_end])
             part3 = '\n'.join(script_lines[part2_end:])
             
-            fallback_script = f"###  场景 1：开场引入\n- **Visual (画面视觉)**：\n    - {host_visual_1}\n- **Audio (口播文案)**：\n    - ([热情、亲切]) {part1}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {part2}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - {host_visual_3}\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {part3}"
+            fallback_script = f"###  场景 1：震撼开场\n- **Visual (画面视觉)**：\n    - {host_visual_1}\n- **Audio (口播文案)**：\n    - ([严肃、引人入胜]) {part1}\n\n###  场景 2：核心内容\n- **Visual (画面视觉)**：\n    - 特写屏幕上的相关内容，配合动态图形展示关键信息。\n    - 运镜：平移镜头，展示不同的视觉元素。\n- **Audio (口播文案)**：\n    - ([专业、清晰]) {part2}\n\n###  场景 3：总结收尾\n- **Visual (画面视觉)**：\n    - {host_visual_3}\n- **Audio (口播文案)**：\n    - ([自信、鼓舞]) {part3}"
         return fallback_script
     else:
         logger.success(f"completed script conversion: \n{final_script}")
