@@ -1773,9 +1773,16 @@ def tts(
         except Exception as e:
             logger.warning(f"Failed to apply speed adjustment: {e}")
 
-    # Apply volume adjustment for providers that return a SubMaker (i.e. don't handle volume internally).
-    # Coze, Qwen, SiliconFlow, Gemini handle volume inside their own functions and return None.
-    if result is not None and voice_volume != 1.0 and os.path.exists(voice_file):
+    # Apply volume adjustment only for providers that do NOT handle volume internally.
+    # SiliconFlow applies volume natively via the 'gain' API parameter.
+    # Coze and Qwen apply volume via pydub inside their own functions (and return None).
+    # Azure v1/v2 and Gemini do NOT handle volume, so the generic post-processing applies it here.
+    _volume_handled_internally = (
+        is_siliconflow_voice(voice_name) or
+        is_coze_voice(voice_name) or
+        is_qwen_voice(voice_name)
+    )
+    if not _volume_handled_internally and voice_volume != 1.0 and os.path.exists(voice_file):
         try:
             from moviepy import AudioFileClip
             logger.info(f"Applying volume adjustment: {voice_volume}x")
