@@ -75,13 +75,13 @@ def create_task(
         
         # Debug: Check what voice_name is being received
         if hasattr(body, 'voice_name'):
-            logger.info(f"[Task Creation] voice_name received: {body.voice_name[:100]}...")
-            logger.info(f"[Task Creation] voice_name starts with 'coze|': {body.voice_name.startswith('coze|')}")
+            logger.debug(f"[Task Creation] voice_name received: {body.voice_name[:100]}...")
+            logger.debug(f"[Task Creation] voice_name starts with 'coze|': {body.voice_name.startswith('coze|')}")
         
         # Debug: Check host_visible
         if hasattr(body, 'host_visible'):
-            logger.info(f"[Task Creation] host_visible received: {body.host_visible}")
-            logger.info(f"[Task Creation] host_visible type: {type(body.host_visible)}")
+            logger.debug(f"[Task Creation] host_visible received: {body.host_visible}")
+            logger.debug(f"[Task Creation] host_visible type: {type(body.host_visible)}")
         
         sm.state.update_task(task_id, state=const.TASK_STATE_PENDING, progress=0, task_type="video_generation")
         logger.debug(f"video_controller: Calling start_async for task_id={task_id}, thread_manager_id={id(tm)}")

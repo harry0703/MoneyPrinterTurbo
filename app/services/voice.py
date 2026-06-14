@@ -1760,14 +1760,16 @@ def tts(
     if not _native_speed_providers and voice_rate != 1.0 and os.path.exists(voice_file):
         try:
             from pydub import AudioSegment
-            logger.info(f"Applying speed adjustment via pydub: {voice_rate}x (provider does not support native speed)")
             audio_seg = AudioSegment.from_file(voice_file)
+            duration_before = len(audio_seg) / 1000
+            logger.info(f"Speed post-processing: voice={voice_name[:30]}, rate={voice_rate}x, duration_before={duration_before:.1f}s")
             # Change speed by resampling: higher rate = higher pitch + shorter duration
             new_frame_rate = int(audio_seg.frame_rate * voice_rate)
             adjusted = audio_seg._spawn(audio_seg.raw_data, overrides={'frame_rate': new_frame_rate})
             adjusted = adjusted.set_frame_rate(audio_seg.frame_rate)
             adjusted.export(voice_file, format="mp3")
-            logger.info(f"Speed adjustment applied successfully")
+            duration_after = len(adjusted) / 1000
+            logger.info(f"Speed post-processing done: duration {duration_before:.1f}s → {duration_after:.1f}s")
         except Exception as e:
             logger.warning(f"Failed to apply speed adjustment: {e}")
 
@@ -2302,7 +2304,7 @@ def coze_tts(
         # Process each text segment
         audio_segments = []
         for i, segment in enumerate(segments):
-            logger.info(f"Processing segment {i+1}/{len(segments)}, length: {len(segment)}")
+            logger.debug(f"Processing segment {i+1}/{len(segments)}, length: {len(segment)}")
             
             # Build request parameters - use correct parameter names and types
             payload = {
@@ -2321,7 +2323,7 @@ def coze_tts(
             response = requests.post(url, json=payload, headers=headers)
             
             # Record complete API response information (for debugging)
-            logger.info(f"Coze TTS API response status for segment {i+1}: {response.status_code}")
+            logger.debug(f"Coze TTS API response status for segment {i+1}: {response.status_code}")
             if response.status_code != 200:
                 logger.error(f"Coze TTS API response body for segment {i+1}: {response.text}")
                 return None
@@ -2337,6 +2339,7 @@ def coze_tts(
                     format="mp3"  # Assume Coze returns MP3 format
                 )
                 audio_segments.append(audio_segment)
+                logger.info(f"Segment {i+1} decoded: {len(audio_segment)/1000:.1f}s, text_len={len(segment)}, speed={float(voice_rate)}")
             except Exception as e:
                 logger.error(f"Failed to load audio for segment {i+1}: {e}")
                 logger.error(f"Audio data length: {len(audio_bytes)} bytes")
@@ -2346,6 +2349,7 @@ def coze_tts(
         if len(audio_segments) == 1:
             # Only one segment, apply volume and export
             audio_segment = audio_segments[0]
+            logger.info(f"Coze TTS: 1 segment, duration={len(audio_segment)/1000:.1f}s")
             if voice_volume != 1.0:
                 logger.info(f"Applying volume adjustment in Coze TTS: {voice_volume}x")
                 # pydub uses dB, convert volume multiplier to dB
@@ -2356,10 +2360,12 @@ def coze_tts(
             audio_segment.export(voice_file, format="mp3")
         else:
             # Multiple segments, merge, apply volume, and export
-            logger.info(f"Merging {len(audio_segments)} audio segments")
+            durations = [f"{len(seg)/1000:.1f}s" for seg in audio_segments]
+            logger.info(f"Merging {len(audio_segments)} audio segments: [{', '.join(durations)}]")
             combined = audio_segments[0]
             for i in range(1, len(audio_segments)):
                 combined += audio_segments[i]
+            logger.info(f"Coze TTS: merged duration={len(combined)/1000:.1f}s")
             
             if voice_volume != 1.0:
                 logger.info(f"Applying volume adjustment in Coze TTS: {voice_volume}x")
@@ -2444,7 +2450,7 @@ def qwen_tts(
             logger.warning("Qwen API key is not set, using text-to-speech fallback")
             return None
         
-        logger.info(f"Using Qwen TTS with base_url: {base_url}")
+        logger.debug(f"Using Qwen TTS with base_url: {base_url}")
         
         # Text segmentation processing - Qwen API limit is typically 5000 characters
         max_segment_length = 5000
@@ -2476,7 +2482,7 @@ def qwen_tts(
         # Process each text segment
         audio_segments = []
         for i, segment in enumerate(segments):
-            logger.info(f"Processing segment {i+1}/{len(segments)}, length: {len(segment)}")
+            logger.debug(f"Processing segment {i+1}/{len(segments)}, length: {len(segment)}")
             
             try:
                 # 使用HTTP API调用Qwen TTS (Qwen-TTS)
@@ -2494,7 +2500,8 @@ def qwen_tts(
                     "model": model,
                     "input": {
                         "text": segment,
-                        "voice": voice_id
+                        "voice": voice_id,
+                        "language_type": "Chinese"
                     },
                     "parameters": {
                         "format": "mp3",
@@ -2502,13 +2509,11 @@ def qwen_tts(
                     }
                 }
                 
-                logger.info(f"Qwen TTS using model: {model}")
-                
-                logger.info(f"Qwen TTS API request URL: {url}")
+                logger.debug(f"Qwen TTS segment {i+1}: model={model}, text_len={len(segment)}")
                 
                 response = requests.post(url, json=payload, headers=headers, timeout=30)
                 
-                logger.info(f"Qwen TTS API response status: {response.status_code}")
+                logger.debug(f"Qwen TTS API response status: {response.status_code}")
                 
                 if response.status_code == 200:
                     try:
@@ -2524,17 +2529,17 @@ def qwen_tts(
                             
                             if audio_url:
                                 # 下载音频文件
-                                logger.info(f"Downloading audio from URL: {audio_url}")
+                                logger.debug(f"Downloading audio from URL: {audio_url[:100]}...")
                                 audio_response = requests.get(audio_url, timeout=30)
                                 if audio_response.status_code == 200:
                                     audio_bytes = audio_response.content
-                                    logger.info(f"Downloaded audio, size: {len(audio_bytes)} bytes")
+                                    logger.debug(f"Downloaded audio, size: {len(audio_bytes)} bytes")
                                     try:
                                         audio_segment = AudioSegment.from_file(
                                             io.BytesIO(audio_bytes)
                                         )
                                         audio_segments.append(audio_segment)
-                                        logger.info(f"Successfully decoded audio for segment {i+1}")
+                                        logger.info(f"Segment {i+1} decoded: {len(audio_segment)/1000:.1f}s, text_len={len(segment)}")
                                     except Exception as e:
                                         logger.error(f"Failed to decode audio: {e}")
                                         # 尝试保存到文件调试
@@ -2548,14 +2553,14 @@ def qwen_tts(
                                     return None
                             elif audio_data:
                                 # 解码base64音频数据
-                                logger.info(f"Decoding base64 audio, data size: {len(audio_data)} chars")
+                                logger.debug(f"Decoding base64 audio, data size: {len(audio_data)} chars")
                                 import base64
                                 audio_bytes = base64.b64decode(audio_data)
                                 audio_segment = AudioSegment.from_file(
                                     io.BytesIO(audio_bytes)
                                 )
                                 audio_segments.append(audio_segment)
-                                logger.info(f"Decoded base64 audio for segment {i+1}")
+                                logger.info(f"Segment {i+1} decoded: {len(audio_segment)/1000:.1f}s, text_len={len(segment)}")
                             else:
                                 logger.error(f"No audio URL or data in response for segment {i+1}")
                                 return None
@@ -2580,6 +2585,7 @@ def qwen_tts(
         # Merge audio segments and apply volume adjustment
         if len(audio_segments) == 1:
             audio_segment = audio_segments[0]
+            logger.info(f"Qwen TTS: 1 segment, duration={len(audio_segment)/1000:.1f}s")
             if voice_volume != 1.0:
                 logger.info(f"Applying volume adjustment in Qwen TTS: {voice_volume}x")
                 import math
@@ -2587,10 +2593,12 @@ def qwen_tts(
                 audio_segment = audio_segment + volume_change_db
             audio_segment.export(voice_file, format="mp3")
         else:
-            logger.info(f"Merging {len(audio_segments)} audio segments")
+            durations = [f"{len(seg)/1000:.1f}s" for seg in audio_segments]
+            logger.info(f"Merging {len(audio_segments)} audio segments: [{', '.join(durations)}]")
             combined = audio_segments[0]
             for i in range(1, len(audio_segments)):
                 combined += audio_segments[i]
+            logger.info(f"Qwen TTS: merged duration={len(combined)/1000:.1f}s")
             
             if voice_volume != 1.0:
                 logger.info(f"Applying volume adjustment in Qwen TTS: {voice_volume}x")

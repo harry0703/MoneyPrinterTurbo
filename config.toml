@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.4.4"
+project_version = "2.4.5"
 
 [app]
 host_visible = false
@@ -58,8 +58,6 @@ video_aspect = "landscape"
 video_clip_duration = 4
 video_count = 2
 silence_duration = 0.5
-# Console log level: TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL
-# Only affects terminal/console output. Logs UI and log files always capture at DEBUG level.
 console_log_level = "INFO"
 video_style = "ai"
 intro_video_bg_type = "blurred"
@@ -85,13 +83,13 @@ hide_log = false
 language = "zh"
 tts_server = "qwen-tts"
 voice_name = "qwen|qwen-tts-vc-qingcangqwen-voice-20260610010247128-08eb|擎苍千问-Male|qwen3-tts-vc-2026-01-22|"
-voice_volume = 1.8
-voice_rate = 1.2
+voice_volume = 1.5
+voice_rate = 1
 bgm_type = "random"
 bgm_volume = 0.1
 subtitle_enabled = true
 subtitle_position = "custom"
-subtitle_custom_position = 83
+subtitle_custom_position = 93
 subtitle_margin = 0.02
 subtitle_auto_fit = true
 font_name = "MicrosoftYaHeiBold.ttc"
