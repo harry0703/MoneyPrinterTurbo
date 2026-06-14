@@ -768,10 +768,14 @@ def generate_terms(
     amount: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
+    script_sentences = len([s for s in video_script.split('.') if s.strip()]) if video_script else 0
+    if match_script_order and script_sentences > amount:
+        amount = min(script_sentences, 20)
+
     if match_script_order:
         goal = (
             f"Generate {amount} chronological stock-video search terms that follow "
-            "the order of topics in the video script."
+            "the order of topics in the video script. You MUST cover EVERY key visual moment in the script — do not skip paragraphs or scenes."
         )
         ordering_rule = (
             "6. keep the terms in the same order as the script narration; "
@@ -800,18 +804,28 @@ def generate_terms(
         )
 
     prompt = f"""
-# Role: Video Search Terms Generator
+# Role: Stock Video Search Terms Generator
 
 ## Goals:
 {goal}
 
 ## Constrains:
 1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
+2. each search term should consist of 2-5 words describing a CONCRETE, VISIBLE scene that a stock video platform can match. Focus on what the CAMERA SEES: people, actions, settings, objects.
 3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
-4. the search terms must be related to the subject of the video.
+4. NEVER use abstract or emotional words alone (e.g. "motivation", "success", "discipline", "mindset"). Always pair them with a visible subject and action (e.g. "person running sunrise motivated", "student studying late night").
 5. reply with english search terms only.
+6. think like a videographer: describe the shot composition (e.g. "close up hands writing journal", "aerial city sunrise timelapse", "person walking alone foggy road").
+7. generate ONE search term for EACH distinct action, scene, or idea in the script. If the script mentions "running, drinking water, doing pushups", that is 3 separate terms, not 1.
+8. NEVER combine multiple scenes into one term. Each term = one camera shot.
+9. EVERY term must be UNIQUE. Never repeat or rephrase a previous term. If you run out of scenes, stop generating.
 {ordering_rule}
+
+## Good examples:
+["person waking up morning alarm", "exhausted man sitting desk", "close up clock ticking midnight", "woman running park sunrise", "hands writing goals notebook"]
+
+## Bad examples (too vague, will return irrelevant footage):
+["motivation", "success", "discipline", "change", "mindset"]
 
 ## Output Example:
 {output_example}
