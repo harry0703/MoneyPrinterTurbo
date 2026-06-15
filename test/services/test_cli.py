@@ -105,5 +105,21 @@ class TestCli(unittest.TestCase):
                 os.remove(test_filepath)
 
 
+    def test_local_source_requires_video_materials(self):
+        with self.assertRaises(SystemExit) as cm:
+            cli.parse_args(["--video-subject", "test", "--video-source", "local"])
+        self.assertNotEqual(cm.exception.code, 0)
+
+    def test_local_source_stop_at_terms_rejected(self):
+        with self.assertRaises(SystemExit) as cm:
+            cli.parse_args([
+                "--video-subject", "test",
+                "--video-source", "local",
+                "--video-materials", "a.mp4",
+                "--stop-at", "terms",
+            ])
+        self.assertNotEqual(cm.exception.code, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
