@@ -83,17 +83,38 @@ def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> st
     if not requested_file:
         return ""
 
+    task_dir = utils.task_dir(task_id)
     try:
         return file_security.resolve_path_within_directory(
-            utils.task_dir(task_id),
+            task_dir,
             requested_file,
         )
     except ValueError as exc:
-        logger.warning(
-            "custom audio file is unavailable or outside the task directory, "
-            f"task_id: {task_id}, error: {str(exc)}"
-        )
-        return ""
+        task_dir_error = exc
+
+    server_audio_file = path.realpath(
+        requested_file
+        if path.isabs(requested_file)
+        else path.join(utils.root_dir(), requested_file)
+    )
+    if not path.isabs(requested_file):
+        project_root = path.realpath(utils.root_dir())
+        try:
+            if path.commonpath([project_root, server_audio_file]) != project_root:
+                raise ValueError(
+                    "relative custom audio paths must stay within the project directory"
+                )
+        except ValueError as exc:
+            raise ValueError(
+                "custom audio file must be task-local or an existing server-side file"
+            ) from exc
+
+    if not path.isfile(server_audio_file):
+        raise ValueError(
+            "custom audio file does not exist or is not a file"
+        ) from task_dir_error
+
+    return server_audio_file
 
 
 def generate_audio(task_id, params, video_script):
@@ -111,14 +132,20 @@ def generate_audio(task_id, params, video_script):
     # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
     # 这里统一做兼容读取，避免直调接口时抛属性错误。
     requested_custom_audio_file = getattr(params, "custom_audio_file", None)
-    custom_audio_file = resolve_custom_audio_file(task_id, requested_custom_audio_file)
+    try:
+        custom_audio_file = resolve_custom_audio_file(
+            task_id, requested_custom_audio_file
+        )
+    except ValueError as exc:
+        logger.error(
+            "custom audio file is invalid, "
+            f"task_id: {task_id}, path: {requested_custom_audio_file}, error: {str(exc)}"
+        )
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        return None, None, None
+
     if not custom_audio_file:
-        if requested_custom_audio_file:
-            logger.warning(
-                "custom audio file not found or not allowed, using TTS to generate audio."
-            )
-        else:
-            logger.info("no custom audio file provided, using TTS to generate audio.")
+        logger.info("no custom audio file provided, using TTS to generate audio.")
         audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
         sub_maker = voice.tts(
             text=video_script,
