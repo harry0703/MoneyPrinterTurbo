@@ -910,8 +910,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     logger.info(f"========================================")
     
     # Clear per-task caches from previous runs
-    from app.services.video_utils import clear_brightness_cache
+    from app.services.video_utils import clear_brightness_cache, clear_downscale_cache
     clear_brightness_cache()
+    clear_downscale_cache()
     
     # Log video aspect ratio at task start
     logger.debug(f"Task start - video_aspect from params: {params.video_aspect}")
@@ -1053,7 +1054,25 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
     scene_results = []
     
     # Track used local materials - each material should be used only once
-    used_local_materials = set()  # Stores material URLs
+    # Use a thread-safe set wrapper for parallel scene processing
+    import threading as _threading
+    
+    class _ThreadSafeSet(set):
+        """Set subclass with lock-protected add/contains for parallel access."""
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._lock = _threading.Lock()
+        def add(self, item):
+            with self._lock:
+                super().add(item)
+        def __contains__(self, item):
+            with self._lock:
+                return super().__contains__(item)
+        def __len__(self):
+            with self._lock:
+                return super().__len__()
+    
+    used_local_materials = _ThreadSafeSet()
     
     # Check if video source is local but no materials provided
     if params.video_source == "local" and (not params.video_materials or len(params.video_materials) == 0):
@@ -1074,28 +1093,90 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
         else:
             logger.info("No local materials provided")
     
-    for i, scene in enumerate(scenes):
+    # Parallel scene processing
+    max_parallel = config.app.get("max_parallel_scenes", 2)
+    max_parallel = max(1, min(max_parallel, total_scenes))  # Clamp to [1, total_scenes]
+    
+    if max_parallel == 1:
+        # Sequential fallback — same as before
+        logger.info(f"Processing {total_scenes} scenes sequentially (max_parallel_scenes=1)")
+        for i, scene in enumerate(scenes):
+            if check_cancelled and check_cancelled():
+                logger.info(f"Task {task_id} cancelled during scene processing")
+                sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+                return None
+                
+            progress = 20 + (i / total_scenes) * 40
+            sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=int(progress))
+            
+            logger.info(f"========================================")
+            logger.info(f"Processing scene {i+1}/{total_scenes}")
+            logger.info(f"========================================")
+            
+            result = process_scene(task_id, params, scene, i, total_scenes, used_local_materials, check_cancelled=check_cancelled)
+            if result:
+                scene_results.append(result)
+                logger.info(f"Scene {i+1} processed successfully, combined_video_path: {result.get('combined_video_path')}")
+            else:
+                logger.error(f"FAILED to process scene {i+1}/{total_scenes}, skipping")
+    else:
+        # Parallel execution via ThreadPoolExecutor
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        logger.info(f"Processing {total_scenes} scenes with {max_parallel} parallel workers")
+        
+        completed_count = 0
+        completed_lock = _threading.Lock()
+        
+        def _process_and_track(i, scene):
+            nonlocal completed_count
+            logger.info(f"========================================")
+            logger.info(f"Processing scene {i+1}/{total_scenes} (parallel)")
+            logger.info(f"========================================")
+            
+            result = process_scene(task_id, params, scene, i, total_scenes, used_local_materials, check_cancelled=check_cancelled)
+            
+            with completed_lock:
+                completed_count += 1
+                progress = 20 + (completed_count / total_scenes) * 40
+                sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=int(progress))
+            
+            if result:
+                logger.info(f"Scene {i+1} processed successfully, combined_video_path: {result.get('combined_video_path')}")
+            else:
+                logger.error(f"FAILED to process scene {i+1}/{total_scenes}, skipping")
+            
+            return result
+        
+        # Check cancellation before starting
         if check_cancelled and check_cancelled():
-            logger.info(f"Task {task_id} cancelled during scene processing")
+            logger.info(f"Task {task_id} cancelled before parallel scene processing")
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
             return None
+        
+        with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+            future_to_idx = {
+                executor.submit(_process_and_track, i, scene): i
+                for i, scene in enumerate(scenes)
+            }
             
-        progress = 20 + (i / total_scenes) * 40  # Progress from 20% to 60%
-        sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=int(progress))
+            for future in as_completed(future_to_idx):
+                if check_cancelled and check_cancelled():
+                    logger.info(f"Task {task_id} cancelled, shutting down parallel scenes")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+                    return None
+                
+                try:
+                    result = future.result()
+                    if result:
+                        scene_results.append(result)
+                except Exception as e:
+                    idx = future_to_idx[future]
+                    logger.error(f"Scene {idx+1} raised exception: {e}")
         
-        logger.info(f"========================================")
-        logger.info(f"Processing scene {i+1}/{total_scenes}")
-        logger.info(f"========================================")
-        
-        result = process_scene(task_id, params, scene, i, total_scenes, used_local_materials, check_cancelled=check_cancelled)
-        if result:
-            scene_results.append(result)
-            logger.info(f"Scene {i+1} processed successfully, combined_video_path: {result.get('combined_video_path')}")
-        else:
-            logger.error(f"========================================")
-            logger.error(f"FAILED to process scene {i+1}/{total_scenes}")
-            logger.error(f"The scene result is None, skipping this scene")
-            logger.error(f"========================================")
+        # Sort results by scene_index to maintain correct ordering
+        scene_results.sort(key=lambda r: r.get('scene_index', 0))
     
     logger.info(f"========================================")
     logger.info(f"All scenes processed")

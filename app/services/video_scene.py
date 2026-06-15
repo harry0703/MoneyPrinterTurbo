@@ -29,6 +29,8 @@ from app.services.video_utils import (
     fit_intro_video_to_target,
     fast_brightness_check,
     clear_brightness_cache,
+    pre_downscale_video,
+    clear_downscale_cache,
 )
 from app.services.video_target import finalize_video
 from moviepy import ImageClip
@@ -84,6 +86,18 @@ def process_scene_videos(
             if source_brightness < brightness_threshold:
                 logger.info(f"Skipping dark source video (brightness: {source_brightness:.3f} < {brightness_threshold}): {os.path.basename(video_path)}")
                 continue
+            
+            # Pre-downscale: create a cached target-resolution copy of 4K sources
+            # on first use. Subsequent scenes load the smaller file directly,
+            # making crop_clip_to_target a no-op (dimensions already match).
+            downscaled_path = pre_downscale_video(video_path, video_width, video_height)
+            if downscaled_path != video_path:
+                video_path = downscaled_path
+                # Re-read dimensions from the downscaled file
+                ds_clip = VideoFileClip(video_path)
+                clip_duration = ds_clip.duration
+                clip_w, clip_h = ds_clip.size
+                close_clip(ds_clip)
             
             start_time = 0
 

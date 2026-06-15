@@ -1530,3 +1530,148 @@ def clear_brightness_cache():
     with _brightness_cache_lock:
         _brightness_cache.clear()
 
+
+# ─── Pre-downscale cache (Pain Point #2) ─────────────────────────────────────
+
+# Module-level cache: (source_path, target_w, target_h) → downscaled_path
+_downscale_cache: dict = {}
+_downscale_cache_lock = threading.Lock()
+
+
+def pre_downscale_video(source_path: str, target_w: int, target_h: int) -> str:
+    """
+    Pre-downscale a source video to target resolution on first use, cache on disk.
+    
+    For 4K source videos (e.g. 2160x3840) that need to be resized to target
+    (e.g. 1080x1440), this function creates a downscaled copy on first call and
+    returns the cached path on subsequent calls.  This avoids repeated
+    decode+resize of the same 4K source across multiple scenes.
+    
+    The downscale uses the same center-crop-and-scale logic as crop_clip_to_target,
+    so crop_clip_to_target becomes a no-op when loading the cached file.
+    
+    Args:
+        source_path: Path to the original video file
+        target_w: Target width in pixels
+        target_h: Target height in pixels
+    
+    Returns:
+        Path to use (cached downscaled file, or original if not applicable)
+    """
+    import subprocess
+    import re
+
+    cache_key = (source_path, target_w, target_h)
+
+    with _downscale_cache_lock:
+        if cache_key in _downscale_cache:
+            cached = _downscale_cache[cache_key]
+            if os.path.isfile(cached):
+                return cached
+
+    # Skip local materials — they have special handling (max_scale=5.0)
+    # and are typically not 4K
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    cache_dir = os.path.join(project_root, "storage", "cache_downscaled")
+    cache_videos_dir = os.path.normpath(os.path.join(project_root, "storage", "cache_videos"))
+    if not os.path.normpath(source_path).startswith(cache_videos_dir):
+        return source_path
+
+    os.makedirs(cache_dir, exist_ok=True)
+
+    # Build cache file path
+    file_hash = str(abs(hash(source_path)))[:12]
+    base = os.path.splitext(os.path.basename(source_path))[0]
+    cached_path = os.path.join(cache_dir, f"{base}_{target_w}x{target_h}_{file_hash}.mp4")
+
+    # Return existing cached file if valid
+    if os.path.isfile(cached_path) and os.path.getsize(cached_path) > 0:
+        with _downscale_cache_lock:
+            _downscale_cache[cache_key] = cached_path
+        return cached_path
+
+    ffmpeg_exe = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
+
+    try:
+        # Probe source dimensions via FFmpeg (fast, no full decode)
+        probe = subprocess.run(
+            [ffmpeg_exe, "-i", source_path, "-f", "null", "-"],
+            capture_output=True, text=True, timeout=15
+        )
+        m = re.search(r"(\d{3,5})x(\d{3,5})", probe.stderr)
+        if not m:
+            return source_path
+        src_w, src_h = int(m.group(1)), int(m.group(2))
+
+        # Skip if source is already close to target size (within 30%)
+        scale_needed = max(target_w / src_w, target_h / src_h)
+        if scale_needed >= 0.7:
+            return source_path
+
+        # Choose encoder based on GPU config
+        codec = get_video_codec()
+        if codec == "libx264":
+            enc_args = ["-c:v", "libx264", "-crf", "18", "-preset", "slow"]
+        elif codec == "h264_nvenc":
+            enc_args = ["-c:v", "h264_nvenc", "-b:v", "12M", "-preset", "p3"]
+        elif codec == "h264_amf":
+            enc_args = ["-c:v", "h264_amf", "-b:v", "12M", "-quality", "quality"]
+        elif codec == "h264_qsv":
+            enc_args = ["-c:v", "h264_qsv", "-b:v", "12M", "-preset", "medium"]
+        else:
+            enc_args = ["-c:v", "libx264", "-crf", "18", "-preset", "slow"]
+
+        # FFmpeg filter: scale up so smaller dimension matches target,
+        # then center-crop to exact target dimensions.
+        # This mirrors the crop_clip_to_target logic.
+        vf = (
+            f"scale=w='max({target_w},iw*{target_h}/ih)':"
+            f"h='max({target_h},ih*{target_w}/iw)':"
+            f"force_original_aspect_ratio=increase,"
+            f"crop={target_w}:{target_h}"
+        )
+
+        logger.info(f"Pre-downscaling: {os.path.basename(source_path)} "
+                    f"{src_w}x{src_h} → {target_w}x{target_h}")
+
+        result = subprocess.run(
+            [
+                ffmpeg_exe,
+                "-i", source_path,
+                "-vf", vf,
+                *enc_args,
+                "-c:a", "copy",
+                "-y", cached_path
+            ],
+            capture_output=True, text=True, timeout=120
+        )
+
+        if result.returncode != 0 or not os.path.isfile(cached_path) or os.path.getsize(cached_path) == 0:
+            logger.warning(f"Pre-downscale failed (rc={result.returncode}): "
+                           f"{os.path.basename(source_path)}")
+            # Clean up partial file
+            if os.path.isfile(cached_path):
+                try:
+                    os.remove(cached_path)
+                except OSError:
+                    pass
+            return source_path
+
+        with _downscale_cache_lock:
+            _downscale_cache[cache_key] = cached_path
+
+        logger.info(f"Pre-downscale cached: {os.path.basename(cached_path)} "
+                    f"({os.path.getsize(cached_path) / 1024 / 1024:.1f} MB)")
+        return cached_path
+
+    except (subprocess.TimeoutExpired, Exception) as e:
+        logger.warning(f"Pre-downscale error for {os.path.basename(source_path)}: {e}")
+        return source_path
+
+
+def clear_downscale_cache():
+    """Clear the in-memory downscale path cache (not the disk files)."""
+    with _downscale_cache_lock:
+        _downscale_cache.clear()
+
