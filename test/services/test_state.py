@@ -1,10 +1,12 @@
 import sys
+import threading
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.services.state import RedisState
+from app.models import const
+from app.services.state import MemoryState, RedisState
 
 
 class _FakeRedis:
@@ -28,6 +30,53 @@ class _FakeRedis:
 
     def hgetall(self, key):
         return self.data[key]
+
+
+class TestMemoryState(unittest.TestCase):
+    def test_get_task_and_get_all_tasks_return_isolated_snapshots(self):
+        state = MemoryState()
+        state.update_task(
+            "task-1",
+            state=const.TASK_STATE_PROCESSING,
+            progress=25,
+            videos=["first.mp4"],
+        )
+
+        task = state.get_task("task-1")
+        task["videos"].append("mutated.mp4")
+
+        tasks, total = state.get_all_tasks(page=1, page_size=10)
+        tasks[0]["videos"].append("mutated-again.mp4")
+
+        self.assertEqual(total, 1)
+        self.assertEqual(state.get_task("task-1")["videos"], ["first.mp4"])
+
+    def test_concurrent_memory_updates_are_preserved(self):
+        state = MemoryState()
+        thread_count = 5
+        tasks_per_thread = 50
+
+        def update_tasks(thread_index):
+            for task_index in range(tasks_per_thread):
+                state.update_task(
+                    f"task-{thread_index}-{task_index}",
+                    state=const.TASK_STATE_PROCESSING,
+                    progress=task_index,
+                )
+
+        threads = [
+            threading.Thread(target=update_tasks, args=(thread_index,))
+            for thread_index in range(thread_count)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        tasks, total = state.get_all_tasks(page=1, page_size=thread_count * tasks_per_thread)
+
+        self.assertEqual(total, thread_count * tasks_per_thread)
+        self.assertEqual(len(tasks), total)
 
 
 class TestRedisState(unittest.TestCase):

@@ -1,6 +1,8 @@
 import unittest
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,8 +11,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services import task as tm
 from app.models.schema import MaterialInfo, VideoParams
+from app.utils import utils
 
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
+RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 class TestTaskService(unittest.TestCase):
     def setUp(self):
@@ -67,6 +75,98 @@ class TestTaskService(unittest.TestCase):
             match_script_order=True,
         )
     
+    def test_generate_audio_uses_custom_file_inside_task_directory(self):
+        task_id = "test-custom-audio-safe"
+        task_dir = utils.task_dir(task_id)
+        custom_audio_file = os.path.join(task_dir, "custom-audio.mp3")
+        with open(custom_audio_file, "wb") as audio:
+            audio.write(b"fake audio")
+
+        params = VideoParams(
+            video_subject="custom audio",
+            video_script="",
+            custom_audio_file=custom_audio_file,
+            voice_name="test-voice",
+        )
+
+        try:
+            with (
+                patch.object(tm.voice, "tts") as tts,
+                patch.object(tm.voice, "get_audio_duration", return_value=7),
+            ):
+                audio_file, audio_duration, sub_maker = tm.generate_audio(
+                    task_id, params, "script"
+                )
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertEqual(audio_file, os.path.realpath(custom_audio_file))
+        self.assertEqual(audio_duration, 7)
+        self.assertIsNone(sub_maker)
+        tts.assert_not_called()
+
+    def test_generate_audio_accepts_server_side_custom_file(self):
+        task_id = "test-custom-audio-server-side"
+        task_dir = utils.task_dir(task_id)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3") as server_audio:
+            server_audio.write(b"fake audio")
+            server_audio.flush()
+            params = VideoParams(
+                video_subject="custom audio",
+                video_script="",
+                custom_audio_file=server_audio.name,
+                voice_name="test-voice",
+            )
+
+            try:
+                with (
+                    patch.object(tm.voice, "tts") as tts,
+                    patch.object(tm.voice, "get_audio_duration", return_value=6),
+                ):
+                    audio_file, audio_duration, result_sub_maker = tm.generate_audio(
+                        task_id, params, "script"
+                    )
+            finally:
+                shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertEqual(audio_file, os.path.realpath(server_audio.name))
+        self.assertEqual(audio_duration, 6)
+        self.assertIsNone(result_sub_maker)
+        tts.assert_not_called()
+
+    def test_generate_audio_rejects_missing_custom_file_without_tts(self):
+        task_id = "test-custom-audio-missing"
+        task_dir = utils.task_dir(task_id)
+        missing_audio_file = os.path.join(task_dir, "missing.mp3")
+        params = VideoParams(
+            video_subject="custom audio",
+            video_script="",
+            custom_audio_file=missing_audio_file,
+            voice_name="test-voice",
+        )
+
+        try:
+            with (
+                patch.object(tm.voice, "tts") as tts,
+                patch.object(tm.sm.state, "update_task") as update_task,
+            ):
+                audio_file, audio_duration, result_sub_maker = tm.generate_audio(
+                    task_id, params, "script"
+                )
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertIsNone(audio_file)
+        self.assertIsNone(audio_duration)
+        self.assertIsNone(result_sub_maker)
+        tts.assert_not_called()
+        update_task.assert_called_with(task_id, state=tm.const.TASK_STATE_FAILED)
+
+    @unittest.skipUnless(
+        RUN_INTEGRATION_TESTS,
+        "MPT_RUN_INTEGRATION_TESTS not set",
+    )
     def test_task_local_materials(self):
         task_id = "00000000-0000-0000-0000-000000000000"
         video_materials=[]

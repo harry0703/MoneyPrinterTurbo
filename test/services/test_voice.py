@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import os
 import unittest
 import sys
 import tempfile
@@ -36,6 +37,11 @@ text_zh = """
 
 voice_rate=1.0
 voice_volume=1.0
+RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
                     
 class TestVoiceService(unittest.TestCase):
     def setUp(self):
@@ -153,6 +159,10 @@ class TestVoiceService(unittest.TestCase):
         self.assertIs(result, sentinel)
         azure_tts_v1.assert_called_once()
 
+    @unittest.skipUnless(
+        RUN_INTEGRATION_TESTS,
+        "MPT_RUN_INTEGRATION_TESTS not set",
+    )
     def test_siliconflow(self):
         # SiliconFlow 的 API Key 存在 [siliconflow].api_key 中，运行时代码也是从
         # config.siliconflow 读取；这里必须使用同一配置源，避免正确配置凭据时
@@ -187,6 +197,10 @@ class TestVoiceService(unittest.TestCase):
 
         self.loop.run_until_complete(_do())
     
+    @unittest.skipUnless(
+        RUN_INTEGRATION_TESTS,
+        "MPT_RUN_INTEGRATION_TESTS not set",
+    )
     def test_azure_tts_v1(self):
         voice_name = "zh-CN-XiaoyiNeural-Female"
         voice_name = vs.parse_voice_name(voice_name)
@@ -305,6 +319,10 @@ class TestVoiceService(unittest.TestCase):
         self.assertIsNone(sub_maker)
         self.assertLess(elapsed, 2)
 
+    @unittest.skipUnless(
+        RUN_INTEGRATION_TESTS,
+        "MPT_RUN_INTEGRATION_TESTS not set",
+    )
     def test_azure_tts_v2(self):
         if not vs.config.azure.get("speech_key") or not vs.config.azure.get("speech_region"):
             self.skipTest("Azure speech key or region is not configured")

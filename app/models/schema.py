@@ -35,13 +35,13 @@ class VideoAspect(str, Enum):
     square = "1:1"
 
     def to_resolution(self):
-        if self == VideoAspect.landscape.value:
+        if self == VideoAspect.landscape:
             return 1920, 1080
-        elif self == VideoAspect.portrait.value:
+        elif self == VideoAspect.portrait:
             return 1080, 1920
-        elif self == VideoAspect.square.value:
+        elif self == VideoAspect.square:
             return 1080, 1080
-        return 1080, 1920
+        raise ValueError(f"unsupported video aspect: {self}")
 
 
 class _Config:

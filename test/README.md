@@ -27,6 +27,10 @@ python -m unittest test.services.test_video.TestVideoService
 python -m unittest test.services.test_video.TestVideoService.test_preprocess_video
 ````
 
+Live provider tests are skipped by default. To run tests that may call external
+TTS or LLM services, set `MPT_RUN_INTEGRATION_TESTS=1` and provide the required
+provider credentials.
+
 ## Adding New Tests
 
 To add tests for other components, follow these guidelines:
