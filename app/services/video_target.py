@@ -774,14 +774,24 @@ def process_final_video(
         is_pillarbox = False
         if hasattr(params, 'video_aspect') and params.video_aspect:
             vasp = params.video_aspect
+            logger.info(f"pillarbox check: raw video_aspect={vasp!r} (type={type(vasp).__name__})")
             if isinstance(vasp, str):
                 from app.models.schema import VideoAspect as _VA
                 try:
                     vasp = _VA(vasp)
+                    logger.info(f"pillarbox check: converted via _VA -> {vasp!r} (value={vasp.value})")
                 except ValueError:
+                    logger.warning(f"pillarbox check: failed to parse video_aspect={vasp!r}")
                     vasp = None
-            if vasp and str(vasp) == "portrait_3_4" or (hasattr(vasp, 'value') and vasp.value == "portrait_3_4"):
+            # Compare value "3:4" — use .value, NOT str() because Python 3.11+
+            # str() on a str enum returns 'VideoAspect.portrait_3_4' (the repr),
+            # not '3:4' (the actual value). .value always gives the raw value.
+            if vasp is not None and hasattr(vasp, 'value') and vasp.value == "3:4":
                 is_pillarbox = True
+                logger.info("pillarbox check: IS 3:4 -> pillarbox enabled")
+            else:
+                vasp_val = getattr(vasp, 'value', str(vasp))
+                logger.info(f"pillarbox check: vasp.value={vasp_val!r} != '3:4' -> pillarbox disabled")
         
         sub_params = None
         actual_sub_file = subtitle_file if subtitle_file and os.path.exists(subtitle_file) else None

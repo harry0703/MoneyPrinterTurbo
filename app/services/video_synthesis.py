@@ -154,8 +154,11 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
             task_id = task_id_or_path
         task_dir = utils.task_dir(task_id)
     
-    # Create task log file for scene integration
-    task_log_path = os.path.join(task_dir, "scene_integration.log")
+    # Create task log file under the new scene integration task directory
+    # task_dir may point to the original task directory when task_id_or_path is a path,
+    # so resolve log_dir from task_id (the new UUID) explicitly.
+    log_dir = utils.task_dir(task_id) if task_id else task_dir
+    task_log_path = os.path.join(log_dir, "scene_integration.log")
     log_handler_id = logger.add(
         task_log_path,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{line} | {message}\n",
