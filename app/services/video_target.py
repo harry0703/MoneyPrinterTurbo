@@ -33,6 +33,30 @@ def _get_ffmpeg_exe() -> str:
     return os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
 
 
+def _get_font_family_name(font_path: str) -> str:
+    """
+    Extract the font family name from a font file using PIL.
+    
+    FFmpeg's subtitles filter (libass) needs a font family name (e.g. 'ST Heiti Medium')
+    for the FontName style property, not a filename. PIL can read this from the font
+    metadata reliably.
+    
+    Args:
+        font_path: Absolute path to the font file (TTF or TTC).
+    
+    Returns:
+        Font family name string. Falls back to filename stem on error.
+    """
+    try:
+        from PIL import ImageFont
+        font = ImageFont.truetype(font_path, 12)
+        # getname() returns (family_name, style_name)
+        return font.getname()[0]
+    except Exception:
+        # Fallback: use the filename without extension
+        return os.path.splitext(os.path.basename(font_path))[0]
+
+
 def concat_videos_stream_copy(
     video_paths: List[str],
     output_path: str,
@@ -341,6 +365,7 @@ def _ffmpeg_fast_encode(
                        .replace("'", "\\'"))
         
         sub_style = ""
+        fonts_dir_option = ""
         if subtitle_params:
             style_parts = []
             if subtitle_params.get("font_name"):
@@ -359,9 +384,19 @@ def _ffmpeg_fast_encode(
                 style_parts.append(f"MarginV={subtitle_params['margin_v']}")
             if style_parts:
                 sub_style = f":force_style='{','.join(style_parts)}'"
+            
+            # If fonts_dir is provided, add it as a subtitles filter option
+            # so libass can find the font by family name
+            fonts_dir = subtitle_params.get("fonts_dir")
+            if fonts_dir and os.path.isdir(fonts_dir):
+                escaped_dir = (fonts_dir
+                              .replace("\\", "/")
+                              .replace(":", "\\:")
+                              .replace("'", "\\'"))
+                fonts_dir_option = f":fontsdir='{escaped_dir}'"
         
         filter_parts.append(
-            f"[{cur_label}]subtitles='{escaped_sub}'{sub_style}[v_sub]"
+            f"[{cur_label}]subtitles='{escaped_sub}'{fonts_dir_option}{sub_style}[v_sub]"
         )
         cur_label = "v_sub"
     
@@ -754,10 +789,14 @@ def process_final_video(
             from app.services.title import _get_valid_font_path
             font_path = _get_valid_font_path(getattr(params, 'font_name', 'STHeitiMedium.ttc'))
             
+            # Use font family name (libass can't resolve filenames like 'STHeitiMedium.ttc')
+            font_family = _get_font_family_name(font_path) if font_path else "Arial"
+            
             sub_params = {
-                "font_name": os.path.basename(font_path) if font_path and os.path.exists(font_path) else "Arial",
+                "font_name": font_family,
                 "font_size": int(getattr(params, 'font_size', 28)),
                 "primary_color": "&H00FFFFFF",
+                "fonts_dir": os.path.dirname(font_path) if font_path else None,
             }
             
             pos = getattr(params, 'subtitle_position', 'bottom')
