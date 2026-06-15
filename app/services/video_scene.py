@@ -27,6 +27,8 @@ from app.services.video_utils import (
     close_clip,
     crop_clip_to_target,
     fit_intro_video_to_target,
+    fast_brightness_check,
+    clear_brightness_cache,
 )
 from app.services.video_target import finalize_video
 from moviepy import ImageClip
@@ -73,6 +75,15 @@ def process_scene_videos(
             clip_duration = clip.duration
             clip_w, clip_h = clip.size
             close_clip(clip)
+            
+            # Fast brightness pre-check: sample tiny grayscale frames via FFmpeg
+            # before doing the expensive MoviePy decode+resize pipeline.
+            # Each source video is checked once (cached across scenes).
+            brightness_threshold = config.app.get("video_brightness_threshold", 0.3)
+            source_brightness = fast_brightness_check(video_path, duration=clip_duration)
+            if source_brightness < brightness_threshold:
+                logger.info(f"Skipping dark source video (brightness: {source_brightness:.3f} < {brightness_threshold}): {os.path.basename(video_path)}")
+                continue
             
             start_time = 0
 

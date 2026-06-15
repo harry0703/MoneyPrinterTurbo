@@ -909,6 +909,10 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     logger.info(f"Task log file: {task_log_path}")
     logger.info(f"========================================")
     
+    # Clear per-task caches from previous runs
+    from app.services.video_utils import clear_brightness_cache
+    clear_brightness_cache()
+    
     # Log video aspect ratio at task start
     logger.debug(f"Task start - video_aspect from params: {params.video_aspect}")
     logger.debug(f"Task start - video_aspect type: {type(params.video_aspect)}")

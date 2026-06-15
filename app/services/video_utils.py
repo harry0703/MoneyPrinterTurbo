@@ -1409,3 +1409,124 @@ def analyze_video_params(video_path):
     except Exception as e:
         logger.error(f"Failed to analyze video: {e}")
         return None
+
+
+import threading
+
+# Cache for brightness check results (keyed by file path)
+_brightness_cache: dict = {}
+_brightness_cache_lock = threading.Lock()
+
+
+def fast_brightness_check(file_path: str, duration: float = None,
+                          num_samples: int = 3, sample_width: int = 80) -> float:
+    """
+    Fast brightness pre-check using FFmpeg to extract tiny RGB frames.
+    
+    This avoids the expensive MoviePy decode+resize pipeline for brightness
+    filtering. Each source video is checked once and the result is cached,
+    so repeated use across scenes costs zero.
+    
+    Uses simple RGB mean (R+G+B)/3 to match MoviePy's detect_brightness
+    normalization, ensuring both checks produce comparable values against
+    the same brightness threshold.
+    
+    Args:
+        file_path: Path to the video file
+        duration: Video duration in seconds (optional, probed if not given)
+        num_samples: Number of frames to sample (default 3)
+        sample_width: Width of sampled frame in pixels (default 80)
+    
+    Returns:
+        Normalized brightness (0.0 = black, 1.0 = white).
+        Returns 0.5 on error (treated as "pass" — don't skip).
+    """
+    with _brightness_cache_lock:
+        if file_path in _brightness_cache:
+            return _brightness_cache[file_path]
+
+    import subprocess
+    import numpy as np
+    import re
+
+    ffmpeg_exe = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
+    
+    try:
+        # Get duration if not provided
+        if duration is None or duration <= 0:
+            result = subprocess.run(
+                [ffmpeg_exe, "-i", file_path, "-f", "null", "-"],
+                capture_output=True, text=True, timeout=10
+            )
+            m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", result.stderr)
+            if m:
+                h, mn, s = m.groups()
+                duration = int(h) * 3600 + int(mn) * 60 + float(s)
+            else:
+                duration = 10.0  # fallback
+
+        # Sample at evenly-spaced points in the first portion of the video
+        # (avoids black intro/outro frames)
+        sample_times = [duration * (i + 1) / (num_samples + 2) for i in range(num_samples)]
+        
+        total_brightness = 0.0
+        valid_samples = 0
+        
+        for t in sample_times:
+            try:
+                # Extract a single frame at time t, scaled to tiny RGB.
+                # Using rgb24 (not format=gray) so the mean computation
+                # matches MoviePy's np.mean(frame, axis=2) / 255.0.
+                # Output: sample_width * scaled_height * 3 bytes per frame.
+                result = subprocess.run(
+                    [
+                        ffmpeg_exe,
+                        "-ss", str(t),
+                        "-i", file_path,
+                        "-vframes", "1",
+                        "-vf", f"scale={sample_width}:-1",
+                        "-f", "rawvideo",
+                        "-pix_fmt", "rgb24",
+                        "-y", "-"
+                    ],
+                    capture_output=True,
+                    timeout=5
+                )
+                
+                raw = result.stdout
+                # Minimum: at least a few rows of RGB pixels
+                min_bytes = sample_width * 4 * 3
+                if not raw or len(raw) < min_bytes:
+                    continue  # no usable frame
+                
+                # Reshape to (N, 3) and compute mean across all channels
+                # This matches np.mean(frame, axis=2) used in detect_brightness
+                pixels = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 3)
+                frame_mean = float(np.mean(pixels))
+                total_brightness += frame_mean
+                valid_samples += 1
+                
+            except (subprocess.TimeoutExpired, ValueError, Exception):
+                continue
+        
+        if valid_samples > 0:
+            brightness = (total_brightness / valid_samples) / 255.0
+        else:
+            brightness = 0.5  # fallback on error — don't skip
+        
+        with _brightness_cache_lock:
+            _brightness_cache[file_path] = brightness
+        logger.debug(f"Fast brightness check: {os.path.basename(file_path)} = {brightness:.3f} "
+                     f"({valid_samples}/{num_samples} samples, FFmpeg)")
+        return brightness
+        
+    except Exception as e:
+        logger.debug(f"Fast brightness check failed for {os.path.basename(file_path)}: {e}")
+        return 0.5  # don't skip on error
+
+
+def clear_brightness_cache():
+    """Clear the brightness check cache (e.g. between tasks)."""
+    with _brightness_cache_lock:
+        _brightness_cache.clear()
+
