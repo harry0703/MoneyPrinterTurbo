@@ -854,25 +854,26 @@ def combine_all_scenes(task_id, params, scene_results):
         return None
 
 
-def start_async(task_id, params: VideoParams, stop_at: str = "video"):
+def start_async(task_id, params: VideoParams, stop_at: str = "video", task_create_time: float = None):
     """Start task (async version)
     
     Args:
         task_id: Task ID
         params: Video parameters
         stop_at: Stop point
+        task_create_time: Optional task creation timestamp (time.time())
         
     Returns:
         Tuple of (Task ID, status message)
     """
     logger.debug(f"start_async: task_id={task_id}, thread_manager_id={id(thread_manager)}")
     logger.info(f"Submitting task {task_id} to background thread")
-    result = thread_manager.submit_task(task_id, start, task_id, params, stop_at)
+    result = thread_manager.submit_task(task_id, start, task_id, params, stop_at, task_create_time=task_create_time)
     logger.debug(f"start_async: task_id={task_id} submitted, result={result}")
     return result
 
 
-def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=None):
+def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=None, task_create_time: float = None):
     from app.services.state import set_task_running, set_task_completed
     from app.models import const
     from app.services import state as sm
@@ -944,7 +945,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
             return None
             
-        result = start_multi_scene(task_id, params, stop_at, task_start_time, check_cancelled=check_cancelled)
+        result = start_multi_scene(task_id, params, stop_at, task_start_time, check_cancelled=check_cancelled, task_create_time=task_create_time)
     except Exception as e:
         exception_occurred = e
         import traceback
@@ -977,6 +978,17 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
             logger.success(f"TASK COMPLETED SUCCESSFULLY")
             logger.success(f"========================================")
         
+        # Log task lifecycle and running duration before closing the log file
+        import time as _time
+        _end = _time.time()
+        if task_create_time:
+            _hours, _rem = divmod(_end - task_create_time, 3600)
+            _mins, _secs = divmod(_rem, 60)
+            logger.info(f"Task lifecycle: {int(_hours):02d}:{int(_mins):02d}:{int(_secs):02d}")
+        _hours, _rem = divmod(_end - task_start_time, 3600)
+        _mins, _secs = divmod(_rem, 60)
+        logger.info(f"Task running duration: {int(_hours):02d}:{int(_mins):02d}:{int(_secs):02d}")
+        
         # Remove the file handler to release the log file
         try:
             logger.remove(log_handler_id)
@@ -988,7 +1000,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     return result
 
 
-def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task_start_time=None, check_cancelled=None):
+def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task_start_time=None, check_cancelled=None, task_create_time=None):
     """Multi-scene video generation flow."""
 
     # Log the aspect ratio at the very start
@@ -1226,6 +1238,7 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=70)
     
     # 4. Combine all scenes into final video
+    scene_synthesis_start_time = time.time()
     final_video_path = combine_all_scenes(task_id, params, scene_results)
     if not final_video_path:
         logger.error("Multi-scene: failed to combine all scenes, returning None")
@@ -1266,7 +1279,10 @@ def start_multi_scene(task_id, params: VideoParams, stop_at: str = "video", task
             subtitle_file=None,  # Will be merged from scene_results
             audio_file=None,      # Will use BGM from params
             output_file=final_output_path,
-            progress_callback=None
+            progress_callback=None,
+            task_create_time=task_create_time,
+            task_start_time=task_start_time,
+            scene_synthesis_start_time=scene_synthesis_start_time,
         )
         
         if output_path and os.path.exists(output_path):

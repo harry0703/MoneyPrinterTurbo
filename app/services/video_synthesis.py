@@ -120,7 +120,7 @@ def scan_task_files(task_id_or_path: str) -> dict:
     return result
 
 
-def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_scene=None, end_scene=None, task_id: str = None, subtitle_params: dict = None, bgm_params: dict = None, check_cancelled=None) -> str:
+def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_scene=None, end_scene=None, task_id: str = None, subtitle_params: dict = None, bgm_params: dict = None, check_cancelled=None, task_create_time: float = None) -> str:
     """
     Recover video synthesis from existing task files.
     
@@ -135,6 +135,7 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
         task_id: Optional task ID for tracking purposes
         subtitle_params: Optional dictionary of subtitle parameters to override defaults
         bgm_params: Optional dictionary of BGM parameters to override defaults
+        task_create_time: Optional task creation timestamp (time.time())
         
     Returns:
         Path to the final video file, or None if failed
@@ -143,6 +144,7 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
     from app.services.state import set_task_running, set_task_completed
     
     start_time = time.time()
+    scene_synthesis_start_time = None
     
     # Determine task ID and directory
     if os.path.isdir(task_id_or_path):
@@ -438,6 +440,7 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
             
             # Import combine_all_scenes from task module
             from app.services.task import combine_all_scenes
+            scene_synthesis_start_time = time.time()
             combined_video_path = combine_all_scenes(
                 task_id=task_id,
                 params=params,
@@ -484,16 +487,14 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
                 subtitle_file=subtitle_file,
                 audio_file=audio_file,
                 output_file=output_path,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                task_create_time=task_create_time,
+                task_start_time=start_time,
+                scene_synthesis_start_time=scene_synthesis_start_time,
             )
             
             if output_path and os.path.exists(output_path):
-                end_time = time.time()
-                total_time = end_time - start_time
-                hours, remainder = divmod(total_time, 3600)
-                minutes, seconds = divmod(remainder, 60)
                 logger.success(f"Final video generated: {output_path}")
-                logger.info(f"Task duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
                 
                 sm.state.update_task(task_id, state=const.TASK_STATE_COMPLETE, progress=100, videos=[output_path])
                 set_task_completed()
@@ -521,6 +522,20 @@ def recover_video_synthesis(task_id_or_path: str, progress_callback=None, start_
             return None
     
     finally:
+        # Log duration metrics before closing the log file
+        _end = time.time()
+        if task_create_time:
+            _h, _r = divmod(_end - task_create_time, 3600)
+            _m, _s = divmod(_r, 60)
+            logger.info(f"Task lifecycle: {int(_h):02d}:{int(_m):02d}:{int(_s):02d}")
+        _h, _r = divmod(_end - start_time, 3600)
+        _m, _s = divmod(_r, 60)
+        logger.info(f"Task running duration: {int(_h):02d}:{int(_m):02d}:{int(_s):02d}")
+        if scene_synthesis_start_time:
+            _h, _r = divmod(_end - scene_synthesis_start_time, 3600)
+            _m, _s = divmod(_r, 60)
+            logger.info(f"Scene synthesis duration: {int(_h):02d}:{int(_m):02d}:{int(_s):02d}")
+        
         # Remove log handler
         try:
             logger.remove(log_handler_id)

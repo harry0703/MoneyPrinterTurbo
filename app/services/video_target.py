@@ -487,6 +487,23 @@ def _ffmpeg_fast_encode(
         return False
 
 
+def _fmt_duration(seconds):
+    """Format seconds as HH:MM:SS string."""
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    return f"{int(hours):02d}:{int(minutes):02d}:{int(secs):02d}"
+
+
+def _log_durations(end_time, task_create_time=None, task_start_time=None, scene_synthesis_start_time=None):
+    """Log task lifecycle, task running duration, and scene synthesis duration."""
+    if task_create_time:
+        logger.info(f"Task lifecycle: {_fmt_duration(end_time - task_create_time)}")
+    if task_start_time:
+        logger.info(f"Task running duration: {_fmt_duration(end_time - task_start_time)}")
+    if scene_synthesis_start_time:
+        logger.info(f"Scene synthesis duration: {_fmt_duration(end_time - scene_synthesis_start_time)}")
+
+
 def process_final_video(
     task_id: str,
     params,
@@ -496,7 +513,10 @@ def process_final_video(
     subtitle_file: str = None,
     audio_file: str = None,
     output_file: str = None,
-    progress_callback=None
+    progress_callback=None,
+    task_create_time: float = None,
+    task_start_time: float = None,
+    scene_synthesis_start_time: float = None,
 ):
     """
     Shared function to process combined video after scene generation.
@@ -512,6 +532,9 @@ def process_final_video(
         audio_file: Optional BGM file
         output_file: Output file path (required)
         progress_callback: Optional callback function for progress updates
+        task_create_time: Optional task creation time (time.time()). Used for "Task lifecycle" log.
+        task_start_time: Optional task running start time (time.time()). Used for "Task running duration" log.
+        scene_synthesis_start_time: Optional scene synthesis start time (time.time()). Used for "Scene synthesis duration" log.
     
     Returns:
         Final video path or None if failed
@@ -897,11 +920,8 @@ def process_final_video(
             if ffmpeg_success:
                 video_clip.close()
                 end_time = time.time()
-                total_time = end_time - start_time
-                hours, remainder = divmod(total_time, 3600)
-                minutes, seconds = divmod(remainder, 60)
                 logger.success(f"Video generated (fast FFmpeg): {output_file}")
-                logger.info(f"Processing duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
+                _log_durations(end_time, task_create_time, task_start_time, scene_synthesis_start_time)
                 return output_file
             
             logger.warning("FFmpeg fast encode failed, falling back to MoviePy")
@@ -938,11 +958,8 @@ def process_final_video(
         video_clip.close()
         
         end_time = time.time()
-        total_time = end_time - start_time
-        hours, remainder = divmod(total_time, 3600)
-        minutes, seconds = divmod(remainder, 60)
         logger.success(f"Video generated successfully: {output_file}")
-        logger.info(f"Processing duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
+        _log_durations(end_time, task_create_time, task_start_time, scene_synthesis_start_time)
         
         return output_file
         

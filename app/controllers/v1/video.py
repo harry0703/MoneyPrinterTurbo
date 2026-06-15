@@ -62,6 +62,8 @@ def create_task(
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
     stop_at: str,
 ):
+    import time as _time
+    task_create_time = _time.time()
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
     
@@ -85,7 +87,7 @@ def create_task(
         
         sm.state.update_task(task_id, state=const.TASK_STATE_PENDING, progress=0, task_type="video_generation")
         logger.debug(f"video_controller: Calling start_async for task_id={task_id}, thread_manager_id={id(tm)}")
-        _, queue_status = tm.start_async(task_id, body, stop_at)
+        _, queue_status = tm.start_async(task_id, body, stop_at, task_create_time=task_create_time)
         
         # Get the task with task_type from state
         created_task = sm.state.get_task(task_id)
@@ -581,6 +583,10 @@ def recover_scene_integration(request: Request, body: dict):
     from app.models import const
     from app.services.task import thread_manager
     
+    # Capture task creation time for duration logging
+    import time as _time
+    task_create_time = _time.time()
+    
     # Generate unique task_id for tracking
     task_id = utils.get_uuid()
     
@@ -598,7 +604,8 @@ def recover_scene_integration(request: Request, body: dict):
         end_scene,      # end_scene
         task_id,        # task_id (for recover_video_synthesis)
         subtitle_params=subtitle_params,
-        bgm_params=bgm_params
+        bgm_params=bgm_params,
+        task_create_time=task_create_time,
     )
     
     # Get the task with task_type from state
