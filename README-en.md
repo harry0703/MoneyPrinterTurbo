@@ -194,10 +194,12 @@ If you are using a Windows system, please refer to Microsoft's documentation:
 
 ```shell
 cd MoneyPrinterTurbo
-docker-compose up
+docker compose -f docker-compose.release.yml up
 ```
 
-> Note：The latest version of docker will automatically install docker compose in the form of a plug-in, and the start command is adjusted to `docker compose up `
+> The recommended default is `docker-compose.release.yml`, which pulls the prebuilt image from GitHub Container Registry: `ghcr.io/harry0703/moneyprinterturbo:latest`.
+> If you need to build the image locally, you can still run `docker compose up`.
+> Before the first start, make sure `config.toml` exists in the project root. You can copy it from `config.example.toml`.
 
 #### ② Access the Web Interface
 

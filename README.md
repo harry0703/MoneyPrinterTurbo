@@ -193,10 +193,12 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 
 ```shell
 cd MoneyPrinterTurbo
-docker-compose up
+docker compose -f docker-compose.release.yml up
 ```
 
-> 注意：最新版的docker安装时会自动以插件的形式安装docker compose，启动命令调整为docker compose up
+> 默认推荐使用 `docker-compose.release.yml`，它会直接拉取 GitHub Container Registry 上的预构建镜像：`ghcr.io/harry0703/moneyprinterturbo:latest`。
+> 如果你需要本地重新构建镜像，可以继续使用 `docker compose up`。
+> 注意：首次启动前请确保项目根目录下存在 `config.toml`，可以从 `config.example.toml` 复制一份。
 
 #### ② 访问Web界面
 
