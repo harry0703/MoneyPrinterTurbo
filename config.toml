@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.4.13"
+project_version = "2.4.14"
 
 [app]
 host_visible = false
@@ -46,6 +46,7 @@ redis_port = 6379
 redis_db = 0
 redis_password = ""
 max_concurrent_tasks = 1
+max_parallel_scenes = 2
 ollama_api_key = "123"
 use_gpu = true
 video_quality = "ultra"
@@ -100,7 +101,7 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "Claude险胜小米"
+title_text = "老显卡控制面板退役"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 92

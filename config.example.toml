@@ -184,6 +184,11 @@ redis_password = ""
 # 文生视频时的最大并发任务数
 max_concurrent_tasks = 5
 
+# 多场景并行处理数量 (1=串行, 2=推荐, 3-4=需要更多内存)
+# Number of scenes to process in parallel (1=sequential, 2=recommended, 3-4=requires more memory)
+# Each parallel scene roughly doubles memory during video processing phase
+max_parallel_scenes = 2
+
 # Ollama API Key
 ollama_api_key = ""
 

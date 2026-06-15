@@ -58,7 +58,8 @@ The fix reorganizes the processing order to ensure proper synchronization and cl
 | 4 | **Title** | Add title overlay (starts from beginning of Silence Prefix) |
 | 5 | Subtitles | Add subtitles, adjusting timestamps by Silence Prefix duration |
 | 6 | BGM | Add background music mixed with existing audio |
-| 7 | Encode | Final video encoding |
+| 7 | Encode (no title) | **FFmpeg filter_complex** streaming pass (silence+pillarbox+subs+BGM all in one pipeline). ~3 min |
+|   | Encode (with title) | **Hybrid**: FFmpeg filter_complex for base (silence+pillarbox+subs+BGM) → temp file → MoviePy loads temp → applies PIL-based title overlay → writes. ~4 min, saves ~14 min vs full MoviePy compositing |
 
 ---
 

@@ -445,19 +445,23 @@ Two task manager implementations:
 +----------+------------+
            |
            v
-+-----------------------+
-|  7. Generate Final    |
-|                       |
-|  Input: combined.mp4  |
-|        + subtitle.srt |
-|        + bgm          |
-|  Output: final.mp4    |
-|                       |
-|  +---------------+    |
-|  | MoviePy +     |    |
-|  | SubtitlesClip |    |
-|  +---------------+    |
-+----------+------------+
++-----------------------+-------------------------------------------+
+|  7. Generate Final    |                                           |
+|                       |                                           |
+|  Input: combined.mp4  |  Dual encoding path:                     |
+|        + subtitle.srt |  - No title → FFmpeg filter_complex      |
+|        + bgm          |    (single streaming pass, ~3 min)       |
+|  Output: final.mp4    |  - Has title → Hybrid FFmpeg+MoviePy     |
+|                       |    1. FFmpeg: silence+pillarbox+subs+BGM |
+|                       |       → temp file (~3 min)               |
+|                       |    2. MoviePy: load temp + title overlay |
+|                       |       → fast write (~1 min, ~4 min total)|
+|                       |                                           |
+|  +-----------------+  |                                           |
+|  | FFmpeg (base)   |  |                                           |
+|  | MoviePy (title) |  |                                           |
+|  +-----------------+  |                                           |
++----------+------------+                                           |
            |
            v
      +------------+
@@ -548,19 +552,23 @@ Two task manager implementations:
 +----------+------------+
            |
            v
-+-----------------------+
-|  6. Generate Final    |
-|                       |
-|  Input: trimmed.mp4   |
-|        + subtitles    |
-|        + bgm          |
-|  Output: final.mp4    |
-|                       |
-|  +---------------+    |
-|  | MoviePy +     |    |
-|  | SubtitlesClip |    |
-|  +---------------+    |
-+----------+------------+
++-----------------------+-------------------------------------------+
+|  6. Generate Final    |                                           |
+|                       |                                           |
+|  Input: trimmed.mp4   |  Dual encoding path:                     |
+|        + subtitles    |  - No title → FFmpeg filter_complex      |
+|        + bgm          |    (single streaming pass, ~3 min)       |
+|  Output: final.mp4    |  - Has title → Hybrid FFmpeg+MoviePy     |
+|                       |    1. FFmpeg: silence+pillarbox+subs+BGM |
+|                       |       → temp file (~3 min)               |
+|                       |    2. MoviePy: load temp + title overlay |
+|                       |       → fast write (~1 min, ~4 min total)|
+|                       |                                           |
+|  +-----------------+  |                                           |
+|  | FFmpeg (base)   |  |                                           |
+|  | MoviePy (title) |  |                                           |
+|  +-----------------+  |                                           |
++----------+------------+                                           |
            |
            v
      +------------+

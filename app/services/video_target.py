@@ -261,6 +261,197 @@ def finalize_video(
     logger.info("video combining completed")
     return combined_video_path
 
+
+def _ffmpeg_fast_encode(
+    video_path: str,
+    output_file: str,
+    silence_duration: float = 0,
+    pillarbox: bool = False,
+    pillarbox_bg_color: str = "black",
+    subtitle_file: str = None,
+    subtitle_params: dict = None,
+    bgm_file: str = None,
+    bgm_volume: float = 0.2,
+    target_width: int = 1080,
+    target_height: int = 1920,
+    task_id: str = None,
+    progress_callback=None,
+) -> bool:
+    """
+    Use FFmpeg filter_complex to encode the final video in a single streaming pass,
+    replacing MoviePy's frame-by-frame compositing.
+    
+    Handles: silence prefix, pillarbox, subtitle burn-in, BGM mixing, encoding.
+    
+    Args:
+        video_path: Path to the combined scene video
+        output_file: Output file path
+        silence_duration: Seconds of still-frame prefix to prepend
+        pillarbox: Whether to add pillarbox bars (3:4 in 9:16)
+        pillarbox_bg_color: Background color for pillarbox
+        subtitle_file: Path to SRT/ASS subtitle file to burn in
+        subtitle_params: Dict with font_name, font_size, colors, position, margin
+        bgm_file: Path to BGM audio file
+        bgm_volume: BGM volume multiplier (0.0-1.0)
+        target_width/height: Output resolution for pillarbox
+        task_id: Task ID for progress monitoring
+        progress_callback: Optional progress callback
+    
+    Returns:
+        True on success, False on failure (caller should fall back to MoviePy)
+    """
+    ffmpeg_exe = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
+    
+    # Build input args
+    inputs = ["-i", video_path]
+    filter_parts = []
+    cur_label = "0:v"
+    
+    audio_label = "0:a?"  # optional audio from video
+    extra_outputs = []
+    
+    # 1. Silence prefix — tpad clones the first frame
+    if silence_duration > 0:
+        filter_parts.append(
+            f"[{cur_label}]tpad=start_mode=clone:start_duration={silence_duration}[v_tpad]"
+        )
+        cur_label = "v_tpad"
+        # Offset the audio by silence_duration using adelay
+        filter_parts.append(
+            f"[{audio_label}]adelay={int(silence_duration * 1000)}|{int(silence_duration * 1000)}[a_delayed]"
+        )
+        audio_label = "a_delayed"
+    
+    # 2. Pillarbox — pad to target dimensions with background color
+    if pillarbox:
+        filter_parts.append(
+            f"[{cur_label}]scale={target_width}:{target_height}:"
+            f"force_original_aspect_ratio=decrease,"
+            f"pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:"
+            f"color={pillarbox_bg_color}[v_padded]"
+        )
+        cur_label = "v_padded"
+    
+    # 3. Subtitle burn-in via FFmpeg subtitles filter
+    if subtitle_file and os.path.exists(subtitle_file):
+        # Escape colons and backslashes in the path for FFmpeg's subtitles filter
+        escaped_sub = (subtitle_file
+                       .replace("\\", "/")
+                       .replace(":", "\\:")
+                       .replace("'", "\\'"))
+        
+        sub_style = ""
+        if subtitle_params:
+            style_parts = []
+            if subtitle_params.get("font_name"):
+                style_parts.append(f"FontName={subtitle_params['font_name']}")
+            if subtitle_params.get("font_size"):
+                style_parts.append(f"FontSize={subtitle_params['font_size']}")
+            if subtitle_params.get("primary_color"):
+                style_parts.append(f"PrimaryColour={subtitle_params['primary_color']}")
+            if subtitle_params.get("outline_color"):
+                style_parts.append(f"OutlineColour={subtitle_params['outline_color']}")
+            if subtitle_params.get("outline_width"):
+                style_parts.append(f"Outline={subtitle_params['outline_width']}")
+            if subtitle_params.get("alignment"):
+                style_parts.append(f"Alignment={subtitle_params['alignment']}")
+            if subtitle_params.get("margin_v"):
+                style_parts.append(f"MarginV={subtitle_params['margin_v']}")
+            if style_parts:
+                sub_style = f":force_style='{','.join(style_parts)}'"
+        
+        filter_parts.append(
+            f"[{cur_label}]subtitles='{escaped_sub}'{sub_style}[v_sub]"
+        )
+        cur_label = "v_sub"
+    
+    # 4. BGM mixing
+    if bgm_file and os.path.exists(bgm_file):
+        bgm_input_idx = len(inputs) // 2  # input index for BGM
+        inputs.extend(["-stream_loop", "-1", "-i", bgm_file])
+        
+        # Adjust BGM volume
+        filter_parts.append(
+            f"[{bgm_input_idx}:a]volume={bgm_volume}[bgm_vol]"
+        )
+        
+        # Mix with existing video audio (if any)
+        filter_parts.append(
+            f"[{audio_label}][bgm_vol]amix=inputs=2:duration=first:dropout_transition=3[a_mixed]"
+        )
+        audio_label = "a_mixed"
+    
+    # Build -filter_complex string
+    filter_complex = ";".join(filter_parts) if filter_parts else ""
+    
+    # Build encoding args
+    enc_params = get_video_encoding_params()
+    codec = get_video_codec()
+    
+    enc_args = ["-c:v", codec]
+    if codec == "libx264":
+        enc_args.extend(["-crf", str(enc_params["crf"]), "-preset", enc_params["preset"]])
+    elif codec == "h264_nvenc":
+        enc_args.extend(["-b:v", enc_params["bitrate"], "-preset", enc_params["preset"]])
+    elif codec == "h264_amf":
+        enc_args.extend(["-b:v", enc_params["bitrate"], "-quality", "quality"])
+    elif codec == "h264_qsv":
+        enc_args.extend(["-b:v", enc_params["bitrate"], "-preset", "medium"])
+    else:
+        enc_args.extend(["-crf", str(enc_params.get("crf", 18)), "-preset", enc_params.get("preset", "medium")])
+    
+    # Build the full FFmpeg command
+    cmd = [ffmpeg_exe, "-y"] + inputs
+    
+    if filter_complex:
+        cmd.extend(["-filter_complex", filter_complex])
+    
+    cmd.extend([
+        "-map", f"[{cur_label}]",   # processed video
+        "-map", f"[{audio_label}]",  # processed audio (optional)
+        *enc_args,
+        "-c:a", audio_codec,
+        "-b:a", "192k",
+        "-pix_fmt", "yuv420p",
+        "-fps_mode", "cfr",
+        "-r", str(fps),
+        "-shortest",
+        "-movflags", "+faststart",
+        output_file
+    ])
+    
+    logger.info(f"FFmpeg fast encode: {' '.join(cmd[:10])}... ({len(filter_parts)} filters)")
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        
+        if result.returncode != 0:
+            stderr_tail = result.stderr[-500:] if result.stderr else ""
+            logger.warning(f"FFmpeg fast encode failed (rc={result.returncode}): {stderr_tail}")
+            # Clean up partial output
+            if os.path.exists(output_file):
+                try:
+                    os.remove(output_file)
+                except OSError:
+                    pass
+            return False
+        
+        if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
+            logger.warning("FFmpeg fast encode produced empty output")
+            return False
+        
+        size_mb = os.path.getsize(output_file) / 1024 / 1024
+        logger.success(f"FFmpeg fast encode complete: {output_file} ({size_mb:.1f} MB)")
+        return True
+        
+    except subprocess.TimeoutExpired:
+        logger.error("FFmpeg fast encode timed out (600s)")
+        return False
+    except Exception as e:
+        logger.error(f"FFmpeg fast encode error: {e}")
+        return False
+
+
 def process_final_video(
     task_id: str,
     params,
@@ -540,6 +731,133 @@ def process_final_video(
             logger.error("CRITICAL: video_clip has no duration attribute")
             return None
         
+        # ── Determine whether title is enabled ──
+        has_title = (hasattr(params, 'title_enabled') and params.title_enabled
+                     and hasattr(params, 'title_text') and params.title_text)
+
+        # ── Build shared FFmpeg params (used by both fast & hybrid paths) ──
+        is_pillarbox = False
+        if hasattr(params, 'video_aspect') and params.video_aspect:
+            vasp = params.video_aspect
+            if isinstance(vasp, str):
+                from app.models.schema import VideoAspect as _VA
+                try:
+                    vasp = _VA(vasp)
+                except ValueError:
+                    vasp = None
+            if vasp and str(vasp) == "portrait_3_4" or (hasattr(vasp, 'value') and vasp.value == "portrait_3_4"):
+                is_pillarbox = True
+        
+        sub_params = None
+        actual_sub_file = subtitle_file if subtitle_file and os.path.exists(subtitle_file) else None
+        if actual_sub_file and params.subtitle_enabled:
+            from app.services.title import _get_valid_font_path
+            font_path = _get_valid_font_path(getattr(params, 'font_name', 'STHeitiMedium.ttc'))
+            
+            sub_params = {
+                "font_name": os.path.basename(font_path) if font_path and os.path.exists(font_path) else "Arial",
+                "font_size": int(getattr(params, 'font_size', 28)),
+                "primary_color": "&H00FFFFFF",
+            }
+            
+            pos = getattr(params, 'subtitle_position', 'bottom')
+            align_map = {"bottom": 2, "top": 8, "center": 4, "custom": 2}
+            sub_params["alignment"] = align_map.get(pos, 2)
+            
+            _ui_cfg = load_config().get("ui", {})
+            margin_ratio = _ui_cfg.get("subtitle_margin", 0.05)
+            sub_params["margin_v"] = int(1920 * margin_ratio)
+            
+            stroke_w = int(getattr(params, 'stroke_width', 0) or 0)
+            if stroke_w > 0:
+                sc = getattr(params, 'stroke_color', 'black')
+                sub_params["outline_color"] = f"&H00{sc}" if not sc.startswith('&H') else sc
+                sub_params["outline_width"] = stroke_w
+        
+        bgm_vol = float(getattr(params, 'bgm_volume', 0.2))
+        
+        # ── Hybrid path: FFmpeg (silence+pillarbox+subs+BGM) + MoviePy (title only) ──
+        if has_title and combined_video_path and os.path.exists(combined_video_path):
+            import uuid
+            temp_no_title = os.path.join(
+                os.path.dirname(output_file),
+                f".no_title_{uuid.uuid4().hex[:8]}.mp4"
+            )
+            
+            logger.info("Hybrid path: encoding base video via FFmpeg (silence+pillarbox+subs+BGM)...")
+            ffmpeg_ok = _ffmpeg_fast_encode(
+                video_path=combined_video_path,
+                output_file=temp_no_title,
+                silence_duration=silence_duration,
+                pillarbox=is_pillarbox,
+                pillarbox_bg_color=getattr(params, 'output_bg_color', None) or 'black',
+                subtitle_file=actual_sub_file,
+                subtitle_params=sub_params,
+                bgm_file=bgm_file,
+                bgm_volume=bgm_vol,
+                target_width=1080,
+                target_height=1920,
+                task_id=task_id,
+                progress_callback=progress_callback,
+            )
+            
+            if ffmpeg_ok:
+                new_clip = None
+                try:
+                    logger.info("Hybrid path: loading FFmpeg-encoded base and applying title overlay...")
+                    new_clip = VideoFileClip(temp_no_title)
+                    from app.services.title import add_title_to_video
+                    new_clip = add_title_to_video(new_clip, params)
+                    
+                    # Swap clips — close old modified clip, keep new hybrid one
+                    video_clip.close()
+                    video_clip = new_clip
+                    new_clip = None  # prevent double-close
+                    logger.success("Hybrid path: title overlay applied successfully, proceeding to MoviePy write")
+                except Exception as e:
+                    logger.warning(f"Hybrid title overlay failed: {e}, falling back to full MoviePy")
+                    if new_clip is not None:
+                        new_clip.close()
+                finally:
+                    try:
+                        if os.path.exists(temp_no_title):
+                            os.remove(temp_no_title)
+                    except OSError:
+                        pass
+            else:
+                logger.warning("Hybrid path FFmpeg encode failed, falling back to full MoviePy")
+        
+        # ── Fast FFmpeg path (skip MoviePy compositing when no title) ──
+        if not has_title and combined_video_path and os.path.exists(combined_video_path):
+            ffmpeg_success = _ffmpeg_fast_encode(
+                video_path=combined_video_path,
+                output_file=output_file,
+                silence_duration=silence_duration,
+                pillarbox=is_pillarbox,
+                pillarbox_bg_color=getattr(params, 'output_bg_color', None) or 'black',
+                subtitle_file=actual_sub_file,
+                subtitle_params=sub_params,
+                bgm_file=bgm_file,
+                bgm_volume=bgm_vol,
+                target_width=1080,
+                target_height=1920,
+                task_id=task_id,
+                progress_callback=progress_callback,
+            )
+            
+            if ffmpeg_success:
+                video_clip.close()
+                end_time = time.time()
+                total_time = end_time - start_time
+                hours, remainder = divmod(total_time, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                logger.success(f"Video generated (fast FFmpeg): {output_file}")
+                logger.info(f"Processing duration: {int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
+                return output_file
+            
+            logger.warning("FFmpeg fast encode failed, falling back to MoviePy")
+        
+        # ── MoviePy encoding path (fallback or title requires TextClip) ──
         ffmpeg_params = ["-pix_fmt", "yuv420p"]
         if get_video_encoding_params()["crf"] is not None:
             ffmpeg_params.extend(["-crf", str(get_video_encoding_params()["crf"])])
