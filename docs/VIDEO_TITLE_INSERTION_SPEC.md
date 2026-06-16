@@ -53,7 +53,7 @@ The title insertion feature will be integrated into the existing video generatio
 │              │                                              │      │
 │              │  Has Title? ──→ Hybrid FFmpeg+MoviePy:      │      │
 │              │    1. FFmpeg: silence+pillarbox+subs+BGM    │      │
-│              │       → temp file (single streaming pass)   │      │
+│              │       +loudnorm → temp file (single pass)   │      │
 │              │    2. MoviePy: load temp + title overlay    │      │
 │              │       → fast write (only ~5s compositing)   │      │
 │              └──────────────────────────────────────────────┘      │
@@ -767,7 +767,7 @@ The feature will use existing fonts from `resource/fonts/`:
 2. **Caching**: Font loading can be cached for better performance
 3. **Preview Optimization**: Preview generation should be lightweight
 4. **Hybrid Encoding (Title Enabled)**: When a title is enabled, the encoding splits into two stages:
-   - **Stage 1 (FFmpeg)**: Silence prefix, pillarbox, subtitle burn-in, and BGM are rendered into a temp file via a single FFmpeg filter_complex pass. This is 4-6× faster than MoviePy compositing for these elements.
+   - **Stage 1 (FFmpeg)**: Silence prefix, pillarbox, subtitle burn-in, BGM mixing, and EBU R128 loudness normalization (`loudnorm=I=-16:TP=-1.5:LRA=11`) are rendered into a temp file via a single FFmpeg filter_complex pass. This is 4-6× faster than MoviePy compositing for these elements.
    - **Stage 2 (MoviePy)**: The temp file is loaded, the PIL-based title clip is overlaid via `add_title_to_video()`, and MoviePy writes the final output. Since the title is typically only ~5s of a ~180s video, **97% of frames are plain passthrough** with no compositing. Total time: ~4 min (vs ~18 min for full MoviePy compositing).
    - **Quality**: The temp file uses CRF 18 encoding (visually lossless). One extra lossy generation occurs when MoviePy re-encodes, but this is equivalent to what would happen in the full MoviePy path anyway.
    - **Temp File Cleanup**: The temp file is always deleted in a `finally` block. On failure, the full MoviePy fallback path is used instead.

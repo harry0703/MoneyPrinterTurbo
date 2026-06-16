@@ -416,6 +416,15 @@ def _ffmpeg_fast_encode(
         )
         audio_label = "a_mixed"
     
+    # 5. EBU R128 loudness normalization — ensures consistent perceived loudness
+    #    across platforms (WeChat, Douyin, etc.) that apply different normalization.
+    #    Target -16 LUFS is standard for social media / streaming.
+    #    Single-pass mode: low latency, no extra analysis run needed.
+    filter_parts.append(
+        f"[{audio_label}]loudnorm=I=-16:TP=-1.5:LRA=11[a_loudnorm]"
+    )
+    audio_label = "a_loudnorm"
+    
     # Build -filter_complex string
     filter_complex = ";".join(filter_parts) if filter_parts else ""
     
@@ -930,6 +939,10 @@ def process_final_video(
         ffmpeg_params = ["-pix_fmt", "yuv420p"]
         if get_video_encoding_params()["crf"] is not None:
             ffmpeg_params.extend(["-crf", str(get_video_encoding_params()["crf"])])
+        # EBU R128 loudness normalization for consistent playback on WeChat etc.
+        # Must force audio re-encoding (-c:a aac) because MoviePy muxes pre-encoded
+        # temp audio with -c:a copy by default, which is incompatible with -af filters.
+        ffmpeg_params.extend(["-c:a", audio_codec, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11"])
         
         progress_monitor = create_encoding_progress_monitor(
             task_id=task_id,

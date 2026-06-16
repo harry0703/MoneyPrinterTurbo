@@ -218,6 +218,7 @@ Two task manager implementations:
 - Video clip combination
 - Subtitle overlay
 - Audio mixing
+- EBU R128 loudness normalization (loudnorm, -16 LUFS) at final encode
 - Transition effects
 - Quality presets (CPU/GPU)
 
@@ -308,7 +309,7 @@ Two task manager implementations:
    - Fetch video materials
    - Build scene video
 4. **Multi-Scene Combination**: Combine all scene videos into final video
-5. **Final Processing**: Add background music and finalize video
+5. **Final Processing**: Add background music, apply EBU R128 loudness normalization (-16 LUFS), and finalize video
 
 ### 4.6.4 Key Features
 
@@ -453,9 +454,11 @@ Two task manager implementations:
 |        + bgm          |    (single streaming pass, ~3 min)       |
 |  Output: final.mp4    |  - Has title → Hybrid FFmpeg+MoviePy     |
 |                       |    1. FFmpeg: silence+pillarbox+subs+BGM |
-|                       |       → temp file (~3 min)               |
+|                       |       +loudnorm → temp file (~3 min)     |
 |                       |    2. MoviePy: load temp + title overlay |
 |                       |       → fast write (~1 min, ~4 min total)|
+|                       |  - Fallback → MoviePy write_videofile   |
+|                       |    with -af loudnorm in ffmpeg_params    |
 |                       |                                           |
 |  +-----------------+  |                                           |
 |  | FFmpeg (base)   |  |                                           |
@@ -560,9 +563,11 @@ Two task manager implementations:
 |        + bgm          |    (single streaming pass, ~3 min)       |
 |  Output: final.mp4    |  - Has title → Hybrid FFmpeg+MoviePy     |
 |                       |    1. FFmpeg: silence+pillarbox+subs+BGM |
-|                       |       → temp file (~3 min)               |
+|                       |       +loudnorm → temp file (~3 min)     |
 |                       |    2. MoviePy: load temp + title overlay |
 |                       |       → fast write (~1 min, ~4 min total)|
+|                       |  - Fallback → MoviePy write_videofile   |
+|                       |    with -af loudnorm in ffmpeg_params    |
 |                       |                                           |
 |  +-----------------+  |                                           |
 |  | FFmpeg (base)   |  |                                           |

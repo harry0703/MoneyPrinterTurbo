@@ -58,8 +58,16 @@ The fix reorganizes the processing order to ensure proper synchronization and cl
 | 4 | **Title** | Add title overlay (starts from beginning of Silence Prefix) |
 | 5 | Subtitles | Add subtitles, adjusting timestamps by Silence Prefix duration |
 | 6 | BGM | Add background music mixed with existing audio |
-| 7 | Encode (no title) | **FFmpeg filter_complex** streaming pass (silence+pillarbox+subs+BGM all in one pipeline). ~3 min |
-|   | Encode (with title) | **Hybrid**: FFmpeg filter_complex for base (silence+pillarbox+subs+BGM) → temp file → MoviePy loads temp → applies PIL-based title overlay → writes. ~4 min, saves ~14 min vs full MoviePy compositing |
+| 7 | Encode (no title) | **FFmpeg filter_complex** streaming pass (silence+pillarbox+subs+BGM+**loudnorm** all in one pipeline). ~3 min |
+|   | Encode (with title) | **Hybrid**: FFmpeg filter_complex for base (silence+pillarbox+subs+BGM+**loudnorm**) → temp file → MoviePy loads temp → applies PIL-based title overlay → writes. ~4 min, saves ~14 min vs full MoviePy compositing |
+|   | Encode (MoviePy fallback) | MoviePy `write_videofile` with `-af loudnorm=I=-16:TP=-1.5:LRA=11` in `ffmpeg_params`. Used when FFmpeg fast path fails or title overlay requires TextClip |
+
+> **Loudness Normalization (EBU R128)**  
+> The `loudnorm` filter is always the **last** audio filter in the chain (after `amix` BGM mixing).  
+> It normalizes integrated loudness to **-16 LUFS** (social-media standard), with a true-peak ceiling of **-1.5 dBTP** and a loudness range of **11 LU**.  
+> Single-pass mode is used — no extra analysis run required.  
+> This prevents WeChat's aggressive playback normalization from attenuating quiet TTS audio. Douyin is unaffected as it applies lenient normalization.  
+> Normalization is applied **only at final encode** — the intermediate `combined.mp4` written by `_combine_scene_videos()` is intentionally left unnormalized to avoid double-normalization.
 
 ---
 

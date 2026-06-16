@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.4.17"
+project_version = "2.4.18"
 
 [app]
 host_visible = false
@@ -100,7 +100,7 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "大模型震惊真相"
+title_text = "AI正重塑软件开发范式"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 92
