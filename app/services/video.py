@@ -6,6 +6,8 @@ import random
 import gc
 import shutil
 import subprocess
+import sys
+import tempfile
 from contextlib import redirect_stdout
 from functools import lru_cache
 from typing import List
@@ -223,6 +225,24 @@ def _disable_runtime_video_codec(codec: str, reason: str):
         f"video codec {codec} failed, fallback to {_DEFAULT_VIDEO_CODEC}. "
         f"reason: {reason}"
     )
+
+
+def _get_temp_audio_dir(output_dir: str) -> str:
+    """
+    Return the directory to use for MoviePy's temporary audio file.
+
+    On Windows, Windows Defender can lock files written to the task output
+    directory while scanning them, causing MoviePy to fail with a
+    PermissionError (WinError 32) on the TEMP_MPY_wvf_snd temp file and
+    leaving the final MP4 at 0 bytes.  Using the system temp directory
+    sidesteps the scan without changing behaviour on other platforms.
+
+    On Linux/macOS/Docker the output directory is returned unchanged so
+    existing behaviour is preserved.
+    """
+    if sys.platform == "win32":
+        return tempfile.gettempdir()
+    return output_dir
 
 
 def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason: str, **kwargs):
@@ -1079,7 +1099,7 @@ def generate_video(
         audio_codec=audio_codec,
         audio_fps=output_audio_fps,
         audio_bitrate=audio_bitrate,
-        temp_audiofile_path=output_dir,
+        temp_audiofile_path=_get_temp_audio_dir(output_dir),
         threads=params.n_threads or 2,
         logger=None,
         fps=fps,

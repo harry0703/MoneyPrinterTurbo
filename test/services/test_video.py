@@ -562,5 +562,18 @@ class TestVideoService(unittest.TestCase):
         finally:
             clip.close()
 
+    def test_get_temp_audio_dir_returns_system_temp_on_windows(self):
+        with patch("sys.platform", "win32"):
+            result = vd._get_temp_audio_dir("/some/output/dir")
+            self.assertEqual(result, tempfile.gettempdir())
+
+    def test_get_temp_audio_dir_returns_output_dir_on_non_windows(self):
+        for platform in ("linux", "darwin"):
+            with self.subTest(platform=platform):
+                with patch("sys.platform", platform):
+                    result = vd._get_temp_audio_dir("/some/output/dir")
+                    self.assertEqual(result, "/some/output/dir")
+
+
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()
