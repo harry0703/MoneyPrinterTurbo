@@ -774,6 +774,58 @@ def _get_content_type_opening_guidance(content_type: str, language: str = "Engli
 - Evaluation: Hook must appear within first 3 seconds, never start with a greeting"""
 
 
+# Lazy script patterns - placeholder content that LLMs sometimes generate instead of real dialogue
+_LAZY_SCRIPT_PATTERNS = [
+    # Chinese lazy patterns - meta-descriptions instead of actual content
+    r"这是一个.{2,10}(的)?(详细|具体|深入)?(讲解|介绍|说明|内容|分析|解读)",
+    r"下面(我们)?来(详细|具体|深入)?(讲解|介绍|说明|分析|解读|看看)",
+    r"接下来(让我们?)?(看看|了解|探讨|讲解|介绍|分析)",
+    r"让我们(一起)?来(看看|了解|探讨|学习|分析|解读)",
+    r"这里(主要)?(介绍|讲解|说明|包含|涵盖|涉及)",
+    r"这(部分|个场景|一段|里).{0,5}(主要)?(是|包含|涵盖|讲解|介绍)",
+    r"(本节|本场景|本段).{0,5}(主要)?(介绍|讲解|说明|涵盖)",
+    # English lazy patterns
+    r"this (section|part|scene|segment) (covers|contains|includes|explains|discusses)",
+    r"(now |next,? )?let'?s (look at|explore|examine|dive into|see)",
+    r"(here we|we will|we are going to) (cover|explore|discuss|examine|explain)",
+    r"this is (a |an )?(detailed |comprehensive )?(explanation|overview|breakdown)",
+]
+
+
+def _is_lazy_script(script: str, language: str = None) -> bool:
+    """
+    Detect if a scene script is lazy/placeholder content instead of actual spoken dialogue.
+    
+    Args:
+        script: The script content to check
+        language: Language hint (optional)
+        
+    Returns:
+        True if the script appears to be lazy placeholder content
+    """
+    if not script or not script.strip():
+        return True
+    
+    script_clean = script.strip()
+    script_lower = script_clean.lower()
+    
+    # Check minimum length - too short to be real content
+    # Chinese: ~4 chars/sec, minimum 3 seconds = 12 chars (but allow very short hooks)
+    # Use a conservative threshold to avoid false positives on intentionally short scenes
+    if len(script_clean) < 15:
+        return True
+    
+    # Check against known lazy patterns
+    import re
+    for pattern in _LAZY_SCRIPT_PATTERNS:
+        if re.search(pattern, script_lower):
+            # If the script is short AND matches a lazy pattern, it's lazy
+            if len(script_clean) < 60:
+                return True
+    
+    return False
+
+
 def generate_multi_scene_script(
     video_content: str,
     language: str = "",
@@ -889,6 +941,15 @@ Your output MUST conform to this JSON Schema:
      - Keep sentences short and conversational
      - Ensure the content flows naturally when spoken aloud
 5. **Keyword Extraction**: Extract 3-5 core keywords for each scene.
+6. **ANTI-LAZY RULE (CRITICAL)**: Every scene's "script" field MUST contain **substantial, specific, and detailed** spoken content directly derived from the original text. Each scene script should be at least 40 characters long (for Chinese) or 80 characters long (for English).
+   - **FORBIDDEN**: Placeholder sentences that describe what the scene is about instead of actual spoken content. Examples of FORBIDDEN lazy scripts:
+     - "这是一个核心内容部分的详细讲解。"
+     - "下面我们来详细讲解一下这个部分。"
+     - "接下来让我们看看具体的内容。"
+     - "This section covers the core content in detail."
+     - "Now let's look at the specific content."
+   - Each scene's script MUST contain real, concrete spoken words that the host would actually say — including specific facts, examples, data points, or arguments extracted from the original text.
+   - If the original text has 5 key points, distribute them across scenes and write out the actual explanation for each point.
 
 {few_shot_examples}
 
@@ -953,12 +1014,32 @@ Your output MUST conform to this JSON Schema:
             logger.warning(f"failed to generate multi-scene script, trying again... {i + 1}")
 
     if not final_script or "Error: " in final_script:
-        # Fallback: generate a simple multi-scene structure in JSON
-        logger.warning("using fallback multi-scene script generation")
-        if host_visible:
-            fallback_json = """{"scenes":[{"title":"震撼开场","keywords":"hook,impact,surprise","visual":"主播表情认真，背景屏幕显示醒目的数据或画面。运镜：快速推进到主播面部特写。","script":"你知道吗？接下来我要告诉你的这件事，可能会彻底改变你的看法。","emotion":"严肃,引人入胜"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
+        # Fallback: generate a simple multi-scene structure using actual content from the original text
+        logger.warning("using fallback multi-scene script generation with actual content from original text")
+        
+        # Extract actual content from video_content for the fallback (avoid lazy placeholders)
+        import re as _re
+        content_clean = video_content.strip()
+        # Split into sentences or paragraphs to extract real content
+        sentences = [s.strip() for s in _re.split(r'[。！？.!?\n]+', content_clean) if len(s.strip()) >= 10]
+        
+        # Build actual script content from original text
+        if len(sentences) >= 2:
+            middle_script = "。".join(sentences[1:len(sentences)-1]) if len(sentences) > 2 else sentences[1]
+            middle_script = middle_script[:200] + "。" if len(middle_script) > 200 else middle_script + "。"
+        elif sentences:
+            middle_script = sentences[0][:200] + "。"
         else:
-            fallback_json = """{"scenes":[{"title":"震撼开场","keywords":"hook,impact,surprise","visual":"大屏幕显示醒目的数据或画面，聚光灯聚焦到主题文字。运镜：快速推进到屏幕特写。","script":"就在你看到这段话的这一刻，世界上正在发生一件你可能完全不知道的事。","emotion":"紧迫,震撼"},{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"这是一个核心内容部分的详细讲解。","emotion":"专业,清晰"},{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"屏幕显示总结要点，背景是现代化的办公环境。运镜：拉远镜头，展示完整场景。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}]}"""
+            # No extractable sentences, use raw content
+            middle_script = content_clean[:200] + "。" if len(content_clean) > 200 else content_clean + "。"
+        
+        # Escape quotes for JSON
+        middle_script = middle_script.replace('"', '\\"').replace('\n', ' ')
+        
+        if host_visible:
+            fallback_json = f'{{"scenes":[{{"title":"震撼开场","keywords":"hook,impact,surprise","visual":"主播表情认真，背景屏幕显示醒目的数据或画面。运镜：快速推进到主播面部特写。","script":"你知道吗？接下来我要告诉你的这件事，可能会彻底改变你的看法。","emotion":"严肃,引人入胜"}},{{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"{middle_script}","emotion":"专业,清晰"}},{{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"回到主播画面，主播面带微笑，背景屏幕显示总结要点。运镜：拉远镜头，展示完整的工作室环境。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}}]}}'
+        else:
+            fallback_json = f'{{"scenes":[{{"title":"震撼开场","keywords":"hook,impact,surprise","visual":"大屏幕显示醒目的数据或画面，聚光灯聚焦到主题文字。运镜：快速推进到屏幕特写。","script":"就在你看到这段话的这一刻，世界上正在发生一件你可能完全不知道的事。","emotion":"紧迫,震撼"}},{{"title":"核心内容","keywords":"core content,explanation,details","visual":"特写屏幕上的相关内容，配合动态图形展示关键信息。运镜：平移镜头，展示不同的视觉元素。","script":"{middle_script}","emotion":"专业,清晰"}},{{"title":"总结收尾","keywords":"conclusion,summary,closing","visual":"屏幕显示总结要点，背景是现代化的办公环境。运镜：拉远镜头，展示完整场景。","script":"希望今天的分享对大家有所帮助，谢谢大家的观看！","emotion":"自信,鼓舞"}}]}}'
         return fallback_json
     else:
         logger.success(f"completed multi-scene script generation: \n{final_script}")
@@ -1278,7 +1359,16 @@ Please read the user-provided [Original Text] and adapt it into a standardized *
      - Keep sentences short and conversational
      - Ensure the content flows naturally when spoken aloud
 5. **Keyword Extraction**: Extract 3-5 core keywords for each scene.
-6. **Format Enforcement**: **Must** strictly follow the [Output Template] format below, without arbitrarily adding or removing fields.
+6. **ANTI-LAZY RULE (CRITICAL)**: Every scene's dialogue (Audio) field MUST contain **substantial, specific, and detailed** spoken content directly derived from the original text. Each scene dialogue should be at least 40 characters long (for Chinese) or 80 characters long (for English).
+   - **FORBIDDEN**: Placeholder sentences that describe what the scene is about instead of actual spoken content. Examples of FORBIDDEN lazy scripts:
+     - "这是一个核心内容部分的详细讲解。"
+     - "下面我们来详细讲解一下这个部分。"
+     - "接下来让我们看看具体的内容。"
+     - "This section covers the core content in detail."
+     - "Now let's look at the specific content."
+   - Each scene's dialogue MUST contain real, concrete spoken words that the host would actually say — including specific facts, examples, data points, or arguments extracted from the original text.
+   - If the original text has 5 key points, distribute them across scenes and write out the actual explanation for each point.
+7. **Format Enforcement**: **Must** strictly follow the [Output Template] format below, without arbitrarily adding or removing fields.
 
 # Output Template (Please strictly follow this format)
 

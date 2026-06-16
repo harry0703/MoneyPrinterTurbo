@@ -925,6 +925,17 @@ def parse_script_with_llm(script: str, language: str = None, host_visible: bool 
     scenes_data = llm_service.parse_multi_scene_script(multi_scene_script)
     logger.info(f"Parsed {len(scenes_data)} scenes from multi-scene script")
     
+    # Check for lazy/placeholder scripts in parsed scenes
+    lazy_scene_indices = []
+    for i, scene_data in enumerate(scenes_data):
+        scene_script = scene_data.get("script", scene_data.get("audio", ""))
+        if llm_service._is_lazy_script(scene_script, language):
+            lazy_scene_indices.append(i)
+            logger.warning(f"[Lazy Script Detected] Scene {i+1} has placeholder content: '{scene_script[:80]}...'")
+    
+    if lazy_scene_indices:
+        logger.warning(f"[Lazy Script Summary] {len(lazy_scene_indices)} of {len(scenes_data)} scenes have lazy/placeholder scripts (indices: {[i+1 for i in lazy_scene_indices]})")
+    
     # Convert to the expected format with additional fields
     scenes = []
     current_time = 0
@@ -1144,7 +1155,8 @@ def parse_script_with_llm(script: str, language: str = None, host_visible: bool 
     
     return {
         "video_title": video_title,
-        "scenes": scenes
+        "scenes": scenes,
+        "has_lazy_scenes": bool(lazy_scene_indices)
     }
 
 
@@ -1190,7 +1202,14 @@ def auto_parse_script(script: str, max_retries: int = 3, auto_mode: bool = True,
             if result and "scenes" in result and len(result["scenes"]) > 0:
                 scenes = result["scenes"]
                 video_title = result.get("video_title", "")
-                logger.info(f"LLM parsing attempt {attempt + 1} successful, got {len(scenes)} scenes, video_title: '{video_title}'")
+                has_lazy = result.get("has_lazy_scenes", False)
+                logger.info(f"LLM parsing attempt {attempt + 1} successful, got {len(scenes)} scenes, video_title: '{video_title}', has_lazy_scenes: {has_lazy}")
+                
+                # If lazy scenes detected and we still have retries left, try again
+                if has_lazy and attempt < max_retries - 1:
+                    logger.warning(f"[Lazy Script Retry] Attempt {attempt + 1} produced lazy scripts, retrying...")
+                    continue
+                
                 break
             else:
                 logger.warning(f"LLM parsing attempt {attempt + 1} returned empty scenes")

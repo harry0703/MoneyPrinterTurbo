@@ -149,6 +149,11 @@ def generate_multi_scene_script(task_id, params):
         logger.error("failed to parse multi-scene script.")
         return None, None
     
+    # Check for lazy/placeholder scripts
+    lazy_count = sum(1 for s in scenes_data if llm._is_lazy_script(s.get('script', s.get('audio', ''))))
+    if lazy_count > 0:
+        logger.warning(f"[Lazy Script Warning] {lazy_count} of {len(scenes_data)} scenes have placeholder scripts")
+    
     logger.success(f"generated {len(scenes_data)} scenes")
     return video_script, scenes_data
 
