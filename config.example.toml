@@ -357,8 +357,8 @@ hide_log = false
 # Custom position as percentage from top (0-100), only effective when subtitle_position = "custom"
 # custom_position = 70.0
 
-########## Upload-Post (Cross-post to TikTok/Instagram)
-# Upload-Post allows you to automatically cross-post generated videos to TikTok and Instagram.
+########## Upload-Post (Cross-post to TikTok/Instagram/YouTube Shorts)
+# Upload-Post allows you to automatically cross-post generated videos to TikTok, Instagram and YouTube Shorts.
 # Visit https://upload-post.com to create an account and get your API key.
 # API Documentation: https://docs.upload-post.com
 
@@ -371,8 +371,11 @@ upload_post_api_key = ""
 # Your Upload-Post username
 upload_post_username = ""
 
-# Platforms to cross-post to (options: "tiktok", "instagram")
+# Platforms to cross-post to (options: "tiktok", "instagram", "youtube")
 upload_post_platforms = ["tiktok", "instagram"]
 
 # Automatically cross-post videos after generation (if false, you'll need to call the API manually)
 upload_post_auto_upload = false
+
+# YouTube Shorts privacy status (options: "public", "unlisted", "private")
+upload_post_youtube_privacy_status = "public"
