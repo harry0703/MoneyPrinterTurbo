@@ -126,10 +126,10 @@ def get_mimo_voices() -> list[str]:
     """
     voices_with_gender = [
         ("mimo_default", "Female"),
-        ("冰糖", "Female"),
-        ("茉莉", "Female"),
-        ("苏打", "Male"),
-        ("白桦", "Male"),
+        ("Açúcar Cande (冰糖)", "Female"),
+        ("Jasmim (茉莉)", "Female"),
+        ("Soda (苏打)", "Male"),
+        ("Bétula (白桦)", "Male"),
         ("Mia", "Female"),
         ("Chloe", "Female"),
         ("Milo", "Male"),
