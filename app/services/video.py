@@ -226,6 +226,25 @@ def _disable_runtime_video_codec(codec: str, reason: str):
     )
 
 
+def _get_temp_audio_dir(output_dir: str) -> str:
+    """
+    Return the directory to use for MoviePy's temporary audio file.
+
+    On Windows, Windows Defender can lock files written to the task output
+    directory while scanning them, causing MoviePy to fail with a
+    PermissionError (WinError 32) on the TEMP_MPY_wvf_snd temp file and
+    leaving the final MP4 at 0 bytes.  Using the system temp directory
+    sidesteps the scan without changing behaviour on other platforms.
+
+    On Linux/macOS/Docker the output directory is returned unchanged so
+    existing behaviour is preserved.
+    """
+    import sys
+    if sys.platform == "win32":
+        return tempfile.gettempdir()
+    return output_dir
+
+
 def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason: str, **kwargs):
     """
     硬件编码失败后用 libx264 重试，只有重试成功才禁用该硬件编码器。
@@ -815,6 +834,7 @@ def generate_video(
     # write into the same directory as the output file
     output_dir = os.path.dirname(output_file)
 
+
     font_path = ""
     if params.subtitle_enabled:
         if not params.font_name:
@@ -974,7 +994,6 @@ def generate_video(
     # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
     # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
     output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
-    temp_audio_dir = tempfile.gettempdir()
     _write_videofile_with_codec_fallback(
         video_clip,
         output_file=output_file,
@@ -982,7 +1001,7 @@ def generate_video(
         audio_codec=audio_codec,
         audio_fps=output_audio_fps,
         audio_bitrate=audio_bitrate,
-        temp_audiofile_path=temp_audio_dir,
+        temp_audiofile_path=_get_temp_audio_dir(output_dir),
         threads=params.n_threads or 2,
         logger=None,
         fps=fps,
