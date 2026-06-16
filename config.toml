@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.4.16"
+project_version = "2.4.17"
 
 [app]
 host_visible = false
@@ -83,7 +83,7 @@ hide_log = false
 language = "zh"
 tts_server = "qwen-tts"
 voice_name = "qwen|qwen-tts-vc-qingcangqwen-voice-20260610010247128-08eb|擎苍千问-Male|qwen3-tts-vc-2026-01-22|"
-voice_volume = 1.8
+voice_volume = 1.6
 voice_rate = 1
 bgm_type = "random"
 bgm_volume = 0.1
@@ -100,7 +100,7 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "配套驱动升级"
+title_text = "大模型震惊真相"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 92
