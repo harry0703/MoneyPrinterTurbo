@@ -6,6 +6,7 @@ import random
 import gc
 import shutil
 import subprocess
+import sys
 import tempfile
 from contextlib import redirect_stdout
 from functools import lru_cache
@@ -239,7 +240,6 @@ def _get_temp_audio_dir(output_dir: str) -> str:
     On Linux/macOS/Docker the output directory is returned unchanged so
     existing behaviour is preserved.
     """
-    import sys
     if sys.platform == "win32":
         return tempfile.gettempdir()
     return output_dir
@@ -833,7 +833,6 @@ def generate_video(
     # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'final-1.mp4.tempTEMP_MPY_wvf_snd.mp3'
     # write into the same directory as the output file
     output_dir = os.path.dirname(output_file)
-
 
     font_path = ""
     if params.subtitle_enabled:
