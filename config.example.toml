@@ -1,18 +1,18 @@
 [app]
 video_source = "pexels" # "pexels" or "pixabay"
 
-# 是否隐藏配置面板
+# Ocultar o painel de configurações básicas na interface
 hide_config = false
 
-# Azure TTS V1(edge_tts) 单次流式请求超时时间，单位秒。
-# 网络异常、服务端限流或 voice 与文本语言不匹配时，edge_tts 可能长期卡住。
-# 默认 30 秒可避免 WebUI 任务无反馈；慢网络或代理环境可适当调大。
-# 设置为 0 表示禁用超时。
+# Tempo limite para requisição de streaming do Azure TTS V1 (edge_tts) em segundos.
+# O edge_tts pode travar devido a anomalias de rede, limite de taxa do servidor ou incompatibilidade de idioma da voz.
+# O padrão de 30 segundos evita que a tarefa na WebUI fique sem resposta; aumente se tiver uma conexão lenta ou usar proxy.
+# Defina como 0 para desativar o tempo limite.
 edge_tts_timeout = 30
 
-# 是否校验外部 API 和素材下载的 TLS 证书。
-# 默认必须开启，避免 Pexels/Pixabay API key 和下载素材被中间人攻击篡改。
-# 只有在企业代理或自签证书环境明确需要时，才临时改为 false。
+# Verificar certificados TLS para APIs externas e downloads de materiais.
+# Ativado por padrão para evitar ataques man-in-the-middle em chaves Pexels/Pixabay ou materiais.
+# Altere temporariamente para false apenas se explicitamente necessário em ambientes corporativos com proxy ou certificados autoassinados.
 tls_verify = true
 
 # Pexels API Key
@@ -20,8 +20,8 @@ tls_verify = true
 # You can use multiple keys to avoid rate limits.
 # For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
 # Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
-# 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
-# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+# Use aspas duplas padrão para envolver cada chave; aspas copiadas de textos formatados podem quebrar o TOML.
+# Atenção especial ao formato: chaves entre aspas duplas e separadas por vírgulas.
 pexels_api_keys = []
 
 # Pixabay API Key
@@ -29,8 +29,8 @@ pexels_api_keys = []
 # You can use multiple keys to avoid rate limits.
 # For example: pixabay_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
 # Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
-# 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
-# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+# Use aspas duplas padrão para envolver cada chave; aspas copiadas de textos formatados podem quebrar o TOML.
+# Atenção especial ao formato: chaves entre aspas duplas e separadas por vírgulas.
 pixabay_api_keys = []
 
 # Coverr API Key
@@ -44,104 +44,100 @@ pixabay_api_keys = []
 # You can use multiple keys to avoid rate limits.
 # For example: coverr_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
 # Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
-# 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
-# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+# Use aspas duelas padrão para envolver cada chave; aspas copiadas de textos formatados podem quebrar o TOML.
+# Atenção especial ao formato: chaves entre aspas duplas e separadas por vírgulas.
 coverr_api_keys = []
 
-# 支持的提供商 (Supported providers):
+# Provedores suportados (Supported providers):
 #   openai
-#   aihubmix   (OpenAI-compatible AI model gateway)
-#   aimlapi     (OpenAI-compatible multi-model AI API)
-#   moonshot    (月之暗面)
+#   aihubmix   (Gateway de modelos de IA compatível com OpenAI)
+#   aimlapi    (API de IA compatível com OpenAI para múltiplos modelos)
+#   moonshot   (Moonshot AI)
 #   azure
-#   qwen        (通义千问)
+#   qwen       (Tongyi Qwen)
 #   deepseek
 #   gemini
 #   ollama
-#   g4f        (disabled by default; set enable_g4f=true only after accepting its risks)
+#   g4f        (desativado por padrão; ative enable_g4f=true apenas após aceitar os riscos)
 #   oneapi
 #   cloudflare
 #   minimax
 #   mimo       (Xiaomi MiMo)
-#   ernie       (文心一言)
-#   modelscope  (魔搭社区)
-#   litellm     (100+ providers via LiteLLM gateway)
+#   ernie      (ERNIE Baidu)
+#   modelscope (Comunidade ModelScope)
+#   litellm    (Mais de 100 provedores via gateway LiteLLM)
 llm_provider = "openai"
 
-########## Pollinations AI Settings
-# Visit https://pollinations.ai/ to learn more
-# API Key is optional - leave empty for public access
+########## Configurações Pollinations AI
+# Acesse https://pollinations.ai/ para saber mais
+# API Key é opcional - deixe vazio para acesso público
 pollinations_api_key = ""
-# Base URL for Pollinations API.
-# Leave empty to use the default endpoint (https://text.pollinations.ai/openai).
-# Note: the old "https://pollinations.ai/api/v1" endpoint no longer accepts
-# requests (returns 405 Method Not Allowed), so only set this if you have a
-# working custom endpoint.
+# URL Base para a API do Pollinations.
+# Deixe vazio para usar o endpoint padrão (https://text.pollinations.ai/openai).
 pollinations_base_url = ""
-# Default model for text generation
+# Modelo padrão para geração de texto
 pollinations_model_name = "openai-fast"
 
-########## Ollama Settings
-# No need to set it unless you want to use your own proxy
+########## Configurações Ollama
+# Não há necessidade de configurar, exceto se quiser usar o seu próprio proxy
 ollama_base_url = ""
-# Check your available models at https://ollama.com/library
+# Verifique seus modelos disponíveis em https://ollama.com/library
 ollama_model_name = ""
 
 ########## OpenAI API Key
-# Get your API key at https://platform.openai.com/api-keys
-# 也可以填写兼容 OpenAI Chat Completions 协议的供应商密钥，
-# 例如 OpenRouter 这类提供自定义 base_url 的平台。
+# Obtenha sua chave de API em https://platform.openai.com/api-keys
+# Também pode inserir chaves de provedores compatíveis com a API do OpenAI Chat Completions,
+# como OpenRouter ou outras plataformas que oferecem suporte a base_url personalizado.
 openai_api_key = ""
-# No need to set it unless you want to use your own proxy
-# 如果使用兼容 OpenAI 接口的平台，请在这里填写对应的 base_url。
+# Não há necessidade de configurar, exceto se quiser usar o seu próprio proxy
+# Se estiver usando uma plataforma compatível com OpenAI, preencha o respectivo base_url aqui.
 openai_base_url = ""
-# Check your available models at https://platform.openai.com/account/limits
-# 如果使用兼容供应商，请填写该平台要求的模型 ID。
+# Verifique seus modelos disponíveis em https://platform.openai.com/account/limits
+# Se estiver usando um provedor compatível, preencha o ID do modelo exigido por essa plataforma.
 openai_model_name = "gpt-4o-mini"
 
 ########## AIHubMix API Key
-# AIHubMix is OpenAI-compatible and can use one API key to access multiple models.
-# Visit https://aihubmix.com/?aff=CEve to register and get your API key.
+# AIHubMix é compatível com OpenAI e permite usar uma única chave para acessar vários modelos.
+# Acesse https://aihubmix.com/?aff=CEve para se cadastrar e obter sua chave de API.
 aihubmix_api_key = ""
 aihubmix_base_url = "https://aihubmix.com/v1"
 aihubmix_model_name = "gpt-5.4-mini"
 
 ########## AIML API Key
-# AIML API is OpenAI-compatible and can use one API key to access multiple model families.
-# Visit https://aimlapi.com/app/keys to create your API key.
+# AIML API é compatível com OpenAI e permite usar uma chave de API para acessar múltiplos modelos.
+# Acesse https://aimlapi.com/app/keys para criar sua chave de API.
 aimlapi_api_key = ""
 aimlapi_base_url = "https://api.aimlapi.com/v1"
 aimlapi_model_name = "openai/gpt-4o-mini"
 
 ########## Moonshot API Key
-# Visit https://platform.moonshot.cn/console/api-keys to get your API key.
+# Acesse https://platform.moonshot.cn/console/api-keys para obter sua chave de API.
 moonshot_api_key = ""
 moonshot_base_url = "https://api.moonshot.cn/v1"
 moonshot_model_name = "moonshot-v1-8k"
 
 ########## OneAPI API Key
-# Visit https://github.com/songquanpeng/one-api to get your API key
+# Acesse https://github.com/songquanpeng/one-api para obter sua chave de API
 oneapi_api_key = ""
 oneapi_base_url = ""
 oneapi_model_name = ""
 
 ########## G4F
-# g4f relies on reverse-engineered third-party endpoints and is not recommended
-# for production. Prefer official APIs, OpenAI-compatible providers, LiteLLM,
-# Ollama, or local inference.
-# If you still need it, install the optional dependency with:
+# g4f depende de engenharia reversa de terceiros e não é recomendado para produção.
+# Prefira APIs oficiais, provedores compatíveis com OpenAI, LiteLLM, Ollama ou inferência local.
+# Se ainda precisar dele, instale a dependência opcional com:
 #   uv sync --extra g4f
 enable_g4f = false
-# Visit https://github.com/xtekky/gpt4free to get more details
-# Supported model list: https://github.com/xtekky/gpt4free/blob/main/g4f/models.py
+# Acesse https://github.com/xtekky/gpt4free para mais detalhes
+# Lista de modelos suportados: https://github.com/xtekky/gpt4free/blob/main/g4f/models.py
 g4f_model_name = "gpt-3.5-turbo"
 
 ########## Azure API Key
-# Visit https://learn.microsoft.com/zh-cn/azure/ai-services/openai/ to get more details
-# API documentation: https://learn.microsoft.com/zh-cn/azure/ai-services/openai/reference
+# Acesse https://learn.microsoft.com/pt-br/azure/ai-services/openai/ para mais detalhes
+# Documentação da API: https://learn.microsoft.com/pt-br/azure/ai-services/openai/reference
 azure_api_key = ""
 azure_base_url = ""
-azure_model_name = "gpt-35-turbo"        # replace with your model deployment name
+azure_model_name = "gpt-35-turbo"        # substitua pelo nome da implantação do seu modelo
 azure_api_version = "2024-02-15-preview"
 
 ########## Gemini API Key
@@ -154,16 +150,16 @@ grok_model_name = "grok-4.3"
 grok_base_url = "https://api.x.ai/v1"
 
 ########## Groq API Key
-# Visit https://console.groq.com/keys to get your api keys
-# API documentation: https://console.groq.com/docs/api-reference
-# Available models: https://console.groq.com/docs/api-reference#models-list
+# Acesse https://console.groq.com/keys para obter suas chaves de API
+# Documentação da API: https://console.groq.com/docs/api-reference
+# Modelos disponíveis: https://console.groq.com/docs/api-reference#models-list
 groq_api_key = ""
 groq_model_name = "llama-3.3-70b-versatile"
 groq_base_url = "https://api.groq.com/openai/v1"
 
 ########## Qwen API Key
-# Visit https://dashscope.console.aliyun.com/apiKey to get your API key
-# Visit below links to get more details
+# Acesse https://dashscope.console.aliyun.com/apiKey para obter sua chave de API
+# Acesse os links abaixo para obter mais detalhes
 # https://tongyi.aliyun.com/qianwen/
 # https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction
 qwen_api_key = ""
@@ -171,65 +167,64 @@ qwen_model_name = "qwen-max"
 
 
 ########## MiniMax API Key
-# Visit https://platform.minimax.io or https://platform.minimaxi.com to get your API key
-# MiniMax API is OpenAI-compatible
-# Available models: MiniMax-M3 (default), MiniMax-M2.7, MiniMax-M2.7-highspeed
-# If your API key returns 401 on api.minimax.io, try the China endpoint: https://api.minimaxi.com/v1
+# Acesse https://platform.minimax.io ou https://platform.minimaxi.com para obter sua chave de API
+# A API da MiniMax é compatível com OpenAI
+# Modelos disponíveis: MiniMax-M3 (padrão), MiniMax-M2.7, MiniMax-M2.7-highspeed
+# Se sua chave de API retornar 401 em api.minimax.io, tente o endpoint da China: https://api.minimaxi.com/v1
 minimax_api_key = ""
 minimax_base_url = "https://api.minimax.io/v1"
 minimax_model_name = "MiniMax-M3"
 
 ########## Xiaomi MiMo API Key
-# Xiaomi MiMo API is OpenAI-compatible.
-# Visit https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call to get more details.
+# A API do Xiaomi MiMo é compatível com OpenAI.
+# Acesse https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call para mais detalhes.
 mimo_api_key = ""
 mimo_base_url = "https://api.xiaomimimo.com/v1"
 mimo_model_name = "mimo-v2.5-pro"
-# Xiaomi MiMo TTS uses the same API key and base_url as MiMo LLM.
+# O TTS do Xiaomi MiMo usa a mesma chave de API e base_url que o MiMo LLM.
 mimo_tts_model_name = "mimo-v2.5-tts"
-# Optional natural language style prompt for MiMo TTS.
-mimo_tts_style_prompt = "请用自然、清晰、适合短视频旁白的语气朗读。"
+# Prompt opcional para o estilo da narração de fala do MiMo TTS.
+mimo_tts_style_prompt = "Por favor, leia com uma entonação natural, clara e adequada para narração de vídeos curtos."
 
 ########## DeepSeek API Key
-# Visit https://platform.deepseek.com/api_keys to get your API key
+# Acesse https://platform.deepseek.com/api_keys para obter sua chave de API
 deepseek_api_key = ""
 deepseek_base_url = "https://api.deepseek.com"
 deepseek_model_name = "deepseek-chat"
 
 
 ########## ModelScope API Key
-# Visit https://modelscope.cn/docs/model-service/API-Inference/intro to get your API key
-# And note that you need to bind your Alibaba Cloud account before using the API.
+# Acesse https://modelscope.cn/docs/model-service/API-Inference/intro para obter sua chave de API
+# Lembre-se de vincular sua conta do Alibaba Cloud antes de usar a API.
 modelscope_api_key = ""
 modelscope_base_url = "https://api-inference.modelscope.cn/v1/"
 modelscope_model_name = "Qwen/Qwen3-32B"
 
-########## LiteLLM (AI Gateway — 100+ providers)
-# LiteLLM routes to any LLM provider via a unified interface.
-# Use this for providers not directly supported above: Anthropic (native API),
-# AWS Bedrock, Google Vertex AI, Cohere, Mistral, Together AI, etc.
-# Visit https://docs.litellm.ai/docs/providers for the full list.
+########## LiteLLM (Gateway de IA — Mais de 100 provedores)
+# O LiteLLM roteia para qualquer provedor de LLM através de uma interface unificada.
+# Use para provedores não suportados nativamente acima: Anthropic, AWS Bedrock, Vertex AI, etc.
+# Acesse https://docs.litellm.ai/docs/providers para a lista completa.
 #
-# LiteLLM reads provider API keys from environment variables automatically:
+# O LiteLLM lê automaticamente as chaves de API das variáveis de ambiente:
 #   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, AWS_ACCESS_KEY_ID, etc.
-# Set the appropriate env var for your chosen provider before running.
+# Defina a variável de ambiente correspondente antes de executar.
 #
-# Model name in LiteLLM format: "provider/model-name"
-# Examples: "openai/gpt-4o", "anthropic/claude-sonnet-4-20250514",
+# Nome do modelo no formato LiteLLM: "provedor/nome-do-modelo"
+# Exemplos: "openai/gpt-4o", "anthropic/claude-sonnet-4-20250514",
 #           "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
 #           "gemini/gemini-2.5-flash", "ollama/llama3"
 litellm_model_name = "openai/gpt-4o-mini"
 
-# Subtitle Provider, "edge" or "whisper"
-# If empty, the subtitle will not be generated
+# Provedor de legendas (Subtitle Provider), "edge" ou "whisper"
+# Se vazio, as legendas não serão geradas
 subtitle_provider = "edge"
 
 #
 # ImageMagick
 #
-# Once you have installed it, ImageMagick will be automatically detected, except on Windows!
-# On Windows, for example "C:\Program Files (x86)\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
-# Download from https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
+# Depois de instalado, o ImageMagick será detectado automaticamente, exceto no Windows!
+# No Windows, por exemplo: "C:\Program Files (x86)\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
+# Baixe de https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
 
 # imagemagick_path = "C:\\Program Files (x86)\\ImageMagick-7.1.1-Q16\\magick.exe"
 
@@ -237,97 +232,74 @@ subtitle_provider = "edge"
 #
 # FFMPEG
 #
-# 通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
-# 但是如果你的环境有问题，无法自动下载，可能会遇到如下错误：
+# Geralmente, o ffmpeg é baixado e detectado de forma automática.
+# No entanto, se o seu ambiente tiver problemas e não puder fazer o download automático, você poderá ver o seguinte erro:
 #   RuntimeError: No ffmpeg exe could be found.
 #   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
-# 此时你可以手动下载 ffmpeg 并设置 ffmpeg_path，下载地址：https://www.gyan.dev/ffmpeg/builds/
-
-# Under normal circumstances, ffmpeg is downloaded automatically and detected automatically.
-# However, if there is an issue with your environment that prevents automatic downloading, you might encounter the following error:
-#   RuntimeError: No ffmpeg exe could be found.
-#   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
-# In such cases, you can manually download ffmpeg and set the ffmpeg_path, download link: https://www.gyan.dev/ffmpeg/builds/
+# Nesse caso, você pode baixar o ffmpeg manualmente e definir o ffmpeg_path. Link de download: https://www.gyan.dev/ffmpeg/builds/
 
 # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 
-# 视频编码器。默认 libx264 最稳定；高级用户可以尝试硬件编码器提升速度。
-# 如果当前 FFmpeg 或硬件驱动不支持所选编码器，程序会自动回退到 libx264。
-# 可选值: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
-# video_codec = "libx264"
-
-# Video encoder. libx264 is the safest default; advanced users can try hardware encoders.
-# If the selected encoder is not supported by the current FFmpeg or driver, the app falls back to libx264.
-# Available values: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
+# Codificador de vídeo. O padrão libx264 é o mais estável; usuários avançados podem testar codificadores por hardware.
+# Se o codificador selecionado não for suportado pelo FFmpeg ou driver atual, o programa voltará para libx264.
+# Valores disponíveis: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
 # video_codec = "libx264"
 #########################################################################################
 
-# 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口
-# 比如 http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
-# 如果你需要使用域名对外提供服务（一般会用nginx做代理），则可以设置为你的域名
-# 比如 https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
-# endpoint="https://xxxx.com"
-
-# When the video is successfully generated, the API service provides a download endpoint for the video, defaulting to the service's current address and listening port.
-# For example, http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
-# If you need to provide the service externally using a domain name (usually done with nginx as a proxy), you can set it to your domain name.
-# For example, https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# Ponto de acesso para download do vídeo após a geração bem-sucedida. O padrão é o endereço e a porta do serviço atual.
+# Por exemplo: http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# Se precisar expor o serviço externamente usando um domínio (geralmente via proxy nginx), configure o seu domínio.
+# Por exemplo: https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
 # endpoint="https://xxxx.com"
 endpoint = ""
 
 
-# Video material storage location
-# material_directory = ""                    # Indicates that video materials will be downloaded to the default folder, the default folder is ./storage/cache_videos under the current project
-# material_directory = "/user/harry/videos"  # Indicates that video materials will be downloaded to a specified folder
-# material_directory = "task"                # Indicates that video materials will be downloaded to the current task's folder, this method does not allow sharing of already downloaded video materials
-
-# 视频素材存放位置
-# material_directory = ""                    #表示将视频素材下载到默认的文件夹，默认文件夹为当前项目下的 ./storage/cache_videos
-# material_directory = "/user/harry/videos"  #表示将视频素材下载到指定的文件夹中
-# material_directory = "task"                #表示将视频素材下载到当前任务的文件夹中，这种方式无法共享已经下载的视频素材
+# Local de armazenamento dos materiais de vídeo
+# material_directory = ""                    # Indica que os materiais serão baixados para a pasta padrão ./storage/cache_videos do projeto
+# material_directory = "/user/harry/videos"  # Indica que os materiais serão baixados para uma pasta específica
+# material_directory = "task"                # Indica que os materiais serão baixados para a pasta da tarefa atual (impede compartilhamento de materiais baixados)
 
 material_directory = ""
 
-# Used for state management of the task.
-# Redis is expected to be private to this app. Do not expose it to untrusted
-# writers, because task state is deserialized for compatibility with existing
-# records.
+# Usado para o gerenciamento de estado das tarefas.
+# Espera-se que o Redis seja privado para este app. Não exponha a gravadores não confiáveis,
+# pois o estado da tarefa é desserializado para compatibilidade com registros existentes.
 enable_redis = false
 redis_host = "localhost"
 redis_port = 6379
 redis_db = 0
 redis_password = ""
 
-# 文生视频时的最大并发任务数
+# Número máximo de tarefas de geração de vídeo simultâneas
 max_concurrent_tasks = 5
 
-# 并发任务已满后的最大排队任务数，超过后接口返回 429，避免匿名请求无限堆积
+# Número máximo de tarefas em fila quando a concorrência estiver cheia. Exceder esse limite retornará 429, evitando acúmulo infinito de requisições anônimas.
 max_queued_tasks = 100
 
 
 [whisper]
-# Only effective when subtitle_provider is "whisper"
+# Apenas aplicável quando subtitle_provider for "whisper"
 
-# Run on GPU with FP16
+# Executar na GPU com FP16
 # model = WhisperModel(model_size, device="cuda", compute_type="float16")
 
-# Run on GPU with INT8
+# Executar na GPU com INT8
 # model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
 
-# Run on CPU with INT8
+# Executar na CPU com INT8
 # model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
-# recommended model_size: "large-v3"
+# model_size recomendado: "large-v3"
 model_size = "large-v3"
-# if you want to use GPU, set device="cuda"
+# se quiser usar GPU, defina device="cuda"
 device = "CPU"
 compute_type = "int8"
 
 
 [proxy]
-### Use a proxy to access the Pexels API
-### Format: "http://<username>:<password>@<proxy>:<port>"
-### Example: "http://user:pass@proxy:1234"
+### Use um proxy para acessar a API do Pexels
+### Formato: "http://<username>:<password>@<proxy>:<port>"
+### Exemplo: "http://user:pass@proxy:1234"
 ### Doc: https://requests.readthedocs.io/en/latest/user/advanced/#proxies
 
 # http = "http://10.10.1.10:3128"
@@ -335,44 +307,42 @@ compute_type = "int8"
 
 [azure]
 # Azure Speech API Key
-# Get your API key at https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices
+# Obtenha sua chave de API em https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices
 speech_key = ""
 speech_region = ""
 
 [siliconflow]
 # SiliconFlow API Key
-# Get your API key at https://siliconflow.cn
+# Obtenha sua chave de API em https://siliconflow.cn
 api_key = ""
 
 [ui]
-# UI related settings
-# 是否隐藏日志信息
-# Whether to hide logs in the UI
+# Configurações relacionadas à UI
+# Ocultar informações de logs na interface
 hide_log = false
 
-# 字幕位置设置 (Subtitle position settings)
-# 可选值 (Available values): "top", "center", "bottom", "custom"
+# Configuração de posição das legendas (Subtitle position settings)
+# Valores possíveis (Available values): "top", "center", "bottom", "custom"
 # subtitle_position = "custom"
-# 自定义位置，表示离顶部的百分比 (0-100)，仅当 subtitle_position = "custom" 时生效
-# Custom position as percentage from top (0-100), only effective when subtitle_position = "custom"
+# Posição personalizada, representando a porcentagem a partir do topo (0-100), eficaz apenas se subtitle_position = "custom"
 # custom_position = 70.0
 
-########## Upload-Post (Cross-post to TikTok/Instagram)
-# Upload-Post allows you to automatically cross-post generated videos to TikTok and Instagram.
-# Visit https://upload-post.com to create an account and get your API key.
-# API Documentation: https://docs.upload-post.com
+########## Upload-Post (Envio cruzado para TikTok/Instagram)
+# O Upload-Post permite publicar automaticamente os vídeos gerados no TikTok e Instagram.
+# Acesse https://upload-post.com para criar uma conta e obter sua chave de API.
+# Documentação da API: https://docs.upload-post.com
 
-# Enable/disable Upload-Post integration
+# Ativar/desativar integração com Upload-Post
 upload_post_enabled = false
 
-# Your Upload-Post API key
+# Sua chave de API do Upload-Post
 upload_post_api_key = ""
 
-# Your Upload-Post username
+# Seu nome de usuário do Upload-Post
 upload_post_username = ""
 
-# Platforms to cross-post to (options: "tiktok", "instagram")
+# Plataformas para envio (opções: "tiktok", "instagram")
 upload_post_platforms = ["tiktok", "instagram"]
 
-# Automatically cross-post videos after generation (if false, you'll need to call the API manually)
+# Postar vídeos automaticamente após a geração (se false, você precisará chamar a API manualmente)
 upload_post_auto_upload = false
