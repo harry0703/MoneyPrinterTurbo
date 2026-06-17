@@ -25,6 +25,21 @@ def _mock_response(success=True):
     return r
 
 
+def _get(data, key):
+    for k, v in data:
+        if k == key:
+            return v
+    return None
+
+
+def _get_all(data, key):
+    return [v for k, v in data if k == key]
+
+
+def _has_key(data, key):
+    return any(k == key for k, v in data)
+
+
 class TestUploadPostYouTube(unittest.TestCase):
 
     @patch("app.services.upload_post.config.app", _CONFIG_BASE)
@@ -43,12 +58,11 @@ class TestUploadPostYouTube(unittest.TestCase):
         })
 
         data = mock_post.call_args[1]["data"]
-        self.assertEqual(data["youtube_title"], "Mi Short")
-        self.assertEqual(data["youtube_description"], "Descripción")
-        self.assertEqual(data["tags[0]"], "ia")
-        self.assertEqual(data["tags[1]"], "shorts")
-        self.assertEqual(data["privacyStatus"], "unlisted")
-        self.assertIs(data["containsSyntheticMedia"], True)
+        self.assertEqual(_get(data, "youtube_title"), "Mi Short")
+        self.assertEqual(_get(data, "youtube_description"), "Descripción")
+        self.assertEqual(_get_all(data, "tags[]"), ["ia", "shorts"])
+        self.assertEqual(_get(data, "privacyStatus"), "unlisted")
+        self.assertEqual(_get(data, "containsSyntheticMedia"), "true")
 
     @patch("app.services.upload_post.config.app", _CONFIG_BASE)
     @patch("app.services.upload_post.os.path.exists", return_value=True)
@@ -58,11 +72,10 @@ class TestUploadPostYouTube(unittest.TestCase):
         mock_post.return_value = _mock_response()
         svc = UploadPostService()
 
-        # ponytail: containsSyntheticMedia forzado a True aunque se pase False
         svc.upload_video("/fake/v.mp4", "T", youtube_extra={"containsSyntheticMedia": False})
 
         data = mock_post.call_args[1]["data"]
-        self.assertIs(data["containsSyntheticMedia"], True)
+        self.assertEqual(_get(data, "containsSyntheticMedia"), "true")
 
     @patch("app.services.upload_post.config.app", {
         **_CONFIG_BASE,
@@ -77,9 +90,9 @@ class TestUploadPostYouTube(unittest.TestCase):
         svc.upload_video("/fake/v.mp4", "T")
 
         data = mock_post.call_args[1]["data"]
-        self.assertNotIn("youtube_title", data)
-        self.assertNotIn("containsSyntheticMedia", data)
-        self.assertNotIn("privacyStatus", data)
+        self.assertFalse(_has_key(data, "youtube_title"))
+        self.assertFalse(_has_key(data, "containsSyntheticMedia"))
+        self.assertFalse(_has_key(data, "privacyStatus"))
 
     @patch("app.services.upload_post.config.app", {
         **_CONFIG_BASE,
@@ -94,7 +107,25 @@ class TestUploadPostYouTube(unittest.TestCase):
         svc.upload_video("/fake/v.mp4", "T", youtube_extra={"youtube_title": "irrelevante"})
 
         data = mock_post.call_args[1]["data"]
-        self.assertNotIn("youtube_title", data)
+        self.assertFalse(_has_key(data, "youtube_title"))
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_endpoint_y_platform_format_correcto(self, mock_post, _exists):
+        mock_post.return_value = _mock_response()
+        svc = UploadPostService()
+        svc.upload_video("/fake/v.mp4", "T")
+
+        call_url = mock_post.call_args[0][0]
+        self.assertTrue(call_url.endswith("/api/upload"), f"Endpoint incorrecto: {call_url}")
+
+        data = mock_post.call_args[1]["data"]
+        platforms = _get_all(data, "platform[]")
+        self.assertIn("tiktok", platforms)
+        self.assertIn("instagram", platforms)
+        self.assertIn("youtube", platforms)
 
 
 if __name__ == "__main__":

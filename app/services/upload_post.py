@@ -50,29 +50,29 @@ class UploadPostService:
             with open(video_path, 'rb') as video_file:
                 files = {'video': video_file}
 
-                data = {
-                    'user': self.username,
-                    'title': title[:2200],
-                    'privacy_level': privacy_level,
-                }
+                data = [
+                    ('user', self.username),
+                    ('title', title[:2200]),
+                    ('privacy_level', privacy_level),
+                ]
 
-                for i, platform in enumerate(platforms):
-                    data[f'platform[{i}]'] = platform
+                for platform in platforms:
+                    data.append(('platform[]', platform))
 
                 if youtube_extra and "youtube" in platforms:
                     if "youtube_title" in youtube_extra:
-                        data["youtube_title"] = youtube_extra["youtube_title"][:100]
+                        data.append(('youtube_title', youtube_extra["youtube_title"][:100]))
                     if "youtube_description" in youtube_extra:
-                        data["youtube_description"] = youtube_extra["youtube_description"]
-                    for i, tag in enumerate(youtube_extra.get("tags", [])):
-                        data[f"tags[{i}]"] = tag
-                    data["privacyStatus"] = youtube_extra.get("privacyStatus", "public")
-                    data["containsSyntheticMedia"] = True
+                        data.append(('youtube_description', youtube_extra["youtube_description"]))
+                    for tag in youtube_extra.get("tags", []):
+                        data.append(('tags[]', tag))
+                    data.append(('privacyStatus', youtube_extra.get("privacyStatus", "public")))
+                    data.append(('containsSyntheticMedia', "true"))
 
                 headers = {'Authorization': f'Apikey {self.api_key}'}
 
                 response = requests.post(
-                    f"{self.API_BASE}/api/upload_video",
+                    f"{self.API_BASE}/api/upload",
                     headers=headers,
                     data=data,
                     files=files,
@@ -109,7 +109,8 @@ class UploadPostService:
             }
 
             response = requests.get(
-                f"{self.API_BASE}/api/status/{request_id}",
+                f"{self.API_BASE}/api/uploadposts/status",
+                params={'request_id': request_id},
                 headers=headers,
                 timeout=30
             )
