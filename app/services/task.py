@@ -419,14 +419,33 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         f"task {task_id} finished, generated {len(final_video_paths)} videos."
     )
 
-    # 7. Cross-post to TikTok/Instagram (if enabled)
+    # 7. Cross-post to social platforms (if enabled)
     cross_post_results = []
     if upload_post.upload_post_service.is_configured() and upload_post.upload_post_service.auto_upload:
-        logger.info("\n\n## cross-posting videos to TikTok/Instagram")
+        platforms = upload_post.upload_post_service.platforms
+        logger.info(f"\n\n## cross-posting videos to {', '.join(platforms)}")
+
+        youtube_extra = None
+        if "youtube" in platforms:
+            metadata = llm.generate_social_metadata(
+                video_subject=params.video_subject,
+                video_script=video_script,
+                language=params.video_language or "",
+                platform="youtube_shorts",
+            )
+            youtube_extra = {
+                "youtube_title": metadata.get("title", params.video_subject),
+                "youtube_description": metadata.get("caption", ""),
+                "tags": metadata.get("hashtags", []),
+                "privacyStatus": upload_post.upload_post_service.youtube_privacy_status,
+                "containsSyntheticMedia": True,
+            }
+
         for video_path in final_video_paths:
             result = upload_post.cross_post_video(
                 video_path=video_path,
-                title=params.video_subject or "Check out this video! #shorts #viral"
+                title=params.video_subject or "Check out this video! #shorts #viral",
+                youtube_extra=youtube_extra,
             )
             cross_post_results.append(result)
             if result.get('success'):
