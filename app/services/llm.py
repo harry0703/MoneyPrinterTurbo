@@ -547,7 +547,12 @@ def _generate_response(prompt: str) -> str:
 
         return _normalize_text_response(content, llm_provider)
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error: {_sanitize_error_message(e)}"
+
+
+def _sanitize_error_message(msg) -> str:
+    """Strip embedded credentials from any URLs that appear in exception messages."""
+    return re.sub(r"(https?://)([^:@/\s]+:[^@/\s]+@)", r"\1***:***@", str(msg))
 
 
 def _limit_script_text(text: str | None, max_length: int, field_name: str) -> str:
