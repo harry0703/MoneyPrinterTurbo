@@ -289,6 +289,7 @@ if not config.app.get("hide_config", False):
                 ("OpenAI", "openai"),
                 (aihubmix_label, "aihubmix"),
                 ("AIML API", "aimlapi"),
+                ("Atlas Cloud", "atlas"),
                 ("Moonshot", "moonshot"),
                 ("Azure", "azure"),
                 ("Qwen", "qwen"),
@@ -397,6 +398,23 @@ if not config.app.get("hide_config", False):
                             - **API Key**: create one at https://aimlapi.com/app/keys
                             - **Base Url**: https://api.aimlapi.com/v1
                             - **Model Name**: for example `openai/gpt-4o-mini`, `openai/gpt-4o`, `anthropic/claude-sonnet-4.5`, or `google/gemini-3-flash-preview`
+                            """
+
+            if llm_provider == "atlas":
+                if not llm_model_name:
+                    llm_model_name = "deepseek-ai/deepseek-v4-pro"
+                if not llm_base_url:
+                    llm_base_url = "https://api.atlascloud.ai/v1"
+                with llm_helper:
+                    tips = """
+                            ##### Atlas Cloud 配置说明
+                            - **API Key**: [点击到官网申请](https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=MoneyPrinterTurbo)
+                            - **Base Url**: 预填 https://api.atlascloud.ai/v1
+                            - **推荐模型**: 默认 `deepseek-ai/deepseek-v4-pro`，也可填写 `Qwen/Qwen3-Coder`、`zai-org/glm-5`、`moonshotai/kimi-k2.6` 等 Atlas 支持的模型 ID
+
+                            说明：
+                            - **OpenAI 兼容**: 单个 OpenAI 兼容 API 即可接入 DeepSeek、Qwen、GLM、Kimi、MiniMax 等模型，无需逐家对接
+                            - **推理模型**: `deepseek-ai/deepseek-v4-pro` 为推理模型，自定义调用时 max_tokens 建议 >= 512
                             """
 
             if llm_provider == "moonshot":

@@ -52,6 +52,7 @@ coverr_api_keys = []
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)
 #   aimlapi     (OpenAI-compatible multi-model AI API)
+#   atlas       (Atlas Cloud, OpenAI-compatible full-modal inference platform)
 #   moonshot    (月之暗面)
 #   azure
 #   qwen        (通义千问)
@@ -112,6 +113,15 @@ aihubmix_model_name = "gpt-5.4-mini"
 aimlapi_api_key = ""
 aimlapi_base_url = "https://api.aimlapi.com/v1"
 aimlapi_model_name = "openai/gpt-4o-mini"
+
+########## Atlas Cloud API Key
+# Atlas Cloud is OpenAI-compatible: one API key gives access to DeepSeek, Qwen,
+# GLM, Kimi, MiniMax and more through a single endpoint.
+# Visit https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=MoneyPrinterTurbo to get your API key.
+atlas_api_key = ""
+atlas_base_url = "https://api.atlascloud.ai/v1"
+# deepseek-ai/deepseek-v4-pro is a reasoning model; if you pass max_tokens, use >= 512.
+atlas_model_name = "deepseek-ai/deepseek-v4-pro"
 
 ########## Moonshot API Key
 # Visit https://platform.moonshot.cn/console/api-keys to get your API key.
