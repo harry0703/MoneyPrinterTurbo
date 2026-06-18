@@ -440,6 +440,66 @@ class TestVideoService(unittest.TestCase):
                 )
                 self.assertEqual(result, combined_video_path)
 
+    def test_combine_videos_keeps_small_duration_safety_margin(self):
+        """
+        音频和素材累计时长刚好相等时，仍应继续追加一个短片段作为安全余量。
+
+        FFmpeg 按帧率拼接后可能让最终视频比理论时长短几十毫秒。如果这里
+        在 10.0s == 10.0s 时立即停止，成片末尾就可能出现音频还在播放但
+        视频素材已经结束的边界问题。
+        """
+
+        class _FakeAudioClip:
+            duration = 10.0
+
+            def close(self):
+                pass
+
+        class _FakeVideoClip:
+            def __init__(self, duration):
+                self.duration = duration
+                self.size = (1080, 1920)
+                self.w = 1080
+                self.h = 1920
+
+            def subclipped(self, start_time, end_time):
+                return _FakeVideoClip(end_time - start_time)
+
+        video_durations = {
+            "clip-1.mp4": 3.0,
+            "clip-2.mp4": 4.0,
+            "clip-3.mp4": 3.0,
+            "clip-4.mp4": 2.0,
+        }
+
+        def _open_fake_video_clip(video_path):
+            return _FakeVideoClip(video_durations[video_path])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+
+            with patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()):
+                with patch.object(
+                    vd, "_open_video_clip_quietly", side_effect=_open_fake_video_clip
+                ):
+                    with patch.object(
+                        vd, "_write_videofile_with_codec_fallback"
+                    ) as write_mock:
+                        with patch.object(vd, "concat_video_clips_with_ffmpeg"):
+                            with patch.object(vd, "delete_files"):
+                                result = vd.combine_videos(
+                                    combined_video_path=combined_video_path,
+                                    video_paths=list(video_durations.keys()),
+                                    audio_file=os.path.join(temp_dir, "audio.mp3"),
+                                    video_aspect=vd.VideoAspect.portrait,
+                                    video_concat_mode=vd.VideoConcatMode.sequential,
+                                    video_transition_mode=None,
+                                    max_clip_duration=10,
+                                )
+
+        self.assertEqual(result, combined_video_path)
+        self.assertEqual(write_mock.call_count, 4)
+
     def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
         """
         随机模式下，一个长素材会被拆成多个片段。调度层应先让每个源素材

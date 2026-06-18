@@ -69,6 +69,10 @@ audio_codec = "aac"
 # 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
 audio_bitrate = "192k"
 fps = 30
+# FFmpeg 按帧率拼接/转码时，最终时长可能比 MoviePy 读到的理论时长短几十毫秒。
+# 这里给视频素材多留一个很小的安全余量，避免音频末尾因为帧舍入出现黑屏、
+# 卡顿或最后一小段旁白没有画面的情况。
+_VIDEO_DURATION_SAFETY_MARGIN = 0.1
 _BGM_EXTENSIONS = (".mp3",)
 _DEFAULT_VIDEO_CODEC = "libx264"
 _SUPPORTED_VIDEO_CODECS = (
@@ -80,6 +84,17 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_videotoolbox",
 )
 _runtime_disabled_video_codecs = set()
+
+
+def _get_required_video_duration(audio_duration: float) -> float:
+    """
+    返回视频素材拼接的目标时长。
+
+    使用场景：合成视频时需要素材时长覆盖旁白音频。只做到“刚好等于”
+    音频时长时，FFmpeg 可能因为帧率舍入让最终视频略短，因此统一加一个
+    轻量余量。函数独立出来，便于测试和后续按实际反馈调整余量大小。
+    """
+    return max(0.0, float(audio_duration) + _VIDEO_DURATION_SAFETY_MARGIN)
 
 
 def _prioritize_unique_source_clips(
@@ -536,6 +551,11 @@ def combine_videos(
         close_clip(audio_clip)
     logger.info(f"audio duration: {audio_duration} seconds")
     logger.info(f"maximum clip duration: {max_clip_duration} seconds")
+    required_video_duration = _get_required_video_duration(audio_duration)
+    logger.info(
+        f"required video duration: {required_video_duration:.2f} seconds "
+        f"(audio duration + {_VIDEO_DURATION_SAFETY_MARGIN:.2f}s safety margin)"
+    )
 
     # 兼容 API 直接调用时未传转场模式的情况，避免后续访问 .value 时崩溃。
     transition_value = getattr(video_transition_mode, "value", video_transition_mode)
@@ -586,14 +606,14 @@ def combine_videos(
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration >= audio_duration:
+        if video_duration >= required_video_duration:
             break
         
         logger.debug(
             f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
             f"source: {os.path.basename(subclipped_item.source_file_path)}, "
             f"current duration: {video_duration:.2f}s, "
-            f"remaining: {audio_duration - video_duration:.2f}s"
+            f"remaining: {required_video_duration - video_duration:.2f}s"
         )
         
         try:
@@ -675,16 +695,23 @@ def combine_videos(
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
     
-    # loop processed clips until the video duration matches or exceeds the audio duration.
-    if video_duration < audio_duration:
-        logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
+    # loop processed clips until the video duration covers the audio duration and the small safety margin.
+    if video_duration < required_video_duration:
+        logger.warning(
+            f"video duration ({video_duration:.2f}s) is shorter than required duration "
+            f"({required_video_duration:.2f}s), looping clips to match audio length."
+        )
         base_clips = processed_clips.copy()
         for clip in itertools.cycle(base_clips):
-            if video_duration >= audio_duration:
+            if video_duration >= required_video_duration:
                 break
             processed_clips.append(clip)
             video_duration += clip.duration
-        logger.info(f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, looped {len(processed_clips)-len(base_clips)} clips")
+        logger.info(
+            f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, "
+            f"required duration: {required_video_duration:.2f}s, "
+            f"looped {len(processed_clips)-len(base_clips)} clips"
+        )
      
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
