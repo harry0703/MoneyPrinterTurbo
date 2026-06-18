@@ -80,6 +80,11 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_videotoolbox",
 )
 _runtime_disabled_video_codecs = set()
+_VIDEO_DURATION_SAFETY_BUFFER_SECONDS = 0.1
+
+
+def _has_enough_video_duration(video_duration: float, audio_duration: float) -> bool:
+    return video_duration >= audio_duration + _VIDEO_DURATION_SAFETY_BUFFER_SECONDS
 
 
 def _prioritize_unique_source_clips(
@@ -299,7 +304,11 @@ def _format_ffmpeg_concat_path(file_path: str) -> str:
 
 
 def concat_video_clips_with_ffmpeg(
-    clip_files: List[str], output_file: str, threads: int, output_dir: str
+    clip_files: List[str],
+    output_file: str,
+    threads: int,
+    output_dir: str,
+    max_duration: float | None = None,
 ):
     concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
     with open(concat_list_file, "w", encoding="utf-8") as fp:
@@ -307,7 +316,7 @@ def concat_video_clips_with_ffmpeg(
             fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
 
     def build_command(codec: str) -> list[str]:
-        return [
+        command = [
             utils.get_ffmpeg_binary(),
             "-y",
             "-f",
@@ -316,6 +325,10 @@ def concat_video_clips_with_ffmpeg(
             "0",
             "-i",
             concat_list_file,
+        ]
+        if max_duration is not None and max_duration > 0:
+            command.extend(["-t", f"{max_duration:.3f}"])
+        command.extend([
             "-c:v",
             codec,
             "-threads",
@@ -323,7 +336,8 @@ def concat_video_clips_with_ffmpeg(
             "-pix_fmt",
             "yuv420p",
             output_file,
-        ]
+        ])
+        return command
 
     def run_concat(codec: str):
         command = build_command(codec)
@@ -352,6 +366,52 @@ def concat_video_clips_with_ffmpeg(
             return result_codec
     finally:
         delete_files(concat_list_file)
+
+
+def trim_video_with_ffmpeg(
+    input_file: str,
+    output_file: str,
+    duration: float,
+    threads: int = 2,
+) -> str:
+    def build_command(codec: str) -> list[str]:
+        return [
+            utils.get_ffmpeg_binary(),
+            "-y",
+            "-i",
+            input_file,
+            "-t",
+            f"{duration:.3f}",
+            "-c:v",
+            codec,
+            "-threads",
+            str(threads or 2),
+            "-pix_fmt",
+            "yuv420p",
+            output_file,
+        ]
+
+    def run_trim(codec: str):
+        result = subprocess.run(
+            build_command(codec),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            error_message = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(error_message or "ffmpeg trim failed")
+        return codec
+
+    effective_codec = _get_effective_video_codec()
+    try:
+        run_trim(effective_codec)
+    except Exception as exc:
+        if effective_codec == _DEFAULT_VIDEO_CODEC:
+            raise
+        run_trim(_DEFAULT_VIDEO_CODEC)
+        _disable_runtime_video_codec(effective_codec, str(exc))
+    return output_file
 
 
 def _sanitize_image_file(image_path: str) -> str:
@@ -584,9 +644,10 @@ def combine_videos(
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
-    # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
+    # Keep a tiny source buffer for frame rounding during ffmpeg concat, then
+    # trim the combined output back to the narration duration below.
     for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration >= audio_duration:
+        if _has_enough_video_duration(video_duration, audio_duration):
             break
         
         logger.debug(
@@ -675,12 +736,13 @@ def combine_videos(
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
     
-    # loop processed clips until the video duration matches or exceeds the audio duration.
-    if video_duration < audio_duration:
-        logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
+    # Loop processed clips until the video has a small buffer. The final output
+    # is still trimmed to audio_duration, so this does not create a silent tail.
+    if not _has_enough_video_duration(video_duration, audio_duration):
+        logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s) with buffer, looping clips to match audio length.")
         base_clips = processed_clips.copy()
         for clip in itertools.cycle(base_clips):
-            if video_duration >= audio_duration:
+            if _has_enough_video_duration(video_duration, audio_duration):
                 break
             processed_clips.append(clip)
             video_duration += clip.duration
@@ -695,7 +757,15 @@ def combine_videos(
     # if there is only one clip, use it directly
     if len(processed_clips) == 1:
         logger.info("using single clip directly")
-        shutil.copy(processed_clips[0].file_path, combined_video_path)
+        if processed_clips[0].duration > audio_duration:
+            trim_video_with_ffmpeg(
+                input_file=processed_clips[0].file_path,
+                output_file=combined_video_path,
+                duration=audio_duration,
+                threads=threads,
+            )
+        else:
+            shutil.copy(processed_clips[0].file_path, combined_video_path)
         delete_files([processed_clips[0].file_path])
         logger.info("video combining completed")
         return combined_video_path
@@ -707,6 +777,7 @@ def combine_videos(
         output_file=combined_video_path,
         threads=threads,
         output_dir=output_dir,
+        max_duration=audio_duration,
     )
     
     # clean temp files

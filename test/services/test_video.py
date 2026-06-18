@@ -325,6 +325,36 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(used_codecs, ["h264_nvenc", "libx264"])
         self.assertIn("h264_nvenc", vd._runtime_disabled_video_codecs)
 
+    def test_concat_video_clips_trims_to_audio_duration(self):
+        """
+        拼接阶段需要保留一点素材缓冲，但输出文件必须裁到旁白时长，避免
+        追加整段素材后产生明显静音尾巴。
+        """
+        commands = []
+
+        def fake_run(command, capture_output, text, check):
+            commands.append(command)
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with patch.object(vd.subprocess, "run", side_effect=fake_run):
+                vd.concat_video_clips_with_ffmpeg(
+                    clip_files=[clip_file],
+                    output_file=output_file,
+                    threads=1,
+                    output_dir=temp_dir,
+                    max_duration=10.0,
+                )
+
+        command = commands[0]
+        self.assertIn("-t", command)
+        self.assertEqual(command[command.index("-t") + 1], "10.000")
+        self.assertLess(command.index("-t"), command.index("-c:v"))
+
     def test_concat_video_clips_does_not_disable_codec_when_fallback_also_fails(self):
         """
         concat 阶段如果 libx264 也失败，说明可能是输入 list、路径或输出权限
@@ -439,6 +469,12 @@ class TestVideoService(unittest.TestCase):
                     video_transition_mode=None,
                 )
                 self.assertEqual(result, combined_video_path)
+
+    def test_video_duration_requires_safety_buffer(self):
+        """视频素材时长刚好等于音频时长时仍应继续补充一点缓冲。"""
+        self.assertFalse(vd._has_enough_video_duration(10.0, 10.0))
+        self.assertFalse(vd._has_enough_video_duration(10.09, 10.0))
+        self.assertTrue(vd._has_enough_video_duration(10.1, 10.0))
 
     def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
         """
