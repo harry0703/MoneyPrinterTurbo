@@ -252,439 +252,22 @@ def get_groq_model_ids(api_key: str, base_url: str) -> list[str]:
         logger.warning(f"failed to fetch groq models: {e}")
         return []
 
-# 创建基础设置折叠框
+# 创建基础设置折叠框 - 只保留日志设置
 if not config.app.get("hide_config", False):
     with st.expander(tr("Basic Settings"), expanded=False):
-        config_panels = st.columns(3)
-        left_config_panel = config_panels[0]
-        middle_config_panel = config_panels[1]
-        right_config_panel = config_panels[2]
+        # 是否隐藏配置面板
+        hide_config = st.checkbox(
+            tr("Hide Basic Settings"), value=config.app.get("hide_config", False)
+        )
+        config.app["hide_config"] = hide_config
 
-        # 左侧面板 - 日志设置
-        with left_config_panel:
-            # 是否隐藏配置面板
-            hide_config = st.checkbox(
-                tr("Hide Basic Settings"), value=config.app.get("hide_config", False)
-            )
-            config.app["hide_config"] = hide_config
-
-            # 是否禁用日志显示
-            hide_log = st.checkbox(
-                tr("Hide Log"), value=config.ui.get("hide_log", False)
-            )
-            config.ui["hide_log"] = hide_log
-
-        # 中间面板 - LLM 设置
-
-        with middle_config_panel:
-            st.write(tr("LLM Settings"))
-            # 下拉框需要展示“AIHubMix（推荐）”这类面向用户的文案，
-            # 但配置文件和后端逻辑必须继续使用稳定的小写 provider id。
-            # 因此这里显式维护 display label 和 provider id 的映射，避免
-            # UI 文案变化污染 `config.app["llm_provider"]`。
-            aihubmix_label = f"AIHubMix ({tr('Recommended')})"
-            if config.ui.get("language") == "zh":
-                aihubmix_label = "AIHubMix（推荐）"
-            llm_provider_options = [
-                ("OpenAI", "openai"),
-                (aihubmix_label, "aihubmix"),
-                ("AIML API", "aimlapi"),
-                ("Moonshot", "moonshot"),
-                ("Azure", "azure"),
-                ("Qwen", "qwen"),
-                ("DeepSeek", "deepseek"),
-                ("ModelScope", "modelscope"),
-                ("Gemini", "gemini"),
-                ("Grok", "grok"),
-                ("Groq", "groq"),
-                ("Ollama", "ollama"),
-                ("G4f", "g4f"),
-                ("OneAPI", "oneapi"),
-                ("Cloudflare", "cloudflare"),
-                ("ERNIE", "ernie"),
-                ("MiniMax", "minimax"),
-                ("MiMo", "mimo"),
-                ("Pollinations", "pollinations"),
-                ("LiteLLM", "litellm"),
-            ]
-            llm_provider_labels = [label for label, _ in llm_provider_options]
-            llm_provider_values = {
-                label: provider_id for label, provider_id in llm_provider_options
-            }
-            saved_llm_provider = config.app.get("llm_provider", "openai").lower()
-            saved_llm_provider_index = 0
-            for i, (_, provider_id) in enumerate(llm_provider_options):
-                if provider_id == saved_llm_provider:
-                    saved_llm_provider_index = i
-                    break
-
-            llm_provider_label = st.selectbox(
-                tr("LLM Provider"),
-                options=llm_provider_labels,
-                index=saved_llm_provider_index,
-            )
-            llm_helper = st.container()
-            llm_provider = llm_provider_values[llm_provider_label]
-            config.app["llm_provider"] = llm_provider
-
-            llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
-            llm_secret_key = config.app.get(
-                f"{llm_provider}_secret_key", ""
-            )  # only for baidu ernie
-            llm_base_url = config.app.get(f"{llm_provider}_base_url", "")
-            llm_model_name = config.app.get(f"{llm_provider}_model_name", "")
-            llm_account_id = config.app.get(f"{llm_provider}_account_id", "")
-
-            tips = ""
-            if llm_provider == "ollama":
-                if not llm_model_name:
-                    llm_model_name = "qwen:7b"
-                if not llm_base_url:
-                    llm_base_url = config.get_default_ollama_base_url()
-
-                with llm_helper:
-                    docker_hint = ""
-                    if config.is_running_in_container():
-                        docker_hint = "\n                            > 检测到容器环境，未配置 Base Url 时会默认使用 `http://host.docker.internal:11434/v1`\n"
-                    tips = f"""
-                            ##### Ollama配置说明
-                            - **API Key**: 随便填写，比如 123
-                            - **Base Url**: 一般为 http://localhost:11434/v1
-                                - 如果 `MoneyPrinterTurbo` 和 `Ollama` **不在同一台机器上**，需要填写 `Ollama` 机器的IP地址
-                                - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`{docker_hint}
-                            - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
-                            """
-
-            if llm_provider == "openai":
-                if not llm_model_name:
-                    llm_model_name = "gpt-3.5-turbo"
-                with llm_helper:
-                    tips = """
-                            ##### OpenAI 配置说明
-                            > 需要VPN开启全局流量模式
-                            - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
-                            - **Base Url**: 官方 OpenAI 可留空；如果使用 OpenAI 兼容供应商（例如 OpenRouter），请填写对应的兼容接口地址
-                            - **Model Name**: 填写**有权限**的模型；如果使用兼容供应商，请填写该平台支持的模型 ID
-                            """
-
-            if llm_provider == "aihubmix":
-                if not llm_model_name:
-                    llm_model_name = "gpt-5.4-mini"
-                if not llm_base_url:
-                    llm_base_url = "https://aihubmix.com/v1"
-                with llm_helper:
-                    tips = """
-                            ##### AIHubMix 配置说明
-                            - **注册链接**: [点击注册 AIHubMix](https://aihubmix.com/?aff=CEve)
-                            - **Base Url**: 预填 https://aihubmix.com/v1
-                            - **推荐模型**: 默认 gpt-5.4-mini，也可以填写 AIHubMix 支持的免费模型或其它模型 ID
-
-                            推荐理由：
-                            - **模型全**: Claude、GPT、Gemini、Grok、DeepSeek、通义等 700+ 模型一站覆盖
-                            - **稳定**: 无限并发，永远在线，集群部署于谷歌云，长期为众多知名应用提供高并发服务
-                            - **能力完整**: 文本、图片生成、视频生成、TTS、STT、向量嵌入、Rerank，多模态场景全搞定
-                            - **计费透明**: 按量付费，无会员无包月，免费模型可使用
-                            """
-
-            if llm_provider == "aimlapi":
-                if not llm_model_name:
-                    llm_model_name = "openai/gpt-4o-mini"
-                if not llm_base_url:
-                    llm_base_url = "https://api.aimlapi.com/v1"
-                with llm_helper:
-                    tips = """
-                            ##### AIML API Configuration
-                            - **API Key**: create one at https://aimlapi.com/app/keys
-                            - **Base Url**: https://api.aimlapi.com/v1
-                            - **Model Name**: for example `openai/gpt-4o-mini`, `openai/gpt-4o`, `anthropic/claude-sonnet-4.5`, or `google/gemini-3-flash-preview`
-                            """
-
-            if llm_provider == "moonshot":
-                if not llm_model_name:
-                    llm_model_name = "moonshot-v1-8k"
-                with llm_helper:
-                    tips = """
-                            ##### Moonshot 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.moonshot.cn/console/api-keys)
-                            - **Base Url**: 固定为 https://api.moonshot.cn/v1
-                            - **Model Name**: 比如 moonshot-v1-8k，[点击查看模型列表](https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8)
-                            """
-            if llm_provider == "oneapi":
-                if not llm_model_name:
-                    llm_model_name = (
-                        "claude-3-5-sonnet-20240620"  # 默认模型，可以根据需要调整
-                    )
-                with llm_helper:
-                    tips = """
-                        ##### OneAPI 配置说明
-                        - **API Key**: 填写您的 OneAPI 密钥
-                        - **Base Url**: 填写 OneAPI 的基础 URL
-                        - **Model Name**: 填写您要使用的模型名称，例如 claude-3-5-sonnet-20240620
-                        """
-
-            if llm_provider == "qwen":
-                if not llm_model_name:
-                    llm_model_name = "qwen-max"
-                with llm_helper:
-                    tips = """
-                            ##### 通义千问Qwen 配置说明
-                            - **API Key**: [点击到官网申请](https://dashscope.console.aliyun.com/apiKey)
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 qwen-max，[点击查看模型列表](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction#3ef6d0bcf91wy)
-                            """
-
-            if llm_provider == "g4f":
-                if not llm_model_name:
-                    llm_model_name = "gpt-3.5-turbo"
-                with llm_helper:
-                    tips = """
-                            ##### gpt4free 配置说明
-                            > [GitHub开源项目](https://github.com/xtekky/gpt4free)，可以免费使用GPT模型，但是**稳定性较差**
-                            - **API Key**: 随便填写，比如 123
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 gpt-3.5-turbo，[点击查看模型列表](https://github.com/xtekky/gpt4free/blob/main/g4f/models.py#L308)
-                            """
-            if llm_provider == "azure":
-                with llm_helper:
-                    tips = """
-                            ##### Azure 配置说明
-                            > [点击查看如何部署模型](https://learn.microsoft.com/zh-cn/azure/ai-services/openai/how-to/create-resource)
-                            - **API Key**: [点击到Azure后台创建](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)
-                            - **Base Url**: 留空
-                            - **Model Name**: 填写你实际的部署名
-                            """
-
-            if llm_provider == "gemini":
-                if not llm_model_name:
-                    llm_model_name = "gemini-1.0-pro"
-
-                with llm_helper:
-                    tips = """
-                            ##### Gemini 配置说明
-                            > 需要VPN开启全局流量模式
-                            - **API Key**: [点击到官网申请](https://ai.google.dev/)
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 gemini-1.0-pro
-                            """
-
-            if llm_provider == "grok":
-                if not llm_model_name:
-                    llm_model_name = "grok-4.3"
-                if not llm_base_url:
-                    llm_base_url = "https://api.x.ai/v1"
-
-                with llm_helper:
-                    tips = """
-                            ##### Grok 配置说明
-                            - **API Key**: 填写您的 GrokAPI 密钥
-                            - **Base Url**: 填写 GrokAPI 的基础 URL
-                            - **Model Name**: 比如 grok-4.3
-                            """
-
-            if llm_provider == "groq":
-                if not llm_model_name:
-                    llm_model_name = "llama-3.3-70b-versatile"
-                if not llm_base_url:
-                    llm_base_url = "https://api.groq.com/openai/v1"
-
-                with llm_helper:
-                    tips = """
-                            ##### Groq 配置说明
-                            - **API Key**: [点击到官网申请](https://console.groq.com/keys)
-                            - **Base Url**: 固定为 https://api.groq.com/openai/v1
-                            - **Model Name**: 比如 llama-3.3-70b-versatile
-                            """
-
-            if llm_provider == "deepseek":
-                if not llm_model_name:
-                    llm_model_name = "deepseek-chat"
-                if not llm_base_url:
-                    llm_base_url = "https://api.deepseek.com"
-                with llm_helper:
-                    tips = """
-                            ##### DeepSeek 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
-                            - **Base Url**: 固定为 https://api.deepseek.com
-                            - **Model Name**: 固定为 deepseek-chat
-                            """
-
-            if llm_provider == "mimo":
-                if not llm_model_name:
-                    llm_model_name = "mimo-v2.5-pro"
-                if not llm_base_url:
-                    llm_base_url = "https://api.xiaomimimo.com/v1"
-                with llm_helper:
-                    tips = """
-                            ##### Xiaomi MiMo 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
-                            - **Base Url**: 固定为 https://api.xiaomimimo.com/v1
-                            - **Model Name**: 默认 mimo-v2.5-pro，也可以按官方文档填写其它可用模型
-                            """
-
-            if llm_provider == "modelscope":
-                if not llm_model_name:
-                    llm_model_name = "Qwen/Qwen3-32B"
-                if not llm_base_url:
-                    llm_base_url = "https://api-inference.modelscope.cn/v1/"
-                with llm_helper:
-                    tips = """
-                            ##### ModelScope 配置说明
-                            - **API Key**: [点击到官网申请](https://modelscope.cn/docs/model-service/API-Inference/intro)
-                            - **Base Url**: 固定为 https://api-inference.modelscope.cn/v1/
-                            - **Model Name**: 比如 Qwen/Qwen3-32B，[点击查看模型列表](https://modelscope.cn/models?filter=inference_type&page=1)
-                            """
-
-            if llm_provider == "ernie":
-                with llm_helper:
-                    tips = """
-                            ##### 百度文心一言 配置说明
-                            - **API Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
-                            - **Secret Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
-                            - **Base Url**: 填写 **请求地址** [点击查看文档](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)
-                            """
-
-            if llm_provider == "pollinations":
-                if not llm_model_name:
-                    llm_model_name = "default"
-                with llm_helper:
-                    tips = """
-                            ##### Pollinations AI Configuration
-                            - **API Key**: Optional - Leave empty for public access
-                            - **Base Url**: Default is https://text.pollinations.ai/openai
-                            - **Model Name**: Use 'openai-fast' or specify a model name
-                            """
-
-            if llm_provider == "litellm":
-                if not llm_model_name:
-                    llm_model_name = "openai/gpt-4o-mini"
-                with llm_helper:
-                    tips = """
-                            ##### LiteLLM Configuration
-                            > [LiteLLM](https://github.com/BerriAI/litellm) routes to 100+ LLM providers via a unified interface.
-                            > Set your provider's API key as an env var: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.
-                            - **Model Name**: LiteLLM format — `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, `gemini/gemini-2.5-flash`. See [full provider list](https://docs.litellm.ai/docs/providers)
-                            """
-
-            if tips and config.ui["language"] == "zh":
-                # AIHubMix 自身就是 OpenAI-compatible 聚合平台；用户主动选择
-                # 该 provider 时，再显示 DeepSeek/Moonshot 的通用推荐会造成
-                # 信息干扰，也不利于保持合作入口的轻量、清晰。
-                if llm_provider != "aihubmix":
-                    st.warning(
-                        "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
-                    )
-                st.info(tips)
-
-            st_llm_api_key = st.text_input(
-                tr("API Key"), value=llm_api_key, type="password"
-            )
-            st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
-            st_llm_model_name = ""
-            if llm_provider != "ernie":
-                if llm_provider == "groq":
-                    effective_api_key = st_llm_api_key or llm_api_key
-                    effective_base_url = st_llm_base_url or llm_base_url
-                    groq_models = get_groq_model_ids(
-                        api_key=effective_api_key,
-                        base_url=effective_base_url,
-                    )
-
-                    if groq_models:
-                        selected_index = 0
-                        if llm_model_name in groq_models:
-                            selected_index = groq_models.index(llm_model_name)
-
-                        st_llm_model_name = st.selectbox(
-                            tr("Model Name"),
-                            options=groq_models,
-                            index=selected_index,
-                            key="groq_model_name_select",
-                        )
-                    else:
-                        st_llm_model_name = st.text_input(
-                            tr("Model Name"),
-                            value=llm_model_name,
-                            key="groq_model_name_input",
-                        )
-                        if effective_api_key:
-                            st.caption(
-                                "Unable to load Groq model list right now. You can still enter a model name manually — note it won't be validated until generation."
-                            )
-                        else:
-                            st.caption(
-                                "Add a Groq API key to load available models automatically."
-                            )
-                else:
-                    st_llm_model_name = st.text_input(
-                        tr("Model Name"),
-                        value=llm_model_name,
-                        key=f"{llm_provider}_model_name_input",
-                    )
-                if st_llm_model_name:
-                    config.app[f"{llm_provider}_model_name"] = st_llm_model_name
-            else:
-                st_llm_model_name = None
-
-            if st_llm_api_key:
-                config.app[f"{llm_provider}_api_key"] = st_llm_api_key
-            if st_llm_base_url:
-                config.app[f"{llm_provider}_base_url"] = st_llm_base_url
-            if st_llm_model_name:
-                config.app[f"{llm_provider}_model_name"] = st_llm_model_name
-            if llm_provider == "ernie":
-                st_llm_secret_key = st.text_input(
-                    tr("Secret Key"), value=llm_secret_key, type="password"
-                )
-                config.app[f"{llm_provider}_secret_key"] = st_llm_secret_key
-
-            if llm_provider == "cloudflare":
-                st_llm_account_id = st.text_input(
-                    tr("Account ID"), value=llm_account_id
-                )
-                if st_llm_account_id:
-                    config.app[f"{llm_provider}_account_id"] = st_llm_account_id
-
-        # 右侧面板 - API 密钥设置
-        with right_config_panel:
-
-            def get_keys_from_config(cfg_key):
-                api_keys = config.app.get(cfg_key, [])
-                if isinstance(api_keys, str):
-                    api_keys = [api_keys]
-                api_key = ", ".join(api_keys)
-                return api_key
-
-            def save_keys_to_config(cfg_key, value):
-                value = value.replace(" ", "")
-                if value:
-                    config.app[cfg_key] = value.split(",")
-
-            st.write(tr("Video Source Settings"))
-
-            pexels_api_key = get_keys_from_config("pexels_api_keys")
-            pexels_api_key = st.text_input(
-                tr("Pexels API Key"), value=pexels_api_key, type="password"
-            )
-            save_keys_to_config("pexels_api_keys", pexels_api_key)
-
-            pixabay_api_key = get_keys_from_config("pixabay_api_keys")
-            pixabay_api_key = st.text_input(
-                tr("Pixabay API Key"), value=pixabay_api_key, type="password"
-            )
-            save_keys_to_config("pixabay_api_keys", pixabay_api_key)
-
-            coverr_api_key = get_keys_from_config("coverr_api_keys")
-            coverr_api_key = st.text_input(
-                tr("Coverr API Key"), value=coverr_api_key, type="password"
-            )
-            save_keys_to_config("coverr_api_keys", coverr_api_key)
+        # 是否禁用日志显示
+        hide_log = st.checkbox(
+            tr("Hide Log"), value=config.ui.get("hide_log", False)
+        )
+        config.ui["hide_log"] = hide_log
 
 llm_provider = config.app.get("llm_provider", "").lower()
-panel = st.columns(3)
-left_panel = panel[0]
-middle_panel = panel[1]
-right_panel = panel[2]
-
 params = VideoParams(video_subject="")
 params.match_materials_to_script = bool(
     st.session_state.get("match_materials_to_script", False)
@@ -692,7 +275,16 @@ params.match_materials_to_script = bool(
 uploaded_files = []
 uploaded_audio_file = None
 
-with left_panel:
+# Create tab-based layout for better organization
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    f"📝 {tr('Video Script Settings')}",
+    f"🎬 {tr('Video Settings')}",
+    f"🎵 {tr('Audio Settings')}",
+    f"📜 {tr('Subtitle Settings')}",
+    f"⚙️ {tr('Configuration')}"
+])
+
+with tab1:
     with st.container(border=True):
         st.write(tr("Video Script Settings"))
         params.video_subject = st.text_input(
@@ -799,7 +391,7 @@ with left_panel:
             tr("Video Keywords"), value=st.session_state["video_terms"]
         )
 
-with middle_panel:
+with tab2:
     with st.container(border=True):
         st.write(tr("Video Settings"))
         video_concat_modes = [
@@ -936,6 +528,8 @@ with middle_panel:
                 help=tr("Video Encoder Help"),
             )
             config.app["video_codec"] = video_codec_options[selected_codec_index][1]
+
+with tab3:
     with st.container(border=True):
         st.write(tr("Audio Settings"))
 
@@ -1222,7 +816,7 @@ with middle_panel:
             index=2,
         )
 
-with right_panel:
+with tab4:
     with st.container(border=True):
         st.write(tr("Subtitle Settings"))
         params.subtitle_enabled = st.checkbox(tr("Enable Subtitles"), value=True)
@@ -1334,6 +928,409 @@ with right_panel:
             config.ui["rounded_subtitle_background"] = (
                 params.rounded_subtitle_background
             )
+
+with tab5:
+    with st.container(border=True):
+        st.write(tr("LLM Settings"))
+        # 下拉框需要展示"AIHubMix（推荐）"这类面向用户的文案，
+        # 但配置文件和后端逻辑必须继续使用稳定的小写 provider id。
+        # 因此这里显式维护 display label 和 provider id 的映射，避免
+        # UI 文案变化污染 `config.app["llm_provider"]`。
+        aihubmix_label = f"AIHubMix ({tr('Recommended')})"
+        if config.ui.get("language") == "zh":
+            aihubmix_label = "AIHubMix（推荐）"
+        llm_provider_options = [
+            ("OpenAI", "openai"),
+            (aihubmix_label, "aihubmix"),
+            ("AIML API", "aimlapi"),
+            ("Moonshot", "moonshot"),
+            ("Azure", "azure"),
+            ("Qwen", "qwen"),
+            ("DeepSeek", "deepseek"),
+            ("ModelScope", "modelscope"),
+            ("Gemini", "gemini"),
+            ("Grok", "grok"),
+            ("Groq", "groq"),
+            ("Ollama", "ollama"),
+            ("G4f", "g4f"),
+            ("OneAPI", "oneapi"),
+            ("Cloudflare", "cloudflare"),
+            ("ERNIE", "ernie"),
+            ("MiniMax", "minimax"),
+            ("MiMo", "mimo"),
+            ("Pollinations", "pollinations"),
+            ("LiteLLM", "litellm"),
+        ]
+        llm_provider_labels = [label for label, _ in llm_provider_options]
+        llm_provider_values = {
+            label: provider_id for label, provider_id in llm_provider_options
+        }
+        saved_llm_provider = config.app.get("llm_provider", "openai").lower()
+        saved_llm_provider_index = 0
+        for i, (_, provider_id) in enumerate(llm_provider_options):
+            if provider_id == saved_llm_provider:
+                saved_llm_provider_index = i
+                break
+
+        llm_provider_label = st.selectbox(
+            tr("LLM Provider"),
+            options=llm_provider_labels,
+            index=saved_llm_provider_index,
+        )
+        llm_helper = st.container()
+        llm_provider = llm_provider_values[llm_provider_label]
+        config.app["llm_provider"] = llm_provider
+
+        llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
+        llm_secret_key = config.app.get(
+            f"{llm_provider}_secret_key", ""
+        )  # only for baidu ernie
+        llm_base_url = config.app.get(f"{llm_provider}_base_url", "")
+        llm_model_name = config.app.get(f"{llm_provider}_model_name", "")
+        llm_account_id = config.app.get(f"{llm_provider}_account_id", "")
+
+        tips = ""
+        if llm_provider == "ollama":
+            if not llm_model_name:
+                llm_model_name = "qwen:7b"
+            if not llm_base_url:
+                llm_base_url = config.get_default_ollama_base_url()
+
+            with llm_helper:
+                docker_hint = ""
+                if config.is_running_in_container():
+                    docker_hint = "\n                            > 检测到容器环境，未配置 Base Url 时会默认使用 `http://host.docker.internal:11434/v1`\n"
+                tips = f"""
+                        ##### Ollama配置说明
+                        - **API Key**: 随便填写，比如 123
+                        - **Base Url**: 一般为 http://localhost:11434/v1
+                            - 如果 `MoneyPrinterTurbo` 和 `Ollama` **不在同一台机器上**，需要填写 `Ollama` 机器的IP地址
+                            - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`{docker_hint}
+                        - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
+                        """
+
+        if llm_provider == "openai":
+            if not llm_model_name:
+                llm_model_name = "gpt-3.5-turbo"
+            with llm_helper:
+                tips = """
+                        ##### OpenAI 配置说明
+                        > 需要VPN开启全局流量模式
+                        - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
+                        - **Base Url**: 官方 OpenAI 可留空；如果使用 OpenAI 兼容供应商（例如 OpenRouter），请填写对应的兼容接口地址
+                        - **Model Name**: 填写**有权限**的模型；如果使用兼容供应商，请填写该平台支持的模型 ID
+                        """
+
+        if llm_provider == "aihubmix":
+            if not llm_model_name:
+                llm_model_name = "gpt-5.4-mini"
+            if not llm_base_url:
+                llm_base_url = "https://aihubmix.com/v1"
+            with llm_helper:
+                tips = """
+                        ##### AIHubMix 配置说明
+                        - **注册链接**: [点击注册 AIHubMix](https://aihubmix.com/?aff=CEve)
+                        - **Base Url**: 预填 https://aihubmix.com/v1
+                        - **推荐模型**: 默认 gpt-5.4-mini，也可以填写 AIHubMix 支持的免费模型或其它模型 ID
+
+                        推荐理由：
+                        - **模型全**: Claude、GPT、Gemini、Grok、DeepSeek、通义等 700+ 模型一站覆盖
+                        - **稳定**: 无限并发，永远在线，集群部署于谷歌云，长期为众多知名应用提供高并发服务
+                        - **能力完整**: 文本、图片生成、视频生成、TTS、STT、向量嵌入、Rerank，多模态场景全搞定
+                        - **计费透明**: 按量付费，无会员无包月，免费模型可使用
+                        """
+
+        if llm_provider == "aimlapi":
+            if not llm_model_name:
+                llm_model_name = "openai/gpt-4o-mini"
+            if not llm_base_url:
+                llm_base_url = "https://api.aimlapi.com/v1"
+            with llm_helper:
+                tips = """
+                        ##### AIML API Configuration
+                        - **API Key**: create one at https://aimlapi.com/app/keys
+                        - **Base Url**: https://api.aimlapi.com/v1
+                        - **Model Name**: for example `openai/gpt-4o-mini`, `openai/gpt-4o`, `anthropic/claude-sonnet-4.5`, or `google/gemini-3-flash-preview`
+                        """
+
+        if llm_provider == "moonshot":
+            if not llm_model_name:
+                llm_model_name = "moonshot-v1-8k"
+            with llm_helper:
+                tips = """
+                        ##### Moonshot 配置说明
+                        - **API Key**: [点击到官网申请](https://platform.moonshot.cn/console/api-keys)
+                        - **Base Url**: 固定为 https://api.moonshot.cn/v1
+                        - **Model Name**: 比如 moonshot-v1-8k，[点击查看模型列表](https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8)
+                        """
+        if llm_provider == "oneapi":
+            if not llm_model_name:
+                llm_model_name = (
+                    "claude-3-5-sonnet-20240620"  # 默认模型，可以根据需要调整
+                )
+            with llm_helper:
+                tips = """
+                    ##### OneAPI 配置说明
+                    - **API Key**: 填写您的 OneAPI 密钥
+                    - **Base Url**: 填写 OneAPI 的基础 URL
+                    - **Model Name**: 填写您要使用的模型名称，例如 claude-3-5-sonnet-20240620
+                    """
+
+        if llm_provider == "qwen":
+            if not llm_model_name:
+                llm_model_name = "qwen-max"
+            with llm_helper:
+                tips = """
+                        ##### 通义千问Qwen 配置说明
+                        - **API Key**: [点击到官网申请](https://dashscope.console.aliyun.com/apiKey)
+                        - **Base Url**: 留空
+                        - **Model Name**: 比如 qwen-max，[点击查看模型列表](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction#3ef6d0bcf91wy)
+                        """
+
+        if llm_provider == "g4f":
+            if not llm_model_name:
+                llm_model_name = "gpt-3.5-turbo"
+            with llm_helper:
+                tips = """
+                        ##### gpt4free 配置说明
+                        > [GitHub开源项目](https://github.com/xtekky/gpt4free)，可以免费使用GPT模型，但是**稳定性较差**
+                        - **API Key**: 随便填写，比如 123
+                        - **Base Url**: 留空
+                        - **Model Name**: 比如 gpt-3.5-turbo，[点击查看模型列表](https://github.com/xtekky/gpt4free/blob/main/g4f/models.py#L308)
+                        """
+        if llm_provider == "azure":
+            with llm_helper:
+                tips = """
+                        ##### Azure 配置说明
+                        > [点击查看如何部署模型](https://learn.microsoft.com/zh-cn/azure/ai-services/openai/how-to/create-resource)
+                        - **API Key**: [点击到Azure后台创建](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)
+                        - **Base Url**: 留空
+                        - **Model Name**: 填写你实际的部署名
+                        """
+
+        if llm_provider == "gemini":
+            if not llm_model_name:
+                llm_model_name = "gemini-1.0-pro"
+
+            with llm_helper:
+                tips = """
+                        ##### Gemini 配置说明
+                        > 需要VPN开启全局流量模式
+                        - **API Key**: [点击到官网申请](https://ai.google.dev/)
+                        - **Base Url**: 留空
+                        - **Model Name**: 比如 gemini-1.0-pro
+                        """
+
+        if llm_provider == "grok":
+            if not llm_model_name:
+                llm_model_name = "grok-4.3"
+            if not llm_base_url:
+                llm_base_url = "https://api.x.ai/v1"
+
+            with llm_helper:
+                tips = """
+                        ##### Grok 配置说明
+                        - **API Key**: 填写您的 GrokAPI 密钥
+                        - **Base Url**: 填写 GrokAPI 的基础 URL
+                        - **Model Name**: 比如 grok-4.3
+                        """
+
+        if llm_provider == "groq":
+            if not llm_model_name:
+                llm_model_name = "llama-3.3-70b-versatile"
+            if not llm_base_url:
+                llm_base_url = "https://api.groq.com/openai/v1"
+
+            with llm_helper:
+                tips = """
+                        ##### Groq 配置说明
+                        - **API Key**: [点击到官网申请](https://console.groq.com/keys)
+                        - **Base Url**: 固定为 https://api.groq.com/openai/v1
+                        - **Model Name**: 比如 llama-3.3-70b-versatile
+                        """
+
+        if llm_provider == "deepseek":
+            if not llm_model_name:
+                llm_model_name = "deepseek-chat"
+            if not llm_base_url:
+                llm_base_url = "https://api.deepseek.com"
+            with llm_helper:
+                tips = """
+                        ##### DeepSeek 配置说明
+                        - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
+                        - **Base Url**: 固定为 https://api.deepseek.com
+                        - **Model Name**: 固定为 deepseek-chat
+                        """
+
+        if llm_provider == "mimo":
+            if not llm_model_name:
+                llm_model_name = "mimo-v2.5-pro"
+            if not llm_base_url:
+                llm_base_url = "https://api.xiaomimimo.com/v1"
+            with llm_helper:
+                tips = """
+                        ##### Xiaomi MiMo 配置说明
+                        - **API Key**: [点击到官网申请](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
+                        - **Base Url**: 固定为 https://api.xiaomimimo.com/v1
+                        - **Model Name**: 默认 mimo-v2.5-pro，也可以按官方文档填写其它可用模型
+                        """
+
+        if llm_provider == "modelscope":
+            if not llm_model_name:
+                llm_model_name = "Qwen/Qwen3-32B"
+            if not llm_base_url:
+                llm_base_url = "https://api-inference.modelscope.cn/v1/"
+            with llm_helper:
+                tips = """
+                        ##### ModelScope 配置说明
+                        - **API Key**: [点击到官网申请](https://modelscope.cn/docs/model-service/API-Inference/intro)
+                        - **Base Url**: 固定为 https://api-inference.modelscope.cn/v1/
+                        - **Model Name**: 比如 Qwen/Qwen3-32B，[点击查看模型列表](https://modelscope.cn/models?filter=inference_type&page=1)
+                        """
+
+        if llm_provider == "ernie":
+            with llm_helper:
+                tips = """
+                        ##### 百度文心一言 配置说明
+                        - **API Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
+                        - **Secret Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
+                        - **Base Url**: 填写 **请求地址** [点击查看文档](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)
+                        """
+
+        if llm_provider == "pollinations":
+            if not llm_model_name:
+                llm_model_name = "default"
+            with llm_helper:
+                tips = """
+                        ##### Pollinations AI Configuration
+                        - **API Key**: Optional - Leave empty for public access
+                        - **Base Url**: Default is https://text.pollinations.ai/openai
+                        - **Model Name**: Use 'openai-fast' or specify a model name
+                        """
+
+        if llm_provider == "litellm":
+            if not llm_model_name:
+                llm_model_name = "openai/gpt-4o-mini"
+            with llm_helper:
+                tips = """
+                        ##### LiteLLM Configuration
+                        > [LiteLLM](https://github.com/BerriAI/litellm) routes to 100+ LLM providers via a unified interface.
+                        > Set your provider's API key as an env var: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.
+                        - **Model Name**: LiteLLM format — `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, `gemini/gemini-2.5-flash`. See [full provider list](https://docs.litellm.ai/docs/providers)
+                        """
+
+        if tips and config.ui["language"] == "zh":
+            # AIHubMix 自身就是 OpenAI-compatible 聚合平台；用户主动选择
+            # 该 provider 时，再显示 DeepSeek/Moonshot 的通用推荐会造成
+            # 信息干扰，也不利于保持合作入口的轻量、清晰。
+            if llm_provider != "aihubmix":
+                st.warning(
+                    "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
+                )
+            st.info(tips)
+
+        st_llm_api_key = st.text_input(
+            tr("API Key"), value=llm_api_key, type="password"
+        )
+        st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
+        st_llm_model_name = ""
+        if llm_provider != "ernie":
+            if llm_provider == "groq":
+                effective_api_key = st_llm_api_key or llm_api_key
+                effective_base_url = st_llm_base_url or llm_base_url
+                groq_models = get_groq_model_ids(
+                    api_key=effective_api_key,
+                    base_url=effective_base_url,
+                )
+
+                if groq_models:
+                    selected_index = 0
+                    if llm_model_name in groq_models:
+                        selected_index = groq_models.index(llm_model_name)
+
+                    st_llm_model_name = st.selectbox(
+                        tr("Model Name"),
+                        options=groq_models,
+                        index=selected_index,
+                        key="groq_model_name_select",
+                    )
+                else:
+                    st_llm_model_name = st.text_input(
+                        tr("Model Name"),
+                        value=llm_model_name,
+                        key="groq_model_name_input",
+                    )
+                    if effective_api_key:
+                        st.caption(
+                            "Unable to load Groq model list right now. You can still enter a model name manually — note it won't be validated until generation."
+                        )
+                    else:
+                        st.caption(
+                            "Add a Groq API key to load available models automatically."
+                        )
+            else:
+                st_llm_model_name = st.text_input(
+                    tr("Model Name"),
+                    value=llm_model_name,
+                    key=f"{llm_provider}_model_name_input",
+                )
+            if st_llm_model_name:
+                config.app[f"{llm_provider}_model_name"] = st_llm_model_name
+        else:
+            st_llm_model_name = None
+
+        if st_llm_api_key:
+            config.app[f"{llm_provider}_api_key"] = st_llm_api_key
+        if st_llm_base_url:
+            config.app[f"{llm_provider}_base_url"] = st_llm_base_url
+        if st_llm_model_name:
+            config.app[f"{llm_provider}_model_name"] = st_llm_model_name
+        if llm_provider == "ernie":
+            st_llm_secret_key = st.text_input(
+                tr("Secret Key"), value=llm_secret_key, type="password"
+            )
+            config.app[f"{llm_provider}_secret_key"] = st_llm_secret_key
+
+        if llm_provider == "cloudflare":
+            st_llm_account_id = st.text_input(
+                tr("Account ID"), value=llm_account_id
+            )
+            if st_llm_account_id:
+                config.app[f"{llm_provider}_account_id"] = st_llm_account_id
+
+    with st.container(border=True):
+        st.write(tr("Video Source Settings"))
+
+        def get_keys_from_config(cfg_key):
+            api_keys = config.app.get(cfg_key, [])
+            if isinstance(api_keys, str):
+                api_keys = [api_keys]
+            api_key = ", ".join(api_keys)
+            return api_key
+
+        def save_keys_to_config(cfg_key, value):
+            value = value.replace(" ", "")
+            if value:
+                config.app[cfg_key] = value.split(",")
+
+        pexels_api_key = get_keys_from_config("pexels_api_keys")
+        pexels_api_key = st.text_input(
+            tr("Pexels API Key"), value=pexels_api_key, type="password"
+        )
+        save_keys_to_config("pexels_api_keys", pexels_api_key)
+
+        pixabay_api_key = get_keys_from_config("pixabay_api_keys")
+        pixabay_api_key = st.text_input(
+            tr("Pixabay API Key"), value=pixabay_api_key, type="password"
+        )
+        save_keys_to_config("pixabay_api_keys", pixabay_api_key)
+
+        coverr_api_key = get_keys_from_config("coverr_api_keys")
+        coverr_api_key = st.text_input(
+            tr("Coverr API Key"), value=coverr_api_key, type="password"
+        )
+        save_keys_to_config("coverr_api_keys", coverr_api_key)
+
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels, Pixabay and Coverr API Keys"))
 
@@ -1438,6 +1435,8 @@ with right_panel:
                     config.save_config()
                     st.success(tr("Coverr API Key deleted successfully"))
 
+# Add visual separator and prominent generate button
+st.markdown("---")
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:
     config.save_config()
