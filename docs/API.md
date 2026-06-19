@@ -616,7 +616,7 @@ MoneyPrinterTurboCN 提供了一套完整的 RESTful API 接口，用于视频�
       {
         "name": "output013.mp3",
         "size": 1891269,
-        "file": "/MoneyPrinterTurbo/resource/songs/output013.mp3"
+        "file": "/MoneyPrinterTurboCN/resource/songs/output013.mp3"
       }
     ]
   }
@@ -643,7 +643,7 @@ MoneyPrinterTurboCN 提供了一套完整的 RESTful API 接口，用于视频�
   "status": 200,
   "message": "success",
   "data": {
-    "file": "/MoneyPrinterTurbo/resource/songs/example.mp3"
+    "file": "/MoneyPrinterTurboCN/resource/songs/example.mp3"
   }
 }
 ```
@@ -666,7 +666,7 @@ MoneyPrinterTurboCN 提供了一套完整的 RESTful API 接口，用于视频�
       {
         "name": "example.mp4",
         "size": 12345678,
-        "file": "/MoneyPrinterTurbo/resource/videos/example.mp4"
+        "file": "/MoneyPrinterTurboCN/resource/videos/example.mp4"
       }
     ]
   }
@@ -693,7 +693,7 @@ MoneyPrinterTurboCN 提供了一套完整的 RESTful API 接口，用于视频�
   "status": 200,
   "message": "success",
   "data": {
-    "file": "/MoneyPrinterTurbo/resource/videos/example.mp4"
+    "file": "/MoneyPrinterTurboCN/resource/videos/example.mp4"
   }
 }
 ```

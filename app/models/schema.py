@@ -337,7 +337,7 @@ class BgmRetrieveResponse(BaseResponse):
                         {
                             "name": "output013.mp3",
                             "size": 1891269,
-                            "file": "/MoneyPrinterTurbo/resource/songs/output013.mp3",
+                            "file": "/MoneyPrinterTurboCN/resource/songs/output013.mp3",
                         }
                     ]
                 },
@@ -351,7 +351,7 @@ class BgmUploadResponse(BaseResponse):
             "example": {
                 "status": 200,
                 "message": "success",
-                "data": {"file": "/MoneyPrinterTurbo/resource/songs/example.mp3"},
+                "data": {"file": "/MoneyPrinterTurboCN/resource/songs/example.mp3"},
             },
         }
 
@@ -366,7 +366,7 @@ class VideoMaterialRetrieveResponse(BaseResponse):
                         {
                             "name": "example.mp4",
                             "size": 12345678,
-                            "file": "/MoneyPrinterTurbo/resource/videos/example.mp4",
+                            "file": "/MoneyPrinterTurboCN/resource/videos/example.mp4",
                         }
                     ]
                 },
@@ -380,7 +380,7 @@ class VideoMaterialUploadResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "file": "/MoneyPrinterTurbo/resource/videos/example.mp4",
+                    "file": "/MoneyPrinterTurboCN/resource/videos/example.mp4",
                 },
             },
         }

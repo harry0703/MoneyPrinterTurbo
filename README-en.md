@@ -1,18 +1,17 @@
 <div align="center">
 <h1 align="center">MoneyPrinterTurboCN 💸</h1>
-<p align="center">(Honor from upstream MoneyPrinterTurbo)</p>
 
 <p align="center">
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/stargazers"><img src="https://img.shields.io/github/stars/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Stargazers"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/issues"><img src="https://img.shields.io/github/issues/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Issues"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/network/members"><img src="https://img.shields.io/github/forks/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Forks"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/stargazers"><img src="https://img.shields.io/github/stars/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Stargazers"></a>
+  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues"><img src="https://img.shields.io/github/issues/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Issues"></a>
+  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/network/members"><img src="https://img.shields.io/github/forks/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Forks"></a>
+  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/blob/main/LICENSE"><img src="https://img.shields.io/github/license/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="License"></a>
 </p>
 
 <h3>English | <a href="README.md">简体中文</a></h3>
 
 <div align="center">
-  <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+  <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="RyanFeiluX%2FMoneyPrinterTurboCN | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
 
 Simply provide a <b>topic</b> or <b>keyword</b> for a video, and it will automatically generate the video copy, video
@@ -395,13 +394,13 @@ ffmpeg_path = "C:\Users\harry\Downloads\ffmpeg.exe"
 
 ### ❓ImageMagick is not installed on your computer
 
-[issue 33](https://github.com/harry0703/MoneyPrinterTurbo/issues/33)
+[issue 33](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues/33)
 
 1. Follow the `example configuration` provided `download address` to
    install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-30-Q16-x64-static.exe, using the static library
 2. Do not install in a path with Chinese characters to avoid unpredictable issues
 
-[issue 54](https://github.com/harry0703/MoneyPrinterTurbo/issues/54#issuecomment-2017842022)
+[issue 54](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues/54#issuecomment-2017842022)
 
 For Linux systems, you can manually install it, refer to https://cn.linux-console.net/?p=16978
 

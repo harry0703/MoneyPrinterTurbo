@@ -1,5 +1,5 @@
 project_name = "MoneyPrinterTurboCN"
-project_version = "2.5.0"
+project_version = "2.5.1"
 
 [app]
 host_visible = false
@@ -54,12 +54,12 @@ video_brightness = 1.15
 video_contrast = 1.05
 video_concat_mode = "random"
 video_transition_mode = "none"
-video_aspect = "landscape"
+video_aspect = "portrait_3_4"
 video_clip_duration = 3
 video_count = 2
 silence_duration = 0.5
 console_log_level = "INFO"
-video_style = "people"
+video_style = "tech"
 intro_video_bg_type = "blurred"
 intro_video_bg_blur = 48
 intro_video_bg_color = "black"
@@ -82,8 +82,8 @@ api_key = "sk-ehmjzsdqlcbsswaplkgzjsqjrlwyjquczplhjxoszbhdjgvn"
 hide_log = false
 language = "zh"
 tts_server = "coze-tts"
-voice_name = "coze|7468512265151741979|擎苍-Male|https://lf9-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_male_qingcang_mars_bigtts.mp3?lk3s=da27ec82&x-expires=1781853257&x-signature=xtcsM6RiyGH8xv8D6m%2BAgLPzTtA%3D|无语，擎天之巨首，揽尽世间风云变幻，诸般阻碍，不过是无脉相巅峰之基石。今日之儒，来日必当十倍奉还。 无知威名，必将震慑四海八荒。|"
-voice_volume = 1.6
+voice_name = "coze|7468512265151741979|擎苍-Male|https://lf6-appstore-sign.oceancloudapi.com/ocean-cloud-tos/VolcanoSystemVoice/zh_male_qingcang_mars_bigtts.mp3?lk3s=da27ec82&x-expires=1781916612&x-signature=%2BB0GZ1xLa7YJiUOF%2F2D4rQpvXeE%3D|无语，擎天之巨首，揽尽世间风云变幻，诸般阻碍，不过是无脉相巅峰之基石。今日之儒，来日必当十倍奉还。 无知威名，必将震慑四海八荒。|"
+voice_volume = 1.7
 voice_rate = 1.1
 bgm_type = "random"
 bgm_volume = 0.1
@@ -93,19 +93,19 @@ subtitle_custom_position = 93
 subtitle_margin = 0.02
 subtitle_auto_fit = true
 font_name = "MicrosoftYaHeiBold.ttc"
-text_fore_color = "rgba(240, 36, 9, 0.95)"
+text_fore_color = "rgba(9, 240, 101, 0.95)"
 text_background_color = true
 font_size = 10
 stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "美伊停火背后的算计"
+title_text = "智能体第一性原理"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 92
-title_text_color = "#FFFF00"
-title_stroke_color = "#0000FF"
+title_text_color = "#800080"
+title_stroke_color = "#FFFF00"
 title_stroke_width = 8.5
 title_background_color = "transparent"
 title_position = "top"

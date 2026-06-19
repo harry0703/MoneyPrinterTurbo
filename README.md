@@ -1,17 +1,16 @@
 <div align="center">
 <h1 align="center">MoneyPrinterTurboCN 💸</h1>
-<p align="center">(Honor from upstream MoneyPrinterTurbo)</p>
 
 <p align="center">
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/stargazers"><img src="https://img.shields.io/github/stars/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Stargazers"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/issues"><img src="https://img.shields.io/github/issues/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Issues"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/network/members"><img src="https://img.shields.io/github/forks/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Forks"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/stargazers"><img src="https://img.shields.io/github/stars/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Stargazers"></a>
+  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues"><img src="https://img.shields.io/github/issues/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Issues"></a>
+  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/network/members"><img src="https://img.shields.io/github/forks/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Forks"></a>
+  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/blob/main/LICENSE"><img src="https://img.shields.io/github/license/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="License"></a>
 </p>
 <br>
 <h3>简体中文 | <a href="README-en.md">English</a></h3>
 <div align="center">
-  <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+  <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="RyanFeiluX%2FMoneyPrinterTurboCN | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
 <br>
 只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
@@ -161,7 +160,7 @@ git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
 2. https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers
 
 ```shell
-cd MoneyPrinterTurbo
+cd MoneyPrinterTurboCN
 docker-compose up
 ```
 

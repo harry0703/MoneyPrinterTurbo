@@ -2,7 +2,7 @@
 
 ## 1. Integration Overview
 
-This report documents the integration of Coze TTS service into the MoneyPrinterTurbo project. Coze TTS is now available as a new voice provider alongside existing TTS services (Azure TTS V1/V2, SiliconFlow TTS, and Google Gemini TTS).
+This report documents the integration of Coze TTS service into the MoneyPrinterTurboCN project. Coze TTS is now available as a new voice provider alongside existing TTS services (Azure TTS V1/V2, SiliconFlow TTS, and Google Gemini TTS).
 
 ## 2. Changes Made
 
