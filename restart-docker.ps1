@@ -3,7 +3,7 @@
 
 <#
 .SYNOPSIS
-    Clear Python cache and restart Docker containers for MoneyPrinterTurboCN
+    Clear Python cache and restart Docker containers for Coiner
 .DESCRIPTION
     This script clears Python cache files (__pycache__, *.pyc) from Docker containers
     and restarts them to ensure code changes take effect.
@@ -41,7 +41,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 Write-Host ""
 Write-Host "[3/5] Clearing Python cache in Docker containers..." -ForegroundColor Yellow
 
-$containers = @("moneyprinterturbocn-webui", "moneyprinterturbocn-api")
+$containers = @("coiner-api")
 
 foreach ($container in $containers) {
     Write-Host "  Processing container: $container" -ForegroundColor DarkGray
@@ -51,7 +51,7 @@ foreach ($container in $containers) {
     
     if ($containerRunning) {
         # Clear __pycache__ directories
-        $result = docker exec $container find /MoneyPrinterTurboCN -type d -name "__pycache__" -exec rm -rf {} + 2>&1
+        $result = docker exec $container find /Coiner -type d -name "__pycache__" -exec rm -rf {} + 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host "    Cleared __pycache__ directories" -ForegroundColor Green
         } else {
@@ -59,7 +59,7 @@ foreach ($container in $containers) {
         }
         
         # Clear .pyc files
-        $result = docker exec $container find /MoneyPrinterTurboCN -name "*.pyc" -delete 2>&1
+        $result = docker exec $container find /Coiner -name "*.pyc" -delete 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host "    Cleared *.pyc files" -ForegroundColor Green
         } else {
@@ -67,7 +67,7 @@ foreach ($container in $containers) {
         }
         
         # Clear .pyo files (optimized bytecode)
-        $result = docker exec $container find /MoneyPrinterTurboCN -name "*.pyo" -delete 2>&1
+        $result = docker exec $container find /Coiner -name "*.pyo" -delete 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host "    Cleared *.pyo files" -ForegroundColor Green
         }
@@ -111,10 +111,10 @@ Write-Host "  Done! Docker containers have been restarted" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "You can now access:" -ForegroundColor White
-Write-Host "  - Web UI (Docker): http://localhost:8502" -ForegroundColor Green
+Write-Host "  - Application:     http://localhost:8080" -ForegroundColor Green
 Write-Host "  - API:             http://localhost:8080" -ForegroundColor Green
 Write-Host ""
-Write-Host "Note: Local development uses port 8501, Docker uses port 8502" -ForegroundColor DarkGray
+Write-Host "Note: Application runs on port 8080" -ForegroundColor DarkGray
 Write-Host ""
 
 # Show running containers

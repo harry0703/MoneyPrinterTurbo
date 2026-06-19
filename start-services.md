@@ -1,11 +1,11 @@
-# 如何正确启动 MoneyPrinterCN 服务
+# 如何正确启动 Coiner 服务
 
 ## 步骤 1：启动后端服务
 
 1. 打开一个终端窗口
 2. 进入项目目录：
    ```bash
-   cd D:\src\MoneyPrinterTurboCN
+   cd D:\src\Coiner
    ```
 3. 激活 conda 环境：
    ```bash
@@ -30,7 +30,7 @@
 1. 打开另一个终端窗口
 2. 进入项目目录：
    ```bash
-   cd D:\src\MoneyPrinterTurboCN
+   cd D:\src\Coiner
    ```
 3. 启动前端服务：
    ```bash
@@ -53,7 +53,7 @@
 
 3. 尝试访问后端 API 端点：
    ```
-   http://localhost:8081/api/v1/config
+   http://localhost:8000/api/v1/config
    ```
    应该返回配置信息的 JSON 响应
 

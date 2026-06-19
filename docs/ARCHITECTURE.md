@@ -1,8 +1,8 @@
-# MoneyPrinterTurboCN Architecture Document
+# Coiner Architecture Document
 
 ## 1. Project Overview
 
-**MoneyPrinterTurboCN** is an automated short video generation system that leverages AI to create videos from topics or keywords. The system automatically generates video scripts, retrieves video materials, creates subtitles, adds background music, and synthesizes high-quality short videos.
+**Coiner** is an automated short video generation system that leverages AI to create videos from topics or keywords. The system automatically generates video scripts, retrieves video materials, creates subtitles, adds background music, and synthesizes high-quality short videos.
 
 ### Key Features
 - Multi-LLM Provider Support (OpenAI, Azure, Gemini, Qwen, DeepSeek, etc.)
@@ -25,9 +25,9 @@
 |                                                                         |
 |   +---------------------+         +-----------------+                   |
 |   |      Web UI         |         |      REST API   |                   |
-|   |   (Streamlit)       |         |     (FastAPI)   |                   |
+|   |   (Vue + FastAPI)   |         |     (FastAPI)   |                   |
 |   |                     |         |                 |                   |
-|   |  • Main.py          |         |  • /videos      |                   |
+|   |  • Vue 3 SPA        |         |  • /api/videos  |                   |
 |   |  • i18n support     |         |  • /audio       |                   |
 |   |  • Real-time config |         |  • /subtitle    |                   |
 |   +--------+------------+         +--------+--------+                   |
@@ -104,7 +104,7 @@
 ## 3. Directory Structure
 
 ```
-MoneyPrinterTurboCN/
+Coiner/
 ├── app/                          # Main application package
 │   ├── config/                   # Configuration management
 │   │   ├── __init__.py          # Config initialization & logging
@@ -144,7 +144,7 @@ MoneyPrinterTurboCN/
 │   ├── asgi.py                   # ASGI application setup
 │   └── router.py                 # API router configuration
 │
-├── webui/                        # Streamlit Web UI
+├── webui/                        # Vue 3 SPA (historical, now in vue-frontend/)
 │   ├── Main.py                   # Main UI entry point
 │   └── i18n/                     # Internationalization
 │       ├── en.json               # English
@@ -848,19 +848,19 @@ Functions:
 |                  Local Development              |
 +-------------------------------------------------+
 |                                                 |
-|  Option 1: Web UI (Streamlit)                   |
+|  Option 1: Web UI (Vue + FastAPI)              |
 |  +-----------------------------------------+    |
-|  |  webui.bat / webui.sh                   |    |
-|  |     +-- streamlit run webui/Main.py     |    |
-|  |         +-- http://localhost:8501       |    |
+|  |  npm run dev (Vue dev server)            |    |
+|  |     +-- vite build                      |    |
+|  |         +-- http://localhost:3000         |    |
 |  +-----------------------------------------+    |
 |                                                 |
 |  Option 2: API Server (FastAPI)                 |
 |  +-----------------------------------------+    |
 |  |  python main.py                         |    |
 |  |     +-- uvicorn app.asgi:app            |    |
-|  |         +-- http://localhost:8080       |    |
-|  |         +-- http://localhost:8080/docs  |    |
+|  |         +-- http://localhost:8000       |    |
+|  |         +-- http://localhost:8000/docs  |    |
 |  +-----------------------------------------+    |
 |                                                 |
 +-------------------------------------------------+
@@ -880,10 +880,10 @@ Functions:
 |          +-----------+------------+             |
 |          v                        v             |
 |  +-----------------+      +----------------+    |
-|  |   webui service |      |    api service  |   |
-|  |                 |      |                 |   |
-|  | Port: 8502:8501 |      | Port: 8080:8080 |   |
-|  | Streamlit UI    |      | FastAPI REST    |   |
+|  |    api service    |      |                 |   |
+|  |                   |      |                 |   |
+|  | Port: 8080:8080   |      |                 |   |
+|  | Vue + FastAPI     |      |                 |   |
 |  +--------+--------+      +--------+--------+   |
 |           |                         |           |
 |           +------------+------------+           |
@@ -891,8 +891,8 @@ Functions:
 |                        v                        |
 |              +-------------------+              |
 |              |  Volume Mount     |              |
-|              |  ./:/MoneyPrinter |              |
-|              |  TurboCN          |              |
+|              |  ./:/Coiner       |              |
+|              |                                   |              |
 |              |                   |              |
 |              |  (Code sync)      |              |
 |              +-------------------+              |

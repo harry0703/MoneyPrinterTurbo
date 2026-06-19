@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 echo ***** Current directory: %CD% *****
-echo Starting MoneyPrinterCN with Vue frontend...
+echo Starting Coiner with Vue frontend...
 
 set PYTHONPATH=%CD%
 
@@ -262,7 +262,7 @@ if not defined SKIP_FRONTEND (
 )
 
 echo.
-echo MoneyPrinterCN is running!
+echo Coiner is running!
 if not defined SKIP_BACKEND (
     echo Backend: http://localhost:8000
 ) else (

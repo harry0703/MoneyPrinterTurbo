@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 
-# Script to build Docker image for MoneyPrinterTurboCN
+# Script to build Docker image for Coiner
 # Usage: .\build-docker.ps1
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "MoneyPrinterTurboCN Docker Build Script" -ForegroundColor Green
+Write-Host "Coiner Docker Build Script" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -50,7 +50,7 @@ Write-Host ""
 # Pre-download base image
 Write-Host "[INFO] Pre-downloading base image..." -ForegroundColor Cyan
 Write-Host "[INFO] This may take several minutes depending on your network speed" -ForegroundColor Gray
-Write-Host "[INFO] Base image: python:3.11-slim-bullseye (Original base image)" -ForegroundColor Gray
+Write-Host "[INFO] Base image: nvidia/cuda:11.8.0-runtime-ubuntu22.04 (CUDA 11.8 support)" -ForegroundColor Gray
 Write-Host ""
 Write-Host "[TIP] If download is slow, consider configuring Docker mirror accelerators:" -ForegroundColor Yellow
 Write-Host "[TIP] 1. Open Docker Desktop Settings" -ForegroundColor Gray
@@ -59,7 +59,7 @@ Write-Host "[TIP] 3. Add registry-mirrors configuration" -ForegroundColor Gray
 Write-Host ""
 
 try {
-    docker pull python:3.11-slim-bullseye
+    docker pull nvidia/cuda:11.8.0-runtime-ubuntu22.04
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to download base image"
     }
@@ -75,12 +75,12 @@ Write-Host ""
 Write-Host "[INFO] Base image downloaded successfully" -ForegroundColor Green
 Write-Host ""
 
-# Remove existing moneyprinterturbocn images if exists
-Write-Host "[INFO] Removing existing moneyprinterturbocn images if exists..." -ForegroundColor Cyan
+# Remove existing coiner images if exists
+Write-Host "[INFO] Removing existing coiner images if exists..." -ForegroundColor Cyan
 
-# Step 1: Remove all containers using moneyprinterturbocn images
-Write-Host "[INFO] Step 1: Removing containers using moneyprinterturbocn images..." -ForegroundColor Cyan
-$containers = docker ps -a --format "{{.Names}}" | Select-String "moneyprinterturbocn"
+# Step 1: Remove all containers using coiner images
+Write-Host "[INFO] Step 1: Removing containers using coiner images..." -ForegroundColor Cyan
+$containers = docker ps -a --format "{{.Names}}" | Select-String "coiner"
 foreach ($container in $containers) {
     $containerName = $container.ToString().Trim()
     Write-Host "[INFO] Stopping container: $containerName" -ForegroundColor Gray
@@ -89,10 +89,10 @@ foreach ($container in $containers) {
     docker rm $containerName 2>$null
 }
 
-# Step 2: Remove all moneyprinterturbocn images
-Write-Host "[INFO] Step 2: Removing moneyprinterturbocn images..." -ForegroundColor Cyan
-# Get all image repositories containing moneyprinterturbocn
-$repositories = docker images --format "{{.Repository}}" | Select-String "moneyprinterturbocn" | ForEach-Object { $_.ToString().Trim() } | Select-Object -Unique
+# Step 2: Remove all coiner images
+Write-Host "[INFO] Step 2: Removing coiner images..." -ForegroundColor Cyan
+# Get all image repositories containing coiner
+$repositories = docker images --format "{{.Repository}}" | Select-String "coiner" | ForEach-Object { $_.ToString().Trim() } | Select-Object -Unique
 foreach ($repo in $repositories) {
     Write-Host "[INFO] Removing image: $repo" -ForegroundColor Gray
     docker rmi -f $repo 2>$null
@@ -104,7 +104,7 @@ Write-Host "[INFO] Starting build process..." -ForegroundColor Gray
 Write-Host ""
 
 try {
-    docker build --progress=plain -t moneyprinterturbocn .
+    docker build --progress=plain -t coiner .
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host ""
@@ -115,7 +115,7 @@ try {
         
         # Show image details
         Write-Host "=== Image Details ===" -ForegroundColor Cyan
-        docker images moneyprinterturbocn
+        docker images coiner
         
         # Show run instructions
         Write-Host ""
@@ -125,7 +125,7 @@ try {
         Write-Host "  .\start-docker.bat" -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Then open your browser and navigate to:" -ForegroundColor White
-        Write-Host "  http://localhost:8501" -ForegroundColor Green
+        Write-Host "  http://localhost:8080" -ForegroundColor Green
     } else {
         Write-Host ""
         Write-Host "[ERROR] Docker build failed" -ForegroundColor Red

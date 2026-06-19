@@ -8,9 +8,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        **提交问题前，请确保您已阅读以下文档：[Getting Started (English)](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/blob/main/README-en.md#system-requirements-) 或 [快速开始 (中文)](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-)。**
+        **提交问题前，请确保您已阅读以下文档：[Getting Started (English)](https://github.com/RyanFeiluX/Coiner/blob/main/README-en.md#system-requirements-) 或 [快速开始 (中文)](https://github.com/RyanFeiluX/Coiner/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-)。**
         
-        **Before submitting an issue, please make sure you've read the following documentation: [Getting Started (English)](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/blob/main/README-en.md#system-requirements-) or [快速开始 (Chinese)](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-).**
+        **Before submitting an issue, please make sure you've read the following documentation: [Getting Started (English)](https://github.com/RyanFeiluX/Coiner/blob/main/README-en.md#system-requirements-) or [快速开始 (Chinese)](https://github.com/RyanFeiluX/Coiner/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-).**
         
   - type: textarea
     attributes:
@@ -70,10 +70,10 @@ body:
       required: true
   - type: input
     attributes:
-      label: MoneyPrinterTurboCN 版本 | Version
+      label: Coiner 版本 | Version
       description: |
-        您使用的 MoneyPrinterTurboCN 版本
-        The version of MoneyPrinterTurboCN you're using
+        您使用的 Coiner 版本
+        The version of Coiner you're using
       placeholder: v1.2.2, etc.
     validations:
       required: true

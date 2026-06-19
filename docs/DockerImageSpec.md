@@ -1,6 +1,6 @@
-# MoneyPrinterTurboCN Docker 镜像规范
+# Coiner Docker 镜像规范
 
-本文档详细描述 MoneyPrinterTurboCN 项目的 Docker 镜像构建方案、容器启动模式以及 GPU 支持实现。
+本文档详细描述 Coiner 项目的 Docker 镜像构建方案、容器启动模式以及 GPU 支持实现。
 
 ## 目录
 
@@ -207,8 +207,8 @@ docker info --format '{{.Driver}}' | findstr nvidia
 **用途**：GPU 模式配置
 
 **主要配置**：
-- 容器名称：`moneyprinterturbocn-webui` 和 `moneyprinterturbocn-api`
-- 端口映射：`8501:8501`（WebUI）和 `8080:8080`（API）
+- 容器名称：`coiner-api`
+- 端口映射：`8080:8080`（API + WebUI）
 - 卷挂载：项目目录、模型目录、配置文件、存储目录
 - GPU 设备配置
 - 环境变量设置
@@ -262,9 +262,9 @@ start-docker.bat --cpu
 
 ### 5.3 访问应用
 
-**WebUI**：
-- 地址：http://localhost:8501
-- 功能：图形化界面，用于创建和管理任务
+**WebUI / API**：
+- 地址：http://localhost:8080
+- 功能：Vue 图形化界面 + FastAPI REST API，用于创建和管理任务
 
 **API**：
 - 地址：http://localhost:8080
@@ -284,7 +284,7 @@ start-docker.bat --cpu
    - 定期清理未使用的镜像和容器
 
 4. **端口占用**：
-   - 确保端口 8501（WebUI）和 8080（API）未被占用
+   - 确保端口 8080（API + WebUI）未被占用
    - 如有冲突，修改 docker-compose.yml 中的端口映射
 
 5. **模型存储**：

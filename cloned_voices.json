@@ -1,0 +1,26 @@
+{
+  "qwen": {
+    "qwen3-tts-vc-2026-01-22": [
+      {
+        "brief": "Created via qwen3-tts-vc-2026-01-22 (Beijing)",
+        "createdAt": "2026-06-10T00:33:59",
+        "displayName": "RyanQwen",
+        "gender": "Male",
+        "model": "qwen3-tts-vc-2026-01-22",
+        "provider": "Qwen",
+        "region": "Beijing",
+        "voiceId": "qwen-tts-vc-ryanqwen-voice-20260610003356324-bfd5"
+      },
+      {
+        "brief": "Created via qwen3-tts-vc-2026-01-22 (Beijing)",
+        "createdAt": "2026-06-10T01:02:49",
+        "displayName": "擎苍千问",
+        "gender": "Male",
+        "model": "qwen3-tts-vc-2026-01-22",
+        "provider": "Qwen",
+        "region": "Beijing",
+        "voiceId": "qwen-tts-vc-qingcangqwen-voice-20260610010247128-08eb"
+      }
+    ]
+  }
+}

@@ -403,7 +403,7 @@ export const useSettingsStore = defineStore('settings', {
       try {
         const versionInfo = await apiService.getVersion();
         this.version = {
-          name: versionInfo.name || 'MoneyPrinterCN',
+          name: versionInfo.name || 'Coiner',
           version: versionInfo.version || '0.0.0'
         };
       } catch (error: any) {
@@ -412,7 +412,7 @@ export const useSettingsStore = defineStore('settings', {
           this.backendStatus = 'offline';
         }
         this.version = {
-          name: 'MoneyPrinterCN',
+          name: 'Coiner',
           version: '0.0.0'
         };
       }
@@ -426,7 +426,7 @@ export const useSettingsStore = defineStore('settings', {
       }
       try {
         console.log('[SettingsStore] Fetching config from backend...');
-        console.log('[SettingsStore] API Base URL:', 'http://localhost:8081/api/v1');
+        console.log('[SettingsStore] API Base URL:', 'http://localhost:8000/api/v1');
         const response = await apiService.getConfig();
         console.log('[SettingsStore] Config response status:', response.status);
         console.log('[SettingsStore] Config response data:', response.data);

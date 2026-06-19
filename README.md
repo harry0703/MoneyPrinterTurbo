@@ -1,17 +1,12 @@
 <div align="center">
-<h1 align="center">MoneyPrinterTurboCN 💸</h1>
+<h1 align="center">Coiner 💸</h1>
 
 <p align="center">
-  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/stargazers"><img src="https://img.shields.io/github/stars/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Stargazers"></a>
-  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues"><img src="https://img.shields.io/github/issues/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Issues"></a>
-  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/network/members"><img src="https://img.shields.io/github/forks/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Forks"></a>
-  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/blob/main/LICENSE"><img src="https://img.shields.io/github/license/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/stargazers"><img src="https://img.shields.io/github/stars/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Stargazers"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/issues"><img src="https://img.shields.io/github/issues/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Issues"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/network/members"><img src="https://img.shields.io/github/forks/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Forks"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="License"></a>
 </p>
-<br>
-<h3>简体中文 | <a href="README-en.md">English</a></h3>
-<div align="center">
-  <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="RyanFeiluX%2FMoneyPrinterTurboCN | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</div>
 <br>
 只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
 <br>
@@ -139,7 +134,7 @@
 #### ① 克隆代码
 
 ```shell
-git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
+git clone https://github.com/RyanFeiluX/Coiner.git
 ```
 
 #### ② 修改配置文件（可选，建议启动后也可以在 WebUI 里面配置）
@@ -160,7 +155,7 @@ git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
 2. https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers
 
 ```shell
-cd MoneyPrinterTurboCN
+cd Coiner
 docker-compose up
 ```
 
@@ -168,7 +163,7 @@ docker-compose up
 
 #### ② 访问Web界面
 
-打开浏览器，访问 http://0.0.0.0:8501
+打开浏览器，访问 http://0.0.0.0:8080
 
 #### ③ 访问API文档
 
@@ -252,10 +247,10 @@ docker-compose exec api bash
 建议使用 [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html) 创建 python 虚拟环境
 
 ```shell
-git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
-cd MoneyPrinterTurboCN
-conda create -n MoneyPrinterTurboCN python=3.12
-conda activate MoneyPrinterTurboCN  
+git clone https://github.com/RyanFeiluX/Coiner.git
+cd Coiner
+conda create -n coiner python=3.12
+conda activate coiner  
 pip install -r requirements.txt
 ```
 
@@ -282,7 +277,7 @@ pip install -r requirements.txt
 
 #### ③ 启动Web界面 🌐
 
-注意需要到 MoneyPrinterTurboCN 项目 `根目录` 下执行以下命令
+注意需要到 Coiner 项目 `根目录` 下执行以下命令
 
 ###### Windows
 
@@ -304,7 +299,7 @@ sh webui.sh
 python main.py
 ```
 
-启动后，可以查看 `API文档` http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc 直接在线调试接口，快速体验。
+启动后，可以查看 `API文档` http://127.0.0.1:8000/docs 或者 http://127.0.0.1:8000/redoc 直接在线调试接口，快速体验。
 
 ## 语音合成 🗣
 
@@ -335,11 +330,11 @@ python main.py
 - 百度网盘: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
 - 夸克网盘：https://pan.quark.cn/s/3ee3d991d64b
 
-模型下载后解压，整个目录放到 `.\MoneyPrinterTurboCN\models` 里面，
-最终的文件路径应该是这样: `.\MoneyPrinterTurboCN\models\whisper-large-v3`
+模型下载后解压，整个目录放到 `.\Coiner\models` 里面，
+最终的文件路径应该是这样: `.\Coiner\models\whisper-large-v3`
 
 ```
-MoneyPrinterTurboCN  
+Coiner  
   ├─models
   │   └─whisper-large-v3
   │          config.json
@@ -417,8 +412,8 @@ Trying to load the model directly from the local cache, if it exists.
 
 ## 反馈建议 📢
 
-- 可以提交 [issue](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues)
-  或者 [pull request](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/pulls)。
+- 可以提交 [issue](https://github.com/RyanFeiluX/Coiner/issues)
+  或者 [pull request](https://github.com/RyanFeiluX/Coiner/pulls)。
 
 ## 许可证 📝
 

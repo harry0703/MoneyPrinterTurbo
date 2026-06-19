@@ -17,7 +17,7 @@ _config_loaded = False
 
 def load_config():
     global _config_loaded
-    # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurboCN/config.toml'
+    # fix: IsADirectoryError: [Errno 21] Is a directory: '/Coiner/config.toml'
     if os.path.isdir(config_file):
         shutil.rmtree(config_file)
 
@@ -76,12 +76,12 @@ ui = _cfg.get(
 hostname = socket.gethostname()
 
 log_level = _cfg.get("log_level", "DEBUG")
-listen_host = _cfg.get("listen_host", "0.0.0.0")
-listen_port = _cfg.get("listen_port", 8000)
-project_name = _cfg.get("project_name", "MoneyPrinterTurboCN")
+listen_host = os.getenv("LISTEN_HOST", _cfg.get("listen_host", "0.0.0.0"))
+listen_port = int(os.getenv("LISTEN_PORT", _cfg.get("listen_port", 8000)))
+project_name = _cfg.get("project_name", "Coiner")
 project_description = _cfg.get(
     "project_description",
-    "<a href='https://github.com/RyanFeiluX/MoneyPrinterTurboCN'>https://github.com/RyanFeiluX/MoneyPrinterTurboCN</a>",
+    "<a href='https://github.com/RyanFeiluX/Coiner'>https://github.com/RyanFeiluX/Coiner</a>",
 )
 project_version = _cfg.get("project_version", "1.2.6")
 reload_debug = False

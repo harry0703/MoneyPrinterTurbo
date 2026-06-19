@@ -2,7 +2,7 @@
   <div class="app">
     <header class="app-header">
       <div class="header-content">
-        <h1>{{ t('MoneyPrinterCN') }} <span v-if="settingsStore.version" class="version">{{ settingsStore.version.version }}</span></h1>
+        <h1>Coiner <span v-if="settingsStore.version" class="version">{{ settingsStore.version.version }}</span></h1>
         <div class="header-actions">
           <el-tag :type="backendStatusType" size="small" class="backend-status">
             {{ backendStatusText }}
@@ -84,7 +84,7 @@
     </main>
     
     <footer class="app-footer">
-      <p>{{ t('MoneyPrinterCN') }} © {{ new Date().getFullYear() }}</p>
+      <p>Coiner © {{ new Date().getFullYear() }}</p>
     </footer>
   </div>
 </template>

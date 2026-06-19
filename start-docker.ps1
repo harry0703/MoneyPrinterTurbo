@@ -1,5 +1,5 @@
 Write-Host "========================================="
-Write-Host "MoneyPrinterTurboCN Docker Start Script"
+Write-Host "Coiner Docker Start Script"
 Write-Host "========================================="
 Write-Host ""
 
@@ -90,8 +90,8 @@ Write-Host ""
 
 # Stop any existing containers with same name
 Write-Host "[INFO] Stopping existing containers..."
-# Remove all containers with moneyprinterturbocn in their name
-$containers = docker ps -a --format "{{.Names}}" | Select-String "moneyprinterturbocn"
+# Remove all containers with coiner in their name
+$containers = docker ps -a --format "{{.Names}}" | Select-String "coiner"
 foreach ($container in $containers) {
     $containerName = $container.ToString().Trim()
     Write-Host "[INFO] Stopping container: $containerName"
@@ -127,9 +127,9 @@ Start-Sleep -Seconds 3
 # Check if containers are running
 Write-Host ""
 Write-Host "[INFO] Checking container status..."
-docker ps --filter name=moneyprinterturbocn-webui --filter name=moneyprinterturbocn-api --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+docker ps --filter name=coiner-api --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
-$webuiContainer = docker ps --filter name=moneyprinterturbocn-webui
+$apiContainer = docker ps --filter name=coiner-api
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "========================================="
@@ -137,15 +137,15 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "========================================="
     Write-Host ""
     Write-Host "=== Access Information ==="
-    Write-Host "WebUI:        http://localhost:8501"
+    Write-Host "Application:    http://localhost:8080"
     Write-Host "API:          http://localhost:8080"
     Write-Host "API Docs:     http://localhost:8080/docs"
     Write-Host ""
     Write-Host "=== Volume Mounts ==="
-    Write-Host "Project:      $((Get-Location).Path):/MoneyPrinterTurboCN"
-    Write-Host "Models:       $((Get-Location).Path)\models:/MoneyPrinterTurboCN/models"
-    Write-Host "Config:       $((Get-Location).Path)\config.toml:/MoneyPrinterTurboCN/config.toml"
-    Write-Host "Storage:      $((Get-Location).Path)\storage:/MoneyPrinterTurboCN/storage"
+    Write-Host "Project:      $((Get-Location).Path):/Coiner"
+    Write-Host "Models:       $((Get-Location).Path)\models:/Coiner/models"
+    Write-Host "Config:       $((Get-Location).Path)\config.toml:/Coiner/config.toml"
+    Write-Host "Storage:      $((Get-Location).Path)\storage:/Coiner/storage"
     Write-Host ""
     Write-Host "=== GPU Support ==="
     if ($useGpu) {
@@ -179,7 +179,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "[INFO] Please check Docker Desktop for more details"
     Write-Host ""
     Write-Host "Troubleshooting:"
-    Write-Host "1. Check if ports 8501 and 8080 are available"
+    Write-Host "1. Check if port 8080 is available"
     Write-Host "2. Check Docker Desktop logs"
     Write-Host "3. Try running: docker-compose up (without -d) to see detailed errors"
     Read-Host "Press Enter to continue..."

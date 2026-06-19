@@ -1,7 +1,7 @@
 {
   "Language": "English",
   "Translation": {
-    "MoneyPrinterCN": "MoneyPrinterCN",
+    "Coiner": "Coiner",
     "Script Settings": "Script Settings",
     "Scene Management": "Scene Management",
     "Video Topic": "Video Topic (Provide a keyword, <span style=\"color: red;\">AI will automatically generate video copy</span>)",
@@ -430,8 +430,8 @@
     "Ollama Configuration": "Ollama Configuration",
     "Ollama API Key Tip": "API Key: Just fill in something, like 123",
     "Ollama Base Url Tip": "Base Url: Usually http://localhost:11434/v1",
-    "Ollama Base Url Tip 2": "If MoneyPrinterTurboCN and Ollama are not on the same machine, you need to fill in the IP address of the Ollama machine",
-    "Ollama Base Url Tip 3": "If MoneyPrinterTurboCN is a Docker deployment, it is recommended to fill in http://host.docker.internal:11434/v1",
+    "Ollama Base Url Tip 2": "If Coiner and Ollama are not on the same machine, you need to fill in the IP address of the Ollama machine",
+    "Ollama Base Url Tip 3": "If Coiner is a Docker deployment, it is recommended to fill in http://host.docker.internal:11434/v1",
     "Ollama Model Name Tip": "Model Name: Use ollama list to check, like qwen:7b",
     "OpenAI Configuration": "OpenAI Configuration",
     "OpenAI VPN Tip": "Need VPN to enable global traffic mode",

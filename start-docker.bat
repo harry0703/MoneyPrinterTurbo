@@ -1,6 +1,6 @@
 @echo off
 echo =========================================
-echo MoneyPrinterTurboCN Docker Start Script
+echo Coiner Docker Start Script
 echo =========================================
 echo.
 
@@ -17,8 +17,8 @@ echo.
 
 :: Stop and remove existing containers
 echo [INFO] Stopping and removing existing containers...
-:: Remove all containers with moneyprinterturbocn in their name
-for /f "tokens=1" %%i in ('docker ps -a --format "{{.Names}}" ^| findstr "moneyprinterturbocn"') do (
+:: Remove all containers with coiner in their name
+for /f "tokens=1" %%i in ('docker ps -a --format "{{.Names}}" ^| findstr "coiner"') do (
     echo [INFO] Stopping container: %%i
     docker stop %%i 2>nul
     echo [INFO] Removing container: %%i
@@ -48,11 +48,11 @@ echo.
 
 :: Check container status
 echo [INFO] Checking container status...
-docker ps --filter name=moneyprinterturbocn-webui --filter name=moneyprinterturbocn-api --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+docker ps --filter name=coiner-api --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 echo.
 
 echo [INFO] Containers started successfully!
-echo [INFO] WebUI: http://localhost:8501
+echo [INFO] Application: http://localhost:8080
 echo [INFO] API: http://localhost:8080
 echo [INFO] API Docs: http://localhost:8080/docs
 echo.

@@ -337,7 +337,7 @@ class BgmRetrieveResponse(BaseResponse):
                         {
                             "name": "output013.mp3",
                             "size": 1891269,
-                            "file": "/MoneyPrinterTurboCN/resource/songs/output013.mp3",
+                            "file": "/Coiner/resource/songs/output013.mp3",
                         }
                     ]
                 },
@@ -351,7 +351,7 @@ class BgmUploadResponse(BaseResponse):
             "example": {
                 "status": 200,
                 "message": "success",
-                "data": {"file": "/MoneyPrinterTurboCN/resource/songs/example.mp3"},
+                "data": {"file": "/Coiner/resource/songs/example.mp3"},
             },
         }
 
@@ -366,7 +366,7 @@ class VideoMaterialRetrieveResponse(BaseResponse):
                         {
                             "name": "example.mp4",
                             "size": 12345678,
-                            "file": "/MoneyPrinterTurboCN/resource/videos/example.mp4",
+                            "file": "/Coiner/resource/videos/example.mp4",
                         }
                     ]
                 },
@@ -380,7 +380,7 @@ class VideoMaterialUploadResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "file": "/MoneyPrinterTurboCN/resource/videos/example.mp4",
+                    "file": "/Coiner/resource/videos/example.mp4",
                 },
             },
         }

@@ -25,7 +25,7 @@ REM Clear Python cache in containers
 echo.
 echo [3/4] Clearing Python cache in Docker containers...
 
-set "containers=moneyprinterturbocn-webui moneyprinterturbocn-api"
+set "containers=coiner-api"
 
 for %%c in (%containers%) do (
     echo  Processing container: %%c
@@ -34,7 +34,7 @@ for %%c in (%containers%) do (
     docker ps --filter "name=%%c" --format "{{.Names}}" >nul 2>&1
     if %ERRORLEVEL% EQU 0 (
         REM Clear __pycache__ directories
-        docker exec %%c find /MoneyPrinterTurboCN -type d -name "__pycache__" -exec rm -rf {} + >nul 2>&1
+        docker exec %%c find /Coiner -type d -name "__pycache__" -exec rm -rf {} + >nul 2>&1
         if %ERRORLEVEL% EQU 0 (
             echo    Cleared __pycache__ directories
         ) else (
@@ -42,7 +42,7 @@ for %%c in (%containers%) do (
         )
         
         REM Clear .pyc files
-        docker exec %%c find /MoneyPrinterTurboCN -name "*.pyc" -delete >nul 2>&1
+        docker exec %%c find /Coiner -name "*.pyc" -delete >nul 2>&1
         if %ERRORLEVEL% EQU 0 (
             echo    Cleared *.pyc files
         ) else (
@@ -50,7 +50,7 @@ for %%c in (%containers%) do (
         )
         
         REM Clear .pyo files (optimized bytecode)
-        docker exec %%c find /MoneyPrinterTurboCN -name "*.pyo" -delete >nul 2>&1
+        docker exec %%c find /Coiner -name "*.pyo" -delete >nul 2>&1
         if %ERRORLEVEL% EQU 0 (
             echo    Cleared *.pyo files
         )
@@ -108,10 +108,10 @@ echo  Done! Docker containers have been restarted
 echo ============================================
 echo.
 echo You can now access:
-echo  - Web UI (Docker): http://localhost:8502
+echo  - Application:     http://localhost:8080
 echo  - API:             http://localhost:8080
 echo.
-echo Note: Local development uses port 8501, Docker uses port 8502
+echo Note: Application runs on port 8080
 echo.
 
 REM Show running containers

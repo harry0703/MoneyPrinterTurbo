@@ -2,7 +2,7 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 echo ========================================
-echo MoneyPrinterTurboCN Docker Build Script
+echo Coiner Docker Build Script
 echo ========================================
 echo.
 
@@ -49,29 +49,29 @@ if %errorlevel% equ 0 (
 
     echo.
     echo [INFO] Base image downloaded successfully
-    echo [INFO] Removing existing moneyprinterturbocn images if exists...
-    :: First, remove all containers using moneyprinterturbocn images
-    echo [INFO] Step 1: Removing containers using moneyprinterturbocn images...
-    for /f "tokens=1" %%i in ('docker ps -a --format "{{.Names}}" ^| findstr "moneyprinterturbocn"') do (
+    echo [INFO] Removing existing coiner images if exists...
+    :: First, remove all containers using coiner images
+    echo [INFO] Step 1: Removing containers using coiner images...
+    for /f "tokens=1" %%i in ('docker ps -a --format "{{.Names}}" ^| findstr "coiner"') do (
         echo [INFO] Stopping container: %%i
         docker stop %%i 2>nul
         echo [INFO] Removing container: %%i
         docker rm %%i 2>nul
     )
-    :: Then remove all images with moneyprinterturbocn in their name
-    echo [INFO] Step 2: Removing moneyprinterturbocn images...
+    :: Then remove all images with coiner in their name
+    echo [INFO] Step 2: Removing coiner images...
     :: Remove images by repository name
-    for /f "tokens=*" %%i in ('docker images --format "{{.Repository}}" ^| findstr "moneyprinterturbocn"') do (
+    for /f "tokens=*" %%i in ('docker images --format "{{.Repository}}" ^| findstr "coiner"') do (
         echo [INFO] Removing image: %%i
         docker rmi -f %%i 2>nul
     )
     :: Remove images by tag
-    for /f "tokens=1,2" %%i in ('docker images ^| findstr "moneyprinterturbocn"') do (
+    for /f "tokens=1,2" %%i in ('docker images ^| findstr "coiner"') do (
         echo [INFO] Removing image: %%i:%%j
         docker rmi -f %%i:%%j 2>nul
     )
     :: Remove images by ID
-    for /f "tokens=3" %%i in ('docker images ^| findstr "moneyprinterturbocn"') do (
+    for /f "tokens=3" %%i in ('docker images ^| findstr "coiner"') do (
         echo [INFO] Removing image by ID: %%i
         docker rmi -f %%i 2>nul
     )
@@ -80,7 +80,7 @@ if %errorlevel% equ 0 (
     echo.
 
     :: Build with progress output
-    docker build --progress=plain -t moneyprinterturbocn .
+    docker build --progress=plain -t coiner .
 
     if errorlevel 1 (
         echo.
@@ -103,7 +103,7 @@ if %errorlevel% equ 0 (
     echo ========================================
     echo.
     echo === Image Details ===
-    docker images moneyprinterturbocn
+    docker images coiner
     echo.
     echo === GPU Support ===
     echo This image includes CUDA 11.8 runtime for GPU acceleration
@@ -115,7 +115,7 @@ if %errorlevel% equ 0 (
     echo   start-docker.bat
     echo.
     echo Then open your browser and navigate to:
-    echo   http://localhost:8501
+    echo   http://localhost:8080
     echo.
     echo === Build Complete ===
     exit /b 0

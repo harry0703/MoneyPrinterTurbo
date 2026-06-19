@@ -1,18 +1,16 @@
 <div align="center">
-<h1 align="center">MoneyPrinterTurboCN 💸</h1>
+<h1 align="center">Coiner 💸</h1>
 
 <p align="center">
-  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/stargazers"><img src="https://img.shields.io/github/stars/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Stargazers"></a>
-  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues"><img src="https://img.shields.io/github/issues/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Issues"></a>
-  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/network/members"><img src="https://img.shields.io/github/forks/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="Forks"></a>
-  <a href="https://github.com/RyanFeiluX/MoneyPrinterTurboCN/blob/main/LICENSE"><img src="https://img.shields.io/github/license/RyanFeiluX/MoneyPrinterTurboCN.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/stargazers"><img src="https://img.shields.io/github/stars/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Stargazers"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/issues"><img src="https://img.shields.io/github/issues/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Issues"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/network/members"><img src="https://img.shields.io/github/forks/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Forks"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="License"></a>
 </p>
 
 <h3>English | <a href="README.md">简体中文</a></h3>
 
 <div align="center">
-  <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="RyanFeiluX%2FMoneyPrinterTurboCN | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</div>
 
 Simply provide a <b>topic</b> or <b>keyword</b> for a video, and it will automatically generate the video copy, video
 materials, video subtitles, and video background music before synthesizing a high-definition short video.
@@ -141,7 +139,7 @@ After launching, the browser will open automatically (if it opens blank, it is r
 #### ① Clone the Project
 
 ```shell
-git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
+git clone https://github.com/RyanFeiluX/Coiner.git
 ```
 
 #### ② Modify the Configuration File (optional, recommended to configure in WebUI after startup)
@@ -162,7 +160,7 @@ If you are using a Windows system, please refer to Microsoft's documentation:
 2. https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers
 
 ```shell
-cd MoneyPrinterTurboCN
+cd Coiner
 docker-compose up
 ```
 
@@ -170,7 +168,7 @@ docker-compose up
 
 #### ② Access the Web Interface
 
-Open your browser and visit http://0.0.0.0:8501
+Open your browser and visit http://0.0.0.0:8080
 
 #### ③ Access the API Interface
 
@@ -254,10 +252,10 @@ docker-compose exec api bash
 It is recommended to create a Python virtual environment using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
 
 ```shell
-git clone https://github.com/RyanFeiluX/MoneyPrinterTurboCN.git
-cd MoneyPrinterTurboCN
-conda create -n MoneyPrinterTurboCN python=3.12
-conda activate MoneyPrinterTurboCN  
+git clone https://github.com/RyanFeiluX/Coiner.git
+cd Coiner
+conda create -n coiner python=3.12
+conda activate coiner  
 pip install -r requirements.txt
 ```
 
@@ -289,7 +287,7 @@ sudo yum install ImageMagick
 
 #### ③ Launch the Web Interface 🌐
 
-Note that you need to execute the following commands in the `root directory` of the MoneyPrinterTurboCN project
+Note that you need to execute the following commands in the `root directory` of the Coiner project
 
 ###### Windows
 
@@ -311,7 +309,7 @@ After launching, the browser will open automatically (if it opens blank, it is r
 python main.py
 ```
 
-After launching, you can view the `API documentation` at http://127.0.0.1:8080/docs and directly test the interface
+After launching, you can view the `API documentation` at http://127.0.0.1:8000/docs and directly test the interface
 online for a quick experience.
 
 ## Voice Synthesis 🗣
@@ -346,11 +344,11 @@ Download links:
 - Baidu Netdisk: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
 - Quark Netdisk: https://pan.quark.cn/s/3ee3d991d64b
 
-After downloading the model, extract it and place the entire directory in `./MoneyPrinterTurboCN/models`,
-The final file path should look like this: `./MoneyPrinterTurboCN/models/whisper-large-v3`
+After downloading the model, extract it and place the entire directory in `./Coiner/models`,
+The final file path should look like this: `./Coiner/models/whisper-large-v3`
 
 ```
-MoneyPrinterTurboCN  
+Coiner  
   ├─models
   │   └─whisper-large-v3
   │          config.json
@@ -394,13 +392,13 @@ ffmpeg_path = "C:\Users\harry\Downloads\ffmpeg.exe"
 
 ### ❓ImageMagick is not installed on your computer
 
-[issue 33](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues/33)
+[issue 33](https://github.com/RyanFeiluX/Coiner/issues/33)
 
 1. Follow the `example configuration` provided `download address` to
    install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-30-Q16-x64-static.exe, using the static library
 2. Do not install in a path with Chinese characters to avoid unpredictable issues
 
-[issue 54](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues/54#issuecomment-2017842022)
+[issue 54](https://github.com/RyanFeiluX/Coiner/issues/54#issuecomment-2017842022)
 
 For Linux systems, you can manually install it, refer to https://cn.linux-console.net/?p=16978
 
@@ -445,8 +443,8 @@ Solution: [Click to see how to manually download the model from netdisk](#subtit
 
 ## Feedback & Suggestions 📢
 
-- You can submit an [issue](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/issues) or
-  a [pull request](https://github.com/RyanFeiluX/MoneyPrinterTurboCN/pulls).
+- You can submit an [issue](https://github.com/RyanFeiluX/Coiner/issues) or
+  a [pull request](https://github.com/RyanFeiluX/Coiner/pulls).
 
 ## License 📝
 

@@ -1,52 +1,31 @@
 # Docker Compose configuration for CPU-only mode
 # Usage: docker-compose -f docker-compose.cpu.yml up -d
 #
-# Use this file when running on machines without NVIDIA GPU
+# Use this file when running on machines without NVIDIA GPU.
+# The FastAPI backend serves both the API and the Vue frontend static files.
 
 x-common-volumes: &common-volumes
-  - ./:/MoneyPrinterTurboCN
-  - ./models:/MoneyPrinterTurboCN/models
-  - ./config.toml:/MoneyPrinterTurboCN/config.toml
-  - ./storage:/MoneyPrinterTurboCN/storage
+  - ./:/Coiner
+  - ./models:/Coiner/models
+  - ./config.toml:/Coiner/config.toml
+  - ./storage:/Coiner/storage
   # Mount timezone files from host to use local time
   - /etc/localtime:/etc/localtime:ro
   - /etc/timezone:/etc/timezone:ro
 
 services:
-  webui:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: "moneyprinterturbocn-webui"
-    ports:
-      - "8501:8501"
-    command: [ "python3", "-m", "streamlit", "run", "./webui/Main.py","--browser.serverAddress=localhost","--server.enableCORS=True","--browser.gatherUsageStats=False" ]
-    volumes: *common-volumes
-    restart: always
-    environment:
-      - PYTHONUNBUFFERED=1
-      # Set timezone to use local time
-      - TZ=Asia/Shanghai
-      # Set time zone for Python
-      - PYTHON_TZ=Asia/Shanghai
-      # Explicitly disable GPU
-      - CUDA_VISIBLE_DEVICES=""
-
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: "moneyprinterturbocn-api"
+    container_name: "coiner-api"
     ports:
       - "8080:8080"
-    command: [ "python3", "main.py" ]
     volumes: *common-volumes
     restart: always
     environment:
       - PYTHONUNBUFFERED=1
-      # Set timezone to use local time
       - TZ=Asia/Shanghai
-      # Set time zone for Python
       - PYTHON_TZ=Asia/Shanghai
       # Explicitly disable GPU
       - CUDA_VISIBLE_DEVICES=""
