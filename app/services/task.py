@@ -886,6 +886,13 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     # Set task as running
     set_task_running("video_generation", task_id)
     
+    # Check for cancellation before updating state (avoid overwriting "cancelling")
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before starting")
+        set_task_completed()
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+        return None
+    
     # Update task state to PROCESSING
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=0)
     
@@ -924,6 +931,13 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     logger.debug(f"Task start - video_aspect from params: {params.video_aspect}")
     logger.debug(f"Task start - video_aspect type: {type(params.video_aspect)}")
     
+    # Check for cancellation before setting state to PROCESSING
+    if check_cancelled and check_cancelled():
+        logger.info(f"Task {task_id} cancelled before starting")
+        set_task_completed()
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
+        return None
+
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5, task_type="video_generation")
 
     if type(params.video_concat_mode) is str:
@@ -944,12 +958,6 @@ def start(task_id, params: VideoParams, stop_at: str = "video", check_cancelled=
     result = None
     exception_occurred = None
     try:
-        # Check for cancellation before starting
-        if check_cancelled and check_cancelled():
-            logger.info(f"Task {task_id} cancelled before starting")
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, **{"status": "cancelled"})
-            return None
-            
         result = start_multi_scene(task_id, params, stop_at, task_start_time, check_cancelled=check_cancelled, task_create_time=task_create_time)
     except Exception as e:
         exception_occurred = e

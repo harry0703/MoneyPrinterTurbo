@@ -132,6 +132,7 @@ def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int =
             const.TASK_STATE_FAILED: "failed",
             const.TASK_STATE_PENDING: "pending",
             const.TASK_STATE_COMPLETE: "completed",
+            const.TASK_STATE_CANCELLING: "cancelling",
             const.TASK_STATE_PROCESSING: "running"
         }
         if "state" in task:
@@ -185,6 +186,7 @@ def get_task(
             const.TASK_STATE_FAILED: "failed",
             const.TASK_STATE_PENDING: "pending",
             const.TASK_STATE_COMPLETE: "completed",
+            const.TASK_STATE_CANCELLING: "cancelling",
             const.TASK_STATE_PROCESSING: "running"
         }
         if "state" in task:
@@ -261,8 +263,8 @@ def cancel_task(request: Request, task_id: str = Path(..., description="Task ID"
         from app.services.thread_manager import thread_manager
         thread_manager.cancel_task(task_id)
         
-        # 更新任务状态为 cancelled
-        sm.state.update_task(task_id, const.TASK_STATE_FAILED, **{"status": "cancelled"})
+        # 更新任务状态为 cancelling（线程实际退出时由 _run_task 更新为 cancelled）
+        sm.state.update_task(task_id, const.TASK_STATE_CANCELLING, **{"status": "cancelling"})
         
         logger.success(f"Task cancelled: {task_id}")
         return utils.get_response(200)

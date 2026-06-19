@@ -80,11 +80,15 @@
                   </el-button>
                 </transition>
                 
-                <!-- 取消按钮 - 仅在任务运行时显示 -->
+                <!-- 取消按钮 - 任务运行时显示；cancelling 时显示为已禁用的加载状态 -->
                 <transition name="fade">
                   <el-button v-if="task.status === 'running'" :key="'cancel-'+task.task_id" type="warning" size="small" @click="$emit('cancel', task.task_id)">
                     <el-icon><Close /></el-icon>
                     {{ cancelText }}
+                  </el-button>
+                  <el-button v-else-if="task.status === 'cancelling'" :key="'cancelling-'+task.task_id" type="warning" size="small" disabled>
+                    <el-icon><Loading /></el-icon>
+                    {{ t('Cancelling...') }}
                   </el-button>
                 </transition>
                 
@@ -104,7 +108,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Refresh, Download, Delete, Close } from '@element-plus/icons-vue';
+import { Refresh, Download, Delete, Close, Loading } from '@element-plus/icons-vue';
 import { useI18nStore } from '../stores/i18n';
 
 const i18nStore = useI18nStore();
@@ -180,6 +184,7 @@ const getStatusText = (status: string): string => {
   const statusMap: Record<string, string> = {
     pending: t('Pending'),
     running: t('Running'),
+    cancelling: t('Cancelling...'),
     completed: t('Completed'),
     failed: t('Failed')
   };
@@ -190,6 +195,7 @@ const getStatusType = (status: string): string => {
   const typeMap: Record<string, string> = {
     pending: 'info',
     running: 'warning',
+    cancelling: 'warning',
     completed: 'success',
     failed: 'danger'
   };

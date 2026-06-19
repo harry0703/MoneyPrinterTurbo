@@ -34,6 +34,10 @@ export const useTasksStore = defineStore('tasks', {
       return state.tasks.filter(task => task.status === 'running');
     },
     
+    cancellingTasks: (state) => {
+      return state.tasks.filter(task => task.status === 'cancelling');
+    },
+    
     completedTasks: (state) => {
       return state.tasks.filter(task => task.status === 'completed');
     },
@@ -178,10 +182,10 @@ export const useTasksStore = defineStore('tasks', {
       try {
         const response = await apiService.cancelTask(taskId);
         if (response.status === 200) {
-          // 更新任务状态为 cancelled
+          // 更新任务状态为 cancelling（最终状态由后端线程退出时更新）
           const task = this.getTaskById(taskId);
           if (task) {
-            task.status = 'cancelled';
+            task.status = 'cancelling';
           }
           return true;
         }

@@ -388,6 +388,7 @@
     "Failed Tasks": "失败任务",
     "Pending": "待处理",
     "Running": "运行中",
+    "Cancelling...": "取消中...",
     "Completed": "已完成",
     "Failed": "失败",
     "Task": "任务",

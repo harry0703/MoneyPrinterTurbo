@@ -15,6 +15,7 @@ class TaskStatus:
     RUNNING = "running"      # Running
     COMPLETED = "completed"  # Completed
     FAILED = "failed"        # Failed
+    CANCELLING = "cancelling"  # Cancellation in progress
     CANCELLED = "cancelled"  # Cancelled
 
 class TaskInfo:
@@ -234,6 +235,13 @@ class ThreadManager:
                 else:
                     task_info.status = TaskStatus.CANCELLED
                     logger.debug(f"[_run_task] task_id={task_id} status set to CANCELLED")
+                    # Sync final state to persistent state: cancelling → cancelled
+                    try:
+                        from app.models import const
+                        from app.services.state import state as _state
+                        _state.update_task(task_id, const.TASK_STATE_FAILED, **{"status": "cancelled"})
+                    except Exception:
+                        logger.exception(f"[_run_task] task_id={task_id} failed to sync final cancelled state")
         except Exception as e:
             logger.error(f"[_run_task] task_id={task_id} task_func raised exception: {str(e)}")
             with self.lock:
@@ -421,6 +429,7 @@ class ThreadManager:
             # If task is running, set cancellation flag
             if task_info.status == TaskStatus.RUNNING:
                 task_info.cancelled = True
+                task_info.status = TaskStatus.CANCELLING
                 # The running task will call _process_queue() when it exits
                 return True
             

@@ -466,6 +466,7 @@
     "Cancel": "Cancel",
     "Pending": "Pending",
     "Running": "Running",
+    "Cancelling...": "Cancelling...",
     "Completed": "Completed",
     "Failed": "Failed",
     "Task": "Task",
