@@ -184,14 +184,43 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.app.get("ollama_base_url", "")
                 if not base_url:
                     base_url = config.get_default_ollama_base_url()
-            elif llm_provider == "openai":
-                api_key = config.app.get("openai_api_key")
-                model_name = config.app.get("openai_model_name")
-                base_url = config.app.get("openai_base_url", "")
+            elif llm_provider == "codex":
+                api_key = config.app.get("codex_api_key") or ""
+                bot_id = config.app.get("codex_model_name") or ""
+                base_url = config.app.get("codex_base_url", "").rstrip("/")
                 if not base_url:
-                    base_url = "https://api.openai.com/v1"
+                    base_url = "https://api.coze.com/v3/chat"
+
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "bot_id": bot_id,
+                    "user_id": "money_printer_turbo",
+                    "stream": False,
+                    "additional_messages": [
+                        {"role": "user", "content": prompt, "content_type": "text"}
+                    ]
+                }
+                
+                try:
+                    response = requests.post(base_url, headers=headers, json=payload, timeout=60)
+                    if response.status_code == 401:
+                        return "Error: Codex API call failed: Unauthorized (Invalid Mock API Key)"
+                    response.raise_for_status()
+                    res_data = response.json()
+                    
+                    if "data" in res_data and "messages" in res_data["data"]:
+                        for msg in res_data["data"]["messages"]:
+                            if msg.get("type") == "answer":
+                                return msg.get("content", "").strip()
+                    return response.text
+                except Exception as e:
+                    return f"Error: Codex API call failed: {str(e)}"
+
             elif llm_provider == "aihubmix":
-                api_key = config.app.get("aihubmix_api_key")
+                api_key = config.app.get("aihubmix_api_key") 
                 model_name = config.app.get("aihubmix_model_name")
                 base_url = config.app.get("aihubmix_base_url", "")
                 # AIHubMix 兼容 OpenAI Chat Completions 协议。这里使用独立
