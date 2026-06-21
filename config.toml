@@ -1,5 +1,5 @@
 project_name = "Coiner"
-project_version = "2.5.2"
+project_version = "2.5.3"
 
 [app]
 host_visible = false
@@ -100,12 +100,12 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "智能体第一性原理"
+title_text = "揭秘KV缓存内存危机"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 92
-title_text_color = "#800080"
-title_stroke_color = "#FFFF00"
+title_text_color = "#FFFFFF"
+title_stroke_color = "#808080"
 title_stroke_width = 8.5
 title_background_color = "transparent"
 title_position = "top"

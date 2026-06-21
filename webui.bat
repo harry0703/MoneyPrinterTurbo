@@ -17,7 +17,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 rem Activate conda environment
-call conda activate condaenv-moneyprinter
+call conda activate condaenv-coiner
 if %ERRORLEVEL% NEQ 0 (
     echo Failed to activate conda environment
     pause

@@ -360,7 +360,7 @@ export const useSettingsStore = defineStore('settings', {
         subtitle: this.subtitle,
         version: this.version
       };
-      localStorage.setItem('moneyprinter-settings', JSON.stringify(dataToSave));
+      localStorage.setItem('coiner-settings', JSON.stringify(dataToSave));
     },
 
     async checkBackendHealth(): Promise<boolean> {

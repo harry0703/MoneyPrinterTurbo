@@ -73,11 +73,11 @@ export const useI18nStore = defineStore('i18n', {
     
     setLanguage(lang: Language) {
       this.currentLanguage = lang;
-      localStorage.setItem('moneyprinter-language', lang);
+      localStorage.setItem('coiner-language', lang);
     },
     
     loadLanguageFromLocalStorage() {
-      const savedLang = localStorage.getItem('moneyprinter-language') as Language;
+      const savedLang = localStorage.getItem('coiner-language') as Language;
       if (savedLang) {
         this.currentLanguage = savedLang;
       }

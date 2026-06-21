@@ -90,7 +90,7 @@ export const useScriptStore = defineStore('script', {
         videoTitle: this.videoTitle,
         scenes: JSON.parse(JSON.stringify(this.scenes))
       };
-      localStorage.setItem('moneyprinter-script', JSON.stringify(data));
+      localStorage.setItem('coiner-script', JSON.stringify(data));
     }
   }
 });

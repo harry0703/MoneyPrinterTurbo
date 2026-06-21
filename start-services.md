@@ -9,7 +9,7 @@
    ```
 3. 激活 conda 环境：
    ```bash
-   conda activate condaenv-moneyprinter
+   conda activate condaenv-coiner
    ```
 4. 启动后端服务：
    ```bash

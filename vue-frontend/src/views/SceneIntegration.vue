@@ -137,7 +137,7 @@ const i18nStore = useI18nStore();
 const t = i18nStore.t;
 const settingsStore = useSettingsStore();
 
-const STORAGE_KEY = 'moneyprinter-scene-integration';
+const STORAGE_KEY = 'coiner-scene-integration';
 
 // Input type
 const inputType = ref('taskId');
