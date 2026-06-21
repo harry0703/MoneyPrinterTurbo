@@ -13,38 +13,17 @@
 <div align="center">
 
 Simply provide a <b>topic</b> or <b>keyword</b> for a video, and it will automatically generate the video copy, video
-materials, video subtitles, and video background music before synthesizing a high-definition short video.
+materials, video subtitles, and video background music before synthesizing a high-definition medium video.
 
 ### WebUI
 
-![](docs/webui-en.jpg)
+![](docs/ui-script-setting.png)
 
 ### API Interface
 
-![](docs/api.jpg)
+![](docs/ui-api.jpg)
 
 </div>
-
-## Special Thanks 🙏
-
-Due to the **deployment** and **usage** of this project, there is a certain threshold for some beginner users. We would
-like to express our special thanks to
-
-**RecCloud (AI-Powered Multimedia Service Platform)** for providing a free `AI Video Generator` service based on this
-project. It allows for online use without deployment, which is very convenient.
-
-- Chinese version: https://reccloud.cn
-- English version: https://reccloud.com
-
-![](docs/reccloud.com.jpg)
-
-## Thanks for Sponsorship 🙏
-
-Thanks to Picwish https://picwish.com for supporting and sponsoring this project, enabling continuous updates and maintenance.
-
-Picwish focuses on the **image processing field**, providing a rich set of **image processing tools** that extremely simplify complex operations, truly making image processing easier.
-
-![picwish.jpg](docs/picwish.com.jpg)
 
 ## Features 🎯
 
@@ -53,27 +32,19 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 - [x] Supports **AI-generated** video copy, as well as **customized copy**
 - [x] Supports various **high-definition video** sizes
     - [x] Portrait 9:16, `1080x1920`
+    - [x] Portrait 3:4, `1080x1440`
     - [x] Landscape 16:9, `1920x1080`
+    - [x] Square 1:1, `1080x1080`
 - [x] Supports **batch video generation**, allowing the creation of multiple videos at once, then selecting the most
   satisfactory one
 - [x] Supports setting the **duration of video clips**, facilitating adjustments to material switching frequency
 - [x] Supports video copy in both **Chinese** and **English**
-- [x] Supports **multiple voice** synthesis, with **real-time preview** of effects
+- [x] Supports **multiple voice** synthesis, with **real-time preview** of effects, including **Azure TTS**, **SiliconFlow**, **Gemini TTS**, **Coze TTS**, **Qwen TTS**
 - [x] Supports **subtitle generation**, with adjustable `font`, `position`, `color`, `size`, and also
   supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
-- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **ERNIE**, **Pollinations**, **ModelScope** and more
-
-### Future Plans 📅
-
-- [ ] GPT-SoVITS dubbing support
-- [ ] Optimize voice synthesis using large models for more natural and emotionally rich voice output
-- [ ] Add video transition effects for a smoother viewing experience
-- [ ] Add more video material sources, improve the matching between video materials and script
-- [ ] Add video length options: short, medium, long
-- [ ] Support more voice synthesis providers, such as OpenAI TTS
-- [ ] Automate upload to YouTube platform
+- [x] Supports integration with various models such as **OpenAI**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **ERNIE**, **Pollinations**, **Cloudflare**, **ModelScope** and more
 
 ## Video Demos 📺
 
@@ -113,7 +84,7 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 ## System Requirements 📦
 
-- Recommended minimum 4 CPU cores or more, 4G of memory or more, GPU is not required
+- Recommended minimum 4 CPU cores or more, 4G of memory or more, GPU is not mandatory but highly recommended.
 - Windows 10 or MacOS 11.0, and their later versions
 
 ## Quick Start 🚀
@@ -122,8 +93,7 @@ Picwish focuses on the **image processing field**, providing a rich set of **ima
 
 Download the one-click launch package, unzip and use directly (path should not contain **Chinese**, **special characters**, **spaces**)
 
-- Baidu Netdisk (v1.2.6): https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx
-- Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
+- Baidu Netdisk (v1.2.66): https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx
 
 After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
 
@@ -254,8 +224,8 @@ It is recommended to create a Python virtual environment using [conda](https://c
 ```shell
 git clone https://github.com/RyanFeiluX/Coiner.git
 cd Coiner
-conda create -n coiner python=3.12
-conda activate coiner  
+conda create -n condaenv-coiner python=3.12
+conda activate condaenv-coiner  
 pip install -r requirements.txt
 ```
 
@@ -342,7 +312,6 @@ satisfactory.
 Download links:
 
 - Baidu Netdisk: https://pan.baidu.com/s/11h3Q6tsDtjQKTjUu3sc5cA?pwd=xjs9
-- Quark Netdisk: https://pan.quark.cn/s/3ee3d991d64b
 
 After downloading the model, extract it and place the entire directory in `./Coiner/models`,
 The final file path should look like this: `./Coiner/models/whisper-large-v3`
@@ -369,6 +338,50 @@ Background music for videos is located in the project's `resource/songs` directo
 Fonts for rendering video subtitles are located in the project's `resource/fonts` directory, and you can also add your
 own fonts.
 
+## Advanced Configuration ⚙️
+
+The project provides advanced configuration options in `config.toml` for fine-tuning video generation:
+
+### Video Generation Settings
+
+- `video_clip_duration`: Duration of each video clip in seconds (default: 6)
+- `video_count`: Number of video clips to use (default: 1)
+- `video_style`: Video material style filter (options: "none", "people", "nature", "animation", "cartoon", "industry", "science", "tech", "business", "ai")
+- `video_quality`: Video quality preset (options: "low", "medium", "high", "ultra")
+- `video_transition_mode`: Scene transition effect (options: "none", "fade", "slide")
+- `silence_duration`: Still frame duration at the beginning of the final video in seconds (default: 0.3)
+- `max_parallel_scenes`: Number of scenes to process in parallel (1=sequential, 2=recommended, 3-4=requires more memory)
+
+### Intro Video Settings
+
+- `intro_video_bg_type`: Background type for intro video (options: "solid", "blurred")
+- `intro_video_bg_blur`: Blur radius for blurred background (recommended: 5-50)
+- `intro_video_bg_color`: Background color for solid background (e.g., "black", "#000000")
+
+### Subtitle Settings
+
+- `subtitle_enabled`: Enable subtitle generation (default: true)
+- `subtitle_position`: Subtitle position (options: "top", "center", "bottom", "custom")
+- `subtitle_custom_position`: Custom position percentage from top (only when position is "custom", default: 70.0)
+- `subtitle_margin`: Subtitle margin as percentage of video height (default: 0.05)
+
+### Performance Settings
+
+- `max_concurrent_tasks`: Maximum number of concurrent video generation tasks (default: 5)
+- `use_gpu`: Use GPU for video encoding (default: false)
+
+### Service Settings
+
+- `endpoint`: External download endpoint for generated videos (leave empty for auto-detection)
+- `enable_redis`: Enable Redis for task state management (default: false)
+
+### Logging Settings
+
+- `console_log_level`: Controls terminal output verbosity (options: "TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL")
+  - "DEBUG": Shows all details
+  - "INFO": Cleaner console output (recommended)
+  - "WARNING": Minimal output
+
 ## Common Questions 🤔
 
 ### ❓RuntimeError: No ffmpeg exe could be found
@@ -387,22 +400,8 @@ actual installation path.
 ```toml
 [app]
 # Please set according to your actual path, note that Windows path separators are \
-ffmpeg_path = "C:\Users\harry\Downloads\ffmpeg.exe"
+ffmpeg_path = "C:\...\ffmpeg.exe"
 ```
-
-### ❓ImageMagick is not installed on your computer
-
-[issue 33](https://github.com/RyanFeiluX/Coiner/issues/33)
-
-1. Follow the `example configuration` provided `download address` to
-   install https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-30-Q16-x64-static.exe, using the static library
-2. Do not install in a path with Chinese characters to avoid unpredictable issues
-
-[issue 54](https://github.com/RyanFeiluX/Coiner/issues/54#issuecomment-2017842022)
-
-For Linux systems, you can manually install it, refer to https://cn.linux-console.net/?p=16978
-
-Thanks to [@wangwenqiao666](https://github.com/wangwenqiao666) for their research and exploration
 
 ### ❓ImageMagick's security policy prevents operations related to temporary file @/tmp/tmpur5hyyto.txt
 
@@ -449,7 +448,3 @@ Solution: [Click to see how to manually download the model from netdisk](#subtit
 ## License 📝
 
 Click to view the [`LICENSE`](LICENSE) file
-
-<!-- ## Star History (upstream: harry0703/MoneyPrinterTurbo)
-
-[![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date) -->

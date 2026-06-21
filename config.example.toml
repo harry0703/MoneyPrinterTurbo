@@ -218,7 +218,7 @@ video_concat_mode = "sequential"
 video_transition_mode = "none"
 
 # Video aspect ratio
-# Options: "portrait_9_16", "portrait_3_4", "landscape_16_9", "landscape_4_3", "square"
+# Options: "portrait_9_16", "portrait_3_4", "landscape_16_9", "square"
 video_aspect = "portrait_9_16"
 
 # Video clip duration in seconds

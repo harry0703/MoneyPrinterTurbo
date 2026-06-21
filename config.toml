@@ -1,5 +1,5 @@
 project_name = "Coiner"
-project_version = "2.5.3"
+project_version = "2.5.4"
 
 [app]
 host_visible = false
@@ -100,7 +100,7 @@ stroke_color = "#000000"
 stroke_width = 1.5
 output_bg_color = "black"
 title_enabled = true
-title_text = "揭秘KV缓存内存危机"
+title_text = "DeepSeek\n精打细算的秘诀"
 title_duration = 5
 title_font_name = "MicrosoftYaHeiBold.ttc"
 title_font_size = 92

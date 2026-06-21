@@ -5,39 +5,21 @@
   <a href="https://github.com/RyanFeiluX/Coiner/stargazers"><img src="https://img.shields.io/github/stars/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Stargazers"></a>
   <a href="https://github.com/RyanFeiluX/Coiner/issues"><img src="https://img.shields.io/github/issues/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Issues"></a>
   <a href="https://github.com/RyanFeiluX/Coiner/network/members"><img src="https://img.shields.io/github/forks/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="Forks"></a>
-  <a href="https://github.com/RyanFeiluX/Coiner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/RyanFeiluX/Coiner/LICENSE"><img src="https://img.shields.io/github/license/RyanFeiluX/Coiner.svg?style=for-the-badge" alt="License"></a>
 </p>
 <br>
-只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
+只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的中等长度视频。
 <br>
 
 <h4>Web界面</h4>
 
-![](docs/webui.jpg)
+![](docs/ui-script-setting.png)
 
 <h4>API界面</h4>
 
-![](docs/api.jpg)
+![](docs/ui-api.jpg)
 
 </div>
-
-## 特别感谢 🙏
-
-由于该项目的 **部署** 和 **使用**，对于一些小白用户来说，还是 **有一定的门槛**，在此特别感谢
-**录咖（AI智能 多媒体服务平台）** 网站基于该项目，提供的免费`AI视频生成器`服务，可以不用部署，直接在线使用，非常方便。
-
-- 中文版：https://reccloud.cn
-- 英文版：https://reccloud.com
-
-![](docs/reccloud.cn.jpg)
-
-## 感谢赞助 🙏
-
-感谢佐糖 https://picwish.cn 对该项目的支持和赞助，使得该项目能够持续的更新和维护。
-
-佐糖专注于**图像处理领域**，提供丰富的**图像处理工具**，将复杂操作极致简化，真正实现让图像处理更简单。
-
-![picwish.jpg](docs/picwish.jpg)
 
 ## 功能特性 🎯
 
@@ -45,27 +27,25 @@
 - [x] 支持视频文案 **AI自动生成**，也可以**自定义文案**
 - [x] 支持多种 **高清视频** 尺寸
     - [x] 竖屏 9:16，`1080x1920`
+    - [x] 竖屏 3:4，`1080x1440`
     - [x] 横屏 16:9，`1920x1080`
+    - [x] 方形 1:1，`1080x1080`
 - [x] 支持 **批量视频生成**，可以一次生成多个视频，然后选择一个最满意的
 - [x] 支持 **视频片段时长** 设置，方便调节素材切换频率
 - [x] 支持 **中文** 和 **英文** 视频文案
-- [x] 支持 **多种语音** 合成，可 **实时试听** 效果
+- [x] 支持 **多种语音** 合成，可 **实时试听** 效果，包括 **Azure TTS**、**SiliconFlow**、**Gemini TTS**、**Coze TTS**、**Qwen TTS**
 - [x] 支持 **字幕生成**，可以调整 `字体`、`位置`、`颜色`、`大小`，同时支持`字幕描边`设置
 - [x] 支持 **背景音乐**，随机或者指定音乐文件，可设置`背景音乐音量`
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
-- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
-    - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
+- [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、 **文心一言**, **Pollinations**、**Cloudflare**、**ModelScope** 等多种模型接入
+    - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。）
 
 
-### 后期计划 📅
+### 未来计划 📅
 
-- [ ] GPT-SoVITS 配音支持
-- [ ] 优化语音合成，利用大模型，使其合成的声音，更加自然，情绪更加丰富
-- [ ] 增加视频转场效果，使其看起来更加的流畅
-- [ ] 增加更多视频素材来源，优化视频素材和文案的匹配度
-- [ ] 增加视频长度选项：短、中、长
-- [ ] 支持更多的语音合成服务商，比如 OpenAI TTS
-- [ ] 自动上传到YouTube平台
+- [ ] 添加视频过渡效果，提升观看体验流畅度
+- [ ] 增加更多视频素材来源，提高视频素材与脚本的匹配度
+- [ ] 支持更多语音合成提供商，如 OpenAI TTS
 
 ## 视频演示 📺
 
@@ -117,8 +97,7 @@
 
 下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
 
-- 百度网盘（v1.2.6）: https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx 提取码: sbqx
-- Google Drive (v1.2.6): https://drive.google.com/file/d/1HsbzfT7XunkrCrHw5ncUjFX8XX4zAuUh/view?usp=sharing
+- 百度网盘（v1.2.66）: https://pan.baidu.com/s/1wg0UaIyXpO3SqIpaq790SQ?pwd=sbqx 提取码: sbqx
 
 下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
 
@@ -249,8 +228,8 @@ docker-compose exec api bash
 ```shell
 git clone https://github.com/RyanFeiluX/Coiner.git
 cd Coiner
-conda create -n coiner python=3.12
-conda activate coiner  
+conda create -n condaenv-coiner python=3.12
+conda activate condaenv-coiner  
 pip install -r requirements.txt
 ```
 
@@ -353,6 +332,50 @@ Coiner
 
 用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
 
+## 高级配置 ⚙️
+
+项目提供了高级配置选项，可在 `config.toml` 中进行视频生成的精细调整：
+
+### 视频生成设置
+
+- `video_clip_duration`: 每个视频片段的时长（秒，默认：6）
+- `video_count`: 使用的视频片段数量（默认：1）
+- `video_style`: 视频素材风格过滤（选项："none", "people", "nature", "animation", "cartoon", "industry", "science", "tech", "business", "ai"）
+- `video_quality`: 视频质量预设（选项："low", "medium", "high", "ultra"）
+- `video_transition_mode`: 场景过渡效果（选项："none", "fade", "slide"）
+- `silence_duration`: 最终视频开头的静止帧时长（秒，默认：0.3）
+- `max_parallel_scenes`: 并行处理的场景数量（1=串行，2=推荐，3-4=需要更多内存）
+
+### 开场视频设置
+
+- `intro_video_bg_type`: 开场视频背景类型（选项："solid", "blurred"）
+- `intro_video_bg_blur`: 模糊背景的模糊半径（推荐：5-50）
+- `intro_video_bg_color`: 纯色背景的颜色（例如："black", "#000000"）
+
+### 字幕设置
+
+- `subtitle_enabled`: 启用字幕生成（默认：true）
+- `subtitle_position`: 字幕位置（选项："top", "center", "bottom", "custom"）
+- `subtitle_custom_position`: 自定义位置百分比（仅当位置为"custom"时使用，默认：70.0）
+- `subtitle_margin`: 字幕边距（视频高度的百分比，默认：0.05）
+
+### 性能设置
+
+- `max_concurrent_tasks`: 最大并发视频生成任务数（默认：5）
+- `use_gpu`: 使用GPU进行视频编码（默认：false）
+
+### 服务设置
+
+- `endpoint`: 生成视频的外部下载端点（留空表示自动检测）
+- `enable_redis`: 启用Redis进行任务状态管理（默认：false）
+
+### 日志设置
+
+- `console_log_level`: 控制终端输出详细程度（选项："TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"）
+  - "DEBUG": 显示所有详情
+  - "INFO": 更简洁的控制台输出（推荐）
+  - "WARNING": 最小输出
+
 ## 常见问题 🤔
 
 ### ❓RuntimeError: No ffmpeg exe could be found
@@ -418,7 +441,3 @@ Trying to load the model directly from the local cache, if it exists.
 ## 许可证 📝
 
 点击查看 [`LICENSE`](LICENSE) 文件
-
-<!-- ## Star History (upstream: harry0703/MoneyPrinterTurbo)
-
-[![Star History Chart](https://api.star-history.com/svg?repos=harry0703/MoneyPrinterTurbo&type=Date)](https://star-history.com/#harry0703/MoneyPrinterTurbo&Date) -->
