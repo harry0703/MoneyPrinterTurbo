@@ -338,8 +338,8 @@ Coiner
 
 ### 视频生成设置
 
-- `video_clip_duration`: 每个视频片段的时长（秒，默认：6）
-- `video_count`: 使用的视频片段数量（默认：1）
+- `video_clip_duration`: 每个视频片段的时长（秒，默认：3）
+- `video_count`: 使用的视频片段数量（默认：1）。**注意**：系统会从搜索结果中随机选择该数量1.5倍的视频进行下载，确保素材多样性
 - `video_style`: 视频素材风格过滤（选项："none", "people", "nature", "animation", "cartoon", "industry", "science", "tech", "business", "ai"）
 - `video_quality`: 视频质量预设（选项："low", "medium", "high", "ultra"）
 - `video_transition_mode`: 场景过渡效果（选项："none", "fade", "slide"）

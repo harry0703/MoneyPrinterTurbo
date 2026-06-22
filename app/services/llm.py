@@ -1125,9 +1125,9 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
                 scene_id += 1
             logger.info(f"Successfully parsed {len(scenes)} scenes from JSON format")
             
-            # 限制场景数量在合理范围内 (5-16)
+            # 限制场景数量在合理范围内 (3-16)
             max_scenes = 16
-            min_scenes = 5
+            min_scenes = 3
             if len(scenes) > max_scenes:
                 logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")
                 scenes = scenes[:max_scenes]
@@ -1288,9 +1288,9 @@ def parse_multi_scene_script(script_text: str) -> List[Dict]:
         }
         scenes.append(scene)
     
-    # 限制场景数量在合理范围内 (5-16)
+    # 限制场景数量在合理范围内 (3-16)
     max_scenes = 16
-    min_scenes = 5
+    min_scenes = 3
     if len(scenes) > max_scenes:
         logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")
         scenes = scenes[:max_scenes]

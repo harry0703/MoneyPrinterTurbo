@@ -139,7 +139,6 @@ export const apiService = {
 
   // Settings related
   getVersion: async (): Promise<VersionResponse> => {
-    // /version is under /api prefix
     const response = await axios.get('http://localhost:8000/api/version');
     return response.data;
   },

@@ -345,7 +345,7 @@ The project provides advanced configuration options in `config.toml` for fine-tu
 ### Video Generation Settings
 
 - `video_clip_duration`: Duration of each video clip in seconds (default: 6)
-- `video_count`: Number of video clips to use (default: 1)
+- `video_count`: Number of video clips to use (default: 1). **Note**: The system will randomly select 1.5x this number of videos from search results for download, ensuring diverse material coverage
 - `video_style`: Video material style filter (options: "none", "people", "nature", "animation", "cartoon", "industry", "science", "tech", "business", "ai")
 - `video_quality`: Video quality preset (options: "low", "medium", "high", "ultra")
 - `video_transition_mode`: Scene transition effect (options: "none", "fade", "slide")

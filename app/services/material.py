@@ -191,15 +191,14 @@ def search_videos_pexels(
                     else:
                         logger.warning(f"Skipping video requiring too much upscaling: {w}x{h} -> {video_width}x{video_height} (scale: {max_scale:.2f}x, max allowed: 1.10x)")
                         continue
-                else:
-                    # logger.info(f"Video quality OK: {w}x{h} -> {video_width}x{video_height} (no upscaling needed or will be downscaled)")
-                    
-                    item = MaterialInfo()
-                    item.provider = "pexels"
-                    item.url = best_video["link"]
-                    item.duration = duration
-                    item.width = w
-                    item.height = h
+                
+                # Create item for videos that passed quality checks
+                item = MaterialInfo()
+                item.provider = "pexels"
+                item.url = best_video["link"]
+                item.duration = duration
+                item.width = w
+                item.height = h
                 
                 video_items.append(item)
                 # logger.info(f"Selected video: {w}x{h}, target: {video_width}x{video_height}, scale_factor: {max_scale:.2f}x")
@@ -468,20 +467,20 @@ def download_videos(
     if target_number_of_clips is None:
         # Calculate minimum required clips based on audio duration
         min_required_clips = max(1, int(math.ceil(audio_duration / max_clip_duration)))
-        # Randomly select 2-3x the required clips (2 to 3 times)
-        target_number_of_clips = random.randint(min_required_clips * 2, min_required_clips * 3)
-        logger.info(f"No target specified - calculated: min_required={min_required_clips}, target={target_number_of_clips}")
+        # Set target to 1.5x the required clips for better coverage
+        target_number_of_clips = int(min_required_clips * 1.5)
+        logger.info(f"No target specified - calculated: min_required={min_required_clips}, target={target_number_of_clips} (1.5x)")
     else:
-        # Randomly select 2-3x the provided target
-        target_number_of_clips = random.randint(target_number_of_clips * 2, target_number_of_clips * 3)
-        logger.info(f"Using provided target: {target_number_of_clips}")
+        # Set target to 1.5x the provided target for better coverage
+        target_number_of_clips = int(target_number_of_clips * 1.5)
+        logger.info(f"Using provided target: {target_number_of_clips} (1.5x)")
     
-    # Limit the valid_video_items to our target number
+    # Randomly select specific number of videos from search results
     if len(valid_video_items) > target_number_of_clips:
-        # Randomly select from available videos
+        # Shuffle to ensure random selection, then pick target number
         random.shuffle(valid_video_items)
         valid_video_items = valid_video_items[:target_number_of_clips]
-        logger.info(f"Limiting downloads to {target_number_of_clips} videos (selected from {total_available_videos} available)")
+        logger.info(f"Randomly selected {target_number_of_clips} videos from {total_available_videos} available for download")
     else:
         logger.info(f"Downloading all {len(valid_video_items)} available videos (less than target of {target_number_of_clips})")
 

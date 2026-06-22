@@ -1144,9 +1144,9 @@ def parse_script_with_llm(script: str, language: str = None, host_visible: bool 
             logger.info(f"[Scene {i+1} Created Successfully] Lines length: {len(paragraph)} chars, Estimated duration: {duration} seconds")
             current_time += duration
     
-    # Limit the number of scenes to a reasonable range (5-16)
+    # Limit the number of scenes to a reasonable range (3-16)
     max_scenes = 16
-    min_scenes = 5
+    min_scenes = 3
     if len(scenes) > max_scenes:
         logger.warning(f"Found {len(scenes)} scenes, limiting to {max_scenes} scenes")
         scenes = scenes[:max_scenes]

@@ -46,9 +46,9 @@ ENV PYTHONPATH="/Coiner"
 # Align LD_LIBRARY_PATH with the CUDA 11.8 base image
 ENV LD_LIBRARY_PATH="/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda-11.8/targets/x86_64-linux/lib"
 ENV IMAGEIO_FFMPEG_EXE="/usr/bin/ffmpeg"
-# Match the docker-compose port mapping (8080:8080)
+# Match the docker-compose port mapping (8000:8000)
 ENV LISTEN_HOST="0.0.0.0"
-ENV LISTEN_PORT="8080"
+ENV LISTEN_PORT="8000"
 
 # Install runtime dependencies
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \

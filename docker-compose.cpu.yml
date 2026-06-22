@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
     container_name: "coiner-api"
     ports:
-      - "8080:8080"
+      - "8000:8000"
     volumes: *common-volumes
     restart: always
     environment:
