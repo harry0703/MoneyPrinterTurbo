@@ -24,6 +24,7 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 from openai import OpenAI
 
 from app.config import config
+from app.services import voice_clone as vc
 from app.utils import utils
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
@@ -200,6 +201,83 @@ def is_mimo_voice(voice_name: str):
     return voice_name.startswith("mimo:")
 
 
+def is_voice_clone_voice(voice_name: str):
+    """检查是否是声纹克隆的声音"""
+    return vc.is_voice_clone_voice(voice_name)
+
+
+def voice_clone_tts(
+    text: str,
+    voice_name: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """使用声纹克隆引擎进行语音合成。
+
+    从 voice_name 中解析 voice_id，读取已保存的参考音频，
+    调用声纹克隆引擎（如 GPT-SoVITS）合成语音。
+    """
+    try:
+        voice_id = vc.parse_voice_clone_id(voice_name)
+    except ValueError as exc:
+        logger.error(f"Invalid voice clone voice name: {voice_name}, error: {str(exc)}")
+        return None
+
+    text = text.strip()
+    if not text:
+        logger.error("Voice clone TTS text is empty")
+        return None
+
+    for i in range(3):
+        try:
+            logger.info(f"start voice clone tts, voice_id: {voice_id}, try: {i + 1}")
+
+            audio_bytes = vc.synthesize_cloned_voice(
+                text=text,
+                voice_id=voice_id,
+                voice_file=voice_file,
+                speed=voice_rate,
+            )
+
+            if audio_bytes is None:
+                logger.warning(
+                    f"voice clone tts attempt {i + 1} returned no audio"
+                )
+                continue
+
+            # Build SubMaker with estimated subtitle timeline
+            # Voice clone engines don't return word-level timestamps,
+            # so we fall back to sentence-level timing based on audio duration.
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            try:
+                from moviepy import AudioFileClip as _AudioFileClip
+
+                audio_clip = _AudioFileClip(voice_file)
+                audio_duration = audio_clip.duration
+                audio_clip.close()
+            except Exception:
+                # Estimate: ~4 chars/sec for Chinese, ~12 chars/sec for English
+                if any("一" <= ch <= "鿿" for ch in text[:10]):
+                    audio_duration = max(len(text) / 4.0, 1.0)
+                else:
+                    audio_duration = max(len(text) / 12.0, 1.0)
+
+            sub_maker = populate_legacy_submaker_with_full_text(
+                sub_maker=sub_maker,
+                text=text,
+                audio_duration_seconds=audio_duration,
+            )
+
+            logger.success(f"voice clone tts succeeded: {voice_file}")
+            return sub_maker
+
+        except Exception as e:
+            logger.error(f"voice clone tts failed: {str(e)}")
+
+    return None
+
+
 def is_no_voice(voice_name: str | None) -> bool:
     """
     判断用户是否明确选择了“无配音”模式。
@@ -317,7 +395,9 @@ def tts(
             audio_duration_seconds=duration_seconds,
         )
 
-    if is_azure_v2_voice(voice_name):
+    if is_voice_clone_voice(voice_name):
+        return voice_clone_tts(text, voice_name, voice_rate, voice_file, voice_volume)
+    elif is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
     elif is_siliconflow_voice(voice_name):
         # 从voice_name中提取模型和声音

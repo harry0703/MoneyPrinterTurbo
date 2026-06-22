@@ -378,3 +378,72 @@ class VideoMaterialUploadResponse(BaseResponse):
                 },
             },
         }
+
+
+###############################################################################
+# Voice Clone schemas
+###############################################################################
+
+
+class VoiceCloneInfo(BaseModel):
+    """Metadata for a saved cloned voice."""
+
+    voice_id: str
+    name: str
+    prompt_text: str
+    prompt_lang: str = "zh"
+    engine: str = "gpt_sovits"
+    created_at: Optional[float] = None
+
+
+class VoiceCloneListResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "voices": [
+                        {
+                            "voice_id": "abc123",
+                            "name": "my-voice",
+                            "prompt_text": "你好，这是我的声音样本",
+                            "prompt_lang": "zh",
+                            "engine": "gpt_sovits",
+                            "created_at": 1717000000.0,
+                        }
+                    ]
+                },
+            },
+        }
+
+
+class VoiceCloneCreateResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "voice_id": "abc123",
+                    "name": "my-voice",
+                    "prompt_text": "你好，这是我的声音样本",
+                    "prompt_lang": "zh",
+                    "engine": "gpt_sovits",
+                },
+            },
+        }
+
+
+class VoiceClonePreviewResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "audio_url": "/voice_clone/preview/abc123/audio.mp3",
+                    "duration": 3.5,
+                },
+            },
+        }

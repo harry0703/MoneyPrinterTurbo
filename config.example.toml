@@ -305,6 +305,29 @@ max_concurrent_tasks = 5
 max_queued_tasks = 100
 
 
+###############################################################################
+# Voice Clone Settings (声纹克隆)
+#
+# 使用开源声纹克隆引擎（如 GPT-SoVITS、Fish-Speech），上传一段短音频
+# 即可生成专属 AI 音色，用于视频配音。
+#
+# Prerequisites:
+#   GPT-SoVITS:  git clone https://github.com/RVC-Boss/GPT-SoVITS.git
+#                python api_v2.py -a 0.0.0.0 -p 9880
+#   Fish-Speech: git clone https://github.com/fishaudio/fish-speech.git
+#                python tools/api_server.py --port 8080 ...
+###############################################################################
+
+# 声纹克隆引擎: "gpt_sovits" 或 "fish_speech"
+# 留空表示禁用声纹克隆功能
+voice_clone_engine = ""
+
+# 声纹克隆引擎的 API 地址
+# GPT-SoVITS 默认: http://127.0.0.1:9880
+# Fish-Speech 默认: http://127.0.0.1:8080
+voice_clone_api_url = ""
+
+
 [whisper]
 # Only effective when subtitle_provider is "whisper"
 
