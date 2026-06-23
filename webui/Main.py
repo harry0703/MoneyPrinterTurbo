@@ -987,7 +987,15 @@ with middle_panel:
             # 获取 Xiaomi MiMo TTS 的预置音色列表
             filtered_voices = voice.get_mimo_voices()
         elif selected_tts_server == "elevenlabs":
-            saved_elevenlabs_api_key = config.elevenlabs.get("api_key", "")
+            # Read from session_state first so the API key is available before
+            # the Play Voice button runs (which is earlier in the script than
+            # the API key text_input widget).
+            saved_elevenlabs_api_key = st.session_state.get(
+                "elevenlabs_api_key_input",
+                config.elevenlabs.get("api_key", ""),
+            )
+            if saved_elevenlabs_api_key:
+                config.elevenlabs["api_key"] = saved_elevenlabs_api_key
             cache_key = f"elevenlabs_voices_{saved_elevenlabs_api_key}"
             if cache_key not in st.session_state:
                 st.session_state[cache_key] = voice.get_elevenlabs_voices(
