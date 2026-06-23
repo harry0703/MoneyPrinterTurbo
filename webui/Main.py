@@ -1012,12 +1012,16 @@ with middle_panel:
         if selected_tts_server == voice.NO_VOICE_NAME:
             friendly_names = {voice.NO_VOICE_NAME: tr("No Voice")}
         else:
-            friendly_names = {
-                v: v.replace("Female", tr("Female"))
-                .replace("Male", tr("Male"))
-                .replace("Neural", "")
-                for v in filtered_voices
-            }
+            def _friendly(v):
+                if voice.is_elevenlabs_voice(v):
+                    parts = v.split(":", 2)
+                    return parts[2] if len(parts) >= 3 else v
+                return (
+                    v.replace("Female", tr("Female"))
+                    .replace("Male", tr("Male"))
+                    .replace("Neural", "")
+                )
+            friendly_names = {v: _friendly(v) for v in filtered_voices}
 
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
