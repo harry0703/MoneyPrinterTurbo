@@ -62,6 +62,7 @@ coverr_api_keys = []
 #   oneapi
 #   cloudflare
 #   minimax
+#   evolink    (OpenAI-compatible multi-model AI gateway)
 #   mimo       (Xiaomi MiMo)
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
@@ -178,6 +179,15 @@ qwen_model_name = "qwen-max"
 minimax_api_key = ""
 minimax_base_url = "https://api.minimax.io/v1"
 minimax_model_name = "MiniMax-M3"
+
+########## EvoLink API Key
+# EvoLink is an OpenAI-compatible gateway for language models.
+# Visit https://evolink.ai/dashboard/keys to get your API key.
+# API documentation: https://docs.evolink.ai/en/api-manual/language-series
+# Available models include gpt-5.5, gpt-5.4, gpt-5.2, deepseek-v4-flash, deepseek-v4-pro, gemini-3.1-pro, and doubao-seed-2.0-pro.
+evolink_api_key = ""
+evolink_base_url = "https://direct.evolink.ai/v1"
+evolink_model_name = "gpt-5.5"
 
 ########## Xiaomi MiMo API Key
 # Xiaomi MiMo API is OpenAI-compatible.

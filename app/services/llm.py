@@ -260,6 +260,14 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.app.get("minimax_base_url", "")
                 if not base_url:
                     base_url = "https://api.minimax.io/v1"
+            elif llm_provider == "evolink":
+                api_key = config.app.get("evolink_api_key")
+                model_name = config.app.get("evolink_model_name")
+                base_url = config.app.get("evolink_base_url", "")
+                if not base_url:
+                    base_url = "https://direct.evolink.ai/v1"
+                if not model_name:
+                    model_name = "gpt-5.5"
             elif llm_provider == "mimo":
                 api_key = config.app.get("mimo_api_key")
                 model_name = config.app.get("mimo_model_name")

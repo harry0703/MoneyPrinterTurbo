@@ -307,24 +307,33 @@ if not config.app.get("hide_config", False):
                 ("Pollinations", "pollinations"),
                 ("LiteLLM", "litellm"),
             ]
-            llm_provider_labels = [label for label, _ in llm_provider_options]
-            llm_provider_values = {
-                label: provider_id for label, provider_id in llm_provider_options
+            llm_provider_ids = [provider_id for _, provider_id in llm_provider_options]
+            llm_provider_labels = {
+                provider_id: label for label, provider_id in llm_provider_options
             }
             saved_llm_provider = config.app.get("llm_provider", "openai").lower()
-            saved_llm_provider_index = 0
-            for i, (_, provider_id) in enumerate(llm_provider_options):
-                if provider_id == saved_llm_provider:
-                    saved_llm_provider_index = i
-                    break
+            if saved_llm_provider not in llm_provider_ids:
+                saved_llm_provider = "openai"
 
-            llm_provider_label = st.selectbox(
+            # Streamlit 会把没有 key 的 selectbox 视为一个由 label/options/index
+            # 共同决定的临时控件。如果每次选择后都根据 config.app 重新计算 index，
+            # 用户第一次切换 provider 后控件可能被重建，表现为“必须选择两次才生效”。
+            # 这里用稳定的 provider id 作为真实选项，并给控件固定 key；展示文案只
+            # 通过 format_func 转换，避免 UI 文案变化影响状态。
+            if st.session_state.get("llm_provider_select") not in (
+                None,
+                *llm_provider_ids,
+            ):
+                del st.session_state["llm_provider_select"]
+
+            llm_provider = st.selectbox(
                 tr("LLM Provider"),
-                options=llm_provider_labels,
-                index=saved_llm_provider_index,
+                options=llm_provider_ids,
+                index=llm_provider_ids.index(saved_llm_provider),
+                format_func=lambda provider_id: llm_provider_labels[provider_id],
+                key="llm_provider_select",
             )
             llm_helper = st.container()
-            llm_provider = llm_provider_values[llm_provider_label]
             config.app["llm_provider"] = llm_provider
 
             llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
@@ -566,13 +575,6 @@ if not config.app.get("hide_config", False):
                             """
 
             if tips and config.ui["language"] == "zh":
-                # AIHubMix 自身就是 OpenAI-compatible 聚合平台；用户主动选择
-                # 该 provider 时，再显示 DeepSeek/Moonshot 的通用推荐会造成
-                # 信息干扰，也不利于保持合作入口的轻量、清晰。
-                if llm_provider != "aihubmix":
-                    st.warning(
-                        "中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商\n- 国内可直接访问，不需要VPN \n- 注册就送额度，基本够用"
-                    )
                 st.info(tips)
 
             st_llm_api_key = st.text_input(

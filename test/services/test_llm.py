@@ -449,6 +449,48 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
         self.assertEqual(result, "helloaimlapi")
 
+    def test_evolink_provider_uses_openai_compatible_client(self):
+        """
+        EvoLink exposes OpenAI-compatible Chat Completions at direct.evolink.ai.
+        The provider should keep its own default endpoint and model instead of
+        requiring users to overload the generic OpenAI settings.
+        """
+        config.app["llm_provider"] = "evolink"
+        config.app["evolink_api_key"] = "evolink-key"
+        config.app["evolink_base_url"] = ""
+        config.app["evolink_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nevolink")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="evolink-key",
+            base_url="https://direct.evolink.ai/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "gpt-5.5",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "helloevolink")
+
     def test_grok_provider_still_uses_existing_path(self):
         config.app["llm_provider"] = "grok"
         config.app["grok_api_key"] = ""
