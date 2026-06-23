@@ -1,5 +1,5 @@
 [app]
-video_source = "pexels" # "pexels" or "pixabay"
+video_source = "pexels" # "pexels", "pixabay", "coverr", "discord" or "local"
 
 # 是否隐藏配置面板
 hide_config = false
@@ -47,6 +47,19 @@ pixabay_api_keys = []
 # 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 coverr_api_keys = []
+
+# Discord Bot Token
+# Use this when video_source = "discord" to load videos straight from a Discord
+# channel instead of a stock-footage search API.
+# Setup:
+#   1. Create an application + bot at https://discord.com/developers/applications
+#   2. Under the bot settings, enable the "Message Content Intent".
+#   3. Invite the bot to your server with the "View Channels" and
+#      "Read Message History" permissions (OAuth2 > URL Generator, scope: bot).
+#   4. Copy the bot token and paste it below.
+# In the WebUI you then pick the server and channel; the newest N video
+# attachments in that channel are downloaded as materials.
+discord_bot_token = ""
 
 # 支持的提供商 (Supported providers):
 #   openai
