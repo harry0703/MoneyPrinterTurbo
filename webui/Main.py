@@ -1058,6 +1058,7 @@ with middle_panel:
                     "No voices available for the selected TTS server. Please select another server."
                 )
             )
+            voice_name = ""
             params.voice_name = ""
             config.ui["voice_name"] = ""
 
