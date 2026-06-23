@@ -209,6 +209,20 @@ def _generate_response(prompt: str) -> str:
                     base_url = "https://api.aimlapi.com/v1"
                 if not model_name:
                     model_name = "openai/gpt-4o-mini"
+            elif llm_provider == "atlas":
+                api_key = config.app.get("atlas_api_key")
+                model_name = config.app.get("atlas_model_name")
+                base_url = config.app.get("atlas_base_url", "")
+                # Atlas Cloud 提供 OpenAI 兼容的 Chat Completions 接口。这里使用
+                # 独立 provider 保存默认网关和推荐模型，避免把这些合作配置混进
+                # 普通 OpenAI provider，影响现有用户。默认模型 deepseek-v4-pro 带
+                # 思维链（reasoning）：本项目走通用 OpenAI 分支、不显式传 max_tokens，
+                # 因此不会出现思维链耗尽 token 导致 content 为空的问题；若用户自定义
+                # 调用时设置了 max_tokens，建议给到 >= 512。
+                if not base_url:
+                    base_url = "https://api.atlascloud.ai/v1"
+                if not model_name:
+                    model_name = "deepseek-ai/deepseek-v4-pro"
             elif llm_provider == "oneapi":
                 api_key = config.app.get("oneapi_api_key")
                 model_name = config.app.get("oneapi_model_name")
