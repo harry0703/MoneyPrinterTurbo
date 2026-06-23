@@ -344,6 +344,12 @@ speech_region = ""
 # Get your API key at https://siliconflow.cn
 api_key = ""
 
+[elevenlabs]
+# ElevenLabs API Key
+# Get your API key at https://elevenlabs.io/app/settings/api-keys
+# Mark voices as favorites in the ElevenLabs voice library to make them appear here.
+api_key = ""
+
 [ui]
 # UI related settings
 # 是否隐藏日志信息
