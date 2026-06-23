@@ -485,7 +485,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             fake_completions.kwargs,
             {
-                "model": "gpt-5.2",
+                "model": "gpt-5.5",
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )

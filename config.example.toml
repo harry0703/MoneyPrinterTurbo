@@ -184,10 +184,10 @@ minimax_model_name = "MiniMax-M3"
 # EvoLink is an OpenAI-compatible gateway for language models.
 # Visit https://evolink.ai/dashboard/keys to get your API key.
 # API documentation: https://docs.evolink.ai/en/api-manual/language-series
-# Available models include gpt-5.2, deepseek-v4-flash, deepseek-v4-pro, gemini-3.1-pro, and doubao-seed-2.0-pro.
+# Available models include gpt-5.5, gpt-5.4, gpt-5.2, deepseek-v4-flash, deepseek-v4-pro, gemini-3.1-pro, and doubao-seed-2.0-pro.
 evolink_api_key = ""
 evolink_base_url = "https://direct.evolink.ai/v1"
-evolink_model_name = "gpt-5.2"
+evolink_model_name = "gpt-5.5"
 
 ########## Xiaomi MiMo API Key
 # Xiaomi MiMo API is OpenAI-compatible.

@@ -267,7 +267,7 @@ def _generate_response(prompt: str) -> str:
                 if not base_url:
                     base_url = "https://direct.evolink.ai/v1"
                 if not model_name:
-                    model_name = "gpt-5.2"
+                    model_name = "gpt-5.5"
             elif llm_provider == "mimo":
                 api_key = config.app.get("mimo_api_key")
                 model_name = config.app.get("mimo_model_name")
