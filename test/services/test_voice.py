@@ -734,6 +734,95 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(vs.convert_rate_to_percent(0.8), "-20%")
 
 
+class TestElevenLabsVoice(unittest.TestCase):
+
+    def test_is_elevenlabs_voice_true(self):
+        self.assertTrue(vs.is_elevenlabs_voice("elevenlabs:pNInz6obpgDQGcFmaJgB:Adam"))
+
+    def test_is_elevenlabs_voice_false_azure(self):
+        self.assertFalse(vs.is_elevenlabs_voice("zh-CN-XiaoxiaoNeural-Female"))
+
+    def test_is_elevenlabs_voice_false_siliconflow(self):
+        self.assertFalse(vs.is_elevenlabs_voice("siliconflow:model:voice-Male"))
+
+    def test_is_elevenlabs_voice_empty(self):
+        self.assertFalse(vs.is_elevenlabs_voice(""))
+
+    def test_is_elevenlabs_voice_none(self):
+        self.assertFalse(vs.is_elevenlabs_voice(None))
+
+    def test_get_elevenlabs_voices_empty_api_key(self):
+        result = vs.get_elevenlabs_voices("")
+        self.assertEqual(result, [])
+
+    @patch("app.services.voice.requests.get")
+    def test_get_elevenlabs_voices_success(self, mock_get):
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            "voices": [
+                {"voice_id": "abc123", "name": "Adam"},
+                {"voice_id": "def456", "name": "Rachel"},
+            ]
+        }
+        result = vs.get_elevenlabs_voices("fake-api-key")
+        self.assertEqual(result, [
+            "elevenlabs:abc123:Adam",
+            "elevenlabs:def456:Rachel",
+        ])
+        mock_get.assert_called_once()
+        call_kwargs = mock_get.call_args
+        self.assertIn("xi-api-key", call_kwargs.kwargs.get("headers", {}))
+
+    @patch("app.services.voice.requests.get")
+    def test_get_elevenlabs_voices_http_error(self, mock_get):
+        mock_get.return_value.status_code = 401
+        mock_get.return_value.text = "Unauthorized"
+        result = vs.get_elevenlabs_voices("bad-key")
+        self.assertEqual(result, [])
+
+    @patch("app.services.voice.requests.get")
+    def test_get_elevenlabs_voices_network_error(self, mock_get):
+        import requests as req_lib
+        mock_get.side_effect = req_lib.exceptions.ConnectionError("timeout")
+        result = vs.get_elevenlabs_voices("fake-key")
+        self.assertEqual(result, [])
+
+    @patch("app.services.voice.requests.post")
+    @patch("app.services.voice.AudioFileClip")
+    @patch("app.services.voice.config")
+    def test_elevenlabs_tts_success(self, mock_config, mock_clip_cls, mock_post):
+        mock_config.elevenlabs.get.return_value = "fake-api-key"
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.content = b"fake-mp3-bytes"
+        mock_clip = mock_clip_cls.return_value.__enter__.return_value
+        mock_clip_cls.return_value.duration = 3.0
+        mock_clip_cls.return_value.close = lambda: None
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            out_path = f.name
+
+        try:
+            result = vs.elevenlabs_tts("Hello world", "abc123", out_path)
+            self.assertIsNotNone(result)
+            self.assertTrue(hasattr(result, "subs"))
+            self.assertTrue(hasattr(result, "offset"))
+        finally:
+            if os.path.exists(out_path):
+                os.remove(out_path)
+
+    @patch("app.services.voice.config")
+    def test_elevenlabs_tts_no_api_key(self, mock_config):
+        mock_config.elevenlabs.get.return_value = ""
+        result = vs.elevenlabs_tts("Hello", "abc123", "/tmp/test.mp3")
+        self.assertIsNone(result)
+
+    @patch("app.services.voice.config")
+    def test_elevenlabs_tts_empty_text(self, mock_config):
+        mock_config.elevenlabs.get.return_value = "fake-key"
+        result = vs.elevenlabs_tts("  ", "abc123", "/tmp/test.mp3")
+        self.assertIsNone(result)
+
+
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v2
