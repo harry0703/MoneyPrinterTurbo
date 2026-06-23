@@ -947,6 +947,7 @@ with middle_panel:
             ("siliconflow", "SiliconFlow TTS"),
             ("gemini-tts", "Google Gemini TTS"),
             ("mimo-tts", "Xiaomi MiMo TTS"),
+            ("elevenlabs", "ElevenLabs TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -983,6 +984,14 @@ with middle_panel:
         elif selected_tts_server == "mimo-tts":
             # 获取 Xiaomi MiMo TTS 的预置音色列表
             filtered_voices = voice.get_mimo_voices()
+        elif selected_tts_server == "elevenlabs":
+            saved_elevenlabs_api_key = config.elevenlabs.get("api_key", "")
+            cache_key = f"elevenlabs_voices_{saved_elevenlabs_api_key}"
+            if cache_key not in st.session_state:
+                st.session_state[cache_key] = voice.get_elevenlabs_voices(
+                    saved_elevenlabs_api_key
+                )
+            filtered_voices = st.session_state[cache_key]
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -1158,6 +1167,32 @@ with middle_panel:
             )
 
             config.app["mimo_api_key"] = mimo_api_key
+
+        # ElevenLabs API key section
+        if selected_tts_server == "elevenlabs" or (
+            voice_name and voice.is_elevenlabs_voice(voice_name)
+        ):
+            saved_elevenlabs_api_key = config.elevenlabs.get("api_key", "")
+
+            elevenlabs_api_key = st.text_input(
+                tr("ElevenLabs API Key"),
+                value=saved_elevenlabs_api_key,
+                type="password",
+                key="elevenlabs_api_key_input",
+            )
+
+            st.info(
+                "ElevenLabs TTS Settings:\n"
+                "- Get your API key at https://elevenlabs.io/app/settings/api-keys\n"
+                "- Mark voices as ★ Favorite in the ElevenLabs voice library to make them appear here"
+            )
+
+            if elevenlabs_api_key != saved_elevenlabs_api_key:
+                for k in list(st.session_state.keys()):
+                    if k.startswith("elevenlabs_voices_"):
+                        del st.session_state[k]
+
+            config.elevenlabs["api_key"] = elevenlabs_api_key
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
