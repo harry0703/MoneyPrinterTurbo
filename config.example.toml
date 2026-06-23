@@ -359,6 +359,8 @@ api_key = ""
 # Get your API key at https://elevenlabs.io/app/settings/api-keys
 # Mark voices as favorites in the ElevenLabs voice library to make them appear here.
 api_key = ""
+# Model: eleven_multilingual_v2 | eleven_flash_v2_5 | eleven_v3
+model_id = "eleven_multilingual_v2"
 
 [ui]
 # UI related settings

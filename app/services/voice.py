@@ -1186,6 +1186,7 @@ def elevenlabs_tts(
     voice_file: str,
     voice_rate: float = 1.0,
     voice_volume: float = 1.0,
+    model_id: str = "",
 ) -> Union[SubMaker, None]:
     text = (text or "").strip()
     if not text:
@@ -1197,6 +1198,9 @@ def elevenlabs_tts(
         logger.error("ElevenLabs API key is not set")
         return None
 
+    if not model_id:
+        model_id = config.elevenlabs.get("model_id", "eleven_multilingual_v2")
+
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     headers = {
         "xi-api-key": api_key,
@@ -1204,7 +1208,7 @@ def elevenlabs_tts(
     }
     payload = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
+        "model_id": model_id,
         "voice_settings": {
             "stability": 0.5,
             "similarity_boost": 0.75,

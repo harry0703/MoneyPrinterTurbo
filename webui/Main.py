@@ -1207,6 +1207,24 @@ with middle_panel:
                 key="elevenlabs_api_key_input",
             )
 
+            _elevenlabs_models = [
+                "eleven_multilingual_v2",
+                "eleven_flash_v2_5",
+                "eleven_v3",
+            ]
+            saved_elevenlabs_model = config.elevenlabs.get(
+                "model_id", "eleven_multilingual_v2"
+            )
+            if saved_elevenlabs_model not in _elevenlabs_models:
+                saved_elevenlabs_model = "eleven_multilingual_v2"
+            elevenlabs_model = st.selectbox(
+                tr("ElevenLabs Model"),
+                options=_elevenlabs_models,
+                index=_elevenlabs_models.index(saved_elevenlabs_model),
+                key="elevenlabs_model_select",
+            )
+            config.elevenlabs["model_id"] = elevenlabs_model
+
             st.info(
                 "ElevenLabs TTS Settings:\n"
                 "- Get your API key at https://elevenlabs.io/app/settings/api-keys\n"
