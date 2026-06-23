@@ -1084,7 +1084,18 @@ with middle_panel:
             if not play_content:
                 play_content = params.video_script
             if not play_content:
-                play_content = tr("Voice Example")
+                # For ElevenLabs voices, detect language from the display name
+                # so the test text matches the voice's language.
+                if voice.is_elevenlabs_voice(voice_name):
+                    parts = voice_name.split(":", 2)
+                    display = parts[2] if len(parts) >= 3 else ""
+                    _vi_chars = set("àáâãèéêìíòóôõùúýăđơưÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝĂĐƠƯ")
+                    if any(c in _vi_chars for c in display):
+                        play_content = "Xin chào, đây là đoạn âm thanh thử nghiệm giọng nói."
+                    else:
+                        play_content = tr("Voice Example")
+                else:
+                    play_content = tr("Voice Example")
             with st.spinner(tr("Synthesizing Voice")):
                 temp_dir = utils.storage_dir("temp", create=True)
                 audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
