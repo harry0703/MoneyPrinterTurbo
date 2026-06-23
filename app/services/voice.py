@@ -394,7 +394,7 @@ def tts(
         parts = voice_name.split(":")
         if len(parts) >= 2:
             voice_id = parts[1]
-            return elevenlabs_tts(text, voice_id, voice_file)
+            return elevenlabs_tts(text, voice_id, voice_file, voice_rate, voice_volume)
         else:
             logger.error(f"Invalid elevenlabs voice name format: {voice_name}")
             return None
@@ -1184,6 +1184,8 @@ def elevenlabs_tts(
     text: str,
     voice_id: str,
     voice_file: str,
+    voice_rate: float = 1.0,
+    voice_volume: float = 1.0,
 ) -> Union[SubMaker, None]:
     text = (text or "").strip()
     if not text:
