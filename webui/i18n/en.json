@@ -162,6 +162,21 @@
     "Coverr API Key deleted successfully": "Coverr API Key deleted successfully",
     "Advanced Video Settings": "Advanced Video Settings",
     "Video Encoder": "Video Encoder",
-    "Video Encoder Help": "Advanced option. libx264 is the safest default. When a hardware encoder is selected, the app falls back to libx264 if the current FFmpeg, GPU, or driver cannot use it."
+    "Video Encoder Help": "Advanced option. libx264 is the safest default. When a hardware encoder is selected, the app falls back to libx264 if the current FFmpeg, GPU, or driver cannot use it.",
+    "Preset Management": "Preset Management",
+    "Preset Name": "Preset Name",
+    "Export Preset JSON": "Export Preset JSON",
+    "Save Preset": "Save Preset",
+    "Please enter a preset name": "Please enter a preset name",
+    "Preset saved successfully": "Preset saved successfully",
+    "Saved Presets": "Saved Presets",
+    "Load Selected Preset": "Load Selected Preset",
+    "Delete Selected Preset": "Delete Selected Preset",
+    "Preset loaded successfully": "Preset loaded successfully",
+    "Preset deleted successfully": "Preset deleted successfully",
+    "No presets found": "No presets found",
+    "Import Preset JSON": "Import Preset JSON",
+    "Import Preset": "Import Preset",
+    "Invalid preset file": "Invalid preset file"
   }
 }

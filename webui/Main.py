@@ -1,6 +1,8 @@
+import json
 import os
 import sys
 import webbrowser
+from typing import Any
 from uuid import UUID, uuid4
 
 import requests
@@ -25,6 +27,7 @@ from app.models.schema import (
 )
 from app.services import llm, voice
 from app.services import task as tm
+from app.utils import preset as preset_utils
 from app.utils import utils
 
 st.set_page_config(
@@ -80,6 +83,20 @@ if "ui_language" not in st.session_state:
 if "local_video_materials" not in st.session_state:
     # 记住用户最近一次已经落盘的本地素材，避免仅修改文案后二次生成时丢失素材列表。
     st.session_state["local_video_materials"] = []
+if "preset_name_input" not in st.session_state:
+    st.session_state["preset_name_input"] = "moneyprinterturbo-preset"
+if "_pending_preset" in st.session_state:
+    pending_preset = st.session_state.pop("_pending_preset")
+    if isinstance(pending_preset, dict):
+        preset_utils.apply_preset(
+            preset=pending_preset,
+            app_config=config.app,
+            ui_config=config.ui,
+            azure_config=config.azure,
+            siliconflow_config=config.siliconflow,
+            session_state=st.session_state,
+        )
+        config.save_config()
 
 # 加载语言文件
 locales = utils.load_locales(i18n_dir)
@@ -141,6 +158,44 @@ def get_all_songs():
             if file.endswith(".mp3"):
                 songs.append(file)
     return songs
+
+
+def load_preset_store(store_file: str) -> dict[str, dict[str, Any]]:
+    if not os.path.isfile(store_file):
+        return {}
+
+    try:
+        with open(store_file, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+            if isinstance(payload, dict):
+                return payload
+    except Exception as e:
+        logger.warning(f"failed to load preset store file: {e}")
+
+    return {}
+
+
+def save_preset_store(
+    store_file: str, presets: dict[str, dict[str, Any]]
+) -> None:
+    with open(store_file, "w", encoding="utf-8") as f:
+        json.dump(presets, f, ensure_ascii=False, indent=2)
+
+
+def is_valid_preset_payload(payload: dict[str, Any]) -> bool:
+    if not isinstance(payload, dict):
+        return False
+
+    schema = payload.get("schema")
+    version = payload.get("version")
+    if schema is None and version is None:
+        # 兼容旧版无 schema/version 的预设结构。
+        logger.warning("loading legacy preset without schema/version metadata")
+        return True
+
+    return (
+        schema == preset_utils.PRESET_SCHEMA and version == preset_utils.PRESET_VERSION
+    )
 
 
 def open_task_folder(task_id):
@@ -722,9 +777,16 @@ with left_panel:
         for code in support_locales:
             video_languages.append((code, code))
 
+        saved_video_language = config.ui.get("video_language", "")
+        saved_video_language_index = 0
+        for i, (_, language_value) in enumerate(video_languages):
+            if language_value == saved_video_language:
+                saved_video_language_index = i
+                break
+
         selected_index = st.selectbox(
             tr("Script Language"),
-            index=0,
+            index=saved_video_language_index,
             options=range(
                 len(video_languages)
             ),  # Use the index as the internal option value
@@ -733,6 +795,7 @@ with left_panel:
             ],  # The label is displayed to the user
         )
         params.video_language = video_languages[selected_index][1]
+        config.ui["video_language"] = params.video_language
 
         with st.expander(tr("Advanced Script Settings"), expanded=False):
             params.paragraph_number = st.slider(
@@ -898,7 +961,16 @@ with middle_panel:
         #   - 其他 source 沿用 Portrait(index=0)
         #   - 用户在某 source 下手动改过 aspect,session_state 会记住,
         #     下次回到同一 source 时尊重用户选择,不会再被强制覆盖。
-        default_aspect_index = 1 if params.video_source == "coverr" else 0
+        # Also respect saved preset value if available.
+        saved_video_aspect = config.ui.get("video_aspect", None)
+        if saved_video_aspect:
+            default_aspect_index = 0
+            for i, (_, aspect_value) in enumerate(video_aspect_ratios):
+                if aspect_value == saved_video_aspect:
+                    default_aspect_index = i
+                    break
+        else:
+            default_aspect_index = 1 if params.video_source == "coverr" else 0
         selected_index = st.selectbox(
             tr("Video Ratio"),
             options=range(
@@ -911,15 +983,29 @@ with middle_panel:
             key=f"video_aspect_for_{params.video_source}",
         )
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
+        config.ui["video_aspect"] = params.video_aspect.value
 
+        clip_duration_options = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+        saved_clip_duration = config.ui.get("video_clip_duration", 3)
+        if saved_clip_duration not in clip_duration_options:
+            saved_clip_duration = 3
         params.video_clip_duration = st.selectbox(
-            tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10], index=1
+            tr("Clip Duration"),
+            options=clip_duration_options,
+            index=clip_duration_options.index(saved_clip_duration),
         )
+        config.ui["video_clip_duration"] = params.video_clip_duration
+
+        video_count_options = [1, 2, 3, 4, 5]
+        saved_video_count = config.ui.get("video_count", 1)
+        if saved_video_count not in video_count_options:
+            saved_video_count = 1
         params.video_count = st.selectbox(
             tr("Number of Videos Generated Simultaneously"),
-            options=[1, 2, 3, 4, 5],
-            index=0,
+            options=video_count_options,
+            index=video_count_options.index(saved_video_count),
         )
+        config.ui["video_count"] = params.video_count
 
         with st.expander(tr("Advanced Video Settings"), expanded=False):
             # 默认关闭，避免影响老用户的随机素材体验。开启后只改变关键词和素材
@@ -1175,17 +1261,27 @@ with middle_panel:
 
             config.app["mimo_api_key"] = mimo_api_key
 
+        voice_volume_options = [0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 4.0, 5.0]
+        saved_voice_volume = config.ui.get("voice_volume", 1.0)
+        if saved_voice_volume not in voice_volume_options:
+            saved_voice_volume = 1.0
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
-            options=[0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 4.0, 5.0],
-            index=2,
+            options=voice_volume_options,
+            index=voice_volume_options.index(saved_voice_volume),
         )
+        config.ui["voice_volume"] = params.voice_volume
 
+        voice_rate_options = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.5, 1.8, 2.0]
+        saved_voice_rate = config.ui.get("voice_rate", 1.0)
+        if saved_voice_rate not in voice_rate_options:
+            saved_voice_rate = 1.0
         params.voice_rate = st.selectbox(
             tr("Speech Rate"),
-            options=[0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.5, 1.8, 2.0],
-            index=2,
+            options=voice_rate_options,
+            index=voice_rate_options.index(saved_voice_rate),
         )
+        config.ui["voice_rate"] = params.voice_rate
 
         custom_audio_file_types = ["mp3", "wav", "m4a", "aac", "flac", "ogg"]
         uploaded_audio_file = st.file_uploader(
@@ -1208,9 +1304,15 @@ with middle_panel:
             (tr("Random Background Music"), "random"),
             (tr("Custom Background Music"), "custom"),
         ]
+        saved_bgm_type = config.ui.get("bgm_type", "random")
+        saved_bgm_index = 1
+        for i, (_, bgm_value) in enumerate(bgm_options):
+            if bgm_value == saved_bgm_type:
+                saved_bgm_index = i
+                break
         selected_index = st.selectbox(
             tr("Background Music"),
-            index=1,
+            index=saved_bgm_index,
             options=range(
                 len(bgm_options)
             ),  # Use the index as the internal option value
@@ -1220,6 +1322,7 @@ with middle_panel:
         )
         # Get the selected background music type
         params.bgm_type = bgm_options[selected_index][1]
+        config.ui["bgm_type"] = params.bgm_type
 
         # Show or hide components based on the selection
         if params.bgm_type == "custom":
@@ -1232,16 +1335,25 @@ with middle_panel:
                 # 目录后再校验。服务层会统一限制目录和文件类型，避免任意路径读取。
                 params.bgm_file = custom_bgm_file.strip()
                 # st.write(f":red[已选择自定义背景音乐]：**{custom_bgm_file}**")
+        bgm_volume_options = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        saved_bgm_volume = config.ui.get("bgm_volume", 0.2)
+        if saved_bgm_volume not in bgm_volume_options:
+            saved_bgm_volume = 0.2
         params.bgm_volume = st.selectbox(
             tr("Background Music Volume"),
-            options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            index=2,
+            options=bgm_volume_options,
+            index=bgm_volume_options.index(saved_bgm_volume),
         )
+        config.ui["bgm_volume"] = params.bgm_volume
 
 with right_panel:
     with st.container(border=True):
         st.write(tr("Subtitle Settings"))
-        params.subtitle_enabled = st.checkbox(tr("Enable Subtitles"), value=True)
+        saved_subtitle_enabled = config.ui.get("subtitle_enabled", True)
+        params.subtitle_enabled = st.checkbox(
+            tr("Enable Subtitles"), value=saved_subtitle_enabled
+        )
+        config.ui["subtitle_enabled"] = params.subtitle_enabled
         font_names = get_all_fonts()
         saved_font_name = config.ui.get("font_name", "MicrosoftYaHeiBold.ttc")
         saved_font_name_index = 0
@@ -1453,6 +1565,110 @@ with right_panel:
                     config.app["coverr_api_keys"].remove(delete_key)
                     config.save_config()
                     st.success(tr("Coverr API Key deleted successfully"))
+
+with st.expander(tr("Preset Management"), expanded=False):
+    preset_dir = utils.storage_dir("presets", create=True)
+    preset_store_file = os.path.join(preset_dir, "presets.json")
+    preset_store = load_preset_store(preset_store_file)
+    preset_name = st.text_input(
+        tr("Preset Name"),
+        value=st.session_state.get("preset_name_input", "moneyprinterturbo-preset"),
+        key="preset_name_input",
+    )
+    current_preset = preset_utils.build_preset(
+        app_config=config.app,
+        ui_config=config.ui,
+        azure_config=config.azure,
+        siliconflow_config=config.siliconflow,
+        session_state=st.session_state,
+        name=preset_name,
+    )
+    preset_json = json.dumps(current_preset, ensure_ascii=False, indent=2)
+    safe_preset_name = preset_utils.sanitize_preset_name(preset_name)
+
+    export_cols = st.columns(2)
+    with export_cols[0]:
+        st.download_button(
+            tr("Export Preset JSON"),
+            data=preset_json.encode("utf-8"),
+            file_name=f"{safe_preset_name}.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+    with export_cols[1]:
+        if st.button(tr("Save Preset"), use_container_width=True):
+            if not preset_name.strip():
+                st.error(tr("Please enter a preset name"))
+            else:
+                preset_store[safe_preset_name] = current_preset
+                save_preset_store(preset_store_file, preset_store)
+                st.success(tr("Preset saved successfully"))
+
+    saved_presets = sorted(preset_store.keys())
+    if saved_presets:
+        selected_preset = st.selectbox(
+            tr("Saved Presets"),
+            options=saved_presets,
+            key="selected_preset_file",
+        )
+        manage_cols = st.columns(2)
+        with manage_cols[0]:
+            if st.button(tr("Load Selected Preset"), use_container_width=True):
+                try:
+                    loaded_preset = preset_store.get(selected_preset)
+                    if not isinstance(loaded_preset, dict):
+                        raise ValueError("preset payload must be a dictionary")
+                    if not is_valid_preset_payload(loaded_preset):
+                        raise ValueError(
+                            f"unsupported preset schema/version: "
+                            f"schema={loaded_preset.get('schema')}, "
+                            f"version={loaded_preset.get('version')}"
+                        )
+                    st.session_state["_pending_preset"] = loaded_preset
+                    st.success(tr("Preset loaded successfully"))
+                    st.rerun()
+                except Exception as e:
+                    logger.warning(f"failed to load preset file: {e}")
+                    st.error(tr("Invalid preset file"))
+
+        with manage_cols[1]:
+            if st.button(tr("Delete Selected Preset"), use_container_width=True):
+                try:
+                    preset_store.pop(selected_preset, None)
+                    save_preset_store(preset_store_file, preset_store)
+                    st.success(tr("Preset deleted successfully"))
+                    st.rerun()
+                except Exception as e:
+                    logger.warning(f"failed to delete preset file: {e}")
+                    st.error(tr("Invalid preset file"))
+    else:
+        st.info(tr("No presets found"))
+
+    uploaded_preset_file = st.file_uploader(
+        tr("Import Preset JSON"),
+        type=["json"],
+        accept_multiple_files=False,
+    )
+    if st.button(tr("Import Preset"), use_container_width=True):
+        if not uploaded_preset_file:
+            st.error(tr("Invalid preset file"))
+        else:
+            try:
+                uploaded_preset = json.loads(
+                    uploaded_preset_file.getvalue().decode("utf-8")
+                )
+                if not is_valid_preset_payload(uploaded_preset):
+                    raise ValueError(
+                        f"unsupported preset schema/version: "
+                        f"schema={uploaded_preset.get('schema')}, "
+                        f"version={uploaded_preset.get('version')}"
+                    )
+                st.session_state["_pending_preset"] = uploaded_preset
+                st.success(tr("Preset loaded successfully"))
+                st.rerun()
+            except Exception as e:
+                logger.warning(f"failed to import preset file: {e}")
+                st.error(tr("Invalid preset file"))
 
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:

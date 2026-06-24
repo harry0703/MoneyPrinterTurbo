@@ -162,6 +162,21 @@
     "Coverr API Key deleted successfully": "Coverr API 密钥删除成功",
     "Advanced Video Settings": "高级视频设置",
     "Video Encoder": "视频编码器",
-    "Video Encoder Help": "高级选项。默认 libx264 最稳定；选择硬件编码器时，如果当前 FFmpeg、显卡或驱动不可用，会自动回退到 libx264。"
+    "Video Encoder Help": "高级选项。默认 libx264 最稳定；选择硬件编码器时，如果当前 FFmpeg、显卡或驱动不可用，会自动回退到 libx264。",
+    "Preset Management": "预设管理",
+    "Preset Name": "预设名称",
+    "Export Preset JSON": "导出预设 JSON",
+    "Save Preset": "保存预设",
+    "Please enter a preset name": "请输入预设名称",
+    "Preset saved successfully": "预设保存成功",
+    "Saved Presets": "已保存的预设",
+    "Load Selected Preset": "加载选中预设",
+    "Delete Selected Preset": "删除选中预设",
+    "Preset loaded successfully": "预设加载成功",
+    "Preset deleted successfully": "预设删除成功",
+    "No presets found": "暂无预设",
+    "Import Preset JSON": "导入预设 JSON",
+    "Import Preset": "导入预设",
+    "Invalid preset file": "预设文件无效"
   }
 }
