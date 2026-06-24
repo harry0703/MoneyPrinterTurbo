@@ -963,6 +963,7 @@ with middle_panel:
             ("siliconflow", "SiliconFlow TTS"),
             ("gemini-tts", "Google Gemini TTS"),
             ("mimo-tts", "Xiaomi MiMo TTS"),
+            ("elevenlabs", "ElevenLabs TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -999,6 +1000,22 @@ with middle_panel:
         elif selected_tts_server == "mimo-tts":
             # 获取 Xiaomi MiMo TTS 的预置音色列表
             filtered_voices = voice.get_mimo_voices()
+        elif selected_tts_server == "elevenlabs":
+            # Read from session_state first so the API key is available before
+            # the Play Voice button runs (which is earlier in the script than
+            # the API key text_input widget).
+            saved_elevenlabs_api_key = st.session_state.get(
+                "elevenlabs_api_key_input",
+                config.elevenlabs.get("api_key", ""),
+            )
+            if saved_elevenlabs_api_key:
+                config.elevenlabs["api_key"] = saved_elevenlabs_api_key
+            cache_key = f"elevenlabs_voices_{saved_elevenlabs_api_key}"
+            if cache_key not in st.session_state:
+                st.session_state[cache_key] = voice.get_elevenlabs_voices(
+                    saved_elevenlabs_api_key
+                )
+            filtered_voices = st.session_state[cache_key]
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -1017,12 +1034,16 @@ with middle_panel:
         if selected_tts_server == voice.NO_VOICE_NAME:
             friendly_names = {voice.NO_VOICE_NAME: tr("No Voice")}
         else:
-            friendly_names = {
-                v: v.replace("Female", tr("Female"))
-                .replace("Male", tr("Male"))
-                .replace("Neural", "")
-                for v in filtered_voices
-            }
+            def _friendly(v):
+                if voice.is_elevenlabs_voice(v):
+                    parts = v.split(":", 2)
+                    return parts[2] if len(parts) >= 3 else v
+                return (
+                    v.replace("Female", tr("Female"))
+                    .replace("Male", tr("Male"))
+                    .replace("Neural", "")
+                )
+            friendly_names = {v: _friendly(v) for v in filtered_voices}
 
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
@@ -1063,6 +1084,7 @@ with middle_panel:
                     "No voices available for the selected TTS server. Please select another server."
                 )
             )
+            voice_name = ""
             params.voice_name = ""
             config.ui["voice_name"] = ""
 
@@ -1076,7 +1098,18 @@ with middle_panel:
             if not play_content:
                 play_content = params.video_script
             if not play_content:
-                play_content = tr("Voice Example")
+                # For ElevenLabs voices, detect language from the display name
+                # so the test text matches the voice's language.
+                if voice.is_elevenlabs_voice(voice_name):
+                    parts = voice_name.split(":", 2)
+                    display = parts[2] if len(parts) >= 3 else ""
+                    _vi_chars = set("àáâãèéêìíòóôõùúýăđơưÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝĂĐƠƯ")
+                    if any(c in _vi_chars for c in display):
+                        play_content = "Xin chào, đây là đoạn âm thanh thử nghiệm giọng nói."
+                    else:
+                        play_content = tr("Voice Example")
+                else:
+                    play_content = tr("Voice Example")
             with st.spinner(tr("Synthesizing Voice")):
                 temp_dir = utils.storage_dir("temp", create=True)
                 audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
@@ -1174,6 +1207,50 @@ with middle_panel:
             )
 
             config.app["mimo_api_key"] = mimo_api_key
+
+        # ElevenLabs API key section
+        if selected_tts_server == "elevenlabs" or (
+            voice_name and voice.is_elevenlabs_voice(voice_name)
+        ):
+            saved_elevenlabs_api_key = config.elevenlabs.get("api_key", "")
+
+            elevenlabs_api_key = st.text_input(
+                tr("ElevenLabs API Key"),
+                value=saved_elevenlabs_api_key,
+                type="password",
+                key="elevenlabs_api_key_input",
+            )
+
+            _elevenlabs_models = [
+                "eleven_multilingual_v2",
+                "eleven_flash_v2_5",
+                "eleven_v3",
+            ]
+            saved_elevenlabs_model = config.elevenlabs.get(
+                "model_id", "eleven_multilingual_v2"
+            )
+            if saved_elevenlabs_model not in _elevenlabs_models:
+                saved_elevenlabs_model = "eleven_multilingual_v2"
+            elevenlabs_model = st.selectbox(
+                tr("ElevenLabs Model"),
+                options=_elevenlabs_models,
+                index=_elevenlabs_models.index(saved_elevenlabs_model),
+                key="elevenlabs_model_select",
+            )
+            config.elevenlabs["model_id"] = elevenlabs_model
+
+            st.info(
+                "ElevenLabs TTS Settings:\n"
+                "- Get your API key at https://elevenlabs.io/app/settings/api-keys\n"
+                "- Mark voices as ★ Favorite in the ElevenLabs voice library to make them appear here"
+            )
+
+            if elevenlabs_api_key != saved_elevenlabs_api_key:
+                for k in list(st.session_state.keys()):
+                    if k.startswith("elevenlabs_voices_"):
+                        del st.session_state[k]
+
+            config.elevenlabs["api_key"] = elevenlabs_api_key
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),

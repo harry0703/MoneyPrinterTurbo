@@ -120,6 +120,8 @@
     "Volume: Uses Speech Volume setting, default 1.0 maps to gain 0": "Ses Seviyesi: Konuşma Ses Seviyesi ayarını kullanır, varsayılan 1.0 gain 0'a eşittir",
     "MiMo API Key": "Xiaomi MiMo API Anahtarı [Almak için tıklayın](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)",
     "MiMo TTS Settings": "Xiaomi MiMo TTS Ayarları",
+    "ElevenLabs API Key": "ElevenLabs API Anahtarı",
+    "ElevenLabs Model": "ElevenLabs Modeli",
     "Uses Xiaomi MiMo V2.5 TTS preset voices": "Xiaomi MiMo V2.5 TTS hazır seslerini kullanır",
     "Speed and volume are currently handled by the provider defaults": "Hız ve ses seviyesi şu anda sağlayıcının varsayılanlarıyla yönetilir",
     "Hide Log": "Günlüğü Gizle",
