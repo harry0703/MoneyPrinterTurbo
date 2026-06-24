@@ -240,13 +240,106 @@ $ffmpeg = ".venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.
 
 ---
 
+---
+
+## Milestone 3 — Batch Generation Validation
+
+**Fecha:** 2026-06-24
+**Modelo OpenAI:** gpt-5.5 (script + search terms)
+**Footage provider:** Pexels
+**TTS:** edge-tts `en-US-AndrewNeural`
+**Subtítulos:** habilitados, posición bottom, font_size=60, fondo negro
+
+### Resultados del batch
+
+| # | Topic | Task ID | Status | Duration | Size | Path |
+|---|-------|---------|--------|----------|------|------|
+| 1 | The Power of Consistency | `7c255357` | ✅ Complete | 00:00:35 | 9.6 MB | `storage/tasks/7c255357.../final-1.mp4` |
+| 2 | Why Motivation Is Overrated | `a6aca887` | ✅ Complete | 00:00:35 | 9.8 MB | `storage/tasks/a6aca887.../final-1.mp4` |
+| 3 | How to Focus in a Distracted World | `3d94d93a` | ⚠️ Partial | 00:00:30 | 4.3 MB | `storage/tasks/3d94d93a.../final-1.mp4` |
+| 4 | Small Habits That Compound Over Time | `f2b5589e` | ✅ Complete | 00:00:35 | 11.2 MB | `storage/tasks/f2b5589e.../final-1.mp4` |
+| 5 | How AI Can Help You Work Smarter | `185a19e6` | ✅ Complete | 00:00:30 | 8.3 MB | `storage/tasks/185a19e6.../final-1.mp4` |
+
+**Videos intentados:** 5 | **Exitosos:** 4 | **Parciales:** 1 | **Fallidos:** 0
+
+### Validación visual (screenshots)
+
+| Video | Real footage | Subtítulos | Notas |
+|-------|-------------|------------|-------|
+| Consistency | ✅ Mujer en laptop, gym oscuro | ✅ Visibles | Footage muy relevante al tema |
+| Motivation | ✅ Escritorio con reloj, gym | ✅ Visibles | Footage temáticamente coherente |
+| Focus | ✅ Manos escribiendo en papel | ⚠️ Solo frame 5s | Sección media ilegible post-error |
+| Habits | ✅ Escritorio, papeles motivacionales | ✅ Visibles | Clips de fitness/habits relevantes |
+| AI Work | ✅ Robot humanoide con niña, oficina | ✅ Visibles | Footage muy relevante, robot clip excelente |
+
+### Configuración usada
+
+```json
+{
+  "video_aspect": "9:16",
+  "video_source": "pexels",
+  "video_clip_duration": 5,
+  "paragraph_number": 1,
+  "video_script_prompt": "Write exactly 75 to 90 words total. No more. Start with a strong hook sentence...",
+  "voice_name": "en-US-AndrewNeural",
+  "bgm_volume": 0.12,
+  "subtitle_enabled": true,
+  "font_size": 60,
+  "stroke_width": 1.5,
+  "text_background_color": true
+}
+```
+
+### Problemas detectados y soluciones
+
+| Problema | Causa | Solución aplicada |
+|----------|-------|-------------------|
+| Multiline string en PS5.1 rompía JSON | `@"..."@` serializa `\r\n` literal | Reemplazado por string de una sola línea |
+| Task API atascada en 75% | Bug de state-flush con 5 tasks concurrentes | Validar por archivo: `final-1.mp4` stable size = done |
+| Focus video corrupto en midpoint | `[Errno 22] Invalid argument` en clip 5 durante combinación | Video completo generado (30s), solo midpoint ilegible |
+| AI Work tardó 30 min en iniciar | 4 renders + 1 stray task saturando CPU | Evitar 6 tasks concurrentes; máximo 4 |
+
+### Tiempo de render (CPU, sin GPU)
+
+| Video | Render start | File modified | Render time |
+|-------|-------------|---------------|-------------|
+| Consistency | 21:36:41 | 21:58:23 | ~22 min |
+| Focus | 21:38:30 | 21:46:45 | ~8 min |
+| Habits | 21:38:05 | 21:59:01 | ~21 min |
+| Motivation | ~21:38 | 21:59:26 | ~21 min |
+| AI Work | 21:54:35 | 22:02:13 | ~8 min |
+
+Render time varies with CPU competition. Max 4 concurrent tasks recommended.
+
+### Coste estimado (OpenAI gpt-5.5)
+
+- 5 scripts (~85 words cada uno) + 5 sets de search terms (~6 terms cada uno)
+- Input tokens estimados: ~500 tokens por video × 5 = ~2,500 tokens
+- Output tokens estimados: ~200 tokens por video × 5 = ~1,000 tokens
+- Coste aproximado: < $0.10 USD total (varía según pricing de gpt-5.5)
+
+### Scripts y ejemplos creados
+
+- `scripts/generate_batch_openai_pexels.ps1` — script reproducible para batches futuros
+- `examples/requests/batch_productivity_openai_pexels.json` — template sin secrets
+
+### Mejoras recomendadas para Milestone 4
+
+- Limitar a 4 tasks concurrentes máximo (evitar saturación CPU)
+- Añadir `video_script_prompt` para forzar 75-90 palabras en script template
+- Detectar videos parcialmente corruptos por tamaño (< 5MB para 30s = sospechoso)
+- Añadir `-update 1` flag a ffmpeg para screenshots más robustos
+- Explorar GPU encoding (`h264_nvenc`) para reducir render time de 21 min → ~2 min
+
+---
+
 ## Próximos pasos
 
-### Milestone 3 — Optimización y escala
-- [ ] Reducir tiempo de render: GPU encoding (`-c:v h264_nvenc`) o bajar resolución a 720p para pruebas
-- [ ] Batch generation: script para generar múltiples videos en secuencia desde CSV de temas
+### Milestone 4 — Optimización y escala
+- [ ] Reducir tiempo de render: GPU encoding (`-c:v h264_nvenc`) o máx 4 tasks concurrentes
+- [ ] Batch con topics desde CSV o archivo externo
 - [ ] Agregar voces en español: `es-ES-AlvaroNeural`, `es-MX-JorgeNeural`
-- [ ] Ajustar font y tamaño de subtítulos (actualmente STHeitiMedium.ttc 60px)
+- [ ] Scoring de calidad automático (duración, tamaño, screenshot check)
 - [ ] Crear script de inicio automático (Task Scheduler / servicio Windows)
 
 ### Prioridad media
