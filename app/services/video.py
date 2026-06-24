@@ -244,19 +244,31 @@ def _disable_runtime_video_codec(codec: str, reason: str):
 
 def _get_temp_audio_dir(output_dir: str) -> str:
     """
-    Return the directory to use for MoviePy's temporary audio file.
+    Return the path for MoviePy's temporary audio file.
 
-    On Windows, Windows Defender can lock files written to the task output
-    directory while scanning them, causing MoviePy to fail with a
-    PermissionError (WinError 32) on the TEMP_MPY_wvf_snd temp file and
-    leaving the final MP4 at 0 bytes.  Using the system temp directory
-    sidesteps the scan without changing behaviour on other platforms.
+    On Windows, Windows Defender can lock files in the task output directory,
+    so we use the system temp directory. However, returning the temp directory
+    itself causes MoviePy to always generate the fixed filename
+    TEMP_MPY_wvf_snd.mp3 inside it — meaning concurrent renders all write to
+    the same file, creating a race condition that corrupts audio in all but
+    the last task to finish writing.
 
-    On Linux/macOS/Docker the output directory is returned unchanged so
-    existing behaviour is preserved.
+    Fix: return a full file path that is unique per task (using the task
+    directory's basename as a discriminator), so each concurrent render has
+    its own temp audio file.
+
+    On Linux/macOS/Docker the output directory is returned unchanged.
     """
     if sys.platform == "win32":
-        return tempfile.gettempdir()
+        # MoviePy uses temp_audiofile_path as a DIRECTORY and creates fixed-named
+        # temp files inside it (e.g. TEMP_MPY_wvf_snd.mp3). Returning the shared
+        # system temp dir causes all concurrent tasks to collide on that filename.
+        # Fix: create a task-unique subdirectory so each render gets its own
+        # isolated temp file space, avoiding the race condition.
+        task_name = os.path.basename(os.path.normpath(output_dir))
+        task_temp_dir = os.path.join(tempfile.gettempdir(), f"MPY_{task_name}")
+        os.makedirs(task_temp_dir, exist_ok=True)
+        return task_temp_dir
     return output_dir
 
 
@@ -664,9 +676,11 @@ def combine_videos(
                 shuffle_transition = random.choice(transition_funcs)
                 clip = shuffle_transition(clip)
 
-            if clip.duration > max_clip_duration:
-                clip = clip.subclipped(0, max_clip_duration)
-                
+            remaining_needed = required_video_duration - video_duration
+            effective_max = min(max_clip_duration, remaining_needed) if remaining_needed > 0 else max_clip_duration
+            if clip.duration > effective_max:
+                clip = clip.subclipped(0, effective_max)
+
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
             _write_videofile_with_codec_fallback(

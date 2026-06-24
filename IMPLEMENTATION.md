@@ -250,17 +250,90 @@ $ffmpeg = ".venv\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.
 **TTS:** edge-tts `en-US-AndrewNeural`
 **Subtítulos:** habilitados, posición bottom, font_size=60, fondo negro
 
-### Resultados del batch
+> ✅ **Final status (2026-06-25): ALL 5 VIDEOS PASS audio integrity validation.**
+> Two bugs were found and fixed. See full diagnosis below.
 
-| # | Topic | Task ID | Status | Duration | Size | Path |
-|---|-------|---------|--------|----------|------|------|
-| 1 | The Power of Consistency | `7c255357` | ✅ Complete | 00:00:35 | 9.6 MB | `storage/tasks/7c255357.../final-1.mp4` |
-| 2 | Why Motivation Is Overrated | `a6aca887` | ✅ Complete | 00:00:35 | 9.8 MB | `storage/tasks/a6aca887.../final-1.mp4` |
-| 3 | How to Focus in a Distracted World | `3d94d93a` | ⚠️ Partial | 00:00:30 | 4.3 MB | `storage/tasks/3d94d93a.../final-1.mp4` |
-| 4 | Small Habits That Compound Over Time | `f2b5589e` | ✅ Complete | 00:00:35 | 11.2 MB | `storage/tasks/f2b5589e.../final-1.mp4` |
-| 5 | How AI Can Help You Work Smarter | `185a19e6` | ✅ Complete | 00:00:30 | 8.3 MB | `storage/tasks/185a19e6.../final-1.mp4` |
+### Initial batch results (pre-fix)
 
-**Videos intentados:** 5 | **Exitosos:** 4 | **Parciales:** 1 | **Fallidos:** 0
+| # | Topic | Task ID | API State | QA Result | audio.mp3 | combined dur | Gap |
+|---|-------|---------|-----------|-----------|-----------|--------------|-----|
+| 1 | The Power of Consistency | `7c255357` | stuck 75% | ❌ Audio cuts ~3s early | 31.99s | 35.00s | 3.01s |
+| 2 | Why Motivation Is Overrated | `a6aca887` | stuck 75% | ❌ Audio cuts ~3.3s early | 31.70s | 35.00s | 3.30s |
+| 3 | How to Focus in a Distracted World | `3d94d93a` | stuck 75% | ❌ Partial + clip error | 29.66s | 30.00s | 0.34s |
+| 4 | Small Habits That Compound Over Time | `f2b5589e` | stuck 75% | ❌ Audio cuts ~2.3s early | 32.71s | 35.00s | 2.29s |
+| 5 | How AI Can Help You Work Smarter | `185a19e6` | stuck 75% | ✅ PASS (gap only 0.29s) | 29.71s | 30.00s | 0.29s |
+
+### Root cause — clip trimming bug in `video.py:667`
+
+```python
+# BEFORE (bug): trims each clip to max_clip_duration (5s) but never trims
+# the last clip to the remaining required duration.
+if clip.duration > max_clip_duration:
+    clip = clip.subclipped(0, max_clip_duration)
+
+# AFTER (fix): trims last clip to whichever is smaller — max duration or remaining needed.
+remaining_needed = required_video_duration - video_duration
+effective_max = min(max_clip_duration, remaining_needed) if remaining_needed > 0 else max_clip_duration
+if clip.duration > effective_max:
+    clip = clip.subclipped(0, effective_max)
+```
+
+**Effect:** For a 32s audio, 7 clips × 5s = 35s. The 7th clip was never trimmed to its needed ~2s.
+Combined video was always padded to the nearest 5s multiple → audio truncated in playback.
+AIWork (audio=29.71s, combined=30s, gap=0.29s) happened to fall within acceptable range by chance.
+
+### Bug 2 — Shared temp audio file race condition (`video.py:_get_temp_audio_dir`)
+
+Manual QA after the clip-trim fix revealed a second bug:
+- Consistency: no audio
+- Motivation: audio cuts at ~2s
+- Focus: audio cuts at ~2s
+- Habits/AIWork: fine
+
+Root cause: `_get_temp_audio_dir()` returned `tempfile.gettempdir()` (shared system temp directory).
+MoviePy writes a fixed-named temp file `TEMP_MPY_wvf_snd.mp3` inside that directory.
+With concurrent renders, all tasks overwrote the same file — the last writer "won".
+
+Evidence: extracted WAV from broken final-1.mp4 files was 0.02–0.23MB (should be ~5MB).
+All `audio.mp3` source files were clean. Failure was entirely in the mux step.
+
+```python
+# BEFORE (bug): all concurrent tasks write to same temp file
+if sys.platform == "win32":
+    return tempfile.gettempdir()   # → C:\...\Temp\TEMP_MPY_wvf_snd.mp3 (shared!)
+
+# AFTER (fix): unique subdirectory per task
+if sys.platform == "win32":
+    task_name = os.path.basename(os.path.normpath(output_dir))
+    task_temp_dir = os.path.join(tempfile.gettempdir(), f"MPY_{task_name}")
+    os.makedirs(task_temp_dir, exist_ok=True)
+    return task_temp_dir
+```
+
+Note: an intermediate fix attempt returned a `.mp3` file path — MoviePy treated it as a
+directory name, failed with "No such file or directory". The correct fix returns an actual
+directory (created with makedirs) that is unique per task.
+
+### Final validated results (sequential re-renders with both fixes)
+
+| # | Topic | Task ID | Duration | WAV size | Gap | Audio | Status |
+|---|-------|---------|----------|----------|-----|-------|--------|
+| 1 | The Power of Consistency | `f4869ced` | 00:00:32.07 | 5.399MB | +0.08s | ✅ continuous | ✅ PASS |
+| 2 | Why Motivation Is Overrated | `16bf7bc3` | 00:00:31.80 | 5.352MB | +0.10s | ✅ continuous | ✅ PASS |
+| 3 | How to Focus in a Distracted World | `41505891` | 00:00:29.73 | 5.004MB | +0.07s | ✅ continuous | ✅ PASS |
+| 4 | Small Habits That Compound Over Time | `7cdd4f3b` | 00:00:32.80 | 5.520MB | +0.09s | ✅ continuous | ✅ PASS |
+| 5 | How AI Can Help You Work Smarter | `185a19e6` | 00:00:30.00 | 5.047MB | +0.29s | ✅ continuous | ✅ PASS |
+
+**Validation method:** WAV extraction from final-1.mp4 + silencedetect at -35dB/1s threshold.
+All WAVs ≥ 5MB (full audio). No silence detected in any extracted WAV. All gaps ≤ 0.29s.
+
+### New validation rule
+A video is only marked SUCCESS if:
+- `final-1.mp4` exists with valid duration
+- Extracted WAV ≥ 3MB (confirming full audio, not just metadata)
+- No silence block > 1s detected in extracted WAV
+- Audio/video duration gap ≤ 1.0s
+- Screenshot extractable at 5s and midpoint (confirms decodable frames)
 
 ### Validación visual (screenshots)
 

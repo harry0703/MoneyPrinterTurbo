@@ -60,7 +60,79 @@ $BaseParams = [ordered]@{
     video_script_prompt       = $ScriptConstraint
 }
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Validation ───────────────────────────────────────────────────────────────
+
+function Test-VideoOutput {
+    param([string]$TaskDir, [string]$FfmpegPath)
+    $result = [ordered]@{
+        valid          = $false
+        final_exists   = $false
+        video_duration = $null
+        audio_duration = $null
+        duration_gap   = $null
+        subtitle_end   = $null
+        screenshot_ok  = $false
+        issues         = @()
+    }
+
+    $finalMp4 = "$TaskDir\final-1.mp4"
+    $audioMp3 = "$TaskDir\audio.mp3"
+    $srtFile  = "$TaskDir\subtitle.srt"
+    $ssFile   = "$TaskDir\validation_ss.png"
+
+    # 1. File exists
+    if (-not (Test-Path $finalMp4)) { $result.issues += "final-1.mp4 missing"; return $result }
+    $result.final_exists = $true
+
+    # 2. Video and audio stream durations
+    $raw = (& $FfmpegPath -i $finalMp4 2>&1) | Out-String
+    if ($raw -match "Duration:\s*([\d:\.]+)") {
+        $ts = $Matches[1]; $parts = $ts -split '[:.]'
+        $result.video_duration = [double]$parts[0]*3600 + [double]$parts[1]*60 + [double]$parts[2] + [double]("0." + $parts[3])
+    }
+    if (Test-Path $audioMp3) {
+        $rawMp3 = (& $FfmpegPath -i $audioMp3 2>&1) | Out-String
+        if ($rawMp3 -match "Duration:\s*([\d:\.]+)") {
+            $ts = $Matches[1]; $parts = $ts -split '[:.]'
+            $result.audio_duration = [double]$parts[0]*3600 + [double]$parts[1]*60 + [double]$parts[2] + [double]("0." + $parts[3])
+        }
+    }
+
+    # 3. Duration gap check (audio vs video must be within 1 second)
+    if ($result.video_duration -and $result.audio_duration) {
+        $result.duration_gap = [math]::Round($result.video_duration - $result.audio_duration, 3)
+        if ([math]::Abs($result.duration_gap) -gt 1.0) {
+            $result.issues += "DURATION_MISMATCH: video=$($result.video_duration)s audio=$($result.audio_duration)s gap=$($result.duration_gap)s"
+        }
+    }
+
+    # 4. Subtitle end timestamp check
+    if (Test-Path $srtFile) {
+        $lastTs = (Get-Content $srtFile | Where-Object { $_ -match '\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}' } | Select-Object -Last 1)
+        if ($lastTs -match '--> (\d{2}):(\d{2}):(\d{2}),(\d{3})') {
+            $result.subtitle_end = [double]$Matches[1]*3600 + [double]$Matches[2]*60 + [double]$Matches[3] + [double]$Matches[4]/1000
+            if ($result.video_duration -and ($result.subtitle_end - $result.video_duration) -gt 1.0) {
+                $result.issues += "SUBTITLE_OVERFLOW: subtitle ends $($result.subtitle_end)s but video is $($result.video_duration)s"
+            }
+        }
+    }
+
+    # 5. Screenshot extractable (confirms real decodable frames, not placeholder)
+    & $FfmpegPath -ss 00:00:05 -i $finalMp4 -vframes 1 -update 1 $ssFile -y 2>$null
+    if (Test-Path $ssFile) {
+        $sz = (Get-Item $ssFile).Length
+        if ($sz -gt 50000) { $result.screenshot_ok = $true }
+        else { $result.issues += "SCREENSHOT_TOO_SMALL: $sz bytes (possible placeholder)" }
+        Remove-Item $ssFile -Force -ErrorAction SilentlyContinue
+    } else {
+        $result.issues += "SCREENSHOT_FAILED: could not extract frame at 5s"
+    }
+
+    $result.valid = ($result.issues.Count -eq 0)
+    return $result
+}
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 function Get-VideoInfo {
     param([string]$Path)
