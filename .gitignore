@@ -27,6 +27,11 @@ node_modules
 venv/
 .venv
 
+# Runtime and local artifacts
+*.pid
+server_*.log
+.env
+
 # Debug and test files
 CLAUDE.md
 debug/
