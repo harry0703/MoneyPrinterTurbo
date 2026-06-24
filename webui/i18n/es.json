@@ -124,6 +124,8 @@
     "Volume: Uses Speech Volume setting, default 1.0 maps to gain 0": "Volumen: Usa la configuración de volumen de voz, 1.0 predeterminado equivale a ganancia 0",
     "MiMo API Key": "Xiaomi MiMo API Key [Haz clic para obtener](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)",
     "MiMo TTS Settings": "Configuración TTS de Xiaomi MiMo",
+    "ElevenLabs API Key": "Clave API de ElevenLabs",
+    "ElevenLabs Model": "Modelo de ElevenLabs",
     "Uses Xiaomi MiMo V2.5 TTS preset voices": "Usa voces preestablecidas de TTS Xiaomi MiMo V2.5",
     "Speed and volume are currently handled by the provider defaults": "La velocidad y el volumen están gestionados por los valores predeterminados del proveedor",
     "Hide Log": "Ocultar registro",
