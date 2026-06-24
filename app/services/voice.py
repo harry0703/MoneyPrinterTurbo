@@ -157,7 +157,7 @@ def get_elevenlabs_voices(api_key: str) -> list[str]:
         return [
             f"elevenlabs:{v['voice_id']}:{v['name']}"
             for v in voices
-            if v.get("voice_id") and v.get("name")
+            if v.get("voice_id") and v.get("name") and v.get("status") != "disabled"
         ]
     except Exception as e:
         logger.warning(f"ElevenLabs voices fetch failed: {str(e)}")
@@ -1217,6 +1217,10 @@ def elevenlabs_tts(
         },
     }
 
+    # Errors where retrying will never help (auth/access/validation failures).
+    _NON_RETRYABLE_CODES = {401, 403, 422}
+    _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized"}
+
     for i in range(3):
         try:
             logger.info(f"start elevenlabs tts, voice_id: {voice_id}, try: {i + 1}")
@@ -1224,8 +1228,24 @@ def elevenlabs_tts(
 
             response = requests.post(url, json=payload, headers=headers, timeout=60)
             if response.status_code != 200:
+                error_status = ""
+                try:
+                    detail = response.json().get("detail", {})
+                    if isinstance(detail, dict):
+                        error_status = detail.get("status", "")
+                except Exception:
+                    pass
+
+                if response.status_code in _NON_RETRYABLE_CODES or error_status in _NON_RETRYABLE_STATUSES:
+                    logger.error(
+                        f"ElevenLabs TTS failed (non-retryable) — voice_id: {voice_id}, "
+                        f"status: {response.status_code}, error: {error_status or response.text[:200]}. "
+                        "Please select a different ElevenLabs voice."
+                    )
+                    return None
+
                 logger.error(
-                    f"elevenlabs tts failed with status {response.status_code}: {response.text}"
+                    f"elevenlabs tts failed with status {response.status_code}: {response.text[:200]}"
                 )
                 continue
 
