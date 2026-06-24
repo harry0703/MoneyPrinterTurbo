@@ -289,6 +289,7 @@ if not config.app.get("hide_config", False):
                 ("OpenAI", "openai"),
                 (aihubmix_label, "aihubmix"),
                 ("AIML API", "aimlapi"),
+                ("EvoLink", "evolink"),
                 ("Moonshot", "moonshot"),
                 ("Azure", "azure"),
                 ("Qwen", "qwen"),
@@ -406,6 +407,19 @@ if not config.app.get("hide_config", False):
                             - **API Key**: create one at https://aimlapi.com/app/keys
                             - **Base Url**: https://api.aimlapi.com/v1
                             - **Model Name**: for example `openai/gpt-4o-mini`, `openai/gpt-4o`, `anthropic/claude-sonnet-4.5`, or `google/gemini-3-flash-preview`
+                            """
+
+            if llm_provider == "evolink":
+                if not llm_model_name:
+                    llm_model_name = "gpt-5.5"
+                if not llm_base_url:
+                    llm_base_url = "https://direct.evolink.ai/v1"
+                with llm_helper:
+                    tips = """
+                            ##### EvoLink 配置说明
+                            - **API Key**: [点击到官网申请](https://evolink.ai/dashboard/keys)
+                            - **Base Url**: 默认 https://direct.evolink.ai/v1
+                            - **Model Name**: 默认 gpt-5.5，也可以填写 EvoLink 支持的其它模型 ID
                             """
 
             if llm_provider == "moonshot":
