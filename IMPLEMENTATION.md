@@ -554,11 +554,70 @@ to match actual rendered output (consistent with M3 results of 29-33s).
 
 ### Próximos Pasos — Milestone 5
 
+- [x] Render next CSV batch (topics 4-7) using established sequential workflow
 - [ ] GPU encoding (`-c:v h264_nvenc`) — reduce render time from ~20min to ~2min
-- [ ] Mark completed topics as `done` in CSV after manual QA approval
 - [ ] Spanish voice support: `es-ES-AlvaroNeural`, `es-MX-JorgeNeural`
 - [ ] Batch size up to 10 once sequential rendering is confirmed stable
 - [ ] Simple local UI for topic management and batch launch
+
+---
+
+## Milestone 5 — Continued CSV Batch Rendering
+
+**Date:** 2026-06-26
+**Branch:** `implementation/milestone-4-content-ops`
+
+### What Was Executed
+
+Continued the CSV batch workflow from Milestone 4 using the same script and preset with no code changes to the render pipeline. Rendered topics 4-7 from `productivity_batch_v1.csv` sequentially.
+
+```powershell
+.\scripts\generate_from_csv_openai_pexels.ps1 `
+    -CsvPath content\topics\productivity_batch_v1.csv `
+    -PresetPath content\presets\shorts_productivity_v1.json `
+    -Render -StartFrom 4 -MaxItems 4 `
+    -OutputReportName "milestone_5_topics_4_7_report.md"
+```
+
+Topics rendered:
+1. Small Habits That Compound Over Time
+2. How AI Can Help You Work Smarter
+3. Why Most People Never Finish What They Start
+4. The Hidden Cost of Multitasking
+
+### Script Improvement (Milestone 5)
+
+Added `manual_qa_pending` to the skip list in `generate_from_csv_openai_pexels.ps1`:
+- Previously only skipped `done` and `skipped` status rows
+- Now also skips `manual_qa_pending` to prevent accidental re-renders of unreviewed videos
+
+### Validation Method
+
+Same strong audio integrity validation as Milestone 3 and 4:
+- WAV extraction from final-1.mp4 (not ffprobe metadata alone)
+- silencedetect at -35dB/1s threshold — no silence blocks accepted
+- Duration check against preset range (28-55s)
+- SRT subtitle presence and content
+- Screenshots at 5s and near-end (freeze detection)
+
+### Render Results
+
+| # | Topic | Task ID | Status | Duration | WAV | Audio | SRT | Screenshots |
+|---|-------|---------|--------|----------|-----|-------|-----|-------------|
+| 4 | Small Habits That Compound Over Time | c3c92b35-c0ca-4617-99a3-24a80c0cb2c1 | manual_qa_pending | 32.5s | 5.469MB | PASS | v | v |
+| 5 | How AI Can Help You Work Smarter | 65e44dd9-ec4b-448f-b607-cc914d45e188 | manual_qa_pending | 31.2s | 5.25MB | PASS | v | v |
+| 6 | Why Most People Never Finish What They Start | 25401b6c-ea0c-40be-868a-ef58f91c4a11 | manual_qa_pending | 34.6s | 5.828MB | PASS | v | v |
+| 7 | The Hidden Cost of Multitasking | 4a4a476e-f7ae-42a7-9603-f1b4549d0b0c | manual_qa_pending | 31.0s | 5.223MB | PASS | v | v |
+
+All 4 automated checks passed. Total render time: 29.1 minutes (sequential, 1 video at a time).
+
+### Manual QA Status
+
+All 4 videos set to `manual_qa_pending` after automated validation. Do not mark as `done` until manual playback confirms audio, subtitles, and footage.
+
+### Report
+
+`storage/batch_reports/milestone_5_topics_4_7_report.md` (gitignored)
 
 ---
 

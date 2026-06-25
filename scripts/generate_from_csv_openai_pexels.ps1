@@ -82,7 +82,7 @@ if ($slice.Count -eq 0) {
     exit 1
 }
 
-$pending = @($slice | Where-Object { $_.status -ne "done" -and $_.status -ne "skipped" })
+$pending = @($slice | Where-Object { $_.status -ne "done" -and $_.status -ne "skipped" -and $_.status -ne "manual_qa_pending" })
 Write-Host "CSV: $($allRows.Count) total rows - selected $($slice.Count), pending $($pending.Count)"
 
 # ── Load preset ───────────────────────────────────────────────────────────────
