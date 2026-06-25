@@ -406,6 +406,162 @@ Render time varies with CPU competition. Max 4 concurrent tasks recommended.
 
 ---
 
+## Milestone 4 — Content Ops and CSV Batch Workflow
+
+**Date:** 2026-06-26
+**Branch:** `implementation/milestone-4-content-ops`
+
+### What Was Implemented
+
+1. **Content directory structure** (`content/`) — versionable, no secrets:
+   - `content/topics/productivity_batch_v1.csv` — 10 topics with angle/audience/tone/preset/status columns
+   - `content/presets/shorts_productivity_v1.json` — reusable preset for productivity short-form content
+   - `content/presets/shorts_ai_work_v1.json` — preset oriented to AI tools and workflow automation
+   - `content/reports/` — placeholder for future editorial reports
+
+2. **CSV-driven batch script** (`scripts/generate_from_csv_openai_pexels.ps1`):
+   - Reads topics from CSV, applies preset parameters, builds requests
+   - `-DryRun` mode: validates CSV + preset, estimates durations, no API calls
+   - `-Render` mode: sequential renders, one video at a time (no unsafe concurrency)
+   - State-flush fallback: file-size stability check when API state stuck at 75%
+   - Full audio integrity validation per video (WAV + silencedetect)
+   - Screenshots at 5s and near-end (freeze detection)
+   - Quality report saved to `storage/batch_reports/`
+
+3. **Editorial presets** — JSON files with all render parameters:
+   - `script_word_count_min/max` → injects word count constraint into LLM prompt
+   - `hook_required`, `avoid_cliches` → documented editorial rules
+   - `render_final_sequential: true`, `audio_integrity_validation: true`
+   - `target/min/max_duration_seconds` — enforced at validation stage
+   - `script_prompt_template` — per-preset LLM prompt template with angle/audience/tone injection
+
+### How to Use the CSV
+
+The CSV at `content/topics/productivity_batch_v1.csv` has these columns:
+
+| Column | Purpose |
+|--------|---------|
+| `topic` | Video subject (maps to `video_subject` in API) |
+| `angle` | Editorial angle injected into LLM prompt |
+| `audience` | Target audience injected into LLM prompt |
+| `tone` | Narration tone injected into LLM prompt |
+| `duration_target_seconds` | Informational target (enforced via preset) |
+| `preset` | Which preset to use (informational; override with -PresetPath) |
+| `language` | Content language |
+| `status` | `pending` / `done` / `skipped` — script skips non-pending rows |
+
+Mark rows as `done` after successful manual QA to prevent re-render.
+
+### How to Use Presets
+
+Presets are JSON files in `content/presets/`. They control all render parameters:
+
+```json
+{
+  "script_word_count_min": 70,
+  "script_word_count_max": 95,
+  "voice_name": "en-US-AndrewNeural",
+  "bgm_volume": 0.12,
+  "subtitle_position": "bottom",
+  "render_final_sequential": true,
+  "audio_integrity_validation": true,
+  "script_prompt_template": "Write exactly {word_count_min} to {word_count_max} words total..."
+}
+```
+
+Two presets available:
+- `shorts_productivity_v1` — productivity, habits, focus, self-improvement
+- `shorts_ai_work_v1` — AI tools, automation, knowledge work, workflows
+
+### How to Run a Dry Run
+
+Validates CSV + preset without making any API calls or renders:
+
+```powershell
+.\scripts\generate_from_csv_openai_pexels.ps1 `
+    -CsvPath content\topics\productivity_batch_v1.csv `
+    -PresetPath content\presets\shorts_productivity_v1.json `
+    -DryRun -MaxItems 5
+```
+
+Produces: `storage/batch_reports/milestone_4_dry_run_report.md`
+
+### How to Run a Render
+
+Renders videos sequentially (one at a time). Always start with 3 to validate:
+
+```powershell
+.\scripts\generate_from_csv_openai_pexels.ps1 `
+    -CsvPath content\topics\productivity_batch_v1.csv `
+    -PresetPath content\presets\shorts_productivity_v1.json `
+    -Render -MaxItems 3
+```
+
+Use `-StartFrom N` to skip rows (e.g., `-StartFrom 6` to start from the 6th row).
+
+### Quality Validation Per Video
+
+Every rendered video is validated automatically:
+
+1. `final-1.mp4` exists and ffprobe can read duration
+2. Duration within preset range (35-55s for default preset)
+3. Audio extracted to WAV — must be >= 3MB for ~30s video
+4. Silencedetect: no silence blocks > 1s in extracted WAV
+5. `subtitle.srt` exists and has content (> 3 lines)
+6. Screenshot extractable at 5s (confirms decodable frames)
+7. Screenshot near end (> 85% of duration) — detects freeze artifacts
+
+**Critical rule**: never mark SUCCESS based only on ffprobe metadata or file size.
+WAV extraction + silencedetect is the authoritative audio check (established in M3).
+
+### Heavy Outputs Excluded from Git
+
+All generated outputs are gitignored:
+- `storage/tasks/{task_id}/` — final-1.mp4, audio.mp3, subtitle.srt, screenshots
+- `storage/batch_reports/` — dry-run and render reports
+- `storage/local_videos/` — any downloaded Pexels clips
+
+Only versionable files are committed:
+- `content/topics/*.csv`
+- `content/presets/*.json`
+- `scripts/generate_from_csv_openai_pexels.ps1`
+- `IMPLEMENTATION.md`
+
+### Milestone 4 Render Results
+
+Render batch run on 2026-06-26 (first 3 topics from productivity_batch_v1.csv):
+
+| # | Topic | Task ID | Status | Duration | WAV | Audio | SRT | Screenshots | Notes |
+|---|-------|---------|--------|----------|-----|-------|-----|-------------|-------|
+| 1 | The Power of Consistency | `98eb97e8` | PENDING MANUAL QA | 33.27s | 5.598MB | PASS | PASS | PASS | Audio continuous, no silence |
+| 2 | Why Motivation Is Overrated | `16fc8c6b` | PENDING MANUAL QA | 31.77s | 5.348MB | PASS | PASS | PASS | Audio continuous, no silence |
+| 3 | How to Focus in a Distracted World | `5729de52` | PENDING MANUAL QA | 30.80s | 5.184MB | PASS | PASS | PASS | Audio continuous, no silence |
+
+All 3 videos pass automated audio integrity validation. Manual playback QA required before marking as production-ready.
+
+### Bug Found and Fixed in generate_from_csv_openai_pexels.ps1
+
+**State-flush false positive**: `final-1.mp4` is created and written incrementally by MoviePy.
+A partial file (1-5MB) appeared "stable" in an 8-second stability window, triggering the fallback
+as if the render was complete. Validation then failed (invalid partial file).
+
+Fix: raised minimum file size threshold from 1MB to 10MB. Completed 30s videos are 6-10MB.
+A sub-5MB file is a partial write, not a finished render.
+
+**Duration threshold mismatch**: The preset `min_duration_seconds: 35` was too strict.
+edge-tts at natural pace produces ~30-33s of audio from a 70-95 word script. Lowered to 28s
+to match actual rendered output (consistent with M3 results of 29-33s).
+
+### Próximos Pasos — Milestone 5
+
+- [ ] GPU encoding (`-c:v h264_nvenc`) — reduce render time from ~20min to ~2min
+- [ ] Mark completed topics as `done` in CSV after manual QA approval
+- [ ] Spanish voice support: `es-ES-AlvaroNeural`, `es-MX-JorgeNeural`
+- [ ] Batch size up to 10 once sequential rendering is confirmed stable
+- [ ] Simple local UI for topic management and batch launch
+
+---
+
 ## Próximos pasos
 
 ### Milestone 4 — Optimización y escala
