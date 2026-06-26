@@ -59,11 +59,20 @@ materials, video subtitles, and video background music before synthesizing a hig
   </tr>
   <tr>
     <td align="center" width="160">
+      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><img src="docs/sponsors/compshare-logo.png" alt="Compshare" height="34"></a><br>
+      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><strong>Compshare</strong></a>
+    </td>
+    <td align="left">
+      <sub>Thanks to <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">Compshare</a> for sponsoring this project! Compshare is an AI cloud platform under UCloud that provides one-stop API access to mainstream Chinese and international models with a single key. Its CodingPlan package focuses on cost-effective Chinese models such as GLM5.2 and Deepseek-v4, while also offering stable official relay channels for overseas models across different development scenarios. It is compatible with Claude Code, Codex, and other mainstream AI coding tools and general API calls, with enterprise-grade high concurrency, 24/7 technical support, and self-service invoicing. <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">Register now</a> to receive up to ¥10 in free trial credits.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com"><strong>RecCloud</strong></a>
     </td>
     <td align="left">
-      <sub>Due to the <strong>deployment</strong> and <strong>usage</strong> of this project, there is a certain threshold for some beginner users. We would like to express our special thanks to <a href="https://reccloud.com">RecCloud (AI-Powered Multimedia Service Platform)</a> for providing a free <code>AI Video Generator</code> service based on this project. It allows for online use without deployment, which is very convenient. Chinese version: <a href="https://reccloud.cn">https://reccloud.cn</a>, English version: <a href="https://reccloud.com">https://reccloud.com</a></sub>
+      <sub>Due to the <strong>deployment</strong> and <strong>usage</strong> of this project, there is a certain threshold for some beginner users. We would like to express our special thanks to <a href="https://reccloud.com">RecCloud (AI-Powered Multimedia Service Platform)</a> for providing a free <code>AI Video Generator</code> service based on this project. It allows for online use without deployment, which is very convenient.</sub>
     </td>
   </tr>
   <tr>

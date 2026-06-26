@@ -59,11 +59,20 @@
   </tr>
   <tr>
     <td align="center" width="160">
+      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><img src="docs/sponsors/compshare-logo.png" alt="优云智算" height="34"></a><br>
+      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><strong>优云智算</strong></a>
+    </td>
+    <td align="left">
+      <sub>感谢 <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">优云智算</a> 赞助本项目！优云智算是 UCloud 旗下 AI 云平台，一站式提供国内外主流模型的 API 服务，一个 Key 即可调用所有模型。主打高性价比国产模型 CodingPlan 套餐（GLM5.2、Deepseek-v4等），同时提供官方转发的稳定海外模型通道，满足多场景开发需求。已兼容 Claude Code、Codex 等主流 AI 编程工具及通用 API 调用，支持企业级高并发、7×24 技术支持和自助开票。<a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">点击注册</a>，最高可获得 ¥10 免费体验金。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="160">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn"><strong>录咖 AI</strong></a>
     </td>
     <td align="left">
-      <sub>由于该项目的 <strong>部署</strong> 和 <strong>使用</strong>，对于一些小白用户来说，还是 <strong>有一定的门槛</strong>，在此特别感谢 <a href="https://reccloud.cn">录咖（AI智能 多媒体服务平台）</a> 网站基于该项目，提供的免费 <code>AI视频生成器</code> 服务，可以不用部署，直接在线使用，非常方便。中文版：<a href="https://reccloud.cn">https://reccloud.cn</a>，英文版：<a href="https://reccloud.com">https://reccloud.com</a></sub>
+      <sub>由于该项目的 <strong>部署</strong> 和 <strong>使用</strong>，对于一些小白用户来说，还是 <strong>有一定的门槛</strong>，在此特别感谢 <a href="https://reccloud.cn">录咖（AI智能 多媒体服务平台）</a> 网站基于该项目，提供的免费 <code>AI视频生成器</code> 服务，可以不用部署，直接在线使用，非常方便。</sub>
     </td>
   </tr>
   <tr>
