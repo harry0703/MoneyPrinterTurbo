@@ -1,0 +1,53 @@
+{
+  "_name": "shorts_ai_work_v1",
+  "_description": "Short-form AI productivity content: 35-45s, portrait 9:16, forward-looking narration on AI tools and workflows",
+  "_version": "1.0",
+  "_niche": "AI productivity, workflow automation, knowledge work, tools, second brain",
+  "_focus": ["AI tools", "automation", "knowledge work", "workflows", "productivity tech"],
+
+  "video_aspect": "9:16",
+  "target_duration_seconds": 40,
+  "min_duration_seconds": 28,
+  "max_duration_seconds": 55,
+
+  "script_word_count_min": 70,
+  "script_word_count_max": 95,
+  "hook_required": true,
+  "avoid_cliches": true,
+
+  "search_terms_count_min": 6,
+  "search_terms_count_max": 10,
+  "search_terms_language": "english",
+
+  "voice_name": "en-US-AndrewNeural",
+  "voice_rate": 1.0,
+  "voice_volume": 1.0,
+
+  "bgm_type": "random",
+  "bgm_volume": 0.12,
+  "bgm_volume_min": 0.10,
+  "bgm_volume_max": 0.16,
+
+  "subtitle_enabled": true,
+  "subtitle_position": "bottom",
+  "font_size": 60,
+  "stroke_color": "#000000",
+  "stroke_width": 1.5,
+  "text_fore_color": "#FFFFFF",
+  "text_background_color": true,
+  "rounded_subtitle_background": false,
+
+  "video_source": "pexels",
+  "video_clip_duration": 5,
+  "video_concat_mode": "random",
+  "match_materials_to_script": false,
+  "video_count": 1,
+  "n_threads": 2,
+  "paragraph_number": 1,
+
+  "render_final_sequential": true,
+  "audio_integrity_validation": true,
+  "freeze_detection": true,
+
+  "script_prompt_template": "Write exactly {word_count_min} to {word_count_max} words total. No more. Start with a specific, surprising observation about AI or technology that hooks the viewer instantly. Use short, concrete sentences. Describe how AI changes the way people work, think, or decide. Name specific benefits without overhyping. Sound like a knowledgeable narrator explaining a real shift, not a sales pitch. No cliches about robots or dystopia. No filler openers. No markdown, no formatting. Plain narration text only."
+}

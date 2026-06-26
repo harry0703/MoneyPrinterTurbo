@@ -1,0 +1,49 @@
+{
+  "_comment": "Batch request template — OpenAI + Pexels + edge-tts + subtitles. No API keys here.",
+  "_usage": "POST http://127.0.0.1:8080/api/v1/videos with one of the items below (minus _comment fields)",
+  "_target_duration": "35-45 seconds per video",
+  "_niche": "Productivity / Self-improvement / AI-assisted work",
+
+  "shared_params": {
+    "video_aspect": "9:16",
+    "video_source": "pexels",
+    "video_clip_duration": 5,
+    "video_concat_mode": "random",
+    "match_materials_to_script": false,
+    "video_count": 1,
+    "voice_name": "en-US-AndrewNeural",
+    "voice_rate": 1.0,
+    "voice_volume": 1.0,
+    "bgm_type": "random",
+    "bgm_volume": 0.12,
+    "subtitle_enabled": true,
+    "subtitle_position": "bottom",
+    "font_size": 60,
+    "stroke_color": "#000000",
+    "stroke_width": 1.5,
+    "text_fore_color": "#FFFFFF",
+    "text_background_color": true,
+    "rounded_subtitle_background": false,
+    "n_threads": 2,
+    "paragraph_number": 1,
+    "video_script_prompt": "Write exactly 75 to 90 words total. No more. Start with a strong hook sentence that grabs attention immediately. Use short, punchy sentences throughout. Sound like a confident voiceover narrator, not an essay. No motivational clichés. No filler openers. No markdown, no titles, no formatting. Plain narration text only."
+  },
+
+  "topics": [
+    {
+      "video_subject": "The Power of Consistency"
+    },
+    {
+      "video_subject": "Why Motivation Is Overrated"
+    },
+    {
+      "video_subject": "How to Focus in a Distracted World"
+    },
+    {
+      "video_subject": "Small Habits That Compound Over Time"
+    },
+    {
+      "video_subject": "How AI Can Help You Work Smarter"
+    }
+  ]
+}
