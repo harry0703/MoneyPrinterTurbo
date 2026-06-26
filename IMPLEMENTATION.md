@@ -667,10 +667,82 @@ All 10 topics processed:
 
 ---
 
+## Milestone 7-C — GPU Encoding Benchmark and Implementation
+
+**Date:** 2026-06-26
+**Branch:** `implementation/milestone-7c-gpu-encoding`
+
+### Hardware Detected
+
+- GPU: Intel UHD Graphics 620 (integrated)
+- NVIDIA GPU: None (nvidia-smi not found)
+- FFmpeg: imageio-ffmpeg v7.1 (bundled)
+
+### Encoder Availability
+
+| Encoder | Probe Result | Reason |
+|---------|-------------|--------|
+| h264_nvenc | FAIL | Cannot load nvcuda.dll — no NVIDIA GPU |
+| h264_amf | FAIL | Cannot load amfrt64.dll — no AMD GPU |
+| h264_qsv | PASS | Intel Quick Sync Video (UHD 620) |
+| h264_mf | PASS | Windows Media Foundation |
+| libx264 | PASS | CPU default, always available |
+
+### Implementation
+
+Two additions to `app/services/video.py`:
+
+1. **`_probe_hardware_encoder(ffmpeg_binary, codec)`** — test-encodes one black frame to
+   `/dev/null` before the first real encode. Catches driver failures (e.g. `nvcuda.dll`
+   missing) that `_ffmpeg_encoder_exists` cannot detect. Result is cached per codec per
+   process so the probe runs at most once.
+
+2. **`"auto"` video codec option** — probes hardware encoders in priority order
+   (nvenc → amf → qsv → mf → videotoolbox) and selects the first that passes both
+   the encoder-list check and the runtime probe. Falls back to libx264 if none are
+   usable. Existing runtime-disable and `_fallback_write_videofile` paths preserved.
+
+### Benchmark (30s, 1080x1920, synthetic)
+
+| Encoder | Time | Speedup | File size |
+|---------|------|---------|-----------|
+| libx264 (CPU) | 17.3s | 1.0x | 0.61MB |
+| h264_qsv (Intel QSV) | 5.1s | **3.4x** | 0.61MB |
+| h264_mf (WMF) | 10.0s | 1.7x | 0.73MB |
+
+Audio validation (QSV output): WAV 2.52MB, no silence, 30.00s — PASS.
+
+### How to Enable
+
+Add to `config.toml` under `[app]` (do not commit):
+
+```toml
+video_codec = "auto"   # recommended — selects h264_qsv on this machine
+# video_codec = "libx264"  # force CPU
+# video_codec = "h264_qsv" # force Intel QSV
+# video_codec = "h264_nvenc" # force NVIDIA (falls back if unavailable)
+```
+
+On this machine `auto` selects h264_qsv → expected render time ~1.8 min vs ~6 min per video.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `app/services/video.py` | Added `_probe_hardware_encoder`, `"auto"` codec, updated `_get_effective_video_codec` |
+| `IMPLEMENTATION.md` | This section |
+
+### Report
+
+`storage/benchmark_reports/milestone_7c_gpu_encoding_report.md` (gitignored)
+
+---
+
 ## Próximos pasos
 
 ### Milestone 4 — Optimización y escala
-- [ ] Reducir tiempo de render: GPU encoding (`-c:v h264_nvenc`) o máx 4 tasks concurrentes
+- [x] Reducir tiempo de render: GPU encoding — h264_qsv disponible (3.4x más rápido) ← M7-C
+- [ ] Agregar voces en español: `es-ES-AlvaroNeural`, `es-MX-JorgeNeural`
 - [ ] Batch con topics desde CSV o archivo externo
 - [ ] Agregar voces en español: `es-ES-AlvaroNeural`, `es-MX-JorgeNeural`
 - [ ] Scoring de calidad automático (duración, tamaño, screenshot check)
