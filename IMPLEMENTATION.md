@@ -621,6 +621,52 @@ All 4 videos set to `manual_qa_pending` after automated validation. Do not mark 
 
 ---
 
+## Milestone 6 — Final CSV Batch Rendering
+
+**Date:** 2026-06-26
+**Branch:** `implementation/milestone-4-content-ops`
+
+### What Was Executed
+
+Rendered the final 3 pending topics (rows 8-10) from `productivity_batch_v1.csv` using the same sequential workflow with no pipeline changes.
+
+```powershell
+.\scripts\generate_from_csv_openai_pexels.ps1 `
+    -CsvPath content\topics\productivity_batch_v1.csv `
+    -PresetPath content\presets\shorts_productivity_v1.json `
+    -Render -StartFrom 8 -MaxItems 3 `
+    -OutputReportName "milestone_6_topics_8_10_report.md"
+```
+
+### Render Results
+
+| # | Topic | Task ID | Status | Duration | WAV | Audio | SRT | Screenshots |
+|---|-------|---------|--------|----------|-----|-------|-----|-------------|
+| 8 | How to Build Deep Work Habits Without Burnout | 5f732982-9eb3-4afe-83ba-983dce25b4a3 | manual_qa_pending | 30.3s | 5.098MB | PASS | v | v |
+| 9 | The One Question That Fixes Any Blocked Decision | 2ed8465a-b25b-4505-bc0b-f0183f92876c | manual_qa_pending | 30.5s | 5.137MB | PASS | v | v |
+| 10 | Why Your Morning Routine Is Making You Less Productive | 89b542b7-c099-44b8-999a-857013aaf16f | manual_qa_pending | 36.5s | 6.137MB | PASS | v | v |
+
+All 3 automated checks passed. Total render time: 19.3 minutes (sequential).
+Server started manually (PID 5028) as it was not running at session start.
+
+### Manual QA Status
+
+Videos set to `manual_qa_pending`. Do not mark as `done` until manual playback confirms audio, subtitles, and footage.
+
+### Report
+
+`storage/batch_reports/milestone_6_topics_8_10_report.md` (gitignored)
+
+---
+
+## CSV Final State
+
+All 10 topics processed:
+- Rows 1-7: `done` (manually approved)
+- Rows 8-10: `manual_qa_pending` (awaiting manual review)
+
+---
+
 ## Próximos pasos
 
 ### Milestone 4 — Optimización y escala
