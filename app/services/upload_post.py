@@ -59,7 +59,7 @@ class UploadPostService:
                 for platform in platforms:
                     data.append(('platform[]', platform))
 
-                if youtube_extra and "youtube" in platforms:
+                if youtube_extra and any(p.startswith("youtube") for p in platforms):
                     if "youtube_title" in youtube_extra:
                         data.append(('youtube_title', youtube_extra["youtube_title"][:100]))
                     if "youtube_description" in youtube_extra:
