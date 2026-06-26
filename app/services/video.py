@@ -82,6 +82,15 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_qsv",
     "h264_mf",
     "h264_videotoolbox",
+    "auto",  # probe hardware encoders in priority order; falls back to libx264
+)
+# Priority order used when video_codec = "auto"
+_AUTO_ENCODER_CANDIDATES = (
+    "h264_nvenc",        # NVIDIA NVENC
+    "h264_amf",          # AMD AMF
+    "h264_qsv",          # Intel Quick Sync Video
+    "h264_mf",           # Windows Media Foundation
+    "h264_videotoolbox", # Apple VideoToolbox (macOS)
 )
 _runtime_disabled_video_codecs = set()
 
@@ -203,14 +212,64 @@ def _ffmpeg_encoder_exists(ffmpeg_binary: str, codec: str) -> bool:
     return codec in result.stdout
 
 
+@lru_cache(maxsize=8)
+def _probe_hardware_encoder(ffmpeg_binary: str, codec: str) -> bool:
+    """
+    Verify the codec is functional at runtime by test-encoding one black frame
+    to a null output. Separate from _ffmpeg_encoder_exists — a codec can be
+    compiled into ffmpeg yet fail at runtime if drivers are missing
+    (e.g. h264_nvenc without nvcuda.dll on a non-NVIDIA machine).
+    Cached so the probe runs at most once per codec per process.
+    """
+    try:
+        result = subprocess.run(
+            [
+                ffmpeg_binary, "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "color=c=black:s=64x64:d=0.04",
+                "-c:v", codec, "-frames:v", "1", "-f", "null", "-",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+        if result.returncode != 0:
+            logger.debug(
+                f"hardware encoder probe failed for {codec}: "
+                f"{(result.stderr or '').strip()[:200]}"
+            )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.debug(f"hardware encoder probe error for {codec}: {exc}")
+        return False
+
+
 def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
     """
     返回本次实际使用的视频编码器。
 
-    用户选择硬件编码器时，先做 FFmpeg encoder 列表检测；如果本进程里已经
-    实际编码失败过，也直接回退，避免一个任务里每个片段都重复失败。
+    "auto" 模式按优先级探测可用的硬件编码器，全部不可用时回退到 libx264。
+    显式配置的硬件编码器（如 h264_nvenc）会做一次轻量探针，若驱动或硬件
+    不支持则立即回退，避免等到实际编码才失败。
     """
     selected_codec = preferred_codec or _get_configured_video_codec()
+
+    if selected_codec == "auto":
+        ffmpeg_binary = utils.get_ffmpeg_binary()
+        for candidate in _AUTO_ENCODER_CANDIDATES:
+            if candidate in _runtime_disabled_video_codecs:
+                continue
+            if not _ffmpeg_encoder_exists(ffmpeg_binary, candidate):
+                continue
+            if _probe_hardware_encoder(ffmpeg_binary, candidate):
+                logger.info(f"auto video encoder: selected {candidate}")
+                return candidate
+        logger.info(
+            f"auto video encoder: no hardware encoder available, "
+            f"using {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+
     if selected_codec == _DEFAULT_VIDEO_CODEC:
         return _DEFAULT_VIDEO_CODEC
 
@@ -225,6 +284,13 @@ def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
     if not _ffmpeg_encoder_exists(ffmpeg_binary, selected_codec):
         logger.warning(
             f"ffmpeg encoder {selected_codec} is not available, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+
+    if not _probe_hardware_encoder(ffmpeg_binary, selected_codec):
+        logger.warning(
+            f"hardware encoder {selected_codec} failed runtime probe, "
             f"fallback to {_DEFAULT_VIDEO_CODEC}"
         )
         return _DEFAULT_VIDEO_CODEC
