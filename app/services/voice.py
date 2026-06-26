@@ -1359,6 +1359,10 @@ def chatterbox_tts(
         # 1.0-centred multiplier, so it maps directly (clamped to the valid range).
         "speed": max(0.25, min(4.0, float(voice_rate or 1.0))),
     }
+    # voice_volume is accepted for parity with the other TTS providers but is
+    # intentionally not sent: the OpenAI /audio/speech contract has no volume
+    # field, so Chatterbox servers ignore it. Adjust loudness via voice_rate
+    # (speed) or in post-processing instead.
 
     for i in range(3):
         try:

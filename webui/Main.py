@@ -1259,6 +1259,58 @@ with middle_panel:
 
             config.elevenlabs["api_key"] = elevenlabs_api_key
 
+        # Chatterbox API settings section (self-hosted, OpenAI-compatible)
+        if selected_tts_server == "chatterbox" or (
+            voice_name and voice.is_chatterbox_voice(voice_name)
+        ):
+            chatterbox_base_url = st.text_input(
+                tr("Chatterbox Base URL"),
+                value=config.chatterbox.get("base_url", ""),
+                key="chatterbox_base_url_input",
+                placeholder="http://localhost:4123/v1",
+            )
+            config.chatterbox["base_url"] = (chatterbox_base_url or "").strip()
+
+            chatterbox_api_key = st.text_input(
+                tr("Chatterbox API Key"),
+                value=config.chatterbox.get("api_key", ""),
+                type="password",
+                key="chatterbox_api_key_input",
+            )
+            config.chatterbox["api_key"] = chatterbox_api_key
+
+            chatterbox_model = st.text_input(
+                tr("Chatterbox Model"),
+                value=config.chatterbox.get("model_id", "chatterbox") or "chatterbox",
+                key="chatterbox_model_input",
+            )
+            config.chatterbox["model_id"] = (chatterbox_model or "chatterbox").strip()
+
+            _saved_chatterbox_voices = config.chatterbox.get("voices", [])
+            if isinstance(_saved_chatterbox_voices, list):
+                _saved_chatterbox_voices = ", ".join(_saved_chatterbox_voices)
+            chatterbox_voices = st.text_input(
+                tr("Chatterbox Voices"),
+                value=str(_saved_chatterbox_voices or ""),
+                key="chatterbox_voices_input",
+                placeholder="default-Female, narrator-Male",
+            )
+            config.chatterbox["voices"] = [
+                v.strip() for v in chatterbox_voices.split(",") if v.strip()
+            ]
+
+            st.info(
+                "Chatterbox TTS Settings (self-hosted):\n"
+                "- Run an OpenAI-compatible Chatterbox server (e.g. "
+                "devnen/Chatterbox-TTS-Server or travisvn/chatterbox-tts-api) and "
+                "set Base URL to its /v1 endpoint\n"
+                "- Voices is a comma-separated list of voice names your server "
+                "exposes; add a -Female or -Male suffix only to label the gender "
+                "in this dropdown\n"
+                "- Speech Volume is not applied for Chatterbox (the OpenAI "
+                "/audio/speech API has no volume field); use Speech Rate instead"
+            )
+
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),
             options=[0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 4.0, 5.0],
