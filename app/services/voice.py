@@ -406,6 +406,8 @@ def convert_rate_to_percent(rate: float) -> str:
     # Rounding can yield 0 for rates near but not equal to 1.0 (e.g. 1.004,
     # 0.997); those must still be returned as "+0%", not the unsigned "0%"
     # which edge-tts rejects with ValueError: Invalid rate '0%'.
+    # 0, 0.0, and None are not valid speeds — treat them as normal (1.0).
+    rate = rate or 1.0
     percent = round((rate - 1.0) * 100)
     if percent >= 0:
         return f"+{percent}%"

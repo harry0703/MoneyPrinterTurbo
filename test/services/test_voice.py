@@ -733,6 +733,13 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(vs.convert_rate_to_percent(1.5), "+50%")
         self.assertEqual(vs.convert_rate_to_percent(0.8), "-20%")
 
+    def test_convert_rate_to_percent_zero_and_none_default_to_normal(self):
+        # 0, 0.0, and None are not meaningful speeds; treat them as 1.0 (+0%).
+        # Prevents voice_rate=0 from silently producing -100% in edge-tts.
+        self.assertEqual(vs.convert_rate_to_percent(0), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(0.0), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(None), "+0%")
+
 
 class TestElevenLabsVoice(unittest.TestCase):
 
