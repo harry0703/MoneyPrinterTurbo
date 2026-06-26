@@ -426,7 +426,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         logger.info(f"\n\n## cross-posting videos to {', '.join(platforms)}")
 
         youtube_extra = None
-        if "youtube" in platforms:
+        if any(p.startswith("youtube") for p in platforms):
             metadata = llm.generate_social_metadata(
                 video_subject=params.video_subject,
                 video_script=video_script,
