@@ -964,6 +964,7 @@ with middle_panel:
             ("gemini-tts", "Google Gemini TTS"),
             ("mimo-tts", "Xiaomi MiMo TTS"),
             ("elevenlabs", "ElevenLabs TTS"),
+            ("chatterbox", "Chatterbox TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -1016,6 +1017,9 @@ with middle_panel:
                     saved_elevenlabs_api_key
                 )
             filtered_voices = st.session_state[cache_key]
+        elif selected_tts_server == "chatterbox":
+            # 自托管 Chatterbox 服务的预置音色（来自 [chatterbox] voices 配置）
+            filtered_voices = voice.get_chatterbox_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -1038,6 +1042,9 @@ with middle_panel:
                 if voice.is_elevenlabs_voice(v):
                     parts = v.split(":", 2)
                     return parts[2] if len(parts) >= 3 else v
+                if voice.is_chatterbox_voice(v):
+                    name = v.split(":", 1)[1] if ":" in v else v
+                    return name.replace("-Female", "").replace("-Male", "")
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))
