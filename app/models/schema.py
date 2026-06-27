@@ -53,6 +53,7 @@ class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
+    kind: str = "video"  # "video" or "image" (used by the Discord source)
 
 
 class VideoParams(BaseModel):
@@ -81,6 +82,9 @@ class VideoParams(BaseModel):
     video_count: Optional[int] = 1
 
     video_source: Optional[str] = "pexels"
+    discord_channel_id: Optional[str] = ""  # Selected Discord text channel id (video_source="discord")
+    discord_count: Optional[int] = 10  # Number of recent Discord attachments to load
+    discord_media_type: Optional[str] = "video"  # "video", "image" or "both"
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
     )

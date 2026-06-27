@@ -23,7 +23,7 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
-from app.services import llm, voice
+from app.services import llm, material, voice
 from app.services import task as tm
 from app.utils import utils
 
@@ -758,6 +758,14 @@ if not config.app.get("hide_config", False):
             )
             save_keys_to_config("coverr_api_keys", coverr_api_key)
 
+            # Discord 机器人令牌是单个密钥（不是逗号分隔的列表），因此直接存为字符串。
+            discord_bot_token = st.text_input(
+                tr("Discord Bot Token"),
+                value=config.app.get("discord_bot_token", ""),
+                type="password",
+            )
+            config.app["discord_bot_token"] = discord_bot_token.strip()
+
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
 left_panel = panel[0]
@@ -889,6 +897,7 @@ with middle_panel:
             (tr("Pexels"), "pexels"),
             (tr("Pixabay"), "pixabay"),
             (tr("Coverr"), "coverr"),
+            (tr("Discord"), "discord"),
             (tr("Local file"), "local"),
             (tr("TikTok"), "douyin"),
             (tr("Bilibili"), "bilibili"),
@@ -917,6 +926,72 @@ with middle_panel:
                 type=local_file_types + [file_type.upper() for file_type in local_file_types],
                 accept_multiple_files=True,
             )
+
+        if params.video_source == "discord":
+            discord_token = config.app.get("discord_bot_token", "")
+            if not discord_token:
+                st.info(tr("Please set the Discord Bot Token in the settings panel above."))
+            else:
+                try:
+                    guilds = material.list_discord_guilds(discord_token)
+                except Exception as e:
+                    guilds = []
+                    st.warning(f"{tr('Failed to load Discord servers')}: {e}")
+
+                if not guilds:
+                    st.warning(tr("No Discord servers found for this bot."))
+                else:
+                    guild_index = st.selectbox(
+                        tr("Discord Server"),
+                        options=range(len(guilds)),
+                        format_func=lambda x: guilds[x][1],
+                    )
+                    guild_id = guilds[guild_index][0]
+
+                    try:
+                        channels = material.list_discord_channels(discord_token, guild_id)
+                    except Exception as e:
+                        channels = []
+                        st.warning(f"{tr('Failed to load Discord channels')}: {e}")
+
+                    if not channels:
+                        st.warning(tr("No text channels found in this server."))
+                    else:
+                        channel_index = st.selectbox(
+                            tr("Discord Channel"),
+                            options=range(len(channels)),
+                            format_func=lambda x: channels[x][1],
+                        )
+                        channel_id = channels[channel_index][0]
+                        params.discord_channel_id = channel_id
+                        config.app["discord_channel_id"] = channel_id
+
+            discord_media_types = [
+                (tr("Video"), "video"),
+                (tr("Image"), "image"),
+                (tr("Both"), "both"),
+            ]
+            saved_media_type = config.app.get("discord_media_type", "video")
+            saved_media_index = next(
+                (i for i, m in enumerate(discord_media_types) if m[1] == saved_media_type),
+                0,
+            )
+            media_index = st.selectbox(
+                tr("Media Type"),
+                options=range(len(discord_media_types)),
+                format_func=lambda x: discord_media_types[x][0],
+                index=saved_media_index,
+            )
+            params.discord_media_type = discord_media_types[media_index][1]
+            config.app["discord_media_type"] = params.discord_media_type
+
+            discord_count = st.number_input(
+                tr("Number of items"),
+                min_value=1,
+                value=int(config.app.get("discord_count", 10) or 10),
+            )
+            params.discord_count = int(discord_count)
+            config.app["discord_count"] = int(discord_count)
 
         selected_index = st.selectbox(
             tr("Video Concat Mode"),
@@ -1676,10 +1751,20 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source not in ["pexels", "pixabay", "coverr", "local"]:
+    if params.video_source not in ["pexels", "pixabay", "coverr", "discord", "local"]:
         st.error(tr("Please Select a Valid Video Source"))
         scroll_to_bottom()
         st.stop()
+
+    if params.video_source == "discord":
+        if not config.app.get("discord_bot_token", ""):
+            st.error(tr("Please set the Discord Bot Token in the settings panel above."))
+            scroll_to_bottom()
+            st.stop()
+        if not params.discord_channel_id:
+            st.error(tr("Please select a Discord channel."))
+            scroll_to_bottom()
+            st.stop()
 
     if params.video_source == "pexels" and not config.app.get("pexels_api_keys", ""):
         st.error(tr("Please Enter the Pexels API Key"))

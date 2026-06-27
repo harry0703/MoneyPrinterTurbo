@@ -426,5 +426,198 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertEqual(result, ["/tmp/coverr-saved.mp4"])
 
 
+class TestDiscordProvider(unittest.TestCase):
+    """
+    Discord 视频素材源：用 bot token 拉取所选频道里最近的视频附件。
+    全部用 unittest.mock 替换 requests，不依赖真实网络和真实 token。
+    """
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        self.original_proxy_config = dict(config.proxy)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        config.proxy.clear()
+        config.proxy.update(self.original_proxy_config)
+
+    def _ok(self, payload):
+        return SimpleNamespace(status_code=200, json=lambda: payload, text="")
+
+    def _mixed_messages(self):
+        return [
+            {
+                "id": "3",
+                "attachments": [
+                    {"url": "https://cdn.discord/a.mp4", "content_type": "video/mp4", "filename": "a.mp4"},
+                    {"url": "https://cdn.discord/pic.png", "content_type": "image/png", "filename": "pic.png"},
+                ],
+            },
+            {
+                "id": "2",
+                "attachments": [
+                    # content_type 缺失，靠文件名扩展名识别
+                    {"url": "https://cdn.discord/b.mov", "filename": "b.mov"},
+                    {"url": "https://cdn.discord/doc.pdf", "filename": "doc.pdf"},
+                ],
+            },
+            {"id": "1", "attachments": []},
+        ]
+
+    def test_fetch_video_only_filters_images(self):
+        """media_type='video' 只保留视频附件，图片 / 其它附件应被过滤。"""
+        config.proxy.clear()
+        with patch(
+            "app.services.material.requests.get",
+            return_value=self._ok(self._mixed_messages()),
+        ) as get:
+            items = material.fetch_discord_attachments("tok", "chan", count=10, media_type="video")
+
+        self.assertEqual([i.url for i in items], [
+            "https://cdn.discord/a.mp4",
+            "https://cdn.discord/b.mov",
+        ])
+        self.assertTrue(all(i.provider == "discord" and i.kind == "video" and i.duration == 0 for i in items))
+        self.assertEqual(get.call_count, 1)
+        self.assertEqual(get.call_args.kwargs["headers"]["Authorization"], "Bot tok")
+
+    def test_fetch_image_only(self):
+        """media_type='image' 只保留图片附件。"""
+        config.proxy.clear()
+        with patch(
+            "app.services.material.requests.get",
+            return_value=self._ok(self._mixed_messages()),
+        ):
+            items = material.fetch_discord_attachments("tok", "chan", count=10, media_type="image")
+        self.assertEqual([i.url for i in items], ["https://cdn.discord/pic.png"])
+        self.assertEqual(items[0].kind, "image")
+
+    def test_fetch_both_keeps_videos_and_images(self):
+        """media_type='both' 同时保留视频和图片，其它附件仍被过滤。"""
+        config.proxy.clear()
+        with patch(
+            "app.services.material.requests.get",
+            return_value=self._ok(self._mixed_messages()),
+        ):
+            items = material.fetch_discord_attachments("tok", "chan", count=10, media_type="both")
+        self.assertEqual([i.url for i in items], [
+            "https://cdn.discord/a.mp4",
+            "https://cdn.discord/pic.png",
+            "https://cdn.discord/b.mov",
+        ])
+
+    def test_legacy_fetch_video_wrapper(self):
+        """旧名 fetch_discord_video_attachments 仍只返回视频。"""
+        config.proxy.clear()
+        with patch(
+            "app.services.material.requests.get",
+            return_value=self._ok(self._mixed_messages()),
+        ):
+            items = material.fetch_discord_video_attachments("tok", "chan", count=10)
+        self.assertEqual([i.kind for i in items], ["video", "video"])
+
+    def test_fetch_stops_at_count(self):
+        """收集够 count 个视频后立即返回，不再继续翻页。"""
+        config.proxy.clear()
+        messages = [
+            {"id": str(i), "attachments": [
+                {"url": f"https://cdn.discord/{i}.mp4", "content_type": "video/mp4", "filename": f"{i}.mp4"}
+            ]}
+            for i in range(5)
+        ]
+        with patch(
+            "app.services.material.requests.get", return_value=self._ok(messages)
+        ):
+            items = material.fetch_discord_video_attachments("tok", "chan", count=2)
+        self.assertEqual(len(items), 2)
+
+    def test_download_videos_dispatches_to_discord(self):
+        """
+        source="discord" 时短路搜索逻辑：从 config.app 读取 token，把每个附件
+        URL 交给 save_video，返回保存路径。
+        """
+        config.app["discord_bot_token"] = "tok"
+        config.app.pop("material_directory", None)
+        config.proxy.clear()
+
+        fake_item = material.MaterialInfo()
+        fake_item.provider = "discord"
+        fake_item.kind = "video"
+        fake_item.url = "https://cdn.discord/a.mp4"
+        fake_item.duration = 0
+
+        with patch(
+            "app.services.material.fetch_discord_attachments",
+            return_value=[fake_item],
+        ) as fetch, patch(
+            "app.services.material.save_video",
+            return_value="/tmp/discord-a.mp4",
+        ) as save:
+            result = material.download_videos(
+                task_id="t-discord",
+                search_terms=[],
+                source="discord",
+                discord_channel_id="chan",
+                discord_count=3,
+                discord_media_type="video",
+            )
+
+        fetch.assert_called_once_with("tok", "chan", 3, "video")
+        save_url = save.call_args.kwargs.get("video_url") or save.call_args.args[0]
+        self.assertEqual(save_url, "https://cdn.discord/a.mp4")
+        self.assertEqual(result, ["/tmp/discord-a.mp4"])
+
+    def test_download_videos_dispatches_images_through_preprocess(self):
+        """
+        media_type='image' 时，图片附件下载后必须经过 video.preprocess_video
+        转成短视频片段，返回的才是可被 combine_videos 直接拼接的 mp4 路径。
+        """
+        config.app["discord_bot_token"] = "tok"
+        config.app.pop("material_directory", None)
+        config.proxy.clear()
+
+        img_item = material.MaterialInfo()
+        img_item.provider = "discord"
+        img_item.kind = "image"
+        img_item.url = "https://cdn.discord/pic.png?ex=abc"
+
+        processed = material.MaterialInfo()
+        processed.url = "/tmp/local_videos/img-hash.png.mp4"
+
+        with patch(
+            "app.services.material.fetch_discord_attachments",
+            return_value=[img_item],
+        ), patch(
+            "app.services.material.save_discord_image",
+            return_value="/tmp/local_videos/img-hash.png",
+        ), patch(
+            "app.services.video.preprocess_video",
+            return_value=[processed],
+        ) as preprocess:
+            result = material.download_videos(
+                task_id="t-discord-img",
+                search_terms=[],
+                source="discord",
+                discord_channel_id="chan",
+                discord_count=2,
+                discord_media_type="image",
+            )
+
+        # 传给 preprocess_video 的素材 url 应是文件名（供 local_videos_dir 解析）
+        passed_materials = preprocess.call_args.kwargs["materials"]
+        self.assertEqual(passed_materials[0].url, "img-hash.png")
+        self.assertEqual(result, ["/tmp/local_videos/img-hash.png.mp4"])
+
+    def test_download_discord_returns_empty_without_token_or_channel(self):
+        config.proxy.clear()
+        self.assertEqual(
+            material.download_discord_videos("t", token="", channel_id="c", count=1), []
+        )
+        self.assertEqual(
+            material.download_discord_videos("t", token="tok", channel_id="", count=1), []
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

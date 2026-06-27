@@ -245,6 +245,9 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             audio_duration=audio_duration * params.video_count,
             max_clip_duration=params.video_clip_duration,
             match_script_order=params.match_materials_to_script,
+            discord_channel_id=getattr(params, "discord_channel_id", "") or "",
+            discord_count=getattr(params, "discord_count", 0) or 0,
+            discord_media_type=getattr(params, "discord_media_type", "") or "",
         )
         if not downloaded_videos:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
