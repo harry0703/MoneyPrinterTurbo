@@ -408,8 +408,9 @@ upload_post_youtube_privacy_status = "public"
 # "chatterbox:<voice>". Subtitles use the full-text fallback (no word-level
 # timestamps); set subtitle_provider = "whisper" for tighter sync.
 [chatterbox]
-# base_url = "http://localhost:4123/v1"
-# api_key = ""
-# model_id = "chatterbox"
+# Defaults target travisvn/chatterbox-tts-api running locally on port 4123.
+base_url = "http://127.0.0.1:4123/v1"
+api_key = ""
+model_id = "chatterbox"
 # Voices exposed by your server; shown in the WebUI dropdown as chatterbox:<name>
-# voices = ["Francisca-Female", "Antonio-Male"]
+voices = ["default-Female"]
