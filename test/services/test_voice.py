@@ -854,6 +854,14 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(vs.convert_rate_to_percent(1.5), "+50%")
         self.assertEqual(vs.convert_rate_to_percent(0.8), "-20%")
 
+    def test_convert_rate_to_percent_invalid_values_default_to_normal(self):
+        # API 和批处理脚本可能把空语速传成 0、None 或空字符串；这些都不应让
+        # edge-tts 收到 -100% 或触发异常，而是按正常语速处理。
+        self.assertEqual(vs.convert_rate_to_percent(0), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(0.0), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(None), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(""), "+0%")
+
 
 class TestElevenLabsVoice(unittest.TestCase):
 
