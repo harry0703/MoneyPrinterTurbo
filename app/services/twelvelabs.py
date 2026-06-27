@@ -26,7 +26,7 @@ Config (config.toml, [app] section):
     twelvelabs_marengo_model = "marengo3.0"   # optional override
     twelvelabs_pegasus_model = "pegasus1.5"   # optional override
 
-Get a free API key at https://twelvelabs.io (generous free tier).
+Configure a TwelveLabs API key from the TwelveLabs dashboard (https://twelvelabs.io) to enable this optional integration.
 """
 
 import math

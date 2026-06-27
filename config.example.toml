@@ -56,7 +56,7 @@ coverr_api_keys = []
 #     B-roll is downloaded first when the timeline budget is tight.
 #   * Pegasus (video understanding) can QA / describe a clip from its URL.
 # Leave empty to keep MoneyPrinterTurbo's behavior completely unchanged.
-# Get a free key (generous free tier) at https://twelvelabs.io and install the
+# Configure a TwelveLabs API key from the TwelveLabs dashboard (https://twelvelabs.io) and install the
 # optional dependency with `uv sync --extra twelvelabs`.
 # Register at https://playground.twelvelabs.io to get your API key.
 # You can use multiple keys to avoid rate limits.

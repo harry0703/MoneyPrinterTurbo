@@ -104,7 +104,7 @@ materials, video subtitles, and video background music before synthesizing a hig
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
 - [x] Supports multiple stock video providers: **Pexels**, **Pixabay**, and **Coverr**
-- [x] Optional **TwelveLabs** video AI integration: use **Marengo** embeddings to semantically rank B-roll search terms against your subject, and **Pegasus** to QA/describe clips ([free API key](https://twelvelabs.io))
+- [x] Optional **TwelveLabs** video AI integration: use **Marengo** embeddings to semantically rank B-roll search terms against your subject, and **Pegasus** to QA/describe clips ([TwelveLabs API key](https://twelvelabs.io))
 - [x] Supports integration with various models such as **OpenAI**, **AIHubMix**, **AIML API**, **EvoLink**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
 
 ## Video Demos 📺
