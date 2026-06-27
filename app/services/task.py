@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice, upload_post
+from app.services import llm, material, subtitle, twelvelabs, video, voice, upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -62,6 +62,14 @@ def generate_terms(task_id, params, video_script):
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         logger.error("failed to generate video terms.")
         return None
+
+    # 可选的 TwelveLabs Marengo 语义重排：未启用时返回原顺序，无任何副作用。
+    # 顺序匹配模式下关键词顺序本身就是脚本叙事顺序，必须保持原样，故跳过。
+    if not params.match_materials_to_script:
+        video_terms = twelvelabs.rerank_terms_by_subject(
+            video_subject=params.video_subject,
+            search_terms=video_terms,
+        )
 
     return video_terms
 

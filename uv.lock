@@ -1127,6 +1127,9 @@ dependencies = [
 g4f = [
     { name = "g4f" },
 ]
+twelvelabs = [
+    { name = "twelvelabs" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1148,9 +1151,10 @@ requires-dist = [
     { name = "requests", specifier = "==2.33.1" },
     { name = "socksio", specifier = "==1.0.0" },
     { name = "streamlit", specifier = "==1.58.0" },
+    { name = "twelvelabs", marker = "extra == 'twelvelabs'", specifier = ">=1.2.8" },
     { name = "uvicorn", specifier = "==0.32.1" },
 ]
-provides-extras = ["g4f"]
+provides-extras = ["g4f", "twelvelabs"]
 
 [[package]]
 name = "moviepy"
@@ -2067,6 +2071,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd8dac228323f2777d886cb206987444e4bce66338dd4/tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb", size = 169598 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/16/e1/3079a9ff9b8e11b846c6ac5c8b5bfb7ff225eee721825310c91b3b50304f/tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf", size = 78374 },
+]
+
+[[package]]
+name = "twelvelabs"
+version = "1.2.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5f/24/2604563f5a528bf5f12f9bbb7e3102e91c0e4f9bfd7aeb9963dced3a0b0f/twelvelabs-1.2.8.tar.gz", hash = "sha256:bb0846cc839845c800de8061bb7b99212a472e24bf20770d569f6f620b845e3c", size = 178449 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/a6/6380129c65222bb2497cbef27334a496a1a31f4f38973fac46b62b9224fc/twelvelabs-1.2.8-py3-none-any.whl", hash = "sha256:c0487dd892b03728ac2afe3e4ebd4ea5e30ff404b61896667eb5a39264db282b", size = 372073 },
 ]
 
 [[package]]

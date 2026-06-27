@@ -37,6 +37,12 @@ dependencies = [
 g4f = [
     "g4f==0.5.2.2",
 ]
+# Optional TwelveLabs (https://twelvelabs.io) video-understanding/embedding
+# integration. Only needed when `twelvelabs_api_keys` is configured; install
+# with `uv sync --extra twelvelabs`.
+twelvelabs = [
+    "twelvelabs>=1.2.8",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

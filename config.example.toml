@@ -48,6 +48,31 @@ pixabay_api_keys = []
 # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
 coverr_api_keys = []
 
+# TwelveLabs API Key (optional) — https://twelvelabs.io
+# TwelveLabs (可选) 视频理解 / 多模态嵌入集成。
+# Enables two opt-in features:
+#   * Marengo (multimodal embeddings) semantically reorders the auto-generated
+#     search terms by relevance to your video subject, so the most on-topic
+#     B-roll is downloaded first when the timeline budget is tight.
+#   * Pegasus (video understanding) can QA / describe a clip from its URL.
+# Leave empty to keep MoneyPrinterTurbo's behavior completely unchanged.
+# Get a free key (generous free tier) at https://twelvelabs.io and install the
+# optional dependency with `uv sync --extra twelvelabs`.
+# Register at https://playground.twelvelabs.io to get your API key.
+# You can use multiple keys to avoid rate limits.
+# For example: twelvelabs_api_keys = ["tlk_123adsf4567","tlk_abd1321cd13ef"]
+# 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
+twelvelabs_api_keys = []
+
+# Reorder search terms by Marengo relevance before downloading footage.
+# Requires twelvelabs_api_keys above. Ignored in "match materials to script"
+# mode, where term order is intentionally the script's narrative order.
+twelvelabs_rerank_terms = false
+
+# Optional model overrides (defaults shown).
+# twelvelabs_marengo_model = "marengo3.0"
+# twelvelabs_pegasus_model = "pegasus1.5"
+
 # 支持的提供商 (Supported providers):
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)
