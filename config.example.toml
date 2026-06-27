@@ -397,3 +397,19 @@ upload_post_auto_upload = false
 
 # YouTube Shorts privacy status (options: "public", "unlisted", "private")
 upload_post_youtube_privacy_status = "public"
+
+# Chatterbox TTS (self-hosted, OpenAI-compatible) ##########################
+# Chatterbox (https://github.com/resemble-ai/chatterbox, MIT) is an open-source,
+# locally hosted TTS model with zero-shot voice cloning — a self-hostable
+# alternative to ElevenLabs. Run a server that exposes an OpenAI-compatible
+# endpoint at POST {base_url}/audio/speech (e.g. devnen/Chatterbox-TTS-Server
+# or travisvn/chatterbox-tts-api), then set base_url below. In the WebUI pick
+# "Chatterbox TTS" as the TTS server, or via the API pass a voice_name like
+# "chatterbox:<voice>". Subtitles use the full-text fallback (no word-level
+# timestamps); set subtitle_provider = "whisper" for tighter sync.
+[chatterbox]
+# base_url = "http://localhost:4123/v1"
+# api_key = ""
+# model_id = "chatterbox"
+# Voices exposed by your server; shown in the WebUI dropdown as chatterbox:<name>
+# voices = ["Francisca-Female", "Antonio-Male"]

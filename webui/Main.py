@@ -964,6 +964,7 @@ with middle_panel:
             ("gemini-tts", "Google Gemini TTS"),
             ("mimo-tts", "Xiaomi MiMo TTS"),
             ("elevenlabs", "ElevenLabs TTS"),
+            ("chatterbox", "Chatterbox TTS"),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -1016,6 +1017,9 @@ with middle_panel:
                     saved_elevenlabs_api_key
                 )
             filtered_voices = st.session_state[cache_key]
+        elif selected_tts_server == "chatterbox":
+            # 自托管 Chatterbox 服务的预置音色（来自 [chatterbox] voices 配置）
+            filtered_voices = voice.get_chatterbox_voices()
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -1038,6 +1042,9 @@ with middle_panel:
                 if voice.is_elevenlabs_voice(v):
                     parts = v.split(":", 2)
                     return parts[2] if len(parts) >= 3 else v
+                if voice.is_chatterbox_voice(v):
+                    name = v.split(":", 1)[1] if ":" in v else v
+                    return name.replace("-Female", "").replace("-Male", "")
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))
@@ -1251,6 +1258,58 @@ with middle_panel:
                         del st.session_state[k]
 
             config.elevenlabs["api_key"] = elevenlabs_api_key
+
+        # Chatterbox API settings section (self-hosted, OpenAI-compatible)
+        if selected_tts_server == "chatterbox" or (
+            voice_name and voice.is_chatterbox_voice(voice_name)
+        ):
+            chatterbox_base_url = st.text_input(
+                tr("Chatterbox Base URL"),
+                value=config.chatterbox.get("base_url", ""),
+                key="chatterbox_base_url_input",
+                placeholder="http://localhost:4123/v1",
+            )
+            config.chatterbox["base_url"] = (chatterbox_base_url or "").strip()
+
+            chatterbox_api_key = st.text_input(
+                tr("Chatterbox API Key"),
+                value=config.chatterbox.get("api_key", ""),
+                type="password",
+                key="chatterbox_api_key_input",
+            )
+            config.chatterbox["api_key"] = chatterbox_api_key
+
+            chatterbox_model = st.text_input(
+                tr("Chatterbox Model"),
+                value=config.chatterbox.get("model_id", "chatterbox") or "chatterbox",
+                key="chatterbox_model_input",
+            )
+            config.chatterbox["model_id"] = (chatterbox_model or "chatterbox").strip()
+
+            _saved_chatterbox_voices = config.chatterbox.get("voices", [])
+            if isinstance(_saved_chatterbox_voices, list):
+                _saved_chatterbox_voices = ", ".join(_saved_chatterbox_voices)
+            chatterbox_voices = st.text_input(
+                tr("Chatterbox Voices"),
+                value=str(_saved_chatterbox_voices or ""),
+                key="chatterbox_voices_input",
+                placeholder="default-Female, narrator-Male",
+            )
+            config.chatterbox["voices"] = [
+                v.strip() for v in chatterbox_voices.split(",") if v.strip()
+            ]
+
+            st.info(
+                "Chatterbox TTS Settings (self-hosted):\n"
+                "- Run an OpenAI-compatible Chatterbox server (e.g. "
+                "devnen/Chatterbox-TTS-Server or travisvn/chatterbox-tts-api) and "
+                "set Base URL to its /v1 endpoint\n"
+                "- Voices is a comma-separated list of voice names your server "
+                "exposes; add a -Female or -Male suffix only to label the gender "
+                "in this dropdown\n"
+                "- Speech Volume is not applied for Chatterbox (the OpenAI "
+                "/audio/speech API has no volume field); use Speech Rate instead"
+            )
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),

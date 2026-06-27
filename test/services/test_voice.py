@@ -504,6 +504,127 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"])
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
 
+    def test_chatterbox_voice_helpers(self):
+        """is_chatterbox_voice / get_chatterbox_voices basics and normalisation."""
+        self.assertTrue(vs.is_chatterbox_voice("chatterbox:default-Female"))
+        self.assertFalse(vs.is_chatterbox_voice("elevenlabs:abc:Rachel"))
+        self.assertFalse(vs.is_chatterbox_voice(""))
+        self.assertFalse(vs.is_chatterbox_voice(None))
+
+        # list entries are normalised to the chatterbox:<name> dispatcher format,
+        # and entries that are already prefixed are left untouched
+        with patch.object(
+            vs.config,
+            "chatterbox",
+            {"voices": ["narrator-Male", "chatterbox:host"]},
+        ):
+            self.assertEqual(
+                vs.get_chatterbox_voices(),
+                ["chatterbox:narrator-Male", "chatterbox:host"],
+            )
+
+        # a comma-separated string is also accepted (TOML-friendly)
+        with patch.object(vs.config, "chatterbox", {"voices": "alpha, beta ,"}):
+            self.assertEqual(
+                vs.get_chatterbox_voices(),
+                ["chatterbox:alpha", "chatterbox:beta"],
+            )
+
+        # with nothing configured the dropdown still gets a usable default
+        with patch.object(vs.config, "chatterbox", {}):
+            self.assertEqual(vs.get_chatterbox_voices(), ["chatterbox:default-Female"])
+
+    def test_chatterbox_tts_posts_to_openai_compatible_endpoint(self):
+        """Success path: POST /audio/speech, write audio, return legacy SubMaker."""
+
+        class _FakeResponse:
+            status_code = 200
+            content = b"RIFF-fake-wav"
+            text = ""
+
+        class _FakeClip:
+            duration = 3.5
+
+            def close(self):
+                pass
+
+        captured = {}
+
+        def _fake_post(url, json=None, headers=None, timeout=None):
+            captured["url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            return _FakeResponse()
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.config,
+            "chatterbox",
+            {
+                "base_url": "http://localhost:4123/v1/",
+                "api_key": "secret",
+                "model_id": "chatterbox",
+            },
+        ), patch.object(
+            vs.requests, "post", side_effect=_fake_post
+        ) as post, patch.object(
+            vs, "AudioFileClip", return_value=_FakeClip()
+        ):
+            voice_file = str(Path(tmp_dir) / "chatterbox.mp3")
+            sub_maker = vs.chatterbox_tts(
+                text="Hello world. Second sentence.",
+                voice="default",
+                voice_file=voice_file,
+                voice_rate=1.2,
+                voice_volume=1.0,
+            )
+            generated_audio = Path(voice_file).read_bytes()
+
+        post.assert_called_once()
+        # trailing slash on base_url is stripped before appending /audio/speech
+        self.assertEqual(captured["url"], "http://localhost:4123/v1/audio/speech")
+        self.assertEqual(captured["json"]["model"], "chatterbox")
+        self.assertEqual(captured["json"]["voice"], "default")
+        self.assertEqual(captured["json"]["input"], "Hello world. Second sentence.")
+        self.assertAlmostEqual(captured["json"]["speed"], 1.2)
+        # api_key is forwarded as a bearer token
+        self.assertEqual(captured["headers"].get("Authorization"), "Bearer secret")
+        # volume is intentionally not part of the OpenAI speech payload
+        self.assertNotIn("volume", captured["json"])
+        self.assertEqual(generated_audio, b"RIFF-fake-wav")
+        self.assertIsNotNone(sub_maker)
+        self.assertTrue(getattr(sub_maker, "subs", []))
+
+    def test_chatterbox_tts_requires_base_url(self):
+        """Missing base_url short-circuits without any network call."""
+        with patch.object(
+            vs.config, "chatterbox", {"base_url": ""}
+        ), patch.object(vs.requests, "post") as post:
+            result = vs.chatterbox_tts(
+                text="hi", voice="default", voice_file="unused.mp3"
+            )
+        self.assertIsNone(result)
+        post.assert_not_called()
+
+    def test_chatterbox_tts_returns_none_on_http_error(self):
+        """A non-200 response is retried up to 3 times, then fails to None."""
+
+        class _FakeResponse:
+            status_code = 500
+            content = b""
+            text = "boom"
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.config, "chatterbox", {"base_url": "http://localhost:4123/v1"}
+        ), patch.object(
+            vs.requests, "post", return_value=_FakeResponse()
+        ) as post:
+            voice_file = str(Path(tmp_dir) / "chatterbox.mp3")
+            result = vs.chatterbox_tts(
+                text="hi", voice="default", voice_file=voice_file
+            )
+        self.assertIsNone(result)
+        self.assertEqual(post.call_count, 3)
+
     def test_generate_subtitle_keeps_edge_provider_for_gemini_legacy_submaker(self):
         """
         验证 Gemini TTS 返回的 legacy 字幕结构在 edge provider 下可以直接产出
