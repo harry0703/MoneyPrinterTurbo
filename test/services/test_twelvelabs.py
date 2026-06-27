@@ -118,6 +118,20 @@ class TestTwelveLabsService(unittest.TestCase):
     def test_analyze_clip_returns_model_text(self):
         config.app["twelvelabs_api_keys"] = ["tlk_test"]
 
+        # analyze_clip() lazily imports `twelvelabs.types.VideoContext_Url`.
+        # The SDK is an optional extra, so the deterministic unit test must pass
+        # even without `uv sync --extra twelvelabs`. Inject lightweight stub
+        # modules so the internal import resolves; the mocked _client below does
+        # the rest. (When the real SDK *is* installed, these stubs are ignored.)
+        stub_types = type(sys)("twelvelabs.types")
+        stub_types.VideoContext_Url = lambda *, url: {"url": url}
+        stub_pkg = sys.modules.get("twelvelabs") or type(sys)("twelvelabs")
+        with patch.dict(
+            sys.modules, {"twelvelabs": stub_pkg, "twelvelabs.types": stub_types}
+        ):
+            self._run_analyze_clip_assertions()
+
+    def _run_analyze_clip_assertions(self):
         resp = MagicMock()
         resp.data = "A city skyline at dusk."
         client = MagicMock()
