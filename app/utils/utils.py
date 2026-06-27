@@ -243,6 +243,45 @@ def split_string_by_punctuations(s):
     return result
 
 
+def strip_markdown(text: str) -> str:
+    text = text or ""
+    cleaned_lines = []
+    removed_separator = False
+
+    for line in text.splitlines():
+        line = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+        line = re.sub(r"\[([^\]]+)\]\[[^\]]*\]", r"\1", line)
+
+        stripped_line = line.strip()
+        if any(
+            re.fullmatch(pattern, stripped_line)
+            for pattern in (r"(?:-\s*){3,}", r"(?:\*\s*){3,}", r"(?:_\s*){3,}")
+        ):
+            removed_separator = True
+            continue
+
+        heading_match = re.match(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$", line)
+        if heading_match:
+            line = heading_match.group(1)
+        else:
+            line = re.sub(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)", "", line)
+            line = re.sub(r"^\s*\[[ xX]\]\s+", "", line)
+
+        line = re.sub(r"(`+)(.*?)\1", r"\2", line)
+        line = re.sub(r"(\*\*|__)(.*?)\1", r"\2", line)
+        line = re.sub(r"(~~)(.*?)\1", r"\2", line)
+        line = re.sub(r"(?<!\*)\*([^*\n]+)\*(?!\*)", r"\1", line)
+        line = re.sub(r"(?<!_)_([^_\n]+)_(?!_)", r"\1", line)
+        line = re.sub(r"[ \t]{2,}", " ", line)
+        cleaned_lines.append(line.strip())
+
+    cleaned_text = "\n".join(cleaned_lines).strip()
+    if removed_separator:
+        cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
+    return cleaned_text
+
+
 def normalize_script_for_subtitle_matching(video_script: str) -> str:
     """
     清理字幕匹配前的脚本文本。

@@ -22,6 +22,8 @@
     "Generate Video Script and Keywords": "Сгенерировать [сценарий] и [ключевые слова] по **теме** с помощью ИИ",
     "Auto Detect": "Определить автоматически",
     "Video Script": "Сценарий (:blue[① необязательно, можно сгенерировать с помощью ИИ; ② аккуратная пунктуация помогает создать субтитры])",
+    "Import Script File": "Импортировать файл сценария (.txt или .md)",
+    "Uploaded script file must be UTF-8 encoded": "Загруженный файл сценария должен быть в кодировке UTF-8",
     "Generate Video Keywords": "Сгенерировать [ключевые слова] по **сценарию** с помощью ИИ",
     "Please Enter the Video Subject": "Сначала введите сценарий видео",
     "Generating Video Script and Keywords": "ИИ генерирует сценарий и ключевые слова...",

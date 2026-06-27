@@ -22,6 +22,8 @@
     "Generate Video Script and Keywords": "Klicken Sie hier, um mithilfe von KI ein [Video Drehbuch] und [Video Keywords] basierend auf dem **Keyword** zu generieren.",
     "Auto Detect": "Automatisch erkennen",
     "Video Script": "Drehbuch (Storybook) (:blue[① Optional, KI generiert  ② Die richtige Zeichensetzung hilft bei der Erstellung von Untertiteln])",
+    "Import Script File": "Skriptdatei importieren (.txt oder .md)",
+    "Uploaded script file must be UTF-8 encoded": "Die hochgeladene Skriptdatei muss UTF-8-codiert sein",
     "Generate Video Keywords": "Klicken Sie, um KI zum Generieren zu verwenden [Video Keywords] basierend auf dem **Drehbuch**",
     "Please Enter the Video Subject": "Bitte geben Sie zuerst das Drehbuch an",
     "Generating Video Script and Keywords": "KI generiert ein Drehbuch und Schlüsselwörter...",

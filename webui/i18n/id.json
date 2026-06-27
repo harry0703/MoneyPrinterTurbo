@@ -22,6 +22,8 @@
     "Generate Video Script and Keywords": "Klik untuk menggunakan AI menghasilkan [Skrip Video] dan [Kata Kunci Video] berdasarkan **subjek**",
     "Auto Detect": "Deteksi Otomatis",
     "Video Script": "Skrip Video (:blue[① Opsional, dihasilkan AI ② Tanda baca yang tepat membantu pembuatan subtitle])",
+    "Import Script File": "Impor File Skrip (.txt atau .md)",
+    "Uploaded script file must be UTF-8 encoded": "File skrip yang diunggah harus dikodekan sebagai UTF-8",
     "Generate Video Keywords": "Klik untuk menggunakan AI menghasilkan [Kata Kunci Video] berdasarkan **skrip**",
     "Please Enter the Video Subject": "Silakan Masukkan Skrip Video Terlebih Dahulu",
     "Generating Video Script and Keywords": "AI sedang menghasilkan skrip video dan kata kunci...",

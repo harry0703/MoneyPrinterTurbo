@@ -15,6 +15,8 @@
     "Generate Video Script and Keywords": "Clique para usar a IA para gerar o [Roteiro do Vídeo] e as [Palavras-chave do Vídeo] com base no **tema**",
     "Auto Detect": "Detectar Automaticamente",
     "Video Script": "Roteiro do Vídeo (:blue[① Opcional, gerado pela IA  ② Pontuação adequada ajuda na geração de legendas])",
+    "Import Script File": "Importar arquivo de roteiro (.txt ou .md)",
+    "Uploaded script file must be UTF-8 encoded": "O arquivo de roteiro enviado deve estar codificado em UTF-8",
     "Generate Video Keywords": "Clique para usar a IA para gerar [Palavras-chave do Vídeo] com base no **roteiro**",
     "Please Enter the Video Subject": "Por favor, insira o Roteiro do Vídeo primeiro",
     "Generating Video Script and Keywords": "A IA está gerando o roteiro do vídeo e as palavras-chave...",
