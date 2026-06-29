@@ -283,11 +283,14 @@ if not config.app.get("hide_config", False):
             # 因此这里显式维护 display label 和 provider id 的映射，避免
             # UI 文案变化污染 `config.app["llm_provider"]`。
             aihubmix_label = f"AIHubMix ({tr('Recommended')})"
+            volcengine_label = f"VOLCENGINE ({tr('Recommended')})"
             if config.ui.get("language") == "zh":
                 aihubmix_label = "AIHubMix（推荐）"
+                volcengine_label = "火山引擎（推荐）"
             llm_provider_options = [
                 ("OpenAI", "openai"),
                 (aihubmix_label, "aihubmix"),
+                (volcengine_label, "volcengine"),
                 ("AIML API", "aimlapi"),
                 ("EvoLink", "evolink"),
                 ("Moonshot", "moonshot"),
@@ -394,6 +397,23 @@ if not config.app.get("hide_config", False):
                             - **稳定**: 无限并发，永远在线，集群部署于谷歌云，长期为众多知名应用提供高并发服务
                             - **能力完整**: 文本、图片生成、视频生成、TTS、STT、向量嵌入、Rerank，多模态场景全搞定
                             - **计费透明**: 按量付费，无会员无包月，免费模型可使用
+                            """
+
+            if llm_provider == "volcengine":
+                if not llm_model_name:
+                    llm_model_name = "doubao-seed-evolving"
+                if not llm_base_url:
+                    llm_base_url = "https://ark.cn-beijing.volces.com/api/v3"
+                with llm_helper:
+                    tips = """
+                            ##### 火山引擎 配置说明
+                            - **注册链接**: [点击注册 火山引擎](https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo)
+                            - **Base Url**: 预填https://ark.cn-beijing.volces.com/api/v3
+                            - **推荐模型**: 默认 doubao-seed-evolving，也可以填写 火山引擎 支持其它模型 ID
+
+                            推荐理由：
+                            - 支持 Doubao、GLM、DeepSeek、Kimi、MiniMax 主流编程模型，扩展 Seedance 2.0、Seedream 5.0 lite、向量化模型、语音合成模型、语音识别模型、联网搜索等，原生支持复杂 Agent 与编程任务。
+                            - 灵活选择，用量可视，成本可控
                             """
 
             if llm_provider == "aimlapi":

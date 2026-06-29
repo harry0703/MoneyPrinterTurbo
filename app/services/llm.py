@@ -286,10 +286,10 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.app.get("deepseek_base_url")
                 if not base_url:
                     base_url = "https://api.deepseek.com"
-            elif llm_provider == "huoshan":
-                api_key = config.app.get("huoshan_api_key")
-                model_name = config.app.get("huoshan_model_name")
-                base_url = config.app.get("huoshan_base_url", "")
+            elif llm_provider == "volcengine":
+                api_key = config.app.get("volcengine_api_key")
+                model_name = config.app.get("volcengine_model_name")
+                base_url = config.app.get("volcengine_base_url", "")
                 # 火山引擎使用 OpenAI 兼容接口，默认接入点为 ark 平台
                 if not base_url:
                     base_url = "https://ark.cn-beijing.volces.com/api/v3"
