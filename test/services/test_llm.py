@@ -491,6 +491,48 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
         self.assertEqual(result, "helloevolink")
 
+    def test_volcengine_provider_uses_openai_compatible_client(self):
+        """
+        VolcEngine Ark 暴露 OpenAI-compatible Chat Completions。
+        这里用 fake OpenAI client 覆盖 provider 默认地址和默认模型，
+        避免真实网络或私有 API key 影响测试稳定性。
+        """
+        config.app["llm_provider"] = "volcengine"
+        config.app["volcengine_api_key"] = "volcengine-key"
+        config.app["volcengine_base_url"] = ""
+        config.app["volcengine_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nvolcengine")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="volcengine-key",
+            base_url="https://ark.cn-beijing.volces.com/api/v3",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "doubao-seed-2-1-turbo-260628",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hellovolcengine")
+
     def test_grok_provider_still_uses_existing_path(self):
         config.app["llm_provider"] = "grok"
         config.app["grok_api_key"] = ""

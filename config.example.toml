@@ -88,6 +88,7 @@ twelvelabs_rerank_terms = false
 #   cloudflare
 #   minimax
 #   evolink    (OpenAI-compatible multi-model AI gateway)
+#   volcengine (VolcEngine Ark OpenAI-compatible API)
 #   mimo       (Xiaomi MiMo)
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
@@ -213,6 +214,14 @@ minimax_model_name = "MiniMax-M3"
 evolink_api_key = ""
 evolink_base_url = "https://direct.evolink.ai/v1"
 evolink_model_name = "gpt-5.5"
+
+########## VolcEngine Ark API Key
+# VolcEngine Ark provides an OpenAI-compatible Chat Completions API.
+# Create an API key in the VolcEngine Ark console and use a model ID that is
+# enabled for your account.
+volcengine_api_key = ""
+volcengine_base_url = "https://ark.cn-beijing.volces.com/api/v3"
+volcengine_model_name = "doubao-seed-2-1-turbo-260628"
 
 ########## Xiaomi MiMo API Key
 # Xiaomi MiMo API is OpenAI-compatible.

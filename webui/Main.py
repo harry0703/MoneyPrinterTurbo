@@ -353,6 +353,7 @@ if not config.app.get("hide_config", False):
                 (aihubmix_label, "aihubmix"),
                 ("AIML API", "aimlapi"),
                 ("EvoLink", "evolink"),
+                ("VolcEngine", "volcengine"),
                 ("Moonshot", "moonshot"),
                 ("Azure", "azure"),
                 ("Qwen", "qwen"),
@@ -483,6 +484,20 @@ if not config.app.get("hide_config", False):
                             - **API Key**: [点击到官网申请](https://evolink.ai/dashboard/keys)
                             - **Base Url**: 默认 https://direct.evolink.ai/v1
                             - **Model Name**: 默认 gpt-5.5，也可以填写 EvoLink 支持的其它模型 ID
+                            """
+
+            if llm_provider == "volcengine":
+                if not llm_model_name:
+                    llm_model_name = "doubao-seed-2-1-turbo-260628"
+                if not llm_base_url:
+                    llm_base_url = "https://ark.cn-beijing.volces.com/api/v3"
+                with llm_helper:
+                    tips = """
+                            ##### VolcEngine Ark 配置说明
+                            - **注册链接**: [点击注册 火山引擎](https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo)
+                            - **API Key**: 在火山引擎方舟控制台创建 API Key
+                            - **Base Url**: 默认 https://ark.cn-beijing.volces.com/api/v3
+                            - **Model Name**: 填写 Ark 控制台已开通的模型 ID，例如 doubao-seed-2-1-turbo-260628
                             """
 
             if llm_provider == "moonshot":

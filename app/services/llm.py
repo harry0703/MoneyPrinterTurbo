@@ -280,6 +280,17 @@ def _generate_response(prompt: str) -> str:
                     base_url = "https://api.xiaomimimo.com/v1"
                 if not model_name:
                     model_name = "mimo-v2.5-pro"
+            elif llm_provider == "volcengine":
+                api_key = config.app.get("volcengine_api_key")
+                model_name = config.app.get("volcengine_model_name")
+                base_url = config.app.get("volcengine_base_url", "")
+                # 火山引擎方舟提供 OpenAI-compatible Chat Completions 接口。
+                # 独立 provider 可以让用户直接选择 VolcEngine，而不用把 Ark
+                # 的 key/base_url 混到通用 OpenAI 配置里，后续维护也更清晰。
+                if not base_url:
+                    base_url = "https://ark.cn-beijing.volces.com/api/v3"
+                if not model_name:
+                    model_name = "doubao-seed-2-1-turbo-260628"
             elif llm_provider == "deepseek":
                 api_key = config.app.get("deepseek_api_key")
                 model_name = config.app.get("deepseek_model_name")
