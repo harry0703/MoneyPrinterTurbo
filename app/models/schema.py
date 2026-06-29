@@ -85,7 +85,7 @@ class VideoParams(BaseModel):
         None  # Materials used to generate the video
     )
     
-    custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore video_script and disable subtitle
+    custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore TTS and can still use Whisper subtitles
     video_language: Optional[str] = ""  # auto detect
 
     voice_name: Optional[str] = ""

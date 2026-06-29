@@ -163,6 +163,94 @@ class TestTaskService(unittest.TestCase):
         tts.assert_not_called()
         update_task.assert_called_with(task_id, state=tm.const.TASK_STATE_FAILED)
 
+    def test_generate_subtitle_uses_whisper_for_custom_audio_without_sub_maker(self):
+        """
+        自定义音频不会经过 TTS，所以没有 sub_maker。
+        Whisper 可以直接从音频文件转写，此时不能被 sub_maker 为空的保护逻辑提前跳过。
+        """
+        task_id = "test-custom-audio-whisper-subtitle"
+        task_dir = utils.task_dir(task_id)
+        audio_file = os.path.join(task_dir, "custom-audio.mp3")
+        Path(audio_file).write_bytes(b"fake audio")
+        params = VideoParams(
+            video_subject="custom audio",
+            video_script="Hello world.",
+            subtitle_enabled=True,
+        )
+
+        def fake_whisper_create(audio_file, subtitle_file):
+            Path(subtitle_file).write_text(
+                "1\n00:00:00,000 --> 00:00:01,000\nHello world.\n\n",
+                encoding="utf-8",
+            )
+
+        try:
+            with (
+                patch.object(
+                    tm.config,
+                    "app",
+                    dict(tm.config.app, subtitle_provider="whisper"),
+                ),
+                patch.object(
+                    tm.subtitle, "create", side_effect=fake_whisper_create
+                ) as create,
+                patch.object(tm.subtitle, "correct") as correct,
+            ):
+                subtitle_path = tm.generate_subtitle(
+                    task_id=task_id,
+                    params=params,
+                    video_script="Hello world.",
+                    sub_maker=None,
+                    audio_file=audio_file,
+                )
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertTrue(subtitle_path.endswith("subtitle.srt"))
+        create.assert_called_once_with(audio_file=audio_file, subtitle_file=subtitle_path)
+        correct.assert_called_once_with(
+            subtitle_file=subtitle_path, video_script="Hello world."
+        )
+
+    def test_generate_subtitle_skips_edge_provider_without_sub_maker(self):
+        """
+        Edge 字幕依赖 TTS 返回的 sub_maker 时间轴。
+        自定义音频缺少该对象时应继续跳过，避免产生不可信的字幕时间轴。
+        """
+        task_id = "test-custom-audio-edge-no-submaker"
+        task_dir = utils.task_dir(task_id)
+        audio_file = os.path.join(task_dir, "custom-audio.mp3")
+        Path(audio_file).write_bytes(b"fake audio")
+        params = VideoParams(
+            video_subject="custom audio",
+            video_script="Hello world.",
+            subtitle_enabled=True,
+        )
+
+        try:
+            with (
+                patch.object(
+                    tm.config,
+                    "app",
+                    dict(tm.config.app, subtitle_provider="edge"),
+                ),
+                patch.object(tm.voice, "create_subtitle") as create_subtitle,
+                patch.object(tm.subtitle, "create") as whisper_create,
+            ):
+                subtitle_path = tm.generate_subtitle(
+                    task_id=task_id,
+                    params=params,
+                    video_script="Hello world.",
+                    sub_maker=None,
+                    audio_file=audio_file,
+                )
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertEqual(subtitle_path, "")
+        create_subtitle.assert_not_called()
+        whisper_create.assert_not_called()
+
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,
         "MPT_RUN_INTEGRATION_TESTS not set",

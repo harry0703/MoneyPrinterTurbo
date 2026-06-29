@@ -194,12 +194,22 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         - subtitle_path: path to the generated subtitle file
     '''
     logger.info("\n\n## generating subtitle")
-    if not params.subtitle_enabled or sub_maker is None:
+    if not params.subtitle_enabled:
         return ""
 
     subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
     subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
+
+    if sub_maker is None and subtitle_provider != "whisper":
+        # 自定义音频不会经过 TTS，因此没有 Edge/Azure 等 TTS 返回的
+        # sub_maker 时间轴。只有 Whisper 可以直接从音频文件转写字幕；
+        # 其他字幕提供方继续保持原有行为，避免生成错误的空时间轴。
+        logger.warning(
+            "subtitle maker is missing, skip subtitle generation for provider: "
+            f"{subtitle_provider}"
+        )
+        return ""
 
     subtitle_fallback = False
     if subtitle_provider == "edge":
