@@ -10,6 +10,7 @@ loguru==0.7.3
 google.generativeai==0.8.6
 dashscope==1.20.14
 azure-cognitiveservices-speech==1.41.1
+azure-storage-blob>=12.19.0
 redis==5.2.0
 python-multipart==0.0.27
 pyyaml==6.0.3

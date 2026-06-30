@@ -383,6 +383,24 @@ compute_type = "int8"
 speech_key = ""
 speech_region = ""
 
+[azure_blob]
+# Azure Blob Storage — offload generated videos to free local disk space.
+# When enabled, final videos are uploaded to Azure Blob Storage immediately
+# after creation, and local copies are deleted (when delete_local_after_upload = true).
+#
+# Setup:
+#   1. Create a Storage Account in Azure Portal.
+#   2. Copy the connection string from: Storage Account → Access keys → Connection string.
+#   3. Set enabled = true and paste your connection string below.
+enabled = false
+connection_string = ""
+# Name of the Blob container to upload videos into (created automatically if absent)
+container_name = "moneyprinter-videos"
+# Delete local video files after a successful upload (recommended to save disk space)
+delete_local_after_upload = true
+# Also upload the intermediate combined-N.mp4 files (larger, rarely needed)
+upload_combined_videos = false
+
 [siliconflow]
 # SiliconFlow API Key
 # Get your API key at https://siliconflow.cn

@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, twelvelabs, video, voice, upload_post
+from app.services import llm, material, subtitle, twelvelabs, video, voice, upload_post, azure_blob_storage
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -437,7 +437,21 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         f"task {task_id} finished, generated {len(final_video_paths)} videos."
     )
 
-    # 7. Cross-post to social platforms (if enabled)
+    # 7. Upload to Azure Blob Storage (if enabled) to free local disk space
+    azure_upload_results = {}
+    if azure_blob_storage.azure_blob_storage_service.is_configured():
+        logger.info("\n\n## uploading videos to Azure Blob Storage")
+        azure_upload_results = azure_blob_storage.azure_blob_storage_service.upload_task_videos(
+            task_id=task_id,
+            final_video_paths=final_video_paths,
+            combined_video_paths=combined_video_paths,
+        )
+        if azure_upload_results.get("final_urls"):
+            logger.success(
+                f"Uploaded {len(azure_upload_results['final_urls'])} video(s) to Azure Blob Storage."
+            )
+
+    # 8. Cross-post to social platforms (if enabled)
     cross_post_results = []
     if upload_post.upload_post_service.is_configured() and upload_post.upload_post_service.auto_upload:
         platforms = upload_post.upload_post_service.platforms
@@ -481,6 +495,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
         "cross_post_results": cross_post_results if cross_post_results else None,
+        "azure_video_urls": azure_upload_results.get("final_urls") or None,
+        "azure_combined_urls": azure_upload_results.get("combined_urls") or None,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
