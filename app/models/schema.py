@@ -380,3 +380,22 @@ class VideoMaterialUploadResponse(BaseResponse):
                 },
             },
         }
+
+class ContentFactoryRequest(BaseModel):
+    content: str = Field(..., min_length=100, max_length=50000)
+
+
+class ContentFactoryResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "x_posts": [],
+                    "linkedin_posts": [],
+                    "reels_scripts": [],
+                    "tiktok_scripts": []
+                },
+            },
+        }
