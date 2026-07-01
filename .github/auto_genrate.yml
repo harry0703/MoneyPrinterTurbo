@@ -1,0 +1,6 @@
+- name: Upload to YouTube Shorts
+      env:
+        YOUTUBE_SECRET: ${{ 272067268102-dfu861lk6sncoeu6c54n8dstg394vb0l }}
+      run: |
+        # أمر تشغيل سكريبت رفع الفيديو لليوتيوب
+        python upload_youtube.py --video "output.mp4" --title "فيديو اليوم المثير عن أتلانتس #shorts"
