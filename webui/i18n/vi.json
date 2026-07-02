@@ -43,6 +43,8 @@
     "Landscape": "Ngang 16:9",
     "Clip Duration": "Thời Lượng Tối Đa Của Đoạn Video (giây)",
     "Number of Videos Generated Simultaneously": "Số Video Được Tạo Ra Đồng Thời",
+    "Match Materials to Script Order": "Khớp tư liệu theo thứ tự kịch bản",
+    "Match Materials to Script Order Help": "Tắt theo mặc định. Chủ yếu áp dụng cho nguồn tư liệu trực tuyến. Khi bật, từ khóa được tạo theo thứ tự kịch bản và tư liệu được tải xuống/ghép theo thứ tự đó để giảm sự không khớp hình ảnh với lời thoại hiện tại.",
     "Audio Settings": "**Cài Đặt Âm Thanh**",
     "Speech Synthesis": "Giọng Đọc Văn Bản",
     "Speech Region": "Vùng(:red[Bắt Buộc，[Lấy Vùng](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
