@@ -128,7 +128,7 @@ openai_model_name = "gpt-4o-mini"
 
 ########## AIHubMix API Key
 # AIHubMix is OpenAI-compatible and can use one API key to access multiple models.
-# Visit https://aihubmix.com/?aff=CEve to register and get your API key.
+# Visit https://aihubmix.com to register and get your API key.
 aihubmix_api_key = ""
 aihubmix_base_url = "https://aihubmix.com/v1"
 aihubmix_model_name = "gpt-5.4-mini"

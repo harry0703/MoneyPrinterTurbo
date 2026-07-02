@@ -32,15 +32,6 @@ materials, video subtitles, and video background music before synthesizing a hig
 <table align="center">
   <tr>
     <td align="center" width="160">
-      <a href="https://aihubmix.com/?aff=CEve"><strong>AIHubMix</strong></a>
-    </td>
-    <td align="left">
-      <sub>Thanks to <a href="https://aihubmix.com/?aff=CEve">AIHubMix</a> for sponsoring this project. AIHubMix deeply adapts to OpenAI, Claude, Gemini, DeepSeek, Zhipu, Qwen, and other leading models, providing one-stop access to GPT-5.5, deepseek-v4-flash, and 700+ models including free options with production-grade stability.</sub>
-    </td>
-  </tr>
-
-  <tr>
-    <td align="center" width="160">
       <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><img src="docs/sponsors/byteplus-logo.svg" alt="BytePlus" height="25"></a><br>
       <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>BytePlus ModelArk</strong></a>
     </td>
@@ -200,7 +191,6 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 - Copy the `config.example.toml` file and rename it to `config.toml`
 - Follow the instructions in the `config.toml` file to configure `pexels_api_keys` and `llm_provider`, and according to
   the llm_provider's service provider, set up the corresponding API Key
-- To use the recommended multi-model provider, you can set `llm_provider` to `aihubmix` and enter the corresponding API key.
 
 ### Docker Deployment 🐳
 
