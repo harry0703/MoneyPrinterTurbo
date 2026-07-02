@@ -15,6 +15,24 @@ from app.router import root_api_router
 from app.utils import utils
 
 
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def warn_if_api_unprotected(api_key: str, listen_host: str) -> str | None:
+    if str(api_key or "").strip():
+        return None
+
+    normalized_host = str(listen_host or "").strip().lower()
+    if normalized_host in _LOOPBACK_HOSTS:
+        return None
+
+    return (
+        "API authentication is disabled because app.api_key is empty while "
+        f"listen_host is '{listen_host}'. Set app.api_key or bind to a loopback "
+        "host before exposing this service."
+    )
+
+
 def exception_handler(request: Request, e: HttpException):
     return JSONResponse(
         status_code=e.status_code,
@@ -38,6 +56,12 @@ def get_application() -> FastAPI:
        FastAPI: Application object instance.
 
     """
+    auth_warning = warn_if_api_unprotected(
+        config.app.get("api_key", ""), config.listen_host
+    )
+    if auth_warning:
+        logger.warning(auth_warning)
+
     instance = FastAPI(
         title=config.project_name,
         description=config.project_description,
