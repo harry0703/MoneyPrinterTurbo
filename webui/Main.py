@@ -341,16 +341,11 @@ if not config.app.get("hide_config", False):
 
         with middle_config_panel:
             st.write(tr("LLM Settings"))
-            # 下拉框需要展示“AIHubMix（推荐）”这类面向用户的文案，
-            # 但配置文件和后端逻辑必须继续使用稳定的小写 provider id。
-            # 因此这里显式维护 display label 和 provider id 的映射，避免
-            # UI 文案变化污染 `config.app["llm_provider"]`。
-            aihubmix_label = f"AIHubMix ({tr('Recommended')})"
-            if config.ui.get("language") == "zh":
-                aihubmix_label = "AIHubMix（推荐）"
+            # 下拉框展示文本和后端 provider id 分开维护，避免 UI 文案变化
+            # 污染 `config.app["llm_provider"]` 这类稳定配置值。
             llm_provider_options = [
                 ("OpenAI", "openai"),
-                (aihubmix_label, "aihubmix"),
+                ("AIHubMix", "aihubmix"),
                 ("AIML API", "aimlapi"),
                 ("EvoLink", "evolink"),
                 ("VolcEngine", "volcengine"),
@@ -449,15 +444,9 @@ if not config.app.get("hide_config", False):
                 with llm_helper:
                     tips = """
                             ##### AIHubMix 配置说明
-                            - **注册链接**: [点击注册 AIHubMix](https://aihubmix.com/?aff=CEve)
+                            - **API Key**: 在 AIHubMix 控制台创建 API Key
                             - **Base Url**: 预填 https://aihubmix.com/v1
-                            - **推荐模型**: 默认 gpt-5.4-mini，也可以填写 AIHubMix 支持的免费模型或其它模型 ID
-
-                            推荐理由：
-                            - **模型全**: Claude、GPT、Gemini、Grok、DeepSeek、通义等 700+ 模型一站覆盖
-                            - **稳定**: 无限并发，永远在线，集群部署于谷歌云，长期为众多知名应用提供高并发服务
-                            - **能力完整**: 文本、图片生成、视频生成、TTS、STT、向量嵌入、Rerank，多模态场景全搞定
-                            - **计费透明**: 按量付费，无会员无包月，免费模型可使用
+                            - **Model Name**: 默认 gpt-5.4-mini，也可以填写 AIHubMix 支持的其它模型 ID
                             """
 
             if llm_provider == "aimlapi":
