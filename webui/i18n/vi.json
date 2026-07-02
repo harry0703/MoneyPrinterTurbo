@@ -22,6 +22,8 @@
     "Generate Video Script and Keywords": "Nhấn để sử dụng AI để tạo [Kịch Bản Video] và [Từ Khóa Video] dựa trên **chủ đề**",
     "Auto Detect": "Tự Động Phát Hiện",
     "Video Script": "Kịch Bản Video (:blue[① Tùy chọn, AI tạo ra  ② Dấu câu chính xác giúp việc tạo phụ đề)",
+    "Import Script File": "Nhập tệp kịch bản (.txt hoặc .md)",
+    "Uploaded script file must be UTF-8 encoded": "Tệp kịch bản đã tải lên phải được mã hóa UTF-8",
     "Generate Video Keywords": "Nhấn để sử dụng AI để tạo [Từ Khóa Video] dựa trên **kịch bản**",
     "Please Enter the Video Subject": "Vui lòng Nhập Kịch Bản Video Trước",
     "Generating Video Script and Keywords": "AI đang tạo kịch bản video và từ khóa...",

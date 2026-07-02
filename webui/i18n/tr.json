@@ -22,6 +22,8 @@
     "Generate Video Script and Keywords": "**Konuya** dayalı olarak yapay zeka ile [Video Senaryosu] ve [Video Anahtar Kelimeleri] oluşturmak için tıklayın",
     "Auto Detect": "Otomatik Algılama",
     "Video Script": "Video Senaryosu (:blue[① İsteğe bağlı, yapay zeka tarafından oluşturulur ② Doğru noktalama altyazı oluşturmaya yardımcı olur])",
+    "Import Script File": "Senaryo Dosyası İçe Aktar (.txt veya .md)",
+    "Uploaded script file must be UTF-8 encoded": "Yüklenen senaryo dosyası UTF-8 kodlamalı olmalıdır",
     "Generate Video Keywords": "**Senaryoya** dayalı olarak yapay zeka ile [Video Anahtar Kelimeleri] oluşturmak için tıklayın",
     "Please Enter the Video Subject": "Lütfen Önce Video Senaryosunu Girin",
     "Generating Video Script and Keywords": "Yapay zeka video senaryosu ve anahtar kelimeleri oluşturuyor...",

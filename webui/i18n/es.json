@@ -22,6 +22,8 @@
     "Generate Video Script and Keywords": "Haz clic para que la IA genere el [Guión del vídeo] y las [Palabras clave del vídeo] basándose en el **tema**",
     "Auto Detect": "Detección automática",
     "Video Script": "Guión del vídeo (:blue[① Opcional, generado por IA  ② La puntuación correcta ayuda a generar subtítulos])",
+    "Import Script File": "Importar archivo de guión (.txt o .md)",
+    "Uploaded script file must be UTF-8 encoded": "El archivo de guión subido debe estar codificado en UTF-8",
     "Generate Video Keywords": "Haz clic para que la IA genere las [Palabras clave del vídeo] basándose en el **guión**",
     "Please Enter the Video Subject": "Introduce primero el guión del vídeo",
     "Generating Video Script and Keywords": "La IA está generando el guión y las palabras clave del vídeo...",

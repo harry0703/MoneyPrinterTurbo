@@ -22,6 +22,8 @@
     "Generate Video Script and Keywords": "点击使用AI根据**主题**生成 【视频文案】 和 【视频关键词】",
     "Auto Detect": "自动检测",
     "Video Script": "视频文案（:blue[①可不填，使用AI生成  ②合理使用标点断句，有助于生成字幕]）",
+    "Import Script File": "导入脚本文件（.txt 或 .md）",
+    "Uploaded script file must be UTF-8 encoded": "上传的脚本文件必须使用 UTF-8 编码",
     "Generate Video Keywords": "点击使用AI根据**文案**生成【视频关键词】",
     "Please Enter the Video Subject": "请先填写视频文案",
     "Generating Video Script and Keywords": "AI正在生成视频文案和关键词...",

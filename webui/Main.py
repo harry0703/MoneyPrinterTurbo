@@ -858,8 +858,38 @@ with left_panel:
                 else:
                     st.session_state["video_script"] = script
                     st.session_state["video_terms"] = ", ".join(terms)
+
+        uploaded_script_file = st.file_uploader(
+            tr("Import Script File"),
+            type=["txt", "md"],
+            key="video_script_file_uploader",
+        )
+        if uploaded_script_file is not None:
+            uploaded_script_bytes = uploaded_script_file.getvalue()
+            try:
+                uploaded_script_text = uploaded_script_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                st.error(tr("Uploaded script file must be UTF-8 encoded"))
+            else:
+                uploaded_script_signature = (
+                    f"{uploaded_script_file.name}:{len(uploaded_script_bytes)}:"
+                    f"{utils.md5(uploaded_script_text)}"
+                )
+                if (
+                    st.session_state.get("video_script_file_signature")
+                    != uploaded_script_signature
+                ):
+                    st.session_state["video_script"] = utils.strip_markdown(
+                        uploaded_script_text
+                    )
+                    st.session_state["video_script_file_signature"] = (
+                        uploaded_script_signature
+                    )
+        else:
+            st.session_state.pop("video_script_file_signature", None)
+
         params.video_script = st.text_area(
-            tr("Video Script"), value=st.session_state["video_script"], height=280
+            tr("Video Script"), height=280, key="video_script"
         )
         if st.button(tr("Generate Video Keywords"), key="auto_generate_terms"):
             if not params.video_script:

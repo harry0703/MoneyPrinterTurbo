@@ -22,6 +22,8 @@
     "Generate Video Script and Keywords": "Click to use AI to generate [Video Script] and [Video Keywords] based on **subject**",
     "Auto Detect": "Auto Detect",
     "Video Script": "Video Script (:blue[① Optional, AI generated  ② Proper punctuation helps with subtitle generation])",
+    "Import Script File": "Import Script File (.txt or .md)",
+    "Uploaded script file must be UTF-8 encoded": "Uploaded script file must be UTF-8 encoded",
     "Generate Video Keywords": "Click to use AI to generate [Video Keywords] based on **script**",
     "Please Enter the Video Subject": "Please Enter the Video Script First",
     "Generating Video Script and Keywords": "AI is generating video script and keywords...",
