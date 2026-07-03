@@ -56,6 +56,17 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
 # Fix security policy for ImageMagick
 RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
 
+# Install Node.js 20 and the Claude Code CLI so the "claude_code" LLM provider
+# works out of the box. The container reuses the host login mounted at
+# /root/.claude (see docker-compose.yml + .env.example), so no API key is needed.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g @anthropic-ai/claude-code \
+    && npm cache clean --force \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only the requirements.txt first to leverage Docker cache
 COPY requirements.txt ./
 

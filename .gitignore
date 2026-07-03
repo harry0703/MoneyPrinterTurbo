@@ -1,5 +1,8 @@
 .DS_Store
 /config.toml
+/.env
+# Local Claude Code credentials mounted into the container (never commit these)
+/.claude-config/
 /storage/
 /.idea/
 /app/services/__pycache__

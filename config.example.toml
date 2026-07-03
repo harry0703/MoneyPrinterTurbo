@@ -93,7 +93,30 @@ twelvelabs_rerank_terms = false
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 #   litellm     (100+ providers via LiteLLM gateway)
+#   claude_code (local Claude Code CLI; uses your Claude subscription, no API key)
 llm_provider = "openai"
+
+########## Claude Code (local CLI — uses your Claude subscription, no API key)
+# Runs the `claude` command-line tool installed on this machine (or inside the
+# Docker image) and reuses your existing login under ~/.claude, so generation
+# consumes your Claude subscription instead of per-token API billing.
+#
+# Requirements:
+#   - Native: install Claude Code (https://docs.claude.com/en/docs/claude-code)
+#     and log in once with `claude` so ~/.claude holds your credentials.
+#   - Docker: the CLI is baked into the image; mount the host ~/.claude via the
+#     CLAUDE_HOST_DIR variable in .env (see .env.example). Authenticate once with
+#     `docker compose run --rm api claude setup-token` if the token isn't present.
+#
+# Optional: absolute path to the claude binary. Leave empty to auto-detect on PATH.
+claude_code_path = ""
+# Optional: model id or alias, e.g. "claude-opus-4-8", "opus", "sonnet".
+# Leave empty to use the CLI default model.
+claude_code_model_name = ""
+# Max seconds to wait for a single generation before failing.
+claude_code_timeout = 180
+# Optional extra CLI flags passed verbatim (advanced), e.g. ["--fallback-model", "sonnet"].
+claude_code_extra_args = []
 
 ########## Pollinations AI Settings
 # Visit https://pollinations.ai/ to learn more

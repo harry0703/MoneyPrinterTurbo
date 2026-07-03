@@ -136,11 +136,86 @@ def _extract_qwen_generation_text(response) -> str:
     return _normalize_text_response(text, "qwen")
 
 
+def _run_claude_code_cli(prompt: str) -> str:
+    """
+    使用本机安装的 Claude Code CLI（`claude`）生成文本，替代云端 LLM API。
+
+    复用机器上已有的 Claude 登录态（默认在 ~/.claude），因此消耗的是用户的
+    Claude 订阅额度，而不是按 token 计费的 API。Docker 部署时，CLI 装在镜像里，
+    宿主机的 ~/.claude 目录以卷的方式挂载进来提供凭据，从而在 Windows / Linux
+    上都能以同一套流程运行，无需再配置任何 API Key。
+    """
+    import shutil
+    import subprocess
+    import sys
+    import tempfile
+
+    llm_provider = "claude_code"
+
+    cli_path = str(config.app.get("claude_code_path", "") or "").strip()
+    if not cli_path:
+        cli_path = shutil.which("claude") or "claude"
+
+    args = [cli_path, "-p", prompt, "--output-format", "text"]
+
+    model_name = str(config.app.get("claude_code_model_name", "") or "").strip()
+    if model_name:
+        args += ["--model", model_name]
+
+    extra_args = config.app.get("claude_code_extra_args", [])
+    if isinstance(extra_args, str):
+        extra_args = extra_args.split()
+    if extra_args:
+        args += [str(item) for item in extra_args]
+
+    # Windows 上 `claude` 通常是 claude.cmd，必须经由 cmd.exe 才能作为子进程启动。
+    if sys.platform == "win32" and cli_path.lower().endswith((".cmd", ".bat")):
+        args = ["cmd", "/c", *args]
+
+    try:
+        timeout = int(config.app.get("claude_code_timeout", 180))
+    except (TypeError, ValueError):
+        timeout = 180
+
+    try:
+        # 在空的临时目录里运行，避免 CLI 读取项目内的 CLAUDE.md 等上下文，
+        # 既减少 token 开销，也避免触发“信任此目录”之类的交互式提示导致卡住。
+        with tempfile.TemporaryDirectory() as workdir:
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=timeout,
+                cwd=workdir,
+            )
+    except FileNotFoundError as e:
+        raise ValueError(
+            "claude_code: the `claude` CLI was not found. Install Claude Code "
+            "(https://docs.claude.com/en/docs/claude-code) or set claude_code_path "
+            "in config.toml."
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        raise Exception(f"[{llm_provider}] timed out after {timeout}s") from e
+
+    if result.returncode != 0:
+        stderr = _sanitize_error_message((result.stderr or "").strip())
+        raise Exception(
+            f"[{llm_provider}] CLI exited with code {result.returncode}: {stderr}"
+        )
+
+    return _normalize_text_response(result.stdout, llm_provider)
+
+
 def _generate_response(prompt: str) -> str:
     try:
         content = ""
         llm_provider = config.app.get("llm_provider", "openai")
         logger.info(f"llm provider: {llm_provider}")
+        # 本地 Claude Code CLI 走独立分支：它不需要 api_key / base_url，
+        # 直接调用子进程，因此在通用 provider 校验之前就返回结果。
+        if llm_provider == "claude_code":
+            return _run_claude_code_cli(prompt)
         if llm_provider == "g4f":
             if not config.app.get("enable_g4f", False):
                 raise ValueError(
@@ -769,7 +844,7 @@ def generate_terms(
             "the order of topics in the video script."
         )
         ordering_rule = (
-            "6. keep the terms in the same order as the script narration; "
+            "8. keep the terms in the same order as the script narration; "
             "earlier terms must describe earlier visual moments."
         )
         # 有序关键词模式下，示例数量要和 amount 保持一致，避免模型被固定
@@ -806,6 +881,8 @@ def generate_terms(
 3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
 4. the search terms must be related to the subject of the video.
 5. reply with english search terms only.
+6. each term must describe something concrete and filmable that can literally be shown on screen — a visible object, place, person, or action (for example "glass of water", "person jogging", "city street at night").
+7. do NOT use abstract or emotional concepts that cannot be filmed directly (avoid words like "success", "happiness", "motivation", "benefit", "idea", "growth"); turn them into a concrete visual scene instead.
 {ordering_rule}
 
 ## Output Example:

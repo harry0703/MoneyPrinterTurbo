@@ -344,6 +344,7 @@ if not config.app.get("hide_config", False):
             # 下拉框展示文本和后端 provider id 分开维护，避免 UI 文案变化
             # 污染 `config.app["llm_provider"]` 这类稳定配置值。
             llm_provider_options = [
+                ("Claude Code (local)", "claude_code"),
                 ("OpenAI", "openai"),
                 ("AIHubMix", "aihubmix"),
                 ("AIML API", "aimlapi"),
@@ -653,6 +654,17 @@ if not config.app.get("hide_config", False):
                             > [LiteLLM](https://github.com/BerriAI/litellm) routes to 100+ LLM providers via a unified interface.
                             > Set your provider's API key as an env var: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.
                             - **Model Name**: LiteLLM format — `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, `gemini/gemini-2.5-flash`. See [full provider list](https://docs.litellm.ai/docs/providers)
+                            """
+
+            if llm_provider == "claude_code":
+                with llm_helper:
+                    tips = """
+                            ##### Claude Code（本地 CLI，使用你的 Claude 订阅，无需 API Key）
+                            - 直接调用本机安装的 `claude` 命令行工具，复用 ~/.claude 的登录态，不按 token 计费。
+                            - **API Key / Base Url**: 留空即可，本 provider 不使用。
+                            - **Model Name**: 可留空使用默认模型，或填写 `claude-opus-4-8`、`opus`、`sonnet` 等。
+                            - **原生部署**: 先安装 Claude Code 并执行一次 `claude` 登录。
+                            - **Docker 部署**: CLI 已内置在镜像中；在 `.env` 里把 `CLAUDE_HOST_DIR` 指向宿主机的 ~/.claude；如未登录可执行 `docker compose run --rm api claude setup-token`。
                             """
 
             if tips and config.ui["language"] == "zh":

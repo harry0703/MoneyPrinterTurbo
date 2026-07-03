@@ -1064,5 +1064,61 @@ class TestLiteLLMLiveIntegration(unittest.TestCase):
         self.assertIn("4", result)
 
 
+class TestClaudeCodeProvider(unittest.TestCase):
+    """本地 Claude Code CLI provider 的单元测试（不真正调用 CLI，全部 mock 子进程）。"""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        config.app["llm_provider"] = "claude_code"
+        config.app["claude_code_path"] = "claude"
+        config.app["claude_code_model_name"] = ""
+        config.app["claude_code_extra_args"] = []
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    def _completed(self, stdout="", stderr="", returncode=0):
+        return types.SimpleNamespace(
+            stdout=stdout, stderr=stderr, returncode=returncode
+        )
+
+    def test_generate_response_uses_cli_stdout(self):
+        with patch("subprocess.run", return_value=self._completed(stdout="hello world")) as run:
+            result = llm._generate_response("write something")
+
+        self.assertEqual(result, "hello world")
+        args = run.call_args.args[0]
+        self.assertIn("-p", args)
+        self.assertIn("write something", args)
+        # 默认不应带 --model
+        self.assertNotIn("--model", args)
+
+    def test_model_name_is_forwarded(self):
+        config.app["claude_code_model_name"] = "claude-opus-4-8"
+        with patch("subprocess.run", return_value=self._completed(stdout="ok")) as run:
+            llm._generate_response("prompt")
+
+        args = run.call_args.args[0]
+        self.assertIn("--model", args)
+        self.assertIn("claude-opus-4-8", args)
+
+    def test_nonzero_exit_becomes_error_string(self):
+        with patch(
+            "subprocess.run",
+            return_value=self._completed(stderr="boom", returncode=1),
+        ):
+            result = llm._generate_response("prompt")
+
+        # _generate_response 会把异常统一转换成 "Error: ..." 字符串
+        self.assertIn("Error:", result)
+
+    def test_missing_cli_becomes_error_string(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError()):
+            result = llm._generate_response("prompt")
+
+        self.assertIn("Error:", result)
+
+
 if __name__ == "__main__":
     unittest.main()

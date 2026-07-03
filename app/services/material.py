@@ -52,6 +52,47 @@ def get_api_key(cfg_key: str):
         return api_keys[_api_key_counter % len(api_keys)]
 
 
+def _pick_best_video_file(video_files, target_width: int, target_height: int):
+    """
+    从一个 Pexels 视频的多个清晰度文件里挑选最合适的下载直链。
+
+    旧逻辑要求分辨率必须和目标完全一致（例如严格 1080x1920），会把大量
+    与主题高度相关、但分辨率不是精确目标值的素材直接丢弃，导致最终只能用
+    到少数、有时相关性更差的片段。下游 `video.py` 会统一做缩放 + 黑边填充，
+    因此这里不需要精确分辨率：只需选出“方向正确、清晰度足够”的文件即可，
+    从而大幅扩大可用的贴题素材池。
+
+    选择策略：
+      - 优先保留与目标方向一致的文件（竖屏 target 选竖屏文件）；
+      - 在方向一致的文件里，优先选宽度 >= 目标宽度中最小的那个（够清晰又
+        不至于下载超大文件）；如果都比目标小，则退而选最大的一个。
+    """
+    target_portrait = target_height >= target_width
+    candidates = []
+    for vf in video_files or []:
+        try:
+            w = int(vf["width"])
+            h = int(vf["height"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        link = vf.get("link")
+        if w <= 0 or h <= 0 or not link:
+            continue
+        orientation_ok = (h >= w) == target_portrait
+        candidates.append((orientation_ok, w, link))
+
+    if not candidates:
+        return None
+
+    oriented = [c for c in candidates if c[0]] or candidates
+    big_enough = [c for c in oriented if c[1] >= target_width]
+    if big_enough:
+        best = min(big_enough, key=lambda c: c[1])
+    else:
+        best = max(oriented, key=lambda c: c[1])
+    return best[2]
+
+
 def search_videos_pexels(
     search_term: str,
     minimum_duration: int,
@@ -90,18 +131,17 @@ def search_videos_pexels(
             # check if video has desired minimum duration
             if duration < minimum_duration:
                 continue
-            video_files = v["video_files"]
-            # loop through each url to determine the best quality
-            for video in video_files:
-                w = int(video["width"])
-                h = int(video["height"])
-                if w == video_width and h == video_height:
-                    item = MaterialInfo()
-                    item.provider = "pexels"
-                    item.url = video["link"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
+            # 不再要求分辨率精确匹配，而是挑选“方向正确、清晰度足够”的最佳文件。
+            # 这样能保留大量贴题但分辨率非精确目标值的素材，交由下游统一缩放。
+            best_link = _pick_best_video_file(
+                v.get("video_files"), video_width, video_height
+            )
+            if best_link:
+                item = MaterialInfo()
+                item.provider = "pexels"
+                item.url = best_link
+                item.duration = duration
+                video_items.append(item)
         return video_items
     except Exception as e:
         logger.error(f"search videos failed: {str(e)}")
@@ -334,8 +374,9 @@ def download_videos(
             material_directory=material_directory,
         )
 
-    valid_video_items = []
-    valid_video_urls = []
+    # 为每个关键词单独保留素材源的相关性排序（结果越靠前越贴题），跨关键词去重。
+    term_candidate_lists = []
+    seen_urls = set()
     found_duration = 0.0
     for search_term in search_terms:
         video_items = search_videos(
@@ -345,20 +386,35 @@ def download_videos(
         )
         logger.info(f"found {len(video_items)} videos for '{search_term}'")
 
+        ordered = []
         for item in video_items:
-            if item.url not in valid_video_urls:
-                valid_video_items.append(item)
-                valid_video_urls.append(item.url)
-                found_duration += item.duration
+            if item.url in seen_urls:
+                continue
+            seen_urls.add(item.url)
+            ordered.append(item)
+            found_duration += item.duration
+        if ordered:
+            term_candidate_lists.append(ordered)
+
+    # 轮询交错：先取每个关键词的第 1 个（最相关）候选，再取第 2 个……
+    # 这样既覆盖脚本的每个主题，又优先使用相关性最高的片段，避免旧逻辑
+    # “把所有关键词结果合并成一个大池子再整体随机”导致贴题性差的问题。
+    valid_video_items = []
+    rank = 0
+    while True:
+        added = False
+        for ordered in term_candidate_lists:
+            if rank < len(ordered):
+                valid_video_items.append(ordered[rank])
+                added = True
+        if not added:
+            break
+        rank += 1
 
     logger.info(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
     )
     video_paths = []
-
-    concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
-    if concat_mode_value == VideoConcatMode.random.value:
-        random.shuffle(valid_video_items)
 
     total_duration = 0.0
     for item in valid_video_items:
@@ -379,6 +435,13 @@ def download_videos(
                     break
         except Exception as e:
             logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
+
+    # random 模式只打乱最终片段的顺序（增加多次生成之间的差异），不再影响
+    # “选哪些片段”，从而保证选出来的始终是相关性最高的贴题素材。
+    concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
+    if concat_mode_value == VideoConcatMode.random.value:
+        random.shuffle(video_paths)
+
     logger.success(f"downloaded {len(video_paths)} videos")
     return video_paths
 

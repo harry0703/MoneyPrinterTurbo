@@ -1,3 +1,5 @@
+# NOTE: this file pulls a prebuilt image that does NOT include the Claude Code CLI.
+# To use the "claude_code" LLM provider, build locally instead: `docker compose up --build`.
 x-common-volumes: &common-volumes
   - ./config.toml:/MoneyPrinterTurbo/config.toml
   - ./storage:/MoneyPrinterTurbo/storage

@@ -1,5 +1,12 @@
 x-common-volumes: &common-volumes
   - ./:/MoneyPrinterTurbo
+  # Reuse the host's Claude Code login for the "claude_code" LLM provider.
+  # Point CLAUDE_HOST_DIR (in .env) at your host ~/.claude — see .env.example.
+  # Falls back to a local ./.claude-config folder if the variable is unset.
+  - "${CLAUDE_HOST_DIR:-./.claude-config}:/root/.claude"
+  # Output folder for the batch queue (batch.py). Point MPT_OUTPUT_DIR (in .env)
+  # at any host folder; finished videos land there. Defaults to ./storage/output.
+  - "${MPT_OUTPUT_DIR:-./storage/output}:/output"
 
 services:
   webui:
@@ -20,5 +27,8 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     command: [ "python3", "main.py" ]
+    environment:
+      # Default output folder for `docker compose run --rm api python batch.py ...`
+      - MPT_BATCH_OUTPUT=/output
     volumes: *common-volumes
     restart: always
