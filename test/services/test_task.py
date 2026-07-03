@@ -297,7 +297,145 @@ class TestTaskService(unittest.TestCase):
         )
         result = tm.start(task_id=task_id, params=params)
         print(result)
-    
+
+
+class TestTaskResume(unittest.TestCase):
+    """pipeline 阶段产物持久化（manifest.json）+ 断点续跑。"""
+
+    def setUp(self):
+        self.task_id = "test-resume-manifest"
+        self.task_dir = utils.task_dir(self.task_id)
+        os.makedirs(self.task_dir, exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.task_dir, ignore_errors=True)
+
+    def test_update_and_load_manifest_roundtrip(self):
+        tm._update_manifest(self.task_id, script="hello", terms=["a", "b"])
+        manifest = tm._load_manifest(self.task_id)
+        self.assertEqual(manifest["script"], "hello")
+        self.assertEqual(manifest["terms"], ["a", "b"])
+
+    def test_load_manifest_missing_returns_empty(self):
+        self.assertEqual(tm._load_manifest("nonexistent-task-id-xyz"), {})
+
+    def test_manifest_stage_completed_checks_file_existence(self):
+        # script/terms 只看值是否存在
+        tm._update_manifest(self.task_id, script="s", terms=["t"])
+        self.assertTrue(tm._manifest_stage_completed(self.task_id, "script"))
+        self.assertTrue(tm._manifest_stage_completed(self.task_id, "terms"))
+
+        # audio 需要文件真实存在
+        tm._update_manifest(self.task_id, audio_file="/nonexistent/audio.mp3")
+        self.assertFalse(tm._manifest_stage_completed(self.task_id, "audio"))
+
+        audio_path = os.path.join(self.task_dir, "audio.mp3")
+        Path(audio_path).write_bytes(b"fake")
+        tm._update_manifest(self.task_id, audio_file=audio_path)
+        self.assertTrue(tm._manifest_stage_completed(self.task_id, "audio"))
+
+    def test_resume_skips_script_and_terms_when_manifest_present(self):
+        """
+        resume=True 且 manifest 里已有 script/terms 时，应跳过对应的 LLM 调用，
+        直接复用 manifest 里的值，节省成本。
+        """
+        tm._update_manifest(
+            self.task_id, script="已生成的脚本", terms=["city", "train"]
+        )
+        params = VideoParams(video_subject="test", video_script="")
+
+        with (
+            patch.object(tm.llm, "generate_script") as gen_script,
+            patch.object(tm.llm, "generate_terms") as gen_terms,
+        ):
+            result = tm.start(self.task_id, params, stop_at="terms", resume=True)
+
+        self.assertEqual(result["script"], "已生成的脚本")
+        self.assertEqual(result["terms"], ["city", "train"])
+        gen_script.assert_not_called()
+        gen_terms.assert_not_called()
+
+    def test_resume_regenerates_audio_for_tts_path(self):
+        """
+        TTS 路径下 sub_maker 无法持久化，即使 manifest 里有 audio_file，
+        resume 也不应复用它（否则字幕拿不到时间轴）。这里验证 TTS 路径
+        仍会调用 generate_audio。
+        """
+        audio_path = os.path.join(self.task_dir, "audio.mp3")
+        Path(audio_path).write_bytes(b"fake")
+        tm._update_manifest(
+            self.task_id,
+            script="脚本",
+            terms=["t"],
+            audio_file=audio_path,
+            audio_duration=5,
+        )
+        params = VideoParams(video_subject="test", video_script="")
+
+        with (
+            patch.object(tm.llm, "generate_script") as gen_script,
+            patch.object(tm.llm, "generate_terms") as gen_terms,
+            patch.object(tm, "generate_audio", return_value=(audio_path, 5, None)) as gen_audio,
+        ):
+            tm.start(self.task_id, params, stop_at="audio", resume=True)
+
+        # script/terms 复用，不调用
+        gen_script.assert_not_called()
+        gen_terms.assert_not_called()
+        # TTS 路径的 audio 必须重新生成
+        gen_audio.assert_called_once()
+
+    def test_resume_reuses_custom_audio_file(self):
+        """
+        custom_audio_file 路径下 sub_maker 本就是 None，可以无损复用已有音频，
+        不再调用 generate_audio。本地素材模式跳过 terms 校验。
+        """
+        audio_path = os.path.join(self.task_dir, "custom.mp3")
+        Path(audio_path).write_bytes(b"fake")
+        tm._update_manifest(
+            self.task_id,
+            script="脚本",
+            terms=[],
+            audio_file=audio_path,
+            audio_duration=6,
+        )
+        params = VideoParams(
+            video_subject="test",
+            video_script="",
+            video_source="local",
+            custom_audio_file=audio_path,
+        )
+
+        with (
+            patch.object(tm.llm, "generate_script"),
+            patch.object(tm, "generate_audio") as gen_audio,
+        ):
+            result = tm.start(self.task_id, params, stop_at="audio", resume=True)
+
+        self.assertEqual(result["audio_file"], audio_path)
+        self.assertEqual(result["audio_duration"], 6)
+        gen_audio.assert_not_called()
+
+    def test_resume_false_always_regenerates(self):
+        """resume=False（默认）即使 manifest 存在也应重新生成，行为与历史一致。"""
+        tm._update_manifest(self.task_id, script="旧的", terms=["旧的"])
+        params = VideoParams(video_subject="test", video_script="")
+
+        with (
+            patch.object(
+                tm.llm, "generate_script", return_value="新生成"
+            ) as gen_script,
+            patch.object(
+                tm, "generate_terms", return_value=["新"]
+            ) as gen_terms_helper,
+        ):
+            # generate_terms (task 层) 内部调用 llm.generate_terms
+            with patch.object(tm.llm, "generate_terms", return_value=["新"]):
+                result = tm.start(self.task_id, params, stop_at="terms", resume=False)
+
+        self.assertEqual(result["script"], "新生成")
+        gen_script.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

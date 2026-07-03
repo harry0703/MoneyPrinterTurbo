@@ -86,6 +86,98 @@ def save_script_data(task_id, video_script, video_terms, params):
         f.write(utils.to_json(script_data))
 
 
+# =============================================================================
+# pipeline 阶段产物持久化（manifest.json）
+#
+# 每个 stop_at 边界（script/terms/audio/subtitle/materials/video）成功后，
+# 把该阶段的产物路径与关键字段写入 storage/tasks/<task_id>/manifest.json。
+# 这样：
+#   1. 失败后可以从最近的 stop_at 边界续跑，不用重算脚本/关键词/音频。
+#   2. stop_at 之后的阶段（例如已生成 audio，想继续生成 subtitle/video）
+#      可以复用已有产物，节省 LLM 和 TTS 成本。
+#   3. 调用方（Agent / API）可以从 manifest 读回任意阶段的产物。
+#
+# 注意：TTS 返回的 sub_maker 是内存对象，无法序列化。因此 resume 不能跨
+# TTS 边界续跑字幕生成——只有 custom_audio_file 路径或 stop_at 在 audio
+# 之后的续跑才有效。本版 resume 只支持 stop_at 之后的阶段续跑。
+# =============================================================================
+
+_MANIFEST_STAGE_ORDER = [
+    "script",
+    "terms",
+    "audio",
+    "subtitle",
+    "materials",
+    "video",
+]
+
+
+def _manifest_path(task_id) -> str:
+    return path.join(utils.task_dir(task_id), "manifest.json")
+
+
+def _load_manifest(task_id) -> dict:
+    """读取任务 manifest，不存在或损坏时返回空 dict。"""
+    manifest_file = _manifest_path(task_id)
+    if not path.isfile(manifest_file):
+        return {}
+    try:
+        with open(manifest_file, "r", encoding="utf-8") as f:
+            import json as _json
+
+            data = _json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        logger.warning(f"failed to load manifest, treating as empty: {manifest_file}")
+        return {}
+
+
+def _update_manifest(task_id, **artifacts):
+    """合并写入 manifest。已有字段会被同名参数覆盖。"""
+    if not artifacts:
+        return
+    manifest = _load_manifest(task_id)
+    manifest.update(artifacts)
+    manifest_file = _manifest_path(task_id)
+    try:
+        with open(manifest_file, "w", encoding="utf-8") as f:
+            import json as _json
+
+            f.write(_json.dumps(manifest, ensure_ascii=False, indent=2))
+    except OSError as exc:
+        logger.warning(f"failed to persist manifest: {exc}")
+
+
+def _manifest_stage_completed(task_id, stage: str) -> bool:
+    """
+    判断 manifest 里某个阶段是否已完成且产物仍可用。
+
+    对于文件类产物（audio_file/subtitle_path/materials），同时检查文件存在性，
+    避免 manifest 指向已被删除的文件时误判为已完成。
+    """
+    manifest = _load_manifest(task_id)
+    if stage == "script":
+        return bool(manifest.get("script"))
+    if stage == "terms":
+        return bool(manifest.get("terms"))
+    if stage == "audio":
+        audio_file = manifest.get("audio_file")
+        return bool(audio_file) and path.isfile(audio_file)
+    if stage == "subtitle":
+        # 字幕可被禁用（subtitle_enabled=False 返回空串），所以用 manifest 里的
+        # 标志而非文件存在性判断。
+        return manifest.get("subtitle_resolved") is True
+    if stage == "materials":
+        materials = manifest.get("materials")
+        if not materials:
+            return False
+        return all(path.isfile(m) for m in materials)
+    return False
+
+
+
+
+
 def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> str:
     requested_file = (custom_audio_file or "").strip()
     if not requested_file:
@@ -329,16 +421,33 @@ def generate_final_videos(
     return final_video_paths, combined_video_paths
 
 
-def start(task_id, params: VideoParams, stop_at: str = "video"):
-    logger.info(f"start task: {task_id}, stop_at: {stop_at}")
+def start(task_id, params: VideoParams, stop_at: str = "video", resume: bool = False):
+    """
+    启动视频生成任务。
+
+    stop_at 控制执行到哪个阶段就停下并返回：script/terms/audio/subtitle/materials/video。
+
+    resume=True 时，会优先复用 manifest.json 里已记录且产物文件仍然存在的阶段结果，
+    跳过对应的生成步骤。注意 TTS 返回的 sub_maker 是内存对象无法持久化，所以：
+      - audio 阶段只有在 custom_audio_file 路径下才能真正跳过（复用已有音频文件）；
+      - 普通 TTS 路径下，即使 manifest 里有 audio_file，sub_maker 也拿不回来，
+        会重新生成音频。script/terms/materials 这些纯数据/文件产物可以安全复用。
+    默认 resume=False，行为与历史完全一致。
+    """
+    logger.info(f"start task: {task_id}, stop_at: {stop_at}, resume: {resume}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
     # 1. Generate script
-    video_script = generate_script(task_id, params)
+    if resume and _manifest_stage_completed(task_id, "script"):
+        video_script = _load_manifest(task_id).get("script", "")
+        logger.info(f"resume: reuse script from manifest")
+    else:
+        video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
 
+    _update_manifest(task_id, script=video_script)
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
 
     if stop_at == "script":
@@ -348,14 +457,21 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"script": video_script}
 
     # 2. Generate terms
-    video_terms = ""
-    if params.video_source != "local":
+    if resume and _manifest_stage_completed(task_id, "terms") and params.video_source != "local":
+        video_terms = _load_manifest(task_id).get("terms", [])
+        # terms 顺序在 match_materials_to_script 下是有意义的，复用时不重排。
+        logger.info(f"resume: reuse terms from manifest")
+    elif params.video_source != "local":
         video_terms = generate_terms(task_id, params, video_script)
-        if not video_terms:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-            return
+    else:
+        video_terms = ""
+    if params.video_source != "local" and not video_terms:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        return
 
     save_script_data(task_id, video_script, video_terms, params)
+    if video_terms:
+        _update_manifest(task_id, terms=video_terms)
 
     if stop_at == "terms":
         sm.state.update_task(
@@ -366,13 +482,35 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
     # 3. Generate audio
-    audio_file, audio_duration, sub_maker = generate_audio(
-        task_id, params, video_script
-    )
+    # sub_maker 无法持久化，所以 resume 只能复用音频文件本身，sub_maker 永远要重置。
+    sub_maker = None
+    audio_resumed = False
+    if resume and _manifest_stage_completed(task_id, "audio"):
+        manifest = _load_manifest(task_id)
+        resumed_audio_file = manifest.get("audio_file", "")
+        resumed_duration = manifest.get("audio_duration", 0)
+        # 只有 custom_audio_file 路径下 sub_maker 本就是 None，复用才是无损的。
+        # TTS 路径复用音频文件会导致后续字幕生成拿不到时间轴，故仍需重新生成。
+        requested_custom_audio = getattr(params, "custom_audio_file", None) or ""
+        if requested_custom_audio.strip():
+            audio_file = resumed_audio_file
+            audio_duration = resumed_duration
+            sub_maker = None
+            audio_resumed = True
+            logger.info(
+                f"resume: reuse custom audio from manifest: {audio_file}"
+            )
+    if not audio_resumed:
+        audio_file, audio_duration, sub_maker = generate_audio(
+            task_id, params, video_script
+        )
     if not audio_file:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
 
+    _update_manifest(
+        task_id, audio_file=audio_file, audio_duration=audio_duration
+    )
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
 
     if stop_at == "audio":
@@ -385,8 +523,15 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"audio_file": audio_file, "audio_duration": audio_duration}
 
     # 4. Generate subtitle
-    subtitle_path = generate_subtitle(
-        task_id, params, video_script, sub_maker, audio_file
+    if resume and _manifest_stage_completed(task_id, "subtitle"):
+        subtitle_path = _load_manifest(task_id).get("subtitle_path", "")
+        logger.info(f"resume: reuse subtitle from manifest: {subtitle_path}")
+    else:
+        subtitle_path = generate_subtitle(
+            task_id, params, video_script, sub_maker, audio_file
+        )
+    _update_manifest(
+        task_id, subtitle_path=subtitle_path, subtitle_resolved=True
     )
 
     if stop_at == "subtitle":
@@ -401,12 +546,18 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     # 5. Get video materials
-    downloaded_videos = get_video_materials(
-        task_id, params, video_terms, audio_duration
-    )
+    if resume and _manifest_stage_completed(task_id, "materials"):
+        downloaded_videos = _load_manifest(task_id).get("materials", [])
+        logger.info(f"resume: reuse {len(downloaded_videos)} materials from manifest")
+    else:
+        downloaded_videos = get_video_materials(
+            task_id, params, video_terms, audio_duration
+        )
     if not downloaded_videos:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
+
+    _update_manifest(task_id, materials=downloaded_videos)
 
     if stop_at == "materials":
         sm.state.update_task(
@@ -482,6 +633,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "materials": downloaded_videos,
         "cross_post_results": cross_post_results if cross_post_results else None,
     }
+    _update_manifest(
+        task_id,
+        videos=final_video_paths,
+        combined_videos=combined_video_paths,
+    )
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
     )

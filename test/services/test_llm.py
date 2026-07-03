@@ -129,6 +129,22 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIn("chronological stock-video search terms", captured["prompt"])
         self.assertIn("same order as the script narration", captured["prompt"])
 
+    def test_generate_terms_returns_empty_list_on_provider_error(self):
+        """
+        provider 返回 "Error: ..." 时不能把错误字符串 return 出去：
+        task.py 只用 `if not video_terms` 判空，字符串会被当成关键词列表
+        一路传到素材搜索。这里验证失败时返回空列表，触发上层正常失败分支。
+        """
+        with patch.object(llm, "_generate_response", return_value="Error: api_key is not set"):
+            result = llm.generate_terms(
+                video_subject="startup story",
+                video_script="First city. Then office.",
+                amount=3,
+            )
+
+        self.assertEqual(result, [])
+        self.assertIsInstance(result, list)
+
     def test_video_script_request_rejects_invalid_advanced_options(self):
         """
         API 请求模型需要限制高级 prompt 参数，避免外部调用绕过 WebUI
@@ -142,6 +158,72 @@ class TestScriptPromptOptions(unittest.TestCase):
                 video_subject="咖啡",
                 video_script_prompt="x" * (llm.MAX_SCRIPT_PROMPT_LENGTH + 1),
             )
+
+
+class TestStructuredResult(unittest.TestCase):
+    """结构化 LLM 调用结果（LLMResult + generate_response_structured）。"""
+
+    def test_structured_success_returns_text(self):
+        with patch.object(llm, "_generate_response", return_value="你好世界"):
+            result = llm.generate_response_structured("Say hello")
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.text, "你好世界")
+        self.assertEqual(result.error_code, "")
+        self.assertEqual(result.as_text(), "你好世界")
+
+    def test_structured_missing_api_key_classified(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            return_value="Error: openai: api_key is not set, please set it in the config.toml file.",
+        ):
+            result = llm.generate_response_structured("test")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.text, "")
+        self.assertEqual(result.error_code, "MISSING_API_KEY")
+        self.assertIn("api_key is not set", result.error_message)
+        self.assertTrue(result.as_text().startswith("Error:"))
+
+    def test_structured_unknown_provider_classified(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            return_value="Error: unknown llm_provider: foobar",
+        ):
+            result = llm.generate_response_structured("test")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, "UNKNOWN_PROVIDER")
+
+    def test_structured_empty_response_classified(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            return_value="Error: [minimax] returned empty text content",
+        ):
+            result = llm.generate_response_structured("test")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, "EMPTY_RESPONSE")
+
+    def test_structured_provider_disabled_classified(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            return_value="Error: g4f provider is disabled by default because it relies on reverse-engineered third-party endpoints.",
+        ):
+            result = llm.generate_response_structured("test")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, "PROVIDER_DISABLED")
+
+    def test_classify_error_message_unknown_falls_back(self):
+        self.assertEqual(
+            llm._classify_error_message("connection reset by peer"),
+            "PROVIDER_ERROR",
+        )
 
 
 class TestLiteLLMProvider(unittest.TestCase):
@@ -288,6 +370,37 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("Error:", result)
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
+
+    def test_provider_registry_has_no_redacted_placeholders(self):
+        """
+        历史 bug：qwen/cloudflare/ernie 的默认 base_url/model_name 曾被写成
+        "***" 占位符，导致错误信息和日志里出现无意义的脱敏残留。注册表化后
+        这些字段必须填回真实默认值。
+        """
+        self.assertNotEqual(llm._PROVIDER_REGISTRY["qwen"].default_base_url, "***")
+        self.assertNotEqual(
+            llm._PROVIDER_REGISTRY["cloudflare"].default_base_url, "***"
+        )
+        self.assertNotEqual(
+            llm._PROVIDER_REGISTRY["ernie"].default_model, "***"
+        )
+
+        # 同时确认真实默认值确实写入了非空字符串。
+        self.assertTrue(llm._PROVIDER_REGISTRY["qwen"].default_base_url)
+        self.assertTrue(llm._PROVIDER_REGISTRY["ernie"].default_model)
+
+    def test_unknown_provider_raises_error(self):
+        """
+        配置了未注册的 provider 名称时，必须返回可诊断的 Error 文案，
+        并带上 "unknown llm_provider"，方便用户定位 config.toml 配置错误。
+        """
+        config.app["llm_provider"] = "nonexistent"
+
+        result = llm._generate_response("test")
+
+        self.assertIn("Error:", result)
+        self.assertIn("unknown llm_provider", result)
+        self.assertIn("nonexistent", result)
 
     def _use_qwen_provider(self):
         config.app["llm_provider"] = "qwen"

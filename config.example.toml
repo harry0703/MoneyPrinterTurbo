@@ -1,3 +1,31 @@
+# =============================================================================
+# 根级配置（不属于任何 [section]）
+#
+# 这些键由 app/config/config.py 的模块级加载逻辑直接读取
+# （listen_host / listen_port / project_name / project_version / log_level）。
+# 必须放在所有 [section] 之前，否则会被解析进某个 section。
+# load_config() 在 config.toml 不存在时会复制本文件，所以这里的默认值
+# 决定了全新安装后的实际行为。
+# =============================================================================
+
+# API 监听地址。
+# 默认 127.0.0.1 表示只允许本机访问，避免把含 API key 的服务直接暴露到局域网。
+# 改为 "0.0.0.0" 才能被局域网 / 公网访问（请同时评估鉴权与防火墙）。
+listen_host = "127.0.0.1"
+
+# API 监听端口。
+# 18080 避开常见的 8080（常被本地开发服务占用）。
+listen_port = 18080
+
+# 项目名，用于 FastAPI title、WebUI 标题和品牌展示。
+project_name = "MoneyPrinterTurbo"
+
+# 项目版本号，展示在 WebUI 标题和启动日志中。
+project_version = "1.3.0"
+
+# 日志级别：DEBUG / INFO / WARNING / ERROR。
+log_level = "DEBUG"
+
 [app]
 video_source = "pexels" # "pexels" or "pixabay"
 
