@@ -179,6 +179,7 @@ support_locales = [
     "zh-TW",
     "de-DE",
     "en-US",
+    "es-ES",
     "fr-FR",
     "ru-RU",
     "vi-VN",
