@@ -100,6 +100,24 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
         self.assertGreater(vs.get_audio_duration(sub_maker), 0)
 
+    def test_get_audio_duration_accepts_non_mp3_files(self):
+        """
+        自定义音频（custom_audio_file）常见为 m4a/wav/aac 等非 mp3 格式。
+        get_audio_duration 不应因扩展名不是 .mp3 就报 "Invalid target type" 并返回 0，
+        而应交给 moviepy(ffmpeg) 读取真实时长。
+        """
+        for path in ("custom-audio.m4a", "voice.wav", "clip.aac"):
+            with patch.object(vs.os.path, "exists", return_value=True), \
+                    patch.object(vs, "AudioFileClip") as mock_afc:
+                mock_afc.return_value.__enter__.return_value.duration = 28.89
+                self.assertEqual(vs.get_audio_duration(path), 28.89)
+                mock_afc.assert_called_once_with(path)
+
+    def test_get_audio_duration_missing_file_returns_zero(self):
+        """音频文件不存在时安全返回 0，而不是抛异常或读取失败。"""
+        with patch.object(vs.os.path, "exists", return_value=False):
+            self.assertEqual(vs.get_audio_duration("does-not-exist.m4a"), 0.0)
+
     def test_no_voice_alias_none_is_supported_temporarily(self):
         """
         兼容 PR #981 曾使用过的 none sentinel，避免少量直接调用 API 的用户
