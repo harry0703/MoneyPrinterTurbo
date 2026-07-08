@@ -34,9 +34,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-g4f = [
-    "g4f==0.5.2.2",
-]
 # Optional TwelveLabs (https://twelvelabs.io) video-understanding/embedding
 # integration. Only needed when `twelvelabs_api_keys` is configured; install
 # with `uv sync --extra twelvelabs`.

@@ -29,6 +29,15 @@ materials, video subtitles, and video background music before synthesizing a hig
 
 ## Special Thanks 🙏
 
+<div align="center">
+  <a href="https://platform.kimi.ai?aff=MoneyPrinterTurbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
+</div>
+
+Thanks to [Kimi](https://platform.kimi.ai?aff=MoneyPrinterTurbo) for sponsoring this project! [Kimi K2.7 Code](https://platform.kimi.ai/docs/guide/kimi-k2-7-code-quickstart) is an open-source, coding-focused agentic model developed by Moonshot AI, with substantial gains on real-world long-horizon coding tasks and higher end-to-end success across complex software engineering workflows. It also cuts thinking-token usage by approximately 30% compared with K2.6. Within MoneyPrinterTurbo, Kimi's LLM powers video creation: it writes the video script and extracts the search keywords that decide the final footage, so the sharper its understanding, the more on-topic the results.
+
+**MoneyPrinterTurbo already supports Kimi. Visit the [Kimi Open Platform](https://platform.kimi.ai?aff=MoneyPrinterTurbo) ([中文站](https://platform.kimi.com?aff=MoneyPrinterTurbo) | [Global](https://platform.kimi.ai?aff=MoneyPrinterTurbo)) to try the API, or explore the cost-effective [Coding Plan](https://www.kimi.com/code?aff=MoneyPrinterTurbo).**
+
+<br>
 <table align="center">
   <tr>
     <td align="center" width="160">
@@ -105,7 +114,7 @@ materials, video subtitles, and video background music before synthesizing a hig
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
 - [x] Supports multiple stock video providers: **Pexels**, **Pixabay**, and **Coverr**
 - [x] Optional **TwelveLabs** video AI integration: use **Marengo** embeddings to semantically rank B-roll search terms against your subject, and **Pegasus** to QA/describe clips ([TwelveLabs API key](https://twelvelabs.io))
-- [x] Supports integration with various models such as **OpenAI**, **AIHubMix**, **AIML API**, **EvoLink**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
+- [x] Supports integration with various models such as **Kimi/Moonshot**, **OpenAI**, **AIHubMix**, **AIML API**, **EvoLink**, **Azure**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
 
 ## Video Demos 📺
 

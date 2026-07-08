@@ -74,16 +74,15 @@ twelvelabs_rerank_terms = false
 # twelvelabs_pegasus_model = "pegasus1.5"
 
 # 支持的提供商 (Supported providers):
+#   moonshot    (Kimi / Moonshot AI)
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)
 #   aimlapi     (OpenAI-compatible multi-model AI API)
-#   moonshot    (月之暗面)
 #   azure
 #   qwen        (通义千问)
 #   deepseek
 #   gemini
 #   ollama
-#   g4f        (disabled by default; set enable_g4f=true only after accepting its risks)
 #   oneapi
 #   cloudflare
 #   minimax
@@ -93,7 +92,7 @@ twelvelabs_rerank_terms = false
 #   ernie       (文心一言)
 #   modelscope  (魔搭社区)
 #   litellm     (100+ providers via LiteLLM gateway)
-llm_provider = "openai"
+llm_provider = "moonshot"
 
 ########## Pollinations AI Settings
 # Visit https://pollinations.ai/ to learn more
@@ -140,28 +139,17 @@ aimlapi_api_key = ""
 aimlapi_base_url = "https://api.aimlapi.com/v1"
 aimlapi_model_name = "openai/gpt-4o-mini"
 
-########## Moonshot API Key
-# Visit https://platform.moonshot.cn/console/api-keys to get your API key.
+########## Kimi / Moonshot API Key
+# Visit https://platform.kimi.com or https://platform.kimi.ai to get your API key.
 moonshot_api_key = ""
 moonshot_base_url = "https://api.moonshot.cn/v1"
-moonshot_model_name = "moonshot-v1-8k"
+moonshot_model_name = "kimi-k2.7-code"
 
 ########## OneAPI API Key
 # Visit https://github.com/songquanpeng/one-api to get your API key
 oneapi_api_key = ""
 oneapi_base_url = ""
 oneapi_model_name = ""
-
-########## G4F
-# g4f relies on reverse-engineered third-party endpoints and is not recommended
-# for production. Prefer official APIs, OpenAI-compatible providers, LiteLLM,
-# Ollama, or local inference.
-# If you still need it, install the optional dependency with:
-#   uv sync --extra g4f
-enable_g4f = false
-# Visit https://github.com/xtekky/gpt4free to get more details
-# Supported model list: https://github.com/xtekky/gpt4free/blob/main/g4f/models.py
-g4f_model_name = "gpt-3.5-turbo"
 
 ########## Azure API Key
 # Visit https://learn.microsoft.com/zh-cn/azure/ai-services/openai/ to get more details

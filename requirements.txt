@@ -17,6 +17,3 @@ requests==2.33.1
 socksio==1.0.0
 pydub==0.25.1
 litellm==1.86.2
-
-# Optional unofficial g4f provider is intentionally not installed by default.
-# Use `uv sync --extra g4f` only when you explicitly accept that provider risk.

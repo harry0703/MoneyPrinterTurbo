@@ -170,8 +170,13 @@ with lang_col:
     )
     if selected_language:
         code = selected_language.split(" - ")[0].strip()
+        previous_language = st.session_state.get("ui_language", "")
         st.session_state["ui_language"] = code
         config.ui["language"] = code
+        # 语言切换后需要强制刷新一次，否则部分 Streamlit selectbox 会保留
+        # 切换前的展示文本，出现 provider、视频比例等选项文案混用旧语言。
+        if code != previous_language:
+            st.rerun()
 
 support_locales = [
     "zh-CN",
@@ -286,6 +291,44 @@ def tr(key):
     loc = locales.get(st.session_state["ui_language"], {})
     return loc.get("Translation", {}).get(key, key)
 
+
+def tr_optional(key):
+    loc = locales.get(st.session_state["ui_language"], {})
+    value = loc.get("Translation", {}).get(key, "")
+    return value if value else ""
+
+
+def get_llm_provider_tips(provider_id, **kwargs):
+    # LLM provider 说明文案统一使用 `llm_provider_tips.<provider_id>` 规则。
+    # 这样新增 provider 时只需要在 locale 中补文案；没有文案时不展示提示块，
+    # 避免 Main.py 里继续堆叠大量中英文硬编码说明。
+    tips = tr_optional(f"llm_provider_tips.{provider_id}")
+    if not tips or not kwargs:
+        return tips
+
+    try:
+        return tips.format(**kwargs)
+    except Exception as e:
+        logger.warning(f"format llm provider tips failed: {provider_id}, {e}")
+        return tips
+
+
+def get_llm_provider_label(provider_id, default_label):
+    return tr_optional(f"llm_provider_label.{provider_id}") or default_label
+
+
+def get_tts_provider_tips(provider_id):
+    return tr_optional(f"tts_provider_tips.{provider_id}")
+
+
+def localized_widget_key(name, *parts):
+    # 部分 Streamlit selectbox 使用稳定 key 记住选择状态，但展示文本来自 locale。
+    # 语言切换时把语言也放进 key，可以强制重建控件，避免选中项仍显示旧语言。
+    language = st.session_state.get("ui_language", config.ui.get("language", ""))
+    suffix_parts = [name, language, *[str(part) for part in parts if part]]
+    return "_".join(suffix_parts)
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def get_groq_model_ids(api_key: str, base_url: str) -> list[str]:
     if not api_key:
@@ -345,12 +388,12 @@ if not config.app.get("hide_config", False):
             # 下拉框展示文本和后端 provider id 分开维护，避免 UI 文案变化
             # 污染 `config.app["llm_provider"]` 这类稳定配置值。
             llm_provider_options = [
+                ("Kimi/Moonshot", "moonshot"),
                 ("OpenAI", "openai"),
                 ("AIHubMix", "aihubmix"),
                 ("AIML API", "aimlapi"),
                 ("EvoLink", "evolink"),
                 ("VolcEngine", "volcengine"),
-                ("Moonshot", "moonshot"),
                 ("Azure", "azure"),
                 ("Qwen", "qwen"),
                 ("DeepSeek", "deepseek"),
@@ -359,7 +402,6 @@ if not config.app.get("hide_config", False):
                 ("Grok", "grok"),
                 ("Groq", "groq"),
                 ("Ollama", "ollama"),
-                ("G4f", "g4f"),
                 ("OneAPI", "oneapi"),
                 ("Cloudflare", "cloudflare"),
                 ("ERNIE", "ernie"),
@@ -370,29 +412,31 @@ if not config.app.get("hide_config", False):
             ]
             llm_provider_ids = [provider_id for _, provider_id in llm_provider_options]
             llm_provider_labels = {
-                provider_id: label for label, provider_id in llm_provider_options
+                provider_id: get_llm_provider_label(provider_id, label)
+                for label, provider_id in llm_provider_options
             }
-            saved_llm_provider = config.app.get("llm_provider", "openai").lower()
+            saved_llm_provider = config.app.get("llm_provider", "moonshot").lower()
             if saved_llm_provider not in llm_provider_ids:
-                saved_llm_provider = "openai"
+                saved_llm_provider = "moonshot"
 
             # Streamlit 会把没有 key 的 selectbox 视为一个由 label/options/index
             # 共同决定的临时控件。如果每次选择后都根据 config.app 重新计算 index，
             # 用户第一次切换 provider 后控件可能被重建，表现为“必须选择两次才生效”。
             # 这里用稳定的 provider id 作为真实选项，并给控件固定 key；展示文案只
             # 通过 format_func 转换，避免 UI 文案变化影响状态。
-            if st.session_state.get("llm_provider_select") not in (
+            llm_provider_select_key = localized_widget_key("llm_provider_select")
+            if st.session_state.get(llm_provider_select_key) not in (
                 None,
                 *llm_provider_ids,
             ):
-                del st.session_state["llm_provider_select"]
+                del st.session_state[llm_provider_select_key]
 
             llm_provider = st.selectbox(
                 tr("LLM Provider"),
                 options=llm_provider_ids,
                 index=llm_provider_ids.index(saved_llm_provider),
                 format_func=lambda provider_id: llm_provider_labels[provider_id],
-                key="llm_provider_select",
+                key=llm_provider_select_key,
             )
             llm_helper = st.container()
             config.app["llm_provider"] = llm_provider
@@ -405,158 +449,62 @@ if not config.app.get("hide_config", False):
             llm_model_name = config.app.get(f"{llm_provider}_model_name", "")
             llm_account_id = config.app.get(f"{llm_provider}_account_id", "")
 
-            tips = ""
+            provider_tip_context = {}
             if llm_provider == "ollama":
                 if not llm_model_name:
                     llm_model_name = "qwen:7b"
                 if not llm_base_url:
                     llm_base_url = config.get_default_ollama_base_url()
-
-                with llm_helper:
-                    docker_hint = ""
-                    if config.is_running_in_container():
-                        docker_hint = "\n                            > 检测到容器环境，未配置 Base Url 时会默认使用 `http://host.docker.internal:11434/v1`\n"
-                    tips = f"""
-                            ##### Ollama配置说明
-                            - **API Key**: 随便填写，比如 123
-                            - **Base Url**: 一般为 http://localhost:11434/v1
-                                - 如果 `MoneyPrinterTurbo` 和 `Ollama` **不在同一台机器上**，需要填写 `Ollama` 机器的IP地址
-                                - 如果 `MoneyPrinterTurbo` 是 `Docker` 部署，建议填写 `http://host.docker.internal:11434/v1`{docker_hint}
-                            - **Model Name**: 使用 `ollama list` 查看，比如 `qwen:7b`
-                            """
+                docker_hint = ""
+                if config.is_running_in_container():
+                    docker_hint = tr_optional("llm_provider_tips.ollama.docker_hint")
+                provider_tip_context["docker_hint"] = docker_hint
 
             if llm_provider == "openai":
                 if not llm_model_name:
                     llm_model_name = "gpt-3.5-turbo"
-                with llm_helper:
-                    tips = """
-                            ##### OpenAI 配置说明
-                            > 需要VPN开启全局流量模式
-                            - **API Key**: [点击到官网申请](https://platform.openai.com/api-keys)
-                            - **Base Url**: 官方 OpenAI 可留空；如果使用 OpenAI 兼容供应商（例如 OpenRouter），请填写对应的兼容接口地址
-                            - **Model Name**: 填写**有权限**的模型；如果使用兼容供应商，请填写该平台支持的模型 ID
-                            """
 
             if llm_provider == "aihubmix":
                 if not llm_model_name:
                     llm_model_name = "gpt-5.4-mini"
                 if not llm_base_url:
                     llm_base_url = "https://aihubmix.com/v1"
-                with llm_helper:
-                    tips = """
-                            ##### AIHubMix 配置说明
-                            - **API Key**: 在 AIHubMix 控制台创建 API Key
-                            - **Base Url**: 预填 https://aihubmix.com/v1
-                            - **Model Name**: 默认 gpt-5.4-mini，也可以填写 AIHubMix 支持的其它模型 ID
-                            """
 
             if llm_provider == "aimlapi":
                 if not llm_model_name:
                     llm_model_name = "openai/gpt-4o-mini"
                 if not llm_base_url:
                     llm_base_url = "https://api.aimlapi.com/v1"
-                with llm_helper:
-                    tips = """
-                            ##### AIML API Configuration
-                            - **API Key**: create one at https://aimlapi.com/app/keys
-                            - **Base Url**: https://api.aimlapi.com/v1
-                            - **Model Name**: for example `openai/gpt-4o-mini`, `openai/gpt-4o`, `anthropic/claude-sonnet-4.5`, or `google/gemini-3-flash-preview`
-                            """
 
             if llm_provider == "evolink":
                 if not llm_model_name:
                     llm_model_name = "gpt-5.5"
                 if not llm_base_url:
                     llm_base_url = "https://direct.evolink.ai/v1"
-                with llm_helper:
-                    tips = """
-                            ##### EvoLink 配置说明
-                            - **API Key**: [点击到官网申请](https://evolink.ai/dashboard/keys)
-                            - **Base Url**: 默认 https://direct.evolink.ai/v1
-                            - **Model Name**: 默认 gpt-5.5，也可以填写 EvoLink 支持的其它模型 ID
-                            """
 
             if llm_provider == "volcengine":
                 if not llm_model_name:
                     llm_model_name = "doubao-seed-2-1-turbo-260628"
                 if not llm_base_url:
                     llm_base_url = "https://ark.cn-beijing.volces.com/api/v3"
-                with llm_helper:
-                    tips = """
-                            ##### VolcEngine Ark 配置说明
-                            - **注册链接**: [点击注册 火山引擎](https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo)
-                            - **API Key**: 在火山引擎方舟控制台创建 API Key
-                            - **Base Url**: 默认 https://ark.cn-beijing.volces.com/api/v3
-                            - **Model Name**: 填写 Ark 控制台已开通的模型 ID，例如 doubao-seed-2-1-turbo-260628
-                            """
 
             if llm_provider == "moonshot":
                 if not llm_model_name:
-                    llm_model_name = "moonshot-v1-8k"
-                with llm_helper:
-                    tips = """
-                            ##### Moonshot 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.moonshot.cn/console/api-keys)
-                            - **Base Url**: 固定为 https://api.moonshot.cn/v1
-                            - **Model Name**: 比如 moonshot-v1-8k，[点击查看模型列表](https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8)
-                            """
+                    llm_model_name = "kimi-k2.7-code"
+
             if llm_provider == "oneapi":
                 if not llm_model_name:
                     llm_model_name = (
                         "claude-3-5-sonnet-20240620"  # 默认模型，可以根据需要调整
                     )
-                with llm_helper:
-                    tips = """
-                        ##### OneAPI 配置说明
-                        - **API Key**: 填写您的 OneAPI 密钥
-                        - **Base Url**: 填写 OneAPI 的基础 URL
-                        - **Model Name**: 填写您要使用的模型名称，例如 claude-3-5-sonnet-20240620
-                        """
 
             if llm_provider == "qwen":
                 if not llm_model_name:
                     llm_model_name = "qwen-max"
-                with llm_helper:
-                    tips = """
-                            ##### 通义千问Qwen 配置说明
-                            - **API Key**: [点击到官网申请](https://dashscope.console.aliyun.com/apiKey)
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 qwen-max，[点击查看模型列表](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction#3ef6d0bcf91wy)
-                            """
-
-            if llm_provider == "g4f":
-                if not llm_model_name:
-                    llm_model_name = "gpt-3.5-turbo"
-                with llm_helper:
-                    tips = """
-                            ##### gpt4free 配置说明
-                            > [GitHub开源项目](https://github.com/xtekky/gpt4free)，可以免费使用GPT模型，但是**稳定性较差**
-                            - **API Key**: 随便填写，比如 123
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 gpt-3.5-turbo，[点击查看模型列表](https://github.com/xtekky/gpt4free/blob/main/g4f/models.py#L308)
-                            """
-            if llm_provider == "azure":
-                with llm_helper:
-                    tips = """
-                            ##### Azure 配置说明
-                            > [点击查看如何部署模型](https://learn.microsoft.com/zh-cn/azure/ai-services/openai/how-to/create-resource)
-                            - **API Key**: [点击到Azure后台创建](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)
-                            - **Base Url**: 留空
-                            - **Model Name**: 填写你实际的部署名
-                            """
 
             if llm_provider == "gemini":
                 if not llm_model_name:
                     llm_model_name = "gemini-1.0-pro"
-
-                with llm_helper:
-                    tips = """
-                            ##### Gemini 配置说明
-                            > 需要VPN开启全局流量模式
-                            - **API Key**: [点击到官网申请](https://ai.google.dev/)
-                            - **Base Url**: 留空
-                            - **Model Name**: 比如 gemini-1.0-pro
-                            """
 
             if llm_provider == "grok":
                 if not llm_model_name:
@@ -564,100 +512,42 @@ if not config.app.get("hide_config", False):
                 if not llm_base_url:
                     llm_base_url = "https://api.x.ai/v1"
 
-                with llm_helper:
-                    tips = """
-                            ##### Grok 配置说明
-                            - **API Key**: 填写您的 GrokAPI 密钥
-                            - **Base Url**: 填写 GrokAPI 的基础 URL
-                            - **Model Name**: 比如 grok-4.3
-                            """
-
             if llm_provider == "groq":
                 if not llm_model_name:
                     llm_model_name = "llama-3.3-70b-versatile"
                 if not llm_base_url:
                     llm_base_url = "https://api.groq.com/openai/v1"
 
-                with llm_helper:
-                    tips = """
-                            ##### Groq 配置说明
-                            - **API Key**: [点击到官网申请](https://console.groq.com/keys)
-                            - **Base Url**: 固定为 https://api.groq.com/openai/v1
-                            - **Model Name**: 比如 llama-3.3-70b-versatile
-                            """
-
             if llm_provider == "deepseek":
                 if not llm_model_name:
                     llm_model_name = "deepseek-chat"
                 if not llm_base_url:
                     llm_base_url = "https://api.deepseek.com"
-                with llm_helper:
-                    tips = """
-                            ##### DeepSeek 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
-                            - **Base Url**: 固定为 https://api.deepseek.com
-                            - **Model Name**: 固定为 deepseek-chat
-                            """
 
             if llm_provider == "mimo":
                 if not llm_model_name:
                     llm_model_name = "mimo-v2.5-pro"
                 if not llm_base_url:
                     llm_base_url = "https://api.xiaomimimo.com/v1"
-                with llm_helper:
-                    tips = """
-                            ##### Xiaomi MiMo 配置说明
-                            - **API Key**: [点击到官网申请](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
-                            - **Base Url**: 固定为 https://api.xiaomimimo.com/v1
-                            - **Model Name**: 默认 mimo-v2.5-pro，也可以按官方文档填写其它可用模型
-                            """
 
             if llm_provider == "modelscope":
                 if not llm_model_name:
                     llm_model_name = "Qwen/Qwen3-32B"
                 if not llm_base_url:
                     llm_base_url = "https://api-inference.modelscope.cn/v1/"
-                with llm_helper:
-                    tips = """
-                            ##### ModelScope 配置说明
-                            - **API Key**: [点击到官网申请](https://modelscope.cn/docs/model-service/API-Inference/intro)
-                            - **Base Url**: 固定为 https://api-inference.modelscope.cn/v1/
-                            - **Model Name**: 比如 Qwen/Qwen3-32B，[点击查看模型列表](https://modelscope.cn/models?filter=inference_type&page=1)
-                            """
-
-            if llm_provider == "ernie":
-                with llm_helper:
-                    tips = """
-                            ##### 百度文心一言 配置说明
-                            - **API Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
-                            - **Secret Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)
-                            - **Base Url**: 填写 **请求地址** [点击查看文档](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)
-                            """
 
             if llm_provider == "pollinations":
                 if not llm_model_name:
                     llm_model_name = "default"
-                with llm_helper:
-                    tips = """
-                            ##### Pollinations AI Configuration
-                            - **API Key**: Optional - Leave empty for public access
-                            - **Base Url**: Default is https://text.pollinations.ai/openai
-                            - **Model Name**: Use 'openai-fast' or specify a model name
-                            """
 
             if llm_provider == "litellm":
                 if not llm_model_name:
                     llm_model_name = "openai/gpt-4o-mini"
-                with llm_helper:
-                    tips = """
-                            ##### LiteLLM Configuration
-                            > [LiteLLM](https://github.com/BerriAI/litellm) routes to 100+ LLM providers via a unified interface.
-                            > Set your provider's API key as an env var: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.
-                            - **Model Name**: LiteLLM format — `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, `gemini/gemini-2.5-flash`. See [full provider list](https://docs.litellm.ai/docs/providers)
-                            """
 
-            if tips and config.ui["language"] == "zh":
-                st.info(tips)
+            tips = get_llm_provider_tips(llm_provider, **provider_tip_context)
+            if tips:
+                with llm_helper:
+                    st.info(tips)
 
             st_llm_api_key = st.text_input(
                 tr("API Key"), value=llm_api_key, type="password"
@@ -691,13 +581,9 @@ if not config.app.get("hide_config", False):
                             key="groq_model_name_input",
                         )
                         if effective_api_key:
-                            st.caption(
-                                "Unable to load Groq model list right now. You can still enter a model name manually — note it won't be validated until generation."
-                            )
+                            st.caption(tr("Groq Model List Load Failed"))
                         else:
-                            st.caption(
-                                "Add a Groq API key to load available models automatically."
-                            )
+                            st.caption(tr("Groq API Key Required for Model List"))
                 else:
                     st_llm_model_name = st.text_input(
                         tr("Model Name"),
@@ -976,7 +862,7 @@ with middle_panel:
                 0
             ],  # The label is displayed to the user
             index=default_aspect_index,
-            key=f"video_aspect_for_{params.video_source}",
+            key=localized_widget_key("video_aspect_for", params.video_source),
         )
         params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
 
@@ -1256,15 +1142,9 @@ with middle_panel:
             )
 
             # 显示硅基流动的说明信息
-            st.info(
-                tr("SiliconFlow TTS Settings")
-                + ":\n"
-                + "- "
-                + tr("Speed: Range [0.25, 4.0], default is 1.0")
-                + "\n"
-                + "- "
-                + tr("Volume: Uses Speech Volume setting, default 1.0 maps to gain 0")
-            )
+            tips = get_tts_provider_tips("siliconflow")
+            if tips:
+                st.info(tips)
 
             config.siliconflow["api_key"] = siliconflow_api_key
 
@@ -1282,15 +1162,9 @@ with middle_panel:
                 key="mimo_tts_api_key_input",
             )
 
-            st.info(
-                tr("MiMo TTS Settings")
-                + ":\n"
-                + "- "
-                + tr("Uses Xiaomi MiMo V2.5 TTS preset voices")
-                + "\n"
-                + "- "
-                + tr("Speed and volume are currently handled by the provider defaults")
-            )
+            tips = get_tts_provider_tips("mimo")
+            if tips:
+                st.info(tips)
 
             config.app["mimo_api_key"] = mimo_api_key
 
@@ -1325,11 +1199,9 @@ with middle_panel:
             )
             config.elevenlabs["model_id"] = elevenlabs_model
 
-            st.info(
-                "ElevenLabs TTS Settings:\n"
-                "- Get your API key at https://elevenlabs.io/app/settings/api-keys\n"
-                "- Mark voices as ★ Favorite in the ElevenLabs voice library to make them appear here"
-            )
+            tips = get_tts_provider_tips("elevenlabs")
+            if tips:
+                st.info(tips)
 
             if elevenlabs_api_key != saved_elevenlabs_api_key:
                 for k in list(st.session_state.keys()):
@@ -1346,7 +1218,7 @@ with middle_panel:
                 tr("Chatterbox Base URL"),
                 value=config.chatterbox.get("base_url") or DEFAULT_CHATTERBOX_BASE_URL,
                 key="chatterbox_base_url_input",
-                placeholder="http://localhost:4123/v1",
+                placeholder=tr("Chatterbox Base URL Placeholder"),
             )
             config.chatterbox["base_url"] = (chatterbox_base_url or "").strip()
 
@@ -1377,21 +1249,13 @@ with middle_panel:
                 tr("Chatterbox Voices"),
                 value=str(_saved_chatterbox_voices or ""),
                 key="chatterbox_voices_input",
-                placeholder="default-Female, narrator-Male",
+                placeholder=tr("Chatterbox Voices Placeholder"),
             )
             config.chatterbox["voices"] = _parse_chatterbox_voices(chatterbox_voices)
 
-            st.info(
-                "Chatterbox TTS Settings (self-hosted):\n"
-                "- Run an OpenAI-compatible Chatterbox server (e.g. "
-                "devnen/Chatterbox-TTS-Server or travisvn/chatterbox-tts-api) and "
-                "set Base URL to its /v1 endpoint\n"
-                "- Voices is a comma-separated list of voice names your server "
-                "exposes; add a -Female or -Male suffix only to label the gender "
-                "in this dropdown\n"
-                "- Speech Volume is not applied for Chatterbox (the OpenAI "
-                "/audio/speech API has no volume field); use Speech Rate instead"
-            )
+            tips = get_tts_provider_tips("chatterbox")
+            if tips:
+                st.info(tips)
 
         params.voice_volume = st.selectbox(
             tr("Speech Volume"),

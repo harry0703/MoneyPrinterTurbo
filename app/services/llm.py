@@ -141,443 +141,365 @@ def _generate_response(prompt: str) -> str:
         content = ""
         llm_provider = config.app.get("llm_provider", "openai")
         logger.info(f"llm provider: {llm_provider}")
-        if llm_provider == "g4f":
-            if not config.app.get("enable_g4f", False):
-                raise ValueError(
-                    "g4f provider is disabled by default because it relies on "
-                    "reverse-engineered third-party endpoints. Set enable_g4f=true "
-                    "in config.toml only if you understand and accept the security, "
-                    "reliability, and legal risks."
-                )
-
-            logger.warning(
-                "g4f provider is enabled. This provider may be unstable and carries "
-                "supply-chain and terms-of-service risks. Prefer official providers, "
-                "OpenAI-compatible APIs, LiteLLM, Ollama, or local inference for production."
-            )
-            try:
-                import g4f
-            except ImportError as e:
-                raise ValueError(
-                    "g4f package is not installed by default. Install the optional "
-                    "dependency with `uv sync --extra g4f` only if you understand "
-                    "and accept the provider risks."
-                ) from e
-
-            model_name = config.app.get("g4f_model_name", "")
+        api_version = ""  # for azure
+        if llm_provider == "moonshot":
+            api_key = config.app.get("moonshot_api_key")
+            model_name = config.app.get("moonshot_model_name")
+            base_url = "https://api.moonshot.cn/v1"
+        elif llm_provider == "ollama":
+            # api_key = config.app.get("openai_api_key")
+            api_key = "ollama"  # any string works but you are required to have one
+            model_name = config.app.get("ollama_model_name")
+            base_url = config.app.get("ollama_base_url", "")
+            if not base_url:
+                base_url = config.get_default_ollama_base_url()
+        elif llm_provider == "openai":
+            api_key = config.app.get("openai_api_key")
+            model_name = config.app.get("openai_model_name")
+            base_url = config.app.get("openai_base_url", "")
+            if not base_url:
+                base_url = "https://api.openai.com/v1"
+        elif llm_provider == "aihubmix":
+            api_key = config.app.get("aihubmix_api_key")
+            model_name = config.app.get("aihubmix_model_name")
+            base_url = config.app.get("aihubmix_base_url", "")
+            # AIHubMix 兼容 OpenAI Chat Completions 协议。这里使用独立
+            # provider 保存合作方的默认网关和推荐模型，避免把推广链接、
+            # 默认模型等合作配置混进普通 OpenAI provider，影响现有用户。
+            if not base_url:
+                base_url = "https://aihubmix.com/v1"
             if not model_name:
-                model_name = "gpt-3.5-turbo-16k-0613"
-            content = g4f.ChatCompletion.create(
-                model=model_name,
-                messages=[{"role": "user", "content": prompt}],
-            )
-        else:
-            api_version = ""  # for azure
-            if llm_provider == "moonshot":
-                api_key = config.app.get("moonshot_api_key")
-                model_name = config.app.get("moonshot_model_name")
-                base_url = "https://api.moonshot.cn/v1"
-            elif llm_provider == "ollama":
-                # api_key = config.app.get("openai_api_key")
-                api_key = "ollama"  # any string works but you are required to have one
-                model_name = config.app.get("ollama_model_name")
-                base_url = config.app.get("ollama_base_url", "")
-                if not base_url:
-                    base_url = config.get_default_ollama_base_url()
-            elif llm_provider == "openai":
-                api_key = config.app.get("openai_api_key")
-                model_name = config.app.get("openai_model_name")
-                base_url = config.app.get("openai_base_url", "")
-                if not base_url:
-                    base_url = "https://api.openai.com/v1"
-            elif llm_provider == "aihubmix":
-                api_key = config.app.get("aihubmix_api_key")
-                model_name = config.app.get("aihubmix_model_name")
-                base_url = config.app.get("aihubmix_base_url", "")
-                # AIHubMix 兼容 OpenAI Chat Completions 协议。这里使用独立
-                # provider 保存合作方的默认网关和推荐模型，避免把推广链接、
-                # 默认模型等合作配置混进普通 OpenAI provider，影响现有用户。
-                if not base_url:
-                    base_url = "https://aihubmix.com/v1"
-                if not model_name:
-                    model_name = "gpt-5.4-mini"
-            elif llm_provider == "aimlapi":
-                api_key = config.app.get("aimlapi_api_key")
-                model_name = config.app.get("aimlapi_model_name")
-                base_url = config.app.get("aimlapi_base_url", "")
-                if not base_url:
-                    base_url = "https://api.aimlapi.com/v1"
-                if not model_name:
-                    model_name = "openai/gpt-4o-mini"
-            elif llm_provider == "oneapi":
-                api_key = config.app.get("oneapi_api_key")
-                model_name = config.app.get("oneapi_model_name")
-                base_url = config.app.get("oneapi_base_url", "")
-            elif llm_provider == "azure":
-                api_key = config.app.get("azure_api_key")
-                model_name = config.app.get("azure_model_name")
-                base_url = config.app.get("azure_base_url", "")
-                api_version = config.app.get("azure_api_version", "2024-02-15-preview")
-            elif llm_provider == "gemini":
-                api_key = config.app.get("gemini_api_key")
-                model_name = config.app.get("gemini_model_name")
-                base_url = config.app.get("gemini_base_url", "")
-                # Gemini 旧模型名已经陆续下线，这里自动兼容历史配置，
-                # 避免用户沿用旧值时直接收到 404。
-                if not model_name:
-                    model_name = _DEFAULT_GEMINI_MODEL
-                elif model_name in _DEPRECATED_GEMINI_MODELS:
-                    logger.warning(
-                        f"gemini model '{model_name}' is deprecated, fallback to '{_DEFAULT_GEMINI_MODEL}'"
-                    )
-                    model_name = _DEFAULT_GEMINI_MODEL
-            elif llm_provider == "grok":
-                api_key = config.app.get("grok_api_key")
-                model_name = config.app.get("grok_model_name")
-                base_url = config.app.get("grok_base_url", "")
-                if not base_url:
-                    base_url = "https://api.x.ai/v1"
-            elif llm_provider == "groq":
-                api_key = config.app.get("groq_api_key")
-                model_name = config.app.get("groq_model_name")
-                if not model_name:
-                    model_name = "llama-3.3-70b-versatile"
-                base_url = config.app.get("groq_base_url", "")
-                if not base_url:
-                    base_url = "https://api.groq.com/openai/v1"
-            elif llm_provider == "qwen":
-                api_key = config.app.get("qwen_api_key")
-                model_name = config.app.get("qwen_model_name")
-                base_url = "***"
-            elif llm_provider == "cloudflare":
-                api_key = config.app.get("cloudflare_api_key")
-                model_name = config.app.get("cloudflare_model_name")
-                account_id = config.app.get("cloudflare_account_id")
-                base_url = "***"
-            elif llm_provider == "minimax":
-                api_key = config.app.get("minimax_api_key")
-                model_name = config.app.get("minimax_model_name")
-                base_url = config.app.get("minimax_base_url", "")
-                if not base_url:
-                    base_url = "https://api.minimax.io/v1"
-            elif llm_provider == "evolink":
-                api_key = config.app.get("evolink_api_key")
-                model_name = config.app.get("evolink_model_name")
-                base_url = config.app.get("evolink_base_url", "")
-                if not base_url:
-                    base_url = "https://direct.evolink.ai/v1"
-                if not model_name:
-                    model_name = "gpt-5.5"
-            elif llm_provider == "mimo":
-                api_key = config.app.get("mimo_api_key")
-                model_name = config.app.get("mimo_model_name")
-                base_url = config.app.get("mimo_base_url", "")
-                # Xiaomi MiMo 官方文档说明其兼容 OpenAI Chat Completions 协议。
-                # 这里使用独立 provider 保存默认地址和模型名，用户不用把 MiMo
-                # 当作 OpenAI 自定义 base_url 配置，也便于后续继续接入 MiMo
-                # 多模态或 TTS 能力时保持边界清晰。
-                if not base_url:
-                    base_url = "https://api.xiaomimimo.com/v1"
-                if not model_name:
-                    model_name = "mimo-v2.5-pro"
-            elif llm_provider == "volcengine":
-                api_key = config.app.get("volcengine_api_key")
-                model_name = config.app.get("volcengine_model_name")
-                base_url = config.app.get("volcengine_base_url", "")
-                # 火山引擎方舟提供 OpenAI-compatible Chat Completions 接口。
-                # 独立 provider 可以让用户直接选择 VolcEngine，而不用把 Ark
-                # 的 key/base_url 混到通用 OpenAI 配置里，后续维护也更清晰。
-                if not base_url:
-                    base_url = "https://ark.cn-beijing.volces.com/api/v3"
-                if not model_name:
-                    model_name = "doubao-seed-2-1-turbo-260628"
-            elif llm_provider == "deepseek":
-                api_key = config.app.get("deepseek_api_key")
-                model_name = config.app.get("deepseek_model_name")
-                base_url = config.app.get("deepseek_base_url")
-                if not base_url:
-                    base_url = "https://api.deepseek.com"
-            elif llm_provider == "modelscope":
-                api_key = config.app.get("modelscope_api_key")
-                model_name = config.app.get("modelscope_model_name")
-                base_url = config.app.get("modelscope_base_url")
-                if not base_url:
-                    base_url = "https://api-inference.modelscope.cn/v1/"
-            elif llm_provider == "ernie":
-                api_key = config.app.get("ernie_api_key")
-                secret_key = config.app.get("ernie_secret_key")
-                base_url = config.app.get("ernie_base_url")
-                model_name = "***"
-                if not secret_key:
-                    raise ValueError(
-                        f"{llm_provider}: secret_key is not set, please set it in the config.toml file."
-                    )
-            elif llm_provider == "pollinations":
-                try:
-                    base_url = config.app.get("pollinations_base_url", "")
-                    if not base_url:
-                        base_url = "https://text.pollinations.ai/openai"
-                    model_name = config.app.get("pollinations_model_name", "openai-fast")
-                   
-                    # Prepare the payload
-                    payload = {
-                        "model": model_name,
-                        "messages": [
-                            {"role": "user", "content": prompt}
-                        ],
-                        "seed": 101  # Optional but helps with reproducibility
-                    }
-                    
-                    # Optional parameters if configured
-                    if config.app.get("pollinations_private"):
-                        payload["private"] = True
-                    if config.app.get("pollinations_referrer"):
-                        payload["referrer"] = config.app.get("pollinations_referrer")
-                    
-                    headers = {
-                        "Content-Type": "application/json"
-                    }
-                    
-                    # Make the API request
-                    response = requests.post(base_url, headers=headers, json=payload)
-                    response.raise_for_status()
-                    result = response.json()
-                    
-                    if result and "choices" in result and len(result["choices"]) > 0:
-                        content = result["choices"][0]["message"]["content"]
-                        return _normalize_text_response(content, llm_provider)
-                    else:
-                        raise Exception(f"[{llm_provider}] returned an invalid response format")
-                        
-                except requests.exceptions.RequestException as e:
-                    raise Exception(f"[{llm_provider}] request failed: {str(e)}")
-                except Exception as e:
-                    raise Exception(f"[{llm_provider}] error: {str(e)}")
-
-            elif llm_provider == "litellm":
-                model_name = config.app.get("litellm_model_name")
-
-            if llm_provider not in ["pollinations", "ollama", "litellm"]:  # Skip validation for providers that don't require API key
-                if not api_key:
-                    raise ValueError(
-                        f"{llm_provider}: api_key is not set, please set it in the config.toml file."
-                    )
-                if not model_name:
-                    raise ValueError(
-                        f"{llm_provider}: model_name is not set, please set it in the config.toml file."
-                    )
-                if not base_url and llm_provider not in ["gemini"]:
-                    raise ValueError(
-                        f"{llm_provider}: base_url is not set, please set it in the config.toml file."
-                    )
-
-            if llm_provider == "qwen":
-                import dashscope
-                from dashscope.api_entities.dashscope_response import GenerationResponse
-
-                dashscope.api_key = api_key
-                response = dashscope.Generation.call(
-                    model=model_name, messages=[{"role": "user", "content": prompt}]
+                model_name = "gpt-5.4-mini"
+        elif llm_provider == "aimlapi":
+            api_key = config.app.get("aimlapi_api_key")
+            model_name = config.app.get("aimlapi_model_name")
+            base_url = config.app.get("aimlapi_base_url", "")
+            if not base_url:
+                base_url = "https://api.aimlapi.com/v1"
+            if not model_name:
+                model_name = "openai/gpt-4o-mini"
+        elif llm_provider == "oneapi":
+            api_key = config.app.get("oneapi_api_key")
+            model_name = config.app.get("oneapi_model_name")
+            base_url = config.app.get("oneapi_base_url", "")
+        elif llm_provider == "azure":
+            api_key = config.app.get("azure_api_key")
+            model_name = config.app.get("azure_model_name")
+            base_url = config.app.get("azure_base_url", "")
+            api_version = config.app.get("azure_api_version", "2024-02-15-preview")
+        elif llm_provider == "gemini":
+            api_key = config.app.get("gemini_api_key")
+            model_name = config.app.get("gemini_model_name")
+            base_url = config.app.get("gemini_base_url", "")
+            # Gemini 旧模型名已经陆续下线，这里自动兼容历史配置，
+            # 避免用户沿用旧值时直接收到 404。
+            if not model_name:
+                model_name = _DEFAULT_GEMINI_MODEL
+            elif model_name in _DEPRECATED_GEMINI_MODELS:
+                logger.warning(
+                    f"gemini model '{model_name}' is deprecated, fallback to '{_DEFAULT_GEMINI_MODEL}'"
                 )
-                if response:
-                    if isinstance(response, GenerationResponse):
-                        status_code = response.status_code
-                        if status_code != 200:
-                            raise Exception(
-                                f'[{llm_provider}] returned an error response: "{response}"'
-                            )
-
-                        return _extract_qwen_generation_text(response)
-                    else:
-                        raise Exception(
-                            f'[{llm_provider}] returned an invalid response: "{response}"'
-                        )
-                else:
-                    raise Exception(f"[{llm_provider}] returned an empty response")
-
-            if llm_provider == "gemini":
-                import google.generativeai as genai
-
+                model_name = _DEFAULT_GEMINI_MODEL
+        elif llm_provider == "grok":
+            api_key = config.app.get("grok_api_key")
+            model_name = config.app.get("grok_model_name")
+            base_url = config.app.get("grok_base_url", "")
+            if not base_url:
+                base_url = "https://api.x.ai/v1"
+        elif llm_provider == "groq":
+            api_key = config.app.get("groq_api_key")
+            model_name = config.app.get("groq_model_name")
+            if not model_name:
+                model_name = "llama-3.3-70b-versatile"
+            base_url = config.app.get("groq_base_url", "")
+            if not base_url:
+                base_url = "https://api.groq.com/openai/v1"
+        elif llm_provider == "qwen":
+            api_key = config.app.get("qwen_api_key")
+            model_name = config.app.get("qwen_model_name")
+            base_url = "***"
+        elif llm_provider == "cloudflare":
+            api_key = config.app.get("cloudflare_api_key")
+            model_name = config.app.get("cloudflare_model_name")
+            account_id = config.app.get("cloudflare_account_id")
+            base_url = "***"
+        elif llm_provider == "minimax":
+            api_key = config.app.get("minimax_api_key")
+            model_name = config.app.get("minimax_model_name")
+            base_url = config.app.get("minimax_base_url", "")
+            if not base_url:
+                base_url = "https://api.minimax.io/v1"
+        elif llm_provider == "evolink":
+            api_key = config.app.get("evolink_api_key")
+            model_name = config.app.get("evolink_model_name")
+            base_url = config.app.get("evolink_base_url", "")
+            if not base_url:
+                base_url = "https://direct.evolink.ai/v1"
+            if not model_name:
+                model_name = "gpt-5.5"
+        elif llm_provider == "mimo":
+            api_key = config.app.get("mimo_api_key")
+            model_name = config.app.get("mimo_model_name")
+            base_url = config.app.get("mimo_base_url", "")
+            # Xiaomi MiMo 官方文档说明其兼容 OpenAI Chat Completions 协议。
+            # 这里使用独立 provider 保存默认地址和模型名，用户不用把 MiMo
+            # 当作 OpenAI 自定义 base_url 配置，也便于后续继续接入 MiMo
+            # 多模态或 TTS 能力时保持边界清晰。
+            if not base_url:
+                base_url = "https://api.xiaomimimo.com/v1"
+            if not model_name:
+                model_name = "mimo-v2.5-pro"
+        elif llm_provider == "volcengine":
+            api_key = config.app.get("volcengine_api_key")
+            model_name = config.app.get("volcengine_model_name")
+            base_url = config.app.get("volcengine_base_url", "")
+            # 火山引擎方舟提供 OpenAI-compatible Chat Completions 接口。
+            # 独立 provider 可以让用户直接选择 VolcEngine，而不用把 Ark
+            # 的 key/base_url 混到通用 OpenAI 配置里，后续维护也更清晰。
+            if not base_url:
+                base_url = "https://ark.cn-beijing.volces.com/api/v3"
+            if not model_name:
+                model_name = "doubao-seed-2-1-turbo-260628"
+        elif llm_provider == "deepseek":
+            api_key = config.app.get("deepseek_api_key")
+            model_name = config.app.get("deepseek_model_name")
+            base_url = config.app.get("deepseek_base_url")
+            if not base_url:
+                base_url = "https://api.deepseek.com"
+        elif llm_provider == "modelscope":
+            api_key = config.app.get("modelscope_api_key")
+            model_name = config.app.get("modelscope_model_name")
+            base_url = config.app.get("modelscope_base_url")
+            if not base_url:
+                base_url = "https://api-inference.modelscope.cn/v1/"
+        elif llm_provider == "ernie":
+            api_key = config.app.get("ernie_api_key")
+            secret_key = config.app.get("ernie_secret_key")
+            base_url = config.app.get("ernie_base_url")
+            model_name = "***"
+            if not secret_key:
+                raise ValueError(
+                    f"{llm_provider}: secret_key is not set, please set it in the config.toml file."
+                )
+        elif llm_provider == "pollinations":
+            try:
+                base_url = config.app.get("pollinations_base_url", "")
                 if not base_url:
-                    genai.configure(api_key=api_key, transport="rest")
-                else:
-                    genai.configure(api_key=api_key, transport="rest", client_options={'api_endpoint': base_url})
+                    base_url = "https://text.pollinations.ai/openai"
+                model_name = config.app.get("pollinations_model_name", "openai-fast")
 
-                generation_config = {
-                    "temperature": 0.5,
-                    "top_p": 1,
-                    "top_k": 1,
-                    "max_output_tokens": 2048,
+                # Prepare the payload
+                payload = {
+                    "model": model_name,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "seed": 101  # Optional but helps with reproducibility
                 }
 
-                safety_settings = [
-                    {
-                        "category": "HARM_CATEGORY_HARASSMENT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_HATE_SPEECH",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                ]
+                # Optional parameters if configured
+                if config.app.get("pollinations_private"):
+                    payload["private"] = True
+                if config.app.get("pollinations_referrer"):
+                    payload["referrer"] = config.app.get("pollinations_referrer")
 
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    generation_config=generation_config,
-                    safety_settings=safety_settings,
-                )
+                headers = {
+                    "Content-Type": "application/json"
+                }
 
-                try:
-                    response = model.generate_content(prompt)
-                    candidates = response.candidates
-                    generated_text = candidates[0].content.parts[0].text
-                except (AttributeError, IndexError) as e:
-                    logger.warning(
-                        f"gemini returned invalid response content: {str(e)}"
-                    )
-                    raise ValueError(
-                        f"[{llm_provider}] returned invalid response content"
-                    )
-
-                return _normalize_text_response(generated_text, llm_provider)
-
-            if llm_provider == "cloudflare":
-                response = requests.post(
-                    f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_name}",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": "You are a friendly assistant",
-                            },
-                            {"role": "user", "content": prompt},
-                        ]
-                    },
-                )
+                # Make the API request
+                response = requests.post(base_url, headers=headers, json=payload)
+                response.raise_for_status()
                 result = response.json()
-                logger.info(result)
-                return _normalize_text_response(result["result"]["response"], llm_provider)
 
-            if llm_provider == "ernie":
-                response = requests.post(
-                    "https://aip.baidubce.com/oauth/2.0/token", 
-                    params={
-                        "grant_type": "client_credentials",
-                        "client_id": api_key,
-                        "client_secret": secret_key,
-                    }
-                )
-                access_token = response.json().get("access_token")
-                url = f"{base_url}?access_token={access_token}"
-
-                payload = json.dumps(
-                    {
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": 0.5,
-                        "top_p": 0.8,
-                        "penalty_score": 1,
-                        "disable_search": False,
-                        "enable_citation": False,
-                        "response_format": "text",
-                    }
-                )
-                headers = {"Content-Type": "application/json"}
-
-                response = requests.request(
-                    "POST", url, headers=headers, data=payload
-                ).json()
-                return _normalize_text_response(response.get("result"), llm_provider)
-
-            if llm_provider == "litellm":
-                import litellm
-
-                if not model_name:
-                    raise ValueError(
-                        f"{llm_provider}: model_name is not set, please set it in the config.toml file."
-                    )
-
-                response = litellm.completion(
-                    model=model_name,
-                    messages=[{"role": "user", "content": prompt}],
-                    drop_params=True,
-                )
-
-                if not response:
-                    raise ValueError(f"[{llm_provider}] returned empty response")
-                if not getattr(response, "choices", None):
-                    raise ValueError(f"[{llm_provider}] returned empty response")
-
-                return _extract_chat_completion_text(response, llm_provider)
-
-            if llm_provider == "azure":
-                # Azure OpenAI SDK 使用 `azure_endpoint` 和 `api_version` 生成专用请求地址，
-                # 不能继续复用下面普通 OpenAI-compatible 的 `base_url` 初始化逻辑。
-                # 这里在 Azure 分支内完成请求并立即返回，避免客户端被后续 fallback
-                # 覆盖，导致用户配置的 Azure 凭证通过校验但实际请求没有被使用。
-                logger.info(f"requesting azure chat completion, model: {model_name}")
-                client = AzureOpenAI(
-                    api_key=api_key,
-                    api_version=api_version,
-                    azure_endpoint=base_url,
-                )
-                response = client.chat.completions.create(
-                    model=model_name, messages=[{"role": "user", "content": prompt}]
-                )
-                if response:
-                    if isinstance(response, ChatCompletion):
-                        return _extract_chat_completion_text(response, llm_provider)
-                    else:
-                        raise Exception(
-                            f'[{llm_provider}] returned an invalid response: "{response}", please check your network '
-                            f"connection and try again."
-                        )
-                else:
-                    raise Exception(
-                        f"[{llm_provider}] returned an empty response, please check your network connection and try again."
-                    )
-
-            if llm_provider == "modelscope":
-                content = ''
-                client = OpenAI(
-                    api_key=api_key,
-                    base_url=base_url,
-                )
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=[{"role": "user", "content": prompt}],
-                    extra_body={"enable_thinking": False},
-                    stream=True
-                )
-                if response:
-                    for chunk in response:
-                        if not chunk.choices:
-                            continue
-                        delta = chunk.choices[0].delta
-                        if delta and delta.content:
-                            content += delta.content
-                    
-                    if not content.strip():
-                        raise ValueError("Empty content in stream response")
-                    
+                if result and "choices" in result and len(result["choices"]) > 0:
+                    content = result["choices"][0]["message"]["content"]
                     return _normalize_text_response(content, llm_provider)
                 else:
-                    raise Exception(f"[{llm_provider}] returned an empty response")
+                    raise Exception(f"[{llm_provider}] returned an invalid response format")
 
-            else:
-                client = OpenAI(
-                    api_key=api_key,
-                    base_url=base_url,
+            except requests.exceptions.RequestException as e:
+                raise Exception(f"[{llm_provider}] request failed: {str(e)}")
+            except Exception as e:
+                raise Exception(f"[{llm_provider}] error: {str(e)}")
+
+        elif llm_provider == "litellm":
+            model_name = config.app.get("litellm_model_name")
+        else:
+            raise ValueError(f"{llm_provider}: unsupported llm provider")
+
+        if llm_provider not in ["pollinations", "ollama", "litellm"]:  # Skip validation for providers that don't require API key
+            if not api_key:
+                raise ValueError(
+                    f"{llm_provider}: api_key is not set, please set it in the config.toml file."
+                )
+            if not model_name:
+                raise ValueError(
+                    f"{llm_provider}: model_name is not set, please set it in the config.toml file."
+                )
+            if not base_url and llm_provider not in ["gemini"]:
+                raise ValueError(
+                    f"{llm_provider}: base_url is not set, please set it in the config.toml file."
                 )
 
+        if llm_provider == "qwen":
+            import dashscope
+            from dashscope.api_entities.dashscope_response import GenerationResponse
+
+            dashscope.api_key = api_key
+            response = dashscope.Generation.call(
+                model=model_name, messages=[{"role": "user", "content": prompt}]
+            )
+            if response:
+                if isinstance(response, GenerationResponse):
+                    status_code = response.status_code
+                    if status_code != 200:
+                        raise Exception(
+                            f'[{llm_provider}] returned an error response: "{response}"'
+                        )
+
+                    return _extract_qwen_generation_text(response)
+                else:
+                    raise Exception(
+                        f'[{llm_provider}] returned an invalid response: "{response}"'
+                    )
+            else:
+                raise Exception(f"[{llm_provider}] returned an empty response")
+
+        if llm_provider == "gemini":
+            import google.generativeai as genai
+
+            if not base_url:
+                genai.configure(api_key=api_key, transport="rest")
+            else:
+                genai.configure(api_key=api_key, transport="rest", client_options={'api_endpoint': base_url})
+
+            generation_config = {
+                "temperature": 0.5,
+                "top_p": 1,
+                "top_k": 1,
+                "max_output_tokens": 2048,
+            }
+
+            safety_settings = [
+                {
+                    "category": "HARM_CATEGORY_HARASSMENT",
+                    "threshold": "BLOCK_ONLY_HIGH",
+                },
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold": "BLOCK_ONLY_HIGH",
+                },
+                {
+                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold": "BLOCK_ONLY_HIGH",
+                },
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold": "BLOCK_ONLY_HIGH",
+                },
+            ]
+
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                generation_config=generation_config,
+                safety_settings=safety_settings,
+            )
+
+            try:
+                response = model.generate_content(prompt)
+                candidates = response.candidates
+                generated_text = candidates[0].content.parts[0].text
+            except (AttributeError, IndexError) as e:
+                logger.warning(
+                    f"gemini returned invalid response content: {str(e)}"
+                )
+                raise ValueError(
+                    f"[{llm_provider}] returned invalid response content"
+                )
+
+            return _normalize_text_response(generated_text, llm_provider)
+
+        if llm_provider == "cloudflare":
+            response = requests.post(
+                f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_name}",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a friendly assistant",
+                        },
+                        {"role": "user", "content": prompt},
+                    ]
+                },
+            )
+            result = response.json()
+            logger.info(result)
+            return _normalize_text_response(result["result"]["response"], llm_provider)
+
+        if llm_provider == "ernie":
+            response = requests.post(
+                "https://aip.baidubce.com/oauth/2.0/token",
+                params={
+                    "grant_type": "client_credentials",
+                    "client_id": api_key,
+                    "client_secret": secret_key,
+                }
+            )
+            access_token = response.json().get("access_token")
+            url = f"{base_url}?access_token={access_token}"
+
+            payload = json.dumps(
+                {
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.5,
+                    "top_p": 0.8,
+                    "penalty_score": 1,
+                    "disable_search": False,
+                    "enable_citation": False,
+                    "response_format": "text",
+                }
+            )
+            headers = {"Content-Type": "application/json"}
+
+            response = requests.request(
+                "POST", url, headers=headers, data=payload
+            ).json()
+            return _normalize_text_response(response.get("result"), llm_provider)
+
+        if llm_provider == "litellm":
+            import litellm
+
+            if not model_name:
+                raise ValueError(
+                    f"{llm_provider}: model_name is not set, please set it in the config.toml file."
+                )
+
+            response = litellm.completion(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                drop_params=True,
+            )
+
+            if not response:
+                raise ValueError(f"[{llm_provider}] returned empty response")
+            if not getattr(response, "choices", None):
+                raise ValueError(f"[{llm_provider}] returned empty response")
+
+            return _extract_chat_completion_text(response, llm_provider)
+
+        if llm_provider == "azure":
+            # Azure OpenAI SDK 使用 `azure_endpoint` 和 `api_version` 生成专用请求地址，
+            # 不能继续复用下面普通 OpenAI-compatible 的 `base_url` 初始化逻辑。
+            # 这里在 Azure 分支内完成请求并立即返回，避免客户端被后续 fallback
+            # 覆盖，导致用户配置的 Azure 凭证通过校验但实际请求没有被使用。
+            logger.info(f"requesting azure chat completion, model: {model_name}")
+            client = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=base_url,
+            )
             response = client.chat.completions.create(
                 model=model_name, messages=[{"role": "user", "content": prompt}]
             )
@@ -593,6 +515,55 @@ def _generate_response(prompt: str) -> str:
                 raise Exception(
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
+
+        if llm_provider == "modelscope":
+            content = ''
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+            )
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                extra_body={"enable_thinking": False},
+                stream=True
+            )
+            if response:
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+                    if delta and delta.content:
+                        content += delta.content
+
+                if not content.strip():
+                    raise ValueError("Empty content in stream response")
+
+                return _normalize_text_response(content, llm_provider)
+            else:
+                raise Exception(f"[{llm_provider}] returned an empty response")
+
+        else:
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+            )
+
+        response = client.chat.completions.create(
+            model=model_name, messages=[{"role": "user", "content": prompt}]
+        )
+        if response:
+            if isinstance(response, ChatCompletion):
+                return _extract_chat_completion_text(response, llm_provider)
+            else:
+                raise Exception(
+                    f'[{llm_provider}] returned an invalid response: "{response}", please check your network '
+                    f"connection and try again."
+                )
+        else:
+            raise Exception(
+                f"[{llm_provider}] returned an empty response, please check your network connection and try again."
+            )
 
         return _normalize_text_response(content, llm_provider)
     except Exception as e:
@@ -723,7 +694,7 @@ def generate_script(
             else:
                 logging.error("gpt returned an empty response")
 
-            # g4f may return an error message
+            # Some upstream providers may return quota errors as plain text.
             if final_script and "当日额度已消耗完" in final_script:
                 raise ValueError(final_script)
 
@@ -1140,4 +1111,4 @@ if __name__ == "__main__":
     )
     print("######################")
     print(search_terms)
-    
+

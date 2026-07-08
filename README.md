@@ -13,7 +13,6 @@
   <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
 
-<br>
 只需提供一个视频 <b>主题</b> 或 <b>关键词</b> ，就可以全自动生成视频文案、视频素材、视频字幕、视频背景音乐，然后合成一个高清的短视频。
 <br>
 
@@ -28,6 +27,15 @@
 </div>
 
 ## 特别感谢 🙏
+
+<div align="center">
+  <a href="https://platform.kimi.com?aff=MoneyPrinterTurbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-zh.png" alt="Kimi 赞助 MoneyPrinterTurbo" width="100%"></a>
+</div>
+
+感谢 [Kimi](https://platform.kimi.com?aff=MoneyPrinterTurbo) 赞助本项目！[Kimi K2.7 Code](https://platform.kimi.com/docs/guide/kimi-k2-7-code-quickstart) 是 Moonshot AI 推出的编程专用开源智能体模型，在真实长程编程与复杂软件工程工作流中显著提升端到端任务成功率，同时优化推理效率，相比 K2.6 平均减少约 30% 的推理 token 消耗。而在本项目中，Kimi 大模型能直接驱动视频创作，不仅撰写视频文案，还会提炼素材搜索关键词、决定成片画面，文案理解越精准，匹配到的素材就越贴题。
+
+**本项目已接入 Kimi 大模型。前往 [Kimi 开放平台](https://platform.kimi.com?aff=MoneyPrinterTurbo)（[中文站](https://platform.kimi.com?aff=MoneyPrinterTurbo)｜[Global](https://platform.kimi.ai?aff=MoneyPrinterTurbo)）体验 API，或了解高性价比 [Coding Plan 套餐](https://www.kimi.com/code?aff=MoneyPrinterTurbo)。**
+<br>
 
 <table align="center">
   <tr>
@@ -102,7 +110,7 @@
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
 - [x] 支持多种素材源:**Pexels**、**Pixabay**、**Coverr**
 - [x] 可选接入 **TwelveLabs** 视频 AI:用 **Marengo** 多模态向量按主题语义重排素材关键词,用 **Pegasus** 对素材做内容 QA/描述([TwelveLabs API key](https://twelvelabs.io))
-- [x] 支持 **OpenAI**、**AIHubMix**、**AIML API**、**EvoLink**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
+- [x] 支持 **Kimi/Moonshot**、**OpenAI**、**AIHubMix**、**AIML API**、**EvoLink**、**Azure**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
 - [x] 支持一键 **跨平台发布**，生成完成后自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**（需 [Upload-Post](https://upload-post.com) 账号；YouTube 发布时自动标注 AI 生成内容）；在 `config.toml` 中配置 `upload_post_platforms`、`upload_post_youtube_privacy_status` 等参数
 
 ## 视频演示 📺
