@@ -1309,6 +1309,7 @@ with middle_panel:
                 key="custom_bgm_uploader",
             )
             if uploaded_bgm is not None:
+                st.audio(uploaded_bgm, format="audio/mp3")
                 try:
                     saved_name = utils.save_bgm_upload(
                         uploaded_bgm.name, uploaded_bgm.getbuffer().tobytes()
