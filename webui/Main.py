@@ -1300,6 +1300,24 @@ with middle_panel:
 
         # Show or hide components based on the selection
         if params.bgm_type == "custom":
+            # 允许直接从 WebUI 上传自定义背景音乐；文件会写入 resource/songs
+            # 白名单目录（与 POST /musics 接口同一路径），随后可被引用或随机复用。
+            uploaded_bgm = st.file_uploader(
+                tr("Upload Background Music"),
+                type=["mp3", "MP3"],
+                accept_multiple_files=False,
+                key="custom_bgm_uploader",
+            )
+            if uploaded_bgm is not None:
+                try:
+                    saved_name = utils.save_bgm_upload(
+                        uploaded_bgm.name, uploaded_bgm.getbuffer().tobytes()
+                    )
+                    params.bgm_file = saved_name
+                    st.success(tr("Background music uploaded") + f": {saved_name}")
+                except ValueError:
+                    st.error(tr("Only *.mp3 files can be uploaded"))
+
             custom_bgm_file = st.text_input(
                 tr("Custom Background Music File"), key="custom_bgm_file_input"
             )
