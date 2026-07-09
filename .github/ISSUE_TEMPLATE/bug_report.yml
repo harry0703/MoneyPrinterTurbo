@@ -8,11 +8,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Trước khi gửi issue, vui lòng đảm bảo bạn đã đọc tài liệu sau: [Bắt Đầu Nhanh (Tiếng Việt)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-vi.md#bắt-đầu-nhanh-) hoặc [Getting Started (English)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#system-requirements-).**
+        **Trước khi gửi issue, vui lòng đảm bảo bạn đã đọc tài liệu sau: [Bắt Đầu Nhanh (Tiếng Việt)](https://github.com/quoc-modoro/9Money/blob/main/README.md#bắt-đầu-nhanh-) hoặc [Getting Started (English)](https://github.com/quoc-modoro/9Money/blob/main/README-en.md#system-requirements-).**
 
-        **提交问题前，请确保您已阅读以下文档：[快速开始 (中文)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-)。**
+        **提交问题前，请确保您已阅读以下文档：[快速开始 (中文)](https://github.com/quoc-modoro/9Money/blob/main/README-zh.md#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B-)。**
 
-        **Before submitting an issue, please make sure you've read the following documentation: [Getting Started (English)](https://github.com/harry0703/MoneyPrinterTurbo/blob/main/README-en.md#system-requirements-).**
+        **Before submitting an issue, please make sure you've read the following documentation: [Getting Started (English)](https://github.com/quoc-modoro/9Money/blob/main/README-en.md#system-requirements-).**
 
   - type: textarea
     attributes:
