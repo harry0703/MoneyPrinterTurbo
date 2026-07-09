@@ -34,10 +34,10 @@ st.set_page_config(
     initial_sidebar_state="auto",
     menu_items={
         "Report a bug": "https://github.com/harry0703/MoneyPrinterTurbo/issues",
-        "About": "# MoneyPrinterTurbo\nSimply provide a topic or keyword for a video, and it will "
-        "automatically generate the video copy, video materials, video subtitles, "
-        "and video background music before synthesizing a high-definition short "
-        "video.\n\nhttps://github.com/harry0703/MoneyPrinterTurbo",
+        "About": "# MoneyPrinterTurbo\nChỉ cần cung cấp chủ đề hoặc từ khóa cho video, hệ thống sẽ "
+        "tự động tạo kịch bản video, tư liệu video, phụ đề video và nhạc nền video, "
+        "sau đó tổng hợp thành một video ngắn độ nét cao.\n\n"
+        "https://github.com/harry0703/MoneyPrinterTurbo",
     },
 )
 

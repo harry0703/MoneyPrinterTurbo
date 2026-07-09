@@ -71,8 +71,8 @@ class VideoParams(BaseModel):
     """
 
     video_subject: str
-    video_script: str = ""  # Script used to generate the video
-    video_terms: Optional[str | list] = None  # Keywords used to generate the video
+    video_script: str = ""  # Kịch bản dùng để tạo video
+    video_terms: Optional[str | list] = None  # Từ khóa dùng để tạo video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
@@ -82,11 +82,11 @@ class VideoParams(BaseModel):
 
     video_source: Optional[str] = "pexels"
     video_materials: Optional[List[MaterialInfo]] = (
-        None  # Materials used to generate the video
+        None  # Tư liệu dùng để tạo video
     )
-    
-    custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore TTS and can still use Whisper subtitles
-    video_language: Optional[str] = ""  # auto detect
+
+    custom_audio_file: Optional[str] = None  # Đường dẫn âm thanh tùy chỉnh, bỏ qua TTS nhưng vẫn dùng được phụ đề Whisper
+    video_language: Optional[str] = ""  # tự động phát hiện
 
     voice_name: Optional[str] = ""
     voice_volume: Optional[float] = 1.0
@@ -96,7 +96,7 @@ class VideoParams(BaseModel):
     bgm_volume: Optional[float] = 0.2
 
     subtitle_enabled: Optional[bool] = True
-    subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
+    subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom (trên, dưới, giữa, tùy chỉnh)
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
