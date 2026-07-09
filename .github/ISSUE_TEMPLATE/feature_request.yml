@@ -1,5 +1,5 @@
-name: ✨ 增加功能 | Feature Request
-description: 为此项目提出一个新想法或建议 | Suggest a new idea for this project
+name: ✨ Yêu Cầu Tính Năng | 增加功能 | Feature Request
+description: Đề xuất ý tưởng mới cho dự án | 为此项目提出一个新想法或建议 | Suggest a new idea for this project
 title: "[Feature]: "
 labels:
   - enhancement
@@ -7,22 +7,26 @@ labels:
 body:
   - type: textarea
     attributes:
-      label: 需求描述 | Problem Statement
+      label: Mô Tả Nhu Cầu | 需求描述 | Problem Statement
       description: |
-        请描述您希望解决的问题或需求 
+        Mô tả vấn đề hoặc nhu cầu bạn muốn giải quyết
+        请描述您希望解决的问题或需求
         Please describe the problem you want to solve
       placeholder: |
+        Tôi gặp phải... khi sử dụng dự án này
         我在使用过程中遇到了...
         I encountered... when using this project
     validations:
       required: true
   - type: textarea
     attributes:
-      label: 建议的解决方案 | Proposed Solution
+      label: Giải Pháp Đề Xuất | 建议的解决方案 | Proposed Solution
       description: |
+        Mô tả giải pháp hoặc cách thực hiện bạn cho là khả thi
         请描述您认为可行的解决方案或实现方式
         Please describe your suggested solution or implementation
       placeholder: |
+        Có thể xem xét thêm tính năng... để giải quyết vấn đề này
         可以考虑添加...功能来解决这个问题
         Consider adding... feature to address this issue
     validations:

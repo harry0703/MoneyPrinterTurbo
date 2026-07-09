@@ -1,79 +1,80 @@
 [app]
-video_source = "pexels" # "pexels" or "pixabay"
+video_source = "pexels" # "pexels" hoặc "pixabay" hoặc "coverr"
 
-# 是否隐藏配置面板
+# Ẩn hoặc hiển thị bảng cấu hình
 hide_config = false
 
-# Azure TTS V1(edge_tts) 单次流式请求超时时间，单位秒。
-# 网络异常、服务端限流或 voice 与文本语言不匹配时，edge_tts 可能长期卡住。
-# 默认 30 秒可避免 WebUI 任务无反馈；慢网络或代理环境可适当调大。
-# 设置为 0 表示禁用超时。
+# Thời gian chờ cho mỗi yêu cầu streaming Azure TTS V1 (edge_tts), tính bằng giây.
+# Khi mạng bất thường, máy chủ giới hạn tốc độ, hoặc giọng nói không khớp ngôn ngữ văn bản,
+# edge_tts có thể bị treo lâu. Mặc định 30 giây tránh tác vụ WebUI không phản hồi;
+# môi trường mạng chậm hoặc dùng proxy có thể tăng giá trị này.
+# Đặt 0 để tắt timeout.
 edge_tts_timeout = 30
 
-# 是否校验外部 API 和素材下载的 TLS 证书。
-# 默认必须开启，避免 Pexels/Pixabay API key 和下载素材被中间人攻击篡改。
-# 只有在企业代理或自签证书环境明确需要时，才临时改为 false。
+# Có xác minh chứng chỉ TLS cho các cuộc gọi API bên ngoài và tải tư liệu không.
+# Mặc định phải bật để tránh API key Pexels/Pixabay và tư liệu tải về bị tấn công man-in-the-middle.
+# Chỉ tạm đặt thành false khi rõ ràng cần thiết trong môi trường proxy doanh nghiệp hoặc chứng chỉ tự ký.
 tls_verify = true
 
-# Pexels API Key
-# Register at https://www.pexels.com/api/ to get your API key.
-# You can use multiple keys to avoid rate limits.
-# For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
-# Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
+# Khóa API Pexels
+# Đăng ký tại https://www.pexels.com/api/ để lấy khóa API.
+# Bạn có thể dùng nhiều khóa để tránh giới hạn tốc độ.
+# Ví dụ: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# Dùng dấu ngoặc kép ASCII thẳng xung quanh mỗi khóa. Dấu ngoặc cong sao chép từ văn bản phong phú sẽ phá vỡ phân tích TOML.
 # 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
-# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+# Lưu ý đặc biệt về định dạng: Key được bao bởi dấu ngoặc kép tiếng Anh, nhiều Key cách nhau bằng dấu phẩy
 pexels_api_keys = []
 
-# Pixabay API Key
-# Register at https://pixabay.com/api/docs/ to get your API key.
-# You can use multiple keys to avoid rate limits.
-# For example: pixabay_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
-# Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
+# Khóa API Pixabay
+# Đăng ký tại https://pixabay.com/api/docs/ để lấy khóa API.
+# Bạn có thể dùng nhiều khóa để tránh giới hạn tốc độ.
+# Ví dụ: pixabay_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# Dùng dấu ngoặc kép ASCII thẳng xung quanh mỗi khóa. Dấu ngoặc cong sao chép từ văn bản phong phú sẽ phá vỡ phân tích TOML.
 # 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
-# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+# Lưu ý đặc biệt về định dạng: Key được bao bởi dấu ngoặc kép tiếng Anh, nhiều Key cách nhau bằng dấu phẩy
 pixabay_api_keys = []
 
-# Coverr API Key
-# Register at https://coverr.co/developers?ctx=header_navigation to get your API key instantly.
-# Free tier (Demo) is limited to 50 requests/hour — sufficient for a few
-# video tasks per hour. Upgrade to Pro/Ultimate subscription for 2000/hour.
-# Coverr provides free HD/4K stock videos (subject to Coverr license terms,
-# see https://coverr.co/license), mostly 16:9 landscape; if
-# you generate 9:16 short-form videos, prefer Pexels/Pixabay as primary
-# and use Coverr to widen the catalog for landscape/cinematic content.
-# You can use multiple keys to avoid rate limits.
-# For example: coverr_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
-# Use straight ASCII double quotes around each key. Smart quotes copied from rich text will break TOML parsing.
+# Khóa API Coverr
+# Đăng ký tại https://coverr.co/developers?ctx=header_navigation để lấy khóa API ngay.
+# Gói miễn phí (Demo) giới hạn 50 yêu cầu/giờ — đủ cho vài tác vụ video mỗi giờ.
+# Nâng cấp lên gói Pro/Ultimate để có 2000/giờ.
+# Coverr cung cấp video stock HD/4K miễn phí (theo điều khoản giấy phép Coverr,
+# xem https://coverr.co/license), chủ yếu là ngang 16:9; nếu bạn tạo video
+# dọc 9:16 dạng ngắn, hãy ưu tiên Pexels/Pixabay và dùng Coverr để mở rộng
+# danh mục cho nội dung ngang/điện ảnh.
+# Bạn có thể dùng nhiều khóa để tránh giới hạn tốc độ.
+# Ví dụ: coverr_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
+# Dùng dấu ngoặc kép ASCII thẳng xung quanh mỗi khóa. Dấu ngoặc cong sao chép từ văn bản phong phú sẽ phá vỡ phân tích TOML.
 # 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
-# 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
+# Lưu ý đặc biệt về định dạng: Key được bao bởi dấu ngoặc kép tiếng Anh, nhiều Key cách nhau bằng dấu phẩy
 coverr_api_keys = []
 
-# TwelveLabs API Key (optional) — https://twelvelabs.io
-# TwelveLabs (可选) 视频理解 / 多模态嵌入集成。
-# Enables two opt-in features:
-#   * Marengo (multimodal embeddings) semantically reorders the auto-generated
-#     search terms by relevance to your video subject, so the most on-topic
-#     B-roll is downloaded first when the timeline budget is tight.
-#   * Pegasus (video understanding) can QA / describe a clip from its URL.
-# Leave empty to keep MoneyPrinterTurbo's behavior completely unchanged.
-# Configure a TwelveLabs API key from the TwelveLabs dashboard (https://twelvelabs.io) and install the
-# optional dependency with `uv sync --extra twelvelabs`.
-# Register at https://playground.twelvelabs.io to get your API key.
-# You can use multiple keys to avoid rate limits.
-# For example: twelvelabs_api_keys = ["tlk_123adsf4567","tlk_abd1321cd13ef"]
+# Khóa API TwelveLabs (tùy chọn) — https://twelvelabs.io
+# Tích hợp hiểu video / nhúng đa phương thức TwelveLabs (tùy chọn).
+# Bật hai tính năng opt-in:
+#   * Marengo (nhúng đa phương thức) sắp xếp lại theo ngữ nghĩa các từ khóa tìm kiếm
+#     tự động theo mức độ liên quan đến chủ đề video, để B-roll phù hợp nhất được
+#     tải về trước khi ngân sách thời gian eo hẹp.
+#   * Pegasus (hiểu video) có thể QA / mô tả một clip từ URL của nó.
+# Để trống để giữ nguyên hoàn toàn hành vi của MoneyPrinterTurbo.
+# Cấu hình khóa API TwelveLabs từ bảng điều khiển TwelveLabs (https://twelvelabs.io) và cài
+# phụ thuộc tùy chọn bằng `uv sync --extra twelvelabs`.
+# Đăng ký tại https://playground.twelvelabs.io để lấy khóa API.
+# Bạn có thể dùng nhiều khóa để tránh giới hạn tốc độ.
+# Ví dụ: twelvelabs_api_keys = ["tlk_123adsf4567","tlk_abd1321cd13ef"]
 # 请使用英文半角双引号包裹每个 Key；从富文本复制来的弯引号会导致 TOML 解析失败。
 twelvelabs_api_keys = []
 
-# Reorder search terms by Marengo relevance before downloading footage.
-# Requires twelvelabs_api_keys above. Ignored in "match materials to script"
-# mode, where term order is intentionally the script's narrative order.
+# Sắp xếp lại từ khóa tìm kiếm theo mức độ liên quan Marengo trước khi tải tư liệu.
+# Yêu cầu twelvelabs_api_keys ở trên. Bị bỏ qua trong chế độ "khớp tư liệu theo kịch bản"
+# khi thứ tự từ khóa được đặt có chủ ý theo thứ tự tường thuật của kịch bản.
 twelvelabs_rerank_terms = false
 
-# Optional model overrides (defaults shown).
+# Ghi đè mô hình tùy chọn (hiển thị mặc định).
 # twelvelabs_marengo_model = "marengo3.0"
 # twelvelabs_pegasus_model = "pegasus1.5"
 
-# 支持的提供商 (Supported providers):
+# Các nhà cung cấp được hỗ trợ (Supported providers):
 #   moonshot    (Kimi / Moonshot AI)
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)
@@ -94,174 +95,174 @@ twelvelabs_rerank_terms = false
 #   litellm     (100+ providers via LiteLLM gateway)
 llm_provider = "moonshot"
 
-########## Pollinations AI Settings
-# Visit https://pollinations.ai/ to learn more
-# API Key is optional - leave empty for public access
+########## Cài Đặt Pollinations AI
+# Truy cập https://pollinations.ai/ để biết thêm thông tin
+# Khóa API là tùy chọn - để trống để truy cập công khai
 pollinations_api_key = ""
-# Base URL for Pollinations API.
-# Leave empty to use the default endpoint (https://text.pollinations.ai/openai).
-# Note: the old "https://pollinations.ai/api/v1" endpoint no longer accepts
-# requests (returns 405 Method Not Allowed), so only set this if you have a
-# working custom endpoint.
+# URL cơ bản cho Pollinations API.
+# Để trống để dùng endpoint mặc định (https://text.pollinations.ai/openai).
+# Lưu ý: endpoint cũ "https://pollinations.ai/api/v1" không còn chấp nhận
+# yêu cầu (trả về 405 Method Not Allowed), nên chỉ đặt giá trị này nếu bạn có
+# endpoint tùy chỉnh đang hoạt động.
 pollinations_base_url = ""
-# Default model for text generation
+# Mô hình mặc định để tạo văn bản
 pollinations_model_name = "openai-fast"
 
-########## Ollama Settings
-# No need to set it unless you want to use your own proxy
+########## Cài Đặt Ollama
+# Không cần đặt trừ khi bạn muốn dùng proxy của riêng mình
 ollama_base_url = ""
-# Check your available models at https://ollama.com/library
+# Kiểm tra các mô hình có sẵn tại https://ollama.com/library
 ollama_model_name = ""
 
-########## OpenAI API Key
-# Get your API key at https://platform.openai.com/api-keys
+########## Khóa API OpenAI
+# Lấy khóa API tại https://platform.openai.com/api-keys
 # 也可以填写兼容 OpenAI Chat Completions 协议的供应商密钥，
 # 例如 OpenRouter 这类提供自定义 base_url 的平台。
 openai_api_key = ""
-# No need to set it unless you want to use your own proxy
+# Không cần đặt trừ khi bạn muốn dùng proxy của riêng mình
 # 如果使用兼容 OpenAI 接口的平台，请在这里填写对应的 base_url。
 openai_base_url = ""
-# Check your available models at https://platform.openai.com/account/limits
+# Kiểm tra các mô hình có sẵn tại https://platform.openai.com/account/limits
 # 如果使用兼容供应商，请填写该平台要求的模型 ID。
 openai_model_name = "gpt-4o-mini"
 
-########## AIHubMix API Key
-# AIHubMix is OpenAI-compatible and can use one API key to access multiple models.
-# Visit https://aihubmix.com to register and get your API key.
+########## Khóa API AIHubMix
+# AIHubMix tương thích OpenAI và có thể dùng một khóa API để truy cập nhiều mô hình.
+# Truy cập https://aihubmix.com để đăng ký và lấy khóa API.
 aihubmix_api_key = ""
 aihubmix_base_url = "https://aihubmix.com/v1"
 aihubmix_model_name = "gpt-5.4-mini"
 
-########## AIML API Key
-# AIML API is OpenAI-compatible and can use one API key to access multiple model families.
-# Visit https://aimlapi.com/app/keys to create your API key.
+########## Khóa API AIML
+# AIML API tương thích OpenAI và có thể dùng một khóa API để truy cập nhiều họ mô hình.
+# Truy cập https://aimlapi.com/app/keys để tạo khóa API.
 aimlapi_api_key = ""
 aimlapi_base_url = "https://api.aimlapi.com/v1"
 aimlapi_model_name = "openai/gpt-4o-mini"
 
-########## Kimi / Moonshot API Key
-# Visit https://platform.kimi.com or https://platform.kimi.ai to get your API key.
+########## Khóa API Kimi / Moonshot
+# Truy cập https://platform.kimi.com hoặc https://platform.kimi.ai để lấy khóa API.
 moonshot_api_key = ""
 moonshot_base_url = "https://api.moonshot.cn/v1"
 moonshot_model_name = "kimi-k2.7-code"
 
-########## OneAPI API Key
-# Visit https://github.com/songquanpeng/one-api to get your API key
+########## Khóa API OneAPI
+# Truy cập https://github.com/songquanpeng/one-api để lấy khóa API
 oneapi_api_key = ""
 oneapi_base_url = ""
 oneapi_model_name = ""
 
-########## Azure API Key
-# Visit https://learn.microsoft.com/zh-cn/azure/ai-services/openai/ to get more details
-# API documentation: https://learn.microsoft.com/zh-cn/azure/ai-services/openai/reference
+########## Khóa API Azure
+# Truy cập https://learn.microsoft.com/vi-vn/azure/ai-services/openai/ để biết thêm chi tiết
+# Tài liệu API: https://learn.microsoft.com/vi-vn/azure/ai-services/openai/reference
 azure_api_key = ""
 azure_base_url = ""
-azure_model_name = "gpt-35-turbo"        # replace with your model deployment name
+azure_model_name = "gpt-35-turbo"        # thay thế bằng tên triển khai mô hình của bạn
 azure_api_version = "2024-02-15-preview"
 
-########## Gemini API Key
+########## Khóa API Gemini
 gemini_api_key = ""
 gemini_model_name = "gemini-2.5-flash"
 
-########## Grok API Key
+########## Khóa API Grok
 grok_api_key = ""
 grok_model_name = "grok-4.3"
 grok_base_url = "https://api.x.ai/v1"
 
-########## Groq API Key
-# Visit https://console.groq.com/keys to get your api keys
-# API documentation: https://console.groq.com/docs/api-reference
-# Available models: https://console.groq.com/docs/api-reference#models-list
+########## Khóa API Groq
+# Truy cập https://console.groq.com/keys để lấy khóa API
+# Tài liệu API: https://console.groq.com/docs/api-reference
+# Các mô hình có sẵn: https://console.groq.com/docs/api-reference#models-list
 groq_api_key = ""
 groq_model_name = "llama-3.3-70b-versatile"
 groq_base_url = "https://api.groq.com/openai/v1"
 
-########## Qwen API Key
-# Visit https://dashscope.console.aliyun.com/apiKey to get your API key
-# Visit below links to get more details
+########## Khóa API Qwen
+# Truy cập https://dashscope.console.aliyun.com/apiKey để lấy khóa API
+# Truy cập các liên kết dưới đây để biết thêm chi tiết
 # https://tongyi.aliyun.com/qianwen/
 # https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction
 qwen_api_key = ""
 qwen_model_name = "qwen-max"
 
 
-########## MiniMax API Key
-# Visit https://platform.minimax.io or https://platform.minimaxi.com to get your API key
-# MiniMax API is OpenAI-compatible
-# Available models: MiniMax-M3 (default), MiniMax-M2.7, MiniMax-M2.7-highspeed
-# If your API key returns 401 on api.minimax.io, try the China endpoint: https://api.minimaxi.com/v1
+########## Khóa API MiniMax
+# Truy cập https://platform.minimax.io hoặc https://platform.minimaxi.com để lấy khóa API
+# MiniMax API tương thích OpenAI
+# Các mô hình có sẵn: MiniMax-M3 (mặc định), MiniMax-M2.7, MiniMax-M2.7-highspeed
+# Nếu khóa API trả về 401 trên api.minimax.io, hãy thử endpoint Trung Quốc: https://api.minimaxi.com/v1
 minimax_api_key = ""
 minimax_base_url = "https://api.minimax.io/v1"
 minimax_model_name = "MiniMax-M3"
 
-########## EvoLink API Key
-# EvoLink is an OpenAI-compatible gateway for language models.
-# Visit https://evolink.ai/dashboard/keys to get your API key.
-# API documentation: https://docs.evolink.ai/en/api-manual/language-series
-# Available models include gpt-5.5, gpt-5.4, gpt-5.2, deepseek-v4-flash, deepseek-v4-pro, gemini-3.1-pro, and doubao-seed-2.0-pro.
+########## Khóa API EvoLink
+# EvoLink là cổng tương thích OpenAI cho các mô hình ngôn ngữ.
+# Truy cập https://evolink.ai/dashboard/keys để lấy khóa API.
+# Tài liệu API: https://docs.evolink.ai/en/api-manual/language-series
+# Các mô hình có sẵn gồm gpt-5.5, gpt-5.4, gpt-5.2, deepseek-v4-flash, deepseek-v4-pro, gemini-3.1-pro, và doubao-seed-2.0-pro.
 evolink_api_key = ""
 evolink_base_url = "https://direct.evolink.ai/v1"
 evolink_model_name = "gpt-5.5"
 
-########## VolcEngine Ark API Key
-# VolcEngine Ark provides an OpenAI-compatible Chat Completions API.
-# Create an API key in the VolcEngine Ark console and use a model ID that is
-# enabled for your account.
+########## Khóa API VolcEngine Ark
+# VolcEngine Ark cung cấp API Chat Completions tương thích OpenAI.
+# Tạo khóa API trong bảng điều khiển VolcEngine Ark và dùng ID mô hình
+# đã được bật cho tài khoản của bạn.
 volcengine_api_key = ""
 volcengine_base_url = "https://ark.cn-beijing.volces.com/api/v3"
 volcengine_model_name = "doubao-seed-2-1-turbo-260628"
 
-########## Xiaomi MiMo API Key
-# Xiaomi MiMo API is OpenAI-compatible.
-# Visit https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call to get more details.
+########## Khóa API Xiaomi MiMo
+# Xiaomi MiMo API tương thích OpenAI.
+# Truy cập https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call để biết thêm chi tiết.
 mimo_api_key = ""
 mimo_base_url = "https://api.xiaomimimo.com/v1"
 mimo_model_name = "mimo-v2.5-pro"
-# Xiaomi MiMo TTS uses the same API key and base_url as MiMo LLM.
+# Xiaomi MiMo TTS dùng cùng khóa API và base_url với MiMo LLM.
 mimo_tts_model_name = "mimo-v2.5-tts"
-# Optional natural language style prompt for MiMo TTS.
+# Prompt phong cách ngôn ngữ tự nhiên tùy chọn cho MiMo TTS.
 mimo_tts_style_prompt = "请用自然、清晰、适合短视频旁白的语气朗读。"
 
-########## DeepSeek API Key
-# Visit https://platform.deepseek.com/api_keys to get your API key
+########## Khóa API DeepSeek
+# Truy cập https://platform.deepseek.com/api_keys để lấy khóa API
 deepseek_api_key = ""
 deepseek_base_url = "https://api.deepseek.com"
 deepseek_model_name = "deepseek-chat"
 
 
-########## ModelScope API Key
-# Visit https://modelscope.cn/docs/model-service/API-Inference/intro to get your API key
-# And note that you need to bind your Alibaba Cloud account before using the API.
+########## Khóa API ModelScope
+# Truy cập https://modelscope.cn/docs/model-service/API-Inference/intro để lấy khóa API
+# Lưu ý rằng bạn cần liên kết tài khoản Alibaba Cloud trước khi dùng API.
 modelscope_api_key = ""
 modelscope_base_url = "https://api-inference.modelscope.cn/v1/"
 modelscope_model_name = "Qwen/Qwen3-32B"
 
-########## LiteLLM (AI Gateway — 100+ providers)
-# LiteLLM routes to any LLM provider via a unified interface.
-# Use this for providers not directly supported above: Anthropic (native API),
-# AWS Bedrock, Google Vertex AI, Cohere, Mistral, Together AI, etc.
-# Visit https://docs.litellm.ai/docs/providers for the full list.
+########## LiteLLM (Cổng AI — hơn 100 nhà cung cấp)
+# LiteLLM định tuyến đến bất kỳ nhà cung cấp LLM nào qua giao diện thống nhất.
+# Dùng cho các nhà cung cấp không được hỗ trợ trực tiếp ở trên: Anthropic (API gốc),
+# AWS Bedrock, Google Vertex AI, Cohere, Mistral, Together AI, v.v.
+# Truy cập https://docs.litellm.ai/docs/providers để xem danh sách đầy đủ.
 #
-# LiteLLM reads provider API keys from environment variables automatically:
-#   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, AWS_ACCESS_KEY_ID, etc.
-# Set the appropriate env var for your chosen provider before running.
+# LiteLLM tự động đọc khóa API nhà cung cấp từ biến môi trường:
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, AWS_ACCESS_KEY_ID, v.v.
+# Đặt biến môi trường phù hợp cho nhà cung cấp bạn chọn trước khi chạy.
 #
-# Model name in LiteLLM format: "provider/model-name"
-# Examples: "openai/gpt-4o", "anthropic/claude-sonnet-4-20250514",
-#           "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
-#           "gemini/gemini-2.5-flash", "ollama/llama3"
+# Tên mô hình theo định dạng LiteLLM: "provider/model-name"
+# Ví dụ: "openai/gpt-4o", "anthropic/claude-sonnet-4-20250514",
+#         "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
+#         "gemini/gemini-2.5-flash", "ollama/llama3"
 litellm_model_name = "openai/gpt-4o-mini"
 
-# Subtitle Provider, "edge" or "whisper"
-# If empty, the subtitle will not be generated
+# Nhà cung cấp phụ đề, "edge" hoặc "whisper"
+# Nếu để trống, sẽ không tạo phụ đề
 subtitle_provider = "edge"
 
 #
 # ImageMagick
 #
-# Once you have installed it, ImageMagick will be automatically detected, except on Windows!
-# On Windows, for example "C:\Program Files (x86)\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
-# Download from https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
+# Sau khi cài đặt, ImageMagick sẽ được tự động phát hiện, ngoại trừ trên Windows!
+# Trên Windows, ví dụ "C:\Program Files (x86)\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
+# Tải từ https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-Q16-x64-static.exe
 
 # imagemagick_path = "C:\\Program Files (x86)\\ImageMagick-7.1.1-Q16\\magick.exe"
 
@@ -275,43 +276,36 @@ subtitle_provider = "edge"
 #   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
 # 此时你可以手动下载 ffmpeg 并设置 ffmpeg_path，下载地址：https://www.gyan.dev/ffmpeg/builds/
 
-# Under normal circumstances, ffmpeg is downloaded automatically and detected automatically.
-# However, if there is an issue with your environment that prevents automatic downloading, you might encounter the following error:
+# Trong điều kiện bình thường, ffmpeg được tải xuống và phát hiện tự động.
+# Tuy nhiên, nếu có vấn đề với môi trường của bạn ngăn việc tải xuống tự động, bạn có thể gặp lỗi sau:
 #   RuntimeError: No ffmpeg exe could be found.
 #   Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
-# In such cases, you can manually download ffmpeg and set the ffmpeg_path, download link: https://www.gyan.dev/ffmpeg/builds/
+# Trong trường hợp đó, bạn có thể tải ffmpeg thủ công và đặt ffmpeg_path, liên kết tải: https://www.gyan.dev/ffmpeg/builds/
 
 # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 
+# Bộ mã hóa video. Mặc định libx264 an toàn nhất; người dùng nâng cao có thể thử bộ mã hóa phần cứng.
 # 视频编码器。默认 libx264 最稳定；高级用户可以尝试硬件编码器提升速度。
-# 如果当前 FFmpeg 或硬件驱动不支持所选编码器，程序会自动回退到 libx264。
-# 可选值: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
-# video_codec = "libx264"
-
-# Video encoder. libx264 is the safest default; advanced users can try hardware encoders.
-# If the selected encoder is not supported by the current FFmpeg or driver, the app falls back to libx264.
-# Available values: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
+# Nếu bộ mã hóa được chọn không được FFmpeg hoặc driver hiện tại hỗ trợ, ứng dụng sẽ quay về libx264.
+# Các giá trị có sẵn: "libx264", "h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "h264_videotoolbox"
 # video_codec = "libx264"
 #########################################################################################
 
+# Khi video được tạo thành công, endpoint tải video do dịch vụ API cung cấp,
+# mặc định là địa chỉ và cổng lắng nghe hiện tại của dịch vụ
+# Ví dụ: http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
+# Nếu bạn cần cung cấp dịch vụ ra bên ngoài bằng tên miền (thường dùng nginx làm proxy),
+# bạn có thể đặt thành tên miền của mình
+# Ví dụ: https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
 # 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口
-# 比如 http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
-# 如果你需要使用域名对外提供服务（一般会用nginx做代理），则可以设置为你的域名
-# 比如 https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
-# endpoint="https://xxxx.com"
-
-# When the video is successfully generated, the API service provides a download endpoint for the video, defaulting to the service's current address and listening port.
-# For example, http://127.0.0.1:8080/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
-# If you need to provide the service externally using a domain name (usually done with nginx as a proxy), you can set it to your domain name.
-# For example, https://xxxx.com/tasks/6357f542-a4e1-46a1-b4c9-bf3bd0df5285/final-1.mp4
 # endpoint="https://xxxx.com"
 endpoint = ""
 
 
-# Video material storage location
-# material_directory = ""                    # Indicates that video materials will be downloaded to the default folder, the default folder is ./storage/cache_videos under the current project
-# material_directory = "/user/harry/videos"  # Indicates that video materials will be downloaded to a specified folder
-# material_directory = "task"                # Indicates that video materials will be downloaded to the current task's folder, this method does not allow sharing of already downloaded video materials
+# Vị trí lưu trữ tư liệu video
+# material_directory = ""                    # Chỉ ra rằng tư liệu video sẽ được tải xuống thư mục mặc định ./storage/cache_videos dưới dự án hiện tại
+# material_directory = "/user/harry/videos"  # Chỉ ra rằng tư liệu video sẽ được tải xuống thư mục được chỉ định
+# material_directory = "task"                # Chỉ ra rằng tư liệu video sẽ được tải xuống thư mục của tác vụ hiện tại, cách này không cho phép chia sẻ tư liệu đã tải
 
 # 视频素材存放位置
 # material_directory = ""                    #表示将视频素材下载到默认的文件夹，默认文件夹为当前项目下的 ./storage/cache_videos
@@ -320,119 +314,120 @@ endpoint = ""
 
 material_directory = ""
 
-# Used for state management of the task.
-# Redis is expected to be private to this app. Do not expose it to untrusted
-# writers, because task state is deserialized for compatibility with existing
-# records.
+# Dùng để quản lý trạng thái tác vụ.
+# Redis được mong đợi là riêng tư cho ứng dụng này. Không để lộ cho những người
+# viết không đáng tin cậy, vì trạng thái tác vụ được giải tuần tự hóa để tương thích
+# với các bản ghi hiện có.
 enable_redis = false
 redis_host = "localhost"
 redis_port = 6379
 redis_db = 0
 redis_password = ""
 
-# 文生视频时的最大并发任务数
+# 文生视频时的最大并发任务数 (Số tác vụ đồng thời tối đa khi tạo video)
 max_concurrent_tasks = 5
 
 # 并发任务已满后的最大排队任务数，超过后接口返回 429，避免匿名请求无限堆积
+# Số tác vụ xếp hàng tối đa sau khi các tác vụ đồng thời đã đầy, vượt quá sẽ trả về 429
 max_queued_tasks = 100
 
 
 [whisper]
-# Only effective when subtitle_provider is "whisper"
+# Chỉ có hiệu lực khi subtitle_provider là "whisper"
 
-# Run on GPU with FP16
+# Chạy trên GPU với FP16
 # model = WhisperModel(model_size, device="cuda", compute_type="float16")
 
-# Run on GPU with INT8
+# Chạy trên GPU với INT8
 # model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
 
-# Run on CPU with INT8
+# Chạy trên CPU với INT8
 # model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
-# recommended model_size: "large-v3"
+# Kích thước mô hình được khuyến nghị: "large-v3"
 model_size = "large-v3"
-# if you want to use GPU, set device="cuda"
+# Nếu muốn dùng GPU, đặt device="cuda"
 device = "CPU"
 compute_type = "int8"
 
 
 [proxy]
-### Use a proxy to access the Pexels API
-### Format: "http://<username>:<password>@<proxy>:<port>"
-### Example: "http://user:pass@proxy:1234"
-### Doc: https://requests.readthedocs.io/en/latest/user/advanced/#proxies
+### Dùng proxy để truy cập API Pexels
+### Định dạng: "http://<tên_người_dùng>:<mật_khẩu>@<proxy>:<cổng>"
+### Ví dụ: "http://user:pass@proxy:1234"
+### Tài liệu: https://requests.readthedocs.io/en/latest/user/advanced/#proxies
 
 # http = "http://10.10.1.10:3128"
 # https = "http://10.10.1.10:1080"
 
 [azure]
-# Azure Speech API Key
-# Get your API key at https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices
+# Khóa API Azure Speech
+# Lấy khóa API tại https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices
 speech_key = ""
 speech_region = ""
 
 [siliconflow]
-# SiliconFlow API Key
-# Get your API key at https://siliconflow.cn
+# Khóa API SiliconFlow
+# Lấy khóa API tại https://siliconflow.cn
 api_key = ""
 
 [elevenlabs]
-# ElevenLabs API Key
-# Get your API key at https://elevenlabs.io/app/settings/api-keys
-# Mark voices as favorites in the ElevenLabs voice library to make them appear here.
+# Khóa API ElevenLabs
+# Lấy khóa API tại https://elevenlabs.io/app/settings/api-keys
+# Đánh dấu giọng nói là yêu thích trong thư viện giọng nói ElevenLabs để chúng xuất hiện ở đây.
 api_key = ""
-# Model: eleven_multilingual_v2 | eleven_flash_v2_5 | eleven_v3
+# Mô hình: eleven_multilingual_v2 | eleven_flash_v2_5 | eleven_v3
 model_id = "eleven_multilingual_v2"
 
 [ui]
-# UI related settings
-# 是否隐藏日志信息
-# Whether to hide logs in the UI
+# Cài đặt liên quan đến giao diện người dùng
+# 是否隐藏日志信息 (Ẩn thông tin nhật ký hay không)
+# Ẩn nhật ký trong giao diện hay không
 hide_log = false
 
-# 字幕位置设置 (Subtitle position settings)
-# 可选值 (Available values): "top", "center", "bottom", "custom"
+# Cài đặt vị trí phụ đề (字幕位置设置)
+# Các giá trị có sẵn (可选值): "top", "center", "bottom", "custom"
 # subtitle_position = "custom"
+# Vị trí tùy chỉnh theo phần trăm từ đầu trang (0-100), chỉ có hiệu lực khi subtitle_position = "custom"
 # 自定义位置，表示离顶部的百分比 (0-100)，仅当 subtitle_position = "custom" 时生效
-# Custom position as percentage from top (0-100), only effective when subtitle_position = "custom"
 # custom_position = 70.0
 
-########## Upload-Post (Cross-post to TikTok/Instagram/YouTube Shorts)
-# Upload-Post allows you to automatically cross-post generated videos to TikTok, Instagram and YouTube Shorts.
-# Visit https://upload-post.com to create an account and get your API key.
-# API Documentation: https://docs.upload-post.com
+########## Upload-Post (Đăng chéo lên TikTok/Instagram/YouTube Shorts)
+# Upload-Post cho phép bạn tự động đăng chéo video đã tạo lên TikTok, Instagram và YouTube Shorts.
+# Truy cập https://upload-post.com để tạo tài khoản và lấy khóa API.
+# Tài liệu API: https://docs.upload-post.com
 
-# Enable/disable Upload-Post integration
+# Bật/tắt tích hợp Upload-Post
 upload_post_enabled = false
 
-# Your Upload-Post API key
+# Khóa API Upload-Post của bạn
 upload_post_api_key = ""
 
-# Your Upload-Post username
+# Tên người dùng Upload-Post của bạn
 upload_post_username = ""
 
-# Platforms to cross-post to (options: "tiktok", "instagram", "youtube")
+# Các nền tảng để đăng chéo (tùy chọn: "tiktok", "instagram", "youtube")
 upload_post_platforms = ["tiktok", "instagram"]
 
-# Automatically cross-post videos after generation (if false, you'll need to call the API manually)
+# Tự động đăng chéo video sau khi tạo xong (nếu false, bạn cần gọi API thủ công)
 upload_post_auto_upload = false
 
-# YouTube Shorts privacy status (options: "public", "unlisted", "private")
+# Trạng thái quyền riêng tư YouTube Shorts (tùy chọn: "public", "unlisted", "private")
 upload_post_youtube_privacy_status = "public"
 
-# Chatterbox TTS (self-hosted, OpenAI-compatible) ##########################
-# Chatterbox (https://github.com/resemble-ai/chatterbox, MIT) is an open-source,
-# locally hosted TTS model with zero-shot voice cloning — a self-hostable
-# alternative to ElevenLabs. Run a server that exposes an OpenAI-compatible
-# endpoint at POST {base_url}/audio/speech (e.g. devnen/Chatterbox-TTS-Server
-# or travisvn/chatterbox-tts-api), then set base_url below. In the WebUI pick
-# "Chatterbox TTS" as the TTS server, or via the API pass a voice_name like
-# "chatterbox:<voice>". Subtitles use the full-text fallback (no word-level
-# timestamps); set subtitle_provider = "whisper" for tighter sync.
+# Chatterbox TTS (tự lưu trữ, tương thích OpenAI) ##########################
+# Chatterbox (https://github.com/resemble-ai/chatterbox, MIT) là mô hình TTS mã nguồn mở,
+# lưu trữ cục bộ với nhân bản giọng nói zero-shot — một giải pháp thay thế tự lưu trữ
+# cho ElevenLabs. Chạy máy chủ cung cấp endpoint tương thích OpenAI tại
+# POST {base_url}/audio/speech (ví dụ devnen/Chatterbox-TTS-Server hoặc
+# travisvn/chatterbox-tts-api), sau đó đặt base_url bên dưới. Trong WebUI chọn
+# "Chatterbox TTS" làm máy chủ TTS, hoặc qua API truyền voice_name như
+# "chatterbox:<giọng>". Phụ đề dùng dự phòng toàn văn bản (không có timestamps cấp từ);
+# đặt subtitle_provider = "whisper" để đồng bộ chặt hơn.
 [chatterbox]
-# Defaults target travisvn/chatterbox-tts-api running locally on port 4123.
+# Mặc định nhắm đến travisvn/chatterbox-tts-api chạy cục bộ trên cổng 4123.
 base_url = "http://127.0.0.1:4123/v1"
 api_key = ""
 model_id = "chatterbox"
-# Voices exposed by your server; shown in the WebUI dropdown as chatterbox:<name>
+# Các giọng nói do máy chủ của bạn cung cấp; hiển thị trong dropdown WebUI dưới dạng chatterbox:<tên>
 voices = ["default-Female"]

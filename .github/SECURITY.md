@@ -1,28 +1,28 @@
-# Security Policy
+# Chính Sách Bảo Mật
 
-## Supported Versions
+## Các Phiên Bản Được Hỗ Trợ
 
-Security fixes are applied on a best-effort basis to the latest `main` branch and the most recent published release line.
+Các bản vá bảo mật được áp dụng theo khả năng tốt nhất cho nhánh `main` mới nhất và dòng phát hành được công bố gần đây nhất.
 
-## Reporting a Vulnerability
+## Báo Cáo Lỗ Hổng Bảo Mật
 
-Please do **not** disclose suspected vulnerabilities in public GitHub issues.
+Vui lòng **không** tiết lộ các lỗ hổng bảo mật bị nghi ngờ trong các GitHub issue công khai.
 
-Preferred process:
+Quy trình ưu tiên:
 
-1. Use GitHub private vulnerability reporting for this repository if it is available in the repository security settings.
-2. If private reporting is not available, open a minimal public issue that only requests a private contact channel and does **not** include vulnerability details, proof-of-concept code, payloads, or sensitive file paths.
-3. Wait for a maintainer response before sharing any technical details publicly.
+1. Sử dụng tính năng báo cáo lỗ hổng riêng tư của GitHub cho kho lưu trữ này nếu tính năng này khả dụng trong cài đặt bảo mật của kho.
+2. Nếu báo cáo riêng tư không khả dụng, hãy mở một issue công khai tối giản chỉ yêu cầu kênh liên hệ riêng tư và **không** bao gồm chi tiết lỗ hổng, code proof-of-concept, payload, hay đường dẫn tệp nhạy cảm.
+3. Chờ phản hồi từ người bảo trì trước khi chia sẻ bất kỳ chi tiết kỹ thuật nào công khai.
 
-When reporting a vulnerability privately, include:
+Khi báo cáo lỗ hổng riêng tư, hãy bao gồm:
 
-- affected commit, tag, or release version
-- attack surface or vulnerable endpoint
-- impact summary
-- reproduction conditions
-- suggested remediation, if available
+- commit, tag, hoặc phiên bản phát hành bị ảnh hưởng
+- bề mặt tấn công hoặc endpoint bị lỗ hổng
+- tóm tắt tác động
+- điều kiện tái hiện
+- đề xuất khắc phục, nếu có
 
-## Disclosure Expectations
+## Kỳ Vọng Tiết Lộ
 
-- Please give maintainers reasonable time to investigate and prepare a fix before public disclosure.
-- Once a fix is available, coordinated public disclosure is welcome.
+- Vui lòng cho người bảo trì thời gian hợp lý để điều tra và chuẩn bị bản vá trước khi tiết lộ công khai.
+- Sau khi có bản vá, việc tiết lộ công khai có phối hợp là được chào đón.
