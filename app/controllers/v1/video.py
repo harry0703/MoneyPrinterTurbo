@@ -262,22 +262,17 @@ def get_bgm_list(request: Request):
 )
 def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
-    safe_filename = _sanitize_upload_filename(file.filename, request_id)
-    # check file ext
-    if safe_filename.lower().endswith("mp3"):
-        song_dir = utils.song_dir()
-        save_path = os.path.join(song_dir, safe_filename)
-        # save file
-        with open(save_path, "wb+") as buffer:
-            # If the file already exists, it will be overwritten
-            file.file.seek(0)
-            buffer.write(file.file.read())
-        response = {"file": safe_filename}
-        return utils.get_response(200, response)
-
-    raise HttpException(
-        "", status_code=400, message=f"{request_id}: Only *.mp3 files can be uploaded"
-    )
+    file.file.seek(0)
+    try:
+        safe_filename = utils.save_bgm_upload(file.filename, file.file.read())
+    except ValueError:
+        raise HttpException(
+            "",
+            status_code=400,
+            message=f"{request_id}: Only *.mp3 files can be uploaded",
+        )
+    response = {"file": safe_filename}
+    return utils.get_response(200, response)
 
 @router.get(
     "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="Retrieve local video materials"

@@ -81,6 +81,25 @@ def sanitize_upload_filename(filename: str) -> str:
     return normalized_name
 
 
+def save_bgm_upload(filename: str, data: bytes) -> str:
+    """Sanitize the name, require a .mp3 extension, and write into song_dir.
+
+    Returns the stored (sanitized) filename. Raises ValueError for an invalid
+    name or a non-.mp3 file. Shared by the API upload endpoint and the WebUI so
+    both write background music to the same whitelisted songs directory.
+    If a file with the same name already exists, it is overwritten.
+    """
+    safe = sanitize_upload_filename(filename)
+    if not safe.lower().endswith(".mp3"):
+        raise ValueError("Only *.mp3 files can be uploaded")
+    target_dir = song_dir()
+    os.makedirs(target_dir, exist_ok=True)
+    save_path = os.path.join(target_dir, safe)
+    with open(save_path, "wb+") as buffer:
+        buffer.write(data)
+    return safe
+
+
 def root_dir():
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
