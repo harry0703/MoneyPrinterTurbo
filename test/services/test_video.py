@@ -485,7 +485,7 @@ class TestVideoService(unittest.TestCase):
                     with patch.object(
                         vd, "_write_videofile_with_codec_fallback"
                     ) as write_mock:
-                        with patch.object(vd, "concat_video_clips_with_ffmpeg"):
+                        with patch.object(vd, "concat_video_clips_with_ffmpeg") as concat_mock:
                             with patch.object(vd, "delete_files"):
                                 result = vd.combine_videos(
                                     combined_video_path=combined_video_path,
@@ -499,6 +499,31 @@ class TestVideoService(unittest.TestCase):
 
         self.assertEqual(result, combined_video_path)
         self.assertEqual(write_mock.call_count, 4)
+        self.assertEqual(concat_mock.call_args.kwargs["max_duration"], 10.0)
+
+    def test_concat_video_clips_limits_output_to_audio_duration(self):
+        """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
+
+        def fake_run(command, capture_output, text, check):
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with patch.object(vd.subprocess, "run", side_effect=fake_run) as run:
+                vd.concat_video_clips_with_ffmpeg(
+                    clip_files=[clip_file],
+                    output_file=output_file,
+                    threads=1,
+                    output_dir=temp_dir,
+                    max_duration=10.0,
+                )
+
+        command = run.call_args.args[0]
+        self.assertEqual(command[command.index("-t") + 1], "10.000")
+        self.assertLess(command.index("-t"), command.index(output_file))
 
     def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
         """
