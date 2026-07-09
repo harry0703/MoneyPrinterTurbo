@@ -61,16 +61,16 @@ else:
 
 
 def _sanitize_upload_filename(filename: str, request_id: str) -> str:
-    # 浏览器或客户端有时会附带目录信息，甚至可能夹带 ../ 这类穿越片段。
-    # 这里只保留纯文件名，避免上传接口把文件写到目标目录之外。
-    normalized_name = (filename or "").replace("\\", "/").split("/")[-1].strip()
-    if not normalized_name or normalized_name in {".", ".."}:
+    # 纯文件名归一化逻辑已抽到 utils.sanitize_upload_filename，供 API 与 WebUI 复用。
+    # 这里只负责把校验失败翻译成 HTTP 400，保持上传接口行为不变。
+    try:
+        return utils.sanitize_upload_filename(filename)
+    except ValueError:
         raise HttpException(
             task_id=request_id,
             status_code=400,
             message=f"{request_id}: invalid filename",
         )
-    return normalized_name
 
 
 def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: str) -> str:

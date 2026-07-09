@@ -65,6 +65,22 @@ def get_uuid(remove_hyphen: bool = False):
     return u
 
 
+def sanitize_upload_filename(filename: str) -> str:
+    """Return the bare filename from an upload, blocking path traversal.
+
+    Browsers or clients sometimes attach directory information, and may even
+    smuggle ``../`` traversal segments. Keep only the final path component so
+    an upload can never be written outside its intended directory.
+
+    Raises:
+        ValueError: if the resulting name is empty or a bare ``.``/``..``.
+    """
+    normalized_name = (filename or "").replace("\\", "/").split("/")[-1].strip()
+    if not normalized_name or normalized_name in {".", ".."}:
+        raise ValueError("invalid filename")
+    return normalized_name
+
+
 def root_dir():
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
