@@ -156,6 +156,19 @@
     "Coverr API Key deleted successfully": "Coverr API Anahtarı başarıyla silindi",
     "Advanced Video Settings": "Gelişmiş Video Ayarları",
     "Video Encoder": "Video Kodlayıcı",
-    "Video Encoder Help": "Gelişmiş seçenek. libx264 en güvenli varsayılandır. Donanım kodlayıcı seçildiğinde mevcut FFmpeg, GPU veya sürücü bunu kullanamıyorsa uygulama libx264'ye geri döner."
+    "Video Encoder Help": "Gelişmiş seçenek. libx264 en güvenli varsayılandır. Donanım kodlayıcı seçildiğinde mevcut FFmpeg, GPU veya sürücü bunu kullanamıyorsa uygulama libx264'ye geri döner.",
+    "AI Image": "Yapay Zeka Görseli",
+    "Image Generation Settings": "**Görsel Oluşturma Ayarları**",
+    "Image Provider": "Görsel Sağlayıcı",
+    "Image API Key": "Görsel API Anahtarı (:red[Zorunlu])",
+    "Image Base URL": "Görsel API Temel URL",
+    "Image Model Name": "Görsel Model Adı",
+    "Enhance AI image prompts using LLM": "Görsel istemlerini LLM ile geliştir",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Seçilen LLM'i kullanarak görsel istemlerini geliştirir; video senaryosu bağlamına göre daha ayrıntılı ve profesyonel açıklamalar oluşturur.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "İstem geliştirme, seçilen LLM'i ({}) kullanacaktır ve sağlayıcıya bağlı olarak ek maliyet doğurabilir.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "İstem geliştirme için {} API anahtarı gereklidir. Lütfen Ayarlar panelinden yapılandırın.",
+    "Please Enter the OpenAI API Key": "Lütfen **OpenAI API Anahtarını** Girin",
+    "Please Enter the Stability AI API Key": "Lütfen **Stability AI API Anahtarını** Girin",
+    "Please Enter the Image Base URL for the selected provider": "Lütfen seçilen sağlayıcı için **Görsel Temel URL'sini** Girin"
   }
 }

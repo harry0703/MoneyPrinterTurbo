@@ -23,7 +23,7 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
-from app.services import llm, voice
+from app.services import llm, material, voice
 from app.services import task as tm
 from app.utils import utils
 
@@ -781,6 +781,7 @@ with middle_panel:
             (tr("Pixabay"), "pixabay"),
             (tr("Coverr"), "coverr"),
             (tr("Local file"), "local"),
+            (tr("AI Image"), "ai_image"),
             (tr("TikTok"), "douyin"),
             (tr("Bilibili"), "bilibili"),
             (tr("Xiaohongshu"), "xiaohongshu"),
@@ -808,6 +809,139 @@ with middle_panel:
                 type=local_file_types + [file_type.upper() for file_type in local_file_types],
                 accept_multiple_files=True,
             )
+
+
+        if params.video_source == "ai_image":
+            st.write(tr("Image Generation Settings"))
+
+            image_providers = [
+                ("OpenAI", "openai"),
+                ("Stability AI", "stability_ai"),
+                ("Pollinations", "pollinations"),
+                ("Midjourney", "midjourney"),
+                ("Other", "other"),
+            ]
+            saved_image_provider = (
+                config.app.get("image_provider", "openai").lower().replace(" ", "_")
+            )
+            saved_image_provider_index = 0
+            for i, (_, provider_value) in enumerate(image_providers):
+                if provider_value == saved_image_provider:
+                    saved_image_provider_index = i
+                    break
+
+            selected_provider_index = st.selectbox(
+                tr("Image Provider"),
+                options=range(len(image_providers)),
+                format_func=lambda x: image_providers[x][0],
+                index=saved_image_provider_index,
+            )
+            image_helper = st.container()
+            image_provider = image_providers[selected_provider_index][1]
+            config.app["image_provider"] = image_provider
+
+            image_api_key = material._image_provider_setting(image_provider, "api_key")
+            image_base_url = material._image_provider_setting(image_provider, "base_url")
+            image_model_name = material._image_provider_setting(image_provider, "model_name")
+
+            tips = ""
+            if image_provider == "openai":
+                if not image_model_name:
+                    image_model_name = "dall-e-3"
+                with image_helper:
+                    tips = """
+                            ##### OpenAI DALL·E Configuration
+                            - **API Key**: Same as your OpenAI API key
+                            - **Base Url**: Leave empty
+                            - **Model Name**: dall-e-3 or dall-e-2
+                            """
+
+            if image_provider == "stability_ai":
+                if not image_model_name:
+                    image_model_name = "stable-diffusion-xl-1024-v1-0"
+                with image_helper:
+                    tips = """
+                            ##### Stability AI Configuration
+                            - **API Key**: [Get from Stability AI](https://platform.stability.ai/account/keys)
+                            - **Base Url**: Leave empty
+                            - **Model Name**: stable-diffusion-xl-1024-v1-0
+                            """
+
+            if image_provider == "pollinations":
+                if not image_model_name:
+                    image_model_name = "default"
+                with image_helper:
+                    tips = """
+                            ##### Pollinations AI Configuration
+                            - **API Key**: Optional - Leave empty for public access
+                            - **Base Url**: Default is https://image.pollinations.ai/prompt/
+                            - **Model Name**: Leave as "default" unless you have a specific model
+                            """
+
+            if image_provider == "midjourney":
+                with image_helper:
+                    tips = """
+                            ##### Midjourney Configuration
+                            Midjourney has no official API - use a proxy service that exposes an OpenAI-compatible images endpoint.
+                            - **API Key**: Key from your proxy service (if required)
+                            - **Base Url**: Required - your proxy's OpenAI-compatible endpoint
+                            - **Model Name**: As required by your proxy
+                            """
+
+            if image_provider == "other":
+                with image_helper:
+                    tips = """
+                            ##### Custom Provider Configuration
+                            Any OpenAI-compatible images API (e.g. an API gateway).
+                            - **API Key**: If required by the endpoint
+                            - **Base Url**: Required - OpenAI-compatible images endpoint
+                            - **Model Name**: Model supported by the endpoint
+                            """
+
+            if tips:
+                st.info(tips)
+
+            st_image_api_key = st.text_input(
+                tr("Image API Key"), value=image_api_key, type="password"
+            )
+            st_image_base_url = st.text_input(tr("Image Base URL"), value=image_base_url)
+            st_image_model_name = st.text_input(
+                tr("Image Model Name"),
+                value=image_model_name,
+            )
+
+            def set_image_setting(suffix: str, value: str) -> None:
+                # Persist under the image namespace and drop the legacy keys so
+                # they cannot resurrect a cleared value. Plain "openai_*" and
+                # "pollinations_*" keys belong to the LLM panel and are never
+                # touched.
+                config.app[f"{image_provider}_image_{suffix}"] = value
+                if image_provider not in ("openai", "pollinations"):
+                    config.app.pop(f"{image_provider}_{suffix}", None)
+                if "_" in image_provider:
+                    spaced = image_provider.replace("_", " ")
+                    config.app.pop(f"{spaced}_image_{suffix}", None)
+                    config.app.pop(f"{spaced}_{suffix}", None)
+
+            set_image_setting("api_key", st_image_api_key)
+            set_image_setting("base_url", st_image_base_url)
+            set_image_setting("model_name", st_image_model_name)
+
+            params.enhance_prompt = st.checkbox(
+                tr("Enhance AI image prompts using LLM"),
+                help=tr("Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context."),
+                value=False
+            )
+            if params.enhance_prompt:
+                llm_provider = config.app.get("llm_provider", "").lower()
+                st.info(tr("Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.").format(llm_provider))
+                keyless_llm_providers = ("pollinations", "ollama", "litellm")
+                if llm_provider not in keyless_llm_providers and not config.app.get(
+                    f"{llm_provider}_api_key", ""
+                ):
+                    st.warning(tr("API key for {} is required for prompt enhancement. Please configure it in the Settings panel.").format(llm_provider))
+        else:
+            params.enhance_prompt = False
 
         selected_index = st.selectbox(
             tr("Video Concat Mode"),
@@ -1545,7 +1679,7 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source not in ["pexels", "pixabay", "coverr", "local"]:
+    if params.video_source not in ["pexels", "pixabay", "coverr", "local", "ai_image"]:
         st.error(tr("Please Select a Valid Video Source"))
         scroll_to_bottom()
         st.stop()
@@ -1559,6 +1693,28 @@ if start_button:
         st.error(tr("Please Enter the Pixabay API Key"))
         scroll_to_bottom()
         st.stop()
+
+    if params.video_source == "ai_image":
+        image_provider = (
+            str(config.app.get("image_provider", "openai")).lower().replace(" ", "_")
+        )
+        image_api_key = material._image_provider_setting(image_provider, "api_key")
+        if image_provider == "openai" and not (
+            image_api_key or config.app.get("openai_api_keys")
+        ):
+            st.error(tr("Please Enter the OpenAI API Key"))
+            scroll_to_bottom()
+            st.stop()
+        if image_provider == "stability_ai" and not image_api_key:
+            st.error(tr("Please Enter the Stability AI API Key"))
+            scroll_to_bottom()
+            st.stop()
+        if image_provider in ("midjourney", "other") and not material._image_provider_setting(
+            image_provider, "base_url"
+        ):
+            st.error(tr("Please Enter the Image Base URL for the selected provider"))
+            scroll_to_bottom()
+            st.stop()
 
     if params.video_source == "coverr" and not config.app.get("coverr_api_keys", ""):
         st.error(tr("Please Enter the Coverr API Key"))

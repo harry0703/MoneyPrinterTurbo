@@ -191,6 +191,19 @@
     "llm_provider_tips.modelscope": "##### ModelScope Configuration\n- **API Key**: [create one on ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)\n- **Base Url**: https://api-inference.modelscope.cn/v1/\n- **Model Name**: for example Qwen/Qwen3-32B; see the [model list](https://modelscope.cn/models?filter=inference_type&page=1)",
     "llm_provider_tips.ernie": "##### ERNIE Configuration\n- **API Key**: [create one in Baidu Qianfan](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)\n- **Secret Key**: [create one in Baidu Qianfan](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)\n- **Base Url**: enter the request URL; see the [documentation](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)",
     "llm_provider_tips.pollinations": "##### Pollinations AI Configuration\n- **API Key**: optional; leave empty for public access\n- **Base Url**: https://text.pollinations.ai/openai\n- **Model Name**: use `openai-fast` or specify another model name",
-    "llm_provider_tips.litellm": "##### LiteLLM Configuration\n> [LiteLLM](https://github.com/BerriAI/litellm) routes to 100+ LLM providers through a unified interface.\n> Set your provider API key as an environment variable, such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `AWS_ACCESS_KEY_ID`.\n- **Model Name**: use LiteLLM format, for example `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, or `gemini/gemini-2.5-flash`. See the [full provider list](https://docs.litellm.ai/docs/providers)"
+    "llm_provider_tips.litellm": "##### LiteLLM Configuration\n> [LiteLLM](https://github.com/BerriAI/litellm) routes to 100+ LLM providers through a unified interface.\n> Set your provider API key as an environment variable, such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `AWS_ACCESS_KEY_ID`.\n- **Model Name**: use LiteLLM format, for example `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`, `bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`, or `gemini/gemini-2.5-flash`. See the [full provider list](https://docs.litellm.ai/docs/providers)",
+    "AI Image": "AI Image",
+    "Image Generation Settings": "**Image Generation Settings**",
+    "Image Provider": "Image Provider",
+    "Image API Key": "Image API Key (:red[Required])",
+    "Image Base URL": "Image Base URL",
+    "Image Model Name": "Image Model Name",
+    "Enhance AI image prompts using LLM": "Enhance AI image prompts using LLM",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.",
+    "Please Enter the OpenAI API Key": "Please Enter the **OpenAI API Key**",
+    "Please Enter the Stability AI API Key": "Please Enter the **Stability AI API Key**",
+    "Please Enter the Image Base URL for the selected provider": "Please Enter the **Image Base URL** for the selected provider"
   }
 }

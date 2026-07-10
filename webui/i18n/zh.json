@@ -191,6 +191,19 @@
     "llm_provider_tips.modelscope": "##### ModelScope 配置说明\n- **API Key**: [点击到官网申请](https://modelscope.cn/docs/model-service/API-Inference/intro)\n- **Base Url**: 固定为 https://api-inference.modelscope.cn/v1/\n- **Model Name**: 比如 Qwen/Qwen3-32B，[点击查看模型列表](https://modelscope.cn/models?filter=inference_type&page=1)",
     "llm_provider_tips.ernie": "##### 百度文心一言配置说明\n- **API Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)\n- **Secret Key**: [点击到官网申请](https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application)\n- **Base Url**: 填写**请求地址**，[点击查看文档](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/jlil56u11#%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E)",
     "llm_provider_tips.pollinations": "##### Pollinations AI 配置说明\n- **API Key**: 可选，留空可使用公开访问\n- **Base Url**: 默认 https://text.pollinations.ai/openai\n- **Model Name**: 使用 `openai-fast` 或填写其它模型名称",
-    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n> [LiteLLM](https://github.com/BerriAI/litellm) 可通过统一接口路由到 100+ LLM providers。\n> 请将对应 provider 的 API key 设置为环境变量，例如 `OPENAI_API_KEY`、`ANTHROPIC_API_KEY`、`GEMINI_API_KEY`、`AWS_ACCESS_KEY_ID` 等。\n- **Model Name**: 使用 LiteLLM 格式，例如 `openai/gpt-4o`、`anthropic/claude-sonnet-4-20250514`、`bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`、`gemini/gemini-2.5-flash`。查看[完整 provider 列表](https://docs.litellm.ai/docs/providers)"
+    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n> [LiteLLM](https://github.com/BerriAI/litellm) 可通过统一接口路由到 100+ LLM providers。\n> 请将对应 provider 的 API key 设置为环境变量，例如 `OPENAI_API_KEY`、`ANTHROPIC_API_KEY`、`GEMINI_API_KEY`、`AWS_ACCESS_KEY_ID` 等。\n- **Model Name**: 使用 LiteLLM 格式，例如 `openai/gpt-4o`、`anthropic/claude-sonnet-4-20250514`、`bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0`、`gemini/gemini-2.5-flash`。查看[完整 provider 列表](https://docs.litellm.ai/docs/providers)",
+    "AI Image": "AI生成图片",
+    "Image Generation Settings": "**图片生成设置**",
+    "Image Provider": "图片生成提供商",
+    "Image API Key": "图片API密钥 (:red[必填])",
+    "Image Base URL": "图片生成API基础URL",
+    "Image Model Name": "图片生成模型名称",
+    "Enhance AI image prompts using LLM": "使用大模型增强AI图片提示词",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "使用所选大模型增强图片提示词，根据视频文案创建更详细、更专业的描述。",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "提示词增强将使用所选大模型 ({}) ，根据供应商可能产生额外费用。",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "提示词增强需要 {} 的API密钥。请在设置面板中配置。",
+    "Please Enter the OpenAI API Key": "请先填写 **OpenAI API Key**",
+    "Please Enter the Stability AI API Key": "请先填写 **Stability AI API Key**",
+    "Please Enter the Image Base URL for the selected provider": "请先填写所选图片提供商的 **Base URL**"
   }
 }

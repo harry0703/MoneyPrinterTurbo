@@ -162,6 +162,19 @@
     "Coverr API Key deleted successfully": "API Key de Coverr eliminada correctamente",
     "Advanced Video Settings": "Configuración avanzada de vídeo",
     "Video Encoder": "Codificador de vídeo",
-    "Video Encoder Help": "Opción avanzada. libx264 es el predeterminado más seguro. Cuando se selecciona un codificador de hardware, la aplicación vuelve a libx264 si el FFmpeg, GPU o controlador actuales no pueden usarlo."
+    "Video Encoder Help": "Opción avanzada. libx264 es el predeterminado más seguro. Cuando se selecciona un codificador de hardware, la aplicación vuelve a libx264 si el FFmpeg, GPU o controlador actuales no pueden usarlo.",
+    "AI Image": "Imagen IA",
+    "Image Generation Settings": "**Configuración de Generación de Imágenes**",
+    "Image Provider": "Proveedor de Imágenes",
+    "Image API Key": "Clave API de Imagen (:red[Obligatorio])",
+    "Image Base URL": "URL Base de la API de Imagen",
+    "Image Model Name": "Nombre del Modelo de Imagen",
+    "Enhance AI image prompts using LLM": "Mejorar prompts de imagen usando LLM",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Usa el LLM seleccionado para mejorar los prompts de imagen, creando descripciones más detalladas y profesionales según el contexto del guion del video.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "La mejora de prompts usará el LLM seleccionado ({}) y puede generar costos adicionales según el proveedor.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "Se requiere la clave API de {} para la mejora de prompts. Configúrela en el panel de Configuración.",
+    "Please Enter the OpenAI API Key": "Introduce la **API Key de OpenAI**",
+    "Please Enter the Stability AI API Key": "Introduce la **API Key de Stability AI**",
+    "Please Enter the Image Base URL for the selected provider": "Introduce la **URL Base de Imagen** para el proveedor seleccionado"
   }
 }
