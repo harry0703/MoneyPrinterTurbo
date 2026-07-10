@@ -1,4 +1,6 @@
+import numpy as np
 from moviepy import Clip, ColorClip, CompositeVideoClip, vfx
+from PIL import Image
 
 
 # FadeIn
@@ -71,3 +73,40 @@ def slideout_transition(clip: Clip, t: float, side: str) -> Clip:
     return CompositeVideoClip([background, moving_clip], size=(width, height)).with_duration(
         clip.duration
     )
+
+
+ZOOM_MAX_SCALE = 1.2
+
+
+def _zoom_frame(frame: np.ndarray, scale_factor: float) -> np.ndarray:
+    height, width = frame.shape[:2]
+    crop_width = max(int(width / scale_factor), 1)
+    crop_height = max(int(height / scale_factor), 1)
+    x1 = (width - crop_width) // 2
+    y1 = (height - crop_height) // 2
+    cropped = frame[y1 : y1 + crop_height, x1 : x1 + crop_width]
+    image = Image.fromarray(cropped)
+    return np.asarray(image.resize((width, height), Image.LANCZOS))
+
+
+# ZoomIn - Ken Burns style zoom across the whole clip; `t` is kept for the
+# uniform transition signature but the ramp spans clip.duration.
+def zoomin_transition(clip: Clip, t: float) -> Clip:
+    duration = max(clip.duration, 0.001)
+
+    def scale_effect(get_frame, current_time: float):
+        scale_factor = 1 + (ZOOM_MAX_SCALE - 1) * (current_time / duration)
+        return _zoom_frame(get_frame(current_time), scale_factor)
+
+    return clip.transform(scale_effect)
+
+
+# ZoomOut
+def zoomout_transition(clip: Clip, t: float) -> Clip:
+    duration = max(clip.duration, 0.001)
+
+    def scale_effect(get_frame, current_time: float):
+        scale_factor = ZOOM_MAX_SCALE - (ZOOM_MAX_SCALE - 1) * (current_time / duration)
+        return _zoom_frame(get_frame(current_time), scale_factor)
+
+    return clip.transform(scale_effect)

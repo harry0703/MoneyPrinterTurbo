@@ -831,6 +831,8 @@ with middle_panel:
             (tr("FadeOut"), VideoTransitionMode.fade_out.value),
             (tr("SlideIn"), VideoTransitionMode.slide_in.value),
             (tr("SlideOut"), VideoTransitionMode.slide_out.value),
+            (tr("ZoomIn"), VideoTransitionMode.zoom_in.value),
+            (tr("ZoomOut"), VideoTransitionMode.zoom_out.value),
         ]
         selected_index = st.selectbox(
             tr("Video Transition Mode"),

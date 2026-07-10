@@ -661,12 +661,18 @@ def combine_videos(
                 clip = video_effects.slidein_transition(clip, 1, shuffle_side)
             elif transition_value == VideoTransitionMode.slide_out.value:
                 clip = video_effects.slideout_transition(clip, 1, shuffle_side)
+            elif transition_value == VideoTransitionMode.zoom_in.value:
+                clip = video_effects.zoomin_transition(clip, 1)
+            elif transition_value == VideoTransitionMode.zoom_out.value:
+                clip = video_effects.zoomout_transition(clip, 1)
             elif transition_value == VideoTransitionMode.shuffle.value:
                 transition_funcs = [
                     lambda c: video_effects.fadein_transition(c, 1),
                     lambda c: video_effects.fadeout_transition(c, 1),
                     lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
                     lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
+                    lambda c: video_effects.zoomin_transition(c, 1),
+                    lambda c: video_effects.zoomout_transition(c, 1),
                 ]
                 shuffle_transition = random.choice(transition_funcs)
                 clip = shuffle_transition(clip)

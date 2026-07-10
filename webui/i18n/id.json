@@ -38,6 +38,8 @@
     "FadeOut": "FadeOut",
     "SlideIn": "SlideIn",
     "SlideOut": "SlideOut",
+    "ZoomIn": "Perbesar",
+    "ZoomOut": "Perkecil",
     "Video Ratio": "Rasio Aspek Video",
     "Portrait": "Potret 9:16",
     "Landscape": "Lanskap 16:9",

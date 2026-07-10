@@ -38,6 +38,8 @@
     "FadeOut": "FadeOut",
     "SlideIn": "SlideIn",
     "SlideOut": "SlideOut",
+    "ZoomIn": "Acercar",
+    "ZoomOut": "Alejar",
     "Video Ratio": "Relación de aspecto del vídeo",
     "Portrait": "Vertical 9:16",
     "Landscape": "Horizontal 16:9",

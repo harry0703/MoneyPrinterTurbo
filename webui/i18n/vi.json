@@ -38,6 +38,8 @@
     "FadeOut": "FadeOut",
     "SlideIn": "SlideIn",
     "SlideOut": "SlideOut",
+    "ZoomIn": "Phóng to",
+    "ZoomOut": "Thu nhỏ",
     "Video Ratio": "Tỷ Lệ Khung Hình Video",
     "Portrait": "Dọc 9:16",
     "Landscape": "Ngang 16:9",
