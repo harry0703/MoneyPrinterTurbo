@@ -42,6 +42,7 @@
     "Portrait": "Portrait 9:16",
     "Landscape": "Landscape 16:9",
     "Clip Duration": "Maximum Duration of Video Clips (seconds)",
+    "Clip Speed": "Clip Speed (1.0 = normal, 2.0 = 2x faster)",
     "Number of Videos Generated Simultaneously": "Number of Videos Generated Simultaneously",
     "Match Materials to Script Order": "Match materials to script order",
     "Match Materials to Script Order Help": "Disabled by default. Mainly applies to online material sources. When enabled, keywords are generated in script order and materials are downloaded/combined in that order to reduce visual mismatch with the current voiceover.",

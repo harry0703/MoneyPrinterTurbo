@@ -44,6 +44,7 @@
     "Portrait": "Вертикальное 9:16",
     "Landscape": "Горизонтальное 16:9",
     "Clip Duration": "Максимальная длительность одного фрагмента (сек.)",
+    "Clip Speed": "Скорость клипов (1.0 = обычная, 2.0 = 2x быстрее)",
     "Number of Videos Generated Simultaneously": "Количество видео за один запуск",
     "Audio Settings": "**Настройки аудио**",
     "Speech Synthesis": "Голос озвучки",

@@ -42,6 +42,7 @@
     "Portrait": "竖屏 9:16（抖音视频）",
     "Landscape": "横屏 16:9（西瓜视频）",
     "Clip Duration": "视频片段最大时长(秒)（**不是视频总长度**，是指每个**合成片段**的长度）",
+    "Clip Speed": "片段播放速度（1.0 = 正常，2.0 = 2倍速）",
     "Number of Videos Generated Simultaneously": "同时生成视频数量",
     "Match Materials to Script Order": "按文案顺序匹配素材",
     "Match Materials to Script Order Help": "默认关闭。主要对在线素材源生效。开启后会按文案叙事顺序生成关键词，并尽量按关键词顺序下载和拼接素材，减少画面主题与当前旁白不匹配的问题。",

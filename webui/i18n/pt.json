@@ -35,6 +35,7 @@
     "Portrait": "Retrato 9:16",
     "Landscape": "Paisagem 16:9",
     "Clip Duration": "Duração Máxima dos Clipes de Vídeo (segundos)",
+    "Clip Speed": "Velocidade dos Clipes (1.0 = normal, 2.0 = 2x mais rápido)",
     "Number of Videos Generated Simultaneously": "Número de Vídeos Gerados Simultaneamente",
     "Audio Settings": "**Configurações de Áudio**",
     "Speech Synthesis": "Voz de Síntese de Fala",
