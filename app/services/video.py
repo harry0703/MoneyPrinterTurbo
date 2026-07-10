@@ -541,6 +541,7 @@ def combine_videos(
     video_transition_mode: VideoTransitionMode = None,
     max_clip_duration: int = 5,
     threads: int = 2,
+    clip_speed: float = 1.0,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -666,7 +667,14 @@ def combine_videos(
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
-                
+
+            # Apply the optional global speed multiplier to the visual clip only.
+            # Narration and subtitles are added in a later stage, so they are
+            # unaffected. speed == 1.0 is a no-op and preserves current output.
+            speed = utils.normalize_clip_speed(clip_speed)
+            if speed != 1.0:
+                clip = clip.with_speed_scaled(speed)
+
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
             _write_videofile_with_codec_fallback(
