@@ -915,6 +915,13 @@ with middle_panel:
         params.video_clip_duration = st.selectbox(
             tr("Clip Duration"), options=[2, 3, 4, 5, 6, 7, 8, 9, 10], index=1
         )
+        params.video_clip_speed = st.slider(
+            tr("Clip Speed"),
+            min_value=0.5,
+            max_value=2.0,
+            value=1.0,
+            step=0.05,
+        )
         params.video_count = st.selectbox(
             tr("Number of Videos Generated Simultaneously"),
             options=[1, 2, 3, 4, 5],
