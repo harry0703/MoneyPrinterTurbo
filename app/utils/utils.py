@@ -65,6 +65,30 @@ def get_uuid(remove_hyphen: bool = False):
     return u
 
 
+_CLIP_SPEED_MIN = 0.5
+_CLIP_SPEED_MAX = 2.0
+
+
+def normalize_clip_speed(value, default: float = 1.0) -> float:
+    """Coerce ``value`` to a float speed factor clamped into [0.5, 2.0].
+
+    Returns ``default`` (1.0) when the value is missing, non-numeric, or not
+    positive. Speed 0 or negative is nonsensical, so it falls back to the
+    default rather than clamping up to the minimum.
+    """
+    try:
+        speed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if speed <= 0:
+        return default
+    if speed < _CLIP_SPEED_MIN:
+        return _CLIP_SPEED_MIN
+    if speed > _CLIP_SPEED_MAX:
+        return _CLIP_SPEED_MAX
+    return speed
+
+
 def root_dir():
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
