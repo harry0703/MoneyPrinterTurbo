@@ -4,11 +4,19 @@ import unittest
 
 import numpy as np
 
-from app.models.schema import VideoParams
+from app.models.schema import SubtitleRequest, VideoParams
 from app.services import video
 
 
 class TestSubtitleBackgroundSettings(unittest.TestCase):
+    def test_subtitle_background_is_disabled_by_default(self):
+        """新任务和独立字幕接口都不应在用户未指定时渲染字幕背景。"""
+        video_params = VideoParams(video_subject="default subtitle background")
+        subtitle_request = SubtitleRequest(video_script="default subtitle background")
+
+        self.assertFalse(video_params.text_background_color)
+        self.assertFalse(subtitle_request.text_background_color)
+
     def test_all_locales_include_subtitle_background_labels(self):
         """
         WebUI 新增字幕背景开关和颜色选择器后，所有已有语言都必须包含对应
@@ -18,6 +26,8 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
         required_keys = {
             "Enable Subtitle Background",
             "Subtitle Background Color",
+            "Subtitle Colors Are Indistinguishable",
+            "Subtitle Font Does Not Support Text",
             "No Voice",
         }
 
@@ -76,6 +86,60 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
         # 可见像素高度为 34px，放在 93px 容器中应上下各约 29px；
         # 因为 mask 顶部从 12px 开始，所以 TextClip 本身需要向上移动到 18px。
         self.assertEqual(y, 18)
+
+    def test_detects_indistinguishable_subtitle_colors(self):
+        invisible_params = VideoParams(
+            video_subject="subtitle color validation",
+            text_fore_color="#000000",
+            text_background_color="#000000",
+            stroke_color="#000000",
+            stroke_width=1.5,
+        )
+        different_outline_params = VideoParams(
+            video_subject="subtitle color validation",
+            text_fore_color="#000000",
+            text_background_color="#000000",
+            stroke_color="#FFFFFF",
+            stroke_width=1.5,
+        )
+        background_disabled_params = VideoParams(
+            video_subject="subtitle color validation",
+            text_fore_color="#000000",
+            text_background_color=False,
+            stroke_color="#000000",
+            stroke_width=1.5,
+        )
+
+        self.assertTrue(
+            video.subtitle_colors_are_indistinguishable(invisible_params)
+        )
+        self.assertTrue(
+            video.subtitle_colors_are_indistinguishable(different_outline_params)
+        )
+        self.assertFalse(
+            video.subtitle_colors_are_indistinguishable(background_disabled_params)
+        )
+
+    def test_detects_font_without_chinese_glyphs(self):
+        fonts_dir = (
+            Path(__file__).parent.parent.parent / "resource" / "fonts"
+        )
+
+        self.assertFalse(
+            video.subtitle_font_supports_text(
+                str(fonts_dir / "BeVietnamPro-Bold.ttf"), "人工智能改变生活"
+            )
+        )
+        self.assertTrue(
+            video.subtitle_font_supports_text(
+                str(fonts_dir / "MicrosoftYaHeiBold.ttc"), "人工智能改变生活"
+            )
+        )
+        self.assertTrue(
+            video.subtitle_font_supports_text(
+                str(fonts_dir / "BeVietnamPro-Bold.ttf"), "Artificial intelligence"
+            )
+        )
 
     def test_wrap_text_keeps_closing_punctuation_with_text(self):
         """

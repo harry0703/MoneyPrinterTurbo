@@ -100,7 +100,7 @@ class VideoParams(BaseModel):
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
-    text_background_color: Union[bool, str] = True
+    text_background_color: Union[bool, str] = False
     rounded_subtitle_background: bool = False
 
     font_size: int = 60
@@ -124,7 +124,7 @@ class SubtitleRequest(BaseModel):
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
-    text_background_color: Union[bool, str] = True
+    text_background_color: Union[bool, str] = False
     rounded_subtitle_background: bool = False
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"

@@ -1,12 +1,11 @@
 import json
-import locale
 import os
 import re
 import shutil
 from functools import lru_cache
 from pathlib import Path
 import threading
-from typing import Any
+from typing import Any, Iterable
 from uuid import uuid4
 
 from loguru import logger
@@ -282,18 +281,51 @@ def md5(text):
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
-def get_system_locale():
-    try:
-        loc = locale.getdefaultlocale()
-        # zh_CN, zh_TW return zh
-        # en_US, en_GB return en
-        language_code = loc[0].split("_")[0]
-        return language_code
-    except Exception:
-        return "en"
+def resolve_ui_language(
+    saved_language: str | None,
+    browser_locale: str | None,
+    supported_languages: Iterable[str],
+    default_language: str = "en",
+) -> str:
+    """
+    按“已保存设置、浏览器语言、默认语言”的优先级选择界面语言。
+
+    浏览器通常返回带地区的 locale，例如 ``zh-CN``、``pt-BR``。语言文件使用
+    ``zh``、``pt`` 这类基础代码，因此先尝试完整匹配，再回退到连字符前的语言
+    代码。函数保持纯逻辑，避免把浏览器上下文和配置写入耦合到工具层，便于测试。
+    """
+    supported = [str(language).strip() for language in supported_languages]
+    supported_by_lower = {
+        language.lower(): language for language in supported if language
+    }
+
+    def match_language(value: str | None) -> str | None:
+        normalized = str(value or "").strip().replace("_", "-").lower()
+        if not normalized:
+            return None
+        if normalized in supported_by_lower:
+            return supported_by_lower[normalized]
+        base_language = normalized.split("-", 1)[0]
+        return supported_by_lower.get(base_language)
+
+    saved_match = match_language(saved_language)
+    if saved_match:
+        return saved_match
+
+    browser_match = match_language(browser_locale)
+    if browser_match:
+        return browser_match
+
+    default_match = match_language(default_language)
+    if default_match:
+        return default_match
+
+    # 正常项目始终包含英文；保留空语言集合兜底，避免损坏的语言目录让页面
+    # 初始化直接抛异常，后续翻译函数会继续显示原始 key 以便诊断。
+    return supported[0] if supported else default_language
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=8)
 def load_locales(i18n_dir):
     # WebUI 每次交互都会触发 Streamlit 重新执行脚本，语言文件运行期不会变化，
     # 因此缓存解析结果，避免反复读取和解析所有 i18n JSON 文件。

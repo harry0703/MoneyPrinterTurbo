@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-import requests
+from time import perf_counter
 from typing import List
 
 from loguru import logger
@@ -9,17 +9,18 @@ from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
 from app.config import config
+from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
 
 _max_retries = 5
-_DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
-_DEPRECATED_GEMINI_MODELS = {"gemini-pro", "gemini-1.0-pro"}
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10
 MAX_SCRIPT_PROMPT_LENGTH = 2000
 MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
-_URL_USERINFO_RE = re.compile(r"((?:https?|wss?)://)([^/\s?#@]*:[^/\s?#@]*@)", re.IGNORECASE)
+_URL_USERINFO_RE = re.compile(
+    r"((?:https?|wss?)://)([^/\s?#@]*:[^/\s?#@]*@)", re.IGNORECASE
+)
 _SENSITIVE_QUERY_RE = re.compile(
     r"([?&](?:api[_-]?key|access[_-]?token|token|key|secret|password)=)([^&#\s]+)",
     re.IGNORECASE,
@@ -138,211 +139,75 @@ def _extract_qwen_generation_text(response) -> str:
 
 def _generate_response(prompt: str) -> str:
     try:
-        content = ""
-        llm_provider = config.app.get("llm_provider", "openai")
-        logger.info(f"llm provider: {llm_provider}")
-        api_version = ""  # for azure
-        if llm_provider == "moonshot":
-            api_key = config.app.get("moonshot_api_key")
-            model_name = config.app.get("moonshot_model_name")
-            base_url = "https://api.moonshot.cn/v1"
-        elif llm_provider == "ollama":
-            # api_key = config.app.get("openai_api_key")
-            api_key = "ollama"  # any string works but you are required to have one
-            model_name = config.app.get("ollama_model_name")
-            base_url = config.app.get("ollama_base_url", "")
-            if not base_url:
-                base_url = config.get_default_ollama_base_url()
-        elif llm_provider == "openai":
-            api_key = config.app.get("openai_api_key")
-            model_name = config.app.get("openai_model_name")
-            base_url = config.app.get("openai_base_url", "")
-            if not base_url:
-                base_url = "https://api.openai.com/v1"
-        elif llm_provider == "aihubmix":
-            api_key = config.app.get("aihubmix_api_key")
-            model_name = config.app.get("aihubmix_model_name")
-            base_url = config.app.get("aihubmix_base_url", "")
-            # AIHubMix 兼容 OpenAI Chat Completions 协议。这里使用独立
-            # provider 保存合作方的默认网关和推荐模型，避免把推广链接、
-            # 默认模型等合作配置混进普通 OpenAI provider，影响现有用户。
-            if not base_url:
-                base_url = "https://aihubmix.com/v1"
-            if not model_name:
-                model_name = "gpt-5.4-mini"
-        elif llm_provider == "aimlapi":
-            api_key = config.app.get("aimlapi_api_key")
-            model_name = config.app.get("aimlapi_model_name")
-            base_url = config.app.get("aimlapi_base_url", "")
-            if not base_url:
-                base_url = "https://api.aimlapi.com/v1"
-            if not model_name:
-                model_name = "openai/gpt-4o-mini"
-        elif llm_provider == "oneapi":
-            api_key = config.app.get("oneapi_api_key")
-            model_name = config.app.get("oneapi_model_name")
-            base_url = config.app.get("oneapi_base_url", "")
-        elif llm_provider == "azure":
-            api_key = config.app.get("azure_api_key")
-            model_name = config.app.get("azure_model_name")
-            base_url = config.app.get("azure_base_url", "")
-            api_version = config.app.get("azure_api_version", "2024-02-15-preview")
-        elif llm_provider == "gemini":
-            api_key = config.app.get("gemini_api_key")
-            model_name = config.app.get("gemini_model_name")
-            base_url = config.app.get("gemini_base_url", "")
-            # Gemini 旧模型名已经陆续下线，这里自动兼容历史配置，
-            # 避免用户沿用旧值时直接收到 404。
-            if not model_name:
-                model_name = _DEFAULT_GEMINI_MODEL
-            elif model_name in _DEPRECATED_GEMINI_MODELS:
-                logger.warning(
-                    f"gemini model '{model_name}' is deprecated, fallback to '{_DEFAULT_GEMINI_MODEL}'"
-                )
-                model_name = _DEFAULT_GEMINI_MODEL
-        elif llm_provider == "grok":
-            api_key = config.app.get("grok_api_key")
-            model_name = config.app.get("grok_model_name")
-            base_url = config.app.get("grok_base_url", "")
-            if not base_url:
-                base_url = "https://api.x.ai/v1"
-        elif llm_provider == "groq":
-            api_key = config.app.get("groq_api_key")
-            model_name = config.app.get("groq_model_name")
-            if not model_name:
-                model_name = "llama-3.3-70b-versatile"
-            base_url = config.app.get("groq_base_url", "")
-            if not base_url:
-                base_url = "https://api.groq.com/openai/v1"
-        elif llm_provider == "qwen":
-            api_key = config.app.get("qwen_api_key")
-            model_name = config.app.get("qwen_model_name")
-            base_url = "***"
-        elif llm_provider == "cloudflare":
-            api_key = config.app.get("cloudflare_api_key")
-            model_name = config.app.get("cloudflare_model_name")
-            account_id = config.app.get("cloudflare_account_id")
-            base_url = "***"
-        elif llm_provider == "minimax":
-            api_key = config.app.get("minimax_api_key")
-            model_name = config.app.get("minimax_model_name")
-            base_url = config.app.get("minimax_base_url", "")
-            if not base_url:
-                base_url = "https://api.minimax.io/v1"
-        elif llm_provider == "evolink":
-            api_key = config.app.get("evolink_api_key")
-            model_name = config.app.get("evolink_model_name")
-            base_url = config.app.get("evolink_base_url", "")
-            if not base_url:
-                base_url = "https://direct.evolink.ai/v1"
-            if not model_name:
-                model_name = "gpt-5.5"
-        elif llm_provider == "mimo":
-            api_key = config.app.get("mimo_api_key")
-            model_name = config.app.get("mimo_model_name")
-            base_url = config.app.get("mimo_base_url", "")
-            # Xiaomi MiMo 官方文档说明其兼容 OpenAI Chat Completions 协议。
-            # 这里使用独立 provider 保存默认地址和模型名，用户不用把 MiMo
-            # 当作 OpenAI 自定义 base_url 配置，也便于后续继续接入 MiMo
-            # 多模态或 TTS 能力时保持边界清晰。
-            if not base_url:
-                base_url = "https://api.xiaomimimo.com/v1"
-            if not model_name:
-                model_name = "mimo-v2.5-pro"
-        elif llm_provider == "volcengine":
-            api_key = config.app.get("volcengine_api_key")
-            model_name = config.app.get("volcengine_model_name")
-            base_url = config.app.get("volcengine_base_url", "")
-            # 火山引擎方舟提供 OpenAI-compatible Chat Completions 接口。
-            # 独立 provider 可以让用户直接选择 VolcEngine，而不用把 Ark
-            # 的 key/base_url 混到通用 OpenAI 配置里，后续维护也更清晰。
-            if not base_url:
-                base_url = "https://ark.cn-beijing.volces.com/api/v3"
-            if not model_name:
-                model_name = "doubao-seed-2-1-turbo-260628"
-        elif llm_provider == "deepseek":
-            api_key = config.app.get("deepseek_api_key")
-            model_name = config.app.get("deepseek_model_name")
-            base_url = config.app.get("deepseek_base_url")
-            if not base_url:
-                base_url = "https://api.deepseek.com"
-        elif llm_provider == "modelscope":
-            api_key = config.app.get("modelscope_api_key")
-            model_name = config.app.get("modelscope_model_name")
-            base_url = config.app.get("modelscope_base_url")
-            if not base_url:
-                base_url = "https://api-inference.modelscope.cn/v1/"
-        elif llm_provider == "ernie":
-            api_key = config.app.get("ernie_api_key")
-            secret_key = config.app.get("ernie_secret_key")
-            base_url = config.app.get("ernie_base_url")
-            model_name = "***"
-            if not secret_key:
-                raise ValueError(
-                    f"{llm_provider}: secret_key is not set, please set it in the config.toml file."
-                )
-        elif llm_provider == "pollinations":
-            try:
-                base_url = config.app.get("pollinations_base_url", "")
-                if not base_url:
-                    base_url = "https://text.pollinations.ai/openai"
-                model_name = config.app.get("pollinations_model_name", "openai-fast")
-
-                # Prepare the payload
-                payload = {
-                    "model": model_name,
-                    "messages": [
-                        {"role": "user", "content": prompt}
-                    ],
-                    "seed": 101  # Optional but helps with reproducibility
-                }
-
-                # Optional parameters if configured
-                if config.app.get("pollinations_private"):
-                    payload["private"] = True
-                if config.app.get("pollinations_referrer"):
-                    payload["referrer"] = config.app.get("pollinations_referrer")
-
-                headers = {
-                    "Content-Type": "application/json"
-                }
-
-                # Make the API request
-                response = requests.post(base_url, headers=headers, json=payload)
-                response.raise_for_status()
-                result = response.json()
-
-                if result and "choices" in result and len(result["choices"]) > 0:
-                    content = result["choices"][0]["message"]["content"]
-                    return _normalize_text_response(content, llm_provider)
-                else:
-                    raise Exception(f"[{llm_provider}] returned an invalid response format")
-
-            except requests.exceptions.RequestException as e:
-                raise Exception(f"[{llm_provider}] request failed: {str(e)}")
-            except Exception as e:
-                raise Exception(f"[{llm_provider}] error: {str(e)}")
-
-        elif llm_provider == "litellm":
-            model_name = config.app.get("litellm_model_name")
-        else:
+        llm_provider = str(
+            config.app.get("llm_provider", DEFAULT_LLM_PROVIDER_ID)
+        ).lower()
+        provider = get_llm_provider(llm_provider)
+        if provider is None:
             raise ValueError(f"{llm_provider}: unsupported llm provider")
 
-        if llm_provider not in ["pollinations", "ollama", "litellm"]:  # Skip validation for providers that don't require API key
-            if not api_key:
+        logger.info(f"llm provider: {llm_provider}")
+        api_key = config.app.get(provider.config_key("api_key"), "")
+        configured_model = config.app.get(provider.config_key("model_name"), "")
+        model_name = provider.resolve_model_name(configured_model)
+        if configured_model and model_name != configured_model:
+            logger.warning(
+                f"{llm_provider} model '{configured_model}' is deprecated, "
+                f"fallback to '{model_name}'"
+            )
+        configured_base_url = config.app.get(provider.config_key("base_url"), "")
+        base_url = provider.resolve_base_url(configured_base_url)
+        if configured_base_url and configured_base_url.strip().rstrip("/") in {
+            url.rstrip("/") for url in provider.deprecated_base_urls
+        }:
+            logger.warning(
+                f"{llm_provider} base URL '{configured_base_url}' is deprecated, "
+                f"fallback to '{base_url}'"
+            )
+        adapter = provider.adapter
+        api_version = ""
+
+        # Ollama 的默认地址依赖当前是否运行在容器中，无法作为静态 Registry
+        # 值保存；Registry 仍负责模型和必填规则，运行环境差异在这里解析。
+        if llm_provider == "ollama":
+            api_key = "ollama"
+            if not base_url:
+                base_url = config.get_default_ollama_base_url()
+
+        if adapter == "azure":
+            api_version = config.app.get(
+                provider.config_key("api_version"), "2024-02-15-preview"
+            )
+
+        extra_values = {
+            field.config_suffix: (
+                config.app.get(provider.config_key(field.config_suffix), "")
+                or field.default_value
+            )
+            for field in provider.extra_fields
+        }
+
+        if provider.requires_api_key and not api_key:
+            raise ValueError(
+                f"{llm_provider}: api_key is not set, please set it in the config.toml file."
+            )
+        if provider.requires_model_name and not model_name:
+            raise ValueError(
+                f"{llm_provider}: model_name is not set, please set it in the config.toml file."
+            )
+        if provider.requires_base_url and not base_url:
+            raise ValueError(
+                f"{llm_provider}: base_url is not set, please set it in the config.toml file."
+            )
+
+        for field in provider.extra_fields:
+            if field.required and not extra_values[field.config_suffix]:
                 raise ValueError(
-                    f"{llm_provider}: api_key is not set, please set it in the config.toml file."
-                )
-            if not model_name:
-                raise ValueError(
-                    f"{llm_provider}: model_name is not set, please set it in the config.toml file."
-                )
-            if not base_url and llm_provider not in ["gemini"]:
-                raise ValueError(
-                    f"{llm_provider}: base_url is not set, please set it in the config.toml file."
+                    f"{llm_provider}: {field.config_suffix} is not set, "
+                    "please set it in the config.toml file."
                 )
 
-        if llm_provider == "qwen":
+        if adapter == "qwen":
             import dashscope
             from dashscope.api_entities.dashscope_response import GenerationResponse
 
@@ -366,109 +231,75 @@ def _generate_response(prompt: str) -> str:
             else:
                 raise Exception(f"[{llm_provider}] returned an empty response")
 
-        if llm_provider == "gemini":
-            import google.generativeai as genai
+        if adapter == "gemini":
+            from google import genai
+            from google.genai import types
 
-            if not base_url:
-                genai.configure(api_key=api_key, transport="rest")
-            else:
-                genai.configure(api_key=api_key, transport="rest", client_options={'api_endpoint': base_url})
-
-            generation_config = {
-                "temperature": 0.5,
-                "top_p": 1,
-                "top_k": 1,
-                "max_output_tokens": 2048,
-            }
-
-            safety_settings = [
-                {
-                    "category": "HARM_CATEGORY_HARASSMENT",
-                    "threshold": "BLOCK_ONLY_HIGH",
-                },
-                {
-                    "category": "HARM_CATEGORY_HATE_SPEECH",
-                    "threshold": "BLOCK_ONLY_HIGH",
-                },
-                {
-                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                    "threshold": "BLOCK_ONLY_HIGH",
-                },
-                {
-                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                    "threshold": "BLOCK_ONLY_HIGH",
-                },
-            ]
-
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                generation_config=generation_config,
-                safety_settings=safety_settings,
+            http_options = types.HttpOptions(base_url=base_url) if base_url else None
+            generation_config = types.GenerateContentConfig(
+                temperature=0.5,
+                top_p=1,
+                top_k=1,
+                max_output_tokens=2048,
+                safety_settings=[
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_HARASSMENT",
+                        threshold="BLOCK_ONLY_HIGH",
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_HATE_SPEECH",
+                        threshold="BLOCK_ONLY_HIGH",
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        threshold="BLOCK_ONLY_HIGH",
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                        threshold="BLOCK_ONLY_HIGH",
+                    ),
+                ],
             )
 
             try:
-                response = model.generate_content(prompt)
-                candidates = response.candidates
-                generated_text = candidates[0].content.parts[0].text
-            except (AttributeError, IndexError) as e:
-                logger.warning(
-                    f"gemini returned invalid response content: {str(e)}"
-                )
-                raise ValueError(
-                    f"[{llm_provider}] returned invalid response content"
-                )
+                # 新版 google-genai 通过统一 Client 暴露模型服务。上下文管理器
+                # 会在请求结束后关闭底层 HTTP 连接，避免频繁生成时积累连接资源。
+                with genai.Client(
+                    api_key=api_key,
+                    http_options=http_options,
+                ) as client:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=generation_config,
+                    )
+                generated_text = response.text
+            except (AttributeError, IndexError, ValueError) as e:
+                logger.warning(f"gemini returned invalid response content: {str(e)}")
+                raise ValueError(f"[{llm_provider}] returned invalid response content")
 
             return _normalize_text_response(generated_text, llm_provider)
 
-        if llm_provider == "cloudflare":
-            response = requests.post(
-                f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_name}",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are a friendly assistant",
-                        },
-                        {"role": "user", "content": prompt},
-                    ]
-                },
+        if adapter == "cloudflare_ai_gateway":
+            account_id = extra_values["account_id"]
+            gateway_id = extra_values["gateway_id"]
+            # Cloudflare 当前推荐的 AI Gateway REST API 兼容 OpenAI SDK。
+            # Account ID 用于构造统一端点，Gateway ID 通过请求头选择；这里
+            # 不再调用 Workers AI 的 /ai/run/{model} 专用接口。
+            client = OpenAI(
+                api_key=api_key,
+                base_url=(
+                    f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1"
+                ),
+                default_headers={"cf-aig-gateway-id": gateway_id},
             )
-            result = response.json()
-            logger.info(result)
-            return _normalize_text_response(result["result"]["response"], llm_provider)
-
-        if llm_provider == "ernie":
-            response = requests.post(
-                "https://aip.baidubce.com/oauth/2.0/token",
-                params={
-                    "grant_type": "client_credentials",
-                    "client_id": api_key,
-                    "client_secret": secret_key,
-                }
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
             )
-            access_token = response.json().get("access_token")
-            url = f"{base_url}?access_token={access_token}"
+            return _extract_chat_completion_text(response, llm_provider)
 
-            payload = json.dumps(
-                {
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.5,
-                    "top_p": 0.8,
-                    "penalty_score": 1,
-                    "disable_search": False,
-                    "enable_citation": False,
-                    "response_format": "text",
-                }
-            )
-            headers = {"Content-Type": "application/json"}
-
-            response = requests.request(
-                "POST", url, headers=headers, data=payload
-            ).json()
-            return _normalize_text_response(response.get("result"), llm_provider)
-
-        if llm_provider == "litellm":
+        if adapter == "litellm":
             import litellm
 
             if not model_name:
@@ -489,7 +320,7 @@ def _generate_response(prompt: str) -> str:
 
             return _extract_chat_completion_text(response, llm_provider)
 
-        if llm_provider == "azure":
+        if adapter == "azure":
             # Azure OpenAI SDK 使用 `azure_endpoint` 和 `api_version` 生成专用请求地址，
             # 不能继续复用下面普通 OpenAI-compatible 的 `base_url` 初始化逻辑。
             # 这里在 Azure 分支内完成请求并立即返回，避免客户端被后续 fallback
@@ -516,8 +347,8 @@ def _generate_response(prompt: str) -> str:
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
 
-        if llm_provider == "modelscope":
-            content = ''
+        if adapter == "modelscope":
+            content = ""
             client = OpenAI(
                 api_key=api_key,
                 base_url=base_url,
@@ -526,7 +357,7 @@ def _generate_response(prompt: str) -> str:
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 extra_body={"enable_thinking": False},
-                stream=True
+                stream=True,
             )
             if response:
                 for chunk in response:
@@ -543,11 +374,10 @@ def _generate_response(prompt: str) -> str:
             else:
                 raise Exception(f"[{llm_provider}] returned an empty response")
 
-        else:
-            client = OpenAI(
-                api_key=api_key,
-                base_url=base_url,
-            )
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+        )
 
         response = client.chat.completions.create(
             model=model_name, messages=[{"role": "user", "content": prompt}]
@@ -565,9 +395,34 @@ def _generate_response(prompt: str) -> str:
                 f"[{llm_provider}] returned an empty response, please check your network connection and try again."
             )
 
-        return _normalize_text_response(content, llm_provider)
     except Exception as e:
         return f"Error: {_sanitize_error_message(e)}"
+
+
+def test_connection() -> tuple[bool, str, float]:
+    """
+    使用当前 Provider 配置发起一次最小请求，验证实际生成链路是否可用。
+
+    连接测试直接复用 `_generate_response()`，因此会覆盖 API Key、Base URL、
+    模型名称和 Provider 专用字段，但不会进入脚本生成的重试逻辑，也不会发送
+    用户的视频主题或文案。返回值依次为成功状态、错误信息和请求耗时。
+    """
+    started_at = perf_counter()
+    response = _generate_response(prompt="Reply with exactly: OK")
+    elapsed = perf_counter() - started_at
+
+    if not response:
+        error_message = "LLM returned an empty response"
+        logger.warning(f"llm connection test failed: {error_message}")
+        return False, error_message, elapsed
+
+    if response.startswith("Error:"):
+        error_message = response.removeprefix("Error:").strip()
+        logger.warning(f"llm connection test failed: {error_message}")
+        return False, error_message, elapsed
+
+    logger.info(f"llm connection test succeeded, elapsed: {elapsed:.2f}s")
+    return True, "", elapsed
 
 
 def _limit_script_text(text: str | None, max_length: int, field_name: str) -> str:
@@ -594,8 +449,7 @@ def _normalize_script_paragraph_number(paragraph_number: int | None) -> int:
         # WebUI 和 API 都会限制范围；这里兜底处理内部调用，避免异常参数直接扩大
         # LLM 生成成本或生成空结果。
         logger.warning(
-            "script paragraph_number is out of range and will be clamped: "
-            f"{value}"
+            f"script paragraph_number is out of range and will be clamped: {value}"
         )
         return max(MIN_SCRIPT_PARAGRAPH_NUMBER, min(value, MAX_SCRIPT_PARAGRAPH_NUMBER))
 
@@ -747,10 +601,7 @@ def generate_terms(
         # 的 4 个示例误导，导致长文案只返回少量关键词，影响素材覆盖度。
         example_terms = [
             "opening visual topic",
-            *[
-                f"script visual topic {index}"
-                for index in range(2, max(amount, 1))
-            ],
+            *[f"script visual topic {index}" for index in range(2, max(amount, 1))],
             "final visual topic",
         ]
         output_example = json.dumps(example_terms[:amount], ensure_ascii=False)
@@ -792,9 +643,7 @@ def generate_terms(
 Please note that you must use English for generating video search terms; Chinese is not accepted.
 """.strip()
 
-    logger.info(
-        f"subject: {video_subject}, match_script_order: {match_script_order}"
-    )
+    logger.info(f"subject: {video_subject}, match_script_order: {match_script_order}")
 
     search_terms = []
     response = ""
@@ -981,9 +830,9 @@ Write engaging publishing metadata for a short video that will be posted on {lab
 ## Constraints
 1. Respond ONLY with a single valid minified JSON object. No markdown, no code fences, no commentary.
 2. The JSON must contain exactly these keys: "title", "caption", "hashtags".
-3. "title": a catchy hook, at most {spec['title_max']} characters.
-4. "caption": an engaging description that ends with a call to action, at most {spec['caption_max']} characters. Do not put hashtags inside the caption.
-5. "hashtags": a JSON array of exactly {spec['hashtag_count']} strings. Each must start with "#", contain no spaces, and be relevant to the topic and to {label}.
+3. "title": a catchy hook, at most {spec["title_max"]} characters.
+4. "caption": an engaging description that ends with a call to action, at most {spec["caption_max"]} characters. Do not put hashtags inside the caption.
+5. "hashtags": a JSON array of exactly {spec["hashtag_count"]} strings. Each must start with "#", contain no spaces, and be relevant to the topic and to {label}.
 6. {language_instruction}
 
 ## Output Example
@@ -1040,9 +889,7 @@ def _fallback_social_metadata(
     return {
         "title": _clamp_text(title, spec["title_max"]),
         "caption": _clamp_text(script or subject, spec["caption_max"]),
-        "hashtags": _normalize_hashtags(
-            DEFAULT_SOCIAL_HASHTAGS, spec["hashtag_count"]
-        ),
+        "hashtags": _normalize_hashtags(DEFAULT_SOCIAL_HASHTAGS, spec["hashtag_count"]),
     }
 
 
@@ -1073,9 +920,7 @@ def generate_social_metadata(
         language=language,
         platform=platform,
     )
-    logger.info(
-        f"generating social metadata: platform={platform}, language={language}"
-    )
+    logger.info(f"generating social metadata: platform={platform}, language={language}")
 
     response = ""
     for i in range(_max_retries):
@@ -1111,4 +956,3 @@ if __name__ == "__main__":
     )
     print("######################")
     print(search_terms)
-

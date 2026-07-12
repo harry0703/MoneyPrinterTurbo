@@ -3,10 +3,14 @@ import json
 from pathlib import Path
 import unittest
 
+from app.utils import utils
+
 
 ROOT_DIR = Path(__file__).parent.parent.parent
 WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
+LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
+TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
 
 
 class _TrKeyVisitor(ast.NodeVisitor):
@@ -31,6 +35,34 @@ def _load_translation(locale):
 
 
 class TestWebuiI18n(unittest.TestCase):
+    def test_saved_ui_language_takes_priority_over_browser_locale(self):
+        language = utils.resolve_ui_language(
+            saved_language="de",
+            browser_locale="zh-CN",
+            supported_languages=["zh", "en", "de"],
+        )
+
+        self.assertEqual(language, "de")
+
+    def test_browser_locale_is_normalized_to_supported_base_language(self):
+        self.assertEqual(
+            utils.resolve_ui_language("", "zh-CN", ["zh", "en"]),
+            "zh",
+        )
+        self.assertEqual(
+            utils.resolve_ui_language(None, "pt_BR", ["en", "pt"]),
+            "pt",
+        )
+
+    def test_unsupported_browser_locale_falls_back_to_english(self):
+        language = utils.resolve_ui_language(
+            saved_language="",
+            browser_locale="fr-FR",
+            supported_languages=["zh", "en"],
+        )
+
+        self.assertEqual(language, "en")
+
     def test_english_locale_covers_static_webui_labels(self):
         tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
         visitor = _TrKeyVisitor()
@@ -43,8 +75,34 @@ class TestWebuiI18n(unittest.TestCase):
     def test_russian_locale_covers_english_locale(self):
         en_keys = set(_load_translation("en"))
         ru_keys = set(_load_translation("ru"))
+        # Provider 配置说明只维护中英文，俄语及其它 locale 运行时统一回退英文。
+        # 这里排除动态 tips key，避免继续复制一整套不会被读取的英文文案。
+        required_en_keys = {
+            key
+            for key in en_keys
+            if not key.startswith(
+                (LLM_PROVIDER_TIPS_PREFIX, TTS_PROVIDER_TIPS_PREFIX)
+            )
+        }
 
-        self.assertEqual(sorted(en_keys - ru_keys), [])
+        self.assertEqual(sorted(required_en_keys - ru_keys), [])
+
+    def test_russian_locale_does_not_duplicate_provider_tips(self):
+        ru_keys = set(_load_translation("ru"))
+
+        self.assertEqual(
+            sorted(
+                key for key in ru_keys if key.startswith(LLM_PROVIDER_TIPS_PREFIX)
+            ),
+            [],
+        )
+
+        self.assertEqual(
+            sorted(
+                key for key in ru_keys if key.startswith(TTS_PROVIDER_TIPS_PREFIX)
+            ),
+            [],
+        )
 
     def test_russian_locale_covers_static_webui_labels(self):
         tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))

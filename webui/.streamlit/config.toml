@@ -1,2 +1,8 @@
 [browser]
 gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
+
+[logger]
+hideWelcomeMessage = true

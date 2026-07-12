@@ -13,7 +13,7 @@ import time
 import unicodedata
 from datetime import datetime
 from typing import Union
-from xml.sax.saxutils import unescape
+from xml.sax.saxutils import escape, unescape
 
 import edge_tts
 import requests
@@ -374,7 +374,12 @@ def tts(
         )
 
     if is_azure_v2_voice(voice_name):
-        return azure_tts_v2(text, voice_name, voice_file)
+        return azure_tts_v2(
+            text,
+            voice_name,
+            voice_file,
+            voice_rate=voice_rate,
+        )
     elif is_siliconflow_voice(voice_name):
         # 从voice_name中提取模型和声音
         # 格式: siliconflow:model:voice-Gender
@@ -914,12 +919,43 @@ def siliconflow_tts(
     return None
 
 
-def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:
+def _build_azure_v2_ssml(text: str, voice_name: str, voice_rate: float) -> str:
+    """构造 Azure Speech V2 使用的 SSML，并安全规范化语速参数。"""
+    try:
+        normalized_rate = float(voice_rate)
+    except (TypeError, ValueError):
+        normalized_rate = 1.0
+    normalized_rate = max(0.25, min(4.0, normalized_rate))
+
+    voice_locale_parts = voice_name.split("-", 2)
+    voice_locale = (
+        "-".join(voice_locale_parts[:2])
+        if len(voice_locale_parts) >= 2
+        else "en-US"
+    )
+    escaped_text = escape(text)
+    escaped_voice_name = escape(voice_name, {'"': "&quot;"})
+    return (
+        '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" '
+        f'xml:lang="{voice_locale}">'
+        f'<voice name="{escaped_voice_name}">'
+        f'<prosody rate="{normalized_rate:g}">{escaped_text}</prosody>'
+        "</voice></speak>"
+    )
+
+
+def azure_tts_v2(
+    text: str,
+    voice_name: str,
+    voice_file: str,
+    voice_rate: float = 1.0,
+) -> Union[SubMaker, None]:
     voice_name = is_azure_v2_voice(voice_name)
     if not voice_name:
         logger.error(f"invalid voice name: {voice_name}")
         raise ValueError(f"invalid voice name: {voice_name}")
     text = text.strip()
+    ssml = _build_azure_v2_ssml(text, voice_name, voice_rate)
 
     def _format_duration_to_offset(duration) -> int:
         if isinstance(duration, str):
@@ -939,7 +975,9 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
 
     for i in range(3):
         try:
-            logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
+            logger.info(
+                f"start, voice name: {voice_name}, rate: {voice_rate}, try: {i + 1}"
+            )
 
             import azure.cognitiveservices.speech as speechsdk
 
@@ -990,7 +1028,9 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
                 speech_synthesizer_word_boundary_cb
             )
 
-            result = speech_synthesizer.speak_text_async(text).get()
+            # speak_text_async() 不支持语速参数。使用 SSML prosody 后，试听和
+            # 正式生成都会按 WebUI/API 传入的 voice_rate 调整语速。
+            result = speech_synthesizer.speak_ssml_async(ssml).get()
             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
                 logger.success(f"azure v2 speech synthesis succeeded: {voice_file}")
                 return sub_maker
@@ -1032,39 +1072,38 @@ def gemini_tts(
     import base64
     import io
     from pydub import AudioSegment
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     _configure_pydub_ffmpeg(AudioSegment)
     
     try:
-        # 配置Gemini API
         api_key = config.app.get("gemini_api_key", "")
         if not api_key:
             logger.error("Gemini API key is not set")
             return None
-            
-        genai.configure(api_key=api_key)
-        
+
         logger.info(f"start, voice name: {voice_name}, try: 1")
-        
-        # 使用Gemini TTS API
-        model = genai.GenerativeModel("gemini-2.5-flash-preview-tts")
-        
-        generation_config = {
-            "response_modalities": ["AUDIO"],
-            "speech_config": {
-                "voice_config": {
-                    "prebuilt_voice_config": {
-                        "voice_name": voice_name
-                    }
-                }
-            }
-        }
-        
-        response = model.generate_content(
-            contents=text,
-            generation_config=generation_config
+
+        generation_config = types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=voice_name
+                    )
+                )
+            ),
         )
-        
+
+        # google-genai 使用统一 Client 调用文本和 TTS 模型。上下文管理器确保
+        # 请求结束后释放 HTTP 连接，同时保留原有 PCM 转码和字幕时间轴逻辑。
+        with genai.Client(api_key=api_key) as client:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-preview-tts",
+                contents=text,
+                config=generation_config,
+            )
+
         # 检查响应
         if not response.candidates or not response.candidates[0].content:
             logger.error("No audio content received from Gemini TTS")
@@ -1105,8 +1144,10 @@ def gemini_tts(
             logger.error(f"Failed to load PCM audio: {e}")
             return None
         
-        # 导出为MP3格式
-        audio_segment.export(voice_file, format="mp3")
+        # pydub 会返回打开的输出文件对象。批量生成时若不主动关闭，文件描述符
+        # 会持续累积，并在 Windows 上增加后续覆盖或删除音频文件失败的概率。
+        exported_audio = audio_segment.export(voice_file, format="mp3")
+        exported_audio.close()
         
         logger.info(f"completed, output file: {voice_file}")
         

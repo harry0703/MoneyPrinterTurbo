@@ -7,21 +7,21 @@ build-backend = "hatchling.build"
 
 [project]
 name = "moneyprinterturbo"
-version = "1.3.1"
+version = "1.3.2"
 description = "Generate short videos from prompts, local assets, subtitles, and TTS."
 readme = "README-en.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "moviepy==2.2.1",
-    "streamlit==1.58.0",
+    "streamlit==1.59.1",
+    "streamlit-tour==1.1.0",
     "edge-tts==7.2.7",
     "fastapi==0.136.3",
     "uvicorn==0.32.1",
     "openai==2.24.0",
     "faster-whisper==1.1.0",
     "loguru==0.7.3",
-    "google-generativeai==0.8.6",
     "dashscope==1.20.14",
     "azure-cognitiveservices-speech==1.41.1",
     "redis==5.2.0",
@@ -30,7 +30,9 @@ dependencies = [
     "requests==2.33.1",
     "socksio==1.0.0",
     "pydub==0.25.1",
+    "audioop-lts==0.2.2; python_version >= '3.13'",
     "litellm==1.86.2",
+    "google-genai==2.11.0",
 ]
 
 [project.optional-dependencies]

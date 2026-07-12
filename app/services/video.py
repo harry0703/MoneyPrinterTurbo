@@ -4,10 +4,10 @@ import io
 import os
 import random
 import gc
-import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from contextlib import redirect_stdout
 from functools import lru_cache
 from typing import List
@@ -893,6 +893,62 @@ def _get_visible_center_position(
     return x, y
 
 
+def subtitle_colors_are_indistinguishable(params: VideoParams) -> bool:
+    """判断字幕文字和背景是否同色，提醒用户可能无法看清字幕。"""
+    if not params.subtitle_enabled or not params.text_background_color:
+        return False
+
+    def normalize_color(value):
+        if isinstance(value, bool):
+            return "#000000" if value else ""
+        return str(value or "").strip().lower()
+
+    text_color = normalize_color(params.text_fore_color)
+    background_color = normalize_color(params.text_background_color)
+    return bool(text_color and text_color == background_color)
+
+
+@lru_cache(maxsize=64)
+def _subtitle_font_supports_sample(font_path: str, sample: str) -> bool:
+    """检查字体是否包含样本文字需要的字形，并缓存重复检查结果。"""
+    try:
+        font = ImageFont.truetype(font_path, 30)
+        missing_mask = font.getmask("\U0010ffff")
+        missing_signature = (
+            missing_mask.size,
+            missing_mask.getbbox(),
+            bytes(missing_mask),
+        )
+        for char in sample:
+            char_mask = font.getmask(char)
+            char_signature = (
+                char_mask.size,
+                char_mask.getbbox(),
+                bytes(char_mask),
+            )
+            if char_mask.getbbox() is None or char_signature == missing_signature:
+                return False
+        return True
+    except Exception as e:
+        # 字体探测失败不应阻止用户生成；保留日志供环境兼容问题排查。
+        logger.warning(f"failed to inspect subtitle font glyphs: {font_path}, {e}")
+        return True
+
+
+def subtitle_font_supports_text(font_path: str, text: str) -> bool:
+    """检查字体能否绘制文本中的字母和数字，忽略空白及标点符号。"""
+    sample = "".join(
+        dict.fromkeys(
+            char
+            for char in str(text or "")
+            if unicodedata.category(char)[0] in {"L", "N"}
+        )
+    )[:64]
+    if not sample:
+        return True
+    return _subtitle_font_supports_sample(font_path, sample)
+
+
 def generate_video(
     video_path: str,
     audio_path: str,
@@ -942,7 +998,10 @@ def generate_video(
             getattr(params, "rounded_subtitle_background", False) and bg_color
         )
         has_subtitle_background = bool(bg_color)
-        pad_x = int(params.font_size * 0.6) if has_subtitle_background else 0
+        # 圆角背景按文字真实宽度生成，左右留白应更克制；旧矩形背景仍保留
+        # 较大的安全边距，避免历史配置中的长字幕贴边或被裁切。
+        padding_ratio = 0.4 if rounded_bg_enabled else 0.6
+        pad_x = int(params.font_size * padding_ratio) if has_subtitle_background else 0
         # 字幕背景需要给文字左右留出明确内边距。先从可用宽度中扣除
         # padding 再换行，避免长英文或大字号刚好撑满 90% 视频宽度后，
         # 文字贴到背景框边缘，看起来像被裁切。普通矩形背景和圆角背景
