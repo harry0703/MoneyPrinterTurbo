@@ -241,6 +241,26 @@ max_concurrent_tasks = 5
 max_queued_tasks = 100
 
 # -----------------------------------------------------------------------------
+# Background Music / 背景音乐
+# -----------------------------------------------------------------------------
+
+# Optional Sonilo integration: generate background music matched to the
+# assembled video's visuals and editing pace. Create an API key at
+# https://sonilo.com
+# 可选功能，默认关闭。仅在选择 “Sonilo（根据视频生成）” 背景音乐模式并配置
+# API Key 后启用，不影响现有的随机 / 自定义背景音乐流程。
+# Note: in this mode the assembled video (without BGM) is uploaded to the
+# Sonilo API to generate the track. Generated music is licensed and safe for
+# commercial use (terms apply). 生成的音乐已获授权、可商用（以条款为准）。
+# The SONILO_API_KEY environment variable is used when this value is empty.
+sonilo_api_key = ""
+# Optional overrides. Uncomment only when a different value is required.
+# sonilo_base_url = "https://api.sonilo.com"
+# sonilo_timeout_seconds = 600
+# Optional style hint for the generated music, for example: "calm lofi beat".
+# sonilo_bgm_prompt = ""
+
+# -----------------------------------------------------------------------------
 # Cross-platform Publishing / 跨平台发布
 # -----------------------------------------------------------------------------
 

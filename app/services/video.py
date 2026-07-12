@@ -35,6 +35,7 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
+from app.services import sonilo
 from app.services.utils import video_effects
 from app.utils import file_security, utils
 
@@ -1160,7 +1161,17 @@ def generate_video(
             text_clips.append(clip)
         video_clip = CompositeVideoClip([video_clip, *text_clips])
 
-    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
+    if params.bgm_type == "sonilo":
+        # Sonilo 模式只改变背景音乐文件的“来源”：把已合成的无 BGM 视频交给
+        # Sonilo 生成匹配的配乐，失败或未配置 API Key 时返回空串，降级为
+        # “无背景音乐”。拿到文件后仍走下方与 random/custom 完全相同的混音逻辑。
+        bgm_file = sonilo.generate_bgm(
+            video_path=video_path,
+            save_path=f"{os.path.splitext(output_file)[0]}-sonilo-bgm.m4a",
+            video_duration=video_clip.duration,
+        )
+    else:
+        bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
     if bgm_file:
         try:
             bgm_clip = AudioFileClip(bgm_file).with_effects(

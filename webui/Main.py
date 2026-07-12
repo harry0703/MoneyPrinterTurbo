@@ -37,6 +37,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import cache_manager, llm, video, voice
+from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import utils
@@ -2305,6 +2306,7 @@ def _render_background_music_settings(params):
         (tr("No Background Music"), ""),
         (tr("Random Background Music"), "random"),
         (tr("Custom Background Music"), "custom"),
+        (tr("Sonilo Background Music"), "sonilo"),
     ]
     selected_bgm_type = stable_selectbox(
         tr("Background Music Source"),
@@ -2323,6 +2325,22 @@ def _render_background_music_settings(params):
         if custom_bgm_file:
             # 文件名由服务层映射到 resource/songs 后校验，UI 不接受任意路径。
             params.bgm_file = custom_bgm_file.strip()
+
+    if params.bgm_type == "sonilo":
+        # Sonilo 模式默认关闭：只有用户主动选择该项并配置 API Key 后才会生效。
+        # 未配置 Key 时服务层直接跳过，本次任务降级为无背景音乐，不会失败。
+        sonilo_api_key = st.text_input(
+            tr("Sonilo API Key"),
+            value=config.app.get("sonilo_api_key", ""),
+            type="password",
+            key="sonilo_api_key_input",
+        )
+        config.app["sonilo_api_key"] = sonilo_api_key.strip()
+        # 第三方上传与商业授权的用户提示：选中该模式时始终可见。
+        st.info(tr("Sonilo Background Music Notice"))
+        if not sonilo_service.is_enabled():
+            st.warning(tr("Sonilo API Key Required"))
+
     params.bgm_volume = stable_selectbox(
         tr("Background Music Volume"),
         options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
