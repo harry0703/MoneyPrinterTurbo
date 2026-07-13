@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, twelvelabs, video, voice, upload_post
+from app.services import llm, material, subtitle, twelvelabs, video, voice, upload_post, local_instagram
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -472,6 +472,23 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             else:
                 logger.warning(f"⚠️ Failed to cross-post: {video_path} - {result.get('error', 'Unknown error')}")
 
+    # 8. Send finished videos to the local Instagram Graph API endpoint
+    local_instagram_results = []
+    if local_instagram.local_instagram_service.is_configured():
+        logger.info("\n\n## sending videos to local Instagram endpoint")
+        # Use the first 2100 characters of the script as an optional caption
+        # source; the configured template decides whether it is actually used.
+        local_instagram_results = local_instagram.publish_videos(
+            video_paths=final_video_paths,
+            subject=params.video_subject or "",
+            caption=video_script[:2100] if video_script else "",
+        )
+        for result in local_instagram_results:
+            if result.get("success"):
+                logger.info(f"✅ Local Instagram publish succeeded: {result.get('postId', 'n/a')}")
+            else:
+                logger.warning(f"⚠️ Local Instagram publish failed: {result.get('error', 'Unknown error')}")
+
     kwargs = {
         "videos": final_video_paths,
         "combined_videos": combined_video_paths,
@@ -482,6 +499,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
         "cross_post_results": cross_post_results if cross_post_results else None,
+        "local_instagram_results": local_instagram_results if local_instagram_results else None,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs

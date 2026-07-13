@@ -257,6 +257,19 @@ upload_post_auto_upload = false
 # YouTube privacy: "public", "unlisted", or "private".
 upload_post_youtube_privacy_status = "public"
 
+# -----------------------------------------------------------------------------
+# Local Instagram Publisher / 本地 Instagram 发布
+# -----------------------------------------------------------------------------
+# Publishes generated videos to the local Node.js Instagram Graph API endpoint
+# created alongside this project. Enable this when you want every finished video
+# to be forwarded to your own Instagram publisher automatically.
+local_instagram_enabled = false
+local_instagram_endpoint = "http://localhost:3000/upload"
+# Caption template. Placeholders: {subject}, {caption}
+local_instagram_description_template = "{subject}"
+# Timeout in seconds for the local publish request (includes container polling).
+local_instagram_timeout = 600
+
 # =============================================================================
 # Whisper Subtitles / Whisper 字幕
 # =============================================================================
