@@ -650,9 +650,13 @@ Please note that you must use English for generating video search terms; Chinese
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
-            if "Error: " in response:
-                logger.error(f"failed to generate video script: {response}")
-                return response
+            if response.startswith("Error: "):
+                # generate_terms 的公开返回类型是 List[str]。如果把 Provider 的
+                # 错误文案原样返回，下游只做空值判断时会把非空字符串误认为成功，
+                # 素材下载循环还会按字符遍历错误文案，产生无意义的外部请求。
+                # 这里统一返回空列表，让任务编排层在真实故障位置立即结束任务。
+                logger.error(f"failed to generate video terms: {response}")
+                return []
             search_terms = json.loads(_strip_code_fence(response))
             if not isinstance(search_terms, list) or not all(
                 isinstance(term, str) for term in search_terms

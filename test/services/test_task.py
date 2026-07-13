@@ -97,6 +97,38 @@ class TestTaskService(unittest.TestCase):
             amount=8,
             match_script_order=True,
         )
+
+    def test_start_stops_before_materials_when_term_provider_fails(self):
+        """
+        关键词 Provider 失败后，任务必须立即结束，不能继续生成音频或下载素材。
+
+        这里从任务入口覆盖完整的错误传播路径，避免未来只修服务层返回类型，
+        却又在任务编排层把空列表转换成其它真值后继续执行外部请求。
+        """
+        params = VideoParams(
+            video_subject="startup story",
+            video_script="A short startup story.",
+        )
+
+        with (
+            patch.object(
+                tm.llm,
+                "_generate_response",
+                return_value="Error: invalid API key",
+            ),
+            patch.object(tm, "generate_audio") as generate_audio,
+            patch.object(tm, "get_video_materials") as get_video_materials,
+            patch.object(tm.sm.state, "update_task") as update_task,
+        ):
+            result = tm.start("term-provider-error", params)
+
+        self.assertIsNone(result)
+        generate_audio.assert_not_called()
+        get_video_materials.assert_not_called()
+        update_task.assert_any_call(
+            "term-provider-error",
+            state=tm.const.TASK_STATE_FAILED,
+        )
     
     def test_generate_audio_uses_custom_file_inside_task_directory(self):
         task_id = "test-custom-audio-safe"

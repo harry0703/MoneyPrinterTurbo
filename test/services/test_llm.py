@@ -142,6 +142,26 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIn("chronological stock-video search terms", captured["prompt"])
         self.assertIn("same order as the script narration", captured["prompt"])
 
+    def test_generate_terms_returns_empty_list_on_provider_error(self):
+        """
+        Provider 错误必须保持 generate_terms 的 List[str] 返回契约。
+
+        非空的 ``Error: ...`` 字符串在 Python 中是真值；如果直接返回，任务层
+        会把它当成有效关键词，素材下载层随后还可能逐字符发起搜索请求。
+        """
+        with patch.object(
+            llm,
+            "_generate_response",
+            return_value="Error: invalid API key",
+        ):
+            result = llm.generate_terms(
+                video_subject="startup story",
+                video_script="A short startup story.",
+            )
+
+        self.assertEqual(result, [])
+        self.assertIsInstance(result, list)
+
     def test_video_script_request_rejects_invalid_advanced_options(self):
         """
         API 请求模型需要限制高级 prompt 参数，避免外部调用绕过 WebUI
