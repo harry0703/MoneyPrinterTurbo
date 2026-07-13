@@ -906,6 +906,13 @@ def _apply_pending_task_restore():
     _set_stable_widget_value(
         "video_clip_duration_select", params.get("video_clip_duration", 3)
     )
+    _set_stable_widget_value(
+        "video_clip_speed_slider",
+        # API 可以写入超过 WebUI 范围的速度，任务生成阶段会安全归一化，但
+        # 历史记录仍可能保留原值。恢复任务前再次归一化，避免给 Streamlit
+        # slider 注入越界值、NaN 或无穷值导致控件状态异常。
+        utils.normalize_clip_speed(params.get("video_clip_speed", 1.0)),
+    )
     _set_stable_widget_value("video_count_select", params.get("video_count", 1))
     st.session_state["match_materials_to_script"] = bool(
         params.get("match_materials_to_script", False)
@@ -2185,6 +2192,22 @@ def _render_video_settings(panel, params):
                 default_value=3,
                 key="video_clip_duration_select",
                 help=tr("Clip Duration Help"),
+            )
+            clip_speed_key = localized_widget_key("video_clip_speed_slider")
+            # session_state 可能来自旧任务、API 参数或旧版页面状态。控件创建前
+            # 统一归一化，既保留合法选择，也确保 slider 始终收到 0.5～2.0
+            # 范围内的有限浮点数。
+            st.session_state[clip_speed_key] = utils.normalize_clip_speed(
+                st.session_state.get(clip_speed_key, 1.0)
+            )
+            params.video_clip_speed = st.slider(
+                tr("Clip Speed"),
+                min_value=0.5,
+                max_value=2.0,
+                step=0.05,
+                format="%.2fx",
+                key=clip_speed_key,
+                help=tr("Clip Speed Help"),
             )
             params.video_count = stable_selectbox(
                 tr("Number of Videos Generated Simultaneously"),

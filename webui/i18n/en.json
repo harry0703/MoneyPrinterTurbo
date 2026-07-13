@@ -74,6 +74,8 @@
     "Landscape": "Landscape 16:9",
     "Clip Duration": "Maximum Clip Duration (seconds)",
     "Clip Duration Help": "Controls the duration of each clip used in the composition, not the total video length.",
+    "Clip Speed": "Clip Speed",
+    "Clip Speed Help": "Adjusts visual material playback only. Voiceover, subtitles, and the maximum output duration of each clip are unchanged.",
     "Number of Videos Generated Simultaneously": "Videos per Run",
     "Match Materials to Script Order": "Match Visuals to Script Order",
     "Match Materials to Script Order Help": "Generate keywords and match materials in script order so visuals follow the current voiceover.",

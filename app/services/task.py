@@ -304,6 +304,7 @@ def generate_final_videos(
             video_transition_mode=video_transition_mode,
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
+            clip_speed=params.video_clip_speed,
         )
 
         _progress += 50 / params.video_count / 2

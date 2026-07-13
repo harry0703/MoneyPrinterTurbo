@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 import shutil
@@ -62,6 +63,26 @@ def get_uuid(remove_hyphen: bool = False):
     if remove_hyphen:
         u = u.replace("-", "")
     return u
+
+
+_CLIP_SPEED_MIN = 0.5
+_CLIP_SPEED_MAX = 2.0
+
+
+def normalize_clip_speed(value, default: float = 1.0) -> float:
+    """将片段播放速度归一化到 WebUI 支持的安全范围。"""
+    try:
+        speed = float(value)
+    except (TypeError, ValueError):
+        return default
+
+    # NaN 会绕过普通的大小比较，并在 MoviePy 计算 duration 时传播；无穷值也不
+    # 是合法用户输入。两者统一回退默认值，保证 API 和内部直接调用都不会生成
+    # 无效时间线。零值和负值同样无法表示正常播放速度。
+    if not math.isfinite(speed) or speed <= 0:
+        return default
+
+    return min(max(speed, _CLIP_SPEED_MIN), _CLIP_SPEED_MAX)
 
 
 def root_dir():

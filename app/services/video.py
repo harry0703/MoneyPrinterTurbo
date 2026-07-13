@@ -565,6 +565,7 @@ def combine_videos(
     video_transition_mode: VideoTransitionMode = None,
     max_clip_duration: int = 5,
     threads: int = 2,
+    clip_speed: float = 1.0,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -583,6 +584,17 @@ def combine_videos(
 
     # 兼容 API 直接调用时未传转场模式的情况，避免后续访问 .value 时崩溃。
     transition_value = getattr(video_transition_mode, "value", video_transition_mode)
+    normalized_clip_speed = utils.normalize_clip_speed(clip_speed)
+    if normalized_clip_speed != 1.0:
+        # 只记录一次最终生效值，既方便定位 API 越界参数被归一化的问题，
+        # 也避免在逐片段热路径中重复输出相同日志。
+        logger.info(f"clip playback speed: {normalized_clip_speed:.2f}x")
+    # max_clip_duration 约束的是成片里的最终播放时长，而不是源视频读取时长。
+    # MoviePy 以 0.5 倍速播放 1.5 秒源画面会得到 3 秒片段，以 2 倍速播放
+    # 6 秒源画面同样会得到 3 秒片段。因此切片前必须按速度反推源时长；如果
+    # 仍固定读取 3 秒再慢放、裁剪，下一段却从源视频第 3 秒开始，会跳过中间
+    # 1.5 秒画面。该计算同时保证不同速度下的源时间线连续且无重叠。
+    source_clip_duration = max_clip_duration * normalized_clip_speed
     output_dir = os.path.dirname(combined_video_path)
 
     aspect = VideoAspect(video_aspect)
@@ -600,7 +612,7 @@ def combine_videos(
         start_time = 0
 
         while start_time < clip_duration:
-            end_time = min(start_time + max_clip_duration, clip_duration)
+            end_time = min(start_time + source_clip_duration, clip_duration)
 
             # 保留所有有效分段。
             # 这样既不会丢掉“整段视频本身就短于 max_clip_duration”的素材，
@@ -644,6 +656,11 @@ def combine_videos(
             clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
+            # 播放速度属于素材本身属性，应在转场前应用。这样 Fade/Slide 等一秒转场
+            # 不会跟随素材速度变成 0.5 秒或 2 秒；后续最大时长裁剪继续作为
+            # 浮点误差或异常素材时长的安全兜底，保证最终片段不突破配置上限。
+            if normalized_clip_speed != 1.0:
+                clip = clip.with_speed_scaled(normalized_clip_speed)
             clip_duration = clip.duration
             # Not all videos are same size, so we need to resize them
             clip_w, clip_h = clip.size

@@ -74,6 +74,8 @@
     "Landscape": "横屏 16:9（西瓜视频）",
     "Clip Duration": "单个片段最大时长（秒）",
     "Clip Duration Help": "控制合成时使用的每个视频片段时长，不是视频总时长。",
+    "Clip Speed": "片段播放速度",
+    "Clip Speed Help": "仅调整画面素材的播放速度，不影响配音、字幕和单个片段的最大输出时长。",
     "Number of Videos Generated Simultaneously": "同时生成视频数量",
     "Match Materials to Script Order": "按文案顺序匹配画面",
     "Match Materials to Script Order Help": "按文案顺序生成关键词并匹配素材，使画面更贴近当前旁白。",

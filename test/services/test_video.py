@@ -479,6 +479,111 @@ class TestVideoService(unittest.TestCase):
                 )
                 self.assertEqual(result, combined_video_path)
 
+    def _capture_source_ranges_for_clip_speed(
+        self,
+        *,
+        source_duration,
+        audio_duration,
+        clip_speed,
+        max_clip_duration=3,
+    ):
+        """使用轻量假视频记录 combine_videos 实际读取的源时间范围。"""
+
+        source_ranges = []
+        written_durations = []
+
+        class _FakeAudioClip:
+            duration = audio_duration
+
+            def close(self):
+                pass
+
+        class _FakeVideoClip:
+            def __init__(self, duration, records_source_range=False):
+                self.duration = duration
+                self.size = (1080, 1920)
+                self.w = 1080
+                self.h = 1920
+                self.records_source_range = records_source_range
+
+            def subclipped(self, start_time, end_time):
+                # 只记录直接从源文件读取的范围。变速后的安全裁剪也会调用
+                # subclipped，但它不代表新的源时间段，不能混入断层判断。
+                if self.records_source_range:
+                    source_ranges.append((start_time, end_time))
+                return _FakeVideoClip(end_time - start_time)
+
+            def with_speed_scaled(self, factor):
+                return _FakeVideoClip(self.duration / factor)
+
+            def close(self):
+                pass
+
+        def _open_fake_video_clip(_video_path):
+            return _FakeVideoClip(source_duration, records_source_range=True)
+
+        def _capture_written_clip(clip, *_args, **_kwargs):
+            written_durations.append(clip.duration)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+            with (
+                patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()),
+                patch.object(
+                    vd,
+                    "_open_video_clip_quietly",
+                    side_effect=_open_fake_video_clip,
+                ),
+                patch.object(
+                    vd,
+                    "_write_videofile_with_codec_fallback",
+                    side_effect=_capture_written_clip,
+                ),
+                # random 模式默认会打乱同一源视频的切片。这里保持生成顺序，
+                # 才能精确验证相邻源时间段是否连续。
+                patch.object(
+                    vd,
+                    "_prioritize_unique_source_clips",
+                    side_effect=lambda subclipped_items, concat_mode: subclipped_items,
+                ),
+                patch.object(vd, "concat_video_clips_with_ffmpeg"),
+                patch.object(vd, "delete_files"),
+            ):
+                vd.combine_videos(
+                    combined_video_path=combined_video_path,
+                    video_paths=["clip.mp4"],
+                    audio_file="audio.mp3",
+                    video_concat_mode=vd.VideoConcatMode.random,
+                    max_clip_duration=max_clip_duration,
+                    clip_speed=clip_speed,
+                )
+
+        return source_ranges, written_durations
+
+    def test_combine_videos_slow_speed_keeps_source_timeline_continuous(self):
+        """0.5 倍慢放应连续读取 1.5 秒源片段，不能跳过中间画面。"""
+
+        source_ranges, written_durations = self._capture_source_ranges_for_clip_speed(
+            source_duration=4.0,
+            audio_duration=5.9,
+            clip_speed=0.5,
+        )
+
+        self.assertEqual(source_ranges, [(0, 1.5), (1.5, 3.0)])
+        self.assertEqual(written_durations, [3.0, 3.0])
+
+    def test_combine_videos_fast_speed_reads_enough_source_content(self):
+        """2 倍快放应读取 6 秒源画面，使最终片段仍保持 3 秒。"""
+
+        source_ranges, written_durations = self._capture_source_ranges_for_clip_speed(
+            source_duration=8.0,
+            audio_duration=2.9,
+            clip_speed=2.0,
+        )
+
+        self.assertEqual(source_ranges, [(0, 6.0)])
+        self.assertEqual(written_durations, [3.0])
+
     def test_combine_videos_keeps_small_duration_safety_margin(self):
         """
         音频和素材累计时长刚好相等时，仍应继续追加一个短片段作为安全余量。
