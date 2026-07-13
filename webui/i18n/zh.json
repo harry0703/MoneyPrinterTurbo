@@ -67,6 +67,8 @@
     "FadeOut": "渐出",
     "SlideIn": "滑动入",
     "SlideOut": "滑动出",
+    "ZoomIn": "放大",
+    "ZoomOut": "缩小",
     "Video Ratio": "视频比例",
     "Portrait": "竖屏 9:16（抖音视频）",
     "Landscape": "横屏 16:9（西瓜视频）",

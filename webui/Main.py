@@ -2143,6 +2143,8 @@ def _render_video_settings(panel, params):
                 (tr("FadeOut"), VideoTransitionMode.fade_out.value),
                 (tr("SlideIn"), VideoTransitionMode.slide_in.value),
                 (tr("SlideOut"), VideoTransitionMode.slide_out.value),
+                (tr("ZoomIn"), VideoTransitionMode.zoom_in.value),
+                (tr("ZoomOut"), VideoTransitionMode.zoom_out.value),
             ]
             selected_transition_mode = stable_selectbox(
                 tr("Video Transition Mode"),
