@@ -684,5 +684,27 @@ class TestVideoService(unittest.TestCase):
                     self.assertEqual(result, "/some/output/dir")
 
 
+class TestMaterialResolutionTolerance(unittest.TestCase):
+    def test_accepts_material_at_the_nominal_minimum(self):
+        self.assertTrue(vd.is_material_resolution_acceptable(480, 480))
+
+    def test_accepts_whatsapp_recompressed_portrait_clip(self):
+        # WhatsApp delivers 9:16 clips as 478x850, two pixels under the
+        # nominal 480 minimum. Rejecting them fails the whole task.
+        self.assertTrue(vd.is_material_resolution_acceptable(478, 850))
+
+    def test_accepts_material_exactly_at_the_tolerance_bound(self):
+        bound = vd._MIN_MATERIAL_DIMENSION - vd._MIN_DIMENSION_TOLERANCE
+        self.assertTrue(vd.is_material_resolution_acceptable(bound, bound))
+
+    def test_rejects_material_just_below_the_tolerance_bound(self):
+        bound = vd._MIN_MATERIAL_DIMENSION - vd._MIN_DIMENSION_TOLERANCE
+        self.assertFalse(vd.is_material_resolution_acceptable(bound - 1, 850))
+        self.assertFalse(vd.is_material_resolution_acceptable(850, bound - 1))
+
+    def test_rejects_genuinely_low_resolution_material(self):
+        self.assertFalse(vd.is_material_resolution_acceptable(320, 240))
+
+
 if __name__ == "__main__":
     unittest.main()
