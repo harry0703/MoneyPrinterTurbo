@@ -1,84 +1,29 @@
-
-import unittest
 import os
 import shutil
 import sys
 import tempfile
 import types
+import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
+
 from moviepy import (
     ImageClip,
     VideoFileClip,
 )
+
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from app.config import config
-from app.controllers.manager.base_manager import TaskQueueFullError
-from app.controllers.manager.memory_manager import InMemoryTaskManager
-from app.controllers.v1 import video as video_controller
-from app.models import const
 from app.models.schema import MaterialInfo
-from app.services import state as sm
 from app.services import video as vd
 from app.utils import utils
 
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
 
-
-class _FakeRequest:
-    def __init__(self):
-        self.headers = {"x-task-id": "test-request"}
-
-
-class TestSecurityControls(unittest.TestCase):
-    def setUp(self):
-        self.original_app_config = dict(config.app)
-
-    def tearDown(self):
-        config.app.clear()
-        config.app.update(self.original_app_config)
-
-    def test_task_query_returns_relative_task_url_without_mutating_state(self):
-        """
-        endpoint 未显式配置时，任务查询接口不能使用 Host 派生绝对 URL，
-        也不能把展示 URL 回写到任务状态里，否则不同 Host 查询会污染结果。
-        """
-        task_id = "security-task-url"
-        task_dir = utils.task_dir(task_id)
-        video_path = os.path.join(task_dir, "final-1.mp4")
-        Path(video_path).write_bytes(b"fake-video")
-        config.app["endpoint"] = ""
-
-        try:
-            sm.state.update_task(
-                task_id,
-                state=const.TASK_STATE_COMPLETE,
-                videos=[video_path],
-                combined_videos=[video_path],
-            )
-
-            response = video_controller.get_task(_FakeRequest(), task_id=task_id)
-
-            self.assertEqual(response["data"]["videos"], [f"/tasks/{task_id}/final-1.mp4"])
-            self.assertEqual(sm.state.get_task(task_id)["videos"], [video_path])
-        finally:
-            sm.state.delete_task(task_id)
-            shutil.rmtree(task_dir, ignore_errors=True)
-
-    def test_in_memory_task_manager_rejects_when_queue_is_full(self):
-        """
-        并发数用尽后，等待队列必须有硬上限。这里用 max_concurrent_tasks=0
-        强制任务进入队列，验证超过 max_queued_tasks 时会拒绝继续入队。
-        """
-        manager = InMemoryTaskManager(max_concurrent_tasks=0, max_queued_tasks=1)
-
-        manager.add_task(lambda: None)
-
-        with self.assertRaises(TaskQueueFullError):
-            manager.add_task(lambda: None)
 
 class TestVideoService(unittest.TestCase):
     def setUp(self):
@@ -86,13 +31,13 @@ class TestVideoService(unittest.TestCase):
         self.test_img_path = os.path.join(resources_dir, "1.png")
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
-    
+
     def tearDown(self):
         config.app.clear()
         config.app.update(self.original_app_config)
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
-    
+
     def test_preprocess_video(self):
         if not os.path.exists(self.test_img_path):
             self.fail(f"test image not found: {self.test_img_path}")

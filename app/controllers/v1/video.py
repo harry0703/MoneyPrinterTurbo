@@ -113,6 +113,55 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
     return f"/{uri_path}"
 
 
+def _parse_byte_range(
+    range_header: str | None, file_size: int, request_id: str
+) -> tuple[int, int]:
+    """解析单段 HTTP Range，并把无效或越界请求稳定转换成 416。"""
+    if file_size <= 0:
+        raise HttpException(
+            task_id=request_id,
+            status_code=416,
+            message=f"{request_id}: requested range is not satisfiable",
+        )
+
+    if not range_header:
+        return 0, file_size - 1
+
+    try:
+        # 视频播放器这里只需要单段 bytes range。拒绝多段请求可以避免返回体
+        # 与 Content-Range 不一致，也避免异常字符串落入 int() 产生 500。
+        if not range_header.startswith("bytes=") or "," in range_header:
+            raise ValueError("unsupported range format")
+        start_text, end_text = range_header[6:].split("-", 1)
+        if not start_text and not end_text:
+            raise ValueError("empty range")
+
+        if not start_text:
+            suffix_length = int(end_text)
+            if suffix_length <= 0:
+                raise ValueError("invalid suffix length")
+            start = max(file_size - suffix_length, 0)
+            end = file_size - 1
+        else:
+            start = int(start_text)
+            end = int(end_text) if end_text else file_size - 1
+            if start < 0 or start >= file_size or end < start:
+                raise ValueError("range outside file")
+            end = min(end, file_size - 1)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            f"reject invalid video range, request_id: {request_id}, "
+            f"range: {range_header}, file_size: {file_size}, error: {str(exc)}"
+        )
+        raise HttpException(
+            task_id=request_id,
+            status_code=416,
+            message=f"{request_id}: requested range is not satisfiable",
+        ) from exc
+
+    return start, end
+
+
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
 def create_video(
     background_tasks: BackgroundTasks, request: Request, body: TaskVideoRequest
@@ -334,9 +383,10 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     safe_filename = _sanitize_upload_filename(file.filename, request_id)
     # check file ext
     allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
-    normalized_filename = safe_filename.lower()
-    # 统一按小写扩展名校验，兼容 .MOV 这类大写后缀文件。
-    if normalized_filename.endswith(allowed_suffixes):
+    suffix = pathlib.Path(safe_filename).suffix.lower().lstrip(".")
+    # 按完整扩展名校验，既兼容 .MOV 这类大写后缀，也避免 photojpg 这种没有
+    # 点号的文件名因为 endswith("jpg") 被误当成合法图片。
+    if suffix in allowed_suffixes:
         local_videos_dir = utils.storage_dir("local_videos", create=True)
         save_path = os.path.join(local_videos_dir, safe_filename)
         # save file
@@ -358,18 +408,8 @@ async def stream_video(request: Request, file_path: str):
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     range_header = request.headers.get("Range")
     video_size = os.path.getsize(video_path)
-    start, end = 0, video_size - 1
-
-    length = video_size
-    if range_header:
-        range_ = range_header.split("bytes=")[1]
-        start, end = [int(part) if part else None for part in range_.split("-")]
-        if start is None:
-            start = video_size - end
-            end = video_size - 1
-        if end is None:
-            end = video_size - 1
-        length = end - start + 1
+    start, end = _parse_byte_range(range_header, video_size, request_id)
+    length = end - start + 1
 
     def file_iterator(file_path, offset=0, bytes_to_read=None):
         with open(file_path, "rb") as f:

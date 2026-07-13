@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import os
+import shutil
 import unittest
 import sys
 import tempfile
@@ -401,7 +402,8 @@ class TestVoiceService(unittest.TestCase):
         """
         验证 Gemini TTS 在 edge_tts 7.x 环境下仍会返回项目兼容的字幕结构，
         并且可以被 `subtitle_provider=edge` 的字幕生成链路直接消费，
-        避免再次回退 Whisper。
+        避免再次回退 Whisper。同时使用不存在的嵌套输出目录，覆盖 API 或
+        CLI 直接调用服务时没有提前创建任务目录的边界情况。
         """
 
         class _InlineData:
@@ -448,9 +450,14 @@ class TestVoiceService(unittest.TestCase):
             def __exit__(self, exc_type, exc_value, traceback):
                 captured["closed"] = True
 
-        voice_file = f"{temp_dir}/tts-gemini-Zephyr.mp3"
-        subtitle_file = f"{temp_dir}/tts-gemini-Zephyr.srt"
+        temp_root = Path(tempfile.mkdtemp(prefix="gemini-tts-output-"))
+        self.addCleanup(shutil.rmtree, temp_root, True)
+        output_dir = temp_root / "nested" / "audio"
+        voice_file = str(output_dir / "tts-gemini-Zephyr.mp3")
+        subtitle_file = str(output_dir / "tts-gemini-Zephyr.srt")
         text = "Gemini subtitle generation should work now. Testing multiple lines."
+
+        self.assertFalse(output_dir.exists())
 
         with patch("google.genai.Client", _FakeClient), patch.object(
             vs.config,
@@ -465,6 +472,7 @@ class TestVoiceService(unittest.TestCase):
             )
 
         self.assertIsNotNone(sub_maker)
+        self.assertTrue(Path(voice_file).is_file())
         self.assertEqual(
             getattr(sub_maker, "subs", []),
             ["Gemini subtitle generation should work now", "Testing multiple lines"],

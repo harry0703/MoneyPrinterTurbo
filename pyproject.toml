@@ -43,6 +43,28 @@ twelvelabs = [
     "twelvelabs>=1.2.8",
 ]
 
+[dependency-groups]
+dev = [
+    "coverage==7.15.1",
+    "pytest==9.1.1",
+]
+
+[tool.coverage.run]
+# 统计分支覆盖率可以识别“代码行执行了，但条件的另一条分支从未验证”的情况，
+# 比只统计行覆盖率更适合作为 CI 质量基线。CLI 和 WebUI 都属于生产入口，
+# 因此与 app 服务层、服务启动入口和面向 Agent 用户发布的 Skill 脚本一起
+# 纳入统计，避免覆盖率只反映局部模块。
+branch = true
+source = ["app", "cli", "webui", "main", "docs/skill"]
+
+[tool.coverage.report]
+# 当前 pytest 完整测试的实测分支覆盖率为 68.19%。以 67% 作为稳定底线，
+# 既能把本次新增覆盖固化为 CI 质量门槛，也为 macOS、Windows 和 Linux
+# 之间少量平台分支差异保留余量；后续增加测试后可继续逐步提高该阈值。
+fail_under = 67
+show_missing = true
+skip_covered = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 

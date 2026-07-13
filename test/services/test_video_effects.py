@@ -35,6 +35,81 @@ def _detail_frame(width=128, height=96):
     ).astype(np.uint8)
 
 
+class TestFadeAndSlideTransitions(unittest.TestCase):
+    def test_fade_transitions_apply_requested_duration(self):
+        """淡入淡出必须把调用方传入的时长原样交给 MoviePy effect。"""
+        clip = _gradient_clip()
+        self.addCleanup(clip.close)
+
+        fade_in = video_effects.fadein_transition(clip, 0.25)
+        fade_out = video_effects.fadeout_transition(clip, 0.75)
+        self.addCleanup(fade_in.close)
+        self.addCleanup(fade_out.close)
+
+        self.assertEqual(fade_in.duration, clip.duration)
+        self.assertEqual(fade_out.duration, clip.duration)
+        frame_difference = np.abs(
+            fade_in.get_frame(0).astype(int) - clip.get_frame(0).astype(int)
+        )
+        self.assertGreater(
+            frame_difference.max(),
+            0,
+        )
+        np.testing.assert_allclose(
+            fade_out.get_frame(0),
+            clip.get_frame(0),
+            atol=1,
+        )
+
+    def test_slidein_positions_cover_all_directions_and_unknown_side(self):
+        """滑入动画的四个方向、结束位置和未知方向兜底都应保持稳定。"""
+        clip = _gradient_clip(width=60, height=40, duration=2)
+        self.addCleanup(clip.close)
+        expected_starts = {
+            "left": (-60, 0),
+            "right": (60, 0),
+            "top": (0, -40),
+            "bottom": (0, 40),
+            "unknown": (0, 0),
+        }
+
+        for side, expected_start in expected_starts.items():
+            with self.subTest(side=side):
+                transitioned = video_effects.slidein_transition(clip, 1, side)
+                self.addCleanup(transitioned.close)
+                moving_clip = transitioned.clips[1]
+                self.assertEqual(moving_clip.pos(0), expected_start)
+                self.assertEqual(moving_clip.pos(1), (0, 0))
+
+    def test_slideout_positions_cover_timing_and_all_directions(self):
+        """
+        滑出应在片段尾部才开始运动；四个方向、超过结束时间和零时长参数
+        都需要被夹紧，避免出现除零或素材提前离场。
+        """
+        clip = _gradient_clip(width=60, height=40, duration=2)
+        self.addCleanup(clip.close)
+        expected_ends = {
+            "left": (-60, 0),
+            "right": (60, 0),
+            "top": (0, -40),
+            "bottom": (0, 40),
+            "unknown": (0, 0),
+        }
+
+        for side, expected_end in expected_ends.items():
+            with self.subTest(side=side):
+                transitioned = video_effects.slideout_transition(clip, 1, side)
+                self.addCleanup(transitioned.close)
+                moving_clip = transitioned.clips[1]
+                self.assertEqual(moving_clip.pos(0.5), (0, 0))
+                self.assertEqual(moving_clip.pos(2.5), expected_end)
+
+        zero_duration = video_effects.slideout_transition(clip, 0, "right")
+        self.addCleanup(zero_duration.close)
+        self.assertEqual(zero_duration.clips[1].pos(2), (0, 0))
+        self.assertEqual(zero_duration.clips[1].pos(2.1), (60, 0))
+
+
 class TestZoomTransitions(unittest.TestCase):
     def test_schema_has_zoom_members(self):
         self.assertEqual(VideoTransitionMode.zoom_in.value, "ZoomIn")

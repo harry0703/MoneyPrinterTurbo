@@ -28,13 +28,16 @@ class RedisTaskManager(TaskManager):
 
     def enqueue(self, task: Dict):
         task_with_serializable_params = task.copy()
+        # task.copy() 只复制最外层字典；如果直接改写嵌套 kwargs，会把调用方
+        # 持有的 VideoParams 同步替换成 dict。后续日志或重试仍可能读取原任务，
+        # 因此这里单独复制 kwargs，确保序列化过程没有意外副作用。
+        task_kwargs = task.get("kwargs", {})
+        task_with_serializable_params["kwargs"] = task_kwargs.copy()
 
-        if "params" in task["kwargs"] and isinstance(
-            task["kwargs"]["params"], VideoParams
-        ):
-            task_with_serializable_params["kwargs"]["params"] = task["kwargs"][
+        if "params" in task_kwargs and isinstance(task_kwargs["params"], VideoParams):
+            task_with_serializable_params["kwargs"]["params"] = task_kwargs[
                 "params"
-            ].dict()
+            ].model_dump(warnings=False)
 
         # 将函数对象转换为其名称
         task_with_serializable_params["func"] = task["func"].__name__

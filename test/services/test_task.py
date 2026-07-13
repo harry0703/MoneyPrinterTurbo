@@ -306,6 +306,240 @@ class TestTaskService(unittest.TestCase):
         create_subtitle.assert_not_called()
         whisper_create.assert_not_called()
 
+    def test_start_returns_each_intermediate_result(self):
+        """
+        API 的 script、terms、audio、subtitle 和 materials 模式共用同一条任务
+        流水线。每个提前停止点都要返回对应产物，同时不能误执行后续阶段。
+        """
+        expected_results = {
+            "script": {"script": "generated script"},
+            "terms": {
+                "script": "generated script",
+                "terms": ["coffee", "morning"],
+            },
+            "audio": {"audio_file": "audio.mp3", "audio_duration": 5},
+            "subtitle": {"subtitle_path": "subtitle.srt"},
+            "materials": {"materials": ["clip.mp4"]},
+        }
+
+        for stop_at, expected in expected_results.items():
+            with self.subTest(stop_at=stop_at):
+                params = VideoParams(video_subject="Coffee")
+                with (
+                    patch.object(tm, "generate_script", return_value="generated script"),
+                    patch.object(
+                        tm,
+                        "generate_terms",
+                        return_value=["coffee", "morning"],
+                    ),
+                    patch.object(tm, "save_script_data"),
+                    patch.object(
+                        tm,
+                        "generate_audio",
+                        return_value=("audio.mp3", 5, object()),
+                    ),
+                    patch.object(
+                        tm,
+                        "generate_subtitle",
+                        return_value="subtitle.srt",
+                    ),
+                    patch.object(
+                        tm,
+                        "get_video_materials",
+                        return_value=["clip.mp4"],
+                    ),
+                    patch.object(tm, "generate_final_videos") as generate_final,
+                    patch.object(tm.sm.state, "update_task"),
+                ):
+                    result = tm.start(
+                        f"intermediate-{stop_at}", params, stop_at=stop_at
+                    )
+
+                self.assertEqual(result, expected)
+                generate_final.assert_not_called()
+
+    def test_start_completes_video_without_cross_posting(self):
+        """
+        完整任务在自动发布未配置时仍应稳定完成，并把所有中间产物写入最终
+        状态。这里还覆盖 API 可能传入字符串拼接模式的兼容转换。
+        """
+        params = VideoParams(video_subject="Coffee")
+        params.video_concat_mode = "sequential"
+
+        with (
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]),
+            patch.object(tm, "save_script_data"),
+            patch.object(
+                tm,
+                "generate_audio",
+                return_value=("audio.mp3", 5, object()),
+            ),
+            patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+            patch.object(
+                tm,
+                "get_video_materials",
+                return_value=["clip.mp4"],
+            ),
+            patch.object(
+                tm,
+                "generate_final_videos",
+                return_value=(["final.mp4"], ["combined.mp4"]),
+            ),
+            patch.object(
+                tm.upload_post.upload_post_service,
+                "is_configured",
+                return_value=False,
+            ),
+            patch.object(tm.upload_post, "cross_post_video") as cross_post,
+            patch.object(tm.sm.state, "update_task") as update_task,
+        ):
+            result = tm.start("complete-video", params)
+
+        self.assertEqual(result["videos"], ["final.mp4"])
+        self.assertEqual(result["combined_videos"], ["combined.mp4"])
+        self.assertEqual(result["cross_post_results"], None)
+        self.assertEqual(params.video_concat_mode, tm.VideoConcatMode.sequential)
+        cross_post.assert_not_called()
+        update_task.assert_called_with(
+            "complete-video",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            **result,
+        )
+
+    def test_start_marks_pipeline_failures(self):
+        """
+        音频、素材和最终视频任一关键产物缺失时都必须进入失败状态，不能把
+        不完整任务误报为完成。三个场景复用相同 mock，仅替换故障阶段。
+        """
+        failure_cases = {
+            "audio": (
+                (None, None, None),
+                ["clip.mp4"],
+                (["final.mp4"], ["combined.mp4"]),
+            ),
+            "materials": (
+                ("audio.mp3", 5, object()),
+                None,
+                (["final.mp4"], ["combined.mp4"]),
+            ),
+            "video": (("audio.mp3", 5, object()), ["clip.mp4"], ([], [])),
+        }
+
+        for stage, failure_results in failure_cases.items():
+            with self.subTest(stage=stage):
+                audio_result, materials_result, videos_result = failure_results
+                params = VideoParams(video_subject="Coffee")
+                with (
+                    patch.object(tm, "generate_script", return_value="generated script"),
+                    patch.object(tm, "generate_terms", return_value=["coffee"]),
+                    patch.object(tm, "save_script_data"),
+                    patch.object(tm, "generate_audio", return_value=audio_result),
+                    patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+                    patch.object(
+                        tm,
+                        "get_video_materials",
+                        return_value=materials_result,
+                    ),
+                    patch.object(
+                        tm,
+                        "generate_final_videos",
+                        return_value=videos_result,
+                    ),
+                    patch.object(tm.sm.state, "update_task") as update_task,
+                ):
+                    result = tm.start(f"failed-{stage}", params)
+
+                self.assertIsNone(result)
+                update_task.assert_any_call(
+                    f"failed-{stage}", state=tm.const.TASK_STATE_FAILED
+                )
+
+    def test_start_generates_youtube_metadata_for_each_cross_post(self):
+        """
+        自动发布到 YouTube 时只生成一次元数据，但要把同一份字段传给每个
+        成片，并在任务结果中保留每次上传成功或失败的独立结果。
+        """
+        params = VideoParams(
+            video_subject="Coffee",
+            video_language="en",
+        )
+        metadata = {
+            "title": "Morning Coffee",
+            "caption": "A better morning.",
+            "hashtags": ["coffee", "shorts"],
+        }
+        service = tm.upload_post.upload_post_service
+
+        with (
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]),
+            patch.object(tm, "save_script_data"),
+            patch.object(
+                tm,
+                "generate_audio",
+                return_value=("audio.mp3", 5, object()),
+            ),
+            patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+            patch.object(
+                tm,
+                "get_video_materials",
+                return_value=["clip.mp4"],
+            ),
+            patch.object(
+                tm,
+                "generate_final_videos",
+                return_value=(
+                    ["final-1.mp4", "final-2.mp4"],
+                    ["combined-1.mp4", "combined-2.mp4"],
+                ),
+            ),
+            patch.object(service, "is_configured", return_value=True),
+            patch.object(service, "auto_upload", True),
+            patch.object(service, "platforms", ["youtube"]),
+            patch.object(service, "youtube_privacy_status", "unlisted"),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value=metadata,
+            ) as generate_metadata,
+            patch.object(
+                tm.upload_post,
+                "cross_post_video",
+                side_effect=[
+                    {"success": True},
+                    {"success": False, "error": "upload failed"},
+                ],
+            ) as cross_post,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            result = tm.start("youtube-cross-post", params)
+
+        generate_metadata.assert_called_once_with(
+            video_subject="Coffee",
+            video_script="generated script",
+            language="en",
+            platform="youtube_shorts",
+        )
+        expected_extra = {
+            "youtube_title": "Morning Coffee",
+            "youtube_description": "A better morning.",
+            "tags": ["coffee", "shorts"],
+            "privacyStatus": "unlisted",
+            "containsSyntheticMedia": True,
+        }
+        self.assertEqual(cross_post.call_count, 2)
+        for call in cross_post.call_args_list:
+            self.assertEqual(call.kwargs["youtube_extra"], expected_extra)
+        self.assertEqual(
+            result["cross_post_results"],
+            [
+                {"success": True},
+                {"success": False, "error": "upload failed"},
+            ],
+        )
+
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,
         "MPT_RUN_INTEGRATION_TESTS not set",

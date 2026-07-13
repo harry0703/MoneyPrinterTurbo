@@ -34,7 +34,11 @@ debug/
 debug_*.py
 test_*.py
 !test/services/test_*.py
+!test/test_*.py
 streamlit.log
+.coverage
+coverage.xml
+htmlcov/
 .codegraph
 /docs/superpowers
 .understand-anything

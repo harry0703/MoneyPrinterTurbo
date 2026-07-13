@@ -31,5 +31,10 @@ jobs:
       - name: Compile Python sources
         run: uv run python -m compileall app cli.py main.py webui test
 
-      - name: Run deterministic unit tests
-        run: uv run python -X utf8 -m unittest test.services.test_state test.services.test_task test.services.test_schema test.services.test_video_effects test.services.test_bgm test.services.test_webui_bgm test.services.test_clip_speed test.services.test_webui_i18n
+      - name: Run unit tests with coverage
+        # pytest 兼容现有 unittest.TestCase，同时会收集仓库中的 pytest 风格
+        # 测试，避免测试文件已存在但 CI 没有真正执行。
+        run: uv run python -X utf8 -m coverage run -m pytest -q test
+
+      - name: Report test coverage
+        run: uv run python -m coverage report
