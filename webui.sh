@@ -70,6 +70,11 @@ fi
 MPT_WEBUI_PORT="$SELECTED_WEBUI_PORT"
 
 echo "***** WebUI address: http://$MPT_WEBUI_HOST:$MPT_WEBUI_PORT *****"
+if [ -n "${MPT_WEBUI_USERNAME:-}" ] && [ -n "${MPT_WEBUI_PASSWORD:-}" ]; then
+  echo "***** Authentication enabled for remote access. *****"
+else
+  echo "***** No authentication configured. Set MPT_WEBUI_USERNAME and MPT_WEBUI_PASSWORD to protect remote access. *****"
+fi
 "$@" run "$CURRENT_DIR/webui/Main.py" \
   --server.address="$MPT_WEBUI_HOST" \
   --server.port="$MPT_WEBUI_PORT" \

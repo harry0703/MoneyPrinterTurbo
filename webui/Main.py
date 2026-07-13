@@ -43,6 +43,7 @@ from app.services import cache_manager, llm, video, voice
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import utils
+from webui.auth import authenticate, is_auth_enabled
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -258,6 +259,26 @@ _initialize_session_state()
 def tr(key):
     loc = locales.get(st.session_state["ui_language"], {})
     return loc.get("Translation", {}).get(key, key)
+
+
+if is_auth_enabled():
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        st.set_page_config(page_title="MoneyPrinterTurbo", page_icon="🤖", layout="centered")
+        st.title(tr("Login Required"))
+        st.caption(tr("Please login to access settings"))
+
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        if st.button(tr("Login")):
+            if authenticate(username, password):
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error(tr("Login Error"))
+        st.stop()
 
 
 # -----------------------------------------------------------------------------
