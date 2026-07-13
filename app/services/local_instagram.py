@@ -79,13 +79,19 @@ class LocalInstagramService:
             logger.error(f"Video file not found: {video_path}")
             return {"success": False, "error": f"Video file not found: {video_path}"}
 
+        # The Node.js publisher resolves relative paths from its own cwd, which is
+        # usually different from MoneyPrinterTurbo's cwd. Always send an absolute
+        # path so the publisher can locate the file unambiguously.
+        absolute_path = os.path.abspath(video_path)
+
         description = self.build_description(subject, caption)
         payload = {
-            "filePath": video_path,
+            "filePath": absolute_path,
             "description": description,
         }
 
         logger.info(f"Sending video to local Instagram endpoint: {self.endpoint}")
+        logger.debug(f"Payload: filePath={absolute_path}, description={description[:80]}...")
         try:
             response = requests.post(
                 self.endpoint,
@@ -111,6 +117,18 @@ class LocalInstagramService:
                 f"Timeout while calling local Instagram endpoint ({self.timeout}s): {self.endpoint}"
             )
             return {"success": False, "error": "Request timed out"}
+        except requests.exceptions.HTTPError as e:
+            body = ""
+            if e.response is not None:
+                try:
+                    body = e.response.json()
+                except Exception:
+                    body = e.response.text
+            logger.error(
+                f"Local Instagram endpoint returned {e.response.status_code if e.response else '?'}. "
+                f"Response: {body}"
+            )
+            return {"success": False, "error": f"HTTP {e.response.status_code if e.response else '?'}: {body}"}
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to call local Instagram endpoint: {str(e)}")
             return {"success": False, "error": str(e)}
