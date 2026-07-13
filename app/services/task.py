@@ -474,10 +474,13 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 8. Send finished videos to the local Instagram Graph API endpoint
     local_instagram_results = []
-    logger.debug(
-        f"[LocalInstagram] configured={local_instagram.local_instagram_service.is_configured()}"
+    local_instagram_configured = local_instagram.local_instagram_service.is_configured()
+    logger.info(
+        f"[LocalInstagram] configured={local_instagram_configured}, "
+        f"endpoint={local_instagram.local_instagram_service.endpoint}, "
+        f"template={local_instagram.local_instagram_service.description_template!r}"
     )
-    if local_instagram.local_instagram_service.is_configured():
+    if local_instagram_configured:
         logger.info("\n\n## sending videos to local Instagram endpoint")
         # Use the first 2100 characters of the script as an optional caption
         # source; the configured template decides whether it is actually used.
