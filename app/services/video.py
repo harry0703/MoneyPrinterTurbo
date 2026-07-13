@@ -35,6 +35,7 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
+from app.services import bgm as bgm_service
 from app.services.utils import video_effects
 from app.utils import file_security, utils
 
@@ -79,7 +80,6 @@ _MIN_MATERIAL_DIMENSION = 480
 # 丢弃，最终以 "no valid materials found" 整体失败。这里留一个很小的容差，
 # 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
 _MIN_DIMENSION_TOLERANCE = 10
-_BGM_EXTENSIONS = (".mp3",)
 _DEFAULT_VIDEO_CODEC = "libx264"
 _SUPPORTED_VIDEO_CODECS = (
     "libx264",
@@ -499,57 +499,27 @@ def delete_files(files: List[str] | str):
             logger.debug(f"failed to delete file {file}: {str(e)}")
 
 
-def _resolve_bgm_file_path(song_dir: str, bgm_file: str) -> str:
-    # 背景音乐只允许读取 resource/songs 目录内的文件，避免用户输入任意路径后
-    # 被 MoviePy 打开。这里兼容两种常见输入：
-    # 1. output000.mp3：来自 BGM 列表或用户只填写文件名
-    # 2. ./resource/songs/output000.mp3：用户按项目目录结构填写的相对路径
-    # 两种写法最终都会再次通过 resource/songs 白名单校验，不能绕过目录限制。
-    try:
-        return file_security.resolve_path_within_directory(song_dir, bgm_file)
-    except ValueError as song_dir_exc:
-        if os.path.isabs(bgm_file):
-            raise song_dir_exc
-
-        project_relative_file = os.path.join(utils.root_dir(), bgm_file)
-        try:
-            return file_security.resolve_path_within_directory(
-                song_dir, project_relative_file
-            )
-        except ValueError as root_dir_exc:
-            raise ValueError(str(root_dir_exc)) from song_dir_exc
-
-
 def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if not bgm_type:
         return ""
 
     if bgm_file:
-        song_dir = utils.song_dir()
         try:
-            resolved_bgm_file = _resolve_bgm_file_path(song_dir, bgm_file)
+            resolved_bgm_file = bgm_service.resolve_bgm_file(bgm_file)
         except ValueError as exc:
-            # API 请求里的 bgm_file 来自用户输入，不能直接把任意绝对路径交给
-            # MoviePy 打开。这里强制限制到 resource/songs 目录，阻止读取
-            # /etc/passwd、配置文件、密钥等非背景音乐文件。
+            # API 请求里的 bgm_file 来自用户输入，只允许解析到用户 BGM 或内置
+            # 歌曲目录，阻止 MoviePy 读取配置、密钥等任意服务器文件。
             logger.warning(
-                f"reject unsafe bgm file: {bgm_file}, song_dir: {song_dir}, error: {str(exc)}"
+                f"reject unsafe bgm file: {bgm_file}, error: {str(exc)}"
             )
             return ""
-
-        if not resolved_bgm_file.lower().endswith(_BGM_EXTENSIONS):
-            logger.warning(f"reject unsupported bgm file extension: {resolved_bgm_file}")
-            return ""
-
         return resolved_bgm_file
 
     if bgm_type == "random":
-        suffix = "*.mp3"
-        song_dir = utils.song_dir()
-        files = glob.glob(os.path.join(song_dir, suffix))
+        files = bgm_service.list_bgm_files()
         # 当背景音乐目录为空时，直接回退为“不使用 BGM”，避免 random.choice([]) 抛异常。
         if not files:
-            logger.warning(f"no bgm files found in song directory: {song_dir}")
+            logger.warning("no background music files found")
             return ""
         return random.choice(files)
 

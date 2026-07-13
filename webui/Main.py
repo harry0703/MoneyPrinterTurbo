@@ -1,5 +1,7 @@
+import hashlib
 import html
 import json
+import mimetypes
 import os
 import re
 import shutil
@@ -36,6 +38,7 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
+from app.services import bgm as bgm_service
 from app.services import cache_manager, llm, video, voice
 from app.services import state as sm
 from app.services import task as tm
@@ -970,6 +973,8 @@ def _apply_pending_task_restore():
     # 同时清空当前页面已缓存的上传素材，避免恢复后误用另一个任务的文件。
     st.session_state["local_video_materials"] = []
     st.session_state.pop("custom_audio_file_uploader", None)
+    st.session_state.pop("custom_bgm_uploader", None)
+    st.session_state.pop("custom_bgm_validation", None)
     st.session_state["task_restore_upload_requirements"] = (
         _build_restore_upload_requirements(params)
     )
@@ -2324,7 +2329,8 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
 
 
 def _render_background_music_settings(params):
-    """渲染背景音乐来源与音量设置。"""
+    """渲染背景音乐来源与音量设置，并返回本次待保存的上传文件。"""
+    uploaded_bgm_file = None
     st.divider()
     bgm_options = [
         (tr("No Background Music"), ""),
@@ -2341,12 +2347,109 @@ def _render_background_music_settings(params):
     params.bgm_type = selected_bgm_type
 
     if params.bgm_type == "custom":
+        uploaded_bgm_file = st.file_uploader(
+            tr("Upload Background Music"),
+            type=[
+                extension.removeprefix(".")
+                for extension in bgm_service.SUPPORTED_BGM_EXTENSIONS
+            ],
+            accept_multiple_files=False,
+            key="custom_bgm_uploader",
+            help=tr("Upload Background Music Help"),
+            # Streamlit 默认会在控件上展示全局 200MB 上限。这里必须与服务层
+            # 30MB 硬限制保持一致，避免界面允许选择、提交时才被服务端拒绝。
+            max_upload_size=bgm_service.MAX_BGM_UPLOAD_BYTES // (1024 * 1024),
+        )
+        if uploaded_bgm_file is not None:
+            try:
+                safe_name = bgm_service.sanitize_upload_filename(
+                    uploaded_bgm_file.name
+                )
+                # Streamlit 在调整音量等任意控件后都会重新执行页面。使用内容哈希
+                # 区分上传文件，并在当前会话内缓存完整解码结果，既不能只凭同名、
+                # 同大小文件误用旧结果，也避免每次 rerun 都重复调用 FFmpeg。
+                validation_key = (
+                    safe_name,
+                    uploaded_bgm_file.size,
+                    hashlib.sha256(uploaded_bgm_file.getbuffer()).hexdigest(),
+                )
+                cached_validation = st.session_state.get("custom_bgm_validation")
+                if (
+                    not cached_validation
+                    or cached_validation.get("key") != validation_key
+                ):
+                    try:
+                        bgm_service.validate_bgm_upload(
+                            uploaded_bgm_file.name, uploaded_bgm_file
+                        )
+                    except bgm_service.BgmUploadError as exc:
+                        cached_validation = {
+                            "key": validation_key,
+                            "error": str(exc),
+                            "error_type": "upload",
+                        }
+                        # 同一个文件指纹的失败结果会进入会话缓存，因此这里只在
+                        # 首次真实执行校验时记录一次，避免普通控件 rerun 刷屏。
+                        logger.warning(
+                            "WebUI background music validation rejected: "
+                            f"name={safe_name}, error={str(exc)}"
+                        )
+                    except bgm_service.BgmServiceError as exc:
+                        cached_validation = {
+                            "key": validation_key,
+                            "error": str(exc),
+                            "error_type": "service",
+                        }
+                        logger.error(
+                            "WebUI background music validation failed: "
+                            f"name={safe_name}, error={str(exc)}"
+                        )
+                    else:
+                        cached_validation = {
+                            "key": validation_key,
+                            "error": "",
+                            "error_type": "",
+                        }
+                    st.session_state["custom_bgm_validation"] = cached_validation
+
+                if cached_validation.get("error"):
+                    if cached_validation.get("error_type") == "service":
+                        raise bgm_service.BgmServiceError(
+                            cached_validation["error"]
+                        )
+                    raise bgm_service.BgmUploadError(cached_validation["error"])
+            except bgm_service.BgmUploadError as exc:
+                # 非法文件不能沿用上一次有效上传的名称，否则任务参数可能仍指向
+                # 历史 BGM。保留 UploadedFile 返回值，让用户点击生成时仍会被最终
+                # 服务端校验拦截，而不是静默生成一条没有背景音乐的视频。
+                params.bgm_file = ""
+                st.error(tr("Invalid Background Music"))
+            except bgm_service.BgmServiceError:
+                params.bgm_file = ""
+                st.error(tr("Background Music Validation Failed"))
+            else:
+                # 完整解码校验通过后才展示播放器和“已就绪”。文件仍只在点击
+                # 生成时持久化，用户仅预览或随后移除文件不会污染 storage/bgm。
+                uploaded_mime_type = str(
+                    getattr(uploaded_bgm_file, "type", "") or ""
+                )
+                preview_mime_type = (
+                    uploaded_mime_type
+                    if uploaded_mime_type.startswith("audio/")
+                    else mimetypes.guess_type(safe_name)[0] or "audio/mpeg"
+                )
+                st.audio(uploaded_bgm_file, format=preview_mime_type)
+                st.info(f"{tr('Background Music Ready')}: {safe_name}")
+                params.bgm_file = safe_name
+
         custom_bgm_file = st.text_input(
             tr("Custom Background Music File"),
             key="custom_bgm_file_input",
+            disabled=uploaded_bgm_file is not None,
         )
-        if custom_bgm_file:
-            # 文件名由服务层映射到 resource/songs 后校验，UI 不接受任意路径。
+        if uploaded_bgm_file is None and custom_bgm_file:
+            # 文件名由服务层映射到 storage/bgm 或 resource/songs 后校验，
+            # UI 不接受两个白名单目录之外的任意路径。
             params.bgm_file = custom_bgm_file.strip()
     params.bgm_volume = stable_selectbox(
         tr("Background Music Volume"),
@@ -2356,6 +2459,7 @@ def _render_background_music_settings(params):
         format_func=lambda value: f"{int(value * 100)}%",
         disabled=not params.bgm_type,
     )
+    return uploaded_bgm_file
 
 
 def _render_audio_settings(panel, params):
@@ -2766,8 +2870,8 @@ def _render_audio_settings(panel, params):
                             "Custom audio will be used directly. TTS synthesis will be skipped for this task."
                         )
                     )
-            _render_background_music_settings(params)
-    return uploaded_audio_file, voice_mode
+            uploaded_bgm_file = _render_background_music_settings(params)
+    return uploaded_audio_file, uploaded_bgm_file, voice_mode
 
 
 def _render_subtitle_settings(panel, params):
@@ -2999,7 +3103,7 @@ def _render_subtitle_settings(panel, params):
 
 
 def _render_generation_controls(
-    params, uploaded_files, uploaded_audio_file, voice_mode
+    params, uploaded_files, uploaded_audio_file, uploaded_bgm_file, voice_mode
 ):
     """校验生成依赖、执行任务，并渲染日志与成片结果。"""
     restore_upload_requirements = st.session_state.get(
@@ -3094,6 +3198,25 @@ def _render_generation_controls(
             _remove_active_generation_task(task_id)
             st.error(tr("Task Restore Custom Audio Warning"))
             st.stop()
+
+        if uploaded_bgm_file:
+            try:
+                saved_bgm_name = bgm_service.save_bgm_upload(
+                    uploaded_bgm_file.name, uploaded_bgm_file
+                )
+            except bgm_service.BgmUploadError as exc:
+                _remove_active_generation_task(task_id)
+                logger.warning(f"WebUI background music upload rejected: {str(exc)}")
+                st.error(tr("Invalid Background Music"))
+                st.stop()
+            except bgm_service.BgmServiceError as exc:
+                _remove_active_generation_task(task_id)
+                logger.error(f"WebUI background music upload failed: {str(exc)}")
+                st.error(tr("Background Music Validation Failed"))
+                st.stop()
+            # 保存成功后只把文件名写入任务参数。视频服务会在两个 BGM 白名单
+            # 目录中重新解析，避免把服务器绝对路径持久化或展示给用户。
+            params.bgm_file = saved_bgm_name
 
         if uploaded_audio_file:
             task_dir = utils.task_dir(task_id)
@@ -3232,11 +3355,19 @@ def _render_application():
     _render_script_settings(left_panel, params)
 
     uploaded_files = _render_video_settings(middle_panel, params)
-    uploaded_audio_file, voice_mode = _render_audio_settings(audio_panel, params)
+    uploaded_audio_file, uploaded_bgm_file, voice_mode = _render_audio_settings(
+        audio_panel, params
+    )
 
     _render_subtitle_settings(right_panel, params)
 
-    _render_generation_controls(params, uploaded_files, uploaded_audio_file, voice_mode)
+    _render_generation_controls(
+        params,
+        uploaded_files,
+        uploaded_audio_file,
+        uploaded_bgm_file,
+        voice_mode,
+    )
 
     config.save_config()
 

@@ -29,6 +29,7 @@ from app.models.schema import (
     VideoMaterialUploadResponse,
     VideoMaterialRetrieveResponse
 )
+from app.services import bgm as bgm_service
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
@@ -236,18 +237,15 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
     "/musics", response_model=BgmRetrieveResponse, summary="Retrieve local BGM files"
 )
 def get_bgm_list(request: Request):
-    suffix = "*.mp3"
-    song_dir = utils.song_dir()
-    files = glob.glob(os.path.join(song_dir, suffix))
     bgm_list = []
-    for file in files:
+    for file in bgm_service.list_bgm_files():
         filename = os.path.basename(file)
         bgm_list.append(
             {
                 "name": filename,
                 "size": os.path.getsize(file),
-                # 只返回文件名，避免把服务器绝对路径暴露给调用方。
-                # 服务端后续会把该文件名解析回 songs 白名单目录。
+                # 只返回文件名，避免把服务器绝对路径暴露给调用方。服务端会
+                # 在 storage/bgm 和 resource/songs 两个白名单目录中重新解析。
                 "file": filename,
             }
         )
@@ -258,26 +256,45 @@ def get_bgm_list(request: Request):
 @router.post(
     "/musics",
     response_model=BgmUploadResponse,
-    summary="Upload the BGM file to the songs directory",
+    summary="Upload a background music file",
+    description=(
+        "Validate an MP3, M4A, AAC, WAV, FLAC, OGG, OPUS, or WMA file up to "
+        "30 MB and store it under an immutable UUID filename in storage/bgm."
+    ),
+    responses={
+        400: {"description": "The filename, format, size, or audio stream is invalid"},
+        500: {"description": "FFmpeg validation or persistent storage is unavailable"},
+    },
 )
 def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
-    safe_filename = _sanitize_upload_filename(file.filename, request_id)
-    # check file ext
-    if safe_filename.lower().endswith("mp3"):
-        song_dir = utils.song_dir()
-        save_path = os.path.join(song_dir, safe_filename)
-        # save file
-        with open(save_path, "wb+") as buffer:
-            # If the file already exists, it will be overwritten
-            file.file.seek(0)
-            buffer.write(file.file.read())
-        response = {"file": safe_filename}
-        return utils.get_response(200, response)
+    try:
+        safe_filename = bgm_service.save_bgm_upload(file.filename, file.file)
+    except bgm_service.BgmUploadError as exc:
+        # 上传失败通常可以由用户更换文件后恢复，因此记录 request_id 和明确原因，
+        # 但不输出文件内容或绝对路径，避免日志泄露用户数据。
+        logger.warning(
+            f"background music upload rejected: request_id={request_id}, error={str(exc)}"
+        )
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: {str(exc)}",
+        )
+    except bgm_service.BgmServiceError as exc:
+        # 工具链或存储故障属于服务端问题，不能伪装成用户文件错误。日志保留
+        # request_id 和内部原因，HTTP 响应只返回稳定文案，避免暴露服务器路径。
+        logger.error(
+            f"background music upload failed: request_id={request_id}, error={str(exc)}"
+        )
+        raise HttpException(
+            task_id=request_id,
+            status_code=500,
+            message=f"{request_id}: background music validation is unavailable",
+        )
 
-    raise HttpException(
-        "", status_code=400, message=f"{request_id}: Only *.mp3 files can be uploaded"
-    )
+    response = {"file": safe_filename}
+    return utils.get_response(200, response)
 
 @router.get(
     "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="Retrieve local video materials"
