@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import webbrowser
 from collections.abc import Mapping
 from datetime import datetime
@@ -407,25 +408,25 @@ def _normalize_task_state(state):
         return state
 
 
+_ACTIVE_GENERATION_TASKS = {}
+_ACTIVE_GENERATION_TASKS_LOCK = threading.RLock()
+
+
 def _active_generation_tasks():
-    tasks = st.session_state.setdefault("active_generation_tasks", {})
-    if not isinstance(tasks, dict):
-        tasks = {}
-        st.session_state["active_generation_tasks"] = tasks
-    return tasks
+    with _ACTIVE_GENERATION_TASKS_LOCK:
+        return dict(_ACTIVE_GENERATION_TASKS)
 
 
 def _add_active_generation_task(task_id, subject=None):
-    tasks = _active_generation_tasks()
-    task = tasks.setdefault(task_id, {})
-    task["subject"] = subject or task.get("subject") or task_id
-    task["mtime"] = task.get("mtime") or datetime.now().timestamp()
+    with _ACTIVE_GENERATION_TASKS_LOCK:
+        task = _ACTIVE_GENERATION_TASKS.setdefault(task_id, {})
+        task["subject"] = subject or task.get("subject") or task_id
+        task["mtime"] = task.get("mtime") or datetime.now().timestamp()
 
 
 def _remove_active_generation_task(task_id):
-    tasks = _active_generation_tasks()
-    if task_id in tasks:
-        del tasks[task_id]
+    with _ACTIVE_GENERATION_TASKS_LOCK:
+        _ACTIVE_GENERATION_TASKS.pop(task_id, None)
     if st.session_state.get("pending_generation_task_id") == task_id:
         del st.session_state["pending_generation_task_id"]
 
@@ -3312,37 +3313,17 @@ def _render_generation_controls(
                 del records[:-1000]
             render_generation_logs(log_container)
 
-        log_handler_id = logger.add(log_received)
         try:
             st.toast(tr("Generating Video"))
             logger.info(tr("Start Generating Video"))
             logger.info(utils.to_json(params))
 
             with config.runtime_config_lock():
-                result = tm.start(task_id=task_id, params=params)
-            if not result or "videos" not in result:
-                st.error(tr("Video Generation Failed"))
-                logger.error(tr("Video Generation Failed"))
-                st.stop()
-
-            video_files = result.get("videos", [])
-            st.success(tr("Video Generation Completed"))
-            try:
-                if video_files:
-                    player_cols = st.columns(len(video_files) * 2 + 1)
-                    for i, url in enumerate(video_files):
-                        player_cols[i * 2 + 1].video(url)
-            except Exception as e:
-                logger.exception(
-                    f"failed to render generated video preview: task_id={task_id}, "
-                    f"video_files={video_files}, error={e}"
-                )
-
-            open_task_folder(task_id)
-            logger.info(tr("Video Generation Completed"))
+                tm.start_background_task(task_id=task_id, params=params)
+            st.success("Video generation started in the background. You can leave the page and come back later.")
+            st.info("Progress will continue to update in the task manager while the video is being generated.")
         finally:
             _remove_active_generation_task(task_id)
-            remove_logger_handler_safely(log_handler_id)
 
     render_generation_logs(log_container)
 
