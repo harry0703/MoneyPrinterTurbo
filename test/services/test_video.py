@@ -10,6 +10,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 from moviepy import (
+    ImageClip,
     VideoFileClip,
 )
 # add project root to python path
@@ -388,20 +389,34 @@ class TestVideoService(unittest.TestCase):
         和 ffmpeg 命令。项目服务层应屏蔽这类依赖库噪声，避免用户把
         `audio_found: False` 误判为最终视频没有音频。
         """
-        video_path = os.path.join(resources_dir, "1.png.mp4")
-        if not os.path.exists(video_path):
-            self.fail(f"test video not found: {video_path}")
+        # 测试只关心服务层是否屏蔽 MoviePy 的读取噪声，不应长期保存一份由 PNG
+        # 编码而来的二进制 MP4 fixture。运行时生成短视频既能保持测试独立，也能
+        # 避免 fixture 因不同编码参数产生帧间闪烁后被误用于视觉效果验证。
+        image_path = os.path.join(resources_dir, "1.png")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video_path = os.path.join(temp_dir, "image-fixture.mp4")
+            source_clip = ImageClip(image_path).with_duration(0.2)
+            try:
+                source_clip.write_videofile(
+                    video_path,
+                    codec="libx264",
+                    fps=5,
+                    audio=False,
+                    logger=None,
+                )
+            finally:
+                source_clip.close()
 
-        stdout = StringIO()
-        with redirect_stdout(stdout):
-            clip = vd._open_video_clip_quietly(video_path)
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                clip = vd._open_video_clip_quietly(video_path)
 
-        try:
-            self.assertEqual(stdout.getvalue(), "")
-            self.assertIsNone(clip.audio)
-            self.assertGreater(clip.duration, 0)
-        finally:
-            vd.close_clip(clip)
+            try:
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIsNone(clip.audio)
+                self.assertGreater(clip.duration, 0)
+            finally:
+                vd.close_clip(clip)
 
     def test_combine_videos_closes_audio_clip_when_duration_read_fails(self):
         """
