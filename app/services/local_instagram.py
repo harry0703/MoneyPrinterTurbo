@@ -32,6 +32,12 @@ class LocalInstagramService:
         )
         self.timeout = config.app.get("local_instagram_timeout", 600)
 
+        # Helpful at startup so users can verify whether their config was picked up.
+        logger.info(
+            f"[LocalInstagram] enabled={self.enabled}, endpoint={self.endpoint}, "
+            f"template={self.description_template!r}"
+        )
+
     def is_configured(self) -> bool:
         return bool(self.enabled and self.endpoint)
 

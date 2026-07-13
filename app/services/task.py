@@ -474,6 +474,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 8. Send finished videos to the local Instagram Graph API endpoint
     local_instagram_results = []
+    logger.debug(
+        f"[LocalInstagram] configured={local_instagram.local_instagram_service.is_configured()}"
+    )
     if local_instagram.local_instagram_service.is_configured():
         logger.info("\n\n## sending videos to local Instagram endpoint")
         # Use the first 2100 characters of the script as an optional caption
@@ -488,6 +491,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
                 logger.info(f"✅ Local Instagram publish succeeded: {result.get('postId', 'n/a')}")
             else:
                 logger.warning(f"⚠️ Local Instagram publish failed: {result.get('error', 'Unknown error')}")
+    else:
+        logger.info("[LocalInstagram] local Instagram publisher is disabled or not configured; skipping.")
 
     kwargs = {
         "videos": final_video_paths,
