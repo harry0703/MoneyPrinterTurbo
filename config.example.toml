@@ -209,7 +209,9 @@ pollinations_model_name = ""
 mimo_tts_model_name = "mimo-v2.5-tts"
 mimo_tts_style_prompt = "请用自然、清晰、适合短视频旁白的语气朗读。"
 
-# Subtitle provider: "edge" or "whisper". Leave empty to skip generation.
+# Subtitle provider: "edge" or "whisper". Whisper is loaded only when selected
+# explicitly; Edge failures do not trigger an automatic Whisper model download.
+# Leave empty to skip generation.
 subtitle_provider = "edge"
 
 # FFmpeg is normally downloaded and detected automatically. If detection fails,

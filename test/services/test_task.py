@@ -470,6 +470,48 @@ class TestTaskService(unittest.TestCase):
         create_subtitle.assert_not_called()
         whisper_create.assert_not_called()
 
+    def test_generate_subtitle_does_not_fallback_to_whisper_when_edge_fails(self):
+        """
+        Edge 没有生成字幕文件时应保留无字幕结果，不能自动下载 Whisper 模型。
+
+        该场景可能由 TTS 时间轴与原始文案无法匹配触发。自动回退会让未选择
+        Whisper 的用户意外下载数 GB 模型，因此必须验证 Whisper 完全不会被调用。
+        """
+        task_id = "test-edge-subtitle-without-output"
+        task_dir = utils.task_dir(task_id)
+        params = VideoParams(
+            video_subject="edge subtitle",
+            video_script="Hello world.",
+            subtitle_enabled=True,
+        )
+        sub_maker = object()
+
+        try:
+            with (
+                patch.object(
+                    tm.config,
+                    "app",
+                    dict(tm.config.app, subtitle_provider="edge"),
+                ),
+                patch.object(tm.voice, "create_subtitle") as create_subtitle,
+                patch.object(tm.subtitle, "create") as whisper_create,
+                patch.object(tm.subtitle, "correct") as whisper_correct,
+            ):
+                subtitle_path = tm.generate_subtitle(
+                    task_id=task_id,
+                    params=params,
+                    video_script="Hello world.",
+                    sub_maker=sub_maker,
+                    audio_file=os.path.join(task_dir, "audio.mp3"),
+                )
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertEqual(subtitle_path, "")
+        create_subtitle.assert_called_once()
+        whisper_create.assert_not_called()
+        whisper_correct.assert_not_called()
+
     def test_start_returns_each_intermediate_result(self):
         """
         API 的 script、terms、audio、subtitle 和 materials 模式共用同一条任务

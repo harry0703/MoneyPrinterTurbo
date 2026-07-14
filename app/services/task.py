@@ -203,6 +203,10 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
 
+    if not subtitle_provider:
+        logger.info("subtitle provider is empty, skip subtitle generation")
+        return ""
+
     if sub_maker is None and subtitle_provider != "whisper":
         # 自定义音频不会经过 TTS，因此没有 Edge/Azure 等 TTS 返回的
         # sub_maker 时间轴。只有 Whisper 可以直接从音频文件转写字幕；
@@ -213,16 +217,22 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         )
         return ""
 
-    subtitle_fallback = False
     if subtitle_provider == "edge":
         voice.create_subtitle(
             text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path
         )
         if not os.path.exists(subtitle_path):
-            subtitle_fallback = True
-            logger.warning("subtitle file not found, fallback to whisper")
+            # Edge 字幕偶尔会因为时间轴与文案无法匹配而没有产出文件。这里不能
+            # 自动切换到 Whisper，否则首次失败会在用户不知情的情况下下载数 GB
+            # 的模型。只有显式配置 Whisper 时才允许加载模型，Edge 失败则保留
+            # 无字幕视频并记录原因，避免意外的网络和磁盘开销。
+            logger.warning(
+                "edge subtitle generation did not produce a subtitle file; "
+                "skip subtitles without falling back to whisper"
+            )
+            return ""
 
-    if subtitle_provider == "whisper" or subtitle_fallback:
+    if subtitle_provider == "whisper":
         subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
         logger.info("\n\n## correcting subtitle")
         subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
