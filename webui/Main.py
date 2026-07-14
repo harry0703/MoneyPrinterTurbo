@@ -950,6 +950,15 @@ def _apply_pending_task_restore():
     st.session_state["sonilo_bgm_prompt_input"] = (
         params.get("sonilo_bgm_prompt") or ""
     )
+    st.session_state["sonilo_sfx_enabled_checkbox"] = bool(
+        params.get("sonilo_sfx_enabled")
+    )
+    _set_stable_widget_value(
+        "sonilo_sfx_volume_select", params.get("sonilo_sfx_volume", 0.3)
+    )
+    st.session_state["sonilo_sfx_prompt_input"] = (
+        params.get("sonilo_sfx_prompt") or ""
+    )
 
     # 字幕设置。对旧任务中的越界数值做最小限幅，避免 Slider 无法初始化。
     st.session_state["subtitle_enabled_checkbox"] = bool(
@@ -2478,7 +2487,16 @@ def _render_background_music_settings(params):
             # 完整校验；当前任务参数必须清空，避免 0 音量任务保存或解析该文件。
             params.bgm_file = ""
 
-    if params.bgm_type == "sonilo":
+    # 音效独立于背景音乐来源：任何 BGM 模式下都可以叠加一条 Sonilo 音效轨，
+    # 与 Sonilo 配乐共用同一个 API Key、连接测试和降级链路。
+    params.sonilo_sfx_enabled = st.checkbox(
+        tr("Sonilo Sound Effects"),
+        key="sonilo_sfx_enabled_checkbox",
+        help=tr("Sonilo Sound Effects Help"),
+    )
+    sonilo_needed = params.bgm_type == "sonilo" or params.sonilo_sfx_enabled
+
+    if sonilo_needed:
         configured_key = str(config.app.get("sonilo_api_key", "") or "").strip()
         effective_key = configured_key or os.getenv("SONILO_API_KEY", "").strip()
         entered_key = st.text_input(
@@ -2494,12 +2512,35 @@ def _render_background_music_settings(params):
         if configured_key or entered_key != effective_key:
             config.app["sonilo_api_key"] = entered_key
 
+    if params.bgm_type == "sonilo":
         params.sonilo_bgm_prompt = st.text_input(
             tr("Sonilo Music Prompt"),
             key="sonilo_bgm_prompt_input",
             max_chars=sonilo_service.MAX_PROMPT_LENGTH,
             help=tr("Sonilo Music Prompt Help"),
         ).strip()
+
+    if params.sonilo_sfx_enabled:
+        params.sonilo_sfx_volume = stable_selectbox(
+            tr("Sonilo Sound Effects Volume"),
+            options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+            default_value=0.3,
+            key="sonilo_sfx_volume_select",
+            format_func=lambda value: f"{int(value * 100)}%",
+        )
+        params.sonilo_sfx_prompt = st.text_input(
+            tr("Sonilo Sound Effects Prompt"),
+            key="sonilo_sfx_prompt_input",
+            max_chars=sonilo_service.MAX_PROMPT_LENGTH,
+            help=tr("Sonilo Sound Effects Prompt Help"),
+        ).strip()
+        # 成片会上传给第三方，且音效授权与本地曲库不同，勾选后立即明确告知。
+        st.info(tr("Sonilo Sound Effects Notice"))
+    sonilo_sfx_requested = bgm_service.should_use_bgm(
+        "sonilo" if params.sonilo_sfx_enabled else "", params.sonilo_sfx_volume
+    )
+
+    if sonilo_needed:
         if params.video_count > 1:
             st.warning(tr("Sonilo Multiple Videos Warning"))
         if st.button(
@@ -2507,18 +2548,29 @@ def _render_background_music_settings(params):
             key="test_sonilo_connection_button",
             use_container_width=True,
         ):
+            # 连接测试只要求当前启用功能对应的服务，避免仅用音效的 Key
+            # 因为未开通配乐而误报失败（反之亦然）。
+            required_service_ids = []
+            if params.bgm_type == "sonilo":
+                required_service_ids.append(
+                    sonilo_service.VIDEO_TO_MUSIC_SERVICE_ID
+                )
+            if params.sonilo_sfx_enabled:
+                required_service_ids.append(
+                    sonilo_service.VIDEO_TO_SFX_SERVICE_ID
+                )
             try:
-                sonilo_service.test_connection()
+                sonilo_service.test_connection(
+                    required_service_ids=tuple(required_service_ids)
+                )
             except sonilo_service.SoniloError as exc:
                 logger.warning(f"Sonilo connection test failed: {exc}")
                 st.error(tr("Sonilo Connection Test Failed").format(error=str(exc)))
             else:
                 st.success(tr("Sonilo Connection Test Succeeded"))
     if (
-        params.bgm_type == "sonilo"
-        and bgm_enabled
-        and not sonilo_service.is_enabled()
-    ):
+        (params.bgm_type == "sonilo" and bgm_enabled) or sonilo_sfx_requested
+    ) and not sonilo_service.is_enabled():
         # 音量为 0 时任务层不会生成或混合 Sonilo 配乐，因此无需提示 Key；
         # 该判断与任务入口共用服务层规则，避免界面提示和实际执行条件分叉。
         st.warning(tr("Sonilo API Key Required"))
@@ -3242,10 +3294,15 @@ def _render_generation_controls(
             st.stop()
 
         if (
-            params.bgm_type == "sonilo"
-            and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
-            and not sonilo_service.is_enabled()
-        ):
+            (
+                params.bgm_type == "sonilo"
+                and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
+            )
+            or bgm_service.should_use_bgm(
+                "sonilo" if params.sonilo_sfx_enabled else "",
+                params.sonilo_sfx_volume,
+            )
+        ) and not sonilo_service.is_enabled():
             _remove_active_generation_task(task_id)
             st.error(tr("Sonilo API Key Required"))
             st.stop()
@@ -3385,12 +3442,18 @@ def _render_generation_controls(
             video_files = result.get("videos", [])
             st.success(tr("Video Generation Completed"))
             for warning in result.get("warnings") or []:
-                if (
-                    isinstance(warning, Mapping)
-                    and warning.get("code") == "sonilo_bgm_failed"
-                ):
+                warning_code = (
+                    warning.get("code") if isinstance(warning, Mapping) else None
+                )
+                if warning_code == "sonilo_bgm_failed":
                     st.warning(
                         tr("Sonilo BGM Fallback Warning").format(
+                            index=warning.get("video_index", "")
+                        )
+                    )
+                elif warning_code == "sonilo_sfx_failed":
+                    st.warning(
+                        tr("Sonilo SFX Fallback Warning").format(
                             index=warning.get("video_index", "")
                         )
                     )

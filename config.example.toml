@@ -64,12 +64,13 @@ twelvelabs_rerank_terms = false
 # 默认关闭，开启后会减少随机性，使素材顺序更贴近文案结构。
 match_materials_to_script = false
 
-# Optional Sonilo video-matched original background music.
+# Optional Sonilo video-matched original background music and sound effects.
 # Create a key at https://platform.sonilo.com/dashboard. The WebUI can also save
 # this value, or you can set the SONILO_API_KEY environment variable instead.
 sonilo_api_key = ""
 sonilo_base_url = "https://api.sonilo.com"
-# 单次生成流连续无数据时的最长等待秒数；它不是整个请求的总耗时上限。
+# 配乐生成流连续无数据时的最长等待秒数；对音效任务则是从提交到完成的总时长
+# 上限。它不是单个 HTTP 请求的总耗时上限。
 sonilo_timeout = 600
 
 # -----------------------------------------------------------------------------

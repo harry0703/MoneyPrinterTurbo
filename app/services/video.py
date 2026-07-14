@@ -965,13 +965,14 @@ def generate_video(
     output_file: str,
     params: VideoParams,
     bgm_file_override: str | None = None,
-) -> bool:
+    sfx_file_override: str = "",
+) -> tuple[bool, bool]:
     """
-    合成最终视频，并返回本次背景音乐处理是否成功。
+    合成最终视频，并返回 (bgm_mix_succeeded, sfx_mix_succeeded)。
 
-    返回值只描述 BGM 处理状态：没有请求 BGM 或成功混合时返回 True；请求了
-    BGM 但加载、特效或混合失败时返回 False。即使 BGM 失败仍会继续输出只有
-    旁白的视频，让任务编排层决定是否向用户展示降级警告。
+    两个返回值各自只描述对应音轨的处理状态：没有请求该音轨或成功混合时为
+    True；请求了但加载、特效或混合失败时为 False。即使 BGM 或音效失败仍会
+    继续输出只有旁白的视频，让任务编排层决定是否向用户展示降级警告。
     """
     aspect = VideoAspect(params.video_aspect)
     video_width, video_height = aspect.to_resolution()
@@ -1237,6 +1238,35 @@ def generate_video(
                     f"file={bgm_file}"
                 )
 
+        # 音效与 BGM 共用同一条与来源无关的音量短路规则：开关未开启视为没有
+        # 来源，音量不大于 0 时即使任务层已经传入文件也不加载或混合。
+        sfx_enabled = bgm_service.should_use_bgm(
+            "sonilo" if params.sonilo_sfx_enabled else "",
+            params.sonilo_sfx_volume,
+        )
+        if params.sonilo_sfx_enabled and not sfx_enabled:
+            logger.info(
+                f"skipping sound effects because volume is not positive: "
+                f"volume={params.sonilo_sfx_volume}"
+            )
+        sfx_mix_succeeded = True
+        if sfx_enabled and sfx_file_override:
+            try:
+                # 音效由提供商按成片时长生成、与画面时间点对齐；不能循环铺满，
+                # 也不加淡出，否则结尾附近的音效会被削弱或整体错位。
+                sfx_source_clip = clip_stack.enter_context(
+                    AudioFileClip(sfx_file_override)
+                )
+                sfx_clip = sfx_source_clip.with_effects(
+                    [afx.MultiplyVolume(params.sonilo_sfx_volume)]
+                )
+                audio_clip = CompositeAudioClip([audio_clip, sfx_clip])
+            except Exception:
+                sfx_mix_succeeded = False
+                logger.exception(
+                    f"failed to mix sound effects: file={sfx_file_override}"
+                )
+
         final_video_clip = video_clip.with_audio(audio_clip)
         clip_stack.callback(final_video_clip.close)
         # 显式沿用输入音频的采样率；如果取不到，再回退 MoviePy 默认的 44100Hz。
@@ -1254,7 +1284,7 @@ def generate_video(
             logger=None,
             fps=fps,
         )
-        return bgm_mix_succeeded
+        return bgm_mix_succeeded, sfx_mix_succeeded
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):

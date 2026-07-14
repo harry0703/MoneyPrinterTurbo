@@ -97,7 +97,7 @@ class TestVideoService(unittest.TestCase):
                 bgm_file_override="sonilo.m4a",
             )
 
-        self.assertTrue(result)
+        self.assertEqual(result, (True, True))
         writer.assert_called_once()
         self.assertEqual(writer.call_args.kwargs["audio_fps"], 48000)
         self.assertEqual(source_video.close_calls, 1)
@@ -140,7 +140,7 @@ class TestVideoService(unittest.TestCase):
                 bgm_file_override="broken.m4a",
             )
 
-        self.assertFalse(result)
+        self.assertEqual(result, (False, True))
         writer.assert_called_once()
         composite_audio.assert_not_called()
         log_exception.assert_called_once()
@@ -197,7 +197,7 @@ class TestVideoService(unittest.TestCase):
                         bgm_file_override=bgm_override,
                     )
 
-                self.assertTrue(result)
+                self.assertEqual(result, (True, True))
                 audio_file_clip.assert_called_once_with("voice.mp3")
                 get_bgm_file.assert_not_called()
                 composite_audio.assert_not_called()
@@ -258,11 +258,199 @@ class TestVideoService(unittest.TestCase):
                         bgm_file_override=bgm_override,
                     )
 
-                self.assertTrue(result)
+                self.assertEqual(result, (True, True))
                 if should_loop:
                     audio_loop.assert_called_once_with(duration=source_video.duration)
                 else:
                     audio_loop.assert_not_called()
+
+    def test_generate_video_mixes_sfx_under_voice_and_bgm(self):
+        """音效应与配乐同批混合，成功时返回双 True 并释放所有 reader。"""
+        params = vd.VideoParams(
+            video_subject="test",
+            subtitle_enabled=False,
+            bgm_type="sonilo",
+            sonilo_sfx_enabled=True,
+        )
+        source_video = _FakeMoviePyClip()
+        voice_source = _FakeMoviePyClip()
+        bgm_source = _FakeMoviePyClip()
+        sfx_source = _FakeMoviePyClip()
+        mixed_audio = _FakeMoviePyClip()
+        final_video = _FakeMoviePyClip()
+        source_video.with_audio_result = final_video
+
+        with (
+            patch.object(
+                vd, "_open_video_clip_quietly", return_value=source_video
+            ),
+            patch.object(
+                vd,
+                "AudioFileClip",
+                side_effect=[voice_source, bgm_source, sfx_source],
+            ),
+            patch.object(
+                vd, "CompositeAudioClip", return_value=mixed_audio
+            ) as composite_audio,
+            patch.object(vd, "_write_videofile_with_codec_fallback") as writer,
+            patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+        ):
+            result = vd.generate_video(
+                video_path="combined.mp4",
+                audio_path="voice.mp3",
+                subtitle_path="",
+                output_file="final.mp4",
+                params=params,
+                bgm_file_override="sonilo.m4a",
+                sfx_file_override="sonilo-sfx.m4a",
+            )
+
+        self.assertEqual(result, (True, True))
+        writer.assert_called_once()
+        self.assertEqual(composite_audio.call_count, 2)
+        self.assertEqual(source_video.close_calls, 1)
+        self.assertEqual(voice_source.close_calls, 1)
+        self.assertEqual(bgm_source.close_calls, 1)
+        self.assertEqual(sfx_source.close_calls, 1)
+        self.assertEqual(final_video.close_calls, 1)
+
+    def test_generate_video_keeps_output_and_reports_failed_sfx_mix(self):
+        """音效打开失败时仍应只写一次无音效视频，并返回音效失败状态。"""
+        params = vd.VideoParams(
+            video_subject="test",
+            subtitle_enabled=False,
+            bgm_type="",
+            sonilo_sfx_enabled=True,
+        )
+        source_video = _FakeMoviePyClip()
+        voice_source = _FakeMoviePyClip()
+        final_video = _FakeMoviePyClip()
+        source_video.with_audio_result = final_video
+
+        with (
+            patch.object(
+                vd, "_open_video_clip_quietly", return_value=source_video
+            ),
+            patch.object(
+                vd,
+                "AudioFileClip",
+                side_effect=[voice_source, RuntimeError("invalid SFX")],
+            ),
+            patch.object(vd, "CompositeAudioClip") as composite_audio,
+            patch.object(vd, "_write_videofile_with_codec_fallback") as writer,
+            patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+            patch.object(vd.logger, "exception") as log_exception,
+        ):
+            result = vd.generate_video(
+                video_path="combined.mp4",
+                audio_path="voice.mp3",
+                subtitle_path="",
+                output_file="final.mp4",
+                params=params,
+                sfx_file_override="broken-sfx.m4a",
+            )
+
+        self.assertEqual(result, (True, False))
+        writer.assert_called_once()
+        composite_audio.assert_not_called()
+        log_exception.assert_called_once()
+        self.assertEqual(source_video.close_calls, 1)
+        self.assertEqual(voice_source.close_calls, 1)
+        self.assertEqual(final_video.close_calls, 1)
+
+    def test_generate_video_skips_sfx_when_disabled_or_volume_is_zero(self):
+        """音效沿用统一音量规则：未开启或 0 音量时不能加载任务层文件。"""
+        test_cases = [
+            {"sonilo_sfx_enabled": False, "sonilo_sfx_volume": 0.3},
+            {"sonilo_sfx_enabled": True, "sonilo_sfx_volume": 0.0},
+        ]
+        for overrides in test_cases:
+            with self.subTest(overrides=overrides):
+                params = vd.VideoParams(
+                    video_subject="test",
+                    subtitle_enabled=False,
+                    bgm_type="",
+                    **overrides,
+                )
+                source_video = _FakeMoviePyClip()
+                voice_source = _FakeMoviePyClip()
+                final_video = _FakeMoviePyClip()
+                source_video.with_audio_result = final_video
+
+                with (
+                    patch.object(
+                        vd,
+                        "_open_video_clip_quietly",
+                        return_value=source_video,
+                    ),
+                    patch.object(
+                        vd, "AudioFileClip", return_value=voice_source
+                    ) as audio_file_clip,
+                    patch.object(vd, "CompositeAudioClip") as composite_audio,
+                    patch.object(
+                        vd, "_write_videofile_with_codec_fallback"
+                    ) as writer,
+                    patch.object(
+                        vd, "_get_configured_video_codec", return_value="libx264"
+                    ),
+                ):
+                    result = vd.generate_video(
+                        video_path="combined.mp4",
+                        audio_path="voice.mp3",
+                        subtitle_path="",
+                        output_file="final.mp4",
+                        params=params,
+                        sfx_file_override="sonilo-sfx.m4a",
+                    )
+
+                self.assertEqual(result, (True, True))
+                audio_file_clip.assert_called_once_with("voice.mp3")
+                composite_audio.assert_not_called()
+                writer.assert_called_once()
+                self.assertEqual(source_video.close_calls, 1)
+                self.assertEqual(voice_source.close_calls, 1)
+                self.assertEqual(final_video.close_calls, 1)
+
+    def test_generate_video_never_loops_or_fades_sfx_track(self):
+        """音效与画面时间点对齐，禁止套用配乐的循环铺满和结尾淡出。"""
+        params = vd.VideoParams(
+            video_subject="test",
+            subtitle_enabled=False,
+            bgm_type="",
+            sonilo_sfx_enabled=True,
+        )
+        source_video = _FakeMoviePyClip()
+        voice_source = _FakeMoviePyClip()
+        sfx_source = _FakeMoviePyClip()
+        mixed_audio = _FakeMoviePyClip()
+        final_video = _FakeMoviePyClip()
+        source_video.with_audio_result = final_video
+
+        with (
+            patch.object(
+                vd, "_open_video_clip_quietly", return_value=source_video
+            ),
+            patch.object(
+                vd, "AudioFileClip", side_effect=[voice_source, sfx_source]
+            ),
+            patch.object(vd, "CompositeAudioClip", return_value=mixed_audio),
+            patch.object(vd.afx, "AudioLoop") as audio_loop,
+            patch.object(vd.afx, "AudioFadeOut") as audio_fade_out,
+            patch.object(vd, "_write_videofile_with_codec_fallback"),
+            patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+        ):
+            result = vd.generate_video(
+                video_path="combined.mp4",
+                audio_path="voice.mp3",
+                subtitle_path="",
+                output_file="final.mp4",
+                params=params,
+                sfx_file_override="sonilo-sfx.m4a",
+            )
+
+        self.assertEqual(result, (True, True))
+        audio_loop.assert_not_called()
+        audio_fade_out.assert_not_called()
 
     def test_preprocess_video(self):
         if not os.path.exists(self.test_img_path):

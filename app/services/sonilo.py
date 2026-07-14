@@ -5,6 +5,7 @@ import math
 import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -18,12 +19,20 @@ from app.utils import utils
 
 DEFAULT_BASE_URL = "https://api.sonilo.com"
 VIDEO_TO_MUSIC_PATH = "/v1/video-to-music"
+VIDEO_TO_SFX_PATH = "/v1/video-to-sfx"
+TASKS_PATH = "/v1/tasks"
 SERVICES_PATH = "/v1/account/services"
 MAX_VIDEO_DURATION_SECONDS = 360
+# 音效接口的时长上限比配乐更严：3 分钟对 6 分钟。两个上限各自独立校验，
+# 成片在两者之间时配乐照常进行、音效降级跳过。
+MAX_SFX_VIDEO_DURATION_SECONDS = 180
 MAX_PROMPT_LENGTH = 2000
 MAX_PROXY_BYTES = 300 * 1024 * 1024
 MAX_GENERATED_AUDIO_BYTES = 30 * 1024 * 1024
 VIDEO_TO_MUSIC_SERVICE_ID = "video_to_music"
+VIDEO_TO_SFX_SERVICE_ID = "video_to_sfx"
+SFX_POLL_INTERVAL_SECONDS = 5
+SFX_TERMINAL_TASK_STATUSES = ("succeeded", "failed")
 
 
 class SoniloError(RuntimeError):
@@ -79,11 +88,15 @@ def _safe_response_error(response: requests.Response) -> str:
     return body or response.reason or "request failed"
 
 
-def test_connection() -> dict[str, Any]:
+def test_connection(
+    required_service_ids: tuple[str, ...] = (VIDEO_TO_MUSIC_SERVICE_ID,),
+) -> dict[str, Any]:
     """
-    使用不消耗配乐额度的服务列表接口验证 API Key。
+    使用不消耗生成额度的服务列表接口验证 API Key。
 
-    返回原始 JSON 便于 UI 展示可用服务，但日志中绝不记录 Key 或请求头。
+    配乐与音效共用同一个 Key，但账号开通的服务可能不同；调用方按当前启用
+    的功能传入必需服务列表。返回原始 JSON 便于 UI 展示可用服务，但日志中
+    绝不记录 Key 或请求头。
     """
     api_key = get_api_key()
     if not api_key:
@@ -115,8 +128,16 @@ def test_connection() -> dict[str, Any]:
     normalized_services = {
         _normalize_service_id(service_id) for service_id in available_services
     }
-    if VIDEO_TO_MUSIC_SERVICE_ID not in normalized_services:
-        raise SoniloError("Sonilo video-to-music service is not available for this key")
+    missing_services = [
+        _normalize_service_id(service_id).replace("_", "-")
+        for service_id in required_service_ids
+        if _normalize_service_id(service_id) not in normalized_services
+    ]
+    if missing_services:
+        raise SoniloError(
+            f"Sonilo {', '.join(missing_services)} service is not available "
+            "for this key"
+        )
     logger.info("Sonilo connection test succeeded")
     return payload
 
@@ -352,6 +373,235 @@ def generate_bgm(
     except OSError as exc:
         # 临时目录、代理文件和最终原子替换都可能发生文件系统错误。统一转换为
         # SoniloError，任务编排层才能按设计降级为“无背景音乐”并保留成片。
+        raise SoniloError(f"Sonilo local file operation failed: {exc}") from exc
+    finally:
+        _remove_file(proxy_path)
+
+
+def _sfx_deadline_seconds() -> float:
+    """
+    音效任务从提交到终态的总等待秒数。
+
+    与配乐共用 sonilo_timeout 配置项：配乐是流式响应的读取超时，音效是
+    轮询任务的总时长上限。同样限制取值范围，避免非法配置让轮询永不结束。
+    """
+    raw_timeout = config.app.get("sonilo_timeout", 600)
+    try:
+        deadline = float(raw_timeout)
+    except (TypeError, ValueError):
+        deadline = 600
+    if not math.isfinite(deadline) or deadline <= 0:
+        deadline = 600
+    return min(deadline, 1800)
+
+
+def _submit_sfx_task(video_path: str, prompt: str) -> str:
+    """
+    提交音效任务并返回 task_id。
+
+    与配乐接口不同，音效走异步任务管线：提交被受理即开始计费，因此和配乐
+    保持同一策略——提交失败不自动重试，由任务编排层统一降级。
+    """
+    try:
+        with open(video_path, "rb") as video_file:
+            response = requests.post(
+                f"{_base_url()}{VIDEO_TO_SFX_PATH}",
+                headers={"Authorization": f"Bearer {get_api_key()}"},
+                files={"video": (Path(video_path).name, video_file, "video/mp4")},
+                data={"prompt": prompt} if prompt else None,
+                timeout=_request_timeout(),
+            )
+    except requests.RequestException as exc:
+        raise SoniloError(
+            f"failed to submit Sonilo sound effects task: {exc}"
+        ) from exc
+    if not response.ok:
+        raise SoniloError(
+            f"Sonilo sound effects request failed ({response.status_code}): "
+            f"{_safe_response_error(response)}"
+        )
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise SoniloError("Sonilo returned an invalid task response") from exc
+    task_id = payload.get("task_id") if isinstance(payload, dict) else None
+    if not task_id:
+        raise SoniloError("Sonilo accepted the request but returned no task_id")
+    return str(task_id)
+
+
+def _poll_sfx_task(task_id: str) -> dict[str, Any]:
+    """
+    轮询任务状态直到终态（succeeded/failed）或达到总时长上限。
+
+    404 表示 task_id 无效或不是音效任务，重试不会改变结果，必须立即失败；
+    其余错误（5xx、限流、网络抖动、非法响应体）都视为暂时性——任务仍在
+    服务端继续执行，留在轮询循环里等待下一轮，直到超出总时长上限。
+    """
+    deadline = time.monotonic() + _sfx_deadline_seconds()
+    while True:
+        try:
+            response = requests.get(
+                f"{_base_url()}{TASKS_PATH}/{task_id}",
+                headers={"Authorization": f"Bearer {get_api_key()}"},
+                timeout=(15, 30),
+            )
+        except requests.RequestException as exc:
+            response = None
+            logger.debug(
+                f"transient Sonilo task poll failure: task_id={task_id}, "
+                f"error={exc}"
+            )
+        if response is not None:
+            if response.status_code == 404:
+                raise SoniloError(
+                    f"Sonilo sound effects task was not found: {task_id}"
+                )
+            if response.ok:
+                try:
+                    task_body = response.json()
+                except ValueError:
+                    task_body = None
+                if (
+                    isinstance(task_body, dict)
+                    and task_body.get("status") in SFX_TERMINAL_TASK_STATUSES
+                ):
+                    return task_body
+            else:
+                logger.debug(
+                    f"transient Sonilo task poll failure: task_id={task_id}, "
+                    f"status={response.status_code}"
+                )
+        if time.monotonic() >= deadline:
+            raise SoniloError(
+                f"timed out waiting for Sonilo sound effects task: {task_id}"
+            )
+        time.sleep(SFX_POLL_INTERVAL_SECONDS)
+
+
+def _download_sfx_audio(
+    task_body: dict[str, Any], temp_audio_path: str, task_id: str
+) -> int:
+    """
+    校验终态任务并把音频产物流式写入临时文件，限制最大体积。
+
+    产物 URL 是预签名的，自带访问授权：下载请求绝不能携带 Authorization
+    请求头，避免把 API Key 发送给存储域名。
+    """
+    if task_body.get("status") == "failed":
+        error = task_body.get("error")
+        if isinstance(error, dict):
+            message = str(error.get("message") or error.get("code") or "unknown error")
+        elif isinstance(error, str) and error:
+            message = error
+        else:
+            message = "unknown error"
+        raise SoniloError(f"Sonilo sound effects generation failed: {message}")
+    audio = task_body.get("audio")
+    audio_url = audio.get("url") if isinstance(audio, dict) else None
+    if not isinstance(audio_url, str) or not audio_url:
+        raise SoniloError(
+            f"Sonilo sound effects task returned no audio artifact: {task_id}"
+        )
+    total_bytes = 0
+    try:
+        response = requests.get(audio_url, stream=True, timeout=_request_timeout())
+        with response:
+            if not response.ok:
+                raise SoniloError(
+                    f"Sonilo sound effects download failed "
+                    f"({response.status_code}): {_safe_response_error(response)}"
+                )
+            with open(temp_audio_path, "wb") as output:
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    if not chunk:
+                        continue
+                    total_bytes += len(chunk)
+                    if total_bytes > MAX_GENERATED_AUDIO_BYTES:
+                        raise SoniloError("Sonilo audio exceeds the 30 MB limit")
+                    output.write(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+    except requests.RequestException as exc:
+        raise SoniloError(
+            f"failed to download Sonilo sound effects: {exc}"
+        ) from exc
+    if total_bytes <= 0:
+        raise SoniloError("Sonilo returned no audio data")
+    return total_bytes
+
+
+def _request_sfx(video_path: str, output_path: str, prompt: str) -> str:
+    """走完提交、轮询和下载的完整任务管线，音频校验通过后原子保存。"""
+    output_dir = os.path.dirname(os.path.abspath(output_path))
+    os.makedirs(output_dir, exist_ok=True)
+    descriptor, temp_audio_path = tempfile.mkstemp(
+        prefix=".sonilo-sfx-",
+        suffix=Path(output_path).suffix or ".m4a",
+        dir=output_dir,
+    )
+    os.close(descriptor)
+    try:
+        logger.info(
+            f"requesting Sonilo sound effects: video={video_path}, "
+            f"prompt_provided={bool(prompt)}"
+        )
+        task_id = _submit_sfx_task(video_path, prompt)
+        logger.info(f"Sonilo sound effects task submitted: task_id={task_id}")
+        task_body = _poll_sfx_task(task_id)
+        total_bytes = _download_sfx_audio(task_body, temp_audio_path, task_id)
+
+        try:
+            bgm_service.validate_audio_file(temp_audio_path, timeout_seconds=120)
+        except (bgm_service.BgmUploadError, bgm_service.BgmServiceError) as exc:
+            raise SoniloError("Sonilo returned audio that FFmpeg cannot decode") from exc
+        os.replace(temp_audio_path, output_path)
+        temp_audio_path = ""
+        logger.info(
+            f"Sonilo sound effects generated: output={output_path}, "
+            f"size={total_bytes} bytes, task_id={task_id}"
+        )
+        return output_path
+    finally:
+        _remove_file(temp_audio_path)
+
+
+def generate_sfx(
+    video_path: str,
+    output_path: str,
+    video_duration: float,
+    prompt: str = "",
+) -> str:
+    """为一条已拼接视频生成贴合画面的 Sonilo 音效音轨。"""
+    if not get_api_key():
+        raise SoniloError("Sonilo API key is required")
+    if not os.path.isfile(video_path):
+        raise SoniloError("Sonilo input video does not exist")
+    try:
+        duration = float(video_duration)
+    except (TypeError, ValueError) as exc:
+        raise SoniloError("Sonilo video duration is invalid") from exc
+    if not math.isfinite(duration) or duration <= 0:
+        raise SoniloError("Sonilo video duration is invalid")
+    if duration > MAX_SFX_VIDEO_DURATION_SECONDS:
+        # 本地先行校验可以在生成代理和上传之前直接跳过超长成片，由任务层
+        # 降级为“无音效”并提示用户，而不是等服务端拒绝后才浪费一次上传。
+        raise SoniloError("Sonilo sound effects support videos up to 180 seconds")
+    prompt = str(prompt or "").strip()
+    if len(prompt) > MAX_PROMPT_LENGTH:
+        raise SoniloError("Sonilo sound effects prompt exceeds 2000 characters")
+
+    proxy_path = ""
+    try:
+        # 音效模型与配乐一样只依赖画面节奏和内容，复用同一个无音轨低码率
+        # 代理，避免重复上传原始高清成片。
+        proxy_path = _create_video_proxy(video_path)
+        return _request_sfx(proxy_path, output_path, prompt)
+    except SoniloError:
+        raise
+    except OSError as exc:
+        # 与配乐一致：文件系统错误统一转换为 SoniloError，任务编排层才能
+        # 按设计降级为“无音效”并保留成片。
         raise SoniloError(f"Sonilo local file operation failed: {exc}") from exc
     finally:
         _remove_file(proxy_path)

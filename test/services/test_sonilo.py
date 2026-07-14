@@ -47,6 +47,32 @@ def _event(event_type, **values):
     return json.dumps({"type": event_type, **values}).encode("utf-8")
 
 
+class _SfxResponse:
+    """提供音效任务管线中 requests.Response 实际被使用的最小接口。"""
+
+    def __init__(self, *, status_code=200, payload=None, chunks=None):
+        self.status_code = status_code
+        self.ok = 200 <= status_code < 300
+        self.reason = "OK" if self.ok else "Request failed"
+        self.text = "" if self.ok else "request failed"
+        self.payload = payload
+        self.chunks = chunks or []
+
+    def json(self):
+        if self.payload is None:
+            raise ValueError("invalid json")
+        return self.payload
+
+    def iter_content(self, chunk_size=None):
+        return iter(self.chunks)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+
 class TestSoniloService(unittest.TestCase):
     def test_api_key_prefers_config_and_falls_back_to_environment(self):
         with (
@@ -524,6 +550,385 @@ class TestSoniloService(unittest.TestCase):
                     sonilo.generate_bgm(
                         str(Path(temp_dir) / "missing.mp4"),
                         str(Path(temp_dir) / "music.m4a"),
+                        5,
+                    )
+                create_proxy.assert_not_called()
+
+    def test_connection_checks_only_required_services(self):
+        """连接测试按启用功能校验服务，仅音效的 Key 不应因缺少配乐失败。"""
+        response = _StreamingResponse(payload={"available_services": ["video-to-sfx"]})
+        with (
+            patch.object(sonilo.config, "app", {"sonilo_api_key": "test-key"}),
+            patch.object(sonilo.requests, "get", return_value=response),
+        ):
+            result = sonilo.test_connection(
+                required_service_ids=(sonilo.VIDEO_TO_SFX_SERVICE_ID,)
+            )
+            self.assertEqual(
+                result, {"available_services": ["video-to-sfx"]}
+            )
+
+            with self.assertRaisesRegex(sonilo.SoniloError, "not available"):
+                sonilo.test_connection(
+                    required_service_ids=(
+                        sonilo.VIDEO_TO_MUSIC_SERVICE_ID,
+                        sonilo.VIDEO_TO_SFX_SERVICE_ID,
+                    )
+                )
+
+    def test_request_sfx_polls_downloads_then_atomically_publishes_audio(self):
+        """完整任务管线：提交、轮询到终态、下载校验后原子发布。"""
+        audio_bytes = b"synthetic-sfx-audio"
+        submit_response = _SfxResponse(
+            status_code=202, payload={"task_id": "task-123"}
+        )
+        poll_responses = [
+            _SfxResponse(payload={"status": "processing"}),
+            _SfxResponse(
+                payload={
+                    "status": "succeeded",
+                    "audio": {"url": "https://cdn.example.com/task-123.m4a"},
+                }
+            ),
+        ]
+        download_response = _SfxResponse(chunks=[audio_bytes])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video_path = Path(temp_dir) / "proxy.mp4"
+            output_path = Path(temp_dir) / "sfx.m4a"
+            video_path.write_bytes(b"video")
+            with (
+                patch.object(sonilo.config, "app", {"sonilo_api_key": "test-key"}),
+                patch.object(sonilo, "SFX_POLL_INTERVAL_SECONDS", 0),
+                patch.object(
+                    sonilo.requests, "post", return_value=submit_response
+                ) as post,
+                patch.object(
+                    sonilo.requests,
+                    "get",
+                    side_effect=[*poll_responses, download_response],
+                ) as get,
+                patch.object(
+                    sonilo.bgm_service, "validate_audio_file"
+                ) as validate_audio,
+            ):
+                result = sonilo._request_sfx(
+                    str(video_path), str(output_path), "rain"
+                )
+
+            self.assertEqual(result, str(output_path))
+            self.assertEqual(output_path.read_bytes(), audio_bytes)
+            validate_audio.assert_called_once()
+            self.assertTrue(post.call_args.args[0].endswith("/v1/video-to-sfx"))
+            self.assertEqual(post.call_args.kwargs["data"], {"prompt": "rain"})
+            poll_call = get.call_args_list[0]
+            self.assertTrue(poll_call.args[0].endswith("/v1/tasks/task-123"))
+            self.assertEqual(
+                poll_call.kwargs["headers"]["Authorization"], "Bearer test-key"
+            )
+            # 产物 URL 是预签名的：下载请求绝不能携带 Authorization 请求头。
+            download_call = get.call_args_list[-1]
+            self.assertEqual(
+                download_call.args[0], "https://cdn.example.com/task-123.m4a"
+            )
+            self.assertNotIn("headers", download_call.kwargs)
+            self.assertEqual(download_call.kwargs["stream"], True)
+            self.assertEqual(list(Path(temp_dir).glob(".sonilo-sfx-*")), [])
+
+    def test_submit_sfx_task_rejects_http_errors_and_missing_task_id(self):
+        """提交失败与缺失 task_id 都必须转换为稳定的领域异常。"""
+        failure_cases = [
+            (_SfxResponse(status_code=401), "401"),
+            (_SfxResponse(payload={}), "no task_id"),
+            (_SfxResponse(payload=None), "invalid task response"),
+        ]
+        for response, expected_message in failure_cases:
+            with (
+                self.subTest(expected_message=expected_message),
+                tempfile.TemporaryDirectory() as temp_dir,
+            ):
+                video_path = Path(temp_dir) / "proxy.mp4"
+                video_path.write_bytes(b"video")
+                with (
+                    patch.object(
+                        sonilo.config, "app", {"sonilo_api_key": "test-key"}
+                    ),
+                    patch.object(sonilo.requests, "post", return_value=response),
+                ):
+                    with self.assertRaisesRegex(
+                        sonilo.SoniloError, expected_message
+                    ):
+                        sonilo._submit_sfx_task(str(video_path), "")
+
+    def test_poll_sfx_task_fails_fast_when_task_is_not_found(self):
+        """404 表示任务不存在或不是音效任务，禁止继续轮询消耗时间。"""
+        with (
+            patch.object(sonilo.config, "app", {"sonilo_api_key": "test-key"}),
+            patch.object(sonilo, "SFX_POLL_INTERVAL_SECONDS", 0),
+            patch.object(
+                sonilo.requests,
+                "get",
+                return_value=_SfxResponse(status_code=404),
+            ) as get,
+        ):
+            with self.assertRaisesRegex(sonilo.SoniloError, "not found"):
+                sonilo._poll_sfx_task("task-404")
+
+        get.assert_called_once()
+
+    def test_poll_sfx_task_retries_transient_failures_until_terminal(self):
+        """网络抖动、5xx 与非法响应体都不终止轮询，任务仍在服务端继续。"""
+        terminal_body = {"status": "failed", "error": {"message": "no credit"}}
+        responses = [
+            sonilo.requests.ConnectionError("connection reset"),
+            _SfxResponse(status_code=500),
+            _SfxResponse(payload=None),
+            _SfxResponse(payload={"status": "processing"}),
+            _SfxResponse(payload=terminal_body),
+        ]
+        with (
+            patch.object(sonilo.config, "app", {"sonilo_api_key": "test-key"}),
+            patch.object(sonilo, "SFX_POLL_INTERVAL_SECONDS", 0),
+            patch.object(sonilo.requests, "get", side_effect=responses) as get,
+        ):
+            result = sonilo._poll_sfx_task("task-retry")
+
+        self.assertEqual(result, terminal_body)
+        self.assertEqual(get.call_count, len(responses))
+
+    def test_poll_sfx_task_times_out_after_configured_deadline(self):
+        """超出总时长上限后必须抛出可降级异常，而不是无限轮询。"""
+        with (
+            patch.object(sonilo.config, "app", {"sonilo_api_key": "test-key"}),
+            patch.object(sonilo, "SFX_POLL_INTERVAL_SECONDS", 0),
+            patch.object(sonilo, "_sfx_deadline_seconds", return_value=0.0),
+            patch.object(
+                sonilo.requests,
+                "get",
+                return_value=_SfxResponse(payload={"status": "processing"}),
+            ),
+        ):
+            with self.assertRaisesRegex(sonilo.SoniloError, "timed out"):
+                sonilo._poll_sfx_task("task-slow")
+
+    def test_download_sfx_audio_rejects_failed_and_artifact_less_tasks(self):
+        """失败任务与缺失产物的成功任务都不能进入下载或发布环节。"""
+        failure_cases = [
+            (
+                {"status": "failed", "error": {"message": "credit exhausted"}},
+                "credit exhausted",
+            ),
+            ({"status": "failed", "error": "quota exceeded"}, "quota exceeded"),
+            ({"status": "failed"}, "unknown error"),
+            ({"status": "succeeded"}, "no audio artifact"),
+            ({"status": "succeeded", "audio": {}}, "no audio artifact"),
+        ]
+        for task_body, expected_message in failure_cases:
+            with (
+                self.subTest(expected_message=expected_message),
+                tempfile.TemporaryDirectory() as temp_dir,
+            ):
+                with patch.object(sonilo.requests, "get") as get:
+                    with self.assertRaisesRegex(
+                        sonilo.SoniloError, expected_message
+                    ):
+                        sonilo._download_sfx_audio(
+                            task_body,
+                            str(Path(temp_dir) / "sfx.m4a"),
+                            "task-bad",
+                        )
+                get.assert_not_called()
+
+    def test_download_sfx_audio_rejects_empty_and_oversized_artifacts(self):
+        """下载体积必须与配乐使用同一上限，空产物同样不能发布。"""
+        task_body = {
+            "status": "succeeded",
+            "audio": {"url": "https://cdn.example.com/task.m4a"},
+        }
+        cases = [
+            (_SfxResponse(chunks=[]), "no audio data"),
+            (_SfxResponse(chunks=[b"1234"]), "exceeds"),
+            (_SfxResponse(status_code=403), "download failed"),
+        ]
+        for response, expected_message in cases:
+            with (
+                self.subTest(expected_message=expected_message),
+                tempfile.TemporaryDirectory() as temp_dir,
+            ):
+                with (
+                    patch.object(sonilo, "MAX_GENERATED_AUDIO_BYTES", 3),
+                    patch.object(sonilo.requests, "get", return_value=response),
+                ):
+                    with self.assertRaisesRegex(
+                        sonilo.SoniloError, expected_message
+                    ):
+                        sonilo._download_sfx_audio(
+                            task_body,
+                            str(Path(temp_dir) / "sfx.m4a"),
+                            "task-size",
+                        )
+
+    def test_request_sfx_preserves_existing_output_and_cleans_temp_on_failures(self):
+        """提交、轮询、下载和校验失败都不能覆盖已有结果或留下半成品。"""
+        succeeded_poll = _SfxResponse(
+            payload={
+                "status": "succeeded",
+                "audio": {"url": "https://cdn.example.com/task.m4a"},
+            }
+        )
+        failure_cases = [
+            (
+                _SfxResponse(status_code=401),
+                [],
+                None,
+                "401",
+            ),
+            (
+                _SfxResponse(status_code=202, payload={"task_id": "task-a"}),
+                [_SfxResponse(status_code=404)],
+                None,
+                "not found",
+            ),
+            (
+                _SfxResponse(status_code=202, payload={"task_id": "task-b"}),
+                [succeeded_poll, _SfxResponse(chunks=[b"invalid-audio"])],
+                sonilo.bgm_service.BgmUploadError("invalid audio"),
+                "cannot decode",
+            ),
+        ]
+        for submit_response, get_responses, validation_error, expected in (
+            failure_cases
+        ):
+            with (
+                self.subTest(expected_message=expected),
+                tempfile.TemporaryDirectory() as temp_dir,
+            ):
+                video_path = Path(temp_dir) / "proxy.mp4"
+                output_path = Path(temp_dir) / "sfx.m4a"
+                video_path.write_bytes(b"video")
+                output_path.write_bytes(b"existing-sfx")
+                with (
+                    patch.object(
+                        sonilo.config, "app", {"sonilo_api_key": "test-key"}
+                    ),
+                    patch.object(sonilo, "SFX_POLL_INTERVAL_SECONDS", 0),
+                    patch.object(
+                        sonilo.requests, "post", return_value=submit_response
+                    ),
+                    patch.object(
+                        sonilo.requests, "get", side_effect=get_responses
+                    ),
+                    patch.object(
+                        sonilo.bgm_service,
+                        "validate_audio_file",
+                        side_effect=validation_error,
+                    ),
+                ):
+                    with self.assertRaisesRegex(sonilo.SoniloError, expected):
+                        sonilo._request_sfx(
+                            str(video_path), str(output_path), ""
+                        )
+
+                self.assertEqual(output_path.read_bytes(), b"existing-sfx")
+                self.assertEqual(list(Path(temp_dir).glob(".sonilo-sfx-*")), [])
+
+    def test_generate_sfx_enforces_stricter_duration_limit_than_music(self):
+        """音效上限是 180 秒；180 秒以内继续执行，超过则上传前直接失败。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "source.mp4"
+            source.write_bytes(b"video")
+            with patch.object(
+                sonilo.config, "app", {"sonilo_api_key": "test-key"}
+            ):
+                for duration in (0, -1, float("nan"), 181, 360):
+                    with self.subTest(duration=duration):
+                        with self.assertRaises(sonilo.SoniloError):
+                            sonilo.generate_sfx(
+                                str(source),
+                                str(Path(temp_dir) / "sfx.m4a"),
+                                duration,
+                            )
+                with self.assertRaisesRegex(sonilo.SoniloError, "2000"):
+                    sonilo.generate_sfx(
+                        str(source),
+                        str(Path(temp_dir) / "sfx.m4a"),
+                        5,
+                        "x" * 2001,
+                    )
+                with (
+                    patch.object(
+                        sonilo, "_create_video_proxy", return_value="proxy.mp4"
+                    ),
+                    patch.object(
+                        sonilo, "_request_sfx", return_value="sfx.m4a"
+                    ) as request_sfx,
+                ):
+                    result = sonilo.generate_sfx(
+                        str(source), str(Path(temp_dir) / "sfx.m4a"), 180
+                    )
+                self.assertEqual(result, "sfx.m4a")
+                request_sfx.assert_called_once()
+
+    def test_generate_sfx_cleans_proxy_and_converts_file_errors(self):
+        """任务失败与文件系统失败都必须清理代理并保持可降级异常。"""
+        failure_cases = [
+            (sonilo.SoniloError("task failed"), "task failed"),
+            (OSError("disk full"), "file operation"),
+        ]
+        for request_error, expected_message in failure_cases:
+            with (
+                self.subTest(expected_message=expected_message),
+                tempfile.TemporaryDirectory() as temp_dir,
+            ):
+                source = Path(temp_dir) / "source.mp4"
+                proxy = Path(temp_dir) / "proxy.mp4"
+                source.write_bytes(b"video")
+                proxy.write_bytes(b"proxy")
+                with (
+                    patch.object(
+                        sonilo.config, "app", {"sonilo_api_key": "test-key"}
+                    ),
+                    patch.object(
+                        sonilo, "_create_video_proxy", return_value=str(proxy)
+                    ),
+                    patch.object(
+                        sonilo, "_request_sfx", side_effect=request_error
+                    ),
+                ):
+                    with self.assertRaisesRegex(
+                        sonilo.SoniloError, expected_message
+                    ):
+                        sonilo.generate_sfx(
+                            str(source), str(Path(temp_dir) / "sfx.m4a"), 5
+                        )
+
+                self.assertFalse(proxy.exists())
+
+    def test_generate_sfx_rejects_missing_key_and_input_before_proxy_work(self):
+        """缺少凭证或输入文件时应快速失败，不能调用 FFmpeg 或外部 API。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "source.mp4"
+            source.write_bytes(b"video")
+            with (
+                patch.object(sonilo.config, "app", {"sonilo_api_key": ""}),
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(sonilo, "_create_video_proxy") as create_proxy,
+            ):
+                with self.assertRaisesRegex(sonilo.SoniloError, "API key"):
+                    sonilo.generate_sfx(
+                        str(source), str(Path(temp_dir) / "sfx.m4a"), 5
+                    )
+                create_proxy.assert_not_called()
+
+            with (
+                patch.object(
+                    sonilo.config, "app", {"sonilo_api_key": "test-key"}
+                ),
+                patch.object(sonilo, "_create_video_proxy") as create_proxy,
+            ):
+                with self.assertRaisesRegex(sonilo.SoniloError, "does not exist"):
+                    sonilo.generate_sfx(
+                        str(Path(temp_dir) / "missing.mp4"),
+                        str(Path(temp_dir) / "sfx.m4a"),
                         5,
                     )
                 create_proxy.assert_not_called()

@@ -98,6 +98,9 @@ class VideoParams(BaseModel):
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
     sonilo_bgm_prompt: str = Field(default="", max_length=2000)
+    sonilo_sfx_enabled: Optional[bool] = False
+    sonilo_sfx_volume: Optional[float] = 0.3
+    sonilo_sfx_prompt: str = Field(default="", max_length=2000)
 
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom

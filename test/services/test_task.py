@@ -97,7 +97,7 @@ class TestTaskService(unittest.TestCase):
 
         with (
             patch.object(tm.video, "combine_videos") as combine_videos,
-            patch.object(tm.video, "generate_video"),
+            patch.object(tm.video, "generate_video", return_value=(True, True)),
             patch.object(tm.sm.state, "update_task"),
         ):
             tm.generate_final_videos(
@@ -127,7 +127,9 @@ class TestTaskService(unittest.TestCase):
                 "generate_bgm",
                 side_effect=lambda **kwargs: kwargs["output_path"],
             ) as generate_bgm,
-            patch.object(tm.video, "generate_video") as generate_video,
+            patch.object(
+                tm.video, "generate_video", return_value=(True, True)
+            ) as generate_video,
             patch.object(tm.sm.state, "update_task"),
         ):
             _, _, warnings = tm.generate_final_videos(
@@ -159,7 +161,9 @@ class TestTaskService(unittest.TestCase):
                 "generate_bgm",
                 side_effect=tm.sonilo.SoniloError("temporary outage"),
             ),
-            patch.object(tm.video, "generate_video") as generate_video,
+            patch.object(
+                tm.video, "generate_video", return_value=(True, True)
+            ) as generate_video,
             patch.object(tm.sm.state, "update_task"),
         ):
             final_paths, _, warnings = tm.generate_final_videos(
@@ -189,7 +193,9 @@ class TestTaskService(unittest.TestCase):
         with (
             patch.object(tm.video, "combine_videos"),
             patch.object(tm.sonilo, "generate_bgm") as generate_bgm,
-            patch.object(tm.video, "generate_video", return_value=True) as generate,
+            patch.object(
+                tm.video, "generate_video", return_value=(True, True)
+            ) as generate,
             patch.object(tm.sm.state, "update_task"),
         ):
             final_paths, _, warnings = tm.generate_final_videos(
@@ -217,7 +223,9 @@ class TestTaskService(unittest.TestCase):
                 "generate_bgm",
                 side_effect=lambda **kwargs: kwargs["output_path"],
             ),
-            patch.object(tm.video, "generate_video", return_value=False) as generate,
+            patch.object(
+                tm.video, "generate_video", return_value=(False, True)
+            ) as generate,
             patch.object(tm.sm.state, "update_task"),
         ):
             final_paths, _, warnings = tm.generate_final_videos(
@@ -275,6 +283,231 @@ class TestTaskService(unittest.TestCase):
             result = tm.start("zero-volume-without-key", params)
 
         generate_script.assert_called_once_with("zero-volume-without-key", params)
+        self.assertEqual(result["failed_stage"], "script")
+
+    def test_generate_final_videos_uses_generated_sonilo_sfx(self):
+        """开启音效后必须针对每条拼接后的视频生成音效，并传给最终混音。"""
+        params = VideoParams(
+            video_subject="test",
+            video_count=1,
+            sonilo_sfx_enabled=True,
+            sonilo_sfx_prompt="rain and footsteps",
+        )
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.sonilo,
+                "generate_sfx",
+                side_effect=lambda **kwargs: kwargs["output_path"],
+            ) as generate_sfx,
+            patch.object(
+                tm.video, "generate_video", return_value=(True, True)
+            ) as generate_video,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            _, _, warnings = tm.generate_final_videos(
+                task_id="sonilo-sfx-task",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(generate_sfx.call_args.kwargs["video_duration"], 5)
+        self.assertEqual(
+            generate_sfx.call_args.kwargs["prompt"], "rain and footsteps"
+        )
+        self.assertTrue(
+            generate_video.call_args.kwargs["sfx_file_override"].endswith(
+                "sonilo-sfx-1.m4a"
+            )
+        )
+
+    def test_generate_final_videos_falls_back_without_sfx_on_sonilo_failure(self):
+        """音效失败（含超过 180 秒上限）时应完成视频并返回可见警告。"""
+        params = VideoParams(video_subject="test", sonilo_sfx_enabled=True)
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.sonilo,
+                "generate_sfx",
+                side_effect=tm.sonilo.SoniloError(
+                    "Sonilo sound effects support videos up to 180 seconds"
+                ),
+            ),
+            patch.object(
+                tm.video, "generate_video", return_value=(True, True)
+            ) as generate_video,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            final_paths, _, warnings = tm.generate_final_videos(
+                task_id="sonilo-sfx-fallback",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=181,
+            )
+
+        self.assertEqual(len(final_paths), 1)
+        self.assertEqual(
+            warnings, [{"code": "sonilo_sfx_failed", "video_index": 1}]
+        )
+        self.assertEqual(generate_video.call_args.kwargs["sfx_file_override"], "")
+
+    def test_generate_final_videos_skips_sfx_when_disabled_or_volume_is_zero(self):
+        """默认关闭以及 0 音量都必须完全跳过音效生成和混音。"""
+        test_cases = [
+            {"sonilo_sfx_enabled": False, "sonilo_sfx_volume": 0.3},
+            {"sonilo_sfx_enabled": True, "sonilo_sfx_volume": 0.0},
+        ]
+        for overrides in test_cases:
+            with self.subTest(overrides=overrides):
+                params = VideoParams(video_subject="test", **overrides)
+
+                with (
+                    patch.object(tm.video, "combine_videos"),
+                    patch.object(tm.sonilo, "generate_sfx") as generate_sfx,
+                    patch.object(
+                        tm.video, "generate_video", return_value=(True, True)
+                    ) as generate,
+                    patch.object(tm.sm.state, "update_task"),
+                ):
+                    final_paths, _, warnings = tm.generate_final_videos(
+                        task_id="sonilo-sfx-skip",
+                        params=params,
+                        downloaded_videos=["material.mp4"],
+                        audio_file="audio.mp3",
+                        subtitle_path="",
+                        audio_duration=5,
+                    )
+
+                self.assertEqual(len(final_paths), 1)
+                self.assertEqual(warnings, [])
+                generate_sfx.assert_not_called()
+                self.assertEqual(
+                    generate.call_args.kwargs["sfx_file_override"], ""
+                )
+
+    def test_generate_final_videos_warns_when_sfx_mix_fails(self):
+        """音效生成成功但最终混音失败时，任务必须保留视频并返回警告。"""
+        params = VideoParams(video_subject="test", sonilo_sfx_enabled=True)
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.sonilo,
+                "generate_sfx",
+                side_effect=lambda **kwargs: kwargs["output_path"],
+            ),
+            patch.object(
+                tm.video, "generate_video", return_value=(True, False)
+            ) as generate,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            final_paths, _, warnings = tm.generate_final_videos(
+                task_id="sonilo-sfx-mix-fallback",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(len(final_paths), 1)
+        self.assertEqual(
+            warnings, [{"code": "sonilo_sfx_failed", "video_index": 1}]
+        )
+        self.assertTrue(
+            generate.call_args.kwargs["sfx_file_override"].endswith(".m4a")
+        )
+
+    def test_generate_final_videos_isolates_bgm_and_sfx_failures(self):
+        """配乐失败不能连带跳过音效；两条音轨各自独立生成和降级。"""
+        params = VideoParams(
+            video_subject="test",
+            bgm_type="sonilo",
+            sonilo_sfx_enabled=True,
+        )
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.sonilo,
+                "generate_bgm",
+                side_effect=tm.sonilo.SoniloError("temporary outage"),
+            ),
+            patch.object(
+                tm.sonilo,
+                "generate_sfx",
+                side_effect=lambda **kwargs: kwargs["output_path"],
+            ) as generate_sfx,
+            patch.object(
+                tm.video, "generate_video", return_value=(True, True)
+            ) as generate_video,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            final_paths, _, warnings = tm.generate_final_videos(
+                task_id="sonilo-mixed-fallback",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(len(final_paths), 1)
+        self.assertEqual(
+            warnings, [{"code": "sonilo_bgm_failed", "video_index": 1}]
+        )
+        generate_sfx.assert_called_once()
+        self.assertEqual(generate_video.call_args.kwargs["bgm_file_override"], "")
+        self.assertTrue(
+            generate_video.call_args.kwargs["sfx_file_override"].endswith(
+                "sonilo-sfx-1.m4a"
+            )
+        )
+
+    def test_start_rejects_missing_sonilo_key_for_sound_effects(self):
+        """仅开启音效同样属于完整成片流程的 Sonilo 前置检查范围。"""
+        params = VideoParams(video_subject="test", sonilo_sfx_enabled=True)
+        state = MemoryState()
+        with (
+            patch.object(tm.sonilo, "is_enabled", return_value=False),
+            patch.object(tm, "generate_script") as generate_script,
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("missing-sonilo-sfx-key", params)
+
+        generate_script.assert_not_called()
+        failed_task = state.get_task("missing-sonilo-sfx-key")
+        self.assertEqual(result, failed_task)
+        self.assertEqual(failed_task["state"], tm.const.TASK_STATE_FAILED)
+        self.assertEqual(failed_task["failed_stage"], "preflight")
+        self.assertIn("API key", failed_task["error"])
+
+    def test_start_does_not_require_sonilo_key_when_sfx_volume_is_zero(self):
+        """0 音量的音效不会调用 Sonilo，缺少 Key 时仍应进入正常流水线。"""
+        params = VideoParams(
+            video_subject="test",
+            sonilo_sfx_enabled=True,
+            sonilo_sfx_volume=0.0,
+        )
+        state = MemoryState()
+        with (
+            patch.object(tm.sonilo, "is_enabled", return_value=False),
+            patch.object(tm, "generate_script", return_value="") as generate_script,
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("zero-sfx-volume-without-key", params)
+
+        generate_script.assert_called_once_with(
+            "zero-sfx-volume-without-key", params
+        )
         self.assertEqual(result["failed_stage"], "script")
 
     def test_generate_terms_uses_script_order_mode_when_enabled(self):

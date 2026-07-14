@@ -250,6 +250,46 @@ class TestCli(unittest.TestCase):
         self.assertEqual(params.bgm_type, "sonilo")
         self.assertEqual(params.sonilo_bgm_prompt, "warm acoustic")
 
+    def test_sonilo_sfx_disabled_by_default(self):
+        """音效必须显式开启，普通命令行不能携带任何 Sonilo 音效参数。"""
+        args = cli.parse_args(["--video-subject", "test"])
+        params = cli.build_video_params(args)
+        self.assertFalse(params.sonilo_sfx_enabled)
+        self.assertEqual(params.sonilo_sfx_prompt, "")
+        self.assertEqual(params.sonilo_sfx_volume, 0.3)
+
+    def test_sonilo_sfx_options_imply_sfx_mode(self):
+        """音效描述或音量与 --sonilo-bgm-prompt 一致：给出即视为开启。"""
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--sonilo-sfx-prompt",
+                "rain and footsteps",
+                "--sonilo-sfx-volume",
+                "0.4",
+            ]
+        )
+        params = cli.build_video_params(args)
+        self.assertTrue(params.sonilo_sfx_enabled)
+        self.assertEqual(params.sonilo_sfx_prompt, "rain and footsteps")
+        self.assertEqual(params.sonilo_sfx_volume, 0.4)
+
+    def test_no_sonilo_sfx_rejects_sfx_options(self):
+        """显式关闭音效后不允许再携带音效参数，避免静默忽略用户输入。"""
+        with self.assertRaises(SystemExit) as cm:
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--no-sonilo-sfx",
+                    "--sonilo-sfx-prompt",
+                    "rain",
+                ]
+            )
+
+        self.assertEqual(cm.exception.code, 2)
+
     def test_local_material_filename_resolved_to_absolute_path(self):
         """After preprocess_video, material.url should be an absolute path, not a bare filename."""
         import os

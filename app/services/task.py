@@ -507,6 +507,11 @@ def generate_final_videos(
         params.bgm_type == "sonilo"
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
     )
+    # 音效与 BGM 共用来源无关的音量规则：开关未开启视为没有来源，音量为 0
+    # 时同样不生成代理、不调用付费 API、不混音。
+    sonilo_sfx_requested = bgm_service.should_use_bgm(
+        "sonilo" if params.sonilo_sfx_enabled else "", params.sonilo_sfx_volume
+    )
     # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
     # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
     if params.match_materials_to_script:
@@ -569,14 +574,41 @@ def generate_final_videos(
                     {"code": "sonilo_bgm_failed", "video_index": index}
                 )
 
+        # 音效永远来自任务层生成的文件，没有本地曲库回退；未启用、音量为 0
+        # 或生成失败时保持空字符串，视频服务不会读取任何音效文件。
+        sfx_file_override = ""
+        if sonilo_sfx_requested:
+            sonilo_sfx_path = path.join(
+                utils.task_dir(task_id), f"sonilo-sfx-{index}.m4a"
+            )
+            try:
+                sonilo.generate_sfx(
+                    video_path=combined_video_path,
+                    output_path=sonilo_sfx_path,
+                    video_duration=audio_duration,
+                    prompt=params.sonilo_sfx_prompt,
+                )
+                sfx_file_override = sonilo_sfx_path
+            except sonilo.SoniloError as exc:
+                # 与配乐同一降级策略：成片超长、额度不足或网络失败都不浪费
+                # 已经生成的视频，仅记录结构化警告让 WebUI 提醒用户。
+                logger.warning(
+                    f"Sonilo sound effects generation failed: task_id={task_id}, "
+                    f"video_index={index}, error={exc}"
+                )
+                warnings.append(
+                    {"code": "sonilo_sfx_failed", "video_index": index}
+                )
+
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
-        bgm_mix_succeeded = video.generate_video(
+        bgm_mix_succeeded, sfx_mix_succeeded = video.generate_video(
             video_path=combined_video_path,
             audio_path=audio_file,
             subtitle_path=subtitle_path,
             output_file=final_video_path,
             params=params,
             bgm_file_override=bgm_file_override,
+            sfx_file_override=sfx_file_override,
         )
         if (
             params.bgm_type == "sonilo"
@@ -587,6 +619,10 @@ def generate_final_videos(
             # 因运行环境失败。视频服务会保留无 BGM 成片，任务层复用同一结构化
             # 警告通知 WebUI；API 生成失败时 override 为空，不会重复追加警告。
             warnings.append({"code": "sonilo_bgm_failed", "video_index": index})
+        if sfx_file_override and not sfx_mix_succeeded:
+            # 音效混音失败与配乐使用相同的降级链路：成片保留、结构化警告
+            # 上报 WebUI；生成阶段已失败时 override 为空，不会重复追加。
+            warnings.append({"code": "sonilo_sfx_failed", "video_index": index})
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
@@ -931,17 +967,24 @@ def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 只有完整成片流程需要 Sonilo。尽早阻止缺少 Key 的完整任务，避免先消耗
     # LLM、TTS 和素材服务额度；各个中间产物接口仍可独立使用，不受配乐配置影响。
-    if (
-        stop_at == "video"
-        and params.bgm_type == "sonilo"
-        and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
-        and not sonilo.is_enabled()
-    ):
-        return _mark_task_failed(
-            task_id,
-            "preflight",
-            "Sonilo background music requires an API key",
-        )
+    if stop_at == "video" and not sonilo.is_enabled():
+        if params.bgm_type == "sonilo" and bgm_service.should_use_bgm(
+            params.bgm_type, params.bgm_volume
+        ):
+            return _mark_task_failed(
+                task_id,
+                "preflight",
+                "Sonilo background music requires an API key",
+            )
+        if bgm_service.should_use_bgm(
+            "sonilo" if params.sonilo_sfx_enabled else "",
+            params.sonilo_sfx_volume,
+        ):
+            return _mark_task_failed(
+                task_id,
+                "preflight",
+                "Sonilo sound effects require an API key",
+            )
 
     # 1. Generate script
     video_script = generate_script(task_id, params)

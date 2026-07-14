@@ -350,6 +350,31 @@ Output and exit status:
             "background music volume multiplier, a finite number >= 0 (default: 0.2)"
         ),
     )
+    audio_group.add_argument(
+        "--sonilo-sfx",
+        dest="sonilo_sfx_enabled",
+        default=None,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            "generate a Sonilo sound effects track from the composed video and "
+            "mix it under the voice and background music; shares the Sonilo API "
+            "key with --bgm-type sonilo and supports videos up to 180 seconds "
+            "(default: disabled)"
+        ),
+    )
+    audio_group.add_argument(
+        "--sonilo-sfx-prompt",
+        default=None,
+        help="optional sound effects prompt for Sonilo, up to 2000 characters",
+    )
+    audio_group.add_argument(
+        "--sonilo-sfx-volume",
+        type=_non_negative_float,
+        default=None,
+        help=(
+            "sound effects volume multiplier, a finite number >= 0 (default: 0.3)"
+        ),
+    )
 
     subtitle_group = parser.add_argument_group("subtitles")
     subtitle_group.add_argument(
@@ -481,6 +506,15 @@ Output and exit status:
                 "--sonilo-bgm-prompt can only be combined with --bgm-type sonilo"
             )
 
+    if args.sonilo_sfx_prompt or args.sonilo_sfx_volume is not None:
+        if args.sonilo_sfx_enabled is None:
+            args.sonilo_sfx_enabled = True
+        elif not args.sonilo_sfx_enabled:
+            parser.error(
+                "--sonilo-sfx-prompt and --sonilo-sfx-volume can only be "
+                "combined with --sonilo-sfx"
+            )
+
     if args.custom_position is not None and args.subtitle_position != "custom":
         parser.error("--custom-position requires --subtitle-position custom")
     if args.stop_at == "subtitle" and not args.subtitle_enabled:
@@ -547,6 +581,9 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "bgm_file",
         "bgm_volume",
         "sonilo_bgm_prompt",
+        "sonilo_sfx_enabled",
+        "sonilo_sfx_prompt",
+        "sonilo_sfx_volume",
         "font_name",
         "subtitle_position",
         "custom_position",

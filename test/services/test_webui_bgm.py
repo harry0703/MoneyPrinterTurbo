@@ -239,7 +239,9 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
             )
             button.click().run()
 
-        connection.assert_called_once_with()
+        connection.assert_called_once_with(
+            required_service_ids=(sonilo.VIDEO_TO_MUSIC_SERVICE_ID,)
+        )
         self.assertIn(
             self._translation("en", "Sonilo Connection Test Succeeded"),
             [item.value for item in app.success],
@@ -257,6 +259,85 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
             app = self._open_sonilo_bgm_panel("en")
             self.assertIn(required_warning, [item.value for item in app.warning])
             self._volume_select(app).set_value(0.0).run()
+
+        self.assertNotIn(required_warning, [item.value for item in app.warning])
+        self.assertEqual([str(item.value) for item in app.exception], [])
+
+    def _open_sfx_panel(self, locale):
+        """默认背景音乐来源下开启音效开关，覆盖音效独立于配乐来源的场景。"""
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = locale
+        app.run()
+        self._widget_by_key(
+            app.checkbox, "sonilo_sfx_enabled_checkbox"
+        ).check().run()
+        return app
+
+    def test_sfx_toggle_shows_shared_key_volume_prompt_and_notice(self):
+        """任意配乐来源下开启音效都应展示共享 Key、音量、描述与上传告知。"""
+        for locale in TEST_LOCALES:
+            with self.subTest(locale=locale):
+                test_config = dict(config.app, sonilo_api_key="saved-test-key")
+                with (
+                    patch.object(config, "app", test_config),
+                    patch.object(config, "save_config"),
+                ):
+                    app = self._open_sfx_panel(locale)
+
+                api_key_input = self._widget_by_key(
+                    app.text_input, "sonilo_api_key_input"
+                )
+                volume_select = self._widget_by_key(
+                    app.selectbox, "sonilo_sfx_volume_select"
+                )
+                self._widget_by_key(app.text_input, "sonilo_sfx_prompt_input")
+                self.assertEqual(api_key_input.value, "saved-test-key")
+                self.assertEqual(
+                    api_key_input.proto.type, api_key_input.proto.PASSWORD
+                )
+                self.assertEqual(volume_select.value, 0.3)
+                self.assertIn(
+                    self._translation(locale, "Sonilo Sound Effects Notice"),
+                    [item.value for item in app.info],
+                )
+                self.assertEqual([str(item.value) for item in app.exception], [])
+
+    def test_sfx_connection_button_requires_only_sfx_service(self):
+        """仅开启音效时，连接测试不应要求账号同时开通配乐服务。"""
+        test_config = dict(config.app, sonilo_api_key="saved-test-key")
+        with (
+            patch.object(config, "app", test_config),
+            patch.object(config, "save_config"),
+            patch.object(sonilo, "test_connection", return_value={}) as connection,
+        ):
+            app = self._open_sfx_panel("en")
+            button = self._widget_by_key(
+                app.button, "test_sonilo_connection_button"
+            )
+            button.click().run()
+
+        connection.assert_called_once_with(
+            required_service_ids=(sonilo.VIDEO_TO_SFX_SERVICE_ID,)
+        )
+        self.assertIn(
+            self._translation("en", "Sonilo Connection Test Succeeded"),
+            [item.value for item in app.success],
+        )
+
+    def test_sfx_zero_volume_does_not_require_sonilo_key(self):
+        """音效音量为 0 时，WebUI 不应继续显示 API Key 必填警告。"""
+        test_config = dict(config.app, sonilo_api_key="")
+        required_warning = self._translation("en", "Sonilo API Key Required")
+        with (
+            patch.object(config, "app", test_config),
+            patch.object(config, "save_config"),
+            patch.object(sonilo, "is_enabled", return_value=False),
+        ):
+            app = self._open_sfx_panel("en")
+            self.assertIn(required_warning, [item.value for item in app.warning])
+            self._widget_by_key(
+                app.selectbox, "sonilo_sfx_volume_select"
+            ).set_value(0.0).run()
 
         self.assertNotIn(required_warning, [item.value for item in app.warning])
         self.assertEqual([str(item.value) for item in app.exception], [])
