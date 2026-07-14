@@ -13,6 +13,7 @@ from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.v1 import video as video_controller
 from app.models import const
 from app.models.exception import HttpException
+from app.models.schema import TaskListResponse, TaskQueryResponse
 from app.services import state as sm
 from app.utils import utils
 
@@ -38,6 +39,22 @@ class TestVideoControllerHelpers(unittest.TestCase):
                     ),
                     expected,
                 )
+
+    def test_fastapi_startup_recovers_interrupted_cross_posts(self):
+        """API 进程启动时必须执行一次发布遗留状态恢复。"""
+        from app import asgi
+        from app.services import task as task_service
+
+        with patch.object(
+            task_service, "recover_interrupted_cross_posts"
+        ) as recover:
+            async def run_lifespan():
+                async with asgi.application_lifespan(asgi.app):
+                    pass
+
+            asyncio.run(run_lifespan())
+
+        recover.assert_called_once_with()
 
     def test_sanitize_upload_filename_rejects_empty_name(self):
         """空文件名和目录占位符不能进入服务端存储路径。"""
@@ -161,7 +178,7 @@ class TestVideoControllerTasks(unittest.TestCase):
         with patch.object(
             video_controller.sm.state,
             "get_all_tasks",
-            return_value=([{"id": "task-1"}], 21),
+            return_value=([{"id": "task-1", "cross_post_owner": "internal"}], 21),
         ) as get_all:
             response = video_controller.get_all_tasks(
                 self._request(), page=2, page_size=10
@@ -194,6 +211,7 @@ class TestVideoControllerTasks(unittest.TestCase):
                 state=const.TASK_STATE_COMPLETE,
                 videos=[video_path],
                 combined_videos=[video_path],
+                cross_post_owner="localhost:123:internal",
             )
             with patch.dict(config.app, {"endpoint": ""}):
                 response = video_controller.get_task(
@@ -204,10 +222,108 @@ class TestVideoControllerTasks(unittest.TestCase):
                 response["data"]["videos"],
                 [f"/tasks/{task_id}/final-1.mp4"],
             )
+            self.assertNotIn("cross_post_owner", response["data"])
+            self.assertIn("cross_post_owner", sm.state.get_task(task_id))
             self.assertEqual(sm.state.get_task(task_id)["videos"], [video_path])
         finally:
             sm.state.delete_task(task_id)
             shutil.rmtree(task_dir, ignore_errors=True)
+
+    def test_task_query_preserves_structured_failure_details(self):
+        """失败阶段和错误信息必须通过任务查询接口原样返回。"""
+        failed_task = {
+            "task_id": "failed-task",
+            "state": const.TASK_STATE_FAILED,
+            "progress": 30,
+            "failed_stage": "audio",
+            "error": "TTS request timed out",
+        }
+
+        with patch.object(
+            video_controller.sm.state,
+            "get_task",
+            return_value=failed_task,
+        ):
+            response = video_controller.get_task(
+                self._request(), task_id="failed-task", query=MagicMock()
+            )
+
+        self.assertEqual(response["data"], failed_task)
+
+    def test_task_query_schema_documents_success_and_failure_states(self):
+        """OpenAPI 模型示例必须覆盖发布成功和生成失败两种状态。"""
+        examples = TaskQueryResponse.model_json_schema()["examples"]
+
+        self.assertEqual(examples[0]["data"]["cross_post_state"], "complete")
+        self.assertEqual(examples[1]["data"]["failed_stage"], "audio")
+        self.assertTrue(examples[1]["data"]["error"])
+
+        task_data_schema = TaskQueryResponse.model_json_schema()["$defs"][
+            "TaskStatusData"
+        ]
+        self.assertIn("failed_stage", task_data_schema["properties"])
+        self.assertIn("cross_post_state", task_data_schema["properties"])
+
+        list_schema = TaskListResponse.model_json_schema()
+        self.assertIn("TaskListData", list_schema["$defs"])
+        self.assertIn("TaskStatusData", list_schema["$defs"])
+
+    def test_delete_rejects_generation_and_cross_posting_tasks(self):
+        """生成中和发布中的任务都在读取目录，删除接口必须返回 409。"""
+        busy_tasks = (
+            {
+                "task_id": "generating-task",
+                "state": const.TASK_STATE_PROCESSING,
+                "progress": 30,
+            },
+            {
+                "task_id": "publishing-task",
+                "state": const.TASK_STATE_COMPLETE,
+                "progress": 100,
+                "cross_post_state": const.CROSS_POST_STATE_PROCESSING,
+            },
+        )
+
+        for task in busy_tasks:
+            with self.subTest(task_id=task["task_id"]), patch.object(
+                video_controller.sm.state,
+                "get_task",
+                return_value=task,
+            ), patch.object(video_controller.sm.state, "delete_task") as delete_task:
+                with self.assertRaises(HttpException) as raised:
+                    video_controller.delete_video(
+                        self._request(), task_id=task["task_id"]
+                    )
+
+                self.assertEqual(raised.exception.status_code, 409)
+                delete_task.assert_not_called()
+
+    def test_delete_allows_completed_task(self):
+        """普通已完成任务仍应保持原有删除行为。"""
+        completed_task = {
+            "task_id": "completed-task",
+            "state": const.TASK_STATE_COMPLETE,
+            "progress": 100,
+            "cross_post_state": const.CROSS_POST_STATE_COMPLETE,
+        }
+
+        with patch.object(
+            video_controller.sm.state,
+            "get_task",
+            return_value=completed_task,
+        ), patch.object(
+            video_controller.utils,
+            "task_dir",
+            return_value="/tmp/mpt-completed-task-test",
+        ), patch.object(
+            video_controller.os.path, "exists", return_value=False
+        ), patch.object(video_controller.sm.state, "delete_task") as delete_task:
+            response = video_controller.delete_video(
+                self._request(), task_id="completed-task"
+            )
+
+        self.assertEqual(response["status"], 200)
+        delete_task.assert_called_once_with("completed-task")
 
     def test_get_and_delete_missing_task_return_404(self):
         """查询或删除未知任务都应返回一致的 404，而不是空成功响应。"""

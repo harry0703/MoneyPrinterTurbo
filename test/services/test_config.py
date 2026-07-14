@@ -50,6 +50,7 @@ class TestConfigPersistence:
             "upload_post_platforms",
             "upload_post_auto_upload",
             "upload_post_youtube_privacy_status",
+            "upload_post_max_pending_tasks",
         }
 
         assert upload_post_keys <= example_config["app"].keys()

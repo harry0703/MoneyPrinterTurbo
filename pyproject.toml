@@ -47,7 +47,12 @@ twelvelabs = [
 dev = [
     "coverage==7.15.1",
     "pytest==9.1.1",
+    "ruff==0.15.21",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# WebUI 需要先把项目根目录加入 sys.path，随后才能导入 app 包。
+"webui/Main.py" = ["E402"]
 
 [tool.coverage.run]
 # 统计分支覆盖率可以识别“代码行执行了，但条件的另一条分支从未验证”的情况，
@@ -58,10 +63,10 @@ branch = true
 source = ["app", "cli", "webui", "main", "docs/skill"]
 
 [tool.coverage.report]
-# 当前 pytest 完整测试的实测分支覆盖率为 68.19%。以 67% 作为稳定底线，
-# 既能把本次新增覆盖固化为 CI 质量门槛，也为 macOS、Windows 和 Linux
-# 之间少量平台分支差异保留余量；后续增加测试后可继续逐步提高该阈值。
-fail_under = 67
+# Python 3.11 和 3.13 完整测试的实测分支覆盖率均超过 70.4%。以 70%
+# 作为稳定底线，可以固化失败状态、异步发布恢复和 Redis 原子更新测试，
+# 同时为不同 Python 版本与操作系统的少量分支差异保留余量。
+fail_under = 70
 show_missing = true
 skip_covered = true
 

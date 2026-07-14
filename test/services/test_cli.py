@@ -80,6 +80,28 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 1)
         log_error.assert_called_once()
 
+    def test_run_cli_returns_error_for_structured_task_failure(self):
+        """任务服务返回结构化失败信息时，CLI 仍必须以非零状态退出。"""
+        failure = {
+            "task_id": "task-structured-failure",
+            "state": -1,
+            "progress": 30,
+            "failed_stage": "audio",
+            "error": "TTS request timed out",
+        }
+
+        with patch("app.services.task.start", return_value=failure), patch(
+            "app.utils.utils.get_uuid", return_value="task-structured-failure"
+        ), patch.object(cli.logger, "error") as log_error, patch(
+            "builtins.print"
+        ) as print_mock:
+            code = cli.run_cli(["--video-subject", "失败场景"])
+
+        self.assertEqual(code, 1)
+        print_mock.assert_not_called()
+        self.assertIn("stage=audio", log_error.call_args.args[0])
+        self.assertIn("TTS request timed out", log_error.call_args.args[0])
+
     def test_subtitle_enabled_by_default(self):
         args = cli.parse_args(["--video-subject", "test"])
         params = cli.build_video_params(args)
@@ -231,7 +253,6 @@ class TestCli(unittest.TestCase):
     def test_local_material_filename_resolved_to_absolute_path(self):
         """After preprocess_video, material.url should be an absolute path, not a bare filename."""
         import os
-        import tempfile
         from app.utils import utils
         from app.services import video as vd
         from app.models.schema import MaterialInfo

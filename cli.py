@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 from loguru import logger
 
 if TYPE_CHECKING:
-    from app.models.schema import VideoParams
+    from app.models.schema import MaterialInfo, VideoParams
 
 
 DEFAULT_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
@@ -779,8 +779,13 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             f"CLI task failed with an unexpected error: task_id={task_id}, error={exc}"
         )
         return 1
-    if not result:
-        logger.error(f"CLI task failed: task_id={task_id}, stop_at={args.stop_at}")
+    if not result or result.get("state") == tm.const.TASK_STATE_FAILED:
+        failed_stage = result.get("failed_stage", "unknown") if result else "unknown"
+        error = result.get("error", "unknown task error") if result else "empty result"
+        logger.error(
+            f"CLI task failed: task_id={task_id}, stop_at={args.stop_at}, "
+            f"stage={failed_stage}, error={error}"
+        )
         return 1
 
     print(json.dumps({"task_id": task_id, "result": result}, ensure_ascii=False))

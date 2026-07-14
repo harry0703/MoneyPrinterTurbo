@@ -22,6 +22,7 @@ from app.models.schema import (
     BgmUploadResponse,
     SubtitleRequest,
     TaskDeletionResponse,
+    TaskListResponse,
     TaskQueryRequest,
     TaskQueryResponse,
     TaskResponse,
@@ -87,6 +88,14 @@ def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: 
             status_code=404 if str(exc) == "file does not exist" else 403,
             message=f"{request_id}: invalid file path",
         )
+
+
+def _public_task_data(task: dict) -> dict:
+    """复制任务状态并移除仅用于服务端进程协调的内部字段。"""
+    public_task = dict(task)
+    public_task.pop("cross_post_owner", None)
+    return public_task
+
 
 def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) -> str:
     if not isinstance(file, str):
@@ -213,12 +222,16 @@ def create_task(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
         )
 
-@router.get("/tasks", response_model=TaskQueryResponse, summary="Get all tasks")
-def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
+@router.get("/tasks", response_model=TaskListResponse, summary="Get all tasks")
+def get_all_tasks(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1),
+):
     tasks, total = sm.state.get_all_tasks(page, page_size)
 
     response = {
-        "tasks": tasks,
+        "tasks": [_public_task_data(task) for task in tasks],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -240,7 +253,7 @@ def get_task(
     task = sm.state.get_task(task_id)
     if task:
         task_dir = utils.task_dir()
-        response_task = dict(task)
+        response_task = _public_task_data(task)
 
         if "videos" in task:
             response_task["videos"] = [
@@ -268,6 +281,18 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
     request_id = base.get_task_id(request)
     task = sm.state.get_task(task_id)
     if task:
+        if tm.is_task_busy(task):
+            logger.warning(
+                f"refuse to delete busy task, request_id: {request_id}, "
+                f"task_id: {task_id}, state: {task.get('state')}, "
+                f"cross_post_state: {task.get('cross_post_state')}"
+            )
+            raise HttpException(
+                task_id=task_id,
+                status_code=409,
+                message=f"{request_id}: task is still running",
+            )
+
         tasks_dir = utils.task_dir()
         current_task_dir = os.path.join(tasks_dir, task_id)
         if os.path.exists(current_task_dir):

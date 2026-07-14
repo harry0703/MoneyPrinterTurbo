@@ -1,9 +1,9 @@
 import warnings
 from enum import Enum
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import pydantic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import config
 
@@ -247,24 +247,100 @@ class TaskResponse(BaseResponse):
         }
 
 
+class TaskStatusData(BaseModel):
+    """任务查询对外保证的稳定字段；历史和扩展字段继续原样透传。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    task_id: str
+    state: int
+    progress: int = 0
+    videos: Optional[List[str]] = None
+    combined_videos: Optional[List[str]] = None
+    failed_stage: Optional[str] = None
+    error: Optional[str] = None
+    cross_post_state: Optional[
+        Literal["pending", "processing", "complete", "failed"]
+    ] = None
+    cross_post_results: Optional[List[dict[str, Any]]] = None
+    cross_post_error: Optional[str] = None
+
+
+class TaskListData(BaseModel):
+    """分页任务列表结构。"""
+
+    tasks: List[TaskStatusData]
+    total: int
+    page: int
+    page_size: int
+
+
 class TaskQueryResponse(BaseResponse):
-    class Config:
-        json_schema_extra = {
+    """
+    任务查询会返回生成状态和可选的跨平台发布状态。
+
+    生成失败时包含 `failed_stage` 和 `error`；生成完成后如果启用了自动发布，
+    `cross_post_state` 会依次进入 pending、processing、complete 或 failed。
+    """
+
+    data: TaskStatusData
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "status": 200,
+                    "message": "success",
+                    "data": {
+                        "task_id": "6c85c8cc-a77a-42b9-bc30-947815aa0558",
+                        "state": 1,
+                        "progress": 100,
+                        "videos": ["/tasks/example/final-1.mp4"],
+                        "cross_post_state": "complete",
+                        "cross_post_results": [{"success": True}],
+                    },
+                },
+                {
+                    "status": 200,
+                    "message": "success",
+                    "data": {
+                        "task_id": "6c85c8cc-a77a-42b9-bc30-947815aa0558",
+                        "state": -1,
+                        "progress": 30,
+                        "failed_stage": "audio",
+                        "error": "TTS request timed out",
+                    },
+                },
+            ],
+        }
+    )
+
+
+class TaskListResponse(BaseResponse):
+    """任务列表使用独立响应模型，避免与单任务查询混用文档结构。"""
+
+    data: TaskListData
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "state": 1,
-                    "progress": 100,
-                    "videos": [
-                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/final-1.mp4"
+                    "tasks": [
+                        {
+                            "task_id": "6c85c8cc-a77a-42b9-bc30-947815aa0558",
+                            "state": 4,
+                            "progress": 50,
+                        }
                     ],
-                    "combined_videos": [
-                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/combined-1.mp4"
-                    ],
+                    "total": 1,
+                    "page": 1,
+                    "page_size": 10,
                 },
-            },
+            }
         }
+    )
 
 
 class TaskDeletionResponse(BaseResponse):

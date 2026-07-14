@@ -1006,7 +1006,6 @@ class TestElevenLabsVoice(unittest.TestCase):
         mock_config.elevenlabs.get.return_value = "fake-api-key"
         mock_post.return_value.status_code = 200
         mock_post.return_value.content = b"fake-mp3-bytes"
-        mock_clip = mock_clip_cls.return_value.__enter__.return_value
         mock_clip_cls.return_value.duration = 3.0
         mock_clip_cls.return_value.close = lambda: None
 

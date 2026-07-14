@@ -210,6 +210,13 @@ def _build_uploaded_file_path(uploaded_file, target_dir, allowed_extensions, pre
 
 def _initialize_session_state():
     """集中初始化跨 rerun 保留的页面状态。"""
+    if not st.session_state.get("cross_post_recovery_checked"):
+        # WebUI 可以不经过 FastAPI 独立运行，因此也需要在首次会话初始化时处理
+        # 进程重启留下的发布状态。恢复失败时不写标记，后续 rerun 会再次尝试。
+        recovered = tm.recover_interrupted_cross_posts()
+        if recovered is not None:
+            st.session_state["cross_post_recovery_checked"] = True
+
     saved_ui_language = config.ui.get("language", "")
     browser_locale = st.context.locale
     initial_ui_language = utils.resolve_ui_language(
@@ -533,6 +540,7 @@ def _collect_task_summaries(limit=20):
             "task_id": task_id,
             "subject": subject,
             "state": task.get("state"),
+            "cross_post_state": task.get("cross_post_state"),
             "progress": int(task.get("progress", 0) or 0),
             "mtime": os.path.getmtime(task_path)
             if os.path.isdir(task_path)
@@ -610,15 +618,12 @@ def _delete_task(task_id, task_path, task_state=None):
         logger.exception(f"failed to verify task state before deletion: {task_id}, {e}")
         return False
 
-    current_state = current_task.get("state") if current_task else None
-    is_processing = (
-        any(
-            _normalize_task_state(state) == const.TASK_STATE_PROCESSING
-            for state in (task_state, current_state)
-        )
-        or task_id in _active_generation_tasks()
-    )
-    if is_processing:
+    task_snapshot = dict(current_task or {})
+    task_snapshot.setdefault("state", task_state)
+    if task_id in _active_generation_tasks():
+        task_snapshot["state"] = const.TASK_STATE_PROCESSING
+
+    if tm.is_task_busy(task_snapshot):
         logger.warning(f"refused to delete running task: {task_id}")
         return False
 
@@ -681,6 +686,7 @@ def _render_task_table(filtered_tasks, key_prefix):
             task_id = task["task_id"]
             has_video = bool(task["video_file"] and os.path.isfile(task["video_file"]))
             is_processing = _task_state_filter_key(task) == "processing"
+            is_busy = is_processing or tm.is_task_busy(task)
             has_restore_data = os.path.isfile(
                 os.path.join(task["task_path"], "script.json")
             )
@@ -745,7 +751,7 @@ def _render_task_table(filtered_tasks, key_prefix):
                     delete_label = tr("Delete Task")
                     delete_help = (
                         f"{delete_label} ({tr('Task Status Processing')})"
-                        if is_processing
+                        if is_busy
                         else delete_label
                     )
                     if st.button(
@@ -754,7 +760,7 @@ def _render_task_table(filtered_tasks, key_prefix):
                         use_container_width=True,
                         icon=":material/delete:",
                         help=delete_help,
-                        disabled=is_processing,
+                        disabled=is_busy,
                     ):
                         if _delete_task(task_id, task["task_path"], task["state"]):
                             st.toast(tr("Task Deleted"))
@@ -2434,7 +2440,7 @@ def _render_background_music_settings(params):
                             cached_validation["error"]
                         )
                     raise bgm_service.BgmUploadError(cached_validation["error"])
-            except bgm_service.BgmUploadError as exc:
+            except bgm_service.BgmUploadError:
                 # 非法文件不能沿用上一次有效上传的名称，否则任务参数可能仍指向
                 # 历史 BGM。保留 UploadedFile 返回值，让用户点击生成时仍会被最终
                 # 服务端校验拦截，而不是静默生成一条没有背景音乐的视频。
