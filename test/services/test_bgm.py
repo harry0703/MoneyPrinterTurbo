@@ -33,6 +33,27 @@ class _TextUpload(io.BytesIO):
 
 
 class TestBackgroundMusicService(unittest.TestCase):
+    def test_should_use_bgm_is_provider_independent(self):
+        """通用开关必须覆盖当前来源和未来提供商，不能再写提供商特判。"""
+        test_cases = [
+            ("random", 0.2, True),
+            ("custom", 0.2, True),
+            ("sonilo", 0.2, True),
+            ("future_provider", 0.2, True),
+            ("random", 0.0, False),
+            ("custom", -0.1, False),
+            ("sonilo", None, False),
+            ("future_provider", float("nan"), False),
+            ("future_provider", "invalid", False),
+            ("", 0.2, False),
+            (None, 0.2, False),
+        ]
+        for bgm_type, bgm_volume, expected in test_cases:
+            with self.subTest(bgm_type=bgm_type, bgm_volume=bgm_volume):
+                self.assertEqual(
+                    bgm.should_use_bgm(bgm_type, bgm_volume), expected
+                )
+
     def test_sanitize_upload_filename_strips_directory_components(self):
         self.assertEqual(
             bgm.sanitize_upload_filename("../../用户音乐.mp3"), "用户音乐.mp3"

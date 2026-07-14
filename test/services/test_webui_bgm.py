@@ -11,7 +11,8 @@ from streamlit.testing.v1 import AppTest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.services import bgm
+from app.config import config
+from app.services import bgm, sonilo
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -63,6 +64,14 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
         source_select = self._widget_by_key(app.selectbox, "bgm_type_select")
         # stable_selectbox 的真实选项是业务值，展示文案才会随 locale 变化。
         source_select.set_value("custom").run()
+        return app
+
+    def _open_sonilo_bgm_panel(self, locale):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = locale
+        app.run()
+        source_select = self._widget_by_key(app.selectbox, "bgm_type_select")
+        source_select.set_value("sonilo").run()
         return app
 
     def _uploader(self, app):
@@ -133,6 +142,33 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                 )
                 self.assertEqual(len(app.get("audio")), 1)
 
+    def test_zero_volume_defers_custom_upload_validation_until_enabled(self):
+        """0 音量保留上传选择，但必须等重新启用 BGM 后才校验和预览。"""
+        app = self._open_custom_bgm_panel("en")
+        self._volume_select(app).set_value(0.0).run()
+
+        with patch.object(bgm, "validate_bgm_upload") as validation:
+            self._uploader(app).set_value(
+                ("deferred.wav", _valid_wav_bytes(), "audio/wav")
+            ).run()
+
+        validation.assert_not_called()
+        self.assertEqual([str(item.value) for item in app.exception], [])
+        self.assertEqual([item.value for item in app.error], [])
+        self.assertFalse(any("deferred.wav" in item.value for item in app.info))
+        self.assertEqual(len(app.get("audio")), 0)
+
+        # 文件仍保留在 Streamlit 会话中。用户调高音量后，同一次 rerun 应自动
+        # 完成校验并显示播放器，不需要重新选择文件。
+        with patch.object(bgm, "validate_bgm_upload") as validation:
+            self._volume_select(app).set_value(0.2).run()
+
+        validation.assert_called_once()
+        self.assertEqual([str(item.value) for item in app.exception], [])
+        self.assertEqual([item.value for item in app.error], [])
+        self.assertTrue(any("deferred.wav" in item.value for item in app.info))
+        self.assertEqual(len(app.get("audio")), 1)
+
     def test_service_failure_is_not_reported_as_invalid_user_audio(self):
         for locale in TEST_LOCALES:
             with self.subTest(locale=locale):
@@ -156,6 +192,74 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                     ],
                 )
                 self.assertEqual(len(app.get("audio")), 0)
+
+    def test_sonilo_source_shows_masked_prefilled_key_and_optional_prompt(self):
+        """选择 Sonilo 后应回填本机 Key，但控件必须保持密码显示模式。"""
+        for locale in TEST_LOCALES:
+            with self.subTest(locale=locale):
+                test_config = dict(config.app, sonilo_api_key="saved-test-key")
+                with (
+                    patch.object(config, "app", test_config),
+                    patch.object(config, "save_config"),
+                ):
+                    app = self._open_sonilo_bgm_panel(locale)
+
+                api_key_input = self._widget_by_key(
+                    app.text_input, "sonilo_api_key_input"
+                )
+                prompt_input = self._widget_by_key(
+                    app.text_input, "sonilo_bgm_prompt_input"
+                )
+                self.assertEqual(api_key_input.value, "saved-test-key")
+                self.assertEqual(
+                    api_key_input.label,
+                    self._translation(locale, "Sonilo API Key"),
+                )
+                self.assertIn(
+                    "https://platform.sonilo.com/", api_key_input.label
+                )
+                # AppTest 的 element.type 表示控件种类（text_input）；密码模式
+                # 保存在底层 protobuf 枚举中，必须检查该字段才能验证真实渲染。
+                self.assertEqual(
+                    api_key_input.proto.type, api_key_input.proto.PASSWORD
+                )
+                self.assertEqual(prompt_input.value, "")
+                self.assertEqual([str(item.value) for item in app.exception], [])
+
+    def test_sonilo_connection_button_reports_success(self):
+        test_config = dict(config.app, sonilo_api_key="saved-test-key")
+        with (
+            patch.object(config, "app", test_config),
+            patch.object(config, "save_config"),
+            patch.object(sonilo, "test_connection", return_value={}) as connection,
+        ):
+            app = self._open_sonilo_bgm_panel("en")
+            button = self._widget_by_key(
+                app.button, "test_sonilo_connection_button"
+            )
+            button.click().run()
+
+        connection.assert_called_once_with()
+        self.assertIn(
+            self._translation("en", "Sonilo Connection Test Succeeded"),
+            [item.value for item in app.success],
+        )
+
+    def test_zero_volume_does_not_require_sonilo_key(self):
+        """Sonilo 音量为 0 时，WebUI 不应继续显示 API Key 必填警告。"""
+        test_config = dict(config.app, sonilo_api_key="")
+        required_warning = self._translation("en", "Sonilo API Key Required")
+        with (
+            patch.object(config, "app", test_config),
+            patch.object(config, "save_config"),
+            patch.object(sonilo, "is_enabled", return_value=False),
+        ):
+            app = self._open_sonilo_bgm_panel("en")
+            self.assertIn(required_warning, [item.value for item in app.warning])
+            self._volume_select(app).set_value(0.0).run()
+
+        self.assertNotIn(required_warning, [item.value for item in app.warning])
+        self.assertEqual([str(item.value) for item in app.exception], [])
 
 
 if __name__ == "__main__":

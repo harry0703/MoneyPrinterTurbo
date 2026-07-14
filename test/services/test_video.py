@@ -25,6 +25,31 @@ from app.utils import utils
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
 
 
+class _FakeMoviePyClip:
+    """为最终混音单测提供最小 MoviePy 接口，避免 CI 真实编码大型视频。"""
+
+    def __init__(self, *, duration=5, fps=44100):
+        self.duration = duration
+        self.fps = fps
+        self.close_calls = 0
+        self.with_audio_result = self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.close()
+
+    def close(self):
+        self.close_calls += 1
+
+    def with_effects(self, _effects):
+        return self
+
+    def with_audio(self, _audio):
+        return self.with_audio_result
+
+
 class TestVideoService(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
@@ -37,6 +62,207 @@ class TestVideoService(unittest.TestCase):
         config.app.update(self.original_app_config)
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
+
+    def test_generate_video_reports_successful_bgm_mix_and_closes_sources(self):
+        """BGM 混合成功后应返回 True，并释放所有原始文件 reader。"""
+        params = vd.VideoParams(
+            video_subject="test",
+            subtitle_enabled=False,
+            bgm_type="sonilo",
+        )
+        source_video = _FakeMoviePyClip()
+        voice_source = _FakeMoviePyClip()
+        bgm_source = _FakeMoviePyClip()
+        mixed_audio = _FakeMoviePyClip(fps=48000)
+        final_video = _FakeMoviePyClip()
+        source_video.with_audio_result = final_video
+
+        with (
+            patch.object(
+                vd, "_open_video_clip_quietly", return_value=source_video
+            ),
+            patch.object(
+                vd, "AudioFileClip", side_effect=[voice_source, bgm_source]
+            ),
+            patch.object(vd, "CompositeAudioClip", return_value=mixed_audio),
+            patch.object(vd, "_write_videofile_with_codec_fallback") as writer,
+            patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+        ):
+            result = vd.generate_video(
+                video_path="combined.mp4",
+                audio_path="voice.mp3",
+                subtitle_path="",
+                output_file="final.mp4",
+                params=params,
+                bgm_file_override="sonilo.m4a",
+            )
+
+        self.assertTrue(result)
+        writer.assert_called_once()
+        self.assertEqual(writer.call_args.kwargs["audio_fps"], 48000)
+        self.assertEqual(source_video.close_calls, 1)
+        self.assertEqual(voice_source.close_calls, 1)
+        self.assertEqual(bgm_source.close_calls, 1)
+        self.assertEqual(final_video.close_calls, 1)
+
+    def test_generate_video_keeps_output_and_reports_failed_bgm_mix(self):
+        """BGM 打开失败时仍应只写一次无 BGM 视频，并返回 False。"""
+        params = vd.VideoParams(
+            video_subject="test",
+            subtitle_enabled=False,
+            bgm_type="sonilo",
+        )
+        source_video = _FakeMoviePyClip()
+        voice_source = _FakeMoviePyClip()
+        final_video = _FakeMoviePyClip()
+        source_video.with_audio_result = final_video
+
+        with (
+            patch.object(
+                vd, "_open_video_clip_quietly", return_value=source_video
+            ),
+            patch.object(
+                vd,
+                "AudioFileClip",
+                side_effect=[voice_source, RuntimeError("invalid BGM")],
+            ),
+            patch.object(vd, "CompositeAudioClip") as composite_audio,
+            patch.object(vd, "_write_videofile_with_codec_fallback") as writer,
+            patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+            patch.object(vd.logger, "exception") as log_exception,
+        ):
+            result = vd.generate_video(
+                video_path="combined.mp4",
+                audio_path="voice.mp3",
+                subtitle_path="",
+                output_file="final.mp4",
+                params=params,
+                bgm_file_override="broken.m4a",
+            )
+
+        self.assertFalse(result)
+        writer.assert_called_once()
+        composite_audio.assert_not_called()
+        log_exception.assert_called_once()
+        self.assertEqual(source_video.close_calls, 1)
+        self.assertEqual(voice_source.close_calls, 1)
+        self.assertEqual(final_video.close_calls, 1)
+
+    def test_generate_video_skips_every_bgm_source_when_volume_is_zero(self):
+        """0 音量必须在解析文件前统一短路当前来源和未来提供商。"""
+        test_cases = [
+            ("random", None),
+            ("custom", None),
+            ("sonilo", "sonilo.m4a"),
+            ("future_provider", "future-provider.wav"),
+        ]
+        for bgm_type, bgm_override in test_cases:
+            with self.subTest(bgm_type=bgm_type):
+                params = vd.VideoParams(
+                    video_subject="test",
+                    subtitle_enabled=False,
+                    bgm_type=bgm_type,
+                    bgm_file="missing-background.mp3",
+                    bgm_volume=0.0,
+                )
+                source_video = _FakeMoviePyClip()
+                voice_source = _FakeMoviePyClip()
+                final_video = _FakeMoviePyClip()
+                source_video.with_audio_result = final_video
+
+                with (
+                    patch.object(
+                        vd,
+                        "_open_video_clip_quietly",
+                        return_value=source_video,
+                    ),
+                    patch.object(
+                        vd, "AudioFileClip", return_value=voice_source
+                    ) as audio_file_clip,
+                    patch.object(vd, "get_bgm_file") as get_bgm_file,
+                    patch.object(vd, "CompositeAudioClip") as composite_audio,
+                    patch.object(
+                        vd, "_write_videofile_with_codec_fallback"
+                    ) as writer,
+                    patch.object(
+                        vd, "_get_configured_video_codec", return_value="libx264"
+                    ),
+                ):
+                    result = vd.generate_video(
+                        video_path="combined.mp4",
+                        audio_path="voice.mp3",
+                        subtitle_path="",
+                        output_file="final.mp4",
+                        params=params,
+                        bgm_file_override=bgm_override,
+                    )
+
+                self.assertTrue(result)
+                audio_file_clip.assert_called_once_with("voice.mp3")
+                get_bgm_file.assert_not_called()
+                composite_audio.assert_not_called()
+                writer.assert_called_once()
+                self.assertEqual(source_video.close_calls, 1)
+                self.assertEqual(voice_source.close_calls, 1)
+                self.assertEqual(final_video.close_calls, 1)
+
+    def test_generate_video_chooses_looping_by_bgm_file_source(self):
+        """默认曲库需要循环，任务层提供的时长适配文件不应依赖提供商名称。"""
+        test_cases = [
+            ("random", None, True),
+            ("custom", None, True),
+            ("sonilo", "sonilo.m4a", False),
+            ("future_provider", "future-provider.wav", False),
+        ]
+        for bgm_type, bgm_override, should_loop in test_cases:
+            with self.subTest(bgm_type=bgm_type, bgm_override=bgm_override):
+                params = vd.VideoParams(
+                    video_subject="test",
+                    subtitle_enabled=False,
+                    bgm_type=bgm_type,
+                    bgm_file="library.mp3",
+                    bgm_volume=0.2,
+                )
+                source_video = _FakeMoviePyClip()
+                voice_source = _FakeMoviePyClip()
+                bgm_source = _FakeMoviePyClip()
+                mixed_audio = _FakeMoviePyClip()
+                final_video = _FakeMoviePyClip()
+                source_video.with_audio_result = final_video
+
+                with (
+                    patch.object(
+                        vd,
+                        "_open_video_clip_quietly",
+                        return_value=source_video,
+                    ),
+                    patch.object(
+                        vd,
+                        "AudioFileClip",
+                        side_effect=[voice_source, bgm_source],
+                    ),
+                    patch.object(vd, "get_bgm_file", return_value="library.mp3"),
+                    patch.object(vd, "CompositeAudioClip", return_value=mixed_audio),
+                    patch.object(vd.afx, "AudioLoop") as audio_loop,
+                    patch.object(vd, "_write_videofile_with_codec_fallback"),
+                    patch.object(
+                        vd, "_get_configured_video_codec", return_value="libx264"
+                    ),
+                ):
+                    result = vd.generate_video(
+                        video_path="combined.mp4",
+                        audio_path="voice.mp3",
+                        subtitle_path="",
+                        output_file="final.mp4",
+                        params=params,
+                        bgm_file_override=bgm_override,
+                    )
+
+                self.assertTrue(result)
+                if should_loop:
+                    audio_loop.assert_called_once_with(duration=source_video.duration)
+                else:
+                    audio_loop.assert_not_called()
 
     def test_preprocess_video(self):
         if not os.path.exists(self.test_img_path):

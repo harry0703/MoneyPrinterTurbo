@@ -215,6 +215,19 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.bgm_type, "")
 
+    def test_sonilo_prompt_implies_sonilo_bgm_mode(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--sonilo-bgm-prompt",
+                "warm acoustic",
+            ]
+        )
+        params = cli.build_video_params(args)
+        self.assertEqual(params.bgm_type, "sonilo")
+        self.assertEqual(params.sonilo_bgm_prompt, "warm acoustic")
+
     def test_local_material_filename_resolved_to_absolute_path(self):
         """After preprocess_video, material.url should be an absolute path, not a bare filename."""
         import os
@@ -295,16 +308,117 @@ class TestCli(unittest.TestCase):
 
         self.assertEqual(cm.exception.code, 2)
 
-    def test_custom_bgm_requires_file_and_file_implies_custom_mode(self):
-        with self.assertRaises(SystemExit):
-            cli.parse_args(
-                ["--video-subject", "test", "--bgm-type", "custom"]
+    def test_positive_volume_custom_bgm_requires_file_before_task_start(self):
+        """启用自定义 BGM 时仍必须在任务启动前报告缺少文件。"""
+        with (
+            patch("app.services.task.start") as start,
+            patch.object(cli.logger, "error") as log_error,
+        ):
+            code = cli.run_cli(
+                [
+                    "--video-subject",
+                    "test",
+                    "--bgm-type",
+                    "custom",
+                    "--stop-at",
+                    "script",
+                ]
             )
 
+        self.assertEqual(code, 2)
+        start.assert_not_called()
+        self.assertIn(
+            "--bgm-file is required",
+            str(log_error.call_args),
+        )
+
+    def test_bgm_file_implies_custom_mode(self):
         args = cli.parse_args(
             ["--video-subject", "test", "--bgm-file", "output001.mp3"]
         )
         self.assertEqual(args.bgm_type, "custom")
+
+    def test_zero_volume_custom_bgm_skips_file_requirement_and_resolution(self):
+        """0 音量应忽略缺失或无效文件，与 WebUI 和视频服务保持一致。"""
+        file_arguments = [[], ["--bgm-file", "missing-background.mp3"]]
+        for extra_arguments in file_arguments:
+            with self.subTest(extra_arguments=extra_arguments):
+                args = cli.parse_args(
+                    [
+                        "--video-subject",
+                        "test",
+                        "--bgm-type",
+                        "custom",
+                        "--bgm-volume",
+                        "0",
+                        *extra_arguments,
+                    ]
+                )
+                params = cli.build_video_params(args)
+                with patch(
+                    "app.services.bgm.resolve_bgm_file",
+                    side_effect=AssertionError(
+                        "zero-volume BGM must not resolve a file"
+                    ),
+                ) as resolver:
+                    cli.prepare_cli_files(params, stop_at="script")
+
+                resolver.assert_not_called()
+                self.assertEqual(params.bgm_file, "")
+
+    def test_custom_bgm_reuses_service_formats_and_managed_path_resolution(self):
+        """CLI 必须跟随 BGM 服务的格式白名单，不能继续单独限制为 MP3。"""
+        from app.services import bgm as bgm_service
+
+        for extension in bgm_service.SUPPORTED_BGM_EXTENSIONS:
+            with self.subTest(extension=extension):
+                filename = f"uploaded{extension}"
+                resolved_path = f"/managed/storage/bgm/{filename}"
+                args = cli.parse_args(
+                    [
+                        "--video-subject",
+                        "test",
+                        "--bgm-type",
+                        "custom",
+                        "--bgm-file",
+                        filename,
+                    ]
+                )
+                params = cli.build_video_params(args)
+                with patch.object(
+                    bgm_service,
+                    "resolve_bgm_file",
+                    return_value=resolved_path,
+                ) as resolver:
+                    cli.prepare_cli_files(params, stop_at="script")
+
+                resolver.assert_called_once_with(filename)
+                self.assertEqual(params.bgm_file, resolved_path)
+
+    def test_custom_bgm_reports_service_resolution_failure_before_task_start(self):
+        """非法格式或越界路径应转换为包含统一格式范围的 CLI 错误。"""
+        from app.services import bgm as bgm_service
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--bgm-type",
+                "custom",
+                "--bgm-file",
+                "unsafe.exe",
+            ]
+        )
+        params = cli.build_video_params(args)
+        with (
+            patch.object(
+                bgm_service,
+                "resolve_bgm_file",
+                side_effect=ValueError("unsupported background music path"),
+            ),
+            self.assertRaisesRegex(ValueError, "storage/bgm or resource/songs"),
+        ):
+            cli.prepare_cli_files(params, stop_at="script")
 
     def test_invalid_aspect_and_non_finite_numbers_are_argument_errors(self):
         invalid_argvs = [

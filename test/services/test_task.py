@@ -72,9 +72,173 @@ class TestTaskService(unittest.TestCase):
                 downloaded_videos=["material.mp4"],
                 audio_file="audio.mp3",
                 subtitle_path="",
+                audio_duration=5,
             )
 
         self.assertEqual(combine_videos.call_args.kwargs["clip_speed"], 1.25)
+
+    def test_generate_final_videos_uses_generated_sonilo_music(self):
+        """Sonilo 必须针对每条拼接后的视频生成配乐，并传给最终混音。"""
+        params = VideoParams(
+            video_subject="test",
+            video_count=1,
+            bgm_type="sonilo",
+            sonilo_bgm_prompt="warm acoustic",
+        )
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.sonilo,
+                "generate_bgm",
+                side_effect=lambda **kwargs: kwargs["output_path"],
+            ) as generate_bgm,
+            patch.object(tm.video, "generate_video") as generate_video,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            _, _, warnings = tm.generate_final_videos(
+                task_id="sonilo-task",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(generate_bgm.call_args.kwargs["video_duration"], 5)
+        self.assertEqual(generate_bgm.call_args.kwargs["prompt"], "warm acoustic")
+        self.assertTrue(
+            generate_video.call_args.kwargs["bgm_file_override"].endswith(
+                "sonilo-bgm-1.m4a"
+            )
+        )
+
+    def test_generate_final_videos_falls_back_without_bgm_on_sonilo_failure(self):
+        """第三方配乐失败时应完成视频并返回可见警告，而不是丢弃所有产物。"""
+        params = VideoParams(video_subject="test", bgm_type="sonilo")
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.sonilo,
+                "generate_bgm",
+                side_effect=tm.sonilo.SoniloError("temporary outage"),
+            ),
+            patch.object(tm.video, "generate_video") as generate_video,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            final_paths, _, warnings = tm.generate_final_videos(
+                task_id="sonilo-fallback",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(len(final_paths), 1)
+        self.assertEqual(
+            warnings, [{"code": "sonilo_bgm_failed", "video_index": 1}]
+        )
+        self.assertEqual(generate_video.call_args.kwargs["bgm_file_override"], "")
+
+    def test_generate_final_videos_skips_sonilo_when_volume_is_zero(self):
+        """0 音量必须完全跳过 Sonilo 生成，并显式禁用残留背景音乐。"""
+        params = VideoParams(
+            video_subject="test",
+            bgm_type="sonilo",
+            bgm_volume=0.0,
+            bgm_file="stale-custom-bgm.mp3",
+        )
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(tm.sonilo, "generate_bgm") as generate_bgm,
+            patch.object(tm.video, "generate_video", return_value=True) as generate,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            final_paths, _, warnings = tm.generate_final_videos(
+                task_id="sonilo-zero-volume",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(len(final_paths), 1)
+        self.assertEqual(warnings, [])
+        generate_bgm.assert_not_called()
+        self.assertEqual(generate.call_args.kwargs["bgm_file_override"], "")
+
+    def test_generate_final_videos_warns_when_sonilo_mix_fails(self):
+        """Sonilo 生成成功但最终混音失败时，任务必须保留视频并返回警告。"""
+        params = VideoParams(video_subject="test", bgm_type="sonilo")
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.sonilo,
+                "generate_bgm",
+                side_effect=lambda **kwargs: kwargs["output_path"],
+            ),
+            patch.object(tm.video, "generate_video", return_value=False) as generate,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            final_paths, _, warnings = tm.generate_final_videos(
+                task_id="sonilo-mix-fallback",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(len(final_paths), 1)
+        self.assertEqual(
+            warnings, [{"code": "sonilo_bgm_failed", "video_index": 1}]
+        )
+        self.assertTrue(
+            generate.call_args.kwargs["bgm_file_override"].endswith(".m4a")
+        )
+
+    def test_start_rejects_missing_sonilo_key_before_costly_pipeline_steps(self):
+        """完整任务缺少 Sonilo Key 时不能先调用 LLM、TTS 或素材服务。"""
+        params = VideoParams(video_subject="test", bgm_type="sonilo")
+        with (
+            patch.object(tm.sonilo, "is_enabled", return_value=False),
+            patch.object(tm, "generate_script") as generate_script,
+            patch.object(tm, "generate_audio") as generate_audio,
+            patch.object(tm, "get_video_materials") as get_materials,
+            patch.object(tm.sm.state, "update_task") as update_task,
+        ):
+            result = tm.start("missing-sonilo-key", params)
+
+        self.assertIsNone(result)
+        generate_script.assert_not_called()
+        generate_audio.assert_not_called()
+        get_materials.assert_not_called()
+        update_task.assert_any_call(
+            "missing-sonilo-key", state=tm.const.TASK_STATE_FAILED
+        )
+
+    def test_start_does_not_require_sonilo_key_when_volume_is_zero(self):
+        """0 音量不会使用 Sonilo，因此缺少 Key 时仍应进入正常任务流水线。"""
+        params = VideoParams(
+            video_subject="test",
+            bgm_type="sonilo",
+            bgm_volume=0.0,
+        )
+        with (
+            patch.object(tm.sonilo, "is_enabled", return_value=False),
+            patch.object(tm, "generate_script", return_value="") as generate_script,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            result = tm.start("zero-volume-without-key", params)
+
+        self.assertIsNone(result)
+        generate_script.assert_called_once_with("zero-volume-without-key", params)
 
     def test_generate_terms_uses_script_order_mode_when_enabled(self):
         """
@@ -384,7 +548,7 @@ class TestTaskService(unittest.TestCase):
             patch.object(
                 tm,
                 "generate_final_videos",
-                return_value=(["final.mp4"], ["combined.mp4"]),
+                return_value=(["final.mp4"], ["combined.mp4"], []),
             ),
             patch.object(
                 tm.upload_post.upload_post_service,
@@ -417,14 +581,14 @@ class TestTaskService(unittest.TestCase):
             "audio": (
                 (None, None, None),
                 ["clip.mp4"],
-                (["final.mp4"], ["combined.mp4"]),
+                (["final.mp4"], ["combined.mp4"], []),
             ),
             "materials": (
                 ("audio.mp3", 5, object()),
                 None,
-                (["final.mp4"], ["combined.mp4"]),
+                (["final.mp4"], ["combined.mp4"], []),
             ),
-            "video": (("audio.mp3", 5, object()), ["clip.mp4"], ([], [])),
+            "video": (("audio.mp3", 5, object()), ["clip.mp4"], ([], [], [])),
         }
 
         for stage, failure_results in failure_cases.items():
@@ -493,6 +657,7 @@ class TestTaskService(unittest.TestCase):
                 return_value=(
                     ["final-1.mp4", "final-2.mp4"],
                     ["combined-1.mp4", "combined-2.mp4"],
+                    [],
                 ),
             ),
             patch.object(service, "is_configured", return_value=True),

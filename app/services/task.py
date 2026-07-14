@@ -8,7 +8,9 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, twelvelabs, video, voice, upload_post
+from app.services import bgm as bgm_service
+from app.services import llm, material, sonilo, subtitle, twelvelabs, video, voice
+from app.services import upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -274,10 +276,15 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
 
 
 def generate_final_videos(
-    task_id, params, downloaded_videos, audio_file, subtitle_path
+    task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
 ):
     final_video_paths = []
     combined_video_paths = []
+    warnings = []
+    sonilo_bgm_requested = (
+        params.bgm_type == "sonilo"
+        and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
+    )
     # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
     # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
     if params.match_materials_to_script:
@@ -312,14 +319,52 @@ def generate_final_videos(
 
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
+        # Sonilo 模式下先明确禁用默认 BGM 解析，避免恢复旧任务时残留的
+        # bgm_file 被误当成当前配乐。只有音量大于 0 才生成代理并调用付费 API；
+        # 0 音量表示完整禁用背景音乐，不产生生成、下载或混音开销。
+        bgm_file_override = "" if params.bgm_type == "sonilo" else None
+        if sonilo_bgm_requested:
+            sonilo_bgm_path = path.join(
+                utils.task_dir(task_id), f"sonilo-bgm-{index}.m4a"
+            )
+            try:
+                sonilo.generate_bgm(
+                    video_path=combined_video_path,
+                    output_path=sonilo_bgm_path,
+                    video_duration=audio_duration,
+                    prompt=params.sonilo_bgm_prompt,
+                )
+                bgm_file_override = sonilo_bgm_path
+            except sonilo.SoniloError as exc:
+                # 视频、旁白和字幕都已生成时，第三方配乐临时失败不应浪费整条
+                # 任务。当前视频明确禁用 BGM，并把降级结果返回 WebUI 提醒用户。
+                logger.warning(
+                    f"Sonilo BGM generation failed: task_id={task_id}, "
+                    f"video_index={index}, error={exc}"
+                )
+                bgm_file_override = ""
+                warnings.append(
+                    {"code": "sonilo_bgm_failed", "video_index": index}
+                )
+
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
-        video.generate_video(
+        bgm_mix_succeeded = video.generate_video(
             video_path=combined_video_path,
             audio_path=audio_file,
             subtitle_path=subtitle_path,
             output_file=final_video_path,
             params=params,
+            bgm_file_override=bgm_file_override,
         )
+        if (
+            params.bgm_type == "sonilo"
+            and bgm_file_override
+            and not bgm_mix_succeeded
+        ):
+            # Sonilo 已成功返回并通过 FFmpeg 校验，但 MoviePy 最终混音仍可能
+            # 因运行环境失败。视频服务会保留无 BGM 成片，任务层复用同一结构化
+            # 警告通知 WebUI；API 生成失败时 override 为空，不会重复追加警告。
+            warnings.append({"code": "sonilo_bgm_failed", "video_index": index})
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
@@ -327,12 +372,24 @@ def generate_final_videos(
         final_video_paths.append(final_video_path)
         combined_video_paths.append(combined_video_path)
 
-    return final_video_paths, combined_video_paths
+    return final_video_paths, combined_video_paths, warnings
 
 
 def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+
+    # 只有完整成片流程需要 Sonilo。尽早阻止缺少 Key 的完整任务，避免先消耗
+    # LLM、TTS 和素材服务额度；各个中间产物接口仍可独立使用，不受配乐配置影响。
+    if (
+        stop_at == "video"
+        and params.bgm_type == "sonilo"
+        and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
+        and not sonilo.is_enabled()
+    ):
+        logger.error("Sonilo background music requires an API key")
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        return
 
     # 1. Generate script
     video_script = generate_script(task_id, params)
@@ -426,8 +483,13 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
     # 6. Generate final videos
-    final_video_paths, combined_video_paths = generate_final_videos(
-        task_id, params, downloaded_videos, audio_file, subtitle_path
+    final_video_paths, combined_video_paths, generation_warnings = generate_final_videos(
+        task_id,
+        params,
+        downloaded_videos,
+        audio_file,
+        subtitle_path,
+        audio_duration,
     )
 
     if not final_video_paths:
@@ -482,6 +544,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
         "cross_post_results": cross_post_results if cross_post_results else None,
+        "warnings": generation_warnings or None,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs

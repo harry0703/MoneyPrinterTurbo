@@ -1,3 +1,4 @@
+import math
 import os
 import subprocess
 import tempfile
@@ -42,6 +43,23 @@ class BgmUploadError(ValueError):
 
 class BgmServiceError(RuntimeError):
     """表示 FFmpeg 或文件系统不可用等服务端执行故障。"""
+
+
+def should_use_bgm(bgm_type: str | None, bgm_volume: float | None) -> bool:
+    """
+    统一判断当前任务是否需要处理任何背景音乐。
+
+    该规则与具体来源无关：没有选择来源、音量不合法或音量不大于 0 时，随机、
+    自定义、Sonilo 以及未来新增的提供商都必须跳过文件解析、外部生成和最终混音。
+    放在通用 BGM 服务中可以避免每增加一个提供商就复制一套 0 音量判断。
+    """
+    if not str(bgm_type or "").strip():
+        return False
+    try:
+        normalized_volume = float(bgm_volume or 0)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(normalized_volume) and normalized_volume > 0
 
 
 def uploaded_bgm_dir(create: bool = True) -> str:
@@ -99,7 +117,7 @@ def sanitize_upload_filename(filename: str) -> str:
     return safe_name
 
 
-def _validate_audio(file_path: str) -> None:
+def _validate_audio(file_path: str, timeout_seconds: int = 30) -> None:
     """
     仅使用项目当前配置的 FFmpeg 验证文件包含可完整解码的音频流。
 
@@ -125,7 +143,7 @@ def _validate_audio(file_path: str) -> None:
                 "-",
             ],
             capture_output=True,
-            timeout=30,
+            timeout=timeout_seconds,
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
@@ -134,6 +152,18 @@ def _validate_audio(file_path: str) -> None:
         raise BgmServiceError("failed to run FFmpeg for background music validation") from exc
     if decoded.returncode != 0:
         raise BgmUploadError("uploaded file must contain a decodable audio stream")
+
+
+def validate_audio_file(file_path: str, timeout_seconds: int = 120) -> None:
+    """
+    校验磁盘上的音频文件可由项目 FFmpeg 完整解码。
+
+    上传预检通常只需 30 秒；Sonilo 生成的配乐最长可达 6 分钟，因此对外提供
+    可调整超时的复用入口。服务只依赖 FFmpeg，不要求系统额外安装 FFprobe。
+    """
+    if not os.path.isfile(file_path) or os.path.getsize(file_path) <= 0:
+        raise BgmUploadError("background music file is empty or missing")
+    _validate_audio(file_path, timeout_seconds=timeout_seconds)
 
 
 def _stage_bgm_upload(filename: str, source: BinaryIO) -> tuple[str, str, int]:

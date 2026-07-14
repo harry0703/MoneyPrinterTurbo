@@ -119,9 +119,11 @@ def _bgm_type(value: str) -> str:
     normalized = value.strip().lower()
     if normalized == "none":
         return ""
-    if normalized in {"", "random", "custom"}:
+    if normalized in {"", "random", "custom", "sonilo"}:
         return normalized
-    raise argparse.ArgumentTypeError("bgm-type must be one of: none, random, custom")
+    raise argparse.ArgumentTypeError(
+        "bgm-type must be one of: none, random, custom, sonilo"
+    )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -319,19 +321,25 @@ Output and exit status:
         "--bgm-type",
         type=_bgm_type,
         default=None,
-        metavar="{none,random,custom}",
+        metavar="{none,random,custom,sonilo}",
         help=(
-            "background music mode; --bgm-file implies custom when omitted "
+            "background music mode; Sonilo reads its API key from config.toml or "
+            "SONILO_API_KEY; --bgm-file implies custom when omitted "
             "(default: random)"
         ),
+    )
+    audio_group.add_argument(
+        "--sonilo-bgm-prompt",
+        default=None,
+        help="optional music style prompt for Sonilo, up to 2000 characters",
     )
     audio_group.add_argument(
         "--bgm-file",
         default=None,
         metavar="PATH",
         help=(
-            "custom MP3 inside resource/songs; accepts a filename or a path "
-            "relative to the project root"
+            "custom supported audio file inside storage/bgm or resource/songs; "
+            "accepts a filename or an allowed managed path"
         ),
     )
     audio_group.add_argument(
@@ -463,9 +471,15 @@ Output and exit status:
         if args.bgm_type in (None, "custom"):
             args.bgm_type = "custom"
         else:
-            parser.error("--bgm-file cannot be combined with --bgm-type none or random")
-    elif args.bgm_type == "custom":
-        parser.error("--bgm-file is required when --bgm-type is custom")
+            parser.error("--bgm-file can only be combined with --bgm-type custom")
+
+    if args.sonilo_bgm_prompt:
+        if args.bgm_type in (None, "sonilo"):
+            args.bgm_type = "sonilo"
+        else:
+            parser.error(
+                "--sonilo-bgm-prompt can only be combined with --bgm-type sonilo"
+            )
 
     if args.custom_position is not None and args.subtitle_position != "custom":
         parser.error("--custom-position requires --subtitle-position custom")
@@ -532,6 +546,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "bgm_type",
         "bgm_file",
         "bgm_volume",
+        "sonilo_bgm_prompt",
         "font_name",
         "subtitle_position",
         "custom_position",
@@ -637,6 +652,7 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
     复制到受控目录，再把参数替换为服务层可安全使用的绝对路径。
     """
     from app.models import const
+    from app.services import bgm as bgm_service
     from app.utils import utils
 
     local_material_extensions = {
@@ -659,14 +675,32 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
                 f"allowed extensions: {allowed}"
             )
 
-    if params.bgm_type == "custom" and params.bgm_file:
-        params.bgm_file = _resolve_managed_resource_file(
-            params.bgm_file,
-            resource_dir=utils.song_dir(),
-            description="background music",
-        )
-        if not params.bgm_file.lower().endswith(".mp3"):
-            raise ValueError("background music must use the .mp3 extension")
+    if params.bgm_type == "custom":
+        if not bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume):
+            # 0 音量时下游会统一跳过所有 BGM。这里同时清空文件参数，避免
+            # CLI 为一个不会被读取的文件执行路径解析、存在性检查或格式
+            # 校验。
+            params.bgm_file = ""
+        elif not params.bgm_file:
+            # 缺少文件是否构成错误取决于通用 BGM 开关，不能在 argparse 阶段
+            # 无条件拦截，否则 ``custom + 0%`` 会和 WebUI、服务层行为不一致。
+            raise ValueError("--bgm-file is required when --bgm-type is custom")
+        else:
+            try:
+                # CLI、WebUI 和任务服务必须共用同一个 BGM 文件边界。这里直接
+                # 复用服务层解析，既支持用户上传目录和内置歌曲目录，也
+                # 自动继承新增音频格式及路径安全规则，避免多个入口分别
+                # 维护白名单。
+                params.bgm_file = bgm_service.resolve_bgm_file(params.bgm_file)
+            except ValueError as exc:
+                supported_extensions = ", ".join(
+                    bgm_service.SUPPORTED_BGM_EXTENSIONS
+                )
+                raise ValueError(
+                    "background music must be a supported audio file inside "
+                    f"storage/bgm or resource/songs ({supported_extensions}): "
+                    f"{params.bgm_file}"
+                ) from exc
 
     if params.subtitle_enabled and params.font_name and stop_at == "video":
         font_path = _resolve_managed_resource_file(

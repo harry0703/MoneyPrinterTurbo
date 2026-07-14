@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unicodedata
-from contextlib import redirect_stdout
+from contextlib import ExitStack, redirect_stdout
 from functools import lru_cache
 from typing import List
 from loguru import logger
@@ -965,7 +965,15 @@ def generate_video(
     subtitle_path: str,
     output_file: str,
     params: VideoParams,
-):
+    bgm_file_override: str | None = None,
+) -> bool:
+    """
+    合成最终视频，并返回本次背景音乐处理是否成功。
+
+    返回值只描述 BGM 处理状态：没有请求 BGM 或成功混合时返回 True；请求了
+    BGM 但加载、特效或混合失败时返回 False。即使 BGM 失败仍会继续输出只有
+    旁白的视频，让任务编排层决定是否向用户展示降级警告。
+    """
     aspect = VideoAspect(params.video_aspect)
     video_width, video_height = aspect.to_resolution()
 
@@ -1148,60 +1156,106 @@ def generate_video(
             _clip = _clip.with_position(("center", "center"))
         return _clip
 
-    video_clip = _open_video_clip_quietly(video_path)
-    audio_clip = AudioFileClip(audio_path).with_effects(
-        [afx.MultiplyVolume(params.voice_volume)]
-    )
-
-    def make_textclip(text):
-        return TextClip(
-            text=text,
-            font=font_path,
-            font_size=params.font_size,
+    # MoviePy 的 CompositeAudioClip.close() 不会关闭子 AudioFileClip。这里用
+    # ExitStack 显式持有所有原始文件 reader，确保成功、字幕异常、混音失败和
+    # 视频写入失败等路径都能释放 FFmpeg 子进程，尤其避免 Windows 文件被占用。
+    with ExitStack() as clip_stack:
+        source_video_clip = clip_stack.enter_context(
+            _open_video_clip_quietly(video_path)
+        )
+        voice_source_clip = clip_stack.enter_context(AudioFileClip(audio_path))
+        video_clip = source_video_clip
+        audio_clip = voice_source_clip.with_effects(
+            [afx.MultiplyVolume(params.voice_volume)]
         )
 
-    if subtitle_path and os.path.exists(subtitle_path):
-        sub = SubtitlesClip(
-            subtitles=subtitle_path, encoding="utf-8", make_textclip=make_textclip
-        )
-        text_clips = []
-        for item in sub.subtitles:
-            clip = create_text_clip(subtitle_item=item)
-            text_clips.append(clip)
-        video_clip = CompositeVideoClip([video_clip, *text_clips])
+        def make_textclip(text):
+            return TextClip(
+                text=text,
+                font=font_path,
+                font_size=params.font_size,
+            )
 
-    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
-    if bgm_file:
-        try:
-            bgm_clip = AudioFileClip(bgm_file).with_effects(
-                [
+        if subtitle_path and os.path.exists(subtitle_path):
+            sub = clip_stack.enter_context(
+                SubtitlesClip(
+                    subtitles=subtitle_path,
+                    encoding="utf-8",
+                    make_textclip=make_textclip,
+                )
+            )
+            text_clips = []
+            for item in sub.subtitles:
+                clip = create_text_clip(subtitle_item=item)
+                text_clips.append(clip)
+            video_clip = CompositeVideoClip([video_clip, *text_clips])
+            clip_stack.callback(video_clip.close)
+
+        bgm_enabled = bgm_service.should_use_bgm(
+            params.bgm_type, params.bgm_volume
+        )
+        if not bgm_enabled and params.bgm_type:
+            # 所有 BGM 来源共用这一条短路规则。音量不大于 0 时不能解析随机或
+            # 自定义文件，也不能加载提供商返回的文件，避免无意义的 IO 和混音。
+            logger.info(
+                f"skipping background music because volume is not positive: "
+                f"type={params.bgm_type}, volume={params.bgm_volume}"
+            )
+
+        # 提供商配乐可由任务编排层直接传入对应文件。None 表示沿用随机/自定义
+        # BGM 解析，空字符串明确禁用本条 BGM；但任何来源都必须先通过通用音量规则。
+        bgm_file = ""
+        if bgm_enabled:
+            bgm_file = (
+                bgm_file_override
+                if bgm_file_override is not None
+                else get_bgm_file(
+                    bgm_type=params.bgm_type,
+                    bgm_file=params.bgm_file,
+                )
+            )
+        bgm_mix_succeeded = True
+        if bgm_file:
+            try:
+                bgm_effects = [
                     afx.MultiplyVolume(params.bgm_volume),
                     afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
                 ]
-            )
-            audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
-        except Exception as e:
-            logger.error(f"failed to add bgm: {str(e)}")
+                # 服务内解析的随机/自定义音乐可能比成片短，需要循环铺满；任务层
+                # 通过 override 传入的文件表示提供商已经完成时长适配。这里依据
+                # 文件来源决定是否循环，避免今后每增加一个提供商都修改名称白名单。
+                if bgm_file_override is None:
+                    bgm_effects.append(afx.AudioLoop(duration=video_clip.duration))
+                bgm_source_clip = clip_stack.enter_context(AudioFileClip(bgm_file))
+                bgm_clip = bgm_source_clip.with_effects(bgm_effects)
+                audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
+            except Exception:
+                bgm_mix_succeeded = False
+                # 记录完整堆栈和稳定上下文，便于区分文件解码、MoviePy 特效和
+                # CompositeAudioClip 失败；文件内容与 API Key 不会进入日志。
+                logger.exception(
+                    f"failed to mix background music: type={params.bgm_type}, "
+                    f"file={bgm_file}"
+                )
 
-    video_clip = video_clip.with_audio(audio_clip)
-    # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
-    # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
-    output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
-    _write_videofile_with_codec_fallback(
-        video_clip,
-        output_file=output_file,
-        codec=_get_configured_video_codec(),
-        audio_codec=audio_codec,
-        audio_fps=output_audio_fps,
-        audio_bitrate=audio_bitrate,
-        temp_audiofile_path=_get_temp_audio_dir(output_dir),
-        threads=params.n_threads or 2,
-        logger=None,
-        fps=fps,
-    )
-    video_clip.close()
-    del video_clip
+        final_video_clip = video_clip.with_audio(audio_clip)
+        clip_stack.callback(final_video_clip.close)
+        # 显式沿用输入音频的采样率；如果取不到，再回退 MoviePy 默认的 44100Hz。
+        # 这样可以减少不同环境，尤其 Docker 中再次重采样带来的音质波动。
+        output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
+        _write_videofile_with_codec_fallback(
+            final_video_clip,
+            output_file=output_file,
+            codec=_get_configured_video_codec(),
+            audio_codec=audio_codec,
+            audio_fps=output_audio_fps,
+            audio_bitrate=audio_bitrate,
+            temp_audiofile_path=_get_temp_audio_dir(output_dir),
+            threads=params.n_threads or 2,
+            logger=None,
+            fps=fps,
+        )
+        return bgm_mix_succeeded
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
