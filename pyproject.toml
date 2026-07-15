@@ -28,6 +28,7 @@ dependencies = [
     "python-multipart==0.0.27",
     "pyyaml==6.0.3",
     "requests==2.33.1",
+    "packaging==24.2",
     "socksio==1.0.0",
     "pydub==0.25.1",
     "audioop-lts==0.2.2; python_version >= '3.13'",

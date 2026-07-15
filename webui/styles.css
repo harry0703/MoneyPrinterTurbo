@@ -95,6 +95,33 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     outline-offset: 2px;
 }
 
+/* 新版本提醒只在确有正式版本更新时出现。使用文字链接而不是按钮或横幅，
+   让它保持可发现性，同时不抢占项目标题和主要操作入口的视觉层级。 */
+.mpt-brand__update {
+    flex: 0 0 auto;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #d94848 !important;
+    text-decoration: none !important;
+    white-space: nowrap;
+}
+
+.mpt-brand__update:hover {
+    text-decoration: underline !important;
+    text-underline-offset: 0.18em;
+}
+
+.mpt-brand__update:focus-visible {
+    outline: 2px solid rgba(255, 75, 75, 0.48);
+    outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .mpt-brand__update {
+        color: #ff6b6b !important;
+    }
+}
+
 /* Streamlit 会自动给 h1 追加一个标题锚点。品牌区已有版本号项目链接，额外的
    标题锚点没有实际价值，因此只在这个标题内隐藏，避免窄屏出现多余图标。 */
 .mpt-brand > [data-testid="stHeaderActionElements"] {
@@ -122,6 +149,10 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
         font-size: 0.875rem;
     }
 
+    .mpt-brand__update {
+        font-size: 0.75rem;
+    }
+
 }
 
 @media (max-width: 480px) {
@@ -135,6 +166,10 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
 
     .mpt-brand__version {
         font-size: 0.75rem;
+    }
+
+    .mpt-brand__update {
+        font-size: 0.6875rem;
     }
 
 }

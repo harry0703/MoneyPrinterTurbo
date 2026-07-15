@@ -8,6 +8,8 @@ from contextlib import contextmanager
 import toml
 from loguru import logger
 
+from app import __version__
+
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 config_file = f"{root_dir}/config.toml"
 _CONTAINER_CGROUP_MARKERS = ("docker", "containerd", "kubepods", "libpod", "podman")
@@ -272,7 +274,7 @@ project_description = _cfg.get(
     "project_description",
     "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>",
 )
-project_version = _cfg.get("project_version", "1.3.2")
+project_version = _cfg.get("project_version", __version__)
 reload_debug = False
 
 app["redis_host"] = os.getenv(

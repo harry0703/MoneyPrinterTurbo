@@ -43,6 +43,7 @@ from app.services import cache_manager, llm, video, voice
 from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
+from app.services import version_checker
 from app.utils import utils
 
 st.set_page_config(
@@ -1038,6 +1039,50 @@ def _dismiss_settings_dialog():
     st.session_state["settings_dialog_open"] = False
 
 
+def _render_brand(available_update: str | None = None):
+    """渲染项目名称、当前版本和可选的更新入口。"""
+    update_link = ""
+    if available_update:
+        update_label = html.escape(
+            tr("Update Available").format(version=available_update)
+        )
+        # Streamlit 会继续用 Markdown 解析传入的 HTML。这里保持链接为单行，
+        # 避免多行字符串的缩进被识别成代码块，导致页面直接显示 HTML 源码。
+        update_link = (
+            '<a class="mpt-brand__update" '
+            f'href="{version_checker.LATEST_RELEASE_PAGE_URL}" '
+            'target="_blank" rel="noopener noreferrer" '
+            f'aria-label="{update_label}" title="{update_label}">'
+            f"{update_label}</a>"
+        )
+    st.markdown(
+        f"""
+        <h1 class="mpt-brand">
+            <span class="mpt-brand__name">MoneyPrinterTurbo</span>
+            <a class="mpt-brand__version"
+               href="https://github.com/harry0703/MoneyPrinterTurbo"
+               target="_blank"
+               rel="noopener noreferrer"
+               aria-label="Open MoneyPrinterTurbo on GitHub"
+               title="Open project on GitHub">v{html.escape(str(config.project_version))}</a>
+            {update_link}
+        </h1>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+@st.fragment(run_every="1s")
+def _render_pending_version_check():
+    """检查未完成时只刷新品牌区域，避免阻塞或反复执行整页表单。"""
+    snapshot = version_checker.poll_available_update(config.project_version)
+    if snapshot.complete:
+        # 检查完成后刷新一次整页，让顶部栏改为静态渲染并停止 fragment 轮询。
+        # 该刷新发生在后台请求完成之后，不会延迟初始页面的其它内容。
+        st.rerun(scope="app")
+    _render_brand()
+
+
 def _render_top_bar():
     """渲染品牌、任务管理、设置和语言切换组成的页面顶部栏。"""
     # 顶部栏分为品牌区和操作区两个独立区域。窄屏下由 Streamlit
@@ -1050,20 +1095,13 @@ def _render_top_bar():
         )
 
     with brand_col:
-        st.markdown(
-            f"""
-            <h1 class="mpt-brand">
-                <span class="mpt-brand__name">MoneyPrinterTurbo</span>
-                <a class="mpt-brand__version"
-                   href="https://github.com/harry0703/MoneyPrinterTurbo"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   aria-label="Open MoneyPrinterTurbo on GitHub"
-                   title="Open project on GitHub">v{config.project_version}</a>
-            </h1>
-            """,
-            unsafe_allow_html=True,
+        update_snapshot = version_checker.poll_available_update(
+            config.project_version
         )
+        if update_snapshot.complete:
+            _render_brand(update_snapshot.available_version)
+        else:
+            _render_pending_version_check()
 
     with actions_col:
         with st.container(
