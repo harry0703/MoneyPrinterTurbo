@@ -16,7 +16,6 @@ import requests
 from loguru import logger
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from moviepy.video.VideoClip import ImageClip
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 import openai
 
 from app.config import config

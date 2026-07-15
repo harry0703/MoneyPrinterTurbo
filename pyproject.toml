@@ -7,30 +7,33 @@ build-backend = "hatchling.build"
 
 [project]
 name = "moneyprinterturbo"
-version = "1.3.1"
+version = "1.3.2"
 description = "Generate short videos from prompts, local assets, subtitles, and TTS."
 readme = "README-en.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "moviepy==2.2.1",
-    "streamlit==1.58.0",
+    "streamlit==1.59.1",
+    "streamlit-tour==1.1.0",
     "edge-tts==7.2.7",
     "fastapi==0.136.3",
     "uvicorn==0.32.1",
     "openai==2.24.0",
     "faster-whisper==1.1.0",
     "loguru==0.7.3",
-    "google-generativeai==0.8.6",
     "dashscope==1.20.14",
     "azure-cognitiveservices-speech==1.41.1",
     "redis==5.2.0",
     "python-multipart==0.0.27",
     "pyyaml==6.0.3",
     "requests==2.33.1",
+    "packaging==24.2",
     "socksio==1.0.0",
     "pydub==0.25.1",
+    "audioop-lts==0.2.2; python_version >= '3.13'",
     "litellm==1.86.2",
+    "google-genai==2.11.0",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +43,33 @@ dependencies = [
 twelvelabs = [
     "twelvelabs>=1.2.8",
 ]
+
+[dependency-groups]
+dev = [
+    "coverage==7.15.1",
+    "pytest==9.1.1",
+    "ruff==0.15.21",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# WebUI 需要先把项目根目录加入 sys.path，随后才能导入 app 包。
+"webui/Main.py" = ["E402"]
+
+[tool.coverage.run]
+# 统计分支覆盖率可以识别“代码行执行了，但条件的另一条分支从未验证”的情况，
+# 比只统计行覆盖率更适合作为 CI 质量基线。CLI 和 WebUI 都属于生产入口，
+# 因此与 app 服务层、服务启动入口和面向 Agent 用户发布的 Skill 脚本一起
+# 纳入统计，避免覆盖率只反映局部模块。
+branch = true
+source = ["app", "cli", "webui", "main", "docs/skill"]
+
+[tool.coverage.report]
+# Python 3.11 和 3.13 完整测试的实测分支覆盖率均超过 70.4%。以 70%
+# 作为稳定底线，可以固化失败状态、异步发布恢复和 Redis 原子更新测试，
+# 同时为不同 Python 版本与操作系统的少量分支差异保留余量。
+fail_under = 70
+show_missing = true
+skip_covered = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

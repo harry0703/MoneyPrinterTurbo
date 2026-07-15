@@ -1,6 +1,7 @@
 """Application implementation - ASGI."""
 
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +14,22 @@ from app.config import config
 from app.models.exception import HttpException
 from app.router import root_api_router
 from app.utils import utils
+
+
+@asynccontextmanager
+async def application_lifespan(_: FastAPI):
+    """集中处理 API 进程启动恢复和关闭日志。"""
+    logger.info("startup event")
+
+    # 跨平台发布由当前进程线程池执行，不会在服务重启后恢复。启动时把 Redis
+    # 中确认已失去执行进程的活动状态收敛为失败，避免任务永久无法删除。
+    from app.services import task as task_service
+
+    task_service.recover_interrupted_cross_posts()
+    try:
+        yield
+    finally:
+        logger.info("shutdown event")
 
 
 def exception_handler(request: Request, e: HttpException):
@@ -43,6 +60,7 @@ def get_application() -> FastAPI:
         description=config.project_description,
         version=config.project_version,
         debug=False,
+        lifespan=application_lifespan,
     )
     instance.include_router(root_api_router)
     instance.add_exception_handler(HttpException, exception_handler)
@@ -70,13 +88,3 @@ app.mount(
 
 public_dir = utils.public_dir()
 app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
-
-
-@app.on_event("shutdown")
-def shutdown_event():
-    logger.info("shutdown event")
-
-
-@app.on_event("startup")
-def startup_event():
-    logger.info("startup event")

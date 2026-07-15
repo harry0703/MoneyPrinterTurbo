@@ -1,9 +1,9 @@
 import warnings
 from enum import Enum
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import pydantic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import config
 
@@ -27,6 +27,8 @@ class VideoTransitionMode(str, Enum):
     fade_out = "FadeOut"
     slide_in = "SlideIn"
     slide_out = "SlideOut"
+    zoom_in = "ZoomIn"
+    zoom_out = "ZoomOut"
 
 
 class VideoAspect(str, Enum):
@@ -77,6 +79,7 @@ class VideoParams(BaseModel):
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
     video_clip_duration: Optional[int] = 5
+    video_clip_speed: Optional[float] = 1.0
     match_materials_to_script: bool = False
     video_count: Optional[int] = 1
 
@@ -95,13 +98,14 @@ class VideoParams(BaseModel):
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
+    sonilo_bgm_prompt: str = Field(default="", max_length=2000)
 
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
-    text_background_color: Union[bool, str] = True
+    text_background_color: Union[bool, str] = False
     rounded_subtitle_background: bool = False
 
     font_size: int = 60
@@ -125,7 +129,7 @@ class SubtitleRequest(BaseModel):
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
-    text_background_color: Union[bool, str] = True
+    text_background_color: Union[bool, str] = False
     rounded_subtitle_background: bool = False
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
@@ -244,24 +248,100 @@ class TaskResponse(BaseResponse):
         }
 
 
+class TaskStatusData(BaseModel):
+    """任务查询对外保证的稳定字段；历史和扩展字段继续原样透传。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    task_id: str
+    state: int
+    progress: int = 0
+    videos: Optional[List[str]] = None
+    combined_videos: Optional[List[str]] = None
+    failed_stage: Optional[str] = None
+    error: Optional[str] = None
+    cross_post_state: Optional[
+        Literal["pending", "processing", "complete", "failed"]
+    ] = None
+    cross_post_results: Optional[List[dict[str, Any]]] = None
+    cross_post_error: Optional[str] = None
+
+
+class TaskListData(BaseModel):
+    """分页任务列表结构。"""
+
+    tasks: List[TaskStatusData]
+    total: int
+    page: int
+    page_size: int
+
+
 class TaskQueryResponse(BaseResponse):
-    class Config:
-        json_schema_extra = {
+    """
+    任务查询会返回生成状态和可选的跨平台发布状态。
+
+    生成失败时包含 `failed_stage` 和 `error`；生成完成后如果启用了自动发布，
+    `cross_post_state` 会依次进入 pending、processing、complete 或 failed。
+    """
+
+    data: TaskStatusData
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "status": 200,
+                    "message": "success",
+                    "data": {
+                        "task_id": "6c85c8cc-a77a-42b9-bc30-947815aa0558",
+                        "state": 1,
+                        "progress": 100,
+                        "videos": ["/tasks/example/final-1.mp4"],
+                        "cross_post_state": "complete",
+                        "cross_post_results": [{"success": True}],
+                    },
+                },
+                {
+                    "status": 200,
+                    "message": "success",
+                    "data": {
+                        "task_id": "6c85c8cc-a77a-42b9-bc30-947815aa0558",
+                        "state": -1,
+                        "progress": 30,
+                        "failed_stage": "audio",
+                        "error": "TTS request timed out",
+                    },
+                },
+            ],
+        }
+    )
+
+
+class TaskListResponse(BaseResponse):
+    """任务列表使用独立响应模型，避免与单任务查询混用文档结构。"""
+
+    data: TaskListData
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "state": 1,
-                    "progress": 100,
-                    "videos": [
-                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/final-1.mp4"
+                    "tasks": [
+                        {
+                            "task_id": "6c85c8cc-a77a-42b9-bc30-947815aa0558",
+                            "state": 4,
+                            "progress": 50,
+                        }
                     ],
-                    "combined_videos": [
-                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/combined-1.mp4"
-                    ],
+                    "total": 1,
+                    "page": 1,
+                    "page_size": 10,
                 },
-            },
+            }
         }
+    )
 
 
 class TaskDeletionResponse(BaseResponse):
@@ -332,9 +412,9 @@ class BgmRetrieveResponse(BaseResponse):
                 "data": {
                     "files": [
                         {
-                            "name": "output013.mp3",
+                            "name": "4fca18fce7344f3aa824777a40d45c8c.mp3",
                             "size": 1891269,
-                            "file": "/MoneyPrinterTurbo/resource/songs/output013.mp3",
+                            "file": "4fca18fce7344f3aa824777a40d45c8c.mp3",
                         }
                     ]
                 },
@@ -348,7 +428,7 @@ class BgmUploadResponse(BaseResponse):
             "example": {
                 "status": 200,
                 "message": "success",
-                "data": {"file": "/MoneyPrinterTurbo/resource/songs/example.mp3"},
+                "data": {"file": "4fca18fce7344f3aa824777a40d45c8c.mp3"},
             },
         }
 

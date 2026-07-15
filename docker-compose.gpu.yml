@@ -8,12 +8,20 @@
 #
 # This file overrides the default docker-compose.yml to:
 #   - Build with Dockerfile.gpu (NVIDIA CUDA base image)
-#   - Attach GPU device to the api service
+#   - Attach GPU devices to both services because video generation can run in
+#     either the WebUI process or the API process
 services:
   webui:
     build:
       context: .
       dockerfile: Dockerfile.gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
   api:
     build:
       context: .

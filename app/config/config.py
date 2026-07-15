@@ -1,14 +1,63 @@
 import os
 import shutil
 import socket
+import tempfile
+import threading
+from contextlib import contextmanager
 
 import toml
 from loguru import logger
+
+from app import __version__
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 config_file = f"{root_dir}/config.toml"
 _CONTAINER_CGROUP_MARKERS = ("docker", "containerd", "kubepods", "libpod", "podman")
 _DOCKER_HOST_GATEWAY_NAME = "host.docker.internal"
+_config_save_lock = threading.RLock()
+_MISSING = object()
+
+
+class _SynchronizedConfig(dict):
+    """保持 dict 使用方式不变，同时让运行期配置写操作服从同一把锁。"""
+
+    def __setitem__(self, key, value):
+        with _config_save_lock:
+            super().__setitem__(key, value)
+
+    def __delitem__(self, key):
+        with _config_save_lock:
+            super().__delitem__(key)
+
+    def clear(self):
+        with _config_save_lock:
+            super().clear()
+
+    def pop(self, key, default=_MISSING):
+        with _config_save_lock:
+            if default is _MISSING:
+                return super().pop(key)
+            return super().pop(key, default)
+
+    def setdefault(self, key, default=None):
+        with _config_save_lock:
+            return super().setdefault(key, default)
+
+    def update(self, *args, **kwargs):
+        with _config_save_lock:
+            super().update(*args, **kwargs)
+
+
+@contextmanager
+def runtime_config_lock():
+    """
+    在一次依赖全局配置的完整操作期间阻止其它 WebUI 会话改写配置。
+
+    当前项目默认绑定本地回环地址，配置仍然是单用户全局配置。这个轻量锁主要
+    保护生成、试听等长操作，避免另一个标签页在操作中途切换 Provider 或密钥。
+    """
+    with _config_save_lock:
+        yield
 
 
 def is_running_in_container(
@@ -148,29 +197,71 @@ def load_config():
 
 
 def save_config():
-    with open(config_file, "w", encoding="utf-8") as f:
-        _cfg["app"] = app
-        _cfg["azure"] = azure
-        _cfg["siliconflow"] = siliconflow
-        _cfg["elevenlabs"] = elevenlabs
-        _cfg["chatterbox"] = chatterbox
-        _cfg["ui"] = ui
-        f.write(toml.dumps(_cfg))
+    """
+    原子保存运行时配置。
+
+    Streamlit 的不同会话可能在相近时间触发配置保存。直接覆盖 config.toml 时，
+    另一个线程可能读取到只写了一部分的 TOML 内容。这里使用进程内可重入锁串行化
+    保存，并先写入同目录临时文件，再通过 os.replace 原子替换目标文件。
+
+    这仍然保留项目现有的单用户全局配置语义，不额外引入复杂的多用户配置系统；
+    主要用于避免多标签页或快速 rerun 时损坏配置文件。
+    """
+    with _config_save_lock:
+        config_to_save = dict(_cfg)
+        config_to_save["app"] = dict(app)
+        config_to_save["azure"] = dict(azure)
+        config_to_save["siliconflow"] = dict(siliconflow)
+        config_to_save["elevenlabs"] = dict(elevenlabs)
+        config_to_save["chatterbox"] = dict(chatterbox)
+        config_to_save["ui"] = dict(ui)
+        serialized_config = toml.dumps(config_to_save)
+
+        # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
+        # 点击普通控件都产生一次磁盘写入和 fsync。
+        try:
+            with open(config_file, mode="r", encoding="utf-8") as f:
+                if f.read() == serialized_config:
+                    _cfg.clear()
+                    _cfg.update(config_to_save)
+                    return
+        except (OSError, UnicodeError):
+            pass
+
+        temp_path = ""
+        try:
+            fd, temp_path = tempfile.mkstemp(
+                prefix=".config-",
+                suffix=".toml.tmp",
+                dir=root_dir,
+            )
+            with os.fdopen(fd, mode="w", encoding="utf-8") as f:
+                f.write(serialized_config)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, config_file)
+            _cfg.clear()
+            _cfg.update(config_to_save)
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
 
 
 _cfg = load_config()
-app = _cfg.get("app", {})
+app = _SynchronizedConfig(_cfg.get("app", {}))
 whisper = _cfg.get("whisper", {})
 proxy = _cfg.get("proxy", {})
-azure = _cfg.get("azure", {})
-siliconflow = _cfg.get("siliconflow", {})
-elevenlabs = _cfg.get("elevenlabs", {})
-chatterbox = _cfg.get("chatterbox", {})
-ui = _cfg.get(
-    "ui",
-    {
-        "hide_log": False,
-    },
+azure = _SynchronizedConfig(_cfg.get("azure", {}))
+siliconflow = _SynchronizedConfig(_cfg.get("siliconflow", {}))
+elevenlabs = _SynchronizedConfig(_cfg.get("elevenlabs", {}))
+chatterbox = _SynchronizedConfig(_cfg.get("chatterbox", {}))
+ui = _SynchronizedConfig(
+    _cfg.get(
+        "ui",
+        {
+            "hide_log": False,
+        },
+    )
 )
 
 hostname = socket.gethostname()
@@ -183,17 +274,13 @@ project_description = _cfg.get(
     "project_description",
     "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>",
 )
-project_version = _cfg.get("project_version", "1.3.1")
+project_version = _cfg.get("project_version", __version__)
 reload_debug = False
 
 app["redis_host"] = os.getenv(
     "MPT_APP_REDIS_HOST",
     os.getenv("REDIS_HOST", app.get("redis_host", "localhost")),
 )
-
-imagemagick_path = app.get("imagemagick_path", "")
-if imagemagick_path and os.path.isfile(imagemagick_path):
-    os.environ["IMAGEMAGICK_BINARY"] = imagemagick_path
 
 ffmpeg_path = app.get("ffmpeg_path", "")
 if ffmpeg_path and os.path.isfile(ffmpeg_path):

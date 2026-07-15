@@ -8,8 +8,77 @@ on:
 
 jobs:
   tests:
-    name: Python tests
+    name: Python ${{ matrix.python-version }} tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      MPT_TEST_REDIS_HOST: 127.0.0.1
+      MPT_TEST_REDIS_PORT: 6379
+      MPT_TEST_REDIS_DB: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --python ${{ matrix.python-version }}
+
+      - name: Compile Python sources
+        run: uv run --no-sync python -m compileall app cli.py main.py webui test
+
+      - name: Lint Python sources
+        if: matrix.python-version == '3.11'
+        run: uv run --no-sync ruff check app cli.py main.py webui test
+
+      - name: Run unit tests with coverage
+        # pytest 兼容现有 unittest.TestCase，同时会收集仓库中的 pytest 风格
+        # 测试，避免测试文件已存在但 CI 没有真正执行。
+        run: uv run --no-sync python -X utf8 -m coverage run -m pytest -q test
+
+      - name: Report test coverage
+        run: uv run --no-sync python -m coverage report
+
+      - name: Export coverage report
+        run: uv run --no-sync python -m coverage xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-python-${{ matrix.python-version }}
+          path: coverage.xml
+          retention-days: 7
+
+  windows-smoke:
+    name: Windows smoke tests
+    runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -26,10 +95,18 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --python 3.11
 
       - name: Compile Python sources
-        run: uv run python -m compileall app cli.py main.py webui test
+        run: uv run --no-sync python -m compileall app cli.py main.py webui test
 
-      - name: Run deterministic unit tests
-        run: uv run python -X utf8 -m unittest test.services.test_state test.services.test_task test.services.test_schema test.services.test_material_ai_image test.services.test_webui_i18n
+      - name: Run core service smoke tests
+        run: >-
+          uv run --no-sync python -X utf8 -m pytest -q
+          test/services/test_config.py
+          test/services/test_state.py
+          test/services/test_task.py
+          test/services/test_task_manager.py
+          test/services/test_upload_post.py
+          test/services/test_controller_video.py
+          test/services/test_material_ai_image.py
