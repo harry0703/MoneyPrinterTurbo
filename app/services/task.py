@@ -483,11 +483,12 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             video_script=params.video_script
         )
         if not generated_videos:
-            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             image_provider = config.app.get("image_provider", "openai")
-            logger.error(
+            _mark_task_failed(
+                task_id,
+                "materials",
                 f"failed to generate AI images, please check your '{image_provider}' "
-                "image provider settings and network connection."
+                "image provider settings and network connection.",
             )
             return None
         return generated_videos

@@ -2288,8 +2288,9 @@ def _render_video_settings(panel, params):
                     help=tr(
                         "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context."
                     ),
-                    value=False,
+                    value=bool(config.app.get("enhance_prompt", False)),
                 )
+                config.app["enhance_prompt"] = params.enhance_prompt
                 if params.enhance_prompt:
                     llm_provider = config.app.get("llm_provider", "").lower()
                     st.info(

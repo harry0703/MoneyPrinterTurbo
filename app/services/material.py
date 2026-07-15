@@ -355,7 +355,16 @@ def enhance_prompt_with_llm(prompt: str, video_script: str = "") -> str:
         
         # Get enhanced prompt (response is already a string)
         enhanced_prompt = response.strip()
-        
+
+        # _generate_response reports provider failures as "Error: ..." strings
+        # instead of raising; never use those as an image prompt.
+        if not enhanced_prompt or enhanced_prompt.startswith("Error: "):
+            logger.warning(
+                f"prompt enhancement failed ({enhanced_prompt or 'empty response'}), "
+                "using the original prompt"
+            )
+            return prompt
+
         logger.info(f"Enhanced prompt: {enhanced_prompt}")
         return enhanced_prompt
         
@@ -508,6 +517,12 @@ def generate_ai_images(
     os.makedirs(material_directory, exist_ok=True)
     
     provider = str(config.app.get("image_provider", "openai")).strip().lower().replace(" ", "_")
+    known_providers = ("openai", "stability_ai", "pollinations", "midjourney", "other")
+    if provider not in known_providers:
+        logger.error(
+            f"unknown image provider '{provider}', expected one of: {', '.join(known_providers)}"
+        )
+        return []
     api_key = _image_provider_setting(provider, "api_key")
     base_url = _image_provider_setting(provider, "base_url")
     model = _image_provider_setting(provider, "model_name")
