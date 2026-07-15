@@ -240,6 +240,12 @@
     "Custom Position (% from top)": "Пользовательское положение (% от верхнего края)",
     "Please enter a value between 0 and 100": "Введите значение от 0 до 100",
     "Please enter a valid number": "Введите корректное число",
-    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов"
+    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов",
+    "Roll Next Subject": "Предложить тему следующего видео",
+    "Roll Next Subject Help": "Предложить новую тему для следующего видео на основе текущей темы и последних видео.",
+    "Rolling Next Subject": "Создание темы следующего видео...",
+    "Video Generation in Progress": "Видео сейчас создаётся. Дождитесь завершения, прежде чем предлагать следующую тему.",
+    "Roll Subject Failed": "Не удалось создать тему следующего видео",
+    "Next Video Subject Suggested": "Тема для следующего видео предложена."
   }
 }

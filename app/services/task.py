@@ -352,6 +352,14 @@ def _run_background_task(task_id, params: VideoParams, stop_at: str = "video"):
             _BACKGROUND_TASKS.pop(task_id, None)
 
 
+def is_background_task_running(task_id: str | None = None) -> bool:
+    """Return whether a WebUI/API background worker is still registered."""
+    with _BACKGROUND_TASKS_LOCK:
+        if task_id is None:
+            return bool(_BACKGROUND_TASKS)
+        return task_id in _BACKGROUND_TASKS
+
+
 def start_background_task(task_id, params: VideoParams, stop_at: str = "video"):
     with _BACKGROUND_TASKS_LOCK:
         if task_id in _BACKGROUND_TASKS:

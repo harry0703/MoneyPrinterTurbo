@@ -222,6 +222,12 @@
     "Please Enter the Coverr API Key": "Vui lòng nhập **API Key Coverr**",
     "Video Encoder": "Bộ Mã Hóa Video",
     "Default Video Encoder": "Mặc định (Khuyên dùng)",
-    "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264."
+    "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264.",
+    "Roll Next Subject": "Gợi ý chủ đề video tiếp theo",
+    "Roll Next Subject Help": "Gợi ý chủ đề mới cho video tiếp theo dựa trên chủ đề hiện tại và các video gần đây.",
+    "Rolling Next Subject": "Đang tạo chủ đề video tiếp theo...",
+    "Video Generation in Progress": "Video đang được tạo. Vui lòng đợi hoàn tất trước khi gợi ý chủ đề tiếp theo.",
+    "Roll Subject Failed": "Không thể tạo chủ đề video tiếp theo",
+    "Next Video Subject Suggested": "Đã gợi ý chủ đề cho video tiếp theo."
   }
 }

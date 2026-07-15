@@ -116,6 +116,35 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIn("- number of paragraphs: 2", captured["prompt"])
         self.assertIn("开头更有悬念", captured["prompt"])
 
+    def test_generate_next_video_subject_uses_history_and_returns_one_line(self):
+        captured = {}
+
+        def fake_generate_response(prompt):
+            captured["prompt"] = prompt
+            return "1. The science behind better coffee"
+
+        with patch.object(llm, "_generate_response", side_effect=fake_generate_response):
+            result = llm.generate_next_video_subject(
+                video_subject="How to brew better coffee",
+                recent_subjects=["Coffee grinder basics", "How to brew better coffee"],
+                language="en-US",
+            )
+
+        self.assertEqual(result, "The science behind better coffee")
+        self.assertIn("How to brew better coffee", captured["prompt"])
+        self.assertIn("Coffee grinder basics", captured["prompt"])
+        self.assertIn("Write the suggestion in en-US", captured["prompt"])
+        self.assertIn("Return exactly one concise video subject", captured["prompt"])
+
+    def test_generate_next_video_subject_preserves_provider_error(self):
+        with patch.object(
+            llm, "_generate_response", return_value="Error: invalid API key"
+        ) as generate:
+            result = llm.generate_next_video_subject(video_subject="Coffee")
+
+        self.assertEqual(result, "Error: invalid API key")
+        self.assertEqual(generate.call_count, 5)
+
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
         按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，

@@ -222,6 +222,12 @@
     "Video Source Settings": "**Videoquellen-Einstellungen**",
     "Coverr": "Coverr",
     "Coverr API Key": "Coverr API-Schlüssel ([API-Schlüssel holen](https://coverr.co/developers?ctx=header_navigation))",
-    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein"
+    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein",
+    "Roll Next Subject": "Nächstes Videothema vorschlagen",
+    "Roll Next Subject Help": "Schlägt anhand des aktuellen Themas und der letzten Videos ein neues Thema vor.",
+    "Rolling Next Subject": "Nächstes Videothema wird erstellt...",
+    "Video Generation in Progress": "Die Videogenerierung läuft gerade. Bitte warten Sie, bis sie abgeschlossen ist, bevor Sie ein neues Thema vorschlagen.",
+    "Roll Subject Failed": "Das nächste Videothema konnte nicht erstellt werden",
+    "Next Video Subject Suggested": "Ein Thema für das nächste Video wurde vorgeschlagen."
   }
 }

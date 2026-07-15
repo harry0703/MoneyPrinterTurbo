@@ -16,6 +16,8 @@ MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10
 MAX_SCRIPT_PROMPT_LENGTH = 2000
 MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
+MAX_ROLL_SUBJECT_LENGTH = 500
+MAX_ROLL_CONTEXT_SUBJECTS = 20
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
 _URL_USERINFO_RE = re.compile(
@@ -564,6 +566,140 @@ def generate_script(
     else:
         logger.success(f"completed: \n{final_script}")
     return final_script.strip()
+
+
+def build_next_video_subject_prompt(
+    video_subject: str = "",
+    recent_subjects: list[str] | None = None,
+    language: str = "",
+) -> str:
+    """Build the prompt used by the WebUI's next-subject (roll) action.
+
+    The current subject is kept separate from the recent history so the model can
+    make a clear follow-up suggestion while still avoiding repeats from previous
+    videos. The caller owns the history and may pass an empty list for a fresh
+    project.
+    """
+    current_subject = (video_subject or "").strip()
+    normalized_recent_subjects = []
+    for subject in recent_subjects or []:
+        subject = str(subject or "").strip()
+        if subject and subject not in normalized_recent_subjects:
+            normalized_recent_subjects.append(subject)
+        if len(normalized_recent_subjects) >= MAX_ROLL_CONTEXT_SUBJECTS:
+            break
+
+    current_context = current_subject or (
+        normalized_recent_subjects[0] if normalized_recent_subjects else "(none)"
+    )
+    history_context = "\n".join(
+        f"- {subject}" for subject in normalized_recent_subjects
+    ) or "- (none)"
+    language_rule = (
+        f"Write the suggestion in {language}."
+        if language
+        else "Use the same language as the current subject."
+    )
+
+    return f"""
+# Role: Short-Form Video Content Strategist
+
+Suggest the subject of the next video in an ongoing series.
+
+## Rules
+1. Return exactly one concise video subject, and nothing else.
+2. Make it a natural follow-up to the current subject, but explore a distinct angle.
+3. Do not repeat any subject from the recent video history.
+4. Do not add a title prefix, numbering, quotation marks, markdown, or an explanation.
+5. {language_rule}
+
+## Current Video Subject
+{current_context}
+
+## Recent Video History
+{history_context}
+
+Return only the new subject.
+""".strip()
+
+
+def _normalize_next_video_subject(response: str) -> str:
+    """Turn a free-form model response into one safe subject line."""
+    subject = (response or "").strip()
+    if not subject or subject.startswith("Error: "):
+        return ""
+
+    subject = _strip_code_fence(subject)
+    # Ollama and other local models sometimes return a tiny JSON object despite
+    # the raw-text instruction. Accept the common field names so the UI does not
+    # put the JSON wrapper into the Video Subject input. Strip a possible list
+    # marker first because some models answer with ``1. {"subject": ...}``.
+    json_candidate = re.sub(r"^(?:[-*•]|\d+[.)])\s*", "", subject)
+    if json_candidate.startswith("{"):
+        try:
+            payload = json.loads(json_candidate)
+            if isinstance(payload, dict):
+                subject = (
+                    payload.get("subject")
+                    or payload.get("video_subject")
+                    or payload.get("title")
+                    or ""
+                )
+        except (TypeError, ValueError):
+            pass
+
+    # Models occasionally ignore the one-line instruction and add a short
+    # preamble. Keep the first non-empty line, then remove common list/title
+    # decoration without changing the user's language.
+    subject = next((line.strip() for line in str(subject).splitlines() if line.strip()), "")
+    subject = re.sub(r"^(?:[-*•]|\d+[.)])\s*", "", subject)
+    subject = re.sub(
+        r"^(?:subject|video subject|next video subject)\s*:\s*",
+        "",
+        subject,
+        flags=re.IGNORECASE,
+    )
+    subject = subject.strip().strip('\\\"“”‘’')
+    if len(subject) > MAX_ROLL_SUBJECT_LENGTH:
+        subject = subject[:MAX_ROLL_SUBJECT_LENGTH].rstrip()
+    return subject
+
+
+def generate_next_video_subject(
+    video_subject: str = "",
+    recent_subjects: list[str] | None = None,
+    language: str = "",
+) -> str:
+    """Generate one follow-up subject for the WebUI roll button.
+
+    Unlike ``generate_script`` this endpoint must return a single line. Provider
+    errors are returned with the existing ``Error:`` prefix so the UI can show a
+    useful message instead of treating an error string as a valid subject.
+    """
+    prompt = build_next_video_subject_prompt(
+        video_subject=video_subject,
+        recent_subjects=recent_subjects,
+        language=language,
+    )
+    last_error = "Error: unable to generate the next video subject"
+    for attempt in range(_max_retries):
+        response = _generate_response(prompt)
+        if isinstance(response, str) and response.startswith("Error: "):
+            last_error = response
+        else:
+            subject = _normalize_next_video_subject(response)
+            if subject:
+                logger.success(f"next video subject generated: {subject}")
+                return subject
+            last_error = "Error: the LLM returned an empty video subject"
+
+        if attempt < _max_retries - 1:
+            logger.warning(
+                f"failed to generate next video subject, trying again... {attempt + 1}"
+            )
+
+    logger.error(f"failed to generate next video subject: {last_error}")
+    return last_error
 
 
 def _strip_code_fence(text: str) -> str:

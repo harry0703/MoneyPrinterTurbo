@@ -267,6 +267,12 @@
     "llm_provider_tips.cloudflare": "##### Cloudflare AI Gateway 配置说明\n- **API Key**: 在 [Cloudflare 控制台]({api_key_url}) 创建 API Token，需要 `AI Gateway - Read`、`AI Gateway - Edit` 和 `Workers AI - Read` 权限\n- **Account ID**: 填写 Cloudflare 账号 ID\n- **Gateway ID**: 默认 `{default_gateway_id}`；也可以填写已创建的 Gateway ID\n- **Base Url**: 无需填写，程序会根据 Account ID 自动构造 REST API 地址\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式填写 AI Gateway 支持的模型 ID",
     "llm_provider_tips.minimax": "##### MiniMax 配置说明\n- **API Key**: 在 [中国站](https://platform.minimaxi.com/) 或 [国际站](https://platform.minimax.io/) 创建\n- **Base Url**: 中国站使用 `https://api.minimaxi.com/v1`；国际站使用 `{default_base_url}`（默认）\n- **Model Name**: 默认 `{default_model}`；也可以填写当前账号支持的其它模型 ID\n\n请确保 API Key 与 Base Url 来自同一平台，否则可能出现鉴权失败。",
     "llm_provider_tips.pollinations": "##### Pollinations AI 配置说明\n- **API Key**: 在 [Pollinations]({api_key_url}) 创建\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；也可以填写 [模型目录](https://gen.pollinations.ai/v1/models) 中支持 Chat Completions 的其它模型 ID",
-    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)"
+    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)",
+    "Roll Next Subject": "生成下一个视频主题",
+    "Roll Next Subject Help": "根据当前主题和最近的视频，为下一个视频建议一个新主题。",
+    "Rolling Next Subject": "正在生成下一个视频主题……",
+    "Video Generation in Progress": "视频正在生成中。请等待生成完成后再生成下一个主题。",
+    "Roll Subject Failed": "无法生成下一个视频主题",
+    "Next Video Subject Suggested": "已为下一个视频生成主题建议。"
   }
 }

@@ -218,6 +218,12 @@
     "Please Enter the Coverr API Key": "Por favor, insira a **Chave de API do Coverr**",
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Padrão (recomendado)",
-    "Video Encoder Help": "Opção avançada. Padrão segue a política estável do aplicativo, atualmente libx264. Se um codificador de hardware não estiver disponível, o aplicativo retorna automaticamente para libx264."
+    "Video Encoder Help": "Opção avançada. Padrão segue a política estável do aplicativo, atualmente libx264. Se um codificador de hardware não estiver disponível, o aplicativo retorna automaticamente para libx264.",
+    "Roll Next Subject": "Sugerir tema do próximo vídeo",
+    "Roll Next Subject Help": "Sugere um novo tema para o próximo vídeo com base no tema atual e nos vídeos recentes.",
+    "Rolling Next Subject": "Gerando o tema do próximo vídeo...",
+    "Video Generation in Progress": "A geração do vídeo está em andamento. Aguarde até terminar antes de sugerir outro tema.",
+    "Roll Subject Failed": "Não foi possível gerar o tema do próximo vídeo",
+    "Next Video Subject Suggested": "Um tema para o próximo vídeo foi sugerido."
   }
 }

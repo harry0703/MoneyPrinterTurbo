@@ -222,6 +222,12 @@
     "Please Enter the Coverr API Key": "Silakan Masukkan **Kunci API Coverr**",
     "Video Encoder": "Encoder Video",
     "Default Video Encoder": "Default (Direkomendasikan)",
-    "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264."
+    "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264.",
+    "Roll Next Subject": "Sarankan Topik Video Berikutnya",
+    "Roll Next Subject Help": "Sarankan topik baru untuk video berikutnya berdasarkan topik saat ini dan video terbaru.",
+    "Rolling Next Subject": "Membuat topik video berikutnya...",
+    "Video Generation in Progress": "Pembuatan video sedang berlangsung. Tunggu hingga selesai sebelum menyarankan topik berikutnya.",
+    "Roll Subject Failed": "Topik video berikutnya tidak dapat dibuat",
+    "Next Video Subject Suggested": "Topik untuk video berikutnya telah disarankan."
   }
 }
