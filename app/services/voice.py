@@ -1424,7 +1424,7 @@ def chatterbox_tts(
             logger.info(f"start chatterbox tts, voice: {voice}, try: {i + 1}")
             ensure_file_path_exists(voice_file)
 
-            response = requests.post(url, json=payload, headers=headers, timeout=120)
+            response = requests.post(url, json=payload, headers=headers, timeout=600)
             if response.status_code != 200:
                 logger.error(
                     f"chatterbox tts failed with status {response.status_code}: {response.text[:200]}"
