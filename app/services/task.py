@@ -1,6 +1,7 @@
 import math
 import os.path
 import re
+import threading
 from os import path
 
 from loguru import logger
@@ -11,6 +12,10 @@ from app.models.schema import VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, twelvelabs, video, voice, upload_post, local_instagram
 from app.services import state as sm
 from app.utils import file_security, utils
+
+
+_BACKGROUND_TASKS = {}
+_BACKGROUND_TASKS_LOCK = threading.RLock()
 
 
 def generate_script(task_id, params):
@@ -328,6 +333,40 @@ def generate_final_videos(
         combined_video_paths.append(combined_video_path)
 
     return final_video_paths, combined_video_paths
+
+
+def _run_background_task(task_id, params: VideoParams, stop_at: str = "video"):
+    try:
+        return start(task_id, params, stop_at=stop_at)
+    except Exception as exc:
+        logger.exception(f"background task failed: {task_id}, error={exc}")
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_FAILED,
+            progress=0,
+            error=str(exc),
+        )
+        return None
+    finally:
+        with _BACKGROUND_TASKS_LOCK:
+            _BACKGROUND_TASKS.pop(task_id, None)
+
+
+def start_background_task(task_id, params: VideoParams, stop_at: str = "video"):
+    with _BACKGROUND_TASKS_LOCK:
+        if task_id in _BACKGROUND_TASKS:
+            return task_id
+        thread = threading.Thread(
+            target=_run_background_task,
+            args=(task_id, params, stop_at),
+            name=f"mpt-task-{task_id}",
+            daemon=True,
+        )
+        _BACKGROUND_TASKS[task_id] = thread
+
+    thread.start()
+    logger.info(f"started background task: {task_id}")
+    return task_id
 
 
 def start(task_id, params: VideoParams, stop_at: str = "video"):
