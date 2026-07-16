@@ -234,6 +234,10 @@
     "Please Enter the Coverr API Key": "Silakan Masukkan **Kunci API Coverr**",
     "Video Encoder": "Encoder Video",
     "Default Video Encoder": "Default (Direkomendasikan)",
-    "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264."
+    "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264.",
+    "Storyblocks": "Storyblocks",
+    "Storyblocks API Key": "Kunci API Storyblocks ([Dapatkan Kunci API](https://coverr.co/developers?ctx=header_navigation))",
+    "Storyblocks API Key Help": "Kredensial API mitra dalam format PUBLIC_KEY:PRIVATE_KEY. Akses API Storyblocks memerlukan perjanjian mitra (https://www.storyblocks.com/resources/business-solutions/api). Kunci opsional storyblocks_project_id / storyblocks_user_id menandai permintaan untuk laporan penggunaan.",
+    "Please Enter the Storyblocks API Key": "Silakan Masukkan **Kunci API Storyblocks**"
   }
 }

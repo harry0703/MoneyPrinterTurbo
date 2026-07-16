@@ -1,8 +1,11 @@
+import hashlib
+import hmac
 import os
 import random
 import threading
+import time
 from typing import List
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import requests
 from loguru import logger
@@ -241,6 +244,154 @@ def search_videos_coverr(
     return []
 
 
+STORYBLOCKS_API_HOST = "https://api.storyblocks.com"
+
+
+def _storyblocks_credentials() -> tuple:
+    key_pair = str(get_api_key("storyblocks_api_keys"))
+    public_key, _, private_key = key_pair.partition(":")
+    if not public_key or not private_key:
+        raise ValueError(
+            "storyblocks_api_keys entries must be 'PUBLIC_KEY:PRIVATE_KEY' pairs"
+        )
+    return public_key, private_key
+
+
+def _storyblocks_auth_params(resource: str) -> dict:
+    # Per the Storyblocks partner docs the HMAC signs only the resource path
+    # (query string excluded), keyed with the private key concatenated with
+    # the EXPIRES timestamp.
+    public_key, private_key = _storyblocks_credentials()
+    expires = str(int(time.time()))
+    signature = hmac.new(
+        (private_key + expires).encode("utf-8"),
+        resource.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return {"APIKEY": public_key, "EXPIRES": expires, "HMAC": signature}
+
+
+def _storyblocks_tracking_params() -> dict:
+    # project_id/user_id are required by every Storyblocks search/download
+    # request; they only identify the caller's project/user for usage metrics.
+    return {
+        "project_id": str(config.app.get("storyblocks_project_id", "") or "moneyprinterturbo"),
+        "user_id": str(config.app.get("storyblocks_user_id", "") or "moneyprinterturbo"),
+    }
+
+
+def search_videos_storyblocks(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
+    """
+    Storyblocks (https://www.storyblocks.com) partner API - stock footage,
+    subject to the partner agreement and Storyblocks license terms.
+
+    API notes (https://documentation.storyblocks.com/):
+      - HMAC auth on every request: APIKEY/EXPIRES/HMAC query params.
+      - Search endpoint GET /api/v2/videos/search returns metadata and
+        preview URLs only; the downloadable mp4 comes from the per-item
+        download endpoint, whose signed URL expires after ~20 minutes and
+        counts as a licensed download. The download URL is therefore
+        resolved lazily in _resolve_material_url() for clips that are
+        actually used, instead of for every search hit.
+      - The API keys config holds "PUBLIC_KEY:PRIVATE_KEY" pairs.
+    """
+    aspect = VideoAspect(video_aspect)
+    orientation = {
+        VideoAspect.landscape: "landscape",
+        VideoAspect.portrait: "portrait",
+        VideoAspect.square: "square",
+    }.get(aspect, "all")
+
+    resource = "/api/v2/videos/search"
+    params = {
+        **_storyblocks_auth_params(resource),
+        **_storyblocks_tracking_params(),
+        "keywords": search_term,
+        "content_type": "footage",
+        "orientation": orientation,
+        "min_duration": minimum_duration,
+        "page": 1,
+        "results_per_page": 20,
+    }
+    query_url = f"{STORYBLOCKS_API_HOST}{resource}?{urlencode(params)}"
+    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+
+    try:
+        r = requests.get(
+            query_url,
+            proxies=config.proxy,
+            verify=_get_tls_verify(),
+            timeout=(30, 60),
+        )
+        response = r.json()
+        video_items: List[MaterialInfo] = []
+
+        if not isinstance(response, dict):
+            logger.error(f"search videos failed: {response}")
+            return video_items
+        # v2 responses use "results"; older deployments used "info".
+        results = response.get("results")
+        if results is None:
+            results = response.get("info")
+        if not isinstance(results, list):
+            logger.error(f"search videos failed: {response}")
+            return video_items
+
+        for v in results:
+            try:
+                duration = int(float(v.get("duration") or 0))
+            except (TypeError, ValueError):
+                continue
+            if duration < minimum_duration:
+                continue
+
+            video_id = v.get("id")
+            if not video_id:
+                continue
+
+            item = MaterialInfo()
+            item.provider = "storyblocks"
+            # Download-endpoint resource, not a file URL - resolved lazily in
+            # _resolve_material_url() right before the actual download.
+            item.url = f"{STORYBLOCKS_API_HOST}/api/v2/videos/{video_id}/download"
+            item.duration = duration
+            video_items.append(item)
+        return video_items
+    except Exception as e:
+        logger.error(f"search videos failed: {str(e)}")
+
+    return []
+
+
+def _resolve_material_url(item: MaterialInfo) -> str:
+    if item.provider != "storyblocks":
+        return item.url
+
+    resource = urlparse(item.url).path
+    params = {
+        **_storyblocks_auth_params(resource),
+        **_storyblocks_tracking_params(),
+    }
+    r = requests.get(
+        item.url,
+        params=params,
+        proxies=config.proxy,
+        verify=_get_tls_verify(),
+        timeout=(30, 60),
+    )
+    data = r.json()
+    download_url = ""
+    if isinstance(data, dict):
+        download_url = data.get("url") or (data.get("info") or {}).get("url") or ""
+    if not download_url:
+        raise ValueError(f"failed to resolve storyblocks download url: {data}")
+    return download_url
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -316,6 +467,8 @@ def download_videos(
         search_videos = search_videos_pixabay
     elif source == "coverr":
         search_videos = search_videos_coverr
+    elif source == "storyblocks":
+        search_videos = search_videos_storyblocks
 
     material_directory = config.app.get("material_directory", "").strip()
     if material_directory == "task":
@@ -365,7 +518,7 @@ def download_videos(
         try:
             logger.info(f"downloading video: {item.url}")
             saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
+                video_url=_resolve_material_url(item), save_dir=material_directory
             )
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
@@ -446,7 +599,7 @@ def _download_videos_by_script_order(
                     f"downloading ordered video for '{search_term}': {item.url}"
                 )
                 saved_video_path = save_video(
-                    video_url=item.url, save_dir=material_directory
+                    video_url=_resolve_material_url(item), save_dir=material_directory
                 )
                 if saved_video_path:
                     logger.info(f"video saved: {saved_video_path}")

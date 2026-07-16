@@ -238,6 +238,10 @@
     "Please Enter the Coverr API Key": "Introduce la **API Key de Coverr**",
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Predeterminado (recomendado)",
-    "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264."
+    "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264.",
+    "Storyblocks": "Storyblocks",
+    "Storyblocks API Key": "Storyblocks API Key ([Obtener API Key](https://coverr.co/developers?ctx=header_navigation))",
+    "Storyblocks API Key Help": "Credenciales de la API de socio en el formato PUBLIC_KEY:PRIVATE_KEY. El acceso a la API de Storyblocks requiere un acuerdo de socio (https://www.storyblocks.com/resources/business-solutions/api). Las claves opcionales storyblocks_project_id / storyblocks_user_id etiquetan las solicitudes en los informes de uso.",
+    "Please Enter the Storyblocks API Key": "Introduce la **API Key de Storyblocks**"
   }
 }

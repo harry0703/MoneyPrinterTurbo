@@ -234,6 +234,10 @@
     "Please Enter the Coverr API Key": "Lütfen **Coverr API Anahtarını** girin",
     "Video Encoder": "Video Kodlayıcı",
     "Default Video Encoder": "Varsayılan (Önerilen)",
-    "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner."
+    "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner.",
+    "Storyblocks": "Storyblocks",
+    "Storyblocks API Key": "Storyblocks API Anahtarı ([API Anahtarı Al](https://coverr.co/developers?ctx=header_navigation))",
+    "Storyblocks API Key Help": "PUBLIC_KEY:PRIVATE_KEY biçiminde iş ortağı API kimlik bilgileri. Storyblocks API erişimi bir iş ortağı sözleşmesi gerektirir (https://www.storyblocks.com/resources/business-solutions/api). İsteğe bağlı storyblocks_project_id / storyblocks_user_id anahtarları istekleri kullanım raporlarında etiketler.",
+    "Please Enter the Storyblocks API Key": "Lütfen **Storyblocks API Anahtarını** girin"
   }
 }

@@ -252,6 +252,10 @@
     "Custom Position (% from top)": "Пользовательское положение (% от верхнего края)",
     "Please enter a value between 0 and 100": "Введите значение от 0 до 100",
     "Please enter a valid number": "Введите корректное число",
-    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов"
+    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов",
+    "Storyblocks": "Storyblocks",
+    "Storyblocks API Key": "API-ключ Storyblocks ([Получить ключ](https://coverr.co/developers?ctx=header_navigation))",
+    "Storyblocks API Key Help": "Учетные данные партнерского API в формате PUBLIC_KEY:PRIVATE_KEY. Доступ к API Storyblocks требует партнерского соглашения (https://www.storyblocks.com/resources/business-solutions/api). Необязательные ключи storyblocks_project_id / storyblocks_user_id помечают запросы в отчетах об использовании.",
+    "Please Enter the Storyblocks API Key": "Введите **API-ключ Storyblocks**"
   }
 }

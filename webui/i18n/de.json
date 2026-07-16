@@ -234,6 +234,10 @@
     "Video Source Settings": "**Videoquellen-Einstellungen**",
     "Coverr": "Coverr",
     "Coverr API Key": "Coverr API-Schlüssel ([API-Schlüssel holen](https://coverr.co/developers?ctx=header_navigation))",
-    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein"
+    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein",
+    "Storyblocks": "Storyblocks",
+    "Storyblocks API Key": "Storyblocks API-Schlüssel ([API-Schlüssel holen](https://coverr.co/developers?ctx=header_navigation))",
+    "Storyblocks API Key Help": "Partner-API-Zugangsdaten im Format PUBLIC_KEY:PRIVATE_KEY. Der Zugriff auf die Storyblocks-API erfordert eine Partnervereinbarung (https://www.storyblocks.com/resources/business-solutions/api). Die optionalen Schlüssel storyblocks_project_id / storyblocks_user_id kennzeichnen Anfragen in Nutzungsberichten.",
+    "Please Enter the Storyblocks API Key": "Bitte geben Sie den **Storyblocks API-Schlüssel** ein"
   }
 }

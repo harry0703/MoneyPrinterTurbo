@@ -33,7 +33,7 @@ tls_verify = true
 # Video Materials / 视频素材
 # -----------------------------------------------------------------------------
 
-# Available values: "pexels", "pixabay", "coverr", "local".
+# Available values: "pexels", "pixabay", "coverr", "storyblocks", "local".
 video_source = "pexels"
 
 # API key lists support key rotation. Use straight ASCII double quotes and
@@ -48,6 +48,14 @@ pixabay_api_keys = []
 
 # Register at https://coverr.co/developers?ctx=header_navigation
 coverr_api_keys = []
+
+# Storyblocks partner API (https://www.storyblocks.com/resources/business-solutions/api).
+# Requires a partner agreement; each entry is a "PUBLIC_KEY:PRIVATE_KEY" pair.
+storyblocks_api_keys = []
+# Optional identifiers sent with every Storyblocks request for usage reports.
+# Both default to "moneyprinterturbo" when left empty.
+# storyblocks_project_id = ""
+# storyblocks_user_id = ""
 
 # Optional TwelveLabs integration for semantic material ranking and video QA.
 # Install the optional dependency with: uv sync --extra twelvelabs

@@ -1961,6 +1961,16 @@ def _render_settings_dialog():
             )
             _save_material_api_keys("coverr_api_keys", coverr_api_key)
 
+            storyblocks_api_key = _get_material_api_keys("storyblocks_api_keys")
+            storyblocks_api_key = st.text_input(
+                tr("Storyblocks API Key"),
+                value=storyblocks_api_key,
+                type="password",
+                key="storyblocks_api_keys_input",
+                help=tr("Storyblocks API Key Help"),
+            )
+            _save_material_api_keys("storyblocks_api_keys", storyblocks_api_key)
+
     config.save_config()
 
 
@@ -2141,6 +2151,7 @@ def _render_video_settings(panel, params):
                 (tr("Pexels"), "pexels"),
                 (tr("Pixabay"), "pixabay"),
                 (tr("Coverr"), "coverr"),
+                (tr("Storyblocks"), "storyblocks"),
                 (tr("Local file"), "local"),
             ]
 
@@ -3253,7 +3264,13 @@ def _render_generation_controls(
             st.error(tr("Video Script and Subject Cannot Both Be Empty"))
             st.stop()
 
-        if params.video_source not in ["pexels", "pixabay", "coverr", "local"]:
+        if params.video_source not in [
+            "pexels",
+            "pixabay",
+            "coverr",
+            "storyblocks",
+            "local",
+        ]:
             _remove_active_generation_task(task_id)
             st.error(tr("Please Select a Valid Video Source"))
             st.stop()
@@ -3279,6 +3296,12 @@ def _render_generation_controls(
             st.error(tr("Please Enter the Coverr API Key"))
             st.stop()
 
+        if params.video_source == "storyblocks" and not config.app.get(
+            "storyblocks_api_keys", ""
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the Storyblocks API Key"))
+            st.stop()
         if (
             params.bgm_type == "sonilo"
             and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
