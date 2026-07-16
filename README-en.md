@@ -78,6 +78,24 @@ Thanks to [Kimi](https://platform.kimi.ai?aff=MoneyPrinterTurbo) for sponsoring 
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.0029.org/?promo=AFF1"><img src="docs/sponsors/0029-logo.jpg" alt="0029.org" height="56"></a><br>
+      <a href="https://www.0029.org/?promo=AFF1"><strong>0029.org</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.0029.org/?promo=AFF1">0029.org</a> for sponsoring this project! 0029.org is a one-stop AI API relay platform offering the latest models for Claude Code, Codex, and Gemini. It provides stable, responsive, and cost-effective access through monthly subscriptions or pay-as-you-go plans, supports both individual and enterprise users, and is directly accessible from mainland China without a VPN. Pricing starts at 1.2% of official rates. <a href="https://www.0029.org/?promo=AFF1">Visit 0029.org</a>.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://ergouapi.com/r/gh-moneyprinterturbo"><img src="docs/sponsors/ergou-api-logo.png" alt="Ergou API" height="56"></a><br>
+      <a href="https://ergouapi.com/r/gh-moneyprinterturbo"><strong>Ergou API</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://ergouapi.com/r/gh-moneyprinterturbo">Ergou API</a> for sponsoring this project! Ergou API: The rock-solid AI API Gateway. Unlock ultra-low multipliers (0.1x - 0.2x) across the board. We provide 100% genuine, unfiltered endpoints for top-tier LLMs including Claude, GPT, and Gemini. Powered by premium IPLC routes and dual residential ISP redundancy, Ergou guarantees battle-tested stability and ultra-low latency for your global traffic. Built for developers and studios. <a href="https://ergouapi.com/r/gh-moneyprinterturbo">Sign up and start building today</a>.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com"><strong>RecCloud</strong></a>
     </td>
