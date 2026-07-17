@@ -1,8 +1,11 @@
 import glob
+import hashlib
+import json
 import os
 import pathlib
 import shutil
 from typing import Union
+from uuid import UUID
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
@@ -15,6 +18,7 @@ from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1.base import new_router
+from app.models import const
 from app.models.exception import HttpException
 from app.models.schema import (
     AudioRequest,
@@ -133,13 +137,60 @@ def create_audio(
     return create_task(request, body, stop_at="audio")
 
 
+def _canonical_params_hash(body) -> str:
+    """
+    Deterministic SHA-256 of the request payload.
+
+    Used as the idempotency comparison key so two submissions with the same
+    canonical generation parameters are treated as identical retries, regardless
+    of field ordering or cosmetic differences.
+    """
+    canonical = json.dumps(
+        body.model_dump(), sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def create_task(
     request: Request,
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
     stop_at: str,
 ):
-    task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
+
+    idempotency_key = getattr(body, "idempotency_key", None)
+    if idempotency_key:
+        try:
+            task_id = str(UUID(str(idempotency_key)))
+        except (ValueError, AttributeError, TypeError):
+            raise HttpException(
+                task_id=request_id,
+                status_code=400,
+                message=f"{request_id}: idempotency_key must be a valid UUID",
+            )
+        params_hash = _canonical_params_hash(body)
+        outcome = sm.state.reserve_idempotent_task(task_id, params_hash)
+        if outcome == const.IDEMPOTENCY_DUPLICATE:
+            # 同一 key 且参数一致：返回既有任务，不再重复入队（含响应丢失后的恢复）。
+            logger.info(
+                f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
+            )
+            return utils.get_response(200, {"task_id": task_id})
+        if outcome == const.IDEMPOTENCY_CONFLICT:
+            logger.warning(
+                f"idempotency conflict, request_id: {request_id}, task_id: {task_id}"
+            )
+            raise HttpException(
+                task_id=task_id,
+                status_code=409,
+                message=(
+                    f"{task_id}: idempotency_conflict: same idempotency_key "
+                    "submitted with different parameters"
+                ),
+            )
+    else:
+        task_id = utils.get_uuid()
+
     try:
         task = {
             "task_id": task_id,
@@ -151,6 +202,8 @@ def create_task(
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
     except TaskQueueFullError as e:
+        # 队列已满：清除预备的 idempotency 状态，使合法重试能重新抢占并正常入队。
+        sm.state.clear_idempotency(task_id)
         sm.state.delete_task(task_id)
         logger.warning(
             f"reject task because queue is full, request_id: {request_id}, task_id: {task_id}"

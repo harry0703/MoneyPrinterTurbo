@@ -204,7 +204,13 @@ class BaseResponse(BaseModel):
 
 
 class TaskVideoRequest(VideoParams, BaseModel):
-    pass
+    idempotency_key: Optional[str] = Field(
+        default=None,
+        description=(
+            "Client-assigned UUID used verbatim as the MPT task id for "
+            "idempotent submission. Omit to keep the default server-generated id."
+        ),
+    )
 
 
 class TaskQueryRequest(BaseModel):

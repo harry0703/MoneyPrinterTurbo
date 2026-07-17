@@ -21,11 +21,40 @@ class BaseState(ABC):
     def get_all_tasks(self, page: int, page_size: int):
         pass
 
+    @abstractmethod
+    def delete_task(self, task_id: str):
+        pass
+
+    @abstractmethod
+    def reserve_idempotent_task(self, task_id: str, params_hash: str) -> str:
+        """
+        Atomically claim an idempotency key and its canonical parameters.
+
+        Returns one of const.IDEMPOTENCY_CREATED / _DUPLICATE / _CONFLICT.
+        - created:   first valid request for this key; caller may enqueue work.
+        - duplicate: an identical prior submission exists; the caller must not
+                     enqueue and should return the existing task id.
+        - conflict:  the same key was used with different canonical parameters;
+                     the caller must reject with HTTP 409.
+        """
+        pass
+
+    @abstractmethod
+    def clear_idempotency(self, task_id: str):
+        """
+        Drop any provisional idempotency reservation for task_id.
+
+        Called when a reservation cannot be turned into enqueued work (e.g. the
+        task queue is full) so a legitimate later retry can proceed.
+        """
+        pass
+
 
 # Memory state management
 class MemoryState(BaseState):
     def __init__(self):
         self._tasks = {}
+        self._idem = {}
         self._lock = threading.RLock()
 
     def get_all_tasks(self, page: int, page_size: int):
@@ -63,6 +92,20 @@ class MemoryState(BaseState):
     def delete_task(self, task_id: str):
         with self._lock:
             self._tasks.pop(task_id, None)
+
+    def reserve_idempotent_task(self, task_id: str, params_hash: str) -> str:
+        with self._lock:
+            existing = self._idem.get(task_id)
+            if existing is None:
+                self._idem[task_id] = params_hash
+                return const.IDEMPOTENCY_CREATED
+            if existing == params_hash:
+                return const.IDEMPOTENCY_DUPLICATE
+            return const.IDEMPOTENCY_CONFLICT
+
+    def clear_idempotency(self, task_id: str):
+        with self._lock:
+            self._idem.pop(task_id, None)
 
 
 # Redis state management
@@ -148,6 +191,25 @@ class RedisState(BaseState):
 
     def delete_task(self, task_id: str):
         self._redis.delete(task_id)
+
+    def reserve_idempotent_task(self, task_id: str, params_hash: str) -> str:
+        # SET NX GET 是原子的：第一次写入返回 None（本请求赢得抢占，
+        # 视为 created）；若该 key 已存在则返回旧值（其他请求已抢占）。
+        # 用与任务记录同生命周期的 idem:{task_id} 记录规范的参数哈希，
+        # 比较旧值即可区分 duplicate（参数一致）与 conflict（参数不同）。
+        idem_key = f"idem:{task_id}"
+        old = self._redis.set(
+            idem_key, params_hash, nx=True, get=True, ex=86400
+        )
+        if old is None:
+            return const.IDEMPOTENCY_CREATED
+        old_value = old.decode("utf-8") if isinstance(old, bytes) else str(old)
+        if old_value == params_hash:
+            return const.IDEMPOTENCY_DUPLICATE
+        return const.IDEMPOTENCY_CONFLICT
+
+    def clear_idempotency(self, task_id: str):
+        self._redis.delete(f"idem:{task_id}")
 
     @staticmethod
     def _convert_to_original_type(value):

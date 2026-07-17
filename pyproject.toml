@@ -43,6 +43,12 @@ g4f = [
 twelvelabs = [
     "twelvelabs>=1.2.8",
 ]
+# Test / verification extra: pinned so the idempotency verification suite is
+# reproducible. Install with `uv sync --extra dev`.
+dev = [
+    "pytest>=8.2.0,<9",
+    "httpx>=0.27.0,<1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
