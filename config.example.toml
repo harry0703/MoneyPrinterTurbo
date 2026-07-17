@@ -33,8 +33,21 @@ tls_verify = true
 # Video Materials / 视频素材
 # -----------------------------------------------------------------------------
 
-# Available values: "pexels", "pixabay", "coverr", "local".
+# Available values: "pexels", "pixabay", "coverr", "local", "ai_image".
 video_source = "pexels"
+
+# AI image generation (only used when video_source = "ai_image").
+# Providers: "openai" (DALL·E or any OpenAI-compatible endpoint), "stability_ai",
+# "pollinations" (no key required), "midjourney" / "other" (OpenAI-compatible
+# proxy, base URL required).
+# Per-provider settings live under "{provider}_image_*" keys, e.g.:
+#   image_provider = "openai"
+#   openai_image_api_key = ""        # falls back to openai_api_key when empty
+#   openai_image_base_url = ""       # empty = official endpoint
+#   openai_image_model_name = ""     # empty = dall-e-3
+#   stability_ai_image_api_key = ""
+#   pollinations_image_base_url = "" # empty = https://image.pollinations.ai/prompt/
+# image_provider = "openai"
 
 # API key lists support key rotation. Use straight ASCII double quotes and
 # separate multiple keys with commas, for example: ["key-1", "key-2"].

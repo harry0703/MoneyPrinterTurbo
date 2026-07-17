@@ -469,6 +469,29 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             )
             return None
         return [material_info.url for material_info in materials]
+    elif params.video_source == "ai_image":
+        logger.info("\n\n## generating AI images for videos")
+        generated_videos = material.generate_ai_images(
+            task_id=task_id,
+            prompt=video_terms,
+            count_per_prompt=1,  # we will make this configurable in the future
+            video_aspect=params.video_aspect,
+            video_concat_mode=params.video_concat_mode,
+            max_clip_duration=params.video_clip_duration,
+            audio_duration=audio_duration * params.video_count,
+            enhance_prompt=params.enhance_prompt or False,
+            video_script=params.video_script
+        )
+        if not generated_videos:
+            image_provider = config.app.get("image_provider", "openai")
+            _mark_task_failed(
+                task_id,
+                "materials",
+                f"failed to generate AI images, please check your '{image_provider}' "
+                "image provider settings and network connection.",
+            )
+            return None
+        return generated_videos
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序

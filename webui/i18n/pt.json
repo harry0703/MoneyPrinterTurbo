@@ -252,6 +252,19 @@
     "Please Enter the Coverr API Key": "Por favor, insira a **Chave de API do Coverr**",
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Padrão (recomendado)",
-    "Video Encoder Help": "Opção avançada. Padrão segue a política estável do aplicativo, atualmente libx264. Se um codificador de hardware não estiver disponível, o aplicativo retorna automaticamente para libx264."
+    "Video Encoder Help": "Opção avançada. Padrão segue a política estável do aplicativo, atualmente libx264. Se um codificador de hardware não estiver disponível, o aplicativo retorna automaticamente para libx264.",
+    "AI Image": "Imagem IA",
+    "Image Generation Settings": "**Configurações de Geração de Imagem**",
+    "Image Provider": "Provedor de Imagem",
+    "Image API Key": "Chave API de Imagem (:red[Obrigatório])",
+    "Image Base URL": "URL Base da API de Imagem",
+    "Image Model Name": "Nome do Modelo de Imagem",
+    "Enhance AI image prompts using LLM": "Aprimorar prompts de imagem usando LLM",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Usa o LLM selecionado para aprimorar prompts de imagem, criando descrições mais detalhadas e profissionais com base no contexto do roteiro do vídeo.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "O aprimoramento de prompt usará o LLM selecionado ({}) e poderá incorrer em custos adicionais dependendo do provedor.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "A chave API para {} é necessária para o aprimoramento de prompt. Por favor, configure-a no painel de Configurações.",
+    "Please Enter the OpenAI API Key": "Por favor, insira a **Chave da API da OpenAI**",
+    "Please Enter the Stability AI API Key": "Por favor, insira a **Chave da API da Stability AI**",
+    "Please Enter the Image Base URL for the selected provider": "Por favor, insira a **Base URL de imagem** do provedor selecionado"
   }
 }

@@ -279,6 +279,19 @@
     "llm_provider_tips.cloudflare": "##### Cloudflare AI Gateway Configuration\n- **API Key**: create a token in the [Cloudflare dashboard]({api_key_url}) with `AI Gateway - Read`, `AI Gateway - Edit`, and `Workers AI - Read` permissions\n- **Account ID**: enter your Cloudflare account ID\n- **Gateway ID**: defaults to `{default_gateway_id}`; you can also enter an existing Gateway ID\n- **Base Url**: not required; the REST API endpoint is generated from the Account ID\n- **Model Name**: defaults to `{default_model}`; use the `provider/model` format for another model supported by AI Gateway",
     "llm_provider_tips.minimax": "##### MiniMax Configuration\n- **API Key**: create one on the [China platform](https://platform.minimaxi.com/) or [international platform](https://platform.minimax.io/)\n- **Base Url**: use `https://api.minimaxi.com/v1` for China or `{default_base_url}` for international access (default)\n- **Model Name**: defaults to `{default_model}`; you can also enter another model ID available to your account\n\nMake sure the API Key and Base Url belong to the same platform, or authentication may fail.",
     "llm_provider_tips.pollinations": "##### Pollinations AI Configuration\n- **API Key**: create one on [Pollinations]({api_key_url})\n- **Base Url**: defaults to `{default_base_url}`\n- **Model Name**: defaults to `{default_model}`; you can also enter another model ID from the [model catalog](https://gen.pollinations.ai/v1/models) that supports Chat Completions",
-    "llm_provider_tips.litellm": "##### LiteLLM Configuration\n- **API Key**: not entered here; configure the target Provider key through environment variables\n- **Base Url**: not required\n- **Model Name**: defaults to `{default_model}`; use the `provider/model` format and see the [Provider list](https://docs.litellm.ai/docs/providers)"
+    "llm_provider_tips.litellm": "##### LiteLLM Configuration\n- **API Key**: not entered here; configure the target Provider key through environment variables\n- **Base Url**: not required\n- **Model Name**: defaults to `{default_model}`; use the `provider/model` format and see the [Provider list](https://docs.litellm.ai/docs/providers)",
+    "AI Image": "AI Image",
+    "Image Generation Settings": "**Image Generation Settings**",
+    "Image Provider": "Image Provider",
+    "Image API Key": "Image API Key (:red[Required])",
+    "Image Base URL": "Image Base URL",
+    "Image Model Name": "Image Model Name",
+    "Enhance AI image prompts using LLM": "Enhance AI image prompts using LLM",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.",
+    "Please Enter the OpenAI API Key": "Please Enter the **OpenAI API Key**",
+    "Please Enter the Stability AI API Key": "Please Enter the **Stability AI API Key**",
+    "Please Enter the Image Base URL for the selected provider": "Please Enter the **Image Base URL** for the selected provider"
   }
 }

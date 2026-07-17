@@ -252,6 +252,19 @@
     "Custom Position (% from top)": "Пользовательское положение (% от верхнего края)",
     "Please enter a value between 0 and 100": "Введите значение от 0 до 100",
     "Please enter a valid number": "Введите корректное число",
-    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов"
+    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов",
+    "AI Image": "ИИ-изображение",
+    "Image Generation Settings": "**Настройки генерации изображений**",
+    "Image Provider": "Провайдер изображений",
+    "Image API Key": "API-ключ изображений (:red[Обязательно])",
+    "Image Base URL": "Базовый URL API изображений",
+    "Image Model Name": "Название модели изображений",
+    "Enhance AI image prompts using LLM": "Улучшать промпты изображений с помощью LLM",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Использует выбранную LLM для улучшения промптов изображений, создавая более детальные и профессиональные описания на основе контекста сценария видео.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "Для улучшения промптов будет использована выбранная LLM ({}), что может повлечь дополнительные расходы в зависимости от провайдера.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "Для улучшения промптов требуется API-ключ {}. Настройте его в панели настроек.",
+    "Please Enter the OpenAI API Key": "Введите **API-ключ OpenAI**",
+    "Please Enter the Stability AI API Key": "Введите **API-ключ Stability AI**",
+    "Please Enter the Image Base URL for the selected provider": "Введите **базовый URL изображений** для выбранного провайдера"
   }
 }

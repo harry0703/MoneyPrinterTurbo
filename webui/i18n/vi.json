@@ -252,6 +252,19 @@
     "Please Enter the Coverr API Key": "Vui lòng nhập **API Key Coverr**",
     "Video Encoder": "Bộ Mã Hóa Video",
     "Default Video Encoder": "Mặc định (Khuyên dùng)",
-    "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264."
+    "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264.",
+    "AI Image": "Hình Ảnh AI",
+    "Image Generation Settings": "**Cài Đặt Tạo Hình Ảnh**",
+    "Image Provider": "Nhà Cung Cấp Hình Ảnh",
+    "Image API Key": "Khóa API Hình Ảnh (:red[Bắt Buộc])",
+    "Image Base URL": "URL Cơ Bản API Hình Ảnh",
+    "Image Model Name": "Tên Mô Hình Hình Ảnh",
+    "Enhance AI image prompts using LLM": "Cải thiện các mô tả hình ảnh AI bằng LLM",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Sử dụng LLM đã chọn để cải thiện mô tả hình ảnh, tạo ra các mô tả chi tiết và chuyên nghiệp hơn dựa trên ngữ cảnh của kịch bản video.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "Việc cải thiện mô tả sẽ sử dụng LLM đã chọn ({}) và có thể phát sinh chi phí bổ sung tùy thuộc vào nhà cung cấp.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "Khóa API cho {} là bắt buộc để cải thiện mô tả. Vui lòng cấu hình trong bảng Cài Đặt.",
+    "Please Enter the OpenAI API Key": "Vui lòng Nhập **Khóa API OpenAI**",
+    "Please Enter the Stability AI API Key": "Vui lòng Nhập **Khóa API Stability AI**",
+    "Please Enter the Image Base URL for the selected provider": "Vui lòng Nhập **URL Cơ Bản Hình Ảnh** cho nhà cung cấp đã chọn"
   }
 }

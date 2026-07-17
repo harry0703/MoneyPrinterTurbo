@@ -252,6 +252,19 @@
     "Video Source Settings": "**Videoquellen-Einstellungen**",
     "Coverr": "Coverr",
     "Coverr API Key": "Coverr API-Schlüssel ([API-Schlüssel holen](https://coverr.co/developers?ctx=header_navigation))",
-    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein"
+    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein",
+    "AI Image": "KI-Bild",
+    "Image Generation Settings": "**Bildgenerierungseinstellungen**",
+    "Image Provider": "Bildanbieter",
+    "Image API Key": "Bild-API-Schlüssel (:red[Erforderlich])",
+    "Image Base URL": "Bild-Basis-URL",
+    "Image Model Name": "Bildmodellname",
+    "Enhance AI image prompts using LLM": "KI-Bildaufforderungen mit LLM verbessern",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Verwendet das ausgewählte LLM, um Bildaufforderungen zu verbessern und detailliertere und professionellere Beschreibungen basierend auf dem Videoskriptkontext zu erstellen.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "Die Aufforderungsverbesserung verwendet das ausgewählte LLM ({}) und kann je nach Anbieter zusätzliche Kosten verursachen.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "API-Schlüssel für {} ist für die Aufforderungsverbesserung erforderlich. Bitte konfigurieren Sie ihn im Einstellungsbereich.",
+    "Please Enter the OpenAI API Key": "Bitte geben Sie den **OpenAI API-Schlüssel** ein",
+    "Please Enter the Stability AI API Key": "Bitte geben Sie den **Stability AI API-Schlüssel** ein",
+    "Please Enter the Image Base URL for the selected provider": "Bitte geben Sie die **Bild-Basis-URL** für den ausgewählten Anbieter ein"
   }
 }

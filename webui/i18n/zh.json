@@ -279,6 +279,19 @@
     "llm_provider_tips.cloudflare": "##### Cloudflare AI Gateway 配置说明\n- **API Key**: 在 [Cloudflare 控制台]({api_key_url}) 创建 API Token，需要 `AI Gateway - Read`、`AI Gateway - Edit` 和 `Workers AI - Read` 权限\n- **Account ID**: 填写 Cloudflare 账号 ID\n- **Gateway ID**: 默认 `{default_gateway_id}`；也可以填写已创建的 Gateway ID\n- **Base Url**: 无需填写，程序会根据 Account ID 自动构造 REST API 地址\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式填写 AI Gateway 支持的模型 ID",
     "llm_provider_tips.minimax": "##### MiniMax 配置说明\n- **API Key**: 在 [中国站](https://platform.minimaxi.com/) 或 [国际站](https://platform.minimax.io/) 创建\n- **Base Url**: 中国站使用 `https://api.minimaxi.com/v1`；国际站使用 `{default_base_url}`（默认）\n- **Model Name**: 默认 `{default_model}`；也可以填写当前账号支持的其它模型 ID\n\n请确保 API Key 与 Base Url 来自同一平台，否则可能出现鉴权失败。",
     "llm_provider_tips.pollinations": "##### Pollinations AI 配置说明\n- **API Key**: 在 [Pollinations]({api_key_url}) 创建\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；也可以填写 [模型目录](https://gen.pollinations.ai/v1/models) 中支持 Chat Completions 的其它模型 ID",
-    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)"
+    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)",
+    "AI Image": "AI生成图片",
+    "Image Generation Settings": "**图片生成设置**",
+    "Image Provider": "图片生成提供商",
+    "Image API Key": "图片API密钥 (:red[必填])",
+    "Image Base URL": "图片生成API基础URL",
+    "Image Model Name": "图片生成模型名称",
+    "Enhance AI image prompts using LLM": "使用大模型增强AI图片提示词",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "使用所选大模型增强图片提示词，根据视频文案创建更详细、更专业的描述。",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "提示词增强将使用所选大模型 ({}) ，根据供应商可能产生额外费用。",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "提示词增强需要 {} 的API密钥。请在设置面板中配置。",
+    "Please Enter the OpenAI API Key": "请先填写 **OpenAI API Key**",
+    "Please Enter the Stability AI API Key": "请先填写 **Stability AI API Key**",
+    "Please Enter the Image Base URL for the selected provider": "请先填写所选图片提供商的 **Base URL**"
   }
 }

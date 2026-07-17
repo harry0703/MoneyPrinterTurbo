@@ -252,6 +252,19 @@
     "Please Enter the Coverr API Key": "Silakan Masukkan **Kunci API Coverr**",
     "Video Encoder": "Encoder Video",
     "Default Video Encoder": "Default (Direkomendasikan)",
-    "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264."
+    "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264.",
+    "AI Image": "Gambar AI",
+    "Image Generation Settings": "**Pengaturan Pembuatan Gambar**",
+    "Image Provider": "Penyedia Gambar",
+    "Image API Key": "Kunci API Gambar (:red[Wajib])",
+    "Image Base URL": "URL Dasar API Gambar",
+    "Image Model Name": "Nama Model Gambar",
+    "Enhance AI image prompts using LLM": "Tingkatkan prompt gambar AI menggunakan LLM",
+    "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context.": "Menggunakan LLM terpilih untuk menyempurnakan prompt gambar, menghasilkan deskripsi yang lebih detail dan profesional berdasarkan konteks naskah video.",
+    "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider.": "Peningkatan prompt akan menggunakan LLM terpilih ({}) dan dapat menimbulkan biaya tambahan tergantung penyedia.",
+    "API key for {} is required for prompt enhancement. Please configure it in the Settings panel.": "Kunci API untuk {} diperlukan untuk peningkatan prompt. Silakan konfigurasikan di panel Pengaturan.",
+    "Please Enter the OpenAI API Key": "Silakan Masukkan **Kunci API OpenAI**",
+    "Please Enter the Stability AI API Key": "Silakan Masukkan **Kunci API Stability AI**",
+    "Please Enter the Image Base URL for the selected provider": "Silakan Masukkan **URL Dasar Gambar** untuk penyedia yang dipilih"
   }
 }
