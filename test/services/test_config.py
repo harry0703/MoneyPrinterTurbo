@@ -102,3 +102,25 @@ class TestConfigPersistence:
         worker.join(timeout=1)
         assert write_finished.is_set()
         config.app.pop("runtime_lock_test", None)
+
+    def test_runtime_config_lock_allows_idempotent_page_writes(self):
+        """生成期间刷新页面时，相同控件值的回写不能阻塞整页渲染。"""
+        key = "runtime_lock_idempotent_test"
+        config.app[key] = "unchanged"
+        write_finished = threading.Event()
+
+        def write_same_value():
+            config.app[key] = "unchanged"
+            assert config.app.setdefault(key, "other") == "unchanged"
+            config.app.update({key: "unchanged"})
+            assert config.app.pop("runtime_lock_missing_key", None) is None
+            write_finished.set()
+
+        with config.runtime_config_lock():
+            worker = threading.Thread(target=write_same_value)
+            worker.start()
+            assert write_finished.wait(timeout=0.2)
+
+        worker.join(timeout=1)
+        assert config.app[key] == "unchanged"
+        config.app.pop(key, None)
