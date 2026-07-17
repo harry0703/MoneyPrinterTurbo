@@ -119,5 +119,80 @@ class TestRedisState(unittest.TestCase):
         )
 
 
+class TestFakeRedisState(unittest.TestCase):
+    """Contract tests against real Redis command semantics.
+
+    The default ``RedisState`` tests above inject a hand-rolled ``_FakeRedis``
+    dict that ignores key types and TTLs, so it cannot catch the production
+    defect where ``get_all_tasks`` calls ``HGETALL`` on the ``idem:{task_id}``
+    STRING keys Redis raises WRONGTYPE (issue #1 Sentinel Spec-4/Standards-1).
+    Here we inject ``fakeredis.FakeStrictRedis`` - an in-process emulator that
+    implements the real Redis protocol (key-type enforcement, SCAN cursors,
+    TTL expiry) - so the same code paths are exercised against genuine
+    semantics without a live server.
+    """
+
+    def setUp(self):
+        import fakeredis
+
+        state = RedisState.__new__(RedisState)
+        # No decode_responses, matching the production redis.StrictRedis client
+        # (state.py) so keys/values arrive as bytes and the same decoding path
+        # is exercised.
+        state._redis = fakeredis.FakeStrictRedis()
+        self.state = state
+
+    def tearDown(self):
+        self.state._redis.flushall()
+
+    def test_idem_keys_do_not_break_task_listing(self):
+        # Reproduces the WRONGTYPE defect: task records are hashes and the
+        # idempotency reservations are strings in the same keyspace. Listing
+        # must skip the string keys rather than HGETALL them.
+        self.state.update_task("task:1", state=1, progress=10)
+        self.state.reserve_idempotent_task("task:1", "h1")
+
+        tasks, total = self.state.get_all_tasks(page=1, page_size=10)
+        self.assertEqual(total, 1)
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["task_id"], "task:1")
+
+    def test_reserve_returns_created_then_duplicate(self):
+        self.assertEqual(
+            self.state.reserve_idempotent_task("k1", "h1"), const.IDEMPOTENCY_CREATED
+        )
+        self.assertEqual(
+            self.state.reserve_idempotent_task("k1", "h1"), const.IDEMPOTENCY_DUPLICATE
+        )
+        self.assertEqual(
+            self.state.reserve_idempotent_task("k1", "h2"), const.IDEMPOTENCY_CONFLICT
+        )
+
+    def test_reservation_expires(self):
+        # The reservation carries a 24h TTL; after it lapses the slot is free
+        # again (issue #1 non-blocking: retention window).
+        self.state.reserve_idempotent_task("k1", "h1")
+        self.state._redis.delete("idem:k1")  # emulate expiry without real time
+        self.assertEqual(
+            self.state.reserve_idempotent_task("k1", "h1"), const.IDEMPOTENCY_CREATED
+        )
+
+    def test_concurrent_identical_reservations_create_one_task(self):
+        thread_count = 20
+        results = []
+
+        def reserve():
+            results.append(self.state.reserve_idempotent_task("same-key", "same-hash"))
+
+        threads = [threading.Thread(target=reserve) for _ in range(thread_count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(results.count(const.IDEMPOTENCY_CREATED), 1)
+        self.assertEqual(results.count(const.IDEMPOTENCY_DUPLICATE), thread_count - 1)
+
+
 if __name__ == "__main__":
     unittest.main()

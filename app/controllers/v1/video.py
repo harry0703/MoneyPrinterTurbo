@@ -171,12 +171,21 @@ def create_task(
         params_hash = _canonical_params_hash(body)
         outcome = sm.state.reserve_idempotent_task(task_id, params_hash)
         if outcome == const.IDEMPOTENCY_DUPLICATE:
-            # 同一 key 且参数一致：返回既有任务，不再重复入队（含响应丢失后的恢复）。
+            # 同一 key 且参数一致：若对应任务已经真正入队（可被查询到），
+            # 返回既有任务，不再重复入队（含响应丢失后的恢复）。若任务尚不存在，
+            # 说明抢占者尚未完成入队即失败（例如队列已满后被清理），本次请求应
+            # 接管并入队，而不是返回一个指向不存在任务的 200（Spec review 的
+            # "provisional reservation → false success" 缺陷）。
+            if sm.state.get_task(task_id) is not None:
+                logger.info(
+                    f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
+                )
+                return utils.get_response(200, {"task_id": task_id})
             logger.info(
-                f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
+                f"idempotent duplicate observed before enqueue; taking over, "
+                f"request_id: {request_id}, task_id: {task_id}"
             )
-            return utils.get_response(200, {"task_id": task_id})
-        if outcome == const.IDEMPOTENCY_CONFLICT:
+        elif outcome == const.IDEMPOTENCY_CONFLICT:
             logger.warning(
                 f"idempotency conflict, request_id: {request_id}, task_id: {task_id}"
             )
@@ -192,13 +201,15 @@ def create_task(
         task_id = utils.get_uuid()
 
     try:
+        # 先入队，再写入任务哈希记录。入队成功才代表任务真正存在；此时重复请求
+        # 才能安全地返回既有的 task_id（不会指向不存在的工作）。
         task = {
             "task_id": task_id,
             "request_id": request_id,
             "params": body.model_dump(),
         }
-        sm.state.update_task(task_id)
         task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
+        sm.state.update_task(task_id)
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
     except TaskQueueFullError as e:

@@ -133,6 +133,16 @@ class RedisState(BaseState):
         total = 0
         while True:
             cursor, keys = self._redis.scan(cursor, count=page_size)
+            # Idempotency reservations (idem:{task_id}) are STRING keys in the
+            # same keyspace as task-record hashes. Drop them before counting or
+            # materializing so the listing never HGETALLs a string (WRONGTYPE)
+            # and the total reflects real task records only.
+            keys = [
+                k
+                for k in keys
+                if not (isinstance(k, bytes) and k.startswith(b"idem:"))
+                and not (isinstance(k, str) and k.startswith("idem:"))
+            ]
             batch_start = total
             batch_size = len(keys)
             total += batch_size
@@ -144,6 +154,14 @@ class RedisState(BaseState):
                 slice_start = max(0, start - batch_start)
                 slice_end = min(batch_size, end - batch_start)
                 for key in keys[slice_start:slice_end]:
+                    # Skip the idempotency reservation keys. They are STRING
+                    # values (idem:{task_id}); HGETALL on a string raises
+                    # WRONGTYPE and would break the listing. Task records are
+                    # hashes, so only those are materialized.
+                    if isinstance(key, bytes) and key.startswith(b"idem:"):
+                        continue
+                    if isinstance(key, str) and key.startswith("idem:"):
+                        continue
                     task_data = self._redis.hgetall(key)
                     task = {
                         k.decode("utf-8"): self._convert_to_original_type(v)
