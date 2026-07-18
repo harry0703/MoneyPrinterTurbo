@@ -218,12 +218,21 @@ def _run_process(
     for reader in readers:
         reader.start()
 
-    try:
-        assert process.stdin is not None
-        process.stdin.write(input_text.encode("utf-8"))
-        process.stdin.close()
-    except (BrokenPipeError, OSError):
-        pass
+    def feed_stdin() -> None:
+        # Write on a dedicated thread: a large prompt (up to the server's 256 KiB
+        # limit) can exceed the OS pipe buffer, and if the child stalls without
+        # draining stdin, a synchronous write here would block the timeout/cancel
+        # loop below forever. On the writer thread, termination closes the pipe and
+        # unblocks it instead.
+        try:
+            assert process.stdin is not None
+            process.stdin.write(input_text.encode("utf-8"))
+            process.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+
+    writer = threading.Thread(target=feed_stdin)
+    writer.start()
 
     deadline = time.monotonic() + timeout
     failure_code = ""
@@ -241,9 +250,13 @@ def _run_process(
 
     if failure_code:
         _terminate_process_tree(process)
+    # Reap the stdin writer: after termination the pipe is closed, so a previously
+    # blocked write returns promptly. If it is somehow still stuck, ensure the
+    # process is gone and fail closed rather than leaking the thread.
+    writer.join(timeout=5)
     for reader in readers:
         reader.join(timeout=5)
-    if any(reader.is_alive() for reader in readers):
+    if writer.is_alive() or any(reader.is_alive() for reader in readers):
         _terminate_process_tree(process)
         raise _safe_error("codex_failed")
     if overflow.is_set() and not failure_code:

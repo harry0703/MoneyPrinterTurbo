@@ -8,6 +8,8 @@ import select
 import shutil
 import socket
 import threading
+import time
+from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -24,6 +26,11 @@ DEFAULT_TIMEOUT_SECONDS = 300
 MIN_TIMEOUT_SECONDS = 30
 MAX_TIMEOUT_SECONDS = 900
 
+# Failed-auth throttle: defense-in-depth over the required high-entropy token.
+AUTH_FAILURE_WINDOW_SECONDS = 60.0
+AUTH_FAILURE_THRESHOLD = 10
+AUTH_LOCKOUT_SECONDS = 300.0
+
 UNAUTHORIZED_ERROR = {"error": {"code": "unauthorized", "message": "Invalid bridge token"}}
 INVALID_REQUEST_ERROR = {
     "error": {"code": "invalid_request", "message": "Request body is invalid"}
@@ -34,6 +41,62 @@ BUSY_ERROR = {
         "message": "Codex bridge is processing another request",
     }
 }
+TOO_MANY_ATTEMPTS_ERROR = {
+    "error": {
+        "code": "too_many_attempts",
+        "message": "Too many failed attempts; try again later",
+    }
+}
+
+
+class AuthThrottle:
+    """Thread-safe, in-process failed-auth limiter keyed by client IP.
+
+    The bearer token is high-entropy, so this is not the primary defense against
+    brute force; it caps repeated failures cheaply and without external deps. A
+    successful auth clears the offending client's history.
+    """
+
+    def __init__(
+        self,
+        window_seconds: float = AUTH_FAILURE_WINDOW_SECONDS,
+        threshold: int = AUTH_FAILURE_THRESHOLD,
+        lockout_seconds: float = AUTH_LOCKOUT_SECONDS,
+    ) -> None:
+        self._window = window_seconds
+        self._threshold = threshold
+        self._lockout = lockout_seconds
+        self._lock = threading.Lock()
+        self._failures: dict[str, deque[float]] = defaultdict(deque)
+        self._locked_until: dict[str, float] = {}
+
+    def is_locked(self, client: str, now: float | None = None) -> bool:
+        now = time.monotonic() if now is None else now
+        with self._lock:
+            until = self._locked_until.get(client)
+            if until is None:
+                return False
+            if now >= until:
+                self._locked_until.pop(client, None)
+                self._failures.pop(client, None)
+                return False
+            return True
+
+    def record_failure(self, client: str, now: float | None = None) -> None:
+        now = time.monotonic() if now is None else now
+        with self._lock:
+            bucket = self._failures[client]
+            bucket.append(now)
+            cutoff = now - self._window
+            while bucket and bucket[0] < cutoff:
+                bucket.popleft()
+            if len(bucket) >= self._threshold:
+                self._locked_until[client] = now + self._lockout
+
+    def record_success(self, client: str) -> None:
+        with self._lock:
+            self._failures.pop(client, None)
+            self._locked_until.pop(client, None)
 
 
 def _watch_client_disconnect(
@@ -63,6 +126,7 @@ class CodexBridgeServer(ThreadingHTTPServer):
         self.bridge_token = bridge_token
         self.codex_executable = codex_executable
         self.generation_semaphore = threading.BoundedSemaphore(1)
+        self.auth_throttle = AuthThrottle()
 
 
 class CodexBridgeRequestHandler(BaseHTTPRequestHandler):
@@ -162,9 +226,16 @@ class CodexBridgeRequestHandler(BaseHTTPRequestHandler):
         if self.path != "/v1/generate":
             self._send_invalid_request()
             return
+        client = self.client_address[0] if self.client_address else "unknown"
+        throttle = self.bridge_server.auth_throttle
+        if throttle.is_locked(client):
+            self._send_json(429, TOO_MANY_ATTEMPTS_ERROR)
+            return
         if not self._is_authorized():
+            throttle.record_failure(client)
             self._send_json(401, UNAUTHORIZED_ERROR)
             return
+        throttle.record_success(client)
 
         payload, invalid_status = self._read_request()
         if payload is None:
@@ -232,7 +303,9 @@ def create_server(
 def main(argv: list[str] | None = None) -> int:
     """Run the host bridge after obtaining its token from the environment."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="0.0.0.0")
+    # Fail safe: default to loopback. start.ps1 passes an explicit least-exposure
+    # host (the WSL interface IP); a bare invocation must never open all interfaces.
+    parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=9876)
     parser.add_argument("--codex-executable", default="codex")
     arguments = parser.parse_args(argv)
