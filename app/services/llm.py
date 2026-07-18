@@ -10,6 +10,7 @@ from openai.types.chat import ChatCompletion
 
 from app.config import config
 from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
+from app.services import codex_bridge
 
 _max_retries = 5
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
@@ -137,7 +138,7 @@ def _extract_qwen_generation_text(response) -> str:
     return _normalize_text_response(text, "qwen")
 
 
-def _generate_response(prompt: str) -> str:
+def _generate_response(prompt: str, instructions: str = "") -> str:
     try:
         llm_provider = str(
             config.app.get("llm_provider", DEFAULT_LLM_PROVIDER_ID)
@@ -206,6 +207,19 @@ def _generate_response(prompt: str) -> str:
                     f"{llm_provider}: {field.config_suffix} is not set, "
                     "please set it in the config.toml file."
                 )
+
+        if adapter == "codex_bridge":
+            return codex_bridge.generate(
+                base_url=base_url,
+                bridge_token=extra_values["bridge_token"],
+                instructions=instructions,
+                input_text=prompt,
+                model_name=model_name,
+                timeout_seconds=extra_values["timeout_seconds"],
+            )
+
+        effective_prompt = f"{instructions}\n\n{prompt}" if instructions else prompt
+        prompt = effective_prompt
 
         if adapter == "qwen":
             import dashscope
@@ -456,6 +470,40 @@ def _normalize_script_paragraph_number(paragraph_number: int | None) -> int:
     return value
 
 
+def build_script_request(
+    video_subject: str,
+    language: str = "",
+    paragraph_number: int = 1,
+    video_script_prompt: str = "",
+    custom_system_prompt: str = "",
+) -> tuple[str, str]:
+    paragraph_number = _normalize_script_paragraph_number(paragraph_number)
+    video_script_prompt = _limit_script_text(
+        video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
+    )
+    instructions = (
+        _limit_script_text(
+            custom_system_prompt,
+            MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
+            "custom_system_prompt",
+        )
+        or DEFAULT_SCRIPT_SYSTEM_PROMPT
+    )
+    input_text = f"""# Episode Context:
+- video subject: {video_subject}
+- number of paragraphs: {paragraph_number}"""
+    if language:
+        input_text += f"\n- language: {language}"
+    if video_script_prompt:
+        input_text += f"""
+
+# Additional User Requirements:
+{video_script_prompt}
+""".rstrip()
+
+    return instructions, input_text
+
+
 def build_script_prompt(
     video_subject: str,
     language: str = "",
@@ -463,33 +511,14 @@ def build_script_prompt(
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
 ) -> str:
-    paragraph_number = _normalize_script_paragraph_number(paragraph_number)
-    video_script_prompt = _limit_script_text(
-        video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
+    instructions, input_text = build_script_request(
+        video_subject=video_subject,
+        language=language,
+        paragraph_number=paragraph_number,
+        video_script_prompt=video_script_prompt,
+        custom_system_prompt=custom_system_prompt,
     )
-    custom_system_prompt = _limit_script_text(
-        custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
-    )
-
-    # 将“脚本生成规则”和“运行时上下文”分开拼接。这样高级用户即使覆盖默认
-    # system prompt，也不会漏掉视频主题、语言、段落数这些每次生成都必须带上的参数。
-    prompt = custom_system_prompt or DEFAULT_SCRIPT_SYSTEM_PROMPT
-    prompt += f"""
-
-# Initialization:
-- video subject: {video_subject}
-- number of paragraphs: {paragraph_number}
-""".rstrip()
-    if language:
-        prompt += f"\n- language: {language}"
-    if video_script_prompt:
-        prompt += f"""
-
-# Additional User Requirements:
-{video_script_prompt}
-""".rstrip()
-
-    return prompt
+    return f"{instructions}\n\n{input_text}"
 
 
 def generate_script(
@@ -506,7 +535,7 @@ def generate_script(
     custom_system_prompt = _limit_script_text(
         custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
     )
-    prompt = build_script_prompt(
+    instructions, input_text = build_script_request(
         video_subject=video_subject,
         language=language,
         paragraph_number=paragraph_number,
@@ -542,7 +571,7 @@ def generate_script(
 
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt=prompt)
+            response = _generate_response(prompt=input_text, instructions=instructions)
             if response:
                 final_script = format_response(response)
             else:

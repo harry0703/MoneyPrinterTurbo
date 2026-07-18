@@ -88,6 +88,23 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.openai.com/v1",
     ),
     LLMProviderSpec(
+        "codex_oauth",
+        "Codex (ChatGPT OAuth)",
+        adapter="codex_bridge",
+        default_base_url="http://host.docker.internal:9876",
+        requires_api_key=False,
+        requires_model_name=False,
+        show_api_key=False,
+        extra_fields=(
+            LLMProviderField(
+                "bridge_token", "Codex Bridge Token", required=True, secret=True
+            ),
+            LLMProviderField(
+                "timeout_seconds", "Codex Bridge Timeout", default_value="300"
+            ),
+        ),
+    ),
+    LLMProviderSpec(
         "gemini",
         "Google Gemini",
         adapter="gemini",

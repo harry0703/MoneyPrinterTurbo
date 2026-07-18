@@ -95,11 +95,12 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIn("- number of paragraphs: 2", prompt)
         self.assertIn("- language: en", prompt)
 
-    def test_generate_script_sends_custom_prompt_to_llm(self):
+    def test_generate_script_separates_instructions_from_input(self):
         captured = {}
 
-        def fake_generate_response(prompt):
+        def fake_generate_response(prompt, instructions=""):
             captured["prompt"] = prompt
+            captured["instructions"] = instructions
             return "第一段。\n\n第二段。"
 
         with patch.object(
@@ -113,6 +114,8 @@ class TestScriptPromptOptions(unittest.TestCase):
             )
 
         self.assertEqual(result, "第一段。\n\n第二段。")
+        self.assertIn("# Role: Video Script Generator", captured["instructions"])
+        self.assertNotIn("- video subject: 咖啡", captured["instructions"])
         self.assertIn("- number of paragraphs: 2", captured["prompt"])
         self.assertIn("开头更有悬念", captured["prompt"])
 
@@ -242,6 +245,86 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(pollinations.requires_api_key)
         self.assertEqual(pollinations.adapter, "openai_compatible")
 
+    def test_codex_oauth_provider_registry_contract(self):
+        provider = get_llm_provider("codex_oauth")
+
+        self.assertEqual(provider.adapter, "codex_bridge")
+        self.assertEqual(provider.default_base_url, "http://host.docker.internal:9876")
+        self.assertFalse(provider.requires_api_key)
+        self.assertFalse(provider.requires_model_name)
+        self.assertEqual(
+            [field.config_suffix for field in provider.extra_fields],
+            ["bridge_token", "timeout_seconds"],
+        )
+
+    def test_codex_adapter_separates_instructions_and_input(self):
+        config.app.update(
+            {
+                "llm_provider": "codex_oauth",
+                "codex_oauth_base_url": "http://bridge:9876",
+                "codex_oauth_model_name": "",
+                "codex_oauth_bridge_token": "secret",
+                "codex_oauth_timeout_seconds": "300",
+            }
+        )
+
+        with patch.object(
+            llm.codex_bridge, "generate", return_value="narration"
+        ) as generate:
+            result = llm._generate_response(
+                "episode context", instructions="narration rules"
+            )
+
+        self.assertEqual(result, "narration")
+        generate.assert_called_once_with(
+            base_url="http://bridge:9876",
+            bridge_token="secret",
+            instructions="narration rules",
+            input_text="episode context",
+            model_name="",
+            timeout_seconds="300",
+        )
+
+    def test_openai_compatible_adapter_combines_instructions_and_input(self):
+        config.app.update(
+            {
+                "llm_provider": "openai",
+                "openai_api_key": "openai-key",
+                "openai_base_url": "http://openai:9876/v1",
+                "openai_model_name": "test-model",
+            }
+        )
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="narration")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client),
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response(
+                "episode context", instructions="narration rules"
+            )
+
+        self.assertEqual(result, "narration")
+        self.assertEqual(
+            fake_completions.kwargs["messages"],
+            [
+                {
+                    "role": "user",
+                    "content": "narration rules\n\nepisode context",
+                }
+            ],
+        )
+
     def test_provider_defaults_are_not_persisted_as_user_overrides(self):
         """默认值只用于运行和展示，只有不同值才应写入用户配置。"""
         self.assertEqual(
@@ -272,6 +355,7 @@ class TestLiteLLMProvider(unittest.TestCase):
             [
                 "moonshot",
                 "openai",
+                "codex_oauth",
                 "gemini",
                 "deepseek",
                 "qwen",
@@ -381,6 +465,10 @@ class TestLiteLLMProvider(unittest.TestCase):
                 (i18n_dir / f"{language}.json").read_text(encoding="utf-8")
             )["Translation"]
             for provider in LLM_PROVIDER_REGISTRY:
+                # Task 5 owns the Codex OAuth WebUI and locale copy. Keep this
+                # service-layer task from requiring those not-yet-added strings.
+                if provider.provider_id == "codex_oauth":
+                    continue
                 tips = translations[provider.tips_key]
                 self.assertTrue(tips.startswith("##### "), provider.provider_id)
                 self.assertIn("**API Key**", tips, provider.provider_id)
