@@ -44,7 +44,13 @@ from app.services import cache_manager, llm, video, voice
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import utils
-from webui.auth import authenticate, is_auth_enabled
+from webui.auth import (
+    AUTH_QUERY_PARAM,
+    authenticate,
+    create_persistent_session,
+    is_auth_enabled,
+    validate_persistent_session,
+)
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -251,6 +257,8 @@ def _initialize_session_state():
         "active_generation_tasks": {},
         # Roll 的 LLM 请求本身也跨 fragment rerun 保留状态，防止重复点击。
         "roll_subject_generation_in_progress": False,
+        # 默认保持原有“基于最近视频”的连续选题行为；取消勾选后使用随机主题。
+        "roll_based_on_recent": True,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -266,7 +274,14 @@ def tr(key):
 
 if is_auth_enabled():
     if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
+        persistent_token = st.query_params.get(AUTH_QUERY_PARAM, "")
+        st.session_state.authenticated = validate_persistent_session(persistent_token)
+        if persistent_token and not st.session_state.authenticated:
+            # Remove expired/invalid tokens so a stale URL does not keep being
+            # revalidated on every rerun. Valid tokens intentionally remain in
+            # the URL so a browser refresh or a new Streamlit websocket stays
+            # authenticated without another login prompt.
+            st.query_params.pop(AUTH_QUERY_PARAM, None)
 
     if not st.session_state.authenticated:
         st.set_page_config(page_title="MoneyPrinterTurbo", page_icon="🤖", layout="centered")
@@ -278,6 +293,11 @@ if is_auth_enabled():
         if st.button(tr("Login")):
             if authenticate(username, password):
                 st.session_state.authenticated = True
+                st.session_state.authenticated_username = username
+                # Streamlit session_state is websocket-scoped. Persist a random
+                # server-validated bearer token in the URL so the login survives
+                # refreshes and process restarts. The server stores only its hash.
+                st.query_params[AUTH_QUERY_PARAM] = create_persistent_session(username)
                 st.rerun()
             else:
                 st.error(tr("Login Error"))
@@ -573,10 +593,14 @@ def _scan_history_tasks(limit=30):
 
 def _collect_task_summaries(limit=20):
     _cleanup_finished_active_generation_tasks()
-    history_tasks = {task["task_id"]: task for task in _scan_history_tasks(limit=50)}
+    scan_limit = max(50, int(limit or 0))
+    history_tasks = {
+        task["task_id"]: task
+        for task in _scan_history_tasks(limit=scan_limit)
+    }
 
     try:
-        runtime_tasks, _ = sm.state.get_all_tasks(1, 50)
+        runtime_tasks, _ = sm.state.get_all_tasks(1, scan_limit)
     except Exception as e:
         logger.warning(f"failed to load runtime tasks: {e}")
         runtime_tasks = []
@@ -1992,25 +2016,52 @@ def _render_settings_dialog():
 # -----------------------------------------------------------------------------
 
 
-def _roll_subject_history(current_subject=""):
-    """Collect recent completed subjects for a useful, non-repeating roll."""
+def _roll_subject_key(subject):
+    return re.sub(r"[\W_]+", "", str(subject or "").casefold())
+
+
+def _roll_subject_context(current_subject=""):
+    """Return recent category context plus every known generated subject."""
     current_subject = (current_subject or "").strip()
-    subjects = []
+    recent_subjects = []
+    all_subjects = []
+    seen_keys = set()
+
     try:
-        tasks = _collect_task_summaries(limit=30)
+        # The complete list is used for duplicate protection. Task summaries are
+        # sorted newest-first, so the first MAX_ROLL_CONTEXT_SUBJECTS entries are
+        # also the right context for the recent-category mode.
+        tasks = _collect_task_summaries(limit=1000)
     except Exception as e:
         logger.debug(f"failed to load subject history for Roll: {e}")
         tasks = []
 
+    def add_subject(subject, *, add_to_recent=False):
+        subject = str(subject or "").strip()
+        subject_key = _roll_subject_key(subject)
+        if not subject or not subject_key or subject_key in seen_keys:
+            return
+        seen_keys.add(subject_key)
+        all_subjects.append(subject)
+        if add_to_recent and len(recent_subjects) < llm.MAX_ROLL_CONTEXT_SUBJECTS:
+            recent_subjects.append(subject)
+
+    # Include the current input in both contexts. This prevents rolling back to
+    # the same topic even before the current video has been generated.
+    add_subject(current_subject, add_to_recent=True)
     for task in tasks:
-        if _task_state_filter_key(task) != "complete":
+        task_status = _task_state_filter_key(task)
+        if task_status == "processing":
             continue
-        subject = str(task.get("subject") or "").strip()
-        if subject and subject != current_subject and subject not in subjects:
-            subjects.append(subject)
-        if len(subjects) >= llm.MAX_ROLL_CONTEXT_SUBJECTS:
-            break
-    return subjects
+        # Completed topics shape the recent-category context. Failed/history
+        # tasks still belong to the exclusion set when a script was persisted,
+        # preventing a later roll from reusing an already attempted topic.
+        subject = task.get("subject")
+        if subject and str(subject).strip() == str(task.get("task_id", "")):
+            continue
+        add_subject(subject, add_to_recent=task_status == "complete")
+
+    return recent_subjects, all_subjects
 
 
 @st.fragment(run_every="2s")
@@ -2021,6 +2072,12 @@ def _render_roll_controls():
         st.session_state.get("roll_subject_generation_in_progress", False)
     )
     roll_disabled = video_generation_in_progress or roll_in_progress
+
+    st.checkbox(
+        tr("Based on Recent"),
+        key="roll_based_on_recent",
+        help=tr("Based on Recent Help"),
+    )
 
     roll_clicked = st.button(
         tr("Roll Next Subject"),
@@ -2049,7 +2106,8 @@ def _render_roll_controls():
     st.info(tr("Rolling Next Subject"))
     st.session_state["roll_subject_generation_in_progress"] = True
     current_subject = st.session_state.get("video_subject", "").strip()
-    recent_subjects = _roll_subject_history(current_subject)
+    based_on_recent = bool(st.session_state.get("roll_based_on_recent", True))
+    recent_subjects, all_subjects = _roll_subject_context(current_subject)
     language = st.session_state.get(
         localized_widget_key("script_language_select"), ""
     )
@@ -2061,6 +2119,8 @@ def _render_roll_controls():
                     video_subject=current_subject,
                     recent_subjects=recent_subjects,
                     language=language,
+                    based_on_recent=based_on_recent,
+                    excluded_subjects=all_subjects,
                 )
     finally:
         st.session_state["roll_subject_generation_in_progress"] = False

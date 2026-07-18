@@ -228,6 +228,8 @@
     "Rolling Next Subject": "Sonraki video konusu oluşturuluyor...",
     "Video Generation in Progress": "Video oluşturma devam ediyor. Yeni konu önermeden önce tamamlanmasını bekleyin.",
     "Roll Subject Failed": "Sonraki video konusu oluşturulamadı",
-    "Next Video Subject Suggested": "Sonraki video için bir konu önerildi."
+    "Next Video Subject Suggested": "Sonraki video için bir konu önerildi.",
+    "Based on Recent": "Son videolara göre",
+    "Based on Recent Help": "Etkinleştirildiğinde, en son oluşturulan videoların kategorisinden bir konu önerir. Tamamen rastgele bir kategori için kapatın."
   }
 }

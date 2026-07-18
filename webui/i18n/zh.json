@@ -273,6 +273,8 @@
     "Rolling Next Subject": "正在生成下一个视频主题……",
     "Video Generation in Progress": "视频正在生成中。请等待生成完成后再生成下一个主题。",
     "Roll Subject Failed": "无法生成下一个视频主题",
-    "Next Video Subject Suggested": "已为下一个视频生成主题建议。"
+    "Next Video Subject Suggested": "已为下一个视频生成主题建议。",
+    "Based on Recent": "基于最近视频",
+    "Based on Recent Help": "开启后，会根据最近生成的视频类别建议主题；关闭后则从完全随机的类别中选择。"
   }
 }

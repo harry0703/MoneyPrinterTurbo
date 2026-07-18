@@ -228,6 +228,8 @@
     "Rolling Next Subject": "Nächstes Videothema wird erstellt...",
     "Video Generation in Progress": "Die Videogenerierung läuft gerade. Bitte warten Sie, bis sie abgeschlossen ist, bevor Sie ein neues Thema vorschlagen.",
     "Roll Subject Failed": "Das nächste Videothema konnte nicht erstellt werden",
-    "Next Video Subject Suggested": "Ein Thema für das nächste Video wurde vorgeschlagen."
+    "Next Video Subject Suggested": "Ein Thema für das nächste Video wurde vorgeschlagen.",
+    "Based on Recent": "Auf den letzten Videos basieren",
+    "Based on Recent Help": "Wenn aktiviert, wird ein Thema aus der Kategorie der letzten Videos vorgeschlagen. Deaktivieren Sie die Option für eine völlig zufällige Kategorie."
   }
 }

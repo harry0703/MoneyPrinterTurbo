@@ -273,6 +273,8 @@
     "Rolling Next Subject": "Generating the next video subject...",
     "Video Generation in Progress": "Video generation is currently in progress. Please wait until it finishes before rolling the next subject.",
     "Roll Subject Failed": "Could not generate the next video subject",
-    "Next Video Subject Suggested": "A subject for the next video has been suggested."
+    "Next Video Subject Suggested": "A subject for the next video has been suggested.",
+    "Based on Recent": "Based on recent",
+    "Based on Recent Help": "When enabled, suggest a subject within the category of the latest generated videos. Turn it off for a completely random category."
   }
 }

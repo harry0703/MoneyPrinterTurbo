@@ -228,6 +228,8 @@
     "Rolling Next Subject": "Đang tạo chủ đề video tiếp theo...",
     "Video Generation in Progress": "Video đang được tạo. Vui lòng đợi hoàn tất trước khi gợi ý chủ đề tiếp theo.",
     "Roll Subject Failed": "Không thể tạo chủ đề video tiếp theo",
-    "Next Video Subject Suggested": "Đã gợi ý chủ đề cho video tiếp theo."
+    "Next Video Subject Suggested": "Đã gợi ý chủ đề cho video tiếp theo.",
+    "Based on Recent": "Dựa trên video gần đây",
+    "Based on Recent Help": "Khi bật, gợi ý chủ đề trong cùng danh mục với các video mới tạo gần đây. Tắt để chọn danh mục hoàn toàn ngẫu nhiên."
   }
 }

@@ -228,6 +228,8 @@
     "Rolling Next Subject": "Membuat topik video berikutnya...",
     "Video Generation in Progress": "Pembuatan video sedang berlangsung. Tunggu hingga selesai sebelum menyarankan topik berikutnya.",
     "Roll Subject Failed": "Topik video berikutnya tidak dapat dibuat",
-    "Next Video Subject Suggested": "Topik untuk video berikutnya telah disarankan."
+    "Next Video Subject Suggested": "Topik untuk video berikutnya telah disarankan.",
+    "Based on Recent": "Berdasarkan video terbaru",
+    "Based on Recent Help": "Jika aktif, sarankan topik dalam kategori video yang baru dibuat. Matikan untuk kategori yang sepenuhnya acak."
   }
 }

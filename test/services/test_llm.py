@@ -145,6 +145,40 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertEqual(result, "Error: invalid API key")
         self.assertEqual(generate.call_count, 5)
 
+    def test_generate_next_video_subject_random_mode_ignores_recent_category(self):
+        captured = {}
+
+        def fake_generate_response(prompt):
+            captured["prompt"] = prompt
+            return "A beginner's guide to astronomy"
+
+        with patch.object(llm, "_generate_response", side_effect=fake_generate_response):
+            result = llm.generate_next_video_subject(
+                video_subject="Coffee brewing basics",
+                recent_subjects=["Coffee grinder settings", "Coffee bean storage"],
+                based_on_recent=False,
+                excluded_subjects=["Coffee brewing basics", "Coffee grinder settings"],
+            )
+
+        self.assertEqual(result, "A beginner's guide to astronomy")
+        self.assertIn("Choose a completely random subject from any category", captured["prompt"])
+        self.assertIn("NEVER REPEAT", captured["prompt"])
+        self.assertIn("Coffee grinder settings", captured["prompt"])
+
+    def test_generate_next_video_subject_rejects_exact_duplicate(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            side_effect=["Coffee grinder settings", "A new coffee experiment"],
+        ) as generate:
+            result = llm.generate_next_video_subject(
+                video_subject="Coffee",
+                excluded_subjects=["Coffee grinder settings"],
+            )
+
+        self.assertEqual(result, "A new coffee experiment")
+        self.assertEqual(generate.call_count, 2)
+
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
         按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，
