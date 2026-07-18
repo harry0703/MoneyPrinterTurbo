@@ -63,6 +63,54 @@ class TestVideoService(unittest.TestCase):
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
 
+    def test_delete_files_deduplicates_paths_and_ignores_missing_files(self):
+        """
+        循环片段会让同一路径在拼接列表中重复出现，清理时每个路径只能删除一次。
+
+        已不存在的文件属于幂等清理的正常状态，不应再产生误导用户的失败日志。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            existing_file = os.path.join(temp_dir, "temp-clip-1.mp4")
+            missing_file = os.path.join(temp_dir, "already-removed.mp4")
+            Path(existing_file).write_bytes(b"temporary clip")
+
+            original_remove = os.remove
+            with (
+                patch.object(vd.os, "remove", wraps=original_remove) as remove,
+                patch.object(vd.logger, "warning") as warning,
+            ):
+                vd.delete_files(
+                    [
+                        existing_file,
+                        existing_file,
+                        missing_file,
+                        missing_file,
+                    ]
+                )
+
+        self.assertEqual(
+            [item.args[0] for item in remove.call_args_list],
+            [existing_file, missing_file],
+        )
+        warning.assert_not_called()
+
+    def test_delete_files_logs_actionable_os_errors(self):
+        """权限等真实清理失败必须保留路径和系统错误，方便定位残留文件。"""
+        with (
+            patch.object(
+                vd.os,
+                "remove",
+                side_effect=PermissionError("permission denied"),
+            ),
+            patch.object(vd.logger, "warning") as warning,
+        ):
+            vd.delete_files(["protected-temp-clip.mp4"])
+
+        warning.assert_called_once()
+        message = warning.call_args.args[0]
+        self.assertIn("protected-temp-clip.mp4", message)
+        self.assertIn("permission denied", message)
+
     def test_generate_video_reports_successful_bgm_mix_and_closes_sources(self):
         """BGM 混合成功后应返回 True，并释放所有原始文件 reader。"""
         params = vd.VideoParams(
