@@ -44,6 +44,12 @@ Generate a script for a video, depending on the subject of the video.
 8. respond in the same language as the video subject.
 """.strip()
 
+SEARCH_TERMS_SYSTEM_PROMPT = """You generate stock-video search terms from supplied video context.
+Follow the requested JSON-only schema and do not add commentary."""
+
+SOCIAL_METADATA_SYSTEM_PROMPT = """You generate social publishing metadata from supplied video context.
+Follow the requested JSON-only schema and do not add commentary."""
+
 
 def _normalize_text_response(content, llm_provider: str) -> str:
     # 不同 LLM SDK 在异常或被拦截场景下，可能返回 None、空字符串，
@@ -681,7 +687,9 @@ Please note that you must use English for generating video search terms; Chinese
     response = ""
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt)
+            response = _generate_response(
+                prompt, instructions=SEARCH_TERMS_SYSTEM_PROMPT
+            )
             if response.startswith("Error: "):
                 # generate_terms 的公开返回类型是 List[str]。如果把 Provider 的
                 # 错误文案原样返回，下游只做空值判断时会把非空字符串误认为成功，
@@ -961,7 +969,9 @@ def generate_social_metadata(
     response = ""
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt)
+            response = _generate_response(
+                prompt, instructions=SOCIAL_METADATA_SYSTEM_PROMPT
+            )
             if isinstance(response, str) and "Error: " in response:
                 logger.error(f"failed to generate social metadata: {response}")
                 break

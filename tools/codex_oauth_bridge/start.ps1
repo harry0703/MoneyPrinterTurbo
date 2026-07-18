@@ -12,9 +12,9 @@ if (-not $command) {
     throw 'Standalone Codex CLI not found. Install it with: npm install -g @openai/codex'
 }
 
-& $CodexExecutable login status
-if ($LASTEXITCODE -ne 0) {
-    throw 'Codex is not signed in. Run: codex login'
+$loginStatus = (& $CodexExecutable login status 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $loginStatus -ne 'Logged in using ChatGPT') {
+    throw 'Codex must be signed in using ChatGPT OAuth. Run: codex login'
 }
 
 if (-not $env:CODEX_BRIDGE_TOKEN) {

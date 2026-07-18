@@ -9,10 +9,37 @@ from app.services import codex_bridge
 
 def test_normalize_timeout_defaults_invalid_values_and_bounds_valid_numbers() -> None:
     assert codex_bridge.normalize_timeout("invalid") == 300
+    assert codex_bridge.normalize_timeout("30") == 30
+    assert codex_bridge.normalize_timeout("600") == 600
+    assert codex_bridge.normalize_timeout("900") == 900
+    assert codex_bridge.normalize_timeout("30.5") == 300
     assert codex_bridge.normalize_timeout(True) == 300
     assert codex_bridge.normalize_timeout(1) == 30
     assert codex_bridge.normalize_timeout(1_000) == 900
     assert codex_bridge.normalize_timeout(45) == 45
+
+
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        ("auth_required", "Codex ChatGPT OAuth login is required."),
+        ("usage_limit", "Codex ChatGPT usage limit has been reached."),
+    ],
+)
+def test_generate_maps_oauth_account_errors_without_remote_content(
+    monkeypatch: pytest.MonkeyPatch, code: str, message: str
+) -> None:
+    response = Mock(ok=False, status_code=502)
+    response.json.return_value = {
+        "error": {"code": code, "message": "private subscription and prompt details"}
+    }
+    monkeypatch.setattr(codex_bridge.requests, "post", Mock(return_value=response))
+
+    with pytest.raises(codex_bridge.CodexBridgeError) as error:
+        codex_bridge.generate("http://bridge", "secret", "rules", "episode")
+
+    assert str(error.value) == message
+    assert "private" not in str(error.value)
 
 
 def test_generate_sends_authenticated_bounded_request(monkeypatch: pytest.MonkeyPatch) -> None:

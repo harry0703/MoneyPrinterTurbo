@@ -4,12 +4,18 @@ import argparse
 import hmac
 import json
 import os
+import select
 import shutil
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from tools.codex_oauth_bridge.codex_runner import CodexRunError, run_codex
+from tools.codex_oauth_bridge.codex_runner import (
+    CodexRunError,
+    run_codex,
+    verify_chatgpt_oauth,
+)
 
 
 MAX_REQUEST_BYTES = 262_144
@@ -28,6 +34,23 @@ BUSY_ERROR = {
         "message": "Codex bridge is processing another request",
     }
 }
+
+
+def _watch_client_disconnect(
+    connection: socket.socket,
+    cancel_event: threading.Event,
+    stop_event: threading.Event,
+) -> None:
+    """Cancel generation if the HTTP peer closes before a response is ready."""
+    while not stop_event.wait(0.05):
+        try:
+            readable, _, _ = select.select([connection], [], [], 0)
+            if readable and connection.recv(1, socket.MSG_PEEK) == b"":
+                cancel_event.set()
+                return
+        except OSError:
+            cancel_event.set()
+            return
 
 
 class CodexBridgeServer(ThreadingHTTPServer):
@@ -156,6 +179,14 @@ class CodexBridgeRequestHandler(BaseHTTPRequestHandler):
         if not self.bridge_server.generation_semaphore.acquire(blocking=False):
             self._send_json(429, BUSY_ERROR)
             return
+        cancel_event = threading.Event()
+        stop_watcher = threading.Event()
+        watcher = threading.Thread(
+            target=_watch_client_disconnect,
+            args=(self.connection, cancel_event, stop_watcher),
+            daemon=True,
+        )
+        watcher.start()
         try:
             output_text = run_codex(
                 instructions=instructions,
@@ -163,6 +194,7 @@ class CodexBridgeRequestHandler(BaseHTTPRequestHandler):
                 model=model,
                 timeout_seconds=timeout_seconds,
                 executable=self.bridge_server.codex_executable,
+                cancel_event=cancel_event,
             )
             try:
                 output_size = len(output_text.encode("utf-8"))
@@ -181,6 +213,8 @@ class CodexBridgeRequestHandler(BaseHTTPRequestHandler):
             )
             return
         finally:
+            stop_watcher.set()
+            watcher.join(timeout=1)
             self.bridge_server.generation_semaphore.release()
 
         self._send_json(200, {"output_text": output_text})
@@ -205,6 +239,8 @@ def main(argv: list[str] | None = None) -> int:
     bridge_token = os.environ.get("CODEX_BRIDGE_TOKEN")
     if not bridge_token:
         parser.error("CODEX_BRIDGE_TOKEN environment variable is required")
+
+    verify_chatgpt_oauth(arguments.codex_executable)
 
     bridge = create_server(
         arguments.host,

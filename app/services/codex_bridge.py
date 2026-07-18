@@ -20,6 +20,9 @@ _REMOTE_ERROR_MESSAGES = {
     "codex_failed": "Codex bridge generation failed.",
     "invalid_output": "Codex bridge returned an invalid response.",
     "invalid_request": "Codex bridge rejected the request.",
+    "auth_required": "Codex ChatGPT OAuth login is required.",
+    "usage_limit": "Codex ChatGPT usage limit has been reached.",
+    "cancelled": "Codex bridge generation was cancelled.",
 }
 _REMOTE_STATUS_MESSAGES = {
     401: _REMOTE_ERROR_MESSAGES["unauthorized"],
@@ -35,6 +38,11 @@ class CodexBridgeError(RuntimeError):
 
 def normalize_timeout(value: object) -> int:
     """Return a bridge-safe timeout, defaulting invalid values to five minutes."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped or not stripped.isascii() or not stripped.isdecimal():
+            return DEFAULT_TIMEOUT_SECONDS
+        value = int(stripped)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return DEFAULT_TIMEOUT_SECONDS
     if isinstance(value, float) and not value.is_integer():

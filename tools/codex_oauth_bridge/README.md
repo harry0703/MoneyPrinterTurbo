@@ -20,7 +20,8 @@ codex login
 ```
 
 Complete the browser sign-in flow, then confirm that the standalone CLI is
-signed in:
+signed in. The status must be exactly `Logged in using ChatGPT`; API-key login,
+signed-out, and unrecognized status modes are rejected:
 
 ```powershell
 codex login status
@@ -122,16 +123,27 @@ The bridge token is required for every generation request. Treat it like a
 local password and do not include it in screenshots, issue reports, logs, or
 shell history.
 
+The launcher checks ChatGPT OAuth before listening, and the bridge checks it
+again before every generation so switching the CLI to API-key authentication
+does not bypass the OAuth-only provider. Each Codex child receives only a
+small allowlist of OS/OAuth-location variables; the bridge token, API keys,
+cloud credentials, and unrelated host variables are not inherited. Codex runs
+in an empty temporary directory with its shell and other non-text features
+disabled. Raw event output is bounded while it is read, and timeout or client
+disconnect terminates the process tree before another request may start.
+
 ## Error guide
 
 | Symptom | Meaning and action |
 | --- | --- |
 | `Standalone Codex CLI not found...` | Install the standalone CLI with `npm install -g @openai/codex`, open a new PowerShell window, and retry. |
-| `Codex is not signed in...` | Run `codex login` in the same Windows account, then retry. |
+| `Codex must be signed in using ChatGPT OAuth...` | Run `codex login` in the same Windows account and confirm `codex login status` prints `Logged in using ChatGPT`. API-key login is intentionally rejected. |
 | `Set CODEX_BRIDGE_TOKEN...` | Set a high-entropy bridge token in the current PowerShell session and restart the launcher. |
 | PowerShell says running scripts is disabled | Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` for this session only, then retry. |
 | Health check cannot connect | Start the bridge first; verify the host and port, and keep the bridge PowerShell window open. |
 | WebUI reports `401` / `Invalid bridge token` | Re-enter the same bridge token in the Codex Bridge Token field. Do not substitute OAuth data. |
 | WebUI reports `429` / `busy` | One generation is already running; wait for it to finish and retry. |
 | WebUI reports `502` | The local Codex CLI failed; check that `codex login status` succeeds without sharing its credential files or output that contains secrets. |
+| WebUI reports `Codex ChatGPT OAuth login is required` | The CLI is signed out, uses API-key authentication, or changed authentication mode after the bridge started. Sign in again with `codex login`. |
+| WebUI reports `Codex ChatGPT usage limit has been reached` | The signed-in ChatGPT account has no available Codex usage. Wait for the account limit to reset or change the subscription outside MoneyPrinterTurbo. |
 | WebUI reports `504` / `timeout` | Increase the Codex Bridge Timeout within the 30–900 second range, or shorten the request. |

@@ -127,8 +127,9 @@ class TestScriptPromptOptions(unittest.TestCase):
         """
         captured = {}
 
-        def fake_generate_response(prompt):
+        def fake_generate_response(prompt, **kwargs):
             captured["prompt"] = prompt
+            captured["instructions"] = kwargs.get("instructions", "")
             return '["opening city", "middle office", "final sunset"]'
 
         with patch.object(
@@ -144,6 +145,7 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertEqual(result, ["opening city", "middle office", "final sunset"])
         self.assertIn("chronological stock-video search terms", captured["prompt"])
         self.assertIn("same order as the script narration", captured["prompt"])
+        self.assertTrue(captured["instructions"])
 
     def test_generate_terms_returns_empty_list_on_provider_error(self):
         """
@@ -287,6 +289,32 @@ class TestLiteLLMProvider(unittest.TestCase):
             model_name="",
             timeout_seconds="300",
         )
+
+    def test_codex_terms_use_nonempty_task_instructions(self):
+        config.app.update({"llm_provider": "codex_oauth"})
+        with patch.object(
+            llm.codex_bridge, "generate", return_value='["coffee beans"]'
+        ) as generate:
+            self.assertEqual(
+                llm.generate_terms("Coffee", "Roast the beans.", amount=1),
+                ["coffee beans"],
+            )
+
+        self.assertIn("search terms", generate.call_args.kwargs["instructions"].lower())
+        self.assertTrue(generate.call_args.kwargs["instructions"].strip())
+
+    def test_codex_social_metadata_uses_nonempty_task_instructions(self):
+        config.app.update({"llm_provider": "codex_oauth"})
+        payload = '{"title":"Coffee","caption":"Brew it","hashtags":["#coffee"]}'
+        with (
+            patch.object(llm.codex_bridge, "generate", return_value=payload) as generate,
+            patch.object(llm, "_max_retries", 1),
+        ):
+            result = llm.generate_social_metadata("Coffee", "Brew it.")
+
+        self.assertEqual(result["title"], "Coffee")
+        self.assertIn("metadata", generate.call_args.kwargs["instructions"].lower())
+        self.assertTrue(generate.call_args.kwargs["instructions"].strip())
 
     def test_openai_compatible_adapter_combines_instructions_and_input(self):
         config.app.update(
