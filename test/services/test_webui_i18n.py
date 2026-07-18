@@ -87,14 +87,14 @@ class TestWebuiI18n(unittest.TestCase):
 
         self.assertEqual(sorted(required_en_keys - ru_keys), [])
 
-    def test_russian_locale_does_not_duplicate_provider_tips(self):
+    def test_russian_locale_only_contains_required_codex_oauth_provider_tip(self):
         ru_keys = set(_load_translation("ru"))
 
         self.assertEqual(
             sorted(
                 key for key in ru_keys if key.startswith(LLM_PROVIDER_TIPS_PREFIX)
             ),
-            [],
+            ["llm_provider_tips.codex_oauth"],
         )
 
         self.assertEqual(

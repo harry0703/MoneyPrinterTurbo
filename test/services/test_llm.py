@@ -457,6 +457,37 @@ class TestLiteLLMProvider(unittest.TestCase):
                 self.assertNotIn("{default_model}", rendered)
                 self.assertNotIn("{default_base_url}", rendered)
 
+    def test_codex_oauth_locale_keys_are_available_in_every_locale(self):
+        """Codex OAuth controls must be selectable in every supported locale."""
+        i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
+        required_keys = {
+            "Codex Bridge Token",
+            "Codex Bridge Timeout",
+            "llm_provider_label.codex_oauth",
+            "llm_provider_tips.codex_oauth",
+        }
+        for locale_file in i18n_dir.glob("*.json"):
+            translations = json.loads(locale_file.read_text(encoding="utf-8"))["Translation"]
+            self.assertTrue(
+                required_keys.issubset(translations),
+                f"{locale_file.stem} is missing {sorted(required_keys - translations.keys())}",
+            )
+
+    def test_config_example_exposes_codex_oauth_bridge_settings(self):
+        """The example config documents all bridge settings without an API key."""
+        config_path = Path(__file__).parent.parent.parent / "config.example.toml"
+        example_config = config_path.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "# Codex CLI authenticated through ChatGPT OAuth. Start the host bridge first.",
+            example_config,
+        )
+        self.assertIn('codex_oauth_base_url = ""', example_config)
+        self.assertIn('codex_oauth_model_name = ""', example_config)
+        self.assertIn('codex_oauth_bridge_token = ""', example_config)
+        self.assertIn('codex_oauth_timeout_seconds = "300"', example_config)
+        self.assertNotIn("codex_oauth_api_key", example_config)
+
     def test_primary_provider_tips_use_consistent_structure(self):
         """中英文配置说明统一展示 API Key、Base URL 和模型名称。"""
         i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
@@ -465,9 +496,12 @@ class TestLiteLLMProvider(unittest.TestCase):
                 (i18n_dir / f"{language}.json").read_text(encoding="utf-8")
             )["Translation"]
             for provider in LLM_PROVIDER_REGISTRY:
-                # Task 5 owns the Codex OAuth WebUI and locale copy. Keep this
-                # service-layer task from requiring those not-yet-added strings.
                 if provider.provider_id == "codex_oauth":
+                    tips = translations[provider.tips_key]
+                    self.assertTrue(tips.startswith("##### "), provider.provider_id)
+                    self.assertNotIn("**API Key**", tips, provider.provider_id)
+                    self.assertIn("`codex login`", tips, provider.provider_id)
+                    self.assertIn("`CODEX_BRIDGE_TOKEN`", tips, provider.provider_id)
                     continue
                 tips = translations[provider.tips_key]
                 self.assertTrue(tips.startswith("##### "), provider.provider_id)
@@ -542,9 +576,17 @@ class TestLiteLLMProvider(unittest.TestCase):
                 )
             for field in provider.extra_fields:
                 if field.default_value:
+                    expected_value = ""
+                    if (
+                        provider.provider_id == "codex_oauth"
+                        and field.config_suffix == "timeout_seconds"
+                    ):
+                        # The bridge timeout is a required example setting, not
+                        # an implicit Registry-only default like other fields.
+                        expected_value = field.default_value
                     self.assertEqual(
                         app_config.get(provider.config_key(field.config_suffix), ""),
-                        "",
+                        expected_value,
                         provider.provider_id,
                     )
 

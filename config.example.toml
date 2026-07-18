@@ -93,6 +93,12 @@ openai_api_key = ""
 openai_base_url = ""
 openai_model_name = ""
 
+# Codex CLI authenticated through ChatGPT OAuth. Start the host bridge first.
+codex_oauth_base_url = ""
+codex_oauth_model_name = ""
+codex_oauth_bridge_token = ""
+codex_oauth_timeout_seconds = "300"
+
 # Google Gemini
 # API key: https://aistudio.google.com/app/apikey
 gemini_api_key = ""
