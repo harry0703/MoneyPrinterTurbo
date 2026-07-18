@@ -264,7 +264,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/generate \\
   -d '{"video_subject":"","roll_next_subject":true,"based_on_recent":false}'
 ```
 
-`/api/v1/generate` 接受 `VideoParams` 中的视频、配音、字幕等参数；当 `roll_next_subject` 为 `false` 时必须提供 `video_subject`。视频生成仍然通过任务队列在后台执行，可使用返回的 `task_id` 查询 `/api/v1/tasks/{task_id}`。
+`/api/v1/generate` 接受 `VideoParams` 中的视频、配音、字幕等参数；当 `roll_next_subject` 为 `false` 时必须提供 `video_subject`。如果省略生成参数，接口会优先复用 `config.toml` 的 `[ui]` 默认设置，包括 TTS Provider、音色、字体、字幕位置、字幕颜色、字体大小和字幕背景；只有没有配置默认音色时才根据 `video_language` 选择 Azure/Edge 音色。如需静音，请显式传入 `"no-voice"`。视频生成仍然通过任务队列在后台执行，可使用返回的 `task_id` 查询 `/api/v1/tasks/{task_id}`。
 
 ### 手动部署 📦
 

@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import pathlib
 import shutil
@@ -35,6 +36,7 @@ from app.services import bgm as bgm_service
 from app.services import llm
 from app.services import state as sm
 from app.services import task as tm
+from app.services import voice
 from app.utils import file_security, utils
 
 # 认证依赖项
@@ -62,6 +64,114 @@ else:
         max_concurrent_tasks=_max_concurrent_tasks,
         max_queued_tasks=_max_queued_tasks,
     )
+
+
+def _json_safe_payload(payload):
+    """Convert optional bytes/custom values before Starlette renders JSON."""
+    serialized = utils.to_json(payload)
+    if serialized is None:
+        raise ValueError("failed to serialize API response")
+    return json.loads(serialized)
+
+
+def _default_api_voice(video_language: str | None) -> str:
+    """Resolve the WebUI [ui] voice before falling back to a language voice."""
+    ui_voice_mode = str(config.ui.get("voice_mode", "tts") or "tts").strip().lower()
+    if ui_voice_mode == "none":
+        return voice.NO_VOICE_NAME
+
+    configured_voice = str(config.ui.get("voice_name", "") or "").strip()
+    configured_tts_server = str(
+        config.ui.get("tts_server", "azure-tts-v1") or "azure-tts-v1"
+    ).strip().lower()
+    if configured_voice:
+        # Chatterbox settings are sometimes stored as just the voice id in older
+        # configs. The dispatcher requires the provider prefix.
+        if configured_tts_server == "chatterbox" and ":" not in configured_voice:
+            return f"chatterbox:{configured_voice}"
+        return configured_voice
+
+    if configured_tts_server == "chatterbox":
+        configured_chatterbox_voices = voice.get_chatterbox_voices()
+        if configured_chatterbox_voices:
+            return configured_chatterbox_voices[0]
+
+    language = str(video_language or "").strip().replace("_", "-").lower()
+    try:
+        all_voices = [
+            voice_name
+            for voice_name in voice.get_all_azure_voices(filter_locals=None)
+            if "V2" not in voice_name
+        ]
+    except (OSError, ValueError):
+        all_voices = []
+
+    if language:
+        exact_matches = [
+            voice_name
+            for voice_name in all_voices
+            if voice_name.lower().startswith(f"{language}-")
+        ]
+        if exact_matches:
+            return exact_matches[0]
+
+        language_prefix = language.split("-", 1)[0]
+        language_matches = [
+            voice_name
+            for voice_name in all_voices
+            if voice_name.lower().startswith(f"{language_prefix}-")
+        ]
+        if language_matches:
+            return language_matches[0]
+
+    # Preserve the project's established default for auto-detected/unknown
+    # languages. Clients can always override this with voice_name or no-voice.
+    return "zh-CN-XiaoxiaoNeural-Female"
+
+
+def _provided_fields(body) -> set[str]:
+    fields = getattr(body, "model_fields_set", None)
+    if fields is None:
+        fields = getattr(body, "__fields_set__", set())
+    return set(fields or set())
+
+
+def _apply_api_ui_defaults(body) -> None:
+    """Apply values from config.toml [ui] to omitted API generation fields."""
+    ui = config.ui
+    provided_fields = _provided_fields(body)
+
+    ui_defaults = {
+        "font_name": ui.get("font_name"),
+        "subtitle_position": ui.get("subtitle_position"),
+        "custom_position": ui.get("custom_position"),
+        "text_fore_color": ui.get("text_fore_color"),
+        "font_size": ui.get("font_size"),
+        "voice_volume": ui.get("voice_volume"),
+        "voice_rate": ui.get("voice_rate"),
+        "subtitle_enabled": ui.get("subtitle_enabled"),
+    }
+    for field_name, value in ui_defaults.items():
+        if field_name not in provided_fields and value is not None:
+            setattr(body, field_name, value)
+
+    if "text_background_color" not in provided_fields and (
+        "subtitle_background_enabled" in ui or "subtitle_background_color" in ui
+    ):
+        body.text_background_color = (
+            ui.get("subtitle_background_color", "#000000")
+            if bool(ui.get("subtitle_background_enabled", False))
+            else False
+        )
+    if "rounded_subtitle_background" not in provided_fields:
+        value = ui.get("rounded_subtitle_background")
+        if value is not None:
+            body.rounded_subtitle_background = bool(value)
+
+    if not str(getattr(body, "voice_name", "") or "").strip():
+        body.voice_name = _default_api_voice(
+            getattr(body, "video_language", "")
+        )
 
 
 def _sanitize_upload_filename(filename: str, request_id: str) -> str:
@@ -247,7 +357,7 @@ def generate_video_workflow(
         "video_script": video_script,
         "video_terms": video_terms,
     }
-    return utils.get_response(200, response)
+    return utils.get_response(200, _json_safe_payload(response))
 
 
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
@@ -273,11 +383,20 @@ def create_audio(
 
 def create_task(
     request: Request,
-    body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
+    body: Union[
+        TaskVideoRequest,
+        GenerateVideoRequest,
+        SubtitleRequest,
+        AudioRequest,
+    ],
     stop_at: str,
 ):
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
+    # API callers do not go through the WebUI controls. Reuse [ui] defaults for
+    # omitted values, including the configured TTS provider and voice.
+    _apply_api_ui_defaults(body)
+
     try:
         task = {
             "task_id": task_id,
