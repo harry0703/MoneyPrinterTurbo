@@ -160,6 +160,20 @@ class TestRedisTaskManager(unittest.TestCase):
         self.assertEqual(decoded["kwargs"]["task_id"], "task-1")
         self.assertEqual(decoded["kwargs"]["params"]["video_subject"], "Coffee")
 
+    def test_enqueue_serializes_optional_bytes_without_failing(self):
+        """Optional binary/custom fields must not break Redis task creation."""
+        task = {
+            "func": task_service.start,
+            "args": (),
+            "kwargs": {"task_id": "task-1", "payload": b"not-json"},
+        }
+
+        self.manager.enqueue(task)
+
+        _, payload = self.redis_client.rpush.call_args.args
+        decoded = json.loads(payload)
+        self.assertEqual(decoded["kwargs"]["payload"], "*** binary data ***")
+
     def test_dequeue_restores_function_and_video_params(self):
         """从 Redis 取出的任务应恢复可调用函数和 VideoParams 模型。"""
         payload = {

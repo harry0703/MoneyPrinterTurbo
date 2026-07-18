@@ -13,6 +13,18 @@ FUNC_MAP = {
 }
 
 
+def _json_default(value):
+    """Keep queued task serialization safe for optional binary/custom fields."""
+    if isinstance(value, bytes):
+        return "*** binary data ***"
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json", warnings=False)
+    enum_value = getattr(value, "value", None)
+    if isinstance(enum_value, (str, int, float, bool)) or enum_value is None:
+        return enum_value
+    return str(value)
+
+
 class RedisTaskManager(TaskManager):
     def __init__(
         self,
@@ -37,11 +49,14 @@ class RedisTaskManager(TaskManager):
         if "params" in task_kwargs and isinstance(task_kwargs["params"], VideoParams):
             task_with_serializable_params["kwargs"]["params"] = task_kwargs[
                 "params"
-            ].model_dump(warnings=False)
+            ].model_dump(mode="json", warnings=False)
 
         # 将函数对象转换为其名称
         task_with_serializable_params["func"] = task["func"].__name__
-        self.redis_client.rpush(self.queue, json.dumps(task_with_serializable_params))
+        self.redis_client.rpush(
+            self.queue,
+            json.dumps(task_with_serializable_params, default=_json_default),
+        )
 
     def dequeue(self):
         task_json = self.redis_client.lpop(self.queue)
