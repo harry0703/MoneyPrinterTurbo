@@ -53,6 +53,7 @@ def _run_generation(
     task_id: str,
     params: VideoParams,
     capture_logs: bool,
+    voice_preview: dict | None = None,
 ) -> dict:
     """
     在后台线程中执行现有视频流水线。
@@ -76,7 +77,11 @@ def _run_generation(
         # 完整任务仍使用原来的配置锁，防止另一个 WebUI 会话在生成中途修改
         # Provider、密钥等进程级配置，造成同一条视频前后使用不同设置。
         with config.runtime_config_lock():
-            return tm.start(task_id=task_id, params=params)
+            return tm.start(
+                task_id=task_id,
+                params=params,
+                voice_preview=voice_preview,
+            )
     except Exception as exc:
         # tm.start 已负责把流水线异常转换成失败状态；这里额外保护日志 sink、
         # 配置锁等 WebUI 包装层。任何后台线程异常都必须留下终态，不能让任务
@@ -115,6 +120,7 @@ def submit_generation(
     task_id: str,
     params: VideoParams,
     capture_logs: bool = True,
+    voice_preview: dict | None = None,
 ) -> None:
     """
     登记并提交 WebUI 视频生成任务，调用后立即返回。
@@ -123,6 +129,9 @@ def submit_generation(
     浏览器刷新或 WebSocket 重连也不依赖旧页面内存中的占位符。
     """
     task_params = params.model_copy(deep=True)
+    # 预览载荷只包含不可变音频路径、参数快照和只读字幕时间轴。复制外层字典，
+    # 避免页面后续 rerun 替换缓存字段时影响已经提交到后台队列的任务。
+    voice_preview_snapshot = dict(voice_preview) if voice_preview else None
     sm.state.update_task(
         task_id,
         state=const.TASK_STATE_PROCESSING,
@@ -135,6 +144,7 @@ def submit_generation(
             task_id=task_id,
             params=task_params,
             capture_logs=capture_logs,
+            voice_preview=voice_preview_snapshot,
         )
     except Exception as exc:
         # 调度失败与流水线失败一样必须成为可查询状态，避免任务管理器永久显示

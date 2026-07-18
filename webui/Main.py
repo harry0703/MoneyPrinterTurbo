@@ -1,6 +1,7 @@
 import hashlib
 import html
 import json
+import math
 import mimetypes
 import os
 import re
@@ -2373,76 +2374,391 @@ def _render_video_settings(panel, params):
     return uploaded_files
 
 
+def _estimate_voiceover_duration_range(
+    text: str, voice_rate: float
+) -> tuple[float, float] | None:
+    """
+    在本地估算完整配音时长，返回保守的上下界秒数。
+
+    该估算只用于帮助用户在调用付费 TTS 前判断文案量级，不参与任务执行。
+    中文、日文和韩文按字符速度估算，其它使用空格分词的语言按单词速度估算，
+    再计入常见标点停顿。不同 Provider、音色和语气会造成实际偏差，因此界面
+    必须展示区间而不是伪精确的单一结果。
+    """
+    normalized_text = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not normalized_text:
+        return None
+
+    script_chars = re.findall(
+        r"[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]",
+        normalized_text,
+    )
+    remaining_text = re.sub(
+        r"[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]",
+        " ",
+        normalized_text,
+    )
+    words = re.findall(r"\b[\w]+(?:[-'’][\w]+)*\b", remaining_text, re.UNICODE)
+    punctuation_count = len(re.findall(r"[,，.。!?！？;；:：]", normalized_text))
+
+    # 4.2 字/秒和 2.6 词/秒接近日常解说语速；标点按 0.12 秒加入轻微停顿。
+    # voice_rate 只作为估算修正项。部分生成式 TTS 不严格执行倍率，所以最终
+    # 仍保留 ±15% 区间，避免让用户误以为该值等同于服务端真实结果。
+    base_seconds = len(script_chars) / 4.2 + len(words) / 2.6 + punctuation_count * 0.12
+    if base_seconds <= 0:
+        return None
+
+    normalized_rate = max(float(voice_rate or 1.0), 0.1)
+    estimated_seconds = base_seconds / normalized_rate
+    return (
+        round(max(estimated_seconds * 0.85, 1.0), 1),
+        round(max(estimated_seconds * 1.15, 1.0), 1),
+    )
+
+
+def _get_voice_preview_sample(voice_name: str) -> str:
+    """返回适合当前音色的短试听文案，不使用用户的完整视频文案。"""
+    # ElevenLabs 音色缺少明确语言字段时，根据展示名称中的越南语字符选择
+    # 试听文案，避免用明显不匹配的语言判断音色效果。
+    if voice.is_elevenlabs_voice(voice_name):
+        parts = voice_name.split(":", 2)
+        display = parts[2] if len(parts) >= 3 else ""
+        vietnamese_chars = set("àáâãèéêìíòóôõùúýăđơưÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝĂĐƠƯ")
+        if any(char in vietnamese_chars for char in display):
+            return "Xin chào, đây là đoạn âm thanh thử nghiệm giọng nói."
+    return tr("Voice Example")
+
+
+def _voice_preview_fingerprint(
+    *,
+    preview_type: str,
+    content: str,
+    tts_server: str,
+    voice_name: str,
+    voice_rate: float,
+    voice_volume: float,
+    provider_signature: dict,
+) -> str:
+    """生成试听缓存指纹，任一配音参数变化后自动让旧试听结果失效。"""
+    payload = {
+        "preview_type": preview_type,
+        "content": content,
+        "tts_server": tts_server,
+        "voice_name": voice_name,
+        "voice_rate": voice_rate,
+        "voice_volume": voice_volume,
+        "provider_signature": provider_signature,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _credential_signature(value: str) -> str:
+    """
+    生成只用于缓存失效判断的凭证摘要。
+
+    摘要不会写入配置、日志或任务文件。用户修改 API Key 后摘要会变化，从而
+    强制重新调用当前配音服务，避免旧试听缓存让无效的新凭证看起来可用。
+    """
+    normalized_value = str(value or "")
+    if not normalized_value:
+        return ""
+    return hashlib.sha256(normalized_value.encode("utf-8")).hexdigest()
+
+
+def _get_voice_preview_provider_signature(tts_server: str) -> dict:
+    """
+    返回会影响试听结果的非敏感 Provider 配置。
+
+    API Key 只以单向摘要参与缓存指纹，原始凭证不会进入缓存或日志。模型、
+    服务地址、区域或凭证发生变化时都必须重新生成试听，否则界面可能继续播放
+    旧 Provider 配置下的音频，让用户误判当前设置已经生效。
+    """
+    if tts_server == "azure-tts-v2":
+        return {
+            "speech_region": config.azure.get("speech_region", ""),
+            "credential": _credential_signature(config.azure.get("speech_key", "")),
+        }
+    if tts_server == "siliconflow":
+        return {
+            "credential": _credential_signature(config.siliconflow.get("api_key", ""))
+        }
+    if tts_server == "gemini-tts":
+        return {
+            "credential": _credential_signature(config.app.get("gemini_api_key", ""))
+        }
+    if tts_server == "mimo-tts":
+        return {"credential": _credential_signature(config.app.get("mimo_api_key", ""))}
+    if tts_server == "elevenlabs":
+        return {
+            "model_id": config.elevenlabs.get("model_id", ""),
+            "credential": _credential_signature(config.elevenlabs.get("api_key", "")),
+        }
+    if tts_server == "chatterbox":
+        return {
+            "base_url": config.chatterbox.get("base_url", ""),
+            "model_id": config.chatterbox.get("model_id", ""),
+            "credential": _credential_signature(config.chatterbox.get("api_key", "")),
+        }
+    return {}
+
+
+def _synthesize_voice_preview(
+    *,
+    content: str,
+    preview_type: str,
+    selected_tts_server: str,
+    voice_name: str,
+    voice_rate: float,
+    voice_volume: float,
+) -> dict | None:
+    """生成一次试听并转为内存缓存，临时文件不会跨会话长期保留。"""
+    if selected_tts_server == "chatterbox":
+        _sync_chatterbox_config_from_session_state()
+
+    temp_dir = utils.storage_dir("temp", create=True)
+    audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
+    logger.info(
+        f"generating {preview_type} voice preview: "
+        f"voice={voice_name}, rate={voice_rate}, volume={voice_volume}, "
+        f"text_length={len(content)}"
+    )
+    try:
+        with config.try_runtime_config_lock() as lock_acquired:
+            if not lock_acquired:
+                return {"busy": True}
+            sub_maker = voice.tts(
+                text=content,
+                voice_name=voice_name,
+                voice_rate=voice_rate,
+                voice_file=audio_file,
+                voice_volume=voice_volume,
+            )
+        if not sub_maker or not os.path.exists(audio_file):
+            logger.error(f"{preview_type} voice preview did not produce an audio file")
+            return None
+
+        with open(audio_file, "rb") as file:
+            audio_bytes = file.read()
+        if not audio_bytes:
+            logger.error(f"voice preview audio file is empty: {audio_file}")
+            return None
+
+        duration = voice.get_audio_duration(audio_file)
+        if (
+            not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration <= 0
+        ):
+            logger.warning(
+                f"voice preview duration is unavailable: "
+                f"preview_type={preview_type}, voice={voice_name}"
+            )
+            duration = None
+
+        return {
+            "audio_bytes": audio_bytes,
+            "mime_type": _detect_audio_mime(audio_file, audio_bytes),
+            "duration": duration,
+            "preview_type": preview_type,
+            "sub_maker": sub_maker,
+        }
+    finally:
+        # 浏览器播放器使用内存字节，文件读取完即可清理，避免频繁试听积累临时文件。
+        try:
+            os.remove(audio_file)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            # 清理失败不应覆盖真正的 TTS 响应或异常，但需要保留路径和系统错误，
+            # 方便排查权限、只读文件系统等环境问题。
+            logger.warning(
+                f"failed to delete voice preview file {audio_file}: {str(exc)}"
+            )
+
+
 def _render_voice_preview(params, friendly_names, selected_tts_server, voice_name):
-    """使用当前音色、音量和语速生成一段试听音频。"""
-    if not friendly_names or not st.button(
+    """渲染低成本短试听、完整文案时长估算和按需完整配音预览。"""
+    if not friendly_names:
+        return
+
+    script_content = str(params.video_script or "").strip()
+    estimated_range = _estimate_voiceover_duration_range(
+        script_content,
+        params.voice_rate,
+    )
+    if estimated_range:
+        st.caption(
+            tr("Estimated Voiceover Duration").format(
+                min=estimated_range[0],
+                max=estimated_range[1],
+            )
+        )
+    else:
+        st.caption(tr("Voiceover Script Required"))
+
+    sample_content = _get_voice_preview_sample(voice_name)
+    provider_signature = _get_voice_preview_provider_signature(selected_tts_server)
+    preview_columns = st.columns(2)
+    short_preview_requested = preview_columns[0].button(
         tr("Play Voice"),
         key="play_voice_button",
         icon=":material/graphic_eq:",
-    ):
-        return
+        use_container_width=True,
+    )
+    full_preview_requested = preview_columns[1].button(
+        tr("Generate Full Voiceover Preview"),
+        key="generate_full_voiceover_preview_button",
+        icon=":material/article:",
+        help=tr("Full Voiceover Preview Cost Hint"),
+        use_container_width=True,
+        disabled=not bool(script_content),
+    )
 
-    if selected_tts_server == "chatterbox":
-        _sync_chatterbox_config_from_session_state()
-    play_content = params.video_subject or params.video_script
-    if not play_content:
-        # ElevenLabs 音色缺少明确语言字段时，根据展示名称中的越南语字符
-        # 选择试听文案，避免用不匹配的语言判断音色效果。
-        if voice.is_elevenlabs_voice(voice_name):
-            parts = voice_name.split(":", 2)
-            display = parts[2] if len(parts) >= 3 else ""
-            vietnamese_chars = set("àáâãèéêìíòóôõùúýăđơưÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝĂĐƠƯ")
-            if any(char in vietnamese_chars for char in display):
-                play_content = "Xin chào, đây là đoạn âm thanh thử nghiệm giọng nói."
-            else:
-                play_content = tr("Voice Example")
-        else:
-            play_content = tr("Voice Example")
+    preview_type = ""
+    preview_content = ""
+    if short_preview_requested:
+        preview_type = "sample"
+        preview_content = sample_content
+    elif full_preview_requested:
+        preview_type = "full"
+        preview_content = script_content
 
-    with st.spinner(tr("Synthesizing Voice")):
-        temp_dir = utils.storage_dir("temp", create=True)
-        audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
-        logger.info(
-            "generating voice preview: "
-            f"voice={voice_name}, rate={params.voice_rate}, "
-            f"volume={params.voice_volume}"
+    sample_fingerprint = _voice_preview_fingerprint(
+        preview_type="sample",
+        content=sample_content,
+        tts_server=selected_tts_server,
+        voice_name=voice_name,
+        voice_rate=params.voice_rate,
+        voice_volume=params.voice_volume,
+        provider_signature=provider_signature,
+    )
+    full_fingerprint = (
+        _voice_preview_fingerprint(
+            preview_type="full",
+            content=script_content,
+            tts_server=selected_tts_server,
+            voice_name=voice_name,
+            voice_rate=params.voice_rate,
+            voice_volume=params.voice_volume,
+            provider_signature=provider_signature,
         )
-        with config.runtime_config_lock():
-            sub_maker = voice.tts(
-                text=play_content,
-                voice_name=voice_name,
-                voice_rate=params.voice_rate,
-                voice_file=audio_file,
-                voice_volume=params.voice_volume,
-            )
-            # 首次试听失败后仍在同一个配置锁中重试，避免两个请求之间
-            # 被其它标签页切换 TTS Provider 或 API Key。
-            if not sub_maker:
-                play_content = "This is an example voice."
-                sub_maker = voice.tts(
-                    text=play_content,
-                    voice_name=voice_name,
-                    voice_rate=params.voice_rate,
-                    voice_file=audio_file,
-                    voice_volume=params.voice_volume,
-                )
+        if script_content
+        else ""
+    )
 
-        if not sub_maker or not os.path.exists(audio_file):
-            return
-        try:
-            with open(audio_file, "rb") as file:
-                audio_bytes = file.read()
-            if audio_bytes:
-                st.audio(
-                    audio_bytes,
-                    format=_detect_audio_mime(audio_file, audio_bytes),
+    if preview_type:
+        requested_fingerprint = (
+            sample_fingerprint if preview_type == "sample" else full_fingerprint
+        )
+        cached_preview = st.session_state.get("voice_preview_audio")
+        if (
+            not cached_preview
+            or cached_preview.get("fingerprint") != requested_fingerprint
+        ):
+            try:
+                with st.spinner(tr("Synthesizing Voice")):
+                    preview_result = _synthesize_voice_preview(
+                        content=preview_content,
+                        preview_type=preview_type,
+                        selected_tts_server=selected_tts_server,
+                        voice_name=voice_name,
+                        voice_rate=params.voice_rate,
+                        voice_volume=params.voice_volume,
+                    )
+            except Exception as exc:
+                logger.exception(f"failed to generate {preview_type} voice preview")
+                st.error(tr("Voice Preview Failed").format(error=str(exc)))
+            else:
+                if preview_result and preview_result.get("busy"):
+                    st.warning(tr("Voice Preview Busy"))
+                elif preview_result:
+                    preview_result["fingerprint"] = requested_fingerprint
+                    st.session_state["voice_preview_audio"] = preview_result
+                else:
+                    st.error(tr("Voice Preview No Audio"))
+
+    cached_preview = st.session_state.get("voice_preview_audio")
+    valid_fingerprints = {sample_fingerprint, full_fingerprint}
+    if (
+        cached_preview
+        and cached_preview.get("fingerprint") in valid_fingerprints
+        and cached_preview.get("audio_bytes")
+    ):
+        st.audio(
+            cached_preview["audio_bytes"],
+            format=cached_preview.get("mime_type", "audio/mp3"),
+        )
+        if cached_preview.get("preview_type") == "full":
+            duration = cached_preview.get("duration")
+            if isinstance(duration, (int, float)) and duration > 0:
+                st.caption(
+                    tr("Actual Voiceover Duration").format(duration=f"{duration:.1f}")
                 )
             else:
-                logger.error(f"voice preview audio file is empty: {audio_file}")
-        finally:
-            # 试听文件只服务当前 rerun，渲染为内存数据后立即清理。
-            if os.path.exists(audio_file):
-                os.remove(audio_file)
+                st.warning(tr("Voice Preview Duration Unavailable"))
+
+
+def _get_reusable_full_voice_preview(params, voice_mode: str) -> dict | None:
+    """
+    返回与当前生成参数完全匹配的完整试听缓存。
+
+    只复用完整文案试听，短音色样例永远不能进入正式任务。指纹统一覆盖文案、
+    Provider、音色、语速、音量和非敏感配置摘要；任何参数变化都会自然回退到
+    正常 TTS 流程。字幕时间轴和有效时长同样是必需条件，避免只复用音频后让
+    Edge 字幕链路失去 SubMaker。
+    """
+    if voice_mode != VOICE_MODE_TTS:
+        return None
+
+    script_content = str(params.video_script or "").strip()
+    selected_tts_server = config.ui.get("tts_server", "azure-tts-v1")
+    if (
+        not script_content
+        or not params.voice_name
+        # 正式视频会在 MoviePy 合成阶段统一应用配音音量；部分 Provider 又会
+        # 在 TTS 阶段直接写入音量增益。非默认音量下复用试听可能造成二次增益，
+        # 因此先保守回退原流程，避免为少量场景引入 Provider 特判。
+        or not math.isclose(float(params.voice_volume), 1.0)
+    ):
+        return None
+
+    expected_fingerprint = _voice_preview_fingerprint(
+        preview_type="full",
+        content=script_content,
+        tts_server=selected_tts_server,
+        voice_name=params.voice_name,
+        voice_rate=params.voice_rate,
+        voice_volume=params.voice_volume,
+        provider_signature=_get_voice_preview_provider_signature(selected_tts_server),
+    )
+    cached_preview = st.session_state.get("voice_preview_audio")
+    if (
+        not cached_preview
+        or cached_preview.get("fingerprint") != expected_fingerprint
+        or cached_preview.get("preview_type") != "full"
+        or not cached_preview.get("audio_bytes")
+        or cached_preview.get("sub_maker") is None
+    ):
+        return None
+
+    duration = cached_preview.get("duration")
+    if (
+        not isinstance(duration, (int, float))
+        or not math.isfinite(duration)
+        or duration <= 0
+    ):
+        return None
+
+    return {
+        "audio_bytes": bytes(cached_preview["audio_bytes"]),
+        "duration": float(duration),
+        "sub_maker": cached_preview["sub_maker"],
+        "script": script_content,
+        "voice_name": params.voice_name,
+        "voice_rate": float(params.voice_rate),
+        "voice_volume": float(params.voice_volume),
+    }
 
 
 def _render_background_music_settings(params):
@@ -3469,6 +3785,26 @@ def _render_generation_controls(
                 if m.url:
                     params.video_materials.append(m)
 
+        reusable_voice_preview = _get_reusable_full_voice_preview(
+            params,
+            voice_mode,
+        )
+        if reusable_voice_preview:
+            # 试听缓存只存在当前 Streamlit 会话。提交前把音频写入目标任务目录，
+            # 后台线程随后只读取任务自己的文件；即使页面 rerun、浏览器关闭或
+            # 用户试听其它音色，也不会影响已经入队的生成任务。
+            preview_audio_file = os.path.join(
+                utils.task_dir(task_id),
+                "audio.mp3",
+            )
+            with open(preview_audio_file, "wb") as file:
+                file.write(reusable_voice_preview.pop("audio_bytes"))
+            reusable_voice_preview["audio_file"] = preview_audio_file
+            logger.info(
+                f"reuse full voice preview for task: "
+                f"task_id={task_id}, duration={reusable_voice_preview['duration']:.2f}s"
+            )
+
         try:
             st.toast(tr("Generating Video"))
             logger.info(tr("Start Generating Video"))
@@ -3477,6 +3813,7 @@ def _render_generation_controls(
                 task_id=task_id,
                 params=params,
                 capture_logs=not config.ui.get("hide_log", False),
+                voice_preview=reusable_voice_preview,
             )
         except Exception:
             _remove_active_generation_task(task_id)

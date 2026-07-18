@@ -337,8 +337,68 @@ def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> st
     return server_audio_file
 
 
-def generate_audio(task_id, params, video_script):
-    '''
+def _resolve_reusable_voice_preview(
+    task_id: str,
+    params,
+    video_script: str,
+    voice_preview: dict | None,
+) -> tuple[str, float, object] | None:
+    """
+    校验并解析 WebUI 提交的完整试听缓存。
+
+    该载荷不是公开 API 参数，只能来自当前进程的 WebUI。即便如此，后台任务
+    仍重新核对文案和全部配音参数，并限制音频位于当前任务目录；任何不一致都
+    回退普通 TTS，不让过期试听污染正式成片。
+    """
+    if not voice_preview:
+        return None
+
+    expected_values = {
+        "script": str(video_script or "").strip(),
+        "voice_name": params.voice_name,
+        "voice_rate": float(params.voice_rate),
+        "voice_volume": float(params.voice_volume),
+    }
+    if not math.isclose(float(params.voice_volume), 1.0) or any(
+        voice_preview.get(key) != value for key, value in expected_values.items()
+    ):
+        logger.info(
+            f"skip stale voice preview cache, task_id: {task_id}, "
+            "reason: voice parameters changed"
+        )
+        return None
+
+    preview_file = path.realpath(str(voice_preview.get("audio_file") or ""))
+    task_root = path.realpath(utils.task_dir(task_id))
+    try:
+        preview_is_task_local = path.commonpath([task_root, preview_file]) == task_root
+    except ValueError:
+        preview_is_task_local = False
+
+    duration = voice_preview.get("duration")
+    sub_maker = voice_preview.get("sub_maker")
+    if (
+        not preview_is_task_local
+        or not path.isfile(preview_file)
+        or not isinstance(duration, (int, float))
+        or not math.isfinite(duration)
+        or duration <= 0
+        or sub_maker is None
+    ):
+        logger.warning(
+            f"skip invalid voice preview cache, task_id: {task_id}, "
+            f"audio_file: {preview_file or '<empty>'}"
+        )
+        return None
+
+    logger.info(
+        f"using full voice preview audio, task_id: {task_id}, duration: {duration:.2f}s"
+    )
+    return preview_file, math.ceil(duration), sub_maker
+
+
+def generate_audio(task_id, params, video_script, voice_preview=None):
+    """
     Generate audio for the video script.
     If a custom audio file is provided, it will be used directly.
     There will be no subtitle maker object returned in this case.
@@ -347,7 +407,7 @@ def generate_audio(task_id, params, video_script):
         - audio_file: path to the generated or provided audio file
         - audio_duration: duration of the audio in seconds
         - sub_maker: subtitle maker object if TTS is used, None otherwise
-    '''
+    """
     logger.info("\n\n## generating audio")
     # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
     # 这里统一做兼容读取，避免直调接口时抛属性错误。
@@ -365,6 +425,15 @@ def generate_audio(task_id, params, video_script):
         return None, None, None
 
     if not custom_audio_file:
+        reusable_preview = _resolve_reusable_voice_preview(
+            task_id,
+            params,
+            video_script,
+            voice_preview,
+        )
+        if reusable_preview:
+            return reusable_preview
+
         logger.info("no custom audio file provided, using TTS to generate audio.")
         audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
         sub_maker = voice.tts(
@@ -925,7 +994,12 @@ def _schedule_cross_post(
     return None
 
 
-def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
+def _run_pipeline(
+    task_id,
+    params: VideoParams,
+    stop_at: str = "video",
+    voice_preview: dict | None = None,
+):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
@@ -984,7 +1058,10 @@ def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 3. Generate audio
     audio_file, audio_duration, sub_maker = generate_audio(
-        task_id, params, video_script
+        task_id,
+        params,
+        video_script,
+        voice_preview=voice_preview,
     )
     if not audio_file:
         return _mark_task_failed(
@@ -1126,10 +1203,20 @@ def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
     return kwargs
 
 
-def start(task_id, params: VideoParams, stop_at: str = "video"):
+def start(
+    task_id,
+    params: VideoParams,
+    stop_at: str = "video",
+    voice_preview: dict | None = None,
+):
     """执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。"""
     try:
-        return _run_pipeline(task_id, params, stop_at=stop_at)
+        return _run_pipeline(
+            task_id,
+            params,
+            stop_at=stop_at,
+            voice_preview=voice_preview,
+        )
     except Exception as exc:
         logger.exception(
             f"unexpected task pipeline failure, task_id: {task_id}, error: {exc}"

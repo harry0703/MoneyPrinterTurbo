@@ -87,6 +87,23 @@ def runtime_config_lock():
         yield
 
 
+@contextmanager
+def try_runtime_config_lock():
+    """
+    尝试获取运行期配置锁，并立即返回是否成功。
+
+    WebUI 试听属于用户主动触发的短操作，不应在后台视频任务持锁时等待数分钟。
+    调用方可以在未获取锁时就近提示用户稍后重试；成功获取后仍能保证试听期间
+    Provider、密钥和模型配置不会被其它会话修改。
+    """
+    acquired = _config_save_lock.acquire(blocking=False)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            _config_save_lock.release()
+
+
 def is_running_in_container(
     dockerenv_path: str = "/.dockerenv",
     containerenv_path: str = "/run/.containerenv",

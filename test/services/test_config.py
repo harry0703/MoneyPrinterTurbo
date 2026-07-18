@@ -124,3 +124,24 @@ class TestConfigPersistence:
         worker.join(timeout=1)
         assert config.app[key] == "unchanged"
         config.app.pop(key, None)
+
+    def test_try_runtime_config_lock_returns_immediately_when_busy(self):
+        """试听锁不能等待长任务释放全局配置，忙碌时应立即让 UI 提示重试。"""
+        attempted = threading.Event()
+        result = []
+
+        def try_lock():
+            with config.try_runtime_config_lock() as acquired:
+                result.append(acquired)
+            attempted.set()
+
+        with config.runtime_config_lock():
+            worker = threading.Thread(target=try_lock)
+            worker.start()
+            assert attempted.wait(timeout=0.2)
+
+        worker.join(timeout=1)
+        assert result == [False]
+
+        with config.try_runtime_config_lock() as acquired:
+            assert acquired is True
