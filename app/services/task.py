@@ -1,3 +1,4 @@
+import json
 import math
 import os.path
 import re
@@ -16,6 +17,117 @@ from app.utils import file_security, utils
 
 _BACKGROUND_TASKS = {}
 _BACKGROUND_TASKS_LOCK = threading.RLock()
+_FINAL_VIDEO_PATTERN = re.compile(
+    r"^final-\d+\.(?:mp4|mov|mkv|webm)$", re.IGNORECASE
+)
+
+
+def _subject_key(subject: str) -> str:
+    return re.sub(r"[\W_]+", "", str(subject or "").casefold())
+
+
+def _task_subject_from_data(data: dict) -> str:
+    params = data.get("params") if isinstance(data, dict) else None
+    if not isinstance(params, dict):
+        params = {}
+    subject = data.get("video_subject") or params.get("video_subject")
+    if subject:
+        return str(subject).strip()
+    script = data.get("script") or ""
+    return str(script).replace("\n", " ").strip()[:40]
+
+
+def collect_subject_history(limit: int = 1000) -> tuple[list[str], list[str]]:
+    """Return recent completed subjects and all persisted/active subjects.
+
+    The API and WebUI use the same history source for Roll. ``recent_subjects``
+    contains only tasks with a final video, while ``all_subjects`` also includes
+    subjects from persisted or currently-running attempts so a failed attempt is
+    not immediately suggested again.
+    """
+    limit = max(1, int(limit or 1))
+    tasks_root = utils.task_dir()
+    entries = []
+    if os.path.isdir(tasks_root):
+        try:
+            with os.scandir(tasks_root) as directory_entries:
+                for entry in directory_entries:
+                    try:
+                        if entry.name.startswith(".") or not entry.is_dir(
+                            follow_symlinks=False
+                        ):
+                            continue
+                        entries.append(
+                            (
+                                entry.stat(follow_symlinks=False).st_mtime,
+                                entry.name,
+                                entry.path,
+                            )
+                        )
+                    except OSError:
+                        continue
+        except OSError:
+            entries = []
+
+    entries.sort(key=lambda item: item[0], reverse=True)
+    recent_subjects = []
+    all_subjects = []
+    seen_keys = set()
+
+    def add_subject(subject: str, *, recent: bool = False):
+        subject = str(subject or "").strip()
+        key = _subject_key(subject)
+        if not subject or not key or key in seen_keys:
+            return
+        seen_keys.add(key)
+        all_subjects.append(subject)
+        if recent:
+            recent_subjects.append(subject)
+
+    for _, task_id, task_path in entries[:limit]:
+        script_file = os.path.join(task_path, "script.json")
+        script_data = {}
+        try:
+            with open(script_file, "r", encoding="utf-8") as file:
+                payload = json.load(file)
+                if isinstance(payload, dict):
+                    script_data = payload
+        except (FileNotFoundError, OSError, TypeError, ValueError):
+            continue
+
+        subject = _task_subject_from_data(script_data)
+        if not subject or subject == task_id:
+            continue
+
+        has_final_video = False
+        try:
+            has_final_video = any(
+                _FINAL_VIDEO_PATTERN.fullmatch(file_name)
+                for file_name in os.listdir(task_path)
+            )
+        except OSError:
+            pass
+        add_subject(subject, recent=has_final_video)
+
+    # Include runtime tasks whose script has not been written to disk yet. This
+    # matters for API calls made immediately after another task is queued.
+    try:
+        runtime_tasks, _ = sm.state.get_all_tasks(1, limit)
+    except Exception:
+        runtime_tasks = []
+    for task in runtime_tasks:
+        if not isinstance(task, dict):
+            continue
+        subject = _task_subject_from_data(task)
+        if subject:
+            state = task.get("state")
+            try:
+                state = int(state)
+            except (TypeError, ValueError):
+                pass
+            add_subject(subject, recent=state == const.TASK_STATE_COMPLETE)
+
+    return recent_subjects, all_subjects
 
 
 def generate_script(task_id, params):

@@ -13,6 +13,7 @@ from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.v1 import video as video_controller
 from app.models import const
 from app.models.exception import HttpException
+from app.models.schema import GenerateVideoRequest
 from app.services import state as sm
 from app.utils import utils
 
@@ -107,6 +108,60 @@ class TestVideoControllerTasks(unittest.TestCase):
     @staticmethod
     def _request():
         return SimpleNamespace(headers={"x-task-id": "request-123"})
+
+    def test_generate_video_workflow_rolls_generates_and_queues(self):
+        body = GenerateVideoRequest(
+            video_subject="Coffee",
+            roll_next_subject=True,
+            based_on_recent=False,
+        )
+        request = self._request()
+
+        with (
+            patch.object(
+                video_controller.tm,
+                "collect_subject_history",
+                return_value=(['Coffee history'], ['Coffee history']),
+            ),
+            patch.object(
+                video_controller.llm,
+                "generate_next_video_subject",
+                return_value="A random astronomy topic",
+            ),
+            patch.object(
+                video_controller.llm,
+                "generate_script",
+                return_value="A generated script.",
+            ),
+            patch.object(
+                video_controller.llm,
+                "generate_terms",
+                return_value=["astronomy", "night sky"],
+            ),
+            patch.object(
+                video_controller,
+                "create_task",
+                return_value={"status": 200, "data": {"task_id": "task-123"}},
+            ) as create_task,
+        ):
+            response = video_controller.generate_video_workflow(None, request, body)
+
+        self.assertEqual(
+            response,
+            {
+                "status": 200,
+                "data": {
+                    "task_id": "task-123",
+                    "video_subject": "A random astronomy topic",
+                    "video_script": "A generated script.",
+                    "video_terms": ["astronomy", "night sky"],
+                },
+            },
+        )
+        create_task.assert_called_once_with(request, body, stop_at="video")
+        self.assertEqual(body.video_subject, "A random astronomy topic")
+        self.assertEqual(body.video_script, "A generated script.")
+        self.assertEqual(body.video_terms, ["astronomy", "night sky"])
 
     def test_create_task_queues_requested_pipeline_stage(self):
         """创建任务应持久化初始状态，并把原请求模型与停止阶段交给队列。"""

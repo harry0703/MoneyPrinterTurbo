@@ -226,6 +226,26 @@ class VideoSocialMetadataRequest(VideoSocialMetadataParams, BaseModel):
     pass
 
 
+class RollSubjectRequest(BaseModel):
+    """Request a subject for the next video from the existing task history."""
+
+    video_subject: str = Field(default="", max_length=500)
+    video_language: str = Field(default="", max_length=64)
+    based_on_recent: bool = True
+    # Compatibility alias for clients that call the mode "previous" rather than
+    # "recent". When provided, controllers use this value as the source of truth.
+    based_on_previous: bool | None = None
+
+
+class GenerateVideoRequest(VideoParams):
+    """Generate script, keywords, and queue a video in one API call."""
+
+    video_subject: str = Field(default="", max_length=500)
+    roll_next_subject: bool = False
+    based_on_recent: bool = True
+    based_on_previous: bool | None = None
+
+
 ######################################################################################################
 ######################################################################################################
 ######################################################################################################
@@ -320,6 +340,50 @@ class VideoSocialMetadataResponse(BaseResponse):
                     "title": "A Day in Shanghai You Should Not Miss",
                     "caption": "Save this quick Shanghai inspiration and follow for more short travel ideas.",
                     "hashtags": ["#shorts", "#travel", "#shanghai", "#viral", "#fyp"],
+                },
+            },
+        }
+
+
+class RollSubjectResponse(BaseResponse):
+    class RollSubjectResponseData(BaseModel):
+        video_subject: str
+        based_on_recent: bool
+
+    data: RollSubjectResponseData
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "video_subject": "The science behind better coffee",
+                    "based_on_recent": True,
+                },
+            },
+        }
+
+
+class GenerateVideoResponse(BaseResponse):
+    class GenerateVideoResponseData(BaseModel):
+        task_id: str
+        video_subject: str
+        video_script: str
+        video_terms: list[str]
+
+    data: GenerateVideoResponseData
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "task_id": "6c85c8cc-a77a-42b9-bc30-947815aa0558",
+                    "video_subject": "The science behind better coffee",
+                    "video_script": "Coffee beans change dramatically during roasting...",
+                    "video_terms": ["coffee roasting", "coffee beans"],
                 },
             },
         }

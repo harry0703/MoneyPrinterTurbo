@@ -18,6 +18,8 @@ from app.controllers.v1.base import new_router
 from app.models.exception import HttpException
 from app.models.schema import (
     AudioRequest,
+    GenerateVideoRequest,
+    GenerateVideoResponse,
     BgmRetrieveResponse,
     BgmUploadResponse,
     SubtitleRequest,
@@ -30,6 +32,7 @@ from app.models.schema import (
     VideoMaterialRetrieveResponse
 )
 from app.services import bgm as bgm_service
+from app.services import llm
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
@@ -160,6 +163,91 @@ def _parse_byte_range(
         ) from exc
 
     return start, end
+
+
+@router.post(
+    "/generate",
+    response_model=GenerateVideoResponse,
+    summary="Roll an optional subject, generate script and keywords, and queue a video",
+)
+def generate_video_workflow(
+    background_tasks: BackgroundTasks, request: Request, body: GenerateVideoRequest
+):
+    """Run the same three-step workflow as the WebUI in one API request."""
+    request_id = base.get_task_id(request)
+    subject = (body.video_subject or "").strip()
+
+    if body.roll_next_subject:
+        recent_subjects, all_subjects = tm.collect_subject_history()
+        based_on_recent = (
+            body.based_on_previous
+            if body.based_on_previous is not None
+            else body.based_on_recent
+        )
+        subject = llm.generate_next_video_subject(
+            video_subject=subject,
+            recent_subjects=recent_subjects,
+            language=body.video_language or "",
+            based_on_recent=based_on_recent,
+            excluded_subjects=all_subjects,
+        )
+        if not subject or subject.startswith("Error: "):
+            raise HttpException(
+                task_id=request_id,
+                status_code=502,
+                message=f"{request_id}: {subject or 'failed to generate next subject'}",
+            )
+
+    if not subject:
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: video_subject is required when roll_next_subject is false",
+        )
+
+    # Generate the script and terms before queuing the video. Supplying both on
+    # the task model prevents the background worker from repeating these LLM
+    # calls and lets the API return the generated content immediately.
+    video_script = llm.generate_script(
+        video_subject=subject,
+        language=body.video_language or "",
+        paragraph_number=body.paragraph_number,
+        video_script_prompt=body.video_script_prompt,
+        custom_system_prompt=body.custom_system_prompt,
+    )
+    if not video_script or video_script.startswith("Error: "):
+        raise HttpException(
+            task_id=request_id,
+            status_code=502,
+            message=f"{request_id}: failed to generate video script",
+        )
+
+    video_terms = llm.generate_terms(
+        video_subject=subject,
+        video_script=video_script,
+        amount=8 if body.match_materials_to_script else 5,
+        match_script_order=body.match_materials_to_script,
+    )
+    if not video_terms:
+        raise HttpException(
+            task_id=request_id,
+            status_code=502,
+            message=f"{request_id}: failed to generate video keywords",
+        )
+
+    body.video_subject = subject
+    body.video_script = video_script
+    body.video_terms = video_terms
+    task_response = create_task(request, body, stop_at="video")
+    task_data = task_response.get("data", {})
+
+    response = {
+        "task_id": task_data.get("task_id", ""),
+        "video_subject": subject,
+        "video_script": video_script,
+        "video_terms": video_terms,
+    }
+    return utils.get_response(200, response)
 
 
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")

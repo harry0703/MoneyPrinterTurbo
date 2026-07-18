@@ -245,6 +245,27 @@ docker compose -f docker-compose.release.yml up
 
 打开浏览器，访问 http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc
 
+#### 一键生成 API 工作流
+
+除了已有的 `/api/v1/scripts`、`/api/v1/terms` 和 `/api/v1/videos` 接口，现在还可以使用以下接口：
+
+- `POST /api/v1/roll`：根据最近视频或完全随机地建议下一个主题。通过 `based_on_recent` 控制是否参考最近视频。
+- `POST /api/v1/generate`：按“建议主题（可选）→生成文案和关键词→加入视频生成队列”的顺序执行，并立即返回 `task_id`、主题、文案和关键词。
+
+示例：
+
+```shell
+curl -X POST http://127.0.0.1:8080/api/v1/roll \\
+  -H 'Content-Type: application/json' \\
+  -d '{"video_subject":"Coffee brewing basics","video_language":"en-US","based_on_recent":true}'
+
+curl -X POST http://127.0.0.1:8080/api/v1/generate \\
+  -H 'Content-Type: application/json' \\
+  -d '{"video_subject":"","roll_next_subject":true,"based_on_recent":false}'
+```
+
+`/api/v1/generate` 接受 `VideoParams` 中的视频、配音、字幕等参数；当 `roll_next_subject` 为 `false` 时必须提供 `video_subject`。视频生成仍然通过任务队列在后台执行，可使用返回的 `task_id` 查询 `/api/v1/tasks/{task_id}`。
+
 ### 手动部署 📦
 
 > 视频教程

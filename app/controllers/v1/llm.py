@@ -1,7 +1,11 @@
 from fastapi import Request
 
+from app.controllers import base
 from app.controllers.v1.base import new_router
+from app.models.exception import HttpException
 from app.models.schema import (
+    RollSubjectRequest,
+    RollSubjectResponse,
     VideoScriptRequest,
     VideoScriptResponse,
     VideoSocialMetadataRequest,
@@ -9,12 +13,46 @@ from app.models.schema import (
     VideoTermsRequest,
     VideoTermsResponse,
 )
-from app.services import llm
+from app.services import llm, task as tm
 from app.utils import utils
 
 # authentication dependency
 # router = new_router(dependencies=[Depends(base.verify_token)])
 router = new_router()
+
+
+@router.post(
+    "/roll",
+    response_model=RollSubjectResponse,
+    summary="Suggest the next video subject",
+)
+def roll_next_subject(request: Request, body: RollSubjectRequest):
+    recent_subjects, all_subjects = tm.collect_subject_history()
+    based_on_recent = (
+        body.based_on_previous
+        if body.based_on_previous is not None
+        else body.based_on_recent
+    )
+    subject = llm.generate_next_video_subject(
+        video_subject=body.video_subject,
+        recent_subjects=recent_subjects,
+        language=body.video_language,
+        based_on_recent=based_on_recent,
+        excluded_subjects=all_subjects,
+    )
+    if not subject or subject.startswith("Error: "):
+        request_id = base.get_task_id(request)
+        raise HttpException(
+            task_id=request_id,
+            status_code=502,
+            message=f"{request_id}: {subject or 'failed to generate next subject'}",
+        )
+
+    response = {
+        "video_subject": subject,
+        "based_on_recent": based_on_recent,
+    }
+    return utils.get_response(200, response)
 
 
 @router.post(

@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from app.controllers.v1 import llm as llm_controller
 from app.models.schema import (
+    RollSubjectRequest,
     VideoScriptRequest,
     VideoSocialMetadataRequest,
     VideoTermsRequest,
@@ -10,6 +11,45 @@ from app.models.schema import (
 
 
 class TestLlmController(unittest.TestCase):
+    def test_roll_next_subject_uses_history_and_mode(self):
+        body = RollSubjectRequest(
+            video_subject="Coffee",
+            video_language="en-US",
+            based_on_recent=False,
+        )
+
+        with (
+            patch.object(
+                llm_controller.tm,
+                "collect_subject_history",
+                return_value=(['Coffee history'], ['Coffee history', 'Tea history']),
+            ),
+            patch.object(
+                llm_controller.llm,
+                "generate_next_video_subject",
+                return_value="A random astronomy topic",
+            ) as generate,
+        ):
+            response = llm_controller.roll_next_subject(None, body)
+
+        self.assertEqual(
+            response,
+            {
+                "status": 200,
+                "data": {
+                    "video_subject": "A random astronomy topic",
+                    "based_on_recent": False,
+                },
+            },
+        )
+        generate.assert_called_once_with(
+            video_subject="Coffee",
+            recent_subjects=["Coffee history"],
+            language="en-US",
+            based_on_recent=False,
+            excluded_subjects=["Coffee history", "Tea history"],
+        )
+
     def test_generate_video_script_forwards_all_prompt_fields(self):
         """文案接口不能丢失高级提示词或段落数量。"""
         body = VideoScriptRequest(
