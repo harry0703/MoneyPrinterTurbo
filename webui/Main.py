@@ -3165,7 +3165,7 @@ def _render_audio_settings(panel, params):
                 # Gemini TTS 与 Gemini LLM 共用同一份密钥；在音频面板提供直接入口，
                 # 用户无需先切换 LLM Provider 才能完成语音配置。
                 gemini_tts_api_key = st.text_input(
-                    f"Google Gemini {tr('API Key')}",
+                    tr("Gemini API Key"),
                     value=config.app.get("gemini_api_key", ""),
                     type="password",
                     key="gemini_tts_api_key_input",
