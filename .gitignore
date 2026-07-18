@@ -41,4 +41,5 @@ coverage.xml
 htmlcov/
 .codegraph
 /docs/superpowers
+.worktrees/
 .understand-anything
