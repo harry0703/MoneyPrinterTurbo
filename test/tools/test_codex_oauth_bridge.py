@@ -112,6 +112,28 @@ def test_run_uses_empty_temp_cwd_prompt_and_timeout() -> None:
     assert kwargs["capture_output"] is True
 
 
+def test_run_removes_api_key_environment_variables_but_preserves_oauth_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=event("item.completed", item={"type": "agent_message", "text": "done"}),
+        stderr="",
+    )
+    monkeypatch.setenv("CODEX_API_KEY", "must-not-reach-codex")
+    monkeypatch.setenv("OPENAI_API_KEY", "must-not-reach-codex")
+    monkeypatch.setenv("PATH_MARKER", "preserve-oauth-context")
+
+    with patch("tools.codex_oauth_bridge.codex_runner.subprocess.run", return_value=completed) as run:
+        assert run_codex("instruction", "input", "", 30) == "done"
+
+    environment = run.call_args.kwargs["env"]
+    assert "CODEX_API_KEY" not in environment
+    assert "OPENAI_API_KEY" not in environment
+    assert environment["PATH_MARKER"] == "preserve-oauth-context"
+
+
 def test_run_maps_missing_executable_without_stderr() -> None:
     with patch(
         "tools.codex_oauth_bridge.codex_runner.subprocess.run",

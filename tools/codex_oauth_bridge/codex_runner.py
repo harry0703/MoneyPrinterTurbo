@@ -70,6 +70,9 @@ def run_codex(
     """Execute Codex in a fresh, read-only directory and return its final reply."""
     prompt = f"{instructions.strip()}\n\n<episode_input>\n{input_text}\n</episode_input>"
     creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    child_environment = os.environ.copy()
+    child_environment.pop("CODEX_API_KEY", None)
+    child_environment.pop("OPENAI_API_KEY", None)
 
     with tempfile.TemporaryDirectory(prefix="mpt-codex-") as directory:
         try:
@@ -83,6 +86,7 @@ def run_codex(
                 timeout=timeout_seconds,
                 check=False,
                 creationflags=creationflags,
+                env=child_environment,
             )
         except FileNotFoundError as error:
             raise CodexRunError("codex_not_found", "Codex executable was not found.") from error
