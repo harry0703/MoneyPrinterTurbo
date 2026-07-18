@@ -181,15 +181,18 @@ class TestScriptPromptOptions(unittest.TestCase):
 
 
 class TestLLMConnection(unittest.TestCase):
-    def test_connection_sends_one_minimal_request(self):
-        """连接测试只发送一次固定最小请求，不触发脚本生成重试。"""
+    def test_connection_sends_one_minimal_valid_request(self):
+        """连接测试发送一次含非空指令的最小请求，不触发脚本生成重试。"""
         with (
             patch.object(llm, "_generate_response", return_value="OK") as generate,
             patch.object(llm, "perf_counter", side_effect=[10.0, 10.25]),
         ):
             result = llm.test_connection()
 
-        generate.assert_called_once_with(prompt="Reply with exactly: OK")
+        generate.assert_called_once_with(
+            prompt="Reply with exactly: OK",
+            instructions="Return only the requested response.",
+        )
         self.assertEqual(result, (True, "", 0.25))
 
     def test_connection_returns_provider_error(self):

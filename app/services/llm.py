@@ -422,7 +422,10 @@ def test_connection() -> tuple[bool, str, float]:
     用户的视频主题或文案。返回值依次为成功状态、错误信息和请求耗时。
     """
     started_at = perf_counter()
-    response = _generate_response(prompt="Reply with exactly: OK")
+    response = _generate_response(
+        prompt="Reply with exactly: OK",
+        instructions="Return only the requested response.",
+    )
     elapsed = perf_counter() - started_at
 
     if not response:

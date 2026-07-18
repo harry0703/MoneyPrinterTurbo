@@ -52,13 +52,13 @@ def event(event_type: str, **values: object) -> str:
 def test_builds_exact_ephemeral_read_only_command() -> None:
     assert build_codex_command("C:/bin/codex.exe", Path("unused"), " gpt-5 ") == [
         "C:/bin/codex.exe",
+        "--ask-for-approval",
+        "never",
         "exec",
         "--ephemeral",
         "--json",
         "--sandbox",
         "read-only",
-        "--ask-for-approval",
-        "never",
         "--ignore-user-config",
         "--ignore-rules",
         "--skip-git-repo-check",

@@ -20,13 +20,13 @@ def build_codex_command(executable: str, cwd: Path, model: str = "") -> list[str
     del cwd
     command = [
         executable,
+        "--ask-for-approval",
+        "never",
         "exec",
         "--ephemeral",
         "--json",
         "--sandbox",
         "read-only",
-        "--ask-for-approval",
-        "never",
         "--ignore-user-config",
         "--ignore-rules",
         "--skip-git-repo-check",
