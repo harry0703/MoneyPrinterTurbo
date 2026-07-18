@@ -11,7 +11,22 @@ MIN_TIMEOUT_SECONDS = 30
 MAX_TIMEOUT_SECONDS = 900
 MAX_OUTPUT_BYTES = 128 * 1024
 
-_URL_USERINFO_RE = re.compile(r"((?:https?|wss?)://)([^/\s?#@]*:[^/\s?#@]*@)", re.IGNORECASE)
+_URL_USERINFO_RE = re.compile(r"((?:https?|wss?)://)([^/\s?#@]+@)", re.IGNORECASE)
+_REMOTE_ERROR_MESSAGES = {
+    "unauthorized": "Invalid bridge token.",
+    "busy": "Codex bridge is busy.",
+    "timeout": "Codex bridge request timed out.",
+    "codex_not_found": "Codex executable is unavailable.",
+    "codex_failed": "Codex bridge generation failed.",
+    "invalid_output": "Codex bridge returned an invalid response.",
+    "invalid_request": "Codex bridge rejected the request.",
+}
+_REMOTE_STATUS_MESSAGES = {
+    401: _REMOTE_ERROR_MESSAGES["unauthorized"],
+    429: _REMOTE_ERROR_MESSAGES["busy"],
+    502: _REMOTE_ERROR_MESSAGES["codex_failed"],
+    504: _REMOTE_ERROR_MESSAGES["timeout"],
+}
 
 
 class CodexBridgeError(RuntimeError):
@@ -32,7 +47,12 @@ def _bridge_url(base_url: str, path: str) -> str:
 
 
 def _safe_message(message: object, bridge_token: str = "") -> str:
-    safe_message = _URL_USERINFO_RE.sub(r"\1***:***@", str(message))
+    def redact_userinfo(match: re.Match[str]) -> str:
+        userinfo = match.group(2)
+        redacted_userinfo = "***:***@" if ":" in userinfo else "***@"
+        return f"{match.group(1)}{redacted_userinfo}"
+
+    safe_message = _URL_USERINFO_RE.sub(redact_userinfo, str(message))
     if bridge_token:
         safe_message = safe_message.replace(bridge_token, "***")
     return safe_message
@@ -45,13 +65,17 @@ def _response_json(response: requests.Response) -> Any:
         raise CodexBridgeError("Codex bridge returned an invalid response.") from None
 
 
-def _remote_error(response: requests.Response, bridge_token: str) -> CodexBridgeError:
+def _remote_error(response: requests.Response) -> CodexBridgeError:
     payload = _response_json(response)
     error = payload.get("error") if isinstance(payload, dict) else None
-    message = error.get("message") if isinstance(error, dict) else None
-    if isinstance(message, str) and message.strip():
-        return CodexBridgeError(_safe_message(message, bridge_token))
-    return CodexBridgeError("Codex bridge returned an invalid response.")
+    code = error.get("code") if isinstance(error, dict) else None
+    if isinstance(code, str) and code in _REMOTE_ERROR_MESSAGES:
+        return CodexBridgeError(_REMOTE_ERROR_MESSAGES[code])
+    return CodexBridgeError(
+        _REMOTE_STATUS_MESSAGES.get(
+            response.status_code, "Codex bridge returned an invalid response."
+        )
+    )
 
 
 def health(base_url: str, timeout_seconds: int = 10) -> dict:
@@ -66,7 +90,7 @@ def health(base_url: str, timeout_seconds: int = 10) -> dict:
         raise CodexBridgeError("Codex bridge request failed.") from None
 
     if not response.ok:
-        raise _remote_error(response, "")
+        raise _remote_error(response)
     payload = _response_json(response)
     if (
         not isinstance(payload, dict)
@@ -107,7 +131,7 @@ def generate(
         raise CodexBridgeError("Codex bridge request failed.") from None
 
     if not response.ok:
-        raise _remote_error(response, bridge_token)
+        raise _remote_error(response)
     payload = _response_json(response)
     output_text = payload.get("output_text") if isinstance(payload, dict) else None
     if not isinstance(output_text, str) or not output_text.strip():

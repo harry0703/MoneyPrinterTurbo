@@ -1,4 +1,5 @@
 from unittest.mock import Mock
+import traceback
 
 import pytest
 import requests
@@ -60,6 +61,50 @@ def test_generate_sanitizes_remote_error(monkeypatch: pytest.MonkeyPatch) -> Non
         codex_bridge.generate("http://bridge", "secret", "rules", "episode")
 
     assert "secret" not in str(error.value)
+
+
+def test_generate_maps_remote_errors_without_disclosing_remote_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentinels = {
+        "instructions": "INSTRUCTIONS_SENTINEL",
+        "input": "EPISODE_SENTINEL",
+        "model": "MODEL_SENTINEL",
+        "token": "TOKEN_SENTINEL",
+        "userinfo": "USERNAME_SENTINEL",
+    }
+    response = Mock(ok=False, status_code=401)
+    response.json.return_value = {
+        "error": {
+            "code": "unauthorized",
+            "message": (
+                f"{sentinels['instructions']} {sentinels['input']} {sentinels['model']} "
+                f"{sentinels['token']} http://{sentinels['userinfo']}@bridge"
+            ),
+        }
+    }
+    monkeypatch.setattr(codex_bridge.requests, "post", Mock(return_value=response))
+
+    with pytest.raises(codex_bridge.CodexBridgeError) as error:
+        codex_bridge.generate(
+            f"http://{sentinels['userinfo']}@bridge",
+            sentinels["token"],
+            sentinels["instructions"],
+            sentinels["input"],
+            sentinels["model"],
+        )
+
+    rendered_error = "".join(
+        traceback.format_exception(error.type, error.value, error.tb)
+    )
+    assert str(error.value) == "Invalid bridge token."
+    for sentinel in sentinels.values():
+        assert sentinel not in str(error.value)
+        assert sentinel not in rendered_error
+
+
+def test_safe_message_redacts_username_only_url_userinfo() -> None:
+    assert codex_bridge._safe_message("http://username@bridge/path") == "http://***@bridge/path"
 
 
 @pytest.mark.parametrize("payload", [None, [], {}, {"output_text": None}, {"output_text": "   "}])
