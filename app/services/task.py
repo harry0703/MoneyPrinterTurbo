@@ -15,7 +15,16 @@ from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
-from app.services import llm, material, sonilo, subtitle, twelvelabs, video, voice
+from app.services import (
+    elevenlabs_music,
+    llm,
+    material,
+    sonilo,
+    subtitle,
+    twelvelabs,
+    video,
+    voice,
+)
 from app.services import upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
@@ -45,6 +54,38 @@ _CROSS_POST_STATE_RETRY_DELAY_SECONDS = 0.1
 _INTERRUPTED_CROSS_POST_ERROR = (
     "cross-posting was interrupted before the process completed"
 )
+# 视频配乐服务只需实现 ``is_enabled`` 和 ``generate_bgm``。供应商差异集中在
+# 文件扩展名、领域异常和 WebUI 警告代码；任务编排、0 音量短路及失败降级
+# 全部复用同一路径，避免后续新增供应商时维护多份相似流程。
+_VIDEO_MUSIC_PROVIDERS = {
+    "sonilo": {
+        "service": sonilo,
+        "error_type": sonilo.SoniloError,
+        "suffix": ".m4a",
+        "warning_code": "sonilo_bgm_failed",
+        "display_name": "Sonilo",
+    },
+    "elevenlabs": {
+        "service": elevenlabs_music,
+        "error_type": elevenlabs_music.ElevenLabsMusicError,
+        "suffix": ".mp3",
+        "warning_code": "elevenlabs_bgm_failed",
+        "display_name": "ElevenLabs",
+    },
+}
+
+
+def _get_video_music_prompt(params: VideoParams) -> str:
+    """
+    读取当前视频配乐供应商实际使用的提示词。
+
+    新任务统一使用供应商无关字段；旧 Sonilo CLI 参数和历史任务仍可能只有
+    ``sonilo_bgm_prompt``，因此仅在 Sonilo 通用字段为空时读取旧字段。
+    """
+    prompt = str(params.video_music_prompt or "").strip()
+    if params.bgm_type == "sonilo" and not prompt:
+        prompt = str(params.sonilo_bgm_prompt or "").strip()
+    return prompt
 
 
 def is_task_busy(task: dict | None) -> bool:
@@ -572,8 +613,9 @@ def generate_final_videos(
     final_video_paths = []
     combined_video_paths = []
     warnings = []
-    sonilo_bgm_requested = (
-        params.bgm_type == "sonilo"
+    video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
+    video_music_requested = (
+        video_music_provider is not None
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
     )
     # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
@@ -610,33 +652,34 @@ def generate_final_videos(
 
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
-        # Sonilo 模式下先明确禁用默认 BGM 解析，避免恢复旧任务时残留的
-        # bgm_file 被误当成当前配乐。只有音量大于 0 才生成代理并调用付费 API；
-        # 0 音量表示完整禁用背景音乐，不产生生成、下载或混音开销。
-        bgm_file_override = "" if params.bgm_type == "sonilo" else None
-        if sonilo_bgm_requested:
-            sonilo_bgm_path = path.join(
-                utils.task_dir(task_id), f"sonilo-bgm-{index}.m4a"
+        # 视频配乐模式先明确禁用默认 BGM 解析，避免旧任务残留的 bgm_file 被
+        # 误用。只有音量大于 0 才生成代理并调用付费 API；0 音量统一跳过。
+        bgm_file_override = "" if video_music_provider else None
+        if video_music_requested:
+            service = video_music_provider["service"]
+            display_name = video_music_provider["display_name"]
+            warning_code = video_music_provider["warning_code"]
+            generated_bgm_path = path.join(
+                utils.task_dir(task_id),
+                (f"{params.bgm_type}-bgm-{index}{video_music_provider['suffix']}"),
             )
             try:
-                sonilo.generate_bgm(
+                service.generate_bgm(
                     video_path=combined_video_path,
-                    output_path=sonilo_bgm_path,
+                    output_path=generated_bgm_path,
                     video_duration=audio_duration,
-                    prompt=params.sonilo_bgm_prompt,
+                    prompt=_get_video_music_prompt(params),
                 )
-                bgm_file_override = sonilo_bgm_path
-            except sonilo.SoniloError as exc:
+                bgm_file_override = generated_bgm_path
+            except video_music_provider["error_type"] as exc:
                 # 视频、旁白和字幕都已生成时，第三方配乐临时失败不应浪费整条
                 # 任务。当前视频明确禁用 BGM，并把降级结果返回 WebUI 提醒用户。
                 logger.warning(
-                    f"Sonilo BGM generation failed: task_id={task_id}, "
+                    f"{display_name} BGM generation failed: task_id={task_id}, "
                     f"video_index={index}, error={exc}"
                 )
                 bgm_file_override = ""
-                warnings.append(
-                    {"code": "sonilo_bgm_failed", "video_index": index}
-                )
+                warnings.append({"code": warning_code, "video_index": index})
 
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
         bgm_mix_succeeded = video.generate_video(
@@ -648,14 +691,19 @@ def generate_final_videos(
             bgm_file_override=bgm_file_override,
         )
         if (
-            params.bgm_type == "sonilo"
+            video_music_provider is not None
             and bgm_file_override
             and not bgm_mix_succeeded
         ):
-            # Sonilo 已成功返回并通过 FFmpeg 校验，但 MoviePy 最终混音仍可能
-            # 因运行环境失败。视频服务会保留无 BGM 成片，任务层复用同一结构化
-            # 警告通知 WebUI；API 生成失败时 override 为空，不会重复追加警告。
-            warnings.append({"code": "sonilo_bgm_failed", "video_index": index})
+            # 第三方已成功返回并通过 FFmpeg 校验，但 MoviePy 最终混音仍可能
+            # 因运行环境失败。视频服务会保留无 BGM 成片；API 生成失败时
+            # override 为空，因此不会重复追加警告。
+            warnings.append(
+                {
+                    "code": video_music_provider["warning_code"],
+                    "video_index": index,
+                }
+            )
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
@@ -1003,19 +1051,44 @@ def _run_pipeline(
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
-    # 只有完整成片流程需要 Sonilo。尽早阻止缺少 Key 的完整任务，避免先消耗
-    # LLM、TTS 和素材服务额度；各个中间产物接口仍可独立使用，不受配乐配置影响。
-    if (
+    # 只有完整成片流程需要视频配乐供应商。尽早阻止缺少 Key 的完整任务，避免
+    # 先消耗 LLM、TTS 和素材服务额度；中间产物接口仍可独立使用。
+    video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
+    video_music_enabled = (
         stop_at == "video"
-        and params.bgm_type == "sonilo"
+        and video_music_provider is not None
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
-        and not sonilo.is_enabled()
-    ):
-        return _mark_task_failed(
-            task_id,
-            "preflight",
-            "Sonilo background music requires an API key",
-        )
+    )
+    if video_music_enabled:
+        service = video_music_provider["service"]
+        display_name = video_music_provider["display_name"]
+        if not service.is_enabled():
+            return _mark_task_failed(
+                task_id,
+                "preflight",
+                f"{display_name} background music requires an API key",
+            )
+
+        # WebUI 会限制输入长度，但 API、CLI 和历史任务可以绕过前端控件。
+        # 在生成脚本、配音和素材之前按供应商上限再次校验，避免完整视频合成后
+        # 才由第三方请求拒绝。服务层仍保留同一校验，作为直接调用时的最后防线。
+        music_prompt = _get_video_music_prompt(params)
+        max_prompt_length = int(getattr(service, "MAX_PROMPT_LENGTH", 0) or 0)
+        if max_prompt_length and len(music_prompt) > max_prompt_length:
+            return _mark_task_failed(
+                task_id,
+                "preflight",
+                (f"{display_name} music prompt exceeds {max_prompt_length} characters"),
+            )
+
+        # 供应商可以选择提供不计费的账号前置检查。检查函数只应抛出确定性
+        # 错误；网络波动或权限范围无法确认时由服务层记录警告并继续实际生成。
+        validate_access = getattr(service, "validate_generation_access", None)
+        if callable(validate_access):
+            try:
+                validate_access()
+            except video_music_provider["error_type"] as exc:
+                return _mark_task_failed(task_id, "preflight", str(exc))
 
     # 1. Generate script
     video_script = generate_script(task_id, params)

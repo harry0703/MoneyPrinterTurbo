@@ -316,6 +316,9 @@ api_key = ""
 api_key = ""
 # Available models include eleven_multilingual_v2, eleven_flash_v2_5, and eleven_v3.
 model_id = "eleven_multilingual_v2"
+# Video-to-Music uses a separate model family while sharing the same API key.
+music_model_id = "music_v2"
+music_timeout = 600
 
 [chatterbox]
 # OpenAI-compatible Chatterbox TTS server. The defaults target

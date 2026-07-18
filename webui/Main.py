@@ -41,6 +41,7 @@ from app.models.schema import (
 )
 from app.services import bgm as bgm_service
 from app.services import cache_manager, llm, video, voice, webui_task
+from app.services import elevenlabs_music as elevenlabs_music_service
 from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
@@ -943,7 +944,10 @@ def _apply_pending_task_restore():
     _set_stable_widget_value("bgm_volume_select", params.get("bgm_volume", 0.2))
     st.session_state["custom_bgm_file_input"] = params.get("bgm_file") or ""
     st.session_state["sonilo_bgm_prompt_input"] = (
-        params.get("sonilo_bgm_prompt") or ""
+        params.get("video_music_prompt") or params.get("sonilo_bgm_prompt") or ""
+    )
+    st.session_state["elevenlabs_music_prompt_input"] = (
+        params.get("video_music_prompt") or ""
     )
 
     # 字幕设置。对旧任务中的越界数值做最小限幅，避免 Slider 无法初始化。
@@ -1349,6 +1353,15 @@ def _render_generation_task_snapshot(task_id, task):
         if isinstance(warning, Mapping) and warning.get("code") == "sonilo_bgm_failed":
             st.warning(
                 tr("Sonilo BGM Fallback Warning").format(
+                    index=warning.get("video_index", "")
+                )
+            )
+        elif (
+            isinstance(warning, Mapping)
+            and warning.get("code") == "elevenlabs_bgm_failed"
+        ):
+            st.warning(
+                tr("ElevenLabs BGM Fallback Warning").format(
                     index=warning.get("video_index", "")
                 )
             )
@@ -2761,7 +2774,36 @@ def _get_reusable_full_voice_preview(params, voice_mode: str) -> dict | None:
     }
 
 
-def _render_background_music_settings(params):
+def _render_elevenlabs_api_key_input(label_key):
+    """
+    渲染 ElevenLabs TTS 与配乐共用的唯一 API Key 输入状态。
+
+    同一页面若为 TTS 和配乐分别使用两个 widget key，Streamlit 会各自保留旧值，
+    后渲染的输入框还会覆盖共享配置。这里统一使用一个 key，并集中处理环境变量
+    回填、配置更新和音色缓存失效，确保界面显示与后台任务始终读取同一个值。
+    """
+    configured_key = str(config.elevenlabs.get("api_key", "") or "").strip()
+    effective_key = configured_key or os.getenv("ELEVENLABS_API_KEY", "").strip()
+    entered_key = st.text_input(
+        tr(label_key),
+        value=effective_key,
+        type="password",
+        key="elevenlabs_api_key_input",
+    ).strip()
+
+    if entered_key != effective_key:
+        for cache_key in list(st.session_state.keys()):
+            if str(cache_key).startswith("elevenlabs_voices_"):
+                del st.session_state[cache_key]
+
+    # 环境变量仅用于当前进程，不在用户未修改时自动复制到 config.toml。
+    # 已有配置或用户主动修改输入时才更新本机配置，与 Sonilo 行为保持一致。
+    if configured_key or entered_key != effective_key:
+        config.elevenlabs["api_key"] = entered_key
+    return entered_key
+
+
+def _render_background_music_settings(params, elevenlabs_api_key_rendered=False):
     """渲染背景音乐来源与音量设置，并返回本次待保存的上传文件。"""
     uploaded_bgm_file = None
     st.divider()
@@ -2770,6 +2812,7 @@ def _render_background_music_settings(params):
         (tr("Random Background Music"), "random"),
         (tr("Custom Background Music"), "custom"),
         (tr("Sonilo Background Music"), "sonilo"),
+        (tr("ElevenLabs Background Music"), "elevenlabs"),
     ]
     selected_bgm_type = stable_selectbox(
         tr("Background Music Source"),
@@ -2779,6 +2822,28 @@ def _render_background_music_settings(params):
         format_func=lambda value: dict((v, label) for label, v in bgm_options)[value],
     )
     params.bgm_type = selected_bgm_type
+    if params.bgm_type == "sonilo":
+        configured_key = str(config.app.get("sonilo_api_key", "") or "").strip()
+        effective_key = configured_key or os.getenv("SONILO_API_KEY", "").strip()
+        entered_key = st.text_input(
+            tr("Sonilo API Key"),
+            value=effective_key,
+            type="password",
+            key="sonilo_api_key_input",
+        ).strip()
+        # 用户要求已配置的 Key 直接回填到密码输入框。配置值优先于环境变量；
+        # 仅当用户确实修改输入或本来就使用配置时写回，避免把环境变量中的 Key
+        # 在无操作的情况下复制进 config.toml。
+        if configured_key or entered_key != effective_key:
+            config.app["sonilo_api_key"] = entered_key
+    elif params.bgm_type == "elevenlabs":
+        if elevenlabs_api_key_rendered:
+            # TTS 区域已经渲染共享输入框时不再创建第二个 widget，避免两个独立
+            # session_state 值互相覆盖。说明文字帮助用户定位上方的共用配置。
+            st.caption(tr("ElevenLabs API Key Help"))
+        else:
+            _render_elevenlabs_api_key_input("ElevenLabs Music API Key")
+
     params.bgm_volume = stable_selectbox(
         tr("Background Music Volume"),
         options=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
@@ -2902,22 +2967,7 @@ def _render_background_music_settings(params):
             params.bgm_file = ""
 
     if params.bgm_type == "sonilo":
-        configured_key = str(config.app.get("sonilo_api_key", "") or "").strip()
-        effective_key = configured_key or os.getenv("SONILO_API_KEY", "").strip()
-        entered_key = st.text_input(
-            tr("Sonilo API Key"),
-            value=effective_key,
-            type="password",
-            key="sonilo_api_key_input",
-            help=tr("Sonilo API Key Help"),
-        ).strip()
-        # 用户要求已配置的 Key 直接回填到密码输入框。配置值优先于环境变量；
-        # 仅当用户确实修改输入或本来就使用配置时写回，避免把环境变量中的 Key
-        # 在无操作的情况下复制进 config.toml。
-        if configured_key or entered_key != effective_key:
-            config.app["sonilo_api_key"] = entered_key
-
-        params.sonilo_bgm_prompt = st.text_input(
+        params.video_music_prompt = st.text_input(
             tr("Sonilo Music Prompt"),
             key="sonilo_bgm_prompt_input",
             max_chars=sonilo_service.MAX_PROMPT_LENGTH,
@@ -2937,14 +2987,39 @@ def _render_background_music_settings(params):
                 st.error(tr("Sonilo Connection Test Failed").format(error=str(exc)))
             else:
                 st.success(tr("Sonilo Connection Test Succeeded"))
-    if (
-        params.bgm_type == "sonilo"
-        and bgm_enabled
-        and not sonilo_service.is_enabled()
-    ):
+    elif params.bgm_type == "elevenlabs":
+        params.video_music_prompt = st.text_input(
+            tr("ElevenLabs Music Prompt"),
+            key="elevenlabs_music_prompt_input",
+            max_chars=elevenlabs_music_service.MAX_PROMPT_LENGTH,
+            help=tr("ElevenLabs Music Prompt Help"),
+        ).strip()
+        if params.video_count > 1:
+            st.warning(tr("ElevenLabs Multiple Videos Warning"))
+        if st.button(
+            tr("Test ElevenLabs Connection"),
+            key="test_elevenlabs_music_connection_button",
+            use_container_width=True,
+        ):
+            try:
+                elevenlabs_music_service.test_connection()
+            except elevenlabs_music_service.ElevenLabsPaidPlanRequiredError:
+                st.error(tr("ElevenLabs Paid Plan Required"))
+            except elevenlabs_music_service.ElevenLabsMusicError as exc:
+                logger.warning(f"ElevenLabs connection test failed: {exc}")
+                st.error(tr("ElevenLabs Connection Test Failed").format(error=str(exc)))
+            else:
+                st.success(tr("ElevenLabs Connection Test Succeeded"))
+    if params.bgm_type == "sonilo" and bgm_enabled and not sonilo_service.is_enabled():
         # 音量为 0 时任务层不会生成或混合 Sonilo 配乐，因此无需提示 Key；
         # 该判断与任务入口共用服务层规则，避免界面提示和实际执行条件分叉。
         st.warning(tr("Sonilo API Key Required"))
+    elif (
+        params.bgm_type == "elevenlabs"
+        and bgm_enabled
+        and not elevenlabs_music_service.is_enabled()
+    ):
+        st.warning(tr("ElevenLabs API Key Required"))
     return uploaded_bgm_file
 
 
@@ -3027,6 +3102,7 @@ def _render_audio_settings(panel, params):
             # 根据选择的TTS服务器获取声音列表
             filtered_voices = []
             saved_voice_name = config.ui.get("voice_name", "")
+            elevenlabs_api_key_rendered = False
 
             if not tts_mode_enabled:
                 # 上传音频和无配音模式不加载远程音色，减少无意义的网络请求和界面噪音。
@@ -3210,14 +3286,10 @@ def _render_audio_settings(panel, params):
                 selected_tts_server == "elevenlabs"
                 or (voice_name and voice.is_elevenlabs_voice(voice_name))
             ):
-                saved_elevenlabs_api_key = config.elevenlabs.get("api_key", "")
-
-                elevenlabs_api_key = st.text_input(
-                    tr("ElevenLabs API Key"),
-                    value=saved_elevenlabs_api_key,
-                    type="password",
-                    key="elevenlabs_api_key_input",
+                _render_elevenlabs_api_key_input(
+                    "ElevenLabs API Key",
                 )
+                elevenlabs_api_key_rendered = True
 
                 _elevenlabs_models = [
                     "eleven_multilingual_v2",
@@ -3236,13 +3308,6 @@ def _render_audio_settings(panel, params):
                     key="elevenlabs_model_select",
                 )
                 config.elevenlabs["model_id"] = elevenlabs_model
-
-                if elevenlabs_api_key != saved_elevenlabs_api_key:
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("elevenlabs_voices_"):
-                            del st.session_state[k]
-
-                config.elevenlabs["api_key"] = elevenlabs_api_key
 
             # Chatterbox API settings section (self-hosted, OpenAI-compatible)
             if tts_mode_enabled and (
@@ -3356,7 +3421,10 @@ def _render_audio_settings(panel, params):
                             "Custom audio will be used directly. TTS synthesis will be skipped for this task."
                         )
                     )
-            uploaded_bgm_file = _render_background_music_settings(params)
+            uploaded_bgm_file = _render_background_music_settings(
+                params,
+                elevenlabs_api_key_rendered=elevenlabs_api_key_rendered,
+            )
     return uploaded_audio_file, uploaded_bgm_file, voice_mode
 
 
@@ -3675,6 +3743,15 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Sonilo API Key Required"))
+            st.stop()
+
+        if (
+            params.bgm_type == "elevenlabs"
+            and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
+            and not elevenlabs_music_service.is_enabled()
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("ElevenLabs API Key Required"))
             st.stop()
 
         if params.video_source == "local" and not has_local_materials:

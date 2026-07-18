@@ -148,6 +148,77 @@ class TestTaskService(unittest.TestCase):
             )
         )
 
+    def test_generate_final_videos_uses_generated_elevenlabs_music(self):
+        """ElevenLabs 应复用视频配乐编排，并使用通用风格提示词。"""
+        params = VideoParams(
+            video_subject="test",
+            video_count=1,
+            bgm_type="elevenlabs",
+            video_music_prompt="gentle documentary",
+        )
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.elevenlabs_music,
+                "generate_bgm",
+                side_effect=lambda **kwargs: kwargs["output_path"],
+            ) as generate_bgm,
+            patch.object(tm.video, "generate_video") as generate_video,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            _, _, warnings = tm.generate_final_videos(
+                task_id="elevenlabs-task",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(generate_bgm.call_args.kwargs["video_duration"], 5)
+        self.assertEqual(
+            generate_bgm.call_args.kwargs["prompt"], "gentle documentary"
+        )
+        self.assertTrue(
+            generate_video.call_args.kwargs["bgm_file_override"].endswith(
+                "elevenlabs-bgm-1.mp3"
+            )
+        )
+
+    def test_generate_final_videos_falls_back_on_elevenlabs_failure(self):
+        """ElevenLabs 暂时失败时必须保留无配乐视频和结构化警告。"""
+        params = VideoParams(video_subject="test", bgm_type="elevenlabs")
+
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(
+                tm.elevenlabs_music,
+                "generate_bgm",
+                side_effect=tm.elevenlabs_music.ElevenLabsMusicError(
+                    "temporary outage"
+                ),
+            ),
+            patch.object(tm.video, "generate_video") as generate_video,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            final_paths, _, warnings = tm.generate_final_videos(
+                task_id="elevenlabs-fallback",
+                params=params,
+                downloaded_videos=["material.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=5,
+            )
+
+        self.assertEqual(len(final_paths), 1)
+        self.assertEqual(
+            warnings,
+            [{"code": "elevenlabs_bgm_failed", "video_index": 1}],
+        )
+        self.assertEqual(generate_video.call_args.kwargs["bgm_file_override"], "")
+
     def test_generate_final_videos_falls_back_without_bgm_on_sonilo_failure(self):
         """第三方配乐失败时应完成视频并返回可见警告，而不是丢弃所有产物。"""
         params = VideoParams(video_subject="test", bgm_type="sonilo")
@@ -276,6 +347,80 @@ class TestTaskService(unittest.TestCase):
 
         generate_script.assert_called_once_with("zero-volume-without-key", params)
         self.assertEqual(result["failed_stage"], "script")
+
+    def test_start_rejects_missing_elevenlabs_key_before_pipeline_steps(self):
+        """完整任务缺少 ElevenLabs Key 时必须在任何付费步骤前失败。"""
+        params = VideoParams(video_subject="test", bgm_type="elevenlabs")
+        state = MemoryState()
+        with (
+            patch.object(
+                tm.elevenlabs_music, "is_enabled", return_value=False
+            ),
+            patch.object(tm, "generate_script") as generate_script,
+            patch.object(tm, "generate_audio") as generate_audio,
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("missing-elevenlabs-key", params)
+
+        generate_script.assert_not_called()
+        generate_audio.assert_not_called()
+        self.assertEqual(result["state"], tm.const.TASK_STATE_FAILED)
+        self.assertEqual(result["failed_stage"], "preflight")
+        self.assertIn("ElevenLabs", result["error"])
+
+    def test_start_rejects_free_elevenlabs_plan_before_pipeline_steps(self):
+        """已确认的免费套餐不能先消耗 LLM、TTS 或素材服务额度。"""
+        params = VideoParams(video_subject="test", bgm_type="elevenlabs")
+        state = MemoryState()
+        with (
+            patch.object(
+                tm.elevenlabs_music, "is_enabled", return_value=True
+            ),
+            patch.object(
+                tm.elevenlabs_music,
+                "validate_generation_access",
+                side_effect=(
+                    tm.elevenlabs_music.ElevenLabsPaidPlanRequiredError(
+                        "ElevenLabs Music API requires a paid plan"
+                    )
+                ),
+            ) as validate_access,
+            patch.object(tm, "generate_script") as generate_script,
+            patch.object(tm, "generate_audio") as generate_audio,
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("free-elevenlabs-plan", params)
+
+        validate_access.assert_called_once_with()
+        generate_script.assert_not_called()
+        generate_audio.assert_not_called()
+        self.assertEqual(result["failed_stage"], "preflight")
+        self.assertIn("paid plan", result["error"])
+
+    def test_start_rejects_oversized_elevenlabs_prompt_before_account_check(self):
+        """API/CLI 绕过 WebUI 时，超长提示词也必须在昂贵步骤前被拒绝。"""
+        params = VideoParams(
+            video_subject="test",
+            bgm_type="elevenlabs",
+            video_music_prompt="x" * 1001,
+        )
+        state = MemoryState()
+        with (
+            patch.object(
+                tm.elevenlabs_music, "is_enabled", return_value=True
+            ),
+            patch.object(
+                tm.elevenlabs_music, "validate_generation_access"
+            ) as validate_access,
+            patch.object(tm, "generate_script") as generate_script,
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("oversized-elevenlabs-prompt", params)
+
+        validate_access.assert_not_called()
+        generate_script.assert_not_called()
+        self.assertEqual(result["failed_stage"], "preflight")
+        self.assertIn("1000", result["error"])
 
     def test_generate_terms_uses_script_order_mode_when_enabled(self):
         """
