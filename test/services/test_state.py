@@ -28,6 +28,11 @@ class _FakeRedis:
             next_cursor = 0
         return next_cursor, self.batches[batch_index]
 
+    def type(self, key):
+        # Every key this fake holds is a task-record hash; model that so the
+        # production TYPE-filter can be exercised through this stand-in too.
+        return b"hash"
+
     def hgetall(self, key):
         return self.data[key]
 

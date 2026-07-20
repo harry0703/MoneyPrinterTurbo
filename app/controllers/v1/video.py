@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import shutil
+import time
 from typing import Union
 from uuid import UUID
 
@@ -151,6 +152,34 @@ def _canonical_params_hash(body) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+# How long a duplicate submission waits for the CREATED winner to publish the
+# task record before giving up. Enqueue happens immediately after the record is
+# written, so the record appears within milliseconds of the winner reserving the
+# key; a generous ceiling only matters if the winner crashed mid-flight.
+_DUPLICATE_WAIT_SECONDS = 5.0
+_DUPLICATE_POLL_INTERVAL = 0.05
+
+
+def _wait_for_task_record(task_id: str):
+    """
+    Poll for the task record published by the CREATED winner.
+
+    A duplicate submission must never enqueue its own copy of the work — that is
+    the whole point of idempotency. Instead it waits for the winner to publish
+    the record (written before enqueue) and returns it. Returns None if the
+    record never appears within the deadline, which means the winner died before
+    publishing and the caller should surface a retryable error.
+    """
+    deadline = time.monotonic() + _DUPLICATE_WAIT_SECONDS
+    while True:
+        existing = sm.state.get_task(task_id)
+        if existing is not None:
+            return existing
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(_DUPLICATE_POLL_INTERVAL)
+
+
 def create_task(
     request: Request,
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
@@ -171,19 +200,27 @@ def create_task(
         params_hash = _canonical_params_hash(body)
         outcome = sm.state.reserve_idempotent_task(task_id, params_hash)
         if outcome == const.IDEMPOTENCY_DUPLICATE:
-            # 同一 key 且参数一致：若对应任务已经真正入队（可被查询到），
-            # 返回既有任务，不再重复入队（含响应丢失后的恢复）。若任务尚不存在，
-            # 说明抢占者尚未完成入队即失败（例如队列已满后被清理），本次请求应
-            # 接管并入队，而不是返回一个指向不存在任务的 200（Spec review 的
-            # "provisional reservation → false success" 缺陷）。
-            if sm.state.get_task(task_id) is not None:
+            # 同一 key 且参数一致：仅 CREATED 的赢家可以入队，重复请求绝不重复入队。
+            # 赢家在入队前先写入任务记录，因此这里只需等待该记录出现并返回既有任务
+            # （含响应丢失后的恢复）。若在期限内始终看不到记录，说明赢家在发布前已
+            # 崩溃，返回 409 让客户端安全重试，而不是接管入队造成重复执行/竞态。
+            existing = _wait_for_task_record(task_id)
+            if existing is not None:
                 logger.info(
                     f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
                 )
                 return utils.get_response(200, {"task_id": task_id})
-            logger.info(
-                f"idempotent duplicate observed before enqueue; taking over, "
+            logger.warning(
+                f"idempotent duplicate timed out waiting for winner, "
                 f"request_id: {request_id}, task_id: {task_id}"
+            )
+            raise HttpException(
+                task_id=task_id,
+                status_code=409,
+                message=(
+                    f"{task_id}: idempotency_pending: another submission with "
+                    "this key is in flight; retry shortly"
+                ),
             )
         elif outcome == const.IDEMPOTENCY_CONFLICT:
             logger.warning(
@@ -197,23 +234,25 @@ def create_task(
                     "submitted with different parameters"
                 ),
             )
+        # outcome == IDEMPOTENCY_CREATED: fall through as the sole enqueue winner.
     else:
         task_id = utils.get_uuid()
 
     try:
-        # 先入队，再写入任务哈希记录。入队成功才代表任务真正存在；此时重复请求
-        # 才能安全地返回既有的 task_id（不会指向不存在的工作）。
+        # 先写入任务记录，再入队。记录先于工作存在，保证：(1) 记录与入队构成一个
+        # 原子对——重复请求要么看到记录并返回，要么在赢家崩溃时得到可重试的 409，
+        # 绝不会返回指向不存在工作的 200；(2) worker 一旦被调度即可查询到记录。
         task = {
             "task_id": task_id,
             "request_id": request_id,
             "params": body.model_dump(),
         }
-        task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
         sm.state.update_task(task_id)
+        task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
     except TaskQueueFullError as e:
-        # 队列已满：清除预备的 idempotency 状态，使合法重试能重新抢占并正常入队。
+        # 队列已满：清除预备的 idempotency 状态与占位记录，使合法重试能重新抢占并入队。
         sm.state.clear_idempotency(task_id)
         sm.state.delete_task(task_id)
         logger.warning(
@@ -223,6 +262,9 @@ def create_task(
             task_id=task_id, status_code=429, message=f"{request_id}: {str(e)}"
         )
     except ValueError as e:
+        # 参数错误同样需回滚预备状态，避免 idempotency_key 被一个永不成功的请求占死。
+        sm.state.clear_idempotency(task_id)
+        sm.state.delete_task(task_id)
         raise HttpException(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
         )
