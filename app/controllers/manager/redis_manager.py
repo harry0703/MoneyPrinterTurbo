@@ -43,8 +43,55 @@ class RedisTaskManager(TaskManager):
         self._finish_claim(task, requeue=True)
 
     def acknowledge_dispatch(self, task: Dict):
-        """Owner-safely remove a Redis claim after its worker thread starts."""
+        """Owner-safely remove a Redis claim after its worker finishes."""
         self._finish_claim(task, requeue=False)
+
+    def renew_active_dispatches(self):
+        """Renew owner claims for workers still running in this process."""
+        for task in self._active_dispatch_snapshot():
+            claim_id = task.get("_dispatch_claim_id")
+            payload = task.get("_dispatch_payload")
+            if not claim_id or payload is None:
+                continue
+            claim_key = self._dispatch_claim_key(claim_id)
+            while True:
+                with self.redis_client.pipeline() as pipe:
+                    try:
+                        pipe.watch(claim_key, self._processing_deadlines_key)
+                        claim_type = self._require_key_type(
+                            pipe,
+                            claim_key,
+                            {"none", "string"},
+                            "dispatch claim",
+                        )
+                        self._require_key_type(
+                            pipe,
+                            self._processing_deadlines_key,
+                            {"none", "zset"},
+                            "dispatch deadline",
+                        )
+                        if claim_type == "none":
+                            pipe.unwatch()
+                            self._discard_dispatch_active(task)
+                            break
+                        claimed_payload = pipe.get(claim_key)
+                        expected_payload = payload.encode("utf-8")
+                        if claimed_payload != expected_payload:
+                            pipe.unwatch()
+                            self._discard_dispatch_active(task)
+                            break
+                        pipe.multi()
+                        pipe.zadd(
+                            self._processing_deadlines_key,
+                            {
+                                claim_id: time.time()
+                                + self._DISPATCH_CLAIM_SECONDS
+                            },
+                        )
+                        pipe.execute()
+                        break
+                    except redis.WatchError:
+                        continue
 
     @property
     def _processing_deadlines_key(self):

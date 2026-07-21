@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from app.models import const
 from app.controllers.manager.base_manager import TaskManager
 from app.controllers.manager.memory_manager import InMemoryTaskManager
-from app.controllers.manager.redis_manager import RedisTaskManager
+from app.controllers.manager.redis_manager import FUNC_MAP, RedisTaskManager
 from app.services import task as tm
 from app.services.state import MemoryState, RedisState
 
@@ -263,20 +263,24 @@ class TestRedisSubmissionAcceptance(_SubmissionAcceptanceContract, unittest.Test
     def test_acknowledgement_failure_does_not_release_slot_or_lose_next_job(self):
         second_manager = self._new_manager()
         self.extra_managers.append(second_manager)
+        started = []
+
+        def acknowledged_start(task_id):
+            started.append(task_id)
+            self.state.update_task(
+                task_id, state=const.TASK_STATE_COMPLETE, progress=100
+            )
+
+        FUNC_MAP[acknowledged_start.__name__] = acknowledged_start
         for task_id in ("ack-task-a", "ack-task-b"):
             self.manager.enqueue(
                 {
-                    "func": tm.start,
+                    "func": acknowledged_start,
                     "args": (),
                     "kwargs": {"task_id": task_id},
                 }
             )
 
-        started = []
-        self.manager.execute_task = (
-            lambda *args, **kwargs: started.append(kwargs["task_id"])
-        )
-        second_manager.execute_task = self.manager.execute_task
         original_acknowledge = self.manager.acknowledge_dispatch
         ack_attempts = 0
 
@@ -288,15 +292,21 @@ class TestRedisSubmissionAcceptance(_SubmissionAcceptanceContract, unittest.Test
             original_acknowledge(task)
 
         self.manager.acknowledge_dispatch = fail_first_acknowledgement
-        self.manager.check_queue()
-        second_manager.check_queue()
+        try:
+            self.manager.check_queue()
+            second_manager.check_queue()
 
-        deadline = time.monotonic() + 2
-        while ack_attempts < 2 and time.monotonic() < deadline:
-            time.sleep(0.01)
+            deadline = time.monotonic() + 2
+            while (
+                (ack_attempts < 2 or len(started) < 2)
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.01)
+        finally:
+            FUNC_MAP.pop(acknowledged_start.__name__, None)
         self.assertEqual(started, ["ack-task-a", "ack-task-b"])
-        self.assertEqual(self.manager.current_tasks, 1)
-        self.assertEqual(second_manager.current_tasks, 1)
+        self.assertEqual(self.manager.current_tasks, 0)
+        self.assertEqual(second_manager.current_tasks, 0)
         self.assertGreaterEqual(ack_attempts, 2)
         self.assertEqual(self.manager.queue_size(), 0)
 
@@ -360,6 +370,118 @@ class TestRedisSubmissionAcceptance(_SubmissionAcceptanceContract, unittest.Test
             if key != self.manager._processing_deadlines_key.encode("utf-8")
         ]
         self.assertEqual(claim_keys, [])
+
+    def test_dispatch_claim_remains_recoverable_until_worker_finishes(self):
+        worker_started = threading.Event()
+        allow_finish = threading.Event()
+        task_finished = threading.Event()
+        started_tasks = []
+
+        def controlled_start(task_id):
+            started_tasks.append(task_id)
+            self.state.update_task(
+                task_id, state=const.TASK_STATE_PROCESSING, progress=5
+            )
+            worker_started.set()
+            allow_finish.wait(timeout=2)
+            self.state.update_task(
+                task_id, state=const.TASK_STATE_COMPLETE, progress=100
+            )
+            task_finished.set()
+
+        FUNC_MAP[controlled_start.__name__] = controlled_start
+        self.manager._DISPATCH_CLAIM_SECONDS = 0.3
+        shutdown = None
+        try:
+            self.manager.enqueue(
+                {
+                    "func": controlled_start,
+                    "args": (),
+                    "kwargs": {"task_id": "running-claim-task"},
+                }
+            )
+            self.manager.start_dispatcher()
+            self.assertTrue(worker_started.wait(timeout=2))
+            time.sleep(0.05)
+
+            claim_pattern = "task_queue:processing:*"
+            active_claims = [
+                key
+                for key in self.redis_client.scan_iter(claim_pattern)
+                if key != self.manager._processing_deadlines_key.encode("utf-8")
+            ]
+            self.assertEqual(len(active_claims), 1)
+
+            self.manager.enqueue(
+                {
+                    "func": controlled_start,
+                    "args": (),
+                    "kwargs": {"task_id": "queued-during-shutdown"},
+                }
+            )
+            shutdown = threading.Thread(
+                target=self.manager.stop_dispatcher_when_idle
+            )
+            shutdown.start()
+            time.sleep(0.5)
+            self.manager.recover_expired_dispatches()
+            self.assertTrue(shutdown.is_alive())
+            self.assertEqual(self.manager.queue_size(), 1)
+        finally:
+            allow_finish.set()
+            FUNC_MAP.pop(controlled_start.__name__, None)
+
+        self.assertTrue(task_finished.wait(timeout=2))
+        self.assertIsNotNone(shutdown)
+        shutdown.join(timeout=2)
+        self.assertFalse(shutdown.is_alive())
+        deadline = time.monotonic() + 2
+        while self.manager.current_tasks and time.monotonic() < deadline:
+            time.sleep(0.01)
+        active_claims = [
+            key
+            for key in self.redis_client.scan_iter("task_queue:processing:*")
+            if key != self.manager._processing_deadlines_key.encode("utf-8")
+        ]
+        self.assertEqual(active_claims, [])
+        self.assertEqual(started_tasks, ["running-claim-task"])
+        self.assertEqual(self.manager.queue_size(), 1)
+
+    def test_unexpected_worker_failure_expires_claim_and_retries_work(self):
+        completed = threading.Event()
+        attempts = 0
+
+        def recoverable_start(task_id):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("worker exited before durable completion")
+            self.state.update_task(
+                task_id, state=const.TASK_STATE_COMPLETE, progress=100
+            )
+            completed.set()
+
+        FUNC_MAP[recoverable_start.__name__] = recoverable_start
+        self.manager._DISPATCH_CLAIM_SECONDS = 0.15
+        try:
+            self.manager.enqueue(
+                {
+                    "func": recoverable_start,
+                    "args": (),
+                    "kwargs": {"task_id": "recover-worker-task"},
+                }
+            )
+            self.manager.start_dispatcher()
+            self.assertTrue(completed.wait(timeout=2))
+        finally:
+            FUNC_MAP.pop(recoverable_start.__name__, None)
+
+        self.assertEqual(attempts, 2)
+        self.assertEqual(
+            self.state.get_task("recover-worker-task")["state"],
+            const.TASK_STATE_COMPLETE,
+        )
+        self.assertEqual(self.manager.queue_size(), 0)
 
     def test_task_is_not_partially_visible_before_transaction_executes(self):
         self.manager.current_tasks = self.manager.max_concurrent_tasks

@@ -76,7 +76,7 @@ app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
 @app.on_event("shutdown")
 def shutdown_event():
     logger.info("shutdown event")
-    video_controller.task_manager.stop_dispatcher()
+    video_controller.task_manager.stop_dispatcher_when_idle()
 
 
 @app.on_event("startup")

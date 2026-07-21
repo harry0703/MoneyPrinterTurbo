@@ -64,9 +64,12 @@ differences do not affect equality.
   a previous process. If a worker thread cannot start, an autonomous dispatcher
   retries the accepted entry; accepted duplicates also wake that dispatcher.
   Redis moves a queued entry into an owner-token claim before starting a worker
-  and removes that claim only after the worker starts. A crashed owner's
-  five-second dispatch lease expires and another process returns the work to
-  the queue.
+  and renews that claim for the worker's full execution. The claim is removed
+  only after the task function returns from its terminal state update. If the
+  process or worker exits earlier, the five-second dispatch lease expires and
+  another process returns the work to the queue. Graceful shutdown enters a
+  draining state: it continues renewing active claims until their workers
+  finish and does not start queued work during shutdown.
 - Deleting a task (`DELETE /api/v1/tasks/{task_id}`) does **not** expire its
   idempotency reservation; a follow-up retry with the same key still returns the
   existing task id (the task record may no longer exist). This keeps retry
