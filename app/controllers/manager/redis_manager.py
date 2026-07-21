@@ -1,3 +1,4 @@
+import copy
 import json
 from typing import Dict
 
@@ -27,7 +28,17 @@ class RedisTaskManager(TaskManager):
         return "task_queue"
 
     def enqueue(self, task: Dict):
-        task_with_serializable_params = task.copy()
+        self.redis_client.rpush(self.queue, self._serialize_task(task))
+
+    def enqueue_transaction(self, pipeline, task: Dict):
+        pipeline.rpush(self.queue, self._serialize_task(task))
+
+    def requeue(self, task: Dict):
+        self.redis_client.lpush(self.queue, self._serialize_task(task))
+
+    @staticmethod
+    def _serialize_task(task: Dict) -> str:
+        task_with_serializable_params = copy.deepcopy(task)
 
         if "params" in task["kwargs"] and isinstance(
             task["kwargs"]["params"], VideoParams
@@ -38,7 +49,7 @@ class RedisTaskManager(TaskManager):
 
         # 将函数对象转换为其名称
         task_with_serializable_params["func"] = task["func"].__name__
-        self.redis_client.rpush(self.queue, json.dumps(task_with_serializable_params))
+        return json.dumps(task_with_serializable_params)
 
     def dequeue(self):
         task_json = self.redis_client.lpop(self.queue)

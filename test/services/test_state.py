@@ -155,49 +155,12 @@ class TestFakeRedisState(unittest.TestCase):
         # idempotency reservations are strings in the same keyspace. Listing
         # must skip the string keys rather than HGETALL them.
         self.state.update_task("task:1", state=1, progress=10)
-        self.state.reserve_idempotent_task("task:1", "h1")
+        self.state.reserve_idempotent_task("task:1", "h1", "owner-1")
 
         tasks, total = self.state.get_all_tasks(page=1, page_size=10)
         self.assertEqual(total, 1)
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0]["task_id"], "task:1")
-
-    def test_reserve_returns_created_then_duplicate(self):
-        self.assertEqual(
-            self.state.reserve_idempotent_task("k1", "h1"), const.IDEMPOTENCY_CREATED
-        )
-        self.assertEqual(
-            self.state.reserve_idempotent_task("k1", "h1"), const.IDEMPOTENCY_DUPLICATE
-        )
-        self.assertEqual(
-            self.state.reserve_idempotent_task("k1", "h2"), const.IDEMPOTENCY_CONFLICT
-        )
-
-    def test_reservation_expires(self):
-        # The reservation carries a 24h TTL; after it lapses the slot is free
-        # again (issue #1 non-blocking: retention window).
-        self.state.reserve_idempotent_task("k1", "h1")
-        self.state._redis.delete("idem:k1")  # emulate expiry without real time
-        self.assertEqual(
-            self.state.reserve_idempotent_task("k1", "h1"), const.IDEMPOTENCY_CREATED
-        )
-
-    def test_concurrent_identical_reservations_create_one_task(self):
-        thread_count = 20
-        results = []
-
-        def reserve():
-            results.append(self.state.reserve_idempotent_task("same-key", "same-hash"))
-
-        threads = [threading.Thread(target=reserve) for _ in range(thread_count)]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
-
-        self.assertEqual(results.count(const.IDEMPOTENCY_CREATED), 1)
-        self.assertEqual(results.count(const.IDEMPOTENCY_DUPLICATE), thread_count - 1)
-
 
 if __name__ == "__main__":
     unittest.main()

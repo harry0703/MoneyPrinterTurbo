@@ -6,7 +6,7 @@ import pathlib
 import shutil
 import time
 from typing import Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
@@ -152,57 +152,23 @@ def _canonical_params_hash(body) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-# How long a duplicate submission waits for the CREATED winner to commit the
-# task before giving up. The winner publishes a provisional placeholder, then
-# enqueues; the worker transitions the record to PROCESSING once it begins. A
-# duplicate must not return 200 on the provisional placeholder — the winner may
-# still hit a full queue and delete it — so it polls for the COMMITTED record
-# (state != QUEUED) and only returns 200 once the work is genuinely running.
-# The ceiling covers the winner being slow to enqueue or the worker slow to
-# report processing.
 _DUPLICATE_WAIT_SECONDS = 5.0
 _DUPLICATE_POLL_INTERVAL = 0.05
 
 
-def _task_committed(existing) -> bool:
-    """
-    A task record is 'committed' once it has left the provisional QUEUED state
-    — i.e. the worker has begun processing (PROCESSING), or reached a terminal
-    state (COMPLETE/FAILED). A duplicate may return 200 only for committed work;
-    a QUEUED placeholder may yet be deleted if the winner fails to enqueue, so it
-    must not yet be surfaced as a real task.
-    """
-    if existing is None:
-        return False
-    state = existing.get("state")
-    # MemoryState stores state as int; RedisState decodes it back to int via
-    # _convert_to_original_type. Defensively accept either spelling.
-    return state != const.TASK_STATE_QUEUED and state != str(int(const.TASK_STATE_QUEUED))
-
-
-def _wait_for_committed_task(task_id: str):
-    """
-    Poll for the COMMITTED task record published by the CREATED winner.
-
-    A duplicate submission must never enqueue its own copy of the work — that is
-    the whole point of idempotency. It waits for the winner to publish the
-    record AND transition it out of the provisional QUEUED state, which happens
-    only once the worker has actually started (so the work is genuinely
-    running, not just reserved). This closes the round-3 provisional-vs-
-    committed race: a duplicate used to return 200 upon merely seeing the
-    placeholder, but the winner could still hit a full queue and delete it,
-    leaving the duplicate's 200 pointing at nonexistent work. Now the duplicate
-    keeps polling through the provisional window; if the winner fails to
-    enqueue it deletes the placeholder (get_task -> None) and the duplicate
-    eventually times out and returns a retryable 409 instead of a false 200.
-    """
+def _wait_for_idempotency_claim(
+    task_id: str, params_hash: str, owner_token: str
+) -> str:
+    """Wait for an active owner to accept, abort, or lose its short lease."""
     deadline = time.monotonic() + _DUPLICATE_WAIT_SECONDS
     while True:
-        existing = sm.state.get_task(task_id)
-        if _task_committed(existing):
-            return existing
+        outcome = sm.state.reserve_idempotent_task(
+            task_id, params_hash, owner_token, _DUPLICATE_WAIT_SECONDS
+        )
+        if outcome != const.IDEMPOTENCY_PENDING:
+            return outcome
         if time.monotonic() >= deadline:
-            return None
+            return const.IDEMPOTENCY_PENDING
         time.sleep(_DUPLICATE_POLL_INTERVAL)
 
 
@@ -224,25 +190,14 @@ def create_task(
                 message=f"{request_id}: idempotency_key must be a valid UUID",
             )
         params_hash = _canonical_params_hash(body)
-        outcome = sm.state.reserve_idempotent_task(task_id, params_hash)
+        owner_token = str(uuid4())
+        outcome = _wait_for_idempotency_claim(task_id, params_hash, owner_token)
         if outcome == const.IDEMPOTENCY_DUPLICATE:
-            # 同一 key 且参数一致：仅 CREATED 的赢家可以入队，重复请求绝不重复入队。
-            # 赢家先写入 QUEUED 占位记录再入队；worker 开始处理后把记录推进到
-            # PROCESSING（已提交）。重复请求必须等到记录「已提交」才返回 200——
-            # 仅看到 QUEUED 占位还不够：赢家仍可能在入队时遇到队列已满并删除占位，
-            # 若此刻返回 200 就会指向不存在的工作。因此在 QUEUED 窗口持续轮询；若赢家
-            # 入队失败（删除占位、清掉预留），重复请求最终超时并返回 409 可重试错误，
-            # 而非虚假 200。
-            existing = _wait_for_committed_task(task_id)
-            if existing is not None:
-                logger.info(
-                    f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
-                )
-                return utils.get_response(200, {"task_id": task_id})
-            logger.warning(
-                f"idempotent duplicate timed out waiting for winner, "
-                f"request_id: {request_id}, task_id: {task_id}"
+            logger.info(
+                f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
             )
+            return utils.get_response(200, {"task_id": task_id})
+        if outcome == const.IDEMPOTENCY_PENDING:
             raise HttpException(
                 task_id=task_id,
                 status_code=409,
@@ -251,7 +206,7 @@ def create_task(
                     "this key is in flight; retry shortly"
                 ),
             )
-        elif outcome == const.IDEMPOTENCY_CONFLICT:
+        if outcome == const.IDEMPOTENCY_CONFLICT:
             logger.warning(
                 f"idempotency conflict, request_id: {request_id}, task_id: {task_id}"
             )
@@ -263,17 +218,55 @@ def create_task(
                     "submitted with different parameters"
                 ),
             )
-        # outcome == IDEMPOTENCY_CREATED: fall through as the sole enqueue winner.
+        task = {
+            "task_id": task_id,
+            "request_id": request_id,
+            "params": body.model_dump(),
+        }
+        try:
+            acceptance = task_manager.submit_idempotent(
+                state=sm.state,
+                task_id=task_id,
+                params_hash=params_hash,
+                owner_token=owner_token,
+                task_fields={
+                    "state": const.TASK_STATE_QUEUED,
+                    "request_id": request_id,
+                },
+                func=tm.start,
+                task_kwargs={"task_id": task_id, "params": body, "stop_at": stop_at},
+            )
+        except ValueError as e:
+            sm.state.abort_idempotent_task(task_id, owner_token)
+            raise HttpException(
+                task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
+            )
+        except Exception:
+            sm.state.abort_idempotent_task(task_id, owner_token)
+            raise
+
+        if acceptance == const.IDEMPOTENCY_QUEUE_FULL:
+            raise HttpException(
+                task_id=task_id,
+                status_code=429,
+                message=f"{request_id}: task queue is full, please try again later",
+            )
+        if acceptance == const.IDEMPOTENCY_STALE:
+            raise HttpException(
+                task_id=task_id,
+                status_code=409,
+                message=(
+                    f"{task_id}: idempotency_pending: another submission with "
+                    "this key is in flight; retry shortly"
+                ),
+            )
+
+        logger.success(f"Task created: {utils.to_json(task)}")
+        return utils.get_response(200, task)
     else:
         task_id = utils.get_uuid()
 
     try:
-        # 先写入「预备」(QUEUED) 占位记录，再入队。占位先于工作存在，保证 worker
-        # 被调度即可查询到记录。但 QUEUED 是预备态：重复请求不能仅凭它返回 200，
-        # 因为赢家仍可能在 add_task 时遇到队列已满并删除占位（见上方 DUPLICATE 分支
-        # 与 _wait_for_committed_task）。worker 一旦开始处理即把记录推进到 PROCESSING
-        # （已提交），此时重复请求才安全返回 200。队列已满或参数错误时，清掉预留并
-        # 删除占位，使合法重试可重新抢占。
         task = {
             "task_id": task_id,
             "request_id": request_id,
@@ -286,8 +279,6 @@ def create_task(
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
     except TaskQueueFullError as e:
-        # 队列已满：清除预备的 idempotency 状态与占位记录，使合法重试能重新抢占并入队。
-        sm.state.clear_idempotency(task_id)
         sm.state.delete_task(task_id)
         logger.warning(
             f"reject task because queue is full, request_id: {request_id}, task_id: {task_id}"
@@ -296,8 +287,6 @@ def create_task(
             task_id=task_id, status_code=429, message=f"{request_id}: {str(e)}"
         )
     except ValueError as e:
-        # 参数错误同样需回滚预备状态，避免 idempotency_key 被一个永不成功的请求占死。
-        sm.state.clear_idempotency(task_id)
         sm.state.delete_task(task_id)
         raise HttpException(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"

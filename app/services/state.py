@@ -1,6 +1,9 @@
 import ast
 import copy
+import json
+import math
 import threading
+import time
 from abc import ABC, abstractmethod
 
 from app.config import config
@@ -26,27 +29,46 @@ class BaseState(ABC):
         pass
 
     @abstractmethod
-    def reserve_idempotent_task(self, task_id: str, params_hash: str) -> str:
+    def reserve_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        lease_seconds: float = 5.0,
+    ) -> str:
         """
         Atomically claim an idempotency key and its canonical parameters.
 
-        Returns one of const.IDEMPOTENCY_CREATED / _DUPLICATE / _CONFLICT.
+        Returns CREATED, PENDING, DUPLICATE, or CONFLICT.
         - created:   first valid request for this key; caller may enqueue work.
-        - duplicate: an identical prior submission exists; the caller must not
-                     enqueue and should return the existing task id.
+        - pending:   an identical request currently owns the short submit lease.
+        - duplicate: identical work was atomically accepted; return its task id.
         - conflict:  the same key was used with different canonical parameters;
                      the caller must reject with HTTP 409.
         """
         pass
 
     @abstractmethod
-    def clear_idempotency(self, task_id: str):
-        """
-        Drop any provisional idempotency reservation for task_id.
+    def get_idempotency(self, task_id: str):
+        pass
 
-        Called when a reservation cannot be turned into enqueued work (e.g. the
-        task queue is full) so a legitimate later retry can proceed.
-        """
+    @abstractmethod
+    def abort_idempotent_task(self, task_id: str, owner_token: str) -> bool:
+        """Remove a pending claim only when owner_token still owns it."""
+        pass
+
+    @abstractmethod
+    def accept_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        task_fields: dict,
+        task_info: dict,
+        task_manager,
+        queue_capacity: int,
+    ) -> str:
+        """Atomically publish a task, enqueue it, and accept its claim."""
         pass
 
 
@@ -93,19 +115,104 @@ class MemoryState(BaseState):
         with self._lock:
             self._tasks.pop(task_id, None)
 
-    def reserve_idempotent_task(self, task_id: str, params_hash: str) -> str:
+    def reserve_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        lease_seconds: float = 5.0,
+    ) -> str:
+        with self._lock:
+            existing = self._idem.get(task_id)
+            now = time.monotonic()
+            if (
+                existing is not None
+                and existing["phase"] == const.IDEMPOTENCY_PHASE_PENDING
+                and existing["expires_at"] <= now
+            ):
+                existing = None
+                self._idem.pop(task_id, None)
+
+            if existing is None:
+                self._idem[task_id] = {
+                    "params_hash": params_hash,
+                    "phase": const.IDEMPOTENCY_PHASE_PENDING,
+                    "owner_token": owner_token,
+                    "expires_at": now + lease_seconds,
+                }
+                return const.IDEMPOTENCY_CREATED
+            if existing["params_hash"] != params_hash:
+                return const.IDEMPOTENCY_CONFLICT
+            if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
+                return const.IDEMPOTENCY_DUPLICATE
+            return const.IDEMPOTENCY_PENDING
+
+    def get_idempotency(self, task_id: str):
         with self._lock:
             existing = self._idem.get(task_id)
             if existing is None:
-                self._idem[task_id] = params_hash
-                return const.IDEMPOTENCY_CREATED
-            if existing == params_hash:
-                return const.IDEMPOTENCY_DUPLICATE
-            return const.IDEMPOTENCY_CONFLICT
+                return None
+            if (
+                existing["phase"] == const.IDEMPOTENCY_PHASE_PENDING
+                and existing["expires_at"] <= time.monotonic()
+            ):
+                self._idem.pop(task_id, None)
+                return None
+            return {
+                "params_hash": existing["params_hash"],
+                "phase": existing["phase"],
+                "owner_token": existing["owner_token"],
+            }
 
-    def clear_idempotency(self, task_id: str):
+    def abort_idempotent_task(self, task_id: str, owner_token: str) -> bool:
         with self._lock:
+            existing = self._idem.get(task_id)
+            if (
+                existing is None
+                or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
+                or existing["owner_token"] != owner_token
+            ):
+                return False
             self._idem.pop(task_id, None)
+            return True
+
+    def accept_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        task_fields: dict,
+        task_info: dict,
+        task_manager,
+        queue_capacity: int,
+    ) -> str:
+        with self._lock:
+            existing = self._idem.get(task_id)
+            if (
+                existing is None
+                or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
+                or existing["params_hash"] != params_hash
+                or existing["owner_token"] != owner_token
+                or existing["expires_at"] <= time.monotonic()
+            ):
+                return const.IDEMPOTENCY_STALE
+            if task_manager.queue_size() >= queue_capacity:
+                return const.IDEMPOTENCY_QUEUE_FULL
+
+            task_manager.enqueue_transaction(None, task_info)
+            self._tasks[task_id] = {
+                "task_id": task_id,
+                "state": task_fields.get("state", const.TASK_STATE_QUEUED),
+                "progress": int(task_fields.get("progress", 0)),
+                **task_fields,
+            }
+            self._idem[task_id] = {
+                "params_hash": params_hash,
+                "phase": const.IDEMPOTENCY_PHASE_ACCEPTED,
+                "owner_token": owner_token,
+                "expires_at": float("inf"),
+            }
+            return const.IDEMPOTENCY_ACCEPTED
 
 
 # Redis state management
@@ -194,8 +301,9 @@ class RedisState(BaseState):
             **kwargs,
         }
 
-        for field, value in fields.items():
-            self._redis.hset(task_id, field, str(value))
+        self._redis.hset(
+            task_id, mapping={field: str(value) for field, value in fields.items()}
+        )
 
     def get_task(self, task_id: str):
         task_data = self._redis.hgetall(task_id)
@@ -211,24 +319,131 @@ class RedisState(BaseState):
     def delete_task(self, task_id: str):
         self._redis.delete(task_id)
 
-    def reserve_idempotent_task(self, task_id: str, params_hash: str) -> str:
-        # SET NX GET 是原子的：第一次写入返回 None（本请求赢得抢占，
-        # 视为 created）；若该 key 已存在则返回旧值（其他请求已抢占）。
-        # 用与任务记录同生命周期的 idem:{task_id} 记录规范的参数哈希，
-        # 比较旧值即可区分 duplicate（参数一致）与 conflict（参数不同）。
+    def reserve_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        lease_seconds: float = 5.0,
+    ) -> str:
         idem_key = f"idem:{task_id}"
-        old = self._redis.set(
-            idem_key, params_hash, nx=True, get=True, ex=86400
-        )
-        if old is None:
-            return const.IDEMPOTENCY_CREATED
-        old_value = old.decode("utf-8") if isinstance(old, bytes) else str(old)
-        if old_value == params_hash:
-            return const.IDEMPOTENCY_DUPLICATE
-        return const.IDEMPOTENCY_CONFLICT
+        pending = {
+            "params_hash": params_hash,
+            "phase": const.IDEMPOTENCY_PHASE_PENDING,
+            "owner_token": owner_token,
+        }
+        lease_ms = max(1, math.ceil(lease_seconds * 1000))
+        encoded = json.dumps(pending, sort_keys=True, separators=(",", ":"))
 
-    def clear_idempotency(self, task_id: str):
-        self._redis.delete(f"idem:{task_id}")
+        while True:
+            if self._redis.set(idem_key, encoded, nx=True, px=lease_ms):
+                return const.IDEMPOTENCY_CREATED
+            existing = self.get_idempotency(task_id)
+            if existing is None:
+                continue
+            if existing["params_hash"] != params_hash:
+                return const.IDEMPOTENCY_CONFLICT
+            if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
+                return const.IDEMPOTENCY_DUPLICATE
+            return const.IDEMPOTENCY_PENDING
+
+    def get_idempotency(self, task_id: str):
+        value = self._redis.get(f"idem:{task_id}")
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        return json.loads(value)
+
+    def abort_idempotent_task(self, task_id: str, owner_token: str) -> bool:
+        from redis.exceptions import WatchError
+
+        idem_key = f"idem:{task_id}"
+        while True:
+            with self._redis.pipeline() as pipe:
+                try:
+                    pipe.watch(idem_key)
+                    existing = self.get_idempotency(task_id)
+                    if (
+                        existing is None
+                        or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
+                        or existing["owner_token"] != owner_token
+                    ):
+                        pipe.unwatch()
+                        return False
+                    pipe.multi()
+                    pipe.delete(idem_key)
+                    pipe.execute()
+                    return True
+                except WatchError:
+                    continue
+
+    def accept_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        task_fields: dict,
+        task_info: dict,
+        task_manager,
+        queue_capacity: int,
+    ) -> str:
+        from redis.exceptions import WatchError
+
+        idem_key = f"idem:{task_id}"
+        task_record = {
+            "task_id": task_id,
+            "state": task_fields.get("state", const.TASK_STATE_QUEUED),
+            "progress": int(task_fields.get("progress", 0)),
+            **task_fields,
+        }
+        encoded_task = {
+            field: str(value) for field, value in task_record.items()
+        }
+        accepted = json.dumps(
+            {
+                "params_hash": params_hash,
+                "phase": const.IDEMPOTENCY_PHASE_ACCEPTED,
+                "owner_token": owner_token,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+        while True:
+            with self._redis.pipeline() as pipe:
+                try:
+                    pipe.watch(idem_key, task_id, task_manager.queue)
+                    raw = pipe.get(idem_key)
+                    existing = self._decode_idempotency(raw)
+                    if (
+                        existing is None
+                        or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
+                        or existing["params_hash"] != params_hash
+                        or existing["owner_token"] != owner_token
+                    ):
+                        pipe.unwatch()
+                        return const.IDEMPOTENCY_STALE
+                    if pipe.llen(task_manager.queue) >= queue_capacity:
+                        pipe.unwatch()
+                        return const.IDEMPOTENCY_QUEUE_FULL
+
+                    pipe.multi()
+                    pipe.hset(task_id, mapping=encoded_task)
+                    task_manager.enqueue_transaction(pipe, task_info)
+                    pipe.set(idem_key, accepted, ex=86400)
+                    pipe.execute()
+                    return const.IDEMPOTENCY_ACCEPTED
+                except WatchError:
+                    continue
+
+    @staticmethod
+    def _decode_idempotency(value):
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        return json.loads(value)
 
     @staticmethod
     def _convert_to_original_type(value):
