@@ -322,10 +322,51 @@ class RedisState(BaseState):
             "progress": progress,
             **kwargs,
         }
+        encoded_fields = {
+            field: str(value) for field, value in fields.items()
+        }
+        if state in {const.TASK_STATE_COMPLETE, const.TASK_STATE_FAILED}:
+            terminal_key = (
+                f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+            )
+            from redis.exceptions import WatchError
 
-        self._redis.hset(
-            task_id, mapping={field: str(value) for field, value in fields.items()}
-        )
+            while True:
+                with self._redis.pipeline() as pipe:
+                    try:
+                        pipe.watch(task_id, terminal_key)
+                        task_type = self._redis_type_name(
+                            pipe.type(task_id)
+                        )
+                        terminal_type = self._redis_type_name(
+                            pipe.type(terminal_key)
+                        )
+                        if task_type not in {"none", "hash"}:
+                            pipe.unwatch()
+                            raise TypeError(
+                                "Redis task key has unexpected type: "
+                                f"{task_type}"
+                            )
+                        if terminal_type not in {"none", "string"}:
+                            pipe.unwatch()
+                            raise TypeError(
+                                "Redis terminal marker has unexpected type: "
+                                f"{terminal_type}"
+                            )
+
+                        pipe.multi()
+                        pipe.hset(task_id, mapping=encoded_fields)
+                        pipe.set(
+                            terminal_key,
+                            str(state),
+                            ex=const.IDEMPOTENCY_ACCEPTED_TTL_SECONDS,
+                        )
+                        pipe.execute()
+                        return
+                    except WatchError:
+                        continue
+
+        self._redis.hset(task_id, mapping=encoded_fields)
 
     def get_task(self, task_id: str):
         task_data = self._redis.hgetall(task_id)
@@ -410,6 +451,9 @@ class RedisState(BaseState):
         from redis.exceptions import WatchError
 
         idem_key = f"idem:{acceptance.task_id}"
+        terminal_key = (
+            f"{const.TASK_TERMINAL_MARKER_PREFIX}{acceptance.task_id}"
+        )
         encoded_task = {
             field: str(value) for field, value in acceptance.task_record().items()
         }
@@ -422,7 +466,12 @@ class RedisState(BaseState):
         while True:
             with self._redis.pipeline() as pipe:
                 try:
-                    pipe.watch(idem_key, acceptance.task_id, task_manager.queue)
+                    pipe.watch(
+                        idem_key,
+                        acceptance.task_id,
+                        task_manager.queue,
+                        terminal_key,
+                    )
                     raw = pipe.get(idem_key)
                     existing = self._decode_idempotency(raw)
                     if not _pending_claim_matches(existing, acceptance):
@@ -443,9 +492,14 @@ class RedisState(BaseState):
                         return const.IDEMPOTENCY_QUEUE_FULL
 
                     pipe.multi()
+                    pipe.delete(terminal_key)
                     pipe.hset(acceptance.task_id, mapping=encoded_task)
                     task_manager.enqueue_transaction(pipe, acceptance.task_info)
-                    pipe.set(idem_key, accepted, ex=86400)
+                    pipe.set(
+                        idem_key,
+                        accepted,
+                        ex=const.IDEMPOTENCY_ACCEPTED_TTL_SECONDS,
+                    )
                     pipe.execute()
                     return const.IDEMPOTENCY_ACCEPTED
                 except WatchError:

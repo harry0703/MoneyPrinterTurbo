@@ -162,5 +162,66 @@ class TestFakeRedisState(unittest.TestCase):
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0]["task_id"], "task:1")
 
+    def test_terminal_update_cannot_partially_mark_wrong_type_task(self):
+        task_id = "wrong-type-terminal-task"
+        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+        self.state._redis.set(task_id, "collision")
+
+        with self.assertRaises(TypeError):
+            self.state.update_task(
+                task_id,
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+            )
+
+        self.assertEqual(self.state._redis.get(task_id), b"collision")
+        self.assertFalse(self.state._redis.exists(terminal_key))
+
+    def test_terminal_update_sets_and_refreshes_24_hour_marker_ttl(self):
+        task_id = "terminal-marker-ttl-task"
+        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+        self.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+        )
+        self.state._redis.expire(terminal_key, 1)
+
+        self.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+        )
+
+        ttl = self.state._redis.ttl(terminal_key)
+        self.assertGreaterEqual(ttl, 86399)
+        self.assertLessEqual(ttl, 86400)
+
+    def test_terminal_update_cannot_partially_overwrite_wrong_type_marker(self):
+        task_id = "wrong-type-terminal-marker"
+        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+        self.state.update_task(
+            task_id,
+            state=const.TASK_STATE_PROCESSING,
+            progress=50,
+        )
+        self.state._redis.rpush(terminal_key, "collision")
+
+        with self.assertRaises(TypeError):
+            self.state.update_task(
+                task_id,
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+            )
+
+        self.assertEqual(
+            self.state.get_task(task_id)["state"],
+            const.TASK_STATE_PROCESSING,
+        )
+        self.assertEqual(
+            self.state._redis.lrange(terminal_key, 0, -1),
+            [b"collision"],
+        )
+
 if __name__ == "__main__":
     unittest.main()

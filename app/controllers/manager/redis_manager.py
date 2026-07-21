@@ -297,8 +297,19 @@ class RedisTaskManager(TaskManager):
                             if task_id is not None
                         )
                     )
-                    if task_ids:
-                        pipe.watch(*task_ids)
+                    terminal_keys = {
+                        task_id: (
+                            f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+                        )
+                        for task_id in task_ids
+                    }
+                    watched_task_keys = [
+                        key
+                        for task_id in task_ids
+                        for key in (task_id, terminal_keys[task_id])
+                    ]
+                    if watched_task_keys:
+                        pipe.watch(*watched_task_keys)
                     task_types = {
                         task_id: self._require_key_type(
                             pipe,
@@ -308,12 +319,26 @@ class RedisTaskManager(TaskManager):
                         )
                         for task_id in task_ids
                     }
+                    terminal_marker_types = {
+                        task_id: self._require_key_type(
+                            pipe,
+                            terminal_key,
+                            {"none", "string"},
+                            "terminal task marker",
+                        )
+                        for task_id, terminal_key in terminal_keys.items()
+                    }
                     terminal_task_ids = {
                         task_id
                         for task_id, task_type in task_types.items()
-                        if task_type == "hash"
-                        and self._is_terminal_state(
-                            pipe.hget(task_id, "state")
+                        if (
+                            terminal_marker_types[task_id] == "string"
+                            or (
+                                task_type == "hash"
+                                and self._is_terminal_state(
+                                    pipe.hget(task_id, "state")
+                                )
+                            )
                         )
                     }
                     pipe.multi()

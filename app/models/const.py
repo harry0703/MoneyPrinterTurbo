@@ -38,6 +38,8 @@ IDEMPOTENCY_QUEUE_FULL = "queue_full"
 
 IDEMPOTENCY_PHASE_PENDING = "pending"
 IDEMPOTENCY_PHASE_ACCEPTED = "accepted"
+IDEMPOTENCY_ACCEPTED_TTL_SECONDS = 86400
+TASK_TERMINAL_MARKER_PREFIX = "task_terminal:"
 
 FILE_TYPE_VIDEOS = ["mp4", "mov", "mkv", "webm"]
 FILE_TYPE_IMAGES = ["jpg", "jpeg", "png", "bmp"]

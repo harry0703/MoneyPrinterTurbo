@@ -67,12 +67,14 @@ differences do not affect equality.
   and renews that claim for the worker's full execution. The claim is removed
   only after the task function returns from its terminal state update. If the
   process or worker exits earlier, the five-second dispatch lease expires and
-  another process returns non-terminal work to the queue. Recovery discards an
-  expired claim when its watched task record is already `COMPLETE` or `FAILED`,
-  preventing a crash between the terminal write and claim acknowledgement from
-  replaying finished provider work. Graceful shutdown enters a draining state:
-  it continues renewing active claims until their workers finish and does not
-  start queued work during shutdown.
+  another process returns non-terminal work to the queue. Redis writes a
+  24-hour terminal marker atomically with each `COMPLETE` or `FAILED` task
+  update. Recovery watches that marker as well as the task record, so normal
+  task deletion cannot make an expired claim replay finished provider work.
+  A newly accepted submission clears any older marker in its acceptance
+  transaction. Graceful shutdown enters a draining state: it continues
+  renewing active claims until their workers finish and does not start queued
+  work during shutdown.
 - Deleting a task (`DELETE /api/v1/tasks/{task_id}`) does **not** expire its
   idempotency reservation; a follow-up retry with the same key still returns the
   existing task id (the task record may no longer exist). This keeps retry

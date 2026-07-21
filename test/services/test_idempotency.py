@@ -377,6 +377,69 @@ class TestRedisSubmissionAcceptance(_SubmissionAcceptanceContract, unittest.Test
                     )
                 )
 
+    def test_expired_terminal_claim_is_not_replayed_after_task_cleanup(self):
+        task_id = "terminal-task-cleaned-before-ack"
+        self.manager.enqueue(
+            {
+                "func": tm.start,
+                "args": (),
+                "kwargs": {"task_id": task_id},
+            }
+        )
+        claimed = self.manager.dequeue()
+        self.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+        )
+        self.state.delete_task(task_id)
+        self.redis_client.zadd(
+            self.manager._processing_deadlines_key,
+            {claimed["_dispatch_claim_id"]: time.time() - 1},
+        )
+
+        self.manager.recover_expired_dispatches()
+
+        self.assertIsNone(self.state.get_task(task_id))
+        self.assertEqual(self.manager.queue_size(), 0)
+
+    def test_new_acceptance_clears_an_older_terminal_marker(self):
+        task_id = "accepted-after-old-terminal-marker"
+        self.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+        )
+        self.state.delete_task(task_id)
+        self.assertEqual(
+            self.state.reserve_idempotent_task(
+                task_id, "new-hash", "new-owner"
+            ),
+            const.IDEMPOTENCY_CREATED,
+        )
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.assertEqual(
+            self.manager.submit_idempotent(
+                state=self.state,
+                task_id=task_id,
+                params_hash="new-hash",
+                owner_token="new-owner",
+                task_fields={"state": const.TASK_STATE_QUEUED},
+                func=tm.start,
+                task_kwargs={"task_id": task_id},
+            ),
+            const.IDEMPOTENCY_ACCEPTED,
+        )
+        claimed = self.manager.dequeue()
+        self.redis_client.zadd(
+            self.manager._processing_deadlines_key,
+            {claimed["_dispatch_claim_id"]: time.time() - 1},
+        )
+
+        self.manager.recover_expired_dispatches()
+
+        self.assertEqual(self.manager.queue_size(), 1)
+
     def test_expired_malformed_claim_is_conservatively_requeued(self):
         malformed_payloads = (
             "not-json",
