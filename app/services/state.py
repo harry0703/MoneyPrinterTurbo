@@ -1,10 +1,52 @@
 import ast
 import copy
+import json
+import math
 import threading
+import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from app.config import config
 from app.models import const
+
+
+@dataclass(frozen=True)
+class IdempotentAcceptance:
+    """Values required to atomically publish and queue one claimed task."""
+
+    task_id: str
+    params_hash: str
+    owner_token: str
+    task_fields: dict
+    task_info: dict
+    queue_capacity: int
+
+    def task_record(self) -> dict:
+        """Return the complete initial task hash written at acceptance."""
+        return {
+            "task_id": self.task_id,
+            "state": self.task_fields.get("state", const.TASK_STATE_QUEUED),
+            "progress": int(self.task_fields.get("progress", 0)),
+            **self.task_fields,
+        }
+
+    def accepted_record(self) -> dict:
+        """Return the durable idempotency record for accepted work."""
+        return {
+            "params_hash": self.params_hash,
+            "phase": const.IDEMPOTENCY_PHASE_ACCEPTED,
+            "owner_token": self.owner_token,
+        }
+
+
+def _pending_claim_matches(existing: dict | None, acceptance: IdempotentAcceptance):
+    return (
+        existing is not None
+        and existing["phase"] == const.IDEMPOTENCY_PHASE_PENDING
+        and existing["params_hash"] == acceptance.params_hash
+        and existing["owner_token"] == acceptance.owner_token
+    )
 
 
 # Base class for state management
@@ -21,11 +63,55 @@ class BaseState(ABC):
     def get_all_tasks(self, page: int, page_size: int):
         pass
 
+    @abstractmethod
+    def delete_task(self, task_id: str):
+        pass
+
+    @abstractmethod
+    def reserve_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        lease_seconds: float = 5.0,
+    ) -> str:
+        """
+        Atomically claim an idempotency key and its canonical parameters.
+
+        Returns CREATED, PENDING, DUPLICATE, or CONFLICT.
+        - created:   first valid request for this key; caller may enqueue work.
+        - pending:   an identical request currently owns the short submit lease.
+        - duplicate: identical work was atomically accepted; return its task id.
+        - conflict:  the same key was used with different canonical parameters;
+                     the caller must reject with HTTP 409.
+        """
+        pass
+
+    @abstractmethod
+    def get_idempotency(self, task_id: str):
+        """Return the current pending/accepted record, or None if absent."""
+        pass
+
+    @abstractmethod
+    def abort_idempotent_task(self, task_id: str, owner_token: str) -> bool:
+        """Remove a pending claim only when owner_token still owns it."""
+        pass
+
+    @abstractmethod
+    def accept_idempotent_task(
+        self,
+        acceptance: IdempotentAcceptance,
+        task_manager,
+    ) -> str:
+        """Atomically publish a task, enqueue it, and accept its claim."""
+        pass
+
 
 # Memory state management
 class MemoryState(BaseState):
     def __init__(self):
         self._tasks = {}
+        self._idem = {}
         self._lock = threading.RLock()
 
     def get_all_tasks(self, page: int, page_size: int):
@@ -64,6 +150,92 @@ class MemoryState(BaseState):
         with self._lock:
             self._tasks.pop(task_id, None)
 
+    def reserve_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        lease_seconds: float = 5.0,
+    ) -> str:
+        with self._lock:
+            existing = self._idem.get(task_id)
+            now = time.monotonic()
+            if (
+                existing is not None
+                and existing["phase"] == const.IDEMPOTENCY_PHASE_PENDING
+                and existing["expires_at"] <= now
+            ):
+                existing = None
+                self._idem.pop(task_id, None)
+
+            if existing is None:
+                self._idem[task_id] = {
+                    "params_hash": params_hash,
+                    "phase": const.IDEMPOTENCY_PHASE_PENDING,
+                    "owner_token": owner_token,
+                    "expires_at": now + lease_seconds,
+                }
+                return const.IDEMPOTENCY_CREATED
+            if existing["params_hash"] != params_hash:
+                return const.IDEMPOTENCY_CONFLICT
+            if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
+                return const.IDEMPOTENCY_DUPLICATE
+            return const.IDEMPOTENCY_PENDING
+
+    def get_idempotency(self, task_id: str):
+        """Return a snapshot of a live claim, expiring stale pending claims."""
+        with self._lock:
+            existing = self._idem.get(task_id)
+            if existing is None:
+                return None
+            if (
+                existing["phase"] == const.IDEMPOTENCY_PHASE_PENDING
+                and existing["expires_at"] <= time.monotonic()
+            ):
+                self._idem.pop(task_id, None)
+                return None
+            return {
+                "params_hash": existing["params_hash"],
+                "phase": existing["phase"],
+                "owner_token": existing["owner_token"],
+            }
+
+    def abort_idempotent_task(self, task_id: str, owner_token: str) -> bool:
+        with self._lock:
+            existing = self._idem.get(task_id)
+            if (
+                existing is None
+                or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
+                or existing["owner_token"] != owner_token
+            ):
+                return False
+            self._idem.pop(task_id, None)
+            return True
+
+    def accept_idempotent_task(
+        self,
+        acceptance: IdempotentAcceptance,
+        task_manager,
+    ) -> str:
+        """Accept under the memory state lock while the manager lock is held."""
+        with self._lock:
+            existing = self._idem.get(acceptance.task_id)
+            if (
+                not _pending_claim_matches(existing, acceptance)
+                or existing["expires_at"] <= time.monotonic()
+            ):
+                return const.IDEMPOTENCY_STALE
+            if task_manager.queue_size() >= acceptance.queue_capacity:
+                return const.IDEMPOTENCY_QUEUE_FULL
+
+            task_manager.enqueue_transaction(None, acceptance.task_info)
+            self._tasks[acceptance.task_id] = acceptance.task_record()
+            self._idem[acceptance.task_id] = {
+                **acceptance.accepted_record(),
+                "expires_at": float("inf"),
+            }
+            return const.IDEMPOTENCY_ACCEPTED
+
 
 # Redis state management
 class RedisState(BaseState):
@@ -90,6 +262,25 @@ class RedisState(BaseState):
         total = 0
         while True:
             cursor, keys = self._redis.scan(cursor, count=page_size)
+            # This Redis database is shared by three kinds of keys: task-record
+            # HASHes (the only thing this listing wants), idempotency
+            # reservations (idem:{task_id}, STRING), and the worker queue
+            # (task_queue, LIST). Filtering by name prefix is fragile — it must
+            # be updated for every new non-hash key or it HGETALLs the wrong
+            # type and raises WRONGTYPE. Filter by the authoritative key TYPE
+            # instead: keep only hashes, so both idem: strings and the
+            # task_queue list are dropped uniformly, and the total counts real
+            # task records only.
+            if keys:
+                # TYPE is O(1) on the server; call it per key. We deliberately
+                # avoid a pipeline here because not every Redis client
+                # implementation (e.g. fakeredis used in tests) exposes one, and
+                # a handful of TYPE calls per SCAN batch is negligible.
+                keys = [
+                    k
+                    for k in keys
+                    if self._redis.type(k) in (b"hash", "hash")
+                ]
             batch_start = total
             batch_size = len(keys)
             total += batch_size
@@ -131,9 +322,51 @@ class RedisState(BaseState):
             "progress": progress,
             **kwargs,
         }
+        encoded_fields = {
+            field: str(value) for field, value in fields.items()
+        }
+        if state in {const.TASK_STATE_COMPLETE, const.TASK_STATE_FAILED}:
+            terminal_key = (
+                f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+            )
+            from redis.exceptions import WatchError
 
-        for field, value in fields.items():
-            self._redis.hset(task_id, field, str(value))
+            while True:
+                with self._redis.pipeline() as pipe:
+                    try:
+                        pipe.watch(task_id, terminal_key)
+                        task_type = self._redis_type_name(
+                            pipe.type(task_id)
+                        )
+                        terminal_type = self._redis_type_name(
+                            pipe.type(terminal_key)
+                        )
+                        if task_type not in {"none", "hash"}:
+                            pipe.unwatch()
+                            raise TypeError(
+                                "Redis task key has unexpected type: "
+                                f"{task_type}"
+                            )
+                        if terminal_type not in {"none", "string"}:
+                            pipe.unwatch()
+                            raise TypeError(
+                                "Redis terminal marker has unexpected type: "
+                                f"{terminal_type}"
+                            )
+
+                        pipe.multi()
+                        pipe.hset(task_id, mapping=encoded_fields)
+                        pipe.set(
+                            terminal_key,
+                            str(state),
+                            ex=const.IDEMPOTENCY_ACCEPTED_TTL_SECONDS,
+                        )
+                        pipe.execute()
+                        return
+                    except WatchError:
+                        continue
+
+        self._redis.hset(task_id, mapping=encoded_fields)
 
     def get_task(self, task_id: str):
         task_data = self._redis.hgetall(task_id)
@@ -148,6 +381,143 @@ class RedisState(BaseState):
 
     def delete_task(self, task_id: str):
         self._redis.delete(task_id)
+
+    def reserve_idempotent_task(
+        self,
+        task_id: str,
+        params_hash: str,
+        owner_token: str,
+        lease_seconds: float = 5.0,
+    ) -> str:
+        idem_key = f"idem:{task_id}"
+        pending = {
+            "params_hash": params_hash,
+            "phase": const.IDEMPOTENCY_PHASE_PENDING,
+            "owner_token": owner_token,
+        }
+        lease_ms = max(1, math.ceil(lease_seconds * 1000))
+        encoded = json.dumps(pending, sort_keys=True, separators=(",", ":"))
+
+        while True:
+            if self._redis.set(idem_key, encoded, nx=True, px=lease_ms):
+                return const.IDEMPOTENCY_CREATED
+            existing = self.get_idempotency(task_id)
+            if existing is None:
+                continue
+            if existing["params_hash"] != params_hash:
+                return const.IDEMPOTENCY_CONFLICT
+            if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
+                return const.IDEMPOTENCY_DUPLICATE
+            return const.IDEMPOTENCY_PENDING
+
+    def get_idempotency(self, task_id: str):
+        """Read and decode a Redis idempotency record."""
+        value = self._redis.get(f"idem:{task_id}")
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        return json.loads(value)
+
+    def abort_idempotent_task(self, task_id: str, owner_token: str) -> bool:
+        from redis.exceptions import WatchError
+
+        idem_key = f"idem:{task_id}"
+        while True:
+            with self._redis.pipeline() as pipe:
+                try:
+                    pipe.watch(idem_key)
+                    existing = self._decode_idempotency(pipe.get(idem_key))
+                    if (
+                        existing is None
+                        or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
+                        or existing["owner_token"] != owner_token
+                    ):
+                        pipe.unwatch()
+                        return False
+                    pipe.multi()
+                    pipe.delete(idem_key)
+                    pipe.execute()
+                    return True
+                except WatchError:
+                    continue
+
+    def accept_idempotent_task(
+        self,
+        acceptance: IdempotentAcceptance,
+        task_manager,
+    ) -> str:
+        """Atomically write task, queue item, and accepted record in Redis."""
+        from redis.exceptions import WatchError
+
+        idem_key = f"idem:{acceptance.task_id}"
+        terminal_key = (
+            f"{const.TASK_TERMINAL_MARKER_PREFIX}{acceptance.task_id}"
+        )
+        encoded_task = {
+            field: str(value) for field, value in acceptance.task_record().items()
+        }
+        accepted = json.dumps(
+            acceptance.accepted_record(),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+        while True:
+            with self._redis.pipeline() as pipe:
+                try:
+                    pipe.watch(
+                        idem_key,
+                        acceptance.task_id,
+                        task_manager.queue,
+                        terminal_key,
+                    )
+                    raw = pipe.get(idem_key)
+                    existing = self._decode_idempotency(raw)
+                    if not _pending_claim_matches(existing, acceptance):
+                        pipe.unwatch()
+                        return const.IDEMPOTENCY_STALE
+                    task_type = self._redis_type_name(pipe.type(acceptance.task_id))
+                    queue_type = self._redis_type_name(pipe.type(task_manager.queue))
+                    if task_type != "none":
+                        pipe.unwatch()
+                        return const.IDEMPOTENCY_STALE
+                    if queue_type not in {"none", "list"}:
+                        pipe.unwatch()
+                        raise TypeError(
+                            f"Redis queue key has unexpected type: {queue_type}"
+                        )
+                    if pipe.llen(task_manager.queue) >= acceptance.queue_capacity:
+                        pipe.unwatch()
+                        return const.IDEMPOTENCY_QUEUE_FULL
+
+                    pipe.multi()
+                    pipe.delete(terminal_key)
+                    pipe.hset(acceptance.task_id, mapping=encoded_task)
+                    task_manager.enqueue_transaction(pipe, acceptance.task_info)
+                    pipe.set(
+                        idem_key,
+                        accepted,
+                        ex=const.IDEMPOTENCY_ACCEPTED_TTL_SECONDS,
+                    )
+                    pipe.execute()
+                    return const.IDEMPOTENCY_ACCEPTED
+                except WatchError:
+                    continue
+
+    @staticmethod
+    def _decode_idempotency(value):
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        return json.loads(value)
+
+    @staticmethod
+    def _redis_type_name(value) -> str:
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        return str(value)
 
     @staticmethod
     def _convert_to_original_type(value):

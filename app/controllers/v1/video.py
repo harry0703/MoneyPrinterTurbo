@@ -1,8 +1,12 @@
 import glob
+import hashlib
+import json
 import os
 import pathlib
 import shutil
+import time
 from typing import Union
+from uuid import UUID, uuid4
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
@@ -15,6 +19,7 @@ from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1.base import new_router
+from app.models import const
 from app.models.exception import HttpException
 from app.models.schema import (
     AudioRequest,
@@ -133,20 +138,176 @@ def create_audio(
     return create_task(request, body, stop_at="audio")
 
 
+def _canonical_params_hash(body) -> str:
+    """
+    Deterministic SHA-256 of the request payload.
+
+    Used as the idempotency comparison key so two submissions with the same
+    canonical generation parameters are treated as identical retries, regardless
+    of field ordering or cosmetic differences.
+    """
+    canonical = json.dumps(
+        body.model_dump(), sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+_DUPLICATE_WAIT_SECONDS = 5.0
+_DUPLICATE_POLL_INTERVAL = 0.05
+
+
+def _wait_for_idempotency_claim(
+    task_id: str, params_hash: str, owner_token: str
+) -> str:
+    """Wait for an active owner to accept, abort, or lose its short lease."""
+    deadline = time.monotonic() + _DUPLICATE_WAIT_SECONDS
+    while True:
+        outcome = sm.state.reserve_idempotent_task(
+            task_id, params_hash, owner_token, _DUPLICATE_WAIT_SECONDS
+        )
+        if outcome != const.IDEMPOTENCY_PENDING:
+            return outcome
+        if time.monotonic() >= deadline:
+            return const.IDEMPOTENCY_PENDING
+        time.sleep(_DUPLICATE_POLL_INTERVAL)
+
+
+def _existing_idempotency_response(outcome: str, request_id: str, task_id: str):
+    """Return an accepted duplicate or raise the stable claim error."""
+    if outcome == const.IDEMPOTENCY_DUPLICATE:
+        task_manager.wake_dispatcher()
+        logger.info(
+            f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
+        )
+        return utils.get_response(200, {"task_id": task_id})
+    if outcome == const.IDEMPOTENCY_PENDING:
+        raise HttpException(
+            task_id=task_id,
+            status_code=409,
+            message=(
+                f"{task_id}: idempotency_pending: another submission with "
+                "this key is in flight; retry shortly"
+            ),
+        )
+    if outcome == const.IDEMPOTENCY_CONFLICT:
+        logger.warning(
+            f"idempotency conflict, request_id: {request_id}, task_id: {task_id}"
+        )
+        raise HttpException(
+            task_id=task_id,
+            status_code=409,
+            message=(
+                f"{task_id}: idempotency_conflict: same idempotency_key "
+                "submitted with different parameters"
+            ),
+        )
+    return None
+
+
+def _submit_claimed_task(
+    request_id: str,
+    task_id: str,
+    params_hash: str,
+    owner_token: str,
+    body,
+    stop_at: str,
+):
+    """Atomically accept one owned claim and map its queue outcome."""
+    task = {
+        "task_id": task_id,
+        "request_id": request_id,
+        "params": body.model_dump(),
+    }
+    try:
+        acceptance = task_manager.submit_idempotent(
+            state=sm.state,
+            task_id=task_id,
+            params_hash=params_hash,
+            owner_token=owner_token,
+            task_fields={
+                "state": const.TASK_STATE_QUEUED,
+                "request_id": request_id,
+            },
+            func=tm.start,
+            task_kwargs={"task_id": task_id, "params": body, "stop_at": stop_at},
+        )
+    except ValueError as e:
+        sm.state.abort_idempotent_task(task_id, owner_token)
+        raise HttpException(
+            task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
+        )
+    except Exception:
+        sm.state.abort_idempotent_task(task_id, owner_token)
+        raise
+
+    if acceptance == const.IDEMPOTENCY_QUEUE_FULL:
+        raise HttpException(
+            task_id=task_id,
+            status_code=429,
+            message=f"{request_id}: task queue is full, please try again later",
+        )
+    if acceptance != const.IDEMPOTENCY_ACCEPTED:
+        raise HttpException(
+            task_id=task_id,
+            status_code=409,
+            message=(
+                f"{task_id}: idempotency_pending: another submission with "
+                "this key is in flight; retry shortly"
+            ),
+        )
+
+    logger.success(f"Task created: {utils.to_json(task)}")
+    return utils.get_response(200, task)
+
+
+def _create_idempotent_task(request_id: str, idempotency_key, body, stop_at: str):
+    """Validate, claim, and atomically accept a client-assigned task ID."""
+    try:
+        task_id = str(UUID(str(idempotency_key)))
+    except (ValueError, AttributeError, TypeError):
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: idempotency_key must be a valid UUID",
+        )
+
+    params_hash = _canonical_params_hash(body)
+    owner_token = str(uuid4())
+    outcome = _wait_for_idempotency_claim(task_id, params_hash, owner_token)
+    existing_response = _existing_idempotency_response(
+        outcome, request_id, task_id
+    )
+    if existing_response is not None:
+        return existing_response
+    return _submit_claimed_task(
+        request_id, task_id, params_hash, owner_token, body, stop_at
+    )
+
+
 def create_task(
     request: Request,
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
     stop_at: str,
 ):
-    task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
+
+    idempotency_key = getattr(body, "idempotency_key", None)
+    if idempotency_key:
+        return _create_idempotent_task(
+            request_id, idempotency_key, body, stop_at
+        )
+
+    task_id = utils.get_uuid()
+
     try:
         task = {
             "task_id": task_id,
             "request_id": request_id,
             "params": body.model_dump(),
         }
-        sm.state.update_task(task_id)
+        sm.state.update_task(
+            task_id, state=const.TASK_STATE_QUEUED, request_id=request_id
+        )
         task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
@@ -159,6 +320,7 @@ def create_task(
             task_id=task_id, status_code=429, message=f"{request_id}: {str(e)}"
         )
     except ValueError as e:
+        sm.state.delete_task(task_id)
         raise HttpException(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
         )

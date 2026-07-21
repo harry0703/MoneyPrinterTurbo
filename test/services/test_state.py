@@ -28,6 +28,11 @@ class _FakeRedis:
             next_cursor = 0
         return next_cursor, self.batches[batch_index]
 
+    def type(self, key):
+        # Every key this fake holds is a task-record hash; model that so the
+        # production TYPE-filter can be exercised through this stand-in too.
+        return b"hash"
+
     def hgetall(self, key):
         return self.data[key]
 
@@ -118,6 +123,105 @@ class TestRedisState(unittest.TestCase):
             [f"task:{i}" for i in range(10, 18)],
         )
 
+
+class TestFakeRedisState(unittest.TestCase):
+    """Contract tests against real Redis command semantics.
+
+    The default ``RedisState`` tests above inject a hand-rolled ``_FakeRedis``
+    dict that ignores key types and TTLs, so it cannot catch the production
+    defect where ``get_all_tasks`` calls ``HGETALL`` on the ``idem:{task_id}``
+    STRING keys Redis raises WRONGTYPE (issue #1 Sentinel Spec-4/Standards-1).
+    Here we inject ``fakeredis.FakeStrictRedis`` - an in-process emulator that
+    implements the real Redis protocol (key-type enforcement, SCAN cursors,
+    TTL expiry) - so the same code paths are exercised against genuine
+    semantics without a live server.
+    """
+
+    def setUp(self):
+        import fakeredis
+
+        state = RedisState.__new__(RedisState)
+        # No decode_responses, matching the production redis.StrictRedis client
+        # (state.py) so keys/values arrive as bytes and the same decoding path
+        # is exercised.
+        state._redis = fakeredis.FakeStrictRedis()
+        self.state = state
+
+    def tearDown(self):
+        self.state._redis.flushall()
+
+    def test_idem_keys_do_not_break_task_listing(self):
+        # Reproduces the WRONGTYPE defect: task records are hashes and the
+        # idempotency reservations are strings in the same keyspace. Listing
+        # must skip the string keys rather than HGETALL them.
+        self.state.update_task("task:1", state=1, progress=10)
+        self.state.reserve_idempotent_task("task:1", "h1", "owner-1")
+
+        tasks, total = self.state.get_all_tasks(page=1, page_size=10)
+        self.assertEqual(total, 1)
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["task_id"], "task:1")
+
+    def test_terminal_update_cannot_partially_mark_wrong_type_task(self):
+        task_id = "wrong-type-terminal-task"
+        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+        self.state._redis.set(task_id, "collision")
+
+        with self.assertRaises(TypeError):
+            self.state.update_task(
+                task_id,
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+            )
+
+        self.assertEqual(self.state._redis.get(task_id), b"collision")
+        self.assertFalse(self.state._redis.exists(terminal_key))
+
+    def test_terminal_update_sets_and_refreshes_24_hour_marker_ttl(self):
+        task_id = "terminal-marker-ttl-task"
+        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+        self.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+        )
+        self.state._redis.expire(terminal_key, 1)
+
+        self.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+        )
+
+        ttl = self.state._redis.ttl(terminal_key)
+        self.assertGreaterEqual(ttl, 86399)
+        self.assertLessEqual(ttl, 86400)
+
+    def test_terminal_update_cannot_partially_overwrite_wrong_type_marker(self):
+        task_id = "wrong-type-terminal-marker"
+        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
+        self.state.update_task(
+            task_id,
+            state=const.TASK_STATE_PROCESSING,
+            progress=50,
+        )
+        self.state._redis.rpush(terminal_key, "collision")
+
+        with self.assertRaises(TypeError):
+            self.state.update_task(
+                task_id,
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+            )
+
+        self.assertEqual(
+            self.state.get_task(task_id)["state"],
+            const.TASK_STATE_PROCESSING,
+        )
+        self.assertEqual(
+            self.state._redis.lrange(terminal_key, 0, -1),
+            [b"collision"],
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,10 +26,10 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
 
       - name: Compile Python sources
         run: uv run python -m compileall app cli.py main.py webui test
 
       - name: Run deterministic unit tests
-        run: uv run python -X utf8 -m unittest test.services.test_state test.services.test_task test.services.test_schema test.services.test_webui_i18n
+        run: uv run python -X utf8 -m unittest test.services.test_state test.services.test_task test.services.test_schema test.services.test_webui_i18n test.services.test_idempotency test.services.test_idempotent_submission

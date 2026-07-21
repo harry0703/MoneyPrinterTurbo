@@ -43,6 +43,15 @@ g4f = [
 twelvelabs = [
     "twelvelabs>=1.2.8",
 ]
+# Test / verification extra: pinned so the idempotency verification suite is
+# reproducible. Install with `uv sync --extra dev`. fakeredis is an in-process
+# Redis emulator used for real-command-semantics contract tests (expiry,
+# key-type enforcement) without a live server (issue #1).
+dev = [
+    "pytest==8.3.4",
+    "httpx>=0.27.0,<1",
+    "fakeredis==2.26.2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
