@@ -152,28 +152,54 @@ def _canonical_params_hash(body) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-# How long a duplicate submission waits for the CREATED winner to publish the
-# task record before giving up. Enqueue happens immediately after the record is
-# written, so the record appears within milliseconds of the winner reserving the
-# key; a generous ceiling only matters if the winner crashed mid-flight.
+# How long a duplicate submission waits for the CREATED winner to commit the
+# task before giving up. The winner publishes a provisional placeholder, then
+# enqueues; the worker transitions the record to PROCESSING once it begins. A
+# duplicate must not return 200 on the provisional placeholder — the winner may
+# still hit a full queue and delete it — so it polls for the COMMITTED record
+# (state != QUEUED) and only returns 200 once the work is genuinely running.
+# The ceiling covers the winner being slow to enqueue or the worker slow to
+# report processing.
 _DUPLICATE_WAIT_SECONDS = 5.0
 _DUPLICATE_POLL_INTERVAL = 0.05
 
 
-def _wait_for_task_record(task_id: str):
+def _task_committed(existing) -> bool:
     """
-    Poll for the task record published by the CREATED winner.
+    A task record is 'committed' once it has left the provisional QUEUED state
+    — i.e. the worker has begun processing (PROCESSING), or reached a terminal
+    state (COMPLETE/FAILED). A duplicate may return 200 only for committed work;
+    a QUEUED placeholder may yet be deleted if the winner fails to enqueue, so it
+    must not yet be surfaced as a real task.
+    """
+    if existing is None:
+        return False
+    state = existing.get("state")
+    # MemoryState stores state as int; RedisState decodes it back to int via
+    # _convert_to_original_type. Defensively accept either spelling.
+    return state != const.TASK_STATE_QUEUED and state != str(int(const.TASK_STATE_QUEUED))
+
+
+def _wait_for_committed_task(task_id: str):
+    """
+    Poll for the COMMITTED task record published by the CREATED winner.
 
     A duplicate submission must never enqueue its own copy of the work — that is
-    the whole point of idempotency. Instead it waits for the winner to publish
-    the record (written before enqueue) and returns it. Returns None if the
-    record never appears within the deadline, which means the winner died before
-    publishing and the caller should surface a retryable error.
+    the whole point of idempotency. It waits for the winner to publish the
+    record AND transition it out of the provisional QUEUED state, which happens
+    only once the worker has actually started (so the work is genuinely
+    running, not just reserved). This closes the round-3 provisional-vs-
+    committed race: a duplicate used to return 200 upon merely seeing the
+    placeholder, but the winner could still hit a full queue and delete it,
+    leaving the duplicate's 200 pointing at nonexistent work. Now the duplicate
+    keeps polling through the provisional window; if the winner fails to
+    enqueue it deletes the placeholder (get_task -> None) and the duplicate
+    eventually times out and returns a retryable 409 instead of a false 200.
     """
     deadline = time.monotonic() + _DUPLICATE_WAIT_SECONDS
     while True:
         existing = sm.state.get_task(task_id)
-        if existing is not None:
+        if _task_committed(existing):
             return existing
         if time.monotonic() >= deadline:
             return None
@@ -201,10 +227,13 @@ def create_task(
         outcome = sm.state.reserve_idempotent_task(task_id, params_hash)
         if outcome == const.IDEMPOTENCY_DUPLICATE:
             # 同一 key 且参数一致：仅 CREATED 的赢家可以入队，重复请求绝不重复入队。
-            # 赢家在入队前先写入任务记录，因此这里只需等待该记录出现并返回既有任务
-            # （含响应丢失后的恢复）。若在期限内始终看不到记录，说明赢家在发布前已
-            # 崩溃，返回 409 让客户端安全重试，而不是接管入队造成重复执行/竞态。
-            existing = _wait_for_task_record(task_id)
+            # 赢家先写入 QUEUED 占位记录再入队；worker 开始处理后把记录推进到
+            # PROCESSING（已提交）。重复请求必须等到记录「已提交」才返回 200——
+            # 仅看到 QUEUED 占位还不够：赢家仍可能在入队时遇到队列已满并删除占位，
+            # 若此刻返回 200 就会指向不存在的工作。因此在 QUEUED 窗口持续轮询；若赢家
+            # 入队失败（删除占位、清掉预留），重复请求最终超时并返回 409 可重试错误，
+            # 而非虚假 200。
+            existing = _wait_for_committed_task(task_id)
             if existing is not None:
                 logger.info(
                     f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
@@ -239,15 +268,20 @@ def create_task(
         task_id = utils.get_uuid()
 
     try:
-        # 先写入任务记录，再入队。记录先于工作存在，保证：(1) 记录与入队构成一个
-        # 原子对——重复请求要么看到记录并返回，要么在赢家崩溃时得到可重试的 409，
-        # 绝不会返回指向不存在工作的 200；(2) worker 一旦被调度即可查询到记录。
+        # 先写入「预备」(QUEUED) 占位记录，再入队。占位先于工作存在，保证 worker
+        # 被调度即可查询到记录。但 QUEUED 是预备态：重复请求不能仅凭它返回 200，
+        # 因为赢家仍可能在 add_task 时遇到队列已满并删除占位（见上方 DUPLICATE 分支
+        # 与 _wait_for_committed_task）。worker 一旦开始处理即把记录推进到 PROCESSING
+        # （已提交），此时重复请求才安全返回 200。队列已满或参数错误时，清掉预留并
+        # 删除占位，使合法重试可重新抢占。
         task = {
             "task_id": task_id,
             "request_id": request_id,
             "params": body.model_dump(),
         }
-        sm.state.update_task(task_id)
+        sm.state.update_task(
+            task_id, state=const.TASK_STATE_QUEUED, request_id=request_id
+        )
         task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)

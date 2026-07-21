@@ -11,13 +11,23 @@ from fastapi.testclient import TestClient
 
 import app.asgi as asgi
 from app.controllers.v1 import video as video_controller
+from app.controllers.v1.video import _task_committed, _wait_for_committed_task
+from app.models import const
+from app.services import state as sm
 
 
 class _RecordingTaskManager:
     """Stand-in for the production task manager.
 
-    Captures enqueued tasks instead of spawning worker threads so the
-    idempotency contract can be asserted without running real video generation.
+    Captures enqueued tasks instead of spawning real worker threads so the
+    idempotency contract can be asserted without running video generation. It
+    also mirrors the production worker's first action: on a successful enqueue
+    the real worker calls `sm.state.update_task(state=PROCESSING, progress=5)`
+    to transition the provisional QUEUED placeholder to COMMITTED. The duplicate
+    wait-loop only returns 200 for committed records, so this transition is what
+    lets duplicates resolve. Without it the placeholder stays QUEUED and the
+    duplicate correctly times out — which is exactly the contract this stand-in
+    exercises for the provisional-vs-committed race.
     """
 
     def __init__(self):
@@ -26,7 +36,13 @@ class _RecordingTaskManager:
 
     def add_task(self, func, *args, **kwargs):
         with self.lock:
-            self.enqueued.append(kwargs.get("task_id"))
+            task_id = kwargs.get("task_id")
+            self.enqueued.append(task_id)
+        # Simulate the worker's committed transition so a duplicate polling for
+        # this task resolves to 200 (the work is genuinely accepted).
+        sm.state.update_task(
+            task_id, state=const.TASK_STATE_PROCESSING, progress=5
+        )
 
 
 def _client_with(manager):
@@ -34,10 +50,30 @@ def _client_with(manager):
     return TestClient(asgi.app)
 
 
+def _flush_state():
+    """Reset the MemoryState singleton between tests so they don't leak records
+    into one another, which is what round-3 Standards #4 (non-blocking) flagged:
+    submission tests mutated sm.state and never restored it."""
+    if hasattr(sm.state, "_tasks"):
+        with sm.state._lock:
+            sm.state._tasks.clear()
+            sm.state._idem.clear()
+
+
+def _set_memory_state():
+    """Replace the global state singleton with a clean MemoryState so the tests
+    below run without a live Redis. The production config may bind RedisState at
+    import time; these tests exercise the state adapter contract at the
+    controller's seam, not the Redis client."""
+    sm.state = sm.MemoryState()
+
+
 class TestIdempotentVideoSubmission(unittest.TestCase):
     def setUp(self):
+        _set_memory_state()
         self.manager = _RecordingTaskManager()
         self.client = _client_with(self.manager)
+        _flush_state()
         self.base_body = {
             "video_subject": "idempotent test",
             "voice_name": "zh-CN-XiaoyiNeural-Female",
@@ -45,7 +81,9 @@ class TestIdempotentVideoSubmission(unittest.TestCase):
         }
 
     def tearDown(self):
-        # Restore the module-level singleton so other tests are unaffected.
+        # Restore the module-level singleton so other tests are unaffected, and
+        # flush any records this test wrote.
+        _flush_state()
         video_controller.task_manager = None
 
     def test_backward_compatible_server_generated_id(self):
@@ -119,7 +157,6 @@ class TestIdempotentVideoSubmission(unittest.TestCase):
     def test_ambiguous_response_recovery_looks_up_client_id(self):
         key = "55555555-5555-5555-5555-555555555555"
         body = {**self.base_body, "idempotency_key": key}
-
         create = self.client.post("/api/v1/videos", json=body)
         task_id = create.json()["data"]["task_id"]
         # Simulate a lost response: the duplicate retry returns the same id,
@@ -129,13 +166,123 @@ class TestIdempotentVideoSubmission(unittest.TestCase):
         self.assertEqual(lookup.json()["data"]["task_id"], key)
 
 
+class TestProvisionalVsCommittedSubmission(unittest.TestCase):
+    """Round-3 Standards #1 / Spec #1: a duplicate must not surface HTTP 200 for
+    a provisional (QUEUED) placeholder the winner may still fail to enqueue.
+    These tests prove the committed-vs-provisional distinction directly against
+    the committal helper and the wait loop, without relying on concurrent HTTP
+    submissions on TestClient's single event loop. The full-path HTTP proof
+    (winner rejected -> reservation cleared -> retry succeeds) is covered by
+    TestQueueRejectionClearsIdempotency."""
+
+    def setUp(self):
+        _set_memory_state()
+        self.base_body = {
+            "video_subject": "provisional test",
+            "voice_name": "zh-CN-XiaoyiNeural-Female",
+            "video_source": "local",
+        }
+        _flush_state()
+
+    def tearDown(self):
+        _flush_state()
+        video_controller.task_manager = None
+
+    def test_queued_placeholder_is_not_committed(self):
+        self.assertFalse(_task_committed(None))
+        self.assertFalse(
+            _task_committed({"state": const.TASK_STATE_QUEUED}),
+            "QUEUED placeholder must not be treated as committed",
+        )
+
+    def test_processing_and_terminal_records_are_committed(self):
+        self.assertTrue(_task_committed({"state": const.TASK_STATE_PROCESSING}))
+        self.assertTrue(_task_committed({"state": const.TASK_STATE_COMPLETE}))
+        self.assertTrue(_task_committed({"state": const.TASK_STATE_FAILED}))
+
+    def test_wait_returns_none_when_only_queued_is_ever_visible(self):
+        # A winner that published a QUEUED placeholder then died or got stuck:
+        # the duplicate polls and never sees a committed record. With a short
+        # deadline override this resolves to None (-> 409) quickly.
+        key = "77777777-7777-7777-7777-777777777777"
+        sm.state.update_task(
+            key, state=const.TASK_STATE_QUEUED, request_id="req-stuck"
+        )
+        with mock.patch(
+            "app.controllers.v1.video._DUPLICATE_WAIT_SECONDS", 0.2
+        ), mock.patch(
+            "app.controllers.v1.video._DUPLICATE_POLL_INTERVAL", 0.01
+        ):
+            self.assertIsNone(_wait_for_committed_task(key))
+
+    def test_wait_returns_record_once_worker_commits(self):
+        # Placeholder starts QUEUED; a concurrent transition to PROCESSING
+        # (worker started) makes the duplicate resolve to the committed record.
+        key = "88888888-8888-8888-8888-888888888888"
+        sm.state.update_task(
+            key, state=const.TASK_STATE_QUEUED, request_id="req-w"
+        )
+
+        def commit_after_a_bit():
+            time.sleep(0.05)
+            sm.state.update_task(key, state=const.TASK_STATE_PROCESSING, progress=5)
+
+        with mock.patch(
+            "app.controllers.v1.video._DUPLICATE_WAIT_SECONDS", 2.0
+        ), mock.patch(
+            "app.controllers.v1.video._DUPLICATE_POLL_INTERVAL", 0.01
+        ):
+            threading.Thread(target=commit_after_a_bit).start()
+            existing = _wait_for_committed_task(key)
+        self.assertIsNotNone(existing)
+        self.assertEqual(existing["state"], const.TASK_STATE_PROCESSING)
+
+    def test_queue_full_cleanup_leaves_key_reclaimable(self):
+        # After a winner publishes a QUEUED placeholder then add_task raises
+        # TaskQueueFullError, the cleanup clears the reservation + placeholder.
+        # The key is reclaimable on a later retry (not stranded as DUPLICATE).
+        from app.controllers.manager.base_manager import TaskQueueFullError
+
+        class _FullManager:
+            def add_task(self, func, *args, **kwargs):
+                raise TaskQueueFullError("task queue is full, please try again later")
+
+        video_controller.task_manager = _FullManager()
+        client = TestClient(asgi.app)
+        key = "99999999-9999-9999-9999-999999999999"
+        body = {**self.base_body, "idempotency_key": key}
+
+        rejected = client.post("/api/v1/videos", json=body)
+        self.assertEqual(rejected.status_code, 429)
+        # Cleanup must have deleted the placeholder.
+        self.assertIsNone(sm.state.get_task(key))
+        # The reservation must have been cleared so the key can be re-reserved
+        # when retried. We assert directly: a new reservation on the same key
+        # succeeds as CREATED (not DUPLICATE or CONFLICT).
+        params_hash = video_controller._canonical_params_hash(
+            type("_", (), {"model_dump": staticmethod(lambda: self.base_body)})()
+        )
+        outcome = sm.state.reserve_idempotent_task(key, params_hash)
+        self.assertEqual(
+            outcome,
+            const.IDEMPOTENCY_CREATED,
+            "after cleanup the reservation must be gone so a retry can re-reserve",
+        )
+
+
 class TestQueueRejectionClearsIdempotency(unittest.TestCase):
     def setUp(self):
+        _set_memory_state()
         self.base_body = {
             "video_subject": "rejection test",
             "voice_name": "zh-CN-XiaoyiNeural-Female",
             "video_source": "local",
         }
+        _flush_state()
+
+    def tearDown(self):
+        _flush_state()
+        video_controller.task_manager = None
 
     def test_queue_full_rejects_and_allows_later_retry(self):
         # Force the manager to raise TaskQueueFullError on add_task.
@@ -161,9 +308,6 @@ class TestQueueRejectionClearsIdempotency(unittest.TestCase):
         self.assertEqual(retry.status_code, 200)
         self.assertEqual(retry.json()["data"]["task_id"], key)
         self.assertEqual(recording.enqueued, [key])
-
-    def tearDown(self):
-        video_controller.task_manager = None
 
 
 if __name__ == "__main__":
