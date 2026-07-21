@@ -31,9 +31,11 @@ class RedisTaskManager(TaskManager):
         self.redis_client.rpush(self.queue, self._serialize_task(task))
 
     def enqueue_transaction(self, pipeline, task: Dict):
+        """Append a serialized job to the active Redis transaction."""
         pipeline.rpush(self.queue, self._serialize_task(task))
 
     def requeue(self, task: Dict):
+        """Restore a job to the front of the Redis queue."""
         self.redis_client.lpush(self.queue, self._serialize_task(task))
 
     @staticmethod

@@ -12,9 +12,11 @@ class InMemoryTaskManager(TaskManager):
         return Queue(maxsize=self.max_queued_tasks + self.max_concurrent_tasks)
 
     def enqueue(self, task: Dict):
+        """Append a job to the bounded in-memory queue."""
         self.queue.put(task)
 
     def dequeue(self):
+        """Remove and return the oldest in-memory job."""
         return self.queue.get()
 
     def is_queue_empty(self):

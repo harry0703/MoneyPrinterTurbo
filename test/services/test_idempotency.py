@@ -1,4 +1,5 @@
 import sys
+import json
 import threading
 import time
 import unittest
@@ -223,6 +224,253 @@ class TestRedisSubmissionAcceptance(_SubmissionAcceptanceContract, unittest.Test
         self.assertEqual(outcomes, [const.IDEMPOTENCY_ACCEPTED])
         self.assertIsNotNone(self.state.get_task("task-3"))
         self.assertEqual(self.manager.queue_size(), 1)
+
+    def test_watch_conflict_retries_without_partial_publication(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.state.reserve_idempotent_task("task-4", "hash-4", "owner-1")
+        enqueue_reached = threading.Event()
+        allow_exec = threading.Event()
+        original_enqueue = self.manager.enqueue_transaction
+        calls = 0
+
+        def pause_first_exec(pipe, task):
+            nonlocal calls
+            calls += 1
+            original_enqueue(pipe, task)
+            if calls == 1:
+                enqueue_reached.set()
+                allow_exec.wait(timeout=2)
+
+        self.manager.enqueue_transaction = pause_first_exec
+        outcomes = []
+
+        thread = threading.Thread(
+            target=lambda: outcomes.append(
+                self.manager.submit_idempotent(
+                    state=self.state,
+                    task_id="task-4",
+                    params_hash="hash-4",
+                    owner_token="owner-1",
+                    task_fields={"state": const.TASK_STATE_QUEUED},
+                    func=tm.start,
+                    task_kwargs={"task_id": "task-4"},
+                )
+            )
+        )
+        thread.start()
+        self.assertTrue(enqueue_reached.wait(timeout=2))
+        self.state._redis.rpush(self.manager.queue, "competing-job")
+        allow_exec.set()
+        thread.join(timeout=2)
+
+        self.assertEqual(outcomes, [const.IDEMPOTENCY_ACCEPTED])
+        self.assertGreaterEqual(calls, 2)
+        self.assertEqual(self.manager.queue_size(), 2)
+        self.assertIsNotNone(self.state.get_task("task-4"))
+
+    def test_wrong_type_task_key_never_accepts_or_enqueues(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.state.reserve_idempotent_task("task-5", "hash-5", "owner-1")
+        self.state._redis.set("task-5", "collision")
+
+        outcome = self.manager.submit_idempotent(
+            state=self.state,
+            task_id="task-5",
+            params_hash="hash-5",
+            owner_token="owner-1",
+            task_fields={"state": const.TASK_STATE_QUEUED},
+            func=tm.start,
+            task_kwargs={"task_id": "task-5"},
+        )
+
+        self.assertEqual(outcome, const.IDEMPOTENCY_STALE)
+        self.assertEqual(self.manager.queue_size(), 0)
+        self.assertEqual(
+            self.state.get_idempotency("task-5")["phase"],
+            const.IDEMPOTENCY_PHASE_PENDING,
+        )
+
+    def test_wrong_type_queue_key_aborts_without_publishing_task(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.state.reserve_idempotent_task("task-6", "hash-6", "owner-1")
+        self.state._redis.set(self.manager.queue, "not-a-list")
+
+        with self.assertRaises(TypeError):
+            self.manager.submit_idempotent(
+                state=self.state,
+                task_id="task-6",
+                params_hash="hash-6",
+                owner_token="owner-1",
+                task_fields={"state": const.TASK_STATE_QUEUED},
+                func=tm.start,
+                task_kwargs={"task_id": "task-6"},
+            )
+
+        self.assertIsNone(self.state.get_task("task-6"))
+        self.assertIsNone(self.state.get_idempotency("task-6"))
+        self.assertEqual(self.state._redis.get(self.manager.queue), b"not-a-list")
+
+    def test_serialization_failure_aborts_before_exec(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.state.reserve_idempotent_task("task-7", "hash-7", "owner-1")
+
+        with self.assertRaises(TypeError):
+            self.manager.submit_idempotent(
+                state=self.state,
+                task_id="task-7",
+                params_hash="hash-7",
+                owner_token="owner-1",
+                task_fields={"state": const.TASK_STATE_QUEUED},
+                func=tm.start,
+                task_kwargs={"task_id": "task-7", "bad": object()},
+            )
+
+        self.assertIsNone(self.state.get_task("task-7"))
+        self.assertIsNone(self.state.get_idempotency("task-7"))
+        self.assertEqual(self.manager.queue_size(), 0)
+
+    def test_lease_expiry_during_transaction_cannot_accept_stale_owner(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.state.reserve_idempotent_task(
+            "task-8", "hash-8", "owner-1", lease_seconds=0.05
+        )
+        original_enqueue = self.manager.enqueue_transaction
+        enqueue_reached = threading.Event()
+        allow_exec = threading.Event()
+
+        def expire_before_exec(pipe, task):
+            original_enqueue(pipe, task)
+            enqueue_reached.set()
+            allow_exec.wait(timeout=2)
+
+        self.manager.enqueue_transaction = expire_before_exec
+        outcomes = []
+        thread = threading.Thread(
+            target=lambda: outcomes.append(
+                self.manager.submit_idempotent(
+                    state=self.state,
+                    task_id="task-8",
+                    params_hash="hash-8",
+                    owner_token="owner-1",
+                    task_fields={"state": const.TASK_STATE_QUEUED},
+                    func=tm.start,
+                    task_kwargs={"task_id": "task-8"},
+                )
+            )
+        )
+        thread.start()
+        self.assertTrue(enqueue_reached.wait(timeout=2))
+        # Force the key-removal event real Redis emits when the lease expires;
+        # fakeredis does not invalidate WATCH from passive clock advance alone.
+        self.state._redis.delete("idem:task-8")
+        allow_exec.set()
+        thread.join(timeout=2)
+
+        self.assertEqual(outcomes, [const.IDEMPOTENCY_STALE])
+        self.assertIsNone(self.state.get_task("task-8"))
+        self.assertIsNone(self.state.get_idempotency("task-8"))
+        self.assertEqual(self.manager.queue_size(), 0)
+
+    def test_concurrent_redis_owners_accept_exactly_one_queue_item(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        outcomes = []
+        outcomes_lock = threading.Lock()
+
+        def submit(index):
+            owner = f"owner-{index}"
+            deadline = time.monotonic() + 2
+            while True:
+                outcome = self.state.reserve_idempotent_task(
+                    "task-9", "hash-9", owner
+                )
+                if outcome == const.IDEMPOTENCY_CREATED:
+                    outcome = self.manager.submit_idempotent(
+                        state=self.state,
+                        task_id="task-9",
+                        params_hash="hash-9",
+                        owner_token=owner,
+                        task_fields={"state": const.TASK_STATE_QUEUED},
+                        func=tm.start,
+                        task_kwargs={"task_id": "task-9"},
+                    )
+                    break
+                if outcome != const.IDEMPOTENCY_PENDING:
+                    break
+                if time.monotonic() >= deadline:
+                    self.fail("pending owner did not accept before deadline")
+                time.sleep(0.005)
+            with outcomes_lock:
+                outcomes.append(outcome)
+
+        threads = [threading.Thread(target=submit, args=(index,)) for index in range(20)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(outcomes.count(const.IDEMPOTENCY_ACCEPTED), 1)
+        self.assertEqual(outcomes.count(const.IDEMPOTENCY_DUPLICATE), 19)
+        self.assertEqual(self.manager.queue_size(), 1)
+
+    def test_stale_owner_cannot_abort_new_owner_after_acceptance(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.state.reserve_idempotent_task(
+            "task-10", "hash-10", "old-owner", lease_seconds=0.02
+        )
+        time.sleep(0.03)
+        self.assertEqual(
+            self.state.reserve_idempotent_task(
+                "task-10", "hash-10", "new-owner"
+            ),
+            const.IDEMPOTENCY_CREATED,
+        )
+        self.assertEqual(
+            self.manager.submit_idempotent(
+                state=self.state,
+                task_id="task-10",
+                params_hash="hash-10",
+                owner_token="new-owner",
+                task_fields={"state": const.TASK_STATE_QUEUED},
+                func=tm.start,
+                task_kwargs={"task_id": "task-10"},
+            ),
+            const.IDEMPOTENCY_ACCEPTED,
+        )
+
+        self.assertFalse(self.state.abort_idempotent_task("task-10", "old-owner"))
+        self.assertEqual(
+            self.state.get_idempotency("task-10")["phase"],
+            const.IDEMPOTENCY_PHASE_ACCEPTED,
+        )
+        self.assertEqual(self.manager.queue_size(), 1)
+
+    def test_accepted_record_has_24_hour_ttl(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.state.reserve_idempotent_task("task-11", "hash-11", "owner-1")
+        self.manager.submit_idempotent(
+            state=self.state,
+            task_id="task-11",
+            params_hash="hash-11",
+            owner_token="owner-1",
+            task_fields={"state": const.TASK_STATE_QUEUED},
+            func=tm.start,
+            task_kwargs={"task_id": "task-11"},
+        )
+
+        ttl = self.state._redis.ttl("idem:task-11")
+        self.assertGreaterEqual(ttl, 86399)
+        self.assertLessEqual(ttl, 86400)
+
+    def test_malformed_reservation_is_rejected_without_mutation(self):
+        self.state._redis.set("idem:task-12", "not-json", ex=60)
+
+        with self.assertRaises(json.JSONDecodeError):
+            self.state.reserve_idempotent_task(
+                "task-12", "hash-12", "owner-1"
+            )
+
+        self.assertEqual(self.state._redis.get("idem:task-12"), b"not-json")
+        self.assertIsNone(self.state.get_task("task-12"))
 
 
 if __name__ == "__main__":

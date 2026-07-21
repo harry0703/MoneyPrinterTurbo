@@ -61,6 +61,8 @@ class TaskManager:
         task_kwargs: dict,
     ) -> str:
         """Atomically accept idempotent work before attempting worker dispatch."""
+        from app.services.state import IdempotentAcceptance
+
         task_info = {"func": func, "args": (), "kwargs": task_kwargs}
         with self.lock:
             available_slots = max(
@@ -68,15 +70,15 @@ class TaskManager:
             )
             queue_capacity = self.max_queued_tasks + available_slots
             try:
-                outcome = state.accept_idempotent_task(
+                acceptance = IdempotentAcceptance(
                     task_id=task_id,
                     params_hash=params_hash,
                     owner_token=owner_token,
                     task_fields=task_fields,
                     task_info=task_info,
-                    task_manager=self,
                     queue_capacity=queue_capacity,
                 )
+                outcome = state.accept_idempotent_task(acceptance, self)
             except Exception:
                 state.abort_idempotent_task(task_id, owner_token)
                 raise
@@ -136,11 +138,13 @@ class TaskManager:
         raise NotImplementedError()
 
     def enqueue_transaction(self, pipeline, task: Dict):
+        """Append a job through a backend transaction, or directly for memory."""
         if pipeline is not None:
             raise TypeError("this task manager does not support Redis transactions")
         self.enqueue(task)
 
     def requeue(self, task: Dict):
+        """Restore a dequeued job after worker dispatch fails."""
         self.enqueue(task)
 
     def dequeue(self):

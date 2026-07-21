@@ -5,9 +5,48 @@ import math
 import threading
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from app.config import config
 from app.models import const
+
+
+@dataclass(frozen=True)
+class IdempotentAcceptance:
+    """Values required to atomically publish and queue one claimed task."""
+
+    task_id: str
+    params_hash: str
+    owner_token: str
+    task_fields: dict
+    task_info: dict
+    queue_capacity: int
+
+    def task_record(self) -> dict:
+        """Return the complete initial task hash written at acceptance."""
+        return {
+            "task_id": self.task_id,
+            "state": self.task_fields.get("state", const.TASK_STATE_QUEUED),
+            "progress": int(self.task_fields.get("progress", 0)),
+            **self.task_fields,
+        }
+
+    def accepted_record(self) -> dict:
+        """Return the durable idempotency record for accepted work."""
+        return {
+            "params_hash": self.params_hash,
+            "phase": const.IDEMPOTENCY_PHASE_ACCEPTED,
+            "owner_token": self.owner_token,
+        }
+
+
+def _pending_claim_matches(existing: dict | None, acceptance: IdempotentAcceptance):
+    return (
+        existing is not None
+        and existing["phase"] == const.IDEMPOTENCY_PHASE_PENDING
+        and existing["params_hash"] == acceptance.params_hash
+        and existing["owner_token"] == acceptance.owner_token
+    )
 
 
 # Base class for state management
@@ -50,6 +89,7 @@ class BaseState(ABC):
 
     @abstractmethod
     def get_idempotency(self, task_id: str):
+        """Return the current pending/accepted record, or None if absent."""
         pass
 
     @abstractmethod
@@ -60,13 +100,8 @@ class BaseState(ABC):
     @abstractmethod
     def accept_idempotent_task(
         self,
-        task_id: str,
-        params_hash: str,
-        owner_token: str,
-        task_fields: dict,
-        task_info: dict,
+        acceptance: IdempotentAcceptance,
         task_manager,
-        queue_capacity: int,
     ) -> str:
         """Atomically publish a task, enqueue it, and accept its claim."""
         pass
@@ -148,6 +183,7 @@ class MemoryState(BaseState):
             return const.IDEMPOTENCY_PENDING
 
     def get_idempotency(self, task_id: str):
+        """Return a snapshot of a live claim, expiring stale pending claims."""
         with self._lock:
             existing = self._idem.get(task_id)
             if existing is None:
@@ -178,38 +214,24 @@ class MemoryState(BaseState):
 
     def accept_idempotent_task(
         self,
-        task_id: str,
-        params_hash: str,
-        owner_token: str,
-        task_fields: dict,
-        task_info: dict,
+        acceptance: IdempotentAcceptance,
         task_manager,
-        queue_capacity: int,
     ) -> str:
+        """Accept under the memory state lock while the manager lock is held."""
         with self._lock:
-            existing = self._idem.get(task_id)
+            existing = self._idem.get(acceptance.task_id)
             if (
-                existing is None
-                or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
-                or existing["params_hash"] != params_hash
-                or existing["owner_token"] != owner_token
+                not _pending_claim_matches(existing, acceptance)
                 or existing["expires_at"] <= time.monotonic()
             ):
                 return const.IDEMPOTENCY_STALE
-            if task_manager.queue_size() >= queue_capacity:
+            if task_manager.queue_size() >= acceptance.queue_capacity:
                 return const.IDEMPOTENCY_QUEUE_FULL
 
-            task_manager.enqueue_transaction(None, task_info)
-            self._tasks[task_id] = {
-                "task_id": task_id,
-                "state": task_fields.get("state", const.TASK_STATE_QUEUED),
-                "progress": int(task_fields.get("progress", 0)),
-                **task_fields,
-            }
-            self._idem[task_id] = {
-                "params_hash": params_hash,
-                "phase": const.IDEMPOTENCY_PHASE_ACCEPTED,
-                "owner_token": owner_token,
+            task_manager.enqueue_transaction(None, acceptance.task_info)
+            self._tasks[acceptance.task_id] = acceptance.task_record()
+            self._idem[acceptance.task_id] = {
+                **acceptance.accepted_record(),
                 "expires_at": float("inf"),
             }
             return const.IDEMPOTENCY_ACCEPTED
@@ -348,6 +370,7 @@ class RedisState(BaseState):
             return const.IDEMPOTENCY_PENDING
 
     def get_idempotency(self, task_id: str):
+        """Read and decode a Redis idempotency record."""
         value = self._redis.get(f"idem:{task_id}")
         if value is None:
             return None
@@ -363,7 +386,7 @@ class RedisState(BaseState):
             with self._redis.pipeline() as pipe:
                 try:
                     pipe.watch(idem_key)
-                    existing = self.get_idempotency(task_id)
+                    existing = self._decode_idempotency(pipe.get(idem_key))
                     if (
                         existing is None
                         or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
@@ -380,32 +403,18 @@ class RedisState(BaseState):
 
     def accept_idempotent_task(
         self,
-        task_id: str,
-        params_hash: str,
-        owner_token: str,
-        task_fields: dict,
-        task_info: dict,
+        acceptance: IdempotentAcceptance,
         task_manager,
-        queue_capacity: int,
     ) -> str:
+        """Atomically write task, queue item, and accepted record in Redis."""
         from redis.exceptions import WatchError
 
-        idem_key = f"idem:{task_id}"
-        task_record = {
-            "task_id": task_id,
-            "state": task_fields.get("state", const.TASK_STATE_QUEUED),
-            "progress": int(task_fields.get("progress", 0)),
-            **task_fields,
-        }
+        idem_key = f"idem:{acceptance.task_id}"
         encoded_task = {
-            field: str(value) for field, value in task_record.items()
+            field: str(value) for field, value in acceptance.task_record().items()
         }
         accepted = json.dumps(
-            {
-                "params_hash": params_hash,
-                "phase": const.IDEMPOTENCY_PHASE_ACCEPTED,
-                "owner_token": owner_token,
-            },
+            acceptance.accepted_record(),
             sort_keys=True,
             separators=(",", ":"),
         )
@@ -413,24 +422,29 @@ class RedisState(BaseState):
         while True:
             with self._redis.pipeline() as pipe:
                 try:
-                    pipe.watch(idem_key, task_id, task_manager.queue)
+                    pipe.watch(idem_key, acceptance.task_id, task_manager.queue)
                     raw = pipe.get(idem_key)
                     existing = self._decode_idempotency(raw)
-                    if (
-                        existing is None
-                        or existing["phase"] != const.IDEMPOTENCY_PHASE_PENDING
-                        or existing["params_hash"] != params_hash
-                        or existing["owner_token"] != owner_token
-                    ):
+                    if not _pending_claim_matches(existing, acceptance):
                         pipe.unwatch()
                         return const.IDEMPOTENCY_STALE
-                    if pipe.llen(task_manager.queue) >= queue_capacity:
+                    task_type = self._redis_type_name(pipe.type(acceptance.task_id))
+                    queue_type = self._redis_type_name(pipe.type(task_manager.queue))
+                    if task_type != "none":
+                        pipe.unwatch()
+                        return const.IDEMPOTENCY_STALE
+                    if queue_type not in {"none", "list"}:
+                        pipe.unwatch()
+                        raise TypeError(
+                            f"Redis queue key has unexpected type: {queue_type}"
+                        )
+                    if pipe.llen(task_manager.queue) >= acceptance.queue_capacity:
                         pipe.unwatch()
                         return const.IDEMPOTENCY_QUEUE_FULL
 
                     pipe.multi()
-                    pipe.hset(task_id, mapping=encoded_task)
-                    task_manager.enqueue_transaction(pipe, task_info)
+                    pipe.hset(acceptance.task_id, mapping=encoded_task)
+                    task_manager.enqueue_transaction(pipe, acceptance.task_info)
                     pipe.set(idem_key, accepted, ex=86400)
                     pipe.execute()
                     return const.IDEMPOTENCY_ACCEPTED
@@ -444,6 +458,12 @@ class RedisState(BaseState):
         if isinstance(value, bytes):
             value = value.decode("utf-8")
         return json.loads(value)
+
+    @staticmethod
+    def _redis_type_name(value) -> str:
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        return str(value)
 
     @staticmethod
     def _convert_to_original_type(value):

@@ -172,6 +172,117 @@ def _wait_for_idempotency_claim(
         time.sleep(_DUPLICATE_POLL_INTERVAL)
 
 
+def _existing_idempotency_response(outcome: str, request_id: str, task_id: str):
+    """Return an accepted duplicate or raise the stable claim error."""
+    if outcome == const.IDEMPOTENCY_DUPLICATE:
+        logger.info(
+            f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
+        )
+        return utils.get_response(200, {"task_id": task_id})
+    if outcome == const.IDEMPOTENCY_PENDING:
+        raise HttpException(
+            task_id=task_id,
+            status_code=409,
+            message=(
+                f"{task_id}: idempotency_pending: another submission with "
+                "this key is in flight; retry shortly"
+            ),
+        )
+    if outcome == const.IDEMPOTENCY_CONFLICT:
+        logger.warning(
+            f"idempotency conflict, request_id: {request_id}, task_id: {task_id}"
+        )
+        raise HttpException(
+            task_id=task_id,
+            status_code=409,
+            message=(
+                f"{task_id}: idempotency_conflict: same idempotency_key "
+                "submitted with different parameters"
+            ),
+        )
+    return None
+
+
+def _submit_claimed_task(
+    request_id: str,
+    task_id: str,
+    params_hash: str,
+    owner_token: str,
+    body,
+    stop_at: str,
+):
+    """Atomically accept one owned claim and map its queue outcome."""
+    task = {
+        "task_id": task_id,
+        "request_id": request_id,
+        "params": body.model_dump(),
+    }
+    try:
+        acceptance = task_manager.submit_idempotent(
+            state=sm.state,
+            task_id=task_id,
+            params_hash=params_hash,
+            owner_token=owner_token,
+            task_fields={
+                "state": const.TASK_STATE_QUEUED,
+                "request_id": request_id,
+            },
+            func=tm.start,
+            task_kwargs={"task_id": task_id, "params": body, "stop_at": stop_at},
+        )
+    except ValueError as e:
+        sm.state.abort_idempotent_task(task_id, owner_token)
+        raise HttpException(
+            task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
+        )
+    except Exception:
+        sm.state.abort_idempotent_task(task_id, owner_token)
+        raise
+
+    if acceptance == const.IDEMPOTENCY_QUEUE_FULL:
+        raise HttpException(
+            task_id=task_id,
+            status_code=429,
+            message=f"{request_id}: task queue is full, please try again later",
+        )
+    if acceptance != const.IDEMPOTENCY_ACCEPTED:
+        raise HttpException(
+            task_id=task_id,
+            status_code=409,
+            message=(
+                f"{task_id}: idempotency_pending: another submission with "
+                "this key is in flight; retry shortly"
+            ),
+        )
+
+    logger.success(f"Task created: {utils.to_json(task)}")
+    return utils.get_response(200, task)
+
+
+def _create_idempotent_task(request_id: str, idempotency_key, body, stop_at: str):
+    """Validate, claim, and atomically accept a client-assigned task ID."""
+    try:
+        task_id = str(UUID(str(idempotency_key)))
+    except (ValueError, AttributeError, TypeError):
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: idempotency_key must be a valid UUID",
+        )
+
+    params_hash = _canonical_params_hash(body)
+    owner_token = str(uuid4())
+    outcome = _wait_for_idempotency_claim(task_id, params_hash, owner_token)
+    existing_response = _existing_idempotency_response(
+        outcome, request_id, task_id
+    )
+    if existing_response is not None:
+        return existing_response
+    return _submit_claimed_task(
+        request_id, task_id, params_hash, owner_token, body, stop_at
+    )
+
+
 def create_task(
     request: Request,
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
@@ -181,90 +292,11 @@ def create_task(
 
     idempotency_key = getattr(body, "idempotency_key", None)
     if idempotency_key:
-        try:
-            task_id = str(UUID(str(idempotency_key)))
-        except (ValueError, AttributeError, TypeError):
-            raise HttpException(
-                task_id=request_id,
-                status_code=400,
-                message=f"{request_id}: idempotency_key must be a valid UUID",
-            )
-        params_hash = _canonical_params_hash(body)
-        owner_token = str(uuid4())
-        outcome = _wait_for_idempotency_claim(task_id, params_hash, owner_token)
-        if outcome == const.IDEMPOTENCY_DUPLICATE:
-            logger.info(
-                f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
-            )
-            return utils.get_response(200, {"task_id": task_id})
-        if outcome == const.IDEMPOTENCY_PENDING:
-            raise HttpException(
-                task_id=task_id,
-                status_code=409,
-                message=(
-                    f"{task_id}: idempotency_pending: another submission with "
-                    "this key is in flight; retry shortly"
-                ),
-            )
-        if outcome == const.IDEMPOTENCY_CONFLICT:
-            logger.warning(
-                f"idempotency conflict, request_id: {request_id}, task_id: {task_id}"
-            )
-            raise HttpException(
-                task_id=task_id,
-                status_code=409,
-                message=(
-                    f"{task_id}: idempotency_conflict: same idempotency_key "
-                    "submitted with different parameters"
-                ),
-            )
-        task = {
-            "task_id": task_id,
-            "request_id": request_id,
-            "params": body.model_dump(),
-        }
-        try:
-            acceptance = task_manager.submit_idempotent(
-                state=sm.state,
-                task_id=task_id,
-                params_hash=params_hash,
-                owner_token=owner_token,
-                task_fields={
-                    "state": const.TASK_STATE_QUEUED,
-                    "request_id": request_id,
-                },
-                func=tm.start,
-                task_kwargs={"task_id": task_id, "params": body, "stop_at": stop_at},
-            )
-        except ValueError as e:
-            sm.state.abort_idempotent_task(task_id, owner_token)
-            raise HttpException(
-                task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
-            )
-        except Exception:
-            sm.state.abort_idempotent_task(task_id, owner_token)
-            raise
+        return _create_idempotent_task(
+            request_id, idempotency_key, body, stop_at
+        )
 
-        if acceptance == const.IDEMPOTENCY_QUEUE_FULL:
-            raise HttpException(
-                task_id=task_id,
-                status_code=429,
-                message=f"{request_id}: task queue is full, please try again later",
-            )
-        if acceptance == const.IDEMPOTENCY_STALE:
-            raise HttpException(
-                task_id=task_id,
-                status_code=409,
-                message=(
-                    f"{task_id}: idempotency_pending: another submission with "
-                    "this key is in flight; retry shortly"
-                ),
-            )
-
-        logger.success(f"Task created: {utils.to_json(task)}")
-        return utils.get_response(200, task)
-    else:
-        task_id = utils.get_uuid()
+    task_id = utils.get_uuid()
 
     try:
         task = {
