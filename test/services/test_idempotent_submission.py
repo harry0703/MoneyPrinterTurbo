@@ -1,5 +1,6 @@
 import sys
 import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -45,6 +46,7 @@ class TestIdempotentVideoSubmission(unittest.TestCase):
         }
 
     def tearDown(self):
+        self.manager.stop_dispatcher()
         video_controller.task_manager = self.original_manager
         sm.state = self.original_state
 
@@ -80,6 +82,41 @@ class TestIdempotentVideoSubmission(unittest.TestCase):
         self.assertEqual(second.json()["data"]["task_id"], key)
         self.assertEqual(self.manager.queue_size(), 1)
         self.assertEqual(self.manager.started, [])
+
+    def test_duplicate_wakes_accepted_work_when_capacity_returns(self):
+        key = "77777777-7777-7777-7777-777777777777"
+        body = {**self.base_body, "idempotency_key": key}
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        first = self.client.post("/api/v1/videos", json=body)
+        self.manager.start_dispatcher()
+
+        with self.manager.lock:
+            self.manager.current_tasks = 0
+        duplicate = self.client.post("/api/v1/videos", json=body)
+
+        deadline = time.monotonic() + 2
+        while not self.manager.started and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertEqual(self.manager.started, [key])
+        self.assertEqual(self.manager.queue_size(), 0)
+
+    def test_application_startup_drains_work_accepted_before_restart(self):
+        key = "88888888-8888-8888-8888-888888888888"
+        body = {**self.base_body, "idempotency_key": key}
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        accepted = self.client.post("/api/v1/videos", json=body)
+        self.manager.current_tasks = 0
+
+        with TestClient(asgi.app):
+            deadline = time.monotonic() + 2
+            while not self.manager.started and time.monotonic() < deadline:
+                time.sleep(0.01)
+
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(self.manager.started, [key])
+        self.assertEqual(self.manager.queue_size(), 0)
 
     def test_payload_conflict_returns_stable_409(self):
         key = "33333333-3333-3333-3333-333333333333"

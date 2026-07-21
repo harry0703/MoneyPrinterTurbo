@@ -60,6 +60,13 @@ differences do not affect equality.
   `RedisState` (set `enable_redis = true`) for cross-restart idempotency.
 - Redis accepted records carry a 24h TTL. Pending claims use the five-second
   recovery lease described above.
+- Application startup immediately drains accepted Redis queue entries left by
+  a previous process. If a worker thread cannot start, an autonomous dispatcher
+  retries the accepted entry; accepted duplicates also wake that dispatcher.
+  Redis moves a queued entry into an owner-token claim before starting a worker
+  and removes that claim only after the worker starts. A crashed owner's
+  five-second dispatch lease expires and another process returns the work to
+  the queue.
 - Deleting a task (`DELETE /api/v1/tasks/{task_id}`) does **not** expire its
   idempotency reservation; a follow-up retry with the same key still returns the
   existing task id (the task record may no longer exist). This keeps retry

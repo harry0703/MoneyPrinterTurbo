@@ -175,6 +175,7 @@ def _wait_for_idempotency_claim(
 def _existing_idempotency_response(outcome: str, request_id: str, task_id: str):
     """Return an accepted duplicate or raise the stable claim error."""
     if outcome == const.IDEMPOTENCY_DUPLICATE:
+        task_manager.wake_dispatcher()
         logger.info(
             f"idempotent duplicate, request_id: {request_id}, task_id: {task_id}"
         )

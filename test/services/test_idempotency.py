@@ -127,16 +127,24 @@ class _SubmissionAcceptanceContract:
             const.IDEMPOTENCY_DUPLICATE,
         )
 
-    def test_thread_start_failure_keeps_accepted_work_queued(self):
+    def test_thread_start_failure_is_retried_until_accepted_work_dispatches(self):
         self.assertEqual(
             self.state.reserve_idempotent_task("task-2", "hash-2", "owner-1"),
             const.IDEMPOTENCY_CREATED,
         )
 
+        dispatched = threading.Event()
+        attempts = 0
+
+        def fail_once_then_dispatch(*args, **kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("thread start failed")
+            dispatched.set()
+
         original_execute = self.manager.execute_task
-        self.manager.execute_task = lambda *args, **kwargs: (_ for _ in ()).throw(
-            RuntimeError("thread start failed")
-        )
+        self.manager.execute_task = fail_once_then_dispatch
         try:
             outcome = self.manager.submit_idempotent(
                 state=self.state,
@@ -147,12 +155,15 @@ class _SubmissionAcceptanceContract:
                 func=tm.start,
                 task_kwargs={"task_id": "task-2"},
             )
+            self.assertTrue(dispatched.wait(timeout=2))
         finally:
+            self.manager.stop_dispatcher()
             self.manager.execute_task = original_execute
 
         self.assertEqual(outcome, const.IDEMPOTENCY_ACCEPTED)
-        self.assertEqual(self.manager.current_tasks, 0)
-        self.assertEqual(self.manager.queue_size(), 1)
+        self.assertGreaterEqual(attempts, 2)
+        self.assertEqual(self.manager.current_tasks, 1)
+        self.assertEqual(self.manager.queue_size(), 0)
         self.assertEqual(
             self.state.get_idempotency("task-2")["phase"],
             const.IDEMPOTENCY_PHASE_ACCEPTED,
@@ -168,15 +179,187 @@ class TestMemorySubmissionAcceptance(
 
 
 class TestRedisSubmissionAcceptance(_SubmissionAcceptanceContract, unittest.TestCase):
-    def setUp(self):
-        redis_client = fakeredis.FakeStrictRedis()
-        state = RedisState.__new__(RedisState)
-        state._redis = redis_client
+    def _new_manager(self):
         manager = RedisTaskManager.__new__(RedisTaskManager)
-        manager.redis_client = redis_client
+        manager.redis_client = self.redis_client
         TaskManager.__init__(manager, max_concurrent_tasks=1, max_queued_tasks=2)
+        return manager
+
+    def setUp(self):
+        self.redis_client = fakeredis.FakeStrictRedis()
+        state = RedisState.__new__(RedisState)
+        state._redis = self.redis_client
         self.state = state
-        self.manager = manager
+        self.manager = self._new_manager()
+        self.extra_managers = []
+
+    def tearDown(self):
+        self.manager.stop_dispatcher()
+        for manager in self.extra_managers:
+            manager.stop_dispatcher()
+
+    def test_startup_dispatches_work_accepted_before_process_restart(self):
+        self.manager.current_tasks = self.manager.max_concurrent_tasks
+        self.state.reserve_idempotent_task(
+            "restart-task", "restart-hash", "owner-1"
+        )
+        outcome = self.manager.submit_idempotent(
+            state=self.state,
+            task_id="restart-task",
+            params_hash="restart-hash",
+            owner_token="owner-1",
+            task_fields={"state": const.TASK_STATE_QUEUED},
+            func=tm.start,
+            task_kwargs={"task_id": "restart-task"},
+        )
+        self.assertEqual(outcome, const.IDEMPOTENCY_ACCEPTED)
+        self.assertEqual(self.manager.queue_size(), 1)
+
+        dispatched = threading.Event()
+        self.manager.execute_task = lambda *args, **kwargs: dispatched.set()
+        self.manager.current_tasks = 0
+        self.manager.start_dispatcher()
+
+        self.assertTrue(dispatched.wait(timeout=2))
+        self.assertEqual(self.manager.queue_size(), 0)
+
+    def test_two_redis_dispatchers_claim_distinct_jobs_without_loss(self):
+        second_manager = self._new_manager()
+        self.extra_managers.append(second_manager)
+        for task_id in ("durable-task-a", "durable-task-b"):
+            self.manager.enqueue(
+                {
+                    "func": tm.start,
+                    "args": (),
+                    "kwargs": {"task_id": task_id},
+                }
+            )
+
+        started = []
+        started_lock = threading.Lock()
+        both_starting = threading.Barrier(2)
+
+        def record_start(*args, **kwargs):
+            with started_lock:
+                started.append(kwargs["task_id"])
+            both_starting.wait(timeout=2)
+
+        self.manager.execute_task = record_start
+        second_manager.execute_task = record_start
+        dispatchers = [
+            threading.Thread(target=manager.check_queue)
+            for manager in (self.manager, second_manager)
+        ]
+        for dispatcher in dispatchers:
+            dispatcher.start()
+        for dispatcher in dispatchers:
+            dispatcher.join(timeout=2)
+
+        self.assertEqual(
+            sorted(started), ["durable-task-a", "durable-task-b"]
+        )
+        self.assertEqual(self.manager.queue_size(), 0)
+
+    def test_acknowledgement_failure_does_not_release_slot_or_lose_next_job(self):
+        second_manager = self._new_manager()
+        self.extra_managers.append(second_manager)
+        for task_id in ("ack-task-a", "ack-task-b"):
+            self.manager.enqueue(
+                {
+                    "func": tm.start,
+                    "args": (),
+                    "kwargs": {"task_id": task_id},
+                }
+            )
+
+        started = []
+        self.manager.execute_task = (
+            lambda *args, **kwargs: started.append(kwargs["task_id"])
+        )
+        second_manager.execute_task = self.manager.execute_task
+        original_acknowledge = self.manager.acknowledge_dispatch
+        ack_attempts = 0
+
+        def fail_first_acknowledgement(task):
+            nonlocal ack_attempts
+            ack_attempts += 1
+            if ack_attempts == 1:
+                raise RuntimeError("ambiguous Redis acknowledgement")
+            original_acknowledge(task)
+
+        self.manager.acknowledge_dispatch = fail_first_acknowledgement
+        self.manager.check_queue()
+        second_manager.check_queue()
+
+        deadline = time.monotonic() + 2
+        while ack_attempts < 2 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(started, ["ack-task-a", "ack-task-b"])
+        self.assertEqual(self.manager.current_tasks, 1)
+        self.assertEqual(second_manager.current_tasks, 1)
+        self.assertGreaterEqual(ack_attempts, 2)
+        self.assertEqual(self.manager.queue_size(), 0)
+
+    def test_expired_claim_is_recovered_by_another_redis_dispatcher(self):
+        recovering_manager = self._new_manager()
+        self.extra_managers.append(recovering_manager)
+        self.manager._DISPATCH_CLAIM_SECONDS = 0.05
+        self.manager.enqueue(
+            {
+                "func": tm.start,
+                "args": (),
+                "kwargs": {"task_id": "crashed-owner-task"},
+            }
+        )
+        claimed = self.manager.dequeue()
+        self.assertEqual(claimed["kwargs"]["task_id"], "crashed-owner-task")
+        self.assertEqual(self.manager.queue_size(), 0)
+
+        dispatched = threading.Event()
+        recovering_manager.execute_task = lambda *args, **kwargs: dispatched.set()
+        recovering_manager.start_dispatcher()
+
+        self.assertTrue(dispatched.wait(timeout=2))
+        self.assertEqual(recovering_manager.queue_size(), 0)
+
+    def test_active_dispatch_claim_does_not_appear_in_task_listing(self):
+        self.state.update_task("listed-task", state=const.TASK_STATE_QUEUED)
+        self.manager.enqueue(
+            {
+                "func": tm.start,
+                "args": (),
+                "kwargs": {"task_id": "claimed-task"},
+            }
+        )
+        self.manager.dequeue()
+
+        tasks, total = self.state.get_all_tasks(page=1, page_size=10)
+
+        self.assertEqual(total, 1)
+        self.assertEqual([task["task_id"] for task in tasks], ["listed-task"])
+
+    def test_wrong_type_dispatch_deadline_key_cannot_partially_claim_job(self):
+        self.manager.enqueue(
+            {
+                "func": tm.start,
+                "args": (),
+                "kwargs": {"task_id": "wrong-deadline-type-task"},
+            }
+        )
+        self.redis_client.set(
+            self.manager._processing_deadlines_key, "not-a-sorted-set"
+        )
+
+        with self.assertRaises(TypeError):
+            self.manager.check_queue()
+
+        self.assertEqual(self.manager.queue_size(), 1)
+        claim_keys = [
+            key
+            for key in self.redis_client.scan_iter("task_queue:processing:*")
+            if key != self.manager._processing_deadlines_key.encode("utf-8")
+        ]
+        self.assertEqual(claim_keys, [])
 
     def test_task_is_not_partially_visible_before_transaction_executes(self):
         self.manager.current_tasks = self.manager.max_concurrent_tasks

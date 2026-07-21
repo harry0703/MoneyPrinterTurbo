@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app.config import config
+from app.controllers.v1 import video as video_controller
 from app.models.exception import HttpException
 from app.router import root_api_router
 from app.utils import utils
@@ -75,8 +76,10 @@ app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
 @app.on_event("shutdown")
 def shutdown_event():
     logger.info("shutdown event")
+    video_controller.task_manager.stop_dispatcher()
 
 
 @app.on_event("startup")
 def startup_event():
     logger.info("startup event")
+    video_controller.task_manager.start_dispatcher()
