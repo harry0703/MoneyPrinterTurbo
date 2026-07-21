@@ -332,6 +332,88 @@ class TestRedisSubmissionAcceptance(_SubmissionAcceptanceContract, unittest.Test
         self.assertTrue(dispatched.wait(timeout=2))
         self.assertEqual(recovering_manager.queue_size(), 0)
 
+    def test_expired_claim_for_terminal_task_is_discarded_without_replay(self):
+        for terminal_state in (
+            const.TASK_STATE_COMPLETE,
+            const.TASK_STATE_FAILED,
+        ):
+            with self.subTest(terminal_state=terminal_state):
+                task_id = f"terminal-before-ack-{terminal_state}"
+                self.manager.enqueue(
+                    {
+                        "func": tm.start,
+                        "args": (),
+                        "kwargs": {"task_id": task_id},
+                    }
+                )
+                claimed = self.manager.dequeue()
+                self.state.update_task(
+                    task_id,
+                    state=terminal_state,
+                    progress=100,
+                )
+                self.redis_client.zadd(
+                    self.manager._processing_deadlines_key,
+                    {claimed["_dispatch_claim_id"]: time.time() - 1},
+                )
+
+                self.manager.recover_expired_dispatches()
+
+                self.assertEqual(self.manager.queue_size(), 0)
+                self.assertEqual(
+                    self.state.get_task(task_id)["state"], terminal_state
+                )
+                self.assertFalse(
+                    self.redis_client.exists(
+                        self.manager._dispatch_claim_key(
+                            claimed["_dispatch_claim_id"]
+                        )
+                    )
+                )
+                self.assertIsNone(
+                    self.redis_client.zscore(
+                        self.manager._processing_deadlines_key,
+                        claimed["_dispatch_claim_id"],
+                    )
+                )
+
+    def test_expired_malformed_claim_is_conservatively_requeued(self):
+        malformed_payloads = (
+            "not-json",
+            "null",
+            "[]",
+            '"text"',
+            '{"func":"start"}',
+        )
+        for index, payload in enumerate(malformed_payloads):
+            claim_id = f"malformed-claim-{index}"
+            self.redis_client.set(
+                self.manager._dispatch_claim_key(claim_id), payload
+            )
+            self.redis_client.zadd(
+                self.manager._processing_deadlines_key,
+                {claim_id: time.time() - 1},
+            )
+
+        self.manager.recover_expired_dispatches()
+
+        self.assertEqual(self.manager.queue_size(), len(malformed_payloads))
+        self.assertCountEqual(
+            [
+                payload.decode("utf-8")
+                for payload in self.redis_client.lrange(
+                    self.manager.queue, 0, -1
+                )
+            ],
+            malformed_payloads,
+        )
+        self.assertEqual(
+            list(
+                self.redis_client.scan_iter("task_queue:processing:*")
+            ),
+            [],
+        )
+
     def test_active_dispatch_claim_does_not_appear_in_task_listing(self):
         self.state.update_task("listed-task", state=const.TASK_STATE_QUEUED)
         self.manager.enqueue(

@@ -7,6 +7,7 @@ from uuid import uuid4
 import redis
 
 from app.controllers.manager.base_manager import TaskManager
+from app.models import const
 from app.models.schema import VideoParams
 from app.services import task as tm
 
@@ -233,7 +234,7 @@ class RedisTaskManager(TaskManager):
         return None
 
     def recover_expired_dispatches(self):
-        """Owner-safely return expired Redis dispatch claims to the queue."""
+        """Owner-safely recover expired claims unless their task is terminal."""
         while True:
             with self.redis_client.pipeline() as pipe:
                 try:
@@ -285,16 +286,76 @@ class RedisTaskManager(TaskManager):
                             claim_keys, claim_types
                         )
                     ]
+                    claim_task_ids = [
+                        self._task_id_from_payload(payload)
+                        for _, payload in claims
+                    ]
+                    task_ids = list(
+                        dict.fromkeys(
+                            task_id
+                            for task_id in claim_task_ids
+                            if task_id is not None
+                        )
+                    )
+                    if task_ids:
+                        pipe.watch(*task_ids)
+                    task_types = {
+                        task_id: self._require_key_type(
+                            pipe,
+                            task_id,
+                            {"none", "hash"},
+                            "task record",
+                        )
+                        for task_id in task_ids
+                    }
+                    terminal_task_ids = {
+                        task_id
+                        for task_id, task_type in task_types.items()
+                        if task_type == "hash"
+                        and self._is_terminal_state(
+                            pipe.hget(task_id, "state")
+                        )
+                    }
                     pipe.multi()
                     pipe.zrem(self._processing_deadlines_key, *claim_ids)
                     pipe.delete(*claim_keys)
-                    for _, payload in claims:
-                        if payload is not None:
+                    for (_, payload), task_id in zip(
+                        claims, claim_task_ids
+                    ):
+                        if (
+                            payload is not None
+                            and task_id not in terminal_task_ids
+                        ):
                             pipe.lpush(self.queue, payload)
                     pipe.execute()
                     return
                 except redis.WatchError:
                     continue
+
+    @staticmethod
+    def _task_id_from_payload(payload):
+        if payload is None:
+            return None
+        try:
+            task_info = json.loads(payload)
+        except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
+            return None
+        if not isinstance(task_info, dict):
+            return None
+        kwargs = task_info.get("kwargs")
+        if not isinstance(kwargs, dict):
+            return None
+        task_id = kwargs.get("task_id")
+        return task_id if isinstance(task_id, str) and task_id else None
+
+    @staticmethod
+    def _is_terminal_state(raw_state):
+        if isinstance(raw_state, bytes):
+            raw_state = raw_state.decode("utf-8")
+        return raw_state in {
+            str(const.TASK_STATE_COMPLETE),
+            str(const.TASK_STATE_FAILED),
+        }
 
     def is_queue_empty(self):
         return self.redis_client.llen(self.queue) == 0
