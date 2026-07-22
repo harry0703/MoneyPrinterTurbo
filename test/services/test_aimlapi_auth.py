@@ -14,15 +14,15 @@ def _response(status_code=200, data=None):
     return response
 
 
-def test_endpoint_resolver_uses_staging_defaults():
+def test_endpoint_resolver_uses_production_defaults():
     with patch.dict(os.environ, {}, clear=True):
         endpoints = aimlapi.resolve_endpoints()
 
-        assert endpoints.auth_base_url == "https://auth-staging.aimlapi.com"
-        assert endpoints.app_base_url == "https://app-staging.aimlapi.com"
-        assert endpoints.inference_base_url == "https://api-staging.aimlapi.com/v1"
-        assert endpoints.pay_base_url == "https://staging-pay.aimlapi.com"
-        assert endpoints.verification_base_url == "https://staging.aimlapi.com/app"
+        assert endpoints.auth_base_url == "https://auth.aimlapi.com"
+        assert endpoints.app_base_url == "https://app.aimlapi.com"
+        assert endpoints.inference_base_url == "https://api.aimlapi.com/v1"
+        assert endpoints.pay_base_url == "https://pay.aimlapi.com"
+        assert endpoints.verification_base_url == "https://aimlapi.com/app"
         assert aimlapi.resolve_partner_id() == "part_K7vQmX2pL9nR4tY8cWzB6hFd"
         assert aimlapi.resolve_partner_name() == "moneyprinterturbo"
         assert aimlapi.resolve_requested_usd_limit_minor() == 1000
@@ -74,7 +74,7 @@ def test_custom_inference_host_is_not_trusted_for_attribution():
         assert not aimlapi.is_aimlapi_inference_url("https://proxy.example.com/v1")
 
 
-def test_start_authorization_sends_rebate_metadata_and_rebuilds_staging_url():
+def test_start_authorization_sends_rebate_metadata_and_rebuilds_production_url():
     response = _response(
         201,
         {
@@ -95,19 +95,17 @@ def test_start_authorization_sends_rebate_metadata_and_rebuilds_staging_url():
     assert authorization == aimlapi_auth.AuthorizationRequest(
         request_id="aar_request",
         device_code="aad_device_secret",
-        verification_uri=(
-            "https://staging.aimlapi.com/app/agent/authorize?request=aar_request"
-        ),
+        verification_uri="https://aimlapi.com/app/agent/authorize?request=aar_request",
         interval=7,
         expires_at=700.0,
     )
     post.assert_called_once_with(
-        "https://app-staging.aimlapi.com/v3/agent-auth/authorizations",
+        "https://app.aimlapi.com/v3/agent-auth/authorizations",
         json={
             "partnerId": "part_K7vQmX2pL9nR4tY8cWzB6hFd",
             "partnerName": "moneyprinterturbo",
             "agentName": "MoneyPrinterTurbo",
-            "returnUrl": "https://staging.aimlapi.com/app",
+            "returnUrl": "https://aimlapi.com/app",
             "requestedUsdLimitMinor": 1000,
         },
         headers={
@@ -134,7 +132,7 @@ def test_poll_authorization_handles_device_flow_states(
     authorization = aimlapi_auth.AuthorizationRequest(
         request_id="aar_request",
         device_code="aad_device_secret",
-        verification_uri="https://staging.aimlapi.com/agent/authorize?request=aar_request",
+        verification_uri="https://aimlapi.com/app/agent/authorize?request=aar_request",
         interval=5,
         expires_at=1000.0,
     )
@@ -152,7 +150,7 @@ def test_poll_authorization_handles_device_flow_states(
     assert result.status == expected_status
     assert result.api_key == expected_key
     post.assert_called_once_with(
-        "https://app-staging.aimlapi.com/v3/agent-auth/token",
+        "https://app.aimlapi.com/v3/agent-auth/token",
         json={
             "partnerId": "part_K7vQmX2pL9nR4tY8cWzB6hFd",
             "deviceCode": "aad_device_secret",
@@ -170,7 +168,7 @@ def test_expired_authorization_does_not_call_token_endpoint():
     authorization = aimlapi_auth.AuthorizationRequest(
         request_id="aar_request",
         device_code="aad_device_secret",
-        verification_uri="https://staging.aimlapi.com/agent/authorize?request=aar_request",
+        verification_uri="https://aimlapi.com/app/agent/authorize?request=aar_request",
         interval=5,
         expires_at=99.0,
     )
@@ -227,7 +225,7 @@ def test_incomplete_poll_response_is_rejected():
     authorization = aimlapi_auth.AuthorizationRequest(
         request_id="aar_request",
         device_code="aad_device_secret",
-        verification_uri="https://staging.aimlapi.com/agent/authorize?request=aar_request",
+        verification_uri="https://aimlapi.com/app/agent/authorize?request=aar_request",
         interval=5,
         expires_at=1000.0,
     )

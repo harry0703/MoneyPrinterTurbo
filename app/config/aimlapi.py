@@ -22,22 +22,22 @@ def _env_or_default(name: str, default: str) -> str:
 
 
 def resolve_endpoints() -> AimlapiEndpoints:
-    """Resolve AIMLAPI service endpoints, using staging for this rollout."""
+    """Resolve AIMLAPI service endpoints, using production defaults."""
     return AimlapiEndpoints(
         auth_base_url=_env_or_default(
-            "AIMLAPI_AUTH_URL", "https://auth-staging.aimlapi.com"
+            "AIMLAPI_AUTH_URL", "https://auth.aimlapi.com"
         ).rstrip("/"),
         app_base_url=_env_or_default(
-            "AIMLAPI_APP_URL", "https://app-staging.aimlapi.com"
+            "AIMLAPI_APP_URL", "https://app.aimlapi.com"
         ).rstrip("/"),
         inference_base_url=_env_or_default(
-            "AIMLAPI_INFERENCE_URL", "https://api-staging.aimlapi.com/v1"
+            "AIMLAPI_INFERENCE_URL", "https://api.aimlapi.com/v1"
         ).rstrip("/"),
         pay_base_url=_env_or_default(
-            "AIMLAPI_PAY_URL", "https://staging-pay.aimlapi.com"
+            "AIMLAPI_PAY_URL", "https://pay.aimlapi.com"
         ).rstrip("/"),
         verification_base_url=_env_or_default(
-            "AIMLAPI_VERIFICATION_BASE_URL", "https://staging.aimlapi.com/app"
+            "AIMLAPI_VERIFICATION_BASE_URL", "https://aimlapi.com/app"
         ).rstrip("/"),
     )
 

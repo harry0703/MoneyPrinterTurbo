@@ -2,11 +2,11 @@ x-common-volumes: &common-volumes
   - ./:/MoneyPrinterTurbo
 
 x-aimlapi-environment: &aimlapi-environment
-  AIMLAPI_AUTH_URL: ${AIMLAPI_AUTH_URL:-https://auth-staging.aimlapi.com}
-  AIMLAPI_APP_URL: ${AIMLAPI_APP_URL:-https://app-staging.aimlapi.com}
-  AIMLAPI_INFERENCE_URL: ${AIMLAPI_INFERENCE_URL:-https://api-staging.aimlapi.com/v1}
-  AIMLAPI_PAY_URL: ${AIMLAPI_PAY_URL:-https://staging-pay.aimlapi.com}
-  AIMLAPI_VERIFICATION_BASE_URL: ${AIMLAPI_VERIFICATION_BASE_URL:-https://staging.aimlapi.com/app}
+  AIMLAPI_AUTH_URL: ${AIMLAPI_AUTH_URL:-https://auth.aimlapi.com}
+  AIMLAPI_APP_URL: ${AIMLAPI_APP_URL:-https://app.aimlapi.com}
+  AIMLAPI_INFERENCE_URL: ${AIMLAPI_INFERENCE_URL:-https://api.aimlapi.com/v1}
+  AIMLAPI_PAY_URL: ${AIMLAPI_PAY_URL:-https://pay.aimlapi.com}
+  AIMLAPI_VERIFICATION_BASE_URL: ${AIMLAPI_VERIFICATION_BASE_URL:-https://aimlapi.com/app}
   AIMLAPI_PARTNER_ID: ${AIMLAPI_PARTNER_ID:-part_K7vQmX2pL9nR4tY8cWzB6hFd}
   AIMLAPI_PARTNER_NAME: ${AIMLAPI_PARTNER_NAME:-moneyprinterturbo}
   AIMLAPI_REQUESTED_USD_LIMIT_MINOR: ${AIMLAPI_REQUESTED_USD_LIMIT_MINOR:-1000}

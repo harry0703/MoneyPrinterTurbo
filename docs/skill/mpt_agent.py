@@ -38,7 +38,7 @@ PEXELS_API_KEY_HELP_URL = (
 RECOMMENDED_LLM_PROVIDERS = {
     "aimlapi": (
         "aimlapi.com",
-        "https://staging.aimlapi.com/app/keys",
+        "https://aimlapi.com/app/keys",
     ),
     "moonshot": (
         "Kimi / Moonshot AI",

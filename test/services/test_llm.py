@@ -229,6 +229,14 @@ class TestLiteLLMProvider(unittest.TestCase):
             get_llm_provider("aimlapi").default_model,
             "anthropic/claude-sonnet-5",
         )
+        self.assertEqual(
+            get_llm_provider("aimlapi").default_base_url,
+            "https://api.aimlapi.com/v1",
+        )
+        self.assertEqual(
+            get_llm_provider("aimlapi").api_key_url,
+            "https://aimlapi.com/app/keys",
+        )
         self.assertEqual(get_llm_provider("deepseek").default_model, "deepseek-v4-pro")
         self.assertEqual(
             get_llm_provider("modelscope").default_model, "ZhipuAI/GLM-5.2"
@@ -946,7 +954,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         openai_client.assert_called_once_with(
             api_key="aimlapi-key",
-            base_url="https://api-staging.aimlapi.com/v1",
+            base_url="https://api.aimlapi.com/v1",
             default_headers={
                 "X-AIMLAPI-Source": "agent",
                 "X-AIMLAPI-Partner-ID": "part_K7vQmX2pL9nR4tY8cWzB6hFd",
