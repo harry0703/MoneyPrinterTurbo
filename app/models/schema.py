@@ -260,6 +260,7 @@ class TaskStatusData(BaseModel):
     progress: int = 0
     videos: Optional[List[str]] = None
     combined_videos: Optional[List[str]] = None
+    hyperframes_projects: Optional[List[str]] = None
     failed_stage: Optional[str] = None
     error: Optional[str] = None
     cross_post_state: Optional[

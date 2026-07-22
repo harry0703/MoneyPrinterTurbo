@@ -40,7 +40,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
-from app.services import cache_manager, llm, video, voice, webui_task
+from app.services import cache_manager, hyperframes, llm, video, voice, webui_task
 from app.services import elevenlabs_music as elevenlabs_music_service
 from app.services import sonilo as sonilo_service
 from app.services import state as sm
@@ -1349,6 +1349,17 @@ def _render_generation_task_snapshot(task_id, task):
         return
 
     st.success(tr("Video Generation Completed"))
+    hyperframes_projects = [
+        str(project_path).strip()
+        for project_path in (task.get("hyperframes_projects") or [])
+        if str(project_path).strip()
+    ]
+    if hyperframes_projects:
+        st.info(tr("HyperFrames Project Ready"))
+        for project_path in hyperframes_projects:
+            st.code(project_path)
+            st.caption(tr("HyperFrames Project Help"))
+
     for warning in task.get("warnings") or []:
         if isinstance(warning, Mapping) and warning.get("code") == "sonilo_bgm_failed":
             st.warning(
@@ -2385,6 +2396,43 @@ def _render_video_settings(panel, params):
             else:
                 config.app["video_codec"] = selected_video_codec
     return uploaded_files
+
+
+def _render_video_renderer_settings(panel):
+    """Render the Video Renderer panel (MoviePy vs HyperFrames)."""
+    with panel:
+        with st.container(border=True):
+            st.write(tr("Video Renderer"))
+            video_renderers = [
+                (tr("MoviePy Renderer"), "moviepy"),
+                (tr("HyperFrames Renderer"), "hyperframes"),
+            ]
+            saved_renderer = str(
+                config.app.get("video_renderer", "moviepy") or "moviepy"
+            ).strip().lower()
+            if saved_renderer not in ("moviepy", "hyperframes"):
+                saved_renderer = "moviepy"
+
+            selected_renderer = stable_selectbox(
+                tr("Video Renderer"),
+                options=[value for _, value in video_renderers],
+                default_value=saved_renderer,
+                key="video_renderer_select",
+                format_func=lambda value: dict(
+                    (v, label) for label, v in video_renderers
+                )[value],
+                help=tr("Video Renderer Help"),
+                label_visibility="collapsed",
+            )
+            config.app["video_renderer"] = selected_renderer
+
+            if selected_renderer == "hyperframes":
+                readiness = hyperframes.get_readiness()
+                if readiness.ready:
+                    st.caption(tr("HyperFrames Ready Help"))
+                else:
+                    st.warning(tr("HyperFrames Not Ready"))
+                    st.caption(readiness.message)
 
 
 def _estimate_voiceover_duration_range(
@@ -3754,6 +3802,12 @@ def _render_generation_controls(
             st.error(tr("ElevenLabs API Key Required"))
             st.stop()
 
+        if hyperframes.is_requested() and not hyperframes.is_enabled():
+            _remove_active_generation_task(task_id)
+            st.error(tr("HyperFrames Not Ready"))
+            st.caption(hyperframes.get_readiness().message)
+            st.stop()
+
         if params.video_source == "local" and not has_local_materials:
             # 本地素材为空时继续执行会先产生 TTS/字幕，最后才在素材预处理阶段失败。
             # 在任务启动前拦截，可以避免无意义的 API 调用和中间文件。
@@ -3933,6 +3987,7 @@ def _render_application():
     _render_script_settings(left_panel, params)
 
     uploaded_files = _render_video_settings(middle_panel, params)
+    _render_video_renderer_settings(middle_panel)
     uploaded_audio_file, uploaded_bgm_file, voice_mode = _render_audio_settings(
         audio_panel, params
     )

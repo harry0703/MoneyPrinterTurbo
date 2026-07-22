@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "framework": "hyperframes",
+  "compositionId": "moneyprinter-video",
+  "entry": "index.html"
+}

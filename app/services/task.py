@@ -17,6 +17,7 @@ from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
     elevenlabs_music,
+    hyperframes,
     llm,
     material,
     sonilo,
@@ -607,25 +608,159 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         return downloaded_videos
 
 
-def generate_final_videos(
-    task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
-):
-    final_video_paths = []
-    combined_video_paths = []
-    warnings = []
+def _resolve_output_concat_mode(params: VideoParams) -> VideoConcatMode:
+    # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
+    # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
+    if params.match_materials_to_script:
+        return VideoConcatMode.sequential
+    if params.video_count == 1:
+        return params.video_concat_mode
+    return VideoConcatMode.random
+
+
+def _resolve_bgm_for_output(
+    params: VideoParams,
+    *,
+    task_id: str,
+    index: int,
+    combined_video_path: str,
+    audio_duration: float,
+    warnings: list,
+) -> str:
+    """Return absolute BGM path, or empty string when BGM should be skipped."""
     video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
     video_music_requested = (
         video_music_provider is not None
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
     )
-    # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
-    # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
-    if params.match_materials_to_script:
-        video_concat_mode = VideoConcatMode.sequential
-    elif params.video_count == 1:
-        video_concat_mode = params.video_concat_mode
-    else:
-        video_concat_mode = VideoConcatMode.random
+
+    # 视频配乐模式先明确禁用默认 BGM 解析，避免旧任务残留的 bgm_file 被
+    # 误用。只有音量大于 0 才生成代理并调用付费 API；0 音量统一跳过。
+    if video_music_provider is not None:
+        if not video_music_requested:
+            return ""
+        service = video_music_provider["service"]
+        display_name = video_music_provider["display_name"]
+        warning_code = video_music_provider["warning_code"]
+        generated_bgm_path = path.join(
+            utils.task_dir(task_id),
+            f"{params.bgm_type}-bgm-{index}{video_music_provider['suffix']}",
+        )
+        try:
+            service.generate_bgm(
+                video_path=combined_video_path,
+                output_path=generated_bgm_path,
+                video_duration=audio_duration,
+                prompt=_get_video_music_prompt(params),
+            )
+            return generated_bgm_path
+        except video_music_provider["error_type"] as exc:
+            logger.warning(
+                f"{display_name} BGM generation failed: task_id={task_id}, "
+                f"video_index={index}, error={exc}"
+            )
+            warnings.append({"code": warning_code, "video_index": index})
+            return ""
+
+    if not bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume):
+        return ""
+    return video.get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file) or ""
+
+
+def _generate_final_videos_with_hyperframes(
+    task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
+):
+    final_video_paths = []
+    combined_video_paths = []
+    hyperframes_project_paths = []
+    warnings = []
+    video_concat_mode = _resolve_output_concat_mode(params)
+    video_transition_mode = params.video_transition_mode
+
+    _progress = 50
+    for i in range(params.video_count):
+        index = i + 1
+        combined_video_path = path.join(
+            utils.task_dir(task_id), f"combined-{index}.mp4"
+        )
+        logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
+        video.combine_videos(
+            combined_video_path=combined_video_path,
+            video_paths=downloaded_videos,
+            audio_file=audio_file,
+            video_aspect=params.video_aspect,
+            video_concat_mode=video_concat_mode,
+            video_transition_mode=video_transition_mode,
+            max_clip_duration=params.video_clip_duration,
+            threads=params.n_threads,
+            clip_speed=params.video_clip_speed,
+        )
+
+        _progress += 50 / params.video_count / 2
+        sm.state.update_task(task_id, progress=_progress)
+
+        bgm_path = _resolve_bgm_for_output(
+            params,
+            task_id=task_id,
+            index=index,
+            combined_video_path=combined_video_path,
+            audio_duration=audio_duration,
+            warnings=warnings,
+        )
+
+        final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
+        logger.info(
+            f"\n\n## generating hyperframes video: {index} => {final_video_path}"
+        )
+        project_path = hyperframes.scaffold_project(
+            task_id=task_id,
+            index=index,
+            params=params,
+            video_path=combined_video_path,
+            audio_path=audio_file,
+            subtitle_path=subtitle_path or "",
+            duration=float(audio_duration or 0) or 1.0,
+            bgm_path=bgm_path,
+        )
+        hyperframes.render_project(
+            project_path,
+            final_video_path,
+            threads=params.n_threads,
+        )
+
+        _progress += 50 / params.video_count / 2
+        sm.state.update_task(task_id, progress=_progress)
+
+        final_video_paths.append(final_video_path)
+        combined_video_paths.append(combined_video_path)
+        hyperframes_project_paths.append(project_path)
+
+    return (
+        final_video_paths,
+        combined_video_paths,
+        warnings,
+        hyperframes_project_paths,
+    )
+
+
+def generate_final_videos(
+    task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
+):
+    if hyperframes.is_requested():
+        return _generate_final_videos_with_hyperframes(
+            task_id,
+            params,
+            downloaded_videos,
+            audio_file,
+            subtitle_path,
+            audio_duration,
+        )
+
+    final_video_paths = []
+    combined_video_paths = []
+    warnings = []
+    video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
+    video_concat_mode = _resolve_output_concat_mode(params)
     video_transition_mode = params.video_transition_mode
 
     _progress = 50
@@ -652,34 +787,17 @@ def generate_final_videos(
 
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
-        # 视频配乐模式先明确禁用默认 BGM 解析，避免旧任务残留的 bgm_file 被
-        # 误用。只有音量大于 0 才生成代理并调用付费 API；0 音量统一跳过。
-        bgm_file_override = "" if video_music_provider else None
-        if video_music_requested:
-            service = video_music_provider["service"]
-            display_name = video_music_provider["display_name"]
-            warning_code = video_music_provider["warning_code"]
-            generated_bgm_path = path.join(
-                utils.task_dir(task_id),
-                (f"{params.bgm_type}-bgm-{index}{video_music_provider['suffix']}"),
+        bgm_file_override = None
+        if video_music_provider is not None:
+            bgm_path = _resolve_bgm_for_output(
+                params,
+                task_id=task_id,
+                index=index,
+                combined_video_path=combined_video_path,
+                audio_duration=audio_duration,
+                warnings=warnings,
             )
-            try:
-                service.generate_bgm(
-                    video_path=combined_video_path,
-                    output_path=generated_bgm_path,
-                    video_duration=audio_duration,
-                    prompt=_get_video_music_prompt(params),
-                )
-                bgm_file_override = generated_bgm_path
-            except video_music_provider["error_type"] as exc:
-                # 视频、旁白和字幕都已生成时，第三方配乐临时失败不应浪费整条
-                # 任务。当前视频明确禁用 BGM，并把降级结果返回 WebUI 提醒用户。
-                logger.warning(
-                    f"{display_name} BGM generation failed: task_id={task_id}, "
-                    f"video_index={index}, error={exc}"
-                )
-                bgm_file_override = ""
-                warnings.append({"code": warning_code, "video_index": index})
+            bgm_file_override = bgm_path
 
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
         bgm_mix_succeeded = video.generate_video(
@@ -711,7 +829,7 @@ def generate_final_videos(
         final_video_paths.append(final_video_path)
         combined_video_paths.append(combined_video_path)
 
-    return final_video_paths, combined_video_paths, warnings
+    return final_video_paths, combined_video_paths, warnings, []
 
 
 def _patch_cross_post_state(task_id: str, **kwargs) -> bool | None:
@@ -1053,6 +1171,12 @@ def _run_pipeline(
 
     # 只有完整成片流程需要视频配乐供应商。尽早阻止缺少 Key 的完整任务，避免
     # 先消耗 LLM、TTS 和素材服务额度；中间产物接口仍可独立使用。
+    if stop_at == "video" and hyperframes.is_requested():
+        try:
+            hyperframes.ensure_ready()
+        except hyperframes.HyperframesNotReadyError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
+
     video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
     video_music_enabled = (
         stop_at == "video"
@@ -1198,14 +1322,25 @@ def _run_pipeline(
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
     # 6. Generate final videos
-    final_video_paths, combined_video_paths, generation_warnings = generate_final_videos(
-        task_id,
-        params,
-        downloaded_videos,
-        audio_file,
-        subtitle_path,
-        audio_duration,
-    )
+    try:
+        (
+            final_video_paths,
+            combined_video_paths,
+            generation_warnings,
+            hyperframes_project_paths,
+        ) = generate_final_videos(
+            task_id,
+            params,
+            downloaded_videos,
+            audio_file,
+            subtitle_path,
+            audio_duration,
+        )
+    except (
+        hyperframes.HyperframesNotReadyError,
+        hyperframes.HyperframesRenderError,
+    ) as exc:
+        return _mark_task_failed(task_id, "video", str(exc))
 
     if not final_video_paths:
         return _mark_task_failed(
@@ -1245,6 +1380,7 @@ def _run_pipeline(
         "audio_duration": audio_duration,
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
+        "hyperframes_projects": hyperframes_project_paths or None,
         "cross_post_state": cross_post_state,
         "cross_post_results": None,
         "cross_post_error": None,

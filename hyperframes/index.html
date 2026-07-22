@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MoneyPrinterTurbo HyperFrames</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background: #000; overflow: hidden; }
+    __FONT_FACE__
+    [data-composition-id="__COMPOSITION_ID__"] {
+      position: relative;
+      width: __WIDTH__px;
+      height: __HEIGHT__px;
+      background: #000;
+      overflow: hidden;
+    }
+    video.visual {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .caption {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 86%;
+      text-align: center;
+      font-family: __FONT_FAMILY__, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: __FONT_SIZE__px;
+      font-weight: 700;
+      line-height: 1.25;
+      color: __TEXT_COLOR__;
+      -webkit-text-stroke: __STROKE_WIDTH__px __STROKE_COLOR__;
+      paint-order: stroke fill;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+      __CAPTION_POSITION__
+      __CAPTION_BACKGROUND__
+      padding: 0.15em 0.45em;
+      z-index: 5;
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <div
+    id="root"
+    data-composition-id="__COMPOSITION_ID__"
+    data-start="0"
+    data-width="__WIDTH__"
+    data-height="__HEIGHT__"
+    data-duration="__DURATION__"
+  >
+    <video
+      id="visual"
+      class="visual"
+      data-start="0"
+      data-duration="__DURATION__"
+      data-track-index="0"
+      data-volume="0"
+      muted
+      playsinline
+      src="assets/video.mp4"
+    ></video>
+
+    <audio
+      id="narration"
+      data-start="0"
+      data-duration="__DURATION__"
+      data-track-index="1"
+      data-volume="__VOICE_VOLUME__"
+      data-timeline-role="voiceover"
+      src="assets/narration.mp3"
+    ></audio>
+
+    __BGM_BLOCK__
+
+    __CAPTION_ELEMENTS__
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      __CAPTION_ANIMATIONS__
+      window.__timelines = window.__timelines || {};
+      window.__timelines["__COMPOSITION_ID__"] = tl;
+    </script>
+  </div>
+</body>
+</html>
