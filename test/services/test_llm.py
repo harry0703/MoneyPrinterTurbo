@@ -225,7 +225,10 @@ class TestLiteLLMProvider(unittest.TestCase):
     def test_current_default_model_names(self):
         """WebUI 与服务层必须共享同一组默认模型，避免展示值和请求值漂移。"""
         self.assertEqual(get_llm_provider("openai").default_model, "gpt-5.5")
-        self.assertEqual(get_llm_provider("aimlapi").default_model, "openai/gpt-5-5")
+        self.assertEqual(
+            get_llm_provider("aimlapi").default_model,
+            "anthropic/claude-sonnet-5",
+        )
         self.assertEqual(get_llm_provider("deepseek").default_model, "deepseek-v4-pro")
         self.assertEqual(
             get_llm_provider("modelscope").default_model, "ZhipuAI/GLM-5.2"
@@ -264,12 +267,14 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(len(provider_ids), len(set(provider_ids)))
         self.assertEqual(len(provider_ids), len(LLM_PROVIDERS))
         self.assertIn(DEFAULT_LLM_PROVIDER_ID, LLM_PROVIDERS)
+        self.assertEqual(DEFAULT_LLM_PROVIDER_ID, "aimlapi")
 
     def test_provider_registry_preserves_product_group_order(self):
         """下拉顺序按推荐、原厂、聚合平台、本地部署和其它服务排列。"""
         self.assertEqual(
             [provider.provider_id for provider in LLM_PROVIDER_REGISTRY],
             [
+                "aimlapi",
                 "moonshot",
                 "openai",
                 "gemini",
@@ -283,7 +288,6 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "cloudflare",
                 "modelscope",
                 "aihubmix",
-                "aimlapi",
                 "evolink",
                 "ollama",
                 "oneapi",
@@ -387,11 +391,14 @@ class TestLiteLLMProvider(unittest.TestCase):
                 self.assertIn("**Base Url**", tips, provider.provider_id)
                 self.assertIn("**Model Name**", tips, provider.provider_id)
 
-        zh_kimi_tips = json.loads((i18n_dir / "zh.json").read_text(encoding="utf-8"))[
-            "Translation"
-        ]["llm_provider_tips.moonshot"]
-        self.assertIn("推荐理由：", zh_kimi_tips)
-        self.assertIn("视频创作链路匹配", zh_kimi_tips)
+        for language in ("zh", "en"):
+            translations = json.loads(
+                (i18n_dir / f"{language}.json").read_text(encoding="utf-8")
+            )["Translation"]
+            self.assertNotIn(
+                translations["Recommended"],
+                translations["llm_provider_label.moonshot"],
+            )
 
     def test_required_api_key_providers_have_clickable_entry_points(self):
         """需要密钥的 Provider 必须提供统一申请入口，避免 WebUI 只给出文字。"""
@@ -939,16 +946,49 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         openai_client.assert_called_once_with(
             api_key="aimlapi-key",
-            base_url="https://api.aimlapi.com/v1",
+            base_url="https://api-staging.aimlapi.com/v1",
+            default_headers={
+                "X-AIMLAPI-Source": "agent",
+                "X-AIMLAPI-Partner-ID": "part_K7vQmX2pL9nR4tY8cWzB6hFd",
+            },
         )
         self.assertEqual(
             fake_completions.kwargs,
             {
-                "model": "openai/gpt-5-5",
+                "model": "anthropic/claude-sonnet-5",
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
         self.assertEqual(result, "helloaimlapi")
+
+    def test_aimlapi_does_not_send_attribution_headers_to_custom_base_url(self):
+        config.app["llm_provider"] = "aimlapi"
+        config.app["aimlapi_api_key"] = "aimlapi-key"
+        config.app["aimlapi_base_url"] = "https://proxy.example.com/v1"
+        config.app["aimlapi_model_name"] = "custom-model"
+
+        message = types.SimpleNamespace(content="custom endpoint")
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(
+                completions=types.SimpleNamespace(
+                    create=lambda **_kwargs: types.SimpleNamespace(
+                        choices=[types.SimpleNamespace(message=message)]
+                    )
+                )
+            )
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="aimlapi-key",
+            base_url="https://proxy.example.com/v1",
+        )
+        self.assertEqual(result, "custom endpoint")
 
     def test_evolink_provider_uses_openai_compatible_client(self):
         """

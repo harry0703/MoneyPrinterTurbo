@@ -79,7 +79,7 @@ sonilo_timeout = 600
 # Provider definitions, default models, and default Base URLs are maintained in
 # app/models/llm_provider.py. Leave model_name and base_url empty to follow the
 # Registry defaults; only set them when you need an explicit override.
-llm_provider = "moonshot"
+llm_provider = "aimlapi"
 
 # Kimi / Moonshot AI
 # API key: https://platform.kimi.com/console/api-keys
@@ -161,8 +161,10 @@ aihubmix_api_key = ""
 aihubmix_base_url = ""
 aihubmix_model_name = ""
 
-# AIML API, an OpenAI-compatible multi-model API.
-# API key: https://aimlapi.com/app/keys
+# AIML API, an OpenAI-compatible multi-model API. The current rollout uses
+# staging defaults; AIMLAPI_* environment variables can override all endpoints,
+# partner metadata, and the requested OAuth spend limit.
+# API key: https://staging.aimlapi.com/app/keys
 aimlapi_api_key = ""
 aimlapi_base_url = ""
 aimlapi_model_name = ""

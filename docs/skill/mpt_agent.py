@@ -36,6 +36,10 @@ PEXELS_API_KEY_HELP_URL = (
 # Keep the recommended list focused on commonly used providers. When an LLM
 # key is missing, the helper emits all choices at once to avoid extra turns.
 RECOMMENDED_LLM_PROVIDERS = {
+    "aimlapi": (
+        "aimlapi.com",
+        "https://staging.aimlapi.com/app/keys",
+    ),
     "moonshot": (
         "Kimi / Moonshot AI",
         "https://platform.kimi.com/console/api-keys?aff=MoneyPrinterTurbo",
@@ -210,7 +214,7 @@ def apply_environment_config(config_path: Path) -> None:
         return
 
     text = config_path.read_text(encoding="utf-8")
-    current_provider = _plain_config_value(text, "llm_provider") or "moonshot"
+    current_provider = _plain_config_value(text, "llm_provider") or "aimlapi"
     provider = provider or current_provider
     changes: list[str] = []
     if os.environ.get("MPT_LLM_PROVIDER", "").strip():
@@ -257,7 +261,7 @@ def reuse_existing_llm_provider(config_path: Path) -> str:
     values are inspected in memory and are never logged.
     """
     text = config_path.read_text(encoding="utf-8")
-    current_provider = _plain_config_value(text, "llm_provider") or "moonshot"
+    current_provider = _plain_config_value(text, "llm_provider") or "aimlapi"
     if _provider_is_ready(text, current_provider):
         return current_provider
 
@@ -292,7 +296,7 @@ def has_cli_option(cli_args: list[str], option: str) -> bool:
 def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[str]]:
     """Return the active provider and only the fields required by this run."""
     text = config_path.read_text(encoding="utf-8")
-    provider = _plain_config_value(text, "llm_provider") or "moonshot"
+    provider = _plain_config_value(text, "llm_provider") or "aimlapi"
     missing: list[str] = []
     if provider not in KEYLESS_LLM_PROVIDERS and not _has_configured_value(
         _plain_config_value(text, f"{provider}_api_key")

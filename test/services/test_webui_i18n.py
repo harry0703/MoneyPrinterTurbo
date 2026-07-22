@@ -165,3 +165,26 @@ class TestWebuiI18n(unittest.TestCase):
 
         self.assertIsNotNone(support_locales)
         self.assertIn("ru-RU", support_locales)
+
+    def test_aimlapi_oauth_copy_and_form_order_match_settings_design(self):
+        translations = _load_translation("en")
+        self.assertEqual(translations["AIMLAPI Get API Key"], "Get API Key")
+        self.assertEqual(
+            translations["AIMLAPI Key Added"],
+            "Your key has already been generated and added above.",
+        )
+        self.assertEqual(
+            translations["AIMLAPI Sign In Failed"],
+            "Sign in failed, please try again.",
+        )
+
+        source = WEBUI_MAIN.read_text(encoding="utf-8")
+        function_start = source.index("def _render_aimlapi_api_key_controls")
+        function_end = source.index("\ndef get_tts_provider_tips", function_start)
+        function_source = source[function_start:function_end]
+        self.assertLess(
+            function_source.index('key="aimlapi_api_key_input"'),
+            function_source.index('key="aimlapi_get_api_key_button"'),
+        )
+        self.assertIn("aimlapi_auth.start_authorization()", function_source)
+        self.assertIn("aimlapi_auth.poll_authorization(authorization)", function_source)

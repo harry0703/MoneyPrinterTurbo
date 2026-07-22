@@ -9,6 +9,7 @@ from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
 from app.config import config
+from app.config.aimlapi import attribution_headers, is_aimlapi_inference_url
 from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
 
 _max_retries = 5
@@ -374,10 +375,13 @@ def _generate_response(prompt: str) -> str:
             else:
                 raise Exception(f"[{llm_provider}] returned an empty response")
 
-        client = OpenAI(
-            api_key=api_key,
-            base_url=base_url,
-        )
+        client_options = {
+            "api_key": api_key,
+            "base_url": base_url,
+        }
+        if llm_provider == "aimlapi" and is_aimlapi_inference_url(base_url):
+            client_options["default_headers"] = attribution_headers()
+        client = OpenAI(**client_options)
 
         response = client.chat.completions.create(
             model=model_name, messages=[{"role": "user", "content": prompt}]
