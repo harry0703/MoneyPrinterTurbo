@@ -175,6 +175,7 @@
     "Pixabay API Key": "Pixabay API Key ([点击获取](https://pixabay.com/api/docs/#api_search_videos)) :red[可以不用配置，如果 Pexels 无法使用，再选择Pixabay]",
     "LLM Provider": "大模型提供商",
     "Recommended": "推荐",
+    "llm_provider_label.aimlapi": "aimlapi.com（推荐）",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI（推荐）",
     "API Key": "API Key",
     "AIMLAPI Get API Key": "获取 API Key",

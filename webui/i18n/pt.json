@@ -175,6 +175,7 @@
     "Pixabay API Key": "Chave da API do Pixabay ([Obter Chave da API](https://pixabay.com/api/docs/#api_search_videos))",
     "LLM Provider": "Provedor LLM",
     "Recommended": "Recomendado",
+    "llm_provider_label.aimlapi": "aimlapi.com (recomendado)",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (recomendado)",
     "API Key": "Chave da API (:red[Obrigatório])",
     "AIMLAPI Get API Key": "Obter chave de API",

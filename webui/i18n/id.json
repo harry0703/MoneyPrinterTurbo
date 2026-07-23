@@ -175,6 +175,7 @@
     "Language": "Bahasa",
     "LLM Provider": "Penyedia LLM",
     "Recommended": "Direkomendasikan",
+    "llm_provider_label.aimlapi": "aimlapi.com (disarankan)",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (disarankan)",
     "API Key": "Kunci API (:red[Diperlukan])",
     "AIMLAPI Get API Key": "Dapatkan Kunci API",

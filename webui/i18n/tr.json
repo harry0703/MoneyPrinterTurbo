@@ -173,6 +173,7 @@
     "Language": "Dil",
     "LLM Provider": "LLM Sağlayıcı",
     "Recommended": "önerilir",
+    "llm_provider_label.aimlapi": "aimlapi.com (önerilir)",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (önerilir)",
     "API Key": "API Anahtarı (:red[Gerekli])",
     "AIMLAPI Get API Key": "API Anahtarı Al",

@@ -175,6 +175,7 @@
     "Pixabay API Key": "Khóa API Pixabay ([Lấy Khóa API](https://pixabay.com/api/docs/#api_search_videos))",
     "LLM Provider": "Nhà Cung Cấp LLM",
     "Recommended": "Được đề xuất",
+    "llm_provider_label.aimlapi": "aimlapi.com (đề xuất)",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (đề xuất)",
     "API Key": "Khóa API (:red[Bắt Buộc])",
     "AIMLAPI Get API Key": "Lấy khóa API",

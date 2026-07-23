@@ -175,6 +175,7 @@
     "Language": "Language",
     "LLM Provider": "LLM Provider",
     "Recommended": "Recommended",
+    "llm_provider_label.aimlapi": "aimlapi.com (Recommended)",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (Recommended)",
     "API Key": "API Key",
     "AIMLAPI Get API Key": "Get API Key",

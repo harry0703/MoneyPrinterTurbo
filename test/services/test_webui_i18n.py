@@ -168,6 +168,14 @@ class TestWebuiI18n(unittest.TestCase):
 
     def test_aimlapi_oauth_copy_and_form_order_match_settings_design(self):
         translations = _load_translation("en")
+        self.assertEqual(
+            translations["llm_provider_label.aimlapi"],
+            "aimlapi.com (Recommended)",
+        )
+        self.assertEqual(
+            translations["llm_provider_label.moonshot"],
+            "Kimi / Moonshot AI (Recommended)",
+        )
         self.assertEqual(translations["AIMLAPI Get API Key"], "Get API Key")
         self.assertEqual(
             translations["AIMLAPI Key Added"],

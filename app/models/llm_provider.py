@@ -4,7 +4,7 @@ from urllib.parse import urljoin
 from app.config.aimlapi import resolve_endpoints
 
 
-DEFAULT_LLM_PROVIDER_ID = "moonshot"
+DEFAULT_LLM_PROVIDER_ID = "aimlapi"
 _AIMLAPI_ENDPOINTS = resolve_endpoints()
 
 
@@ -77,21 +77,21 @@ class LLMProviderSpec:
 LLM_PROVIDER_REGISTRY = (
     # 推荐 Provider
     LLMProviderSpec(
-        "moonshot",
-        "Kimi / Moonshot AI",
-        api_key_url="https://platform.kimi.com/console/api-keys?aff=MoneyPrinterTurbo",
-        default_model="kimi-k2.7-code",
-        default_base_url="https://api.moonshot.cn/v1",
-    ),
-    LLMProviderSpec(
         "aimlapi",
-        "AIML API",
+        "aimlapi.com",
         api_key_url=urljoin(
             f"{_AIMLAPI_ENDPOINTS.verification_base_url}/",
             "keys",
         ),
         default_model="openai/gpt-5-5",
         default_base_url=_AIMLAPI_ENDPOINTS.inference_base_url,
+    ),
+    LLMProviderSpec(
+        "moonshot",
+        "Kimi / Moonshot AI",
+        api_key_url="https://platform.kimi.com/console/api-keys?aff=MoneyPrinterTurbo",
+        default_model="kimi-k2.7-code",
+        default_base_url="https://api.moonshot.cn/v1",
     ),
     # 主流模型原厂与云厂商
     LLMProviderSpec(

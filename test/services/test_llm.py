@@ -264,15 +264,15 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(len(provider_ids), len(set(provider_ids)))
         self.assertEqual(len(provider_ids), len(LLM_PROVIDERS))
         self.assertIn(DEFAULT_LLM_PROVIDER_ID, LLM_PROVIDERS)
-        self.assertEqual(DEFAULT_LLM_PROVIDER_ID, "moonshot")
+        self.assertEqual(DEFAULT_LLM_PROVIDER_ID, "aimlapi")
 
     def test_provider_registry_preserves_product_group_order(self):
         """下拉顺序按推荐、原厂、聚合平台、本地部署和其它服务排列。"""
         self.assertEqual(
             [provider.provider_id for provider in LLM_PROVIDER_REGISTRY],
             [
-                "moonshot",
                 "aimlapi",
+                "moonshot",
                 "openai",
                 "gemini",
                 "deepseek",

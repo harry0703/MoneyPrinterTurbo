@@ -178,6 +178,7 @@
     "Pixabay API Key": "Pixabay API-Schlüssel ([API-Schlüssel abrufen](https://pixabay.com/api/docs/#api_search_videos))",
     "LLM Provider": "KI-Modellanbieter",
     "Recommended": "empfohlen",
+    "llm_provider_label.aimlapi": "aimlapi.com (empfohlen)",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (empfohlen)",
     "API Key": "API-Schlüssel (:red[Erforderlich])",
     "AIMLAPI Get API Key": "API-Schlüssel abrufen",
