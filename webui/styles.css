@@ -25,6 +25,25 @@ label[data-testid="stWidgetLabel"] > div {
     margin-left: 0.35rem !important;
 }
 
+/* AIMLAPI OAuth is the primary credential action in the provider form. Keep it
+   visually distinct from the secondary connection test without changing other
+   Streamlit primary buttons. */
+div[class*="st-key-aimlapi_get_api_key_button"] button {
+    border-color: #000 !important;
+    background: #000 !important;
+    color: #fff !important;
+}
+
+div[class*="st-key-aimlapi_get_api_key_button"] button:hover {
+    border-color: #222 !important;
+    background: #222 !important;
+}
+
+div[class*="st-key-aimlapi_get_api_key_button"] button:focus-visible {
+    outline: 2px solid rgba(0, 0, 0, 0.35) !important;
+    outline-offset: 2px;
+}
+
 /* 配音方式位于四列布局中的窄面板。Streamlit 的 stretch 模式默认让单个分段
    按钮接近半行宽，三个选项会换成两行；这里仅对该控件改为三等分，并压缩
    水平内边距，保持其它 segmented control 的原生尺寸不变。 */

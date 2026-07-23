@@ -2,12 +2,23 @@ x-common-volumes: &common-volumes
   - ./config.toml:/MoneyPrinterTurbo/config.toml
   - ./storage:/MoneyPrinterTurbo/storage
 
+x-aimlapi-environment: &aimlapi-environment
+  AIMLAPI_AUTH_URL: ${AIMLAPI_AUTH_URL:-https://auth.aimlapi.com}
+  AIMLAPI_APP_URL: ${AIMLAPI_APP_URL:-https://app.aimlapi.com}
+  AIMLAPI_INFERENCE_URL: ${AIMLAPI_INFERENCE_URL:-https://api.aimlapi.com/v1}
+  AIMLAPI_PAY_URL: ${AIMLAPI_PAY_URL:-https://pay.aimlapi.com}
+  AIMLAPI_VERIFICATION_BASE_URL: ${AIMLAPI_VERIFICATION_BASE_URL:-https://aimlapi.com/app}
+  AIMLAPI_PARTNER_ID: ${AIMLAPI_PARTNER_ID:-part_K7vQmX2pL9nR4tY8cWzB6hFd}
+  AIMLAPI_PARTNER_NAME: ${AIMLAPI_PARTNER_NAME:-moneyprinterturbo}
+  AIMLAPI_REQUESTED_USD_LIMIT_MINOR: ${AIMLAPI_REQUESTED_USD_LIMIT_MINOR:-1000}
+
 services:
   webui:
     image: ghcr.io/harry0703/moneyprinterturbo:latest
     container_name: "moneyprinterturbo-webui"
     ports:
       - "127.0.0.1:8501:8501"
+    environment: *aimlapi-environment
     command: [ "streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.serverAddress=127.0.0.1", "--server.enableCORS=True", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal", "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False" ]
     volumes: *common-volumes
     restart: always
@@ -16,6 +27,7 @@ services:
     container_name: "moneyprinterturbo-api"
     ports:
       - "127.0.0.1:8080:8080"
+    environment: *aimlapi-environment
     command: [ "python3", "main.py" ]
     volumes: *common-volumes
     restart: always

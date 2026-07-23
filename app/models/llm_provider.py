@@ -1,7 +1,11 @@
 from dataclasses import dataclass
+from urllib.parse import urljoin
+
+from app.config.aimlapi import resolve_endpoints
 
 
 DEFAULT_LLM_PROVIDER_ID = "moonshot"
+_AIMLAPI_ENDPOINTS = resolve_endpoints()
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +82,16 @@ LLM_PROVIDER_REGISTRY = (
         api_key_url="https://platform.kimi.com/console/api-keys?aff=MoneyPrinterTurbo",
         default_model="kimi-k2.7-code",
         default_base_url="https://api.moonshot.cn/v1",
+    ),
+    LLMProviderSpec(
+        "aimlapi",
+        "AIML API",
+        api_key_url=urljoin(
+            f"{_AIMLAPI_ENDPOINTS.verification_base_url}/",
+            "keys",
+        ),
+        default_model="openai/gpt-5-5",
+        default_base_url=_AIMLAPI_ENDPOINTS.inference_base_url,
     ),
     # 主流模型原厂与云厂商
     LLMProviderSpec(
@@ -190,13 +204,6 @@ LLM_PROVIDER_REGISTRY = (
         api_key_url="https://aihubmix.com/",
         default_model="gpt-5.4-mini",
         default_base_url="https://aihubmix.com/v1",
-    ),
-    LLMProviderSpec(
-        "aimlapi",
-        "AIML API",
-        api_key_url="https://aimlapi.com/app/keys",
-        default_model="openai/gpt-5-5",
-        default_base_url="https://api.aimlapi.com/v1",
     ),
     LLMProviderSpec(
         "evolink",

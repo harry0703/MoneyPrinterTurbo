@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import webbrowser
 from collections.abc import Mapping
 from datetime import datetime
@@ -40,7 +41,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
-from app.services import cache_manager, llm, video, voice, webui_task
+from app.services import aimlapi_auth, cache_manager, llm, video, voice, webui_task
 from app.services import elevenlabs_music as elevenlabs_music_service
 from app.services import sonilo as sonilo_service
 from app.services import state as sm
@@ -83,6 +84,9 @@ DEFAULT_CHATTERBOX_BASE_URL = "http://127.0.0.1:4123/v1"
 DEFAULT_CHATTERBOX_MODEL = "chatterbox"
 DEFAULT_CHATTERBOX_VOICES = ["default-Female"]
 ONBOARDING_TOUR_KEY = "mpt-onboarding-v1"
+AIMLAPI_AUTH_REQUEST_KEY = "aimlapi_authorization_request"
+AIMLAPI_AUTH_STATUS_KEY = "aimlapi_authorization_status"
+AIMLAPI_AUTH_NEXT_POLL_KEY = "aimlapi_authorization_next_poll"
 VOICE_MODE_TTS = "tts"
 VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
@@ -1473,6 +1477,104 @@ def get_llm_provider_label(provider):
     return tr_optional(provider.label_key) or provider.default_label
 
 
+def _set_aimlapi_auth_failure():
+    st.session_state.pop(AIMLAPI_AUTH_REQUEST_KEY, None)
+    st.session_state.pop(AIMLAPI_AUTH_NEXT_POLL_KEY, None)
+    st.session_state[AIMLAPI_AUTH_STATUS_KEY] = "error"
+
+
+@st.fragment(run_every="1s")
+def _render_aimlapi_api_key_controls(initial_api_key):
+    authorization = st.session_state.get(AIMLAPI_AUTH_REQUEST_KEY)
+    status = st.session_state.get(AIMLAPI_AUTH_STATUS_KEY, "idle")
+    next_poll_at = st.session_state.get(AIMLAPI_AUTH_NEXT_POLL_KEY, 0.0)
+
+    if authorization and status == "pending" and time.time() >= next_poll_at:
+        try:
+            result = aimlapi_auth.poll_authorization(authorization)
+        except aimlapi_auth.AimlapiAuthError as exc:
+            logger.warning(f"AIMLAPI authorization poll failed: {exc}")
+            _set_aimlapi_auth_failure()
+            status = "error"
+            authorization = None
+        else:
+            if result.status == "ready" and result.api_key:
+                st.session_state["aimlapi_api_key_input"] = result.api_key
+                config.app["aimlapi_api_key"] = result.api_key
+                config.save_config()
+                st.session_state.pop(AIMLAPI_AUTH_REQUEST_KEY, None)
+                st.session_state.pop(AIMLAPI_AUTH_NEXT_POLL_KEY, None)
+                st.session_state[AIMLAPI_AUTH_STATUS_KEY] = "success"
+                status = "success"
+                authorization = None
+            elif result.status in aimlapi_auth.TERMINAL_FAILURE_STATUSES:
+                _set_aimlapi_auth_failure()
+                status = "error"
+                authorization = None
+            else:
+                st.session_state[AIMLAPI_AUTH_NEXT_POLL_KEY] = (
+                    time.time() + authorization.interval
+                )
+
+    saved_api_key = config.app.get("aimlapi_api_key", initial_api_key)
+    api_key_value = st.session_state.get(
+        "aimlapi_api_key_input",
+        saved_api_key,
+    )
+    api_key_value = st.text_input(
+        tr("API Key"),
+        value=api_key_value,
+        type="password",
+        key="aimlapi_api_key_input",
+    )
+    config.app["aimlapi_api_key"] = api_key_value
+    if api_key_value != saved_api_key:
+        config.save_config()
+
+    if st.button(
+        tr("AIMLAPI Get API Key"),
+        key="aimlapi_get_api_key_button",
+        use_container_width=True,
+        type="primary",
+        icon=":material/open_in_new:",
+        disabled=status == "pending",
+    ):
+        try:
+            authorization = aimlapi_auth.start_authorization()
+        except aimlapi_auth.AimlapiAuthError as exc:
+            logger.warning(f"AIMLAPI authorization start failed: {exc}")
+            _set_aimlapi_auth_failure()
+        else:
+            st.session_state[AIMLAPI_AUTH_REQUEST_KEY] = authorization
+            st.session_state[AIMLAPI_AUTH_STATUS_KEY] = "pending"
+            st.session_state[AIMLAPI_AUTH_NEXT_POLL_KEY] = (
+                time.time() + authorization.interval
+            )
+            if not config.is_running_in_container():
+                try:
+                    webbrowser.open_new_tab(authorization.verification_uri)
+                except OSError as exc:
+                    logger.warning(f"failed to open AIMLAPI authorization page: {exc}")
+        st.rerun(scope="fragment")
+
+    authorization = st.session_state.get(AIMLAPI_AUTH_REQUEST_KEY)
+    status = st.session_state.get(AIMLAPI_AUTH_STATUS_KEY, "idle")
+    if status == "pending" and authorization:
+        st.caption(tr("AIMLAPI Waiting for Authorization"))
+        st.link_button(
+            tr("AIMLAPI Open Authorization Page"),
+            authorization.verification_uri,
+            use_container_width=True,
+            icon=":material/open_in_new:",
+        )
+    elif status == "success":
+        st.success(tr("AIMLAPI Key Added"))
+    elif status == "error":
+        st.error(tr("AIMLAPI Sign In Failed"))
+
+    return api_key_value
+
+
 def get_tts_provider_tips(provider_id):
     # TTS 配置说明与 LLM Provider 采用相同维护策略：只维护中英文，
     # 其它界面语言统一回退英文，避免复制后长期不同步。
@@ -1906,12 +2008,16 @@ def _render_settings_dialog():
 
             st_llm_api_key = llm_api_key
             if llm_provider_spec.show_api_key:
-                st_llm_api_key = llm_form_panel.text_input(
-                    tr("API Key"),
-                    value=llm_api_key,
-                    type="password",
-                    key=f"{llm_provider}_api_key_input",
-                )
+                if llm_provider == "aimlapi":
+                    with llm_form_panel:
+                        st_llm_api_key = _render_aimlapi_api_key_controls(llm_api_key)
+                else:
+                    st_llm_api_key = llm_form_panel.text_input(
+                        tr("API Key"),
+                        value=llm_api_key,
+                        type="password",
+                        key=f"{llm_provider}_api_key_input",
+                    )
 
             st_llm_base_url = llm_base_url
             if llm_provider_spec.show_base_url:

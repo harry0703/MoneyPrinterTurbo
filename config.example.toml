@@ -161,7 +161,9 @@ aihubmix_api_key = ""
 aihubmix_base_url = ""
 aihubmix_model_name = ""
 
-# AIML API, an OpenAI-compatible multi-model API.
+# AIML API, an OpenAI-compatible multi-model API. AIMLAPI_* environment
+# variables can override all endpoints, partner metadata, and the requested
+# OAuth spend limit.
 # API key: https://aimlapi.com/app/keys
 aimlapi_api_key = ""
 aimlapi_base_url = ""
