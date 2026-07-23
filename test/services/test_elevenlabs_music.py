@@ -23,6 +23,7 @@ class _StreamingResponse:
         self.ok = 200 <= status_code < 300
         self.reason = "OK" if self.ok else "Request failed"
         self.text = "" if self.ok else "request failed"
+        self.encoding = "utf-8"
         self.payload = payload if payload is not None else {"user_id": "test"}
         self.iter_error = iter_error
 
@@ -42,6 +43,33 @@ class _StreamingResponse:
 
 
 class TestElevenLabsMusicService(unittest.TestCase):
+    def test_safe_response_error_reads_only_one_bounded_chunk(self):
+        class OversizedErrorResponse:
+            reason = "Request failed"
+            encoding = "utf-8"
+
+            @property
+            def text(self):
+                raise AssertionError("response.text must not be materialized")
+
+            def iter_content(self, chunk_size):
+                self.requested_chunk_size = chunk_size
+                yield b"x" * chunk_size
+                raise AssertionError("error body must not be read further")
+
+        response = OversizedErrorResponse()
+
+        detail = elevenlabs_music._safe_response_error(response)
+
+        self.assertEqual(
+            response.requested_chunk_size,
+            elevenlabs_music.MAX_ERROR_BODY_BYTES,
+        )
+        self.assertEqual(
+            detail,
+            "x" * elevenlabs_music.MAX_ERROR_BODY_BYTES,
+        )
+
     def test_api_key_prefers_config_and_falls_back_to_environment(self):
         with (
             patch.object(
@@ -240,6 +268,10 @@ class TestElevenLabsMusicService(unittest.TestCase):
             command = run.call_args.args[0]
             self.assertEqual(command[0], "test-ffmpeg")
             self.assertIn("-an", command)
+            self.assertEqual(
+                command[command.index("-fs") + 1],
+                str(elevenlabs_music.MAX_PROXY_BYTES),
+            )
             self.assertIn(
                 "force_original_aspect_ratio=decrease",
                 command[command.index("-vf") + 1],

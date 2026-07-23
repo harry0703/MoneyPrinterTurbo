@@ -22,6 +22,7 @@ MAX_VIDEO_DURATION_SECONDS = 600
 MAX_PROMPT_LENGTH = 1000
 MAX_PROXY_BYTES = 200 * 1024 * 1024
 MAX_GENERATED_AUDIO_BYTES = 50 * 1024 * 1024
+MAX_ERROR_BODY_BYTES = 500
 
 
 class ElevenLabsMusicError(RuntimeError):
@@ -80,8 +81,22 @@ def _request_timeout() -> tuple[int, int]:
 
 
 def _safe_response_error(response: requests.Response) -> str:
-    """截断第三方错误正文，保留定位信息但不让 HTML 页面污染任务日志。"""
-    body = (response.text or "").strip().replace("\n", " ")[:500]
+    """只读取有限的第三方错误正文，避免异常响应耗尽内存或污染任务日志。"""
+    try:
+        body_bytes = next(
+            response.iter_content(chunk_size=MAX_ERROR_BODY_BYTES),
+            b"",
+        )
+    except requests.RequestException:
+        body_bytes = b""
+    if isinstance(body_bytes, bytes):
+        body = body_bytes.decode(
+            response.encoding or "utf-8",
+            errors="replace",
+        )
+    else:
+        body = str(body_bytes)
+    body = body.strip().replace("\n", " ")[:MAX_ERROR_BODY_BYTES]
     return body or response.reason or "request failed"
 
 
@@ -211,6 +226,8 @@ def _create_video_proxy(video_path: str) -> str:
         "yuv420p",
         "-movflags",
         "+faststart",
+        "-fs",
+        str(MAX_PROXY_BYTES),
         proxy_path,
     ]
     try:
