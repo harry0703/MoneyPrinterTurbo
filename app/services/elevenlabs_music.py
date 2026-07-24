@@ -22,6 +22,7 @@ MAX_VIDEO_DURATION_SECONDS = 600
 MAX_PROMPT_LENGTH = 1000
 MAX_PROXY_BYTES = 200 * 1024 * 1024
 MAX_GENERATED_AUDIO_BYTES = 50 * 1024 * 1024
+MAX_ERROR_BODY_BYTES = 500
 
 
 class ElevenLabsMusicError(RuntimeError):
@@ -80,8 +81,22 @@ def _request_timeout() -> tuple[int, int]:
 
 
 def _safe_response_error(response: requests.Response) -> str:
-    """截断第三方错误正文，保留定位信息但不让 HTML 页面污染任务日志。"""
-    body = (response.text or "").strip().replace("\n", " ")[:500]
+    """只读取有限的第三方错误正文，避免异常响应耗尽内存或污染任务日志。"""
+    try:
+        body_bytes = next(
+            response.iter_content(chunk_size=MAX_ERROR_BODY_BYTES),
+            b"",
+        )
+    except requests.RequestException:
+        body_bytes = b""
+    if isinstance(body_bytes, bytes):
+        body = body_bytes.decode(
+            response.encoding or "utf-8",
+            errors="replace",
+        )
+    else:
+        body = str(body_bytes)
+    body = body.strip().replace("\n", " ")[:MAX_ERROR_BODY_BYTES]
     return body or response.reason or "request failed"
 
 
@@ -98,30 +113,32 @@ def test_connection() -> dict[str, Any]:
     if not api_key:
         raise ElevenLabsAuthenticationError("ElevenLabs API key is required")
     try:
-        response = requests.get(
+        with requests.get(
             f"{_base_url()}{SUBSCRIPTION_PATH}",
             headers={"xi-api-key": api_key},
             timeout=(15, 30),
-        )
+            stream=True,
+        ) as response:
+            if response.status_code == 401:
+                raise ElevenLabsAuthenticationError(
+                    "ElevenLabs API key was rejected (401): "
+                    f"{_safe_response_error(response)}"
+                )
+            if not response.ok:
+                raise ElevenLabsMusicError(
+                    "ElevenLabs account check failed "
+                    f"({response.status_code}): "
+                    f"{_safe_response_error(response)}"
+                )
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise ElevenLabsMusicError(
+                    "ElevenLabs returned an invalid subscription response"
+                ) from exc
     except requests.RequestException as exc:
         raise ElevenLabsMusicError(
             f"failed to connect to ElevenLabs: {exc}"
-        ) from exc
-    if response.status_code == 401:
-        raise ElevenLabsAuthenticationError(
-            "ElevenLabs API key was rejected (401): "
-            f"{_safe_response_error(response)}"
-        )
-    if not response.ok:
-        raise ElevenLabsMusicError(
-            f"ElevenLabs account check failed ({response.status_code}): "
-            f"{_safe_response_error(response)}"
-        )
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise ElevenLabsMusicError(
-            "ElevenLabs returned an invalid subscription response"
         ) from exc
     if not isinstance(payload, dict):
         raise ElevenLabsMusicError(
@@ -211,6 +228,8 @@ def _create_video_proxy(video_path: str) -> str:
         "yuv420p",
         "-movflags",
         "+faststart",
+        "-fs",
+        str(MAX_PROXY_BYTES),
         proxy_path,
     ]
     try:
