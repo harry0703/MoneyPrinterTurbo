@@ -113,30 +113,32 @@ def test_connection() -> dict[str, Any]:
     if not api_key:
         raise ElevenLabsAuthenticationError("ElevenLabs API key is required")
     try:
-        response = requests.get(
+        with requests.get(
             f"{_base_url()}{SUBSCRIPTION_PATH}",
             headers={"xi-api-key": api_key},
             timeout=(15, 30),
-        )
+            stream=True,
+        ) as response:
+            if response.status_code == 401:
+                raise ElevenLabsAuthenticationError(
+                    "ElevenLabs API key was rejected (401): "
+                    f"{_safe_response_error(response)}"
+                )
+            if not response.ok:
+                raise ElevenLabsMusicError(
+                    "ElevenLabs account check failed "
+                    f"({response.status_code}): "
+                    f"{_safe_response_error(response)}"
+                )
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise ElevenLabsMusicError(
+                    "ElevenLabs returned an invalid subscription response"
+                ) from exc
     except requests.RequestException as exc:
         raise ElevenLabsMusicError(
             f"failed to connect to ElevenLabs: {exc}"
-        ) from exc
-    if response.status_code == 401:
-        raise ElevenLabsAuthenticationError(
-            "ElevenLabs API key was rejected (401): "
-            f"{_safe_response_error(response)}"
-        )
-    if not response.ok:
-        raise ElevenLabsMusicError(
-            f"ElevenLabs account check failed ({response.status_code}): "
-            f"{_safe_response_error(response)}"
-        )
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise ElevenLabsMusicError(
-            "ElevenLabs returned an invalid subscription response"
         ) from exc
     if not isinstance(payload, dict):
         raise ElevenLabsMusicError(

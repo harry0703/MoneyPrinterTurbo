@@ -26,6 +26,7 @@ class _StreamingResponse:
         self.encoding = "utf-8"
         self.payload = payload if payload is not None else {"user_id": "test"}
         self.iter_error = iter_error
+        self.closed = False
 
     def iter_content(self, chunk_size):
         if self.iter_error:
@@ -39,6 +40,7 @@ class _StreamingResponse:
         return self
 
     def __exit__(self, *_args):
+        self.closed = True
         return False
 
 
@@ -143,6 +145,53 @@ class TestElevenLabsMusicService(unittest.TestCase):
         self.assertEqual(
             request.call_args.kwargs["headers"]["xi-api-key"], "test-key"
         )
+        self.assertTrue(request.call_args.kwargs["stream"])
+        self.assertTrue(response.closed)
+
+    def test_connection_reads_only_one_bounded_error_chunk(self):
+        class OversizedErrorResponse(_StreamingResponse):
+            def __init__(self):
+                super().__init__(status_code=500)
+                self.requested_chunk_sizes = []
+
+            @property
+            def text(self):
+                raise AssertionError("response.text must not be materialized")
+
+            @text.setter
+            def text(self, _value):
+                pass
+
+            def iter_content(self, chunk_size):
+                self.requested_chunk_sizes.append(chunk_size)
+                yield b"x" * chunk_size
+                raise AssertionError("error body must not be read further")
+
+        response = OversizedErrorResponse()
+        with (
+            patch.object(
+                elevenlabs_music.config,
+                "elevenlabs",
+                {"api_key": "test-key"},
+            ),
+            patch.object(
+                elevenlabs_music.requests,
+                "get",
+                return_value=response,
+            ) as request,
+            self.assertRaisesRegex(
+                elevenlabs_music.ElevenLabsMusicError,
+                r"account check failed \(500\)",
+            ),
+        ):
+            elevenlabs_music.test_connection()
+
+        self.assertTrue(request.call_args.kwargs["stream"])
+        self.assertEqual(
+            response.requested_chunk_sizes,
+            [elevenlabs_music.MAX_ERROR_BODY_BYTES],
+        )
+        self.assertTrue(response.closed)
 
     def test_connection_converts_http_network_and_payload_errors(self):
         failure_cases = [
