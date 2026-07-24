@@ -19,10 +19,12 @@ import streamlit as st
 from loguru import logger
 from streamlit_tour import Tour
 
-# WebUI 作为独立入口运行时，需要将项目根目录加入模块搜索路径。
+# WebUI 作为独立入口运行时，需要让项目根目录优先于第三方依赖，
+# 避免依赖中的同名 app 包遮蔽 MoneyPrinterTurbo 自己的 app 包。
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-if root_dir not in sys.path:
-    sys.path.append(root_dir)
+if root_dir in sys.path:
+    sys.path.remove(root_dir)
+sys.path.insert(0, root_dir)
 
 from app.config import config
 from app.models import const
