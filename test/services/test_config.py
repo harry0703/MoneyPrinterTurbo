@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from app.config import config
-from app.models.llm_provider import LLM_PROVIDER_REGISTRY
+from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
 
 
 class TestConfigPersistence:
@@ -39,6 +39,13 @@ class TestConfigPersistence:
                 assert provider.config_key("model_name") in app_config
             for field in provider.extra_fields:
                 assert provider.config_key(field.config_suffix) in app_config
+
+    def test_kimi_uses_current_default_model(self):
+        """Kimi 未配置模型覆盖值时，应使用当前发布版本的默认模型。"""
+        provider = get_llm_provider("moonshot")
+
+        assert provider is not None
+        assert provider.resolve_model_name("") == "kimi-k3"
 
     def test_upload_post_settings_belong_to_app_section(self):
         """发布配置必须位于 app 节点，确保示例文件与运行时读取路径一致。"""

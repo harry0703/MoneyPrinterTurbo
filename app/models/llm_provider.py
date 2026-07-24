@@ -76,7 +76,7 @@ LLM_PROVIDER_REGISTRY = (
         "moonshot",
         "Kimi / Moonshot AI",
         api_key_url="https://platform.kimi.com/console/api-keys?aff=MoneyPrinterTurbo",
-        default_model="kimi-k2.7-code",
+        default_model="kimi-k3",
         default_base_url="https://api.moonshot.cn/v1",
     ),
     # 主流模型原厂与云厂商
