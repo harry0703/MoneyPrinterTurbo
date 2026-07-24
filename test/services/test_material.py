@@ -88,6 +88,20 @@ class TestMaterialTlsVerification(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertFalse(get.call_args.kwargs["verify"])
 
+    def test_search_pixabay_does_not_log_api_key(self):
+        config.app["pixabay_api_keys"] = ["pixabay-secret-key"]
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(json=lambda: {"hits": []})
+
+        with patch(
+            "app.services.material.requests.get", return_value=fake_response
+        ), patch("app.services.material.logger.info") as log:
+            material.search_videos_pixabay("cat", minimum_duration=1)
+
+        logged_messages = " ".join(str(call.args[0]) for call in log.call_args_list)
+        self.assertNotIn("pixabay-secret-key", logged_messages)
+
     def test_save_video_uses_tls_verification_by_default(self):
         config.app.pop("tls_verify", None)
         config.proxy.clear()
