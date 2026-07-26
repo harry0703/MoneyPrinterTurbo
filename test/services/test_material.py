@@ -67,6 +67,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
         config.proxy.clear()
 
         fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
             json=lambda: {
                 "hits": [
                     {
@@ -92,7 +95,12 @@ class TestMaterialTlsVerification(unittest.TestCase):
         config.app["pixabay_api_keys"] = ["pixabay-secret-key"]
         config.proxy.clear()
 
-        fake_response = SimpleNamespace(json=lambda: {"hits": []})
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {"hits": []},
+        )
 
         with patch(
             "app.services.material.requests.get", return_value=fake_response
@@ -101,6 +109,139 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
         logged_messages = " ".join(str(call.args[0]) for call in log.call_args_list)
         self.assertNotIn("pixabay-secret-key", logged_messages)
+
+    def test_search_pixabay_reports_cloudflare_challenge(self):
+        """
+        Cloudflare Challenge 返回的是 HTML，不是 Pixabay API 的 JSON。
+        应直接说明服务端拦截原因，避免用户只看到没有上下文的 JSON 解析错误。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-secret-key"]
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            status_code=429,
+            headers={
+                "content-type": "text/html; charset=UTF-8",
+                "cf-mitigated": "challenge",
+                "cf-ray": "test-ray",
+            },
+            text="<html><title>Just a moment...</title></html>",
+        )
+
+        with patch(
+            "app.services.material.requests.get", return_value=fake_response
+        ), patch("app.services.material.logger.error") as log:
+            results = material.search_videos_pixabay("nature", minimum_duration=1)
+
+        logged_messages = " ".join(str(call.args[0]) for call in log.call_args_list)
+        self.assertEqual(results, [])
+        self.assertIn("Cloudflare challenge", logged_messages)
+        self.assertIn("cf_ray=test-ray", logged_messages)
+        self.assertNotIn("pixabay-secret-key", logged_messages)
+        self.assertNotIn("Just a moment", logged_messages)
+
+    def test_search_pixabay_reports_api_rate_limit(self):
+        """
+        Pixabay 自身的 429 限流与 Cloudflare HTML Challenge 是不同问题。
+        保留 Retry-After 可以帮助用户判断何时重试，同时不记录响应正文。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            status_code=429,
+            headers={
+                "content-type": "text/plain; charset=UTF-8",
+                "retry-after": "60",
+            },
+            text="API rate limit exceeded",
+        )
+
+        with patch(
+            "app.services.material.requests.get", return_value=fake_response
+        ), patch("app.services.material.logger.error") as log:
+            results = material.search_videos_pixabay("nature", minimum_duration=1)
+
+        logged_messages = " ".join(str(call.args[0]) for call in log.call_args_list)
+        self.assertEqual(results, [])
+        self.assertIn("API rate limit exceeded", logged_messages)
+        self.assertIn("retry_after=60", logged_messages)
+
+    def test_search_pixabay_reports_non_json_response(self):
+        """
+        即使状态码为 200，上游代理也可能返回登录页或其他非 JSON 内容。
+        该场景应记录响应类型，而不是向外暴露底层 JSONDecodeError。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.proxy.clear()
+
+        def raise_invalid_json():
+            raise ValueError("Expecting value: line 1 column 1")
+
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "text/plain"},
+            text="unexpected response",
+            json=raise_invalid_json,
+        )
+
+        with patch(
+            "app.services.material.requests.get", return_value=fake_response
+        ), patch("app.services.material.logger.error") as log:
+            results = material.search_videos_pixabay("nature", minimum_duration=1)
+
+        logged_messages = " ".join(str(call.args[0]) for call in log.call_args_list)
+        self.assertEqual(results, [])
+        self.assertIn("unexpected non-JSON response", logged_messages)
+        self.assertNotIn("Expecting value", logged_messages)
+
+    def test_search_pixabay_redacts_api_key_from_network_error(self):
+        """
+        requests 的连接异常可能回显完整请求 URL。异常详情仍应保留用于排查，
+        但 URL 查询参数中的 Pixabay API Key 必须在写入日志前脱敏。
+        """
+        api_key = "pixabay-secret-key"
+        config.app["pixabay_api_keys"] = [api_key]
+        config.proxy.clear()
+        error = requests.ConnectionError(
+            "request failed for "
+            f"https://pixabay.com/api/videos/?q=nature&key={api_key}"
+        )
+
+        with patch(
+            "app.services.material.requests.get", side_effect=error
+        ), patch("app.services.material.logger.error") as log:
+            results = material.search_videos_pixabay("nature", minimum_duration=1)
+
+        logged_messages = " ".join(str(call.args[0]) for call in log.call_args_list)
+        self.assertEqual(results, [])
+        self.assertIn("ConnectionError", logged_messages)
+        self.assertIn("key=***", logged_messages)
+        self.assertNotIn(api_key, logged_messages)
+
+    def test_search_pixabay_redacts_proxy_credentials_from_network_error(self):
+        """
+        代理连接异常可能回显含认证信息的完整代理 URL。日志应保留异常类型，
+        但不能把代理用户名和密码持久化到日志文件。
+        """
+        proxy_url = "http://proxy-user:proxy-password@proxy.example.com:8080"
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.proxy.clear()
+        config.proxy["http"] = proxy_url
+        error = requests.exceptions.ProxyError(
+            f"failed to connect to proxy {proxy_url}"
+        )
+
+        with patch(
+            "app.services.material.requests.get", side_effect=error
+        ), patch("app.services.material.logger.error") as log:
+            results = material.search_videos_pixabay("nature", minimum_duration=1)
+
+        logged_messages = " ".join(str(call.args[0]) for call in log.call_args_list)
+        self.assertEqual(results, [])
+        self.assertIn("ProxyError", logged_messages)
+        self.assertNotIn("proxy-user", logged_messages)
+        self.assertNotIn("proxy-password", logged_messages)
 
     def test_save_video_uses_tls_verification_by_default(self):
         config.app.pop("tls_verify", None)

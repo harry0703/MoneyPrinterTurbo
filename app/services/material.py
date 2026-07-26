@@ -2,7 +2,7 @@ import os
 import random
 import threading
 from typing import List
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 
 import requests
 from loguru import logger
@@ -50,6 +50,45 @@ def get_api_key(cfg_key: str):
     with _api_key_lock:
         _api_key_counter += 1
         return api_keys[_api_key_counter % len(api_keys)]
+
+
+def _redact_secret(message: str, secret: str) -> str:
+    """
+    对即将写入日志的异常文本做最小范围脱敏。
+
+    requests 的连接异常可能包含完整请求 URL，而 Pixabay API Key 通过查询
+    参数传递。这里同时替换原始值和 URL 编码值，既保留网络错误信息用于排查，
+    又避免密钥进入日志文件。
+    """
+    safe_message = str(message)
+    if not secret:
+        return safe_message
+
+    safe_message = safe_message.replace(secret, "***")
+    encoded_secret = quote_plus(secret)
+    if encoded_secret != secret:
+        safe_message = safe_message.replace(encoded_secret, "***")
+    return safe_message
+
+
+def _is_cloudflare_challenge(response: requests.Response) -> bool:
+    """
+    识别 Cloudflare 返回的 HTML Challenge，而不是把它当成 Pixabay JSON。
+
+    Cloudflare 通常会设置 `cf-mitigated: challenge`；部分部署只返回带有
+    "Just a moment" 或 challenge-platform 的 HTML，因此保留内容特征兜底。
+    响应正文仅在内存中判断，不写入日志，避免记录无价值的大段 HTML。
+    """
+    headers = getattr(response, "headers", {}) or {}
+    if str(headers.get("cf-mitigated", "")).lower() == "challenge":
+        return True
+
+    content_type = str(headers.get("content-type", "")).lower()
+    if "text/html" not in content_type:
+        return False
+
+    body = str(getattr(response, "text", "")).lower()
+    return "just a moment" in body or "/cdn-cgi/challenge-platform/" in body
 
 
 def search_videos_pexels(
@@ -129,14 +168,50 @@ def search_videos_pixabay(
     query_url = f"https://pixabay.com/api/videos/?{urlencode(params)}"
     logger.info(
         f"searching videos on pixabay: term={search_term!r}, "
-        f"with proxies: {config.proxy}"
+        f"proxy_enabled={bool(config.proxy)}"
     )
 
     try:
         r = requests.get(
             query_url, proxies=config.proxy, verify=_get_tls_verify(), timeout=(30, 60)
         )
-        response = r.json()
+        status_code = int(getattr(r, "status_code", 200))
+        headers = getattr(r, "headers", {}) or {}
+        content_type = str(headers.get("content-type", ""))
+        retry_after = headers.get("retry-after")
+        cf_ray = headers.get("cf-ray")
+
+        if _is_cloudflare_challenge(r):
+            logger.error(
+                "pixabay search was blocked by a Cloudflare challenge: "
+                f"status={status_code}, cf_ray={cf_ray or 'unknown'}. "
+                "Check the server network or proxy, or use Pexels/Coverr instead."
+            )
+            return []
+
+        if status_code == 429:
+            logger.error(
+                "pixabay API rate limit exceeded: "
+                f"status=429, retry_after={retry_after or 'unknown'}"
+            )
+            return []
+
+        if status_code >= 400:
+            logger.error(
+                "pixabay search request failed: "
+                f"status={status_code}, content_type={content_type or 'unknown'}"
+            )
+            return []
+
+        try:
+            response = r.json()
+        except ValueError:
+            logger.error(
+                "pixabay returned an unexpected non-JSON response: "
+                f"status={status_code}, content_type={content_type or 'unknown'}"
+            )
+            return []
+
         video_items = []
         if "hits" not in response:
             logger.error(f"search videos failed: {response}")
@@ -163,7 +238,16 @@ def search_videos_pixabay(
                     break
         return video_items
     except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
+        error_message = _redact_secret(str(e), api_key)
+        # ProxyError 等异常可能回显完整代理 URL，其中可能包含用户名和密码。
+        # 仅替换用户实际配置的代理值，不对普通错误文本做宽泛正则处理，
+        # 避免误删 DNS、超时、证书等真正有助于排查的信息。
+        for proxy_url in config.proxy.values():
+            error_message = _redact_secret(error_message, str(proxy_url))
+        logger.error(
+            "pixabay search request failed: "
+            f"error={type(e).__name__}, detail={error_message}"
+        )
 
     return []
 
