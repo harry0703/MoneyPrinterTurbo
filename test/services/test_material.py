@@ -313,6 +313,12 @@ class TestMaterialTlsVerification(unittest.TestCase):
             patch.dict(config.app, {"material_directory": ""}),
             patch.object(material, "search_videos_pexels", side_effect=fake_search),
             patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
         ):
             result = material.download_videos(
                 task_id="ordered-materials",
@@ -559,7 +565,12 @@ class TestCoverrProvider(unittest.TestCase):
         ) as search, patch(
             "app.services.material.save_video",
             return_value="/tmp/coverr-saved.mp4",
-        ) as save:
+        ) as save, patch(
+            "app.services.material.material_cache.load_material_search_cache",
+            return_value=None,
+        ), patch(
+            "app.services.material.material_cache.save_material_search_cache",
+        ):
             result = material.download_videos(
                 task_id="t-coverr",
                 search_terms=["nature"],

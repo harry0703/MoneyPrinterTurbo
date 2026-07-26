@@ -1,7 +1,7 @@
 import os
 import random
 import threading
-from typing import List
+from typing import Callable, List
 from urllib.parse import quote_plus, urlencode
 
 import requests
@@ -10,6 +10,7 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
+from app.services import material_cache
 from app.utils import utils
 
 # Thread-safe counter for API key rotation
@@ -388,6 +389,70 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     return ""
 
 
+def _search_videos_with_cache(
+    provider: str,
+    search_videos: Callable[..., List[MaterialInfo]],
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect,
+) -> List[MaterialInfo]:
+    """
+    统一处理三个在线素材源的 24 小时搜索缓存。
+
+    缓存只包裹搜索 API，不改变后续视频下载与去重逻辑。远端返回空列表时不写
+    缓存，因为现有 provider 接口使用空列表同时表示“没有结果”和“请求失败”；
+    在两者尚未拆分为明确结果类型前，宁可下次重试，也不能把临时故障缓存一天。
+    """
+    cache_args = {
+        "provider": provider,
+        "search_term": search_term,
+        "minimum_duration": minimum_duration,
+        "video_aspect": video_aspect,
+    }
+
+    def load_cache_safely() -> List[MaterialInfo] | None:
+        try:
+            return material_cache.load_material_search_cache(**cache_args)
+        except Exception as exc:
+            # 缓存是可选优化，任何缓存实现异常都必须按未命中处理，不能阻断
+            # Pexels、Pixabay 或 Coverr 的正常远端搜索。
+            logger.warning(
+                "material search cache read failed, continue with remote search: "
+                f"provider={provider}, error={type(exc).__name__}, detail={exc}"
+            )
+            return None
+
+    cached_items = load_cache_safely()
+    if cached_items is not None:
+        return cached_items
+
+    cache_lock = material_cache.get_material_search_cache_lock(**cache_args)
+    with cache_lock:
+        # 等待相同搜索条件的线程完成后再次读取，避免多个 API 任务在首次缓存
+        # 未命中时同时请求远端，降低第三方接口限流和风控触发概率。
+        cached_items = load_cache_safely()
+        if cached_items is not None:
+            return cached_items
+
+        items = search_videos(
+            search_term=search_term,
+            minimum_duration=minimum_duration,
+            video_aspect=video_aspect,
+        )
+        if items:
+            try:
+                material_cache.save_material_search_cache(
+                    **cache_args,
+                    items=items,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "material search cache write failed, use remote results: "
+                    f"provider={provider}, error={type(exc).__name__}, detail={exc}"
+                )
+        return items
+
+
 def download_videos(
     task_id: str,
     search_terms: List[str],
@@ -398,11 +463,27 @@ def download_videos(
     max_clip_duration: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
-    search_videos = search_videos_pexels
+    provider = "pexels"
+    remote_search_videos = search_videos_pexels
     if source == "pixabay":
-        search_videos = search_videos_pixabay
+        provider = "pixabay"
+        remote_search_videos = search_videos_pixabay
     elif source == "coverr":
-        search_videos = search_videos_coverr
+        provider = "coverr"
+        remote_search_videos = search_videos_coverr
+
+    def search_videos(
+        search_term: str,
+        minimum_duration: int,
+        video_aspect: VideoAspect,
+    ) -> List[MaterialInfo]:
+        return _search_videos_with_cache(
+            provider=provider,
+            search_videos=remote_search_videos,
+            search_term=search_term,
+            minimum_duration=minimum_duration,
+            video_aspect=video_aspect,
+        )
 
     material_directory = config.app.get("material_directory", "").strip()
     if material_directory == "task":
