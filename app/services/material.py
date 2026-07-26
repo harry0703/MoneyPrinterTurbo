@@ -1,8 +1,12 @@
+import hashlib
+import json
 import os
 import random
+import tempfile
 import threading
-from typing import Callable, List
-from urllib.parse import quote_plus, urlencode
+from pathlib import Path
+from typing import Any, Callable, List
+from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
 
 import requests
 from loguru import logger
@@ -16,6 +20,302 @@ from app.utils import utils
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
+
+
+class ProvenanceWriteError(RuntimeError):
+    """The material result cannot be returned without its provenance sidecar."""
+
+
+def _get_provenance(item: MaterialInfo) -> dict[str, Any]:
+    value = getattr(item, "_provider_provenance", None)
+    return value if isinstance(value, dict) else {}
+
+
+def _set_provenance(item: MaterialInfo, value: dict[str, Any]) -> None:
+    setattr(item, "_provider_provenance", value)
+
+
+def _canonical_json_sha256(value: Any) -> str:
+    rendered = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(rendered).hexdigest()
+
+
+def _safe_public_url(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = urlsplit(value.strip())
+    except ValueError:
+        return None
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        return None
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+
+
+def _creator(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, str) and value.strip():
+        return {"id": None, "name": value.strip(), "profile_page": None}
+    if not isinstance(value, dict):
+        return None
+    creator_id = value.get("id")
+    name = value.get("name") or value.get("username")
+    profile_page = _safe_public_url(
+        value.get("url") or value.get("profile_url") or value.get("profile_page")
+    )
+    if creator_id is None and not name and profile_page is None:
+        return None
+    return {
+        "id": str(creator_id) if creator_id is not None else None,
+        "name": str(name) if name else None,
+        "profile_page": profile_page,
+    }
+
+
+def _material_identity(item: MaterialInfo) -> tuple[Any, ...]:
+    provenance = _get_provenance(item)
+    rendition = provenance.get("rendition")
+    rendition_id = rendition.get("id") if isinstance(rendition, dict) else None
+    asset_id = provenance.get("asset_id")
+    if asset_id is not None and rendition_id is not None:
+        return item.provider, str(asset_id), str(rendition_id)
+    return item.provider, _safe_public_url(item.url)
+
+
+def _safe_attempt(item: MaterialInfo, status: str, error_code: str | None = None) -> dict[str, Any]:
+    provenance = _get_provenance(item)
+    rendition = provenance.get("rendition")
+    result = {
+        "status": status,
+        "provider": item.provider,
+        "asset_id": provenance.get("asset_id"),
+        "rendition_id": rendition.get("id") if isinstance(rendition, dict) else None,
+        "search_term": provenance.get("search_term"),
+        "rendition_url": _safe_public_url(item.url),
+    }
+    if error_code is not None:
+        result["error_code"] = error_code
+    return result
+
+
+def _local_artifact(path_value: str) -> dict[str, Any]:
+    path = Path(path_value).expanduser().absolute()
+    try:
+        if not path.is_file() or path.stat().st_size <= 0:
+            raise ProvenanceWriteError("material provenance local artifact is missing")
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return {
+            "path": str(path),
+            "sha256": digest.hexdigest(),
+            "bytes": path.stat().st_size,
+        }
+    except ProvenanceWriteError:
+        raise
+    except OSError as error:
+        raise ProvenanceWriteError(
+            "material provenance local artifact could not be hashed"
+        ) from error
+
+
+def _material_record(
+    item: MaterialInfo,
+    path: str,
+    selection_index: int,
+    max_clip_duration: int,
+) -> dict[str, Any]:
+    source = _get_provenance(item)
+    creator = source.get("creator")
+    safe_creator = None
+    if isinstance(creator, dict):
+        safe_creator = {
+            "id": creator.get("id"),
+            "name": creator.get("name"),
+            "profile_page": _safe_public_url(creator.get("profile_page")),
+        }
+    rendition = source.get("rendition")
+    safe_rendition: dict[str, Any] = {}
+    if isinstance(rendition, dict):
+        allowed_rendition_fields = (
+            "id",
+            "kind",
+            "quality",
+            "mime_type",
+            "width",
+            "height",
+            "fps",
+            "declared_bytes",
+            "aspect_ratio",
+        )
+        safe_rendition = {
+            field: rendition.get(field) for field in allowed_rendition_fields
+        }
+        safe_rendition["url"] = _safe_public_url(rendition.get("url") or item.url)
+    rights = source.get("rights")
+    safe_rights: dict[str, Any] = {}
+    if isinstance(rights, dict):
+        for field in (
+            "license_status",
+            "attribution_status",
+            "commercial_use",
+            "api_attribution_logo_required",
+        ):
+            if field in rights:
+                safe_rights[field] = rights[field]
+        if "reference" in rights:
+            safe_rights["reference"] = _safe_public_url(rights.get("reference"))
+    warnings = []
+    if item.provider == "coverr":
+        warnings.append(
+            "Coverr API and content-license attribution terms require separate review."
+        )
+    elif not source.get("asset_id"):
+        warnings.append("Provider identity was unavailable from the search result.")
+    return {
+        "selection_index": selection_index,
+        "search_term": source.get("search_term"),
+        "provider": item.provider,
+        "asset_id": source.get("asset_id"),
+        "canonical_page": _safe_public_url(source.get("canonical_page")),
+        "creator": safe_creator,
+        "provider_response_sha256": source.get("provider_response_sha256"),
+        "provider_result_index": source.get("provider_result_index"),
+        "provider_duration_sec": source.get("provider_duration_sec"),
+        "rendition": safe_rendition,
+        "rights": safe_rights,
+        "warnings": warnings,
+        "effective_clip_duration_sec": min(max_clip_duration, item.duration),
+        "local": _local_artifact(path),
+    }
+
+
+def _provenance_status(materials: list[dict[str, Any]]) -> str:
+    if not materials:
+        return "FAIL"
+    required = ("provider", "asset_id", "search_term", "provider_response_sha256", "rendition")
+    def complete(item: dict[str, Any]) -> bool:
+        response_hash = item.get("provider_response_sha256")
+        local = item.get("local")
+        local_path = local.get("path") if isinstance(local, dict) else None
+        local_sha256 = local.get("sha256") if isinstance(local, dict) else None
+        local_bytes = local.get("bytes") if isinstance(local, dict) else None
+        return (
+            all(item.get(field) not in (None, "") for field in required)
+            and isinstance(local_path, str)
+            and Path(local_path).is_absolute()
+            and isinstance(local_sha256, str)
+            and len(local_sha256) == 64
+            and all(character in "0123456789abcdef" for character in local_sha256)
+            and isinstance(local_bytes, int)
+            and not isinstance(local_bytes, bool)
+            and local_bytes > 0
+            and isinstance(item.get("rendition"), dict)
+            and item["rendition"].get("id") not in (None, "")
+            and isinstance(response_hash, str)
+            and len(response_hash) == 64
+            and all(character in "0123456789abcdef" for character in response_hash)
+        )
+
+    return (
+        "PASS"
+        if all(complete(item) for item in materials)
+        else "INCONCLUSIVE"
+    )
+
+
+def _fsync_parent_directory(path: Path, platform: str | None = None) -> None:
+    if (platform or os.name) == "nt":
+        return
+    directory_fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _write_provenance_sidecar(task_id: str, receipt: dict[str, Any]) -> None:
+    target = Path(utils.task_dir(task_id)) / "materials-provenance.json"
+    rendered = (
+        json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    temp_path: Path | None = None
+    published = False
+    try:
+        if target.exists() or target.is_symlink():
+            if not target.is_symlink() and target.is_file() and target.read_bytes() == rendered:
+                return
+            raise ProvenanceWriteError("material provenance sidecar collision")
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            delete=False,
+        ) as handle:
+            handle.write(rendered)
+            handle.flush()
+            os.fsync(handle.fileno())
+            temp_path = Path(handle.name)
+        os.link(temp_path, target)
+        published = True
+        temp_path.unlink()
+        temp_path = None
+        _fsync_parent_directory(target.parent)
+    except ProvenanceWriteError:
+        raise
+    except OSError as error:
+        if published:
+            try:
+                target.unlink()
+            except OSError:
+                pass
+        raise ProvenanceWriteError("material provenance sidecar write failed") from error
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+def _publish_download_provenance(
+    *,
+    task_id: str,
+    source: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    video_concat_mode: VideoConcatMode,
+    match_script_order: bool,
+    audio_duration: float,
+    max_clip_duration: int,
+    materials: list[dict[str, Any]],
+    attempts: list[dict[str, Any]],
+) -> None:
+    aspect_value = getattr(video_aspect, "value", video_aspect)
+    concat_value = getattr(video_concat_mode, "value", video_concat_mode)
+    receipt = {
+        "schema_version": 1,
+        "scope": "material_provider_provenance",
+        "status": _provenance_status(materials),
+        "task_id": task_id,
+        "provider": source,
+        "request": {
+            "search_terms": list(search_terms),
+            "video_aspect": aspect_value,
+            "video_concat_mode": concat_value,
+            "match_script_order": match_script_order,
+            "audio_duration_sec": audio_duration,
+            "max_clip_duration_sec": max_clip_duration,
+        },
+        "materials": materials,
+        "attempts": attempts,
+        "approval_scope": "provider_identity_and_local_byte_binding_only",
+    }
+    _write_provenance_sidecar(task_id, receipt)
 
 
 def _get_tls_verify() -> bool:
@@ -40,7 +340,6 @@ def get_api_key(cfg_key: str):
     if not api_keys:
         raise ValueError(
             f"\n\n##### {cfg_key} is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n"
-            f"{utils.to_json(config.app)}"
         )
 
     # if only one key is provided, return it
@@ -108,7 +407,7 @@ def search_videos_pexels(
     # Build URL
     params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+    logger.info(f"searching videos on pexels: term={search_term!r}")
 
     try:
         r = requests.get(
@@ -119,13 +418,14 @@ def search_videos_pexels(
             timeout=(30, 60),
         )
         response = r.json()
+        response_sha256 = _canonical_json_sha256(response)
         video_items = []
         if "videos" not in response:
-            logger.error(f"search videos failed: {response}")
+            logger.error("pexels video search returned an unsupported response")
             return video_items
         videos = response["videos"]
         # loop through each video in the result
-        for v in videos:
+        for result_index, v in enumerate(videos):
             duration = v["duration"]
             # check if video has desired minimum duration
             if duration < minimum_duration:
@@ -140,11 +440,38 @@ def search_videos_pexels(
                     item.provider = "pexels"
                     item.url = video["link"]
                     item.duration = duration
+                    user = v.get("user")
+                    _set_provenance(item, {
+                        "search_term": search_term,
+                        "provider": "pexels",
+                        "asset_id": str(v.get("id")) if v.get("id") is not None else None,
+                        "canonical_page": _safe_public_url(v.get("url")),
+                        "creator": _creator(user),
+                        "provider_response_sha256": response_sha256,
+                        "provider_result_index": result_index,
+                        "provider_duration_sec": duration,
+                        "rendition": {
+                            "id": str(video.get("id")) if video.get("id") is not None else None,
+                            "kind": "video_file",
+                            "quality": video.get("quality"),
+                            "mime_type": video.get("file_type"),
+                            "width": w,
+                            "height": h,
+                            "fps": video.get("fps"),
+                            "declared_bytes": video.get("file_size") or video.get("size"),
+                            "url": _safe_public_url(video.get("link")),
+                        },
+                        "rights": {
+                            "license_status": "not_evaluated",
+                            "attribution_status": "not_evaluated",
+                        },
+                        "warnings": [],
+                    })
                     video_items.append(item)
                     break
         return video_items
     except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
+        logger.error(f"pexels video search failed: {type(e).__name__}")
 
     return []
 
@@ -212,22 +539,21 @@ def search_videos_pixabay(
                 f"status={status_code}, content_type={content_type or 'unknown'}"
             )
             return []
-
+        response_sha256 = _canonical_json_sha256(response)
         video_items = []
         if "hits" not in response:
-            logger.error(f"search videos failed: {response}")
+            logger.error("pixabay video search returned an unsupported response")
             return video_items
         videos = response["hits"]
         # loop through each video in the result
-        for v in videos:
+        for result_index, v in enumerate(videos):
             duration = v["duration"]
             # check if video has desired minimum duration
             if duration < minimum_duration:
                 continue
             video_files = v["videos"]
             # loop through each url to determine the best quality
-            for video_type in video_files:
-                video = video_files[video_type]
+            for video_type, video in video_files.items():
                 w = int(video["width"])
                 # h = int(video["height"])
                 if w >= video_width:
@@ -235,6 +561,33 @@ def search_videos_pixabay(
                     item.provider = "pixabay"
                     item.url = video["url"]
                     item.duration = duration
+                    _set_provenance(item, {
+                        "search_term": search_term,
+                        "provider": "pixabay",
+                        "asset_id": str(v.get("id")) if v.get("id") is not None else None,
+                        "canonical_page": _safe_public_url(v.get("pageURL")),
+                        "creator": {
+                            "id": str(v.get("user_id")) if v.get("user_id") is not None else None,
+                            "name": v.get("user"),
+                            "profile_page": None,
+                        },
+                        "provider_response_sha256": response_sha256,
+                        "provider_result_index": result_index,
+                        "provider_duration_sec": duration,
+                        "rendition": {
+                            "id": video_type,
+                            "kind": "video_variant",
+                            "width": w,
+                            "height": video.get("height"),
+                            "declared_bytes": video.get("size"),
+                            "url": _safe_public_url(video.get("url")),
+                        },
+                        "rights": {
+                            "license_status": "not_evaluated",
+                            "attribution_status": "not_evaluated",
+                        },
+                        "warnings": [],
+                    })
                     video_items.append(item)
                     break
         return video_items
@@ -286,7 +639,7 @@ def search_videos_coverr(
         "sort": "popular",
     }
     query_url = f"https://api.coverr.co/videos?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+    logger.info(f"searching videos on coverr: term={search_term!r}")
 
     try:
         r = requests.get(
@@ -297,13 +650,14 @@ def search_videos_coverr(
             timeout=(30, 60),
         )
         response = r.json()
+        response_sha256 = _canonical_json_sha256(response)
         video_items: List[MaterialInfo] = []
 
         if not isinstance(response, dict) or "hits" not in response:
-            logger.error(f"search videos failed: {response}")
+            logger.error("coverr video search returned an unsupported response")
             return video_items
 
-        for v in response["hits"]:
+        for result_index, v in enumerate(response["hits"]):
             # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
             try:
                 duration = int(float(v.get("duration") or 0))
@@ -321,10 +675,40 @@ def search_videos_coverr(
             item.provider = "coverr"
             item.url = mp4_download_url
             item.duration = duration
+            _set_provenance(item, {
+                "search_term": search_term,
+                "provider": "coverr",
+                "asset_id": str(video_id),
+                "canonical_page": _safe_public_url(
+                    v.get("canonical_url") or v.get("url")
+                ),
+                "creator": _creator(v.get("creator") or v.get("author")),
+                "provider_response_sha256": response_sha256,
+                "provider_result_index": result_index,
+                "provider_duration_sec": float(v.get("duration") or 0),
+                "rendition": {
+                    "id": "mp4_download",
+                    "kind": "mp4_download",
+                    "width": v.get("max_width"),
+                    "height": v.get("max_height"),
+                    "aspect_ratio": v.get("aspect_ratio"),
+                    "url": _safe_public_url(mp4_download_url),
+                },
+                "rights": {
+                    "license_status": "ambiguous",
+                    "attribution_status": "ambiguous",
+                    "commercial_use": "ambiguous",
+                    "api_attribution_logo_required": True,
+                    "reference": "https://coverr.co/license",
+                },
+                "warnings": [
+                    "Coverr API and content-license attribution terms require separate review."
+                ],
+            })
             video_items.append(item)
         return video_items
     except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
+        logger.error(f"coverr video search failed: {type(e).__name__}")
 
     return []
 
@@ -463,14 +847,14 @@ def download_videos(
     max_clip_duration: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
-    provider = "pexels"
-    remote_search_videos = search_videos_pexels
-    if source == "pixabay":
-        provider = "pixabay"
-        remote_search_videos = search_videos_pixabay
-    elif source == "coverr":
-        provider = "coverr"
-        remote_search_videos = search_videos_coverr
+    providers = {
+        "pexels": search_videos_pexels,
+        "pixabay": search_videos_pixabay,
+        "coverr": search_videos_coverr,
+    }
+    if source not in providers:
+        raise ValueError(f"unsupported online material source: {source}")
+    remote_search_videos = providers[source]
 
     def search_videos(
         search_term: str,
@@ -478,7 +862,7 @@ def download_videos(
         video_aspect: VideoAspect,
     ) -> List[MaterialInfo]:
         return _search_videos_with_cache(
-            provider=provider,
+            provider=source,
             search_videos=remote_search_videos,
             search_term=search_term,
             minimum_duration=minimum_duration,
@@ -495,15 +879,18 @@ def download_videos(
         return _download_videos_by_script_order(
             task_id=task_id,
             search_terms=search_terms,
+            source=source,
             search_videos=search_videos,
             video_aspect=video_aspect,
+            video_concat_mode=video_concat_mode,
             audio_duration=audio_duration,
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
 
     valid_video_items = []
-    valid_video_urls = []
+    valid_video_identities = set()
+    attempts: list[dict[str, Any]] = []
     found_duration = 0.0
     for search_term in search_terms:
         video_items = search_videos(
@@ -514,15 +901,39 @@ def download_videos(
         logger.info(f"found {len(video_items)} videos for '{search_term}'")
 
         for item in video_items:
-            if item.url not in valid_video_urls:
-                valid_video_items.append(item)
-                valid_video_urls.append(item.url)
-                found_duration += item.duration
+            if not _get_provenance(item):
+                _set_provenance(item, {
+                    "search_term": search_term,
+                    "provider": item.provider,
+                    "asset_id": None,
+                    "canonical_page": None,
+                    "creator": None,
+                    "provider_response_sha256": None,
+                    "provider_result_index": None,
+                    "rendition": {
+                        "id": None,
+                        "kind": "download_url",
+                        "url": _safe_public_url(item.url),
+                    },
+                    "rights": {
+                        "license_status": "not_evaluated",
+                        "attribution_status": "not_evaluated",
+                    },
+                    "warnings": ["Provider identity was unavailable from the search result."],
+                })
+            identity = _material_identity(item)
+            if identity in valid_video_identities:
+                attempts.append(_safe_attempt(item, "DUPLICATE_SKIPPED"))
+                continue
+            valid_video_items.append(item)
+            valid_video_identities.add(identity)
+            found_duration += item.duration
 
     logger.info(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
     )
-    video_paths = []
+    video_paths: list[str] = []
+    material_records: list[dict[str, Any]] = []
 
     concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
     if concat_mode_value == VideoConcatMode.random.value:
@@ -531,13 +942,23 @@ def download_videos(
     total_duration = 0.0
     for item in valid_video_items:
         try:
-            logger.info(f"downloading video: {item.url}")
+            provenance = _get_provenance(item)
+            logger.info(
+                f"downloading {item.provider} video asset={provenance.get('asset_id')!r}"
+            )
             saved_video_path = save_video(
                 video_url=item.url, save_dir=material_directory
             )
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
+                record = _material_record(
+                    item,
+                    saved_video_path,
+                    len(material_records),
+                    max_clip_duration,
+                )
                 video_paths.append(saved_video_path)
+                material_records.append(record)
                 seconds = min(max_clip_duration, item.duration)
                 total_duration += seconds
                 if total_duration > audio_duration:
@@ -545,17 +966,46 @@ def download_videos(
                         f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
                     )
                     break
+            else:
+                attempts.append(
+                    _safe_attempt(item, "DOWNLOAD_FAILED", "E_EMPTY_DOWNLOAD")
+                )
+        except ProvenanceWriteError:
+            raise
         except Exception as e:
-            logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
+            attempts.append(
+                _safe_attempt(
+                    item,
+                    "DOWNLOAD_FAILED",
+                    f"E_{type(e).__name__.upper()}",
+                )
+            )
+            logger.error(
+                f"failed to download {item.provider} material: {type(e).__name__}"
+            )
     logger.success(f"downloaded {len(video_paths)} videos")
+    _publish_download_provenance(
+        task_id=task_id,
+        source=source,
+        search_terms=search_terms,
+        video_aspect=video_aspect,
+        video_concat_mode=video_concat_mode,
+        match_script_order=False,
+        audio_duration=audio_duration,
+        max_clip_duration=max_clip_duration,
+        materials=material_records,
+        attempts=attempts,
+    )
     return video_paths
 
 
 def _download_videos_by_script_order(
     task_id: str,
     search_terms: List[str],
+    source: str,
     search_videos,
     video_aspect: VideoAspect,
+    video_concat_mode: VideoConcatMode,
     audio_duration: float,
     max_clip_duration: int,
     material_directory: str,
@@ -571,7 +1021,8 @@ def _download_videos_by_script_order(
     """
     logger.info("downloading videos with script-order material matching")
     candidate_groups = []
-    valid_video_urls = set()
+    valid_video_identities = set()
+    attempts: list[dict[str, Any]] = []
     found_duration = 0.0
 
     for search_term in search_terms:
@@ -584,10 +1035,32 @@ def _download_videos_by_script_order(
 
         term_items = []
         for item in video_items:
-            if item.url in valid_video_urls:
+            if not _get_provenance(item):
+                _set_provenance(item, {
+                    "search_term": search_term,
+                    "provider": item.provider,
+                    "asset_id": None,
+                    "canonical_page": None,
+                    "creator": None,
+                    "provider_response_sha256": None,
+                    "provider_result_index": None,
+                    "rendition": {
+                        "id": None,
+                        "kind": "download_url",
+                        "url": _safe_public_url(item.url),
+                    },
+                    "rights": {
+                        "license_status": "not_evaluated",
+                        "attribution_status": "not_evaluated",
+                    },
+                    "warnings": ["Provider identity was unavailable from the search result."],
+                })
+            identity = _material_identity(item)
+            if identity in valid_video_identities:
+                attempts.append(_safe_attempt(item, "DUPLICATE_SKIPPED"))
                 continue
             term_items.append(item)
-            valid_video_urls.add(item.url)
+            valid_video_identities.add(identity)
             found_duration += item.duration
 
         if term_items:
@@ -598,7 +1071,8 @@ def _download_videos_by_script_order(
         f"required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
     )
 
-    video_paths = []
+    video_paths: list[str] = []
+    material_records: list[dict[str, Any]] = []
     total_duration = 0.0
     candidate_index = 0
     while candidate_groups and total_duration <= audio_duration:
@@ -610,24 +1084,46 @@ def _download_videos_by_script_order(
             has_candidate = True
             item = term_items[candidate_index]
             try:
+                provenance = _get_provenance(item)
                 logger.info(
-                    f"downloading ordered video for '{search_term}': {item.url}"
+                    f"downloading ordered {item.provider} video for {search_term!r}, "
+                    f"asset={provenance.get('asset_id')!r}"
                 )
                 saved_video_path = save_video(
                     video_url=item.url, save_dir=material_directory
                 )
                 if saved_video_path:
                     logger.info(f"video saved: {saved_video_path}")
+                    record = _material_record(
+                        item,
+                        saved_video_path,
+                        len(material_records),
+                        max_clip_duration,
+                    )
                     video_paths.append(saved_video_path)
+                    material_records.append(record)
                     total_duration += min(max_clip_duration, item.duration)
                     if total_duration > audio_duration:
                         logger.info(
                             f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
                         )
                         break
+                else:
+                    attempts.append(
+                        _safe_attempt(item, "DOWNLOAD_FAILED", "E_EMPTY_DOWNLOAD")
+                    )
+            except ProvenanceWriteError:
+                raise
             except Exception as e:
+                attempts.append(
+                    _safe_attempt(
+                        item,
+                        "DOWNLOAD_FAILED",
+                        f"E_{type(e).__name__.upper()}",
+                    )
+                )
                 logger.error(
-                    f"failed to download ordered video: {utils.to_json(item)} => {str(e)}"
+                    f"failed to download ordered {item.provider} material: {type(e).__name__}"
                 )
 
         if not has_candidate:
@@ -635,6 +1131,18 @@ def _download_videos_by_script_order(
         candidate_index += 1
 
     logger.success(f"downloaded {len(video_paths)} ordered videos")
+    _publish_download_provenance(
+        task_id=task_id,
+        source=source,
+        search_terms=search_terms,
+        video_aspect=video_aspect,
+        video_concat_mode=video_concat_mode,
+        match_script_order=True,
+        audio_duration=audio_duration,
+        max_clip_duration=max_clip_duration,
+        materials=material_records,
+        attempts=attempts,
+    )
     return video_paths
 
 

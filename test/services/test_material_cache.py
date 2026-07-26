@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect
 from app.services import material, material_cache
 
@@ -26,7 +27,21 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     @staticmethod
     def _item(url: str = "https://example.com/video.mp4") -> MaterialInfo:
-        return MaterialInfo(provider="pixabay", url=url, duration=12)
+        item = MaterialInfo(provider="pixabay", url=url, duration=12)
+        material._set_provenance(
+            item,
+            {
+                "search_term": "nature",
+                "provider": "pixabay",
+                "asset_id": "123",
+                "provider_response_sha256": "a" * 64,
+                "rendition": {
+                    "id": "large",
+                    "url": "https://example.com/video.mp4",
+                },
+            },
+        )
+        return item
 
     def _cache_path(self) -> Path:
         return material_cache._cache_path(
@@ -60,6 +75,10 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertEqual(loaded[0].provider, "pixabay")
         self.assertEqual(loaded[0].url, "https://example.com/video.mp4")
         self.assertEqual(loaded[0].duration, 12)
+        self.assertEqual(
+            material._get_provenance(loaded[0]),
+            material._get_provenance(self._item()),
+        )
 
     def test_expired_cache_is_removed_and_treated_as_miss(self):
         """
@@ -84,6 +103,64 @@ class TestMaterialSearchCache(unittest.TestCase):
             minimum_duration=5,
             video_aspect=VideoAspect.portrait,
             now=now,
+        )
+
+        self.assertIsNone(loaded)
+        self.assertFalse(cache_path.exists())
+
+    def test_version_one_cache_is_removed_and_treated_as_miss(self):
+        """升级后不能继续读取会丢失 provider provenance 的 v1 缓存。"""
+        cache_path = self._cache_path()
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "provider": "pixabay",
+                            "url": "https://example.com/video.mp4",
+                            "duration": 12,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = material_cache.load_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+
+        self.assertIsNone(loaded)
+        self.assertFalse(cache_path.exists())
+
+    def test_version_two_cache_without_provenance_is_invalid(self):
+        """v2 条目缺少 provenance 时必须远端重取，不能静默降级。"""
+        cache_path = self._cache_path()
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "version": material_cache._CACHE_FORMAT_VERSION,
+                    "items": [
+                        {
+                            "provider": "pixabay",
+                            "url": "https://example.com/video.mp4",
+                            "duration": 12,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = material_cache.load_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
         )
 
         self.assertIsNone(loaded)
@@ -166,8 +243,90 @@ class TestMaterialSearchCache(unittest.TestCase):
 
         self.assertEqual(len(cache_files), 1)
         self.assertNotIn("private search term", cache_files[0].name)
-        payload = json.loads(cache_files[0].read_text(encoding="utf-8"))
+        raw = cache_files[0].read_text(encoding="utf-8")
+        self.assertNotIn("private search term", raw)
+        payload = json.loads(raw)
         self.assertEqual(set(payload), {"version", "items"})
+
+        loaded = material_cache.load_material_search_cache(
+            provider="pixabay",
+            search_term="private search term",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+        self.assertEqual(
+            material._get_provenance(loaded[0])["search_term"],
+            "private search term",
+        )
+
+    def test_coverr_signed_urls_are_never_persisted(self):
+        """Coverr signed JWT 下载地址只能在当前请求内使用，不能进入磁盘缓存。"""
+        item = MaterialInfo(
+            provider="coverr",
+            url="https://storage.coverr.co/video/download?token=signed-jwt",
+            duration=12,
+        )
+        material._set_provenance(
+            item,
+            {
+                "search_term": "nature",
+                "provider": "coverr",
+                "asset_id": "coverr-123",
+                "provider_response_sha256": "c" * 64,
+                "rendition": {
+                    "id": "mp4_download",
+                    "url": "https://storage.coverr.co/video/download",
+                },
+            },
+        )
+
+        saved = material_cache.save_material_search_cache(
+            provider="coverr",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+            items=[item],
+        )
+
+        self.assertFalse(saved)
+        self.assertEqual(list(Path(self.temp_dir.name).glob("*.json")), [])
+
+    def test_coverr_cache_load_removes_legacy_signed_url(self):
+        """读取 Coverr 条件时应删除旧版本可能留下的 signed URL 缓存。"""
+        cache_path = material_cache._cache_path(
+            provider="coverr",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "version": material_cache._CACHE_FORMAT_VERSION,
+                    "items": [
+                        {
+                            "provider": "coverr",
+                            "url": "https://storage.coverr.co/video?token=signed-jwt",
+                            "duration": 12,
+                            "provider_provenance": {
+                                "asset_id": "coverr-123"
+                            },
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = material_cache.load_material_search_cache(
+            provider="coverr",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+
+        self.assertIsNone(loaded)
+        self.assertFalse(cache_path.exists())
 
     def test_cache_key_separates_provider_duration_and_aspect(self):
         """
@@ -228,6 +387,86 @@ class TestMaterialSearchCache(unittest.TestCase):
 
         self.assertEqual(remote_search.call_count, 1)
         self.assertEqual(first, second)
+        self.assertEqual(
+            material._get_provenance(second[0]),
+            material._get_provenance(first[0]),
+        )
+
+    def test_cache_hit_preserves_identity_deduplication_and_sidecar(self):
+        """缓存命中后仍须按 provider asset identity 去重并产出 PASS sidecar。"""
+
+        def cached_item(search_term: str, url: str) -> MaterialInfo:
+            item = MaterialInfo(provider="pexels", url=url, duration=12)
+            material._set_provenance(
+                item,
+                {
+                    "search_term": search_term,
+                    "provider": "pexels",
+                    "asset_id": "same-asset",
+                    "canonical_page": "https://example.com/assets/same-asset",
+                    "creator": None,
+                    "provider_response_sha256": "b" * 64,
+                    "provider_result_index": 0,
+                    "provider_duration_sec": 12,
+                    "rendition": {
+                        "id": "same-rendition",
+                        "kind": "video_file",
+                        "url": "https://cdn.example/video.mp4",
+                    },
+                    "rights": {
+                        "license_status": "not_evaluated",
+                        "attribution_status": "not_evaluated",
+                    },
+                    "warnings": [],
+                },
+            )
+            return item
+
+        for search_term, token in (("one", "first"), ("two", "second")):
+            self.assertTrue(
+                material_cache.save_material_search_cache(
+                    provider="pexels",
+                    search_term=search_term,
+                    minimum_duration=5,
+                    video_aspect=VideoAspect.portrait,
+                    items=[
+                        cached_item(
+                            search_term,
+                            f"https://cdn.example/video.mp4?token={token}",
+                        )
+                    ],
+                )
+            )
+
+        task_dir = Path(self.temp_dir.name) / "task"
+        task_dir.mkdir()
+        saved = Path(self.temp_dir.name) / "saved.mp4"
+        saved.write_bytes(b"video")
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(
+                material,
+                "search_videos_pexels",
+                side_effect=AssertionError("cache hit must not call provider"),
+            ),
+            patch.object(material, "save_video", return_value=str(saved)) as save,
+            patch.object(material.utils, "task_dir", return_value=str(task_dir)),
+        ):
+            result = material.download_videos(
+                task_id="cached-provenance",
+                search_terms=["one", "two"],
+                source="pexels",
+                audio_duration=20,
+                max_clip_duration=5,
+            )
+
+        sidecar = json.loads((task_dir / "materials-provenance.json").read_text())
+        self.assertEqual(result, [str(saved)])
+        self.assertEqual(save.call_count, 1)
+        self.assertEqual(sidecar["status"], "PASS")
+        self.assertEqual(len(sidecar["materials"]), 1)
+        self.assertEqual(sidecar["attempts"][0]["status"], "DUPLICATE_SKIPPED")
 
     def test_search_wrapper_retries_after_empty_result(self):
         """空结果不缓存，下一次调用仍应访问远端，以便临时故障恢复后自动重试。"""

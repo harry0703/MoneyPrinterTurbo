@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import sys
 import tempfile
@@ -276,11 +278,14 @@ class TestMaterialTlsVerification(unittest.TestCase):
         VideoConcatMode 枚举。这里用空搜索词避免真实网络请求，只验证
         字符串 "random" 不会再因为访问 `.value` 抛 AttributeError。
         """
-        result = material.download_videos(
-            task_id="string-concat-mode",
-            search_terms=[],
-            video_concat_mode="random",
-        )
+        with tempfile.TemporaryDirectory() as temp_dir, patch.object(
+            material.utils, "task_dir", return_value=temp_dir
+        ):
+            result = material.download_videos(
+                task_id="string-concat-mode",
+                search_terms=[],
+                video_concat_mode="random",
+            )
 
         self.assertEqual(result, [])
 
@@ -305,39 +310,57 @@ class TestMaterialTlsVerification(unittest.TestCase):
         def fake_search(search_term, minimum_duration, video_aspect):
             return search_results[search_term]
 
-        def fake_save_video(video_url, save_dir=""):
-            downloaded_urls.append(video_url)
-            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = Path(temp_dir) / "task"
+            task_dir.mkdir()
 
-        with (
-            patch.dict(config.app, {"material_directory": ""}),
-            patch.object(material, "search_videos_pexels", side_effect=fake_search),
-            patch.object(material, "save_video", side_effect=fake_save_video),
-            patch.object(
-                material.material_cache,
-                "load_material_search_cache",
-                return_value=None,
-            ),
-            patch.object(material.material_cache, "save_material_search_cache"),
-        ):
-            result = material.download_videos(
-                task_id="ordered-materials",
-                search_terms=["opening city", "middle office"],
-                source="pexels",
-                audio_duration=7,
-                max_clip_duration=3,
-                match_script_order=True,
+            def fake_save_video(video_url, save_dir=""):
+                downloaded_urls.append(video_url)
+                target = Path(temp_dir) / video_url.rsplit("/", 1)[-1]
+                target.write_bytes(video_url.encode())
+                return str(target)
+
+            with (
+                patch.dict(config.app, {"material_directory": ""}),
+                patch.object(material, "search_videos_pexels", side_effect=fake_search),
+                patch.object(material, "save_video", side_effect=fake_save_video),
+                patch.object(material.utils, "task_dir", return_value=str(task_dir)),
+                patch.object(
+                    material.material_cache,
+                    "load_material_search_cache",
+                    return_value=None,
+                ),
+                patch.object(material.material_cache, "save_material_search_cache"),
+            ):
+                result = material.download_videos(
+                    task_id="ordered-materials",
+                    search_terms=["opening city", "middle office"],
+                    source="pexels",
+                    audio_duration=7,
+                    max_clip_duration=3,
+                    match_script_order=True,
+                )
+
+            self.assertEqual(
+                downloaded_urls,
+                [
+                    "https://v.example/a1.mp4",
+                    "https://v.example/b1.mp4",
+                    "https://v.example/a2.mp4",
+                ],
             )
-
-        self.assertEqual(
-            downloaded_urls,
-            [
-                "https://v.example/a1.mp4",
-                "https://v.example/b1.mp4",
-                "https://v.example/a2.mp4",
-            ],
-        )
-        self.assertEqual(result, ["/tmp/a1.mp4", "/tmp/b1.mp4", "/tmp/a2.mp4"])
+            self.assertEqual(
+                result,
+                [
+                    str(Path(temp_dir) / "a1.mp4"),
+                    str(Path(temp_dir) / "b1.mp4"),
+                    str(Path(temp_dir) / "a2.mp4"),
+                ],
+            )
+            sidecar = json.loads((task_dir / "materials-provenance.json").read_text())
+            self.assertEqual(
+                [item["local"]["path"] for item in sidecar["materials"]], result
+            )
 
 
 class TestCoverrProvider(unittest.TestCase):
@@ -381,6 +404,8 @@ class TestCoverrProvider(unittest.TestCase):
                         "id": "S1YbPl1NfI",
                         "duration": 11.625,
                         "aspect_ratio": "16:9",
+                        "max_width": 3840,
+                        "max_height": 2160,
                         "urls": {
                             "mp4": "https://storage.coverr.co/videos/abc?token=xyz",
                             "mp4_preview": "https://storage.coverr.co/videos/abc/preview?token=xyz",
@@ -400,6 +425,12 @@ class TestCoverrProvider(unittest.TestCase):
         item = results[0]
         self.assertEqual(item.provider, "coverr")
         self.assertEqual(item.duration, 11)
+        provenance = material._get_provenance(item)
+        self.assertEqual(provenance["asset_id"], "S1YbPl1NfI")
+        self.assertEqual(provenance["rendition"]["id"], "mp4_download")
+        self.assertEqual(provenance["rendition"]["width"], 3840)
+        self.assertEqual(provenance["provider_duration_sec"], 11.625)
+        self.assertEqual(provenance["rights"]["commercial_use"], "ambiguous")
         # url 字段就是 mp4_download URL,不再做 coverr://id|url 编码
         self.assertEqual(
             item.url, "https://storage.coverr.co/videos/abc/download?token=xyz"
@@ -559,25 +590,34 @@ class TestCoverrProvider(unittest.TestCase):
         fake_item.url = "https://storage.coverr.co/videos/abc/download?token=xyz"
         fake_item.duration = 10
 
-        with patch(
-            "app.services.material.search_videos_coverr",
-            return_value=[fake_item],
-        ) as search, patch(
-            "app.services.material.save_video",
-            return_value="/tmp/coverr-saved.mp4",
-        ) as save, patch(
-            "app.services.material.material_cache.load_material_search_cache",
-            return_value=None,
-        ), patch(
-            "app.services.material.material_cache.save_material_search_cache",
-        ):
-            result = material.download_videos(
-                task_id="t-coverr",
-                search_terms=["nature"],
-                source="coverr",
-                audio_duration=5,
-                max_clip_duration=5,
-            )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            saved = Path(temp_dir) / "coverr-saved.mp4"
+            saved.write_bytes(b"coverr")
+            task_dir = Path(temp_dir) / "task"
+            task_dir.mkdir()
+            with patch(
+                "app.services.material.search_videos_coverr",
+                return_value=[fake_item],
+            ) as search, patch(
+                "app.services.material.save_video",
+                return_value=str(saved),
+            ) as save, patch.object(
+                material.utils, "task_dir", return_value=str(task_dir)
+            ), patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ), patch.object(
+                material.material_cache,
+                "save_material_search_cache",
+            ):
+                result = material.download_videos(
+                    task_id="t-coverr",
+                    search_terms=["nature"],
+                    source="coverr",
+                    audio_duration=5,
+                    max_clip_duration=5,
+                )
 
         # 1. dispatch
         self.assertEqual(search.call_count, 1)
@@ -589,7 +629,293 @@ class TestCoverrProvider(unittest.TestCase):
         )
 
         # 3. 返回值正确
-        self.assertEqual(result, ["/tmp/coverr-saved.mp4"])
+        self.assertEqual(result, [str(saved)])
+
+
+class TestMaterialProvenance(unittest.TestCase):
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        self.original_proxy_config = dict(config.proxy)
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.work = Path(self.temp_dir.name)
+        self.task_dir = self.work / "task"
+        self.task_dir.mkdir()
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        config.proxy.clear()
+        config.proxy.update(self.original_proxy_config)
+        self.temp_dir.cleanup()
+
+    @staticmethod
+    def item(asset_id, rendition_id, url, term, provider="pexels"):
+        item = material.MaterialInfo(
+            provider=provider,
+            url=url,
+            duration=5,
+        )
+        material._set_provenance(
+            item,
+            {
+                "search_term": term,
+                "provider": provider,
+                "asset_id": asset_id,
+                "canonical_page": f"https://example.com/assets/{asset_id}?ref=secret#x",
+                "creator": {"id": "creator", "name": "Creator", "profile_page": None},
+                "provider_response_sha256": "a" * 64,
+                "provider_result_index": 0,
+                "rendition": {
+                    "id": rendition_id,
+                    "kind": "video_file",
+                    "url": material._safe_public_url(url),
+                },
+                "rights": {
+                    "license_status": "not_evaluated",
+                    "attribution_status": "not_evaluated",
+                },
+                "warnings": [],
+            },
+        )
+        return item
+
+    def run_download(self, search_results, *, terms, save_side_effect, ordered=False):
+        def fake_search(search_term, minimum_duration, video_aspect):
+            return search_results[search_term]
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(material, "search_videos_pexels", side_effect=fake_search),
+            patch.object(material, "save_video", side_effect=save_side_effect),
+            patch.object(material.utils, "task_dir", return_value=str(self.task_dir)),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+        ):
+            return material.download_videos(
+                task_id="provenance-task",
+                search_terms=terms,
+                source="pexels",
+                audio_duration=20,
+                max_clip_duration=5,
+                match_script_order=ordered,
+            )
+
+    def test_search_provider_fields_are_preserved_without_signed_urls(self):
+        config.app["pexels_api_keys"] = ["pexels-secret"]
+        response = {
+            "videos": [
+                {
+                    "id": 123,
+                    "url": "https://pexels.example/video/123?ref=x#frag",
+                    "duration": 8,
+                    "user": {
+                        "id": 7,
+                        "name": "Ada",
+                        "url": "https://pexels.example/@ada?utm=x",
+                    },
+                    "video_files": [
+                        {
+                            "id": 99,
+                            "quality": "hd",
+                            "file_type": "video/mp4",
+                            "width": 1080,
+                            "height": 1920,
+                            "fps": 30,
+                            "file_size": 42,
+                            "link": "https://cdn.example/v.mp4?token=do-not-store#frag",
+                        }
+                    ],
+                }
+            ]
+        }
+        with patch(
+            "app.services.material.requests.get",
+            return_value=SimpleNamespace(json=lambda: response),
+        ):
+            item = material.search_videos_pexels("agent team", 1)[0]
+
+        provenance = material._get_provenance(item)
+        self.assertEqual(provenance["asset_id"], "123")
+        self.assertEqual(provenance["creator"]["name"], "Ada")
+        self.assertEqual(provenance["rendition"]["id"], "99")
+        self.assertEqual(provenance["rendition"]["url"], "https://cdn.example/v.mp4")
+        self.assertNotIn("do-not-store", json.dumps(provenance))
+
+    def test_pixabay_preserves_selected_variant_and_redacts_key(self):
+        config.app["pixabay_api_keys"] = ["pixabay-secret-key"]
+        response = {
+            "hits": [
+                {
+                    "id": 321,
+                    "pageURL": "https://pixabay.example/videos/id-321/?ref=x#frag",
+                    "duration": 9,
+                    "user_id": 8,
+                    "user": "Grace",
+                    "videos": {
+                        "large": {
+                            "width": 1920,
+                            "height": 1080,
+                            "size": 99,
+                            "url": "https://cdn.example/p.mp4?token=secret-download",
+                        }
+                    },
+                }
+            ]
+        }
+        with patch(
+            "app.services.material.requests.get",
+            return_value=SimpleNamespace(json=lambda: response),
+        ) as get, patch("app.services.material.logger.info") as info:
+            item = material.search_videos_pixabay("workflow", 1)[0]
+
+        self.assertIn("key=pixabay-secret-key", get.call_args.args[0])
+        provenance = material._get_provenance(item)
+        self.assertEqual(provenance["asset_id"], "321")
+        self.assertEqual(provenance["creator"]["name"], "Grace")
+        self.assertEqual(provenance["rendition"]["id"], "large")
+        rendered = json.dumps(provenance)
+        logs = " ".join(str(call.args[0]) for call in info.call_args_list)
+        self.assertNotIn("pixabay-secret-key", rendered + logs)
+        self.assertNotIn("secret-download", rendered)
+
+    def test_sidecar_binds_ordered_local_bytes_and_strips_tokens(self):
+        first = self.item("1", "r1", "https://cdn.example/a.mp4?token=one#x", "one")
+        second = self.item("2", "r2", "https://cdn.example/b.mp4?jwt=two", "two")
+
+        def save(video_url, save_dir=""):
+            target = self.work / ("a.mp4" if "/a.mp4" in video_url else "b.mp4")
+            target.write_bytes(video_url.encode())
+            return str(target)
+
+        paths = self.run_download(
+            {"one": [first], "two": [second]},
+            terms=["one", "two"],
+            save_side_effect=save,
+            ordered=True,
+        )
+        raw = (self.task_dir / "materials-provenance.json").read_text()
+        sidecar = json.loads(raw)
+        self.assertEqual(sidecar["status"], "PASS")
+        self.assertEqual(
+            [entry["local"]["path"] for entry in sidecar["materials"]], paths
+        )
+        for entry, path in zip(sidecar["materials"], paths):
+            data = Path(path).read_bytes()
+            self.assertEqual(entry["local"]["bytes"], len(data))
+            self.assertEqual(
+                entry["local"]["sha256"], hashlib.sha256(data).hexdigest()
+            )
+        self.assertNotIn("token=one", raw)
+        self.assertNotIn("jwt=two", raw)
+        self.assertNotIn("ref=secret", raw)
+
+    def test_local_binding_failure_never_returns_an_unbound_path(self):
+        item = self.item("1", "r1", "https://cdn.example/a.mp4", "one")
+        saved = self.work / "saved.mp4"
+        saved.write_bytes(b"video")
+
+        for ordered in (False, True):
+            with self.subTest(ordered=ordered):
+                sidecar = self.task_dir / "materials-provenance.json"
+                sidecar.unlink(missing_ok=True)
+                with patch.object(
+                    material,
+                    "_local_artifact",
+                    side_effect=material.ProvenanceWriteError("binding failed"),
+                ), self.assertRaises(material.ProvenanceWriteError):
+                    self.run_download(
+                        {"one": [item]},
+                        terms=["one"],
+                        save_side_effect=lambda video_url, save_dir="": str(saved),
+                        ordered=ordered,
+                    )
+                self.assertFalse(sidecar.exists())
+
+    def test_signed_query_changes_do_not_defeat_asset_deduplication(self):
+        first = self.item("same", "same-r", "https://cdn.example/v.mp4?token=one", "one")
+        duplicate = self.item("same", "same-r", "https://cdn.example/v.mp4?token=two", "two")
+        saved = self.work / "saved.mp4"
+        saved.write_bytes(b"video")
+        calls = []
+
+        def save(video_url, save_dir=""):
+            calls.append(video_url)
+            return str(saved)
+
+        paths = self.run_download(
+            {"one": [first], "two": [duplicate]},
+            terms=["one", "two"],
+            save_side_effect=save,
+        )
+        sidecar = json.loads((self.task_dir / "materials-provenance.json").read_text())
+        self.assertEqual(paths, [str(saved)])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(sidecar["materials"]), 1)
+        self.assertEqual(sidecar["attempts"][0]["status"], "DUPLICATE_SKIPPED")
+        self.assertEqual(sidecar["attempts"][0]["search_term"], "two")
+
+    def test_download_failure_is_only_recorded_in_attempts(self):
+        failed = self.item("bad", "r-bad", "https://cdn.example/bad.mp4?token=x", "term")
+        good = self.item("good", "r-good", "https://cdn.example/good.mp4?token=y", "term")
+        saved = self.work / "good.mp4"
+        saved.write_bytes(b"good")
+
+        def save(video_url, save_dir=""):
+            if "bad.mp4" in video_url:
+                raise requests.ConnectionError("secret-token-in-exception")
+            return str(saved)
+
+        paths = self.run_download(
+            {"term": [failed, good]}, terms=["term"], save_side_effect=save
+        )
+        raw = (self.task_dir / "materials-provenance.json").read_text()
+        sidecar = json.loads(raw)
+        self.assertEqual(paths, [str(saved)])
+        self.assertEqual([item["asset_id"] for item in sidecar["materials"]], ["good"])
+        self.assertEqual(sidecar["attempts"][0]["status"], "DOWNLOAD_FAILED")
+        self.assertNotIn("secret-token-in-exception", raw)
+        self.assertNotIn("token=x", raw)
+
+    def test_sidecar_collision_fails_closed_without_overwrite(self):
+        existing = self.task_dir / "materials-provenance.json"
+        existing.write_text("keep\n")
+        item = self.item("1", "r1", "https://cdn.example/a.mp4", "one")
+        saved = self.work / "saved.mp4"
+        saved.write_bytes(b"video")
+
+        with self.assertRaises(material.ProvenanceWriteError):
+            self.run_download(
+                {"one": [item]},
+                terms=["one"],
+                save_side_effect=lambda video_url, save_dir="": str(saved),
+            )
+
+        self.assertEqual(existing.read_text(), "keep\n")
+
+    def test_missing_key_error_does_not_dump_other_credentials(self):
+        config.app.clear()
+        config.app["unrelated_secret"] = "must-not-leak"
+        with self.assertRaises(ValueError) as raised:
+            material.get_api_key("pexels_api_keys")
+        self.assertNotIn("must-not-leak", str(raised.exception))
+
+    def test_unknown_provider_is_rejected_before_search(self):
+        with self.assertRaisesRegex(ValueError, "unsupported online material source"):
+            material.download_videos(
+                task_id="bad-provider",
+                search_terms=["one"],
+                source="not-a-provider",
+            )
+
+    def test_sidecar_publish_skips_directory_fsync_on_windows(self):
+        with patch.object(
+            material.os, "open", side_effect=AssertionError("must not open directory")
+        ):
+            material._fsync_parent_directory(self.task_dir, platform="nt")
 
 
 if __name__ == "__main__":

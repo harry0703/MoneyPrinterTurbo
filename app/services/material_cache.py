@@ -19,7 +19,7 @@ from app.utils import utils
 
 
 MATERIAL_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
-_CACHE_FORMAT_VERSION = 1
+_CACHE_FORMAT_VERSION = 2
 _CACHE_CLEANUP_INTERVAL_SECONDS = 60 * 60
 _CACHE_FILE_PATTERN = re.compile(r"^[0-9a-f]{64}\.json$")
 
@@ -124,6 +124,26 @@ def load_material_search_cache(
     ``None`` 表示缓存未命中，需要请求远端 API；空列表不作为有效缓存返回，
     避免网络错误或上游异常被误缓存后持续阻断后续任务。
     """
+    if str(provider).strip().lower() == "coverr":
+        # Coverr 的 mp4_download URL 包含绑定 API key 的 signed JWT。它可以在
+        # 当前请求内下载，但不能写入磁盘缓存。若旧版本留下过缓存，访问同一
+        # 搜索条件时顺带清理，避免凭证继续驻留。
+        try:
+            _remove_invalid_cache(
+                _cache_path(
+                    provider=provider,
+                    search_term=search_term,
+                    minimum_duration=minimum_duration,
+                    video_aspect=video_aspect,
+                )
+            )
+        except Exception as exc:
+            logger.warning(
+                "failed to remove disabled Coverr material search cache: "
+                f"error={type(exc).__name__}, detail={exc}"
+            )
+        return None
+
     try:
         cache_path = _cache_path(
             provider=provider,
@@ -187,13 +207,18 @@ def load_material_search_cache(
                 or item_duration <= 0
             ):
                 raise ValueError("invalid material fields")
-            items.append(
-                MaterialInfo(
-                    provider=item_provider,
-                    url=item_url,
-                    duration=int(item_duration),
-                )
+            provenance = raw_item.get("provider_provenance")
+            if not isinstance(provenance, dict) or not provenance:
+                raise ValueError("invalid provider provenance")
+            provenance = dict(provenance)
+            provenance["search_term"] = search_term
+            item = MaterialInfo(
+                provider=item_provider,
+                url=item_url,
+                duration=int(item_duration),
             )
+            setattr(item, "_provider_provenance", provenance)
+            items.append(item)
     except (OSError, ValueError, TypeError) as exc:
         logger.warning(
             f"failed to load material search cache: "
@@ -223,17 +248,26 @@ def save_material_search_cache(
     ``os.replace`` 发布，可以保证读进程只会看到完整旧文件或完整新文件；
     即使两个写进程同时完成，最终内容也都是同一缓存键对应的合法结果。
     """
+    if str(provider).strip().lower() == "coverr":
+        return False
+
     temp_path = None
     try:
-        serialized_items = [
-            {
+        serialized_items = []
+        for item in items:
+            serialized_item = {
                 "provider": item.provider,
                 "url": item.url,
                 "duration": int(item.duration),
             }
-            for item in items
-            if item.url and item.duration > 0
-        ]
+            provenance = getattr(item, "_provider_provenance", None)
+            if not isinstance(provenance, dict) or not provenance:
+                raise ValueError("invalid provider provenance")
+            cached_provenance = dict(provenance)
+            cached_provenance.pop("search_term", None)
+            serialized_item["provider_provenance"] = cached_provenance
+            if item.url and item.duration > 0:
+                serialized_items.append(serialized_item)
         if not serialized_items:
             return False
 
