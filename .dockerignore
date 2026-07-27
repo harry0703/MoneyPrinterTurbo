@@ -21,6 +21,13 @@ __pycache__/
 .idea/
 logs/
 
+# Local agent/git worktrees can contain full source copies and virtual
+# environments. They are never runtime inputs and can add gigabytes to every
+# otherwise incremental Docker build context.
+.worktrees/
+**/.worktrees/
+**/.venv/
+
 # Exclude version control system files
 .git/
 .gitignore
