@@ -11,6 +11,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Iterable
+from urllib.parse import urlsplit, urlunsplit
 
 from loguru import logger
 
@@ -19,7 +20,7 @@ from app.utils import utils
 
 
 MATERIAL_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
-_CACHE_FORMAT_VERSION = 1
+_CACHE_FORMAT_VERSION = 2
 _CACHE_CLEANUP_INTERVAL_SECONDS = 60 * 60
 _CACHE_FILE_PATTERN = re.compile(r"^[0-9a-f]{64}\.json$")
 
@@ -29,6 +30,73 @@ _CACHE_FILE_PATTERN = re.compile(r"^[0-9a-f]{64}\.json$")
 _CACHE_LOCKS = tuple(threading.Lock() for _ in range(256))
 _cleanup_state_lock = threading.Lock()
 _last_cleanup_monotonic: float | None = None
+
+
+def _safe_public_url(value) -> str | None:
+    """移除公开页面 URL 的查询参数和用户凭据，避免缓存意外保存 token。"""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = urlsplit(value.strip())
+    except ValueError:
+        return None
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        return None
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+
+
+def _cached_source_info(item: MaterialInfo) -> dict | None:
+    """
+    按白名单构造可落盘的来源信息。
+
+    搜索关键词已经包含在缓存键中，不再明文写入缓存内容；读取时由调用参数
+    恢复。下载 URL 由 ``MaterialInfo.url`` 单独保存，这里只允许公开素材页、
+    作者公开页和稳定业务标识，避免任意扩展字段进入磁盘缓存。
+    """
+    source = item.source_info
+    if not isinstance(source, dict) or not source:
+        return None
+
+    cached: dict = {
+        "provider": str(source.get("provider") or item.provider),
+    }
+    asset_id = source.get("asset_id")
+    source_page = _safe_public_url(source.get("source_page"))
+    if asset_id not in (None, ""):
+        cached["asset_id"] = str(asset_id)
+    if source_page:
+        cached["source_page"] = source_page
+
+    raw_creator = source.get("creator")
+    if isinstance(raw_creator, dict):
+        creator = {}
+        creator_id = raw_creator.get("id")
+        creator_name = raw_creator.get("name")
+        creator_page = _safe_public_url(raw_creator.get("profile_page"))
+        if creator_id not in (None, ""):
+            creator["id"] = str(creator_id)
+        if creator_name not in (None, ""):
+            creator["name"] = str(creator_name)
+        if creator_page:
+            creator["profile_page"] = creator_page
+        if creator:
+            cached["creator"] = creator
+
+    raw_rendition = source.get("rendition")
+    if isinstance(raw_rendition, dict):
+        rendition = {}
+        for field in ("id", "width", "height"):
+            value = raw_rendition.get(field)
+            if value not in (None, ""):
+                rendition[field] = str(value) if field == "id" else value
+        if rendition:
+            cached["rendition"] = rendition
+    return cached
 
 
 def _cache_dir() -> Path:
@@ -124,6 +192,25 @@ def load_material_search_cache(
     ``None`` 表示缓存未命中，需要请求远端 API；空列表不作为有效缓存返回，
     避免网络错误或上游异常被误缓存后持续阻断后续任务。
     """
+    if str(provider).strip().lower() == "coverr":
+        # Coverr 的下载地址包含绑定 API Key 的签名 JWT。它只用于当前请求，
+        # 不能进入磁盘缓存；查询相同条件时顺带删除旧版本可能留下的缓存。
+        try:
+            _remove_invalid_cache(
+                _cache_path(
+                    provider=provider,
+                    search_term=search_term,
+                    minimum_duration=minimum_duration,
+                    video_aspect=video_aspect,
+                )
+            )
+        except Exception as exc:
+            logger.warning(
+                "failed to remove disabled Coverr material search cache: "
+                f"error={type(exc).__name__}, detail={exc}"
+            )
+        return None
+
     try:
         cache_path = _cache_path(
             provider=provider,
@@ -177,6 +264,7 @@ def load_material_search_cache(
             item_provider = raw_item.get("provider")
             item_url = raw_item.get("url")
             item_duration = raw_item.get("duration")
+            source_info = raw_item.get("source_info")
             if (
                 not isinstance(item_provider, str)
                 or not item_provider
@@ -185,19 +273,23 @@ def load_material_search_cache(
                 or isinstance(item_duration, bool)
                 or not isinstance(item_duration, (int, float))
                 or item_duration <= 0
+                or not isinstance(source_info, dict)
+                or not source_info
             ):
                 raise ValueError("invalid material fields")
+            source_info = dict(source_info)
+            source_info["search_term"] = search_term
             items.append(
                 MaterialInfo(
                     provider=item_provider,
                     url=item_url,
                     duration=int(item_duration),
+                    source_info=source_info,
                 )
             )
     except (OSError, ValueError, TypeError) as exc:
         logger.warning(
-            f"failed to load material search cache: "
-            f"file={cache_path.name}, error={exc}"
+            f"failed to load material search cache: file={cache_path.name}, error={exc}"
         )
         _remove_invalid_cache(cache_path)
         return None
@@ -223,17 +315,24 @@ def save_material_search_cache(
     ``os.replace`` 发布，可以保证读进程只会看到完整旧文件或完整新文件；
     即使两个写进程同时完成，最终内容也都是同一缓存键对应的合法结果。
     """
+    if str(provider).strip().lower() == "coverr":
+        return False
+
     temp_path = None
     try:
-        serialized_items = [
-            {
-                "provider": item.provider,
-                "url": item.url,
-                "duration": int(item.duration),
-            }
-            for item in items
-            if item.url and item.duration > 0
-        ]
+        serialized_items = []
+        for item in items:
+            source_info = _cached_source_info(item)
+            if not item.url or item.duration <= 0 or not source_info:
+                continue
+            serialized_items.append(
+                {
+                    "provider": item.provider,
+                    "url": item.url,
+                    "duration": int(item.duration),
+                    "source_info": source_info,
+                }
+            )
         if not serialized_items:
             return False
 

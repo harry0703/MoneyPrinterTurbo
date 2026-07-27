@@ -1,8 +1,9 @@
 import os
 import random
 import threading
-from typing import Callable, List
-from urllib.parse import quote_plus, urlencode
+from pathlib import Path
+from typing import Any, Callable, List
+from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
 
 import requests
 from loguru import logger
@@ -10,12 +11,130 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
-from app.services import material_cache
+from app.services import material_cache, task_artifacts
 from app.utils import utils
 
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
+
+
+def _safe_public_url(value: Any) -> str | None:
+    """
+    只保留可公开展示的 HTTP(S) 页面地址，并移除查询参数和凭据。
+
+    素材下载地址可能携带 API Key、签名 JWT 或临时 token。任务清单只需要
+    帮助用户回到供应商的公开素材页，不应保存鉴权参数；用户信息形式的 URL
+    同样拒绝，避免 ``https://user:pass@example.com`` 一类内容落盘。
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    try:
+        parsed = urlsplit(value.strip())
+    except ValueError:
+        return None
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        return None
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+
+
+def _creator_info(value: Any) -> dict[str, str] | None:
+    """从不同供应商的作者结构中提取统一的公开字段。"""
+    if isinstance(value, str) and value.strip():
+        return {"name": value.strip()}
+    if not isinstance(value, dict):
+        return None
+
+    creator: dict[str, str] = {}
+    creator_id = value.get("id")
+    creator_name = value.get("name") or value.get("username")
+    creator_page = _safe_public_url(
+        value.get("url") or value.get("profile_url") or value.get("profile_page")
+    )
+    if creator_id is not None:
+        creator["id"] = str(creator_id)
+    if creator_name:
+        creator["name"] = str(creator_name)
+    if creator_page:
+        creator["profile_page"] = creator_page
+    return creator or None
+
+
+def _material_source_record(item: MaterialInfo, local_path: str) -> dict[str, Any]:
+    """
+    为成功下载的素材生成轻量来源记录。
+
+    ``source_info`` 可能来自缓存，甚至来自外部构造的 ``MaterialInfo``，因此
+    不能原样写入。这里按白名单重新构造，只保留公开页面、业务标识和尺寸，
+    并只记录本地文件名，避免用户目录或 Docker 挂载路径进入任务文件。
+    """
+    source = item.source_info if isinstance(item.source_info, dict) else {}
+    record: dict[str, Any] = {
+        "provider": str(item.provider or source.get("provider") or ""),
+        "local_file": Path(local_path).name,
+        "duration": int(item.duration),
+    }
+
+    search_term = source.get("search_term")
+    asset_id = source.get("asset_id")
+    source_page = _safe_public_url(source.get("source_page"))
+    if isinstance(search_term, str) and search_term.strip():
+        record["search_term"] = search_term.strip()
+    if asset_id not in (None, ""):
+        record["asset_id"] = str(asset_id)
+    if source_page:
+        record["source_page"] = source_page
+
+    creator = _creator_info(source.get("creator"))
+    if creator:
+        record["creator"] = creator
+
+    raw_rendition = source.get("rendition")
+    if isinstance(raw_rendition, dict):
+        rendition = {}
+        for field in ("id", "width", "height"):
+            value = raw_rendition.get(field)
+            if value not in (None, ""):
+                rendition[field] = str(value) if field == "id" else value
+        if rendition:
+            record["rendition"] = rendition
+    return record
+
+
+def _persist_material_sources(
+    task_id: str,
+    material_sources: list[dict[str, Any]],
+) -> None:
+    """
+    将当前实际下载成功的素材来源补充到任务清单。
+
+    任务记录是辅助能力，不能改变视频下载函数的返回值，也不能因为写盘失败
+    中断成片主流程。``patch_script_data`` 会负责原子替换和异常日志；这里仅在
+    成功后记录数量，便于确认任务追溯信息是否已经落盘。
+    """
+    try:
+        saved = task_artifacts.patch_script_data(
+            task_id,
+            material_sources=material_sources,
+        )
+        if saved:
+            logger.info(
+                f"saved material source records: "
+                f"task_id={task_id}, count={len(material_sources)}"
+            )
+    except Exception as exc:
+        # task_artifacts 自身已经按失败降级设计，这里仍保留最后一道隔离，
+        # 防止未来实现调整或目录解析异常意外影响素材下载返回值。
+        logger.warning(
+            "failed to persist material source records: "
+            f"task_id={task_id}, error={type(exc).__name__}, detail={exc}"
+        )
 
 
 def _get_tls_verify() -> bool:
@@ -39,8 +158,8 @@ def get_api_key(cfg_key: str):
     api_keys = config.app.get(cfg_key)
     if not api_keys:
         raise ValueError(
-            f"\n\n##### {cfg_key} is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n"
-            f"{utils.to_json(config.app)}"
+            f"\n\n##### {cfg_key} is not set #####\n\n"
+            f"Please set it in the config.toml file: {config.config_file}\n"
         )
 
     # if only one key is provided, return it
@@ -69,6 +188,21 @@ def _redact_secret(message: str, secret: str) -> str:
     encoded_secret = quote_plus(secret)
     if encoded_secret != secret:
         safe_message = safe_message.replace(encoded_secret, "***")
+    return safe_message
+
+
+def _redact_request_error(error: Exception, *secrets: str) -> str:
+    """
+    保留网络异常的可排查信息，同时移除 API Key 和代理凭据。
+
+    直接只记录异常类型会丢失 DNS、证书、超时等关键上下文；直接记录原始异常
+    又可能回显完整请求 URL。统一入口可以让三个素材供应商使用相同脱敏规则。
+    """
+    safe_message = str(error)
+    for secret in secrets:
+        safe_message = _redact_secret(safe_message, str(secret or ""))
+    for proxy_url in config.proxy.values():
+        safe_message = _redact_secret(safe_message, str(proxy_url))
     return safe_message
 
 
@@ -108,7 +242,7 @@ def search_videos_pexels(
     # Build URL
     params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+    logger.info(f"searching videos on pexels: term={search_term!r}")
 
     try:
         r = requests.get(
@@ -121,7 +255,7 @@ def search_videos_pexels(
         response = r.json()
         video_items = []
         if "videos" not in response:
-            logger.error(f"search videos failed: {response}")
+            logger.error("pexels video search returned an unsupported response")
             return video_items
         videos = response["videos"]
         # loop through each video in the result
@@ -140,11 +274,32 @@ def search_videos_pexels(
                     item.provider = "pexels"
                     item.url = video["link"]
                     item.duration = duration
+                    item.source_info = {
+                        "provider": "pexels",
+                        "search_term": search_term,
+                        "asset_id": (
+                            str(v.get("id")) if v.get("id") is not None else None
+                        ),
+                        "source_page": _safe_public_url(v.get("url")),
+                        "creator": _creator_info(v.get("user")),
+                        "rendition": {
+                            "id": (
+                                str(video.get("id"))
+                                if video.get("id") is not None
+                                else None
+                            ),
+                            "width": w,
+                            "height": h,
+                        },
+                    }
                     video_items.append(item)
                     break
         return video_items
     except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
+        logger.error(
+            "pexels video search failed: "
+            f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+        )
 
     return []
 
@@ -215,7 +370,7 @@ def search_videos_pixabay(
 
         video_items = []
         if "hits" not in response:
-            logger.error(f"search videos failed: {response}")
+            logger.error("pixabay video search returned an unsupported response")
             return video_items
         videos = response["hits"]
         # loop through each video in the result
@@ -235,16 +390,30 @@ def search_videos_pixabay(
                     item.provider = "pixabay"
                     item.url = video["url"]
                     item.duration = duration
+                    item.source_info = {
+                        "provider": "pixabay",
+                        "search_term": search_term,
+                        "asset_id": (
+                            str(v.get("id")) if v.get("id") is not None else None
+                        ),
+                        "source_page": _safe_public_url(v.get("pageURL")),
+                        "creator": _creator_info(
+                            {
+                                "id": v.get("user_id"),
+                                "name": v.get("user"),
+                            }
+                        ),
+                        "rendition": {
+                            "id": video_type,
+                            "width": w,
+                            "height": video.get("height"),
+                        },
+                    }
                     video_items.append(item)
                     break
         return video_items
     except Exception as e:
-        error_message = _redact_secret(str(e), api_key)
-        # ProxyError 等异常可能回显完整代理 URL，其中可能包含用户名和密码。
-        # 仅替换用户实际配置的代理值，不对普通错误文本做宽泛正则处理，
-        # 避免误删 DNS、超时、证书等真正有助于排查的信息。
-        for proxy_url in config.proxy.values():
-            error_message = _redact_secret(error_message, str(proxy_url))
+        error_message = _redact_request_error(e, api_key)
         logger.error(
             "pixabay search request failed: "
             f"error={type(e).__name__}, detail={error_message}"
@@ -286,7 +455,7 @@ def search_videos_coverr(
         "sort": "popular",
     }
     query_url = f"https://api.coverr.co/videos?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+    logger.info(f"searching videos on coverr: term={search_term!r}")
 
     try:
         r = requests.get(
@@ -300,7 +469,7 @@ def search_videos_coverr(
         video_items: List[MaterialInfo] = []
 
         if not isinstance(response, dict) or "hits" not in response:
-            logger.error(f"search videos failed: {response}")
+            logger.error("coverr video search returned an unsupported response")
             return video_items
 
         for v in response["hits"]:
@@ -321,10 +490,25 @@ def search_videos_coverr(
             item.provider = "coverr"
             item.url = mp4_download_url
             item.duration = duration
+            item.source_info = {
+                "provider": "coverr",
+                "search_term": search_term,
+                "asset_id": str(video_id),
+                "source_page": _safe_public_url(v.get("canonical_url") or v.get("url")),
+                "creator": _creator_info(v.get("creator") or v.get("author")),
+                "rendition": {
+                    "id": "mp4_download",
+                    "width": v.get("max_width"),
+                    "height": v.get("max_height"),
+                },
+            }
             video_items.append(item)
         return video_items
     except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
+        logger.error(
+            "coverr video search failed: "
+            f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+        )
 
     return []
 
@@ -439,6 +623,13 @@ def _search_videos_with_cache(
             minimum_duration=minimum_duration,
             video_aspect=video_aspect,
         )
+        # Provider 正常会写入当前关键词，但测试替身、第三方扩展或旧实现可能
+        # 遗漏或携带错误值。缓存读取会根据缓存键恢复该字段，因此远端结果也在
+        # 同一入口校正，保证首次搜索与缓存命中的任务来源记录保持一致。
+        for item in items:
+            if isinstance(item.source_info, dict):
+                item.source_info = dict(item.source_info)
+                item.source_info["search_term"] = search_term
         if items:
             try:
                 material_cache.save_material_search_cache(
@@ -523,6 +714,7 @@ def download_videos(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
     )
     video_paths = []
+    material_sources: list[dict[str, Any]] = []
 
     concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
     if concat_mode_value == VideoConcatMode.random.value:
@@ -531,13 +723,29 @@ def download_videos(
     total_duration = 0.0
     for item in valid_video_items:
         try:
-            logger.info(f"downloading video: {item.url}")
+            source_info = item.source_info if isinstance(item.source_info, dict) else {}
+            logger.info(
+                f"downloading {item.provider} video: "
+                f"asset_id={source_info.get('asset_id') or 'unknown'}"
+            )
             saved_video_path = save_video(
                 video_url=item.url, save_dir=material_directory
             )
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
                 video_paths.append(saved_video_path)
+                try:
+                    material_sources.append(
+                        _material_source_record(item, saved_video_path)
+                    )
+                except Exception as source_error:
+                    # 来源记录异常不能把已经成功下载的素材视为下载失败，更不能
+                    # 阻断视频生成；保留供应商和异常类型用于后续定位。
+                    logger.warning(
+                        "failed to prepare material source record: "
+                        f"provider={item.provider}, "
+                        f"error={type(source_error).__name__}, detail={source_error}"
+                    )
                 seconds = min(max_clip_duration, item.duration)
                 total_duration += seconds
                 if total_duration > audio_duration:
@@ -546,8 +754,13 @@ def download_videos(
                     )
                     break
         except Exception as e:
-            logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
+            logger.error(
+                "failed to download material video: "
+                f"provider={item.provider}, error={type(e).__name__}, "
+                f"detail={_redact_request_error(e, item.url)}"
+            )
     logger.success(f"downloaded {len(video_paths)} videos")
+    _persist_material_sources(task_id, material_sources)
     return video_paths
 
 
@@ -599,6 +812,7 @@ def _download_videos_by_script_order(
     )
 
     video_paths = []
+    material_sources: list[dict[str, Any]] = []
     total_duration = 0.0
     candidate_index = 0
     while candidate_groups and total_duration <= audio_duration:
@@ -610,8 +824,12 @@ def _download_videos_by_script_order(
             has_candidate = True
             item = term_items[candidate_index]
             try:
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
                 logger.info(
-                    f"downloading ordered video for '{search_term}': {item.url}"
+                    f"downloading ordered {item.provider} video for {search_term!r}: "
+                    f"asset_id={source_info.get('asset_id') or 'unknown'}"
                 )
                 saved_video_path = save_video(
                     video_url=item.url, save_dir=material_directory
@@ -619,6 +837,17 @@ def _download_videos_by_script_order(
                 if saved_video_path:
                     logger.info(f"video saved: {saved_video_path}")
                     video_paths.append(saved_video_path)
+                    try:
+                        material_sources.append(
+                            _material_source_record(item, saved_video_path)
+                        )
+                    except Exception as source_error:
+                        logger.warning(
+                            "failed to prepare ordered material source record: "
+                            f"provider={item.provider}, "
+                            f"error={type(source_error).__name__}, "
+                            f"detail={source_error}"
+                        )
                     total_duration += min(max_clip_duration, item.duration)
                     if total_duration > audio_duration:
                         logger.info(
@@ -627,7 +856,9 @@ def _download_videos_by_script_order(
                         break
             except Exception as e:
                 logger.error(
-                    f"failed to download ordered video: {utils.to_json(item)} => {str(e)}"
+                    "failed to download ordered material video: "
+                    f"provider={item.provider}, error={type(e).__name__}, "
+                    f"detail={_redact_request_error(e, item.url)}"
                 )
 
         if not has_candidate:
@@ -635,6 +866,7 @@ def _download_videos_by_script_order(
         candidate_index += 1
 
     logger.success(f"downloaded {len(video_paths)} ordered videos")
+    _persist_material_sources(task_id, material_sources)
     return video_paths
 
 

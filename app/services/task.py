@@ -21,6 +21,7 @@ from app.services import (
     material,
     sonilo,
     subtitle,
+    task_artifacts,
     twelvelabs,
     video,
     voice,
@@ -328,15 +329,12 @@ def generate_terms(task_id, params, video_script):
 
 
 def save_script_data(task_id, video_script, video_terms, params):
-    script_file = path.join(utils.task_dir(task_id), "script.json")
     script_data = {
         "script": video_script,
         "search_terms": video_terms,
         "params": params,
     }
-
-    with open(script_file, "w", encoding="utf-8") as f:
-        f.write(utils.to_json(script_data))
+    task_artifacts.write_script_data(task_id, script_data)
 
 
 def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> str:

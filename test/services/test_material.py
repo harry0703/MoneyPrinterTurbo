@@ -38,9 +38,17 @@ class TestMaterialTlsVerification(unittest.TestCase):
             json=lambda: {
                 "videos": [
                     {
+                        "id": 321,
+                        "url": "https://www.pexels.com/video/example-321/?token=drop",
                         "duration": 8,
+                        "user": {
+                            "id": 654,
+                            "name": "Pexels Creator",
+                            "url": "https://www.pexels.com/@creator/?key=drop",
+                        },
                         "video_files": [
                             {
+                                "id": 987,
                                 "width": 1080,
                                 "height": 1920,
                                 "link": "https://example.com/video.mp4",
@@ -56,6 +64,16 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
         self.assertEqual(len(results), 1)
         self.assertTrue(get.call_args.kwargs["verify"])
+        self.assertEqual(results[0].source_info["asset_id"], "321")
+        self.assertEqual(
+            results[0].source_info["source_page"],
+            "https://www.pexels.com/video/example-321/",
+        )
+        self.assertEqual(
+            results[0].source_info["creator"]["profile_page"],
+            "https://www.pexels.com/@creator/",
+        )
+        self.assertEqual(results[0].source_info["rendition"]["id"], "987")
 
     def test_search_pixabay_allows_explicit_tls_disable_for_proxy(self):
         """
@@ -284,6 +302,59 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
         self.assertEqual(result, [])
 
+    def test_material_source_record_uses_public_whitelist(self):
+        """
+        任务清单只应包含可追溯的公开字段，不能写入签名参数、下载地址、
+        调用方传入的额外字段或本机绝对路径。
+        """
+        item = material.MaterialInfo(
+            provider="pixabay",
+            url="https://cdn.example.com/video.mp4?token=secret",
+            duration=12,
+            source_info={
+                "provider": "pixabay",
+                "search_term": "city",
+                "asset_id": 123,
+                "source_page": "https://pixabay.com/videos/city-123/?key=secret",
+                "creator": {
+                    "id": 456,
+                    "name": "Creator",
+                    "profile_page": "https://pixabay.com/users/creator/?token=secret",
+                    "email": "private@example.com",
+                },
+                "rendition": {
+                    "id": "large",
+                    "width": 1920,
+                    "height": 1080,
+                    "download_url": "https://cdn.example.com/private",
+                },
+                "api_key": "must-not-persist",
+            },
+        )
+
+        record = material._material_source_record(
+            item,
+            "/Users/example/private/task/vid-123.mp4",
+        )
+        serialized = str(record)
+
+        self.assertEqual(record["local_file"], "vid-123.mp4")
+        self.assertEqual(
+            record["source_page"],
+            "https://pixabay.com/videos/city-123/",
+        )
+        self.assertEqual(
+            record["creator"]["profile_page"],
+            "https://pixabay.com/users/creator/",
+        )
+        self.assertEqual(
+            record["rendition"],
+            {"id": "large", "width": 1920, "height": 1080},
+        )
+        self.assertNotIn("secret", serialized)
+        self.assertNotIn("/Users/example", serialized)
+        self.assertNotIn("private@example.com", serialized)
+
     def test_download_videos_can_round_robin_terms_in_script_order(self):
         """
         开启按文案顺序匹配素材后，不能让第一个关键词的多个候选先把
@@ -292,12 +363,48 @@ class TestMaterialTlsVerification(unittest.TestCase):
         """
         search_results = {
             "opening city": [
-                material.MaterialInfo(provider="pexels", url="https://v.example/a1.mp4", duration=3),
-                material.MaterialInfo(provider="pexels", url="https://v.example/a2.mp4", duration=3),
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/a1.mp4",
+                    duration=3,
+                    source_info={
+                        "provider": "pexels",
+                        "search_term": "opening city",
+                        "asset_id": "a1",
+                    },
+                ),
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/a2.mp4",
+                    duration=3,
+                    source_info={
+                        "provider": "pexels",
+                        "search_term": "opening city",
+                        "asset_id": "a2",
+                    },
+                ),
             ],
             "middle office": [
-                material.MaterialInfo(provider="pexels", url="https://v.example/b1.mp4", duration=3),
-                material.MaterialInfo(provider="pexels", url="https://v.example/b2.mp4", duration=3),
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/b1.mp4",
+                    duration=3,
+                    source_info={
+                        "provider": "pexels",
+                        "search_term": "middle office",
+                        "asset_id": "b1",
+                    },
+                ),
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/b2.mp4",
+                    duration=3,
+                    source_info={
+                        "provider": "pexels",
+                        "search_term": "middle office",
+                        "asset_id": "b2",
+                    },
+                ),
             ],
         }
         downloaded_urls = []
@@ -319,6 +426,11 @@ class TestMaterialTlsVerification(unittest.TestCase):
                 return_value=None,
             ),
             patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ) as patch_script,
         ):
             result = material.download_videos(
                 task_id="ordered-materials",
@@ -338,6 +450,52 @@ class TestMaterialTlsVerification(unittest.TestCase):
             ],
         )
         self.assertEqual(result, ["/tmp/a1.mp4", "/tmp/b1.mp4", "/tmp/a2.mp4"])
+        recorded_sources = patch_script.call_args.kwargs["material_sources"]
+        self.assertEqual(
+            [source["asset_id"] for source in recorded_sources],
+            ["a1", "b1", "a2"],
+        )
+        self.assertEqual(
+            [source["local_file"] for source in recorded_sources],
+            ["a1.mp4", "b1.mp4", "a2.mp4"],
+        )
+
+    def test_material_source_persistence_failure_does_not_break_download(self):
+        """辅助任务记录失败时，已经下载成功的素材仍应正常返回给成片主流程。"""
+        item = material.MaterialInfo(
+            provider="pexels",
+            url="https://v.example/a1.mp4",
+            duration=5,
+            source_info={"provider": "pexels", "asset_id": "a1"},
+        )
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(material, "search_videos_pexels", return_value=[item]),
+            patch.object(material, "save_video", return_value="/tmp/a1.mp4"),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                side_effect=OSError("disk unavailable"),
+            ),
+            patch.object(material.logger, "warning") as warning,
+        ):
+            result = material.download_videos(
+                task_id="persist-failure",
+                search_terms=["city"],
+                source="pexels",
+                audio_duration=1,
+                max_clip_duration=5,
+            )
+
+        self.assertEqual(result, ["/tmp/a1.mp4"])
+        self.assertTrue(warning.called)
 
 
 class TestCoverrProvider(unittest.TestCase):
@@ -381,6 +539,14 @@ class TestCoverrProvider(unittest.TestCase):
                         "id": "S1YbPl1NfI",
                         "duration": 11.625,
                         "aspect_ratio": "16:9",
+                        "canonical_url": "https://coverr.co/videos/example?token=drop",
+                        "creator": {
+                            "id": "creator-1",
+                            "name": "Coverr Creator",
+                            "profile_url": "https://coverr.co/creators/example?key=drop",
+                        },
+                        "max_width": 3840,
+                        "max_height": 2160,
                         "urls": {
                             "mp4": "https://storage.coverr.co/videos/abc?token=xyz",
                             "mp4_preview": "https://storage.coverr.co/videos/abc/preview?token=xyz",
@@ -403,6 +569,15 @@ class TestCoverrProvider(unittest.TestCase):
         # url 字段就是 mp4_download URL,不再做 coverr://id|url 编码
         self.assertEqual(
             item.url, "https://storage.coverr.co/videos/abc/download?token=xyz"
+        )
+        self.assertEqual(item.source_info["asset_id"], "S1YbPl1NfI")
+        self.assertEqual(
+            item.source_info["source_page"],
+            "https://coverr.co/videos/example",
+        )
+        self.assertEqual(
+            item.source_info["creator"]["profile_page"],
+            "https://coverr.co/creators/example",
         )
         # Bearer auth + TLS verify on by default
         self.assertEqual(

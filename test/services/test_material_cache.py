@@ -26,7 +26,27 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     @staticmethod
     def _item(url: str = "https://example.com/video.mp4") -> MaterialInfo:
-        return MaterialInfo(provider="pixabay", url=url, duration=12)
+        return MaterialInfo(
+            provider="pixabay",
+            url=url,
+            duration=12,
+            source_info={
+                "provider": "pixabay",
+                "search_term": "nature",
+                "asset_id": "123",
+                "source_page": "https://pixabay.com/videos/example-123/",
+                "creator": {
+                    "id": "456",
+                    "name": "Creator",
+                    "profile_page": "https://pixabay.com/users/creator-456/",
+                },
+                "rendition": {
+                    "id": "large",
+                    "width": 1920,
+                    "height": 1080,
+                },
+            },
+        )
 
     def _cache_path(self) -> Path:
         return material_cache._cache_path(
@@ -60,6 +80,16 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertEqual(loaded[0].provider, "pixabay")
         self.assertEqual(loaded[0].url, "https://example.com/video.mp4")
         self.assertEqual(loaded[0].duration, 12)
+        self.assertEqual(loaded[0].source_info["search_term"], "nature")
+        self.assertEqual(loaded[0].source_info["asset_id"], "123")
+        self.assertEqual(
+            loaded[0].source_info["source_page"],
+            "https://pixabay.com/videos/example-123/",
+        )
+        self.assertEqual(
+            loaded[0].source_info["creator"]["profile_page"],
+            "https://pixabay.com/users/creator-456/",
+        )
 
     def test_expired_cache_is_removed_and_treated_as_miss(self):
         """
@@ -155,19 +185,107 @@ class TestMaterialSearchCache(unittest.TestCase):
         缓存文件名使用摘要，内容只保存素材字段。即使用户共享 storage 目录，
         文件中也不应出现关键词、API Key 或其它请求配置。
         """
+        item = self._item()
+        item.source_info["source_page"] += "?token=drop"
+        item.source_info["creator"]["profile_page"] += "?key=drop"
         material_cache.save_material_search_cache(
             provider="pixabay",
             search_term="private search term",
             minimum_duration=5,
             video_aspect=VideoAspect.portrait,
-            items=[self._item()],
+            items=[item],
         )
         cache_files = list(Path(self.temp_dir.name).glob("*.json"))
 
         self.assertEqual(len(cache_files), 1)
         self.assertNotIn("private search term", cache_files[0].name)
-        payload = json.loads(cache_files[0].read_text(encoding="utf-8"))
+        raw_payload = cache_files[0].read_text(encoding="utf-8")
+        payload = json.loads(raw_payload)
         self.assertEqual(set(payload), {"version", "items"})
+        self.assertNotIn("private search term", raw_payload)
+        self.assertNotIn("token=drop", raw_payload)
+
+    def test_coverr_signed_urls_are_never_cached(self):
+        """Coverr 下载地址包含签名 JWT，不能进入可长期保留的磁盘缓存。"""
+        item = self._item(
+            "https://storage.coverr.co/video/download?token=signed-jwt"
+        )
+        item.provider = "coverr"
+        item.source_info["provider"] = "coverr"
+
+        saved = material_cache.save_material_search_cache(
+            provider="coverr",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+            items=[item],
+        )
+
+        self.assertFalse(saved)
+        self.assertEqual(list(Path(self.temp_dir.name).glob("*.json")), [])
+
+    def test_coverr_cache_load_removes_legacy_signed_url(self):
+        """访问 Coverr 时应清理旧版本可能留下的签名下载地址缓存。"""
+        cache_path = material_cache._cache_path(
+            provider="coverr",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "provider": "coverr",
+                            "url": "https://storage.coverr.co/video?token=signed-jwt",
+                            "duration": 12,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = material_cache.load_material_search_cache(
+            provider="coverr",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+
+        self.assertIsNone(loaded)
+        self.assertFalse(cache_path.exists())
+
+    def test_version_one_cache_is_invalidated(self):
+        """旧缓存缺少来源信息，升级后必须重新查询而不能生成残缺任务记录。"""
+        cache_path = self._cache_path()
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "provider": "pixabay",
+                            "url": "https://example.com/old.mp4",
+                            "duration": 12,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = material_cache.load_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+
+        self.assertIsNone(loaded)
+        self.assertFalse(cache_path.exists())
 
     def test_cache_key_separates_provider_duration_and_aspect(self):
         """
