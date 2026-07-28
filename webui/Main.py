@@ -3442,6 +3442,32 @@ def _render_subtitle_settings(panel, params):
                 key="subtitle_enabled_checkbox",
             )
             subtitle_settings_disabled = not params.subtitle_enabled
+
+            subtitle_providers = [
+                (tr("Edge/Azure TTS timing"), "edge"),
+                (tr("Whisper (transcribe audio)"), "whisper"),
+            ]
+            saved_subtitle_provider = config.app.get("subtitle_provider", "edge")
+            selected_subtitle_provider = stable_selectbox(
+                tr("Subtitle Provider"),
+                options=[value for _, value in subtitle_providers],
+                default_value=saved_subtitle_provider,
+                key="subtitle_provider_select",
+                format_func=lambda value: dict(
+                    (v, label) for label, v in subtitle_providers
+                )[value],
+                disabled=subtitle_settings_disabled,
+            )
+            config.app["subtitle_provider"] = selected_subtitle_provider
+            if selected_subtitle_provider == "whisper":
+                st.caption(
+                    tr(
+                        "Required when using an uploaded/local audio file — Edge/Azure "
+                        "timing only exists for generated TTS narration. First use "
+                        "downloads a transcription model."
+                    )
+                )
+
             font_names = get_all_fonts()
             saved_font_name = config.ui.get(
                 "font_name", DEFAULT_SUBTITLE_SETTINGS["font_name"]

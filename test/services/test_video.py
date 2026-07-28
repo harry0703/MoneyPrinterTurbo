@@ -1045,5 +1045,48 @@ class TestMaterialResolutionTolerance(unittest.TestCase):
         self.assertFalse(vd.is_material_resolution_acceptable(320, 240))
 
 
+class TestResizeClipToCover(unittest.TestCase):
+    """
+    landscape 素材配 portrait 目标画幅时，历史实现会按宽度适配缩放，
+    上下留出黑边（letterbox）。回归验证：新的裁剪填满逻辑必须让画面
+    铺满目标画幅，不再出现黑边。
+    """
+
+    def _make_landscape_clip(self, width=1920, height=1080):
+        from moviepy import ColorClip
+
+        # 纯色素材：非黑色，方便断言输出帧里完全不含黑边像素。
+        return ColorClip(size=(width, height), color=(200, 100, 50)).with_duration(1)
+
+    def test_output_size_matches_target_portrait_frame(self):
+        clip = self._make_landscape_clip()
+        result = vd.resize_clip_to_cover(clip, target_width=1080, target_height=1920)
+        self.assertEqual(result.size, (1080, 1920))
+
+    def test_no_black_letterbox_bars_remain(self):
+        clip = self._make_landscape_clip()
+        result = vd.resize_clip_to_cover(clip, target_width=1080, target_height=1920)
+        frame = result.get_frame(0)
+
+        # Letterbox bars are solid black rows at the top/bottom of the frame.
+        # A crop-to-fill result must be the source color across every row.
+        top_row = frame[0]
+        bottom_row = frame[-1]
+        self.assertFalse((top_row == 0).all(), "top row is black: letterbox bar present")
+        self.assertFalse((bottom_row == 0).all(), "bottom row is black: letterbox bar present")
+
+    def test_matching_aspect_ratio_is_resized_without_cropping(self):
+        # Same 9:16 ratio as the target but a different absolute size —
+        # exercises the plain-resize branch, not the crop-to-cover branch.
+        clip = self._make_landscape_clip(width=540, height=960)
+        result = vd.resize_clip_to_cover(clip, target_width=1080, target_height=1920)
+        self.assertEqual(result.size, (1080, 1920))
+
+    def test_identical_size_returns_clip_unchanged(self):
+        clip = self._make_landscape_clip(width=1080, height=1920)
+        result = vd.resize_clip_to_cover(clip, target_width=1080, target_height=1920)
+        self.assertIs(result, clip)
+
+
 if __name__ == "__main__":
     unittest.main()
