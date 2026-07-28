@@ -227,6 +227,16 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(get_llm_provider("openai").default_model, "gpt-5.5")
         self.assertEqual(get_llm_provider("aimlapi").default_model, "openai/gpt-5-5")
         self.assertEqual(get_llm_provider("deepseek").default_model, "deepseek-v4-pro")
+        atlascloud = get_llm_provider("atlascloud")
+        self.assertEqual(
+            atlascloud.default_model,
+            "deepseek-ai/deepseek-v4-pro",
+        )
+        self.assertEqual(
+            atlascloud.default_base_url,
+            "https://api.atlascloud.ai/v1",
+        )
+        self.assertEqual(atlascloud.adapter, "openai_compatible")
         self.assertEqual(
             get_llm_provider("modelscope").default_model, "ZhipuAI/GLM-5.2"
         )
@@ -280,6 +290,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "grok",
                 "minimax",
                 "mimo",
+                "atlascloud",
                 "cloudflare",
                 "modelscope",
                 "aihubmix",
