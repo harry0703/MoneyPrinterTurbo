@@ -1,9 +1,11 @@
+import io
 import os
 import re
 from typing import Optional
 
 import requests
 from loguru import logger
+from PIL import Image
 
 from app.config import config
 from app.utils import utils
@@ -72,11 +74,13 @@ def fetch_company_logo(company_name: str) -> str:
     解析公司名到本地缓存的 Logo PNG 路径；任何失败都返回空字符串，
     调用方据此跳过该公司的 Logo 叠加，不应让整条视频生成任务失败。
     """
-    cache_path = _cache_path(company_name)
-    if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
-        return cache_path
-
     try:
+        # Compute cache path (may raise FileExistsError on TOCTOU race or
+        # AttributeError on non-string company_name; both must degrade to "")
+        cache_path = _cache_path(company_name)
+        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+            return cache_path
+
         filename = _find_wikidata_logo_filename(company_name)
         if not filename:
             logger.warning(f"no Wikidata logo (P154) found for company: {company_name}")
@@ -89,6 +93,16 @@ def fetch_company_logo(company_name: str) -> str:
         if r.status_code != 200 or not r.content:
             logger.warning(
                 f"failed to download logo for {company_name}: HTTP {r.status_code}"
+            )
+            return ""
+
+        # Validate downloaded bytes are a decodable image before caching
+        try:
+            img = Image.open(io.BytesIO(r.content))
+            img.verify()
+        except Exception as img_err:
+            logger.warning(
+                f"downloaded bytes for {company_name} are not a valid image: {img_err}"
             )
             return ""
 
