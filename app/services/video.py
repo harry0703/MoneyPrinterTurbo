@@ -14,7 +14,6 @@ from loguru import logger
 import numpy as np
 from moviepy import (
     AudioFileClip,
-    ColorClip,
     CompositeAudioClip,
     CompositeVideoClip,
     ImageClip,
@@ -111,6 +110,33 @@ def is_material_resolution_acceptable(width: int, height: int) -> bool:
     """
     min_dimension = _MIN_MATERIAL_DIMENSION - _MIN_DIMENSION_TOLERANCE
     return width >= min_dimension and height >= min_dimension
+
+
+def resize_clip_to_cover(clip, target_width: int, target_height: int):
+    """
+    将素材缩放到完全覆盖目标画幅，再居中裁剪多出的部分。
+
+    素材与目标画幅比例不一致时（例如横版素材配竖版 9:16），按较大的
+    缩放比例放大以填满画幅，避免出现黑边；超出画幅的部分居中裁掉。
+    """
+    clip_w, clip_h = clip.size
+    if clip_w == target_width and clip_h == target_height:
+        return clip
+
+    clip_ratio = clip_w / clip_h
+    target_ratio = target_width / target_height
+    if clip_ratio == target_ratio:
+        return clip.resized(new_size=(target_width, target_height))
+
+    scale_factor = max(target_width / clip_w, target_height / clip_h)
+    new_width = int(clip_w * scale_factor)
+    new_height = int(clip_h * scale_factor)
+    return clip.resized(new_size=(new_width, new_height)).cropped(
+        x_center=new_width / 2,
+        y_center=new_height / 2,
+        width=target_width,
+        height=target_height,
+    )
 
 
 def _prioritize_unique_source_clips(
@@ -644,24 +670,11 @@ def combine_videos(
             # Not all videos are same size, so we need to resize them
             clip_w, clip_h = clip.size
             if clip_w != video_width or clip_h != video_height:
-                clip_ratio = clip.w / clip.h
-                video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
-                
-                if clip_ratio == video_ratio:
-                    clip = clip.resized(new_size=(video_width, video_height))
-                else:
-                    if clip_ratio > video_ratio:
-                        scale_factor = video_width / clip_w
-                    else:
-                        scale_factor = video_height / clip_h
-
-                    new_width = int(clip_w * scale_factor)
-                    new_height = int(clip_h * scale_factor)
-
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
-                    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
-                    clip = CompositeVideoClip([background, clip_resized])
+                logger.debug(
+                    f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_w / clip_h:.2f}, "
+                    f"target: {video_width}x{video_height}, ratio: {video_width / video_height:.2f}"
+                )
+                clip = resize_clip_to_cover(clip, video_width, video_height)
                     
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
