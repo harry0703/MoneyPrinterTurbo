@@ -686,6 +686,58 @@ Please note that you must use English for generating video search terms; Chinese
     return search_terms
 
 
+def generate_company_mentions(video_script: str) -> List[dict]:
+    """
+    从视频脚本中抽取提到的真实公司/品牌名称。
+
+    返回 [{"company_name": str, "script_line": str}, ...]；script_line 必须是
+    脚本中的原文整行，用于后续和字幕时间轴做文本匹配（复用 subtitle.py 里
+    correct() 已有的相似度匹配逻辑，而不是重新实现一套对齐算法）。任何解析
+    失败都返回空列表，不影响视频生成主流程。
+    """
+    prompt = f"""
+# Role: Company Name Extractor
+
+## Goals:
+Identify any real company or brand names mentioned in the video script below.
+
+## Constrains:
+1. return a json-array of objects, each with "company_name" and "script_line" keys.
+2. "script_line" must be copied verbatim from the script (the exact line the company was mentioned in).
+3. only include real, identifiable companies or brands - not generic terms.
+4. if no companies are mentioned, return an empty json-array: []
+5. you must only return the json-array. you must not return anything else.
+
+## Output Example:
+[{{"company_name": "Nike", "script_line": "Nike just released a new running shoe."}}]
+
+## Context:
+### Video Script
+{video_script}
+""".strip()
+
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt)
+            if response.startswith("Error: "):
+                logger.error(f"failed to generate company mentions: {response}")
+                return []
+            mentions = json.loads(_strip_code_fence(response))
+            if not isinstance(mentions, list):
+                logger.warning("company mentions response is not a list, retrying")
+                continue
+            return [
+                m
+                for m in mentions
+                if isinstance(m, dict)
+                and isinstance(m.get("company_name"), str)
+                and isinstance(m.get("script_line"), str)
+            ]
+        except Exception as e:
+            logger.warning(f"failed to generate company mentions: {e}")
+    return []
+
+
 # =============================================================================
 # Social publishing metadata
 #

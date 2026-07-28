@@ -1510,6 +1510,49 @@ class TestSocialMetadata(unittest.TestCase):
         )
 
 
+class TestGenerateCompanyMentions(unittest.TestCase):
+    @patch("app.services.llm._generate_response")
+    def test_returns_parsed_mentions_on_valid_json(self, mock_generate):
+        mock_generate.return_value = (
+            '[{"company_name": "Nike", "script_line": "Nike just dropped a new shoe."}]'
+        )
+
+        result = llm.generate_company_mentions("Nike just dropped a new shoe. It looks great.")
+
+        self.assertEqual(
+            result,
+            [{"company_name": "Nike", "script_line": "Nike just dropped a new shoe."}],
+        )
+
+    @patch("app.services.llm._generate_response")
+    def test_returns_empty_list_when_no_companies_mentioned(self, mock_generate):
+        mock_generate.return_value = "[]"
+
+        result = llm.generate_company_mentions("A calm walk through the forest.")
+
+        self.assertEqual(result, [])
+
+    @patch("app.services.llm._generate_response")
+    def test_returns_empty_list_on_provider_error(self, mock_generate):
+        mock_generate.return_value = "Error: quota exceeded"
+
+        result = llm.generate_company_mentions("Some script.")
+
+        self.assertEqual(result, [])
+
+    @patch("app.services.llm._generate_response")
+    def test_ignores_malformed_entries(self, mock_generate):
+        mock_generate.return_value = (
+            '[{"company_name": "Nike"}, {"company_name": "Adidas", "script_line": "Adidas too."}]'
+        )
+
+        result = llm.generate_company_mentions("Nike and Adidas both released shoes.")
+
+        self.assertEqual(
+            result, [{"company_name": "Adidas", "script_line": "Adidas too."}]
+        )
+
+
 FOUNDRY_KEY = os.environ.get("ANTHROPIC_FOUNDRY_API_KEY", "")
 FOUNDRY_BASE = "https://amanrai-test-resource.services.ai.azure.com/anthropic"
 FOUNDRY_MODEL = "azure_ai/claude-sonnet-4-6"
