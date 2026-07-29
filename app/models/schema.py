@@ -114,6 +114,12 @@ class VideoParams(BaseModel):
     text_background_color: Union[bool, str] = False
     rounded_subtitle_background: bool = False
 
+    logo_overlay_enabled: bool = False
+    logo_position: Optional[str] = config.ui.get(
+        "logo_position", "top-right"
+    )  # top-left, top-right, bottom-left, bottom-right
+    logo_size_percent: float = config.ui.get("logo_size_percent", 15.0)
+
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5

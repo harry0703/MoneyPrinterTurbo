@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.models.schema import VideoAspect
+from app.models.schema import VideoAspect, VideoParams
 
 
 class TestVideoAspect(unittest.TestCase):
@@ -16,6 +16,15 @@ class TestVideoAspect(unittest.TestCase):
     def test_to_resolution_rejects_unsupported_value(self):
         with self.assertRaises(ValueError):
             VideoAspect.to_resolution("4:5")
+
+
+class TestVideoParams(unittest.TestCase):
+    def test_video_params_logo_overlay_defaults(self):
+        params = VideoParams(video_subject="test")
+
+        self.assertFalse(params.logo_overlay_enabled)
+        self.assertEqual(params.logo_position, "top-right")
+        self.assertEqual(params.logo_size_percent, 15.0)
 
 
 if __name__ == "__main__":
