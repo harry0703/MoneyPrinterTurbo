@@ -11,7 +11,9 @@ from loguru import logger
 from app import __version__
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-config_file = f"{root_dir}/config.toml"
+config_file = os.path.abspath(
+    os.environ.get("MPT_CONFIG_FILE", f"{root_dir}/config.toml")
+)
 _CONTAINER_CGROUP_MARKERS = ("docker", "containerd", "kubepods", "libpod", "podman")
 _DOCKER_HOST_GATEWAY_NAME = "host.docker.internal"
 _config_save_lock = threading.RLock()
@@ -149,8 +151,7 @@ def _decode_linux_route_gateway(hex_gateway: str) -> str:
         raise ValueError("invalid gateway length")
 
     octets = [
-        str(int(hex_gateway[index : index + 2], 16))
-        for index in range(6, -1, -2)
+        str(int(hex_gateway[index : index + 2], 16)) for index in range(6, -1, -2)
     ]
     return ".".join(octets)
 
@@ -218,6 +219,10 @@ def get_default_ollama_base_url() -> str:
 
 
 def load_config():
+    config_dir = os.path.dirname(config_file)
+    if config_dir:
+        os.makedirs(config_dir, exist_ok=True)
+
     # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurbo/config.toml'
     if os.path.isdir(config_file):
         shutil.rmtree(config_file)
@@ -277,7 +282,7 @@ def save_config():
             fd, temp_path = tempfile.mkstemp(
                 prefix=".config-",
                 suffix=".toml.tmp",
-                dir=root_dir,
+                dir=os.path.dirname(config_file) or root_dir,
             )
             with os.fdopen(fd, mode="w", encoding="utf-8") as f:
                 f.write(serialized_config)

@@ -241,6 +241,13 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
         self.assertTrue(pollinations.requires_api_key)
         self.assertEqual(pollinations.adapter, "openai_compatible")
+        opencode_go = get_llm_provider("opencode_go")
+        self.assertEqual(opencode_go.default_model, "mimo-v2.5")
+        self.assertEqual(
+            opencode_go.default_base_url,
+            "https://opencode.ai/zen/go/v1",
+        )
+        self.assertEqual(opencode_go.adapter, "openai_compatible")
 
     def test_provider_defaults_are_not_persisted_as_user_overrides(self):
         """默认值只用于运行和展示，只有不同值才应写入用户配置。"""
@@ -285,6 +292,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "aihubmix",
                 "aimlapi",
                 "evolink",
+                "opencode_go",
                 "ollama",
                 "oneapi",
                 "litellm",
@@ -486,6 +494,68 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         openai_client.assert_not_called()
         self.assertIn("api_key is not set", result)
+
+    def test_opencode_go_requires_api_key_before_request(self):
+        """OpenCode Go 缺少订阅密钥时不得发送匿名请求。"""
+        config.app.update(
+            {
+                "llm_provider": "opencode_go",
+                "opencode_go_api_key": "",
+                "opencode_go_base_url": "",
+                "opencode_go_model_name": "",
+            }
+        )
+
+        with patch.object(llm, "OpenAI") as openai_client:
+            result = llm._generate_response("test")
+
+        openai_client.assert_not_called()
+        self.assertIn("api_key is not set", result)
+
+    def test_opencode_go_uses_raw_model_id_and_chat_completions(self):
+        """
+        OpenCode Go 直接 API 使用原始模型 ID，并复用 OpenAI-compatible
+        Chat Completions；不能传入 OpenCode 客户端的 provider/model 前缀。
+        """
+        config.app.update(
+            {
+                "llm_provider": "opencode_go",
+                "opencode_go_api_key": "opencode-go-test-key",
+                "opencode_go_base_url": "",
+                "opencode_go_model_name": "",
+            }
+        )
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="OK")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Reply with exactly: OK")
+
+        openai_client.assert_called_once_with(
+            api_key="opencode-go-test-key",
+            base_url="https://opencode.ai/zen/go/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "mimo-v2.5",
+                "messages": [{"role": "user", "content": "Reply with exactly: OK"}],
+            },
+        )
+        self.assertEqual(result, "OK")
 
     def test_pollinations_uses_unified_openai_compatible_api(self):
         """历史地址和模型名应自动迁移，并通过统一 Chat Completions API 调用。"""

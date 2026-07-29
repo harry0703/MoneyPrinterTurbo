@@ -205,6 +205,13 @@ LLM_PROVIDER_REGISTRY = (
         default_model="gpt-5.5",
         default_base_url="https://direct.evolink.ai/v1",
     ),
+    LLMProviderSpec(
+        "opencode_go",
+        "OpenCode Go",
+        api_key_url="https://opencode.ai/docs/zh-cn/go",
+        default_model="mimo-v2.5",
+        default_base_url="https://opencode.ai/zen/go/v1",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

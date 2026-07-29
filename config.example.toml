@@ -173,6 +173,13 @@ evolink_api_key = ""
 evolink_base_url = ""
 evolink_model_name = ""
 
+# OpenCode Go. Direct API calls use the raw model ID, such as "mimo-v2.5",
+# rather than the OpenCode client format "opencode-go/mimo-v2.5".
+# API key and model documentation: https://opencode.ai/docs/zh-cn/go
+opencode_go_api_key = ""
+opencode_go_base_url = ""
+opencode_go_model_name = ""
+
 # Ollama. Leave base_url empty to use the environment-aware local default.
 # Set model_name to a model installed by `ollama pull` or shown by `ollama list`.
 ollama_base_url = ""
