@@ -34,6 +34,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
+from app.services import subtitle
 from app.services.utils import video_effects
 from app.utils import file_security, utils
 
@@ -137,6 +138,91 @@ def resize_clip_to_cover(clip, target_width: int, target_height: int):
         width=target_width,
         height=target_height,
     )
+
+
+_LOGO_OVERLAY_MARGIN = 24
+_LOGO_MATCH_MIN_SIMILARITY = 0.5
+
+
+def _logo_overlay_position(
+    position: str, video_width: int, video_height: int, logo_w: int, logo_h: int
+) -> tuple:
+    margin = _LOGO_OVERLAY_MARGIN
+    if position == "top-left":
+        return (margin, margin)
+    if position == "bottom-left":
+        return (margin, video_height - logo_h - margin)
+    if position == "bottom-right":
+        return (video_width - logo_w - margin, video_height - logo_h - margin)
+    # default: top-right
+    return (video_width - logo_w - margin, margin)
+
+
+def build_logo_overlay_clips(
+    subtitles,
+    company_logos: list,
+    video_width: int,
+    video_height: int,
+    position: str = "top-right",
+    size_percent: float = 15.0,
+) -> list:
+    """
+    根据字幕时间轴，为脚本中提到的公司生成带淡入淡出的 Logo 叠加片段。
+
+    subtitles: moviepy SubtitlesClip.subtitles 格式，[((start, end), text), ...]
+    company_logos: [{"company_name", "script_line", "logo_path"}, ...]，
+        script_line 与字幕文本做相似度匹配以确定显示时间窗口。
+
+    两个公司的显示区间重叠时，只保留先处理的一个，避免同一角落堆叠两个
+    Logo；任何单条素材加载失败都跳过该条，不影响其余 Logo 或视频生成。
+    """
+    if not company_logos:
+        return []
+
+    logo_clips = []
+    covered_until = 0.0
+    target_width = max(1, int(video_width * size_percent / 100.0))
+
+    for mention in company_logos:
+        script_line = (mention.get("script_line") or "").strip()
+        logo_path = mention.get("logo_path")
+        if not script_line or not logo_path or not os.path.exists(logo_path):
+            continue
+
+        best_window = None
+        best_score = 0.0
+        for window, text in subtitles:
+            score = subtitle.similarity(script_line, text)
+            if score > best_score:
+                best_score = score
+                best_window = window
+
+        if best_window is None or best_score < _LOGO_MATCH_MIN_SIMILARITY:
+            continue
+
+        start, end = best_window
+        if start < covered_until:
+            continue
+
+        try:
+            logo_clip = ImageClip(logo_path).resized(width=target_width)
+        except Exception as e:
+            logger.warning(
+                f"failed to load logo image for {mention.get('company_name')}: {e}"
+            )
+            continue
+
+        pos = _logo_overlay_position(
+            position, video_width, video_height, logo_clip.w, logo_clip.h
+        )
+        fade_duration = min(0.5, max(0.01, (end - start) / 2))
+        logo_clip = logo_clip.with_start(start).with_end(end).with_position(pos)
+        logo_clip = video_effects.fadein_transition(logo_clip, fade_duration)
+        logo_clip = video_effects.fadeout_transition(logo_clip, fade_duration)
+        logo_clips.append(logo_clip)
+        covered_until = end
+
+    return logo_clips
 
 
 def _prioritize_unique_source_clips(
@@ -988,6 +1074,7 @@ def generate_video(
     output_file: str,
     params: VideoParams,
     bgm_file_override: str | None = None,
+    company_logos: list | None = None,
 ) -> bool:
     """
     合成最终视频，并返回本次背景音乐处理是否成功。
@@ -1210,7 +1297,19 @@ def generate_video(
             for item in sub.subtitles:
                 clip = create_text_clip(subtitle_item=item)
                 text_clips.append(clip)
-            video_clip = CompositeVideoClip([video_clip, *text_clips])
+
+            logo_clips = []
+            if getattr(params, "logo_overlay_enabled", False) and company_logos:
+                logo_clips = build_logo_overlay_clips(
+                    subtitles=sub.subtitles,
+                    company_logos=company_logos,
+                    video_width=video_width,
+                    video_height=video_height,
+                    position=getattr(params, "logo_position", "top-right"),
+                    size_percent=getattr(params, "logo_size_percent", 15.0),
+                )
+
+            video_clip = CompositeVideoClip([video_clip, *text_clips, *logo_clips])
             clip_stack.callback(video_clip.close)
 
         bgm_enabled = bgm_service.should_use_bgm(

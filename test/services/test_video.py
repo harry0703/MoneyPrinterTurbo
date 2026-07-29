@@ -1088,5 +1088,102 @@ class TestResizeClipToCover(unittest.TestCase):
         self.assertIs(result, clip)
 
 
+class TestBuildLogoOverlayClips(unittest.TestCase):
+    def _make_logo_png(self, tmp_dir, name="logo.png", size=(200, 100)):
+        from PIL import Image
+
+        path = os.path.join(tmp_dir, name)
+        Image.new("RGBA", size, (255, 0, 0, 255)).save(path)
+        return path
+
+    def test_returns_empty_list_when_no_company_logos(self):
+        result = vd.build_logo_overlay_clips(
+            subtitles=[((0, 2), "Hello world")],
+            company_logos=[],
+            video_width=1080,
+            video_height=1920,
+        )
+        self.assertEqual(result, [])
+
+    def test_skips_mention_with_no_matching_subtitle(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            logo_path = self._make_logo_png(tmp_dir)
+            result = vd.build_logo_overlay_clips(
+                subtitles=[((0, 2), "Completely unrelated narration text")],
+                company_logos=[
+                    {
+                        "company_name": "Nike",
+                        "script_line": "Nike just dropped a new shoe",
+                        "logo_path": logo_path,
+                    }
+                ],
+                video_width=1080,
+                video_height=1920,
+            )
+            self.assertEqual(result, [])
+
+    def test_creates_timed_clip_matching_subtitle_window(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            logo_path = self._make_logo_png(tmp_dir)
+            result = vd.build_logo_overlay_clips(
+                subtitles=[((3.0, 5.5), "Nike just dropped a new shoe today")],
+                company_logos=[
+                    {
+                        "company_name": "Nike",
+                        "script_line": "Nike just dropped a new shoe today",
+                        "logo_path": logo_path,
+                    }
+                ],
+                video_width=1080,
+                video_height=1920,
+            )
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0].start, 3.0)
+            self.assertEqual(result[0].end, 5.5)
+
+    def test_second_overlapping_mention_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            logo_path = self._make_logo_png(tmp_dir)
+            result = vd.build_logo_overlay_clips(
+                subtitles=[
+                    ((0.0, 3.0), "Nike just dropped a new shoe"),
+                    ((1.0, 2.0), "Adidas also released one"),
+                ],
+                company_logos=[
+                    {
+                        "company_name": "Nike",
+                        "script_line": "Nike just dropped a new shoe",
+                        "logo_path": logo_path,
+                    },
+                    {
+                        "company_name": "Adidas",
+                        "script_line": "Adidas also released one",
+                        "logo_path": logo_path,
+                    },
+                ],
+                video_width=1080,
+                video_height=1920,
+            )
+            self.assertEqual(len(result), 1)
+
+    def test_logo_size_matches_configured_percent_of_frame_width(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            logo_path = self._make_logo_png(tmp_dir, size=(200, 100))
+            result = vd.build_logo_overlay_clips(
+                subtitles=[((0.0, 2.0), "Nike just dropped a new shoe")],
+                company_logos=[
+                    {
+                        "company_name": "Nike",
+                        "script_line": "Nike just dropped a new shoe",
+                        "logo_path": logo_path,
+                    }
+                ],
+                video_width=1000,
+                video_height=1920,
+                size_percent=20.0,
+            )
+            self.assertEqual(result[0].w, 200)  # 1000 * 20% = target width
+
+
 if __name__ == "__main__":
     unittest.main()
