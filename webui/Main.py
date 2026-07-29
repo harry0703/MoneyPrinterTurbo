@@ -3684,6 +3684,48 @@ def _render_subtitle_settings(panel, params):
                 st.toast(tr("Default Subtitle Settings Restored"))
 
 
+def _render_logo_overlay_settings(panel, params):
+    """渲染公司 Logo 叠加设置并更新生成参数。"""
+    with panel:
+        with st.container(border=True):
+            st.write(tr("Company Logo Overlay"))
+            st.session_state.setdefault("logo_overlay_enabled_checkbox", False)
+            params.logo_overlay_enabled = st.checkbox(
+                tr("Enable Company Logo Overlay"),
+                key="logo_overlay_enabled_checkbox",
+            )
+            logo_settings_disabled = not params.logo_overlay_enabled
+
+            logo_positions = [
+                (tr("Top Left"), "top-left"),
+                (tr("Top Right"), "top-right"),
+                (tr("Bottom Left"), "bottom-left"),
+                (tr("Bottom Right"), "bottom-right"),
+            ]
+            saved_logo_position = config.ui.get("logo_position", "top-right")
+            params.logo_position = stable_selectbox(
+                tr("Logo Position"),
+                options=[value for _, value in logo_positions],
+                default_value=saved_logo_position,
+                key="logo_position_select",
+                format_func=lambda value: dict(
+                    (v, label) for label, v in logo_positions
+                )[value],
+                disabled=logo_settings_disabled,
+            )
+            config.ui["logo_position"] = params.logo_position
+
+            params.logo_size_percent = st.slider(
+                tr("Logo Size (% of frame width)"),
+                min_value=8,
+                max_value=30,
+                value=int(config.ui.get("logo_size_percent", 15)),
+                key="logo_size_percent_slider",
+                disabled=logo_settings_disabled,
+            )
+            config.ui["logo_size_percent"] = params.logo_size_percent
+
+
 def _render_generation_controls(
     params, uploaded_files, uploaded_audio_file, uploaded_bgm_file, voice_mode
 ):
@@ -3966,6 +4008,7 @@ def _render_application():
     )
 
     _render_subtitle_settings(right_panel, params)
+    _render_logo_overlay_settings(right_panel, params)
 
     generation_submitted = _render_generation_controls(
         params,
