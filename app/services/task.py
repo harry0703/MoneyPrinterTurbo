@@ -18,6 +18,7 @@ from app.services import bgm as bgm_service
 from app.services import (
     elevenlabs_music,
     llm,
+    logo,
     material,
     sonilo,
     subtitle,
@@ -505,6 +506,23 @@ def generate_audio(task_id, params, video_script, voice_preview=None):
             return None, None, None
         return custom_audio_file, audio_duration, None
 
+def _resolve_company_logos(video_script: str, logo_overlay_enabled: bool) -> list:
+    """
+    检测脚本中提到的公司并解析出本地 Logo 文件路径。特性关闭、未检测到
+    公司、或 Logo 获取失败时都返回空列表，视频照常不带 Logo 生成。
+    """
+    if not logo_overlay_enabled:
+        return []
+
+    mentions = llm.generate_company_mentions(video_script)
+    resolved = []
+    for mention in mentions:
+        logo_path = logo.fetch_company_logo(mention["company_name"])
+        if logo_path:
+            resolved.append({**mention, "logo_path": logo_path})
+    return resolved
+
+
 def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     '''
     Generate subtitle for the video script.
@@ -606,7 +624,13 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
 
 
 def generate_final_videos(
-    task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
+    task_id,
+    params,
+    downloaded_videos,
+    audio_file,
+    subtitle_path,
+    audio_duration,
+    company_logos=None,
 ):
     final_video_paths = []
     combined_video_paths = []
@@ -687,6 +711,7 @@ def generate_final_videos(
             output_file=final_video_path,
             params=params,
             bgm_file_override=bgm_file_override,
+            company_logos=company_logos,
         )
         if (
             video_music_provider is not None
@@ -1168,6 +1193,10 @@ def _run_pipeline(
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
+    company_logos = _resolve_company_logos(
+        video_script, getattr(params, "logo_overlay_enabled", False)
+    )
+
     # 5. Get video materials
     downloaded_videos = get_video_materials(
         task_id, params, video_terms, audio_duration
@@ -1203,6 +1232,7 @@ def _run_pipeline(
         audio_file,
         subtitle_path,
         audio_duration,
+        company_logos,
     )
 
     if not final_video_paths:

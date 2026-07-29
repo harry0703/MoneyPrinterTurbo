@@ -1583,7 +1583,48 @@ class TestTaskService(unittest.TestCase):
         )
         result = tm.start(task_id=task_id, params=params)
         print(result)
-    
+
+
+class TestCompanyLogoResolution(unittest.TestCase):
+    def test_resolve_company_logos_skips_mentions_with_no_logo_found(self):
+        mentions = [
+            {"company_name": "Nike", "script_line": "Nike released a shoe."},
+            {"company_name": "Unknown Corp", "script_line": "Unknown Corp did a thing."},
+        ]
+        with (
+            patch.object(tm.llm, "generate_company_mentions", return_value=mentions) as mock_mentions,
+            patch.object(
+                tm.logo,
+                "fetch_company_logo",
+                side_effect=lambda name: "/cache/nike.png" if name == "Nike" else "",
+            ) as mock_fetch,
+        ):
+            result = tm._resolve_company_logos(
+                "Nike released a shoe.", logo_overlay_enabled=True
+            )
+
+        mock_mentions.assert_called_once_with("Nike released a shoe.")
+        self.assertEqual(mock_fetch.call_count, 2)
+        self.assertEqual(
+            result,
+            [
+                {
+                    "company_name": "Nike",
+                    "script_line": "Nike released a shoe.",
+                    "logo_path": "/cache/nike.png",
+                }
+            ],
+        )
+
+    def test_resolve_company_logos_returns_empty_when_feature_disabled(self):
+        with patch.object(tm.llm, "generate_company_mentions") as mock_mentions:
+            result = tm._resolve_company_logos(
+                "Nike released a shoe.", logo_overlay_enabled=False
+            )
+
+        self.assertEqual(result, [])
+        mock_mentions.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
