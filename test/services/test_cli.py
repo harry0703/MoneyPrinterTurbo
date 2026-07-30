@@ -117,6 +117,11 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.video_source, "coverr")
 
+    def test_youtube_video_source_accepted(self):
+        args = cli.parse_args(["--video-subject", "test", "--video-source", "youtube"])
+        params = cli.build_video_params(args)
+        self.assertEqual(params.video_source, "youtube")
+
     def test_build_video_params_with_script_video_and_audio_options(self):
         args = cli.parse_args(
             [

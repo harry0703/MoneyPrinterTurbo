@@ -127,7 +127,7 @@
 - [x] 支持 **Edge TTS**、**Azure Speech**、**SiliconFlow**、**Google Gemini**、**小米 MiMo**、**ElevenLabs** 和 **Chatterbox** 语音合成，可实时试听
 - [x] 支持 **字幕生成**，可调整字体、位置、颜色、大小、描边和背景样式
 - [x] 支持 **背景音乐**，可随机选择或使用指定音乐，并调整音量
-- [x] 支持使用自己的 **本地素材**，也可从 **Pexels**、**Pixabay** 和 **Coverr** 获取可免费使用的高清素材
+- [x] 支持使用自己的 **本地素材**，也可从 **Pexels**、**Pixabay**、**Coverr** 和 **YouTube（yt-dlp）** 获取视频素材
 - [x] 支持 **Kimi / Moonshot AI**、**OpenAI**、**Google Gemini**、**DeepSeek**、**阿里云通义千问**、**Microsoft Azure OpenAI**、**火山引擎方舟**、**xAI Grok**、**MiniMax**、**小米 MiMo** 等主流模型服务，并兼容 **Cloudflare AI Gateway**、**魔搭 ModelScope**、**AIHubMix**、**AIML API**、**EvoLink**、**Ollama**、**OneAPI**、**LiteLLM**、**Groq**、**Pollinations AI** 等统一网关、聚合平台和本地运行环境
 - [x] 支持一键 **跨平台发布**，生成完成后可自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**
 
@@ -234,6 +234,25 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 #### ② 配置项目（可选）
 
 首次启动时，项目会根据 `config.example.toml` 自动创建 `config.toml`。大模型 Provider、素材来源和相关 API Key 可以直接在 WebUI 的基础设置中配置。
+
+#### YouTube 视频素材源（yt-dlp）
+
+如果你想把 YouTube 作为视频素材源，只需要额外安装 `yt-dlp`，不需要 YouTube 官方 API Key。
+
+```shell
+pip install yt-dlp
+```
+
+如果你的环境没有可用的 FFmpeg，也请先安装并确认它在 `PATH` 中。
+
+然后在 `config.toml` 或 WebUI 中把素材源切换为：
+
+```toml
+[app]
+video_source = "youtube"
+```
+
+YouTube 只是额外素材来源，用户仍需自行确保所使用内容具备合适的授权、许可或其他使用依据。
 
 ### Docker 部署 🐳
 

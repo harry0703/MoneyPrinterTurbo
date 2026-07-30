@@ -128,7 +128,7 @@ Thanks to [Kimi](https://platform.kimi.ai/?aff=MoneyPrinterTurbo) for sponsoring
 - [x] Supports **Edge TTS**, **Azure Speech**, **SiliconFlow**, **Google Gemini**, **Xiaomi MiMo**, **ElevenLabs**, and **Chatterbox** speech synthesis with real-time previews
 - [x] Supports **subtitle generation** with configurable fonts, position, color, size, outline, and background styles
 - [x] Supports random or custom **background music** with adjustable volume
-- [x] Supports your own **local assets** and free-to-use HD footage from **Pexels**, **Pixabay**, and **Coverr**
+- [x] Supports your own **local assets** and video footage from **Pexels**, **Pixabay**, **Coverr**, and **YouTube (yt-dlp)**
 - [x] Supports leading model providers including **Kimi / Moonshot AI**, **OpenAI**, **Google Gemini**, **DeepSeek**, **Alibaba Cloud Qwen**, **Microsoft Azure OpenAI**, **ByteDance VolcEngine Ark**, **xAI Grok**, **MiniMax**, and **Xiaomi MiMo**, plus unified gateways, aggregators, and local runtimes such as **Cloudflare AI Gateway**, **Alibaba ModelScope**, **AIHubMix**, **AIML API**, **EvoLink**, **Ollama**, **OneAPI**, **LiteLLM**, **Groq**, and **Pollinations AI**
 - [x] Supports one-click **cross-platform publishing** to **TikTok**, **Instagram**, and **YouTube Shorts** after video generation
 
@@ -239,6 +239,25 @@ git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 #### ② Configure the Project (Optional)
 
 On first launch, the project creates `config.toml` from `config.example.toml`. You can configure the LLM provider, footage source, and related API keys directly in the WebUI basic settings.
+
+### YouTube footage source (yt-dlp)
+
+To use YouTube as a footage source, install `yt-dlp` first. No official YouTube API key is required.
+
+```shell
+pip install yt-dlp
+```
+
+If FFmpeg is not already available on your system, install it and make sure it is on `PATH`.
+
+Then switch the footage source in `config.toml` or in the WebUI:
+
+```toml
+[app]
+video_source = "youtube"
+```
+
+YouTube is provided as an additional source of footage. You are responsible for using content with the appropriate permissions, licenses, or other legal basis.
 
 ### Docker Deployment 🐳
 

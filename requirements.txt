@@ -20,3 +20,4 @@ socksio==1.0.0
 pydub==0.25.1
 audioop-lts==0.2.2; python_version >= "3.13"
 litellm==1.86.2
+yt-dlp==2026.06.09

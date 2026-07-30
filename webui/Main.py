@@ -2226,6 +2226,7 @@ def _render_video_settings(panel, params):
                 (tr("Pexels"), "pexels"),
                 (tr("Pixabay"), "pixabay"),
                 (tr("Coverr"), "coverr"),
+                (tr("YouTube"), "youtube"),
                 (tr("Local file"), "local"),
             ]
 
@@ -2306,13 +2307,13 @@ def _render_video_settings(panel, params):
                 (tr("Portrait"), VideoAspect.portrait.value),
                 (tr("Landscape"), VideoAspect.landscape.value),
             ]
-            # Coverr 库 99% 是 16:9 横屏,默认竖屏会让画面被大量黑边包围。
+            # Coverr 和 YouTube 的素材大多是 16:9 横屏,默认竖屏会让画面被大量黑边包围。
             # 用 source-specific widget key 让每个 source 各自记忆 aspect 选择:
             #   - 首次切到 coverr → 默认 Landscape(index=1)
             #   - 其他 source 沿用 Portrait(index=0)
             #   - 用户在某 source 下手动改过 aspect,session_state 会记住,
             #     下次回到同一 source 时尊重用户选择,不会再被强制覆盖。
-            default_aspect_index = 1 if params.video_source == "coverr" else 0
+            default_aspect_index = 1 if params.video_source in {"coverr", "youtube"} else 0
             selected_aspect_ratio = stable_selectbox(
                 tr("Video Ratio"),
                 options=[value for _, value in video_aspect_ratios],
@@ -3712,7 +3713,7 @@ def _render_generation_controls(
             st.error(tr("Video Script and Subject Cannot Both Be Empty"))
             st.stop()
 
-        if params.video_source not in ["pexels", "pixabay", "coverr", "local"]:
+        if params.video_source not in ["pexels", "pixabay", "coverr", "youtube", "local"]:
             _remove_active_generation_task(task_id)
             st.error(tr("Please Select a Valid Video Source"))
             st.stop()

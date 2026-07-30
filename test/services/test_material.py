@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
 from app.services import material
+from app.services.youtube_provider import YoutubeProvider
 
 
 class TestMaterialTlsVerification(unittest.TestCase):
@@ -765,6 +766,250 @@ class TestCoverrProvider(unittest.TestCase):
 
         # 3. 返回值正确
         self.assertEqual(result, ["/tmp/coverr-saved.mp4"])
+
+
+class TestYoutubeProvider(unittest.TestCase):
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        self.original_proxy_config = dict(config.proxy)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        config.proxy.clear()
+        config.proxy.update(self.original_proxy_config)
+
+    def test_search_youtube_ranks_and_filters_results(self):
+        """
+        YouTube 搜索必须通过 yt-dlp 取数，并按自定义规则优先选择：
+          - 非直播、非 Shorts、非私有视频
+          - 更高分辨率
+          - 更接近 16:9 横屏
+        """
+        config.app.pop("tls_verify", None)
+        config.proxy.clear()
+
+        search_entries = [
+            {
+                "id": "shorts-1",
+                "title": "Quick tip #shorts",
+                "duration": 45,
+                "webpage_url": "https://www.youtube.com/shorts/shorts-1",
+            },
+            {
+                "id": "live-1",
+                "title": "Live stream now",
+                "duration": 180,
+                "live_status": "is_live",
+                "webpage_url": "https://www.youtube.com/watch?v=live-1",
+            },
+            {
+                "id": "private-1",
+                "title": "Restricted video",
+                "duration": 120,
+                "availability": "private",
+                "webpage_url": "https://www.youtube.com/watch?v=private-1",
+            },
+            {
+                "id": "low-1",
+                "title": "Low resolution clip",
+                "duration": 60,
+                "webpage_url": "https://www.youtube.com/watch?v=low-1",
+            },
+            {
+                "id": "best-1",
+                "title": "Best resolution clip",
+                "duration": 90,
+                "webpage_url": "https://www.youtube.com/watch?v=best-1",
+            },
+        ]
+        detailed_results = {
+            "https://www.youtube.com/watch?v=low-1": {
+                "id": "low-1",
+                "title": "Low resolution clip",
+                "duration": 60,
+                "width": 1280,
+                "height": 720,
+                "webpage_url": "https://www.youtube.com/watch?v=low-1",
+                "channel": "Creator Low",
+                "channel_url": "https://www.youtube.com/@creatorlow",
+                "formats": [
+                    {
+                        "format_id": "18",
+                        "width": 1280,
+                        "height": 720,
+                        "ext": "mp4",
+                        "vcodec": "avc1",
+                        "acodec": "mp4a",
+                    }
+                ],
+                "availability": "public",
+            },
+            "https://www.youtube.com/watch?v=best-1": {
+                "id": "best-1",
+                "title": "Best resolution clip",
+                "duration": 90,
+                "width": 1920,
+                "height": 1080,
+                "webpage_url": "https://www.youtube.com/watch?v=best-1",
+                "channel": "Creator Best",
+                "channel_url": "https://www.youtube.com/@creatorbest",
+                "formats": [
+                    {
+                        "format_id": "137",
+                        "width": 1920,
+                        "height": 1080,
+                        "ext": "mp4",
+                        "vcodec": "avc1",
+                        "acodec": "none",
+                    },
+                    {
+                        "format_id": "140",
+                        "width": 0,
+                        "height": 0,
+                        "ext": "m4a",
+                        "vcodec": "none",
+                        "acodec": "mp4a",
+                    },
+                ],
+                "availability": "public",
+            },
+        }
+
+        class FakeYoutubeDL:
+            def __init__(self, opts):
+                self.opts = opts
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def extract_info(self, url, download=False):
+                if url.startswith("ytsearch"):
+                    return {"entries": search_entries}
+                return detailed_results[url]
+
+        fake_module = SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+
+        with patch(
+            "app.services.youtube_provider._load_yt_dlp", return_value=fake_module
+        ):
+            results = YoutubeProvider(search_limit=10).search(
+                "beautiful sunset",
+                minimum_duration=10,
+            )
+
+        self.assertEqual([item.provider for item in results], ["youtube", "youtube"])
+        self.assertEqual(
+            [item.source_info["asset_id"] for item in results],
+            ["best-1", "low-1"],
+        )
+        self.assertEqual(results[0].duration, 90)
+        self.assertEqual(results[0].source_info["creator"]["name"], "Creator Best")
+        self.assertEqual(
+            results[0].source_info["source_page"],
+            "https://www.youtube.com/watch?v=best-1",
+        )
+
+    def test_download_youtube_uses_yt_dlp_and_creates_mp4(self):
+        config.app.pop("tls_verify", None)
+        config.proxy.clear()
+
+        created_paths = []
+        seen_opts = []
+
+        class FakeYoutubeDL:
+            def __init__(self, opts):
+                self.opts = opts
+                seen_opts.append(opts)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def download(self, urls):
+                outtmpl = self.opts["outtmpl"].replace("%(ext)s", "mp4")
+                os.makedirs(os.path.dirname(outtmpl), exist_ok=True)
+                with open(outtmpl, "wb") as fp:
+                    fp.write(b"fake-youtube-video")
+                created_paths.append(outtmpl)
+                return 0
+
+        fake_module = SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+
+        class FakeVideoFileClip:
+            duration = 42
+            fps = 30
+
+            def __init__(self, path):
+                self.path = path
+
+            def close(self):
+                return None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch(
+                    "app.services.youtube_provider._load_yt_dlp",
+                    return_value=fake_module,
+                ),
+                patch("app.services.youtube_provider.VideoFileClip", FakeVideoFileClip),
+            ):
+                result = YoutubeProvider().download(
+                    "https://www.youtube.com/watch?v=download-me-1",
+                    save_dir=temp_dir,
+                )
+
+            self.assertTrue(result.endswith(".mp4"))
+            self.assertEqual(created_paths, [result])
+            self.assertTrue(os.path.exists(result))
+
+        self.assertEqual(seen_opts[0]["format"], "bv*+ba/b")
+        self.assertEqual(seen_opts[0]["merge_output_format"], "mp4")
+        self.assertEqual(seen_opts[0]["remuxvideo"], "mp4")
+
+    def test_download_videos_dispatches_to_youtube_provider(self):
+        item = material.MaterialInfo(
+            provider="youtube",
+            url="https://www.youtube.com/watch?v=dispatch-1",
+            duration=60,
+            source_info={"provider": "youtube", "asset_id": "dispatch-1"},
+        )
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(material, "search_videos_youtube", return_value=[item]),
+            patch.object(
+                material._youtube_provider,
+                "get_video",
+                return_value="/tmp/youtube.mp4",
+            ) as get_video,
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            result = material.download_videos(
+                task_id="youtube-dispatch",
+                search_terms=["nature"],
+                source="youtube",
+                audio_duration=5,
+                max_clip_duration=5,
+            )
+
+        self.assertEqual(result, ["/tmp/youtube.mp4"])
+        get_video.assert_called_once()
 
 
 if __name__ == "__main__":

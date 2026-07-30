@@ -12,11 +12,13 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import material_cache, task_artifacts
+from app.services.youtube_provider import YoutubeProvider
 from app.utils import utils
 
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
+_youtube_provider = YoutubeProvider()
 
 
 def _safe_public_url(value: Any) -> str | None:
@@ -513,6 +515,18 @@ def search_videos_coverr(
     return []
 
 
+def search_videos_youtube(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
+    return _youtube_provider.search(
+        search_term=search_term,
+        minimum_duration=minimum_duration,
+        video_aspect=video_aspect,
+    )
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -662,6 +676,9 @@ def download_videos(
     elif source == "coverr":
         provider = "coverr"
         remote_search_videos = search_videos_coverr
+    elif source == "youtube":
+        provider = "youtube"
+        remote_search_videos = search_videos_youtube
 
     def search_videos(
         search_term: str,
@@ -728,9 +745,15 @@ def download_videos(
                 f"downloading {item.provider} video: "
                 f"asset_id={source_info.get('asset_id') or 'unknown'}"
             )
-            saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
-            )
+            if item.provider == "youtube":
+                saved_video_path = _youtube_provider.get_video(
+                    item=item,
+                    save_dir=material_directory,
+                )
+            else:
+                saved_video_path = save_video(
+                    video_url=item.url, save_dir=material_directory
+                )
             if saved_video_path:
                 logger.info(f"video saved: {saved_video_path}")
                 video_paths.append(saved_video_path)
