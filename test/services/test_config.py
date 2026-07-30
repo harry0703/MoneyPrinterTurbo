@@ -89,6 +89,19 @@ class TestConfigPersistence:
             config._cfg.clear()
             config._cfg.update(original_cfg)
 
+    def test_load_config_creates_external_runtime_directory(self):
+        """
+        Docker 可将运行时配置目录单独持久化，避免单文件 bind mount 阻止
+        os.replace，也避免用宿主源码覆盖镜像内代码。
+        """
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "runtime" / "config.toml"
+            with patch.object(config, "config_file", str(config_path)):
+                loaded = config.load_config()
+
+            assert config_path.is_file()
+            assert loaded["app"]["llm_provider"] == "moonshot"
+
     def test_runtime_config_lock_blocks_concurrent_config_writes(self):
         """长任务持有运行锁时，其它会话不能在任务中途改写全局配置。"""
         write_started = threading.Event()
