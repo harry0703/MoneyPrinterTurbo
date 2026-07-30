@@ -63,6 +63,29 @@ class TestControllerAuthentication(unittest.TestCase):
                 self.assertEqual(raised.exception.status_code, 401)
                 self.assertIn("invalid token", raised.exception.message)
 
+    def test_verify_token_rejects_every_request_when_api_key_is_unset(self):
+        """
+        api_key 未配置时不能因为“空配置等于空请求头”而放行，否则默认配置下
+        受保护接口会退化成匿名可用。
+        """
+        config.app["api_key"] = ""
+
+        for headers in ({}, {"x-api-key": ""}, {"x-api-key": "anything"}):
+            with self.subTest(headers=headers):
+                with self.assertRaises(HttpException) as raised:
+                    base.verify_token(self._request(dict(headers)))
+
+                self.assertEqual(raised.exception.status_code, 401)
+
+    def test_v1_routers_require_authentication(self):
+        """两个 V1 路由都必须挂载鉴权依赖，避免任何一个入口保持匿名。"""
+        from app.controllers.v1 import llm as llm_controller
+        from app.controllers.v1 import video as video_controller
+
+        for module in (video_controller, llm_controller):
+            with self.subTest(router=module.__name__):
+                self.assertTrue(module.router.dependencies, module.__name__)
+
     def test_new_router_preserves_common_prefix_and_dependencies(self):
         """所有 V1 路由都应复用统一前缀，并仅在传入时设置鉴权依赖。"""
         dependency = object()

@@ -1489,11 +1489,17 @@ class TestSocialMetadata(unittest.TestCase):
             '"hashtags":["#Tokyo","#Coffee","#Shorts"]}'
         )
 
-        with patch.object(llm, "_generate_response", return_value=llm_response):
-            response = TestClient(app).post(
-                "/api/v1/social-metadata",
-                json=request_body,
-            )
+        # V1 接口已启用 x-api-key 鉴权，端点测试需要携带配置中的 API Key。
+        config.app["api_key"] = "test-api-key"
+        try:
+            with patch.object(llm, "_generate_response", return_value=llm_response):
+                response = TestClient(app).post(
+                    "/api/v1/social-metadata",
+                    json=request_body,
+                    headers={"x-api-key": "test-api-key"},
+                )
+        finally:
+            config.app.pop("api_key", None)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(

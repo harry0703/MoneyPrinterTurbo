@@ -19,8 +19,11 @@ def get_api_key(request: Request):
 
 
 def verify_token(request: Request):
+    # api_key 未配置时必须拒绝所有请求：空配置与空请求头相等会让鉴权失效，
+    # 让本应受保护的接口在默认配置下重新变成匿名可用。
+    expected_token = config.app.get("api_key", "")
     token = get_api_key(request)
-    if token != config.app.get("api_key", ""):
+    if not expected_token or token != expected_token:
         request_id = get_task_id(request)
         request_url = request.url
         user_agent = request.headers.get("user-agent")

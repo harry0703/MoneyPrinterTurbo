@@ -8,7 +8,8 @@
 # Log level: DEBUG, INFO, WARNING, or ERROR.
 log_level = "DEBUG"
 # Use 127.0.0.1 for local-only access. 0.0.0.0 listens on all network interfaces.
-listen_host = "0.0.0.0"
+# 로컬 전용이면 127.0.0.1 을 유지하세요. 0.0.0.0 은 모든 네트워크 인터페이스에서 접속을 허용합니다.
+listen_host = "127.0.0.1"
 listen_port = 8080
 
 [app]
@@ -16,6 +17,11 @@ listen_port = 8080
 # -----------------------------------------------------------------------------
 # General / 일반 설정
 # -----------------------------------------------------------------------------
+
+# Shared secret required by every /api/v1 endpoint, sent as the x-api-key header.
+# 모든 /api/v1 엔드포인트가 x-api-key 헤더로 요구하는 공유 비밀키입니다.
+# 비워두면 API 요청이 전부 401 로 거부됩니다. WebUI 와 CLI 는 영향을 받지 않습니다.
+api_key = ""
 
 # Hide the basic configuration panel in the WebUI.
 # WebUI 기본 설정 패널을 숨길지 여부.

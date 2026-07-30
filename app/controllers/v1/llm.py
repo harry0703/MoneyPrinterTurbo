@@ -1,5 +1,6 @@
-from fastapi import Request
+from fastapi import Depends, Request
 
+from app.controllers import base
 from app.controllers.v1.base import new_router
 from app.models.schema import (
     VideoScriptRequest,
@@ -13,8 +14,7 @@ from app.services import llm
 from app.utils import utils
 
 # authentication dependency
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 
 @router.post(

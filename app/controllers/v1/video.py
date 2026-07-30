@@ -36,8 +36,7 @@ from app.services import task as tm
 from app.utils import file_security, utils
 
 # 认证依赖项
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")

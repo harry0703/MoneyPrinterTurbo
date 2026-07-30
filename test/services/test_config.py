@@ -20,7 +20,9 @@ class TestConfigPersistence:
         example_config = self._load_example_config()
         app_config = example_config["app"]
 
-        assert example_config["listen_host"] == "0.0.0.0"
+        # API 无鉴权时不能默认监听所有网卡，示例配置必须保持本地回环。
+        assert example_config["listen_host"] == "127.0.0.1"
+        assert app_config["api_key"] == ""
         assert example_config["listen_port"] == 8080
         assert example_config["log_level"] == "DEBUG"
         assert app_config["video_source"] in {"pexels", "pixabay", "coverr", "local"}
