@@ -28,9 +28,10 @@ class RedisTaskManager(TaskManager):
 
     def enqueue(self, task: Dict):
         task_with_serializable_params = task.copy()
-        # task.copy() 只复制最外层字典；如果直接改写嵌套 kwargs，会把调用方
-        # 持有的 VideoParams 同步替换成 dict。后续日志或重试仍可能读取原任务，
-        # 因此这里单独复制 kwargs，确保序列化过程没有意外副作用。
+        # task.copy() 는 최상위 딕셔너리만 복사한다. 중첩된 kwargs 를 그대로 고쳐 쓰면
+        # 호출자가 들고 있는 VideoParams 까지 dict 로 바뀐다. 이후 로깅이나 재시도가
+        # 원본 작업을 읽을 수 있으므로, kwargs 를 따로 복사해 직렬화 과정에
+        # 의도치 않은 부작용이 생기지 않게 한다.
         task_kwargs = task.get("kwargs", {})
         task_with_serializable_params["kwargs"] = task_kwargs.copy()
 
@@ -39,7 +40,7 @@ class RedisTaskManager(TaskManager):
                 "params"
             ].model_dump(warnings=False)
 
-        # 将函数对象转换为其名称
+        # 함수 객체를 이름으로 변환한다
         task_with_serializable_params["func"] = task["func"].__name__
         self.redis_client.rpush(self.queue, json.dumps(task_with_serializable_params))
 
@@ -47,7 +48,7 @@ class RedisTaskManager(TaskManager):
         task_json = self.redis_client.lpop(self.queue)
         if task_json:
             task_info = json.loads(task_json)
-            # 将函数名称转换回函数对象
+            # 함수 이름을 다시 함수 객체로 변환한다
             task_info["func"] = FUNC_MAP[task_info["func"]]
 
             if "params" in task_info["kwargs"] and isinstance(

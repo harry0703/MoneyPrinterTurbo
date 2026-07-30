@@ -18,11 +18,12 @@ from app.utils import utils
 
 @asynccontextmanager
 async def application_lifespan(_: FastAPI):
-    """集中处理 API 进程启动恢复和关闭日志。"""
+    """API 프로세스의 시작 시 복구와 종료 로그를 한곳에서 처리한다."""
     logger.info("startup event")
 
-    # 跨平台发布由当前进程线程池执行，不会在服务重启后恢复。启动时把 Redis
-    # 中确认已失去执行进程的活动状态收敛为失败，避免任务永久无法删除。
+    # 플랫폼 업로드는 현재 프로세스의 스레드 풀에서 실행되므로 서비스가 재시작되면
+    # 복구되지 않는다. 시작 시 Redis 에서 실행 프로세스를 잃은 것이 확실한 활성 상태를
+    # 실패로 수렴시켜, 작업이 영원히 삭제 불가능해지는 것을 막는다.
     from app.services import task as task_service
 
     task_service.recover_interrupted_cross_posts()

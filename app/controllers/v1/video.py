@@ -35,7 +35,7 @@ from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
 
-# 认证依赖项
+# 인증 의존성
 router = new_router(dependencies=[Depends(base.verify_token)])
 
 _enable_redis = config.app.get("enable_redis", False)
@@ -47,7 +47,7 @@ _max_concurrent_tasks = config.app.get("max_concurrent_tasks", 5)
 _max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
 redis_url = f"redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}"
-# 根据配置选择合适的任务管理器
+# 설정에 따라 알맞은 작업 관리자를 고른다
 if _enable_redis:
     task_manager = RedisTaskManager(
         max_concurrent_tasks=_max_concurrent_tasks,
@@ -62,8 +62,9 @@ else:
 
 
 def _sanitize_upload_filename(filename: str, request_id: str) -> str:
-    # 浏览器或客户端有时会附带目录信息，甚至可能夹带 ../ 这类穿越片段。
-    # 这里只保留纯文件名，避免上传接口把文件写到目标目录之外。
+    # 브라우저나 클라이언트가 디렉터리 정보를 함께 보내기도 하고, ../ 같은 탈출 조각이
+    # 섞일 수도 있다. 여기서는 순수 파일명만 남겨, 업로드 엔드포인트가 대상 디렉터리
+    # 밖에 파일을 쓰지 못하게 한다.
     normalized_name = (filename or "").replace("\\", "/").split("/")[-1].strip()
     if not normalized_name or normalized_name in {".", ".."}:
         raise HttpException(
@@ -90,7 +91,7 @@ def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: 
 
 
 def _public_task_data(task: dict) -> dict:
-    """复制任务状态并移除仅用于服务端进程协调的内部字段。"""
+    """작업 상태를 복사하고, 서버 프로세스 조율에만 쓰이는 내부 필드를 제거한다."""
     public_task = dict(task)
     public_task.pop("cross_post_owner", None)
     return public_task
@@ -106,8 +107,9 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
     try:
         resolved_path = file_security.resolve_path_within_directory(task_dir, file)
     except ValueError as exc:
-        # 任务状态理论上只应保存任务目录内的产物路径。这里不再继续拼接 URL，
-        # 避免把异常路径包装成可访问链接；同时保留原值，便于排查历史脏数据。
+        # 작업 상태에는 원래 작업 디렉터리 안의 산출물 경로만 저장되어야 한다. 여기서는 URL 을
+        # 더 이어 붙이지 않아, 비정상 경로가 접근 가능한 링크로 포장되는 것을 막는다. 동시에
+        # 원래 값을 남겨 예전에 쌓인 잘못된 데이터를 추적할 수 있게 한다.
         logger.warning(
             f"skip unsafe task output path, request_id: {request_id}, path: {file}, "
             f"error: {str(exc)}"
@@ -124,7 +126,7 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
 def _parse_byte_range(
     range_header: str | None, file_size: int, request_id: str
 ) -> tuple[int, int]:
-    """解析单段 HTTP Range，并把无效或越界请求稳定转换成 416。"""
+    """단일 구간 HTTP Range 를 해석하고, 유효하지 않거나 범위를 벗어난 요청을 일관되게 416 으로 바꾼다."""
     if file_size <= 0:
         raise HttpException(
             task_id=request_id,
@@ -136,8 +138,9 @@ def _parse_byte_range(
         return 0, file_size - 1
 
     try:
-        # 视频播放器这里只需要单段 bytes range。拒绝多段请求可以避免返回体
-        # 与 Content-Range 不一致，也避免异常字符串落入 int() 产生 500。
+        # 여기서 영상 플레이어에는 단일 구간 bytes range 만 있으면 된다. 다중 구간 요청을
+        # 거부하면 응답 본문과 Content-Range 가 어긋나는 것을 막고, 이상한 문자열이 int() 로
+        # 들어가 500 이 나는 것도 피할 수 있다.
         if not range_header.startswith("bytes=") or "," in range_header:
             raise ValueError("unsupported range format")
         start_text, end_text = range_header[6:].split("-", 1)
@@ -317,8 +320,8 @@ def get_bgm_list(request: Request):
             {
                 "name": filename,
                 "size": os.path.getsize(file),
-                # 只返回文件名，避免把服务器绝对路径暴露给调用方。服务端会
-                # 在 storage/bgm 和 resource/songs 两个白名单目录中重新解析。
+                # 파일명만 반환해 서버 절대 경로가 호출자에게 노출되지 않게 한다. 서버는
+                # storage/bgm 과 resource/songs 두 화이트리스트 디렉터리에서 다시 해석한다.
                 "file": filename,
             }
         )
@@ -344,8 +347,8 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     try:
         safe_filename = bgm_service.save_bgm_upload(file.filename, file.file)
     except bgm_service.BgmUploadError as exc:
-        # 上传失败通常可以由用户更换文件后恢复，因此记录 request_id 和明确原因，
-        # 但不输出文件内容或绝对路径，避免日志泄露用户数据。
+        # 업로드 실패는 보통 사용자가 파일을 바꾸면 복구되므로 request_id 와 명확한 원인을
+        # 기록하되, 파일 내용이나 절대 경로는 남기지 않아 로그로 사용자 데이터가 새지 않게 한다.
         logger.warning(
             f"background music upload rejected: request_id={request_id}, error={str(exc)}"
         )
@@ -355,8 +358,9 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
             message=f"{request_id}: {str(exc)}",
         )
     except bgm_service.BgmServiceError as exc:
-        # 工具链或存储故障属于服务端问题，不能伪装成用户文件错误。日志保留
-        # request_id 和内部原因，HTTP 响应只返回稳定文案，避免暴露服务器路径。
+        # 툴체인이나 저장소 장애는 서버 문제이므로 사용자 파일 오류인 것처럼 위장해서는 안 된다.
+        # 로그에는 request_id 와 내부 원인을 남기고, HTTP 응답은 고정된 문구만 반환해 서버
+        # 경로가 노출되지 않게 한다.
         logger.error(
             f"background music upload failed: request_id={request_id}, error={str(exc)}"
         )
@@ -378,8 +382,9 @@ def get_video_materials_list(request: Request):
     files = []
     for suffix in allowed_suffixes:
         files.extend(glob.glob(os.path.join(local_videos_dir, f"*.{suffix}")))
-    # 文件系统枚举顺序不稳定，直接返回会导致“顺序拼接”在不同机器或不同
-    # 时刻表现不一致。这里统一按文件名排序，至少保证服务端返回顺序可预测。
+    # 파일 시스템 열거 순서는 일정하지 않아서, 그대로 반환하면 '순차 이어붙이기' 가 머신이나
+    # 시점에 따라 다르게 동작한다. 여기서는 파일명 기준으로 정렬해, 적어도 서버 반환 순서는
+    # 예측 가능하게 만든다.
     files.sort(key=lambda file_path: os.path.basename(file_path).lower())
     video_materials_list = []
     for file in files:
@@ -388,8 +393,8 @@ def get_video_materials_list(request: Request):
             {
                 "name": filename,
                 "size": os.path.getsize(file),
-                # 与 BGM 一样，只返回文件名；创建任务时再在 local_videos
-                # 白名单目录内解析，避免 API 泄露宿主机绝对路径。
+                # BGM 과 마찬가지로 파일명만 반환한다. 작업을 만들 때 local_videos 화이트리스트
+                # 디렉터리 안에서 다시 해석해, API 가 호스트 절대 경로를 흘리지 않게 한다.
                 "file": filename,
             }
         )
@@ -408,8 +413,8 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     # check file ext
     allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
     suffix = pathlib.Path(safe_filename).suffix.lower().lstrip(".")
-    # 按完整扩展名校验，既兼容 .MOV 这类大写后缀，也避免 photojpg 这种没有
-    # 点号的文件名因为 endswith("jpg") 被误当成合法图片。
+    # 확장자 전체로 검증해, .MOV 같은 대문자 확장자도 받아들이면서 photojpg 처럼 점이 없는
+    # 파일명이 endswith("jpg") 때문에 올바른 이미지로 오인되는 것도 막는다.
     if suffix in allowed_suffixes:
         local_videos_dir = utils.storage_dir("local_videos", create=True)
         save_path = os.path.join(local_videos_dir, safe_filename)

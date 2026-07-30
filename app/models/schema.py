@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import config
 
-# 忽略 Pydantic 的特定警告
+# Pydantic 의 특정 경고를 무시한다
 warnings.filterwarnings(
     "ignore",
     category=UserWarning,
@@ -55,9 +55,10 @@ class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
-    # 在线素材搜索会附带经过筛选的公开来源信息，供搜索缓存和任务记录复用。
-    # 本地上传素材不需要填写；写入任务文件前仍会按字段白名单重新构造，
-    # 避免外部请求传入的签名 URL、凭据或无关字段进入持久化数据。
+    # 온라인 소재 검색은 걸러진 공개 출처 정보를 함께 담아 검색 캐시와 작업 기록에서
+    # 재사용한다. 로컬 업로드 소재는 채울 필요가 없다. 작업 파일에 쓰기 전에 필드
+    # 화이트리스트로 다시 구성하므로, 외부 요청이 넘긴 서명 URL, 자격 증명, 무관한
+    # 필드가 영속 데이터에 들어가지 않는다.
     source_info: Optional[dict[str, Any]] = None
 
 
@@ -65,10 +66,10 @@ class VideoParams(BaseModel):
     """
     {
       "video_subject": "",
-      "video_aspect": "横屏 16:9（西瓜视频）",
-      "voice_name": "女生-晓晓",
+      "video_aspect": "가로 16:9",
+      "voice_name": "ko-KR-SunHiNeural-Female",
       "bgm_name": "random",
-      "font_name": "STHeitiMedium 黑体-中",
+      "font_name": "MicrosoftYaHeiBold.ttc",
       "text_color": "#FFFFFF",
       "font_size": 60,
       "stroke_color": "#000000",
@@ -101,8 +102,8 @@ class VideoParams(BaseModel):
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
-    # 视频配乐供应商共用提示词，WebUI 新任务统一写入该字段。保留下面的
-    # Sonilo 专用字段以兼容旧任务记录和现有 CLI 参数。
+    # 영상 배경음악 제공자들이 함께 쓰는 프롬프트로, WebUI 의 새 작업은 이 필드에 기록한다.
+    # 아래 Sonilo 전용 필드는 예전 작업 기록과 기존 CLI 파라미터 호환을 위해 남겨 둔다.
     video_music_prompt: str = Field(default="", max_length=2000)
     sonilo_bgm_prompt: str = Field(default="", max_length=2000)
 
@@ -159,7 +160,7 @@ class AudioRequest(BaseModel):
 class VideoScriptParams:
     """
     {
-      "video_subject": "春天的花海",
+      "video_subject": "봄날의 꽃바다",
       "video_language": "",
       "paragraph_number": 1,
       "video_script_prompt": "",
@@ -167,7 +168,7 @@ class VideoScriptParams:
     }
     """
 
-    video_subject: Optional[str] = "春天的花海"
+    video_subject: Optional[str] = "봄날의 꽃바다"
     video_language: Optional[str] = ""
     paragraph_number: int = Field(default=1, ge=1, le=10)
     video_script_prompt: str = Field(default="", max_length=2000)
@@ -184,9 +185,9 @@ class VideoTermsParams:
     }
     """
 
-    video_subject: Optional[str] = "春天的花海"
+    video_subject: Optional[str] = "봄날의 꽃바다"
     video_script: Optional[str] = (
-        "春天的花海，如诗如画般展现在眼前。万物复苏的季节里，大地披上了一袭绚丽多彩的盛装。金黄的迎春、粉嫩的樱花、洁白的梨花、艳丽的郁金香……"
+        "봄날의 꽃바다가 한 폭의 그림처럼 눈앞에 펼쳐집니다. 만물이 깨어나는 계절, 대지는 화려한 색의 옷을 갈아입습니다. 노란 개나리, 연분홍 벚꽃, 새하얀 배꽃, 선명한 튤립까지……"
     )
     amount: Optional[int] = 5
     match_materials_to_script: bool = False
@@ -255,7 +256,7 @@ class TaskResponse(BaseResponse):
 
 
 class TaskStatusData(BaseModel):
-    """任务查询对外保证的稳定字段；历史和扩展字段继续原样透传。"""
+    """작업 조회가 외부에 보장하는 안정 필드. 예전 필드와 확장 필드는 그대로 통과시킨다."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -274,7 +275,7 @@ class TaskStatusData(BaseModel):
 
 
 class TaskListData(BaseModel):
-    """分页任务列表结构。"""
+    """페이지네이션된 작업 목록 구조."""
 
     tasks: List[TaskStatusData]
     total: int
@@ -284,10 +285,10 @@ class TaskListData(BaseModel):
 
 class TaskQueryResponse(BaseResponse):
     """
-    任务查询会返回生成状态和可选的跨平台发布状态。
+    작업 조회는 생성 상태와, 선택적으로 플랫폼 업로드 상태를 반환한다.
 
-    生成失败时包含 `failed_stage` 和 `error`；生成完成后如果启用了自动发布，
-    `cross_post_state` 会依次进入 pending、processing、complete 或 failed。
+    생성이 실패하면 `failed_stage` 와 `error` 가 포함된다. 생성이 끝난 뒤 자동 업로드가
+    켜져 있으면 `cross_post_state` 가 pending, processing, complete, failed 순으로 진행된다.
     """
 
     data: TaskStatusData
@@ -324,7 +325,7 @@ class TaskQueryResponse(BaseResponse):
 
 
 class TaskListResponse(BaseResponse):
-    """任务列表使用独立响应模型，避免与单任务查询混用文档结构。"""
+    """작업 목록은 별도 응답 모델을 쓴다. 단일 작업 조회와 문서 구조가 섞이지 않게 하기 위해서다."""
 
     data: TaskListData
 
@@ -377,7 +378,7 @@ class VideoScriptResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "video_script": "春天的花海，是大自然的一幅美丽画卷。在这个季节里，大地复苏，万物生长，花朵争相绽放，形成了一片五彩斑斓的花海..."
+                    "video_script": "봄날의 꽃바다는 자연이 그린 한 폭의 아름다운 그림입니다. 이 계절이면 대지가 깨어나고 만물이 자라며, 꽃들이 앞다투어 피어나 오색찬란한 꽃바다를 이룹니다..."
                 },
             },
         }

@@ -70,15 +70,15 @@ _CLIP_SPEED_MAX = 2.0
 
 
 def normalize_clip_speed(value, default: float = 1.0) -> float:
-    """将片段播放速度归一化到 WebUI 支持的安全范围。"""
+    """클립 재생 속도를 WebUI 가 지원하는 안전한 범위로 정규화한다."""
     try:
         speed = float(value)
     except (TypeError, ValueError):
         return default
 
-    # NaN 会绕过普通的大小比较，并在 MoviePy 计算 duration 时传播；无穷值也不
-    # 是合法用户输入。两者统一回退默认值，保证 API 和内部直接调用都不会生成
-    # 无效时间线。零值和负值同样无法表示正常播放速度。
+    # NaN 은 일반적인 대소 비교를 빠져나가고 MoviePy 가 duration 을 계산할 때 전파된다.
+    # 무한대도 정상적인 사용자 입력이 아니다. 둘 다 기본값으로 되돌려, API 와 내부 직접
+    # 호출 모두 잘못된 타임라인을 만들지 않게 한다. 0 과 음수도 정상 재생 속도를 나타낼 수 없다.
     if not math.isfinite(speed) or speed <= 0:
         return default
 
@@ -144,19 +144,19 @@ def public_dir(sub_dir: str = ""):
 
 def get_ffmpeg_binary() -> str:
     """
-    解析当前进程应该使用的 FFmpeg 可执行文件。
+    현재 프로세스가 사용할 FFmpeg 실행 파일을 해석한다.
 
-    增加原因：
-    1. 视频编码、静音音频生成、pydub 音频转码都依赖 FFmpeg；
-    2. Windows 便携包、Docker 和用户自定义安装目录经常出现 PATH 不一致；
-    3. 集中解析可以让所有调用方使用同一套优先级，减少某条链路能跑、
-       另一条链路找不到 FFmpeg 的现场问题。
+    이 함수를 둔 이유:
+    1. 영상 인코딩, 무음 오디오 생성, pydub 오디오 변환이 모두 FFmpeg 에 의존한다.
+    2. Windows 포터블 패키지, Docker, 사용자 지정 설치 디렉터리에서 PATH 가 자주 어긋난다.
+    3. 한곳에서 해석하면 모든 호출자가 같은 우선순위를 쓰게 되어, 어떤 경로에서는 돌고
+       다른 경로에서는 FFmpeg 를 못 찾는 현장 문제를 줄일 수 있다.
 
-    优先级：
-    1. IMAGEIO_FFMPEG_EXE：MoviePy/imageio 约定的显式配置；
-    2. 系统 PATH 中的 ffmpeg；
-    3. imageio-ffmpeg 依赖提供的内置二进制；
-    4. 字符串 "ffmpeg" 兜底，交给 subprocess 在运行时暴露更具体错误。
+    우선순위:
+    1. IMAGEIO_FFMPEG_EXE: MoviePy/imageio 가 정한 명시적 설정
+    2. 시스템 PATH 의 ffmpeg
+    3. imageio-ffmpeg 의존성이 제공하는 내장 바이너리
+    4. 문자열 "ffmpeg" 로 대비. subprocess 가 실행 시점에 더 구체적인 오류를 드러내게 한다.
     """
     configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
     if configured_ffmpeg:
@@ -245,10 +245,10 @@ def split_string_by_punctuations(s):
             continue
 
         if char == "," and previous_char.isdigit() and next_char.isdigit():
-            # 英文数字里的千分位逗号不是断句符，例如 "1,000 years"。
-            # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
-            # 如果这里拆成 "1" 和 "000 years"，后续字幕聚合会无法匹配脚本原文，
-            # 进而错误回退到 Whisper。
+            # 영어 숫자의 천 단위 쉼표는 문장 분리 기호가 아니다. 예: "1,000 years".
+            # Edge TTS 의 word boundary 는 보통 이런 숫자를 하나의 연속된 덩어리로 반환한다.
+            # 여기서 "1" 과 "000 years" 로 쪼개면 이후 자막 병합이 대본 원문과 매칭되지 않아
+            # 잘못 Whisper 로 되돌아가게 된다.
             txt += char
             continue
 
@@ -265,12 +265,12 @@ def split_string_by_punctuations(s):
 
 def normalize_script_for_subtitle_matching(video_script: str) -> str:
     """
-    清理字幕匹配前的脚本文本。
+    자막 매칭 전에 대본 텍스트를 정리한다.
 
-    用户可能手动输入 Markdown 分隔符、标题强调或 `_` 这类格式符号。
-    这些字符通常不会出现在 TTS/Whisper 的识别结果里；如果继续参与
-    字幕逐行匹配，脚本行数量会大于真实字幕行数量，最终可能补出
-    `00:00:00,000 --> 00:00:00,000`，导致剪辑软件无法导入 SRT。
+    사용자가 Markdown 구분선, 제목 강조, `_` 같은 서식 기호를 직접 입력할 수 있다.
+    이런 문자는 보통 TTS/Whisper 인식 결과에 나타나지 않는다. 그대로 자막 줄 단위
+    매칭에 참여시키면 대본 줄 수가 실제 자막 줄 수보다 많아지고, 결국
+    `00:00:00,000 --> 00:00:00,000` 이 채워져 편집 프로그램이 SRT 를 불러오지 못할 수 있다.
     """
     video_script = video_script or ""
     underscore_count = video_script.count("_")
@@ -279,8 +279,8 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
     removed_separator_lines = 0
     for line in video_script.splitlines():
         line = line.strip()
-        # Markdown 分隔符或强调符号单独成行时不会被 TTS 朗读，必须从
-        # 脚本行里移除，避免字幕聚合卡在这类“不可发声”的目标行上。
+        # Markdown 구분선이나 강조 기호가 단독 줄을 이루면 TTS 가 읽지 않는다. 대본 줄에서
+        # 제거해야 자막 병합이 이런 '소리 낼 수 없는' 목표 줄에서 멈추지 않는다.
         if re.fullmatch(r"[-*_]{3,}", line):
             removed_separator_lines += 1
             continue
@@ -309,11 +309,12 @@ def resolve_ui_language(
     default_language: str = "en",
 ) -> str:
     """
-    按“已保存设置、浏览器语言、默认语言”的优先级选择界面语言。
+    '저장된 설정 → 브라우저 언어 → 기본 언어' 우선순위로 화면 언어를 고른다.
 
-    浏览器通常返回带地区的 locale，例如 ``zh-CN``、``pt-BR``。语言文件使用
-    ``zh``、``pt`` 这类基础代码，因此先尝试完整匹配，再回退到连字符前的语言
-    代码。函数保持纯逻辑，避免把浏览器上下文和配置写入耦合到工具层，便于测试。
+    브라우저는 보통 지역이 붙은 locale 을 반환한다. 예: ``ko-KR``, ``pt-BR``. 언어 파일은
+    ``ko``, ``pt`` 같은 기본 코드를 쓰므로, 먼저 완전 일치를 시도한 뒤 하이픈 앞의 언어
+    코드로 되돌린다. 함수는 순수 로직으로 유지해, 브라우저 컨텍스트와 설정 쓰기가
+    유틸 계층에 얽히지 않게 하고 테스트도 쉽게 만든다.
     """
     supported = [str(language).strip() for language in supported_languages]
     supported_by_lower = {
@@ -341,15 +342,17 @@ def resolve_ui_language(
     if default_match:
         return default_match
 
-    # 正常项目始终包含英文；保留空语言集合兜底，避免损坏的语言目录让页面
-    # 初始化直接抛异常，后续翻译函数会继续显示原始 key 以便诊断。
+    # 정상적인 프로젝트에는 항상 영어가 들어 있다. 빈 언어 집합에 대한 대비를 남겨 둬,
+    # 언어 디렉터리가 손상됐을 때 페이지 초기화가 곧바로 예외를 던지지 않게 한다.
+    # 이후 번역 함수는 진단하기 쉽도록 원본 key 를 그대로 표시한다.
     return supported[0] if supported else default_language
 
 
 @lru_cache(maxsize=8)
 def load_locales(i18n_dir):
-    # WebUI 每次交互都会触发 Streamlit 重新执行脚本，语言文件运行期不会变化，
-    # 因此缓存解析结果，避免反复读取和解析所有 i18n JSON 文件。
+    # WebUI 는 상호작용할 때마다 Streamlit 이 스크립트를 다시 실행하게 만든다. 언어 파일은
+    # 실행 중에 바뀌지 않으므로 해석 결과를 캐시해, 모든 i18n JSON 파일을 반복해서 읽고
+    # 해석하지 않게 한다.
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:
