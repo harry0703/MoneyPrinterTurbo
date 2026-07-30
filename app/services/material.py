@@ -226,6 +226,71 @@ def _is_cloudflare_challenge(response: requests.Response) -> bool:
     return "just a moment" in body or "/cdn-cgi/challenge-platform/" in body
 
 
+def _matches_video_aspect(
+    width: Any,
+    height: Any,
+    video_aspect: VideoAspect,
+    *,
+    is_vertical: Any = None,
+) -> bool:
+    """
+    判断远端素材是否与目标画面方向一致。
+
+    Pexels、Pixabay 和 Coverr 的响应字段并不统一，因此先使用宽高做可靠判断；
+    Coverr 部分历史响应缺少尺寸时，再使用明确的 ``is_vertical`` 布尔值兜底。
+    无法确认方向的素材直接跳过，避免竖屏任务混入横屏素材并在成片中产生黑边。
+    """
+    aspect = VideoAspect(video_aspect)
+    try:
+        normalized_width = int(float(width))
+        normalized_height = int(float(height))
+    except (TypeError, ValueError):
+        normalized_width = 0
+        normalized_height = 0
+
+    if normalized_width > 0 and normalized_height > 0:
+        if aspect == VideoAspect.portrait:
+            return normalized_height > normalized_width
+        if aspect == VideoAspect.landscape:
+            return normalized_width > normalized_height
+        return normalized_width == normalized_height
+
+    if isinstance(is_vertical, bool) and aspect != VideoAspect.square:
+        return is_vertical == (aspect == VideoAspect.portrait)
+    return False
+
+
+def _filter_materials_by_aspect(
+    items: List[MaterialInfo],
+    video_aspect: VideoAspect,
+) -> List[MaterialInfo]:
+    """
+    对缓存结果再次校验方向。
+
+    素材搜索缓存最长保留 24 小时，升级前写入的缓存可能包含方向不匹配的素材。
+    在统一缓存入口过滤可以让修复立即生效，也能防御第三方 Provider 或旧缓存
+    遗漏远端筛选。无法读取 rendition 尺寸的旧条目按未验证处理并跳过。
+    """
+    aspect = VideoAspect(video_aspect)
+    if aspect == VideoAspect.square:
+        # Pixabay 和 Coverr 很少提供原生方形素材。方形输出沿用既有行为，
+        # 接受可用候选并交给视频合成阶段裁剪，避免升级后 1:1 任务无素材。
+        return list(items)
+
+    filtered_items = []
+    for item in items:
+        source_info = item.source_info if isinstance(item.source_info, dict) else {}
+        rendition = source_info.get("rendition")
+        rendition = rendition if isinstance(rendition, dict) else {}
+        if _matches_video_aspect(
+            rendition.get("width"),
+            rendition.get("height"),
+            aspect,
+        ):
+            filtered_items.append(item)
+    return filtered_items
+
+
 def search_videos_pexels(
     search_term: str,
     minimum_duration: int,
@@ -241,7 +306,7 @@ def search_videos_pexels(
     }
     # Build URL
     params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
-    query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
+    query_url = f"https://api.pexels.com/v1/videos/search?{urlencode(params)}"
     logger.info(f"searching videos on pexels: term={search_term!r}")
 
     try:
@@ -269,7 +334,11 @@ def search_videos_pexels(
             for video in video_files:
                 w = int(video["width"])
                 h = int(video["height"])
-                if w == video_width and h == video_height:
+                if (
+                    _matches_video_aspect(w, h, aspect)
+                    and w == video_width
+                    and h == video_height
+                ):
                     item = MaterialInfo()
                     item.provider = "pexels"
                     item.url = video["link"]
@@ -383,9 +452,17 @@ def search_videos_pixabay(
             # loop through each url to determine the best quality
             for video_type in video_files:
                 video = video_files[video_type]
-                w = int(video["width"])
-                # h = int(video["height"])
-                if w >= video_width:
+                try:
+                    w = int(video["width"])
+                    h = int(video["height"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                # Pixabay 很少返回原生方形视频；1:1 输出继续接受满足分辨率的
+                # 候选并由合成阶段裁剪。横竖屏则必须严格匹配目标方向。
+                orientation_matches = aspect == VideoAspect.square or (
+                    _matches_video_aspect(w, h, aspect)
+                )
+                if orientation_matches and w >= video_width:
                     item = MaterialInfo()
                     item.provider = "pixabay"
                     item.url = video["url"]
@@ -436,9 +513,8 @@ def search_videos_coverr(
       - 搜索端点: GET /videos?query=...,响应结构 {"hits": [...], ...}
       - 加 ?urls=true 在搜索响应里直接返回 mp4 直链
       - URL 是 signed JWT(绑定 API key,无过期时间)
-      - Coverr 库以 16:9 横屏为主,9:16 portrait 占比极低(约 1%)
-        因此本函数不做 aspect_ratio 过滤,由下游 video.py 的
-        resize + letterbox 逻辑统一处理
+      - Coverr 支持通过 filter=is_vertical:true/false 筛选横竖屏素材；
+        响应返回后仍根据 max_width/max_height 或 is_vertical 做本地校验
       - duration 字段同时存在 number 和 string 两种形态,本函数都接受
 
     本函数使用 urls.mp4_download 字段作为下载地址 —— 按 Coverr 官方文档
@@ -446,6 +522,7 @@ def search_videos_coverr(
     GET 这个 URL 本身就被 Coverr 当作一次合法的 download 事件计入统计,
     无需再调用 PATCH /videos/:id/stats/downloads。
     """
+    aspect = VideoAspect(video_aspect)
     api_key = get_api_key("coverr_api_keys")
     headers = {"Authorization": f"Bearer {api_key}"}
     params = {
@@ -454,6 +531,12 @@ def search_videos_coverr(
         "urls": "true",
         "sort": "popular",
     }
+    # 服务端方向筛选可以直接从完整搜索结果中返回目标素材，避免先取热门结果再
+    # 本地过滤导致竖屏候选为空。方形素材没有对应布尔条件，继续依赖本地宽高校验。
+    if aspect == VideoAspect.portrait:
+        params["filter"] = "is_vertical:true"
+    elif aspect == VideoAspect.landscape:
+        params["filter"] = "is_vertical:false"
     query_url = f"https://api.coverr.co/videos?{urlencode(params)}"
     logger.info(f"searching videos on coverr: term={search_term!r}")
 
@@ -484,6 +567,13 @@ def search_videos_coverr(
             video_id = v.get("id")
             mp4_download_url = (v.get("urls") or {}).get("mp4_download")
             if not video_id or not mp4_download_url:
+                continue
+            if aspect != VideoAspect.square and not _matches_video_aspect(
+                v.get("max_width"),
+                v.get("max_height"),
+                aspect,
+                is_vertical=v.get("is_vertical"),
+            ):
                 continue
 
             item = MaterialInfo()
@@ -606,15 +696,37 @@ def _search_videos_with_cache(
             )
             return None
 
-    cached_items = load_cache_safely()
+    def load_matching_cache() -> tuple[List[MaterialInfo] | None, int]:
+        cached_items = load_cache_safely()
+        if cached_items is None:
+            return None, 0
+
+        filtered_cached_items = _filter_materials_by_aspect(
+            cached_items,
+            video_aspect,
+        )
+        ignored_count = len(cached_items) - len(filtered_cached_items)
+        if ignored_count:
+            # 旧版本缓存可能混入其它方向的素材。即使仍有少量可用条目，也要刷新
+            # 完整候选集，否则在缓存有效期内会反复使用同一批少量视频。
+            return None, ignored_count
+        return filtered_cached_items, 0
+
+    cached_items, ignored_count = load_matching_cache()
     if cached_items is not None:
         return cached_items
+    if ignored_count:
+        logger.info(
+            "material search cache contains mismatched orientations, "
+            f"refresh from provider: provider={provider}, term={search_term!r}, "
+            f"ignored={ignored_count}"
+        )
 
     cache_lock = material_cache.get_material_search_cache_lock(**cache_args)
     with cache_lock:
         # 等待相同搜索条件的线程完成后再次读取，避免多个 API 任务在首次缓存
         # 未命中时同时请求远端，降低第三方接口限流和风控触发概率。
-        cached_items = load_cache_safely()
+        cached_items, _ = load_matching_cache()
         if cached_items is not None:
             return cached_items
 

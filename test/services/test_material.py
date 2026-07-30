@@ -95,6 +95,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
                         "videos": {
                             "large": {
                                 "width": 1920,
+                                "height": 1080,
                                 "url": "https://example.com/video.mp4",
                             }
                         },
@@ -104,10 +105,303 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch("app.services.material.requests.get", return_value=fake_response) as get:
-            results = material.search_videos_pixabay("cat", minimum_duration=1)
+            results = material.search_videos_pixabay(
+                "cat",
+                minimum_duration=1,
+                video_aspect=material.VideoAspect.landscape,
+            )
 
         self.assertEqual(len(results), 1)
         self.assertFalse(get.call_args.kwargs["verify"])
+
+    def test_remote_searches_only_return_requested_orientation(self):
+        """
+        三个素材源都必须只返回目标方向的素材，避免竖屏任务混入横屏素材后
+        通过 letterbox 产生明显黑边。Pexels 使用远端参数并在本地校验，
+        Pixabay 和 Coverr 使用响应尺寸做本地过滤。
+        """
+        config.app["pexels_api_keys"] = ["pexels-key"]
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.app["coverr_api_keys"] = ["coverr-key"]
+        config.proxy.clear()
+
+        pexels_response = SimpleNamespace(
+            json=lambda: {
+                "videos": [
+                    {
+                        "id": 1,
+                        "duration": 8,
+                        "video_files": [
+                            {
+                                "id": 11,
+                                "width": 1920,
+                                "height": 1080,
+                                "link": "https://example.com/landscape.mp4",
+                            }
+                        ],
+                    },
+                    {
+                        "id": 2,
+                        "duration": 8,
+                        "video_files": [
+                            {
+                                "id": 22,
+                                "width": 1080,
+                                "height": 1920,
+                                "link": "https://example.com/portrait.mp4",
+                            }
+                        ],
+                    },
+                ]
+            }
+        )
+        pixabay_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {
+                "hits": [
+                    {
+                        "id": 1,
+                        "duration": 8,
+                        "videos": {
+                            "large": {
+                                "width": 1920,
+                                "height": 1080,
+                                "url": "https://example.com/landscape.mp4",
+                            }
+                        },
+                    },
+                    {
+                        "id": 2,
+                        "duration": 8,
+                        "videos": {
+                            "large": {
+                                "width": 1080,
+                                "height": 1920,
+                                "url": "https://example.com/portrait.mp4",
+                            }
+                        },
+                    },
+                ]
+            },
+        )
+        coverr_response = SimpleNamespace(
+            json=lambda: {
+                "hits": [
+                    {
+                        "id": "landscape",
+                        "duration": 8,
+                        "max_width": 1920,
+                        "max_height": 1080,
+                        "urls": {
+                            "mp4_download": "https://example.com/landscape.mp4"
+                        },
+                    },
+                    {
+                        "id": "portrait",
+                        "duration": 8,
+                        "max_width": 1080,
+                        "max_height": 1920,
+                        "urls": {
+                            "mp4_download": "https://example.com/portrait.mp4"
+                        },
+                    },
+                    {
+                        "id": "unknown",
+                        "duration": 8,
+                        "urls": {"mp4_download": "https://example.com/unknown.mp4"},
+                    },
+                ]
+            }
+        )
+
+        with patch(
+            "app.services.material.requests.get",
+            return_value=pexels_response,
+        ) as get:
+            pexels_results = material.search_videos_pexels(
+                "city",
+                minimum_duration=1,
+                video_aspect=material.VideoAspect.portrait,
+            )
+            pexels_url = get.call_args.args[0]
+        with patch(
+            "app.services.material.requests.get",
+            return_value=pixabay_response,
+        ):
+            pixabay_results = material.search_videos_pixabay(
+                "city",
+                minimum_duration=1,
+                video_aspect=material.VideoAspect.portrait,
+            )
+        with patch(
+            "app.services.material.requests.get",
+            return_value=coverr_response,
+        ) as get:
+            coverr_results = material.search_videos_coverr(
+                "city",
+                minimum_duration=1,
+                video_aspect=material.VideoAspect.portrait,
+            )
+            coverr_url = get.call_args.args[0]
+
+        self.assertIn("/v1/videos/search?", pexels_url)
+        self.assertIn("orientation=portrait", pexels_url)
+        self.assertIn("page_size=20", coverr_url)
+        self.assertIn("filter=is_vertical%3Atrue", coverr_url)
+        for results in (pexels_results, pixabay_results, coverr_results):
+            self.assertEqual(
+                [item.url for item in results],
+                ["https://example.com/portrait.mp4"],
+            )
+
+    def test_video_aspect_matching_rejects_unknown_dimensions(self):
+        """无法确认方向的素材不能进入严格的横竖屏候选列表。"""
+        self.assertTrue(
+            material._matches_video_aspect(
+                1080,
+                1920,
+                material.VideoAspect.portrait,
+            )
+        )
+        self.assertFalse(
+            material._matches_video_aspect(
+                1920,
+                1080,
+                material.VideoAspect.portrait,
+            )
+        )
+        self.assertTrue(
+            material._matches_video_aspect(
+                None,
+                None,
+                material.VideoAspect.portrait,
+                is_vertical=True,
+            )
+        )
+        self.assertFalse(
+            material._matches_video_aspect(
+                None,
+                None,
+                material.VideoAspect.portrait,
+            )
+        )
+        self.assertTrue(
+            material._matches_video_aspect(
+                1080,
+                1080,
+                material.VideoAspect.square,
+            )
+        )
+        self.assertFalse(
+            material._matches_video_aspect(
+                1080,
+                1920,
+                material.VideoAspect.square,
+            )
+        )
+
+    def test_coverr_passes_orientation_filter_to_remote_search(self):
+        """Coverr 横竖屏搜索应在服务端筛选，方形素材继续使用本地尺寸校验。"""
+        config.app["coverr_api_keys"] = ["coverr-key"]
+        config.proxy.clear()
+        fake_response = SimpleNamespace(json=lambda: {"hits": []})
+        cases = (
+            (material.VideoAspect.portrait, "filter=is_vertical%3Atrue"),
+            (material.VideoAspect.landscape, "filter=is_vertical%3Afalse"),
+            (material.VideoAspect.square, None),
+        )
+
+        for aspect, expected_filter in cases:
+            with self.subTest(aspect=aspect), patch(
+                "app.services.material.requests.get",
+                return_value=fake_response,
+            ) as get:
+                material.search_videos_coverr(
+                    "city",
+                    minimum_duration=1,
+                    video_aspect=aspect,
+                )
+                request_url = get.call_args.args[0]
+
+            self.assertIn("page_size=20", request_url)
+            if expected_filter:
+                self.assertIn(expected_filter, request_url)
+            else:
+                self.assertNotIn("filter=", request_url)
+
+    def test_square_search_preserves_crop_compatible_materials(self):
+        """
+        Pixabay 和 Coverr 很少提供原生方形视频。方形输出必须继续接受可裁剪的
+        横屏素材，否则选择这两个来源时会在搜索阶段直接得到空列表。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.app["coverr_api_keys"] = ["coverr-key"]
+        config.proxy.clear()
+        pixabay_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {
+                "hits": [
+                    {
+                        "id": 1,
+                        "duration": 8,
+                        "videos": {
+                            "large": {
+                                "width": 1920,
+                                "height": 1080,
+                                "url": "https://example.com/pixabay-landscape.mp4",
+                            }
+                        },
+                    }
+                ]
+            },
+        )
+        coverr_response = SimpleNamespace(
+            json=lambda: {
+                "hits": [
+                    {
+                        "id": "landscape",
+                        "duration": 8,
+                        "max_width": 1920,
+                        "max_height": 1080,
+                        "urls": {
+                            "mp4_download": "https://example.com/coverr-landscape.mp4"
+                        },
+                    }
+                ]
+            }
+        )
+
+        with patch(
+            "app.services.material.requests.get",
+            return_value=pixabay_response,
+        ):
+            pixabay_results = material.search_videos_pixabay(
+                "city",
+                minimum_duration=1,
+                video_aspect=material.VideoAspect.square,
+            )
+        with patch(
+            "app.services.material.requests.get",
+            return_value=coverr_response,
+        ):
+            coverr_results = material.search_videos_coverr(
+                "city",
+                minimum_duration=1,
+                video_aspect=material.VideoAspect.square,
+            )
+
+        self.assertEqual(
+            [item.url for item in pixabay_results],
+            ["https://example.com/pixabay-landscape.mp4"],
+        )
+        self.assertEqual(
+            [item.url for item in coverr_results],
+            ["https://example.com/coverr-landscape.mp4"],
+        )
 
     def test_search_pixabay_does_not_log_api_key(self):
         config.app["pixabay_api_keys"] = ["pixabay-secret-key"]
@@ -560,7 +854,11 @@ class TestCoverrProvider(unittest.TestCase):
         with patch(
             "app.services.material.requests.get", return_value=fake_response
         ) as get:
-            results = material.search_videos_coverr("nature", minimum_duration=5)
+            results = material.search_videos_coverr(
+                "nature",
+                minimum_duration=5,
+                video_aspect=material.VideoAspect.landscape,
+            )
 
         self.assertEqual(len(results), 1)
         item = results[0]
@@ -635,6 +933,8 @@ class TestCoverrProvider(unittest.TestCase):
                     {
                         "id": "stringdur",
                         "duration": "10.500000",  # string accepted
+                        "max_width": 1080,
+                        "max_height": 1920,
                         "urls": {"mp4_download": "https://example.com/b.mp4"},
                     },
                 ]
@@ -671,6 +971,8 @@ class TestCoverrProvider(unittest.TestCase):
                     {  # valid baseline
                         "id": "good",
                         "duration": 10,
+                        "max_width": 1080,
+                        "max_height": 1920,
                         "urls": {"mp4_download": "https://example.com/good.mp4"},
                     },
                 ]
