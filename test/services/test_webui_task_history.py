@@ -9,11 +9,16 @@ ROOT_DIR = Path(__file__).parent.parent.parent
 WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 TASK_HISTORY_HELPERS = {
     "_find_final_task_video",
+    "_list_final_task_videos",
+    "_list_task_artifacts",
     "_build_restore_upload_requirements",
     "_get_unmet_restore_upload_requirements",
 }
 TASK_HISTORY_CONSTANTS = {
     "_FINAL_VIDEO_PATTERN",
+    "_TASK_ARTIFACT_EXTENSIONS",
+    "_TASK_ARTIFACT_EXCLUDED_PREFIXES",
+    "_TASK_ARTIFACT_MAX_FILES",
     "VOICE_MODE_TTS",
     "VOICE_MODE_UPLOAD",
     "VOICE_MODE_NONE",
@@ -46,6 +51,8 @@ def _load_task_history_helpers():
 
 TASK_HISTORY_NAMESPACE = _load_task_history_helpers()
 find_final_task_video = TASK_HISTORY_NAMESPACE["_find_final_task_video"]
+list_final_task_videos = TASK_HISTORY_NAMESPACE["_list_final_task_videos"]
+list_task_artifacts = TASK_HISTORY_NAMESPACE["_list_task_artifacts"]
 build_restore_upload_requirements = TASK_HISTORY_NAMESPACE[
     "_build_restore_upload_requirements"
 ]
@@ -73,6 +80,42 @@ def test_find_final_task_video_returns_first_numbered_output(tmp_path):
     (tmp_path / "final-1.mp4").touch()
 
     assert find_final_task_video(str(tmp_path)) == str(tmp_path / "final-1.mp4")
+
+
+def test_list_final_task_videos_uses_numeric_order_and_rejects_symlinks(tmp_path):
+    outside_video = tmp_path.parent / "outside-final.mp4"
+    outside_video.touch()
+    (tmp_path / "final-10.mp4").touch()
+    (tmp_path / "final-2.mp4").touch()
+    (tmp_path / "final-1.mp4").symlink_to(outside_video)
+
+    assert list_final_task_videos(str(tmp_path)) == [
+        str((tmp_path / "final-2.mp4").resolve()),
+        str((tmp_path / "final-10.mp4").resolve()),
+    ]
+
+
+def test_list_task_artifacts_only_returns_safe_delivery_files(tmp_path):
+    (tmp_path / "final-1.mp4").write_bytes(b"video")
+    (tmp_path / "audio.mp3").write_bytes(b"audio")
+    (tmp_path / "subtitle.srt").write_text("subtitle", encoding="utf-8")
+    (tmp_path / "script.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "combined-1.mp4").touch()
+    (tmp_path / "temp-clip-1.mp4").touch()
+    (tmp_path / ".secret.json").touch()
+    (tmp_path / "debug.log").touch()
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "linked.mp4").symlink_to(tmp_path / "final-1.mp4")
+
+    artifacts = list_task_artifacts(str(tmp_path))
+
+    assert [artifact["name"] for artifact in artifacts] == [
+        "final-1.mp4",
+        "audio.mp3",
+        "script.json",
+        "subtitle.srt",
+    ]
+    assert artifacts[0]["size"] == 5
 
 
 def test_restore_requirements_block_missing_uploaded_files():

@@ -6,7 +6,6 @@ import mimetypes
 import os
 import re
 import shutil
-import subprocess
 import sys
 import webbrowser
 from collections.abc import Mapping
@@ -120,6 +119,34 @@ _FINAL_VIDEO_PATTERN = re.compile(
     r"^final-(?P<index>\d+)\.(?P<extension>mp4|mov|mkv|webm)$",
     re.IGNORECASE,
 )
+_TASK_ARTIFACT_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".mkv",
+    ".webm",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".flac",
+    ".ogg",
+    ".srt",
+    ".vtt",
+    ".ass",
+    ".txt",
+    ".json",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+}
+_TASK_ARTIFACT_EXCLUDED_PREFIXES = (
+    "combined-",
+    "temp-",
+    "material-",
+)
+_TASK_ARTIFACT_MAX_FILES = 50
+_TASK_ARTIFACT_MAX_DOWNLOAD_SIZE = 200 * 1024 * 1024
 
 
 # -----------------------------------------------------------------------------
@@ -317,6 +344,97 @@ def _find_final_task_video(task_path: str) -> str:
     return os.path.join(task_path, file_name)
 
 
+def _list_final_task_videos(task_path: str) -> list[str]:
+    """按成片序号返回任务目录内可安全预览的最终视频。"""
+    task_real_path = os.path.realpath(task_path)
+    try:
+        entries = os.scandir(task_real_path)
+    except OSError:
+        return []
+
+    candidates = []
+    with entries:
+        for entry in entries:
+            match = _FINAL_VIDEO_PATTERN.fullmatch(entry.name)
+            if not match:
+                continue
+            try:
+                if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
+                    continue
+                file_real_path = os.path.realpath(entry.path)
+                if os.path.commonpath([task_real_path, file_real_path]) != task_real_path:
+                    continue
+            except (OSError, ValueError):
+                continue
+            candidates.append((int(match.group("index")), file_real_path))
+
+    return [path for _, path in sorted(candidates, key=lambda item: item[0])]
+
+
+def _list_task_artifacts(task_path: str) -> list[dict]:
+    """列出任务根目录中的交付产物，不暴露临时文件、目录或符号链接。"""
+    task_real_path = os.path.realpath(task_path)
+    try:
+        entries = os.scandir(task_real_path)
+    except OSError:
+        return []
+
+    artifacts = []
+    with entries:
+        for entry in entries:
+            if entry.name.startswith(".") or entry.name.lower().startswith(
+                _TASK_ARTIFACT_EXCLUDED_PREFIXES
+            ):
+                continue
+            extension = os.path.splitext(entry.name)[1].lower()
+            if extension not in _TASK_ARTIFACT_EXTENSIONS:
+                continue
+            try:
+                if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
+                    continue
+                file_real_path = os.path.realpath(entry.path)
+                if os.path.commonpath([task_real_path, file_real_path]) != task_real_path:
+                    continue
+                file_stat = entry.stat(follow_symlinks=False)
+            except (OSError, ValueError):
+                continue
+            artifacts.append(
+                {
+                    "name": entry.name,
+                    "path": file_real_path,
+                    "extension": extension,
+                    "size": file_stat.st_size,
+                }
+            )
+
+    artifacts.sort(
+        key=lambda item: (
+            0 if _FINAL_VIDEO_PATTERN.fullmatch(item["name"]) else 1,
+            item["name"].lower(),
+        )
+    )
+    return artifacts[:_TASK_ARTIFACT_MAX_FILES]
+
+
+def _resolve_task_directory(task_id: str) -> str | None:
+    """把任务 UUID 解析为受 storage/tasks 约束的真实目录。"""
+    try:
+        normalized_task_id = str(UUID(str(task_id)))
+    except (TypeError, ValueError, AttributeError):
+        logger.warning(f"invalid task id for artifact access: {task_id}")
+        return None
+
+    tasks_root = os.path.realpath(utils.task_dir())
+    task_path = os.path.realpath(os.path.join(tasks_root, normalized_task_id))
+    try:
+        if os.path.commonpath([tasks_root, task_path]) != tasks_root:
+            raise ValueError("task path is outside the task directory")
+    except ValueError as e:
+        logger.warning(f"invalid task artifact path: {task_id}, {e}")
+        return None
+    return task_path if os.path.isdir(task_path) else None
+
+
 def _build_restore_upload_requirements(params: Mapping) -> dict:
     """
     记录历史任务中无法由 Streamlit 自动恢复的上传文件依赖。
@@ -367,7 +485,23 @@ def _get_unmet_restore_upload_requirements(
 def _queue_task_restore(task_id):
     # 任务列表运行在 fragment 中，不能直接修改已经创建的主表单控件状态。
     # 这里只记录候选任务并触发整页 rerun，确认和参数恢复由主页面统一处理。
+    st.session_state.pop("task_artifact_dialog", None)
     st.session_state["task_restore_candidate_id"] = task_id
+    st.session_state["task_manager_popover_nonce"] = (
+        st.session_state.get("task_manager_popover_nonce", 0) + 1
+    )
+    st.rerun(scope="app")
+
+
+def _queue_task_artifact_dialog(task_id, dialog_type):
+    """从周期刷新的任务列表切换到主页面唯一的产物弹窗。"""
+    if dialog_type not in {"preview", "files"}:
+        return
+    st.session_state.pop("task_restore_candidate_id", None)
+    st.session_state["task_artifact_dialog"] = {
+        "task_id": task_id,
+        "type": dialog_type,
+    }
     st.session_state["task_manager_popover_nonce"] = (
         st.session_state.get("task_manager_popover_nonce", 0) + 1
     )
@@ -572,40 +706,6 @@ def _collect_task_summaries(limit=20):
     return sorted(tasks, key=lambda item: item["mtime"], reverse=True)[:limit]
 
 
-def _open_task_path(task_path):
-    tasks_root = os.path.abspath(utils.task_dir())
-    normalized_path = os.path.abspath(task_path)
-    if not normalized_path.startswith(tasks_root + os.sep):
-        logger.warning(f"invalid task folder path: {normalized_path}")
-        return
-    if os.path.isdir(normalized_path):
-        webbrowser.open(f"file://{normalized_path}")
-
-
-def _open_task_video(video_file):
-    tasks_root = os.path.abspath(utils.task_dir())
-    normalized_file = os.path.abspath(video_file)
-
-    # 视频路径来自任务目录扫描或运行期状态。这里仍然限制只能打开任务目录
-    # 内的文件，避免 UI 操作被异常路径扩展成任意本地文件打开能力。
-    if not normalized_file.startswith(tasks_root + os.sep):
-        logger.warning(f"invalid task video path: {normalized_file}")
-        return
-    if not os.path.isfile(normalized_file):
-        logger.warning(f"task video does not exist: {normalized_file}")
-        return
-
-    try:
-        if sys.platform == "darwin":
-            subprocess.Popen(["open", normalized_file])
-        elif sys.platform.startswith("win"):
-            os.startfile(normalized_file)  # type: ignore[attr-defined]
-        else:
-            subprocess.Popen(["xdg-open", normalized_file])
-    except Exception as e:
-        logger.error(f"failed to open task video: {normalized_file}, {e}")
-
-
 def _delete_task(task_id, task_path, task_state=None):
     # 页面展示的状态可能落后于后台任务。删除前同时检查传入状态、当前会话的
     # 活跃任务和最新状态，避免任务刚开始或已产出中间视频时被误删。
@@ -720,18 +820,19 @@ def _render_task_table(filtered_tasks, key_prefix):
                         help=play_label,
                         disabled=not has_video,
                     ):
-                        _open_task_video(task["video_file"])
+                        _queue_task_artifact_dialog(task_id, "preview")
 
                 with action_cols[1]:
-                    open_label = tr("Open Task Folder")
+                    open_label = tr("Task Files")
                     if st.button(
                         open_label,
                         key=f"open_task_{key_prefix}_{task_id}",
                         use_container_width=True,
                         icon=":material/folder_open:",
                         help=open_label,
+                        disabled=not os.path.isdir(task["task_path"]),
                     ):
-                        _open_task_path(task["task_path"])
+                        _queue_task_artifact_dialog(task_id, "files")
 
                 with action_cols[2]:
                     restore_label = tr("Regenerate Task")
@@ -761,6 +862,9 @@ def _render_task_table(filtered_tasks, key_prefix):
                         disabled=is_busy,
                     ):
                         if _delete_task(task_id, task["task_path"], task["state"]):
+                            dialog = st.session_state.get("task_artifact_dialog") or {}
+                            if dialog.get("task_id") == task_id:
+                                st.session_state.pop("task_artifact_dialog", None)
                             st.toast(tr("Task Deleted"))
                             st.rerun()
                         else:
@@ -999,6 +1103,107 @@ def _dismiss_task_restore_dialog():
     st.session_state.pop("task_restore_candidate_id", None)
 
 
+def _dismiss_task_artifact_dialog():
+    st.session_state.pop("task_artifact_dialog", None)
+
+
+def _load_task_artifact_bytes(task_path: str, file_path: str) -> bytes:
+    """下载触发时重新校验文件，避免弹窗打开后的删除或符号链接替换竞态。"""
+    task_real_path = os.path.realpath(task_path)
+    file_real_path = os.path.realpath(file_path)
+    try:
+        if os.path.commonpath([task_real_path, file_real_path]) != task_real_path:
+            raise ValueError("artifact path is outside the task directory")
+        if os.path.islink(file_path) or not os.path.isfile(file_real_path):
+            raise ValueError("artifact file is unavailable")
+        if os.path.getsize(file_real_path) > _TASK_ARTIFACT_MAX_DOWNLOAD_SIZE:
+            raise ValueError("artifact file is too large")
+    except OSError as e:
+        raise ValueError("artifact file is unavailable") from e
+    return Path(file_real_path).read_bytes()
+
+
+@st.dialog(
+    tr("Video Preview"),
+    width="large",
+    on_dismiss=_dismiss_task_artifact_dialog,
+)
+def _render_task_video_dialog(task_id):
+    task_path = _resolve_task_directory(task_id)
+    if not task_path:
+        st.error(tr("Task Files Unavailable"))
+        return
+
+    videos = _list_final_task_videos(task_path)
+    if not videos:
+        st.warning(tr("No Preview Videos"))
+        return
+
+    selected_video = videos[0]
+    if len(videos) > 1:
+        selected_video = st.selectbox(
+            tr("Select Video"),
+            videos,
+            format_func=lambda path: os.path.basename(path),
+            key=f"task_video_select_{task_id}",
+        )
+    try:
+        st.video(selected_video)
+        st.caption(os.path.basename(selected_video))
+        logger.info(
+            f"preview task artifact: task_id={task_id}, "
+            f"file={os.path.basename(selected_video)}"
+        )
+    except OSError as e:
+        logger.warning(f"failed to preview task artifact: task_id={task_id}, {e}")
+        st.error(tr("Task File Missing"))
+
+
+@st.dialog(
+    tr("Task Files"),
+    width="large",
+    on_dismiss=_dismiss_task_artifact_dialog,
+)
+def _render_task_files_dialog(task_id):
+    task_path = _resolve_task_directory(task_id)
+    if not task_path:
+        st.error(tr("Task Files Unavailable"))
+        return
+
+    artifacts = _list_task_artifacts(task_path)
+    if not artifacts:
+        st.info(tr("No Task Files"))
+        return
+
+    for index, artifact in enumerate(artifacts):
+        name_col, type_col, size_col, download_col = st.columns(
+            [3.2, 1.2, 1.1, 1.2],
+            vertical_alignment="center",
+        )
+        name_col.write(artifact["name"])
+        mime_type = mimetypes.guess_type(artifact["name"])[0] or "application/octet-stream"
+        type_col.caption(mime_type)
+        size_col.caption(_format_file_size(artifact["size"]))
+        if artifact["size"] > _TASK_ARTIFACT_MAX_DOWNLOAD_SIZE:
+            download_col.caption(tr("File Too Large"))
+            continue
+
+        download_col.download_button(
+            tr("Download"),
+            data=lambda task_path=task_path, file_path=artifact["path"]: (
+                _load_task_artifact_bytes(task_path, file_path)
+            ),
+            file_name=artifact["name"],
+            mime=mime_type,
+            key=f"download_task_artifact_{task_id}_{index}",
+            on_click="ignore",
+            use_container_width=True,
+            icon=":material/download:",
+        )
+
+    logger.info(f"listed task artifacts: task_id={task_id}, count={len(artifacts)}")
+
+
 @st.dialog(
     tr("Regenerate Task"),
     width="small",
@@ -1200,27 +1405,6 @@ def get_all_songs():
     return songs
 
 
-def open_task_folder(task_id):
-    try:
-        # task_id 应始终是服务端生成的 UUID。这里先做格式校验，避免异常值
-        # 通过路径拼接访问任务目录之外的位置，也避免后续打开目录时触发
-        # 平台 shell 对特殊字符的解释。
-        normalized_task_id = str(UUID(str(task_id)))
-        tasks_root = os.path.abspath(os.path.join(root_dir, "storage", "tasks"))
-        path = os.path.abspath(os.path.join(tasks_root, normalized_task_id))
-
-        # 即使 UUID 校验通过，也再次确认最终路径仍在任务根目录内，避免
-        # 未来调用方调整 task_id 来源时引入路径穿越风险。
-        if not path.startswith(tasks_root + os.sep):
-            logger.warning(f"invalid task folder path: {path}")
-            return
-
-        if os.path.isdir(path):
-            webbrowser.open(f"file://{path}")
-    except Exception as e:
-        logger.exception(f"failed to open task folder: task_id={task_id}, error={e}")
-
-
 @st.cache_resource
 def init_log():
     # 基础日志 Handler 属于进程级资源，而不是页面会话状态。Streamlit 每次组件
@@ -1381,12 +1565,7 @@ def _render_generation_task_snapshot(task_id, task):
         )
 
     _render_generation_logs(task_id)
-    if st.session_state.get("opened_generation_task_id") != task_id:
-        # 原同步流程会在生成完成后自动打开任务目录。Fragment 可能重复运行，
-        # 因此用会话标记保证每个任务只打开一次，避免连续弹出 Finder/资源管理器。
-        st.session_state["opened_generation_task_id"] = task_id
-        open_task_folder(task_id)
-        logger.info(f"{tr('Video Generation Completed')}: task_id={task_id}")
+    logger.info(f"{tr('Video Generation Completed')}: task_id={task_id}")
 
 
 @st.fragment(run_every=webui_task.TASK_LOG_REFRESH_INTERVAL_SECONDS)
@@ -3917,6 +4096,11 @@ def _render_application():
     restore_candidate_id = st.session_state.get("task_restore_candidate_id")
     if restore_candidate_id:
         _render_task_restore_dialog(restore_candidate_id)
+    artifact_dialog = st.session_state.get("task_artifact_dialog") or {}
+    if artifact_dialog.get("type") == "preview":
+        _render_task_video_dialog(artifact_dialog.get("task_id"))
+    elif artifact_dialog.get("type") == "files":
+        _render_task_files_dialog(artifact_dialog.get("task_id"))
     restore_succeeded = st.session_state.pop("task_restore_succeeded", False)
     if restore_applied or restore_succeeded:
         st.success(tr("Task Configuration Loaded"))
