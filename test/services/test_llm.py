@@ -33,57 +33,58 @@ RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() 
 class TestScriptPromptOptions(unittest.TestCase):
     def test_normalize_text_response_removes_think_blocks(self):
         """
-        reasoning 模型可能返回 `<think>...</think>`。脚本生成链路必须只保留
-        最终正文，避免思考过程进入字幕和配音。
+        추론 모델은 `<think>...</think>` 를 반환할 수 있다. 대본 생성 경로는 최종 본문만 남겨
+        사고 과정이 자막과 나레이션에 들어가지 않게 해야 한다.
         """
         result = llm._normalize_text_response(
-            "<think>\nI should reason here.\n</think>\n测试成功",
+            "<think>\nI should reason here.\n</think>\n테스트 성공",
             "minimax",
         )
 
-        self.assertEqual(result, "测试成功")
+        self.assertEqual(result, "테스트 성공")
 
     def test_normalize_text_response_rejects_think_only_response(self):
         """
-        如果模型只返回思考块而没有最终答案，应视为空内容，触发重试或明确错误。
+        모델이 사고 블록만 반환하고 최종 답이 없으면 빈 내용으로 보고 재시도하거나 명확한 오류를 내야 한다.
         """
         with self.assertRaises(ValueError):
             llm._normalize_text_response("<think>hidden reasoning</think>", "minimax")
 
     def test_normalize_text_response_removes_unclosed_think_block(self):
         """
-        某些网关可能因为截断只返回未闭合的 `<think>`。这种内容同样不能
-        进入最终脚本；如果清理后没有正文，就应该按空响应处理。
+        일부 게이트웨이는 응답이 잘려 닫히지 않은 `<think>` 만 반환할 수 있다. 이런 내용도 최종
+        대본에 들어가서는 안 되며, 정리한 뒤 본문이 없으면 빈 응답으로 처리해야 한다.
         """
         with self.assertRaises(ValueError):
             llm._normalize_text_response("<think>hidden reasoning", "minimax")
 
     def test_build_script_prompt_appends_advanced_requirements(self):
         """
-        高级文案要求只作为附加约束，不替换默认系统提示词。
-        这样普通用户不配置时仍然走稳定默认规则，高级用户也能细化风格。
+        고급 대본 요구 사항은 추가 제약일 뿐 기본 시스템 프롬프트를 대체하지 않는다.
+        그래야 일반 사용자가 설정하지 않아도 안정적인 기본 규칙을 따르고, 고급 사용자는 문체를
+        더 다듬을 수 있다.
         """
         prompt = llm.build_script_prompt(
-            video_subject="咖啡",
+            video_subject="커피",
             language="zh-CN",
             paragraph_number=3,
-            video_script_prompt="语气轻松，面向程序员",
+            video_script_prompt="가벼운 톤으로, 개발자 대상",
         )
 
         self.assertIn("# Role: Video Script Generator", prompt)
-        self.assertIn("- video subject: 咖啡", prompt)
+        self.assertIn("- video subject: 커피", prompt)
         self.assertIn("- number of paragraphs: 3", prompt)
         self.assertIn("- language: zh-CN", prompt)
         self.assertIn("# Additional User Requirements:", prompt)
-        self.assertIn("语气轻松，面向程序员", prompt)
+        self.assertIn("가벼운 톤으로, 개발자 대상", prompt)
 
     def test_custom_system_prompt_keeps_runtime_context(self):
         """
-        自定义 system prompt 会替换默认脚本规则，但视频主题、语言、段落数
-        仍由服务层统一追加，避免高级用户漏写必要上下文。
+        사용자 지정 system prompt 는 기본 대본 규칙을 대체하지만, 영상 주제·언어·문단 수는 서비스
+        계층이 계속 덧붙인다. 고급 사용자가 필수 맥락을 빠뜨리는 것을 막기 위해서다.
         """
         prompt = llm.build_script_prompt(
-            video_subject="露营",
+            video_subject="캠핑",
             language="en",
             paragraph_number=2,
             custom_system_prompt="Only write cinematic narration.",
@@ -91,7 +92,7 @@ class TestScriptPromptOptions(unittest.TestCase):
 
         self.assertNotIn("# Role: Video Script Generator", prompt)
         self.assertIn("Only write cinematic narration.", prompt)
-        self.assertIn("- video subject: 露营", prompt)
+        self.assertIn("- video subject: 캠핑", prompt)
         self.assertIn("- number of paragraphs: 2", prompt)
         self.assertIn("- language: en", prompt)
 
@@ -100,27 +101,28 @@ class TestScriptPromptOptions(unittest.TestCase):
 
         def fake_generate_response(prompt):
             captured["prompt"] = prompt
-            return "第一段。\n\n第二段。"
+            return "첫 번째 문단.\n\n두 번째 문단."
 
         with patch.object(
             llm, "_generate_response", side_effect=fake_generate_response
         ):
             result = llm.generate_script(
-                video_subject="咖啡",
+                video_subject="커피",
                 language="zh-CN",
                 paragraph_number=2,
-                video_script_prompt="开头更有悬念",
+                video_script_prompt="도입부를 더 궁금하게",
             )
 
-        self.assertEqual(result, "第一段。\n\n第二段。")
+        self.assertEqual(result, "첫 번째 문단.\n\n두 번째 문단.")
         self.assertIn("- number of paragraphs: 2", captured["prompt"])
-        self.assertIn("开头更有悬念", captured["prompt"])
+        self.assertIn("도입부를 더 궁금하게", captured["prompt"])
 
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
-        按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，
-        只验证服务层会把“按脚本叙事顺序输出”的约束写入 prompt，避免
-        后续素材下载虽然顺序化，但关键词仍然是全局无序主题词。
+        소재를 대본 순서에 맞추려면 LLM 이 순서 있는 키워드를 반환해야 한다. 여기서는 실제 모델을
+        호출하지 않고, 서비스 계층이 '대본 서술 순서대로 출력' 이라는 제약을 prompt 에 넣는지만
+        검증한다. 이후 소재 다운로드는 순서대로 되는데 키워드는 여전히 전역 무순 주제어인 상황을
+        막기 위해서다.
         """
         captured = {}
 
@@ -144,10 +146,10 @@ class TestScriptPromptOptions(unittest.TestCase):
 
     def test_generate_terms_returns_empty_list_on_provider_error(self):
         """
-        Provider 错误必须保持 generate_terms 的 List[str] 返回契约。
+        Provider 오류가 나도 generate_terms 의 List[str] 반환 계약은 지켜져야 한다.
 
-        非空的 ``Error: ...`` 字符串在 Python 中是真值；如果直接返回，任务层
-        会把它当成有效关键词，素材下载层随后还可能逐字符发起搜索请求。
+        비어 있지 않은 ``Error: ...`` 문자열은 Python 에서 참으로 평가된다. 그대로 반환하면 작업
+        계층이 유효한 키워드로 오해하고, 소재 다운로드 계층은 글자 단위로 검색 요청을 보낼 수도 있다.
         """
         with patch.object(
             llm,
@@ -164,22 +166,22 @@ class TestScriptPromptOptions(unittest.TestCase):
 
     def test_video_script_request_rejects_invalid_advanced_options(self):
         """
-        API 请求模型需要限制高级 prompt 参数，避免外部调用绕过 WebUI
-        传入异常段落数或超长提示词，导致模型成本和结果不可控。
+        API 요청 모델은 고급 prompt 파라미터를 제한해야 한다. 외부 호출이 WebUI 를 우회해 비정상
+        문단 수나 지나치게 긴 프롬프트를 넘겨 모델 비용과 결과가 통제를 벗어나는 것을 막기 위해서다.
         """
         with self.assertRaises(ValidationError):
-            VideoScriptRequest(video_subject="咖啡", paragraph_number=0)
+            VideoScriptRequest(video_subject="커피", paragraph_number=0)
 
         with self.assertRaises(ValidationError):
             VideoScriptRequest(
-                video_subject="咖啡",
+                video_subject="커피",
                 video_script_prompt="x" * (llm.MAX_SCRIPT_PROMPT_LENGTH + 1),
             )
 
 
 class TestLLMConnection(unittest.TestCase):
     def test_connection_sends_one_minimal_request(self):
-        """连接测试只发送一次固定最小请求，不触发脚本生成重试。"""
+        """연결 테스트는 고정된 최소 요청을 한 번만 보내고 대본 생성 재시도를 일으키지 않는다."""
         with (
             patch.object(llm, "_generate_response", return_value="OK") as generate,
             patch.object(llm, "perf_counter", side_effect=[10.0, 10.25]),
@@ -190,7 +192,7 @@ class TestLLMConnection(unittest.TestCase):
         self.assertEqual(result, (True, "", 0.25))
 
     def test_connection_returns_provider_error(self):
-        """Provider 返回错误时应保留可诊断信息，并报告本次请求耗时。"""
+        """Provider 가 오류를 반환하면 진단 가능한 정보를 남기고 이번 요청의 소요 시간도 보고해야 한다."""
         with (
             patch.object(
                 llm,
@@ -204,7 +206,7 @@ class TestLLMConnection(unittest.TestCase):
         self.assertEqual(result, (False, "invalid API key", 0.5))
 
     def test_connection_rejects_empty_response(self):
-        """极端情况下的空响应应显示明确错误，而不是误报连接成功。"""
+        """극단적인 빈 응답에는 명확한 오류를 보여 줘야 하며, 연결 성공으로 잘못 보고해서는 안 된다."""
         with (
             patch.object(llm, "_generate_response", return_value=""),
             patch.object(llm, "perf_counter", side_effect=[30.0, 31.0]),
@@ -223,7 +225,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app.update(self.original_app_config)
 
     def test_current_default_model_names(self):
-        """WebUI 与服务层必须共享同一组默认模型，避免展示值和请求值漂移。"""
+        """WebUI 와 서비스 계층은 같은 기본 모델 묶음을 공유해야 한다. 표시 값과 요청 값이 어긋나지 않게 하기 위해서다."""
         self.assertEqual(get_llm_provider("openai").default_model, "gpt-5.5")
         self.assertEqual(get_llm_provider("aimlapi").default_model, "openai/gpt-5-5")
         self.assertEqual(get_llm_provider("deepseek").default_model, "deepseek-v4-pro")
@@ -243,7 +245,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(pollinations.adapter, "openai_compatible")
 
     def test_provider_defaults_are_not_persisted_as_user_overrides(self):
-        """默认值只用于运行和展示，只有不同值才应写入用户配置。"""
+        """기본값은 실행과 표시에만 쓰고, 값이 다를 때만 사용자 설정에 기록해야 한다."""
         self.assertEqual(
             normalize_provider_override("gpt-5.5", "gpt-5.5"),
             "",
@@ -258,7 +260,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
 
     def test_provider_registry_has_unique_stable_ids(self):
-        """Registry 是 Provider 列表的唯一数据源，ID 必须唯一且默认项存在。"""
+        """Registry 는 Provider 목록의 유일한 데이터 출처다. ID 는 고유해야 하고 기본 항목이 있어야 한다."""
         provider_ids = [provider.provider_id for provider in LLM_PROVIDER_REGISTRY]
 
         self.assertEqual(len(provider_ids), len(set(provider_ids)))
@@ -266,7 +268,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn(DEFAULT_LLM_PROVIDER_ID, LLM_PROVIDERS)
 
     def test_provider_registry_preserves_product_group_order(self):
-        """下拉顺序按推荐、原厂、聚合平台、本地部署和其它服务排列。"""
+        """드롭다운 순서는 추천, 원 제조사, 집계 플랫폼, 로컬 배포, 기타 서비스 순으로 배열한다."""
         self.assertEqual(
             [provider.provider_id for provider in LLM_PROVIDER_REGISTRY],
             [
@@ -302,7 +304,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
 
     def test_provider_registry_uses_conventional_locale_and_config_keys(self):
-        """统一命名规则可避免 WebUI 为每个 Provider 增加硬编码映射。"""
+        """명명 규칙을 통일하면 WebUI 가 Provider 마다 하드코딩 매핑을 추가하지 않아도 된다."""
         for provider in LLM_PROVIDER_REGISTRY:
             self.assertEqual(
                 provider.label_key,
@@ -318,7 +320,7 @@ class TestLiteLLMProvider(unittest.TestCase):
             )
 
     def test_registry_replaces_deprecated_provider_models(self):
-        """历史默认模型应自动迁移，避免升级后继续使用已移除的接入语义。"""
+        """예전 기본 모델은 자동으로 이전되어야 한다. 업그레이드 후 제거된 연동 방식을 계속 쓰지 않게 하기 위해서다."""
         cloudflare = get_llm_provider("cloudflare")
         gemini = get_llm_provider("gemini")
 
@@ -350,7 +352,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
 
     def test_provider_tip_templates_accept_registry_defaults(self):
-        """所有语言的 Provider 提示模板都必须能安全注入 Registry 默认值。"""
+        """모든 언어의 Provider 안내 템플릿에 Registry 기본값을 안전하게 주입할 수 있어야 한다."""
         i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
         for locale_file in i18n_dir.glob("*.json"):
             translations = json.loads(locale_file.read_text(encoding="utf-8"))[
@@ -374,7 +376,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 self.assertNotIn("{default_base_url}", rendered)
 
     def test_primary_provider_tips_use_consistent_structure(self):
-        """中英文配置说明统一展示 API Key、Base URL 和模型名称。"""
+        """중국어·영어 설정 설명은 API Key, Base URL, 모델 이름을 함께 보여 준다."""
         i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
         for language in ("zh", "en"):
             translations = json.loads(
@@ -390,11 +392,12 @@ class TestLiteLLMProvider(unittest.TestCase):
         zh_kimi_tips = json.loads((i18n_dir / "zh.json").read_text(encoding="utf-8"))[
             "Translation"
         ]["llm_provider_tips.moonshot"]
+        # 아래 두 문자열은 zh 로케일(zh.json) 의 실제 내용을 검증하는 값이라 중국어 원문 그대로 둔다.
         self.assertIn("推荐理由：", zh_kimi_tips)
         self.assertIn("视频创作链路匹配", zh_kimi_tips)
 
     def test_required_api_key_providers_have_clickable_entry_points(self):
-        """需要密钥的 Provider 必须提供统一申请入口，避免 WebUI 只给出文字。"""
+        """키가 필요한 Provider 는 통일된 발급 진입점을 제공해야 한다. WebUI 가 문구만 보여 주는 일이 없게 하기 위해서다."""
         i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
         locale_translations = {
             locale_file.stem: json.loads(locale_file.read_text(encoding="utf-8"))[
@@ -435,7 +438,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                     )
 
     def test_example_config_does_not_duplicate_registry_defaults(self):
-        """示例配置只保存用户覆盖值，默认模型和地址由 Registry 唯一维护。"""
+        """예시 설정에는 사용자 재정의 값만 저장한다. 기본 모델과 주소는 Registry 가 단독으로 관리한다."""
         config_path = Path(__file__).parent.parent.parent / "config.example.toml"
         app_config = tomllib.loads(config_path.read_text(encoding="utf-8"))["app"]
 
@@ -461,7 +464,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                     )
 
     def test_removed_ernie_provider_is_unsupported(self):
-        """移除 ERNIE 后，遗留配置应返回明确错误，不再发起旧 OAuth 请求。"""
+        """ERNIE 를 제거한 뒤에는 남은 설정이 명확한 오류를 반환해야 하며, 예전 OAuth 요청을 보내지 않아야 한다."""
         config.app["llm_provider"] = "ernie"
 
         with patch.object(llm, "OpenAI") as openai_client:
@@ -471,7 +474,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("unsupported llm provider", result)
 
     def test_pollinations_requires_api_key_before_request(self):
-        """新统一 API 要求鉴权，缺少 Key 时不得发送匿名生成请求。"""
+        """새 통합 API 는 인증을 요구한다. 키가 없으면 익명 생성 요청을 보내서는 안 된다."""
         config.app.update(
             {
                 "llm_provider": "pollinations",
@@ -488,7 +491,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("api_key is not set", result)
 
     def test_pollinations_uses_unified_openai_compatible_api(self):
-        """历史地址和模型名应自动迁移，并通过统一 Chat Completions API 调用。"""
+        """예전 주소와 모델명은 자동으로 이전되고, 통합 Chat Completions API 로 호출되어야 한다."""
         config.app.update(
             {
                 "llm_provider": "pollinations",
@@ -530,7 +533,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(result, "hellopollinations")
 
     def test_gemini_uses_google_genai_client(self):
-        """Gemini 适配器应通过新版 SDK 的统一 Client 发起内容生成请求。"""
+        """Gemini 어댑터는 새 SDK 의 통합 Client 로 콘텐츠 생성 요청을 보내야 한다."""
         config.app.update(
             {
                 "llm_provider": "gemini",
@@ -571,7 +574,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(captured["closed"])
 
     def test_cloudflare_requires_account_id_before_request(self):
-        """Cloudflare 缺少 Account ID 时应在本地失败，不发送无效请求。"""
+        """Cloudflare 는 Account ID 가 없으면 로컬에서 실패해야 하며 잘못된 요청을 보내지 않아야 한다."""
         config.app.update(
             {
                 "llm_provider": "cloudflare",
@@ -588,7 +591,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("account_id is not set", result)
 
     def test_cloudflare_uses_ai_gateway_openai_endpoint(self):
-        """Cloudflare Provider 必须走 AI Gateway，不再调用 Workers AI 接口。"""
+        """Cloudflare Provider 는 AI Gateway 를 거쳐야 하며 Workers AI 엔드포인트를 호출하지 않는다."""
         config.app.update(
             {
                 "llm_provider": "cloudflare",
@@ -645,11 +648,11 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_litellm_provider_returns_normalized_text(self):
         """
-        验证 LiteLLM provider 的主路径不依赖真实网络和私有 API key。
+        LiteLLM provider 의 주 경로가 실제 네트워크와 개인 API 키에 의존하지 않는지 검증한다.
 
-        这里用 fake module 注入 `sys.modules`，直接覆盖动态 import 的
-        `litellm.completion()`，确保测试稳定覆盖 `_generate_response()` 里的
-        litellm 分支。
+        여기서는 fake module 을 `sys.modules` 에 주입해 동적으로 import 되는
+        `litellm.completion()` 을 대체한다. 테스트가 `_generate_response()` 의 litellm 분기를
+        안정적으로 덮도록 하기 위해서다.
         """
         self._use_litellm_provider()
 
@@ -705,9 +708,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_litellm_provider_handles_empty_message(self):
         """
-        某些 OpenAI-compatible 网关在内容过滤或安全拦截时会返回
-        HTTP 200，但 `choices[0].message` 为 None。这里必须返回
-        可诊断的错误，而不是抛出 AttributeError。
+        일부 OpenAI 호환 게이트웨이는 콘텐츠 필터링이나 보안 차단 시 HTTP 200 을 반환하면서
+        `choices[0].message` 를 None 으로 준다. 여기서는 AttributeError 를 던지지 않고 진단
+        가능한 오류를 반환해야 한다.
         """
         self._use_litellm_provider()
 
@@ -743,9 +746,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_openai_provider_error_redacts_embedded_base_url_credentials(self):
         """
-        自定义 OpenAI-compatible base_url 可能包含代理网关的 user:pass。
-        SDK 抛错时常会把 URL 带回异常信息，这里验证最终返回给 WebUI/API 的
-        `Error:` 文案不会泄露这些凭据。
+        사용자 지정 OpenAI 호환 base_url 에는 프록시 게이트웨이의 user:pass 가 들어 있을 수 있다.
+        SDK 가 오류를 낼 때 URL 을 예외 메시지에 함께 담는 경우가 많으므로, WebUI/API 로 최종
+        반환되는 `Error:` 문구가 이 자격 증명을 흘리지 않는지 검증한다.
         """
         config.app["llm_provider"] = "groq"
         config.app["groq_api_key"] = "groq-key"
@@ -818,35 +821,35 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_qwen_provider_reads_chat_choices_content(self):
         """
-        DashScope chat 模式会把文本放在 `output.choices[0].message.content`。
-        这里覆盖 issue #966 报告的 `output.text is None` 场景，避免再次触发
+        DashScope 의 chat 모드는 텍스트를 `output.choices[0].message.content` 에 넣는다.
+        여기서는 issue #966 이 보고한 `output.text is None` 상황을 덮어 재발을 막는다
         `'NoneType' object has no attribute 'replace'`。
         """
         self._use_qwen_provider()
         response = {
             "output": {
                 "text": None,
-                "choices": [{"message": {"content": "你好\n世界"}}],
+                "choices": [{"message": {"content": "안녕\n세상"}}],
             }
         }
 
         with self._patch_dashscope_generation(response):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "你好世界")
+        self.assertEqual(result, "안녕세상")
 
     def test_qwen_provider_falls_back_to_output_text(self):
-        """保留旧 DashScope completion 响应结构的兼容路径。"""
+        """예전 DashScope completion 응답 구조에 대한 호환 경로를 유지한다."""
         self._use_qwen_provider()
-        response = {"output": {"text": "旧格式\n响应"}}
+        response = {"output": {"text": "예전 형식\n응답"}}
 
         with self._patch_dashscope_generation(response):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "旧格式响应")
+        self.assertEqual(result, "예전 형식응답")
 
     def test_qwen_provider_reports_empty_text(self):
-        """Qwen 空响应应返回可诊断错误，而不是底层 AttributeError。"""
+        """Qwen 의 빈 응답에는 저수준 AttributeError 대신 진단 가능한 오류를 반환해야 한다."""
         self._use_qwen_provider()
         response = {
             "output": {"text": None, "choices": [{"message": {"content": None}}]}
@@ -860,7 +863,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertNotIn("NoneType", result)
 
     def test_qwen_provider_reports_empty_choices(self):
-        """Qwen chat 响应 choices 为空时应返回明确错误。"""
+        """Qwen chat 응답의 choices 가 비어 있으면 명확한 오류를 반환해야 한다."""
         self._use_qwen_provider()
         response = {"output": {"text": None, "choices": []}}
 
@@ -873,9 +876,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_aihubmix_provider_uses_openai_compatible_client(self):
         """
-        AIHubMix 是 OpenAI-compatible 网关。这里用 fake OpenAI client
-        验证独立 Provider 会使用 Registry 中的默认地址和模型，避免真实网络
-        或私有 API Key 影响测试稳定性。
+        AIHubMix 는 OpenAI 호환 게이트웨이다. 여기서는 fake OpenAI client 로 독립 Provider 가
+        Registry 의 기본 주소와 모델을 쓰는지 검증한다. 실제 네트워크나 개인 API 키가 테스트
+        안정성에 영향을 주지 않게 하기 위해서다.
         """
         config.app["llm_provider"] = "aihubmix"
         config.app["aihubmix_api_key"] = "aihubmix-key"
@@ -994,9 +997,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_volcengine_provider_uses_openai_compatible_client(self):
         """
-        VolcEngine Ark 暴露 OpenAI-compatible Chat Completions。
-        这里用 fake OpenAI client 覆盖 provider 默认地址和默认模型，
-        避免真实网络或私有 API key 影响测试稳定性。
+        VolcEngine Ark 는 OpenAI 호환 Chat Completions 를 노출한다.
+        여기서는 fake OpenAI client 로 provider 의 기본 주소와 기본 모델을 덮어,
+        실제 네트워크나 개인 API 키가 테스트 안정성에 영향을 주지 않게 한다.
         """
         config.app["llm_provider"] = "volcengine"
         config.app["volcengine_api_key"] = "volcengine-key"
@@ -1129,7 +1132,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_ollama_default_base_url_uses_localhost_outside_container(self):
         """
-        普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。
+        일반적인 로컬 실행에서는 Ollama 가 계속 localhost 를 기본으로 써 기존 사용자에게 영향을 주지 않는다.
         """
         self._use_ollama_provider()
 
@@ -1138,8 +1141,8 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_ollama_default_base_url_uses_host_gateway_inside_container(self):
         """
-        容器内运行时，localhost 指向容器自身；默认改为 host.docker.internal，
-        方便 Docker Desktop 用户访问宿主机上的 Ollama。
+        컨테이너 안에서는 localhost 가 컨테이너 자신을 가리키므로 기본값을 host.docker.internal 로
+        바꿔, Docker Desktop 사용자가 호스트의 Ollama 에 접근하기 쉽게 한다.
         """
         self._use_ollama_provider()
 
@@ -1151,8 +1154,8 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_ollama_default_base_url_falls_back_to_container_gateway(self):
         """
-        原生 Linux Docker 里不一定能解析 host.docker.internal。此时使用容器
-        默认网关作为兜底地址，比直接返回不可解析的 hostname 更稳。
+        네이티브 Linux Docker 에서는 host.docker.internal 이 해석되지 않을 수 있다. 이때 컨테이너
+        기본 게이트웨이를 대비 주소로 쓰는 편이, 해석되지 않는 hostname 을 그대로 반환하는 것보다 안정적이다.
         """
         self._use_ollama_provider()
 
@@ -1167,7 +1170,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_ollama_explicit_base_url_takes_precedence(self):
         """
-        用户手动配置的 ollama_base_url 优先级最高，不受容器检测影响。
+        사용자가 직접 설정한 ollama_base_url 이 가장 우선하며 컨테이너 탐지의 영향을 받지 않는다.
         """
         self._use_ollama_provider(base_url="http://ollama:11434/v1")
 
@@ -1176,9 +1179,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
-        MiMo 官方接口兼容 OpenAI Chat Completions 协议。这里用 fake OpenAI
-        client 验证 provider 会使用 MiMo 独立配置和默认 base_url，不依赖
-        真实网络或私有 API Key。
+        MiMo 공식 엔드포인트는 OpenAI Chat Completions 프로토콜과 호환된다. 여기서는 fake OpenAI
+        client 로 provider 가 MiMo 전용 설정과 기본 base_url 을 쓰는지 검증하며, 실제 네트워크나
+        개인 API 키에 의존하지 않는다.
         """
         config.app["llm_provider"] = "mimo"
         config.app["mimo_api_key"] = "mimo-key"
@@ -1218,9 +1221,9 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def test_azure_provider_uses_azure_client_directly(self):
         """
-        Azure OpenAI 的鉴权、endpoint 和 api-version 都由 AzureOpenAI 客户端处理。
-        这个测试覆盖 issue #892：azure 分支必须直接调用 AzureOpenAI 创建的客户端，
-        不能继续落入普通 OpenAI-compatible 分支，否则会丢失 Azure 专用请求配置。
+        Azure OpenAI 의 인증, endpoint, api-version 은 모두 AzureOpenAI 클라이언트가 처리한다.
+        이 테스트는 issue #892 를 덮는다. azure 분기는 AzureOpenAI 로 만든 클라이언트를 직접
+        호출해야 하며, 일반 OpenAI 호환 분기로 떨어져 Azure 전용 요청 설정을 잃어서는 안 된다.
         """
         config.app["llm_provider"] = "azure"
         config.app["azure_api_key"] = "azure-key"
@@ -1274,7 +1277,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 class TestRuntimeEnvironmentDetection(unittest.TestCase):
     def test_container_detection_ignores_plain_linux_cgroup_file(self):
         """
-        普通 Linux 也有 /proc/1/cgroup，不能因为文件存在就判定为容器。
+        일반 Linux 에도 /proc/1/cgroup 이 있으므로, 파일이 있다는 이유만으로 컨테이너라고 판정해서는 안 된다.
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             cgroup_path = Path(tmp_dir) / "cgroup"
@@ -1346,23 +1349,23 @@ class TestRuntimeEnvironmentDetection(unittest.TestCase):
 
 
 class TestSocialMetadata(unittest.TestCase):
-    """通用短视频发布文案元数据生成。"""
+    """범용 숏폼 게시 문구 메타데이터 생성."""
 
     def test_build_prompt_auto_language_uses_source_language(self):
         """
-        language 默认 auto 时，不应该固定成某个国家或语种，而是让模型
-        跟随视频主题和脚本的语言，扩大 API 适用范围。
+        language 가 기본값 auto 일 때는 특정 국가나 언어로 고정하지 말고, 모델이 영상 주제와 대본의
+        언어를 따르게 해 API 의 적용 범위를 넓혀야 한다.
         """
         prompt = llm.build_social_metadata_prompt(
-            video_subject="上海一日游",
-            video_script="今天带你快速看完上海经典路线。",
+            video_subject="서울 당일치기",
+            video_script="오늘은 서울의 대표 코스를 빠르게 둘러봅니다.",
             language="auto",
             platform="tiktok",
         )
 
         self.assertIn("TikTok", prompt)
         self.assertIn("Use the same language as the video subject and script", prompt)
-        self.assertIn("上海一日游", prompt)
+        self.assertIn("서울 당일치기", prompt)
         self.assertIn("array of exactly 5 strings", prompt)
 
     def test_build_prompt_accepts_explicit_language(self):
@@ -1391,10 +1394,10 @@ class TestSocialMetadata(unittest.TestCase):
 
     def test_normalize_hashtags_from_list_keeps_unicode_letters(self):
         tags = llm._normalize_hashtags(
-            ["上海 旅行", "#việt nam", "  ", "@bad!chars"], count=5
+            ["서울 여행", "#việt nam", "  ", "@bad!chars"], count=5
         )
 
-        self.assertEqual(tags, ["#上海旅行", "#việtnam", "#badchars"])
+        self.assertEqual(tags, ["#서울여행", "#việtnam", "#badchars"])
 
     def test_parse_social_metadata_recovers_embedded_json(self):
         raw = 'Sure: {"title":"T","caption":"C","hashtags":["#x"]} thanks'
@@ -1410,20 +1413,20 @@ class TestSocialMetadata(unittest.TestCase):
 
     def test_generate_social_metadata_uses_llm_response(self):
         payload = (
-            '{"title":"上海一日游","caption":"收藏这条路线，下次直接出发！",'
-            '"hashtags":["#上海","#旅行","#shorts"]}'
+            '{"title":"서울 당일치기","caption":"이 코스 저장해 두었다가 다음에 바로 떠나세요!",'
+            '"hashtags":["#서울","#여행","#shorts"]}'
         )
         with patch.object(llm, "_generate_response", return_value=payload):
             result = llm.generate_social_metadata(
-                video_subject="上海一日游",
-                video_script="今天带你快速看完上海经典路线。",
+                video_subject="서울 당일치기",
+                video_script="오늘은 서울의 대표 코스를 빠르게 둘러봅니다.",
                 language="zh-CN",
                 platform="tiktok",
             )
 
-        self.assertEqual(result["title"], "上海一日游")
-        self.assertEqual(result["caption"], "收藏这条路线，下次直接出发！")
-        self.assertEqual(result["hashtags"], ["#上海", "#旅行", "#shorts"])
+        self.assertEqual(result["title"], "서울 당일치기")
+        self.assertEqual(result["caption"], "이 코스 저장해 두었다가 다음에 바로 떠나세요!")
+        self.assertEqual(result["hashtags"], ["#서울", "#여행", "#shorts"])
 
     def test_generate_social_metadata_falls_back_to_generic_hashtags(self):
         with patch.object(
@@ -1448,8 +1451,8 @@ class TestSocialMetadata(unittest.TestCase):
 
     def test_request_model_rejects_oversized_social_metadata_fields(self):
         """
-        外部 API 不能接受无限长的脚本和语言参数，否则会直接放大 LLM
-        token 成本。schema 层先拦截，服务层再做内部调用兜底。
+        외부 API 가 길이 제한 없는 대본과 언어 파라미터를 받아서는 안 된다. 그러면 LLM 토큰 비용이
+        곧바로 커진다. schema 계층이 먼저 막고, 서비스 계층이 내부 호출을 한 번 더 방어한다.
         """
         with self.assertRaises(ValidationError):
             VideoSocialMetadataRequest(video_subject="x" * 501)
@@ -1489,7 +1492,7 @@ class TestSocialMetadata(unittest.TestCase):
             '"hashtags":["#Tokyo","#Coffee","#Shorts"]}'
         )
 
-        # V1 接口已启用 x-api-key 鉴权，端点测试需要携带配置中的 API Key。
+        # V1 엔드포인트에 x-api-key 인증이 켜져 있으므로, 엔드포인트 테스트는 설정의 API 키를 함께 보내야 한다.
         config.app["api_key"] = "test-api-key"
         try:
             with patch.object(llm, "_generate_response", return_value=llm_response):
