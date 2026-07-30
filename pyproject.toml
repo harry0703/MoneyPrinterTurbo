@@ -1,6 +1,6 @@
-# 说明：
-# 1. 主依赖来源统一收敛到 pyproject.toml。
-# 2. 运行环境通过 uv.lock 固定，避免不同机器解析出不同版本组合。
+# 설명:
+# 1. 주 의존성 출처는 pyproject.toml 로 일원화한다.
+# 2. 실행 환경은 uv.lock 으로 고정해, 머신마다 다른 버전 조합이 해석되지 않게 한다.
 [build-system]
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
@@ -52,21 +52,21 @@ dev = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# WebUI 需要先把项目根目录加入 sys.path，随后才能导入 app 包。
+# WebUI 는 프로젝트 루트를 sys.path 에 먼저 넣어야 app 패키지를 import 할 수 있다.
 "webui/Main.py" = ["E402"]
 
 [tool.coverage.run]
-# 统计分支覆盖率可以识别“代码行执行了，但条件的另一条分支从未验证”的情况，
-# 比只统计行覆盖率更适合作为 CI 质量基线。CLI 和 WebUI 都属于生产入口，
-# 因此与 app 服务层、服务启动入口和面向 Agent 用户发布的 Skill 脚本一起
-# 纳入统计，避免覆盖率只反映局部模块。
+# 분기 커버리지를 재면 '코드 줄은 실행됐지만 조건의 다른 분기는 한 번도 검증되지 않은' 경우를
+# 잡아낼 수 있어, 줄 커버리지만 재는 것보다 CI 품질 기준선으로 적합하다. CLI 와 WebUI 도
+# 프로덕션 진입점이므로, app 서비스 계층·서비스 시작 진입점·Agent 사용자에게 배포하는 Skill
+# 스크립트와 함께 집계에 넣어 커버리지가 일부 모듈만 반영하지 않게 한다.
 branch = true
 source = ["app", "cli", "webui", "main", "docs/skill"]
 
 [tool.coverage.report]
-# Python 3.11 和 3.13 完整测试的实测分支覆盖率均超过 70.4%。以 70%
-# 作为稳定底线，可以固化失败状态、异步发布恢复和 Redis 原子更新测试，
-# 同时为不同 Python 版本与操作系统的少量分支差异保留余量。
+# Python 3.11 과 3.13 전체 테스트의 실측 분기 커버리지는 모두 70.4% 를 넘는다. 70% 를 안정적인
+# 하한선으로 두면 실패 상태, 비동기 업로드 복구, Redis 원자적 갱신 테스트를 고정할 수 있고,
+# Python 버전과 운영체제에 따른 소소한 분기 차이에도 여유가 남는다.
 fail_under = 70
 show_missing = true
 skip_covered = true
@@ -75,5 +75,5 @@ skip_covered = true
 packages = ["app"]
 
 [tool.uv]
-# 当前项目以应用运行形态为主，不作为可发布的 Python 包安装。
+# 이 프로젝트는 애플리케이션으로 실행하는 형태가 주이며, 배포 가능한 Python 패키지로 설치하지 않는다.
 package = false
