@@ -44,6 +44,18 @@ Generate a script for a video, depending on the subject of the video.
 """.strip()
 
 
+# 제공자가 응답 본문에 그대로 실어 보내는 '일일 한도 소진' 문구.
+# 우리가 쓰는 메시지가 아니라 상대 서버가 보내오는 원문이므로, 번역하면 매칭이
+# 깨져 한도 초과가 정상 대본으로 처리된다. 아래 중국어는 그래서 원문 그대로 둔다.
+#   "当日额度已消耗完" = "당일 한도를 모두 소진했습니다"
+_QUOTA_EXHAUSTED_MARKERS = ("当日额度已消耗完",)
+
+
+def _is_quota_exhausted_message(text: str) -> bool:
+    """제공자 응답이 한도 초과 안내문인지 판정한다."""
+    return any(marker in text for marker in _QUOTA_EXHAUSTED_MARKERS)
+
+
 def _normalize_text_response(content, llm_provider: str) -> str:
     # LLM SDK 마다 예외가 나거나 요청이 차단됐을 때 None, 빈 문자열, 심지어 문자열이 아닌
     # 객체를 반환할 수 있다. 여기서 한곳에서 방어적으로 검증해, 이후 `.replace()` 를 바로
@@ -552,11 +564,8 @@ def generate_script(
             else:
                 logging.error("gpt returned an empty response")
 
-            # Some upstream providers may return quota errors as plain text.
-            # 아래 중국어 문자열은 주석이 아니라 매칭 대상이다. 일부 중국 LLM 제공자가
-            # 일일 한도 초과를 이 문구('당일 한도를 모두 소진했습니다')로 돌려주므로,
-            # 번역하면 한도 초과를 감지하지 못한다.
-            if final_script and "当日额度已消耗完" in final_script:
+            # 일부 제공자는 한도 초과를 오류 코드가 아니라 평문 대본처럼 돌려준다.
+            if final_script and _is_quota_exhausted_message(final_script):
                 raise ValueError(final_script)
 
             if final_script:
