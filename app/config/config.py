@@ -1,3 +1,4 @@
+import errno
 import os
 import shutil
 import socket
@@ -248,6 +249,11 @@ def save_config():
     另一个线程可能读取到只写了一部分的 TOML 内容。这里使用进程内可重入锁串行化
     保存，并先写入同目录临时文件，再通过 os.replace 原子替换目标文件。
 
+    Docker Desktop 单文件 bind mount 会把 config.toml 本身作为挂载点，
+    Linux 内核不允许通过 rename/replace 替换挂载点，因此会返回 EBUSY。
+    该场景下只能在锁内原地覆盖文件；其它异常仍然抛出，避免掩盖权限、磁盘
+    或路径错误。
+
     这仍然保留项目现有的单用户全局配置语义，不额外引入复杂的多用户配置系统；
     主要用于避免多标签页或快速 rerun 时损坏配置文件。
     """
@@ -283,7 +289,20 @@ def save_config():
                 f.write(serialized_config)
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(temp_path, config_file)
+            try:
+                os.replace(temp_path, config_file)
+            except OSError as exc:
+                if exc.errno != errno.EBUSY:
+                    raise
+
+                logger.warning(
+                    "atomic config replacement is unavailable for the mounted "
+                    f"file, fallback to in-place write: {config_file}"
+                )
+                with open(config_file, mode="w", encoding="utf-8") as f:
+                    f.write(serialized_config)
+                    f.flush()
+                    os.fsync(f.fileno())
             _cfg.clear()
             _cfg.update(config_to_save)
         finally:
