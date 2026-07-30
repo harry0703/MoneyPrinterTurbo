@@ -25,8 +25,8 @@ RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() 
 
 class TestTaskService(unittest.TestCase):
     def setUp(self):
-        # 发布 Future 注册表是进程级状态。测试间清理可以避免某个模拟 Future
-        # 影响后续恢复测试，同时不会触碰真正线程池中的生产任务。
+        # 업로드 Future 레지스트리는 프로세스 단위 상태다. 테스트 사이에 정리하면 어떤 모의 Future 가
+        # 이후 복구 테스트에 영향을 주는 것을 막을 수 있고, 실제 스레드 풀의 운영 작업도 건드리지 않는다.
         with tm._cross_post_registry_lock:
             tm._cross_post_futures.clear()
     
@@ -35,7 +35,7 @@ class TestTaskService(unittest.TestCase):
             tm._cross_post_futures.clear()
 
     def test_is_task_busy_covers_generation_and_cross_posting(self):
-        """删除入口必须同时识别视频生成和跨平台发布的活跃状态。"""
+        """삭제 진입점은 영상 생성과 플랫폼 업로드의 활성 상태를 모두 인식해야 한다."""
         busy_tasks = (
             {"state": tm.const.TASK_STATE_PROCESSING},
             {
@@ -63,32 +63,33 @@ class TestTaskService(unittest.TestCase):
 
     def test_generate_script_forwards_advanced_prompt_options(self):
         """
-        任务生成入口和 WebUI/API 共用 VideoParams。这里验证自动生成文案时，
-        高级提示词参数会继续传到 LLM 服务层，避免只在 /scripts 接口生效。
+        작업 생성 진입점과 WebUI/API 는 VideoParams 를 공유한다. 여기서는 대본을 자동 생성할 때 고급
+        프롬프트 파라미터가 LLM 서비스 계층까지 계속 전달되는지 검증한다. /scripts 엔드포인트에서만
+        동작하는 일이 없게 하기 위해서다.
         """
         params = VideoParams(
-            video_subject="咖啡",
+            video_subject="커피",
             video_script="",
             video_language="zh-CN",
             paragraph_number=2,
-            video_script_prompt="语气轻松",
+            video_script_prompt="가벼운 톤으로",
             custom_system_prompt="Only write short narration.",
         )
 
-        with patch.object(tm.llm, "generate_script", return_value="生成的文案") as generate:
+        with patch.object(tm.llm, "generate_script", return_value="생성된 대본") as generate:
             result = tm.generate_script("task-id", params)
 
-        self.assertEqual(result, "生成的文案")
+        self.assertEqual(result, "생성된 대본")
         generate.assert_called_once_with(
-            video_subject="咖啡",
+            video_subject="커피",
             language="zh-CN",
             paragraph_number=2,
-            video_script_prompt="语气轻松",
+            video_script_prompt="가벼운 톤으로",
             custom_system_prompt="Only write short narration.",
         )
 
     def test_generate_final_videos_forwards_clip_speed(self):
-        """任务编排层必须把用户选择的画面速度传给视频合成服务。"""
+        """작업 조율 계층은 사용자가 고른 화면 속도를 영상 합성 서비스로 넘겨야 한다."""
         params = VideoParams(
             video_subject="test",
             video_count=1,
@@ -112,7 +113,7 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(combine_videos.call_args.kwargs["clip_speed"], 1.25)
 
     def test_generate_final_videos_uses_generated_sonilo_music(self):
-        """Sonilo 必须针对每条拼接后的视频生成配乐，并传给最终混音。"""
+        """Sonilo 는 이어붙인 영상마다 배경음악을 만들어 최종 믹싱으로 넘겨야 한다."""
         params = VideoParams(
             video_subject="test",
             video_count=1,
@@ -149,7 +150,7 @@ class TestTaskService(unittest.TestCase):
         )
 
     def test_generate_final_videos_uses_generated_elevenlabs_music(self):
-        """ElevenLabs 应复用视频配乐编排，并使用通用风格提示词。"""
+        """ElevenLabs 는 영상 배경음악 조율을 재사용하고 공용 스타일 프롬프트를 써야 한다."""
         params = VideoParams(
             video_subject="test",
             video_count=1,
@@ -188,7 +189,7 @@ class TestTaskService(unittest.TestCase):
         )
 
     def test_generate_final_videos_falls_back_on_elevenlabs_failure(self):
-        """ElevenLabs 暂时失败时必须保留无配乐视频和结构化警告。"""
+        """ElevenLabs 가 일시적으로 실패하면 배경음악 없는 영상과 구조화된 경고를 남겨야 한다."""
         params = VideoParams(video_subject="test", bgm_type="elevenlabs")
 
         with (
@@ -220,7 +221,7 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(generate_video.call_args.kwargs["bgm_file_override"], "")
 
     def test_generate_final_videos_falls_back_without_bgm_on_sonilo_failure(self):
-        """第三方配乐失败时应完成视频并返回可见警告，而不是丢弃所有产物。"""
+        """외부 배경음악이 실패해도 영상은 완성하고 눈에 보이는 경고를 반환해야 하며, 산출물을 모두 버려서는 안 된다."""
         params = VideoParams(video_subject="test", bgm_type="sonilo")
 
         with (
@@ -249,7 +250,7 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(generate_video.call_args.kwargs["bgm_file_override"], "")
 
     def test_generate_final_videos_skips_sonilo_when_volume_is_zero(self):
-        """0 音量必须完全跳过 Sonilo 生成，并显式禁用残留背景音乐。"""
+        """음량이 0 이면 Sonilo 생성을 완전히 건너뛰고 남아 있는 배경음악도 명시적으로 꺼야 한다."""
         params = VideoParams(
             video_subject="test",
             bgm_type="sonilo",
@@ -278,7 +279,7 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(generate.call_args.kwargs["bgm_file_override"], "")
 
     def test_generate_final_videos_warns_when_sonilo_mix_fails(self):
-        """Sonilo 生成成功但最终混音失败时，任务必须保留视频并返回警告。"""
+        """Sonilo 생성은 성공했지만 최종 믹싱이 실패하면, 작업은 영상을 남기고 경고를 반환해야 한다."""
         params = VideoParams(video_subject="test", bgm_type="sonilo")
 
         with (
@@ -309,7 +310,7 @@ class TestTaskService(unittest.TestCase):
         )
 
     def test_start_rejects_missing_sonilo_key_before_costly_pipeline_steps(self):
-        """完整任务缺少 Sonilo Key 时不能先调用 LLM、TTS 或素材服务。"""
+        """전체 작업에 Sonilo 키가 없으면 LLM, TTS, 소재 서비스를 먼저 호출해서는 안 된다."""
         params = VideoParams(video_subject="test", bgm_type="sonilo")
         state = MemoryState()
         with (
@@ -331,7 +332,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("API key", failed_task["error"])
 
     def test_start_does_not_require_sonilo_key_when_volume_is_zero(self):
-        """0 音量不会使用 Sonilo，因此缺少 Key 时仍应进入正常任务流水线。"""
+        """음량이 0 이면 Sonilo 를 쓰지 않으므로, 키가 없어도 정상 작업 파이프라인으로 진입해야 한다."""
         params = VideoParams(
             video_subject="test",
             bgm_type="sonilo",
@@ -349,7 +350,7 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(result["failed_stage"], "script")
 
     def test_start_rejects_missing_elevenlabs_key_before_pipeline_steps(self):
-        """完整任务缺少 ElevenLabs Key 时必须在任何付费步骤前失败。"""
+        """전체 작업에 ElevenLabs 키가 없으면 유료 단계 이전에 실패해야 한다."""
         params = VideoParams(video_subject="test", bgm_type="elevenlabs")
         state = MemoryState()
         with (
@@ -369,7 +370,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("ElevenLabs", result["error"])
 
     def test_start_rejects_free_elevenlabs_plan_before_pipeline_steps(self):
-        """已确认的免费套餐不能先消耗 LLM、TTS 或素材服务额度。"""
+        """무료 요금제로 확인된 계정은 LLM, TTS, 소재 서비스 크레딧을 먼저 소모해서는 안 된다."""
         params = VideoParams(video_subject="test", bgm_type="elevenlabs")
         state = MemoryState()
         with (
@@ -398,7 +399,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("paid plan", result["error"])
 
     def test_start_rejects_oversized_elevenlabs_prompt_before_account_check(self):
-        """API/CLI 绕过 WebUI 时，超长提示词也必须在昂贵步骤前被拒绝。"""
+        """API/CLI 가 WebUI 를 우회하더라도 지나치게 긴 프롬프트는 비싼 단계 이전에 거부해야 한다."""
         params = VideoParams(
             video_subject="test",
             bgm_type="elevenlabs",
@@ -424,32 +425,32 @@ class TestTaskService(unittest.TestCase):
 
     def test_generate_terms_uses_script_order_mode_when_enabled(self):
         """
-        默认模式不受影响；只有用户显式开启素材按文案顺序匹配时，任务层才
-        要求 LLM 生成有序关键词，并适当增加关键词数量以覆盖更多脚本片段。
+        기본 모드는 영향을 받지 않는다. 사용자가 소재를 대본 순서에 맞추기를 명시적으로 켰을 때만 작업
+        계층이 LLM 에 순서 있는 키워드를 요구하고, 대본 구간을 더 덮도록 키워드 수도 적당히 늘린다.
         """
         params = VideoParams(
-            video_subject="城市通勤",
+            video_subject="도시 출퇴근",
             video_script="",
             match_materials_to_script=True,
         )
 
         with patch.object(tm.llm, "generate_terms", return_value=["city", "train"]) as generate:
-            result = tm.generate_terms("task-id", params, "先城市，再地铁")
+            result = tm.generate_terms("task-id", params, "먼저 도시, 그다음 지하철")
 
         self.assertEqual(result, ["city", "train"])
         generate.assert_called_once_with(
-            video_subject="城市通勤",
-            video_script="先城市，再地铁",
+            video_subject="도시 출퇴근",
+            video_script="먼저 도시, 그다음 지하철",
             amount=8,
             match_script_order=True,
         )
 
     def test_start_stops_before_materials_when_term_provider_fails(self):
         """
-        关键词 Provider 失败后，任务必须立即结束，不能继续生成音频或下载素材。
+        키워드 Provider 가 실패하면 작업은 즉시 끝나야 하며, 오디오를 생성하거나 소재를 내려받아서는 안 된다.
 
-        这里从任务入口覆盖完整的错误传播路径，避免未来只修服务层返回类型，
-        却又在任务编排层把空列表转换成其它真值后继续执行外部请求。
+        여기서는 작업 진입점부터 오류 전파 경로 전체를 덮는다. 나중에 서비스 계층 반환 타입만 고치고
+        작업 조율 계층에서 빈 목록을 다른 참값으로 바꿔 외부 요청을 계속하는 일을 막기 위해서다.
         """
         params = VideoParams(
             video_subject="startup story",
@@ -570,8 +571,9 @@ class TestTaskService(unittest.TestCase):
 
     def test_generate_subtitle_uses_whisper_for_custom_audio_without_sub_maker(self):
         """
-        自定义音频不会经过 TTS，所以没有 sub_maker。
-        Whisper 可以直接从音频文件转写，此时不能被 sub_maker 为空的保护逻辑提前跳过。
+        사용자 오디오는 TTS 를 거치지 않으므로 sub_maker 가 없다.
+        Whisper 는 오디오 파일에서 바로 받아쓸 수 있으므로, sub_maker 가 비었다는 보호 로직 때문에
+        미리 건너뛰어져서는 안 된다.
         """
         task_id = "test-custom-audio-whisper-subtitle"
         task_dir = utils.task_dir(task_id)
@@ -619,8 +621,8 @@ class TestTaskService(unittest.TestCase):
 
     def test_generate_subtitle_skips_edge_provider_without_sub_maker(self):
         """
-        Edge 字幕依赖 TTS 返回的 sub_maker 时间轴。
-        自定义音频缺少该对象时应继续跳过，避免产生不可信的字幕时间轴。
+        Edge 자막은 TTS 가 반환하는 sub_maker 타임라인에 의존한다.
+        사용자 오디오에 이 객체가 없으면 계속 건너뛰어, 믿을 수 없는 자막 타임라인이 생기지 않게 해야 한다.
         """
         task_id = "test-custom-audio-edge-no-submaker"
         task_dir = utils.task_dir(task_id)
@@ -658,10 +660,11 @@ class TestTaskService(unittest.TestCase):
 
     def test_generate_subtitle_does_not_fallback_to_whisper_when_edge_fails(self):
         """
-        Edge 没有生成字幕文件时应保留无字幕结果，不能自动下载 Whisper 模型。
+        Edge 가 자막 파일을 만들지 못했다면 자막 없는 결과를 남겨야 하며, Whisper 모델을 자동으로 내려받아서는 안 된다.
 
-        该场景可能由 TTS 时间轴与原始文案无法匹配触发。自动回退会让未选择
-        Whisper 的用户意外下载数 GB 模型，因此必须验证 Whisper 完全不会被调用。
+        이 상황은 TTS 타임라인이 원본 대본과 매칭되지 않을 때 발생할 수 있다. 자동으로 되돌아가면
+        Whisper 를 고르지 않은 사용자가 수 GB 모델을 뜻하지 않게 내려받게 되므로, Whisper 가 전혀
+        호출되지 않는지 반드시 검증해야 한다.
         """
         task_id = "test-edge-subtitle-without-output"
         task_dir = utils.task_dir(task_id)
@@ -700,8 +703,8 @@ class TestTaskService(unittest.TestCase):
 
     def test_start_returns_each_intermediate_result(self):
         """
-        API 的 script、terms、audio、subtitle 和 materials 模式共用同一条任务
-        流水线。每个提前停止点都要返回对应产物，同时不能误执行后续阶段。
+        API 의 script, terms, audio, subtitle, materials 모드는 같은 작업 파이프라인을 공유한다.
+        각 조기 중단 지점은 해당 산출물을 반환해야 하고, 이후 단계를 잘못 실행해서도 안 된다.
         """
         expected_results = {
             "script": {"script": "generated script"},
@@ -752,8 +755,8 @@ class TestTaskService(unittest.TestCase):
 
     def test_start_completes_video_without_cross_posting(self):
         """
-        完整任务在自动发布未配置时仍应稳定完成，并把所有中间产物写入最终
-        状态。这里还覆盖 API 可能传入字符串拼接模式的兼容转换。
+        자동 업로드가 설정되지 않았어도 전체 작업은 안정적으로 끝나야 하고, 모든 중간 산출물을 최종
+        상태에 기록해야 한다. 여기서는 API 가 이어붙이기 모드를 문자열로 넘길 때의 호환 변환도 함께 덮는다.
         """
         params = VideoParams(video_subject="Coffee")
         params.video_concat_mode = "sequential"
@@ -802,8 +805,8 @@ class TestTaskService(unittest.TestCase):
 
     def test_start_marks_pipeline_failures(self):
         """
-        音频、素材和最终视频任一关键产物缺失时都必须进入失败状态，不能把
-        不完整任务误报为完成。三个场景复用相同 mock，仅替换故障阶段。
+        오디오, 소재, 최종 영상 중 핵심 산출물이 하나라도 없으면 실패 상태로 가야 하며, 불완전한 작업을
+        완료로 잘못 보고해서는 안 된다. 세 상황은 같은 mock 을 재사용하고 실패 단계만 바꾼다.
         """
         failure_cases = {
             "audio": (
@@ -851,7 +854,7 @@ class TestTaskService(unittest.TestCase):
                 self.assertTrue(failed_task["error"])
 
     def test_start_records_unexpected_pipeline_exception(self):
-        """未预期异常也必须结束任务，并向 API 暴露原始异常类型和信息。"""
+        """예상치 못한 예외도 작업을 끝내야 하며, 원래 예외 종류와 정보를 API 에 드러내야 한다."""
         params = VideoParams(video_subject="Coffee")
         state = MemoryState()
 
@@ -876,8 +879,8 @@ class TestTaskService(unittest.TestCase):
 
     def test_start_generates_youtube_metadata_for_each_cross_post(self):
         """
-        自动发布到 YouTube 时只生成一次元数据，但要把同一份字段传给每个
-        成片，并在任务结果中保留每次上传成功或失败的独立结果。
+        YouTube 자동 업로드에서는 메타데이터를 한 번만 만들지만, 같은 필드를 결과물마다 넘기고
+        업로드별 성공·실패 결과를 작업 결과에 각각 남겨야 한다.
         """
         params = VideoParams(
             video_subject="Coffee",
@@ -969,7 +972,7 @@ class TestTaskService(unittest.TestCase):
             self.assertEqual(call.kwargs["youtube_extra"], expected_extra)
             self.assertEqual(call.kwargs["platforms"], ["youtube"])
 
-        # start() 返回的是视频完成时的稳定快照；后台发布结果通过任务查询获取。
+        # start() 는 영상이 끝난 시점의 안정적인 스냅샷을 반환한다. 백그라운드 업로드 결과는 작업 조회로 가져온다.
         self.assertEqual(
             result["cross_post_state"], tm.const.CROSS_POST_STATE_PENDING
         )
@@ -989,7 +992,7 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(published_task["cross_post_error"], "upload failed")
 
     def test_start_returns_before_cross_post_worker_runs(self):
-        """视频任务完成时只提交发布工作，不能在生成线程中同步上传。"""
+        """영상 작업이 끝나면 업로드 작업을 제출만 해야 하며, 생성 스레드에서 동기로 업로드해서는 안 된다."""
         params = VideoParams(video_subject="Coffee")
         service = tm.upload_post.upload_post_service
         state = MemoryState()
@@ -1055,7 +1058,7 @@ class TestTaskService(unittest.TestCase):
         )
 
     def test_cross_post_worker_failure_does_not_change_video_completion(self):
-        """发布线程异常只能更新发布状态，不能破坏已完成的视频结果。"""
+        """업로드 스레드의 예외는 업로드 상태만 갱신해야 하며, 이미 끝난 영상 결과를 망가뜨려서는 안 된다."""
         state = MemoryState()
         state.update_task(
             "cross-post-worker-failure",
@@ -1092,7 +1095,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("metadata provider unavailable", task["cross_post_error"])
 
     def test_start_returns_cross_post_scheduling_failure(self):
-        """同步调度失败必须同时体现在任务状态和 start() 返回快照中。"""
+        """동기 스케줄 실패는 작업 상태와 start() 반환 스냅샷 양쪽에 모두 반영돼야 한다."""
         params = VideoParams(video_subject="Coffee")
         service = tm.upload_post.upload_post_service
         state = MemoryState()
@@ -1138,7 +1141,7 @@ class TestTaskService(unittest.TestCase):
         )
 
     def test_cross_post_schedule_failure_is_recorded_separately(self):
-        """线程池拒绝新任务时应保留成片，并提供可查询的发布错误。"""
+        """스레드 풀이 새 작업을 거부하면 결과물은 남기고 조회 가능한 업로드 오류를 제공해야 한다."""
         state = MemoryState()
         slots = MagicMock()
         slots.acquire.return_value = True
@@ -1177,7 +1180,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("executor is shutting down", task["cross_post_error"])
 
     def test_cross_post_worker_always_releases_queue_slot(self):
-        """发布工作异常退出时也必须归还容量，避免后续发布永久被拒绝。"""
+        """업로드 작업이 예외로 끝나도 용량을 돌려줘야, 이후 업로드가 영원히 거부되지 않는다."""
         slots = MagicMock()
         state = MemoryState()
         state.update_task(
@@ -1204,7 +1207,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("worker crashed", task["cross_post_error"])
 
     def test_cross_post_state_backend_failure_is_logged_and_skips_upload(self):
-        """首次状态写入失败时不能静默退出，也不能继续消耗发布额度。"""
+        """첫 상태 쓰기가 실패하면 조용히 끝내서도, 업로드 크레딧을 계속 소모해서도 안 된다."""
         state = MagicMock()
         state.patch_task.side_effect = RuntimeError("redis unavailable")
 
@@ -1233,7 +1236,7 @@ class TestTaskService(unittest.TestCase):
         )
 
     def test_cross_post_state_update_retries_transient_backend_failure(self):
-        """状态后端短暂失败一次后应继续发布，并最终保存完成状态。"""
+        """상태 백엔드가 한 번 잠깐 실패해도 업로드를 계속하고 최종 완료 상태를 저장해야 한다."""
 
         class FlakyMemoryState(MemoryState):
             def __init__(self):
@@ -1281,7 +1284,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIsNone(task["cross_post_error"])
 
     def test_recover_interrupted_cross_posts_preserves_active_future(self):
-        """启动恢复只处理遗留状态，当前进程仍持有的发布任务不能被误伤。"""
+        """시작 시 복구는 남은 상태만 처리해야 하며, 현재 프로세스가 들고 있는 업로드 작업을 건드려서는 안 된다."""
         state = MemoryState()
         for task_id in (
             "stale-pending",
@@ -1342,14 +1345,14 @@ class TestTaskService(unittest.TestCase):
         active_future.set_result(None)
 
     def test_cross_post_owner_uses_future_registry_for_current_process(self):
-        """当前进程无活动 Future 时，同 PID 的新旧 owner 都应视为中断。"""
+        """현재 프로세스에 활성 Future 가 없으면 같은 PID 의 새 owner 든 예전 owner 든 중단된 것으로 봐야 한다."""
         stale_owner = f"{tm.socket.gethostname()}:{tm.os.getpid()}:old-instance"
 
         self.assertFalse(tm._is_cross_post_owner_alive(stale_owner))
         self.assertFalse(tm._is_cross_post_owner_alive(tm._cross_post_process_owner))
 
     def test_cross_post_owner_detection_handles_process_boundaries(self):
-        """所有者探测应覆盖旧记录、其它主机和本机进程异常边界。"""
+        """owner 탐지는 예전 기록, 다른 호스트, 로컬 프로세스 예외 경계를 모두 덮어야 한다."""
         hostname = tm.socket.gethostname()
 
         self.assertFalse(tm._is_cross_post_owner_alive(None))
@@ -1391,12 +1394,12 @@ class TestTaskService(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows process API test")
     def test_windows_process_probe_is_read_only_and_detects_liveness(self):
-        """Windows CI 应真实验证只读进程探测，不允许回退到 os.kill。"""
+        """Windows CI 는 읽기 전용 프로세스 탐지를 실제로 검증해야 하며 os.kill 로 되돌아가서는 안 된다."""
         self.assertTrue(tm._is_windows_process_alive(os.getpid()))
         self.assertFalse(tm._is_windows_process_alive(2_147_483_647))
 
     def test_cross_post_terminal_check_converts_active_state_to_failure(self):
-        """worker 已结束但状态仍活动时，最终回调必须补写失败终态。"""
+        """worker 는 끝났는데 상태가 아직 활성이면, 최종 콜백이 실패 종료 상태를 채워 넣어야 한다."""
         state = MemoryState()
         state.update_task(
             "unfinished-cross-post",
@@ -1415,7 +1418,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("without persisting", task["cross_post_error"])
 
     def test_cross_post_recovery_reports_state_backend_failure(self):
-        """启动恢复读取状态失败时应返回 None，允许 WebUI 后续 rerun 重试。"""
+        """시작 복구에서 상태 읽기가 실패하면 None 을 반환해, WebUI 가 이후 rerun 에서 다시 시도할 수 있게 해야 한다."""
         state = MagicMock()
         state.get_all_tasks.side_effect = RuntimeError("redis unavailable")
 
@@ -1429,7 +1432,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("redis unavailable", log_exception.call_args.args[0])
 
     def test_cancelled_cross_post_future_releases_slot_and_records_failure(self):
-        """排队 Future 被取消时也必须释放容量并写入失败终态。"""
+        """대기 중인 Future 가 취소돼도 용량을 놓아주고 실패 종료 상태를 기록해야 한다."""
         state = MemoryState()
         state.update_task(
             "cancelled-cross-post",
@@ -1459,7 +1462,7 @@ class TestTaskService(unittest.TestCase):
         "MPT_TEST_REDIS_HOST not set",
     )
     def test_real_redis_recovers_interrupted_cross_post_state(self):
-        """真实 Redis 中的遗留发布状态必须在恢复后保留视频并进入失败终态。"""
+        """실제 Redis 에 남은 업로드 상태는 복구 후 영상을 남기고 실패 종료 상태로 가야 한다."""
         state = RedisState(
             host=os.environ["MPT_TEST_REDIS_HOST"],
             port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
@@ -1490,7 +1493,7 @@ class TestTaskService(unittest.TestCase):
             state.delete_task(task_id)
 
     def test_cross_post_future_exception_is_observed(self):
-        """线程池自身抛出的异常必须进入日志，不能留在无人读取的 Future 中。"""
+        """스레드 풀 자체가 던진 예외는 로그에 남아야 하며, 아무도 읽지 않는 Future 안에 머물러서는 안 된다."""
         future = Future()
         future.set_exception(RuntimeError("executor worker failed"))
 
@@ -1501,7 +1504,7 @@ class TestTaskService(unittest.TestCase):
         self.assertIn("executor worker failed", log_error.call_args.args[0])
 
     def test_cross_post_queue_full_rejects_only_publishing(self):
-        """发布队列满载时必须保留成片，并且不能继续向线程池提交任务。"""
+        """업로드 대기열이 가득 차면 결과물은 남기고 스레드 풀에 작업을 더 제출해서는 안 된다."""
         state = MemoryState()
         state.update_task(
             "cross-post-queue-full",
@@ -1552,8 +1555,8 @@ class TestTaskService(unittest.TestCase):
             ))
 
         params = VideoParams(
-            video_subject="金钱的作用",
-            video_script="金钱不仅是交换媒介，更是社会资源的分配工具。它能满足基本生存需求，如食物和住房，也能提供教育、医疗等提升生活品质的机会。拥有足够的金钱意味着更多选择权，比如职业自由或创业可能。但金钱的作用也有边界，它无法直接购买幸福、健康或真诚的人际关系。过度追逐财富可能导致价值观扭曲，忽视精神层面的需求。理想的状态是理性看待金钱，将其作为实现目标的工具而非终极目的。",
+            video_subject="돈의 역할",
+            video_script="돈은 교환 수단일 뿐 아니라 사회 자원을 배분하는 도구입니다. 음식과 주거 같은 기본 생존 욕구를 채워 주고, 교육과 의료처럼 삶의 질을 끌어올리는 기회도 제공합니다. 돈이 충분하다는 것은 직업의 자유나 창업 가능성처럼 선택지가 많아진다는 뜻입니다. 하지만 돈의 역할에는 경계가 있습니다. 행복이나 건강, 진심 어린 관계를 직접 살 수는 없습니다. 부를 지나치게 좇으면 가치관이 뒤틀리고 정신적인 필요를 놓치기 쉽습니다. 이상적인 태도는 돈을 목적이 아니라 목표를 이루는 도구로 담담히 바라보는 것입니다.",
             video_terms="money importance, wealth and society, financial freedom, money and happiness, role of money",
             video_aspect="9:16",
             video_concat_mode="random",

@@ -26,7 +26,7 @@ resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resour
 
 
 class _FakeMoviePyClip:
-    """为最终混音单测提供最小 MoviePy 接口，避免 CI 真实编码大型视频。"""
+    """최종 믹싱 단위 테스트용 최소 MoviePy 인터페이스. CI 가 큰 영상을 실제로 인코딩하지 않게 한다."""
 
     def __init__(self, *, duration=5, fps=44100):
         self.duration = duration
@@ -65,9 +65,9 @@ class TestVideoService(unittest.TestCase):
 
     def test_delete_files_deduplicates_paths_and_ignores_missing_files(self):
         """
-        循环片段会让同一路径在拼接列表中重复出现，清理时每个路径只能删除一次。
+        반복 조각 때문에 같은 경로가 이어붙이기 목록에 여러 번 나온다. 정리할 때는 경로마다 한 번만 삭제해야 한다.
 
-        已不存在的文件属于幂等清理的正常状态，不应再产生误导用户的失败日志。
+        이미 없는 파일은 멱등 정리의 정상 상태이므로, 사용자를 헷갈리게 하는 실패 로그를 남겨서는 안 된다.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             existing_file = os.path.join(temp_dir, "temp-clip-1.mp4")
@@ -95,7 +95,7 @@ class TestVideoService(unittest.TestCase):
         warning.assert_not_called()
 
     def test_delete_files_logs_actionable_os_errors(self):
-        """权限等真实清理失败必须保留路径和系统错误，方便定位残留文件。"""
+        """권한 문제 같은 실제 정리 실패에는 경로와 시스템 오류를 남겨, 남은 파일을 찾기 쉽게 해야 한다."""
         with (
             patch.object(
                 vd.os,
@@ -112,7 +112,7 @@ class TestVideoService(unittest.TestCase):
         self.assertIn("permission denied", message)
 
     def test_generate_video_reports_successful_bgm_mix_and_closes_sources(self):
-        """BGM 混合成功后应返回 True，并释放所有原始文件 reader。"""
+        """BGM 믹싱에 성공하면 True 를 반환하고 모든 원본 파일 reader 를 놓아줘야 한다."""
         params = vd.VideoParams(
             video_subject="test",
             subtitle_enabled=False,
@@ -154,7 +154,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(final_video.close_calls, 1)
 
     def test_generate_video_keeps_output_and_reports_failed_bgm_mix(self):
-        """BGM 打开失败时仍应只写一次无 BGM 视频，并返回 False。"""
+        """BGM 열기에 실패해도 BGM 없는 영상을 한 번만 쓰고 False 를 반환해야 한다."""
         params = vd.VideoParams(
             video_subject="test",
             subtitle_enabled=False,
@@ -197,7 +197,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(final_video.close_calls, 1)
 
     def test_generate_video_skips_every_bgm_source_when_volume_is_zero(self):
-        """0 音量必须在解析文件前统一短路当前来源和未来提供商。"""
+        """음량이 0 이면 파일을 해석하기 전에 현재 소스와 앞으로 추가될 제공자를 모두 단축 처리해야 한다."""
         test_cases = [
             ("random", None),
             ("custom", None),
@@ -255,7 +255,7 @@ class TestVideoService(unittest.TestCase):
                 self.assertEqual(final_video.close_calls, 1)
 
     def test_generate_video_chooses_looping_by_bgm_file_source(self):
-        """默认曲库需要循环，任务层提供的时长适配文件不应依赖提供商名称。"""
+        """기본 음원 라이브러리는 반복해야 하고, 작업 계층이 준 길이 맞춤 파일은 제공자 이름에 의존해서는 안 된다."""
         test_cases = [
             ("random", None, True),
             ("custom", None, True),
@@ -351,8 +351,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_preprocess_video_rejects_material_outside_local_videos(self):
         """
-        local 素材路径来自 API 参数，不能允许任意绝对路径进入 MoviePy。
-        这里验证非 local_videos 白名单目录内的路径会被跳过，避免任意文件读取。
+        local 소재 경로는 API 파라미터에서 오므로 임의의 절대 경로가 MoviePy 로 들어가서는 안 된다.
+        여기서는 local_videos 화이트리스트 밖의 경로가 건너뛰어져 임의 파일 읽기가 막히는지 검증한다.
         """
         m = MaterialInfo(provider="local", url=self.test_img_path)
 
@@ -362,8 +362,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_bgm_file_accepts_song_directory_filename(self):
         """
-        BGM 列表接口现在只暴露文件名；生成视频时应能把文件名安全解析回
-        resource/songs 白名单目录，保持正常使用路径可用。
+        BGM 목록 엔드포인트는 이제 파일명만 노출한다. 영상을 만들 때 그 파일명을 resource/songs
+        화이트리스트 디렉터리로 안전하게 되해석해, 정상 사용 경로가 계속 동작해야 한다.
         """
         song_dir = utils.song_dir()
         bgm_path = os.path.join(song_dir, "test-safe-bgm.mp3")
@@ -377,9 +377,9 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_bgm_file_accepts_project_relative_song_path(self):
         """
-        用户在 WebUI 中可能直接填写 ./resource/songs/xxx.mp3。该路径虽然是
-        项目根目录相对路径，但实际文件仍在 resource/songs 白名单目录内，
-        应该被接受，避免自定义背景音乐被误判为不存在。
+        사용자가 WebUI 에 ./resource/songs/xxx.mp3 를 직접 적을 수 있다. 이 경로는 프로젝트 루트
+        기준 상대 경로지만 실제 파일은 resource/songs 화이트리스트 안에 있으므로 받아들여야 한다.
+        사용자 배경음악이 없는 것으로 잘못 판정되지 않게 하기 위해서다.
         """
         song_dir = utils.song_dir()
         bgm_path = os.path.join(song_dir, "test-relative-bgm.mp3")
@@ -396,21 +396,21 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_bgm_file_rejects_path_outside_song_directory(self):
         """
-        用户传入的 bgm_file 不能直接作为本地路径打开，否则可能读取系统文件。
-        即使外部文件存在，也必须因为不在 songs 目录内被拒绝。
+        사용자가 넘긴 bgm_file 을 로컬 경로로 바로 열어서는 안 된다. 그러면 시스템 파일을 읽을 수 있다.
+        외부 파일이 실제로 있더라도 songs 디렉터리 밖이라는 이유로 거부해야 한다.
         """
         with tempfile.NamedTemporaryFile(suffix=".mp3") as temp_bgm:
             self.assertEqual(vd.get_bgm_file(bgm_file=temp_bgm.name), "")
 
     def test_get_ffmpeg_binary_uses_configured_env_path(self):
-        """配置中显式指定 ffmpeg 时，应优先使用该路径。"""
+        """설정에 ffmpeg 를 명시했다면 그 경로를 우선 써야 한다."""
         with patch.dict(os.environ, {"IMAGEIO_FFMPEG_EXE": "/tmp/custom-ffmpeg"}, clear=True):
             self.assertEqual(utils.get_ffmpeg_binary(), "/tmp/custom-ffmpeg")
 
     def test_get_ffmpeg_binary_falls_back_to_imageio_ffmpeg(self):
         """
-        Windows 便携包里系统 PATH 可能没有 ffmpeg，但 moviepy 依赖的
-        imageio-ffmpeg 通常会提供可执行文件。这里验证该兜底路径可用。
+        Windows 포터블 패키지에서는 시스템 PATH 에 ffmpeg 가 없을 수 있지만, moviepy 가 의존하는
+        imageio-ffmpeg 가 보통 실행 파일을 제공한다. 여기서 그 대비 경로가 동작하는지 검증한다.
         """
         fake_imageio_ffmpeg = types.SimpleNamespace(
             get_ffmpeg_exe=lambda: "/tmp/bundled-ffmpeg"
@@ -423,8 +423,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_effective_video_codec_falls_back_when_encoder_missing(self):
         """
-        用户选择的硬件编码器必须先经过 FFmpeg encoder 列表检测。检测不到
-        时直接回退 libx264，避免生成任务在写文件阶段才失败。
+        사용자가 고른 하드웨어 인코더는 먼저 FFmpeg encoder 목록으로 확인해야 한다. 찾지 못하면
+        곧바로 libx264 로 되돌려, 생성 작업이 파일 쓰기 단계에서야 실패하는 일을 막는다.
         """
         config.app["video_codec"] = "h264_nvenc"
 
@@ -433,8 +433,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_configured_video_codec_uses_stable_default_when_unset(self):
         """
-        WebUI 的“默认”模式不会持久化 video_codec。后端必须在配置缺失时继续
-        明确返回 libx264，不能把空值直接交给 MoviePy 或 FFmpeg 自行决定。
+        WebUI 의 '기본값' 모드는 video_codec 을 저장하지 않는다. 백엔드는 설정이 없을 때도 libx264 를
+        명확히 반환해야 하며, 빈 값을 MoviePy 나 FFmpeg 가 알아서 정하도록 넘겨서는 안 된다.
         """
         config.app.pop("video_codec", None)
 
@@ -442,8 +442,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_configured_video_codec_preserves_explicit_libx264(self):
         """
-        用户明确选择 libx264 时需要保持固定选择。它与“跟随项目默认策略”当前
-        结果相同，但配置语义不同，未来调整默认值时不能影响显式选择。
+        사용자가 libx264 를 명시적으로 고르면 그 선택을 고정해야 한다. 지금은 '프로젝트 기본 정책을 따름'
+        과 결과가 같지만 설정의 의미가 다르므로, 나중에 기본값을 바꿔도 명시적 선택은 영향을 받으면 안 된다.
         """
         config.app["video_codec"] = "libx264"
 
@@ -451,8 +451,9 @@ class TestVideoService(unittest.TestCase):
 
     def test_ffmpeg_encoder_exists_falls_back_when_probe_fails(self):
         """
-        Windows 上用户配置的 ffmpeg 可能因为路径损坏、权限或杀软拦截而无法
-        正常执行。encoder 探测失败时必须返回 False，让上层稳定回退 libx264。
+        Windows 에서는 사용자가 설정한 ffmpeg 가 경로 손상, 권한, 백신 차단 때문에 제대로 실행되지
+        않을 수 있다. encoder 탐지가 실패하면 False 를 반환해 상위 계층이 안정적으로 libx264 로
+        되돌아가게 해야 한다.
         """
         with patch.object(
             vd.subprocess,
@@ -463,8 +464,9 @@ class TestVideoService(unittest.TestCase):
 
     def test_write_videofile_falls_back_after_runtime_encoder_failure(self):
         """
-        FFmpeg 声明支持某个硬件编码器，不代表当前显卡或驱动一定可用。
-        首次实际编码失败后，应立即用 libx264 重试，并在本进程禁用该编码器。
+        FFmpeg 가 어떤 하드웨어 인코더를 지원한다고 밝혀도 지금 그래픽카드나 드라이버에서 쓸 수 있다는
+        뜻은 아니다. 실제 인코딩이 처음 실패하면 곧바로 libx264 로 재시도하고, 이 프로세스에서는
+        해당 인코더를 비활성화해야 한다.
         """
 
         class _FakeClip:
@@ -493,8 +495,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_write_videofile_does_not_disable_codec_when_fallback_also_fails(self):
         """
-        如果 libx264 兜底也失败，失败原因更可能是输出路径、权限、文件占用等
-        通用问题，不能误判为硬件编码器不可用。
+        libx264 대비책까지 실패했다면 원인은 출력 경로, 권한, 파일 잠김 같은 일반적인 문제일 가능성이
+        크다. 하드웨어 인코더를 쓸 수 없다고 잘못 판정해서는 안 된다.
         """
 
         class _FakeClip:
@@ -515,8 +517,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_format_ffmpeg_concat_path_normalizes_windows_path(self):
         """
-        concat demuxer 的文件列表对 Windows 反斜杠较敏感，写入 list 前统一
-        转成正斜杠，并继续保留单引号转义。
+        concat demuxer 의 파일 목록은 Windows 역슬래시에 민감하다. list 에 쓰기 전에 슬래시로 통일하고
+        작은따옴표 이스케이프는 그대로 유지한다.
         """
         with patch.object(
             vd.os.path,
@@ -532,8 +534,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_concat_video_clips_falls_back_after_runtime_encoder_failure(self):
         """
-        最终 ffmpeg concat 阶段也要具备同样的回退能力。这里用 mock 模拟
-        h264_nvenc 编码失败，确认会自动再用 libx264 执行一次。
+        마지막 ffmpeg concat 단계도 같은 대비 능력을 갖춰야 한다. 여기서는 mock 으로 h264_nvenc
+        인코딩 실패를 흉내 내, libx264 로 한 번 더 자동 실행되는지 확인한다.
         """
         config.app["video_codec"] = "h264_nvenc"
 
@@ -571,8 +573,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_concat_video_clips_does_not_disable_codec_when_fallback_also_fails(self):
         """
-        concat 阶段如果 libx264 也失败，说明可能是输入 list、路径或输出权限
-        问题，不能把硬件编码器加入运行时禁用列表。
+        concat 단계에서 libx264 까지 실패했다면 입력 list, 경로, 출력 권한 문제일 수 있으므로
+        하드웨어 인코더를 런타임 비활성 목록에 넣어서는 안 된다.
         """
         config.app["video_codec"] = "h264_nvenc"
 
@@ -604,13 +606,14 @@ class TestVideoService(unittest.TestCase):
 
     def test_open_video_clip_quietly_suppresses_moviepy_stdout(self):
         """
-        MoviePy 2.1.x 的 FFMPEG_VideoReader 会直接向 stdout 打印 metadata
-        和 ffmpeg 命令。项目服务层应屏蔽这类依赖库噪声，避免用户把
-        `audio_found: False` 误判为最终视频没有音频。
+        MoviePy 2.1.x 의 FFMPEG_VideoReader 는 metadata 와 ffmpeg 명령을 stdout 에 그대로 출력한다.
+        서비스 계층은 이런 라이브러리 잡음을 가려, 사용자가 `audio_found: False` 를 최종 영상에
+        오디오가 없다는 뜻으로 오해하지 않게 해야 한다.
         """
-        # 测试只关心服务层是否屏蔽 MoviePy 的读取噪声，不应长期保存一份由 PNG
-        # 编码而来的二进制 MP4 fixture。运行时生成短视频既能保持测试独立，也能
-        # 避免 fixture 因不同编码参数产生帧间闪烁后被误用于视觉效果验证。
+        # 이 테스트는 서비스 계층이 MoviePy 의 읽기 잡음을 가리는지만 확인하면 되므로, PNG 로 인코딩한
+        # 바이너리 MP4 fixture 를 오래 보관할 필요가 없다. 실행 시점에 짧은 영상을 만들면 테스트가
+        # 독립적으로 유지되고, 인코딩 파라미터가 달라 프레임 간 깜빡임이 생긴 fixture 가 시각 효과
+        # 검증에 잘못 쓰이는 것도 피할 수 있다.
         image_path = os.path.join(resources_dir, "1.png")
         with tempfile.TemporaryDirectory() as temp_dir:
             video_path = os.path.join(temp_dir, "image-fixture.mp4")
@@ -639,8 +642,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_combine_videos_closes_audio_clip_when_duration_read_fails(self):
         """
-        `combine_videos()` 只需要读取旁白音频时长。即使读取 duration
-        时发生异常，也必须关闭 AudioFileClip，避免文件句柄泄漏。
+        `combine_videos()` 는 나레이션 오디오 길이만 읽으면 된다. duration 을 읽다가 예외가 나더라도
+        AudioFileClip 을 닫아 파일 핸들이 새지 않게 해야 한다.
         """
 
         class _FakeAudioReader:
@@ -706,7 +709,7 @@ class TestVideoService(unittest.TestCase):
         clip_speed,
         max_clip_duration=3,
     ):
-        """使用轻量假视频记录 combine_videos 实际读取的源时间范围。"""
+        """가벼운 가짜 영상으로 combine_videos 가 실제로 읽는 원본 시간 범위를 기록한다."""
 
         source_ranges = []
         written_durations = []
@@ -726,8 +729,8 @@ class TestVideoService(unittest.TestCase):
                 self.records_source_range = records_source_range
 
             def subclipped(self, start_time, end_time):
-                # 只记录直接从源文件读取的范围。变速后的安全裁剪也会调用
-                # subclipped，但它不代表新的源时间段，不能混入断层判断。
+                # 원본 파일에서 직접 읽는 범위만 기록한다. 속도를 바꾼 뒤의 안전 자르기도 subclipped 를
+                # 호출하지만, 그것은 새로운 원본 구간을 뜻하지 않으므로 끊김 판정에 섞이면 안 된다.
                 if self.records_source_range:
                     source_ranges.append((start_time, end_time))
                 return _FakeVideoClip(end_time - start_time)
@@ -758,8 +761,8 @@ class TestVideoService(unittest.TestCase):
                     "_write_videofile_with_codec_fallback",
                     side_effect=_capture_written_clip,
                 ),
-                # random 模式默认会打乱同一源视频的切片。这里保持生成顺序，
-                # 才能精确验证相邻源时间段是否连续。
+                # random 모드는 기본적으로 같은 원본 영상의 조각을 섞는다. 여기서는 생성 순서를 유지해야
+                # 인접한 원본 구간이 이어지는지 정확히 검증할 수 있다.
                 patch.object(
                     vd,
                     "_prioritize_unique_source_clips",
@@ -780,7 +783,7 @@ class TestVideoService(unittest.TestCase):
         return source_ranges, written_durations
 
     def test_combine_videos_slow_speed_keeps_source_timeline_continuous(self):
-        """0.5 倍慢放应连续读取 1.5 秒源片段，不能跳过中间画面。"""
+        """0.5 배 느린 재생은 원본을 1.5 초 연속으로 읽어야 하며 중간 화면을 건너뛰어서는 안 된다."""
 
         source_ranges, written_durations = self._capture_source_ranges_for_clip_speed(
             source_duration=4.0,
@@ -792,7 +795,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(written_durations, [3.0, 3.0])
 
     def test_combine_videos_fast_speed_reads_enough_source_content(self):
-        """2 倍快放应读取 6 秒源画面，使最终片段仍保持 3 秒。"""
+        """2 배 빠른 재생은 원본 6 초를 읽어 최종 조각이 3 초로 유지되게 해야 한다."""
 
         source_ranges, written_durations = self._capture_source_ranges_for_clip_speed(
             source_duration=8.0,
@@ -805,11 +808,11 @@ class TestVideoService(unittest.TestCase):
 
     def test_combine_videos_keeps_small_duration_safety_margin(self):
         """
-        音频和素材累计时长刚好相等时，仍应继续追加一个短片段作为安全余量。
+        오디오와 소재의 누적 길이가 딱 같더라도 안전 여유로 짧은 조각을 하나 더 붙여야 한다.
 
-        FFmpeg 按帧率拼接后可能让最终视频比理论时长短几十毫秒。如果这里
-        在 10.0s == 10.0s 时立即停止，成片末尾就可能出现音频还在播放但
-        视频素材已经结束的边界问题。
+        FFmpeg 가 프레임레이트에 맞춰 이어붙이면 최종 영상이 이론상 길이보다 수십 밀리초 짧아질 수 있다.
+        여기서 10.0s == 10.0s 일 때 곧바로 멈추면, 결과물 끝에서 오디오는 아직 재생 중인데 영상 소재는
+        이미 끝난 경계 문제가 생길 수 있다.
         """
 
         class _FakeAudioClip:
@@ -865,7 +868,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(concat_mock.call_args.kwargs["max_duration"], 10.0)
 
     def test_concat_video_clips_limits_output_to_audio_duration(self):
-        """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
+        """최종 이어붙이기에서는 오디오 길이에 맞춰 잘라, 안전 여유 때문에 눈에 띄는 무음 꼬리가 남지 않게 해야 한다."""
 
         def fake_run(command, capture_output, text, check):
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
@@ -890,8 +893,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
         """
-        随机模式下，一个长素材会被拆成多个片段。调度层应先让每个源素材
-        至少出现一次，再使用同一源素材的其他切片，降低用户感知到的重复。
+        무작위 모드에서는 긴 소재 하나가 여러 조각으로 쪼개진다. 배치 계층은 원본 소재가 각각 최소 한 번은
+        나오게 한 뒤 같은 원본의 다른 조각을 써서, 사용자가 느끼는 반복을 줄여야 한다.
         """
         clips = [
             vd.SubClippedVideoClip("a.mp4", 0, 4, source_file_path="a.mp4"),
@@ -912,7 +915,7 @@ class TestVideoService(unittest.TestCase):
 
     def test_prioritize_unique_source_clips_keeps_sequential_order(self):
         """
-        顺序模式本身只取每个素材的首段，不应被随机调度逻辑改变顺序。
+        순차 모드는 소재마다 첫 조각만 가져오므로 무작위 배치 로직이 순서를 바꿔서는 안 된다.
         """
         clips = [
             vd.SubClippedVideoClip("a.mp4", 0, 4, source_file_path="a.mp4"),
@@ -929,8 +932,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_prioritize_unique_source_clips_prefers_long_primary_clip(self):
         """
-        同一个源素材的最后一个切片可能短于目标片段时长。首轮去重时应优先
-        选择较长片段，否则会因为累计时长不足而提前复用素材。
+        같은 원본 소재의 마지막 조각은 목표 조각 길이보다 짧을 수 있다. 첫 라운드 중복 제거에서는 더 긴
+        조각을 우선 골라야 한다. 그러지 않으면 누적 길이가 모자라 소재를 너무 일찍 재사용하게 된다.
         """
         short_tail = vd.SubClippedVideoClip(
             "a.mp4", 6, 6.5, source_file_path="a.mp4"
@@ -973,6 +976,7 @@ class TestVideoService(unittest.TestCase):
             self.assertIn("\n", wrapped_text_en)
             
             # test chinese text wrapping
+            # 공백 없이 이어지는 CJK 장문의 줄바꿈 동작을 검증하는 값이라 중국어 샘플을 유지한다.
             test_text_zh = "这是一段用来测试中文长句换行的文本内容，应该会根据宽度限制进行换行处理"
             wrapped_text_zh, text_height_zh = vd.wrap_text(
                 text=test_text_zh,
@@ -988,8 +992,9 @@ class TestVideoService(unittest.TestCase):
 
     def test_rounded_subtitle_background_clip_has_transparent_corners(self):
         """
-        圆角字幕背景只在用户显式开启时使用。这里直接验证生成的 RGBA
-        背景具备透明圆角和半透明中心，避免后续改动把圆角效果退化成实心矩形。
+        둥근 자막 배경은 사용자가 명시적으로 켰을 때만 쓴다. 여기서는 생성된 RGBA 배경이 투명한 둥근
+        모서리와 반투명 중앙을 갖는지 직접 검증해, 이후 수정으로 둥근 효과가 꽉 찬 사각형으로 퇴화하는
+        것을 막는다.
         """
         clip = vd._rounded_subtitle_background_clip(
             width=120,
