@@ -45,9 +45,9 @@ Generate a script for a video, depending on the subject of the video.
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
-    # 不同 LLM SDK 在异常或被拦截场景下，可能返回 None、空字符串，
-    # 甚至返回非字符串对象。这里统一做兜底校验，避免后续直接调用
-    # `.replace()` 时抛出 `NoneType` 之类的属性错误。
+    # LLM SDK 마다 예외가 나거나 요청이 차단됐을 때 None, 빈 문자열, 심지어 문자열이 아닌
+    # 객체를 반환할 수 있다. 여기서 한곳에서 방어적으로 검증해, 이후 `.replace()` 를 바로
+    # 호출하다가 `NoneType` 같은 속성 오류가 나는 것을 막는다.
     if content is None:
         raise ValueError(f"[{llm_provider}] returned empty text content")
 
@@ -56,9 +56,10 @@ def _normalize_text_response(content, llm_provider: str) -> str:
             f"[{llm_provider}] returned non-text content: {type(content).__name__}"
         )
 
-    # MiniMax M3、DeepSeek R1 这类 reasoning 模型可能会把内部推理包在
-    # `<think>...</think>` 中返回。视频脚本和关键词只需要最终可朗读文本，
-    # 如果不在服务层统一清理，WebUI、字幕和配音都会把思考过程当正文处理。
+    # MiniMax M3, DeepSeek R1 같은 추론 모델은 내부 추론을 `<think>...</think>` 로 감싸
+    # 반환할 수 있다. 영상 대본과 키워드에는 최종적으로 읽을 수 있는 텍스트만 필요하다.
+    # 서비스 계층에서 한곳에 정리하지 않으면 WebUI, 자막, 나레이션이 모두 사고 과정을
+    # 본문으로 취급하게 된다.
     content = _THINK_BLOCK_RE.sub("", content)
     content = _UNCLOSED_THINK_BLOCK_RE.sub("", content).strip()
     if not content:
@@ -69,12 +70,12 @@ def _normalize_text_response(content, llm_provider: str) -> str:
 
 def _sanitize_error_message(error: object) -> str:
     """
-    清理返回给 WebUI/API 的错误信息，避免自定义 base_url 中的凭据泄露。
+    WebUI/API 로 돌려주는 오류 메시지를 정리해, 사용자 지정 base_url 의 자격 증명이 새지 않게 한다.
 
-    一些 OpenAI-compatible SDK 会把请求 URL 原样拼进异常信息。如果用户为了
-    代理网关配置了 `https://user:pass@example.com/v1`，直接返回 `str(e)`
-    就会把密码暴露给页面、API 调用方或后续日志。这里仅处理错误文案，不改变
-    实际请求地址，避免影响正常调用链路。
+    일부 OpenAI 호환 SDK 는 요청 URL 을 예외 메시지에 그대로 이어 붙인다. 사용자가 프록시
+    게이트웨이용으로 `https://user:pass@example.com/v1` 을 설정했다면 `str(e)` 를 그대로
+    반환하는 순간 비밀번호가 화면, API 호출자, 이후 로그에 노출된다. 여기서는 오류 문구만
+    다루고 실제 요청 주소는 바꾸지 않아 정상 호출 경로에 영향을 주지 않는다.
     """
     message = str(error)
     message = _URL_USERINFO_RE.sub(r"\1***:***@", message)
@@ -83,10 +84,9 @@ def _sanitize_error_message(error: object) -> str:
 
 
 def _extract_chat_completion_text(response, llm_provider: str) -> str:
-    # OpenAI 兼容接口在异常场景下，可能返回没有 choices、
-    # 或者 choices/message/content 为空的响应对象。
-    # 这里统一做结构校验，避免出现 `NoneType is not subscriptable`
-    # 这类底层属性访问错误。
+    # OpenAI 호환 엔드포인트는 예외 상황에서 choices 가 없거나 choices/message/content 가
+    # 비어 있는 응답 객체를 반환할 수 있다. 여기서 구조를 한곳에서 검증해
+    # `NoneType is not subscriptable` 같은 저수준 속성 접근 오류가 나지 않게 한다.
     choices = getattr(response, "choices", None)
     if not choices:
         raise ValueError(f"[{llm_provider}] returned empty choices")
@@ -101,7 +101,7 @@ def _extract_chat_completion_text(response, llm_provider: str) -> str:
 
 
 def _get_response_field(value, key: str):
-    """兼容 dict 和 SDK 响应对象的字段读取。"""
+    """dict 와 SDK 응답 객체 양쪽에서 필드를 읽을 수 있게 한다."""
     if isinstance(value, dict):
         return value.get(key)
 
@@ -113,12 +113,12 @@ def _get_response_field(value, key: str):
 
 def _extract_qwen_generation_text(response) -> str:
     """
-    从 DashScope Generation 响应中提取文本。
+    DashScope Generation 응답에서 텍스트를 뽑아낸다.
 
-    Qwen 使用 `messages` 调用时返回的是 chat 结构：
-    `output.choices[0].message.content`；旧 completion 形态才会返回
-    `output.text`。这里两个路径都兼容，避免 `output.text` 为 None 时
-    继续 `.replace()` 触发不可诊断的 AttributeError。
+    Qwen 을 `messages` 로 호출하면 chat 구조인 `output.choices[0].message.content` 가
+    반환된다. `output.text` 는 예전 completion 형태에서만 나온다. 여기서 두 경로를 모두
+    지원해, `output.text` 가 None 일 때 `.replace()` 를 이어서 호출하다가 원인을 알 수 없는
+    AttributeError 가 나는 것을 막는다.
     """
     output = _get_response_field(response, "output")
     choices = _get_response_field(output, "choices") if output else None
@@ -167,8 +167,9 @@ def _generate_response(prompt: str) -> str:
         adapter = provider.adapter
         api_version = ""
 
-        # Ollama 的默认地址依赖当前是否运行在容器中，无法作为静态 Registry
-        # 值保存；Registry 仍负责模型和必填规则，运行环境差异在这里解析。
+        # Ollama 의 기본 주소는 지금 컨테이너 안에서 도는지에 따라 달라지므로 정적인 Registry
+        # 값으로 저장할 수 없다. Registry 는 여전히 모델과 필수 입력 규칙을 담당하고,
+        # 실행 환경 차이는 여기서 해석한다.
         if llm_provider == "ollama":
             api_key = "ollama"
             if not base_url:
@@ -262,8 +263,8 @@ def _generate_response(prompt: str) -> str:
             )
 
             try:
-                # 新版 google-genai 通过统一 Client 暴露模型服务。上下文管理器
-                # 会在请求结束后关闭底层 HTTP 连接，避免频繁生成时积累连接资源。
+                # 새 google-genai 는 통합 Client 로 모델 서비스를 노출한다. 컨텍스트 매니저가
+                # 요청이 끝난 뒤 하위 HTTP 연결을 닫아, 자주 생성할 때 연결 자원이 쌓이지 않게 한다.
                 with genai.Client(
                     api_key=api_key,
                     http_options=http_options,
@@ -283,9 +284,9 @@ def _generate_response(prompt: str) -> str:
         if adapter == "cloudflare_ai_gateway":
             account_id = extra_values["account_id"]
             gateway_id = extra_values["gateway_id"]
-            # Cloudflare 当前推荐的 AI Gateway REST API 兼容 OpenAI SDK。
-            # Account ID 用于构造统一端点，Gateway ID 通过请求头选择；这里
-            # 不再调用 Workers AI 的 /ai/run/{model} 专用接口。
+            # Cloudflare 가 현재 권장하는 AI Gateway REST API 는 OpenAI SDK 와 호환된다.
+            # Account ID 로 통합 엔드포인트를 구성하고 Gateway ID 는 요청 헤더로 고른다.
+            # 여기서는 더 이상 Workers AI 의 /ai/run/{model} 전용 엔드포인트를 호출하지 않는다.
             client = OpenAI(
                 api_key=api_key,
                 base_url=(
@@ -321,10 +322,11 @@ def _generate_response(prompt: str) -> str:
             return _extract_chat_completion_text(response, llm_provider)
 
         if adapter == "azure":
-            # Azure OpenAI SDK 使用 `azure_endpoint` 和 `api_version` 生成专用请求地址，
-            # 不能继续复用下面普通 OpenAI-compatible 的 `base_url` 初始化逻辑。
-            # 这里在 Azure 分支内完成请求并立即返回，避免客户端被后续 fallback
-            # 覆盖，导致用户配置的 Azure 凭证通过校验但实际请求没有被使用。
+            # Azure OpenAI SDK 는 `azure_endpoint` 와 `api_version` 으로 전용 요청 주소를
+            # 만들므로, 아래의 일반 OpenAI 호환 `base_url` 초기화 로직을 그대로 쓸 수 없다.
+            # 여기 Azure 분기 안에서 요청을 끝내고 바로 반환해, 클라이언트가 뒤따르는
+            # fallback 에 덮여 사용자가 설정한 Azure 자격 증명이 검증은 통과했는데 실제
+            # 요청에는 쓰이지 않는 상황을 막는다.
             logger.info(f"requesting azure chat completion, model: {model_name}")
             client = AzureOpenAI(
                 api_key=api_key,
@@ -401,11 +403,12 @@ def _generate_response(prompt: str) -> str:
 
 def test_connection() -> tuple[bool, str, float]:
     """
-    使用当前 Provider 配置发起一次最小请求，验证实际生成链路是否可用。
+    현재 Provider 설정으로 최소한의 요청을 한 번 보내, 실제 생성 경로가 동작하는지 확인한다.
 
-    连接测试直接复用 `_generate_response()`，因此会覆盖 API Key、Base URL、
-    模型名称和 Provider 专用字段，但不会进入脚本生成的重试逻辑，也不会发送
-    用户的视频主题或文案。返回值依次为成功状态、错误信息和请求耗时。
+    연결 테스트는 `_generate_response()` 를 그대로 재사용하므로 API 키, Base URL, 모델명,
+    Provider 전용 필드를 모두 검증한다. 다만 대본 생성의 재시도 로직으로는 들어가지 않고
+    사용자의 영상 주제나 대본도 보내지 않는다. 반환값은 순서대로 성공 여부, 오류 메시지,
+    요청 소요 시간이다.
     """
     started_at = perf_counter()
     response = _generate_response(prompt="Reply with exactly: OK")
@@ -430,9 +433,9 @@ def _limit_script_text(text: str | None, max_length: int, field_name: str) -> st
     if len(value) <= max_length:
         return value
 
-    # API 层已经用 Pydantic 做长度校验；这里继续兜底，是为了保护
-    # WebUI 或内部服务直接调用 generate_script 时不会把超长提示词发送给模型，
-    # 避免 token 成本异常和请求失败。
+    # API 계층은 이미 Pydantic 으로 길이를 검증한다. 여기서 한 번 더 방어하는 이유는
+    # WebUI 나 내부 서비스가 generate_script 를 직접 호출할 때 지나치게 긴 프롬프트를
+    # 모델에 보내지 않게 해, 토큰 비용이 튀거나 요청이 실패하는 것을 막기 위해서다.
     logger.warning(
         f"{field_name} is too long and will be truncated to {max_length} characters."
     )
@@ -446,8 +449,8 @@ def _normalize_script_paragraph_number(paragraph_number: int | None) -> int:
         value = MIN_SCRIPT_PARAGRAPH_NUMBER
 
     if value < MIN_SCRIPT_PARAGRAPH_NUMBER or value > MAX_SCRIPT_PARAGRAPH_NUMBER:
-        # WebUI 和 API 都会限制范围；这里兜底处理内部调用，避免异常参数直接扩大
-        # LLM 生成成本或生成空结果。
+        # WebUI 와 API 모두 범위를 제한한다. 여기서는 내부 호출을 방어해, 잘못된 파라미터가
+        # 곧바로 LLM 생성 비용을 키우거나 빈 결과를 만들지 않게 한다.
         logger.warning(
             f"script paragraph_number is out of range and will be clamped: {value}"
         )
@@ -471,8 +474,9 @@ def build_script_prompt(
         custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
     )
 
-    # 将“脚本生成规则”和“运行时上下文”分开拼接。这样高级用户即使覆盖默认
-    # system prompt，也不会漏掉视频主题、语言、段落数这些每次生成都必须带上的参数。
+    # '대본 생성 규칙' 과 '런타임 컨텍스트' 를 나눠서 이어 붙인다. 이렇게 하면 고급 사용자가
+    # 기본 system prompt 를 덮어써도 영상 주제, 언어, 문단 수처럼 생성할 때마다 반드시
+    # 들어가야 하는 파라미터를 빠뜨리지 않는다.
     prompt = custom_system_prompt or DEFAULT_SCRIPT_SYSTEM_PROMPT
     prompt += f"""
 
@@ -549,6 +553,9 @@ def generate_script(
                 logging.error("gpt returned an empty response")
 
             # Some upstream providers may return quota errors as plain text.
+            # 아래 중국어 문자열은 주석이 아니라 매칭 대상이다. 일부 중국 LLM 제공자가
+            # 일일 한도 초과를 이 문구('당일 한도를 모두 소진했습니다')로 돌려주므로,
+            # 번역하면 한도 초과를 감지하지 못한다.
             if final_script and "当日额度已消耗完" in final_script:
                 raise ValueError(final_script)
 
@@ -597,8 +604,9 @@ def generate_terms(
             "6. keep the terms in the same order as the script narration; "
             "earlier terms must describe earlier visual moments."
         )
-        # 有序关键词模式下，示例数量要和 amount 保持一致，避免模型被固定
-        # 的 4 个示例误导，导致长文案只返回少量关键词，影响素材覆盖度。
+        # 순서가 있는 키워드 모드에서는 예시 개수를 amount 와 맞춰야 한다. 고정된 4 개 예시에
+        # 모델이 이끌려 긴 대본인데도 키워드를 조금만 반환해 소재 커버리지가 떨어지는 것을
+        # 막기 위해서다.
         example_terms = [
             "opening visual topic",
             *[f"script visual topic {index}" for index in range(2, max(amount, 1))],
@@ -651,10 +659,11 @@ Please note that you must use English for generating video search terms; Chinese
         try:
             response = _generate_response(prompt)
             if response.startswith("Error: "):
-                # generate_terms 的公开返回类型是 List[str]。如果把 Provider 的
-                # 错误文案原样返回，下游只做空值判断时会把非空字符串误认为成功，
-                # 素材下载循环还会按字符遍历错误文案，产生无意义的外部请求。
-                # 这里统一返回空列表，让任务编排层在真实故障位置立即结束任务。
+                # generate_terms 의 공개 반환 타입은 List[str] 이다. Provider 의 오류 문구를
+                # 그대로 반환하면, 빈 값만 확인하는 하위 코드가 비어 있지 않은 문자열을 성공으로
+                # 오인한다. 소재 다운로드 루프는 오류 문구를 글자 단위로 순회하며 의미 없는
+                # 외부 요청까지 만든다. 여기서는 빈 목록을 반환해, 작업 조율 계층이 실제 장애
+                # 지점에서 바로 작업을 끝내게 한다.
                 logger.error(f"failed to generate video terms: {response}")
                 return []
             search_terms = json.loads(_strip_code_fence(response))
@@ -672,9 +681,9 @@ Please note that you must use English for generating video search terms; Chinese
                     try:
                         search_terms = json.loads(match.group())
                     except Exception as e:
-                        # 这里保留重试流程，但必须记录 LLM 返回的非标准 JSON，
-                        # 否则后续排查搜索词为空时无法定位
-                        # 是模型格式问题还是解析逻辑问题。
+                        # 재시도 흐름은 그대로 두되, LLM 이 반환한 비표준 JSON 은 반드시 기록해야 한다.
+                        # 그러지 않으면 나중에 검색어가 비어 있을 때 모델 형식 문제인지 파싱 로직
+                        # 문제인지 구분할 수 없다.
                         logger.warning(f"failed to generate video terms: {str(e)}")
 
         if search_terms and len(search_terms) > 0:
@@ -689,12 +698,13 @@ Please note that you must use English for generating video search terms; Chinese
 # =============================================================================
 # Social publishing metadata
 #
-# 根据视频主题和脚本生成发布到短视频平台时常用的 title、caption 和 hashtags。
-# 这块能力只复用现有 LLM provider，不接入任何外部发布服务，也不影响视频生成主链路。
+# 영상 주제와 대본을 바탕으로 숏폼 플랫폼에 올릴 때 흔히 쓰는 title, caption, hashtags 를 만든다.
+# 이 기능은 기존 LLM provider 만 재사용하며, 외부 업로드 서비스에 연결하지 않고 영상 생성
+# 주 경로에도 영향을 주지 않는다.
 # =============================================================================
 
-# 不同平台的文案长度和 hashtag 数量偏好不同。这里使用保守上限，避免模型返回
-# 过长内容后调用方还需要二次裁剪。
+# 플랫폼마다 선호하는 문구 길이와 hashtag 개수가 다르다. 여기서는 보수적인 상한을 써서,
+# 모델이 지나치게 긴 내용을 반환한 뒤 호출자가 다시 잘라 내야 하는 상황을 피한다.
 SOCIAL_PLATFORMS = {
     "tiktok": {"title_max": 100, "caption_max": 2200, "hashtag_count": 5},
     "youtube_shorts": {"title_max": 100, "caption_max": 5000, "hashtag_count": 3},
@@ -714,8 +724,9 @@ SOCIAL_PLATFORM_LABELS = {
     "facebook_reels": "Facebook Reels",
 }
 
-# LLM 不可用时的通用兜底标签。这里故意不绑定某个国家或语种，保证 API
-# 对中文、英文、越南语等不同场景都能返回可用结构。
+# LLM 을 쓸 수 없을 때의 범용 대비 태그. 특정 국가나 언어에 묶지 않도록 일부러 일반적인
+# 값을 쓴다. 한국어, 영어, 베트남어 등 어떤 상황에서도 API 가 쓸 만한 구조를 반환하게 하기
+# 위해서다.
 DEFAULT_SOCIAL_HASHTAGS = [
     "#shorts",
     "#viral",
@@ -749,8 +760,8 @@ def _limit_social_text(text: str | None, max_length: int, field_name: str) -> st
     if len(value) <= max_length:
         return value
 
-    # API 层会限制长度；这里继续兜底，是为了保护内部调用或未来 WebUI
-    # 直接调用时不会把超长内容发送给模型，避免 token 成本异常。
+    # API 계층이 길이를 제한한다. 여기서 한 번 더 방어하는 이유는 내부 호출이나 앞으로 WebUI 가
+    # 직접 호출할 때 지나치게 긴 내용을 모델에 보내지 않게 해, 토큰 비용이 튀는 것을 막기 위해서다.
     logger.warning(
         f"{field_name} is too long and will be truncated to {max_length} characters."
     )
@@ -777,17 +788,17 @@ def _clamp_text(text, max_length: int) -> str:
 
 def _normalize_hashtags(raw, count: int) -> List[str]:
     """
-    将 LLM 返回的 hashtag 统一整理成 `#tag` 格式。
+    LLM 이 반환한 hashtag 를 `#tag` 형식으로 통일해 정리한다.
 
-    LLM 可能返回字符串、数组、带空格的词组、重复标签或包含标点的内容。
-    这里集中清洗，可以让接口响应结构稳定，也避免平台发布时出现空标签、
-    重复标签或不符合常见格式的 hashtag。
+    LLM 은 문자열, 배열, 공백이 들어간 어구, 중복 태그, 문장 부호가 섞인 내용을 반환할 수 있다.
+    여기서 한곳에 모아 정리하면 엔드포인트 응답 구조가 안정되고, 플랫폼에 올릴 때 빈 태그,
+    중복 태그, 통상적인 형식에 맞지 않는 hashtag 가 나오는 것도 막을 수 있다.
     """
     if isinstance(raw, str):
         candidates = re.split(r"[\s,]+", raw)
     elif isinstance(raw, (list, tuple)):
-        # 数组里的每一项视为一个完整标签，因此 "du lich" 会变成
-        # "#dulich"，而不是拆成两个标签。
+        # 배열의 각 항목을 하나의 완전한 태그로 본다. 따라서 "du lich" 는 두 개로 쪼개지지 않고
+        # "#dulich" 가 된다.
         candidates = [str(entry) for entry in raw]
     else:
         candidates = []
@@ -859,8 +870,8 @@ def _parse_social_metadata(response: str, platform: str) -> dict:
     try:
         data = json.loads(_strip_code_fence(response))
     except Exception:
-        # 部分模型会在 JSON 外层包一段说明文字或 markdown fence。
-        # API 调用方只需要稳定结构，所以这里尝试提取第一个 JSON object。
+        # 일부 모델은 JSON 바깥을 설명 문구나 markdown fence 로 감싼다. API 호출자에게는
+        # 안정적인 구조만 필요하므로, 여기서 첫 번째 JSON object 를 뽑아내려 시도한다.
         match = re.search(r"\{.*\}", response or "", re.DOTALL)
         if match:
             data = json.loads(match.group())
@@ -887,7 +898,7 @@ def _fallback_social_metadata(
 
     title = subject
     if not title and script:
-        # 没有主题时，用脚本第一句兜底生成 title，避免接口返回空标题。
+        # 주제가 없으면 대본 첫 문장으로 title 을 대신 만들어, 엔드포인트가 빈 제목을 반환하지 않게 한다.
         title = re.split(r"(?<=[.!?。！？])\s+", script)[0]
 
     return {
@@ -904,11 +915,11 @@ def generate_social_metadata(
     platform: str = DEFAULT_SOCIAL_PLATFORM,
 ) -> dict:
     """
-    生成短视频发布文案元数据。
+    숏폼 게시용 문구 메타데이터를 생성한다.
 
-    返回结构固定为 `{"title": str, "caption": str, "hashtags": List[str]}`。
-    如果 LLM 不可用或返回格式异常，会降级为通用启发式结果，保证 API
-    调用方始终拿到可展示、可发布前编辑的数据结构。
+    반환 구조는 `{"title": str, "caption": str, "hashtags": List[str]}` 로 고정된다.
+    LLM 을 쓸 수 없거나 반환 형식이 비정상이면 범용 휴리스틱 결과로 기능을 낮춰,
+    API 호출자가 항상 표시 가능하고 게시 전 편집할 수 있는 데이터 구조를 받게 한다.
     """
     platform = _resolve_social_platform(platform)
     language = _normalize_social_language(language)
@@ -949,9 +960,9 @@ def generate_social_metadata(
 
 
 if __name__ == "__main__":
-    video_subject = "生命的意义是什么"
+    video_subject = "삶의 의미란 무엇인가"
     script = generate_script(
-        video_subject=video_subject, language="zh-CN", paragraph_number=1
+        video_subject=video_subject, language="ko-KR", paragraph_number=1
     )
     print("######################")
     print(script)
