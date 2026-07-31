@@ -230,7 +230,15 @@ curl -H "x-api-key: 임의의-긴-무작위-문자열" \
    | `ko-KR-InJoonNeural` | 남성 |
    | `ko-KR-HyunsuMultilingualNeural` | 남성 (다국어) |
 
-4. **자막 글꼴** — 기본 글꼴 `MicrosoftYaHeiBold.ttc`는 한글 글리프를 포함하고 있어 그대로 써도 한글이 정상 렌더링됩니다. 더 나은 한글 타이포그래피를 원하면 `resource/fonts/` 에 원하는 `.ttf`/`.ttc` 파일(예: Pretendard, 나눔고딕)을 넣으면 자막 설정의 글꼴 목록에 바로 나타납니다.
+4. **자막 글꼴** — 기본값 `Pretendard-Bold.otf` 를 그대로 쓰세요. 원본 프로젝트에 번들된 글꼴(`MicrosoftYaHeiBold.ttc`, `STHeitiMedium.ttc` 등)은 중국어·일본어용이라 **한글 글리프가 없어 자막이 두부(□)로 깨집니다.** 다른 글꼴을 쓰시려면 한글을 지원하는지 먼저 확인하세요 — 자막 설정 패널이 지원하지 않는 글꼴에 경고를 띄웁니다.
+
+   | 글꼴 | 한글 | 일본어 | 중국어 |
+   | --- | :---: | :---: | :---: |
+   | `Pretendard-Bold.otf` (기본) | O | X | X |
+   | `MicrosoftYaHeiBold.ttc` | X | O | O |
+   | `STHeitiMedium.ttc` | X | O | O |
+
+   일본어·중국어 대본을 만들 때는 글꼴을 `MicrosoftYaHeiBold.ttc` 로 바꾸셔야 합니다.
 5. **영상 검색 키워드** — 소재 제공자(Pexels/Pixabay/Coverr)가 영어 검색만 지원하므로 키워드는 영어로 생성됩니다. 정상 동작이며 대본과 자막은 한국어 그대로입니다.
 
 ## 보안 주의사항

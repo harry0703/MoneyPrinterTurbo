@@ -1,4 +1,6 @@
+import ast
 import json
+import os
 from pathlib import Path
 import unittest
 
@@ -164,3 +166,67 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
 
         self.assertNotIn("\n。", wrapped_text)
         self.assertIn("挡。", wrapped_text)
+
+
+class TestKoreanSubtitleFont(unittest.TestCase):
+    """한국어 로케일을 쓰려면 한글 글리프를 가진 글꼴이 번들되어 있어야 한다."""
+
+    FONTS_DIR = Path(__file__).parent.parent.parent / "resource" / "fonts"
+
+    def test_default_subtitle_font_renders_korean(self):
+        """
+        기본 글꼴이 한글을 그리지 못하면 자막이 전부 두부(□)로 나온다.
+        원본 번들 글꼴은 중국어·일본어용이라 한글 글리프가 없으므로, 기본값이
+        한글 지원 글꼴을 가리키는지 고정한다.
+        """
+        namespace = {}
+        source = (Path(__file__).parent.parent.parent / "webui" / "Main.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == "DEFAULT_SUBTITLE_SETTINGS"
+                for t in node.targets
+            ):
+                namespace = ast.literal_eval(node.value)
+                break
+
+        default_font = namespace.get("font_name")
+        self.assertTrue(default_font, "DEFAULT_SUBTITLE_SETTINGS 에 font_name 이 없다")
+
+        font_path = self.FONTS_DIR / default_font
+        self.assertTrue(font_path.is_file(), f"기본 글꼴 파일이 없다: {default_font}")
+        self.assertTrue(
+            video.subtitle_font_supports_text(str(font_path), "한글자막테스트"),
+            f"기본 글꼴 {default_font} 이 한글 글리프를 갖고 있지 않다",
+        )
+
+    def test_bundled_fonts_cover_every_script_locale(self):
+        """
+        대본 언어 목록의 각 언어마다 렌더링 가능한 번들 글꼴이 최소 하나는 있어야 한다.
+        목록에 언어를 추가하고 글꼴을 빠뜨리면 자막이 조용히 깨진다.
+        """
+        samples = {
+            "ko-KR": "한글자막",
+            "ja-JP": "日本語字幕",
+            "zh-CN": "中文字幕",
+            "en-US": "English",
+            "ru-RU": "Русский",
+        }
+        bundled = [
+            str(p)
+            for p in self.FONTS_DIR.iterdir()
+            if p.suffix.lower() in {".ttf", ".ttc", ".otf"}
+        ]
+
+        for locale, sample in samples.items():
+            with self.subTest(locale=locale):
+                supported = [
+                    os.path.basename(f)
+                    for f in bundled
+                    if video.subtitle_font_supports_text(f, sample)
+                ]
+                self.assertTrue(
+                    supported, f"{locale} 자막을 그릴 수 있는 번들 글꼴이 없다"
+                )
