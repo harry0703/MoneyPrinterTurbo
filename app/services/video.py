@@ -990,6 +990,56 @@ def subtitle_font_supports_text(font_path: str, text: str) -> bool:
     return _subtitle_font_supports_sample(font_path, sample)
 
 
+# 자막 글꼴은 WebUI 설정, config.toml, CLI 인자, API 파라미터 어디서든 올 수 있고,
+# 저장된 값이 대본 언어와 맞지 않으면 자막이 통째로 두부(□)로 렌더링된다. 원본
+# 프로젝트가 번들한 글꼴은 중국어·일본어용이라 한글이 없고, 반대로 한글 글꼴에는
+# 한자·가나가 없다. 어느 한쪽을 기본값으로 고정하면 다른 쪽이 깨지므로, 생성
+# 시점에 실제 자막 텍스트를 그릴 수 있는지 보고 필요할 때만 교체한다.
+DEFAULT_SUBTITLE_FONT = "Pretendard-Bold.ttf"
+
+
+def _read_subtitle_text(subtitle_path: str) -> str:
+    try:
+        with open(subtitle_path, mode="r", encoding="utf-8") as fp:
+            return fp.read()
+    except OSError:
+        return ""
+
+
+def resolve_subtitle_font(font_name: str, subtitle_path: str) -> str:
+    """
+    선택된 글꼴이 이번 자막을 그릴 수 없으면 그릴 수 있는 번들 글꼴로 교체한다.
+
+    선택값을 무조건 덮지 않는다. 일본어 대본에 MicrosoftYaHei 를 고른 사용자는
+    그대로 유지되고, 한국어 대본에 같은 글꼴이 저장돼 있을 때만 교체된다.
+    교체는 사용자가 명시한 값을 바꾸는 동작이므로 경고를 남긴다.
+    """
+    subtitle_text = _read_subtitle_text(subtitle_path)
+    if not subtitle_text:
+        return font_name
+
+    font_dir = utils.font_dir()
+    if subtitle_font_supports_text(os.path.join(font_dir, font_name), subtitle_text):
+        return font_name
+
+    for candidate in sorted(os.listdir(font_dir)):
+        if not candidate.lower().endswith((".ttf", ".ttc")):
+            continue
+        if subtitle_font_supports_text(os.path.join(font_dir, candidate), subtitle_text):
+            logger.warning(
+                f"subtitle font '{font_name}' cannot render this script, "
+                f"falling back to '{candidate}'"
+            )
+            return candidate
+
+    # 그릴 수 있는 글꼴이 하나도 없으면 사용자의 선택을 그대로 둔다. 임의로 바꿔도
+    # 결과가 나아지지 않고, 원래 값이 남아 있어야 어떤 글꼴이 문제인지 알 수 있다.
+    logger.warning(
+        f"no bundled font can render this script, keeping '{font_name}'"
+    )
+    return font_name
+
+
 def generate_video(
     video_path: str,
     audio_path: str,
@@ -1022,7 +1072,8 @@ def generate_video(
     font_path = ""
     if params.subtitle_enabled:
         if not params.font_name:
-            params.font_name = "STHeitiMedium.ttc"
+            params.font_name = DEFAULT_SUBTITLE_FONT
+        params.font_name = resolve_subtitle_font(params.font_name, subtitle_path)
         font_path = os.path.join(utils.font_dir(), params.font_name)
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")

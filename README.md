@@ -230,15 +230,18 @@ curl -H "x-api-key: 임의의-긴-무작위-문자열" \
    | `ko-KR-InJoonNeural` | 남성 |
    | `ko-KR-HyunsuMultilingualNeural` | 남성 (다국어) |
 
-4. **자막 글꼴** — 기본값 `Pretendard-Bold.ttf` 를 그대로 쓰세요. 원본 프로젝트에 번들된 글꼴(`MicrosoftYaHeiBold.ttc`, `STHeitiMedium.ttc` 등)은 중국어·일본어용이라 **한글 글리프가 없어 자막이 두부(□)로 깨집니다.** 다른 글꼴을 쓰시려면 한글을 지원하는지 먼저 확인하세요 — 자막 설정 패널이 지원하지 않는 글꼴에 경고를 띄웁니다.
+4. **자막 글꼴** — 신경 쓰지 않으셔도 됩니다. 선택한 글꼴이 대본을 그릴 수 없으면 **생성 시점에 그릴 수 있는 글꼴로 자동 교체**되고 로그에 남습니다.
+
+   원본 프로젝트가 번들한 글꼴은 중국어·일본어용이라 한글 글리프가 없고, 반대로 한글 글꼴에는 한자·가나가 없습니다. 어느 하나를 기본값으로 고정할 수 없어서 대본을 보고 고르는 방식을 씁니다.
 
    | 글꼴 | 한글 | 일본어 | 중국어 |
    | --- | :---: | :---: | :---: |
-   | `Pretendard-Bold.ttf` (기본) | O | X | X |
+   | `Pretendard-Bold.ttf` (기본값) | O | X | X |
    | `MicrosoftYaHeiBold.ttc` | X | O | O |
    | `STHeitiMedium.ttc` | X | O | O |
 
-   일본어·중국어 대본을 만들 때는 글꼴을 `MicrosoftYaHeiBold.ttc` 로 바꾸셔야 합니다.
+   직접 고르시려면 한국어는 `Pretendard`, 일본어·중국어는 `MicrosoftYaHei` 나 `STHeiti` 중 아무거나 쓰시면 됩니다. 새 글꼴을 넣으실 때는 `.ttf` 또는 `.ttc` 여야 목록에 나타납니다.
+
 5. **영상 검색 키워드** — 소재 제공자(Pexels/Pixabay/Coverr)가 영어 검색만 지원하므로 키워드는 영어로 생성됩니다. 정상 동작이며 대본과 자막은 한국어 그대로입니다.
 
 ## 보안 주의사항

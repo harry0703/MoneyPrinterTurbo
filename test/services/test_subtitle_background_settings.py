@@ -1,6 +1,7 @@
 import ast
 import json
 import os
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -168,9 +169,49 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
         self.assertIn("挡。", wrapped_text)
 
 
-# WebUI 의 글꼴 목록(webui/Main.py get_all_fonts)과 CLI 검증(cli.py)이 받아들이는
-# 확장자. .otf 는 양쪽 모두 걸러 내므로, 넣어 두어도 선택할 수 없다.
-SELECTABLE_FONT_SUFFIXES = {".ttf", ".ttc"}
+def _webui_selectable_fonts():
+    """
+    WebUI 글꼴 드롭다운이 실제로 만들어 내는 목록을 그대로 얻는다.
+
+    확장자 규칙을 테스트가 복사해 두면 앱이 규칙을 바꿔도 테스트가 따라가지 않고,
+    대소문자 처리 같은 미묘한 차이도 놓친다. get_all_fonts 의 본문을 그대로 실행해
+    앱이 고르는 것과 같은 집합을 쓴다.
+    """
+    source = (Path(__file__).parent.parent.parent / "webui" / "Main.py").read_text(
+        encoding="utf-8"
+    )
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "get_all_fonts":
+            body = [n for n in node.body if not isinstance(n, ast.Expr)]
+            fn = ast.Module(
+                body=[ast.FunctionDef(
+                    name="get_all_fonts", args=node.args, body=body,
+                    decorator_list=[], returns=None, type_params=[],
+                )],
+                type_ignores=[],
+            )
+            ast.fix_missing_locations(fn)
+            ns = {"os": os, "font_dir": str(FONTS_DIR)}
+            exec(compile(fn, "<get_all_fonts>", "exec"), ns)
+            return sorted(ns["get_all_fonts"]())
+    raise AssertionError("webui/Main.py 에서 get_all_fonts 를 찾지 못했다")
+
+
+FONTS_DIR = Path(__file__).parent.parent.parent / "resource" / "fonts"
+
+
+def _script_locales():
+    """webui/Main.py 의 support_locales 를 그대로 읽는다."""
+    source = (Path(__file__).parent.parent.parent / "webui" / "Main.py").read_text(
+        encoding="utf-8"
+    )
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "support_locales" for t in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    raise AssertionError("webui/Main.py 에서 support_locales 를 찾지 못했다")
 
 
 class TestKoreanSubtitleFont(unittest.TestCase):
@@ -213,17 +254,29 @@ class TestKoreanSubtitleFont(unittest.TestCase):
         목록에 언어를 추가하고 글꼴을 빠뜨리면 자막이 조용히 깨진다.
         """
         samples = {
-            "ko-KR": "한글자막",
-            "ja-JP": "日本語字幕",
-            "zh-CN": "中文字幕",
-            "en-US": "English",
-            "ru-RU": "Русский",
+            "ko": "한글자막",
+            "ja": "日本語字幕",
+            "zh": "中文字幕",
+            "en": "English",
+            "ru": "Русский",
+            "th": "คำบรรยาย",
+            "vi": "Phụ đề",
+            "tr": "Altyazı",
+            "de": "Untertitel",
+            "es": "Subtítulos",
+            "fr": "Sous-titres",
         }
-        bundled = [
-            str(p)
-            for p in self.FONTS_DIR.iterdir()
-            if p.suffix.lower() in SELECTABLE_FONT_SUFFIXES
-        ]
+        # 대본 언어 목록에서 직접 유도한다. 목록에 언어를 추가하고 여기에 표본을
+        # 넣지 않으면 그 사실이 드러나야 하므로, 표본 누락도 실패로 처리한다.
+        declared = _script_locales()
+        missing_samples = sorted(
+            loc for loc in declared if loc.split("-")[0] not in samples
+        )
+        self.assertEqual(missing_samples, [], "표본이 없는 대본 언어가 있다")
+        samples = {
+            loc: samples[loc.split("-")[0]] for loc in declared
+        }
+        bundled = [str(self.FONTS_DIR / name) for name in _webui_selectable_fonts()]
 
         for locale, sample in samples.items():
             with self.subTest(locale=locale):
@@ -242,15 +295,96 @@ class TestKoreanSubtitleFont(unittest.TestCase):
         resource/fonts 에 넣으면 드롭다운에 뜨지 않고 CLI 는 거부하므로,
         번들해 두어도 아무도 쓸 수 없는 글꼴이 된다.
         """
+        selectable = set(_webui_selectable_fonts())
         unusable = sorted(
             p.name
             for p in self.FONTS_DIR.iterdir()
             if p.is_file()
-            and p.suffix.lower() not in SELECTABLE_FONT_SUFFIXES
             and p.suffix.lower() not in {".txt", ".md"}
+            and p.name not in selectable
         )
         self.assertEqual(
             unusable,
             [],
             "선택할 수 없는 확장자의 글꼴이 번들되어 있다",
+        )
+
+
+class TestSubtitleFontFallback(unittest.TestCase):
+    """
+    저장된 글꼴이 대본을 그리지 못할 때만 교체되는지 확인한다.
+
+    글꼴 값은 config.toml, CLI 인자, API 파라미터 어디서든 오고 그중 다수는
+    저장소가 관리하지 않는다. 기본값만 고쳐서는 이미 잘못된 값을 저장한
+    사용자를 구제하지 못하므로, 생성 시점에 교정되어야 한다.
+    """
+
+    @staticmethod
+    def _subtitle(tmp_dir, text):
+        path = Path(tmp_dir) / "subtitle.srt"
+        path.write_text(
+            f"1\n00:00:00,000 --> 00:00:02,000\n{text}\n", encoding="utf-8"
+        )
+        return str(path)
+
+    def test_korean_script_replaces_a_font_without_hangul(self):
+        """한글을 못 그리는 저장값은 그릴 수 있는 글꼴로 교체돼야 한다."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            resolved = video.resolve_subtitle_font(
+                "MicrosoftYaHeiBold.ttc", self._subtitle(tmp_dir, "한글 자막 확인")
+            )
+
+        self.assertNotEqual(resolved, "MicrosoftYaHeiBold.ttc")
+        self.assertTrue(
+            video.subtitle_font_supports_text(
+                str(FONTS_DIR / resolved), "한글 자막 확인"
+            )
+        )
+
+    def test_japanese_script_keeps_a_font_that_can_render_it(self):
+        """
+        일본어를 그릴 수 있는 선택은 그대로 둬야 한다. 무조건 한글 글꼴로 바꾸면
+        일본어 사용자의 자막이 반대로 깨진다.
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            resolved = video.resolve_subtitle_font(
+                "MicrosoftYaHeiBold.ttc", self._subtitle(tmp_dir, "日本語の字幕")
+            )
+
+        self.assertEqual(resolved, "MicrosoftYaHeiBold.ttc")
+
+    def test_missing_subtitle_file_keeps_the_selected_font(self):
+        """자막 파일을 읽을 수 없으면 판단 근거가 없으므로 선택을 바꾸지 않는다."""
+        resolved = video.resolve_subtitle_font(
+            "MicrosoftYaHeiBold.ttc", "/nonexistent/subtitle.srt"
+        )
+
+        self.assertEqual(resolved, "MicrosoftYaHeiBold.ttc")
+
+    def test_generate_video_applies_the_fallback(self):
+        """
+        헬퍼가 옳아도 generate_video 가 호출하지 않으면 사용자에게는 아무 효과가
+        없다. 호출부가 사라지는 회귀를 잡기 위해 실제 진입점을 확인한다.
+        """
+        source = (
+            Path(__file__).parent.parent.parent
+            / "app" / "services" / "video.py"
+        ).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        target = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "generate_video"
+        )
+        called = {
+            node.func.id
+            for node in ast.walk(target)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+
+        self.assertIn(
+            "resolve_subtitle_font",
+            called,
+            "generate_video 가 자막 글꼴 교체를 호출하지 않는다",
         )

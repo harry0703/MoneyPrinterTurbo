@@ -366,7 +366,8 @@ Output and exit status:
         default=None,
         help=(
             "subtitle font filename inside resource/fonts "
-            "(default: STHeitiMedium.ttc)"
+            "(default: Pretendard-Bold.ttf; replaced automatically when it "
+            "cannot render the generated script)"
         ),
     )
     subtitle_group.add_argument(
