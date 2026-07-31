@@ -241,9 +241,10 @@ curl -H "x-api-key: 임의의-긴-무작위-문자열" \
 | --- | --- | --- |
 | API 인증 | ✅ 활성화 — 모든 `/api/v1` 엔드포인트가 `x-api-key` 요구. `api_key` 미설정 시 전부 401 (fail-closed) | `config.toml`에 `api_key` 설정 |
 | API 바인딩 주소 | ✅ `listen_host = "127.0.0.1"` (로컬 전용) | 외부 접속이 필요하면 리버스 프록시 뒤에 두세요 |
-| CORS | `allow_origins=["*"]`, `allow_credentials=True` (`app/asgi.py:74-82`) | `CORS_ALLOWED_ORIGINS` 환경변수로 출처 제한. API 인증이 켜져 있어 CSRF 위험은 크게 줄었지만, 정적 마운트(`/tasks`)는 여전히 인증 대상이 아님 |
+| CORS | `allow_origins=["*"]`, `allow_credentials=True` (`app/asgi.py`) | `CORS_ALLOWED_ORIGINS` 환경변수로 출처 제한. API 인증이 켜져 있어 CSRF 위험은 크게 줄었음 |
 | WebUI 인증 | 없음 | `MPT_WEBUI_HOST`를 `127.0.0.1`(기본값)로 유지 |
-| 심볼릭 링크 | `/tasks` 정적 마운트가 `follow_symlink=True` (`app/asgi.py:86`) | `storage/tasks/` 안에 외부를 가리키는 심볼릭 링크를 만들지 말 것 |
+| 생성물 정적 경로 | ✅ `/tasks/<task-id>/...` 도 `x-api-key` 요구. 이 경로는 `StaticFiles` 마운트라 라우터 의존성이 걸리지 않아 별도 미들웨어로 보호 | `config.toml`에 `api_key` 설정 |
+| 심볼릭 링크 | `/tasks` 정적 마운트가 `follow_symlink=True` (`app/asgi.py`) | `storage/tasks/` 안에 외부를 가리키는 심볼릭 링크를 만들지 말 것 |
 | Docker 빌드 미러 | apt·pip 패키지를 기본적으로 Aliyun/Tsinghua 미러에서 받음. pip은 `--trusted-host`로 해당 호스트의 인증서 검증을 건너뜀 | `--build-arg DOCKER_BUILD_MIRROR=default --build-arg PIP_USE_OFFICIAL=1` 로 공식 저장소 사용 |
 | 컨테이너 권한 | root로 실행, `chmod 777 /MoneyPrinterTurbo`, `docker-compose.yml`이 저장소 전체를 마운트 | 필요 시 `docker-compose.release.yml`처럼 `config.toml`·`storage`만 마운트 |
 | TLS 검증 | `tls_verify = true` (기본 켜짐) | 그대로 유지 |

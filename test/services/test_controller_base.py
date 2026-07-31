@@ -1,4 +1,6 @@
+import shutil
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 from app.config import config
@@ -100,3 +102,66 @@ class TestControllerAuthentication(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTaskArtifactMountAuthentication(unittest.TestCase):
+    """/tasks 정적 마운트가 /api/v1/download 와 같은 인증을 요구하는지 검증한다."""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    @staticmethod
+    def _client_and_artifact():
+        from fastapi.testclient import TestClient
+
+        from app import asgi
+        from app.utils import utils
+
+        task_id = "asgi-auth-test"
+        artifact_dir = Path(utils.task_dir()) / task_id
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        artifact = artifact_dir / "final-1.mp4"
+        artifact.write_bytes(b"video-bytes")
+        return TestClient(asgi.app), f"/tasks/{task_id}/final-1.mp4", artifact_dir
+
+    def test_task_artifacts_require_the_api_key(self):
+        """
+        작업 UUID 만 알면 /tasks 로 영상을 받아 갈 수 있으면 안 된다.
+        /api/v1/download 가 인증을 요구하는 것과 동일한 산출물이기 때문이다.
+        """
+        config.app["api_key"] = "secret"
+        client, artifact_url, artifact_dir = self._client_and_artifact()
+        try:
+            self.assertEqual(client.get(artifact_url).status_code, 401)
+            self.assertEqual(
+                client.get(artifact_url, headers={"x-api-key": "wrong"}).status_code,
+                401,
+            )
+
+            allowed = client.get(artifact_url, headers={"x-api-key": "secret"})
+            self.assertEqual(allowed.status_code, 200)
+            self.assertEqual(allowed.content, b"video-bytes")
+        finally:
+            shutil.rmtree(artifact_dir, ignore_errors=True)
+
+    def test_task_artifacts_are_denied_when_api_key_is_unset(self):
+        """api_key 미설정 시 정적 산출물도 API 와 똑같이 fail-closed 여야 한다."""
+        config.app["api_key"] = ""
+        client, artifact_url, artifact_dir = self._client_and_artifact()
+        try:
+            self.assertEqual(client.get(artifact_url).status_code, 401)
+        finally:
+            shutil.rmtree(artifact_dir, ignore_errors=True)
+
+    def test_public_webui_root_stays_anonymous(self):
+        """WebUI 공개 자원은 계속 익명 접근이 가능해야 한다."""
+        config.app["api_key"] = "secret"
+        client, _, artifact_dir = self._client_and_artifact()
+        try:
+            self.assertEqual(client.get("/").status_code, 200)
+        finally:
+            shutil.rmtree(artifact_dir, ignore_errors=True)
