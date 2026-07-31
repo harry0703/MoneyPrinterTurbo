@@ -95,7 +95,7 @@ VOICE_MODE_NONE = "none"
 DEFAULT_VIDEO_CODEC_OPTION = "__default__"
 DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_enabled": True,
-    "font_name": "Pretendard-Bold.otf",
+    "font_name": "Pretendard-Bold.ttf",
     "subtitle_position": "bottom",
     "custom_position": 70.0,
     "text_fore_color": "#FFFFFF",

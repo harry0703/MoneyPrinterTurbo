@@ -168,6 +168,11 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
         self.assertIn("挡。", wrapped_text)
 
 
+# WebUI 의 글꼴 목록(webui/Main.py get_all_fonts)과 CLI 검증(cli.py)이 받아들이는
+# 확장자. .otf 는 양쪽 모두 걸러 내므로, 넣어 두어도 선택할 수 없다.
+SELECTABLE_FONT_SUFFIXES = {".ttf", ".ttc"}
+
+
 class TestKoreanSubtitleFont(unittest.TestCase):
     """한국어 로케일을 쓰려면 한글 글리프를 가진 글꼴이 번들되어 있어야 한다."""
 
@@ -217,7 +222,7 @@ class TestKoreanSubtitleFont(unittest.TestCase):
         bundled = [
             str(p)
             for p in self.FONTS_DIR.iterdir()
-            if p.suffix.lower() in {".ttf", ".ttc", ".otf"}
+            if p.suffix.lower() in SELECTABLE_FONT_SUFFIXES
         ]
 
         for locale, sample in samples.items():
@@ -230,3 +235,22 @@ class TestKoreanSubtitleFont(unittest.TestCase):
                 self.assertTrue(
                     supported, f"{locale} 자막을 그릴 수 있는 번들 글꼴이 없다"
                 )
+
+    def test_every_bundled_font_is_selectable(self):
+        """
+        WebUI 글꼴 목록과 CLI 검증은 .ttf/.ttc 만 받는다. 다른 확장자를
+        resource/fonts 에 넣으면 드롭다운에 뜨지 않고 CLI 는 거부하므로,
+        번들해 두어도 아무도 쓸 수 없는 글꼴이 된다.
+        """
+        unusable = sorted(
+            p.name
+            for p in self.FONTS_DIR.iterdir()
+            if p.is_file()
+            and p.suffix.lower() not in SELECTABLE_FONT_SUFFIXES
+            and p.suffix.lower() not in {".txt", ".md"}
+        )
+        self.assertEqual(
+            unusable,
+            [],
+            "선택할 수 없는 확장자의 글꼴이 번들되어 있다",
+        )
