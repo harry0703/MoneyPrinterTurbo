@@ -1172,6 +1172,7 @@ support_locales = [
     "en-US",
     "es-ES",
     "fr-FR",
+    "ja-JP",
     "ko-KR",
     "ru-RU",
     "vi-VN",
