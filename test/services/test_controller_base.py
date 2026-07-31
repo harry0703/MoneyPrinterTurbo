@@ -24,8 +24,8 @@ class TestControllerAuthentication(unittest.TestCase):
 
     def test_get_task_id_reuses_header_or_generates_uuid(self):
         """
-        客户端提供 request ID 时需要原样保留，缺失时则生成可记录到日志和
-        错误响应中的 UUID，保证两种入口都有可追踪标识。
+        클라이언트가 request ID 를 주면 그대로 유지하고, 없으면 로그와 오류 응답에 기록할 수 있는
+        UUID 를 생성해, 두 경로 모두 추적 가능한 식별자를 갖게 한다.
         """
         self.assertEqual(
             base.get_task_id(self._request({"x-task-id": "request-123"})),
@@ -37,7 +37,7 @@ class TestControllerAuthentication(unittest.TestCase):
         self.assertEqual(generated.count("-"), 4)
 
     def test_verify_token_accepts_matching_key(self):
-        """配置了 API Key 时，相同请求头必须正常通过鉴权。"""
+        """API 키를 설정했다면 같은 요청 헤더는 인증을 정상적으로 통과해야 한다."""
         config.app["api_key"] = "secret"
 
         result = base.verify_token(self._request({"x-api-key": "secret"}))
@@ -46,8 +46,8 @@ class TestControllerAuthentication(unittest.TestCase):
 
     def test_verify_token_rejects_missing_or_wrong_key(self):
         """
-        缺失和错误的 API Key 都必须返回 401，并保留客户端 request ID，
-        避免鉴权失败在日志中无法与调用方请求对应。
+        API 키가 없거나 틀리면 모두 401 을 반환하고 클라이언트 request ID 를 남겨,
+        인증 실패를 로그에서 호출자 요청과 짝지을 수 있게 한다.
         """
         config.app["api_key"] = "secret"
 
@@ -65,8 +65,8 @@ class TestControllerAuthentication(unittest.TestCase):
 
     def test_verify_token_rejects_every_request_when_api_key_is_unset(self):
         """
-        api_key 未配置时不能因为“空配置等于空请求头”而放行，否则默认配置下
-        受保护接口会退化成匿名可用。
+        api_key 가 설정되지 않았을 때 '빈 설정과 빈 요청 헤더가 같다' 는 이유로 통과시켜서는 안 된다.
+        그러면 기본 설정에서 보호된 엔드포인트가 익명으로 열린다.
         """
         config.app["api_key"] = ""
 
@@ -78,7 +78,7 @@ class TestControllerAuthentication(unittest.TestCase):
                 self.assertEqual(raised.exception.status_code, 401)
 
     def test_v1_routers_require_authentication(self):
-        """两个 V1 路由都必须挂载鉴权依赖，避免任何一个入口保持匿名。"""
+        """V1 라우터 두 개 모두 인증 의존성을 달아야 하며, 어느 한쪽도 익명으로 남아서는 안 된다."""
         from app.controllers.v1 import llm as llm_controller
         from app.controllers.v1 import video as video_controller
 
@@ -87,7 +87,7 @@ class TestControllerAuthentication(unittest.TestCase):
                 self.assertTrue(module.router.dependencies, module.__name__)
 
     def test_new_router_preserves_common_prefix_and_dependencies(self):
-        """所有 V1 路由都应复用统一前缀，并仅在传入时设置鉴权依赖。"""
+        """모든 V1 라우터는 통일된 접두사를 재사용하고, 전달됐을 때만 인증 의존성을 설정해야 한다."""
         dependency = object()
 
         plain_router = new_router()

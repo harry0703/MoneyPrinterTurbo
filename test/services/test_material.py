@@ -27,8 +27,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pexels_uses_tls_verification_by_default(self):
         """
-        默认路径必须开启 TLS 校验，避免素材 API key 和返回的素材 URL
-        在公共网络或不可信代理环境中被中间人攻击截获或篡改。
+        기본 경로는 TLS 검증을 켜야 한다. 공용 네트워크나 신뢰할 수 없는 프록시 환경에서 소재 API 키와
+        반환된 소재 URL 이 중간자 공격으로 가로채이거나 변조되는 것을 막기 위해서다.
         """
         config.app["pexels_api_keys"] = ["pexels-key"]
         config.app.pop("tls_verify", None)
@@ -77,8 +77,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_allows_explicit_tls_disable_for_proxy(self):
         """
-        少数企业代理会使用自签证书。该场景必须显式配置关闭 TLS 校验，
-        不能再由代码硬编码默认关闭。
+        일부 사내 프록시는 자체 서명 인증서를 쓴다. 이 경우에는 TLS 검증 끄기를 명시적으로 설정해야
+        하며, 코드가 기본으로 꺼 두어서는 안 된다.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.app["tls_verify"] = False
@@ -116,9 +116,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_remote_searches_only_return_requested_orientation(self):
         """
-        三个素材源都必须只返回目标方向的素材，避免竖屏任务混入横屏素材后
-        通过 letterbox 产生明显黑边。Pexels 使用远端参数并在本地校验，
-        Pixabay 和 Coverr 使用响应尺寸做本地过滤。
+        소재 출처 세 곳 모두 목표 방향의 소재만 반환해야 한다. 세로 작업에 가로 소재가 섞여 letterbox
+        로 눈에 띄는 검은 여백이 생기는 것을 막기 위해서다. Pexels 는 원격 파라미터를 쓰고 로컬에서
+        검증하며, Pixabay 와 Coverr 는 응답 크기로 로컬 필터링한다.
         """
         config.app["pexels_api_keys"] = ["pexels-key"]
         config.app["pixabay_api_keys"] = ["pixabay-key"]
@@ -257,7 +257,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
             )
 
     def test_video_aspect_matching_rejects_unknown_dimensions(self):
-        """无法确认方向的素材不能进入严格的横竖屏候选列表。"""
+        """방향을 확인할 수 없는 소재는 엄격한 가로·세로 후보 목록에 들어가서는 안 된다."""
         self.assertTrue(
             material._matches_video_aspect(
                 1080,
@@ -303,7 +303,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
     def test_coverr_passes_orientation_filter_to_remote_search(self):
-        """Coverr 横竖屏搜索应在服务端筛选，方形素材继续使用本地尺寸校验。"""
+        """Coverr 의 가로·세로 검색은 서버에서 걸러야 하고, 정사각형 소재는 계속 로컬 크기 검증을 쓴다."""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.proxy.clear()
         fake_response = SimpleNamespace(json=lambda: {"hits": []})
@@ -333,8 +333,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_square_search_preserves_crop_compatible_materials(self):
         """
-        Pixabay 和 Coverr 很少提供原生方形视频。方形输出必须继续接受可裁剪的
-        横屏素材，否则选择这两个来源时会在搜索阶段直接得到空列表。
+        Pixabay 와 Coverr 는 원본이 정사각형인 영상을 거의 제공하지 않는다. 정사각형 출력은 자를 수
+        있는 가로 소재를 계속 받아들여야 한다. 그러지 않으면 이 두 출처를 골랐을 때 검색 단계에서
+        곧바로 빈 목록을 받게 된다.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.app["coverr_api_keys"] = ["coverr-key"]
@@ -424,8 +425,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_reports_cloudflare_challenge(self):
         """
-        Cloudflare Challenge 返回的是 HTML，不是 Pixabay API 的 JSON。
-        应直接说明服务端拦截原因，避免用户只看到没有上下文的 JSON 解析错误。
+        Cloudflare Challenge 는 Pixabay API 의 JSON 이 아니라 HTML 을 반환한다. 서버가 차단했다는
+        이유를 바로 알려야, 사용자가 맥락 없는 JSON 파싱 오류만 보는 일이 없다.
         """
         config.app["pixabay_api_keys"] = ["pixabay-secret-key"]
         config.proxy.clear()
@@ -454,8 +455,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_reports_api_rate_limit(self):
         """
-        Pixabay 自身的 429 限流与 Cloudflare HTML Challenge 是不同问题。
-        保留 Retry-After 可以帮助用户判断何时重试，同时不记录响应正文。
+        Pixabay 자체의 429 요청 제한과 Cloudflare HTML Challenge 는 다른 문제다. Retry-After 를
+        남기면 사용자가 언제 다시 시도할지 판단하는 데 도움이 되며, 응답 본문은 기록하지 않는다.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.proxy.clear()
@@ -481,8 +482,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_reports_non_json_response(self):
         """
-        即使状态码为 200，上游代理也可能返回登录页或其他非 JSON 内容。
-        该场景应记录响应类型，而不是向外暴露底层 JSONDecodeError。
+        상태 코드가 200 이어도 상위 프록시가 로그인 페이지나 JSON 이 아닌 내용을 반환할 수 있다.
+        이때는 응답 종류를 기록해야 하며 하위의 JSONDecodeError 를 밖으로 드러내서는 안 된다.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.proxy.clear()
@@ -509,8 +510,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_redacts_api_key_from_network_error(self):
         """
-        requests 的连接异常可能回显完整请求 URL。异常详情仍应保留用于排查，
-        但 URL 查询参数中的 Pixabay API Key 必须在写入日志前脱敏。
+        requests 의 연결 예외는 전체 요청 URL 을 그대로 보여 줄 수 있다. 예외 상세는 원인 파악을 위해
+        남기되, URL 쿼리 파라미터의 Pixabay API 키는 로그에 쓰기 전에 가려야 한다.
         """
         api_key = "pixabay-secret-key"
         config.app["pixabay_api_keys"] = [api_key]
@@ -533,8 +534,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_redacts_proxy_credentials_from_network_error(self):
         """
-        代理连接异常可能回显含认证信息的完整代理 URL。日志应保留异常类型，
-        但不能把代理用户名和密码持久化到日志文件。
+        프록시 연결 예외는 인증 정보가 담긴 전체 프록시 URL 을 그대로 보여 줄 수 있다. 로그에는 예외
+        종류를 남기되, 프록시 사용자 이름과 비밀번호를 로그 파일에 저장해서는 안 된다.
         """
         proxy_url = "http://proxy-user:proxy-password@proxy.example.com:8080"
         config.app["pixabay_api_keys"] = ["pixabay-key"]
@@ -584,9 +585,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_download_videos_accepts_plain_string_concat_mode(self):
         """
-        download_videos 可能被服务层或测试直接传入字符串模式，而不是
-        VideoConcatMode 枚举。这里用空搜索词避免真实网络请求，只验证
-        字符串 "random" 不会再因为访问 `.value` 抛 AttributeError。
+        download_videos 는 서비스 계층이나 테스트에서 VideoConcatMode 열거형이 아니라 문자열 모드를
+        직접 받을 수 있다. 여기서는 빈 검색어로 실제 네트워크 요청을 피하고, 문자열 "random" 이
+        `.value` 접근 때문에 AttributeError 를 내지 않는지만 검증한다.
         """
         result = material.download_videos(
             task_id="string-concat-mode",
@@ -598,8 +599,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_material_source_record_uses_public_whitelist(self):
         """
-        任务清单只应包含可追溯的公开字段，不能写入签名参数、下载地址、
-        调用方传入的额外字段或本机绝对路径。
+        작업 매니페스트에는 추적 가능한 공개 필드만 담아야 하며, 서명 파라미터, 다운로드 주소,
+        호출자가 넘긴 추가 필드, 로컬 절대 경로를 써서는 안 된다.
         """
         item = material.MaterialInfo(
             provider="pixabay",
@@ -651,9 +652,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_download_videos_can_round_robin_terms_in_script_order(self):
         """
-        开启按文案顺序匹配素材后，不能让第一个关键词的多个候选先把
-        音频时长填满。这里模拟两个关键词各有多个候选，验证下载顺序是
-        term1-第1个、term2-第1个、term1-第2个，贴近脚本叙事顺序。
+        소재를 대본 순서에 맞추기를 켠 뒤에는 첫 키워드의 여러 후보가 오디오 길이를 먼저 채워서는
+        안 된다. 여기서는 키워드 두 개에 각각 여러 후보를 두고, 다운로드 순서가 term1-1번째,
+        term2-1번째, term1-2번째로 대본 서술 순서에 가깝게 되는지 검증한다.
         """
         search_results = {
             "opening city": [
@@ -755,7 +756,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
     def test_material_source_persistence_failure_does_not_break_download(self):
-        """辅助任务记录失败时，已经下载成功的素材仍应正常返回给成片主流程。"""
+        """보조 작업 기록이 실패해도, 이미 내려받은 소재는 결과물 주 흐름으로 정상 반환돼야 한다."""
         item = material.MaterialInfo(
             provider="pexels",
             url="https://v.example/a1.mp4",
@@ -794,8 +795,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
 class TestCoverrProvider(unittest.TestCase):
     """
-    Coverr 视频素材源(spec: 2026-06-09-coverr-video-provider-design.md)。
-    全部用 unittest.mock 替换 requests，确保 CI 不依赖真实网络和真实 API key。
+    Coverr 영상 소재 출처 (spec: 2026-06-09-coverr-video-provider-design.md).
+    requests 를 전부 unittest.mock 으로 대체해 CI 가 실제 네트워크와 실제 API 키에 의존하지 않게 한다.
     """
 
     def setUp(self):
@@ -812,11 +813,11 @@ class TestCoverrProvider(unittest.TestCase):
 
     def test_search_coverr_uses_mp4_download_url(self):
         """
-        search_videos_coverr 应把每个 hit 转成 MaterialInfo，并把 urls.mp4_download
-        直接作为 MaterialInfo.url。
-        按 Coverr 官方文档 (api.coverr.co/docs/videos/#download-a-video),
-        GET mp4_download 本身就被 Coverr 计入下载统计,无需额外 PATCH ping。
-        同时验证 Authorization header 使用 Bearer scheme。
+        search_videos_coverr 는 각 hit 를 MaterialInfo 로 바꾸고 urls.mp4_download 를 그대로
+        MaterialInfo.url 로 써야 한다.
+        Coverr 공식 문서 (api.coverr.co/docs/videos/#download-a-video) 에 따르면 mp4_download 로
+        GET 하는 것 자체가 다운로드 통계에 집계되므로 PATCH ping 이 따로 필요 없다.
+        Authorization header 가 Bearer scheme 를 쓰는지도 함께 검증한다.
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -864,7 +865,7 @@ class TestCoverrProvider(unittest.TestCase):
         item = results[0]
         self.assertEqual(item.provider, "coverr")
         self.assertEqual(item.duration, 11)
-        # url 字段就是 mp4_download URL,不再做 coverr://id|url 编码
+        # url 필드가 곧 mp4_download URL 이며, 더 이상 coverr://id|url 로 인코딩하지 않는다
         self.assertEqual(
             item.url, "https://storage.coverr.co/videos/abc/download?token=xyz"
         )
@@ -884,7 +885,7 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertTrue(get.call_args.kwargs["verify"])
 
     def test_search_coverr_uses_tls_verification_by_default(self):
-        """与 pexels/pixabay 一致:未显式配置时 TLS 校验默认开启。"""
+        """pexels/pixabay 와 동일하게, 명시적으로 설정하지 않으면 TLS 검증이 기본으로 켜진다."""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
         config.proxy.clear()
@@ -899,7 +900,7 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertTrue(get.call_args.kwargs["verify"])
 
     def test_search_coverr_allows_explicit_tls_disable_for_proxy(self):
-        """企业自签证书代理场景必须能显式关闭 TLS 校验。"""
+        """사내 자체 서명 인증서 프록시 환경에서는 TLS 검증을 명시적으로 끌 수 있어야 한다."""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app["tls_verify"] = False
         config.proxy.clear()
@@ -915,8 +916,8 @@ class TestCoverrProvider(unittest.TestCase):
 
     def test_search_coverr_filters_by_min_duration_and_accepts_string(self):
         """
-        Coverr duration 字段在不同响应里可能是 number 或 string,
-        两种格式都要接受;低于 minimum_duration 的应被过滤。
+        Coverr 의 duration 필드는 응답에 따라 number 일 수도 string 일 수도 있다.
+        두 형식을 모두 받아들이고, minimum_duration 보다 짧은 것은 걸러야 한다.
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -951,7 +952,7 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertEqual(results[0].url, "https://example.com/b.mp4")
 
     def test_search_coverr_skips_invalid_items(self):
-        """缺 id 或缺 urls.mp4_download 的条目应被跳过,不应抛异常。"""
+        """id 나 urls.mp4_download 가 없는 항목은 건너뛰어야 하며 예외를 던져서는 안 된다."""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
         config.proxy.clear()
@@ -989,8 +990,8 @@ class TestCoverrProvider(unittest.TestCase):
 
     def test_search_coverr_returns_empty_on_failure(self):
         """
-        响应结构异常 / 网络异常时,函数必须返回 [] 而不是抛异常,
-        与 pexels/pixabay 行为保持一致。
+        응답 구조 이상이나 네트워크 이상이 있을 때 함수는 예외를 던지지 않고 [] 를 반환해야 하며,
+        pexels/pixabay 와 동작을 맞춰야 한다.
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -1020,11 +1021,11 @@ class TestCoverrProvider(unittest.TestCase):
 
     def test_download_videos_passes_mp4_download_url_to_save_video(self):
         """
-        在 source="coverr" 时:
-          1. dispatch 到 search_videos_coverr
-          2. coverr item 走通用下载路径:save_video 收到的就是 mp4_download URL
-             (不再有 coverr://id|url 编码,也不再调用 PATCH ping)
-          3. 返回保存路径
+        source="coverr" 일 때:
+          1. search_videos_coverr 로 분기한다
+          2. coverr item 은 공용 다운로드 경로를 탄다. save_video 가 받는 것이 곧 mp4_download URL 이다
+             (coverr://id|url 인코딩도, PATCH ping 호출도 더 이상 없다)
+          3. 저장 경로를 반환한다
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -1059,13 +1060,13 @@ class TestCoverrProvider(unittest.TestCase):
         # 1. dispatch
         self.assertEqual(search.call_count, 1)
 
-        # 2. save_video 收到的就是 mp4_download URL,原样传入
+        # 2. save_video 가 받는 것이 곧 mp4_download URL 이며 그대로 전달된다
         save_url = save.call_args.kwargs.get("video_url") or save.call_args.args[0]
         self.assertEqual(
             save_url, "https://storage.coverr.co/videos/abc/download?token=xyz"
         )
 
-        # 3. 返回值正确
+        # 3. 반환값이 올바르다
         self.assertEqual(result, ["/tmp/coverr-saved.mp4"])
 
 

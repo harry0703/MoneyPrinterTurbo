@@ -10,7 +10,7 @@ from app.services import video
 
 class TestSubtitleBackgroundSettings(unittest.TestCase):
     def test_subtitle_background_is_disabled_by_default(self):
-        """新任务和独立字幕接口都不应在用户未指定时渲染字幕背景。"""
+        """새 작업과 독립 자막 엔드포인트 모두, 사용자가 지정하지 않으면 자막 배경을 그려서는 안 된다."""
         video_params = VideoParams(video_subject="default subtitle background")
         subtitle_request = SubtitleRequest(video_script="default subtitle background")
 
@@ -19,8 +19,8 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
 
     def test_all_locales_include_subtitle_background_labels(self):
         """
-        WebUI 新增字幕背景开关和颜色选择器后，所有已有语言都必须包含对应
-        翻译 key，避免某些语言界面直接显示英文内部 key。
+        WebUI 에 자막 배경 스위치와 색상 선택기를 추가한 뒤에는 기존 모든 언어가 해당 번역 key 를
+        갖고 있어야 한다. 일부 언어 화면에 영어 내부 key 가 그대로 보이는 것을 막기 위해서다.
         """
         i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
         required_keys = {
@@ -41,8 +41,8 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
 
     def test_video_params_accepts_disabled_and_colored_subtitle_background(self):
         """
-        UI 会根据开关向后端传递 False 或颜色字符串。这里验证 schema 仍然
-        接受这两种值，避免后续依赖或类型调整破坏 WebUI 与合成逻辑的契约。
+        UI 는 스위치에 따라 백엔드에 False 또는 색상 문자열을 넘긴다. 여기서는 schema 가 두 값을 모두
+        받아들이는지 검증해, 이후 의존성이나 타입 변경이 WebUI 와 합성 로직의 계약을 깨지 않게 한다.
         """
         base_params = {
             "video_subject": "subtitle background smoke",
@@ -62,9 +62,9 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
 
     def test_visible_text_position_centers_actual_mask_bounds(self):
         """
-        TextClip 的画布会包含字体行高和 baseline 空白，直接居中画布会让
-        字幕在背景里看起来偏下。这里用一个假 mask 模拟“可见文字像素
-        在画布下半部分”的情况，验证 helper 会按真实可见区域重新计算 y。
+        TextClip 의 캔버스에는 글꼴 행 높이와 baseline 여백이 들어 있어, 캔버스를 그대로 가운데 두면
+        자막이 배경 안에서 아래로 치우쳐 보인다. 여기서는 가짜 mask 로 '보이는 글자 픽셀이 캔버스
+        아래쪽 절반에 있는' 상황을 흉내 내, helper 가 실제로 보이는 영역 기준으로 y 를 다시 계산하는지 검증한다.
         """
 
         class FakeMask:
@@ -83,8 +83,8 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
         )
 
         self.assertEqual(x, 0)
-        # 可见像素高度为 34px，放在 93px 容器中应上下各约 29px；
-        # 因为 mask 顶部从 12px 开始，所以 TextClip 本身需要向上移动到 18px。
+        # 보이는 픽셀 높이가 34px 이므로 93px 컨테이너에서는 위아래로 각각 약 29px 이 남는다.
+        # mask 의 위쪽이 12px 부터 시작하므로 TextClip 자체는 18px 위로 올라가야 한다.
         self.assertEqual(y, 18)
 
     def test_detects_indistinguishable_subtitle_colors(self):
@@ -127,6 +127,7 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
 
         self.assertFalse(
             video.subtitle_font_supports_text(
+                # 글꼴에 CJK 글리프가 없다는 것을 검증하는 값이라 CJK 샘플을 유지한다.
                 str(fonts_dir / "BeVietnamPro-Bold.ttf"), "人工智能改变生活"
             )
         )
@@ -143,8 +144,8 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
 
     def test_wrap_text_keeps_closing_punctuation_with_text(self):
         """
-        中文长句按字符换行时，句号等闭合标点不能独占一行，否则字幕背景
-        会被一个单独的小点撑高。这里复现大字号中文长句的边界情况。
+        공백 없는 CJK 장문을 글자 단위로 나눌 때, 마침표 같은 닫는 부호가 한 줄을 혼자 차지해서는 안 된다.
+        그러면 자막 배경이 점 하나 때문에 높아진다. 여기서는 큰 글자의 CJK 장문 경계 상황을 재현한다.
         """
         font_path = (
             Path(__file__).parent.parent.parent
@@ -154,6 +155,7 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
         )
 
         wrapped_text, _ = video.wrap_text(
+            # 아래 문장도 CJK 줄바꿈 동작 자체가 검증 대상이라 원문을 유지한다.
             "如果你调整字号，中文笔画也不能被黑色背景遮挡。",
             max_width=1642,
             font=str(font_path),

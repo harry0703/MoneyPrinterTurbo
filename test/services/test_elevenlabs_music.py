@@ -8,7 +8,7 @@ from app.services import elevenlabs_music
 
 
 class _StreamingResponse:
-    """提供 ElevenLabs 配乐服务实际使用的最小 Response 接口。"""
+    """ElevenLabs 배경음악 서비스가 실제로 쓰는 최소 Response 인터페이스만 제공한다."""
 
     def __init__(
         self,
@@ -94,7 +94,7 @@ class TestElevenLabsMusicService(unittest.TestCase):
             self.assertEqual(elevenlabs_music.get_api_key(), "env-key")
 
     def test_model_and_timeout_reject_invalid_configuration(self):
-        """第三方请求配置异常时必须回退安全默认值，不能让任务直接崩溃。"""
+        """외부 요청 설정이 잘못됐으면 안전한 기본값으로 되돌려야 하며, 작업이 바로 죽게 두어서는 안 된다."""
         test_cases = [
             ({"music_model_id": "music_v1"}, "music_v1", (15, 600)),
             (
@@ -235,8 +235,9 @@ class TestElevenLabsMusicService(unittest.TestCase):
 
     def test_generation_access_only_blocks_deterministic_account_errors(self):
         """
-        免费套餐和无效 Key 必须阻止昂贵任务；订阅接口范围或网络问题无法证明
-        Music API 不可用，只能记录警告并交给实际生成请求确认。
+        무료 요금제와 유효하지 않은 키는 비싼 작업을 막아야 한다. 구독 엔드포인트의 범위나 네트워크
+        문제는 Music API 를 쓸 수 없다는 증거가 되지 못하므로, 경고만 남기고 실제 생성 요청이
+        확인하게 둔다.
         """
         deterministic_errors = [
             elevenlabs_music.ElevenLabsPaidPlanRequiredError("paid plan"),
@@ -269,7 +270,7 @@ class TestElevenLabsMusicService(unittest.TestCase):
         self.assertIn("inconclusive", str(warning.call_args))
 
     def test_connection_rejects_free_plan_before_music_generation(self):
-        """免费套餐不支持 Music API，应在上传视频前给出明确错误。"""
+        """무료 요금제는 Music API 를 지원하지 않으므로, 영상을 올리기 전에 명확한 오류를 내야 한다."""
         response = _StreamingResponse(payload={"tier": "free"})
         with (
             patch.object(
@@ -443,8 +444,8 @@ class TestElevenLabsMusicService(unittest.TestCase):
                 post.call_args.kwargs["params"]["output_format"],
                 "mp3_44100_128",
             )
-            # 生产接口实际接收 ``videos``；使用文档示例中的 ``videos[]`` 会
-            # 返回 422 Field required，因此测试固定真实可用的协议字段。
+            # 운영 엔드포인트가 실제로 받는 것은 ``videos`` 다. 문서 예시의 ``videos[]`` 를 쓰면
+            # 422 Field required 가 반환되므로, 테스트는 실제로 동작하는 프로토콜 필드를 고정한다.
             self.assertEqual(post.call_args.kwargs["files"][0][0], "videos")
             self.assertEqual(post.call_args.kwargs["stream"], True)
             self.assertEqual(

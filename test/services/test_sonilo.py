@@ -10,7 +10,7 @@ from app.services import sonilo
 
 
 class _StreamingResponse:
-    """提供 requests.Response 在 Sonilo 服务中实际使用的最小接口。"""
+    """Sonilo 서비스가 실제로 쓰는 requests.Response 의 최소 인터페이스만 제공한다."""
 
     def __init__(
         self,
@@ -62,7 +62,7 @@ class TestSoniloService(unittest.TestCase):
             self.assertEqual(sonilo.get_api_key(), "env-key")
 
     def test_request_timeout_clamps_fractional_and_invalid_values(self):
-        """读取超时必须保持为 Requests 接受的正整数，并限制最大等待时间。"""
+        """읽기 타임아웃은 Requests 가 받아들이는 양의 정수여야 하고 최대 대기 시간도 제한해야 한다."""
         test_cases = [
             (0.5, (15, 1)),
             (1.1, (15, 2)),
@@ -97,7 +97,7 @@ class TestSoniloService(unittest.TestCase):
         )
 
     def test_connection_accepts_documented_hyphenated_service_id(self):
-        """公开文档的连字符写法必须归一化为项目内部服务标识。"""
+        """공개 문서의 하이픈 표기는 프로젝트 내부 서비스 식별자로 정규화해야 한다."""
         response = _StreamingResponse(
             payload={"available_services": ["video-to-music"]}
         )
@@ -110,7 +110,7 @@ class TestSoniloService(unittest.TestCase):
         self.assertEqual(result, {"available_services": ["video-to-music"]})
 
     def test_connection_rejects_malformed_service_lists(self):
-        """200 响应缺少规范服务列表时不能向 WebUI 报告连接成功。"""
+        """200 응답에 규격에 맞는 서비스 목록이 없으면 WebUI 에 연결 성공을 보고해서는 안 된다."""
         invalid_payloads = [
             {},
             {"available_services": "video_to_music"},
@@ -143,7 +143,7 @@ class TestSoniloService(unittest.TestCase):
                 sonilo.test_connection()
 
     def test_connection_converts_network_and_invalid_json_errors(self):
-        """连接测试的网络中断和非 JSON 响应都转换为稳定的领域异常。"""
+        """연결 테스트의 네트워크 중단과 JSON 이 아닌 응답은 모두 안정적인 도메인 예외로 변환한다."""
         with (
             patch.object(sonilo.config, "app", {"sonilo_api_key": "test-key"}),
             patch.object(
@@ -165,7 +165,7 @@ class TestSoniloService(unittest.TestCase):
                 sonilo.test_connection()
 
     def test_create_video_proxy_uses_expected_ffmpeg_policy(self):
-        """成功代理必须去音轨、限制尺寸，并由调用方接管生成文件。"""
+        """성공한 프록시는 오디오 트랙을 없애고 크기를 제한하며, 생성된 파일은 호출자가 넘겨받는다."""
         with tempfile.TemporaryDirectory() as temp_dir:
             source = Path(temp_dir) / "source.mp4"
             source.write_bytes(b"source-video")
@@ -192,7 +192,7 @@ class TestSoniloService(unittest.TestCase):
             Path(proxy_path).unlink()
 
     def test_create_video_proxy_cleans_file_after_execution_failures(self):
-        """FFmpeg 超时、不可执行或编码失败时均不能遗留隐藏代理文件。"""
+        """FFmpeg 타임아웃, 실행 불가, 인코딩 실패 어느 경우에도 숨은 프록시 파일을 남겨서는 안 된다."""
         failure_cases = [
             (
                 sonilo.subprocess.TimeoutExpired("ffmpeg", 600),
@@ -227,7 +227,7 @@ class TestSoniloService(unittest.TestCase):
                 self.assertEqual(list(Path(temp_dir).glob(".sonilo-proxy-*")), [])
 
     def test_create_video_proxy_rejects_empty_and_oversized_outputs(self):
-        """FFmpeg 返回成功也必须再次校验代理文件存在、非空且未超上限。"""
+        """FFmpeg 가 성공을 반환해도 프록시 파일이 있고, 비어 있지 않으며, 상한을 넘지 않는지 다시 검증해야 한다."""
         for output_size, expected_size in (
             (0, 0),
             (1, sonilo.MAX_PROXY_BYTES + 1),
@@ -311,7 +311,7 @@ class TestSoniloService(unittest.TestCase):
                     )
 
     def test_stream_audio_rejects_error_empty_and_oversized_results(self):
-        """服务端错误、仅完成事件和超体积音频都不能发布为有效 BGM。"""
+        """서버 오류, 완료 이벤트만 온 경우, 크기를 초과한 오디오 모두 유효한 BGM 으로 게시해서는 안 된다."""
         oversized_chunk = base64.b64encode(b"1234").decode()
         cases = [
             ([_event("error", message="credit exhausted")], "credit exhausted"),
@@ -330,8 +330,8 @@ class TestSoniloService(unittest.TestCase):
                 tempfile.TemporaryDirectory() as temp_dir,
             ):
                 output = Path(temp_dir) / "music.m4a"
-                # 所有用例统一缩小体积上限；错误事件和空结果不受该值影响，
-                # 超限用例则无需在测试中分配 30 MB 数据。
+                # 모든 케이스에서 크기 상한을 함께 낮춘다. 오류 이벤트와 빈 결과는 이 값의 영향을 받지 않고,
+                # 상한 초과 케이스는 테스트에서 30 MB 데이터를 잡을 필요가 없어진다.
                 with (
                     patch.object(sonilo, "MAX_GENERATED_AUDIO_BYTES", 3),
                     self.assertRaisesRegex(sonilo.SoniloError, expected_message),
@@ -373,7 +373,7 @@ class TestSoniloService(unittest.TestCase):
             self.assertEqual(list(Path(temp_dir).glob(".sonilo-audio-*")), [])
 
     def test_request_bgm_preserves_existing_output_and_cleans_temp_on_failures(self):
-        """HTTP、流读取和音频校验失败都不能覆盖已有结果或留下半成品。"""
+        """HTTP, 스트림 읽기, 오디오 검증 실패 모두 기존 결과를 덮거나 반쯤 만들어진 파일을 남겨서는 안 된다."""
         audio_event = _event(
             "audio_chunk",
             stream_index=0,
@@ -453,7 +453,7 @@ class TestSoniloService(unittest.TestCase):
             self.assertFalse(proxy.exists())
 
     def test_generate_bgm_converts_file_errors_and_cleans_proxy(self):
-        """文件系统失败也必须转换为可降级异常，并清理已经生成的代理。"""
+        """파일 시스템 실패도 기능을 낮출 수 있는 예외로 변환하고, 이미 만들어진 프록시를 정리해야 한다."""
         with tempfile.TemporaryDirectory() as temp_dir:
             source = Path(temp_dir) / "source.mp4"
             proxy = Path(temp_dir) / "proxy.mp4"
@@ -499,7 +499,7 @@ class TestSoniloService(unittest.TestCase):
                     )
 
     def test_generate_bgm_rejects_missing_key_and_input_before_proxy_work(self):
-        """缺少凭证或输入文件时应快速失败，不能调用 FFmpeg 或外部 API。"""
+        """자격 증명이나 입력 파일이 없으면 빠르게 실패해야 하며, FFmpeg 나 외부 API 를 호출해서는 안 된다."""
         with tempfile.TemporaryDirectory() as temp_dir:
             source = Path(temp_dir) / "source.mp4"
             source.write_bytes(b"video")

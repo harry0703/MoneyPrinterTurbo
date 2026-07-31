@@ -34,7 +34,7 @@ class _TextUpload(io.BytesIO):
 
 class TestBackgroundMusicService(unittest.TestCase):
     def test_should_use_bgm_is_provider_independent(self):
-        """通用开关必须覆盖当前来源和未来提供商，不能再写提供商特判。"""
+        """공용 스위치는 현재 소스와 앞으로 추가될 제공자를 모두 덮어야 하며, 제공자별 예외 처리를 더 쓰면 안 된다."""
         test_cases = [
             ("random", 0.2, True),
             ("custom", 0.2, True),
@@ -57,6 +57,7 @@ class TestBackgroundMusicService(unittest.TestCase):
 
     def test_sanitize_upload_filename_strips_directory_components(self):
         self.assertEqual(
+            # 비 ASCII 파일명의 경로 탈출 제거를 검증하는 값이라 원문을 유지한다.
             bgm.sanitize_upload_filename("../../用户音乐.mp3"), "用户音乐.mp3"
         )
         self.assertEqual(
@@ -64,8 +65,8 @@ class TestBackgroundMusicService(unittest.TestCase):
         )
 
     def test_sanitize_upload_filename_accepts_common_audio_formats(self):
-        # WebUI 与 API 共用同一格式白名单；这里覆盖大小写和常见容器，避免未来
-        # 修改上传控件时只支持界面展示、服务层却拒绝文件。
+        # WebUI 와 API 는 같은 형식 화이트리스트를 공유한다. 여기서 대소문자와 흔한 컨테이너를 덮어,
+        # 나중에 업로드 위젯을 고칠 때 화면에서만 지원하고 서비스 계층은 파일을 거부하는 일이 없게 한다.
         for extension in bgm.SUPPORTED_BGM_EXTENSIONS:
             filename = f"background{extension.upper()}"
             with self.subTest(filename=filename):
@@ -113,8 +114,8 @@ class TestBackgroundMusicService(unittest.TestCase):
                 [name for name in os.listdir(temp_dir) if name.startswith(".bgm-upload-")],
                 [],
             )
-            # 服务会把文件指针恢复到开头，同一个 UploadedFile 仍可供 Streamlit
-            # 试听或后续 rerun 使用，不会因为保存操作变成空文件。
+            # 서비스가 파일 포인터를 처음으로 되돌리므로, 같은 UploadedFile 을 Streamlit 미리듣기나
+            # 이후 rerun 에서 계속 쓸 수 있고 저장 때문에 빈 파일이 되지 않는다.
             self.assertEqual(source.tell(), 0)
 
     def test_validate_bgm_upload_checks_audio_without_persisting_file(self):
@@ -127,8 +128,8 @@ class TestBackgroundMusicService(unittest.TestCase):
                 validated_name = bgm.validate_bgm_upload("preview.m4a", source)
 
             self.assertEqual(validated_name, "preview.m4a")
-            # WebUI 预检只允许短暂使用临时文件，用户尚未点击生成时不能把文件
-            # 留在持久化 BGM 目录，也不能改变后续试听所需的文件指针。
+            # WebUI 사전 검사는 임시 파일을 잠깐만 쓸 수 있다. 사용자가 생성을 누르기 전에는 파일을
+            # 영속 BGM 디렉터리에 남겨서도, 이후 미리듣기에 필요한 파일 포인터를 바꿔서도 안 된다.
             self.assertEqual(os.listdir(temp_dir), [])
 
     def test_staging_rejects_empty_unseekable_and_non_binary_uploads(self):
@@ -163,8 +164,8 @@ class TestBackgroundMusicService(unittest.TestCase):
                 with self.assertRaises(bgm.BgmUploadError):
                     bgm.validate_bgm_upload("invalid.m4a", io.BytesIO(b"invalid"))
 
-            # 失败的预检同样不能在持久化目录留下临时音频，避免随后被随机 BGM
-            # 枚举逻辑选中，也避免长期运行时逐步堆积无效文件。
+            # 실패한 사전 검사도 영속 디렉터리에 임시 오디오를 남겨서는 안 된다. 이후 무작위 BGM 열거
+            # 로직에 뽑히거나, 오래 실행하면서 쓸모없는 파일이 쌓이는 것을 막기 위해서다.
             self.assertEqual(os.listdir(temp_dir), [])
 
     def test_save_bgm_upload_rejects_oversized_file_and_cleans_temp_file(self):
@@ -193,7 +194,7 @@ class TestBackgroundMusicService(unittest.TestCase):
                 with self.assertRaises(bgm.BgmUploadError):
                     bgm.save_bgm_upload("music.mp3", io.BytesIO(b"broken-file"))
 
-            # 校验失败发生在原子替换之前，已有用户文件不能被损坏。
+            # 검증 실패는 원자적 교체 이전에 일어나므로 기존 사용자 파일이 손상되어서는 안 된다.
             self.assertEqual(target.read_bytes(), b"existing-valid-file")
             self.assertEqual(os.listdir(temp_dir), ["music.mp3"])
 

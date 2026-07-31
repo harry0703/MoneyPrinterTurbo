@@ -16,17 +16,17 @@ import cli
 
 class TestCli(unittest.TestCase):
     def test_default_voice_is_valid_edge_tts_voice(self):
-        args = cli.parse_args(["--video-subject", "测试主题"])
+        args = cli.parse_args(["--video-subject", "테스트 주제"])
         params = cli.build_video_params(args)
 
         self.assertEqual(params.voice_name, "zh-CN-XiaoxiaoNeural-Female")
 
     def test_complete_script_can_replace_video_subject(self):
-        args = cli.parse_args(["--video-script", "完整的视频文案"])
+        args = cli.parse_args(["--video-script", "완성된 영상 대본"])
         params = cli.build_video_params(args)
 
         self.assertEqual(params.video_subject, "")
-        self.assertEqual(params.video_script, "完整的视频文案")
+        self.assertEqual(params.video_script, "완성된 영상 대본")
 
     def test_subject_or_script_is_required(self):
         with self.assertRaises(SystemExit) as cm:
@@ -38,7 +38,7 @@ class TestCli(unittest.TestCase):
         args = cli.parse_args(
             [
                 "--video-subject",
-                "测试主题",
+                "테스트 주제",
                 "--video-source",
                 "local",
                 "--video-materials",
@@ -51,7 +51,7 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         materials = params.video_materials
 
-        self.assertEqual(params.video_subject, "测试主题")
+        self.assertEqual(params.video_subject, "테스트 주제")
         self.assertEqual(params.video_source, "local")
         self.assertEqual([m.url for m in materials], ["a.mp4", "b.jpg"])
         self.assertTrue(all(m.provider == "local" for m in materials))
@@ -61,27 +61,27 @@ class TestCli(unittest.TestCase):
         with patch("app.services.task.start", return_value={"script": "ok"}) as start, patch(
             "app.utils.utils.get_uuid", return_value="task-123"
         ), patch("builtins.print") as print_mock:
-            code = cli.run_cli(["--video-subject", "命令行测试", "--stop-at", "script"])
+            code = cli.run_cli(["--video-subject", "CLI 테스트", "--stop-at", "script"])
 
         self.assertEqual(code, 0)
         self.assertTrue(start.called)
         kwargs = start.call_args.kwargs
         self.assertEqual(kwargs["task_id"], "task-123")
         self.assertEqual(kwargs["stop_at"], "script")
-        self.assertEqual(kwargs["params"].video_subject, "命令行测试")
+        self.assertEqual(kwargs["params"].video_subject, "CLI 테스트")
         print_mock.assert_called_once()
 
     def test_run_cli_returns_error_when_task_fails(self):
         with patch("app.services.task.start", return_value=None), patch(
             "app.utils.utils.get_uuid", return_value="task-456"
         ), patch.object(cli.logger, "error") as log_error:
-            code = cli.run_cli(["--video-subject", "失败场景"])
+            code = cli.run_cli(["--video-subject", "실패 시나리오"])
 
         self.assertEqual(code, 1)
         log_error.assert_called_once()
 
     def test_run_cli_returns_error_for_structured_task_failure(self):
-        """任务服务返回结构化失败信息时，CLI 仍必须以非零状态退出。"""
+        """작업 서비스가 구조화된 실패 정보를 반환해도 CLI 는 0 이 아닌 상태로 종료해야 한다."""
         failure = {
             "task_id": "task-structured-failure",
             "state": -1,
@@ -95,7 +95,7 @@ class TestCli(unittest.TestCase):
         ), patch.object(cli.logger, "error") as log_error, patch(
             "builtins.print"
         ) as print_mock:
-            code = cli.run_cli(["--video-subject", "失败场景"])
+            code = cli.run_cli(["--video-subject", "실패 시나리오"])
 
         self.assertEqual(code, 1)
         print_mock.assert_not_called()
@@ -330,7 +330,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(cm.exception.code, 2)
 
     def test_positive_volume_custom_bgm_requires_file_before_task_start(self):
-        """启用自定义 BGM 时仍必须在任务启动前报告缺少文件。"""
+        """사용자 BGM 을 켰다면 작업을 시작하기 전에 파일이 없다는 것을 알려야 한다."""
         with (
             patch("app.services.task.start") as start,
             patch.object(cli.logger, "error") as log_error,
@@ -360,7 +360,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(args.bgm_type, "custom")
 
     def test_zero_volume_custom_bgm_skips_file_requirement_and_resolution(self):
-        """0 音量应忽略缺失或无效文件，与 WebUI 和视频服务保持一致。"""
+        """음량이 0 이면 없는 파일이나 잘못된 파일을 무시해, WebUI 및 영상 서비스와 동작을 맞춰야 한다."""
         file_arguments = [[], ["--bgm-file", "missing-background.mp3"]]
         for extra_arguments in file_arguments:
             with self.subTest(extra_arguments=extra_arguments):
@@ -388,7 +388,7 @@ class TestCli(unittest.TestCase):
                 self.assertEqual(params.bgm_file, "")
 
     def test_custom_bgm_reuses_service_formats_and_managed_path_resolution(self):
-        """CLI 必须跟随 BGM 服务的格式白名单，不能继续单独限制为 MP3。"""
+        """CLI 는 BGM 서비스의 형식 화이트리스트를 따라야 하며, 계속 MP3 로만 제한해서는 안 된다."""
         from app.services import bgm as bgm_service
 
         for extension in bgm_service.SUPPORTED_BGM_EXTENSIONS:
@@ -417,7 +417,7 @@ class TestCli(unittest.TestCase):
                 self.assertEqual(params.bgm_file, resolved_path)
 
     def test_custom_bgm_reports_service_resolution_failure_before_task_start(self):
-        """非法格式或越界路径应转换为包含统一格式范围的 CLI 错误。"""
+        """잘못된 형식이나 범위를 벗어난 경로는 통일된 형식 범위를 담은 CLI 오류로 변환해야 한다."""
         from app.services import bgm as bgm_service
 
         args = cli.parse_args(
@@ -580,7 +580,7 @@ class TestCli(unittest.TestCase):
         self.assertIn("exit with 2", help_text)
 
     def test_help_does_not_initialize_application_or_write_logs(self):
-        """帮助命令应独立于业务配置加载，便于用户查看和脚本采集。"""
+        """도움말 명령은 업무 설정 로딩과 독립적이어야 사용자가 보기 쉽고 스크립트로 수집하기도 좋다."""
         project_root = Path(__file__).parent.parent.parent
         result = subprocess.run(
             [sys.executable, str(project_root / "cli.py"), "--help"],

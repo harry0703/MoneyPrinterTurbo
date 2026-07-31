@@ -22,7 +22,7 @@ TEST_LOCALES = ("en", "zh")
 
 
 def _valid_wav_bytes() -> bytes:
-    """生成一个很短的标准 WAV，避免测试依赖仓库外部音频或系统录音文件。"""
+    """아주 짧은 표준 WAV 를 만든다. 테스트가 저장소 밖의 오디오나 시스템 녹음 파일에 의존하지 않게 하기 위해서다."""
     output = io.BytesIO()
     with wave.open(output, "wb") as wav_file:
         wav_file.setnchannels(1)
@@ -35,14 +35,14 @@ def _valid_wav_bytes() -> bytes:
 class TestWebuiBackgroundMusic(unittest.TestCase):
     @staticmethod
     def _translation(locale, key):
-        """按测试语言读取期望文案，避免断言反过来依赖某一种展示语言。"""
+        """테스트 언어에 맞춰 기대 문구를 읽는다. 단언이 특정 표시 언어에 의존하지 않게 하기 위해서다."""
         locale_data = json.loads(
             (I18N_DIR / f"{locale}.json").read_text(encoding="utf-8")
         )
         return locale_data["Translation"][key]
 
     def _widget_by_key(self, elements, key_prefix):
-        """通过稳定业务 key 查找控件，展示标签翻译后仍能命中同一控件。"""
+        """안정적인 업무 key 로 위젯을 찾는다. 표시 라벨이 번역돼도 같은 위젯을 찾을 수 있게 하기 위해서다."""
         widget = next(
             (
                 item
@@ -57,12 +57,12 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
 
     def _open_custom_bgm_panel(self, locale):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
-        # CI 没有本机 config.toml 中保存的语言。显式覆盖 session locale，既能
-        # 复现 CI 的英文默认值，也能保护开发者常用的中文界面回归。
+        # CI 에는 로컬 config.toml 에 저장된 언어가 없다. session locale 을 명시적으로 덮어써
+        # CI 의 영어 기본값을 재현하면서, 개발자가 자주 쓰는 화면 언어의 회귀도 함께 막는다.
         app.session_state["ui_language"] = locale
         app.run()
         source_select = self._widget_by_key(app.selectbox, "bgm_type_select")
-        # stable_selectbox 的真实选项是业务值，展示文案才会随 locale 变化。
+        # stable_selectbox 의 실제 옵션은 업무 값이고, locale 에 따라 바뀌는 것은 표시 문구뿐이다.
         source_select.set_value("custom").run()
         return app
 
@@ -100,8 +100,8 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                             "audio/mp4",
                         )
                     ).run()
-                    # 非法文件留在上传控件时，音量调整会触发 Streamlit rerun。
-                    # 缓存命中只能重绘错误，不能重复校验或重复记录 warning。
+                    # 잘못된 파일이 업로드 위젯에 남아 있으면 음량 조정이 Streamlit rerun 을 일으킨다.
+                    # 캐시가 적중하면 오류만 다시 그려야 하며, 검증을 반복하거나 warning 을 중복 기록해서는 안 된다.
                     self._volume_select(app).set_value(0.4).run()
 
                 rejection_logs = [
@@ -128,8 +128,8 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                     ("valid.wav", _valid_wav_bytes(), "audio/wav")
                 ).run()
 
-                # 首次校验通过后，把服务函数改成显式失败；如果音量 rerun
-                # 错误地再次调用 FFmpeg，AppTest 会收到 AssertionError。
+                # 첫 검증을 통과한 뒤 서비스 함수를 명시적으로 실패하게 바꾼다. 음량 rerun 이 FFmpeg 를
+                # 잘못 재호출하면 AppTest 가 AssertionError 를 받게 된다.
                 with patch.object(
                     bgm,
                     "validate_bgm_upload",
@@ -151,7 +151,7 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                 self.assertEqual(len(app.get("audio")), 1)
 
     def test_zero_volume_defers_custom_upload_validation_until_enabled(self):
-        """0 音量保留上传选择，但必须等重新启用 BGM 后才校验和预览。"""
+        """음량이 0 이어도 업로드 선택은 유지하되, BGM 을 다시 켠 뒤에야 검증하고 미리 들어야 한다."""
         app = self._open_custom_bgm_panel("en")
         self._volume_select(app).set_value(0.0).run()
 
@@ -166,8 +166,8 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
         self.assertFalse(any("deferred.wav" in item.value for item in app.info))
         self.assertEqual(len(app.get("audio")), 0)
 
-        # 文件仍保留在 Streamlit 会话中。用户调高音量后，同一次 rerun 应自动
-        # 完成校验并显示播放器，不需要重新选择文件。
+        # 파일은 Streamlit 세션에 그대로 남는다. 사용자가 음량을 올리면 같은 rerun 에서 검증이 자동으로
+        # 끝나고 플레이어가 표시되어야 하며, 파일을 다시 고를 필요가 없어야 한다.
         with patch.object(bgm, "validate_bgm_upload") as validation:
             self._volume_select(app).set_value(0.2).run()
 
@@ -202,7 +202,7 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                 self.assertEqual(len(app.get("audio")), 0)
 
     def test_sonilo_source_shows_masked_prefilled_key_and_optional_prompt(self):
-        """选择 Sonilo 后应回填本机 Key，且保持密码显示模式。"""
+        """Sonilo 를 고르면 로컬 키를 되채우고 비밀번호 표시 모드를 유지해야 한다."""
         for locale in TEST_LOCALES:
             with self.subTest(locale=locale):
                 test_config = dict(config.app, sonilo_api_key="saved-test-key")
@@ -224,8 +224,8 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                     self._translation(locale, "Sonilo API Key"),
                 )
                 self.assertIn("platform.sonilo.com", api_key_input.label)
-                # AppTest 的 element.type 表示控件种类（text_input）；密码模式
-                # 保存在底层 protobuf 枚举中，必须检查该字段才能验证真实渲染。
+                # AppTest 의 element.type 은 위젯 종류(text_input) 를 나타낸다. 비밀번호 모드는 하위
+                # protobuf 열거형에 있으므로, 그 필드를 확인해야 실제 렌더링을 검증할 수 있다.
                 self.assertEqual(
                     api_key_input.proto.type, api_key_input.proto.PASSWORD
                 )
@@ -253,7 +253,7 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
         )
 
     def test_zero_volume_does_not_require_sonilo_key(self):
-        """Sonilo 音量为 0 时，WebUI 不应继续显示 API Key 必填警告。"""
+        """Sonilo 음량이 0 이면 WebUI 가 API 키 필수 경고를 계속 보여 줘서는 안 된다."""
         test_config = dict(config.app, sonilo_api_key="")
         required_warning = self._translation("en", "Sonilo API Key Required")
         with (
@@ -269,7 +269,7 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
         self.assertEqual([str(item.value) for item in app.exception], [])
 
     def test_elevenlabs_source_reuses_masked_tts_key_and_shows_prompt(self):
-        """配乐和 TTS 应共用 Key，并保持密码输入和独立音乐模型配置。"""
+        """배경음악과 TTS 는 키를 공유하되, 비밀번호 입력과 별도 음악 모델 설정은 유지해야 한다."""
         for locale in TEST_LOCALES:
             with self.subTest(locale=locale):
                 test_config = dict(
@@ -310,7 +310,7 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                 self.assertEqual([str(item.value) for item in app.exception], [])
 
     def test_elevenlabs_tts_and_music_share_one_api_key_widget(self):
-        """同时启用配音和配乐时只能存在一个 Key 状态，修改后不能被旧值覆盖。"""
+        """나레이션과 배경음악을 함께 켜도 키 상태는 하나만 있어야 하며, 수정한 값이 예전 값에 덮여서는 안 된다."""
         test_config = dict(config.elevenlabs, api_key="key-A")
         test_ui = dict(config.ui, voice_mode="tts")
         with (
@@ -380,7 +380,7 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
         )
 
     def test_elevenlabs_connection_reports_paid_plan_requirement(self):
-        """免费套餐错误应使用当前界面的自然语言，而不是直接展示英文异常。"""
+        """무료 요금제 오류는 현재 화면 언어의 자연스러운 문장으로 보여 줘야 하며, 영어 예외를 그대로 노출해서는 안 된다."""
         for locale in TEST_LOCALES:
             with self.subTest(locale=locale):
                 test_config = dict(
@@ -414,7 +414,7 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
                 )
 
     def test_zero_volume_does_not_require_elevenlabs_key(self):
-        """ElevenLabs 音量为 0 时同样不应要求 Key 或调用付费服务。"""
+        """ElevenLabs 도 음량이 0 이면 키를 요구하거나 유료 서비스를 호출해서는 안 된다."""
         test_config = dict(config.elevenlabs, api_key="")
         required_warning = self._translation(
             "en", "ElevenLabs API Key Required"

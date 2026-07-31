@@ -20,7 +20,7 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 
 
 def _attribute_name(node):
-    """把 ``module.function`` 形式的 AST 调用还原为稳定字符串。"""
+    """``module.function`` 형태의 AST 호출을 안정적인 문자열로 복원한다."""
     names = []
     while isinstance(node, ast.Attribute):
         names.append(node.attr)
@@ -32,10 +32,10 @@ def _attribute_name(node):
 
 def test_generation_controls_submit_background_task_instead_of_blocking_page():
     """
-    WebUI 生成按钮不能重新直接调用同步流水线。
+    WebUI 생성 버튼이 동기 파이프라인을 다시 직접 호출해서는 안 된다.
 
-    这是 Issue #1120 白屏的核心回归保护：只要完整页面脚本再次阻塞在
-    ``tm.start``，用户在生成期间刷新时仍可能收到指向旧渲染树的 delta。
+    Issue #1120 백지 화면에 대한 핵심 회귀 보호다. 페이지 스크립트 전체가 다시 ``tm.start`` 에서
+    막히면, 사용자가 생성 중 새로고침할 때 예전 렌더 트리를 가리키는 delta 를 받을 수 있다.
     """
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     function = next(
@@ -55,7 +55,7 @@ def test_generation_controls_submit_background_task_instead_of_blocking_page():
 
 
 def test_submit_generation_returns_while_pipeline_is_still_running():
-    """后台流水线未结束时，提交函数必须已经返回，让 Streamlit 完成本次渲染。"""
+    """백그라운드 파이프라인이 끝나지 않았어도 제출 함수는 이미 반환해, Streamlit 이 이번 렌더링을 마칠 수 있어야 한다."""
     task_id = "background-submit-test"
     started = threading.Event()
     release = threading.Event()
@@ -67,7 +67,7 @@ def test_submit_generation_returns_while_pipeline_is_still_running():
         finished.set()
         return {"videos": ["/tmp/final-1.mp4"]}
 
-    params = VideoParams(video_subject="异步生成测试")
+    params = VideoParams(video_subject="비동기 생성 테스트")
     try:
         with (
             patch.object(webui_task.tm, "start", side_effect=blocking_start),
@@ -93,8 +93,8 @@ def test_submit_generation_returns_while_pipeline_is_still_running():
 
 
 def test_submit_generation_copies_params_before_starting_worker():
-    """页面后续 rerun 或流水线内部修改参数时，不能反向污染当前表单对象。"""
-    params = VideoParams(video_subject="参数隔离测试")
+    """이후 페이지 rerun 이나 파이프라인 내부의 파라미터 수정이 현재 폼 객체를 거꾸로 오염시켜서는 안 된다."""
+    params = VideoParams(video_subject="파라미터 격리 테스트")
     with patch.object(webui_task._task_manager, "add_task") as add_task:
         webui_task.submit_generation("copied-params-test", params, capture_logs=False)
 
@@ -105,9 +105,9 @@ def test_submit_generation_copies_params_before_starting_worker():
 
 
 def test_scheduling_failure_is_saved_as_terminal_task_state():
-    """队列或线程启动失败时不能让任务管理器永久停留在“生成中”。"""
+    """큐나 스레드 시작이 실패해도 작업 관리자가 영원히 '생성 중' 에 머물러서는 안 된다."""
     task_id = "scheduling-failure-test"
-    params = VideoParams(video_subject="调度失败测试")
+    params = VideoParams(video_subject="스케줄 실패 테스트")
     with patch.object(
         webui_task._task_manager,
         "add_task",
@@ -124,7 +124,7 @@ def test_scheduling_failure_is_saved_as_terminal_task_state():
 
 
 def test_worker_logs_are_available_without_streamlit_session_state():
-    """后台日志写入线程安全缓存，页面只需轮询快照即可恢复实时日志。"""
+    """백그라운드 로그는 스레드 안전 캐시에 쓰고, 페이지는 스냅샷만 폴링해 실시간 로그를 되살린다."""
     task_id = "captured-log-test"
     with webui_task._task_logs_lock:
         webui_task._task_logs.pop(task_id, None)
@@ -143,7 +143,7 @@ def test_worker_logs_are_available_without_streamlit_session_state():
     ):
         result = webui_task._run_generation(
             task_id,
-            VideoParams(video_subject="日志测试"),
+            VideoParams(video_subject="로그 테스트"),
             capture_logs=True,
         )
 
@@ -159,7 +159,7 @@ def test_worker_logs_are_available_without_streamlit_session_state():
 
 
 def test_generation_log_fragment_refreshes_within_half_a_second():
-    """日志轮询间隔不能退回到明显落后于终端输出的秒级刷新。"""
+    """로그 폴링 간격이 터미널 출력보다 눈에 띄게 뒤처지는 초 단위 갱신으로 되돌아가서는 안 된다."""
     assert webui_task.TASK_LOG_REFRESH_INTERVAL_SECONDS <= 0.5
 
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
@@ -182,11 +182,11 @@ def test_generation_log_fragment_refreshes_within_half_a_second():
 
 def test_generation_submit_skips_duplicate_config_save():
     """
-    提交任务后不能在页面末尾再次等待配置锁。
+    작업을 제출한 뒤 페이지 끝에서 설정 락을 다시 기다려서는 안 된다.
 
-    后台任务会在完整生成期间持有 runtime_config_lock。如果 Streamlit 主脚本
-    提交任务后再次调用 save_config，就可能阻塞到任务结束，使定时 Fragment
-    无法刷新日志。生成分支已经提前保存配置，页面末尾只处理普通交互。
+    백그라운드 작업은 생성이 끝날 때까지 runtime_config_lock 을 쥔다. Streamlit 메인 스크립트가
+    작업을 제출한 뒤 save_config 를 다시 호출하면 작업이 끝날 때까지 막혀 주기 Fragment 가 로그를
+    갱신하지 못한다. 생성 분기는 이미 설정을 미리 저장하므로, 페이지 끝에서는 일반 상호작용만 처리한다.
     """
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     controls = next(
@@ -234,7 +234,7 @@ def test_generation_submit_skips_duplicate_config_save():
 
 
 def test_terminal_logger_reload_preserves_task_log_handler():
-    """热重载只能替换终端 handler，不能清空后台任务的日志 sink。"""
+    """핫 리로드는 터미널 handler 만 교체해야 하며 백그라운드 작업의 로그 sink 를 비워서는 안 된다."""
     previous_handler_id = logging_utils._terminal_handler_id
     try:
         with (
@@ -257,7 +257,7 @@ def test_terminal_logger_reload_preserves_task_log_handler():
 
 
 def test_worker_wrapper_failure_is_saved_instead_of_leaving_processing_state():
-    """日志或配置包装层异常也必须转换成可查询的失败终态。"""
+    """로그나 설정 래퍼 계층의 예외도 조회 가능한 실패 종료 상태로 변환해야 한다."""
     task_id = "worker-wrapper-failure-test"
     with (
         patch.object(webui_task.tm, "start", side_effect=RuntimeError("lock failed")),
@@ -269,7 +269,7 @@ def test_worker_wrapper_failure_is_saved_instead_of_leaving_processing_state():
     ):
         result = webui_task._run_generation(
             task_id,
-            VideoParams(video_subject="工作线程失败测试"),
+            VideoParams(video_subject="작업 스레드 실패 테스트"),
             capture_logs=False,
         )
 

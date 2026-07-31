@@ -49,7 +49,7 @@ class TestUploadPostService(unittest.TestCase):
     )
     @patch("app.services.upload_post.requests.post")
     def test_unconfigured_service_skips_request(self, mock_post):
-        """功能未启用时不能意外上传文件或消耗第三方 API 配额。"""
+        """기능이 꺼져 있으면 파일을 실수로 올리거나 외부 API 크레딧을 소모해서는 안 된다."""
         result = UploadPostService().upload_video("/fake/v.mp4", "Title")
 
         self.assertFalse(result["success"])
@@ -60,7 +60,7 @@ class TestUploadPostService(unittest.TestCase):
     @patch("app.services.upload_post.os.path.exists", return_value=False)
     @patch("app.services.upload_post.requests.post")
     def test_missing_video_skips_request(self, mock_post, _exists):
-        """本地成片不存在时应在发起网络请求前返回明确错误。"""
+        """로컬 결과물이 없으면 네트워크 요청을 보내기 전에 명확한 오류를 반환해야 한다."""
         result = UploadPostService().upload_video("/missing/v.mp4", "Title")
 
         self.assertFalse(result["success"])
@@ -72,7 +72,7 @@ class TestUploadPostService(unittest.TestCase):
     @patch("builtins.open", mock_open(read_data=b"fake"))
     @patch("app.services.upload_post.requests.post")
     def test_upload_request_error_returns_failure(self, mock_post, _exists):
-        """网络异常需要转换为稳定结果，不能让发布失败中断视频生成任务。"""
+        """네트워크 예외는 안정적인 결과로 변환해야 하며, 업로드 실패가 영상 생성 작업을 끊어서는 안 된다."""
         mock_post.side_effect = requests.exceptions.Timeout("upload timed out")
 
         result = UploadPostService().upload_video("/fake/v.mp4", "Title")
@@ -83,7 +83,7 @@ class TestUploadPostService(unittest.TestCase):
     @patch("app.services.upload_post.config.app", _CONFIG_BASE)
     @patch("app.services.upload_post.requests.get")
     def test_check_status_returns_payload_or_network_failure(self, mock_get):
-        """状态查询成功和失败应使用与上传接口一致的返回约定。"""
+        """상태 조회의 성공과 실패는 업로드 엔드포인트와 같은 반환 규약을 써야 한다."""
         response = _mock_response()
         response.json.return_value = {"success": True, "status": "processing"}
         mock_get.return_value = response

@@ -13,8 +13,9 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LOCALES = ("de", "en", "es", "id", "pt", "ru", "tr", "vi", "zh")
 
-# 每个服务商只维护一个官方入口。Chatterbox 是自托管服务，没有统一的 Key
-# 领取平台，因此链接到实际使用的兼容服务配置说明，避免误导用户注册第三方账号。
+# 제공자마다 공식 진입점을 하나만 관리한다. Chatterbox 는 자체 호스팅 서비스라 키를 발급하는 통합
+# 플랫폼이 없으므로, 실제로 쓰는 호환 서비스의 설정 안내로 연결해 사용자가 엉뚱한 외부 계정을
+# 만들도록 오도하지 않는다.
 TTS_API_KEY_LABELS = {
     "Speech Key": "portal.azure.com",
     "SiliconFlow API Key": "cloud.siliconflow.cn/account/ak",
@@ -35,13 +36,13 @@ TTS_PROVIDER_WIDGETS = {
 
 
 def _load_translation(locale: str) -> dict:
-    """直接读取语言文件，确保断言覆盖用户实际看到的最终 Markdown 标签。"""
+    """언어 파일을 직접 읽어, 단언이 사용자가 실제로 보는 최종 Markdown 라벨을 덮게 한다."""
     data = json.loads((I18N_DIR / f"{locale}.json").read_text(encoding="utf-8"))
     return data["Translation"]
 
 
 def _widget_by_key(elements, key: str):
-    """Streamlit 控件标签会翻译，使用稳定业务 key 定位真实输入框。"""
+    """Streamlit 위젯 라벨은 번역되므로, 안정적인 업무 key 로 실제 입력란을 찾는다."""
     return next(
         item
         for item in elements
@@ -51,7 +52,7 @@ def _widget_by_key(elements, key: str):
 
 
 def test_all_tts_api_key_labels_include_an_official_configuration_link():
-    """所有语言都应保留服务商名称和可点击入口，避免翻译时丢失链接。"""
+    """모든 언어가 제공자 이름과 클릭 가능한 진입점을 유지해야 하며, 번역하면서 링크를 잃어서는 안 된다."""
     for locale in LOCALES:
         translations = _load_translation(locale)
         for label_key, expected_host in TTS_API_KEY_LABELS.items():
@@ -61,7 +62,7 @@ def test_all_tts_api_key_labels_include_an_official_configuration_link():
 
 
 def test_tts_provider_inputs_render_the_standardized_labels():
-    """实际切换每个 TTS Provider，确认输入框没有绕过统一后的翻译标签。"""
+    """TTS Provider 를 실제로 하나씩 전환해, 입력란이 통일된 번역 라벨을 우회하지 않는지 확인한다."""
     test_ui = dict(
         config.ui,
         voice_mode="tts",

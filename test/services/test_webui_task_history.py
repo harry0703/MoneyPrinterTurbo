@@ -22,10 +22,10 @@ TASK_HISTORY_CONSTANTS = {
 
 def _load_task_history_helpers():
     """
-    从 WebUI 入口中隔离加载不依赖 Streamlit 的任务历史纯函数。
+    WebUI 진입점에서, Streamlit 에 의존하지 않는 작업 이력 순수 함수만 떼어 로딩한다.
 
-    直接导入 Main.py 会执行整套页面渲染。测试只编译目标常量和函数，既验证
-    合并后的真实实现，也避免为了单元测试重新拆出一个只有少量函数的生产模块。
+    Main.py 를 그대로 import 하면 페이지 렌더링 전체가 실행된다. 테스트는 목표 상수와 함수만 컴파일해,
+    합쳐진 실제 구현을 검증하면서도 단위 테스트를 위해 함수 몇 개짜리 모듈을 따로 떼어 내지 않는다.
     """
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     selected_nodes = []
@@ -55,7 +55,7 @@ get_unmet_restore_upload_requirements = TASK_HISTORY_NAMESPACE[
 
 
 def test_find_final_task_video_ignores_intermediate_files(tmp_path):
-    """任务历史只能把 final 成片识别为完成，不能使用合成中间文件。"""
+    """작업 이력은 final 결과물만 완료로 인식해야 하며 합성 중간 파일을 써서는 안 된다."""
     for file_name in (
         "combined-1.mp4",
         "temp-clip-1.mp4",
@@ -67,7 +67,7 @@ def test_find_final_task_video_ignores_intermediate_files(tmp_path):
 
 
 def test_find_final_task_video_returns_first_numbered_output(tmp_path):
-    """多成片任务与运行时结果保持一致，默认播放序号最小的最终视频。"""
+    """결과물이 여러 개인 작업도 런타임 결과와 일치해야 하며, 기본으로 번호가 가장 작은 최종 영상을 재생한다."""
     (tmp_path / "final-10.mp4").touch()
     (tmp_path / "final-2.mp4").touch()
     (tmp_path / "final-1.mp4").touch()
@@ -111,7 +111,7 @@ def test_restore_requirements_allow_explicit_replacements():
 
 
 def test_restore_requirements_require_file_in_upload_voice_mode():
-    """恢复上传配音任务时，继续使用上传模式必须重新选择音频文件。"""
+    """업로드 나레이션 작업을 복원할 때, 업로드 모드를 계속 쓴다면 오디오 파일을 다시 골라야 한다."""
     requirements = build_restore_upload_requirements(
         {
             "video_source": "pexels",
@@ -131,7 +131,7 @@ def test_restore_requirements_require_file_in_upload_voice_mode():
 
 
 def test_restore_requirements_allow_replacing_upload_with_other_voice_modes():
-    """用户主动切换到自动配音或无配音时，不再强制恢复历史上传文件。"""
+    """사용자가 자동 나레이션이나 나레이션 없음으로 직접 바꾸면 지난 업로드 파일 복원을 강제하지 않는다."""
     requirements = build_restore_upload_requirements(
         {
             "video_source": "pexels",
