@@ -345,13 +345,89 @@ class TestSubtitleFontFallback(unittest.TestCase):
         """
         일본어를 그릴 수 있는 선택은 그대로 둬야 한다. 무조건 한글 글꼴로 바꾸면
         일본어 사용자의 자막이 반대로 깨진다.
+
+        같은 글꼴이 한국어 대본에서는 교체되는 것까지 함께 확인한다. 그러지 않으면
+        resolver 가 입력을 그대로 돌려주기만 해도 이 테스트가 통과한다.
+        """
+        # 전제: 이 글꼴은 일본어를 그릴 수 있고 한글은 못 그린다.
+        japanese_font = str(FONTS_DIR / "MicrosoftYaHeiBold.ttc")
+        self.assertTrue(video.subtitle_font_supports_text(japanese_font, "日本語の字幕"))
+        self.assertFalse(video.subtitle_font_supports_text(japanese_font, "한글자막"))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            kept = video.resolve_subtitle_font(
+                "MicrosoftYaHeiBold.ttc", self._subtitle(tmp_dir, "日本語の字幕")
+            )
+            swapped = video.resolve_subtitle_font(
+                "MicrosoftYaHeiBold.ttc", self._subtitle(tmp_dir, "한글 자막")
+            )
+
+        self.assertEqual(kept, "MicrosoftYaHeiBold.ttc")
+        self.assertNotEqual(swapped, "MicrosoftYaHeiBold.ttc")
+
+    def test_unopenable_font_is_replaced(self):
+        """
+        설정에 남은 이름이 지워진 파일을 가리킬 수 있다. 글꼴 검사가 실패했을 때
+        '지원됨'으로 취급하면 그대로 통과해 자막이 사라진다.
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             resolved = video.resolve_subtitle_font(
-                "MicrosoftYaHeiBold.ttc", self._subtitle(tmp_dir, "日本語の字幕")
+                "Deleted-Font.ttf", self._subtitle(tmp_dir, "한글 자막")
             )
 
-        self.assertEqual(resolved, "MicrosoftYaHeiBold.ttc")
+        self.assertNotEqual(resolved, "Deleted-Font.ttf")
+        self.assertTrue((FONTS_DIR / resolved).is_file())
+
+    def test_corrupt_font_is_not_treated_as_supported(self):
+        """
+        파일이 존재하지만 열리지 않는 글꼴이 있다. 검사 실패를 '지원됨' 으로 답하면
+        선택값이 그대로 통과해 자막이 사라지고, 손상된 후보가 대체 글꼴로 뽑힐 수도
+        있다. 파일 부재는 경로 검증이 걸러 주지만 손상 파일은 여기서만 걸린다.
+        """
+        corrupt = FONTS_DIR / "_corrupt_probe.ttf"
+        corrupt.write_bytes(b"not a font")
+        try:
+            self.assertIsNone(
+                video._inspect_subtitle_font(str(corrupt), "한글"),
+                "열 수 없는 글꼴은 판정 불가여야 한다",
+            )
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                resolved = video.resolve_subtitle_font(
+                    corrupt.name, self._subtitle(tmp_dir, "한글 자막")
+                )
+
+            self.assertNotEqual(resolved, corrupt.name)
+            self.assertTrue(
+                video.subtitle_font_supports_text(str(FONTS_DIR / resolved), "한글 자막")
+            )
+        finally:
+            corrupt.unlink(missing_ok=True)
+            video._inspect_subtitle_font.cache_clear()
+
+    def test_font_name_cannot_escape_the_bundle_directory(self):
+        """글꼴 이름은 API 파라미터로도 들어온다. 번들 밖을 가리키면 후보에서 빠져야 한다."""
+        self.assertEqual(video._font_path_within_bundle("../../etc/passwd"), "")
+
+    def test_unreadable_subtitle_file_does_not_crash(self):
+        """자막이 UTF-8 이 아니어도 생성이 죽으면 안 된다."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "subtitle.srt"
+            path.write_bytes(b"\xff\xfe\x00invalid")
+            resolved = video.resolve_subtitle_font("Pretendard-Bold.ttf", str(path))
+
+        self.assertEqual(resolved, "Pretendard-Bold.ttf")
+
+    def test_srt_metadata_does_not_crowd_out_the_dialogue(self):
+        """
+        자막 파일에는 순번과 타임코드가 섞여 있다. 그 숫자가 표본을 차지하면
+        뒤쪽 언어의 문자를 놓쳐 잘못된 글꼴이 통과할 수 있다.
+        """
+        srt = "1\n00:00:00,000 --> 00:00:02,000\n한글\n"
+        sample = video._subtitle_sample(srt)
+
+        self.assertIn("한", sample)
+        self.assertNotIn("0", sample)
 
     def test_missing_subtitle_file_keeps_the_selected_font(self):
         """자막 파일을 읽을 수 없으면 판단 근거가 없으므로 선택을 바꾸지 않는다."""
