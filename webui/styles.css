@@ -16,18 +16,19 @@ h1 {
     margin-top: 0 !important;
 }
 
-/* Streamlit 默认让标签中的帮助区域占据剩余宽度，导致问号按钮贴到控件最右侧。
-   帮助提示在语义上从属于标签文字，因此取消该区域的伸展，并用固定小间距让
-   问号紧跟标签；没有 help 参数的标签不存在这个 div，不会受到影响。 */
+/* Streamlit 은 기본적으로 라벨 안의 도움말 영역이 남은 폭을 모두 차지하게 해서, 물음표 버튼이
+   위젯 맨 오른쪽에 붙는다. 도움말은 의미상 라벨 텍스트에 딸린 것이므로 이 영역의 확장을 끄고
+   작은 고정 간격으로 물음표가 라벨 바로 뒤에 오게 한다. help 인자가 없는 라벨에는 이 div 가
+   없으므로 영향을 받지 않는다. */
 label[data-testid="stWidgetLabel"] > div {
     flex: 0 0 auto !important;
     width: auto !important;
     margin-left: 0.35rem !important;
 }
 
-/* 配音方式位于四列布局中的窄面板。Streamlit 的 stretch 模式默认让单个分段
-   按钮接近半行宽，三个选项会换成两行；这里仅对该控件改为三等分，并压缩
-   水平内边距，保持其它 segmented control 的原生尺寸不变。 */
+/* 나레이션 방식은 4 열 레이아웃의 좁은 패널에 있다. Streamlit 의 stretch 모드는 기본적으로
+   분할 버튼 하나를 거의 반 줄 폭으로 만들어, 옵션 세 개가 두 줄로 넘어간다. 여기서는 이 위젯만
+   3 등분으로 바꾸고 좌우 안쪽 여백을 줄인다. 다른 segmented control 의 기본 크기는 그대로 둔다. */
 div[class*="st-key-voice_mode_control"] [role="radiogroup"] {
     flex-wrap: nowrap !important;
 }
@@ -46,8 +47,9 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     white-space: nowrap !important;
 }
 
-/* 顶部品牌区将项目名和弱化版本号放在同一基线。项目名称仍是页面唯一的 h1；
-   版本号本身作为项目链接，避免增加独立图标而干扰标题的视觉层级。 */
+/* 상단 브랜드 영역은 프로젝트 이름과 흐리게 처리한 버전 번호를 같은 기준선에 놓는다.
+   프로젝트 이름은 여전히 페이지의 유일한 h1 이다. 버전 번호 자체가 프로젝트 링크 역할을 해,
+   별도 아이콘을 더해 제목의 시각적 위계를 흐트러뜨리지 않는다. */
 .mpt-brand {
     min-width: 0;
     margin: 0;
@@ -56,8 +58,8 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     line-height: 1.15;
 }
 
-/* Streamlit 会在自定义 h1 内增加一层文本容器，实际的行内布局需要作用在
-   这层容器上，才能稳定控制项目名和版本号的间距。 */
+/* Streamlit 은 사용자 지정 h1 안에 텍스트 컨테이너를 한 겹 더 넣는다. 실제 인라인 레이아웃은
+   이 컨테이너에 적용해야 프로젝트 이름과 버전 번호의 간격을 안정적으로 제어할 수 있다. */
 .mpt-brand > span:first-child {
     display: flex;
     align-items: baseline;
@@ -95,8 +97,8 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     outline-offset: 2px;
 }
 
-/* 新版本提醒只在确有正式版本更新时出现。使用文字链接而不是按钮或横幅，
-   让它保持可发现性，同时不抢占项目标题和主要操作入口的视觉层级。 */
+/* 새 버전 알림은 실제로 정식 업데이트가 있을 때만 나타난다. 버튼이나 배너 대신 텍스트 링크를
+   써서 눈에는 띄되, 프로젝트 제목과 주요 동작 진입점의 시각적 위계를 빼앗지 않게 한다. */
 .mpt-brand__update {
     flex: 0 0 auto;
     font-size: 0.875rem;
@@ -122,14 +124,16 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     }
 }
 
-/* Streamlit 会自动给 h1 追加一个标题锚点。品牌区已有版本号项目链接，额外的
-   标题锚点没有实际价值，因此只在这个标题内隐藏，避免窄屏出现多余图标。 */
+/* Streamlit 은 h1 에 제목 앵커를 자동으로 붙인다. 브랜드 영역에는 이미 버전 번호 링크가 있어
+   추가 앵커는 실익이 없으므로 이 제목 안에서만 숨긴다. 좁은 화면에서 불필요한 아이콘이
+   보이지 않게 하기 위해서다. */
 .mpt-brand > [data-testid="stHeaderActionElements"] {
     display: none !important;
 }
 
-/* 顶部任务入口由 st.fragment 定时刷新，Streamlit 会为 Fragment 自动生成一个
-   占满整行的 LayoutWrapper。这里只收缩该包装层，保证右侧操作区按内容紧凑排列。 */
+/* 상단 작업 진입점은 st.fragment 가 주기적으로 갱신한다. Streamlit 은 Fragment 마다 한 줄을
+   가득 채우는 LayoutWrapper 를 자동으로 만든다. 여기서는 그 래퍼만 줄여, 오른쪽 동작 영역이
+   내용에 맞게 촘촘히 배치되게 한다. */
 .st-key-top_bar_actions
     > div[data-testid="stLayoutWrapper"]:first-child {
     flex: 0 0 auto !important;
@@ -174,9 +178,10 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
 
 }
 
-/* 高级设置属于内容展开入口，不是执行操作。保留 Streamlit 原生 expander 的
-   语义和键盘交互，只在带 advanced_settings_ key 的局部容器内移除卡片边框，
-   避免与紧邻的 AI 生成按钮形成两个连续大按钮的视觉干扰。 */
+/* 고급 설정은 내용을 펼치는 진입점이지 실행 동작이 아니다. Streamlit 기본 expander 의 의미와
+   키보드 상호작용은 그대로 두고, advanced_settings_ key 가 붙은 국소 컨테이너 안에서만 카드
+   테두리를 없앤다. 바로 옆 AI 생성 버튼과 큰 버튼 두 개가 연달아 보이는 시각적 간섭을 피하기
+   위해서다. */
 div[class*="st-key-advanced_settings_"] details {
     border: 0 !important;
     border-radius: 4px !important;
@@ -199,8 +204,8 @@ div[class*="st-key-advanced_settings_"] details > summary:hover {
     ) !important;
 }
 
-/* 展开后让标题和内容共享同一背景，视觉上形成连续区域；折叠状态仍保持原有的
-   透明轻量入口，不额外占用页面层级。 */
+/* 펼친 뒤에는 제목과 내용이 같은 배경을 공유해 시각적으로 이어진 영역을 이룬다. 접힌 상태는
+   기존의 투명하고 가벼운 진입점을 그대로 유지해 페이지 위계를 더 차지하지 않는다. */
 div[class*="st-key-advanced_settings_"] details[open] > summary {
     border-radius: 4px 4px 0 0 !important;
     opacity: 1;
@@ -221,8 +226,8 @@ div[class*="st-key-advanced_settings_"] details > summary:focus {
     outline: none !important;
 }
 
-/* 键盘操作使用标题下划线作为焦点反馈，不再绘制任何外框，确保展开区域在视觉
-   上完全无边框，同时仍能让键盘用户识别当前焦点。 */
+/* 키보드 조작은 제목 밑줄을 포커스 표시로 쓰고 바깥 테두리는 그리지 않는다. 펼쳐진 영역이
+   시각적으로 완전히 테두리 없이 보이면서도 키보드 사용자가 현재 포커스를 알아볼 수 있게 한다. */
 div[class*="st-key-advanced_settings_"] details > summary:focus-visible {
     box-shadow: none !important;
 }
@@ -237,8 +242,8 @@ div[class*="st-key-advanced_settings_"] details > summary p {
     font-weight: 500 !important;
 }
 
-/* 内容区与展开标题无缝衔接，不使用任何边框，仅通过统一背景和内边距表达
-   控件从属于高级设置，避免出现嵌套卡片或割裂的两段式结构。 */
+/* 내용 영역은 펼침 제목과 매끄럽게 이어지며 테두리를 쓰지 않는다. 통일된 배경과 안쪽 여백만으로
+   위젯이 고급 설정에 속한다는 것을 표현해, 중첩 카드나 두 동강 난 구조가 생기지 않게 한다. */
 div[class*="st-key-advanced_settings_"] div[data-testid="stExpanderDetails"] {
     margin-top: 0 !important;
     padding: 0.75rem 0.75rem 0.85rem 1rem !important;
@@ -251,8 +256,9 @@ div[class*="st-key-advanced_settings_"] div[data-testid="stExpanderDetails"] {
     ) !important;
 }
 
-/* 任务管理 popover 需要固定宽度，避免内容从空状态、列表状态切换时
-   反复改变宽度造成页面抖动。宽度仍保留视口约束，兼容窄屏。 */
+/* 작업 관리 popover 는 고정 폭이 필요하다. 내용이 빈 상태와 목록 상태를 오갈 때 폭이 계속
+   바뀌어 페이지가 흔들리는 것을 막기 위해서다. 폭에는 여전히 뷰포트 제약을 남겨 좁은 화면과도
+   호환된다. */
 div[data-testid="stPopoverBody"] {
     width: min(860px, calc(100vw - 48px)) !important;
     max-width: min(860px, calc(100vw - 48px)) !important;
@@ -262,8 +268,8 @@ div[data-testid="stPopoverBody"] div[data-testid="stVerticalBlock"] {
     width: 100% !important;
 }
 
-/* 任务管理列表保留 Streamlit 原生布局，只做轻量压缩，避免每一行过高。
-   通过 task_row_ key 限定作用范围，避免影响其它配置面板的 container。 */
+/* 작업 관리 목록은 Streamlit 기본 레이아웃을 유지하고 살짝만 압축해 각 줄이 너무 높아지지 않게
+   한다. task_row_ key 로 적용 범위를 한정해 다른 설정 패널의 container 에는 영향을 주지 않는다. */
 div[class*="st-key-task_row_"] {
     margin-bottom: 0.18rem !important;
 }
@@ -301,8 +307,9 @@ div[class*="st-key-task_row_"] button[kind="secondary"] {
     padding: 0.1rem 0.3rem !important;
 }
 
-/* 按钮文字视觉隐藏后，Streamlit 仍会保留图标与文字之间的默认间距，导致
-   单独图标向左偏移。清除该间距并让内容层占满按钮，确保操作图标严格居中。 */
+/* 버튼 텍스트를 시각적으로 숨겨도 Streamlit 은 아이콘과 텍스트 사이의 기본 간격을 그대로 남겨,
+   아이콘만 있는 버튼에서 아이콘이 왼쪽으로 치우친다. 그 간격을 없애고 내용 레이어가 버튼을
+   가득 채우게 해 동작 아이콘이 정확히 가운데 오도록 한다. */
 div[class*="st-key-task_row_"]
     button[kind="secondary"]
     span[data-has-shortcut] {
@@ -311,8 +318,8 @@ div[class*="st-key-task_row_"]
     justify-content: center !important;
 }
 
-/* 行内操作保留可访问的按钮名称，但视觉上只显示图标。使用屏幕阅读器可见的
-   隐藏方式，而不是 display:none，确保每个操作仍能被正确朗读。 */
+/* 인라인 동작은 접근 가능한 버튼 이름을 유지하되 화면에는 아이콘만 보여 준다. display:none 이
+   아니라 스크린 리더에는 보이는 숨김 방식을 써서, 각 동작이 제대로 읽히도록 보장한다. */
 div[class*="st-key-task_row_"] button[kind="secondary"] p {
     position: absolute !important;
     width: 1px !important;
@@ -326,7 +333,7 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
 }
 
 
-/* 中等宽度下将四个设置面板调整为 2×2，避免每列过窄导致标签和按钮频繁换行。 */
+/* 중간 폭에서는 설정 패널 네 개를 2×2 로 배치해, 각 열이 너무 좁아 라벨과 버튼이 자주 줄바꿈되는 것을 막는다. */
 @media (min-width: 701px) and (max-width: 1100px) {
     .mpt-brand__name {
         font-size: 2.25rem;
@@ -353,7 +360,7 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
     }
 }
 
-/* 移动端隐藏桌面表头，并将任务行重排为“主题 + 元信息 + 操作”紧凑结构。 */
+/* 모바일에서는 데스크톱 표 머리글을 숨기고, 작업 줄을 '주제 + 메타 정보 + 동작' 의 촘촘한 구조로 재배치한다. */
 @media (max-width: 700px) {
     div[class*="st-key-task_table_header_"] {
         display: none !important;

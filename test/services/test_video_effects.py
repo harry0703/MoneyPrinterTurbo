@@ -13,7 +13,7 @@ from app.services.utils import video_effects
 
 
 def _gradient_clip(width=64, height=48, duration=1.0):
-    """创建非均匀渐变画面，确保缩放前后的像素差异可以被可靠检测。"""
+    """고르지 않은 그러데이션 화면을 만들어, 확대 전후의 픽셀 차이를 안정적으로 감지할 수 있게 한다."""
     x = np.linspace(0, 255, width, dtype=np.uint8)
     y = np.linspace(0, 255, height, dtype=np.uint8)
     frame = np.stack(np.meshgrid(x, y), axis=-1).sum(axis=-1) % 256
@@ -22,7 +22,7 @@ def _gradient_clip(width=64, height=48, duration=1.0):
 
 
 def _detail_frame(width=128, height=96):
-    """创建包含高频细节的 RGB 帧，用于观察亚像素缩放是否连续响应。"""
+    """고주파 디테일이 있는 RGB 프레임을 만들어, 서브픽셀 확대가 연속적으로 반응하는지 관찰한다."""
     x = np.arange(width, dtype=np.int16)
     y = np.arange(height, dtype=np.int16)[:, None]
     return np.stack(
@@ -37,7 +37,7 @@ def _detail_frame(width=128, height=96):
 
 class TestFadeAndSlideTransitions(unittest.TestCase):
     def test_fade_transitions_apply_requested_duration(self):
-        """淡入淡出必须把调用方传入的时长原样交给 MoviePy effect。"""
+        """페이드 인·아웃은 호출자가 넘긴 길이를 그대로 MoviePy effect 에 전달해야 한다."""
         clip = _gradient_clip()
         self.addCleanup(clip.close)
 
@@ -62,7 +62,7 @@ class TestFadeAndSlideTransitions(unittest.TestCase):
         )
 
     def test_slidein_positions_cover_all_directions_and_unknown_side(self):
-        """滑入动画的四个方向、结束位置和未知方向兜底都应保持稳定。"""
+        """슬라이드 인의 네 방향, 종료 위치, 알 수 없는 방향의 대비 동작이 모두 안정적이어야 한다."""
         clip = _gradient_clip(width=60, height=40, duration=2)
         self.addCleanup(clip.close)
         expected_starts = {
@@ -83,8 +83,8 @@ class TestFadeAndSlideTransitions(unittest.TestCase):
 
     def test_slideout_positions_cover_timing_and_all_directions(self):
         """
-        滑出应在片段尾部才开始运动；四个方向、超过结束时间和零时长参数
-        都需要被夹紧，避免出现除零或素材提前离场。
+        슬라이드 아웃은 클립 끝부분에서야 움직이기 시작해야 한다. 네 방향, 종료 시각 초과, 길이 0 파라미터를
+        모두 잘라 내, 0 으로 나누거나 소재가 미리 화면을 벗어나는 일이 없게 해야 한다.
         """
         clip = _gradient_clip(width=60, height=40, duration=2)
         self.addCleanup(clip.close)
@@ -130,9 +130,9 @@ class TestZoomTransitions(unittest.TestCase):
 
         self.assertEqual(first.shape, original.shape)
         self.assertEqual(first.dtype, np.uint8)
-        # 放大从 1 倍开始，因此首帧应与原始画面保持一致。
+        # 확대는 1 배에서 시작하므로 첫 프레임은 원본 화면과 같아야 한다.
         np.testing.assert_allclose(first, original, atol=2)
-        # 末帧来自中心裁剪并放大后的区域，应与原始画面存在明显差异。
+        # 마지막 프레임은 중앙을 잘라 확대한 영역이므로 원본 화면과 뚜렷이 달라야 한다.
         self.assertGreater(np.abs(last.astype(int) - original.astype(int)).max(), 2)
 
     def test_zoomout_starts_zoomed_and_returns_to_source(self):
@@ -147,7 +147,7 @@ class TestZoomTransitions(unittest.TestCase):
         last = zoomed.get_frame(clip.duration)
         original = clip.get_frame(0)
 
-        # 缩小的首帧为 1.2 倍画面，结束时精确回到原始比例。
+        # 축소의 첫 프레임은 1.2 배 화면이고, 끝에서는 정확히 원본 비율로 돌아온다.
         self.assertGreater(np.abs(first.astype(int) - original.astype(int)).max(), 2)
         np.testing.assert_allclose(last, original, atol=2)
 
@@ -163,8 +163,8 @@ class TestZoomTransitions(unittest.TestCase):
         first = video_effects._zoom_frame(frame, 1.1)
         second = video_effects._zoom_frame(frame, 1.1001)
 
-        # 这两个比例在旧的整数裁剪算法中会落入相同裁剪尺寸，产生完全相同的帧，
-        # 随后在跨过整数边界时突然跳变。亚像素采样应当能响应这种微小比例变化。
+        # 이 두 비율은 예전 정수 크롭 알고리즘에서는 같은 크롭 크기로 떨어져 완전히 같은 프레임을 만들고,
+        # 정수 경계를 넘는 순간 갑자기 튀었다. 서브픽셀 샘플링은 이런 미세한 비율 변화에도 반응해야 한다.
         self.assertGreater(np.count_nonzero(first != second), 0)
         self.assertLessEqual(
             np.abs(first.astype(np.int16) - second.astype(np.int16)).max(),
@@ -183,7 +183,7 @@ class TestZoomTransitions(unittest.TestCase):
 
         self.assertEqual(zoomed.shape, frame.shape)
         self.assertEqual(zoomed.dtype, frame.dtype)
-        # 奇数宽高只有一个精确中心像素，缩放后该像素不应发生横向或纵向漂移。
+        # 홀수 폭·높이에는 정확한 중심 픽셀이 하나뿐이며, 확대 후에도 그 픽셀이 가로나 세로로 밀려서는 안 된다.
         np.testing.assert_allclose(
             zoomed[center_y, center_x],
             frame[center_y, center_x],

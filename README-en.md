@@ -14,7 +14,7 @@ Provide a video <b>topic</b> or <b>keyword</b>, and MoneyPrinterTurbo will gener
 <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 <a href="https://www.star-history.com/harry0703/moneyprinterturbo"><img src="https://api.star-history.com/badge?repo=harry0703/MoneyPrinterTurbo" alt="Star History Rank" style="height: 55px;" height="55"/></a>
 
-English | [简体中文](README.md) | [Releases](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/harry0703/MoneyPrinterTurbo/issues)
+English | [한국어](README.md) | [Releases](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/harry0703/MoneyPrinterTurbo/issues)
 
 </div>
 
@@ -36,7 +36,7 @@ English | [简体中文](README.md) | [Releases](https://github.com/harry0703/Mo
 
 Thanks to [Kimi](https://platform.kimi.ai/?aff=MoneyPrinterTurbo) for sponsoring this project! [Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=MoneyPrinterTurbo) is Moonshot AI's most capable model and the world's first open 3T-class model. With native vision and a 1-million-token context window, K3 delivers frontier performance across knowledge work, reasoning, and long-horizon tasks. Within MoneyPrinterTurbo, K3 powers video creation by writing scripts and extracting the search keywords that determine the final footage—the better it understands the content, the more relevant the results.
 
-**MoneyPrinterTurbo already supports Kimi. Visit the Kimi Open Platform ([中文站](https://platform.kimi.com/?aff=MoneyPrinterTurbo) | [Global](https://platform.kimi.ai/?aff=MoneyPrinterTurbo)) to try the API, or explore the [Kimi Code subscription](https://www.kimi.com/code?aff=MoneyPrinterTurbo).**
+**MoneyPrinterTurbo already supports Kimi. Visit the Kimi Open Platform ([China](https://platform.kimi.com/?aff=MoneyPrinterTurbo) | [Global](https://platform.kimi.ai/?aff=MoneyPrinterTurbo)) to try the API, or explore the [Kimi Code subscription](https://www.kimi.com/code?aff=MoneyPrinterTurbo).**
 
 <br>
 <table align="center">

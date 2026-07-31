@@ -20,13 +20,14 @@ _MISSING = object()
 
 
 class _SynchronizedConfig(dict):
-    """保持 dict 使用方式不变，同时让运行期配置写操作服从同一把锁。"""
+    """dict 사용법은 그대로 두면서, 런타임 설정 쓰기 작업이 같은 락을 따르게 한다."""
 
     def __setitem__(self, key, value):
-        # Streamlit 每次整页 rerun 都会把当前控件值重新写回配置。视频任务持有
-        # runtime_config_lock 时，如果值没有变化，这次写入没有任何副作用，也
-        # 不应让刷新后的页面卡在表单中途。真正改变配置的写入仍进入下方锁，
-        # 因而不能在正在生成的视频中途切换 Provider、密钥或其它全局设置。
+        # Streamlit 은 페이지를 통째로 rerun 할 때마다 현재 위젯 값을 설정에 다시 쓴다.
+        # 영상 작업이 runtime_config_lock 을 쥐고 있을 때 값이 바뀌지 않았다면 이 쓰기는
+        # 아무 부작용이 없으므로, 새로고침한 페이지가 폼 중간에서 멈춰서는 안 된다.
+        # 실제로 설정을 바꾸는 쓰기는 여전히 아래 락으로 들어간다. 따라서 영상을 생성하는
+        # 도중에 Provider, 키, 기타 전역 설정을 바꿀 수는 없다.
         current = super().get(key, _MISSING)
         if current is not _MISSING and current == value:
             return
@@ -44,8 +45,8 @@ class _SynchronizedConfig(dict):
             super().clear()
 
     def pop(self, key, default=_MISSING):
-        # ``pop(key, default)`` 在 key 不存在时同样不会改变配置。WebUI 使用
-        # 这种写法表达“采用默认策略”，刷新时必须允许它直接完成。
+        # ``pop(key, default)`` 도 key 가 없으면 설정을 바꾸지 않는다. WebUI 는 이 표현으로
+        # '기본 정책을 따른다' 는 뜻을 나타내므로, 새로고침 시 바로 끝나도록 허용해야 한다.
         if key not in self:
             if default is _MISSING:
                 raise KeyError(key)
@@ -56,8 +57,9 @@ class _SynchronizedConfig(dict):
             return super().pop(key, default)
 
     def setdefault(self, key, default=None):
-        # 与 __setitem__ 相同，已存在 key 的 setdefault 是只读操作。提前返回
-        # 可以让只读取默认配置的页面刷新不受长任务配置锁影响。
+        # __setitem__ 과 마찬가지로, 이미 있는 key 에 대한 setdefault 는 읽기 전용 작업이다.
+        # 먼저 반환하면 기본 설정만 읽는 페이지 새로고침이 장시간 작업의 설정 락에
+        # 영향을 받지 않는다.
         current = super().get(key, _MISSING)
         if current is not _MISSING:
             return current
@@ -79,10 +81,11 @@ class _SynchronizedConfig(dict):
 @contextmanager
 def runtime_config_lock():
     """
-    在一次依赖全局配置的完整操作期间阻止其它 WebUI 会话改写配置。
+    전역 설정에 의존하는 작업 하나가 끝날 때까지 다른 WebUI 세션이 설정을 고치지 못하게 한다.
 
-    当前项目默认绑定本地回环地址，配置仍然是单用户全局配置。这个轻量锁主要
-    保护生成、试听等长操作，避免另一个标签页在操作中途切换 Provider 或密钥。
+    현재 프로젝트는 기본적으로 로컬 루프백에 바인딩하며, 설정은 여전히 단일 사용자
+    전역 설정이다. 이 가벼운 락은 주로 생성이나 미리듣기 같은 긴 작업을 보호해, 다른
+    탭이 작업 도중 Provider 나 키를 바꾸는 것을 막는다.
     """
     with _config_save_lock:
         yield
@@ -91,11 +94,12 @@ def runtime_config_lock():
 @contextmanager
 def try_runtime_config_lock():
     """
-    尝试获取运行期配置锁，并立即返回是否成功。
+    런타임 설정 락을 시도해 보고 성공 여부를 즉시 반환한다.
 
-    WebUI 试听属于用户主动触发的短操作，不应在后台视频任务持锁时等待数分钟。
-    调用方可以在未获取锁时就近提示用户稍后重试；成功获取后仍能保证试听期间
-    Provider、密钥和模型配置不会被其它会话修改。
+    WebUI 미리듣기는 사용자가 직접 누르는 짧은 작업이므로, 백그라운드 영상 작업이 락을
+    쥐고 있을 때 몇 분씩 기다려서는 안 된다. 호출자는 락을 얻지 못하면 사용자에게 잠시
+    후 다시 시도하라고 바로 안내하면 된다. 락을 얻은 뒤에는 미리듣기 동안 Provider,
+    키, 모델 설정이 다른 세션에 의해 바뀌지 않는 것이 보장된다.
     """
     acquired = _config_save_lock.acquire(blocking=False)
     try:
@@ -111,16 +115,17 @@ def is_running_in_container(
     cgroup_path: str = "/proc/1/cgroup",
 ) -> bool:
     """
-    判断当前进程是否运行在容器内。
+    현재 프로세스가 컨테이너 안에서 도는지 판정한다.
 
-    这个判断主要用于 Ollama 默认地址选择：
-    - 普通本机运行时，`localhost` 指向用户机器本身；
-    - Docker 容器内，`localhost` 指向容器自己，访问宿主机 Ollama
-      通常需要使用 `host.docker.internal`。
+    이 판정은 주로 Ollama 기본 주소를 고르는 데 쓴다.
+    - 일반적인 로컬 실행에서 `localhost` 는 사용자 머신 자신을 가리킨다.
+    - Docker 컨테이너 안에서 `localhost` 는 컨테이너 자신을 가리키므로, 호스트의
+      Ollama 에 접근하려면 보통 `host.docker.internal` 을 써야 한다.
 
-    不能只判断 `/proc/1/cgroup` 是否存在，因为普通 Linux 也会有这个文件。
-    这里只在检测到明确的容器标记时返回 True，避免误伤非 Docker Linux 用户。
-    参数保留为可注入路径，便于单元测试覆盖不同运行环境。
+    `/proc/1/cgroup` 이 있는지만 봐서는 안 된다. 일반 Linux 에도 이 파일이 있기 때문이다.
+    여기서는 명확한 컨테이너 표식을 찾았을 때만 True 를 반환해, Docker 가 아닌 Linux
+    사용자가 오판되는 것을 막는다. 인자를 주입 가능한 경로로 남겨 둔 것은 단위 테스트가
+    여러 실행 환경을 덮을 수 있게 하기 위해서다.
     """
     if os.path.isfile(dockerenv_path) or os.path.isfile(containerenv_path):
         return True
@@ -143,9 +148,10 @@ def _can_resolve_hostname(hostname: str) -> bool:
 
 
 def _decode_linux_route_gateway(hex_gateway: str) -> str:
-    # /proc/net/route 里的 Gateway 是 16 进制小端序，例如 010011AC 表示
-    # 172.17.0.1。这里单独解析，是为了在原生 Linux Docker 没有
-    # host.docker.internal DNS 记录时，还能尝试访问容器默认网关上的宿主机。
+    # /proc/net/route 의 Gateway 는 16 진수 리틀 엔디언이다. 예를 들어 010011AC 는
+    # 172.17.0.1 을 뜻한다. 여기서 따로 해석하는 이유는, 네이티브 Linux Docker 에
+    # host.docker.internal DNS 레코드가 없을 때도 컨테이너 기본 게이트웨이 상의 호스트에
+    # 접근을 시도할 수 있게 하기 위해서다.
     if len(hex_gateway) != 8:
         raise ValueError("invalid gateway length")
 
@@ -158,12 +164,13 @@ def _decode_linux_route_gateway(hex_gateway: str) -> str:
 
 def get_container_default_gateway_ip(route_path: str = "/proc/net/route") -> str:
     """
-    读取 Linux 容器里的默认网关 IP。
+    Linux 컨테이너의 기본 게이트웨이 IP 를 읽는다.
 
-    Docker Desktop 通常提供 `host.docker.internal`，但原生 Linux Docker
-    默认不一定提供这个 DNS 名称。默认网关通常可以作为访问宿主机服务的
-    兜底地址；如果用户的 Ollama 只监听 127.0.0.1，则仍需要用户让
-    Ollama 监听宿主机网卡或手动配置 `ollama_base_url`。
+    Docker Desktop 은 보통 `host.docker.internal` 을 제공하지만, 네이티브 Linux Docker 는
+    이 DNS 이름을 기본으로 주지 않을 수 있다. 기본 게이트웨이는 대체로 호스트 서비스에
+    접근하는 대비책 주소로 쓸 수 있다. 사용자의 Ollama 가 127.0.0.1 만 수신하고 있다면,
+    여전히 사용자가 Ollama 를 호스트 네트워크 인터페이스에서 수신하게 하거나
+    `ollama_base_url` 을 직접 설정해야 한다.
     """
     try:
         with open(route_path, mode="r", encoding="utf-8") as fp:
@@ -192,10 +199,11 @@ def get_container_default_gateway_ip(route_path: str = "/proc/net/route") -> str
 
 def get_default_ollama_base_url() -> str:
     """
-    返回 Ollama 的默认 OpenAI-compatible base_url。
+    Ollama 의 기본 OpenAI 호환 base_url 을 반환한다.
 
-    用户显式配置 `ollama_base_url` 时不会走这里；这里只处理“未配置时的
-    最佳默认值”。容器内默认指向宿主机，普通本机运行默认指向 localhost。
+    사용자가 `ollama_base_url` 을 명시적으로 설정했다면 여기로 오지 않는다. 여기서는
+    '설정하지 않았을 때의 최선의 기본값' 만 다룬다. 컨테이너 안에서는 기본적으로 호스트를,
+    일반적인 로컬 실행에서는 localhost 를 가리킨다.
     """
     if not is_running_in_container():
         return "http://localhost:11434/v1"
@@ -243,19 +251,21 @@ def load_config():
 
 def save_config():
     """
-    原子保存运行时配置。
+    런타임 설정을 원자적으로 저장한다.
 
-    Streamlit 的不同会话可能在相近时间触发配置保存。直接覆盖 config.toml 时，
-    另一个线程可能读取到只写了一部分的 TOML 内容。这里使用进程内可重入锁串行化
-    保存，并先写入同目录临时文件，再通过 os.replace 原子替换目标文件。
+    Streamlit 의 서로 다른 세션이 비슷한 시각에 설정 저장을 유발할 수 있다. config.toml 을
+    바로 덮어쓰면 다른 스레드가 일부만 쓰인 TOML 을 읽을 수 있다. 여기서는 프로세스 내
+    재진입 락으로 저장을 직렬화하고, 같은 디렉터리의 임시 파일에 먼저 쓴 뒤 os.replace 로
+    대상 파일을 원자적으로 교체한다.
 
-    Docker Desktop 单文件 bind mount 会把 config.toml 本身作为挂载点，
-    Linux 内核不允许通过 rename/replace 替换挂载点，因此会返回 EBUSY。
-    该场景下只能在锁内原地覆盖文件；其它异常仍然抛出，避免掩盖权限、磁盘
-    或路径错误。
+    Docker Desktop 의 단일 파일 bind mount 는 config.toml 자체를 마운트 지점으로 만든다.
+    Linux 커널은 rename/replace 로 마운트 지점을 교체하는 것을 허용하지 않으므로 EBUSY 가
+    반환된다. 이 경우에는 락 안에서 파일을 제자리 덮어쓰는 수밖에 없다. 다른 예외는 그대로
+    던져서 권한, 디스크, 경로 오류를 가리지 않는다.
 
-    这仍然保留项目现有的单用户全局配置语义，不额外引入复杂的多用户配置系统；
-    主要用于避免多标签页或快速 rerun 时损坏配置文件。
+    이렇게 해도 프로젝트의 기존 단일 사용자 전역 설정 의미는 그대로 유지되며, 복잡한
+    다중 사용자 설정 체계를 새로 들이지도 않는다. 주로 여러 탭이나 빠른 rerun 때
+    설정 파일이 손상되는 것을 막는 용도다.
     """
     with _config_save_lock:
         config_to_save = dict(_cfg)
@@ -267,8 +277,8 @@ def save_config():
         config_to_save["ui"] = dict(ui)
         serialized_config = toml.dumps(config_to_save)
 
-        # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
-        # 点击普通控件都产生一次磁盘写入和 fsync。
+        # WebUI 는 rerun 이 끝날 때 저장을 호출한다. 내용이 바뀌지 않았으면 바로 반환해,
+        # 평범한 위젯을 누를 때마다 디스크 쓰기와 fsync 가 발생하지 않게 한다.
         try:
             with open(config_file, mode="r", encoding="utf-8") as f:
                 if f.read() == serialized_config:

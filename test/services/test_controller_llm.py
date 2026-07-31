@@ -11,7 +11,7 @@ from app.models.schema import (
 
 class TestLlmController(unittest.TestCase):
     def test_generate_video_script_forwards_all_prompt_fields(self):
-        """文案接口不能丢失高级提示词或段落数量。"""
+        """대본 엔드포인트는 고급 프롬프트나 문단 수를 잃어버려서는 안 된다."""
         body = VideoScriptRequest(
             video_subject="Coffee",
             video_language="en",
@@ -40,7 +40,7 @@ class TestLlmController(unittest.TestCase):
         )
 
     def test_generate_video_terms_forwards_order_matching_mode(self):
-        """素材顺序匹配开关必须继续传递到关键词生成服务。"""
+        """소재 순서 매칭 스위치는 키워드 생성 서비스까지 계속 전달돼야 한다."""
         body = VideoTermsRequest(
             video_subject="Coffee",
             video_script="First beans, then brewing.",
@@ -67,7 +67,7 @@ class TestLlmController(unittest.TestCase):
         )
 
     def test_generate_social_metadata_returns_service_payload(self):
-        """社交平台元数据接口应保持服务层结果的响应结构。"""
+        """소셜 플랫폼 메타데이터 엔드포인트는 서비스 계층 결과의 응답 구조를 유지해야 한다."""
         body = VideoSocialMetadataRequest(
             video_subject="Coffee",
             video_script="Morning coffee.",

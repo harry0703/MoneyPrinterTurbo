@@ -1,4 +1,4 @@
-"""检查 MoneyPrinterTurbo 是否存在可用的新正式版本。"""
+"""MoneyPrinterTurbo 의 새 정식 버전이 있는지 확인한다."""
 
 import threading
 import time
@@ -17,8 +17,9 @@ LATEST_RELEASE_API_URL: Final = (
 LATEST_RELEASE_PAGE_URL: Final = (
     "https://github.com/harry0703/MoneyPrinterTurbo/releases/latest"
 )
-# 更新检查只是辅助功能，网络异常不能明显拖慢本地 WebUI。连接与读取分别限制
-# 超时时间，既允许 GitHub 在普通网络下完成响应，也避免离线环境长时间等待。
+# 업데이트 확인은 보조 기능이므로, 네트워크 이상이 로컬 WebUI 를 눈에 띄게 느리게 해서는
+# 안 된다. 연결과 읽기에 각각 타임아웃을 걸어, 보통 네트워크에서는 GitHub 가 응답을
+# 마칠 수 있게 하면서 오프라인 환경에서 오래 기다리는 일도 막는다.
 RELEASE_CHECK_TIMEOUT: Final = (1.0, 2.0)
 RELEASE_CHECK_HEADERS: Final = {
     "Accept": "application/vnd.github+json",
@@ -29,7 +30,7 @@ UPDATE_CHECK_CACHE_TTL_SECONDS: Final = 12 * 60 * 60
 
 
 def _parse_version(value: str) -> Version:
-    """兼容 GitHub 常用的 ``v1.2.3`` 标签并转换为可比较版本。"""
+    """GitHub 에서 흔히 쓰는 ``v1.2.3`` 태그를 받아 비교 가능한 버전으로 변환한다."""
     normalized = str(value or "").strip()
     if normalized.lower().startswith("v"):
         normalized = normalized[1:]
@@ -38,12 +39,14 @@ def _parse_version(value: str) -> Version:
 
 def get_available_update(current_version: str) -> str | None:
     """
-    返回高于当前版本的最新正式版本；没有更新或检查失败时返回 ``None``。
+    현재 버전보다 높은 최신 정식 버전을 반환한다. 업데이트가 없거나 확인에 실패하면
+    ``None`` 을 반환한다.
 
-    GitHub 的 ``releases/latest`` 接口会自动排除草稿和预发布版本，因此这里不再
-    重复实现发布状态筛选。WebUI 通过 ``AsyncUpdateChecker`` 在后台调用本函数；
-    网络、响应格式或版本标签异常时只记录日志并降级为“不显示通知”，不影响
-    视频生成等核心功能。
+    GitHub 의 ``releases/latest`` 엔드포인트는 초안과 사전 릴리스를 자동으로 제외하므로,
+    여기서 릴리스 상태 필터링을 중복 구현하지 않는다. WebUI 는 ``AsyncUpdateChecker`` 를
+    통해 이 함수를 백그라운드에서 호출한다. 네트워크, 응답 형식, 버전 태그에 이상이 있으면
+    로그만 남기고 '알림을 표시하지 않음' 으로 기능을 낮추며, 영상 생성 같은 핵심 기능에는
+    영향을 주지 않는다.
     """
     try:
         installed_version = _parse_version(current_version)
@@ -62,8 +65,9 @@ def get_available_update(current_version: str) -> str | None:
         response.raise_for_status()
         payload = response.json()
     except (requests.RequestException, ValueError) as exc:
-        # 更新检查失败属于可恢复的非核心异常。保留异常类型和信息便于定位代理、
-        # DNS、GitHub 限流或响应损坏问题，同时避免在 WebUI 中打扰普通用户。
+        # 업데이트 확인 실패는 복구 가능한 비핵심 예외다. 예외 종류와 정보를 남겨 두면
+        # 프록시, DNS, GitHub 요청 제한, 응답 손상 문제를 찾기 쉬우면서도 WebUI 에서
+        # 일반 사용자를 방해하지 않는다.
         logger.debug(
             "GitHub release check failed: "
             f"error_type={type(exc).__name__}, error={exc}"
@@ -99,7 +103,7 @@ def get_available_update(current_version: str) -> str | None:
 
 @dataclass(frozen=True)
 class UpdateCheckSnapshot:
-    """后台版本检查的即时状态，供 WebUI 无阻塞地读取。"""
+    """백그라운드 버전 확인의 현재 상태. WebUI 가 블로킹 없이 읽어 간다."""
 
     complete: bool
     available_version: str | None = None
@@ -107,15 +111,16 @@ class UpdateCheckSnapshot:
 
 class AsyncUpdateChecker:
     """
-    在后台线程中执行版本检查，并缓存最近一次结果。
+    백그라운드 스레드에서 버전 확인을 수행하고 가장 최근 결과를 캐시한다.
 
-    Streamlit 会在任意控件交互后从头执行页面脚本。如果直接在标题区域访问
-    GitHub，首次打开或缓存失效时会阻塞整个页面。这里将网络请求放入守护线程，
-    页面只读取当前快照；检查完成后由 WebUI 的短期 fragment 刷新一次结果。
+    Streamlit 은 어떤 위젯을 조작하든 페이지 스크립트를 처음부터 다시 실행한다. 제목
+    영역에서 GitHub 에 직접 접근하면 첫 실행이나 캐시 만료 때 페이지 전체가 멈춘다.
+    여기서는 네트워크 요청을 데몬 스레드에 넣고 페이지는 현재 스냅샷만 읽는다. 확인이
+    끝나면 WebUI 의 단기 fragment 가 결과를 한 번 갱신한다.
 
-    结果无论是“发现更新”还是“没有更新/网络失败”都会缓存，避免 GitHub
-    不可访问时每次 rerun 都重新请求。锁只保护内存状态，不包裹网络请求，因而
-    不会阻塞其它会话读取检查状态。
+    '업데이트 발견' 이든 '업데이트 없음/네트워크 실패' 든 결과는 모두 캐시한다. GitHub 에
+    접근할 수 없을 때 rerun 마다 다시 요청하는 것을 막기 위해서다. 락은 메모리 상태만
+    보호하고 네트워크 요청을 감싸지 않으므로, 다른 세션이 확인 상태를 읽는 것을 막지 않는다.
     """
 
     def __init__(
@@ -134,7 +139,7 @@ class AsyncUpdateChecker:
         self._checking = False
 
     def poll(self, current_version: str) -> UpdateCheckSnapshot:
-        """立即返回检查快照；缓存过期时在后台启动一次新检查。"""
+        """확인 스냅샷을 즉시 반환한다. 캐시가 만료됐으면 백그라운드에서 새 확인을 한 번 시작한다."""
         normalized_current_version = str(current_version or "").strip()
         now = self._clock()
 
@@ -156,8 +161,9 @@ class AsyncUpdateChecker:
             ):
                 return UpdateCheckSnapshot(complete=False)
 
-            # 版本发生变化或缓存过期时，旧结果不应继续展示。先清空状态再启动
-            # 新线程，使调用方在检查期间得到明确的 pending 快照。
+            # 버전이 바뀌었거나 캐시가 만료됐으면 예전 결과를 계속 보여 주면 안 된다.
+            # 상태를 먼저 비우고 새 스레드를 시작해, 확인이 진행되는 동안 호출자가 명확한
+            # pending 스냅샷을 받게 한다.
             self._current_version = normalized_current_version
             self._available_version = None
             self._completed_at = None
@@ -177,15 +183,16 @@ class AsyncUpdateChecker:
         try:
             available_version = self._check(current_version)
         except Exception:
-            # get_available_update 已处理预期的网络和数据异常。此处是后台线程的
-            # 最后保护边界，必须记录完整堆栈，避免意外异常静默终止后永久 pending。
+            # get_available_update 이 예상되는 네트워크·데이터 예외는 이미 처리했다. 여기는
+            # 백그라운드 스레드의 마지막 보호 경계이므로 스택 전체를 기록해야 한다. 그러지
+            # 않으면 예기치 못한 예외로 조용히 종료된 뒤 영원히 pending 으로 남는다.
             logger.exception(
                 "unexpected error while checking for a MoneyPrinterTurbo update"
             )
             available_version = None
 
         with self._lock:
-            # 极少数情况下运行期间版本可能变化。旧线程不得覆盖新版本的状态。
+            # 아주 드물게 실행 중 버전이 바뀔 수 있다. 예전 스레드가 새 버전의 상태를 덮어써서는 안 된다.
             if self._current_version != current_version:
                 return
             self._available_version = available_version
@@ -197,5 +204,5 @@ _ASYNC_UPDATE_CHECKER = AsyncUpdateChecker()
 
 
 def poll_available_update(current_version: str) -> UpdateCheckSnapshot:
-    """读取全局后台检查器状态，避免不同 Streamlit 会话重复请求 GitHub。"""
+    """전역 백그라운드 체커 상태를 읽는다. 서로 다른 Streamlit 세션이 GitHub 에 중복 요청하는 것을 막는다."""
     return _ASYNC_UPDATE_CHECKER.poll(current_version)

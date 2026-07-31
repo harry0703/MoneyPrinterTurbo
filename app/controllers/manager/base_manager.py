@@ -25,9 +25,10 @@ class TaskManager:
                 logger.info(
                     f"add task: {func.__name__}, current_tasks: {self.current_tasks}"
                 )
-                # 在线程启动前先预占并发名额。原实现在线程内部递增，连续请求
-                # 可能都在子线程获得锁之前看到 current_tasks=0，从而突破并发
-                # 上限。启动失败时回滚名额，让后续请求仍可正常调度。
+                # 스레드를 시작하기 전에 동시 실행 자리를 먼저 선점한다. 원래 구현은
+                # 스레드 안에서 증가시켜서, 연속된 요청이 모두 자식 스레드가 락을 잡기
+                # 전에 current_tasks=0 을 보고 동시 실행 상한을 넘길 수 있었다.
+                # 시작에 실패하면 자리를 되돌려 이후 요청이 정상적으로 스케줄되게 한다.
                 self.current_tasks += 1
                 try:
                     self.execute_task(func, *args, **kwargs)
@@ -36,8 +37,9 @@ class TaskManager:
                     raise
             else:
                 queue_size = self.queue_size()
-                # 并发数已满时才进入排队。队列必须有上限，否则匿名接口可以持续
-                # 堆积任务对象和请求参数，最终造成内存耗尽或第三方 API 成本失控。
+                # 동시 실행이 가득 찼을 때만 대기열에 넣는다. 대기열에는 반드시 상한이
+                # 있어야 한다. 그렇지 않으면 익명 엔드포인트로 작업 객체와 요청 파라미터를
+                # 계속 쌓아 메모리 고갈이나 외부 API 비용 폭주로 이어진다.
                 if queue_size >= self.max_queued_tasks:
                     logger.warning(
                         f"reject task: {func.__name__}, queue_size: {queue_size}, "
@@ -73,8 +75,9 @@ class TaskManager:
                 func = task_info["func"]
                 args = task_info.get("args", ())
                 kwargs = task_info.get("kwargs", {})
-                # 与直接创建任务保持同一计数时机，避免刚出队的任务尚未在线程
-                # 内计数时，又有新请求绕过队列占用同一个并发名额。
+                # 작업을 직접 생성할 때와 같은 시점에 카운트해서, 방금 대기열에서 꺼낸
+                # 작업이 아직 스레드 안에서 카운트되기 전에 새 요청이 대기열을 건너뛰고
+                # 같은 동시 실행 자리를 차지하는 일을 막는다.
                 self.current_tasks += 1
                 try:
                     self.execute_task(func, *args, **kwargs)

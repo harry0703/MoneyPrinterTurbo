@@ -1,4 +1,4 @@
-"""在线素材搜索结果的磁盘缓存。"""
+"""온라인 소재 검색 결과의 디스크 캐시."""
 
 from __future__ import annotations
 
@@ -24,16 +24,17 @@ _CACHE_FORMAT_VERSION = 2
 _CACHE_CLEANUP_INTERVAL_SECONDS = 60 * 60
 _CACHE_FILE_PATTERN = re.compile(r"^[0-9a-f]{64}\.json$")
 
-# API 默认允许多个视频任务并发执行。固定数量的锁分片可以让相同搜索条件共用
-# 一个锁，同时避免按关键词永久保存 Lock 导致内存持续增长。它只负责合并当前
-# 进程内的并发请求；跨进程写入仍由临时文件和 os.replace 保证完整性。
+# API 는 기본적으로 여러 영상 작업이 동시에 실행되는 것을 허용한다. 고정 개수의 락 샤드를
+# 쓰면 같은 검색 조건이 하나의 락을 공유하면서도, 키워드마다 Lock 을 영구 보관해 메모리가
+# 계속 늘어나는 것을 피할 수 있다. 이 락은 현재 프로세스 안의 동시 요청을 합치는 역할만
+# 한다. 프로세스 간 쓰기의 무결성은 여전히 임시 파일과 os.replace 가 보장한다.
 _CACHE_LOCKS = tuple(threading.Lock() for _ in range(256))
 _cleanup_state_lock = threading.Lock()
 _last_cleanup_monotonic: float | None = None
 
 
 def _safe_public_url(value) -> str | None:
-    """移除公开页面 URL 的查询参数和用户凭据，避免缓存意外保存 token。"""
+    """공개 페이지 URL 의 쿼리 파라미터와 사용자 자격 증명을 제거해, 캐시에 토큰이 저장되지 않게 한다."""
     if not isinstance(value, str) or not value.strip():
         return None
     try:
@@ -52,11 +53,12 @@ def _safe_public_url(value) -> str | None:
 
 def _cached_source_info(item: MaterialInfo) -> dict | None:
     """
-    按白名单构造可落盘的来源信息。
+    화이트리스트에 따라 디스크에 저장할 출처 정보를 구성한다.
 
-    搜索关键词已经包含在缓存键中，不再明文写入缓存内容；读取时由调用参数
-    恢复。下载 URL 由 ``MaterialInfo.url`` 单独保存，这里只允许公开素材页、
-    作者公开页和稳定业务标识，避免任意扩展字段进入磁盘缓存。
+    검색 키워드는 이미 캐시 키에 들어 있으므로 캐시 내용에 평문으로 다시 쓰지 않고, 읽을 때
+    호출 파라미터로 복원한다. 다운로드 URL 은 ``MaterialInfo.url`` 이 따로 보관한다. 여기서는
+    공개 소재 페이지, 작성자 공개 페이지, 안정적인 업무 식별자만 허용해 임의의 확장 필드가
+    디스크 캐시에 들어가지 않게 한다.
     """
     source = item.source_info
     if not isinstance(source, dict) or not source:
@@ -101,10 +103,10 @@ def _cached_source_info(item: MaterialInfo) -> dict | None:
 
 def _cache_dir() -> Path:
     """
-    返回所有运行入口共用的素材搜索缓存目录。
+    모든 실행 진입점이 공유하는 소재 검색 캐시 디렉터리를 반환한다.
 
-    缓存必须位于 ``storage`` 下，而不是 WebUI session 或进程内存中，才能让
-    WebUI、API、CLI 以及 Docker 重启后的任务复用同一份结果。
+    캐시는 WebUI 세션이나 프로세스 메모리가 아니라 ``storage`` 아래에 있어야 한다. 그래야
+    WebUI, API, CLI 는 물론 Docker 재시작 이후의 작업도 같은 결과를 재사용할 수 있다.
     """
     return Path(utils.storage_dir("cache_material_search", create=True))
 
@@ -116,10 +118,11 @@ def _cache_key(
     video_aspect: VideoAspect | str,
 ) -> str:
     """
-    根据会影响搜索结果的业务参数生成稳定文件名。
+    검색 결과에 영향을 주는 업무 파라미터로 안정적인 파일명을 만든다.
 
-    API Key 只负责鉴权，不影响公开搜索结果，因此不能写入缓存键或缓存内容。
-    使用 SHA-256 可以避免关键词直接出现在文件名中，同时保持路径长度固定。
+    API 키는 인증만 담당하고 공개 검색 결과에는 영향을 주지 않으므로, 캐시 키나 캐시 내용에
+    써서는 안 된다. SHA-256 을 쓰면 키워드가 파일명에 그대로 드러나지 않으면서 경로 길이도
+    일정하게 유지된다.
     """
     aspect_value = getattr(video_aspect, "value", video_aspect)
     cache_key = json.dumps(
@@ -157,7 +160,7 @@ def get_material_search_cache_lock(
     minimum_duration: int,
     video_aspect: VideoAspect | str,
 ) -> threading.Lock:
-    """返回当前搜索条件对应的进程内锁分片。"""
+    """현재 검색 조건에 해당하는 프로세스 내 락 샤드를 반환한다."""
     digest = _cache_key(
         provider=provider,
         search_term=search_term,
@@ -168,7 +171,7 @@ def get_material_search_cache_lock(
 
 
 def _remove_invalid_cache(cache_path: Path) -> None:
-    """删除已经过期或无法解析的单个缓存文件，失败时不影响素材搜索主流程。"""
+    """만료됐거나 해석할 수 없는 캐시 파일 하나를 삭제한다. 실패해도 소재 검색 주 흐름에는 영향을 주지 않는다."""
     try:
         cache_path.unlink(missing_ok=True)
     except OSError as exc:
@@ -187,14 +190,16 @@ def load_material_search_cache(
     now: float | None = None,
 ) -> list[MaterialInfo] | None:
     """
-    读取仍在 24 小时有效期内的素材搜索结果。
+    아직 24 시간 유효 기간 안에 있는 소재 검색 결과를 읽는다.
 
-    ``None`` 表示缓存未命中，需要请求远端 API；空列表不作为有效缓存返回，
-    避免网络错误或上游异常被误缓存后持续阻断后续任务。
+    ``None`` 은 캐시 미스를 뜻하며 원격 API 를 호출해야 한다. 빈 목록은 유효한 캐시로
+    반환하지 않는다. 네트워크 오류나 상위 서비스 이상이 잘못 캐시되어 이후 작업을 계속
+    막는 것을 피하기 위해서다.
     """
     if str(provider).strip().lower() == "coverr":
-        # Coverr 的下载地址包含绑定 API Key 的签名 JWT。它只用于当前请求，
-        # 不能进入磁盘缓存；查询相同条件时顺带删除旧版本可能留下的缓存。
+        # Coverr 의 다운로드 주소에는 API 키에 묶인 서명 JWT 가 들어 있다. 이 주소는 현재
+        # 요청에만 쓰이며 디스크 캐시에 들어가서는 안 된다. 같은 조건을 조회할 때 예전
+        # 버전이 남겼을 수 있는 캐시도 함께 지운다.
         try:
             _remove_invalid_cache(
                 _cache_path(
@@ -219,8 +224,9 @@ def load_material_search_cache(
             video_aspect=video_aspect,
         )
     except Exception as exc:
-        # 缓存目录创建、路径解析等异常不能阻断远端素材搜索。这里保留完整异常
-        # 类型和信息，便于定位权限或挂载问题，同时按缓存未命中继续主流程。
+        # 캐시 디렉터리 생성이나 경로 해석 예외가 원격 소재 검색을 막아서는 안 된다. 여기서는
+        # 예외 종류와 정보를 온전히 남겨 권한이나 마운트 문제를 짚기 쉽게 하면서, 캐시
+        # 미스로 간주하고 주 흐름을 이어 간다.
         logger.warning(
             "failed to prepare material search cache: "
             f"operation=read, error={type(exc).__name__}, detail={exc}"
@@ -239,8 +245,9 @@ def load_material_search_cache(
 
     current_time = time.time() if now is None else now
     cache_age = current_time - stat_result.st_mtime
-    # 系统时间回拨或文件从其它机器复制后，mtime 可能落在未来。此时不能把
-    # 缓存长期视为新鲜数据，直接失效并重新请求远端更可靠。
+    # 시스템 시각이 되돌아갔거나 파일을 다른 머신에서 복사해 오면 mtime 이 미래일 수 있다.
+    # 이때 캐시를 오래도록 신선한 데이터로 취급해서는 안 되며, 바로 무효화하고 원격을
+    # 다시 호출하는 편이 더 안전하다.
     if cache_age < 0 or cache_age >= MATERIAL_SEARCH_CACHE_TTL_SECONDS:
         _remove_invalid_cache(cache_path)
         return None
@@ -309,11 +316,12 @@ def save_material_search_cache(
     items: Iterable[MaterialInfo],
 ) -> bool:
     """
-    原子保存一次成功的非空素材搜索结果。
+    성공한 비어 있지 않은 소재 검색 결과를 원자적으로 저장한다.
 
-    多个任务可能并发搜索相同关键词。先写入同目录唯一临时文件，再通过
-    ``os.replace`` 发布，可以保证读进程只会看到完整旧文件或完整新文件；
-    即使两个写进程同时完成，最终内容也都是同一缓存键对应的合法结果。
+    여러 작업이 같은 키워드를 동시에 검색할 수 있다. 같은 디렉터리의 고유 임시 파일에 먼저
+    쓴 뒤 ``os.replace`` 로 게시하면, 읽는 프로세스는 온전한 예전 파일이거나 온전한 새 파일만
+    보게 된다. 쓰는 프로세스 둘이 동시에 끝나더라도 최종 내용은 같은 캐시 키에 대응하는
+    올바른 결과다.
     """
     if str(provider).strip().lower() == "coverr":
         return False
@@ -386,11 +394,11 @@ def cleanup_expired_material_search_cache(
     force: bool = False,
 ) -> int:
     """
-    低频清理没有再次被查询到的过期搜索缓存。
+    다시 조회되지 않은 만료 검색 캐시를 낮은 빈도로 정리한다.
 
-    正常写入路径每小时最多扫描一次目录，避免每次搜索都产生线性目录遍历；
-    ``force`` 仅供测试或显式维护调用。只删除 SHA-256 命名的 JSON 文件，不会
-    触碰用户放入目录的其它文件。
+    정상 쓰기 경로는 디렉터리를 시간당 최대 한 번만 스캔해, 검색할 때마다 선형 디렉터리
+    순회가 발생하지 않게 한다. ``force`` 는 테스트나 명시적 유지보수 호출 전용이다.
+    SHA-256 이름의 JSON 파일만 삭제하며, 사용자가 디렉터리에 넣어 둔 다른 파일은 건드리지 않는다.
     """
     global _last_cleanup_monotonic
 

@@ -8,7 +8,7 @@ from app.services import cache_manager
 
 
 class TestVideoCacheManager(unittest.TestCase):
-    """验证缓存管理只处理受控文件，并按元数据完成轻量统计与清理。"""
+    """캐시 관리가 통제된 파일만 다루고, 메타데이터 기반으로 가벼운 통계와 정리를 하는지 검증한다."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -32,7 +32,7 @@ class TestVideoCacheManager(unittest.TestCase):
 
     def test_stats_only_include_managed_top_level_regular_files(self):
         """
-        未知文件、嵌套文件和符号链接可能属于用户，不能进入容量统计或清理候选。
+        알 수 없는 파일, 중첩된 파일, 심볼릭 링크는 사용자의 것일 수 있으므로 용량 집계나 정리 후보에 들어가서는 안 된다.
         """
         now = 2_000_000_000.0
         self._create_cache_file("a" * 32, 10, now - 40 * 86400)
@@ -46,7 +46,7 @@ class TestVideoCacheManager(unittest.TestCase):
         try:
             symlink_path.symlink_to(self.cache_dir / "personal.mp4")
         except (OSError, NotImplementedError):
-            # Windows 未开启开发者模式时创建符号链接可能没有权限，不影响其余断言。
+            # Windows 에서 개발자 모드를 켜지 않으면 심볼릭 링크 생성 권한이 없을 수 있다. 나머지 단언에는 영향을 주지 않는다.
             pass
 
         with patch.object(cache_manager.time, "time", return_value=now):

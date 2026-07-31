@@ -22,7 +22,7 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 
 
 def _load_duration_estimator():
-    """只加载纯估算函数，避免单元测试导入并执行完整 Streamlit 页面。"""
+    """순수 추정 함수만 로딩한다. 단위 테스트가 Streamlit 페이지 전체를 import 하고 실행하지 않게 하기 위해서다."""
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     function = next(
         node
@@ -37,7 +37,7 @@ def _load_duration_estimator():
 
 
 def _load_provider_signature(test_config):
-    """加载凭证摘要和 Provider 指纹函数，独立验证缓存失效规则。"""
+    """자격 증명 요약값과 Provider 지문 함수를 로딩해 캐시 무효화 규칙을 따로 검증한다."""
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     functions = [
         node
@@ -64,9 +64,9 @@ def _button_by_key(app, key):
 
 
 def test_duration_estimator_is_local_and_respects_voice_rate():
-    """本地估算应覆盖中英文，并随用户选择的语速合理缩短。"""
+    """로컬 추정은 한국어와 영어를 모두 덮고, 사용자가 고른 속도에 따라 합리적으로 짧아져야 한다."""
     estimate = _load_duration_estimator()
-    script = "人工智能正在改变日常生活。它可以帮助我们整理信息，也能提高效率。"
+    script = "인공지능이 일상을 바꾸고 있습니다. 정보를 정리해 주고 효율도 높여 줍니다."
 
     normal_range = estimate(script, 1.0)
     fast_range = estimate(script, 2.0)
@@ -80,7 +80,7 @@ def test_duration_estimator_is_local_and_respects_voice_rate():
 
 
 def test_provider_signature_changes_when_api_key_changes():
-    """只修改 API Key 也必须让试听缓存失效，不能伪装成新凭证验证成功。"""
+    """API 키만 바꿔도 미리듣기 캐시가 무효화돼야 하며, 새 자격 증명이 검증된 것처럼 위장해서는 안 된다."""
     test_config = SimpleNamespace(
         app={"gemini_api_key": "old-gemini", "mimo_api_key": "old-mimo"},
         azure={"speech_region": "eastasia", "speech_key": "old-azure"},
@@ -104,7 +104,7 @@ def test_provider_signature_changes_when_api_key_changes():
 
 
 def test_full_voiceover_preview_is_disabled_until_script_exists():
-    """完整预览必须由用户主动触发，文案为空时不能误调用商业 TTS。"""
+    """전체 미리보기는 사용자가 직접 눌러야 시작되며, 대본이 비어 있을 때 유료 TTS 를 잘못 호출해서는 안 된다."""
     test_ui = dict(
         config.ui,
         voice_mode="tts",
@@ -116,7 +116,7 @@ def test_full_voiceover_preview_is_disabled_until_script_exists():
         patch.object(config, "save_config"),
     ):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
-        app.session_state["ui_language"] = "zh"
+        app.session_state["ui_language"] = "ko"
         app.run()
 
     full_preview = _button_by_key(
@@ -124,11 +124,11 @@ def test_full_voiceover_preview_is_disabled_until_script_exists():
         "generate_full_voiceover_preview_button",
     )
     assert full_preview.disabled
-    assert any("填写视频文案后" in item.value for item in app.caption)
+    assert any("영상 대본을 입력하세요" in item.value for item in app.caption)
 
 
 def test_script_shows_estimate_and_enables_full_voiceover_preview():
-    """填写文案后展示免费估算，并明确完整预览可能产生 API 成本。"""
+    """대본을 입력하면 무료 추정을 보여 주고, 전체 미리보기에 API 비용이 발생할 수 있음을 분명히 알린다."""
     test_ui = dict(
         config.ui,
         voice_mode="tts",
@@ -140,9 +140,9 @@ def test_script_shows_estimate_and_enables_full_voiceover_preview():
         patch.object(config, "save_config"),
     ):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
-        app.session_state["ui_language"] = "zh"
+        app.session_state["ui_language"] = "ko"
         app.session_state["video_script"] = (
-            "人工智能正在改变日常生活。合理使用工具，可以帮助我们提高工作效率。"
+            "인공지능이 일상을 바꾸고 있습니다. 도구를 잘 쓰면 업무 효율을 높일 수 있습니다."
         )
         app.run()
 
@@ -151,14 +151,14 @@ def test_script_shows_estimate_and_enables_full_voiceover_preview():
         "generate_full_voiceover_preview_button",
     )
     assert not full_preview.disabled
-    assert any("本地估算，不调用 API" in item.value for item in app.caption)
-    assert "可能消耗 API 额度" in full_preview.help
+    assert any("로컬 추정값, API 호출 없음" in item.value for item in app.caption)
+    assert "API 사용량이 발생할 수 있습니다" in full_preview.help
     assert [str(item.value) for item in app.exception] == []
 
 
 def test_full_preview_uses_script_and_reuses_identical_cached_audio():
-    """完整试听使用当前文案，相同参数重复点击时不得再次调用 TTS。"""
-    script = "这是一段用于验证完整配音预览缓存的测试文案。"
+    """전체 미리듣기는 현재 대본을 쓰며, 같은 파라미터로 다시 눌러도 TTS 를 재호출해서는 안 된다."""
+    script = "전체 나레이션 미리보기 캐시를 검증하기 위한 테스트 대본입니다."
     test_ui = dict(
         config.ui,
         voice_mode="tts",
@@ -167,8 +167,8 @@ def test_full_preview_uses_script_and_reuses_identical_cached_audio():
     )
 
     def fake_tts(**kwargs):
-        # 文件扩展名虽然是 mp3，但真实 TTS 可能返回 WAV；这个最小文件头同时
-        # 验证 WebUI 会按内容识别播放器 MIME，而不是盲信扩展名。
+        # 확장자는 mp3 지만 실제 TTS 는 WAV 를 반환할 수 있다. 이 최소 파일 헤더로 WebUI 가 확장자를
+        # 맹신하지 않고 내용으로 플레이어 MIME 를 판별하는지도 함께 검증한다.
         Path(kwargs["voice_file"]).write_bytes(
             b"RIFF\x24\x00\x00\x00WAVEfmt " + b"\x00" * 32
         )
@@ -181,7 +181,7 @@ def test_full_preview_uses_script_and_reuses_identical_cached_audio():
         patch.object(voice, "get_audio_duration", return_value=12.3),
     ):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
-        app.session_state["ui_language"] = "zh"
+        app.session_state["ui_language"] = "ko"
         app.session_state["video_script"] = script
         app.run()
 
@@ -197,12 +197,12 @@ def test_full_preview_uses_script_and_reuses_identical_cached_audio():
     synthesize.assert_called_once()
     assert synthesize.call_args.kwargs["text"] == script
     assert len(app.get("audio")) == 1
-    assert any("实际配音时长：12.3 秒" in item.value for item in app.caption)
+    assert any("실제 나레이션 길이: 12.3초" in item.value for item in app.caption)
     assert [str(item.value) for item in app.exception] == []
 
 
 def test_full_preview_reports_when_tts_returns_no_audio():
-    """TTS 返回空结果时必须给出可操作提示，不能让按钮点击后无任何反馈。"""
+    """TTS 가 빈 결과를 반환하면 실행 가능한 안내를 줘야 하며, 버튼을 눌러도 아무 반응이 없어서는 안 된다."""
     test_ui = dict(
         config.ui,
         voice_mode="tts",
@@ -215,8 +215,8 @@ def test_full_preview_reports_when_tts_returns_no_audio():
         patch.object(voice, "tts", return_value=None),
     ):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
-        app.session_state["ui_language"] = "zh"
-        app.session_state["video_script"] = "验证配音服务空响应。"
+        app.session_state["ui_language"] = "ko"
+        app.session_state["video_script"] = "나레이션 서비스의 빈 응답을 검증합니다."
         app.run()
         _button_by_key(
             app,
@@ -224,13 +224,13 @@ def test_full_preview_reports_when_tts_returns_no_audio():
         ).click().run()
 
     assert [item.value for item in app.error] == [
-        "配音服务未返回试听音频，请检查相关设置和应用日志。"
+        "TTS 서비스가 미리듣기 오디오를 반환하지 않았습니다. 서비스 설정과 애플리케이션 로그를 확인하세요."
     ]
     assert [str(item.value) for item in app.exception] == []
 
 
 def test_full_preview_returns_immediately_when_runtime_config_is_busy():
-    """后台任务持有配置锁时，试听应提示稍后重试而不是阻塞页面。"""
+    """백그라운드 작업이 설정 락을 쥐고 있으면, 미리듣기는 페이지를 막지 말고 잠시 후 다시 시도하라고 안내해야 한다."""
     test_ui = dict(
         config.ui,
         voice_mode="tts",
@@ -248,8 +248,8 @@ def test_full_preview_returns_immediately_when_runtime_config_is_busy():
         patch.object(voice, "tts") as synthesize,
     ):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
-        app.session_state["ui_language"] = "zh"
-        app.session_state["video_script"] = "验证忙碌状态不会阻塞页面。"
+        app.session_state["ui_language"] = "ko"
+        app.session_state["video_script"] = "사용 중 상태가 페이지를 막지 않는지 검증합니다."
         app.run()
         _button_by_key(
             app,
@@ -258,11 +258,11 @@ def test_full_preview_returns_immediately_when_runtime_config_is_busy():
 
     synthesize.assert_not_called()
     warning_messages = [item.value for item in app.warning]
-    assert "当前有视频任务正在使用配音配置，请稍后重试。" in warning_messages
+    assert "현재 영상 작업이 음성 설정을 사용 중입니다. 잠시 후 다시 시도하세요." in warning_messages
 
 
 def test_full_preview_warns_when_audio_duration_is_unavailable():
-    """音频可播放但无法解码时长时，不能把 0.0 秒展示为真实结果。"""
+    """오디오는 재생되지만 길이를 디코딩할 수 없을 때, 0.0 초를 실제 결과로 보여 줘서는 안 된다."""
     test_ui = dict(
         config.ui,
         voice_mode="tts",
@@ -283,8 +283,8 @@ def test_full_preview_warns_when_audio_duration_is_unavailable():
         patch.object(voice, "get_audio_duration", return_value=0),
     ):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
-        app.session_state["ui_language"] = "zh"
-        app.session_state["video_script"] = "验证无法读取试听音频时长的提示。"
+        app.session_state["ui_language"] = "ko"
+        app.session_state["video_script"] = "미리듣기 오디오 길이를 읽지 못할 때의 안내를 검증합니다."
         app.run()
         _button_by_key(
             app,
@@ -293,17 +293,17 @@ def test_full_preview_warns_when_audio_duration_is_unavailable():
 
     assert len(app.get("audio")) == 1
     warning_messages = [item.value for item in app.warning]
-    assert "试听音频已生成，但无法读取准确时长，请检查应用日志。" in warning_messages
+    assert "미리듣기 오디오는 생성되었지만 길이를 읽지 못했습니다. 애플리케이션 로그를 확인하세요." in warning_messages
 
 
 def test_task_reuses_matching_full_preview_without_calling_tts():
-    """参数完全一致时，正式任务应复用试听音频和字幕时间轴。"""
+    """파라미터가 완전히 같으면 정식 작업이 미리듣기 오디오와 자막 타임라인을 재사용해야 한다."""
     task_id = "reuse-full-voice-preview"
     task_dir = Path(utils.task_dir(task_id))
     audio_file = task_dir / "audio.mp3"
     audio_file.write_bytes(b"preview audio")
     sub_maker = object()
-    script = "完整试听和正式任务使用同一段文案。"
+    script = "전체 미리듣기와 정식 작업이 같은 대본을 씁니다."
     params = VideoParams(
         video_subject="preview reuse",
         video_script=script,
@@ -337,12 +337,12 @@ def test_task_reuses_matching_full_preview_without_calling_tts():
 
 
 def test_task_regenerates_audio_when_preview_parameters_changed():
-    """文案或配音参数变化后必须回退 TTS，不能复用已经过期的完整试听。"""
+    """대본이나 나레이션 파라미터가 바뀌면 TTS 로 되돌아가야 하며, 만료된 전체 미리듣기를 재사용해서는 안 된다."""
     task_id = "stale-full-voice-preview"
     task_dir = Path(utils.task_dir(task_id))
     audio_file = task_dir / "audio.mp3"
     audio_file.write_bytes(b"stale preview audio")
-    script = "正式任务需要使用新的语速重新生成配音。"
+    script = "정식 작업은 새 말하기 속도로 나레이션을 다시 만들어야 합니다."
     params = VideoParams(
         video_subject="stale preview",
         video_script=script,
@@ -385,12 +385,12 @@ def test_task_regenerates_audio_when_preview_parameters_changed():
 
 
 def test_non_default_volume_regenerates_audio_without_double_gain():
-    """非默认音量必须回退原流程，避免 TTS 与视频合成阶段重复应用增益。"""
+    """기본값이 아닌 음량은 원래 흐름으로 되돌려, TTS 와 영상 합성 단계에서 게인이 중복 적용되는 것을 막아야 한다."""
     task_id = "voice-volume-forwarding"
     task_dir = Path(utils.task_dir(task_id))
     audio_file = task_dir / "audio.mp3"
     audio_file.write_bytes(b"preview with provider-side volume")
-    script = "非默认音量需要按原流程生成配音。"
+    script = "기본값이 아닌 음량은 원래 흐름대로 나레이션을 만들어야 합니다."
     params = VideoParams(
         video_subject="voice volume",
         video_script=script,
@@ -429,7 +429,7 @@ def test_non_default_volume_regenerates_audio_without_double_gain():
 
 
 def test_webui_worker_forwards_voice_preview_to_pipeline():
-    """后台任务包装层不能丢失提交时已经校验过的试听缓存。"""
+    """백그라운드 작업 래퍼는 제출 시점에 이미 검증된 미리듣기 캐시를 잃어버려서는 안 된다."""
     preview = {"audio_file": "audio.mp3", "duration": 5.0}
     with (
         patch.object(webui_task.tm, "start", return_value={"videos": []}) as start,

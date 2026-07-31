@@ -6,7 +6,7 @@ DEFAULT_LLM_PROVIDER_ID = "moonshot"
 
 @dataclass(frozen=True, slots=True)
 class LLMProviderField:
-    """描述 Provider 除 API Key、Base URL、模型名之外的额外配置字段。"""
+    """Provider 가 API Key, Base URL, 모델명 외에 추가로 갖는 설정 필드를 기술한다."""
 
     config_suffix: str
     label_key: str
@@ -18,11 +18,12 @@ class LLMProviderField:
 @dataclass(frozen=True, slots=True)
 class LLMProviderSpec:
     """
-    LLM Provider 的集中声明。
+    LLM Provider 의 중앙 선언.
 
-    这里集中保存跨 WebUI、配置加载和服务调用都会使用的稳定元数据，包括默认
-    展示名称和 locale key，但不保存具体翻译文案，也不实现 API 请求。这样
-    Provider 的“是什么”由 Registry 维护，“怎么调用”仍由服务层适配器负责。
+    WebUI, 설정 로딩, 서비스 호출이 모두 사용하는 안정적인 메타데이터를 한곳에 모아 둔다.
+    기본 표시 이름과 locale key 는 포함하지만, 실제 번역 문구는 담지 않고 API 요청도
+    구현하지 않는다. 이렇게 해서 Provider 가 '무엇인지' 는 Registry 가 관리하고,
+    '어떻게 호출하는지' 는 서비스 계층 어댑터가 계속 책임진다.
     """
 
     provider_id: str
@@ -52,14 +53,14 @@ class LLMProviderSpec:
         return f"{self.provider_id}_{suffix}"
 
     def resolve_model_name(self, configured_model: str | None) -> str:
-        """将空值或已废弃的历史默认值统一解析为当前默认模型。"""
+        """빈 값이나 폐기된 예전 기본값을 현재 기본 모델로 일괄 해석한다."""
         model_name = (configured_model or "").strip()
         if not model_name or model_name in self.deprecated_models:
             return self.default_model
         return model_name
 
     def resolve_base_url(self, configured_base_url: str | None) -> str:
-        """解析 Base URL，并将已经停用的历史地址迁移到当前默认值。"""
+        """Base URL 을 해석하고, 더 이상 쓰지 않는 예전 주소를 현재 기본값으로 이전한다."""
         base_url = (configured_base_url or "").strip()
         deprecated_urls = {url.rstrip("/") for url in self.deprecated_base_urls}
         if not base_url or base_url.rstrip("/") in deprecated_urls:
@@ -67,11 +68,11 @@ class LLMProviderSpec:
         return base_url
 
 
-# 元组顺序就是 WebUI 下拉框顺序。新增普通 OpenAI-compatible Provider 时，
-# 通常只需要在这里增加一项并补充 locale；只有协议不同的 Provider 才需要在
-# app/services/llm.py 中增加对应 adapter 实现。
+# 튜플 순서가 곧 WebUI 드롭다운 순서다. 일반적인 OpenAI 호환 Provider 를 추가할 때는
+# 보통 여기에 항목 하나를 넣고 locale 만 채우면 된다. 프로토콜이 다른 Provider 만
+# app/services/llm.py 에 대응 adapter 구현을 추가하면 된다.
 LLM_PROVIDER_REGISTRY = (
-    # 推荐 Provider
+    # 추천 Provider
     LLMProviderSpec(
         "moonshot",
         "Kimi / Moonshot AI",
@@ -79,7 +80,7 @@ LLM_PROVIDER_REGISTRY = (
         default_model="kimi-k3",
         default_base_url="https://api.moonshot.cn/v1",
     ),
-    # 主流模型原厂与云厂商
+    # 주요 모델 원 제조사 및 클라우드 사업자
     LLMProviderSpec(
         "openai",
         "OpenAI",
@@ -157,7 +158,7 @@ LLM_PROVIDER_REGISTRY = (
         default_model="mimo-v2.5-pro",
         default_base_url="https://api.xiaomimimo.com/v1",
     ),
-    # 聚合与统一接入平台
+    # 집계 및 통합 접속 플랫폼
     LLMProviderSpec(
         "cloudflare",
         "Cloudflare AI Gateway",
@@ -205,7 +206,7 @@ LLM_PROVIDER_REGISTRY = (
         default_model="gpt-5.5",
         default_base_url="https://direct.evolink.ai/v1",
     ),
-    # 本地部署与通用网关
+    # 로컬 배포 및 범용 게이트웨이
     LLMProviderSpec(
         "ollama",
         "Ollama",
@@ -227,7 +228,7 @@ LLM_PROVIDER_REGISTRY = (
         show_api_key=False,
         show_base_url=False,
     ),
-    # 其它推理与公共服务
+    # 기타 추론 및 공용 서비스
     LLMProviderSpec(
         "groq",
         "Groq",
@@ -258,10 +259,11 @@ def get_llm_provider(provider_id: str) -> LLMProviderSpec | None:
 
 def normalize_provider_override(value: str | None, default_value: str | None) -> str:
     """
-    只保留与 Registry 默认值不同的用户覆盖值。
+    Registry 기본값과 다른 사용자 재정의 값만 남긴다.
 
-    WebUI 需要把默认值展示在输入框中，但不能因此把默认值固化到 config.toml；
-    否则后续升级 Registry 默认模型或地址时，旧配置会继续覆盖新默认值。
+    WebUI 는 기본값을 입력란에 보여 줘야 하지만, 그렇다고 기본값을 config.toml 에
+    고정해서는 안 된다. 그러면 나중에 Registry 의 기본 모델이나 주소를 올릴 때
+    예전 설정이 새 기본값을 계속 덮어쓰게 된다.
     """
     normalized_value = (value or "").strip()
     normalized_default = (default_value or "").strip()

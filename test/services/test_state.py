@@ -118,7 +118,7 @@ class TestMemoryState(unittest.TestCase):
         self.assertEqual(len(tasks), total)
 
     def test_patch_task_preserves_generated_outputs(self):
-        """异步发布更新不能覆盖已经完成的视频任务字段。"""
+        """비동기 업로드 갱신이 이미 완료된 영상 작업 필드를 덮어써서는 안 된다."""
         state = MemoryState()
         state.update_task(
             "task-1",
@@ -163,11 +163,11 @@ class TestRedisState(unittest.TestCase):
 
     def test_get_all_tasks_paginates_across_scan_batches(self):
         """
-        Redis SCAN 分批返回 key 时，分页切片必须按当前批次起始位置计算。
+        Redis SCAN 이 key 를 배치로 반환할 때, 페이지 슬라이스는 현재 배치의 시작 위치를 기준으로 계산해야 한다.
 
-        这个用例复现 PR #890 描述的 18 条任务、page_size=10 场景：
-        第一批 10 条，第二批 8 条。旧逻辑第一页会返回空列表，第二页
-        只返回 2 条；修复后第一页返回 10 条，第二页返回剩余 8 条。
+        이 케이스는 PR #890 이 설명한 작업 18 개, page_size=10 상황을 재현한다.
+        첫 배치 10 개, 두 번째 배치 8 개다. 예전 로직은 첫 페이지에서 빈 목록을, 두 번째 페이지에서
+        2 개만 반환했다. 수정 후에는 첫 페이지가 10 개를, 두 번째 페이지가 나머지 8 개를 반환한다.
         """
         state = self._build_state([10, 8])
 
@@ -194,7 +194,7 @@ class TestRedisState(unittest.TestCase):
         "MPT_TEST_REDIS_HOST not set",
     )
     def test_real_redis_get_all_tasks_ignores_queue_keys(self):
-        """真实 Redis 中的 List 队列不能被任务列表误当作 Hash 读取。"""
+        """실제 Redis 의 List 대기열을 작업 목록이 Hash 로 잘못 읽어서는 안 된다."""
         state = RedisState(
             host=os.environ["MPT_TEST_REDIS_HOST"],
             port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
@@ -242,7 +242,7 @@ class TestRedisState(unittest.TestCase):
         "MPT_TEST_REDIS_HOST not set",
     )
     def test_real_redis_patch_and_delete_are_atomic(self):
-        """真实 Redis 中并发删除和局部更新不能重新创建残缺任务。"""
+        """실제 Redis 에서 동시 삭제와 부분 갱신이 불완전한 작업을 다시 만들어서는 안 된다."""
         state = RedisState(
             host=os.environ["MPT_TEST_REDIS_HOST"],
             port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
@@ -269,8 +269,8 @@ class TestRedisState(unittest.TestCase):
                 barrier.wait()
                 state.delete_task(task_id)
 
-            # Future.result() 会把工作线程异常重新抛到测试线程，避免 Redis
-            # 命令实际失败但仅打印线程异常、最终仍被误判为测试通过。
+            # Future.result() 는 작업 스레드의 예외를 테스트 스레드로 다시 던진다. Redis 명령이 실제로
+            # 실패했는데 스레드 예외만 출력되고 테스트가 통과한 것으로 오판되는 일을 막기 위해서다.
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [
                     executor.submit(patch_task),

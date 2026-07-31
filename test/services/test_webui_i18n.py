@@ -12,7 +12,7 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
 TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
-SECONDARY_LOCALES = ("de", "es", "id", "pt", "ru", "tr", "vi")
+SECONDARY_LOCALES = ("de", "es", "id", "ko", "pt", "ru", "tr", "vi")
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
@@ -43,17 +43,17 @@ def _load_translation(locale):
 
 
 def _required_translation_keys(translations):
-    """返回二级语言必须维护的 key，Provider 长说明统一回退英文。"""
+    """보조 언어가 반드시 관리해야 하는 key 를 반환한다. Provider 의 긴 설명은 영어로 되돌린다."""
     return {key for key in translations if not key.startswith(PROVIDER_TIPS_PREFIXES)}
 
 
 def _format_placeholders(value):
-    """提取运行时格式化变量，防止翻译遗漏或误改变量名。"""
+    """런타임 서식 변수를 뽑아내, 번역에서 빠뜨리거나 변수명을 잘못 바꾸는 것을 막는다."""
     return set(FORMAT_PLACEHOLDER_PATTERN.findall(value))
 
 
 def _markdown_urls(value):
-    """提取 Markdown 链接目标，允许翻译链接文字但不允许改坏地址。"""
+    """Markdown 링크 대상을 뽑아낸다. 링크 문구는 번역해도 되지만 주소를 망가뜨려서는 안 된다."""
     return set(MARKDOWN_URL_PATTERN.findall(value))
 
 
@@ -105,8 +105,8 @@ class TestWebuiI18n(unittest.TestCase):
                 self.assertEqual(sorted(required_en_keys - locale_keys), [])
 
     def test_secondary_locales_do_not_duplicate_provider_tips(self):
-        # Provider 配置长说明只维护中英文，其它语言运行时回退英文。
-        # 禁止复制这些 key，避免出现不会持续维护的半翻译内容。
+        # Provider 설정의 긴 설명은 중국어와 영어만 관리하고, 다른 언어는 런타임에 영어로 되돌린다.
+        # 이 key 들을 복사하는 것은 금지한다. 계속 관리되지 않는 반쯤 번역된 내용이 생기는 것을 막기 위해서다.
         for locale in SECONDARY_LOCALES:
             with self.subTest(locale=locale):
                 locale_keys = set(_load_translation(locale))

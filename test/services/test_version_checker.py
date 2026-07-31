@@ -12,7 +12,7 @@ from app.services import version_checker
 
 
 class TestVersionChecker(unittest.TestCase):
-    """验证版本比较和 GitHub 检查异常不会影响主流程。"""
+    """버전 비교와 GitHub 확인 예외가 주 흐름에 영향을 주지 않는지 검증한다."""
 
     @staticmethod
     def _response(tag_name):
@@ -89,7 +89,7 @@ class TestVersionChecker(unittest.TestCase):
 
 
 class TestAsyncUpdateChecker(unittest.TestCase):
-    """验证后台检查不会阻塞调用方，并且能够复用缓存结果。"""
+    """백그라운드 확인이 호출자를 막지 않고 캐시 결과를 재사용할 수 있는지 검증한다."""
 
     @staticmethod
     def _wait_for_completion(checker, current_version="1.3.2"):
@@ -184,7 +184,7 @@ class TestAsyncUpdateChecker(unittest.TestCase):
 
 
 class TestProjectVersionMetadata(unittest.TestCase):
-    """防止发布时运行时版本与 Python 项目元数据不一致。"""
+    """배포 시 런타임 버전과 Python 프로젝트 메타데이터가 어긋나는 것을 막는다."""
 
     def test_runtime_version_matches_pyproject(self):
         project_root = Path(__file__).resolve().parents[2]

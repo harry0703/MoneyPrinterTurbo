@@ -21,11 +21,12 @@ _api_key_lock = threading.Lock()
 
 def _safe_public_url(value: Any) -> str | None:
     """
-    只保留可公开展示的 HTTP(S) 页面地址，并移除查询参数和凭据。
+    공개적으로 보여 줄 수 있는 HTTP(S) 페이지 주소만 남기고, 쿼리 파라미터와 자격 증명을 제거한다.
 
-    素材下载地址可能携带 API Key、签名 JWT 或临时 token。任务清单只需要
-    帮助用户回到供应商的公开素材页，不应保存鉴权参数；用户信息形式的 URL
-    同样拒绝，避免 ``https://user:pass@example.com`` 一类内容落盘。
+    소재 다운로드 주소에는 API 키, 서명 JWT, 임시 토큰이 붙어 있을 수 있다. 작업 매니페스트는
+    사용자가 제공자의 공개 소재 페이지로 돌아갈 수 있게만 하면 되므로 인증 파라미터를 저장해서는
+    안 된다. 사용자 정보가 들어간 형태의 URL 도 거부해 ``https://user:pass@example.com`` 같은
+    내용이 디스크에 남지 않게 한다.
     """
     if not isinstance(value, str) or not value.strip():
         return None
@@ -45,7 +46,7 @@ def _safe_public_url(value: Any) -> str | None:
 
 
 def _creator_info(value: Any) -> dict[str, str] | None:
-    """从不同供应商的作者结构中提取统一的公开字段。"""
+    """제공자마다 다른 작성자 구조에서 통일된 공개 필드를 뽑아낸다."""
     if isinstance(value, str) and value.strip():
         return {"name": value.strip()}
     if not isinstance(value, dict):
@@ -68,11 +69,12 @@ def _creator_info(value: Any) -> dict[str, str] | None:
 
 def _material_source_record(item: MaterialInfo, local_path: str) -> dict[str, Any]:
     """
-    为成功下载的素材生成轻量来源记录。
+    성공적으로 내려받은 소재에 대해 가벼운 출처 기록을 만든다.
 
-    ``source_info`` 可能来自缓存，甚至来自外部构造的 ``MaterialInfo``，因此
-    不能原样写入。这里按白名单重新构造，只保留公开页面、业务标识和尺寸，
-    并只记录本地文件名，避免用户目录或 Docker 挂载路径进入任务文件。
+    ``source_info`` 는 캐시에서 왔을 수도 있고 외부에서 만든 ``MaterialInfo`` 에서 왔을 수도
+    있으므로 그대로 써서는 안 된다. 여기서 화이트리스트로 다시 구성해 공개 페이지, 업무 식별자,
+    크기만 남기고 로컬 파일명만 기록한다. 사용자 디렉터리나 Docker 마운트 경로가 작업 파일에
+    들어가지 않게 하기 위해서다.
     """
     source = item.source_info if isinstance(item.source_info, dict) else {}
     record: dict[str, Any] = {
@@ -112,11 +114,12 @@ def _persist_material_sources(
     material_sources: list[dict[str, Any]],
 ) -> None:
     """
-    将当前实际下载成功的素材来源补充到任务清单。
+    이번에 실제로 내려받는 데 성공한 소재의 출처를 작업 매니페스트에 덧붙인다.
 
-    任务记录是辅助能力，不能改变视频下载函数的返回值，也不能因为写盘失败
-    中断成片主流程。``patch_script_data`` 会负责原子替换和异常日志；这里仅在
-    成功后记录数量，便于确认任务追溯信息是否已经落盘。
+    작업 기록은 보조 기능이므로 영상 다운로드 함수의 반환값을 바꿔서는 안 되고, 디스크 쓰기
+    실패 때문에 결과물 생성 주 흐름을 끊어서도 안 된다. 원자적 교체와 예외 로그는
+    ``patch_script_data`` 가 담당한다. 여기서는 성공한 뒤 개수만 기록해, 작업 추적 정보가
+    저장됐는지 확인할 수 있게 한다.
     """
     try:
         saved = task_artifacts.patch_script_data(
@@ -129,8 +132,9 @@ def _persist_material_sources(
                 f"task_id={task_id}, count={len(material_sources)}"
             )
     except Exception as exc:
-        # task_artifacts 自身已经按失败降级设计，这里仍保留最后一道隔离，
-        # 防止未来实现调整或目录解析异常意外影响素材下载返回值。
+        # task_artifacts 자체가 실패 시 기능을 낮추도록 설계되어 있지만, 여기에 마지막 격리를
+        # 한 겹 더 둔다. 나중에 구현이 바뀌거나 디렉터리 해석에 예외가 났을 때 소재 다운로드
+        # 반환값이 뜻하지 않게 영향을 받지 않게 하기 위해서다.
         logger.warning(
             "failed to persist material source records: "
             f"task_id={task_id}, error={type(exc).__name__}, detail={exc}"
@@ -138,9 +142,9 @@ def _persist_material_sources(
 
 
 def _get_tls_verify() -> bool:
-    # 默认开启 TLS 证书校验，防止素材搜索和下载过程被中间人篡改。
-    # 仅在企业代理、自签证书等明确需要的场景下，允许用户通过
-    # `config.toml` 显式设置 `tls_verify = false` 临时关闭。
+    # TLS 인증서 검증은 기본으로 켠다. 소재 검색과 다운로드 과정이 중간자 공격으로 변조되는
+    # 것을 막기 위해서다. 사내 프록시나 자체 서명 인증서처럼 분명히 필요한 경우에만
+    # 사용자가 `config.toml` 에서 `tls_verify = false` 를 명시해 임시로 끌 수 있다.
     tls_verify = config.app.get("tls_verify", True)
     if isinstance(tls_verify, str):
         tls_verify = tls_verify.strip().lower() not in ("0", "false", "no", "off")
@@ -174,11 +178,11 @@ def get_api_key(cfg_key: str):
 
 def _redact_secret(message: str, secret: str) -> str:
     """
-    对即将写入日志的异常文本做最小范围脱敏。
+    로그에 쓰기 직전의 예외 텍스트를 최소 범위로 마스킹한다.
 
-    requests 的连接异常可能包含完整请求 URL，而 Pixabay API Key 通过查询
-    参数传递。这里同时替换原始值和 URL 编码值，既保留网络错误信息用于排查，
-    又避免密钥进入日志文件。
+    requests 의 연결 예외에는 전체 요청 URL 이 들어 있을 수 있고, Pixabay API 키는 쿼리
+    파라미터로 전달된다. 여기서 원래 값과 URL 인코딩된 값을 함께 치환해, 원인 파악에 필요한
+    네트워크 오류 정보는 남기면서 키가 로그 파일에 들어가지 않게 한다.
     """
     safe_message = str(message)
     if not secret:
@@ -193,10 +197,11 @@ def _redact_secret(message: str, secret: str) -> str:
 
 def _redact_request_error(error: Exception, *secrets: str) -> str:
     """
-    保留网络异常的可排查信息，同时移除 API Key 和代理凭据。
+    네트워크 예외에서 원인 파악에 필요한 정보는 남기고, API 키와 프록시 자격 증명은 제거한다.
 
-    直接只记录异常类型会丢失 DNS、证书、超时等关键上下文；直接记录原始异常
-    又可能回显完整请求 URL。统一入口可以让三个素材供应商使用相同脱敏规则。
+    예외 종류만 기록하면 DNS, 인증서, 타임아웃 같은 핵심 맥락을 잃는다. 반대로 원본 예외를
+    그대로 기록하면 전체 요청 URL 이 그대로 드러날 수 있다. 진입점을 하나로 모으면 소재
+    제공자 세 곳이 같은 마스킹 규칙을 쓰게 된다.
     """
     safe_message = str(error)
     for secret in secrets:
@@ -208,11 +213,11 @@ def _redact_request_error(error: Exception, *secrets: str) -> str:
 
 def _is_cloudflare_challenge(response: requests.Response) -> bool:
     """
-    识别 Cloudflare 返回的 HTML Challenge，而不是把它当成 Pixabay JSON。
+    Cloudflare 가 반환한 HTML Challenge 를 Pixabay JSON 으로 오인하지 않고 식별한다.
 
-    Cloudflare 通常会设置 `cf-mitigated: challenge`；部分部署只返回带有
-    "Just a moment" 或 challenge-platform 的 HTML，因此保留内容特征兜底。
-    响应正文仅在内存中判断，不写入日志，避免记录无价值的大段 HTML。
+    Cloudflare 는 보통 `cf-mitigated: challenge` 를 설정한다. 일부 배포는 "Just a moment" 나
+    challenge-platform 이 들어간 HTML 만 반환하므로, 내용 특징으로도 판정하는 대비책을 남긴다.
+    응답 본문은 메모리에서만 판정하고 로그에는 쓰지 않아, 가치 없는 긴 HTML 을 기록하지 않는다.
     """
     headers = getattr(response, "headers", {}) or {}
     if str(headers.get("cf-mitigated", "")).lower() == "challenge":
@@ -234,11 +239,12 @@ def _matches_video_aspect(
     is_vertical: Any = None,
 ) -> bool:
     """
-    判断远端素材是否与目标画面方向一致。
+    원격 소재가 목표 화면 방향과 맞는지 판정한다.
 
-    Pexels、Pixabay 和 Coverr 的响应字段并不统一，因此先使用宽高做可靠判断；
-    Coverr 部分历史响应缺少尺寸时，再使用明确的 ``is_vertical`` 布尔值兜底。
-    无法确认方向的素材直接跳过，避免竖屏任务混入横屏素材并在成片中产生黑边。
+    Pexels, Pixabay, Coverr 는 응답 필드가 통일되어 있지 않으므로 먼저 폭과 높이로 안정적으로
+    판정한다. Coverr 의 일부 예전 응답에 크기가 없을 때는 명시적인 ``is_vertical`` 불리언 값을
+    대비책으로 쓴다. 방향을 확인할 수 없는 소재는 건너뛴다. 세로 작업에 가로 소재가 섞여
+    결과물에 검은 여백이 생기는 것을 막기 위해서다.
     """
     aspect = VideoAspect(video_aspect)
     try:
@@ -265,16 +271,18 @@ def _filter_materials_by_aspect(
     video_aspect: VideoAspect,
 ) -> List[MaterialInfo]:
     """
-    对缓存结果再次校验方向。
+    캐시 결과의 방향을 한 번 더 검증한다.
 
-    素材搜索缓存最长保留 24 小时，升级前写入的缓存可能包含方向不匹配的素材。
-    在统一缓存入口过滤可以让修复立即生效，也能防御第三方 Provider 或旧缓存
-    遗漏远端筛选。无法读取 rendition 尺寸的旧条目按未验证处理并跳过。
+    소재 검색 캐시는 최대 24 시간 유지되므로, 업그레이드 전에 쓰인 캐시에는 방향이 맞지 않는
+    소재가 들어 있을 수 있다. 캐시 진입점에서 걸러 내면 수정이 곧바로 적용되고, 외부 Provider
+    나 예전 캐시가 원격 필터링을 놓친 경우도 방어할 수 있다. rendition 크기를 읽을 수 없는
+    예전 항목은 미검증으로 보고 건너뛴다.
     """
     aspect = VideoAspect(video_aspect)
     if aspect == VideoAspect.square:
-        # Pixabay 和 Coverr 很少提供原生方形素材。方形输出沿用既有行为，
-        # 接受可用候选并交给视频合成阶段裁剪，避免升级后 1:1 任务无素材。
+        # Pixabay 와 Coverr 는 원본이 정사각형인 소재를 거의 제공하지 않는다. 정사각형 출력은
+        # 기존 동작을 그대로 따라 사용 가능한 후보를 받아들이고 영상 합성 단계에서 자른다.
+        # 업그레이드 후 1:1 작업에 소재가 하나도 없어지는 것을 막기 위해서다.
         return list(items)
 
     filtered_items = []
@@ -457,8 +465,9 @@ def search_videos_pixabay(
                     h = int(video["height"])
                 except (KeyError, TypeError, ValueError):
                     continue
-                # Pixabay 很少返回原生方形视频；1:1 输出继续接受满足分辨率的
-                # 候选并由合成阶段裁剪。横竖屏则必须严格匹配目标方向。
+                # Pixabay 는 원본이 정사각형인 영상을 거의 반환하지 않는다. 1:1 출력은 해상도를
+                # 만족하는 후보를 계속 받아들이고 합성 단계에서 자른다. 가로·세로는 목표 방향과
+                # 엄격하게 일치해야 한다.
                 orientation_matches = aspect == VideoAspect.square or (
                     _matches_video_aspect(w, h, aspect)
                 )
@@ -509,18 +518,18 @@ def search_videos_coverr(
     subject to Coverr license terms (https://coverr.co/license).
 
     Coverr API notes (based on official docs at api.coverr.co/docs/):
-      - 鉴权: Authorization: Bearer <api_key>
-      - 搜索端点: GET /videos?query=...,响应结构 {"hits": [...], ...}
-      - 加 ?urls=true 在搜索响应里直接返回 mp4 直链
-      - URL 是 signed JWT(绑定 API key,无过期时间)
-      - Coverr 支持通过 filter=is_vertical:true/false 筛选横竖屏素材；
-        响应返回后仍根据 max_width/max_height 或 is_vertical 做本地校验
-      - duration 字段同时存在 number 和 string 两种形态,本函数都接受
+      - 인증: Authorization: Bearer <api_key>
+      - 검색 엔드포인트: GET /videos?query=..., 응답 구조 {"hits": [...], ...}
+      - ?urls=true 를 붙이면 검색 응답에서 mp4 직접 링크를 바로 돌려준다
+      - URL 은 서명된 JWT (API key 에 묶이며 만료 시간 없음)
+      - Coverr 는 filter=is_vertical:true/false 로 가로·세로 소재를 걸러 낼 수 있다.
+        응답을 받은 뒤에도 max_width/max_height 또는 is_vertical 로 로컬 검증을 한다
+      - duration 필드는 number 와 string 두 형태로 모두 올 수 있으며, 이 함수는 둘 다 받는다
 
-    本函数使用 urls.mp4_download 字段作为下载地址 —— 按 Coverr 官方文档
-    (https://api.coverr.co/docs/videos/#download-a-video) 的说法,
-    GET 这个 URL 本身就被 Coverr 当作一次合法的 download 事件计入统计,
-    无需再调用 PATCH /videos/:id/stats/downloads。
+    이 함수는 urls.mp4_download 필드를 다운로드 주소로 쓴다. Coverr 공식 문서
+    (https://api.coverr.co/docs/videos/#download-a-video) 에 따르면 이 URL 로 GET 하는 것
+    자체가 Coverr 에서 정상적인 download 이벤트로 집계되므로,
+    PATCH /videos/:id/stats/downloads 를 따로 호출할 필요가 없다.
     """
     aspect = VideoAspect(video_aspect)
     api_key = get_api_key("coverr_api_keys")
@@ -531,8 +540,9 @@ def search_videos_coverr(
         "urls": "true",
         "sort": "popular",
     }
-    # 服务端方向筛选可以直接从完整搜索结果中返回目标素材，避免先取热门结果再
-    # 本地过滤导致竖屏候选为空。方形素材没有对应布尔条件，继续依赖本地宽高校验。
+    # 서버 측 방향 필터링을 쓰면 전체 검색 결과에서 목표 소재를 바로 받아 올 수 있다. 인기
+    # 결과를 먼저 받아 로컬에서 거르다가 세로 후보가 하나도 남지 않는 상황을 피할 수 있다.
+    # 정사각형 소재에는 대응하는 불리언 조건이 없어 계속 로컬 폭·높이 검증에 의존한다.
     if aspect == VideoAspect.portrait:
         params["filter"] = "is_vertical:true"
     elif aspect == VideoAspect.landscape:
@@ -556,7 +566,7 @@ def search_videos_coverr(
             return video_items
 
         for v in response["hits"]:
-            # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
+            # duration 은 응답에 따라 number(11.625) 일 수도 string("10.500000") 일 수도 있다
             try:
                 duration = int(float(v.get("duration") or 0))
             except (TypeError, ValueError):
@@ -671,11 +681,12 @@ def _search_videos_with_cache(
     video_aspect: VideoAspect,
 ) -> List[MaterialInfo]:
     """
-    统一处理三个在线素材源的 24 小时搜索缓存。
+    온라인 소재 제공자 세 곳의 24 시간 검색 캐시를 한곳에서 처리한다.
 
-    缓存只包裹搜索 API，不改变后续视频下载与去重逻辑。远端返回空列表时不写
-    缓存，因为现有 provider 接口使用空列表同时表示“没有结果”和“请求失败”；
-    在两者尚未拆分为明确结果类型前，宁可下次重试，也不能把临时故障缓存一天。
+    캐시는 검색 API 만 감싸며 이후 영상 다운로드와 중복 제거 로직은 바꾸지 않는다. 원격이 빈
+    목록을 반환하면 캐시에 쓰지 않는다. 현재 provider 인터페이스는 빈 목록으로 '결과 없음' 과
+    '요청 실패' 를 함께 나타내기 때문이다. 둘을 명확한 결과 타입으로 나누기 전까지는, 다음에
+    다시 시도할지언정 일시적 장애를 하루 동안 캐시해서는 안 된다.
     """
     cache_args = {
         "provider": provider,
@@ -688,8 +699,8 @@ def _search_videos_with_cache(
         try:
             return material_cache.load_material_search_cache(**cache_args)
         except Exception as exc:
-            # 缓存是可选优化，任何缓存实现异常都必须按未命中处理，不能阻断
-            # Pexels、Pixabay 或 Coverr 的正常远端搜索。
+            # 캐시는 선택적 최적화이므로, 캐시 구현에서 나는 어떤 예외든 미스로 처리해야 하며
+            # Pexels, Pixabay, Coverr 의 정상적인 원격 검색을 막아서는 안 된다.
             logger.warning(
                 "material search cache read failed, continue with remote search: "
                 f"provider={provider}, error={type(exc).__name__}, detail={exc}"
@@ -707,8 +718,9 @@ def _search_videos_with_cache(
         )
         ignored_count = len(cached_items) - len(filtered_cached_items)
         if ignored_count:
-            # 旧版本缓存可能混入其它方向的素材。即使仍有少量可用条目，也要刷新
-            # 完整候选集，否则在缓存有效期内会反复使用同一批少量视频。
+            # 예전 버전 캐시에는 다른 방향의 소재가 섞여 있을 수 있다. 쓸 만한 항목이 조금
+            # 남아 있더라도 후보 집합 전체를 새로 받아야 한다. 그러지 않으면 캐시 유효 기간
+            # 동안 같은 소수의 영상만 반복해서 쓰게 된다.
             return None, ignored_count
         return filtered_cached_items, 0
 
@@ -724,8 +736,9 @@ def _search_videos_with_cache(
 
     cache_lock = material_cache.get_material_search_cache_lock(**cache_args)
     with cache_lock:
-        # 等待相同搜索条件的线程完成后再次读取，避免多个 API 任务在首次缓存
-        # 未命中时同时请求远端，降低第三方接口限流和风控触发概率。
+        # 같은 검색 조건의 스레드가 끝나기를 기다렸다가 다시 읽는다. 첫 캐시 미스 때 여러 API
+        # 작업이 동시에 원격을 호출하는 것을 막아, 외부 엔드포인트의 요청 제한이나 위험 탐지가
+        # 걸릴 확률을 낮춘다.
         cached_items, _ = load_matching_cache()
         if cached_items is not None:
             return cached_items
@@ -735,9 +748,10 @@ def _search_videos_with_cache(
             minimum_duration=minimum_duration,
             video_aspect=video_aspect,
         )
-        # Provider 正常会写入当前关键词，但测试替身、第三方扩展或旧实现可能
-        # 遗漏或携带错误值。缓存读取会根据缓存键恢复该字段，因此远端结果也在
-        # 同一入口校正，保证首次搜索与缓存命中的任务来源记录保持一致。
+        # Provider 는 보통 현재 키워드를 기록하지만, 테스트 대역이나 외부 확장, 예전 구현은
+        # 이를 빠뜨리거나 잘못된 값을 넣을 수 있다. 캐시를 읽을 때는 캐시 키로 이 필드를
+        # 복원하므로, 원격 결과도 같은 진입점에서 바로잡아 첫 검색과 캐시 적중의 작업 출처
+        # 기록이 일치하도록 한다.
         for item in items:
             if isinstance(item.source_info, dict):
                 item.source_info = dict(item.source_info)
@@ -851,8 +865,9 @@ def download_videos(
                         _material_source_record(item, saved_video_path)
                     )
                 except Exception as source_error:
-                    # 来源记录异常不能把已经成功下载的素材视为下载失败，更不能
-                    # 阻断视频生成；保留供应商和异常类型用于后续定位。
+                    # 출처 기록에서 난 예외가 이미 성공적으로 내려받은 소재를 다운로드 실패로
+                    # 만들어서는 안 되고, 영상 생성을 막아서도 안 된다. 나중에 원인을 짚을 수
+                    # 있게 제공자와 예외 종류는 남긴다.
                     logger.warning(
                         "failed to prepare material source record: "
                         f"provider={item.provider}, "
@@ -886,13 +901,14 @@ def _download_videos_by_script_order(
     material_directory: str,
 ) -> List[str]:
     """
-    按脚本文案顺序下载素材。
+    대본 순서에 맞춰 소재를 내려받는다.
 
-    默认下载逻辑会把所有关键词的候选素材合并成一个大列表；如果第一个
-    关键词返回很多结果，最终下载时可能一直消耗这个关键词的素材，后续
-    脚本主题就排不上时间线。这里按关键词分组后轮询下载：
-    第 1 轮取每个关键词的第 1 个候选，第 2 轮取每个关键词的第 2 个候选。
-    这样在不重写视频合成引擎的前提下，尽量保证素材顺序贴近文案顺序。
+    기본 다운로드 로직은 모든 키워드의 후보 소재를 하나의 큰 목록으로 합친다. 첫 번째
+    키워드가 많은 결과를 반환하면 다운로드가 그 키워드의 소재만 계속 소비해, 뒤쪽 대본
+    주제가 타임라인에 오르지 못할 수 있다. 여기서는 키워드별로 묶은 뒤 번갈아 내려받는다.
+    1 라운드에서는 각 키워드의 첫 번째 후보를, 2 라운드에서는 각 키워드의 두 번째 후보를
+    가져온다. 이렇게 하면 영상 합성 엔진을 다시 쓰지 않고도 소재 순서를 대본 순서에 최대한
+    가깝게 맞출 수 있다.
     """
     logger.info("downloading videos with script-order material matching")
     candidate_groups = []

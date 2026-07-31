@@ -36,7 +36,7 @@ class BaseState(ABC):
 
     @abstractmethod
     def patch_task(self, task_id: str, **kwargs) -> bool:
-        """只更新已有任务的指定字段；任务不存在时返回 False。"""
+        """이미 존재하는 작업의 지정 필드만 갱신한다. 작업이 없으면 False 를 반환한다."""
         pass
 
 
@@ -79,9 +79,9 @@ class MemoryState(BaseState):
             return copy.deepcopy(task) if task is not None else None
 
     def patch_task(self, task_id: str, **kwargs) -> bool:
-        # 异步发布只应补充发布状态，不能覆盖已经保存的视频、字幕等结果。
-        # 在同一把锁内完成存在性判断和字段合并，也可避免任务删除后
-        # 被后台线程重建。
+        # 비동기 업로드는 업로드 상태만 덧붙여야 하며, 이미 저장된 영상·자막 결과를
+        # 덮어써서는 안 된다. 존재 확인과 필드 병합을 같은 락 안에서 끝내면 작업이
+        # 삭제된 뒤 백그라운드 스레드가 다시 만들어 내는 것도 막을 수 있다.
         with self._lock:
             task = self._tasks.get(task_id)
             if task is None:
@@ -118,9 +118,9 @@ class RedisState(BaseState):
         cursor = 0
         total = 0
         while True:
-            # Redis 数据库中除了任务 Hash，还可能存在 RedisTaskManager 使用的
-            # List 队列。只扫描 Hash 可以避免对队列执行 HGETALL 时触发
-            # WRONGTYPE，同时保证 total 只统计真正的任务记录。
+            # Redis 데이터베이스에는 작업 Hash 말고도 RedisTaskManager 가 쓰는 List 대기열이
+            # 있을 수 있다. Hash 만 스캔하면 대기열에 HGETALL 을 실행해 WRONGTYPE 이 나는 것을
+            # 피하면서, total 이 실제 작업 레코드만 세도록 보장할 수 있다.
             cursor, keys = self._redis.scan(
                 cursor,
                 count=page_size,
@@ -130,9 +130,9 @@ class RedisState(BaseState):
             batch_size = len(keys)
             total += batch_size
 
-            # Redis SCAN 是分批返回 key。分页切片必须基于“当前批次起始索引”
-            # 计算，而不能用累积后的 total 反推，否则第一页会切到空数组，
-            # 第二页也可能只返回部分数据。
+            # Redis SCAN 은 key 를 배치 단위로 반환한다. 페이지 슬라이스는 반드시 '현재 배치의
+            # 시작 인덱스' 를 기준으로 계산해야 하며, 누적된 total 로 역산하면 첫 페이지가 빈
+            # 배열이 되고 두 번째 페이지도 일부 데이터만 반환될 수 있다.
             if batch_start < end and total > start:
                 slice_start = max(0, start - batch_start)
                 slice_end = min(batch_size, end - batch_start)
@@ -144,8 +144,8 @@ class RedisState(BaseState):
                     }
                     tasks.append(task)
 
-            # 即使当前页已经取满，也要继续 SCAN 到 cursor=0，
-            # 因为调用方需要准确 total 来渲染分页信息。
+            # 현재 페이지가 다 찼더라도 cursor=0 이 될 때까지 SCAN 을 계속해야 한다.
+            # 호출자가 페이지 정보를 그리려면 정확한 total 이 필요하기 때문이다.
             if cursor == 0:
                 break
         return tasks, total
@@ -190,9 +190,10 @@ class RedisState(BaseState):
         for field, value in kwargs.items():
             arguments.extend((field, str(value)))
 
-        # EXISTS 和 HSET 如果分成两条命令，后台发布线程与删除请求并发时，
-        # HSET 可能在删除后重新创建一条残缺任务。Lua 脚本由 Redis 原子执行，
-        # 可以保证任务不存在时不写入，且不会改变现有字段之外的数据。
+        # EXISTS 와 HSET 을 두 명령으로 나누면, 백그라운드 업로드 스레드와 삭제 요청이
+        # 동시에 들어올 때 HSET 이 삭제 뒤에 불완전한 작업을 다시 만들 수 있다. Lua 스크립트는
+        # Redis 가 원자적으로 실행하므로, 작업이 없으면 쓰지 않고 기존 필드 외의 데이터도
+        # 바꾸지 않는다.
         updated = self._redis.eval(
             _PATCH_EXISTING_TASK_SCRIPT,
             1,

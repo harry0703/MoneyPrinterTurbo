@@ -11,18 +11,22 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app.config import config
+from app.controllers import base
 from app.models.exception import HttpException
 from app.router import root_api_router
 from app.utils import utils
 
+TASK_ARTIFACT_MOUNT_PATH = "/tasks"
+
 
 @asynccontextmanager
 async def application_lifespan(_: FastAPI):
-    """集中处理 API 进程启动恢复和关闭日志。"""
+    """API 프로세스의 시작 시 복구와 종료 로그를 한곳에서 처리한다."""
     logger.info("startup event")
 
-    # 跨平台发布由当前进程线程池执行，不会在服务重启后恢复。启动时把 Redis
-    # 中确认已失去执行进程的活动状态收敛为失败，避免任务永久无法删除。
+    # 플랫폼 업로드는 현재 프로세스의 스레드 풀에서 실행되므로 서비스가 재시작되면
+    # 복구되지 않는다. 시작 시 Redis 에서 실행 프로세스를 잃은 것이 확실한 활성 상태를
+    # 실패로 수렴시켜, 작업이 영원히 삭제 불가능해지는 것을 막는다.
     from app.services import task as task_service
 
     task_service.recover_interrupted_cross_posts()
@@ -80,6 +84,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def _is_task_artifact_path(path: str) -> bool:
+    return path == TASK_ARTIFACT_MOUNT_PATH or path.startswith(
+        f"{TASK_ARTIFACT_MOUNT_PATH}/"
+    )
+
+
+@app.middleware("http")
+async def protect_task_artifacts(request: Request, call_next):
+    # /tasks 는 StaticFiles 마운트라 라우터의 인증 의존성이 걸리지 않는다. 같은 산출물을
+    # /api/v1/download 로 받을 때는 API Key 를 요구하므로, 정적 경로에도 동일한 키를
+    # 요구해야 한다. 그러지 않으면 작업 UUID 만 알면 인증 없이 영상·자막·오디오를
+    # 그대로 내려받을 수 있고, /api/v1/tasks 응답이 그 URL 을 직접 알려 준다.
+    # OPTIONS 는 본문을 반환하지 않는 preflight 이므로 CORS 처리에 넘긴다.
+    if _is_task_artifact_path(request.url.path) and request.method != "OPTIONS":
+        try:
+            base.verify_token(request)
+        except HttpException as exc:
+            return exception_handler(request, exc)
+    return await call_next(request)
+
 
 task_dir = utils.task_dir()
 app.mount(

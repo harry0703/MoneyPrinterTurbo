@@ -3,34 +3,40 @@
 # credentials in config.toml; do not commit your local config.toml.
 
 # =============================================================================
-# API Service / API 服务
+# API Service / API 서비스
 # =============================================================================
 # Log level: DEBUG, INFO, WARNING, or ERROR.
 log_level = "DEBUG"
 # Use 127.0.0.1 for local-only access. 0.0.0.0 listens on all network interfaces.
-listen_host = "0.0.0.0"
+# 로컬 전용이면 127.0.0.1 을 유지하세요. 0.0.0.0 은 모든 네트워크 인터페이스에서 접속을 허용합니다.
+listen_host = "127.0.0.1"
 listen_port = 8080
 
 [app]
 
 # -----------------------------------------------------------------------------
-# General / 通用设置
+# General / 일반 설정
 # -----------------------------------------------------------------------------
 
+# Shared secret required by every /api/v1 endpoint, sent as the x-api-key header.
+# 모든 /api/v1 엔드포인트가 x-api-key 헤더로 요구하는 공유 비밀키입니다.
+# 비워두면 API 요청이 전부 401 로 거부됩니다. WebUI 와 CLI 는 영향을 받지 않습니다.
+api_key = ""
+
 # Hide the basic configuration panel in the WebUI.
-# 是否隐藏 WebUI 基础配置面板。
+# WebUI 기본 설정 패널을 숨길지 여부.
 hide_config = false
 
 # Timeout in seconds for a single Edge TTS streaming request.
-# 单次 Edge TTS 流式请求超时时间。慢网络可适当调大，设置为 0 表示禁用超时。
+# Edge TTS 스트리밍 요청 1회당 타임아웃. 네트워크가 느리면 값을 늘리고, 0 이면 타임아웃을 끕니다.
 edge_tts_timeout = 30
 
 # Verify TLS certificates for external APIs and material downloads.
-# 默认应保持开启；仅在可信代理或自签名证书环境中临时关闭。
+# 기본값(켜짐)을 유지하세요. 신뢰할 수 있는 프록시나 자체 서명 인증서 환경에서만 임시로 끕니다.
 tls_verify = true
 
 # -----------------------------------------------------------------------------
-# Video Materials / 视频素材
+# Video Materials / 영상 소재
 # -----------------------------------------------------------------------------
 
 # Available values: "pexels", "pixabay", "coverr", "local".
@@ -38,7 +44,7 @@ video_source = "pexels"
 
 # API key lists support key rotation. Use straight ASCII double quotes and
 # separate multiple keys with commas, for example: ["key-1", "key-2"].
-# Key 必须使用英文半角双引号，多个 Key 使用英文逗号分隔。
+# 키는 반드시 영문 큰따옴표로 감싸고, 여러 개일 때는 영문 쉼표로 구분합니다.
 
 # Register at https://www.pexels.com/api/
 pexels_api_keys = []
@@ -61,7 +67,7 @@ twelvelabs_rerank_terms = false
 # twelvelabs_pegasus_model = "pegasus1.5"
 
 # Match search terms and downloaded materials to the script narrative order.
-# 默认关闭，开启后会减少随机性，使素材顺序更贴近文案结构。
+# 기본값은 꺼짐. 켜면 무작위성이 줄어들어 소재 순서가 대본 구조에 더 가까워집니다.
 match_materials_to_script = false
 
 # Optional Sonilo video-matched original background music.
@@ -69,11 +75,11 @@ match_materials_to_script = false
 # this value, or you can set the SONILO_API_KEY environment variable instead.
 sonilo_api_key = ""
 sonilo_base_url = "https://api.sonilo.com"
-# 单次生成流连续无数据时的最长等待秒数；它不是整个请求的总耗时上限。
+# 생성 스트림에서 데이터가 오지 않을 때 기다리는 최대 초. 요청 전체의 총 소요 시간 상한이 아닙니다.
 sonilo_timeout = 600
 
 # -----------------------------------------------------------------------------
-# LLM Providers / 大模型提供商
+# LLM Providers / LLM 제공자
 # -----------------------------------------------------------------------------
 
 # Provider definitions, default models, and default Base URLs are maintained in
@@ -202,12 +208,12 @@ pollinations_base_url = ""
 pollinations_model_name = ""
 
 # -----------------------------------------------------------------------------
-# Speech, Subtitles, and Video / 语音、字幕与视频
+# Speech, Subtitles, and Video / 음성·자막·영상
 # -----------------------------------------------------------------------------
 
 # Xiaomi MiMo TTS shares mimo_api_key and mimo_base_url with the MiMo LLM.
 mimo_tts_model_name = "mimo-v2.5-tts"
-mimo_tts_style_prompt = "请用自然、清晰、适合短视频旁白的语气朗读。"
+mimo_tts_style_prompt = "자연스럽고 또렷한, 숏폼 나레이션에 어울리는 톤으로 읽어 주세요."
 
 # Subtitle provider: "edge" or "whisper". Whisper is loaded only when selected
 # explicitly; Edge failures do not trigger an automatic Whisper model download.
@@ -226,7 +232,7 @@ subtitle_provider = "edge"
 # video_codec = "libx264"
 
 # -----------------------------------------------------------------------------
-# Storage and Task Runtime / 存储与任务运行
+# Storage and Task Runtime / 저장소 및 작업 실행
 # -----------------------------------------------------------------------------
 
 # Public base URL used to build generated video download links. Leave empty to
@@ -251,7 +257,7 @@ max_concurrent_tasks = 5
 max_queued_tasks = 100
 
 # -----------------------------------------------------------------------------
-# Cross-platform Publishing / 跨平台发布
+# Cross-platform Publishing / 플랫폼 자동 업로드
 # -----------------------------------------------------------------------------
 
 # Upload-Post can publish generated videos to TikTok, Instagram, and YouTube.
@@ -273,7 +279,7 @@ upload_post_youtube_privacy_status = "public"
 upload_post_max_pending_tasks = 10
 
 # =============================================================================
-# Whisper Subtitles / Whisper 字幕
+# Whisper Subtitles / Whisper 자막
 # =============================================================================
 
 [whisper]
@@ -286,7 +292,7 @@ device = "cpu"
 compute_type = "int8"
 
 # =============================================================================
-# Material Request Proxy / 素材请求代理
+# Material Request Proxy / 소재 요청 프록시
 # =============================================================================
 
 [proxy]
@@ -297,7 +303,7 @@ compute_type = "int8"
 # https = "http://127.0.0.1:1080"
 
 # =============================================================================
-# TTS Providers / 语音合成服务
+# TTS Providers / 음성 합성 서비스
 # =============================================================================
 
 [azure]
@@ -330,7 +336,7 @@ model_id = "chatterbox"
 voices = ["default-Female"]
 
 # =============================================================================
-# WebUI Preferences / WebUI 偏好
+# WebUI Preferences / WebUI 환경설정
 # =============================================================================
 
 [ui]
@@ -339,7 +345,7 @@ hide_log = false
 
 # The WebUI writes the remaining preferences automatically. Uncomment values
 # below only when you want to define initial defaults manually.
-# language = "zh"
+# language = "ko"
 # tts_server = "azure-tts-v1"
 # voice_name = ""
 # font_name = "MicrosoftYaHeiBold.ttc"

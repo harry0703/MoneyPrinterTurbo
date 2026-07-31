@@ -24,7 +24,7 @@ class _CliHelpFormatter(
     argparse.ArgumentDefaultsHelpFormatter,
     argparse.RawDescriptionHelpFormatter,
 ):
-    """在保留多行示例排版的同时，自动展示有意义的默认值。"""
+    """여러 줄 예시의 배치를 유지하면서, 의미 있는 기본값을 자동으로 보여 준다."""
 
     def _get_help_string(self, action):
         help_text = action.help or ""
@@ -86,7 +86,7 @@ def _hex_color(value: str) -> str:
 
 
 def _task_id(value: str) -> str:
-    """CLI 自定义任务标识只接受 UUID，避免该值被解释为文件系统路径。"""
+    """CLI 의 사용자 지정 작업 식별자는 UUID 만 받는다. 이 값이 파일 시스템 경로로 해석되지 않게 하기 위해서다."""
     try:
         return str(UUID(value.strip()))
     except (AttributeError, ValueError) as exc:
@@ -498,8 +498,8 @@ Output and exit status:
 
 
 def build_video_params(args: argparse.Namespace) -> VideoParams:
-    # 参数帮助和校验不需要加载应用配置。仅在真正构建任务参数时导入模型，
-    # 避免执行 ``cli.py -h`` 时产生配置初始化日志。
+    # 인자 도움말과 검증에는 애플리케이션 설정을 로딩할 필요가 없다. 작업 파라미터를 실제로
+    # 만들 때만 모델을 import 해, ``cli.py -h`` 를 실행할 때 설정 초기화 로그가 나오지 않게 한다.
     from app.models.schema import MaterialInfo, VideoParams
 
     video_terms = args.video_terms
@@ -579,12 +579,12 @@ def _resolve_cli_file(
     fallback_dir: str | None = None,
 ) -> str:
     """
-    将 CLI 文件参数按当前工作目录解析为绝对路径，
-    并在任务开始前确认存在。
+    CLI 파일 인자를 현재 작업 디렉터리 기준 절대 경로로 해석하고, 작업을 시작하기 전에
+    존재를 확인한다.
 
-    本地素材旧版本始终相对 ``storage/local_videos`` 解析。为兼容已有脚本，
-    当前目录找不到相对路径时允许回退该目录；绝对路径始终按用户输入
-    直接解析。
+    로컬 소재는 예전 버전에서 항상 ``storage/local_videos`` 기준으로 해석됐다. 기존 스크립트
+    호환을 위해 현재 디렉터리에서 상대 경로를 찾지 못하면 그 디렉터리로 되돌아가는 것을
+    허용한다. 절대 경로는 언제나 사용자 입력 그대로 해석한다.
     """
     expanded_path = os.path.expanduser(raw_path.strip())
     if not expanded_path:
@@ -610,7 +610,7 @@ def _path_is_within_directory(file_path: str, directory: str) -> bool:
             [os.path.realpath(directory), os.path.realpath(file_path)]
         ) == os.path.realpath(directory)
     except ValueError:
-        # Windows 不同盘符无法计算 commonpath，此时文件显然不在目标目录内。
+        # Windows 에서 드라이브 문자가 다르면 commonpath 를 계산할 수 없다. 이 경우 파일은 당연히 대상 디렉터리 밖이다.
         return False
 
 
@@ -620,7 +620,7 @@ def _resolve_managed_resource_file(
     resource_dir: str,
     description: str,
 ) -> str:
-    """解析项目资源文件，并确保绝对路径仍位于对应资源目录内。"""
+    """프로젝트 리소스 파일을 해석하고, 절대 경로가 해당 리소스 디렉터리 안에 남아 있도록 보장한다."""
     from app.utils import utils
 
     expanded_path = os.path.expanduser(raw_path.strip())
@@ -645,11 +645,13 @@ def _resolve_managed_resource_file(
 
 def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
     """
-    在调用 LLM/TTS 前准备 CLI 文件，避免长流程运行到后期才报告路径错误。
+    LLM/TTS 를 호출하기 전에 CLI 파일을 준비한다. 긴 흐름이 한참 진행된 뒤에야 경로 오류를
+    알리는 일을 막기 위해서다.
 
-    服务层为了保护 API 请求，只允许读取 ``storage/local_videos`` 内的素材。
-    CLI 是本地入口，接受当前目录相对路径和绝对路径。目录外素材会
-    复制到受控目录，再把参数替换为服务层可安全使用的绝对路径。
+    서비스 계층은 API 요청을 보호하려고 ``storage/local_videos`` 안의 소재만 읽도록 허용한다.
+    CLI 는 로컬 진입점이므로 현재 디렉터리 상대 경로와 절대 경로를 모두 받는다. 디렉터리 밖의
+    소재는 통제된 디렉터리로 복사한 뒤, 인자를 서비스 계층이 안전하게 쓸 수 있는 절대 경로로
+    바꾼다.
     """
     from app.models import const
     from app.services import bgm as bgm_service
@@ -677,20 +679,19 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
 
     if params.bgm_type == "custom":
         if not bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume):
-            # 0 音量时下游会统一跳过所有 BGM。这里同时清空文件参数，避免
-            # CLI 为一个不会被读取的文件执行路径解析、存在性检查或格式
-            # 校验。
+            # 음량이 0 이면 하위 단계에서 모든 BGM 을 건너뛴다. 여기서 파일 인자도 함께 비워,
+            # 읽히지도 않을 파일에 대해 CLI 가 경로 해석, 존재 확인, 형식 검증을 하지 않게 한다.
             params.bgm_file = ""
         elif not params.bgm_file:
-            # 缺少文件是否构成错误取决于通用 BGM 开关，不能在 argparse 阶段
-            # 无条件拦截，否则 ``custom + 0%`` 会和 WebUI、服务层行为不一致。
+            # 파일이 없는 것이 오류인지 여부는 공용 BGM 스위치에 달려 있다. argparse 단계에서
+            # 무조건 막으면 ``custom + 0%`` 가 WebUI 및 서비스 계층과 다르게 동작한다.
             raise ValueError("--bgm-file is required when --bgm-type is custom")
         else:
             try:
-                # CLI、WebUI 和任务服务必须共用同一个 BGM 文件边界。这里直接
-                # 复用服务层解析，既支持用户上传目录和内置歌曲目录，也
-                # 自动继承新增音频格式及路径安全规则，避免多个入口分别
-                # 维护白名单。
+                # CLI, WebUI, 작업 서비스는 같은 BGM 파일 경계를 공유해야 한다. 여기서 서비스
+                # 계층의 해석을 그대로 재사용하면 사용자 업로드 디렉터리와 내장 음원 디렉터리를
+                # 모두 지원하고, 새로 추가되는 오디오 형식과 경로 보안 규칙도 자동으로 물려받아
+                # 여러 진입점이 화이트리스트를 따로 관리하지 않아도 된다.
                 params.bgm_file = bgm_service.resolve_bgm_file(params.bgm_file)
             except ValueError as exc:
                 supported_extensions = ", ".join(
@@ -710,7 +711,7 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
         )
         if not font_path.lower().endswith((".ttf", ".ttc")):
             raise ValueError("subtitle font must use the .ttf or .ttc extension")
-        # 下游根据 resource/fonts 内的文件名拼接路径，因此仍保留纯文件名。
+        # 하위 단계가 resource/fonts 안의 파일명으로 경로를 이어 붙이므로 순수 파일명을 그대로 남긴다.
         params.font_name = os.path.basename(font_path)
 
     if params.video_source != "local" or stop_at not in {"materials", "video"}:
@@ -733,8 +734,8 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
             )
         resolved_materials.append((material, source_path, extension))
 
-    # 所有输入检查通过后再复制，避免第二个文件无效时留下第一个文件的
-    # 孤儿副本。
+    # 모든 입력 검사를 통과한 뒤에 복사한다. 두 번째 파일이 잘못됐을 때 첫 번째 파일의
+    # 고아 사본이 남지 않게 하기 위해서다.
     prepared_paths: dict[str, str] = {}
     for material, source_path, extension in resolved_materials:
         prepared_path = prepared_paths.get(source_path)
@@ -765,8 +766,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         logger.error(f"invalid CLI input: {exc}")
         return 2
 
-    # 帮助参数会在 parse_args 中直接退出。把业务服务延迟到这里导入，
-    # 保证 -h/--help 输出干净，同时不改变实际任务的初始化流程。
+    # 도움말 인자는 parse_args 에서 곧바로 종료된다. 업무 서비스를 여기까지 늦춰 import 해
+    # -h/--help 출력이 깔끔하게 유지되면서, 실제 작업의 초기화 흐름은 바뀌지 않게 한다.
     from app.services import task as tm
     from app.utils import utils
 

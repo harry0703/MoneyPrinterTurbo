@@ -36,7 +36,7 @@ oneapi_model_name = ""
 
 class TestMptAgentSkill(unittest.TestCase):
     def create_project(self, root: Path) -> None:
-        """创建足够完成安装和配置检查的最小项目结构。"""
+        """설치와 설정 확인을 마칠 수 있는 최소 프로젝트 구조를 만든다."""
         root.mkdir()
         (root / "cli.py").write_text("", encoding="utf-8")
         (root / "config.example.toml").write_text(
@@ -53,7 +53,7 @@ class TestMptAgentSkill(unittest.TestCase):
             return False
 
     def test_skill_runs_helper_from_its_working_directory(self):
-        """确保 Windows Agent 不会在命令中嵌入易被破坏的绝对路径。"""
+        """Windows Agent 가 깨지기 쉬운 절대 경로를 명령에 끼워 넣지 않는지 확인한다."""
         text = SKILL_DOCUMENT.read_text(encoding="utf-8")
 
         self.assertIn(
@@ -71,7 +71,7 @@ class TestMptAgentSkill(unittest.TestCase):
 
             with patch.dict(os.environ, {}, clear=True), redirect_stdout(output):
                 code = mpt_agent.main(
-                    ["--subject", "人工智能如何改变生活", "--root", str(root)]
+                    ["--subject", "AI가 일상을 어떻게 바꾸는가", "--root", str(root)]
                 )
 
             self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
@@ -313,7 +313,7 @@ class TestMptAgentSkill(unittest.TestCase):
             ):
                 videos, task_dir, log_path, result_path = mpt_agent.generate_video(
                     root,
-                    "测试主题",
+                    "테스트 주제",
                     ["--video-aspect", "16:9", "--stop-at", "script"],
                 )
 
@@ -330,7 +330,7 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertEqual(command[-2:], ["--stop-at", "video"])
 
     def test_generation_failure_prints_original_model_error(self):
-        """生成失败时保留模型原始错误，避免 Skill 层猜测供应商语义。"""
+        """생성이 실패하면 모델의 원래 오류를 남겨, Skill 계층이 제공자의 의미를 추측하지 않게 한다."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_id = "12345678-1234-1234-1234-123456789abc"
@@ -349,7 +349,7 @@ class TestMptAgentSkill(unittest.TestCase):
                 redirect_stderr(stderr),
                 self.assertRaises(mpt_agent.SkillError),
             ):
-                mpt_agent.generate_video(root, "测试主题", [])
+                mpt_agent.generate_video(root, "테스트 주제", [])
 
             self.assertIn(model_error, stderr.getvalue())
             result = json.loads(
