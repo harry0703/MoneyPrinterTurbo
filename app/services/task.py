@@ -273,6 +273,10 @@ def _mark_task_failed(task_id: str, stage: str, error: str) -> dict:
 
 def generate_script(task_id, params):
     logger.info("\n\n## generating video script")
+    # 알 수 없는 이름은 기본 스타일로 대체된다. 요청값을 그대로 두면 매니페스트에
+    # 쓰이지 않은 스타일이 기록돼, 나중에 같은 작업을 되살렸을 때 결과가 달라진다.
+    params.script_style = llm.resolve_script_style(params.script_style)
+
     video_script = params.video_script.strip()
     if not video_script:
         video_script = llm.generate_script(
@@ -281,6 +285,7 @@ def generate_script(task_id, params):
             paragraph_number=params.paragraph_number,
             video_script_prompt=params.video_script_prompt,
             custom_system_prompt=params.custom_system_prompt,
+            script_style=params.script_style,
         )
     else:
         logger.debug(f"video script: \n{video_script}")

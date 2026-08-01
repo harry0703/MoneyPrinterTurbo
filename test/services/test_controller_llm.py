@@ -18,6 +18,7 @@ class TestLlmController(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="Friendly tone",
             custom_system_prompt="Return narration only.",
+            script_style="story",
         )
 
         with patch.object(
@@ -37,6 +38,7 @@ class TestLlmController(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="Friendly tone",
             custom_system_prompt="Return narration only.",
+            script_style="story",
         )
 
     def test_generate_video_terms_forwards_order_matching_mode(self):

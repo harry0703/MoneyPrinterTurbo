@@ -11,6 +11,11 @@ from uuid import UUID, uuid4
 
 from loguru import logger
 
+# `llm.SCRIPT_STYLE_PROMPTS` 의 키와 같아야 한다. 여기서 직접 import 하지 않는 이유는
+# 이 파일이 app 패키지를 늦게 불러와 `-h` 출력이 무거워지지 않게 하기 때문이다.
+# 어긋나면 test_cli 가 잡는다.
+SCRIPT_STYLE_CHOICES = ("informative", "story")
+
 if TYPE_CHECKING:
     from app.models.schema import MaterialInfo, VideoParams
 
@@ -206,6 +211,12 @@ Output and exit status:
         "--custom-system-prompt",
         default=None,
         help="replace the default LLM system prompt for script generation",
+    )
+    content_group.add_argument(
+        "--script-style",
+        default=None,
+        choices=SCRIPT_STYLE_CHOICES,
+        help="which built-in system prompt to write the script with",
     )
 
     material_group = parser.add_argument_group("materials and pipeline")
@@ -536,6 +547,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "paragraph_number",
         "video_script_prompt",
         "custom_system_prompt",
+        "script_style",
         "video_concat_mode",
         "video_transition_mode",
         "video_clip_duration",

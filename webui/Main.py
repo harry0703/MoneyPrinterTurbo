@@ -239,6 +239,7 @@ def _initialize_session_state():
         "video_terms": "",
         "video_script_prompt": "",
         "custom_system_prompt": llm.DEFAULT_SCRIPT_SYSTEM_PROMPT,
+        "script_style": llm.DEFAULT_SCRIPT_STYLE,
         "match_materials_to_script": bool(
             config.app.get("match_materials_to_script", False)
         ),
@@ -902,9 +903,12 @@ def _apply_pending_task_restore():
     )
     st.session_state["paragraph_number_input"] = params.get("paragraph_number", 1)
     st.session_state["video_script_prompt"] = params.get("video_script_prompt") or ""
-    st.session_state["custom_system_prompt"] = (
-        params.get("custom_system_prompt") or llm.DEFAULT_SCRIPT_SYSTEM_PROMPT
-    )
+    script_style = params.get("script_style") or llm.DEFAULT_SCRIPT_STYLE
+    st.session_state["script_style"] = script_style
+    _set_stable_widget_value("script_style_select", script_style)
+    st.session_state["custom_system_prompt"] = params.get(
+        "custom_system_prompt"
+    ) or llm.script_style_prompt(script_style)
 
     # 영상 설정. 소재 업로드 위젯은 서버가 채울 수 없으므로 로컬 소재는 사용자가 다시 골라야 한다.
     video_source = params.get("video_source") or "pexels"
@@ -1572,8 +1576,15 @@ def sync_script_order_concat_mode():
 
 
 def reset_script_system_prompt():
-    """고급 대본 설정의 시스템 프롬프트를 현재 버전의 기본 내용으로 되돌린다."""
-    st.session_state["custom_system_prompt"] = llm.DEFAULT_SCRIPT_SYSTEM_PROMPT
+    """고급 대본 설정의 시스템 프롬프트를 현재 선택한 스타일의 기본 내용으로 되돌린다."""
+    # stable_selectbox 는 언어별 key 로 상태를 보관한다. 원래 key 로 읽으면 항상
+    # 비어 있어서, 어떤 스타일을 골라도 기본 프롬프트로 되돌아간다.
+    style = st.session_state.get(
+        localized_widget_key("script_style_select"),
+        st.session_state.get("script_style", llm.DEFAULT_SCRIPT_STYLE),
+    )
+    st.session_state["script_style"] = style
+    st.session_state["custom_system_prompt"] = llm.script_style_prompt(style)
 
 
 def reset_subtitle_settings():
@@ -2126,6 +2137,31 @@ def _render_script_settings(panel, params):
                         key="video_script_prompt",
                     ).strip()
 
+                    # 라벨은 위젯을 만들기 전에 확정한다. format_func 안에서 tr() 을 부르면
+                    # 화면 실행 밖에서 위젯 상태를 읽을 때 예외가 나고, 그러면 선택값이
+                    # 표시 라벨과 매칭되지 않는다.
+                    script_style_labels = {
+                        name: tr(f"Script Style {name}")
+                        for name in sorted(llm.SCRIPT_STYLE_PROMPTS)
+                    }
+                    # 위젯 key 에는 언어가 붙는다. 언어를 바꾸면 새 key 가 기본값으로
+                    # 시작해 고른 스타일이 사라지는데, 시스템 프롬프트는 그대로 남아
+                    # 화면 표시와 실제로 쓰이는 프롬프트가 어긋난다. 언어와 무관한
+                    # 정규 값을 따로 두고 위젯을 거기서 되살린다.
+                    params.script_style = stable_selectbox(
+                        tr("Script Style"),
+                        options=sorted(llm.SCRIPT_STYLE_PROMPTS),
+                        default_value=st.session_state.get(
+                            "script_style", llm.DEFAULT_SCRIPT_STYLE
+                        ),
+                        key="script_style_select",
+                        format_func=script_style_labels.__getitem__,
+                        # 스타일을 바꾸면 아래 프롬프트도 그 스타일의 기본값으로 따라간다.
+                        # 그러지 않으면 고른 스타일과 실제로 쓰이는 프롬프트가 어긋난다.
+                        on_change=reset_script_system_prompt,
+                    )
+                    st.session_state["script_style"] = params.script_style
+
                     system_prompt = st.text_area(
                         tr("Custom System Prompt"),
                         height=240,
@@ -2137,7 +2173,8 @@ def _render_script_settings(panel, params):
                     # 기본 규칙이 굳어 버리는 것을 막기 위해서다.
                     params.custom_system_prompt = (
                         ""
-                        if system_prompt == llm.DEFAULT_SCRIPT_SYSTEM_PROMPT.strip()
+                        if system_prompt
+                        == llm.script_style_prompt(params.script_style).strip()
                         else system_prompt
                     )
 
@@ -2163,6 +2200,7 @@ def _render_script_settings(panel, params):
                                 paragraph_number=params.paragraph_number,
                                 video_script_prompt=params.video_script_prompt,
                                 custom_system_prompt=params.custom_system_prompt,
+                                script_style=params.script_style,
                             )
                         )
 
@@ -2186,6 +2224,7 @@ def _render_script_settings(panel, params):
                                 paragraph_number=params.paragraph_number,
                                 video_script_prompt=params.video_script_prompt,
                                 custom_system_prompt=params.custom_system_prompt,
+                                script_style=params.script_style,
                             )
                             terms = llm.generate_terms(
                                 params.video_subject,

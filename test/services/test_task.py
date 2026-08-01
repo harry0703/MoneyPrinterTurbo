@@ -74,6 +74,7 @@ class TestTaskService(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="가벼운 톤으로",
             custom_system_prompt="Only write short narration.",
+            script_style="story",
         )
 
         with patch.object(tm.llm, "generate_script", return_value="생성된 대본") as generate:
@@ -86,6 +87,7 @@ class TestTaskService(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="가벼운 톤으로",
             custom_system_prompt="Only write short narration.",
+            script_style="story",
         )
 
     def test_generate_final_videos_forwards_clip_speed(self):

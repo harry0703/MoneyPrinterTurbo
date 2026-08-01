@@ -273,6 +273,9 @@
     "Please Enter the Coverr API Key": "**Coverr API 키**를 입력하세요",
     "Video Encoder": "영상 인코더",
     "Default Video Encoder": "기본값 (권장)",
-    "Video Encoder Help": "고급 옵션입니다. 기본값은 앱의 안정적인 인코더 정책(현재 libx264)을 따릅니다. 선택한 하드웨어 인코더를 사용할 수 없으면 자동으로 libx264로 대체됩니다."
+    "Video Encoder Help": "고급 옵션입니다. 기본값은 앱의 안정적인 인코더 정책(현재 libx264)을 따릅니다. 선택한 하드웨어 인코더를 사용할 수 없으면 자동으로 libx264로 대체됩니다.",
+    "Script Style": "대본 스타일",
+    "Script Style informative": "정보 전달",
+    "Script Style story": "스토리 (각색)"
   }
 }
