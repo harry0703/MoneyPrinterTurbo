@@ -1021,6 +1021,75 @@ class TestElevenLabsVoice(unittest.TestCase):
             if os.path.exists(out_path):
                 os.remove(out_path)
 
+        sent_payload = mock_post.call_args.kwargs.get("json", {})
+        self.assertEqual(sent_payload["text"], "Hello world")
+        self.assertAlmostEqual(
+            sent_payload["voice_settings"]["speed"], 1.0
+        )
+        # volume is intentionally not part of the ElevenLabs voice_settings contract
+        self.assertNotIn("volume", sent_payload)
+        self.assertNotIn("volume", sent_payload["voice_settings"])
+
+    @patch("app.services.voice.requests.post")
+    @patch("app.services.voice.AudioFileClip")
+    @patch("app.services.voice.config")
+    def test_elevenlabs_tts_speed_clamped_to_valid_range(
+        self, mock_config, mock_clip_cls, mock_post
+    ):
+        mock_config.elevenlabs.get.return_value = "fake-api-key"
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.content = b"fake-mp3-bytes"
+        mock_clip_cls.return_value.duration = 3.0
+        mock_clip_cls.return_value.close = lambda: None
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            out_path = f.name
+
+        try:
+            vs.elevenlabs_tts(
+                "Hello", "abc123", out_path, voice_rate=2.0
+            )
+            self.assertAlmostEqual(
+                mock_post.call_args.kwargs["json"]["voice_settings"]["speed"], 1.2
+            )
+
+            mock_post.reset_mock()
+            vs.elevenlabs_tts(
+                "Hello", "abc123", out_path, voice_rate=0.5
+            )
+            self.assertAlmostEqual(
+                mock_post.call_args.kwargs["json"]["voice_settings"]["speed"], 0.7
+            )
+        finally:
+            if os.path.exists(out_path):
+                os.remove(out_path)
+
+    @patch("app.services.voice.requests.post")
+    @patch("app.services.voice.AudioFileClip")
+    @patch("app.services.voice.config")
+    def test_elevenlabs_tts_invalid_rate_defaults_to_normal_speed(
+        self, mock_config, mock_clip_cls, mock_post
+    ):
+        mock_config.elevenlabs.get.return_value = "fake-api-key"
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.content = b"fake-mp3-bytes"
+        mock_clip_cls.return_value.duration = 3.0
+        mock_clip_cls.return_value.close = lambda: None
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            out_path = f.name
+
+        try:
+            vs.elevenlabs_tts(
+                "Hello", "abc123", out_path, voice_rate=None
+            )
+            self.assertAlmostEqual(
+                mock_post.call_args.kwargs["json"]["voice_settings"]["speed"], 1.0
+            )
+        finally:
+            if os.path.exists(out_path):
+                os.remove(out_path)
+
     @patch("app.services.voice.config")
     def test_elevenlabs_tts_no_api_key(self, mock_config):
         mock_config.elevenlabs.get.return_value = ""
