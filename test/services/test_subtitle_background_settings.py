@@ -430,12 +430,73 @@ class TestSubtitleFontFallback(unittest.TestCase):
         self.assertNotIn("0", sample)
 
     def test_missing_subtitle_file_keeps_the_selected_font(self):
-        """자막 파일을 읽을 수 없으면 판단 근거가 없으므로 선택을 바꾸지 않는다."""
-        resolved = video.resolve_subtitle_font(
+        """
+        자막 파일을 읽을 수 없으면 판단 근거가 없으므로 선택을 바꾸지 않는다.
+
+        같은 글꼴이 읽을 수 있는 한글 자막에서는 교체되는 것을 함께 확인한다.
+        그러지 않으면 resolver 가 항상 입력을 반환해도 이 테스트가 통과한다.
+        """
+        unreadable = video.resolve_subtitle_font(
             "MicrosoftYaHeiBold.ttc", "/nonexistent/subtitle.srt"
         )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            readable = video.resolve_subtitle_font(
+                "MicrosoftYaHeiBold.ttc", self._subtitle(tmp_dir, "한글 자막")
+            )
 
-        self.assertEqual(resolved, "MicrosoftYaHeiBold.ttc")
+        self.assertEqual(unreadable, "MicrosoftYaHeiBold.ttc")
+        self.assertNotEqual(readable, "MicrosoftYaHeiBold.ttc")
+
+    def test_srt_detection_keeps_dialogue_that_looks_like_metadata(self):
+        """
+        "-->" 를 포함하거나 숫자로만 된 줄도 실제 대사일 수 있다. 메타데이터를
+        느슨하게 걸러 내면 그 줄의 문자가 표본에서 사라져 글꼴 판정이 틀어진다.
+        """
+        srt = (
+            "1\n00:00:00,000 --> 00:00:02,000\n서울 --> 부산\n\n"
+            "2\n00:00:02,000 --> 00:00:04,000\n2024\n"
+        )
+        sample = video._subtitle_sample(srt)
+
+        self.assertIn("서", sample)
+        self.assertIn("부", sample)
+        self.assertIn("2", sample)
+        self.assertNotIn(":", sample)
+
+    def test_generate_video_uses_a_validated_font_path(self):
+        """
+        자막이 비어 교체 판정을 건너뛰면 검증되지 않은 이름이 그대로 내려간다.
+        경로를 만드는 지점에서 번들 밖 값을 막아야 한다.
+        """
+        source = (
+            Path(__file__).parent.parent.parent / "app" / "services" / "video.py"
+        ).read_text(encoding="utf-8")
+        target = next(
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef) and node.name == "generate_video"
+        )
+        called = {
+            node.func.id
+            for node in ast.walk(target)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+
+        self.assertIn("subtitle_font_path", called)
+
+    def test_font_path_rejects_names_outside_the_bundle(self):
+        """번들 밖을 가리키는 이름은 기본 글꼴로 되돌려야 한다."""
+        name, path = video.subtitle_font_path("../../etc/passwd")
+
+        self.assertEqual(name, video.DEFAULT_SUBTITLE_FONT)
+        self.assertTrue(path.endswith(video.DEFAULT_SUBTITLE_FONT))
+
+    def test_font_path_keeps_a_valid_bundled_name(self):
+        """정상 글꼴은 이름을 유지하고 실제 경로를 돌려준다."""
+        name, path = video.subtitle_font_path("MicrosoftYaHeiBold.ttc")
+
+        self.assertEqual(name, "MicrosoftYaHeiBold.ttc")
+        self.assertTrue(Path(path).is_file())
 
     def test_generate_video_applies_the_fallback(self):
         """

@@ -1,6 +1,7 @@
 import itertools
 import io
 import os
+import re
 import random
 import gc
 import subprocess
@@ -983,6 +984,12 @@ def _inspect_subtitle_font(font_path: str, sample: str) -> bool | None:
         return None
 
 
+# SRT 메타데이터만 정확히 걸러 낸다. "-->" 를 포함하거나 숫자로만 이뤄진 줄을
+# 통째로 버리면 "서울 --> 부산" 이나 "2024" 같은 실제 대사도 함께 사라진다.
+_SRT_TIMECODE_RE = re.compile(r"^\s*\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->")
+_SRT_INDEX_RE = re.compile(r"^\s*\d+\s*$")
+
+
 def _subtitle_sample(text: str, limit: int = 512) -> str:
     """
     글리프 검사에 쓸 고유 문자 표본을 뽑는다.
@@ -992,11 +999,18 @@ def _subtitle_sample(text: str, limit: int = 512) -> str:
     메타데이터 줄을 먼저 걷어 내고 문자와 숫자만 남긴다. 상한은 여러 언어가
     섞인 긴 대본도 덮을 만큼 넉넉히 둔다.
     """
-    lines = [
-        line
-        for line in str(text or "").splitlines()
-        if "-->" not in line and not line.strip().isdigit()
-    ]
+    raw_lines = str(text or "").splitlines()
+    lines = []
+    for index, line in enumerate(raw_lines):
+        if _SRT_TIMECODE_RE.match(line):
+            continue
+        # 순번 줄과 "2024" 같은 대사는 글자만 봐서는 같다. SRT 에서 순번 다음 줄은
+        # 반드시 타임코드이므로 그 위치로만 구분한다.
+        if _SRT_INDEX_RE.match(line):
+            following = raw_lines[index + 1] if index + 1 < len(raw_lines) else ""
+            if _SRT_TIMECODE_RE.match(following):
+                continue
+        lines.append(line)
     return "".join(
         dict.fromkeys(
             char
@@ -1042,15 +1056,20 @@ def _read_subtitle_text(subtitle_path: str) -> str:
 
 
 def _bundled_font_names() -> list[str]:
-    # WebUI 의 글꼴 목록은 os.walk 로 하위 디렉터리까지 훑는다. 여기서 최상위만 보면
-    # 사용자가 하위 폴더에 넣어 목록에는 뜨는 글꼴이 교체 후보에서 빠진다.
+    # WebUI 목록과 CLI 는 모두 파일명만 다루므로(하위 경로를 버린다) 후보도 최상위
+    # 파일로 제한한다. 하위 폴더 글꼴을 후보로 고르면 여기서는 동작해도 사용자가
+    # 같은 값을 화면에서 다시 선택할 수 없어 설정과 실제 동작이 어긋난다.
     font_dir = utils.font_dir()
-    names = []
-    for root, _dirs, files in os.walk(font_dir):
-        for name in files:
-            if name.lower().endswith((".ttf", ".ttc")):
-                names.append(os.path.relpath(os.path.join(root, name), font_dir))
-    return sorted(names)
+    try:
+        names = os.listdir(font_dir)
+    except OSError:
+        return []
+    return sorted(
+        name
+        for name in names
+        if name.lower().endswith((".ttf", ".ttc"))
+        and os.path.isfile(os.path.join(font_dir, name))
+    )
 
 
 def _font_path_within_bundle(font_name: str) -> str:
@@ -1064,6 +1083,25 @@ def _font_path_within_bundle(font_name: str) -> str:
         return file_security.resolve_path_within_directory(utils.font_dir(), font_name)
     except ValueError:
         return ""
+
+
+def subtitle_font_path(font_name: str) -> tuple[str, str]:
+    """
+    글꼴 이름을 번들 안의 실제 경로로 확정하고, ``(이름, 경로)`` 를 돌려준다.
+
+    이름을 그대로 join 하면 안 된다. ``font_name`` 은 API 파라미터로도 들어와
+    ``../`` 를 담을 수 있고, 자막이 비어 교체 판정을 건너뛴 경우에는 검증되지 않은
+    값이 그대로 내려온다. 번들 밖을 가리키면 기본 글꼴로 되돌린다.
+    """
+    resolved = _font_path_within_bundle(font_name)
+    if resolved:
+        return font_name, resolved
+
+    logger.warning(
+        f"subtitle font '{font_name}' is not inside the bundled font directory, "
+        f"falling back to '{DEFAULT_SUBTITLE_FONT}'"
+    )
+    return DEFAULT_SUBTITLE_FONT, _font_path_within_bundle(DEFAULT_SUBTITLE_FONT)
 
 
 def resolve_subtitle_font(font_name: str, subtitle_path: str) -> str:
@@ -1138,7 +1176,7 @@ def generate_video(
         if not params.font_name:
             params.font_name = DEFAULT_SUBTITLE_FONT
         params.font_name = resolve_subtitle_font(params.font_name, subtitle_path)
-        font_path = os.path.join(utils.font_dir(), params.font_name)
+        params.font_name, font_path = subtitle_font_path(params.font_name)
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
