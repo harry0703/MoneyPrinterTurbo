@@ -1296,6 +1296,17 @@ def elevenlabs_tts(
     if not model_id:
         model_id = config.elevenlabs.get("model_id", "eleven_multilingual_v2")
 
+    try:
+        speed = float(voice_rate)
+    except (TypeError, ValueError):
+        speed = 1.0
+    # ElevenLabs documents voice_settings.speed in [0.7, 1.2] (default 1.0).
+    # MoneyPrinterTurbo's voice_rate is a 1.0-centred multiplier, so it maps
+    # directly and is clamped to the valid range. voice_volume is accepted for
+    # parity with the other TTS providers but is intentionally not sent: the
+    # /v1/text-to-speech voice_settings contract has no volume field.
+    speed = max(0.7, min(1.2, speed))
+
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     headers = {
         "xi-api-key": api_key,
@@ -1309,6 +1320,7 @@ def elevenlabs_tts(
             "similarity_boost": 0.75,
             "style": 0.0,
             "use_speaker_boost": True,
+            "speed": speed,
         },
     }
 
