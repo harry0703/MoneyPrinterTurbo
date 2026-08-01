@@ -95,7 +95,7 @@ VOICE_MODE_NONE = "none"
 DEFAULT_VIDEO_CODEC_OPTION = "__default__"
 DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_enabled": True,
-    "font_name": "Pretendard-Bold.otf",
+    "font_name": "Pretendard-Bold.ttf",
     "subtitle_position": "bottom",
     "custom_position": 70.0,
     "text_fore_color": "#FFFFFF",
@@ -1192,7 +1192,10 @@ def get_all_fonts():
     # 짧은 주기 캐시를 쓰면 os.walk 가 연달아 반복되는 것을 피하면서, 글꼴을 추가해도 최대 30 초
     # 안에는 인식되도록 보장할 수 있다.
     fonts = []
+    # 하위 디렉터리는 훑지 않는다. 목록은 파일명만 돌려주고 선택값도 파일명으로
+    # 저장되므로, 하위 폴더 글꼴을 노출하면 사용자가 고른 뒤 경로 해석에서 실패한다.
     for root, dirs, files in os.walk(font_dir):
+        dirs.clear()
         for file in files:
             if file.endswith(".ttf") or file.endswith(".ttc"):
                 fonts.append(file)

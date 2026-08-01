@@ -1,6 +1,7 @@
 import itertools
 import io
 import os
+import re
 import random
 import gc
 import subprocess
@@ -950,8 +951,15 @@ def subtitle_colors_are_indistinguishable(params: VideoParams) -> bool:
 
 
 @lru_cache(maxsize=64)
-def _subtitle_font_supports_sample(font_path: str, sample: str) -> bool:
-    """글꼴이 예시 텍스트에 필요한 글리프를 갖고 있는지 확인하고, 반복 확인 결과를 캐시한다."""
+@lru_cache(maxsize=64)
+def _inspect_subtitle_font(font_path: str, sample: str) -> bool | None:
+    """
+    글꼴이 예시 텍스트를 그릴 수 있는지 판정한다. 검사 자체가 불가능하면 ``None``.
+
+    "지원하지 않음"과 "확인할 수 없음"은 다른 상태다. 파일이 없거나 손상됐을 때
+    지원한다고 답하면, 자동 교체가 그 글꼴을 그대로 통과시켜 자막이 깨진 채
+    렌더링된다. 호출자가 두 경우를 구분해 처리하도록 별도 값으로 돌려준다.
+    """
     try:
         font = ImageFont.truetype(font_path, 30)
         missing_mask = font.getmask("\U0010ffff")
@@ -971,23 +979,182 @@ def _subtitle_font_supports_sample(font_path: str, sample: str) -> bool:
                 return False
         return True
     except Exception as e:
-        # 글꼴 탐지 실패가 사용자의 생성을 막아서는 안 된다. 환경 호환 문제를 짚을 수 있게 로그는 남긴다.
         logger.warning(f"failed to inspect subtitle font glyphs: {font_path}, {e}")
-        return True
+        return None
+
+
+# SRT 메타데이터만 정확히 걸러 낸다. "-->" 를 포함하거나 숫자로만 이뤄진 줄을
+# 통째로 버리면 "서울 --> 부산" 이나 "2024" 같은 실제 대사도 함께 사라진다.
+_SRT_TIMECODE_RE = re.compile(r"^\s*\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->")
+_SRT_INDEX_RE = re.compile(r"^\s*\d+\s*$")
+
+
+def _subtitle_sample(text: str, limit: int = 512) -> str:
+    """
+    글리프 검사에 쓸 고유 문자 표본을 뽑는다.
+
+    자막 파일에는 대사 말고도 순번과 타임코드가 들어 있다. 숫자는 어떤 글꼴이든
+    그리므로 표본 자리만 차지하고, 그만큼 뒤쪽 언어를 놓칠 수 있다. 그래서 SRT
+    메타데이터 줄을 먼저 걷어 내고 문자와 숫자만 남긴다. 상한은 여러 언어가
+    섞인 긴 대본도 덮을 만큼 넉넉히 둔다.
+    """
+    raw_lines = str(text or "").splitlines()
+    lines = []
+    for index, line in enumerate(raw_lines):
+        if _SRT_TIMECODE_RE.match(line):
+            continue
+        # 순번 줄과 "2024" 같은 대사는 글자만 봐서는 같다. SRT 에서 순번 다음 줄은
+        # 반드시 타임코드이므로 그 위치로만 구분한다.
+        if _SRT_INDEX_RE.match(line):
+            following = raw_lines[index + 1] if index + 1 < len(raw_lines) else ""
+            if _SRT_TIMECODE_RE.match(following):
+                continue
+        lines.append(line)
+    return "".join(
+        dict.fromkeys(
+            char
+            for char in "".join(lines)
+            if unicodedata.category(char)[0] in {"L", "N"}
+        )
+    )[:limit]
 
 
 def subtitle_font_supports_text(font_path: str, text: str) -> bool:
-    """글꼴이 텍스트의 문자와 숫자를 그릴 수 있는지 확인한다. 공백과 문장 부호는 무시한다."""
-    sample = "".join(
-        dict.fromkeys(
-            char
-            for char in str(text or "")
-            if unicodedata.category(char)[0] in {"L", "N"}
-        )
-    )[:64]
+    """
+    글꼴이 텍스트의 문자와 숫자를 그릴 수 있는지 확인한다. 공백과 문장 부호는 무시한다.
+
+    검사가 불가능할 때는 ``True`` 를 돌려준다. 이 함수는 WebUI 경고에 쓰이는데,
+    탐지 실패를 미지원으로 단정해 매번 경고를 띄우면 정상 글꼴을 쓰는 사용자를
+    방해한다. 글꼴을 실제로 교체하는 경로는 ``_inspect_subtitle_font`` 를 직접
+    보고 ``None`` 을 미지원으로 다룬다.
+    """
+    sample = _subtitle_sample(text)
     if not sample:
         return True
-    return _subtitle_font_supports_sample(font_path, sample)
+    return _inspect_subtitle_font(font_path, sample) is not False
+
+
+# 자막 글꼴은 WebUI 설정, config.toml, CLI 인자, API 파라미터 어디서든 올 수 있고,
+# 저장된 값이 대본 언어와 맞지 않으면 자막이 통째로 두부(□)로 렌더링된다. 원본
+# 프로젝트가 번들한 글꼴은 중국어·일본어용이라 한글이 없고, 반대로 한글 글꼴에는
+# 한자·가나가 없다. 어느 한쪽을 기본값으로 고정하면 다른 쪽이 깨지므로, 생성
+# 시점에 실제 자막 텍스트를 그릴 수 있는지 보고 필요할 때만 교체한다.
+DEFAULT_SUBTITLE_FONT = "Pretendard-Bold.ttf"
+_MAX_SUBTITLE_PROBE_BYTES = 256 * 1024
+
+
+def _read_subtitle_text(subtitle_path: str) -> str:
+    # 자막 파일이 없거나 깨져 있어도 영상 생성은 계속돼야 한다. UnicodeDecodeError 는
+    # OSError 가 아니므로 따로 잡지 않으면 여기서 작업 전체가 죽는다. 파일 전체를
+    # 메모리에 올릴 이유도 없어 앞부분만 읽는다.
+    try:
+        with open(subtitle_path, mode="r", encoding="utf-8") as fp:
+            return fp.read(_MAX_SUBTITLE_PROBE_BYTES)
+    except (OSError, UnicodeError):
+        return ""
+
+
+def _bundled_font_names() -> list[str]:
+    # WebUI 목록과 CLI 는 모두 파일명만 다루므로(하위 경로를 버린다) 후보도 최상위
+    # 파일로 제한한다. 하위 폴더 글꼴을 후보로 고르면 여기서는 동작해도 사용자가
+    # 같은 값을 화면에서 다시 선택할 수 없어 설정과 실제 동작이 어긋난다.
+    font_dir = utils.font_dir()
+    try:
+        names = os.listdir(font_dir)
+    except OSError:
+        return []
+    return sorted(
+        name
+        for name in names
+        if name.lower().endswith((".ttf", ".ttc"))
+        and os.path.isfile(os.path.join(font_dir, name))
+    )
+
+
+def _font_path_within_bundle(font_name: str) -> str:
+    """
+    글꼴 이름을 번들 디렉터리 안의 실제 경로로 해석하고, 벗어나면 빈 문자열을 준다.
+
+    이 값은 API 파라미터로도 들어오며 CLI 가 하는 경로 검증을 거치지 않는다.
+    그대로 join 하면 ``../`` 로 번들 밖 파일을 가리킬 수 있어 공용 검사를 재사용한다.
+    """
+    try:
+        return file_security.resolve_path_within_directory(utils.font_dir(), font_name)
+    except ValueError:
+        return ""
+
+
+def subtitle_font_path(font_name: str) -> tuple[str, str]:
+    """
+    글꼴 이름을 번들 안의 실제 경로로 확정하고, ``(이름, 경로)`` 를 돌려준다.
+
+    이름을 그대로 join 하면 안 된다. ``font_name`` 은 API 파라미터로도 들어와
+    ``../`` 를 담을 수 있고, 자막이 비어 교체 판정을 건너뛴 경우에는 검증되지 않은
+    값이 그대로 내려온다. 번들 밖을 가리키면 기본 글꼴로 되돌린다.
+    """
+    resolved = _font_path_within_bundle(font_name)
+    if resolved:
+        return font_name, resolved
+
+    logger.warning(
+        f"subtitle font '{font_name}' is not inside the bundled font directory, "
+        f"falling back to '{DEFAULT_SUBTITLE_FONT}'"
+    )
+    default_path = _font_path_within_bundle(DEFAULT_SUBTITLE_FONT)
+    if default_path:
+        return DEFAULT_SUBTITLE_FONT, default_path
+
+    # 기본 글꼴까지 없는 설치라면 빈 경로를 넘겨선 안 된다. TextClip 이 그 자리에서
+    # 죽어 영상 전체가 실패한다. 남아 있는 아무 번들 글꼴이라도 쓰는 편이 낫다.
+    for candidate in _bundled_font_names():
+        candidate_path = _font_path_within_bundle(candidate)
+        if candidate_path:
+            logger.warning(
+                f"default subtitle font '{DEFAULT_SUBTITLE_FONT}' is missing, "
+                f"using '{candidate}'"
+            )
+            return candidate, candidate_path
+
+    logger.error("no usable subtitle font is bundled; subtitles will likely fail")
+    return font_name, ""
+
+
+def resolve_subtitle_font(font_name: str, subtitle_path: str) -> str:
+    """
+    선택된 글꼴이 이번 자막을 그릴 수 없으면 그릴 수 있는 번들 글꼴로 교체한다.
+
+    선택값을 무조건 덮지 않는다. 일본어 대본에 MicrosoftYaHei 를 고른 사용자는
+    그대로 유지되고, 한국어 대본에 같은 글꼴이 저장돼 있을 때만 교체된다.
+    교체는 사용자가 명시한 값을 바꾸는 동작이므로 경고를 남긴다.
+
+    글꼴을 열 수 없는 경우도 교체 대상이다. 지워진 파일명이 설정에 남아 있거나
+    파일이 손상됐을 때 그대로 두면 자막이 통째로 사라진다. 후보 역시 검사에 성공한
+    것만 고른다.
+    """
+    sample = _subtitle_sample(_read_subtitle_text(subtitle_path))
+    if not sample:
+        return font_name
+
+    selected_path = _font_path_within_bundle(font_name)
+    if selected_path and _inspect_subtitle_font(selected_path, sample) is True:
+        return font_name
+
+    for candidate in _bundled_font_names():
+        candidate_path = _font_path_within_bundle(candidate)
+        if not candidate_path:
+            continue
+        if _inspect_subtitle_font(candidate_path, sample) is True:
+            logger.warning(
+                f"subtitle font '{font_name}' cannot render this script, "
+                f"falling back to '{candidate}'"
+            )
+            return candidate
+
+    # 그릴 수 있는 글꼴이 하나도 없으면 사용자의 선택을 그대로 둔다. 임의로 바꿔도
+    # 결과가 나아지지 않고, 원래 값이 남아 있어야 어떤 글꼴이 문제인지 알 수 있다.
+    logger.warning(f"no bundled font can render this script, keeping '{font_name}'")
+    return font_name
+
 
 
 def generate_video(
@@ -1022,8 +1189,9 @@ def generate_video(
     font_path = ""
     if params.subtitle_enabled:
         if not params.font_name:
-            params.font_name = "STHeitiMedium.ttc"
-        font_path = os.path.join(utils.font_dir(), params.font_name)
+            params.font_name = DEFAULT_SUBTITLE_FONT
+        params.font_name = resolve_subtitle_font(params.font_name, subtitle_path)
+        params.font_name, font_path = subtitle_font_path(params.font_name)
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
