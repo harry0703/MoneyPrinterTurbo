@@ -83,7 +83,9 @@ class VideoParams(BaseModel):
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
-    video_clip_duration: Optional[int] = 5
+    # 숏폼은 2~4 초마다 화면이 바뀌는 편집이 시청 지속에 유리하다. WebUI 기본값도
+    # 3 이었는데 스키마만 5 로 남아, CLI 와 API 만 느리게 잘리고 있었다.
+    video_clip_duration: Optional[int] = 3
     video_clip_speed: Optional[float] = 1.0
     match_materials_to_script: bool = False
     video_count: Optional[int] = 1

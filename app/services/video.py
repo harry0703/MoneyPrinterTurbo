@@ -1116,6 +1116,10 @@ def _headline_clip(params, font_path: str, canvas_width: int, duration: float):
         return None
 
     stroke_color = str(getattr(params, "headline_stroke_color", "") or "") or None
+    # MoviePy 가 잡는 상자 높이는 마지막 줄의 아랫부분을 잘라 먹는다. 자막에서
+    # 이미 같은 이유로 세로 여백을 주고 있다. 한글은 받침이 글자 아래쪽에 붙어
+    # 특히 눈에 띄게 잘린다.
+    margin_y = max(int(params.headline_font_size * 0.3), 2 if stroke_color else 0)
     return TextClip(
         text=text,
         font=font_path,
@@ -1126,6 +1130,7 @@ def _headline_clip(params, font_path: str, canvas_width: int, duration: float):
         size=(int(canvas_width * 0.92), None),
         method="caption",
         text_align="center",
+        margin=(0, margin_y),
     ).with_duration(duration)
 
 

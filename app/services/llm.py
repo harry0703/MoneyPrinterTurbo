@@ -41,6 +41,20 @@ Generate a script for a video, depending on the subject of the video.
 6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
 7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
 8. respond in the same language as the video subject.
+
+## Writing for short vertical video:
+9. the first sentence is the hook. open on the claim, the stake, or the
+   surprise — never on setup, context, or a greeting. most viewers who leave do
+   so before the second sentence.
+10. aim for 25 to 45 seconds read aloud at a brisk pace. cut every sentence that
+    does not move the story forward rather than padding to fill time.
+11. write for the ear. the narration is read by a text-to-speech voice that
+    decides where to pause from punctuation alone, so keep the run of modifiers
+    before a noun short. if a phrase could be grouped two ways when spoken,
+    split it into two sentences or put a comma at the intended break.
+12. end on the payoff — the thing the hook promised. do not summarise what was
+    just said, do not ask for likes or subscriptions, and do not trail off into
+    a general lesson.
 """.strip()
 
 

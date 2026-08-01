@@ -453,6 +453,31 @@ class TestHeadlineFontWithoutSubtitles(unittest.TestCase):
         self.assertTrue(Path(font_path).is_file())
 
 
+class TestHeadlineIsNotClipped(unittest.TestCase):
+    """헤드라인 글자가 상자 아래로 잘려서는 안 된다."""
+
+    def test_the_box_is_taller_than_the_glyphs_it_holds(self):
+        """
+        MoviePy 가 잡는 상자 높이는 마지막 줄 아랫부분을 잘라 먹는다. 한글은 받침이
+        글자 아래에 붙어 특히 눈에 띄게 잘린다. 자막에는 이미 같은 이유로 여백이 있다.
+        """
+        params = _params()
+        params.headline = "닭가슴살 탓이 아니었다"
+        params.headline_font_size = 86
+        font = str(Path("resource/fonts/Pretendard-Bold.ttf").resolve())
+
+        clip = video._headline_clip(params, font, 1080, 1.0)
+        frame = clip.get_frame(0)
+        alpha = clip.mask.get_frame(0) if clip.mask is not None else None
+        self.assertIsNotNone(alpha, "헤드라인 클립에 알파가 없다")
+
+        # 글자가 상자 맨 아랫줄에 닿아 있으면 그 아래가 잘려 나간 것이다.
+        self.assertEqual(
+            float(alpha[-1].max()), 0.0, "글자가 상자 아래 끝에 닿아 잘렸다"
+        )
+        del frame
+
+
 class TestSubtitlePlacementAndCorners(unittest.TestCase):
     """자막 여백 배치와 둥근 모서리."""
 
