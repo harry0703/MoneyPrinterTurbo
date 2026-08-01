@@ -1217,6 +1217,22 @@ def _run_pipeline(
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
     # 6. Generate final videos
+    # card 레이아웃은 상단 여백에 얹을 문구가 있어야 의미가 있다. 사용자가 직접 넣지
+    # 않았을 때만 생성한다. 대본 첫 문장을 그대로 쓰면 길고 밋밋해서 따로 뽑는다.
+    if params.layout == "card" and not str(params.headline or "").strip():
+        params.headline = llm.generate_headline(
+            video_subject=params.video_subject,
+            video_script=video_script,
+            language=params.video_language,
+        )
+        # 헤드라인은 주제와 대본에서 나온 문장이라 그 안의 내용이 그대로 딸려온다.
+        # 만들어졌는지만 남기고 본문은 로그에 쓰지 않는다.
+        logger.info(f"headline generated: {len(params.headline)} characters")
+        # 매니페스트는 헤드라인이 만들어지기 전에 쓰인다. 그리기 전에 보완해 두지
+        # 않으면 영상에는 문구가 있는데 기록에는 빈 값이 남고, 같은 작업을 다시
+        # 돌릴 때마다 다른 문구가 나온다.
+        task_artifacts.patch_script_data(task_id, headline=params.headline)
+
     final_video_paths, combined_video_paths, generation_warnings = generate_final_videos(
         task_id,
         params,
@@ -1225,6 +1241,11 @@ def _run_pipeline(
         subtitle_path,
         audio_duration,
     )
+
+    # 자막 글꼴은 대본을 그릴 수 없을 때 생성 중에 교체된다. 매니페스트는 생성 전에
+    # 쓰이므로 그대로 두면 요청값만 남아, 이 작업을 다시 불러왔을 때 실제로 쓰인
+    # 글꼴과 어긋난다. 실행 결과를 기록해 추적할 수 있게 한다.
+    task_artifacts.patch_script_data(task_id, effective_font_name=params.font_name)
 
     if not final_video_paths:
         return _mark_task_failed(

@@ -1084,6 +1084,153 @@ def _font_path_within_bundle(font_name: str) -> str:
         return ""
 
 
+def _subtitle_color(params) -> str:
+    """
+    자막 글자색을 고른다. 여백 위에 놓일 때는 별도 색을 쓴다.
+
+    기본 자막색은 흰색이라 영상 위에서는 잘 보이지만, card 레이아웃의 흰 배경
+    여백으로 옮기면 그대로 사라진다. 배치가 바뀌면 색도 함께 바뀌어야 한다.
+    """
+    if _subtitle_below_video_enabled(params):
+        return str(getattr(params, "subtitle_below_color", "") or params.text_fore_color)
+    return params.text_fore_color
+
+
+def _subtitle_below_video_enabled(params) -> bool:
+    """자막을 영상 밖 여백에 놓을지 판정한다. card 레이아웃에서만 의미가 있다."""
+    return bool(
+        getattr(params, "subtitle_below_video", False)
+        and getattr(params, "layout", "fullscreen") == "card"
+    )
+
+
+def _headline_clip(params, font_path: str, canvas_width: int, duration: float):
+    """
+    상단 여백에 얹을 두 줄 헤드라인 클립을 만든다. 문구가 없으면 ``None``.
+
+    자막과 달리 영상 위가 아니라 여백 위에 놓이므로, 자막 색을 그대로 쓰면 배경과
+    같은 색이 되어 사라질 수 있다. 색을 따로 받는 이유다.
+    """
+    text = str(getattr(params, "headline", "") or "").strip()
+    if not text:
+        return None
+
+    stroke_color = str(getattr(params, "headline_stroke_color", "") or "") or None
+    return TextClip(
+        text=text,
+        font=font_path,
+        font_size=params.headline_font_size,
+        color=params.headline_color,
+        stroke_color=stroke_color,
+        stroke_width=2 if stroke_color else 0,
+        size=(int(canvas_width * 0.92), None),
+        method="caption",
+        text_align="center",
+    ).with_duration(duration)
+
+
+def _subtitle_below_position(
+    canvas_height: int, card_band_height: int, clip_height: int
+) -> int:
+    """
+    영상 아래 여백의 세로 중앙 좌표. 여백보다 자막이 크면 여백 위쪽에 붙인다.
+
+    요청 비율이 아니라 실제로 놓인 띠 높이를 받아야 한다. 여백 확보 때문에 띠가
+    더 줄어들 수 있고, 비율로 계산하면 그만큼 자막이 아래로 밀려 화면 밖으로 나간다.
+    """
+    bottom_margin_top = (canvas_height + card_band_height) // 2
+    available = canvas_height - bottom_margin_top
+    return bottom_margin_top + max(0, (available - clip_height) // 2)
+
+
+def _reserved_margin(params, headline_clip) -> int:
+    """
+    영상 위아래에 반드시 비워 둬야 하는 높이를 잰다.
+
+    비율만 믿으면 1.0 을 받았을 때 여백이 0 이 되어, 헤드라인은 영상 위에 겹치고
+    아래 자막은 화면 밖으로 밀린다. 영상은 캔버스 중앙에 놓이므로 위아래 여백이
+    같고, 둘 중 큰 쪽만 확보하면 양쪽 다 확보된다.
+    """
+    reserved = 0
+    if headline_clip is not None:
+        reserved = max(reserved, headline_clip.h)
+    if _subtitle_below_video_enabled(params):
+        # 자막은 이 함수보다 나중에 만들어져 높이를 잴 수 없다. 두 줄 기준으로 잡는다.
+        reserved = max(reserved, int(params.font_size * 2.4))
+    return reserved
+
+
+def _rounded_mask(width: int, height: int, radius: int, duration: float):
+    """영상 모서리를 깎을 알파 마스크를 만든다."""
+    from moviepy import ImageClip
+
+    canvas = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(canvas).rounded_rectangle(
+        (0, 0, width - 1, height - 1), radius=radius, fill=255
+    )
+    return ImageClip(
+        np.array(canvas).astype(float) / 255.0, is_mask=True
+    ).with_duration(duration)
+
+
+def apply_card_layout(video_clip, params, font_path: str = ""):
+    """
+    영상을 축소해 배경 캔버스 위에 얹고, 위아래에 여백을 남긴다.
+
+    유튜브 쇼츠에서 흔한 구성이다. 영상이 화면을 꽉 채우면 헤드라인과 자막을 얹을
+    자리가 영상 위밖에 없어 화면이 어수선해진다. 영상을 카드처럼 줄여 두면 위쪽에
+    헤드라인, 아래쪽에 나레이션 자막을 겹치지 않게 놓을 수 있다.
+
+    영상은 가로를 캔버스에 꽉 채우고, 목표 높이를 넘는 만큼은 위아래를 잘라 낸다.
+    세로 소재를 높이에 맞춰 줄이면 좌우로도 여백이 생겨 카드가 아니라 그냥 작아진
+    영상처럼 보이므로, 가로를 채우고 높이를 잘라 띠 모양을 유지한다.
+
+    ``(합성된 클립, 영상 띠의 실제 높이)`` 를 돌려준다. 요청 비율만으로는 자막을
+    놓을 수 없다. 여백 확보 때문에 띠가 더 줄어들 수 있어, 실제 높이를 받아야
+    자막이 여백 안에 들어간다.
+    """
+    canvas_width, canvas_height = video_clip.size
+    headline = _headline_clip(params, font_path, canvas_width, video_clip.duration)
+    target_height = min(
+        int(canvas_height * params.layout_video_height_ratio),
+        canvas_height - 2 * _reserved_margin(params, headline),
+    )
+    target_height = max(1, min(target_height, canvas_height))
+
+    scale = canvas_width / video_clip.w
+    scaled = video_clip.resized(
+        new_size=(canvas_width, max(1, round(video_clip.h * scale)))
+    )
+    if scaled.h > target_height:
+        # 세로 중앙을 남긴다. 인물이나 제품은 대체로 가운데 있어 위아래를 잘라도
+        # 피사체가 살아남는다.
+        crop_top = (scaled.h - target_height) // 2
+        scaled = scaled.cropped(y1=crop_top, y2=crop_top + target_height)
+    background = ColorClip(
+        size=(canvas_width, canvas_height),
+        color=_hex_to_rgb(params.layout_background_color),
+    ).with_duration(video_clip.duration)
+
+    radius = int(getattr(params, "layout_corner_radius", 0) or 0)
+    if radius > 0:
+        # 마스크는 클립과 크기가 같아야 한다. 크롭 이후 크기를 써야 어긋나지 않는다.
+        scaled = scaled.with_mask(
+            _rounded_mask(scaled.w, scaled.h, radius, video_clip.duration)
+        )
+
+    layers = [background, scaled.with_position("center")]
+    band_height = scaled.h
+
+    if headline is not None:
+        # 영상 위쪽 여백의 세로 중앙에 놓는다. 여백보다 문구가 길면 영상을 덮게 되는데,
+        # 그때는 위쪽에 붙여 최소한 잘리지 않게 한다.
+        top_margin = (canvas_height - scaled.h) // 2
+        y = max(0, (top_margin - headline.h) // 2)
+        layers.append(headline.with_position(("center", y)))
+
+    return CompositeVideoClip(layers), band_height
+
+
 def subtitle_font_path(font_name: str) -> tuple[str, str]:
     """
     글꼴 이름을 번들 안의 실제 경로로 확정하고, ``(이름, 경로)`` 를 돌려준다.
@@ -1192,6 +1339,12 @@ def generate_video(
             params.font_name = DEFAULT_SUBTITLE_FONT
         params.font_name = resolve_subtitle_font(params.font_name, subtitle_path)
         params.font_name, font_path = subtitle_font_path(params.font_name)
+    elif params.layout == "card" and str(getattr(params, "headline", "") or "").strip():
+        # 헤드라인도 글자를 그리므로 글꼴이 필요하다. 자막을 끄면 위에서 아무것도
+        # 정해지지 않아 빈 경로가 `TextClip` 으로 넘어가고 렌더링이 통째로 실패한다.
+        _, font_path = subtitle_font_path(params.font_name or DEFAULT_SUBTITLE_FONT)
+
+    if font_path:
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
@@ -1265,7 +1418,7 @@ def generate_video(
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
-                color=params.text_fore_color,
+                color=_subtitle_color(params),
                 bg_color=None,
                 stroke_color=params.stroke_color,
                 stroke_width=params.stroke_width,
@@ -1296,7 +1449,7 @@ def generate_video(
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
-                color=params.text_fore_color,
+                color=_subtitle_color(params),
                 bg_color=None,
                 stroke_color=params.stroke_color,
                 stroke_width=params.stroke_width,
@@ -1327,7 +1480,7 @@ def generate_video(
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
-                color=params.text_fore_color,
+                color=_subtitle_color(params),
                 bg_color=None,
                 stroke_color=params.stroke_color,
                 stroke_width=params.stroke_width,
@@ -1339,7 +1492,19 @@ def generate_video(
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
-        if params.subtitle_position == "bottom":
+        if _subtitle_below_video_enabled(params):
+            # 영상 아래 여백의 세로 중앙에 놓는다. 영상 위가 아니라 배경 위이므로
+            # 화면을 가리지 않는다. 여백보다 자막이 길면 화면 밖으로 나가지 않게
+            # 아래 끝에 맞춘다.
+            _clip = _clip.with_position(
+                (
+                    "center",
+                    _subtitle_below_position(
+                        video_height, card_band_height, _clip.h
+                    ),
+                )
+            )
+        elif params.subtitle_position == "bottom":
             _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
         elif params.subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
@@ -1367,6 +1532,14 @@ def generate_video(
         )
         voice_source_clip = clip_stack.enter_context(AudioFileClip(audio_path))
         video_clip = source_video_clip
+        card_band_height = 0
+        if params.layout == "card":
+            # 자막보다 먼저 적용한다. 자막 위치는 캔버스 높이를 기준으로 계산되므로,
+            # 레이아웃을 나중에 씌우면 자막이 영상 안쪽에 갇힌다.
+            video_clip, card_band_height = apply_card_layout(
+                video_clip, params, font_path
+            )
+            clip_stack.callback(video_clip.close)
         audio_clip = voice_source_clip.with_effects(
             [afx.MultiplyVolume(params.voice_volume)]
         )

@@ -99,3 +99,89 @@ class TestTaskArtifacts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEffectiveFontRecording(unittest.TestCase):
+    """실제로 사용된 자막 글꼴이 작업 기록에 남아야 한다."""
+
+    def test_pipeline_records_the_font_that_was_actually_used(self):
+        """
+        매니페스트는 생성 전에 쓰이는데 글꼴 교체는 생성 중에 일어난다. 요청값만
+        남으면 작업을 다시 불러왔을 때 실제 결과와 어긋난다.
+        """
+        import ast
+        from pathlib import Path
+
+        source = (
+            Path(__file__).parent.parent.parent / "app" / "services" / "task.py"
+        ).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        recorded = False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if getattr(func, "attr", "") != "patch_script_data":
+                continue
+            if any(kw.arg == "effective_font_name" for kw in node.keywords):
+                recorded = True
+                break
+
+        self.assertTrue(
+            recorded, "실제 사용된 글꼴이 작업 기록에 반영되지 않는다"
+        )
+
+
+class TestHeadlineRecording(unittest.TestCase):
+    """영상에 그려진 헤드라인이 작업 기록에도 남아야 한다."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.task_dir_patch = patch(
+            "app.services.task_artifacts.utils.task_dir",
+            return_value=self.temp_dir.name,
+        )
+        self.task_dir_patch.start()
+
+    def tearDown(self):
+        self.task_dir_patch.stop()
+        self.temp_dir.cleanup()
+
+    def test_pipeline_records_the_generated_headline(self):
+        """
+        매니페스트는 헤드라인이 만들어지기 전에 쓰인다. 보완하지 않으면 영상에는
+        문구가 있는데 기록에는 빈 값이 남아, 같은 작업을 다시 돌릴 때마다 다른
+        문구가 나온다.
+        """
+        from app.services import task as tm
+
+        params = VideoParams(video_subject="Coffee", layout="card")
+
+        with (
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]),
+            patch.object(
+                tm, "generate_audio", return_value=("audio.mp3", 5, object())
+            ),
+            patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+            patch.object(tm, "get_video_materials", return_value=["clip.mp4"]),
+            patch.object(
+                tm,
+                "generate_final_videos",
+                return_value=(["final.mp4"], ["combined.mp4"], []),
+            ),
+            patch.object(
+                tm.llm, "generate_headline", return_value="첫 줄\n둘째 줄"
+            ),
+            patch.object(
+                tm.upload_post.upload_post_service, "is_configured", return_value=False
+            ),
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            tm.start("headline-artifact", params)
+
+        recorded = json.loads(
+            (Path(self.temp_dir.name) / "script.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(recorded["headline"], "첫 줄\n둘째 줄")
