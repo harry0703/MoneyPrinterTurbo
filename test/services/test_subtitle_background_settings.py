@@ -484,6 +484,21 @@ class TestSubtitleFontFallback(unittest.TestCase):
 
         self.assertIn("subtitle_font_path", called)
 
+        # 호출만으로는 결과가 실제 font_path 에 연결됐는지 알 수 없다. 반환값이
+        # 버려지면 검증이 무의미하므로 대입 대상까지 확인한다.
+        wired = any(
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call)
+            and getattr(node.value.func, "id", "") == "subtitle_font_path"
+            and any(
+                isinstance(t, ast.Tuple)
+                and any(getattr(e, "id", "") == "font_path" for e in t.elts)
+                for t in node.targets
+            )
+            for node in ast.walk(target)
+        )
+        self.assertTrue(wired, "subtitle_font_path 의 결과가 font_path 에 쓰이지 않는다")
+
     def test_font_path_rejects_names_outside_the_bundle(self):
         """번들 밖을 가리키는 이름은 기본 글꼴로 되돌려야 한다."""
         name, path = video.subtitle_font_path("../../etc/passwd")

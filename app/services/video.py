@@ -1101,7 +1101,23 @@ def subtitle_font_path(font_name: str) -> tuple[str, str]:
         f"subtitle font '{font_name}' is not inside the bundled font directory, "
         f"falling back to '{DEFAULT_SUBTITLE_FONT}'"
     )
-    return DEFAULT_SUBTITLE_FONT, _font_path_within_bundle(DEFAULT_SUBTITLE_FONT)
+    default_path = _font_path_within_bundle(DEFAULT_SUBTITLE_FONT)
+    if default_path:
+        return DEFAULT_SUBTITLE_FONT, default_path
+
+    # 기본 글꼴까지 없는 설치라면 빈 경로를 넘겨선 안 된다. TextClip 이 그 자리에서
+    # 죽어 영상 전체가 실패한다. 남아 있는 아무 번들 글꼴이라도 쓰는 편이 낫다.
+    for candidate in _bundled_font_names():
+        candidate_path = _font_path_within_bundle(candidate)
+        if candidate_path:
+            logger.warning(
+                f"default subtitle font '{DEFAULT_SUBTITLE_FONT}' is missing, "
+                f"using '{candidate}'"
+            )
+            return candidate, candidate_path
+
+    logger.error("no usable subtitle font is bundled; subtitles will likely fail")
+    return font_name, ""
 
 
 def resolve_subtitle_font(font_name: str, subtitle_path: str) -> str:
