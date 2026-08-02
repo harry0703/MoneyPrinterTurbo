@@ -123,6 +123,13 @@ class TestScriptStyleSelection(unittest.TestCase):
         self.assertIn("numbers as words", prompt)
         self.assertIn("spell it", prompt)
 
+    def test_the_story_style_forbids_quoted_dialogue(self):
+        """
+        자막은 문장 부호에서 끊긴다. 마침표 뒤의 닫는 따옴표는 다음 자막 첫 글자로
+        떨어져, 화면에 조각만 남는다.
+        """
+        self.assertIn("without quotation marks", llm.STORY_SCRIPT_SYSTEM_PROMPT)
+
     def test_the_story_style_forbids_inventing_facts(self):
         """
         각색을 허용하는 프롬프트다. 경험담은 지어내도 되지만 효능·수치까지 지어내면

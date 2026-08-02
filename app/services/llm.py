@@ -108,8 +108,11 @@ narrator's life; never invent the world.
     punctuation alone. keep the run of words before a noun short, and put a comma
     where you want the breath.
 12. aim for 35 to 45 seconds read aloud.
-13. plain text only. no markdown, no titles, no speaker labels, no emoji.
-14. respond in the same language as the video subject.
+13. write speech without quotation marks — say who spoke and what they said as
+    part of the sentence. subtitles are split on sentence punctuation, so a
+    closing quote after a full stop is stranded on a line of its own.
+14. plain text only. no markdown, no titles, no speaker labels, no emoji.
+15. respond in the same language as the video subject.
 """.strip()
 
 
