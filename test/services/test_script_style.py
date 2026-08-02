@@ -104,6 +104,39 @@ class TestScriptStyleSelection(unittest.TestCase):
             llm.script_style_prompt("nope"), llm.DEFAULT_SCRIPT_SYSTEM_PROMPT
         )
 
+    def test_the_story_style_asks_for_a_post_not_an_essay(self):
+        """
+        "짧은 이야기를 써라" 로는 잘 다듬은 문어체가 나온다. 커뮤니티에 올리는
+        글과 산문은 다른 물건이고, 그 차이를 프롬프트가 직접 말해야 한다.
+        """
+        prompt = llm.STORY_SCRIPT_SYSTEM_PROMPT
+        self.assertIn("posting to an online community", prompt)
+        self.assertIn("Polished prose is the failure", prompt)
+
+    def test_the_story_style_bans_the_constructions_that_read_as_written(self):
+        """
+        「~인 나는」 같은 동격 소개와 마지막 줄 도치가 사람 말투를 가장 크게 깬다.
+        """
+        prompt = llm.STORY_SCRIPT_SYSTEM_PROMPT
+        self.assertIn("never introduce yourself with an apposition", prompt)
+        self.assertIn("never end on a wistful inversion", prompt)
+
+    def test_the_story_style_wants_named_things_and_a_moving_feeling(self):
+        """
+        일반명사로 뭉개면 지어낸 티가 나고, 처음부터 끝까지 나쁘기만 하면 밋밋하다.
+        """
+        prompt = llm.STORY_SCRIPT_SYSTEM_PROMPT
+        self.assertIn("compare things to specific named ones", prompt)
+        self.assertIn("the feeling has to move", prompt)
+
+    def test_the_story_style_ends_by_talking_to_the_viewer(self):
+        """혼잣말로 끝나면 남 얘기가 된다. 시청자에게 직접 말해야 한다."""
+        self.assertIn("the last line speaks to the viewer", llm.STORY_SCRIPT_SYSTEM_PROMPT)
+
+    def test_the_story_style_does_not_explain_the_turn_as_it_happens(self):
+        """반전을 그 자리에서 설명하면 반전이 아니라 보고가 된다."""
+        self.assertIn("do not explain the turn while it happens", llm.STORY_SCRIPT_SYSTEM_PROMPT)
+
     def test_the_story_style_starts_at_the_crisis(self):
         """
         쇼츠에는 발단·전개를 담을 시간이 없다. 위기에서 시작해 절정과 결말만 쓴다.
