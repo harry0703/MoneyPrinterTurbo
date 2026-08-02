@@ -17,6 +17,16 @@ MAX_SCRIPT_PARAGRAPH_NUMBER = 10
 MAX_SCRIPT_PROMPT_LENGTH = 2000
 MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
 MAX_SCRIPT_SUBJECT_LENGTH = 500
+# 검색어는 모델이 만들어 스톡 제공자에게 그대로 질의로 나간다. 개수와 길이를
+# 강제하지 않으면 쓸모없는 요청이 그만큼 늘고, 캐시 키도 함께 불어난다.
+MAX_SEARCH_TERM_LENGTH = 60
+MAX_SEARCH_TERMS = 20
+# 프롬프트는 1~3 단어를 요구하지만 판정은 조금 느슨하게 둔다. "man walking hot street"
+# 처럼 네댓 단어짜리 장면 묘사는 검색어로 멀쩡하고, 그걸 버리면 좋은 소재를 잃는다.
+# 그보다 길어지면 검색어가 아니라 문장이므로 받지 않는다.
+MAX_SEARCH_TERM_WORDS = 5
+# 프롬프트가 영어를 요구한다. 제공자 질의로 그대로 나가므로 글자 종류를 못박는다.
+_SEARCH_TERM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 \-']*$")
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
 _URL_USERINFO_RE = re.compile(
@@ -725,12 +735,60 @@ def _strip_code_fence(text: str) -> str:
     return t.strip()
 
 
+def _normalize_search_term_amount(amount) -> int:
+    """
+    요청 개수를 쓸 수 있는 범위로 좁힌다.
+
+    이 값은 프롬프트 예시를 만들 때 `range()` 에 들어간다. 상한 없이 받으면 모델을
+    부르기도 전에 거대한 목록을 만들어 그 자리에서 메모리를 태운다.
+    """
+    try:
+        value = int(amount)
+    except (TypeError, ValueError):
+        value = 5
+    return max(1, min(value, MAX_SEARCH_TERMS))
+
+
+def _clean_search_terms(terms, amount: int) -> List[str]:
+    """
+    모델이 돌려준 검색어를 쓸 수 있는 형태로 정리한다.
+
+    이 값은 스톡 제공자에게 그대로 질의로 나간다. 개수와 길이를 강제하지 않으면
+    쓸모없는 외부 요청이 그만큼 늘고, 검색 캐시 키도 함께 불어난다. 빈 값과 중복은
+    같은 이유로 걸러낸다.
+
+    형식을 어긴 항목은 잘라서 쓰지 않고 버린다. 문장이나 다른 문자 체계를 잘라 봐야
+    검색어가 되지 않고, 원래 뜻과 다른 질의만 남는다.
+    """
+    limit = _normalize_search_term_amount(amount)
+    cleaned: list[str] = []
+    for term in terms or []:
+        if not isinstance(term, str):
+            continue
+        # 줄바꿈이 섞이면 질의 문자열이 두 줄이 된다. 공백으로 눌러 한 줄로 만든다.
+        value = " ".join(term.split())
+        if (
+            not value
+            or len(value) > MAX_SEARCH_TERM_LENGTH
+            or len(value.split()) > MAX_SEARCH_TERM_WORDS
+            or not _SEARCH_TERM_RE.match(value)
+        ):
+            logger.warning(f"dropped a malformed search term ({len(value)} characters)")
+            continue
+        if value not in cleaned:
+            cleaned.append(value)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
 def generate_terms(
     video_subject: str,
     video_script: str,
     amount: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
+    amount = _normalize_search_term_amount(amount)
     if match_script_order:
         goal = (
             f"Generate {amount} chronological stock-video search terms that follow "
@@ -760,6 +818,13 @@ def generate_terms(
             '"search term 4", "search term 5"]'
         )
 
+    video_subject = _limit_script_text(
+        video_subject, MAX_SCRIPT_SUBJECT_LENGTH, "video_subject"
+    )
+    video_script = _limit_script_text(
+        video_script, MAX_SOCIAL_SCRIPT_LENGTH, "video_script"
+    )
+
     prompt = f"""
 # Role: Video Search Terms Generator
 
@@ -768,9 +833,13 @@ def generate_terms(
 
 ## Constrains:
 1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
+2. each search term names something a camera can point at — an object, a place,
+   or a physical action. 1-3 words.
 3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
-4. the search terms must be related to the subject of the video.
+4. search a stock library, not the story. the premise, the relationships, and
+   how anyone feels are not filmable and return nothing usable. "blind date
+   cafe" finds no footage of a blind date; "cafe closed sign" and "man walking
+   hot street" find the shots that scene is made of.
 5. reply with english search terms only.
 {ordering_rule}
 
@@ -778,11 +847,15 @@ def generate_terms(
 {output_example}
 
 ## Context:
-### Video Subject
-{video_subject}
+### Video Subject (data)
+<subject>
+{_as_prompt_data(video_subject)}
+</subject>
 
-### Video Script
-{video_script}
+### Video Script (data)
+<script>
+{_as_prompt_data(video_script)}
+</script>
 
 Please note that you must use English for generating video search terms; Chinese is not accepted.
 """.strip()
@@ -822,7 +895,10 @@ Please note that you must use English for generating video search terms; Chinese
                         # 문제인지 구분할 수 없다.
                         logger.warning(f"failed to generate video terms: {str(e)}")
 
-        if search_terms and len(search_terms) > 0:
+        # 정리까지 마친 뒤에 판정한다. 형식을 어긴 응답은 여기서 전부 걸러지는데,
+        # 루프 밖에서 정리하면 남은 재시도를 쓰지 못하고 빈 목록으로 끝난다.
+        search_terms = _clean_search_terms(search_terms, amount)
+        if search_terms:
             break
         if i < _max_retries:
             logger.warning(f"failed to generate video terms, trying again... {i + 1}")
@@ -1134,11 +1210,15 @@ Write engaging publishing metadata for a short video that will be posted on {lab
 {{"title":"...","caption":"...","hashtags":["#example","#video"]}}
 
 ## Context
-### Video Subject
-{video_subject}
+### Video Subject (data)
+<subject>
+{_as_prompt_data(video_subject)}
+</subject>
 
-### Video Script
-{video_script}
+### Video Script (data)
+<script>
+{_as_prompt_data(video_script)}
+</script>
 """.strip()
     return prompt
 

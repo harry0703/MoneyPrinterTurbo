@@ -215,7 +215,8 @@ class VideoTermsParams:
     video_script: Optional[str] = (
         "봄날의 꽃바다가 한 폭의 그림처럼 눈앞에 펼쳐집니다. 만물이 깨어나는 계절, 대지는 화려한 색의 옷을 갈아입습니다. 노란 개나리, 연분홍 벚꽃, 새하얀 배꽃, 선명한 튤립까지……"
     )
-    amount: Optional[int] = 5
+    # 검색어 개수. 프롬프트 예시를 만들 때 `range()` 에 들어가는 값이라 상한이 필요하다.
+    amount: int = Field(default=5, ge=1, le=20)
     match_materials_to_script: bool = False
 
 
