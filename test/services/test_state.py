@@ -57,9 +57,35 @@ class _FakeRedis:
         elif field is not None:
             target[str(field).encode("utf-8")] = str(value).encode("utf-8")
 
+    def delete(self, key):
+        if isinstance(key, str):
+            key = key.encode("utf-8")
+        self.data.pop(key, None)
+
+    def hget(self, key, field):
+        if isinstance(key, str):
+            key = key.encode("utf-8")
+        return self.data.get(key, {}).get(str(field).encode("utf-8"))
+
     def eval(self, script, numkeys, key, *arguments):
         if isinstance(key, str):
             key = key.encode("utf-8")
+
+        if "HGET" in script:
+            # begin_task_if_idle: 진행 중이면 거절하고, 아니면 기록한다.
+            if self.hget(key, "state") == str(arguments[0]).encode("utf-8"):
+                return 0
+            # 스크립트가 실제로 지울 때만 지운다. 여기서 무조건 지우면 스크립트가
+            # 아니라 이 가짜 구현을 검사하게 된다.
+            if 'redis.call("DEL", KEYS[1])' in script:
+                self.delete(key)
+            target = self.data.setdefault(key, {})
+            for index in range(1, len(arguments), 2):
+                target[str(arguments[index]).encode("utf-8")] = str(
+                    arguments[index + 1]
+                ).encode("utf-8")
+            return 1
+
         if key not in self.data:
             return 0
 
@@ -280,6 +306,56 @@ class TestRedisState(unittest.TestCase):
                     future.result(timeout=5)
 
             self.assertIsNone(state.get_task(task_id))
+
+
+class TestBeginTaskIfIdle(unittest.TestCase):
+    """작업 자리 잡기는 두 상태 구현이 같게 동작해야 한다."""
+
+    def _redis_state(self):
+        state = RedisState.__new__(RedisState)
+        state._redis = _FakeRedis([])
+        return state
+
+    def test_memory_state_refuses_a_running_task(self):
+        state = MemoryState()
+        self.assertTrue(state.begin_task_if_idle("t"))
+        self.assertFalse(state.begin_task_if_idle("t"))
+
+    def test_redis_state_refuses_a_running_task(self):
+        state = self._redis_state()
+        self.assertTrue(state.begin_task_if_idle("t"))
+        self.assertFalse(state.begin_task_if_idle("t"))
+
+    def test_redis_state_drops_what_the_last_run_left_behind(self):
+        """
+        HSET 만 하면 지난 실행의 영상 목록과 오류가 그대로 붙어 있다. 다시 만드는
+        중인데 기록에는 예전 결과가 남아, 상태가 실제와 어긋난다.
+        """
+        state = self._redis_state()
+        state.update_task(
+            "t",
+            state=const.TASK_STATE_FAILED,
+            videos=["old.mp4"],
+            error="boom",
+            failed_stage="video",
+        )
+
+        self.assertTrue(state.begin_task_if_idle("t"))
+
+        task = state.get_task("t")
+        self.assertEqual(task["state"], const.TASK_STATE_PROCESSING)
+        for stale in ("videos", "error", "failed_stage"):
+            with self.subTest(field=stale):
+                self.assertNotIn(stale, task)
+
+    def test_memory_state_drops_them_too(self):
+        """두 구현이 갈라지면 배포 형태에 따라 결과가 달라진다."""
+        state = MemoryState()
+        state.update_task("t", state=const.TASK_STATE_FAILED, videos=["old.mp4"])
+
+        self.assertTrue(state.begin_task_if_idle("t"))
+        self.assertNotIn("videos", state.get_task("t"))
+
 
 
 if __name__ == "__main__":

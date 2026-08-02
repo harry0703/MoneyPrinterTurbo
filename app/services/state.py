@@ -7,6 +7,23 @@ from app.config import config
 from app.models import const
 
 
+_BEGIN_TASK_IF_IDLE_SCRIPT = """
+if redis.call("HGET", KEYS[1], "state") == ARGV[1] then
+    return 0
+end
+
+-- 지난 실행이 남긴 영상 목록, 오류, 업로드 상태를 함께 지운다. HSET 만 하면 이번
+-- 실행과 상관없는 필드가 그대로 붙어 있어, 기록이 실제 결과와 어긋난다.
+redis.call("DEL", KEYS[1])
+
+for index = 2, #ARGV, 2 do
+    redis.call("HSET", KEYS[1], ARGV[index], ARGV[index + 1])
+end
+
+return 1
+"""
+
+
 _PATCH_EXISTING_TASK_SCRIPT = """
 if redis.call("EXISTS", KEYS[1]) == 0 then
     return 0
@@ -37,6 +54,17 @@ class BaseState(ABC):
     @abstractmethod
     def patch_task(self, task_id: str, **kwargs) -> bool:
         """이미 존재하는 작업의 지정 필드만 갱신한다. 작업이 없으면 False 를 반환한다."""
+        pass
+
+    @abstractmethod
+    def begin_task_if_idle(self, task_id: str, **kwargs) -> bool:
+        """
+        진행 중이 아닐 때만 작업을 '진행 중' 으로 바꾸고 ``True`` 를 반환한다.
+
+        확인과 기록이 나뉘어 있으면 두 요청이 동시에 '진행 중이 아니다' 를 보고
+        둘 다 시작한다. 그러면 같은 출력 파일에 두 개가 쓴다. 판정과 기록을 한
+        연산으로 묶어야 한 쪽만 통과한다.
+        """
         pass
 
 
@@ -87,6 +115,19 @@ class MemoryState(BaseState):
             if task is None:
                 return False
             task.update(copy.deepcopy(kwargs))
+            return True
+
+    def begin_task_if_idle(self, task_id: str, **kwargs) -> bool:
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task is not None and task.get("state") == const.TASK_STATE_PROCESSING:
+                return False
+            self._tasks[task_id] = {
+                "task_id": task_id,
+                "state": const.TASK_STATE_PROCESSING,
+                "progress": 0,
+                **kwargs,
+            }
             return True
 
     def delete_task(self, task_id: str):
@@ -201,6 +242,23 @@ class RedisState(BaseState):
             *arguments,
         )
         return bool(updated)
+
+    def begin_task_if_idle(self, task_id: str, **kwargs) -> bool:
+        fields = {
+            "task_id": task_id,
+            "state": const.TASK_STATE_PROCESSING,
+            "progress": 0,
+            **kwargs,
+        }
+        arguments = [str(const.TASK_STATE_PROCESSING)]
+        for field, value in fields.items():
+            arguments.extend([field, str(value)])
+
+        # 판정과 기록을 서버 쪽 스크립트 한 번으로 끝낸다. 두 요청이 동시에 들어와도
+        # 한 쪽만 1 을 받는다.
+        return bool(
+            self._redis.eval(_BEGIN_TASK_IF_IDLE_SCRIPT, 1, task_id, *arguments)
+        )
 
     def delete_task(self, task_id: str):
         self._redis.delete(task_id)

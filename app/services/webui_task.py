@@ -134,18 +134,25 @@ def submit_generation(
     작업 상태는 반드시 스레드를 시작하기 전에 기록해야 한다. 그래야 이번 페이지 스크립트
     실행이 끝나는 시점에 작업을 조회할 수 있고, 브라우저 새로고침이나 WebSocket 재연결도
     예전 페이지 메모리의 자리표시자에 의존하지 않는다.
+
+    이미 돌고 있는 작업이면 아무것도 하지 않는다. 두 번째 제출은 첫 번째를 빠르게
+    만들지 않고, 같은 파일을 함께 덮어써 결과를 망칠 뿐이다. 자리 잡기와 판정은
+    상태 계층의 한 연산으로 끝낸다. 나눠 하면 두 요청이 동시에 '비어 있다' 를 보고
+    둘 다 시작한다.
     """
     task_params = params.model_copy(deep=True)
     # 미리보기 페이로드에는 변경되지 않는 오디오 경로, 파라미터 스냅샷, 읽기 전용 자막
     # 타임라인만 들어 있다. 최상위 딕셔너리를 복사해, 이후 페이지 rerun 이 캐시 필드를
     # 교체할 때 이미 백그라운드 큐에 제출된 작업에 영향을 주지 않게 한다.
     voice_preview_snapshot = dict(voice_preview) if voice_preview else None
-    sm.state.update_task(
+    reserved = sm.state.begin_task_if_idle(
         task_id,
-        state=const.TASK_STATE_PROCESSING,
-        progress=0,
         video_subject=task_params.video_subject or task_params.video_script or task_id,
     )
+    if not reserved:
+        logger.warning(f"ignored a duplicate generation submit: task_id={task_id}")
+        return
+
     try:
         _task_manager.add_task(
             _run_generation,

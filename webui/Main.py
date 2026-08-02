@@ -4219,6 +4219,9 @@ def _render_generation_controls(
             st.error(tr("Video Generation Failed"))
             st.stop()
 
+        # 제출이 끝나면 예약해 둔 ID 를 비운다. 남겨 두면 버튼 상태가 살아 있는 다음
+        # 실행이 같은 ID 로 다시 제출해, 같은 영상을 만드는 작업이 겹쳐 뜬다.
+        st.session_state.pop("pending_generation_task_id", None)
         st.session_state["current_generation_task_id"] = task_id
         logger.info(f"WebUI generation task submitted: task_id={task_id}")
 
