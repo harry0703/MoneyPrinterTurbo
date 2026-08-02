@@ -74,6 +74,25 @@ class TestScriptStyleSelection(unittest.TestCase):
             llm.script_style_prompt("nope"), llm.DEFAULT_SCRIPT_SYSTEM_PROMPT
         )
 
+    def test_the_story_style_starts_at_the_crisis(self):
+        """
+        쇼츠에는 발단·전개를 담을 시간이 없다. 위기에서 시작해 절정과 결말만 쓴다.
+        """
+        prompt = llm.STORY_SCRIPT_SYSTEM_PROMPT
+        self.assertIn("Crisis", prompt)
+        self.assertIn("Climax", prompt)
+        self.assertIn("Resolution", prompt)
+        self.assertIn("no room for setup and rising action", prompt)
+
+    def test_the_story_style_controls_how_the_narration_will_sound(self):
+        """
+        TTS 는 적힌 대로 읽는다. 숫자를 아라비아 숫자로 두거나 철자대로 읽으면
+        어색해지는 단어를 그대로 두면, 대본이 좋아도 낭독이 어색해진다.
+        """
+        prompt = llm.STORY_SCRIPT_SYSTEM_PROMPT
+        self.assertIn("numbers as words", prompt)
+        self.assertIn("spell it", prompt)
+
     def test_the_story_style_forbids_inventing_facts(self):
         """
         각색을 허용하는 프롬프트다. 경험담은 지어내도 되지만 효능·수치까지 지어내면

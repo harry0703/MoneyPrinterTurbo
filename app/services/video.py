@@ -1135,17 +1135,23 @@ def _headline_clip(params, font_path: str, canvas_width: int, duration: float):
 
 
 def _subtitle_below_position(
-    canvas_height: int, card_band_height: int, clip_height: int
+    canvas_height: int, card_band_height: int, clip_height: int, gap: int = 0
 ) -> int:
     """
-    영상 아래 여백의 세로 중앙 좌표. 여백보다 자막이 크면 여백 위쪽에 붙인다.
+    영상 바로 아래에 자막을 놓을 세로 좌표.
+
+    여백 한가운데에 놓으면 화면 아래쪽에 너무 붙는다. 유튜브 쇼츠는 하단에 제목,
+    채널명, 버튼을 얹기 때문에 그 자리에 있는 자막은 가려진다. 영상에서 ``gap``
+    만큼만 띄워 위쪽에 붙인다.
 
     요청 비율이 아니라 실제로 놓인 띠 높이를 받아야 한다. 여백 확보 때문에 띠가
     더 줄어들 수 있고, 비율로 계산하면 그만큼 자막이 아래로 밀려 화면 밖으로 나간다.
     """
     bottom_margin_top = (canvas_height + card_band_height) // 2
+    # 자막이 여백보다 크면 띄울 여유가 없다. 화면 밖으로 내보내지 않는 쪽이 먼저다.
     available = canvas_height - bottom_margin_top
-    return bottom_margin_top + max(0, (available - clip_height) // 2)
+    gap = max(0, min(gap, available - clip_height))
+    return bottom_margin_top + gap
 
 
 def _reserved_margin(params, headline_clip) -> int:
@@ -1505,7 +1511,10 @@ def generate_video(
                 (
                     "center",
                     _subtitle_below_position(
-                        video_height, card_band_height, _clip.h
+                        video_height,
+                        card_band_height,
+                        _clip.h,
+                        gap=int(params.font_size * 0.5),
                     ),
                 )
             )

@@ -286,6 +286,33 @@ class TestMalformedHeadlineResponse(unittest.TestCase):
         self.assertEqual(headline, "SALE\n클릭")
 
 
+class TestSubtitleSitsJustBelowTheVideo(unittest.TestCase):
+    """유튜브 쇼츠는 화면 아래를 제목·채널명·버튼으로 덮는다."""
+
+    def test_the_subtitle_hugs_the_video_instead_of_centring_in_the_margin(self):
+        """
+        여백 한가운데에 놓으면 화면 아래쪽에 너무 붙어, 쇼츠 UI 에 가려진다.
+        영상에서 조금만 띄워 위쪽에 붙어야 한다.
+        """
+        canvas, band, clip_h, gap = 1920, 1113, 140, 30
+        margin_top = (canvas + band) // 2
+
+        y = video._subtitle_below_position(canvas, band, clip_h, gap)
+
+        self.assertEqual(y, margin_top + gap)
+        centred = margin_top + (canvas - margin_top - clip_h) // 2
+        self.assertLess(y, centred, "자막이 여전히 여백 중앙에 있다")
+
+    def test_the_gap_shrinks_rather_than_pushing_the_subtitle_off_screen(self):
+        """띄우려다 화면 밖으로 내보내면 자막이 아예 안 보인다."""
+        canvas, band, gap = 1920, 1113, 200
+        available = canvas - (canvas + band) // 2
+
+        y = video._subtitle_below_position(canvas, band, available, gap)
+
+        self.assertEqual(y + available, canvas)
+
+
 class TestFullHeightCardKeepsItsMargins(unittest.TestCase):
     """비율 1.0 은 스키마가 받는 값이다. 그때도 얹을 것이 있으면 자리가 있어야 한다."""
 
