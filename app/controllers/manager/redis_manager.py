@@ -6,7 +6,9 @@ from loguru import logger
 from pydantic import ValidationError
 
 from app.controllers.manager.base_manager import TaskManager
+from app.models import const
 from app.models.schema import VideoParams
+from app.services import state as sm
 from app.services import task as tm
 
 FUNC_MAP = {
@@ -74,6 +76,18 @@ class RedisTaskManager(TaskManager):
                         f"VideoParams validation (queued under an older, more "
                         f"permissive schema, or corrupted): {e}"
                     )
+                    # 任务状态记录在入队前就已创建，且默认是 processing；如果只是
+                    # 丢弃这条队列项而不动状态记录，API/WebUI 会一直显示任务在
+                    # 运行，永远不会变成失败。用 patch_task 而不是 update_task，
+                    # 这样如果用户已经删除了这个任务，我们不会又把它建回来。
+                    task_id = task_info["kwargs"].get("task_id")
+                    if task_id:
+                        sm.state.patch_task(
+                            task_id,
+                            state=const.TASK_STATE_FAILED,
+                            failed_stage="dequeue",
+                            error=f"discarded stale queued task: {e}",
+                        )
                     continue
 
             return task_info

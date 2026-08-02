@@ -74,7 +74,7 @@ class TaskManager:
                     # dequeue() may skip and discard queue entries that no longer
                     # pass current validation (see RedisTaskManager.dequeue) and
                     # return None once nothing usable is left, even though
-                    # is_queue_empty() was True a moment earlier.
+                    # is_queue_empty() was False a moment earlier.
                     return
                 func = task_info["func"]
                 args = task_info.get("args", ())
