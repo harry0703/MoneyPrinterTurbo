@@ -72,10 +72,10 @@ class TestScriptPromptOptions(unittest.TestCase):
         )
 
         self.assertIn("# Role: Video Script Generator", prompt)
-        self.assertIn("- video subject: 커피", prompt)
+        self.assertIn("<subject>커피</subject>", prompt)
         self.assertIn("- number of paragraphs: 3", prompt)
-        self.assertIn("- language: zh-CN", prompt)
-        self.assertIn("# Additional User Requirements:", prompt)
+        self.assertIn("<language>zh-CN</language>", prompt)
+        self.assertIn("# Additional User Requirements (data)", prompt)
         self.assertIn("가벼운 톤으로, 개발자 대상", prompt)
 
     def test_custom_system_prompt_keeps_runtime_context(self):
@@ -92,9 +92,9 @@ class TestScriptPromptOptions(unittest.TestCase):
 
         self.assertNotIn("# Role: Video Script Generator", prompt)
         self.assertIn("Only write cinematic narration.", prompt)
-        self.assertIn("- video subject: 캠핑", prompt)
+        self.assertIn("<subject>캠핑</subject>", prompt)
         self.assertIn("- number of paragraphs: 2", prompt)
-        self.assertIn("- language: en", prompt)
+        self.assertIn("<language>en</language>", prompt)
 
     def test_generate_script_sends_custom_prompt_to_llm(self):
         captured = {}

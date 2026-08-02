@@ -16,6 +16,7 @@ MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10
 MAX_SCRIPT_PROMPT_LENGTH = 2000
 MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
+MAX_SCRIPT_SUBJECT_LENGTH = 500
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
 _URL_USERINFO_RE = re.compile(
@@ -514,6 +515,11 @@ def _generate_response(prompt: str) -> str:
         return f"Error: {_sanitize_error_message(e)}"
 
 
+# 제공자 예외 메시지에서 자격 증명을 지우는 일은 LLM 만의 문제가 아니다. 텔레그램
+# 봇처럼 파이프라인 전체를 감싸 로그를 남기는 곳도 같은 처리가 필요하다.
+sanitize_error_message = _sanitize_error_message
+
+
 def test_connection() -> tuple[bool, str, float]:
     """
     현재 Provider 설정으로 최소한의 요청을 한 번 보내, 실제 생성 경로가 동작하는지 확인한다.
@@ -587,25 +593,38 @@ def build_script_prompt(
     custom_system_prompt = _limit_script_text(
         custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
     )
+    # 스키마와 CLI 가 각자 상한을 두지만, 이 함수는 서비스 안에서도 직접 불린다.
+    # 상한은 프롬프트를 만드는 자리에 있어야 어느 입구로 들어와도 지켜진다.
+    video_subject = _limit_script_text(
+        video_subject, MAX_SCRIPT_SUBJECT_LENGTH, "video_subject"
+    )
 
     # '대본 생성 규칙' 과 '런타임 컨텍스트' 를 나눠서 이어 붙인다. 이렇게 하면 고급 사용자가
     # 기본 system prompt 를 덮어써도 영상 주제, 언어, 문단 수처럼 생성할 때마다 반드시
     # 들어가야 하는 파라미터를 빠뜨리지 않는다.
     # 직접 써 넣은 프롬프트가 항상 이긴다. 스타일은 기본값을 고르는 수단일 뿐이다.
     prompt = custom_system_prompt or script_style_prompt(script_style)
+    # 주제, 언어, 추가 요구사항은 사용자가 쓴 글이라 규칙처럼 읽힐 수 있다. 헤드라인
+    # 쪽과 같은 방식으로 경계를 표시하고 꺾쇠를 이스케이프해, 재료 쪽에서 구분자를
+    # 만들 수 없게 한다.
     prompt += f"""
 
 # Initialization:
-- video subject: {video_subject}
+- video subject (data): <subject>{_as_prompt_data(video_subject)}</subject>
 - number of paragraphs: {paragraph_number}
 """.rstrip()
     if language:
-        prompt += f"\n- language: {language}"
+        prompt += (
+            "\n- language (data): <language>"
+            f"{_as_prompt_data(_normalize_social_language(language))}</language>"
+        )
     if video_script_prompt:
         prompt += f"""
 
-# Additional User Requirements:
-{video_script_prompt}
+# Additional User Requirements (data)
+<requirements>
+{_as_prompt_data(video_script_prompt)}
+</requirements>
 """.rstrip()
 
     return prompt

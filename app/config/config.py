@@ -328,6 +328,9 @@ azure = _SynchronizedConfig(_cfg.get("azure", {}))
 siliconflow = _SynchronizedConfig(_cfg.get("siliconflow", {}))
 elevenlabs = _SynchronizedConfig(_cfg.get("elevenlabs", {}))
 chatterbox = _SynchronizedConfig(_cfg.get("chatterbox", {}))
+# 텔레그램 봇. 봇 토큰과 허용할 대화 상대를 담는다. WebUI 가 쓰지 않으므로
+# save_config 의 갱신 대상에는 넣지 않는다 — 사용자가 파일에 직접 적는 값이다.
+telegram = _SynchronizedConfig(_cfg.get("telegram", {}))
 ui = _SynchronizedConfig(
     _cfg.get(
         "ui",

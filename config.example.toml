@@ -356,3 +356,14 @@ hide_log = false
 # subtitle_background_enabled = false
 # subtitle_background_color = "#000000"
 # rounded_subtitle_background = false
+
+
+[telegram]
+# 밖에서 텔레그램으로 영상을 만들려면 채운다. `python telegram_bot.py` 로 켜며,
+# 봇이 텔레그램 서버로 나가서 물어보는 방식이라 공인 IP 나 포트 개방이 필요 없다.
+#
+# bot_token: @BotFather 에게 /newbot 으로 봇을 만들면 받는 값
+# chat_id  : 비워 둔 채로 봇을 켜고 아무 메시지나 보내면 터미널에 찍힌다.
+#            적어 두면 그 대화에서 온 메시지만 처리한다.
+bot_token = ""
+chat_id = ""
