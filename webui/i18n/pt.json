@@ -283,7 +283,7 @@
     "Layout card": "Cartão (margem acima e abaixo)",
     "Layout Help": "O cartão reduz o vídeo a uma faixa para o título ficar acima e as legendas abaixo.",
     "Headline": "Título",
-    "Headline Placeholder": "Deixe vazio e a IA escreve a partir do roteiro",
+    "Headline Placeholder": "Deixe vazio e a IA escreve. Uma quebra de linha divide em duas.",
     "Headline Color": "Cor do título",
     "Headline Font Size": "Tamanho do título",
     "Layout Video Height Ratio": "Altura do vídeo",

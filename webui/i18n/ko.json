@@ -283,7 +283,7 @@
     "Layout card": "카드 (위아래 여백)",
     "Layout Help": "카드는 영상을 띠 모양으로 줄여, 위에는 헤드라인, 아래에는 자막이 들어갈 자리를 만듭니다.",
     "Headline": "헤드라인",
-    "Headline Placeholder": "비워두면 대본을 바탕으로 AI가 만듭니다",
+    "Headline Placeholder": "비워두면 대본을 바탕으로 AI가 만듭니다. 줄바꿈을 넣으면 그 자리에서 두 줄로 나뉩니다.",
     "Headline Color": "헤드라인 색",
     "Headline Font Size": "헤드라인 크기",
     "Layout Video Height Ratio": "영상 높이",

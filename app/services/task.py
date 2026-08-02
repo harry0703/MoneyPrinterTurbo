@@ -1224,18 +1224,21 @@ def _run_pipeline(
     # 6. Generate final videos
     # card 레이아웃은 상단 여백에 얹을 문구가 있어야 의미가 있다. 사용자가 직접 넣지
     # 않았을 때만 생성한다. 대본 첫 문장을 그대로 쓰면 길고 밋밋해서 따로 뽑는다.
-    if params.layout == "card" and not str(params.headline or "").strip():
-        params.headline = llm.generate_headline(
-            video_subject=params.video_subject,
-            video_script=video_script,
-            language=params.video_language,
-        )
-        # 헤드라인은 주제와 대본에서 나온 문장이라 그 안의 내용이 그대로 딸려온다.
-        # 만들어졌는지만 남기고 본문은 로그에 쓰지 않는다.
-        logger.info(f"headline generated: {len(params.headline)} characters")
-        # 매니페스트는 헤드라인이 만들어지기 전에 쓰인다. 그리기 전에 보완해 두지
-        # 않으면 영상에는 문구가 있는데 기록에는 빈 값이 남고, 같은 작업을 다시
-        # 돌릴 때마다 다른 문구가 나온다.
+    if params.layout == "card":
+        if not str(params.headline or "").strip():
+            params.headline = llm.generate_headline(
+                video_subject=params.video_subject,
+                video_script=video_script,
+                language=params.video_language,
+            )
+            # 헤드라인은 주제와 대본에서 나온 문장이라 그 안의 내용이 그대로 딸려온다.
+            # 만들어졌는지만 남기고 본문은 로그에 쓰지 않는다.
+            logger.info(f"headline generated: {len(params.headline)} characters")
+
+        # 그리는 자리에서 두 줄로 자른다. 여기서 같이 줄여 두지 않으면 영상에는
+        # 잘린 문구가, 기록에는 원본이 남아 둘이 어긋난다. 매니페스트는 헤드라인이
+        # 정해지기 전에 쓰이므로 어느 경로든 여기서 보완한다.
+        params.headline = video._clamp_headline(params.headline)
         task_artifacts.patch_script_data(task_id, headline=params.headline)
 
     final_video_paths, combined_video_paths, generation_warnings = generate_final_videos(

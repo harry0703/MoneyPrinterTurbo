@@ -286,6 +286,72 @@ class TestMalformedHeadlineResponse(unittest.TestCase):
         self.assertEqual(headline, "SALE\n클릭")
 
 
+class TestAnOversizedHeadlineCannotEatTheVideo(unittest.TestCase):
+    """헤드라인은 두 줄짜리 문구다. 화면의 주인공은 영상이다."""
+
+    def test_extra_lines_are_dropped(self):
+        """
+        입력칸이 여러 줄을 받는다. 줄 수를 막지 않으면 네 줄짜리 헤드라인이
+        여백을 다 먹고 영상 띠를 밀어낸다.
+        """
+        self.assertEqual(video._clamp_headline("하나\n둘\n셋\n넷"), "하나\n둘")
+
+    def test_a_long_line_moves_onto_the_second_line(self):
+        """
+        잘라 버리면 뒷부분이 사라진다. 그건 문구를 짧게 만드는 게 아니라 없애는
+        것이고, 예전에는 렌더러가 알아서 접어 주던 것이다.
+        """
+        clamped = video._clamp_headline("The hidden cost of drinking coffee")
+        lines = clamped.split("\n")
+
+        self.assertEqual(len(lines), 2)
+        self.assertIn("drinking", clamped)
+
+    def test_a_line_within_the_limit_keeps_the_break_that_was_typed(self):
+        """멀쩡한 줄까지 다시 접으면 쓴 사람이 고른 의미 단위가 깨진다."""
+        self.assertEqual(video._clamp_headline("첫 줄\n둘째 줄"), "첫 줄\n둘째 줄")
+
+    def test_a_run_with_nowhere_to_wrap_is_cut(self):
+        """공백이 없으면 접을 자리가 없다. 그래도 폭은 지켜야 한다."""
+        clamped = video._clamp_headline("가" * 500)
+        self.assertEqual(len(clamped), video.MAX_HEADLINE_LINE_LENGTH)
+
+    def test_the_drawn_clip_is_no_taller_than_two_lines(self):
+        """
+        자르는 함수가 있어도 그리는 자리에서 안 쓰면 소용이 없다. 실제로 만들어진
+        클립 높이로 확인한다.
+        """
+        font = str(Path("resource/fonts/Pretendard-Bold.ttf").resolve())
+        two = _params()
+        two.headline = "하나\n둘"
+        four = _params()
+        four.headline = "하나\n둘\n셋\n넷"
+
+        two_clip = video._headline_clip(two, font, 1080, 1.0)
+        four_clip = video._headline_clip(four, font, 1080, 1.0)
+
+        self.assertEqual(four_clip.h, two_clip.h)
+
+    def test_the_video_band_never_falls_below_the_floor(self):
+        """
+        여백 확보가 우선하면 얹을 것이 커질수록 영상이 사라진다. 아무리 큰
+        헤드라인이 와도 영상이 남아 있어야 한다.
+        """
+        source = ColorClip(size=(1080, 1920), color=(30, 90, 200)).with_duration(1)
+        params = _params(layout_video_height_ratio=0.9)
+        params.headline = "가나다라마바사아자차\n카타파하가나다라마바"
+        params.headline_font_size = 200
+        font = str(Path("resource/fonts/Pretendard-Bold.ttf").resolve())
+        try:
+            _, band = video.apply_card_layout(source, params, font)
+        finally:
+            source.close()
+
+        self.assertGreaterEqual(
+            band, int(1920 * video.MIN_CARD_VIDEO_HEIGHT_RATIO), "영상 띠가 사라졌다"
+        )
+
+
 class TestSubtitleSitsJustBelowTheVideo(unittest.TestCase):
     """유튜브 쇼츠는 화면 아래를 제목·채널명·버튼으로 덮는다."""
 

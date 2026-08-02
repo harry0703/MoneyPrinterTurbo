@@ -185,3 +185,43 @@ class TestHeadlineRecording(unittest.TestCase):
             (Path(self.temp_dir.name) / "script.json").read_text(encoding="utf-8")
         )
         self.assertEqual(recorded["headline"], "첫 줄\n둘째 줄")
+
+    def test_a_hand_written_headline_is_recorded_as_it_will_be_drawn(self):
+        """
+        직접 쓴 헤드라인은 그리는 자리에서 두 줄로 잘린다. 기록에 원본이 남으면
+        영상과 기록이 어긋나고, 그 기록으로 다시 만들면 결과가 또 달라진다.
+        """
+        from app.services import task as tm
+
+        params = VideoParams(
+            video_subject="Coffee",
+            layout="card",
+            headline="하나\n둘\n셋\n넷",
+        )
+
+        with (
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]),
+            patch.object(
+                tm, "generate_audio", return_value=("audio.mp3", 5, object())
+            ),
+            patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+            patch.object(tm, "get_video_materials", return_value=["clip.mp4"]),
+            patch.object(
+                tm,
+                "generate_final_videos",
+                return_value=(["final.mp4"], ["combined.mp4"], []),
+            ),
+            patch.object(tm.llm, "generate_headline") as generate,
+            patch.object(
+                tm.upload_post.upload_post_service, "is_configured", return_value=False
+            ),
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            tm.start("hand-written-headline", params)
+
+        generate.assert_not_called()
+        recorded = json.loads(
+            (Path(self.temp_dir.name) / "script.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(recorded["headline"], "하나\n둘")

@@ -14,13 +14,27 @@ import pytest
 from app.config import config as config_module
 
 
+# 프로세스 전역으로 살아 있는 설정 섹션. 파일만 격리하면 이 값들은 테스트 사이를
+# 그대로 넘어가, 앞 테스트가 남긴 값 때문에 뒤 테스트가 실패한다.
+_SHARED_CONFIG_SECTIONS = ("app", "ui", "azure", "siliconflow", "elevenlabs", "chatterbox")
+
+
 @pytest.fixture(autouse=True)
 def isolate_user_config(monkeypatch):
     original = Path(config_module.config_file)
+    snapshots = {
+        name: dict(getattr(config_module, name)) for name in _SHARED_CONFIG_SECTIONS
+    }
     with tempfile.TemporaryDirectory() as work_dir:
         sandbox = Path(work_dir) / "config.toml"
         if original.is_file():
             shutil.copyfile(original, sandbox)
         monkeypatch.setattr(config_module, "config_file", str(sandbox))
         monkeypatch.setattr(config_module, "root_dir", work_dir)
-        yield
+        try:
+            yield
+        finally:
+            for name, snapshot in snapshots.items():
+                section = getattr(config_module, name)
+                section.clear()
+                section.update(snapshot)

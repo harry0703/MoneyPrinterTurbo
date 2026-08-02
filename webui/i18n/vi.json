@@ -283,7 +283,7 @@
     "Layout card": "Thẻ (chừa lề trên dưới)",
     "Layout Help": "Thẻ thu video thành một dải để tiêu đề nằm trên và phụ đề nằm dưới.",
     "Headline": "Tiêu đề",
-    "Headline Placeholder": "Để trống thì AI viết từ kịch bản",
+    "Headline Placeholder": "Để trống thì AI viết. Xuống dòng sẽ tách làm hai.",
     "Headline Color": "Màu tiêu đề",
     "Headline Font Size": "Cỡ tiêu đề",
     "Layout Video Height Ratio": "Chiều cao video",

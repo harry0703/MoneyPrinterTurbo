@@ -283,7 +283,7 @@
     "Layout card": "Karte (Rand oben und unten)",
     "Layout Help": "Die Karte verkleinert das Video zu einem Streifen, damit die Überschrift darüber und die Untertitel darunter passen.",
     "Headline": "Überschrift",
-    "Headline Placeholder": "Leer lassen — dann schreibt die KI eine aus dem Skript",
+    "Headline Placeholder": "Leer lassen — dann schreibt die KI eine. Ein Zeilenumbruch teilt sie in zwei.",
     "Headline Color": "Farbe der Überschrift",
     "Headline Font Size": "Größe der Überschrift",
     "Layout Video Height Ratio": "Videohöhe",

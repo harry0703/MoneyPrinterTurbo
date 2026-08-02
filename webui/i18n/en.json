@@ -310,7 +310,7 @@
     "Layout card": "Card (room above and below)",
     "Layout Help": "Card shrinks the footage into a band so the headline sits above it and the subtitles below.",
     "Headline": "Headline",
-    "Headline Placeholder": "Leave empty and the LLM writes one from the script",
+    "Headline Placeholder": "Leave empty and the LLM writes one from the script. Line break splits it in two.",
     "Headline Color": "Headline color",
     "Headline Font Size": "Headline size",
     "Layout Video Height Ratio": "Video height",

@@ -53,8 +53,20 @@ class TestLayoutControlsExist(unittest.TestCase):
     def test_the_headline_can_be_left_empty_for_the_llm(self):
         """헤드라인을 직접 넣을 수도, 비워서 AI 에 맡길 수도 있어야 한다."""
         app = _app()
-        headline = _widget(app, "text_input", "headline_input")
+        headline = _widget(app, "text_area", "headline_input")
         self.assertEqual(headline.value, "")
+
+    def test_a_hand_written_headline_can_choose_where_it_breaks(self):
+        """
+        두 줄로 얹히는 문구다. 한 줄짜리 입력칸이면 어디서 끊길지 자동 줄바꿈에
+        맡겨야 하고, 직접 쓴 헤드라인의 의미 단위가 엉뚱한 곳에서 갈린다.
+        """
+        app = _app()
+        _widget(app, "text_area", "headline_input").set_value("첫 줄\n둘째 줄").run()
+
+        self.assertEqual(
+            _widget(app, "text_area", "headline_input").value, "첫 줄\n둘째 줄"
+        )
 
     def test_the_template_widgets_are_disabled_outside_the_card_layout(self):
         """
@@ -64,7 +76,7 @@ class TestLayoutControlsExist(unittest.TestCase):
         app = _app()
         _widget(app, "selectbox", "layout_select_ko").select("fullscreen").run()
 
-        self.assertTrue(_widget(app, "text_input", "headline_input").disabled)
+        self.assertTrue(_widget(app, "text_area", "headline_input").disabled)
         self.assertTrue(
             _widget(app, "checkbox", "subtitle_below_video_checkbox").disabled
         )
@@ -76,7 +88,7 @@ class TestLayoutControlsExist(unittest.TestCase):
         selector.select("fullscreen").run()
         _widget(app, "selectbox", "layout_select_ko").select("card").run()
 
-        self.assertFalse(_widget(app, "text_input", "headline_input").disabled)
+        self.assertFalse(_widget(app, "text_area", "headline_input").disabled)
 
 
 class TestLayoutLabels(unittest.TestCase):

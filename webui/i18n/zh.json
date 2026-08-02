@@ -310,7 +310,7 @@
     "Layout card": "卡片（上下留白）",
     "Layout Help": "卡片会把画面缩成一条，上方放标题，下方放字幕。",
     "Headline": "标题",
-    "Headline Placeholder": "留空则由 AI 根据脚本生成",
+    "Headline Placeholder": "留空则由 AI 根据脚本生成。换行处会分成两行。",
     "Headline Color": "标题颜色",
     "Headline Font Size": "标题大小",
     "Layout Video Height Ratio": "画面高度",

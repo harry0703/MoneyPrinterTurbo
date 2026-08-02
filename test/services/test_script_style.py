@@ -129,6 +129,24 @@ class TestScriptStyleSelection(unittest.TestCase):
         self.assertIn("compare things to specific named ones", prompt)
         self.assertIn("the feeling has to move", prompt)
 
+    def test_the_story_style_names_the_register_it_wants(self):
+        """
+        "캐주얼하게" 로는 잘 다듬은 해요체가 나온다. 커뮤니티 글의 어미를 직접
+        적어야 그 말투가 나온다.
+        """
+        prompt = llm.STORY_SCRIPT_SYSTEM_PROMPT
+        self.assertIn("~했음", prompt)
+        self.assertIn("rather\n   than ~했습니다 or ~했어요", prompt)
+
+    def test_the_story_style_gives_a_countable_length_budget(self):
+        """
+        초 단위로만 적으면 모델이 감으로 쓰고 매번 넘긴다. 셀 수 있는 단위로
+        줘야 지킨다.
+        """
+        prompt = llm.STORY_SCRIPT_SYSTEM_PROMPT
+        self.assertIn("350 to 400 characters", prompt)
+        self.assertIn("count instead of estimating", prompt)
+
     def test_the_story_style_ends_by_talking_to_the_viewer(self):
         """혼잣말로 끝나면 남 얘기가 된다. 시청자에게 직접 말해야 한다."""
         self.assertIn("the last line speaks to the viewer", llm.STORY_SCRIPT_SYSTEM_PROMPT)

@@ -3624,8 +3624,11 @@ def _render_layout_settings(panel, params):
             st.session_state.setdefault(
                 "headline_input", str(config.ui.get("headline", "") or "")
             )
-            params.headline = st.text_input(
+            # 두 줄로 얹히는 문구라 줄바꿈이 곧 편집 대상이다. text_input 은 줄바꿈을
+            # 받지 못해, 직접 쓴 헤드라인은 어디서 끊길지 자동 줄바꿈에 맡겨야 했다.
+            params.headline = st.text_area(
                 tr("Headline"),
+                height=68,
                 max_chars=200,
                 placeholder=tr("Headline Placeholder"),
                 key="headline_input",

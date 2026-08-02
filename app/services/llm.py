@@ -99,10 +99,11 @@ results, no prices, no "studies show", no product performance. Invent the
 narrator's life; never invent the world.
 
 ## How it has to sound
-1. use the casual sentence endings of someone posting online in the target
-   language, not the endings of written narration. this is the single biggest
-   difference between a post and an essay, and every language marks it
-   differently — use whatever that language's version is.
+1. use the blunt, unpolished sentence endings of a community post — the register
+   someone uses telling a friend what happened, not the one they use writing
+   something down. this is the single biggest difference between a post and an
+   essay. in Korean that means endings like ~했음, ~하더라, ~거임, ~던듯 rather
+   than ~했습니다 or ~했어요; every language has its own version, so use that.
 2. never introduce yourself with an apposition — no "as someone who is X, I did
    Y". a person says the trait as its own remark, or lets the behaviour show it.
 3. compare things to specific named ones. a named actor, a named brand, a named
@@ -133,7 +134,11 @@ narrator's life; never invent the world.
     where you want the breath.
 14. keep the scale believable. a number the viewer would call exaggerated costs
     more than it buys.
-15. aim for 35 to 45 seconds read aloud.
+15. aim for 35 to 45 seconds read aloud, and count instead of estimating. in
+    Korean that is roughly 350 to 400 characters; in English roughly 100 to 120
+    words. running long is the most common way this goes wrong — the narration is
+    played back faster than you are reading it in your head. cut to fit rather
+    than trusting the feel of it.
 16. plain text only. no markdown, no titles, no speaker labels, no emoji.
 17. respond in the same language as the video subject.
 """.strip()
@@ -1003,6 +1008,11 @@ def _wrap_headline(text: str) -> str:
     if current and len(lines) < HEADLINE_LINES:
         lines.append(current)
     return "\n".join(line[:MAX_HEADLINE_LINE_LENGTH] for line in lines[:HEADLINE_LINES])
+
+
+# 렌더링 쪽도 같은 규칙으로 접어야 한다. 직접 써 넣은 헤드라인이 잘리기만 하면
+# 뒷부분이 사라지고, 그건 예전에 없던 손실이다.
+wrap_headline = _wrap_headline
 
 
 def _fallback_headline(video_subject: str, video_script: str) -> str:

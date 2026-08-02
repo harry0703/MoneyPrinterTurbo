@@ -283,7 +283,7 @@
     "Layout card": "Tarjeta (margen arriba y abajo)",
     "Layout Help": "La tarjeta reduce el vídeo a una franja para que el titular quede arriba y los subtítulos abajo.",
     "Headline": "Titular",
-    "Headline Placeholder": "Déjalo vacío y la IA lo escribe a partir del guion",
+    "Headline Placeholder": "Déjalo vacío y la IA lo escribe. Un salto de línea lo divide en dos.",
     "Headline Color": "Color del titular",
     "Headline Font Size": "Tamaño del titular",
     "Layout Video Height Ratio": "Altura del vídeo",
