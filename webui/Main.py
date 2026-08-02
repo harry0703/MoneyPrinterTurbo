@@ -49,7 +49,7 @@ from app.services import state as sm
 from app.services import task as tm
 from app.services import version_checker
 from app.utils.logging_utils import configure_terminal_logger
-from app.utils import utils
+from app.utils import file_security, utils
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -840,13 +840,21 @@ def _render_task_manager_entry():
 
 
 def _load_task_restore_payload(task_id):
-    tasks_root = os.path.realpath(utils.task_dir())
-    task_path = os.path.realpath(os.path.join(tasks_root, str(task_id)))
+    # 작업 이름은 디렉터리 이름 하나다. 경로처럼 생긴 값은 결과가 작업 폴더 안에
+    # 떨어지더라도 받지 않는다. `a/../b` 나 절대 경로가 통하면, 뒤에서 이 값을
+    # 다루는 코드마다 같은 판정을 되풀이해야 한다.
+    name = str(task_id)
+    if not name or name in {".", ".."} or name != os.path.basename(name):
+        logger.warning("task id is not a single directory name")
+        return None
+
+    # 담기 판정과 심볼릭 링크는 프로젝트의 공용 검사기에 맡긴다.
     try:
-        if os.path.commonpath([tasks_root, task_path]) != tasks_root:
-            raise ValueError("task path is outside the task directory")
-    except ValueError as e:
-        logger.warning(f"invalid task restore path: {task_id}, {e}")
+        task_path = file_security.resolve_path_within_directory(
+            utils.task_dir(), name, require_file=False
+        )
+    except (ValueError, OSError) as e:
+        logger.warning(f"invalid task restore path: {e}")
         return None
 
     script_data = _safe_load_task_script(task_path)
@@ -895,6 +903,31 @@ def _infer_tts_server_from_voice(voice_name):
 def _set_stable_widget_value(key, value):
     if value is not None:
         st.session_state[localized_widget_key(key)] = value
+
+
+def _queue_task_restore_from_url():
+    """
+    ``?task=<id>`` 로 열면 그 작업의 설정을 바로 채운다.
+
+    작업 관리자에서 '다시 생성' 을 누르는 것과 같은 일을 주소로 한다. 만들어 둔
+    영상을 손보려고 화면을 여는 흐름에서는 대본과 설정이 이미 들어와 있는 편이
+    자연스럽고, 링크로 남겨 둘 수도 있다.
+
+    한 번만 적용한다. rerun 마다 다시 채우면 사용자가 고친 내용을 계속 덮어쓴다.
+    """
+    task_id = str(st.query_params.get("task", "") or "").strip()
+    if not task_id or st.session_state.get("url_task_restore_applied") == task_id:
+        return
+
+    st.session_state["url_task_restore_applied"] = task_id
+    payload = _load_task_restore_payload(task_id)
+    if not payload:
+        # 경로 검증과 파싱은 로더가 한다. 여기서는 조용히 넘어가, 잘못된 주소
+        # 하나로 화면 전체가 뜨지 않는 일을 만들지 않는다.
+        logger.warning(f"cannot restore task from url: {task_id}")
+        return
+
+    st.session_state["task_restore_payload"] = payload
 
 
 def _apply_pending_task_restore():
@@ -4200,6 +4233,7 @@ def _render_application():
     if st.session_state.get("settings_dialog_open", False):
         _render_settings_dialog()
 
+    _queue_task_restore_from_url()
     restore_applied = _apply_pending_task_restore()
     restore_candidate_id = st.session_state.get("task_restore_candidate_id")
     if restore_candidate_id:
