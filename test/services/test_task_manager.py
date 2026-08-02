@@ -103,6 +103,22 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertEqual(manager.current_tasks, 1)
         task_done.assert_called_once_with()
 
+    def test_check_queue_handles_dequeue_returning_none(self):
+        """
+        dequeue() 可能在内部跳过所有已不满足当前校验的排队任务后返回 None，
+        即使调用 check_queue 之前 is_queue_empty() 曾经是 False。check_queue
+        不能假设 dequeue 一定能拿到可用任务，否则会在 task_info["func"] 上崩溃。
+        """
+        manager = InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=1)
+
+        with patch.object(manager, "is_queue_empty", return_value=False), patch.object(
+            manager, "dequeue", return_value=None
+        ), patch.object(manager, "execute_task") as execute_task:
+            manager.check_queue()
+
+        execute_task.assert_not_called()
+        self.assertEqual(manager.current_tasks, 0)
+
     def test_execute_task_starts_background_thread(self):
         """任务执行入口必须启动线程，并把函数参数完整传给 run_task。"""
         manager = InMemoryTaskManager(max_concurrent_tasks=1)
@@ -189,6 +205,63 @@ class TestRedisTaskManager(unittest.TestCase):
         self.assertIsNone(self.manager.dequeue())
         self.assertTrue(self.manager.is_queue_empty())
         self.assertEqual(self.manager.queue_size(), 2)
+
+    def test_dequeue_skips_task_that_fails_current_validation(self):
+        """
+        一条任务可能是在校验规则收紧前入队的（例如 video_count 曾允许为 0）。
+        lpop 是破坏性操作，重建 VideoParams 失败时这条任务已经从 Redis 里
+        永久移除了，不能再假装它还在；dequeue 不应该把校验异常抛给调用方
+        （那样会让持锁的调用方崩溃且丢失这条任务却不打日志），而应该跳过它，
+        继续尝试队列里的下一条，直到取到一条可用任务或者队列确实空了。
+        """
+        stale_payload = {
+            "func": "start",
+            "args": [],
+            "kwargs": {
+                "task_id": "task-stale",
+                "params": {**VideoParams(video_subject="Coffee").model_dump(
+                    warnings=False
+                ), "video_count": 0},
+            },
+        }
+        valid_payload = {
+            "func": "start",
+            "args": [],
+            "kwargs": {
+                "task_id": "task-valid",
+                "params": VideoParams(video_subject="Tea").model_dump(
+                    warnings=False
+                ),
+            },
+        }
+        self.redis_client.lpop.side_effect = [
+            json.dumps(stale_payload),
+            json.dumps(valid_payload),
+        ]
+
+        task = self.manager.dequeue()
+
+        self.assertEqual(self.redis_client.lpop.call_count, 2)
+        self.assertEqual(task["kwargs"]["task_id"], "task-valid")
+        self.assertIsInstance(task["kwargs"]["params"], VideoParams)
+        self.assertEqual(task["kwargs"]["params"].video_subject, "Tea")
+
+    def test_dequeue_returns_none_when_every_queued_task_is_stale(self):
+        """全部剩余任务都因当前校验规则被丢弃时，应返回 None 而不是抛出异常。"""
+        stale_payload = {
+            "func": "start",
+            "args": [],
+            "kwargs": {
+                "task_id": "task-stale",
+                "params": {**VideoParams(video_subject="Coffee").model_dump(
+                    warnings=False
+                ), "video_count": -1},
+            },
+        }
+        self.redis_client.lpop.side_effect = [json.dumps(stale_payload), None]
+
+        self.assertIsNone(self.manager.dequeue())
+        self.assertEqual(self.redis_client.lpop.call_count, 2)
 
 
 if __name__ == "__main__":
