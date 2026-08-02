@@ -82,10 +82,10 @@ class VideoParams(BaseModel):
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
-    video_clip_duration: Optional[int] = 5
+    video_clip_duration: int = Field(default=5, ge=1)
     video_clip_speed: Optional[float] = 1.0
     match_materials_to_script: bool = False
-    video_count: Optional[int] = 1
+    video_count: int = Field(default=1, ge=1)
 
     video_source: Optional[str] = "pexels"
     video_materials: Optional[List[MaterialInfo]] = (
