@@ -106,6 +106,19 @@ DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_background_color": "#000000",
     "rounded_subtitle_background": False,
 }
+DEFAULT_LAYOUT_SETTINGS = {
+    # 스키마 기본값과 같은 전체화면으로 시작한다. 카드로 바꾸면 화면 구성이 달라지고
+    # 헤드라인 생성을 위해 LLM 을 한 번 더 부르므로, 업그레이드만으로 그렇게 되면 안 된다.
+    # 아래 값들은 카드를 골랐을 때 쓰이는 출발점이다.
+    "layout": "fullscreen",
+    "layout_background_color": "#FFFFFF",
+    "layout_video_height_ratio": 0.58,
+    "layout_corner_radius": 48,
+    "headline_color": "#111111",
+    "headline_font_size": 86,
+    "subtitle_below_video": True,
+    "subtitle_below_color": "#111111",
+}
 LOCAL_MATERIAL_EXTENSIONS = {
     ".mp4",
     ".mov",
@@ -909,6 +922,25 @@ def _apply_pending_task_restore():
     st.session_state["custom_system_prompt"] = params.get(
         "custom_system_prompt"
     ) or llm.script_style_prompt(script_style)
+
+    # 쇼츠 템플릿. 이걸 빼먹으면 지난 작업을 불러와도 화면 구성만 기본값으로 돌아가,
+    # 같은 설정으로 다시 만든다는 기능의 약속이 깨진다.
+    layout_defaults = DEFAULT_LAYOUT_SETTINGS
+    _set_stable_widget_value("layout_select", params.get("layout") or layout_defaults["layout"])
+    st.session_state["headline_input"] = params.get("headline") or ""
+    for state_key, param_key in (
+        ("layout_background_color_picker", "layout_background_color"),
+        ("layout_video_height_ratio_slider", "layout_video_height_ratio"),
+        ("layout_corner_radius_slider", "layout_corner_radius"),
+        ("headline_color_picker", "headline_color"),
+        ("headline_font_size_slider", "headline_font_size"),
+        ("subtitle_below_video_checkbox", "subtitle_below_video"),
+        ("subtitle_below_color_picker", "subtitle_below_color"),
+    ):
+        value = params.get(param_key)
+        st.session_state[state_key] = (
+            layout_defaults[param_key] if value is None else value
+        )
 
     # 영상 설정. 소재 업로드 위젯은 서버가 채울 수 없으므로 로컬 소재는 사용자가 다시 골라야 한다.
     video_source = params.get("video_source") or "pexels"
@@ -3513,6 +3545,174 @@ def _render_audio_settings(panel, params):
     return uploaded_audio_file, uploaded_bgm_file, voice_mode
 
 
+def reset_layout_settings():
+    """쇼츠 템플릿 위젯을 기본값으로 되돌린다."""
+    defaults = DEFAULT_LAYOUT_SETTINGS
+    st.session_state[localized_widget_key("layout_select")] = defaults["layout"]
+    st.session_state["layout_background_color_picker"] = defaults[
+        "layout_background_color"
+    ]
+    st.session_state["layout_video_height_ratio_slider"] = defaults[
+        "layout_video_height_ratio"
+    ]
+    st.session_state["layout_corner_radius_slider"] = defaults["layout_corner_radius"]
+    st.session_state["headline_input"] = ""
+    st.session_state["headline_color_picker"] = defaults["headline_color"]
+    st.session_state["headline_font_size_slider"] = defaults["headline_font_size"]
+    st.session_state["subtitle_below_video_checkbox"] = defaults["subtitle_below_video"]
+    st.session_state["subtitle_below_color_picker"] = defaults["subtitle_below_color"]
+
+
+def _render_layout_settings(panel, params):
+    """쇼츠 템플릿 설정을 그리고 생성 파라미터를 갱신한다."""
+    defaults = DEFAULT_LAYOUT_SETTINGS
+    with panel:
+        with st.container(border=True):
+            st.write(tr("Shorts Template Settings"))
+
+            layout_labels = {
+                "fullscreen": tr("Layout fullscreen"),
+                "card": tr("Layout card"),
+            }
+            params.layout = stable_selectbox(
+                tr("Layout"),
+                options=["fullscreen", "card"],
+                default_value=config.ui.get("layout", defaults["layout"]),
+                key="layout_select",
+                format_func=layout_labels.__getitem__,
+                help=tr("Layout Help"),
+            )
+            config.ui["layout"] = params.layout
+
+            # 카드가 아니면 아래 항목은 화면에 아무 영향을 주지 않는다. 값은 유지하되
+            # 조작만 막아, 레이아웃을 되돌렸을 때 설정이 그대로 남아 있게 한다.
+            card_disabled = params.layout != "card"
+
+            st.session_state.setdefault(
+                "headline_input", str(config.ui.get("headline", "") or "")
+            )
+            params.headline = st.text_input(
+                tr("Headline"),
+                max_chars=200,
+                placeholder=tr("Headline Placeholder"),
+                key="headline_input",
+                disabled=card_disabled,
+            ).strip()
+            config.ui["headline"] = params.headline
+
+            headline_col, subtitle_col = st.columns(2)
+            st.session_state.setdefault(
+                "headline_color_picker",
+                config.ui.get("headline_color", defaults["headline_color"]),
+            )
+            params.headline_color = headline_col.color_picker(
+                tr("Headline Color"),
+                key="headline_color_picker",
+                disabled=card_disabled,
+            )
+            config.ui["headline_color"] = params.headline_color
+
+            st.session_state.setdefault(
+                "subtitle_below_color_picker",
+                config.ui.get("subtitle_below_color", defaults["subtitle_below_color"]),
+            )
+            params.subtitle_below_color = subtitle_col.color_picker(
+                tr("Subtitle Below Color"),
+                key="subtitle_below_color_picker",
+                disabled=card_disabled,
+            )
+            config.ui["subtitle_below_color"] = params.subtitle_below_color
+
+            st.session_state.setdefault(
+                "headline_font_size_slider",
+                int(
+                    config.ui.get("headline_font_size", defaults["headline_font_size"])
+                ),
+            )
+            params.headline_font_size = st.slider(
+                tr("Headline Font Size"),
+                min_value=20,
+                max_value=200,
+                key="headline_font_size_slider",
+                disabled=card_disabled,
+            )
+            config.ui["headline_font_size"] = params.headline_font_size
+
+            st.session_state.setdefault(
+                "layout_video_height_ratio_slider",
+                float(
+                    config.ui.get(
+                        "layout_video_height_ratio",
+                        defaults["layout_video_height_ratio"],
+                    )
+                ),
+            )
+            params.layout_video_height_ratio = st.slider(
+                tr("Layout Video Height Ratio"),
+                min_value=0.3,
+                max_value=1.0,
+                step=0.01,
+                key="layout_video_height_ratio_slider",
+                help=tr("Layout Video Height Ratio Help"),
+                disabled=card_disabled,
+            )
+            config.ui["layout_video_height_ratio"] = params.layout_video_height_ratio
+
+            st.session_state.setdefault(
+                "layout_corner_radius_slider",
+                int(
+                    config.ui.get(
+                        "layout_corner_radius", defaults["layout_corner_radius"]
+                    )
+                ),
+            )
+            params.layout_corner_radius = st.slider(
+                tr("Layout Corner Radius"),
+                min_value=0,
+                max_value=120,
+                key="layout_corner_radius_slider",
+                disabled=card_disabled,
+            )
+            config.ui["layout_corner_radius"] = params.layout_corner_radius
+
+            st.session_state.setdefault(
+                "layout_background_color_picker",
+                config.ui.get(
+                    "layout_background_color", defaults["layout_background_color"]
+                ),
+            )
+            params.layout_background_color = st.color_picker(
+                tr("Layout Background Color"),
+                key="layout_background_color_picker",
+                disabled=card_disabled,
+            )
+            config.ui["layout_background_color"] = params.layout_background_color
+
+            st.session_state.setdefault(
+                "subtitle_below_video_checkbox",
+                bool(
+                    config.ui.get(
+                        "subtitle_below_video", defaults["subtitle_below_video"]
+                    )
+                ),
+            )
+            params.subtitle_below_video = st.checkbox(
+                tr("Subtitle Below Video"),
+                key="subtitle_below_video_checkbox",
+                help=tr("Subtitle Below Video Help"),
+                disabled=card_disabled,
+            )
+            config.ui["subtitle_below_video"] = params.subtitle_below_video
+
+            st.button(
+                tr("Restore Default Layout Settings"),
+                key="restore_default_layout_settings",
+                icon=":material/restart_alt:",
+                on_click=reset_layout_settings,
+                use_container_width=True,
+            )
+
+
 def _render_subtitle_settings(panel, params):
     """자막 설정을 그리고 생성 파라미터를 갱신한다."""
     with panel:
@@ -4026,6 +4226,7 @@ def _render_application():
         audio_panel, params
     )
 
+    _render_layout_settings(right_panel, params)
     _render_subtitle_settings(right_panel, params)
 
     generation_submitted = _render_generation_controls(

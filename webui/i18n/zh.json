@@ -303,6 +303,23 @@
     "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)",
     "Script Style": "脚本风格",
     "Script Style informative": "信息型",
-    "Script Style story": "故事型（改编）"
+    "Script Style story": "故事型（改编）",
+    "Shorts Template Settings": "**短视频模板**",
+    "Layout": "版式",
+    "Layout fullscreen": "全屏",
+    "Layout card": "卡片（上下留白）",
+    "Layout Help": "卡片会把画面缩成一条，上方放标题，下方放字幕。",
+    "Headline": "标题",
+    "Headline Placeholder": "留空则由 AI 根据脚本生成",
+    "Headline Color": "标题颜色",
+    "Headline Font Size": "标题大小",
+    "Layout Video Height Ratio": "画面高度",
+    "Layout Video Height Ratio Help": "画面占整屏的比例，其余部分作为标题和字幕的留白。",
+    "Layout Corner Radius": "圆角",
+    "Layout Background Color": "背景色",
+    "Subtitle Below Video": "字幕放在画面下方",
+    "Subtitle Below Video Help": "字幕移到下方留白，不再压在画面上。",
+    "Subtitle Below Color": "下方字幕颜色",
+    "Restore Default Layout Settings": "重置模板"
   }
 }

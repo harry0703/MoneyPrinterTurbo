@@ -276,6 +276,23 @@
     "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов",
     "Script Style": "Стиль сценария",
     "Script Style informative": "Информативный",
-    "Script Style story": "История (драматизация)"
+    "Script Style story": "История (драматизация)",
+    "Shorts Template Settings": "**Шаблон Shorts**",
+    "Layout": "Макет",
+    "Layout fullscreen": "Во весь экран",
+    "Layout card": "Карточка (поля сверху и снизу)",
+    "Layout Help": "Карточка сжимает видео в полосу, чтобы заголовок был сверху, а субтитры снизу.",
+    "Headline": "Заголовок",
+    "Headline Placeholder": "Оставьте пустым — ИИ напишет его по сценарию",
+    "Headline Color": "Цвет заголовка",
+    "Headline Font Size": "Размер заголовка",
+    "Layout Video Height Ratio": "Высота видео",
+    "Layout Video Height Ratio Help": "Какую часть кадра занимает видео. Остальное — поля для заголовка и субтитров.",
+    "Layout Corner Radius": "Радиус углов",
+    "Layout Background Color": "Цвет фона",
+    "Subtitle Below Video": "Субтитры под видео",
+    "Subtitle Below Video Help": "Субтитры уходят в нижнее поле, а не лежат на видео.",
+    "Subtitle Below Color": "Цвет субтитров снизу",
+    "Restore Default Layout Settings": "Сбросить шаблон"
   }
 }

@@ -276,6 +276,23 @@
     "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein",
     "Script Style": "Skriptstil",
     "Script Style informative": "Informativ",
-    "Script Style story": "Geschichte (dramatisiert)"
+    "Script Style story": "Geschichte (dramatisiert)",
+    "Shorts Template Settings": "**Shorts-Vorlage**",
+    "Layout": "Layout",
+    "Layout fullscreen": "Vollbild",
+    "Layout card": "Karte (Rand oben und unten)",
+    "Layout Help": "Die Karte verkleinert das Video zu einem Streifen, damit die Überschrift darüber und die Untertitel darunter passen.",
+    "Headline": "Überschrift",
+    "Headline Placeholder": "Leer lassen — dann schreibt die KI eine aus dem Skript",
+    "Headline Color": "Farbe der Überschrift",
+    "Headline Font Size": "Größe der Überschrift",
+    "Layout Video Height Ratio": "Videohöhe",
+    "Layout Video Height Ratio Help": "Wie viel des Bildes das Video einnimmt. Der Rest wird zum Rand für Überschrift und Untertitel.",
+    "Layout Corner Radius": "Eckenradius",
+    "Layout Background Color": "Hintergrundfarbe",
+    "Subtitle Below Video": "Untertitel unter das Video",
+    "Subtitle Below Video Help": "Untertitel rutschen in den unteren Rand statt auf das Video.",
+    "Subtitle Below Color": "Untertitelfarbe unten",
+    "Restore Default Layout Settings": "Vorlage zurücksetzen"
   }
 }

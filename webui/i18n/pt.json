@@ -276,6 +276,23 @@
     "Video Encoder Help": "Opção avançada. Padrão segue a política estável do aplicativo, atualmente libx264. Se um codificador de hardware não estiver disponível, o aplicativo retorna automaticamente para libx264.",
     "Script Style": "Estilo do roteiro",
     "Script Style informative": "Informativo",
-    "Script Style story": "História (dramatizada)"
+    "Script Style story": "História (dramatizada)",
+    "Shorts Template Settings": "**Modelo de Shorts**",
+    "Layout": "Layout",
+    "Layout fullscreen": "Tela cheia",
+    "Layout card": "Cartão (margem acima e abaixo)",
+    "Layout Help": "O cartão reduz o vídeo a uma faixa para o título ficar acima e as legendas abaixo.",
+    "Headline": "Título",
+    "Headline Placeholder": "Deixe vazio e a IA escreve a partir do roteiro",
+    "Headline Color": "Cor do título",
+    "Headline Font Size": "Tamanho do título",
+    "Layout Video Height Ratio": "Altura do vídeo",
+    "Layout Video Height Ratio Help": "Quanto o vídeo ocupa da tela. O restante vira a margem do título e das legendas.",
+    "Layout Corner Radius": "Raio do canto",
+    "Layout Background Color": "Cor de fundo",
+    "Subtitle Below Video": "Legendas abaixo do vídeo",
+    "Subtitle Below Video Help": "As legendas descem para a margem inferior em vez de ficarem sobre o vídeo.",
+    "Subtitle Below Color": "Cor da legenda abaixo",
+    "Restore Default Layout Settings": "Redefinir modelo"
   }
 }

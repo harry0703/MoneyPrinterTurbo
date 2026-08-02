@@ -276,6 +276,23 @@
     "Video Encoder Help": "고급 옵션입니다. 기본값은 앱의 안정적인 인코더 정책(현재 libx264)을 따릅니다. 선택한 하드웨어 인코더를 사용할 수 없으면 자동으로 libx264로 대체됩니다.",
     "Script Style": "대본 스타일",
     "Script Style informative": "정보 전달",
-    "Script Style story": "스토리 (각색)"
+    "Script Style story": "스토리 (각색)",
+    "Shorts Template Settings": "**쇼츠 템플릿**",
+    "Layout": "레이아웃",
+    "Layout fullscreen": "전체화면",
+    "Layout card": "카드 (위아래 여백)",
+    "Layout Help": "카드는 영상을 띠 모양으로 줄여, 위에는 헤드라인, 아래에는 자막이 들어갈 자리를 만듭니다.",
+    "Headline": "헤드라인",
+    "Headline Placeholder": "비워두면 대본을 바탕으로 AI가 만듭니다",
+    "Headline Color": "헤드라인 색",
+    "Headline Font Size": "헤드라인 크기",
+    "Layout Video Height Ratio": "영상 높이",
+    "Layout Video Height Ratio Help": "영상이 화면에서 차지할 비율입니다. 나머지가 헤드라인과 자막이 놓이는 여백이 됩니다.",
+    "Layout Corner Radius": "모서리 둥글기",
+    "Layout Background Color": "배경색",
+    "Subtitle Below Video": "자막을 영상 아래에",
+    "Subtitle Below Video Help": "자막이 영상 위가 아니라 아래 여백으로 내려갑니다.",
+    "Subtitle Below Color": "아래 자막 색",
+    "Restore Default Layout Settings": "템플릿 초기화"
   }
 }

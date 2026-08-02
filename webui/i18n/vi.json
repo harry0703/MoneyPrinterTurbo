@@ -276,6 +276,23 @@
     "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264.",
     "Script Style": "Phong cách kịch bản",
     "Script Style informative": "Thông tin",
-    "Script Style story": "Câu chuyện (hư cấu hóa)"
+    "Script Style story": "Câu chuyện (hư cấu hóa)",
+    "Shorts Template Settings": "**Mẫu Shorts**",
+    "Layout": "Bố cục",
+    "Layout fullscreen": "Toàn màn hình",
+    "Layout card": "Thẻ (chừa lề trên dưới)",
+    "Layout Help": "Thẻ thu video thành một dải để tiêu đề nằm trên và phụ đề nằm dưới.",
+    "Headline": "Tiêu đề",
+    "Headline Placeholder": "Để trống thì AI viết từ kịch bản",
+    "Headline Color": "Màu tiêu đề",
+    "Headline Font Size": "Cỡ tiêu đề",
+    "Layout Video Height Ratio": "Chiều cao video",
+    "Layout Video Height Ratio Help": "Video chiếm bao nhiêu khung hình. Phần còn lại là lề cho tiêu đề và phụ đề.",
+    "Layout Corner Radius": "Bo góc",
+    "Layout Background Color": "Màu nền",
+    "Subtitle Below Video": "Đặt phụ đề dưới video",
+    "Subtitle Below Video Help": "Phụ đề xuống lề dưới thay vì nằm đè lên video.",
+    "Subtitle Below Color": "Màu phụ đề bên dưới",
+    "Restore Default Layout Settings": "Đặt lại mẫu"
   }
 }

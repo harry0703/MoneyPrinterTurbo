@@ -276,6 +276,23 @@
     "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264.",
     "Script Style": "Estilo de guion",
     "Script Style informative": "Informativo",
-    "Script Style story": "Historia (dramatizada)"
+    "Script Style story": "Historia (dramatizada)",
+    "Shorts Template Settings": "**Plantilla de Shorts**",
+    "Layout": "Diseño",
+    "Layout fullscreen": "Pantalla completa",
+    "Layout card": "Tarjeta (margen arriba y abajo)",
+    "Layout Help": "La tarjeta reduce el vídeo a una franja para que el titular quede arriba y los subtítulos abajo.",
+    "Headline": "Titular",
+    "Headline Placeholder": "Déjalo vacío y la IA lo escribe a partir del guion",
+    "Headline Color": "Color del titular",
+    "Headline Font Size": "Tamaño del titular",
+    "Layout Video Height Ratio": "Altura del vídeo",
+    "Layout Video Height Ratio Help": "Cuánto ocupa el vídeo. El resto son los márgenes del titular y los subtítulos.",
+    "Layout Corner Radius": "Radio de esquina",
+    "Layout Background Color": "Color de fondo",
+    "Subtitle Below Video": "Subtítulos debajo del vídeo",
+    "Subtitle Below Video Help": "Los subtítulos bajan al margen inferior en vez de ir sobre el vídeo.",
+    "Subtitle Below Color": "Color del subtítulo inferior",
+    "Restore Default Layout Settings": "Restablecer plantilla"
   }
 }

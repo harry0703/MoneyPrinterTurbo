@@ -276,6 +276,23 @@
     "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264.",
     "Script Style": "Gaya Naskah",
     "Script Style informative": "Informatif",
-    "Script Style story": "Cerita (didramatisasi)"
+    "Script Style story": "Cerita (didramatisasi)",
+    "Shorts Template Settings": "**Templat Shorts**",
+    "Layout": "Tata letak",
+    "Layout fullscreen": "Layar penuh",
+    "Layout card": "Kartu (ruang atas dan bawah)",
+    "Layout Help": "Kartu mengecilkan video jadi satu pita agar judul di atas dan subtitel di bawah.",
+    "Headline": "Judul",
+    "Headline Placeholder": "Kosongkan dan AI menulisnya dari naskah",
+    "Headline Color": "Warna judul",
+    "Headline Font Size": "Ukuran judul",
+    "Layout Video Height Ratio": "Tinggi video",
+    "Layout Video Height Ratio Help": "Seberapa besar video mengisi layar. Sisanya jadi margin untuk judul dan subtitel.",
+    "Layout Corner Radius": "Radius sudut",
+    "Layout Background Color": "Warna latar",
+    "Subtitle Below Video": "Subtitel di bawah video",
+    "Subtitle Below Video Help": "Subtitel turun ke margin bawah, bukan menimpa video.",
+    "Subtitle Below Color": "Warna subtitel bawah",
+    "Restore Default Layout Settings": "Setel ulang templat"
   }
 }

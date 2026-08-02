@@ -276,6 +276,23 @@
     "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner.",
     "Script Style": "Senaryo Stili",
     "Script Style informative": "Bilgilendirici",
-    "Script Style story": "Hikâye (dramatize)"
+    "Script Style story": "Hikâye (dramatize)",
+    "Shorts Template Settings": "**Shorts Şablonu**",
+    "Layout": "Yerleşim",
+    "Layout fullscreen": "Tam ekran",
+    "Layout card": "Kart (üstte ve altta boşluk)",
+    "Layout Help": "Kart, videoyu bir şeride küçültür; başlık üstte, altyazı altta yer alır.",
+    "Headline": "Başlık",
+    "Headline Placeholder": "Boş bırakın, yapay zeka senaryodan yazsın",
+    "Headline Color": "Başlık rengi",
+    "Headline Font Size": "Başlık boyutu",
+    "Layout Video Height Ratio": "Video yüksekliği",
+    "Layout Video Height Ratio Help": "Videonun kareyi ne kadar kapladığı. Kalanı başlık ve altyazı boşluğu olur.",
+    "Layout Corner Radius": "Köşe yarıçapı",
+    "Layout Background Color": "Arka plan rengi",
+    "Subtitle Below Video": "Altyazıyı videonun altına koy",
+    "Subtitle Below Video Help": "Altyazılar videonun üstünde değil, alttaki boşlukta görünür.",
+    "Subtitle Below Color": "Alttaki altyazı rengi",
+    "Restore Default Layout Settings": "Şablonu sıfırla"
   }
 }
