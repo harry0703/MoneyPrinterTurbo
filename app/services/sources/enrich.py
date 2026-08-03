@@ -71,12 +71,16 @@ def _is_public_address(address: str) -> bool:
         return False
 
 
-def assert_public_url(url: str) -> None:
+def resolve_public_url(url: str) -> tuple[str, str]:
     """
-    공인 http(s) 주소인지 본다. 아니면 ``UnsafeUrl``.
+    공인 http(s) 주소인지 보고 ``(이름, 붙을 주소)`` 를 돌려준다. 아니면 ``UnsafeUrl``.
 
     스킴만 보면 모자란다. ``http://localhost`` 나 사내 이름 하나로 이 기계가
     내부망에 대신 요청을 보내게 되므로, 그 이름이 실제로 가리키는 주소까지 본다.
+
+    확인한 주소를 함께 돌려주는 이유는, 그 주소로 직접 붙기 위해서다. 이름만
+    넘기면 연결할 때 한 번 더 조회하고, 이름을 쥔 쪽이 그 사이에 답을 바꾸면
+    확인한 곳과 붙은 곳이 달라진다.
     """
     try:
         parsed = urlparse(url)
@@ -86,35 +90,41 @@ def assert_public_url(url: str) -> None:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise UnsafeUrl("only http and https are allowed")
 
-    for address in _resolved_addresses(parsed.hostname):
+    addresses = _resolved_addresses(parsed.hostname)
+    for address in addresses:
         if not _is_public_address(address):
             # 루프백, 사설망, 링크로컬(클라우드 메타데이터 포함)이 전부 여기서 걸린다.
             raise UnsafeUrl(f"the host resolves to a non-public address: {address}")
+    if not addresses:
+        raise UnsafeUrl("the host resolved to nothing")
+    return parsed.hostname, addresses[0]
 
 
-def _peer_address(response) -> str:
-    """실제로 연결된 상대의 주소. 알 수 없으면 빈 문자열."""
-    connection = getattr(response.raw, "_connection", None)
-    sock = getattr(connection, "sock", None)
-    try:
-        return str(sock.getpeername()[0])
-    except (AttributeError, IndexError, OSError, TypeError):
-        return ""
-
-
-def assert_public_peer(response) -> None:
+class _PinnedAdapter(requests.adapters.HTTPAdapter):
     """
-    실제로 붙은 상대가 공인 주소인지 본다. 아니면 ``UnsafeUrl``.
+    확인한 주소로만 붙는다.
 
-    이름을 확인한 것과 그 이름으로 연결된 곳이 같다는 보장은 없다. 이름을 쥔
-    쪽이 확인할 때는 공인 주소를, 연결할 때는 사내 주소를 내놓으면 앞의 검사만으로는
-    통과한다. 본문을 읽기 전에 붙은 곳을 다시 본다.
+    이름을 그대로 넘기면 연결할 때 다시 조회한다. 이름을 쥔 쪽이 확인할 때는
+    공인 주소를, 연결할 때는 사내 주소를 내놓으면 검사를 지나간다. 붙을 주소를
+    여기서 못 박고, 이름은 Host 헤더와 인증서 확인에만 쓴다.
     """
-    # 어디에 붙었는지 알아내지 못하면 빈 값이 오고, 그것도 공인 주소가 아니다.
-    # 확인할 수 없는 것을 통과시키면 검사가 있으나 마나다.
-    peer = _peer_address(response)
-    if not _is_public_address(peer):
-        raise UnsafeUrl(f"the connection reached a non-public address: {peer or '?'}")
+
+    def __init__(self, hostname: str, address: str):
+        self._hostname = hostname
+        self._address = address
+        super().__init__(max_retries=0)
+
+    def build_connection_pool_key_attributes(self, request, verify, cert=None):
+        host_params, pool_kwargs = super().build_connection_pool_key_attributes(
+            request, verify, cert
+        )
+        host_params["host"] = self._address
+        if host_params.get("scheme") == "https":
+            # 주소로 붙되 인증서는 원래 이름으로 확인한다. 이걸 빼면 이름이 아니라
+            # 주소로 검사해 멀쩡한 사이트가 전부 실패한다.
+            pool_kwargs["server_hostname"] = self._hostname
+            pool_kwargs["assert_hostname"] = self._hostname
+        return host_params, pool_kwargs
 
 
 def _read_bounded_text(response) -> str:
@@ -130,6 +140,16 @@ def _read_bounded_text(response) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+def _pinned_session(url: str, hostname: str, address: str) -> requests.Session:
+    """확인한 주소로만 붙는 세션. 프록시는 쓰지 않는다."""
+    session = requests.Session()
+    # 환경 변수의 프록시를 그대로 따르면 요청이 프록시로 가고, 그 너머에서 어디에
+    # 닿는지는 여기서 확인할 수 없다. 검사해 둔 것이 전부 소용없어진다.
+    session.trust_env = False
+    session.mount(f"{urlparse(url).scheme}://", _PinnedAdapter(hostname, address))
+    return session
+
+
 def _get(url: str, accept: str = "") -> str:
     """
     주소 하나를 읽어 본문을 돌려준다. 못 읽으면 빈 문자열.
@@ -143,13 +163,13 @@ def _get(url: str, accept: str = "") -> str:
 
     for _ in range(MAX_REDIRECTS + 1):
         try:
-            assert_public_url(url)
-            response = requests.get(
+            hostname, address = resolve_public_url(url)
+            response = _pinned_session(url, hostname, address).get(
                 url,
                 timeout=REQUEST_TIMEOUT_SECONDS,
                 stream=True,
                 allow_redirects=False,
-                headers=headers,
+                headers={**headers, "Host": hostname},
             )
         except UnsafeUrl as exc:
             logger.warning(f"refusing to read a source body: {exc}")
@@ -159,17 +179,13 @@ def _get(url: str, accept: str = "") -> str:
             return ""
 
         with response:
+            location = response.headers.get("Location", "")
             try:
-                assert_public_peer(response)
-                location = response.headers.get("Location", "")
                 if response.is_redirect and location:
                     # 상대 주소로 보내는 곳이 많다. 원래 주소에 붙여야 다음 검사가
                     # 통한다. 붙이는 것 자체가 실패할 수 있는 값이라 안에서 한다.
                     url = urljoin(url, location)
                     continue
-            except UnsafeUrl as exc:
-                logger.warning(f"refusing to read a source body: {exc}")
-                return ""
             except ValueError as exc:
                 logger.warning(f"could not follow a redirect: {type(exc).__name__}")
                 return ""
@@ -184,16 +200,21 @@ def _get(url: str, accept: str = "") -> str:
 
 
 def _github_repo(url: str) -> tuple[str, str] | None:
-    """GitHub 저장소 주소면 ``(owner, repo)``. 아니면 ``None``."""
+    """
+    GitHub 저장소 첫 화면이면 ``(owner, repo)``. 아니면 ``None``.
+
+    딱 두 칸일 때만이다. ``/issues/123`` 이나 ``/blob/main/doc.md`` 처럼 더 들어간
+    주소는 그 글을 보라고 건 링크인데, 저장소 README 를 대신 읽어 오면 링크와
+    상관없는 내용으로 카드를 쓰게 된다.
+    """
     parsed = urlparse(url)
     if parsed.netloc.lower() not in {"github.com", "www.github.com"}:
         return None
     parts = [part for part in parsed.path.split("/") if part]
-    if len(parts) < 2:
+    if len(parts) != 2:
         return None
     if any(part in {".", ".."} for part in parts):
-        # 서버가 정규화하면 다른 곳을 가리키는 주소다. 앞 두 칸만 보고 저장소를
-        # 정하면 엉뚱한 프로젝트의 README 로 카드를 쓰게 된다.
+        # 서버가 정규화하면 다른 곳을 가리키는 주소다.
         return None
     owner, repo = parts[0], parts[1].removesuffix(".git")
     # 이 두 값이 다시 주소가 된다. 저장소 이름에 쓸 수 있는 글자만 받는다.

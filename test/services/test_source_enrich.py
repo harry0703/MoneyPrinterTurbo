@@ -4,6 +4,8 @@ import ipaddress
 import unittest
 from unittest.mock import MagicMock, patch
 
+import requests
+
 from app.services.sources import enrich
 from app.services.sources.base import MAX_TEXT_LENGTH, SourceItem
 
@@ -11,8 +13,8 @@ PUBLIC_IP = "93.184.216.34"
 
 
 def _response(body: str = "hello", status: int = 200, content_type: str = "text/html",
-              location: str = "", peer: str | None = PUBLIC_IP):
-    """`requests.get` 이 돌려주는 것과 같은 모양의 응답."""
+              location: str = ""):
+    """`requests` 가 돌려주는 것과 같은 모양의 응답."""
     response = MagicMock()
     response.status_code = status
     response.is_redirect = bool(location)
@@ -20,20 +22,17 @@ def _response(body: str = "hello", status: int = 200, content_type: str = "text/
     if location:
         response.headers["Location"] = location
     response.raw.read.return_value = body.encode("utf-8")
-    if peer is None:
-        response.raw._connection = None
-    else:
-        response.raw._connection.sock.getpeername.return_value = (peer, 443)
     return response
 
 
 class _Fetch:
-    """`getaddrinfo` 와 `requests.get` 을 함께 대신한다."""
+    """이름 조회와 실제 요청을 함께 대신한다."""
 
     def __init__(self, responses, addresses=None):
         self.responses = list(responses)
         self.addresses = addresses or {}
         self.get = None
+        self.session = None
 
     def _resolve(self, host, *_args, **_kwargs):
         # 실제 `getaddrinfo` 는 주소를 그대로 적은 곳을 조회 없이 그 주소로 돌려준다.
@@ -44,11 +43,14 @@ class _Fetch:
         return [(2, 1, 6, "", (address, 0))]
 
     def __enter__(self):
+        self.get = MagicMock(side_effect=self.responses)
+        session = MagicMock()
+        session.get = self.get
         self._patches = [
             patch.object(enrich.socket, "getaddrinfo", side_effect=self._resolve),
-            patch.object(enrich.requests, "get", side_effect=self.responses),
+            patch.object(enrich, "_pinned_session", return_value=session),
         ]
-        self.get = [entry.start() for entry in self._patches][1]
+        self.session = [entry.start() for entry in self._patches][1]
         return self
 
     def __exit__(self, *_exc):
@@ -92,9 +94,18 @@ class TestPublicOnly(unittest.TestCase):
 
     def test_a_host_that_does_not_resolve_is_refused(self):
         with patch.object(enrich.socket, "getaddrinfo", side_effect=OSError("nope")):
-            with patch.object(enrich.requests, "get") as get:
+            with patch.object(enrich, "_pinned_session") as session:
                 self.assertEqual(enrich.fetch_body("https://nowhere.test/x"), "")
-                get.assert_not_called()
+                session.assert_not_called()
+
+    def test_a_host_that_resolves_to_nothing_is_refused(self):
+        """
+        조회는 됐는데 주소가 없으면 못 박을 것이 없다. 목록의 첫 칸을 그냥 집으면
+        여기서 나는 것은 이 모듈이 쓰는 실패가 아니라 IndexError 다.
+        """
+        with patch.object(enrich.socket, "getaddrinfo", return_value=[]):
+            with self.assertRaises(enrich.UnsafeUrl):
+                enrich.resolve_public_url("https://nowhere.test/x")
 
 
 class TestRedirects(unittest.TestCase):
@@ -136,31 +147,62 @@ class TestRedirects(unittest.TestCase):
             self.assertLessEqual(fetch.get.call_count, enrich.MAX_REDIRECTS + 1)
 
 
-class TestWhereItActuallyConnected(unittest.TestCase):
+class TestWhereItActuallyConnects(unittest.TestCase):
     """
-    이름을 확인한 것과 그 이름으로 연결된 곳이 같다는 보장은 없다. 이름을 쥔 쪽이
-    확인할 때는 공인 주소를, 연결할 때는 사내 주소를 내놓을 수 있다.
+    이름을 확인해 놓고 그 이름으로 붙으면, 연결할 때 한 번 더 조회한다. 이름을 쥔
+    쪽이 확인할 때는 공인 주소를, 연결할 때는 사내 주소를 내놓으면 검사를 지나간다.
     """
 
-    def test_a_connection_that_landed_inside_is_not_read(self):
-        for peer in ("127.0.0.1", "10.0.0.5", "169.254.169.254", "::1"):
-            with self.subTest(peer=peer):
-                with _Fetch([_response("내부망 응답", peer=peer)]) as fetch:
-                    self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
-                    fetch.responses[0].raw.read.assert_not_called()
+    def test_the_connection_goes_to_the_address_that_was_checked(self):
+        with _Fetch([_response("글")], addresses={"x.test": "93.184.216.34"}) as fetch:
+            enrich.fetch_body("https://x.test/a")
+        self.assertEqual(fetch.session.call_args.args[1:], ("x.test", "93.184.216.34"))
 
-    def test_a_connection_whose_address_is_unknown_is_not_read(self):
-        """확인할 수 없는 것을 통과시키면 검사가 있으나 마나다."""
-        with _Fetch([_response("응답", peer=None)]):
-            self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
-
-    def test_a_redirect_hop_is_checked_the_same_way(self):
-        """첫 연결만 보면 두 번째 요청이 어디에 붙었는지는 아무도 안 본다."""
+    def test_each_redirect_hop_is_pinned_the_same_way(self):
+        """첫 요청만 못 박으면 두 번째 요청이 어디로 붙는지는 아무도 안 본다."""
         with _Fetch(
-            [_response(location="https://y.test/b"), _response("내부망 응답", peer="10.0.0.5")]
+            [_response(location="https://y.test/b"), _response("글")],
+            addresses={"x.test": "93.184.216.34", "y.test": "23.45.67.89"},
         ) as fetch:
-            self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
-            self.assertEqual(fetch.get.call_count, 2)
+            enrich.fetch_body("https://x.test/a")
+        self.assertEqual(
+            [call.args[1:] for call in fetch.session.call_args_list],
+            [("x.test", "93.184.216.34"), ("y.test", "23.45.67.89")],
+        )
+
+    def test_the_host_header_keeps_the_original_name(self):
+        """주소로 붙으면 Host 가 주소로 나간다. 이름으로 가려 주는 곳이 많다."""
+        with _Fetch([_response("글")]) as fetch:
+            enrich.fetch_body("https://x.test/a")
+        self.assertEqual(fetch.get.call_args.kwargs["headers"]["Host"], "x.test")
+
+
+class TestPinnedSession(unittest.TestCase):
+    """
+    붙을 주소를 못 박는 일은 이 세션이 한다. requests 가 이 자리를 바꾸면 검사만
+    남고 실제로는 이름으로 다시 조회하게 되므로, 여기서 그 약속을 확인한다.
+    """
+
+    def _session(self, url="https://x.test/a"):
+        return enrich._pinned_session(url, "x.test", "93.184.216.34")
+
+    def test_proxies_are_not_trusted(self):
+        """
+        환경 변수의 프록시를 따르면 요청이 프록시로 가고, 그 너머에서 어디에
+        닿는지는 여기서 알 수 없다. 검사해 둔 것이 소용없어진다.
+        """
+        self.assertFalse(self._session().trust_env)
+
+    def test_the_connection_uses_the_checked_address(self):
+        adapter = self._session().get_adapter("https://x.test/a")
+        request = requests.Request("GET", "https://x.test/a").prepare()
+        host_params, pool_kwargs = adapter.build_connection_pool_key_attributes(
+            request, verify=True
+        )
+        self.assertEqual(host_params["host"], "93.184.216.34")
+        # 인증서는 원래 이름으로 확인해야 한다. 주소로 검사하면 멀쩡한 곳이 다 막힌다.
+        self.assertEqual(pool_kwargs["server_hostname"], "x.test")
+        self.assertEqual(pool_kwargs["assert_hostname"], "x.test")
 
 
 class TestBounds(unittest.TestCase):
@@ -196,13 +238,8 @@ class TestBounds(unittest.TestCase):
 
     def test_a_network_failure_is_not_raised(self):
         """소재 하나의 본문을 못 읽었다고 매일 도는 자동화가 멈출 이유는 없다."""
-        with patch.object(enrich.socket, "getaddrinfo", side_effect=self._public):
-            with patch.object(enrich.requests, "get", side_effect=RuntimeError("gone")):
-                self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
-
-    @staticmethod
-    def _public(*_args, **_kwargs):
-        return [(2, 1, 6, "", (PUBLIC_IP, 0))]
+        with _Fetch([RuntimeError("gone")]):
+            self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
 
 
 class TestGithub(unittest.TestCase):
@@ -249,10 +286,26 @@ class TestGithub(unittest.TestCase):
                 fetch.get.call_args_list[1].args[0], "https://github.com/someone/thing"
             )
 
+    def test_a_link_into_a_repository_is_read_as_the_page_it_points_at(self):
+        """
+        `/issues/123` 이나 `/blob/main/doc.md` 는 그 글을 보라고 건 링크다. 저장소
+        README 를 대신 읽어 오면 링크와 상관없는 내용으로 카드를 쓰게 된다.
+        """
+        for url in (
+            "https://github.com/someone/thing/issues/123",
+            "https://github.com/someone/thing/pull/7",
+            "https://github.com/someone/thing/blob/main/doc.md",
+            "https://github.com/someone/thing/releases/tag/v1",
+        ):
+            with self.subTest(url=url):
+                with _Fetch([_response("페이지")]) as fetch:
+                    enrich.fetch_body(url)
+                    self.assertNotIn("api.github.com", fetch.get.call_args.args[0])
+
     def test_a_path_that_is_not_a_repository_is_read_as_a_page(self):
         for url in (
             "https://github.com/someone",
-            "https://github.com/someone/thing/../../admin",
+            "https://github.com/./thing",
             "https://github.com/some one/thing",
         ):
             with self.subTest(url=url):
