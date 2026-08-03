@@ -1,4 +1,4 @@
-# MoneyPrinterTurbo configuration example.
+# shipcast configuration example.
 # The app copies this file to config.toml on first run. Keep API keys and other
 # credentials in config.toml; do not commit your local config.toml.
 

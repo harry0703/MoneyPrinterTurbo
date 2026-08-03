@@ -65,7 +65,7 @@ class TestMptAgentSkill(unittest.TestCase):
 
     def test_first_run_only_requests_missing_api_keys(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir) / "MoneyPrinterTurbo"
+            root = Path(temp_dir) / "shipcast"
             self.create_project(root)
             output = io.StringIO()
 

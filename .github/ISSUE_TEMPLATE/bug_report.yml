@@ -70,10 +70,10 @@ body:
       required: true
   - type: input
     attributes:
-      label: MoneyPrinterTurbo 버전 | Version
+      label: shipcast 버전 | Version
       description: |
-        사용 중인 MoneyPrinterTurbo 버전
-        The version of MoneyPrinterTurbo you're using
+        사용 중인 shipcast 버전
+        The version of shipcast you're using
       placeholder: v1.2.2, etc.
     validations:
       required: true

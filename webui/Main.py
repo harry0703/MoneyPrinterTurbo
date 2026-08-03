@@ -20,7 +20,7 @@ from loguru import logger
 from streamlit_tour import Tour
 
 # WebUI 를 독립 진입점으로 실행할 때는 프로젝트 루트가 외부 의존성보다 앞서야 한다.
-# 의존성에 들어 있는 같은 이름의 app 패키지가 MoneyPrinterTurbo 의 app 패키지를 가리는 것을 막기 위해서다.
+# 의존성에 들어 있는 같은 이름의 app 패키지가 shipcast 의 app 패키지를 가리는 것을 막기 위해서다.
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if root_dir in sys.path:
     sys.path.remove(root_dir)
@@ -52,22 +52,22 @@ from app.utils.logging_utils import configure_terminal_logger
 from app.utils import file_security, utils
 
 st.set_page_config(
-    page_title="MoneyPrinterTurbo",
+    page_title="shipcast",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="auto",
     menu_items={
-        "Report a bug": "https://github.com/harry0703/MoneyPrinterTurbo/issues",
-        "About": "# MoneyPrinterTurbo\nSimply provide a topic or keyword for a video, and it will "
+        "Report a bug": "https://github.com/raidostar/MoneyPrinterTurbo/issues",
+        "About": "# shipcast\nSimply provide a topic or keyword for a video, and it will "
         "automatically generate the video copy, video materials, video subtitles, "
         "and video background music before synthesizing a high-definition short "
-        "video.\n\nhttps://github.com/harry0703/MoneyPrinterTurbo",
+        "video.\n\nhttps://github.com/raidostar/MoneyPrinterTurbo",
     },
 )
 
 
 # Streamlit 1.59 는 페이지 오른쪽 위에 Deploy, skills nudge 같은 플랫폼 진입점을 기본으로 보여 준다.
-# MoneyPrinterTurbo 는 최종 사용자를 위한 로컬 도구라, 이런 진입점은 상단에 큰 빈 공간을 만들고
+# shipcast 는 최종 사용자를 위한 로컬 도구라, 이런 진입점은 상단에 큰 빈 공간을 만들고
 # 새 사용자에게 추가 구성 요소를 설치해야 하는 것처럼 오해를 준다. 여기서 Streamlit 플랫폼
 # 툴바를 숨기고 메인 컨테이너 상단 여백을 줄여, 프로젝트 자체의 제목·언어 선택·업무 설정 영역만 남긴다.
 style_file = Path(__file__).with_name("styles.css")
@@ -1136,12 +1136,12 @@ def _render_brand(available_update: str | None = None):
     st.markdown(
         f"""
         <h1 class="mpt-brand">
-            <span class="mpt-brand__name">MoneyPrinterTurbo</span>
+            <span class="mpt-brand__name">shipcast</span>
             <a class="mpt-brand__version"
-               href="https://github.com/harry0703/MoneyPrinterTurbo"
+               href="https://github.com/raidostar/MoneyPrinterTurbo"
                target="_blank"
                rel="noopener noreferrer"
-               aria-label="Open MoneyPrinterTurbo on GitHub"
+               aria-label="Open shipcast on GitHub"
                title="Open project on GitHub">v{html.escape(str(config.project_version))}</a>
             {update_link}
         </h1>

@@ -2,12 +2,12 @@
 FROM python:3.11-slim-bullseye
 
 # Set the working directory in the container
-WORKDIR /MoneyPrinterTurbo
+WORKDIR /shipcast
 
-# /MoneyPrinterTurbo 디렉터리 권한을 777 로 설정한다
-RUN chmod 777 /MoneyPrinterTurbo
+# /shipcast 디렉터리 권한을 777 로 설정한다
+RUN chmod 777 /shipcast
 
-ENV PYTHONPATH="/MoneyPrinterTurbo"
+ENV PYTHONPATH="/shipcast"
 
 # 로컬 사용자는 기본적으로 중국 내 미러를 우선 쓴다. GitHub Actions 가 GHCR 이미지를 배포할 때는
 # default 를 써서, 해외 runner 가 중국 미러에 느리게 접근하다가 이미지 배포가 오래 멈추는 것을 막는다.
@@ -74,10 +74,10 @@ EXPOSE 8501
 CMD ["streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.serverAddress=127.0.0.1", "--server.enableCORS=True", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal", "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False"]
 
 # 1. Build the Docker image using the following command
-# docker build -t moneyprinterturbo .
+# docker build -t shipcast .
 
 # 2. Run the Docker container using the following command
 ## For Linux or MacOS:
-# docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 127.0.0.1:8501:8501 moneyprinterturbo
+# docker run -v $(pwd)/config.toml:/shipcast/config.toml -v $(pwd)/storage:/shipcast/storage -p 127.0.0.1:8501:8501 shipcast
 ## For Windows:
-# docker run -v ${PWD}/config.toml:/MoneyPrinterTurbo/config.toml -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 127.0.0.1:8501:8501 moneyprinterturbo
+# docker run -v ${PWD}/config.toml:/shipcast/config.toml -v ${PWD}/storage:/shipcast/storage -p 127.0.0.1:8501:8501 shipcast

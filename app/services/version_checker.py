@@ -1,4 +1,9 @@
-"""MoneyPrinterTurbo 의 새 정식 버전이 있는지 확인한다."""
+"""
+shipcast 의 새 정식 버전이 있는지 확인한다.
+
+업스트림이 아니라 이 포크의 릴리스를 본다. 갈라져 나온 뒤로 담긴 것이 다르므로,
+업스트림 릴리스를 새 버전이라고 알리면 여기 없는 것을 안내하게 된다.
+"""
 
 import threading
 import time
@@ -12,10 +17,10 @@ from packaging.version import InvalidVersion, Version
 
 
 LATEST_RELEASE_API_URL: Final = (
-    "https://api.github.com/repos/harry0703/MoneyPrinterTurbo/releases/latest"
+    "https://api.github.com/repos/raidostar/MoneyPrinterTurbo/releases/latest"
 )
 LATEST_RELEASE_PAGE_URL: Final = (
-    "https://github.com/harry0703/MoneyPrinterTurbo/releases/latest"
+    "https://github.com/raidostar/MoneyPrinterTurbo/releases/latest"
 )
 # 업데이트 확인은 보조 기능이므로, 네트워크 이상이 로컬 WebUI 를 눈에 띄게 느리게 해서는
 # 안 된다. 연결과 읽기에 각각 타임아웃을 걸어, 보통 네트워크에서는 GitHub 가 응답을
@@ -24,7 +29,7 @@ RELEASE_CHECK_TIMEOUT: Final = (1.0, 2.0)
 RELEASE_CHECK_HEADERS: Final = {
     "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "MoneyPrinterTurbo-Version-Checker",
+    "User-Agent": "shipcast-Version-Checker",
 }
 UPDATE_CHECK_CACHE_TTL_SECONDS: Final = 12 * 60 * 60
 
@@ -95,7 +100,7 @@ def get_available_update(current_version: str) -> str | None:
 
     normalized_latest_version = str(latest_version)
     logger.info(
-        "MoneyPrinterTurbo update available: "
+        "shipcast update available: "
         f"current={installed_version}, latest={normalized_latest_version}"
     )
     return normalized_latest_version
@@ -187,7 +192,7 @@ class AsyncUpdateChecker:
             # 백그라운드 스레드의 마지막 보호 경계이므로 스택 전체를 기록해야 한다. 그러지
             # 않으면 예기치 못한 예외로 조용히 종료된 뒤 영원히 pending 으로 남는다.
             logger.exception(
-                "unexpected error while checking for a MoneyPrinterTurbo update"
+                "unexpected error while checking for a shipcast update"
             )
             available_version = None
 

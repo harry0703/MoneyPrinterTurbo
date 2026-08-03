@@ -5,10 +5,10 @@ FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory in the container
-WORKDIR /MoneyPrinterTurbo
-RUN chmod 777 /MoneyPrinterTurbo
+WORKDIR /shipcast
+RUN chmod 777 /shipcast
 
-ENV PYTHONPATH="/MoneyPrinterTurbo"
+ENV PYTHONPATH="/shipcast"
 
 # Install Python 3.11 and system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

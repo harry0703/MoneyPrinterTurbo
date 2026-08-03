@@ -227,7 +227,7 @@ def get_default_ollama_base_url() -> str:
 
 
 def load_config():
-    # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurbo/config.toml'
+    # fix: IsADirectoryError: [Errno 21] Is a directory: '/shipcast/config.toml'
     if os.path.isdir(config_file):
         shutil.rmtree(config_file)
 
@@ -345,10 +345,13 @@ hostname = socket.gethostname()
 log_level = _cfg.get("log_level", "DEBUG")
 listen_host = _cfg.get("listen_host", "0.0.0.0")
 listen_port = _cfg.get("listen_port", 8080)
-project_name = _cfg.get("project_name", "MoneyPrinterTurbo")
+project_name = _cfg.get("project_name", "shipcast")
 project_description = _cfg.get(
     "project_description",
-    "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>",
+    # API 문서 상단에 뜨는 링크. 지금 도는 서버가 무엇인지 가리켜야 한다.
+    # 원본에 대한 출처 표기는 README 에 있다.
+    "<a href='https://github.com/raidostar/MoneyPrinterTurbo'>"
+    "https://github.com/raidostar/MoneyPrinterTurbo</a>",
 )
 project_version = _cfg.get("project_version", __version__)
 reload_debug = False

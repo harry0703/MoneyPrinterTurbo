@@ -1,6 +1,6 @@
-# MoneyPrinterTurbo Test Directory
+# shipcast Test Directory
 
-This directory contains unit tests for the **MoneyPrinterTurbo** project.
+This directory contains unit tests for the **shipcast** project.
 
 ## Directory Structure
 

@@ -1,18 +1,21 @@
 <div align="center">
 
-# MoneyPrinterTurbo 💸
+# shipcast
 
-### 올인원 AI 숏폼 영상 생성기
+### 새로 나온 개발 도구를 카드뉴스 영상으로
 
-**주제**나 **키워드**만 입력하면 MoneyPrinterTurbo가 대본 작성, 영상 소재 매칭, 자막·배경음악 생성까지 처리해 HD 숏폼 영상을 만들어 줍니다.
+Hacker News 같은 곳에서 오늘 올라온 것을 모아, 한국어 카드뉴스 세로 영상으로 만듭니다.
+스톡 영상으로 숏폼을 만드는 기존 경로도 그대로 동작합니다.
 
-한국어 | [English](README-en.md) | [Releases](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/harry0703/MoneyPrinterTurbo/issues)
+한국어 | [English](README-en.md)
 
 </div>
 
 ## 목차
 
-- [동작 방식](#동작-방식)
+- [카드뉴스 만들기](#카드뉴스-만들기)
+- [밖에서 만들기 (텔레그램)](#밖에서-만들기-텔레그램)
+- [숏폼 영상 만들기](#숏폼-영상-만들기)
 - [시스템 요구사항](#시스템-요구사항)
 - [설치](#설치)
 - [설정](#설정)
@@ -23,8 +26,81 @@
 - [한국어로 영상 만들기](#한국어로-영상-만들기)
 - [보안 주의사항](#보안-주의사항)
 - [자주 묻는 질문](#자주-묻는-질문)
+- [만든 것에 대해](#만든-것에-대해)
 
-## 동작 방식
+## 카드뉴스 만들기
+
+```
+Hacker News  →  카드 대본  →  카드별 나레이션  →  세로 영상
+   (무료 API)      (LLM)         (TTS)          (mp4)
+```
+
+한 편은 카드 대여섯 장입니다. 첫 장이 왜 볼 만한지 말하고, 가운데 장들이 한 장에 하나씩 다루고, 마지막 장이 써 볼지 말지를 말합니다.
+
+**화면에 나오는 것이 곧 내용입니다.** 스톡 영상을 찾아 붙이지 않으므로 소재가 내용과 어긋날 일이 없습니다.
+
+### 두 가지 원칙
+
+**도구에 대한 모든 서술은 소재에서 나옵니다.** 없는 기능, 벤치마크, 가격, 만든 사람을 지어내지 않습니다. 소재가 말하지 않는 것은 말하지 않습니다. 실제 존재하는 도구고, 만든 사람이 이 영상을 보기 때문입니다.
+
+**출처를 밝힙니다.** 첫 장과 마지막 장에 어디서 왔고 반응이 어땠는지 남깁니다. 남의 작업을 소개하는 채널이라 이건 예의가 아니라 최소 조건입니다.
+
+### 세 단계
+
+```python
+from app.models.schema import VideoParams
+from app.services.cardscript import build_card_script
+from app.services.cardvideo import render_card_news
+from app.services.sources import hackernews
+
+items = hackernews.fetch_items(min_points=100, within_hours=48, tags="show_hn")
+script = build_card_script(items[0])
+
+params = VideoParams(video_subject=items[0].title)
+params.voice_name = "ko-KR-HyunsuMultilingualNeural-Male"
+params.voice_rate = 1.15
+
+result = render_card_news("my-task", script, params)
+print(result.video_path, result.duration)
+```
+
+`tags` 는 Algolia 문법을 그대로 씁니다. `show_hn` 이 새 도구 소개에 적중률이 높습니다.
+
+카드마다 나레이션을 따로 합성해, 그 카드 오디오의 실제 길이가 화면에 머무는 시간이 됩니다. 통째로 읽고 글자 수로 나누면 문장마다 속도가 달라 뒤로 갈수록 화면과 소리가 벌어집니다.
+
+### 소재를 어디서 가져오나
+
+| 출처 | 상태 |
+| --- | --- |
+| Hacker News | 키 불필요, 요금 없음, 레이트리밋 없음 |
+| Product Hunt | 무료 개발자 토큰 (예정) |
+| GitHub 트렌딩 | Search API 로 근사 (예정) |
+| X | 2026년 2월부터 무료 티어 없음. 종량제 $0.005/read |
+
+## 밖에서 만들기 (텔레그램)
+
+주제를 보내면 대본을 만들어 보여 주고, 승인하면 렌더링해서 영상을 보냅니다. 봇이 텔레그램 서버로 나가서 물어보는 방식이라 **공인 IP 도 포트 개방도 필요 없습니다.**
+
+```toml
+[telegram]
+bot_token = ""   # @BotFather 에서 /newbot
+chat_id = ""     # 비워 두고 켠 뒤 아무 메시지나 보내면 터미널에 찍힙니다
+```
+
+```shell
+python telegram_bot.py
+```
+
+1:1 대화에서, 설정에 적힌 `chat_id` 로 온 것만 처리합니다. 그룹 대화는 받지 않습니다.
+
+렌더링은 십 분대라 대본을 먼저 보고 멈출 수 있어야 합니다. 그냥 글을 보내면 그 내용으로 대본을 바꿉니다.
+
+## 숏폼 영상 만들기
+
+주제 하나로 대본·나레이션·자막을 만들고 스톡 영상을 붙여 세로 영상을 뽑는 경로입니다.
+카드뉴스와 달리 화면은 실제 촬영 영상이고, 아래 설정·사용법은 두 경로가 함께 씁니다.
+
+### 동작 방식
 
 한 번의 생성 요청은 아래 6단계 파이프라인을 순서대로 통과합니다. CLI의 `--stop-at` 옵션으로 원하는 단계에서 멈출 수 있습니다.
 
@@ -68,8 +144,8 @@
 ### uv 사용 (권장)
 
 ```shell
-git clone https://github.com/raidostar/MoneyPrinterTurbo.git
-cd MoneyPrinterTurbo
+git clone https://github.com/raidostar/MoneyPrinterTurbo.git shipcast
+cd shipcast
 uv python install 3.11
 uv sync --frozen
 ```
@@ -257,7 +333,7 @@ curl -H "x-api-key: 임의의-긴-무작위-문자열" \
 | 생성물 정적 경로 | ✅ `/tasks/<task-id>/...` 도 `x-api-key` 요구. 이 경로는 `StaticFiles` 마운트라 라우터 의존성이 걸리지 않아 별도 미들웨어로 보호 | `config.toml`에 `api_key` 설정 |
 | 심볼릭 링크 | `/tasks` 정적 마운트가 `follow_symlink=True` (`app/asgi.py`) | `storage/tasks/` 안에 외부를 가리키는 심볼릭 링크를 만들지 말 것 |
 | Docker 빌드 미러 | apt·pip 패키지를 기본적으로 Aliyun/Tsinghua 미러에서 받음. pip은 `--trusted-host`로 해당 호스트의 인증서 검증을 건너뜀 | `--build-arg DOCKER_BUILD_MIRROR=default --build-arg PIP_USE_OFFICIAL=1` 로 공식 저장소 사용 |
-| 컨테이너 권한 | root로 실행, `chmod 777 /MoneyPrinterTurbo`, `docker-compose.yml`이 저장소 전체를 마운트 | 필요 시 `docker-compose.release.yml`처럼 `config.toml`·`storage`만 마운트 |
+| 컨테이너 권한 | root로 실행, `chmod 777 /shipcast`, `docker-compose.yml`이 저장소 전체를 마운트 | 필요 시 `docker-compose.release.yml`처럼 `config.toml`·`storage`만 마운트 |
 | TLS 검증 | `tls_verify = true` (기본 켜짐) | 그대로 유지 |
 | Redis 상태 저장소 | 값을 `ast.literal_eval`로 복원 — Redis를 애플리케이션 신뢰 경계 안으로 가정 | Redis를 외부에 노출하지 말 것 |
 
@@ -313,7 +389,7 @@ compute_type = "int8"           # CUDA는 "float16" 또는 "int8_float16"
 최초 사용 시 Hugging Face에서 모델을 자동으로 내려받습니다. 실패하면 [Hugging Face](https://huggingface.co/Systran/faster-whisper-large-v3)에서 직접 받아 `models/whisper-large-v3/` 에 넣으세요.
 
 ```
-MoneyPrinterTurbo
+shipcast
   └─models
       └─whisper-large-v3
              config.json
@@ -345,6 +421,14 @@ ulimit -n 10240    # 상향
 자동으로 내려받은 영상 소재는 `storage/cache_videos/` 에 쌓입니다. WebUI의 **설정 → 캐시 관리** 탭에서 기간별로 정리할 수 있습니다. 업로드한 소재와 생성된 영상은 삭제되지 않습니다. 영상 생성 중에는 캐시를 정리하지 마세요.
 
 </details>
+
+## 만든 것에 대해
+
+[MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) 에서 갈라져 나왔습니다.
+영상 파이프라인, TTS, 자막, 합성은 그쪽 코드가 바탕입니다.
+
+이 저장소에서 달라진 것: 한국어화, API 인증, 한글 자막 글꼴, 쇼츠 카드 레이아웃,
+대본 문체 규칙, 소재 수집기, 카드뉴스 렌더러, 텔레그램 봇.
 
 ## 라이선스
 
