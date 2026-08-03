@@ -255,5 +255,41 @@ class TestAssembly(unittest.TestCase):
             self.assertIsNone(cardscript.build_card_script(_item()))
 
 
+class TestScriptStaysPaired(unittest.TestCase):
+    """카드와 나레이션이 어긋나면 그 지점부터 화면과 소리가 밀린다."""
+
+    def _script(self, cards, narrations):
+        from app.services.cardnews import Card
+
+        return cardscript.CardScript(
+            cards=tuple(Card(title=f"제목 {i}") for i in range(cards)),
+            narrations=tuple(f"말 {i}" for i in range(narrations)),
+        )
+
+    def test_extra_narrations_are_dropped(self):
+        script = self._script(cards=3, narrations=5)
+        self.assertEqual(len(script.cards), len(script.narrations))
+        self.assertEqual(len(script.cards), 3)
+
+    def test_extra_cards_are_dropped(self):
+        """
+        소리 없는 카드가 뒤에 붙으면, 만들어진 영상과 기록된 카드 수가 달라진다.
+        """
+        script = self._script(cards=6, narrations=2)
+        self.assertEqual(len(script.cards), len(script.narrations))
+        self.assertEqual(len(script.cards), 2)
+
+    def test_the_renderer_limit_is_applied_here_too(self):
+        """
+        렌더러는 상한을 넘는 카드를 조용히 잘라 낸다. 나레이션은 그대로 남아
+        영상보다 긴 소리와 부풀려진 카드 수가 기록된다.
+        """
+        from app.services import cardnews
+
+        script = self._script(cards=40, narrations=40)
+        self.assertEqual(len(script.cards), cardnews.MAX_CARDS)
+        self.assertEqual(len(script.narrations), cardnews.MAX_CARDS)
+
+
 if __name__ == "__main__":
     unittest.main()

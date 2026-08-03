@@ -206,6 +206,10 @@ def _card_seconds(value) -> float:
     return max(MIN_CARD_SECONDS, min(seconds, MAX_CARD_SECONDS))
 
 
+# 오디오 쪽도 같은 값으로 맞춰야 한다. 영상만 조이면 그 차이만큼 소리가 밀린다.
+card_seconds = _card_seconds
+
+
 def build_card_news_clip(
     cards, durations, size: tuple[int, int] = CANVAS_SIZE
 ):

@@ -10,16 +10,28 @@ from dataclasses import dataclass
 from loguru import logger
 
 from app.services import llm
+from app.services import cardnews
 from app.services.cardnews import Card
 from app.services.sources.base import SourceItem
 
 
 @dataclass(frozen=True)
 class CardScript:
-    """카드와 카드별 나레이션. 둘의 길이는 항상 같다."""
+    """
+    카드와 카드별 나레이션. 둘의 길이는 항상 같다.
+
+    말로만 두면 어긋난 값이 들어와도 렌더링 직전까지 드러나지 않는다. 카드 하나가
+    남거나 모자라면 그 지점부터 화면과 소리가 밀리고, 만들어진 영상과 기록된
+    카드 수도 달라진다. 만들 때 짧은 쪽에 맞추고 렌더러의 상한도 여기서 건다.
+    """
 
     cards: tuple[Card, ...]
     narrations: tuple[str, ...]
+
+    def __post_init__(self):
+        paired = list(zip(self.cards, self.narrations))[: cardnews.MAX_CARDS]
+        object.__setattr__(self, "cards", tuple(card for card, _ in paired))
+        object.__setattr__(self, "narrations", tuple(text for _, text in paired))
 
     @property
     def narration_text(self) -> str:
