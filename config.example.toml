@@ -225,6 +225,15 @@ subtitle_provider = "edge"
 # "h264_mf", "h264_videotoolbox".
 # video_codec = "libx264"
 
+# Video renderer. Default MoviePy.
+# Set to "hyperframes" to compose via an editable HyperFrames project per output.
+# https://github.com/heygen-com/hyperframes
+# Requires Node.js 22+, FFmpeg, and `npx hyperframes browser ensure`.
+# Available values: "moviepy", "hyperframes"
+video_renderer = "moviepy"
+# HyperFrames render quality: "draft", "standard", or "high".
+# hyperframes_quality = "standard"
+
 # -----------------------------------------------------------------------------
 # Storage and Task Runtime / 存储与任务运行
 # -----------------------------------------------------------------------------
