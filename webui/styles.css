@@ -16,18 +16,20 @@ h1 {
     margin-top: 0 !important;
 }
 
-/* Streamlit 默认让标签中的帮助区域占据剩余宽度，导致问号按钮贴到控件最右侧。
-   帮助提示在语义上从属于标签文字，因此取消该区域的伸展，并用固定小间距让
-   问号紧跟标签；没有 help 参数的标签不存在这个 div，不会受到影响。 */
+/* Streamlit defaults to letting the help area inside labels stretch to fill the remaining width,
+    which pushes the question-mark button to the far right. The help hint conceptually belongs to
+    the label text, so we disable that stretch and keep a small fixed gap so the icon stays close to
+    the label. Labels without help text do not have this div and are unaffected. */
 label[data-testid="stWidgetLabel"] > div {
     flex: 0 0 auto !important;
     width: auto !important;
     margin-left: 0.35rem !important;
 }
 
-/* 配音方式位于四列布局中的窄面板。Streamlit 的 stretch 模式默认让单个分段
-   按钮接近半行宽，三个选项会换成两行；这里仅对该控件改为三等分，并压缩
-   水平内边距，保持其它 segmented control 的原生尺寸不变。 */
+/* Voiceover mode sits in a narrow panel within a four-column layout. Streamlit's stretch mode
+    makes each segmented button nearly half a row wide by default, which wraps the three options
+    onto two lines. Here we only split this control into three equal parts and tighten the horizontal
+    padding so other segmented controls keep their native size. */
 div[class*="st-key-voice_mode_control"] [role="radiogroup"] {
     flex-wrap: nowrap !important;
 }
@@ -46,8 +48,9 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     white-space: nowrap !important;
 }
 
-/* 顶部品牌区将项目名和弱化版本号放在同一基线。项目名称仍是页面唯一的 h1；
-   版本号本身作为项目链接，避免增加独立图标而干扰标题的视觉层级。 */
+/* The top brand area keeps the project name and subdued version number on the same baseline.
+    The project name remains the page's only h1, and the version number itself is a project link so
+    we avoid adding a separate icon that would interfere with the title hierarchy. */
 .mpt-brand {
     min-width: 0;
     margin: 0;
@@ -56,8 +59,8 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     line-height: 1.15;
 }
 
-/* Streamlit 会在自定义 h1 内增加一层文本容器，实际的行内布局需要作用在
-   这层容器上，才能稳定控制项目名和版本号的间距。 */
+/* Streamlit adds an extra text wrapper inside custom h1 elements. The inline layout needs to be
+    applied to that wrapper so the spacing between the project name and version stays stable. */
 .mpt-brand > span:first-child {
     display: flex;
     align-items: baseline;
@@ -95,8 +98,8 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     outline-offset: 2px;
 }
 
-/* 新版本提醒只在确有正式版本更新时出现。使用文字链接而不是按钮或横幅，
-   让它保持可发现性，同时不抢占项目标题和主要操作入口的视觉层级。 */
+/* The update notice appears only when a real release is available. Using a text link instead of a
+    button or banner keeps it discoverable without competing with the project title and primary actions. */
 .mpt-brand__update {
     flex: 0 0 auto;
     font-size: 0.875rem;
@@ -122,14 +125,16 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     }
 }
 
-/* Streamlit 会自动给 h1 追加一个标题锚点。品牌区已有版本号项目链接，额外的
-   标题锚点没有实际价值，因此只在这个标题内隐藏，避免窄屏出现多余图标。 */
+/* Streamlit automatically adds a heading anchor to h1 elements. The brand area already has a
+    version link, so the extra anchor has no value here and is hidden only within this heading to
+    avoid redundant icons on narrow screens. */
 .mpt-brand > [data-testid="stHeaderActionElements"] {
     display: none !important;
 }
 
-/* 顶部任务入口由 st.fragment 定时刷新，Streamlit 会为 Fragment 自动生成一个
-   占满整行的 LayoutWrapper。这里只收缩该包装层，保证右侧操作区按内容紧凑排列。 */
+/* The top task entry is refreshed on a timer via st.fragment, and Streamlit automatically creates a
+    full-width LayoutWrapper for the fragment. We shrink just that wrapper so the right-side actions
+    stay compact around their content. */
 .st-key-top_bar_actions
     > div[data-testid="stLayoutWrapper"]:first-child {
     flex: 0 0 auto !important;
@@ -174,9 +179,10 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
 
 }
 
-/* 高级设置属于内容展开入口，不是执行操作。保留 Streamlit 原生 expander 的
-   语义和键盘交互，只在带 advanced_settings_ key 的局部容器内移除卡片边框，
-   避免与紧邻的 AI 生成按钮形成两个连续大按钮的视觉干扰。 */
+/* Advanced settings are an information disclosure control, not an action. We keep the native
+    Streamlit expander semantics and keyboard interaction, and only remove the card border inside the
+    local container that uses the advanced_settings_ key to avoid a second large button next to the AI
+    generate action. */
 div[class*="st-key-advanced_settings_"] details {
     border: 0 !important;
     border-radius: 4px !important;
@@ -199,8 +205,8 @@ div[class*="st-key-advanced_settings_"] details > summary:hover {
     ) !important;
 }
 
-/* 展开后让标题和内容共享同一背景，视觉上形成连续区域；折叠状态仍保持原有的
-   透明轻量入口，不额外占用页面层级。 */
+/* When expanded, the title and content share the same background to form one continuous region.
+    When collapsed, it remains a lightweight transparent entry that does not add extra visual weight. */
 div[class*="st-key-advanced_settings_"] details[open] > summary {
     border-radius: 4px 4px 0 0 !important;
     opacity: 1;
@@ -221,8 +227,9 @@ div[class*="st-key-advanced_settings_"] details > summary:focus {
     outline: none !important;
 }
 
-/* 键盘操作使用标题下划线作为焦点反馈，不再绘制任何外框，确保展开区域在视觉
-   上完全无边框，同时仍能让键盘用户识别当前焦点。 */
+/* Keyboard interaction uses the title underline as focus feedback instead of drawing an outline,
+    keeping the expander visually borderless while still exposing the focused control to keyboard
+    users. */
 div[class*="st-key-advanced_settings_"] details > summary:focus-visible {
     box-shadow: none !important;
 }
@@ -237,8 +244,9 @@ div[class*="st-key-advanced_settings_"] details > summary p {
     font-weight: 500 !important;
 }
 
-/* 内容区与展开标题无缝衔接，不使用任何边框，仅通过统一背景和内边距表达
-   控件从属于高级设置，避免出现嵌套卡片或割裂的两段式结构。 */
+/* The content area joins the expander title seamlessly, with no border at all. A shared background
+    and padding communicate that the controls belong to advanced settings and avoid nested cards or a
+    split two-part layout. */
 div[class*="st-key-advanced_settings_"] div[data-testid="stExpanderDetails"] {
     margin-top: 0 !important;
     padding: 0.75rem 0.75rem 0.85rem 1rem !important;
