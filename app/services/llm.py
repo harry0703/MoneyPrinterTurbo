@@ -926,6 +926,194 @@ Please note that you must use English for generating video search terms; Chinese
 
 
 # =============================================================================
+# Card news
+#
+# 소재 하나를 카드 여러 장으로 바꾼다. 카드에 적히는 글과 그 카드에서 읽을 나레이션을
+# 함께 받는다. 둘이 따로 만들어지면 화면과 소리가 어긋나기 때문이다.
+# =============================================================================
+
+MAX_CARD_SCRIPT_CARDS = 8
+MIN_CARD_SCRIPT_CARDS = 3
+MAX_CARD_TITLE_LENGTH = 60
+MAX_CARD_BULLETS = 3
+MAX_CARD_BULLET_LENGTH = 60
+MAX_CARD_NARRATION_LENGTH = 200
+MAX_CARD_SOURCE_LENGTH = 60
+MAX_CARD_URL_LENGTH = 500
+# 응답은 외부 입력이다. 파싱한 뒤에 카드 수를 줄여 봐야, 그 전에 이미 통째로
+# 메모리에 올려 디코딩한 뒤다.
+MAX_CARD_SCRIPT_RESPONSE_CHARS = 100_000
+
+CARD_SCRIPT_SYSTEM_PROMPT = """
+# Role
+
+You turn one thing someone shipped into a short card-news video for a Korean
+audience that builds software.
+
+Each card is a screen. What is written on it is what the viewer reads; the
+narration is what they hear over it. Write both, and keep them saying the same
+thing — a card that says one thing while the voice says another is worse than
+either alone.
+
+## The hard rule
+
+Everything you say about the tool has to come from the material below. Do not
+invent features, benchmarks, prices, company names, or who made it. If the
+material does not say how it works, say what it does and stop.
+
+This is not a style preference. The tool is real and the people who made it will
+see this. Being wrong about someone's project is the one failure this cannot
+recover from.
+
+## Cards
+1. {min_cards} to {max_cards} cards.
+2. the first card earns the swipe. lead with what changes for the viewer, not
+   with the tool's name — the name means nothing to them yet.
+3. the middle cards carry one idea each. a card with two ideas gets read as
+   neither.
+4. the last card says what to do with this: try it, watch it, or ignore it
+   unless you have the specific problem it solves. an honest "skip this unless"
+   buys more trust than a recommendation.
+
+## Writing
+5. card titles at most {max_title} characters. they are set large; a long one
+   wraps into a wall.
+6. at most {max_bullets} bullets per card, each at most {max_bullet} characters.
+   fragments, not sentences.
+7. narration is at most {max_narration} characters per card and reads as
+   someone explaining it to a colleague — plain, direct, no marketing voice.
+8. write out numbers as words in the narration; speech synthesis reads digits
+   flatly. leave digits as digits in the card text, which is read by eye.
+9. keep English product and library names in English. Translating them makes
+   them unsearchable.
+
+## Output
+Return JSON only, no prose and no code fence:
+{{"cards": [{{"title": "...", "bullets": ["..."], "narration": "..."}}]}}
+""".strip()
+
+
+def _card_entry(entry) -> dict | None:
+    """카드 한 장을 쓸 수 있는 형태로 정리한다. 제목이 없으면 ``None``."""
+    if not isinstance(entry, dict):
+        return None
+
+    # 모델이 숫자나 객체를 넣어 보낼 수 있다. 문자열이 아닌 값을 길이 제한 함수에
+    # 그대로 넘기면 AttributeError 가 재시도 루프 밖으로 튀어, 빈 목록을 돌려준다는
+    # 약속이 깨진다.
+    def _text(value, limit: int, field: str) -> str:
+        return _limit_social_text(value, limit, field) if isinstance(value, str) else ""
+
+    title = _text(entry.get("title"), MAX_CARD_TITLE_LENGTH, "card title")
+    if not title:
+        return None
+
+    raw_bullets = entry.get("bullets")
+    bullets = []
+    if isinstance(raw_bullets, list):
+        for bullet in raw_bullets[:MAX_CARD_BULLETS]:
+            value = _text(bullet, MAX_CARD_BULLET_LENGTH, "card bullet")
+            if value:
+                bullets.append(value)
+
+    return {
+        "title": title,
+        "bullets": bullets,
+        "narration": _text(
+            entry.get("narration"), MAX_CARD_NARRATION_LENGTH, "card narration"
+        )
+        or title,
+    }
+
+
+def generate_card_script(
+    title: str,
+    url: str = "",
+    source: str = "",
+    points: int = 0,
+    body_text: str = "",
+    language: str = "",
+) -> list[dict]:
+    """
+    소재 하나를 카드 목록으로 바꾼다. 실패하면 빈 목록.
+
+    카드마다 ``title``, ``bullets``, ``narration`` 을 담은 딕셔너리다. 서비스 계층이
+    카드 모델을 모르게 두려고 평범한 딕셔너리로 돌려준다 — 대본이나 키워드 생성이
+    문자열을 돌려주는 것과 같은 이유다.
+    """
+    title = _limit_script_text(title, MAX_SCRIPT_SUBJECT_LENGTH, "title")
+    if not title:
+        return []
+
+    prompt = CARD_SCRIPT_SYSTEM_PROMPT.format(
+        min_cards=MIN_CARD_SCRIPT_CARDS,
+        max_cards=MAX_CARD_SCRIPT_CARDS,
+        max_title=MAX_CARD_TITLE_LENGTH,
+        max_bullets=MAX_CARD_BULLETS,
+        max_bullet=MAX_CARD_BULLET_LENGTH,
+        max_narration=MAX_CARD_NARRATION_LENGTH,
+    )
+    # 소재는 밖에서 온 글이다. 규칙 옆에 그대로 붙이면 거기 적힌 문장이 지시로 읽힌다.
+    # 이 함수는 서비스 안에서도 직접 불린다. 상한은 프롬프트를 만드는 자리에 있어야
+    # 어느 입구로 들어와도 지켜진다.
+    source = _limit_social_text(source, MAX_CARD_SOURCE_LENGTH, "source")
+    url = _limit_social_text(url, MAX_CARD_URL_LENGTH, "url")
+    prompt += (
+        f"\n\n# Material (data)\n<item>\n"
+        f"title: {_as_prompt_data(title)}\n"
+        f"source: {_as_prompt_data(source)}\n"
+        f"points: {max(0, int(points or 0))}\n"
+        f"url: {_as_prompt_data(url)}\n"
+        f"body: {_as_prompt_data(_limit_script_text(body_text, MAX_SOCIAL_SCRIPT_LENGTH, 'body_text'))}\n"
+        "</item>"
+    )
+    if language:
+        prompt += (
+            "\n\n# Language (data)\n<language>"
+            f"{_as_prompt_data(_normalize_social_language(language))}</language>"
+        )
+
+    for attempt in range(_max_retries):
+        response = _generate_response(prompt)
+        if response.startswith("Error:"):
+            logger.error(f"failed to generate a card script: {response[:200]}")
+            return []
+        if len(response) > MAX_CARD_SCRIPT_RESPONSE_CHARS:
+            logger.warning(
+                f"card script response is too long ({len(response)} characters)"
+            )
+            continue
+        try:
+            payload = json.loads(_strip_code_fence(response))
+        except Exception as exc:
+            logger.warning(f"card script is not valid json: {type(exc).__name__}")
+            continue
+
+        raw_cards = payload.get("cards") if isinstance(payload, dict) else payload
+        if not isinstance(raw_cards, list):
+            logger.warning("card script did not contain a list of cards")
+            continue
+
+        cards = [
+            card
+            for card in (
+                _card_entry(entry) for entry in raw_cards[:MAX_CARD_SCRIPT_CARDS]
+            )
+            if card
+        ]
+        # 카드 한두 장은 카드뉴스가 아니다. 여는 장, 본론, 닫는 장이 있어야 한다.
+        # 모자라면 이 소재는 오늘 쓰지 않는다 — 한 장짜리 영상을 내보내는 것보다 낫다.
+        if len(cards) >= MIN_CARD_SCRIPT_CARDS:
+            logger.success(f"generated a card script with {len(cards)} cards")
+            return cards
+        logger.warning(
+            f"card script had only {len(cards)} usable cards, retrying... {attempt + 1}"
+        )
+
+    return []
+
+
+# =============================================================================
 # Social publishing metadata
 #
 # 영상 주제와 대본을 바탕으로 숏폼 플랫폼에 올릴 때 흔히 쓰는 title, caption, hashtags 를 만든다.
