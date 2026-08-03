@@ -11,15 +11,19 @@ PUBLIC_IP = "93.184.216.34"
 
 
 def _response(body: str = "hello", status: int = 200, content_type: str = "text/html",
-              location: str = ""):
+              location: str = "", peer: str | None = PUBLIC_IP):
     """`requests.get` 이 돌려주는 것과 같은 모양의 응답."""
     response = MagicMock()
     response.status_code = status
     response.is_redirect = bool(location)
-    response.headers = {"Content-Type": content_type}
+    response.headers = {"Content-Type": content_type} if content_type else {}
     if location:
         response.headers["Location"] = location
     response.raw.read.return_value = body.encode("utf-8")
+    if peer is None:
+        response.raw._connection = None
+    else:
+        response.raw._connection.sock.getpeername.return_value = (peer, 443)
     return response
 
 
@@ -115,11 +119,48 @@ class TestRedirects(unittest.TestCase):
             self.assertEqual(enrich.fetch_body("https://x.test/a"), "도착한 글")
             self.assertEqual(fetch.get.call_args_list[1].args[0], "https://x.test/moved")
 
+    def test_a_malformed_redirect_does_not_raise(self):
+        """
+        `Location` 도 남의 서버가 적어 보내는 값이다. 주소를 붙이다 예외가 나면
+        본문을 못 읽었다는 뜻이 아니라 대본 만들기 전체가 죽는다.
+        """
+        for location in ("http://[::1", "http://[", "http://[fe80::1%25en0]:99999/"):
+            with self.subTest(location=location):
+                with _Fetch([_response(location=location), _response("도착")]):
+                    self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
+
     def test_a_redirect_loop_ends(self):
         loop = [_response(location="https://x.test/a") for _ in range(20)]
         with _Fetch(loop) as fetch:
             self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
             self.assertLessEqual(fetch.get.call_count, enrich.MAX_REDIRECTS + 1)
+
+
+class TestWhereItActuallyConnected(unittest.TestCase):
+    """
+    이름을 확인한 것과 그 이름으로 연결된 곳이 같다는 보장은 없다. 이름을 쥔 쪽이
+    확인할 때는 공인 주소를, 연결할 때는 사내 주소를 내놓을 수 있다.
+    """
+
+    def test_a_connection_that_landed_inside_is_not_read(self):
+        for peer in ("127.0.0.1", "10.0.0.5", "169.254.169.254", "::1"):
+            with self.subTest(peer=peer):
+                with _Fetch([_response("내부망 응답", peer=peer)]) as fetch:
+                    self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
+                    fetch.responses[0].raw.read.assert_not_called()
+
+    def test_a_connection_whose_address_is_unknown_is_not_read(self):
+        """확인할 수 없는 것을 통과시키면 검사가 있으나 마나다."""
+        with _Fetch([_response("응답", peer=None)]):
+            self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
+
+    def test_a_redirect_hop_is_checked_the_same_way(self):
+        """첫 연결만 보면 두 번째 요청이 어디에 붙었는지는 아무도 안 본다."""
+        with _Fetch(
+            [_response(location="https://y.test/b"), _response("내부망 응답", peer="10.0.0.5")]
+        ) as fetch:
+            self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
+            self.assertEqual(fetch.get.call_count, 2)
 
 
 class TestBounds(unittest.TestCase):
@@ -140,6 +181,14 @@ class TestBounds(unittest.TestCase):
     def test_something_that_is_not_text_is_skipped(self):
         with _Fetch([_response("\x00\x01binary", content_type="image/png")]):
             self.assertEqual(enrich.fetch_body("https://x.test/a.png"), "")
+
+    def test_a_body_that_does_not_say_what_it_is_is_skipped(self):
+        """
+        무엇인지 밝히지 않은 바이트를 글자로 바꿔 프롬프트에 실을 이유가 없다.
+        헤더를 빼는 것만으로 검사를 지나갈 수 있으면 검사가 있으나 마나다.
+        """
+        with _Fetch([_response("\x00\x01binary", content_type="")]):
+            self.assertEqual(enrich.fetch_body("https://x.test/a"), "")
 
     def test_an_error_page_is_not_used_as_the_body(self):
         with _Fetch([_response("<h1>404 Not Found</h1>", status=404)]):

@@ -61,14 +61,22 @@ def _resolved_addresses(host: str) -> list[str]:
     return [info[4][0] for info in infos]
 
 
+def _is_public_address(address: str) -> bool:
+    """공인 주소면 ``True``. 루프백·사설망·링크로컬은 전부 아니다."""
+    try:
+        # 링크로컬은 범위 표기(`fe80::1%en0`)가 붙어 오기도 한다. 그 형태는
+        # 파싱되지 않고, 파싱되지 않는 주소는 공인이 아닌 것으로 본다.
+        return ipaddress.ip_address(address).is_global
+    except ValueError:
+        return False
+
+
 def assert_public_url(url: str) -> None:
     """
     공인 http(s) 주소인지 본다. 아니면 ``UnsafeUrl``.
 
     스킴만 보면 모자란다. ``http://localhost`` 나 사내 이름 하나로 이 기계가
     내부망에 대신 요청을 보내게 되므로, 그 이름이 실제로 가리키는 주소까지 본다.
-    (이름을 확인한 뒤 requests 가 다시 조회하므로 그 사이를 노리는 공격까지
-    막지는 못한다. 링크가 HN 상위 글에서 오는 이 도구에는 과한 방어다.)
     """
     try:
         parsed = urlparse(url)
@@ -79,20 +87,43 @@ def assert_public_url(url: str) -> None:
         raise UnsafeUrl("only http and https are allowed")
 
     for address in _resolved_addresses(parsed.hostname):
-        try:
-            resolved = ipaddress.ip_address(address)
-        except ValueError:
-            raise UnsafeUrl("the host resolved to something unusable") from None
-        if not resolved.is_global:
+        if not _is_public_address(address):
             # 루프백, 사설망, 링크로컬(클라우드 메타데이터 포함)이 전부 여기서 걸린다.
-            raise UnsafeUrl(f"the host resolves to a non-public address: {resolved}")
+            raise UnsafeUrl(f"the host resolves to a non-public address: {address}")
+
+
+def _peer_address(response) -> str:
+    """실제로 연결된 상대의 주소. 알 수 없으면 빈 문자열."""
+    connection = getattr(response.raw, "_connection", None)
+    sock = getattr(connection, "sock", None)
+    try:
+        return str(sock.getpeername()[0])
+    except (AttributeError, IndexError, OSError, TypeError):
+        return ""
+
+
+def assert_public_peer(response) -> None:
+    """
+    실제로 붙은 상대가 공인 주소인지 본다. 아니면 ``UnsafeUrl``.
+
+    이름을 확인한 것과 그 이름으로 연결된 곳이 같다는 보장은 없다. 이름을 쥔
+    쪽이 확인할 때는 공인 주소를, 연결할 때는 사내 주소를 내놓으면 앞의 검사만으로는
+    통과한다. 본문을 읽기 전에 붙은 곳을 다시 본다.
+    """
+    # 어디에 붙었는지 알아내지 못하면 빈 값이 오고, 그것도 공인 주소가 아니다.
+    # 확인할 수 없는 것을 통과시키면 검사가 있으나 마나다.
+    peer = _peer_address(response)
+    if not _is_public_address(peer):
+        raise UnsafeUrl(f"the connection reached a non-public address: {peer or '?'}")
 
 
 def _read_bounded_text(response) -> str:
     """본문을 상한까지만 읽는다. 읽을 글이 아니면 빈 문자열."""
     content_type = str(response.headers.get("Content-Type", "")).lower()
-    if content_type and not content_type.startswith(ALLOWED_CONTENT):
-        logger.info(f"skipping a non-text body: {content_type[:60]}")
+    # 종류를 밝히지 않은 응답도 여기서 걸린다. 무엇인지 모르는 바이트를 글자로
+    # 바꿔 프롬프트에 실을 이유가 없다.
+    if not content_type.startswith(ALLOWED_CONTENT):
+        logger.info(f"skipping a body of an unusable type: {content_type[:60] or '(none)'}")
         return ""
 
     raw = response.raw.read(MAX_BODY_BYTES, decode_content=True)
@@ -128,11 +159,21 @@ def _get(url: str, accept: str = "") -> str:
             return ""
 
         with response:
-            location = response.headers.get("Location", "")
-            if response.is_redirect and location:
-                # 상대 주소로 보내는 곳이 많다. 원래 주소에 붙여야 다음 검사가 통한다.
-                url = urljoin(url, location)
-                continue
+            try:
+                assert_public_peer(response)
+                location = response.headers.get("Location", "")
+                if response.is_redirect and location:
+                    # 상대 주소로 보내는 곳이 많다. 원래 주소에 붙여야 다음 검사가
+                    # 통한다. 붙이는 것 자체가 실패할 수 있는 값이라 안에서 한다.
+                    url = urljoin(url, location)
+                    continue
+            except UnsafeUrl as exc:
+                logger.warning(f"refusing to read a source body: {exc}")
+                return ""
+            except ValueError as exc:
+                logger.warning(f"could not follow a redirect: {type(exc).__name__}")
+                return ""
+
             if response.status_code >= 400:
                 logger.info(f"a source body responded {response.status_code}")
                 return ""
