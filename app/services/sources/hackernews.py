@@ -100,15 +100,19 @@ def fetch_items(
     within_hours: int = 48,
     limit: int = 20,
     tags: str = "story",
-) -> list[SourceItem]:
+) -> list[SourceItem] | None:
     """
     조건에 맞는 최근 글을 점수 높은 순으로 돌려준다.
 
     ``tags`` 는 Algolia 의 필터 문법을 그대로 쓴다. ``story`` 는 전체 글, ``show_hn``
     은 Show HN 만이다. 새 도구를 소개하는 채널이라면 Show HN 이 적중률이 높다.
 
-    실패는 빈 목록으로 돌려준다. 소재 수집이 안 됐다고 예외를 올리면, 매일 도는
-    자동화가 소스 하나 때문에 통째로 멈춘다.
+    가져오지 못하면 ``None``, 가져왔지만 조건에 맞는 글이 없으면 빈 목록이다. 둘을
+    같은 값으로 돌려주면 부르는 쪽이 '오늘은 새 글이 없다' 와 '지금 소스에 못
+    닿는다' 를 구분하지 못해, 잠깐의 장애에 계속 다시 물어보게 된다.
+
+    예외는 올리지 않는다. 소재 수집이 안 됐다고 매일 도는 자동화가 통째로 멈출
+    이유는 없다.
     """
     limit = max(1, min(int(limit or 1), MAX_HITS))
     since = int(time.time()) - max(1, int(within_hours or 1)) * 3600
@@ -125,11 +129,11 @@ def fetch_items(
         body = _read_bounded_json(response)
     except Exception as exc:
         logger.warning(f"failed to fetch hacker news items: {type(exc).__name__}")
-        return []
+        return None
 
     if not isinstance(body, dict) or not isinstance(body.get("hits"), list):
         logger.warning("hacker news returned an unexpected body")
-        return []
+        return None
 
     items = [
         item for item in (_to_item(hit) for hit in body["hits"][:limit]) if item

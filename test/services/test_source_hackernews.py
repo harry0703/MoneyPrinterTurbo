@@ -101,7 +101,7 @@ class TestBounds(unittest.TestCase):
             response.__enter__ = lambda self_: self_
             response.__exit__ = lambda *a: False
             response.raw.read.return_value = payload
-            self.assertEqual(hackernews.fetch_items(), [])
+            self.assertIsNone(hackernews.fetch_items())
 
     def test_the_request_asks_for_a_bounded_page(self):
         """상한이 없으면 한 번에 받아 오는 양이 요청자에 따라 달라진다."""
@@ -149,20 +149,32 @@ class TestBounds(unittest.TestCase):
 
 
 class TestFailures(unittest.TestCase):
-    def test_a_network_failure_returns_nothing_instead_of_raising(self):
+    def test_a_network_failure_reports_that_it_could_not_reach_the_source(self):
         """
-        소재 수집이 안 됐다고 예외를 올리면, 매일 도는 자동화가 소스 하나 때문에
-        통째로 멈춘다.
+        예외를 올리면 매일 도는 자동화가 소스 하나 때문에 멈춘다. 그렇다고 빈
+        목록으로 돌려주면 '오늘 새 글이 없다' 와 구분되지 않아, 부르는 쪽이
+        잠깐의 장애에 계속 다시 물어보게 된다.
         """
         with patch.object(
             hackernews.requests, "get", side_effect=RuntimeError("no network")
         ):
-            self.assertEqual(hackernews.fetch_items(), [])
+            self.assertIsNone(hackernews.fetch_items())
 
-    def test_an_unexpected_body_returns_nothing(self):
+    def test_an_unexpected_body_reports_the_same_way(self):
         """`hits` 가 목록이 아니면 순회할 수 없다."""
-        self.assertEqual(_fetch({"hits": "nope"}), [])
-        self.assertEqual(_fetch(["not", "an", "object"]), [])
+        self.assertIsNone(_fetch({"hits": "nope"}))
+        self.assertIsNone(_fetch(["not", "an", "object"]))
+
+    def test_a_quiet_day_and_an_outage_look_different(self):
+        """
+        조건에 맞는 글이 없는 날도 정상적인 결과다. 장애와 같은 값으로 돌려주면
+        부르는 쪽이 둘을 구분하지 못해, 조용한 날마다 계속 다시 물어본다.
+        """
+        self.assertEqual(_fetch({"hits": []}), [])
+        with patch.object(
+            hackernews.requests, "get", side_effect=RuntimeError("no network")
+        ):
+            self.assertIsNone(hackernews.fetch_items())
 
 
 if __name__ == "__main__":

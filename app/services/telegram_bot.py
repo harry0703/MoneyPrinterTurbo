@@ -21,7 +21,7 @@ from loguru import logger
 
 from app.config import config
 from app.models.schema import VideoParams
-from app.services import llm
+from app.services import cardscript, cardvideo, daily, llm, task_artifacts
 from app.services import task as tm
 from app.utils import utils
 
@@ -40,6 +40,13 @@ MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 # getUpdates 가 한 번에 돌려줄 업데이트 수. 텔레그램 상한은 100 이다.
 MAX_UPDATES_PER_POLL = 20
 MAX_SCRIPT_LENGTH = 3500
+# 하루에 보여 줄 후보 수. 더 늘리면 고르는 일 자체가 일이 된다.
+DAILY_CANDIDATES = 3
+# 매일 후보를 보내는 시각(로컬 24시간). 비워 두면 /오늘 을 직접 칠 때만 돈다.
+DEFAULT_DAILY_HOUR = ""
+# 소스에 못 닿았을 때 다시 볼 때까지 기다리는 시간. 폴링은 초 단위로 도는데
+# 그 주기로 다시 물어보면, 장애가 길어질수록 요청과 안내가 하루 종일 쌓인다.
+DAILY_RETRY_SECONDS = 15 * 60
 
 
 class TelegramConfigError(RuntimeError):
@@ -203,6 +210,175 @@ class ShortsBot:
         self.pending: dict[str, str] = {}
         self.rendering = False
         self._lock = threading.Lock()
+        # 오늘 보여 준 후보. 버튼을 누르면 여기서 찾는다.
+        self.candidates: dict[str, object] = {}
+        # 기록 파일에 못 쓴 날을 위한 대비. 저장이 실패해도 이번 실행 동안에는
+        # 같은 목록을 다시 보내지 않는다.
+        self.offered_date = ""
+        self.retry_daily_after = 0.0
+
+    # ---- 매일 ----
+
+    def _daily_hour(self) -> int | None:
+        """설정된 발송 시각. 안 정했으면 ``None``."""
+        raw = str(config.telegram.get("daily_hour", DEFAULT_DAILY_HOUR) or "").strip()
+        if not raw:
+            return None
+        try:
+            hour = int(raw)
+        except ValueError:
+            logger.warning("telegram daily_hour is not a number, skipping the schedule")
+            return None
+        return hour if 0 <= hour <= 23 else None
+
+    def maybe_run_daily(self, now=None) -> bool:
+        """
+        정해진 시각이 지났고 오늘 아직 안 보냈으면 후보를 보낸다.
+
+        날짜로 기억한다. 시각만 보면 그 시간대 안에서 폴링이 도는 동안 계속
+        보내게 되고, 몇 분마다 같은 목록이 온다. 그 날짜는 파일에 남긴다.
+        """
+        hour = self._daily_hour()
+        if hour is None:
+            return False
+
+        now = now or time.localtime()
+        today = time.strftime("%Y-%m-%d", now)
+        # 파일에서 읽는다. 메모리에만 두면 봇을 다시 켤 때마다 그날 목록이 또 나간다.
+        if now.tm_hour < hour:
+            return False
+        if self.offered_date == today or daily.load_last_run() == today:
+            return False
+        # 실패한 뒤에는 잠시 쉰다. 폴링 주기로 다시 물어보면 장애가 이어지는 동안
+        # 요청과 안내가 계속 쌓인다.
+        if time.monotonic() < self.retry_daily_after:
+            return False
+
+        # 마친 다음에 날짜를 적는다. 먼저 적으면 잠깐의 장애가 그날의 모든
+        # 재시도를 막는다.
+        if not self._offer_today():
+            self.retry_daily_after = time.monotonic() + DAILY_RETRY_SECONDS
+            return False
+
+        # 못 써도 이번 실행 동안에는 다시 보내지 않는다. 저장 실패가 폴링마다
+        # 같은 목록을 보내는 일로 번지면 안 된다.
+        self.offered_date = today
+        if not daily.save_last_run(today):
+            logger.warning("could not record today's daily run; it may repeat on restart")
+        return True
+
+    # ---- 오늘의 소재 ----
+
+    def _offer_today(self) -> bool:
+        """
+        오늘 다룰 만한 것을 찾아 후보로 보여 준다. 오늘 몫을 마쳤으면 ``True``.
+
+        새 글이 없는 날도 마친 것이다. 못 닿았을 때만 안 마친 것으로 둔다 —
+        둘을 같이 다루면 한쪽은 하루를 통째로 건너뛰고 다른 쪽은 폴링마다
+        같은 안내를 보낸다.
+        """
+        # 새로 훑기 전에 지난 목록을 버린다. 남겨 두면 어제 버튼이 오늘도 먹혀,
+        # 이미 만든 소재를 다시 만들게 된다.
+        self.candidates = {}
+        _send(self.chat_id, "오늘 올라온 것 보는 중…")
+        run = daily.pick_items(limit=DAILY_CANDIDATES)
+        if not run.source_reachable:
+            _send(self.chat_id, "지금 소스에 못 닿았어요. 이따 다시 볼게요.")
+            return False
+        if not run.picks:
+            # 오늘 새 글이 없는 것도 정상적인 결과다. 실패로 치면 그날 내내
+            # 폴링마다 같은 안내가 나간다.
+            _send(self.chat_id, "새로 다룰 만한 게 없어요. 내일 다시 볼게요.")
+            return True
+
+        for index, pick in enumerate(run.picks, start=1):
+            token = uuid4().hex[:8]
+            self.candidates[token] = pick.item
+            _send(
+                self.chat_id,
+                f"{index}. {pick.item.title}\n{pick.reason}\n"
+                f"{pick.item.url or pick.item.discussion_url}",
+                buttons=[[{"text": "이걸로", "callback_data": f"pick:{token}"}]],
+            )
+        return True
+
+    def _draft_cards(self, item) -> None:
+        """고른 소재로 카드 대본을 만들어 승인을 받는다."""
+        _send(self.chat_id, "카드 만드는 중…")
+        script = cardscript.build_card_script(item)
+        if not script:
+            _send(self.chat_id, "이 소재로는 카드가 안 나왔어요. 다른 걸 골라 주세요.")
+            return
+
+        draft_id = uuid4().hex[:8]
+        self.pending = {
+            "subject": item.title,
+            "script": script.narration_text,
+            "draft_id": draft_id,
+            "card_script": script,
+            "item": item,
+        }
+        lines = []
+        for card in script.cards:
+            lines.append(f"[{card.index_label}] {card.title}")
+            lines.extend(f"    · {bullet}" for bullet in card.body)
+        _send(
+            self.chat_id,
+            "\n".join(lines)[:MAX_TELEGRAM_MESSAGE_LENGTH - 100],
+            buttons=[
+                [
+                    {"text": "승인", "callback_data": f"approve:{draft_id}"},
+                    {"text": "취소", "callback_data": f"cancel:{draft_id}"},
+                ]
+            ],
+        )
+
+    def _render_cards(self, item, script) -> None:
+        """카드뉴스를 만들어 보낸다."""
+        task_id = utils.get_uuid()
+        try:
+            params = _build_params("", "")
+            # 렌더러는 매니페스트를 보완만 한다. 없으면 아무것도 안 남으므로
+            # 여기서 먼저 만든다. 이 경로로 만든 영상도 무엇으로 만들었는지
+            # 되짚을 수 있어야 한다.
+            task_artifacts.write_script_data(
+                task_id,
+                {
+                    "source": {
+                        "name": item.source,
+                        "item_id": item.item_id,
+                        "title": item.title,
+                        "url": item.url,
+                        "discussion_url": item.discussion_url,
+                        "points": item.points,
+                    },
+                    "cards": [
+                        {
+                            "title": card.title,
+                            "bullets": list(card.body),
+                            "narration": narration,
+                        }
+                        for card, narration in zip(script.cards, script.narrations)
+                    ],
+                    "params": params.model_dump(mode="json"),
+                },
+            )
+            result = cardvideo.render_card_news(task_id, script, params)
+            if not result:
+                _send(self.chat_id, "영상 생성에 실패했어요. 로그를 확인해 주세요.")
+                return
+            # 만든 것만 기록한다. 후보로 보여 주기만 한 소재는 내일 다시 나온다.
+            daily.mark_used(item)
+            _send_video(self.chat_id, result.video_path, caption=item.title)
+        except Exception as exc:
+            logger.error(
+                f"telegram card render failed: {task_id}, "
+                f"{type(exc).__name__}: {llm.sanitize_error_message(exc)}"
+            )
+            _send(self.chat_id, f"영상 생성 중 오류가 났어요: {type(exc).__name__}")
+        finally:
+            with self._lock:
+                self.rendering = False
 
     # ---- 대본 ----
 
@@ -275,12 +451,16 @@ class ShortsBot:
 
         subject = self.pending.get("subject", "")
         script = self.pending.get("script", "")
+        card_script = self.pending.get("card_script")
+        item = self.pending.get("item")
         self.pending = {}
         _send(self.chat_id, "만들기 시작했어요. 십 분쯤 걸립니다.")
         # 폴링을 막지 않도록 따로 돌린다. 렌더링 중에도 명령을 받을 수 있어야 한다.
-        threading.Thread(
-            target=self._render, args=(subject, script), daemon=True
-        ).start()
+        if card_script is not None:
+            target, arguments = self._render_cards, (item, card_script)
+        else:
+            target, arguments = self._render, (subject, script)
+        threading.Thread(target=target, args=arguments, daemon=True).start()
 
     # ---- 수신 ----
 
@@ -297,12 +477,16 @@ class ShortsBot:
             self._draft_script(subject[:MAX_SUBJECT_LENGTH])
             return
 
+        if text.startswith("/오늘") or text.startswith("/today"):
+            self._offer_today()
+            return
+
         if text.startswith("/상태") or text.startswith("/status"):
             _send(self.chat_id, "만드는 중이에요." if self.rendering else "쉬고 있어요.")
             return
 
         if text.startswith("/"):
-            _send(self.chat_id, "쓸 수 있는 명령: /새영상 <주제>, /상태")
+            _send(self.chat_id, "쓸 수 있는 명령: /오늘, /새영상 <주제>, /상태")
             return
 
         # 명령이 아닌 글은 대본을 직접 고쳐 보낸 것으로 본다.
@@ -312,6 +496,16 @@ class ShortsBot:
     def _handle_callback(self, callback: dict) -> None:
         _answer_callback(str(callback.get("id", "")))
         action, _, draft_id = str(callback.get("data", "") or "").partition(":")
+
+        if action == "pick":
+            # 한 번 고른 버튼은 쓴다. 남겨 두면 만든 뒤에 또 눌러 같은 것을
+            # 다시 만들게 된다.
+            item = self.candidates.pop(draft_id, None)
+            if item is None:
+                _send(self.chat_id, "지난 목록의 버튼이에요. /오늘 로 다시 불러 주세요.")
+                return
+            self._draft_cards(item)
+            return
 
         if not self.pending.get("script"):
             _send(self.chat_id, "승인할 대본이 없어요. /새영상 부터 시작해 주세요.")
@@ -399,8 +593,13 @@ class ShortsBot:
             )
         else:
             logger.info("telegram bot started")
-            _send(self.chat_id, "준비됐어요. /새영상 <주제> 로 시작하세요.")
+            _send(self.chat_id, "준비됐어요. /오늘 로 오늘 올라온 것부터 보세요.")
         while True:
+            if self.chat_id:
+                try:
+                    self.maybe_run_daily()
+                except Exception:
+                    logger.exception("the daily pick failed")
             self.poll_once()
             # getUpdates 가 롱 폴링이라 보통은 여기서 쉬지 않는다. 통신이 계속
             # 실패할 때 초당 수십 번 재시도하지 않도록 짧게 눕는다.
