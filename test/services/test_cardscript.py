@@ -217,6 +217,13 @@ class TestBounds(unittest.TestCase):
 
 
 class TestAssembly(unittest.TestCase):
+    def setUp(self):
+        # 대본을 만들 때 본문을 읽어 온다. 여기서 보려는 것은 조립 결과이므로
+        # 남의 서버를 부르지 않게 막아 둔다. 본문 읽기 자체는 별도로 시험한다.
+        patcher = patch.object(cardscript.enrich, "fetch_body", return_value="")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _build(self, count=4, item=None):
         entries = [
             {"title": f"제목 {i}", "bullets": ["하나"], "narration": f"나레이션 {i}"}

@@ -12,6 +12,7 @@ from loguru import logger
 from app.services import llm
 from app.services import cardnews
 from app.services.cardnews import Card
+from app.services.sources import enrich
 from app.services.sources.base import SourceItem
 
 
@@ -63,7 +64,11 @@ def build_card_script(item: SourceItem, language: str = "ko-KR") -> CardScript |
 
     실패를 예외로 올리지 않는 이유는 위와 같다. 하루치 소재 중 하나가 카드가 되지
     않았다고 나머지까지 멈출 이유가 없다.
+
+    본문은 여기서 채운다. 후보를 훑을 때 미리 채우면 보여 주기만 하고 넘어간
+    소재까지 매번 남의 서버에 요청을 보내게 된다. 실제로 카드를 만들 때만 읽는다.
     """
+    item = enrich.with_body(item)
     entries = llm.generate_card_script(
         title=item.title,
         url=item.url,
