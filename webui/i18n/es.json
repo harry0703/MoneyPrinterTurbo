@@ -266,6 +266,7 @@
     "Cancel": "Cancelar",
     "Test LLM Connection": "Probar conexión del modelo",
     "Testing LLM Connection": "Probando la conexión del modelo...",
+    "Runtime Configuration Busy": "Una tarea de video está usando la configuración del servicio. Inténtalo de nuevo cuando termine.",
     "LLM Connection Test Succeeded": "Conexión correcta: {provider} / {model} ({elapsed} s)",
     "LLM Connection Test Failed": "Error de conexión: {error}",
     "Video Source Settings": "**Configuración de fuente de vídeo**",

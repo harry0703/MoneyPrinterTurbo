@@ -1,3 +1,4 @@
+import copy
 import errno
 import os
 import shutil
@@ -16,7 +17,12 @@ config_file = f"{root_dir}/config.toml"
 _CONTAINER_CGROUP_MARKERS = ("docker", "containerd", "kubepods", "libpod", "podman")
 _DOCKER_HOST_GATEWAY_NAME = "host.docker.internal"
 _config_save_lock = threading.RLock()
+_pending_config_lock = threading.RLock()
+_pending_config_updates = {}
+_pending_config_save_requested = False
+_pending_config_flush_scheduled = False
 _MISSING = object()
+_DELETE = object()
 
 
 class _SynchronizedConfig(dict):
@@ -76,6 +82,193 @@ class _SynchronizedConfig(dict):
             super().update(changes)
 
 
+def _pending_update_key(config_section, key):
+    """为进程内固定配置分区生成待更新键。"""
+    return id(config_section), key
+
+
+def update_config_nonblocking(config_section, key, value):
+    """
+    非阻塞更新 WebUI 的运行期配置。
+
+    视频生成会持有 ``runtime_config_lock``，确保同一任务不会在执行中途切换
+    Provider、密钥或语音配置。Streamlit 控件发生变化时不能等待这把长任务锁，
+    否则浏览器会表现为页面冻结。锁空闲时立即更新；锁繁忙时只保留每个配置项
+    的最新值，并在当前任务释放锁时统一应用。
+
+    返回 True 表示值已经生效，False 表示已进入待更新队列。
+    """
+    # 所有更新都先进入同一队列，再尝试获取配置锁。这样多个页面同时修改同一
+    # 配置项时，写入队列的先后顺序就是最终顺序，不会出现较早线程在获取锁后
+    # 把较新线程已经排队的值误删掉。
+    with _pending_config_lock:
+        _pending_config_updates[_pending_update_key(config_section, key)] = (
+            config_section,
+            key,
+            copy.deepcopy(value),
+        )
+
+    acquired = _config_save_lock.acquire(blocking=False)
+    if not acquired:
+        # 调用方通常会在本次 Streamlit rerun 末尾请求保存，但不能依赖这一步
+        # 一定执行。例如页面中途异常或更新恰好发生在任务退出保存阶段时，仍需
+        # 有后台刷新线程保证排队值最终生效。
+        _schedule_deferred_config_flush()
+        return False
+
+    try:
+        _apply_pending_config_updates_locked()
+        return config_section.get(key, _MISSING) == value
+    finally:
+        _config_save_lock.release()
+
+
+def delete_config_nonblocking(config_section, key):
+    """
+    非阻塞删除 WebUI 配置项。
+
+    “使用默认值”需要真正移除配置项，而不是写入空字符串。视频任务占用配置
+    锁时，删除意图会覆盖同一配置项之前排队的更新，并在任务结束后执行。
+    """
+    with _pending_config_lock:
+        _pending_config_updates[_pending_update_key(config_section, key)] = (
+            config_section,
+            key,
+            _DELETE,
+        )
+
+    acquired = _config_save_lock.acquire(blocking=False)
+    if not acquired:
+        _schedule_deferred_config_flush()
+        return False
+
+    try:
+        _apply_pending_config_updates_locked()
+        return key not in config_section
+    finally:
+        _config_save_lock.release()
+
+
+def _apply_pending_config_updates_locked():
+    """在持有配置写锁时应用 WebUI 暂存的最新配置值。"""
+    with _pending_config_lock:
+        updates = list(_pending_config_updates.values())
+        _pending_config_updates.clear()
+        # 应用配置时继续持有待更新锁。读取“当前值 + 待更新值”快照的线程由此
+        # 只能看到应用前或应用后的完整状态，不会读到只更新了一半的配置集合。
+        for config_section, key, value in updates:
+            if value is _DELETE:
+                config_section.pop(key, None)
+            else:
+                config_section[key] = value
+    return bool(updates)
+
+
+def snapshot_config_with_pending(config_section):
+    """
+    返回配置分区的有效快照，并合并尚未应用的 WebUI 更新。
+
+    视频任务持锁期间不能改写全局配置，但用户仍可准备下一条内容。LLM 请求
+    使用这个快照后，界面中刚选择的 Provider、模型和密钥会参与新请求，同时
+    不会改变正在执行的视频任务。
+    """
+    with _pending_config_lock:
+        snapshot = dict(config_section)
+        section_id = id(config_section)
+        for (pending_section_id, key), (_, _, value) in _pending_config_updates.items():
+            if pending_section_id != section_id:
+                continue
+            if value is _DELETE:
+                snapshot.pop(key, None)
+            else:
+                snapshot[key] = copy.deepcopy(value)
+    return snapshot
+
+
+def _flush_pending_config_locked(*, suppress_save_errors):
+    """在持有配置写锁时应用并保存当前所有待处理配置。"""
+    global _pending_config_save_requested
+
+    updates_applied = _apply_pending_config_updates_locked()
+    with _pending_config_lock:
+        save_requested = _pending_config_save_requested
+        _pending_config_save_requested = False
+
+    if not updates_applied and not save_requested:
+        return True
+
+    try:
+        save_config()
+        return True
+    except Exception as exc:
+        # 内存中的配置已经成功应用，保存失败时只保留待保存标记。视频任务不应
+        # 因配置文件暂时不可写而被改判失败；下一次页面交互会再次触发保存。
+        with _pending_config_lock:
+            _pending_config_save_requested = True
+        if not suppress_save_errors:
+            raise
+        logger.exception(f"failed to save deferred runtime config: {exc}")
+        return False
+
+
+def _run_deferred_config_flush():
+    """等待长任务释放配置锁，并可靠清空期间积累的配置更新。"""
+    global _pending_config_flush_scheduled
+
+    while True:
+        with _config_save_lock:
+            flush_succeeded = _flush_pending_config_locked(
+                suppress_save_errors=True
+            )
+
+        with _pending_config_lock:
+            has_pending_work = bool(
+                _pending_config_updates or _pending_config_save_requested
+            )
+            if not flush_succeeded or not has_pending_work:
+                _pending_config_flush_scheduled = False
+                return
+
+
+def _schedule_deferred_config_flush():
+    """保证同一时间最多只有一个后台线程等待刷新配置。"""
+    global _pending_config_flush_scheduled
+
+    with _pending_config_lock:
+        if _pending_config_flush_scheduled:
+            return
+        _pending_config_flush_scheduled = True
+
+    threading.Thread(
+        target=_run_deferred_config_flush,
+        name="mpt-config-flush",
+        daemon=True,
+    ).start()
+
+
+def try_save_config():
+    """
+    非阻塞保存 WebUI 配置，锁繁忙时交由当前长任务结束后保存。
+
+    普通 API、CLI 和维护脚本仍可调用 ``save_config`` 获得原来的阻塞写入语义；
+    只有 Streamlit rerun 使用本函数，避免页面为等待视频任务而长时间无响应。
+    """
+    global _pending_config_save_requested
+
+    with _pending_config_lock:
+        _pending_config_save_requested = True
+
+    acquired = _config_save_lock.acquire(blocking=False)
+    if not acquired:
+        _schedule_deferred_config_flush()
+        return False
+
+    try:
+        return _flush_pending_config_locked(suppress_save_errors=False)
+    finally:
+        _config_save_lock.release()
+
+
 @contextmanager
 def runtime_config_lock():
     """
@@ -85,7 +278,13 @@ def runtime_config_lock():
     保护生成、试听等长操作，避免另一个标签页在操作中途切换 Provider 或密钥。
     """
     with _config_save_lock:
-        yield
+        # 如果上一个短操作释放锁时后台刷新线程尚未获得调度，新任务必须在读取
+        # Provider、密钥等全局配置前先应用队列，不能继续使用旧配置执行整条流水线。
+        _flush_pending_config_locked(suppress_save_errors=True)
+        try:
+            yield
+        finally:
+            _flush_pending_config_locked(suppress_save_errors=True)
 
 
 @contextmanager
@@ -99,9 +298,12 @@ def try_runtime_config_lock():
     """
     acquired = _config_save_lock.acquire(blocking=False)
     try:
+        if acquired:
+            _flush_pending_config_locked(suppress_save_errors=True)
         yield acquired
     finally:
         if acquired:
+            _flush_pending_config_locked(suppress_save_errors=True)
             _config_save_lock.release()
 
 
@@ -150,8 +352,7 @@ def _decode_linux_route_gateway(hex_gateway: str) -> str:
         raise ValueError("invalid gateway length")
 
     octets = [
-        str(int(hex_gateway[index : index + 2], 16))
-        for index in range(6, -1, -2)
+        str(int(hex_gateway[index : index + 2], 16)) for index in range(6, -1, -2)
     ]
     return ".".join(octets)
 

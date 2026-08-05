@@ -262,6 +262,7 @@
     "Cancel": "Отмена",
     "Test LLM Connection": "Проверить подключение модели",
     "Testing LLM Connection": "Проверка подключения модели...",
+    "Runtime Configuration Busy": "Текущая задача использует настройки сервиса. Повторите попытку после её завершения.",
     "LLM Connection Test Succeeded": "Подключение успешно: {provider} / {model} ({elapsed} с)",
     "LLM Connection Test Failed": "Ошибка подключения: {error}",
     "Video Source Settings": "**Источники материалов**",

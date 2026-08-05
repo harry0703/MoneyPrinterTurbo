@@ -266,6 +266,7 @@
     "Cancel": "Hủy",
     "Test LLM Connection": "Kiểm tra kết nối mô hình",
     "Testing LLM Connection": "Đang kiểm tra kết nối mô hình...",
+    "Runtime Configuration Busy": "Một tác vụ video đang sử dụng cấu hình dịch vụ. Hãy thử lại sau khi tác vụ hoàn tất.",
     "LLM Connection Test Succeeded": "Kết nối thành công: {provider} / {model} ({elapsed} giây)",
     "LLM Connection Test Failed": "Kết nối thất bại: {error}",
     "Video Source Settings": "**Cài Đặt Nguồn Video**",

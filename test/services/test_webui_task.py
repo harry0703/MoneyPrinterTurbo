@@ -56,6 +56,81 @@ def test_generation_controls_submit_background_task_instead_of_blocking_page():
     assert "tm.start" not in calls
 
 
+def test_webui_runtime_config_updates_do_not_use_blocking_writes():
+    """
+    生成期间的普通控件 rerun 不能重新等待长任务持有的配置锁。
+
+    所有 WebUI 配置写入都必须经过非阻塞 helper；LLM 连接测试和语音试听可
+    使用 try lock 快速返回，但页面代码不能直接调用阻塞锁或阻塞保存函数。
+    """
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    calls = {
+        _attribute_name(node.func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+    }
+    assert "config.runtime_config_lock" not in calls
+    assert "config.save_config" not in calls
+    assert not calls.intersection(
+        {
+            "config.app.clear",
+            "config.app.pop",
+            "config.app.setdefault",
+            "config.app.update",
+            "config.azure.clear",
+            "config.azure.pop",
+            "config.azure.setdefault",
+            "config.azure.update",
+            "config.chatterbox.clear",
+            "config.chatterbox.pop",
+            "config.chatterbox.setdefault",
+            "config.chatterbox.update",
+            "config.elevenlabs.clear",
+            "config.elevenlabs.pop",
+            "config.elevenlabs.setdefault",
+            "config.elevenlabs.update",
+            "config.siliconflow.clear",
+            "config.siliconflow.pop",
+            "config.siliconflow.setdefault",
+            "config.siliconflow.update",
+            "config.ui.clear",
+            "config.ui.pop",
+            "config.ui.setdefault",
+            "config.ui.update",
+        }
+    )
+
+    synchronized_sections = {
+        "app",
+        "azure",
+        "chatterbox",
+        "elevenlabs",
+        "siliconflow",
+        "ui",
+    }
+    direct_writes = []
+    for node in ast.walk(tree):
+        targets = []
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        elif isinstance(node, ast.AugAssign):
+            targets = [node.target]
+
+        for target in targets:
+            if not isinstance(target, ast.Subscript):
+                continue
+            section = target.value
+            if (
+                isinstance(section, ast.Attribute)
+                and isinstance(section.value, ast.Name)
+                and section.value.id == "config"
+                and section.attr in synchronized_sections
+            ):
+                direct_writes.append(node.lineno)
+
+    assert direct_writes == []
+
+
 def test_completed_task_renders_subject_named_video_download(tmp_path):
     """完成任务应提供主题命名的下载，且下载数据必须来自实际成片。"""
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
@@ -122,9 +197,7 @@ def test_completed_task_renders_subject_named_video_download(tmp_path):
         "tr": lambda key: key,
         "_render_generation_logs": lambda _task_id: None,
     }
-    module = ast.fix_missing_locations(
-        ast.Module(body=selected_nodes, type_ignores=[])
-    )
+    module = ast.fix_missing_locations(ast.Module(body=selected_nodes, type_ignores=[]))
     exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
 
     namespace["_render_generation_task_snapshot"](
@@ -277,18 +350,16 @@ def test_generation_log_fragment_refreshes_within_half_a_second():
     run_every = next(
         keyword.value for keyword in decorator.keywords if keyword.arg == "run_every"
     )
-    assert ast.unparse(run_every) == (
-        "webui_task.TASK_LOG_REFRESH_INTERVAL_SECONDS"
-    )
+    assert ast.unparse(run_every) == ("webui_task.TASK_LOG_REFRESH_INTERVAL_SECONDS")
 
 
 def test_generation_submit_skips_duplicate_config_save():
     """
     提交任务后不能在页面末尾再次等待配置锁。
 
-    后台任务会在完整生成期间持有 runtime_config_lock。如果 Streamlit 主脚本
-    提交任务后再次调用 save_config，就可能阻塞到任务结束，使定时 Fragment
-    无法刷新日志。生成分支已经提前保存配置，页面末尾只处理普通交互。
+    后台任务会在完整生成期间持有 runtime_config_lock。生成分支已经请求过
+    非阻塞保存，页面末尾无需重复请求；普通交互则继续通过同一个非阻塞 helper
+    保存，不能重新退回 config.save_config。
     """
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     controls = next(
@@ -311,8 +382,7 @@ def test_generation_submit_skips_duplicate_config_save():
         for node in application.body
         if isinstance(node, ast.Assign)
         and any(
-            isinstance(target, ast.Name)
-            and target.id == "generation_submitted"
+            isinstance(target, ast.Name) and target.id == "generation_submitted"
             for target in node.targets
         )
     )
@@ -332,7 +402,7 @@ def test_generation_submit_skips_duplicate_config_save():
         for node in ast.walk(guarded_save)
         if isinstance(node, ast.Call)
     }
-    assert guarded_calls == {"config.save_config"}
+    assert guarded_calls == {"_save_runtime_config"}
 
 
 def test_terminal_logger_reload_preserves_task_log_handler():

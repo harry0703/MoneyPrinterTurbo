@@ -269,6 +269,7 @@
     "Cancel": "Abbrechen",
     "Test LLM Connection": "Modellverbindung testen",
     "Testing LLM Connection": "Modellverbindung wird getestet...",
+    "Runtime Configuration Busy": "Ein Videoauftrag verwendet gerade die Diensteinstellungen. Versuchen Sie es nach Abschluss erneut.",
     "LLM Connection Test Succeeded": "Verbindung erfolgreich: {provider} / {model} ({elapsed} s)",
     "LLM Connection Test Failed": "Verbindung fehlgeschlagen: {error}",
     "Video Source Settings": "**Videoquellen-Einstellungen**",

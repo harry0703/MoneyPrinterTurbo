@@ -116,6 +116,32 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIn("- number of paragraphs: 2", captured["prompt"])
         self.assertIn("开头更有悬念", captured["prompt"])
 
+    def test_generate_script_reuses_submitted_config_snapshot(self):
+        """WebUI 后台任务结束后应用新配置，不能改变正在重试的模型请求。"""
+        captured = {}
+        app_config = {
+            "llm_provider": "openai",
+            "openai_api_key": "snapshot-key",
+            "openai_model_name": "snapshot-model",
+        }
+
+        def fake_generate_response(prompt, app_config=None):
+            captured["prompt"] = prompt
+            captured["app_config"] = app_config
+            return "Snapshot response"
+
+        with patch.object(
+            llm, "_generate_response", side_effect=fake_generate_response
+        ):
+            result = llm.generate_script(
+                video_subject="Snapshot test",
+                app_config=app_config,
+            )
+
+        self.assertEqual(result, "Snapshot response")
+        self.assertIs(captured["app_config"], app_config)
+        self.assertEqual(captured["app_config"]["openai_api_key"], "snapshot-key")
+
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
         按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，

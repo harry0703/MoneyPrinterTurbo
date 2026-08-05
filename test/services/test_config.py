@@ -1,5 +1,6 @@
 import errno
 import threading
+import time
 import tomllib
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,6 +11,17 @@ from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
 
 
 class TestConfigPersistence:
+    @staticmethod
+    def _wait_for_deferred_flush(timeout=1):
+        """等待配置刷新线程退出，避免并发测试之间共享后台状态。"""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            with config._pending_config_lock:
+                if not config._pending_config_flush_scheduled:
+                    return
+            time.sleep(0.005)
+        raise AssertionError("deferred config flush did not finish")
+
     @staticmethod
     def _load_example_config():
         config_path = Path(__file__).resolve().parents[2] / "config.example.toml"
@@ -226,3 +238,233 @@ class TestConfigPersistence:
 
         with config.try_runtime_config_lock() as acquired:
             assert acquired is True
+
+    def test_nonblocking_update_is_applied_after_runtime_task_finishes(self):
+        """WebUI 改动不能等待长任务，且任务结束后必须应用并保存最新值。"""
+        key = "nonblocking_runtime_update_test"
+        original_value = config.app.get(key, config._MISSING)
+        update_finished = threading.Event()
+        update_result = []
+
+        def update_config():
+            update_result.append(
+                config.update_config_nonblocking(config.app, key, "updated")
+            )
+            update_finished.set()
+
+        try:
+            with patch.object(config, "save_config") as save_config:
+                with config.runtime_config_lock():
+                    worker = threading.Thread(target=update_config)
+                    worker.start()
+                    assert update_finished.wait(timeout=0.2)
+                    assert update_result == [False]
+                    assert config.app.get(key) != "updated"
+
+                worker.join(timeout=1)
+                assert config.app[key] == "updated"
+                save_config.assert_called_once()
+        finally:
+            if original_value is config._MISSING:
+                config.app.pop(key, None)
+            else:
+                config.app[key] = original_value
+
+    def test_nonblocking_update_keeps_only_latest_value(self):
+        """同一控件在任务期间反复修改时，只应用最后一次选择。"""
+        key = "nonblocking_latest_value_test"
+        original_value = config.app.get(key, config._MISSING)
+        updates_finished = threading.Event()
+
+        def update_config():
+            assert not config.update_config_nonblocking(config.app, key, "first")
+            assert not config.update_config_nonblocking(config.app, key, "latest")
+            updates_finished.set()
+
+        try:
+            with patch.object(config, "save_config"):
+                with config.runtime_config_lock():
+                    worker = threading.Thread(target=update_config)
+                    worker.start()
+                    assert updates_finished.wait(timeout=0.2)
+
+                worker.join(timeout=1)
+                assert config.app[key] == "latest"
+        finally:
+            if original_value is config._MISSING:
+                config.app.pop(key, None)
+            else:
+                config.app[key] = original_value
+
+    def test_nonblocking_delete_is_applied_after_runtime_task_finishes(self):
+        """切回默认选项时，删除配置同样不能阻塞正在运行的视频任务。"""
+        key = "nonblocking_runtime_delete_test"
+        config.app[key] = "custom"
+        delete_finished = threading.Event()
+        delete_result = []
+
+        def delete_config():
+            delete_result.append(config.delete_config_nonblocking(config.app, key))
+            delete_finished.set()
+
+        try:
+            with patch.object(config, "save_config") as save_config:
+                with config.runtime_config_lock():
+                    worker = threading.Thread(target=delete_config)
+                    worker.start()
+                    assert delete_finished.wait(timeout=0.2)
+                    assert delete_result == [False]
+                    assert config.app[key] == "custom"
+
+                worker.join(timeout=1)
+                assert key not in config.app
+                save_config.assert_called_once()
+        finally:
+            config.app.pop(key, None)
+
+    def test_try_save_config_returns_immediately_while_runtime_task_is_active(self):
+        """页面 rerun 请求保存时不能等待视频任务释放配置锁。"""
+        save_finished = threading.Event()
+        save_result = []
+
+        def save_config():
+            save_result.append(config.try_save_config())
+            save_finished.set()
+
+        with patch.object(config, "save_config") as blocking_save:
+            with config.runtime_config_lock():
+                worker = threading.Thread(target=save_config)
+                worker.start()
+                assert save_finished.wait(timeout=0.2)
+                assert save_result == [False]
+
+            worker.join(timeout=1)
+            blocking_save.assert_called_once()
+
+        self._wait_for_deferred_flush()
+
+    def test_try_runtime_lock_flushes_updates_queued_during_operation(self):
+        """短操作释放配置锁时，也必须应用并保存期间到达的页面修改。"""
+        key = "try_runtime_queued_update_test"
+        original_value = config.app.get(key, config._MISSING)
+        update_finished = threading.Event()
+
+        def queue_update():
+            assert not config.update_config_nonblocking(config.app, key, "updated")
+            update_finished.set()
+
+        try:
+            with patch.object(config, "save_config") as save_config:
+                with config.try_runtime_config_lock() as acquired:
+                    assert acquired is True
+                    worker = threading.Thread(target=queue_update)
+                    worker.start()
+                    assert update_finished.wait(timeout=0.2)
+                    assert config.app.get(key) != "updated"
+
+                worker.join(timeout=1)
+                assert config.app[key] == "updated"
+                save_config.assert_called_once()
+
+            self._wait_for_deferred_flush()
+        finally:
+            if original_value is config._MISSING:
+                config.app.pop(key, None)
+            else:
+                config.app[key] = original_value
+
+    def test_update_queued_during_save_is_flushed_after_lock_release(self):
+        """退出保存期间的新修改不能停留在队列中，也不能被较早值覆盖。"""
+        key = "late_runtime_update_test"
+        original_value = config.app.get(key, config._MISSING)
+        runtime_entered = threading.Event()
+        release_runtime = threading.Event()
+        first_save_started = threading.Event()
+        release_first_save = threading.Event()
+        second_save_finished = threading.Event()
+        save_count = 0
+        save_count_lock = threading.Lock()
+
+        def blocking_save():
+            nonlocal save_count
+            with save_count_lock:
+                save_count += 1
+                current_save = save_count
+            if current_save == 1:
+                first_save_started.set()
+                assert release_first_save.wait(timeout=1)
+            elif current_save == 2:
+                second_save_finished.set()
+
+        def hold_runtime_lock():
+            with config.runtime_config_lock():
+                runtime_entered.set()
+                assert release_runtime.wait(timeout=1)
+
+        try:
+            with patch.object(config, "save_config", side_effect=blocking_save):
+                runtime_worker = threading.Thread(target=hold_runtime_lock)
+                runtime_worker.start()
+                assert runtime_entered.wait(timeout=1)
+
+                assert not config.update_config_nonblocking(config.app, key, "first")
+                release_runtime.set()
+                assert first_save_started.wait(timeout=1)
+
+                # 第一轮保存已经取得配置快照，此时到达的值必须由后台刷新线程
+                # 在锁释放后再次应用和保存，最终结果应以该值为准。
+                assert not config.update_config_nonblocking(config.app, key, "latest")
+                release_first_save.set()
+
+                runtime_worker.join(timeout=1)
+                assert not runtime_worker.is_alive()
+                assert second_save_finished.wait(timeout=1)
+                assert config.app[key] == "latest"
+                assert save_count == 2
+
+            self._wait_for_deferred_flush()
+        finally:
+            release_runtime.set()
+            release_first_save.set()
+            if original_value is config._MISSING:
+                config.app.pop(key, None)
+            else:
+                config.app[key] = original_value
+
+    def test_config_snapshot_includes_pending_updates(self):
+        """视频生成占锁时，新 LLM 请求应看到界面最新选择而非旧配置。"""
+        keys = {
+            "llm_provider": "pending-provider",
+            "pending-provider_api_key": "pending-key",
+            "pending-provider_model_name": "pending-model",
+        }
+        original_values = {
+            key: config.app.get(key, config._MISSING) for key in keys
+        }
+        updates_finished = threading.Event()
+
+        def queue_updates():
+            for key, value in keys.items():
+                assert not config.update_config_nonblocking(config.app, key, value)
+            updates_finished.set()
+
+        try:
+            with patch.object(config, "save_config"):
+                with config.runtime_config_lock():
+                    worker = threading.Thread(target=queue_updates)
+                    worker.start()
+                    assert updates_finished.wait(timeout=0.2)
+
+                    snapshot = config.snapshot_config_with_pending(config.app)
+                    assert all(snapshot[key] == value for key, value in keys.items())
+                    assert config.app.get("llm_provider") != "pending-provider"
+
+                worker.join(timeout=1)
+
+            self._wait_for_deferred_flush()
+        finally:
+            for key, original_value in original_values.items():
+                if original_value is config._MISSING:
+                    config.app.pop(key, None)
+                else:
+                    config.app[key] = original_value

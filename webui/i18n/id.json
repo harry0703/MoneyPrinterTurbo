@@ -266,6 +266,7 @@
     "Cancel": "Batal",
     "Test LLM Connection": "Uji Koneksi Model",
     "Testing LLM Connection": "Menguji koneksi model...",
+    "Runtime Configuration Busy": "Tugas video sedang menggunakan pengaturan layanan. Coba lagi setelah selesai.",
     "LLM Connection Test Succeeded": "Koneksi berhasil: {provider} / {model} ({elapsed} dtk)",
     "LLM Connection Test Failed": "Koneksi gagal: {error}",
     "Video Source Settings": "**Pengaturan Sumber Video**",

@@ -264,6 +264,7 @@
     "Cancel": "İptal",
     "Test LLM Connection": "Model bağlantısını test et",
     "Testing LLM Connection": "Model bağlantısı test ediliyor...",
+    "Runtime Configuration Busy": "Bir video görevi hizmet ayarlarını kullanıyor. Görev tamamlandıktan sonra tekrar deneyin.",
     "LLM Connection Test Succeeded": "Bağlantı başarılı: {provider} / {model} ({elapsed} sn)",
     "LLM Connection Test Failed": "Bağlantı başarısız: {error}",
     "Video Source Settings": "**Video Kaynağı Ayarları**",
