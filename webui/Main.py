@@ -120,6 +120,7 @@ _FINAL_VIDEO_PATTERN = re.compile(
     r"^final-(?P<index>\d+)\.(?P<extension>mp4|mov|mkv|webm)$",
     re.IGNORECASE,
 )
+_DOWNLOAD_FILENAME_INVALID_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 # -----------------------------------------------------------------------------
@@ -662,6 +663,17 @@ def _task_manager_label(processing_count):
     if processing_count <= 0:
         return label
     return f"{label} · {processing_count}"
+
+
+def _build_video_download_name(subject, index, total):
+    """根据视频主题生成跨平台安全的下载文件名。"""
+    safe_subject = _DOWNLOAD_FILENAME_INVALID_PATTERN.sub(" ", str(subject or ""))
+    safe_subject = re.sub(r"\s+", " ", safe_subject).strip(" .")[:80].rstrip(" .")
+    if not safe_subject:
+        safe_subject = "video"
+
+    suffix = f"-{index}" if total > 1 else ""
+    return f"{safe_subject}{suffix}.mp4"
 
 
 def _render_task_table(filtered_tasks, key_prefix):
@@ -1373,7 +1385,34 @@ def _render_generation_task_snapshot(task_id, task):
     try:
         player_cols = st.columns(len(video_files) * 2 + 1)
         for i, url in enumerate(video_files):
-            player_cols[i * 2 + 1].video(url)
+            with player_cols[i * 2 + 1]:
+                st.video(url)
+                if not os.path.isfile(url):
+                    logger.warning(
+                        f"generated video is unavailable for download: "
+                        f"task_id={task_id}, video_file={url}"
+                    )
+                    continue
+
+                download_label = tr("Download Video")
+                if len(video_files) > 1:
+                    download_label = f"{download_label} {i + 1}"
+                download_name = _build_video_download_name(
+                    task.get("video_subject"),
+                    i + 1,
+                    len(video_files),
+                )
+                with open(url, "rb") as video_file:
+                    st.download_button(
+                        download_label,
+                        data=video_file,
+                        file_name=download_name,
+                        mime=mimetypes.guess_type(url)[0] or "video/mp4",
+                        key=f"download_generated_video_{task_id}_{i}",
+                        icon=":material/download:",
+                        on_click="ignore",
+                        use_container_width=True,
+                    )
     except Exception as exc:
         logger.exception(
             f"failed to render generated video preview: task_id={task_id}, "

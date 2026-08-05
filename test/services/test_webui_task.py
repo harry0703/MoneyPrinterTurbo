@@ -1,10 +1,12 @@
 import ast
+import os
 import re
 import threading
 import time
+from collections.abc import Mapping
 from contextlib import nullcontext
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from loguru import logger
@@ -52,6 +54,106 @@ def test_generation_controls_submit_background_task_instead_of_blocking_page():
 
     assert "webui_task.submit_generation" in calls
     assert "tm.start" not in calls
+
+
+def test_completed_task_renders_subject_named_video_download(tmp_path):
+    """完成任务应提供主题命名的下载，且下载数据必须来自实际成片。"""
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    selected_nodes = []
+    target_names = {
+        "_DOWNLOAD_FILENAME_INVALID_PATTERN",
+        "_build_video_download_name",
+        "_normalize_task_state",
+        "_render_generation_task_snapshot",
+    }
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id in target_names
+            for target in node.targets
+        ):
+            selected_nodes.append(node)
+        elif isinstance(node, ast.FunctionDef) and node.name in target_names:
+            selected_nodes.append(node)
+
+    class FakeColumn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    class FakeStreamlit:
+        def __init__(self):
+            self.session_state = {}
+            self.downloads = []
+            self.videos = []
+
+        def columns(self, count):
+            return [FakeColumn() for _ in range(count)]
+
+        def video(self, video_path):
+            self.videos.append(video_path)
+
+        def download_button(self, label, data, **kwargs):
+            self.downloads.append((label, data.read(), kwargs))
+
+        def success(self, _message):
+            pass
+
+        def warning(self, _message):
+            pass
+
+        def error(self, _message):
+            pass
+
+    video_path = tmp_path / "final-1.mp4"
+    video_path.write_bytes(b"video-content")
+    fake_st = FakeStreamlit()
+    open_task_folder = MagicMock()
+    namespace = {
+        "Mapping": Mapping,
+        "const": const,
+        "logger": MagicMock(),
+        "mimetypes": __import__("mimetypes"),
+        "open_task_folder": open_task_folder,
+        "os": os,
+        "re": re,
+        "st": fake_st,
+        "tr": lambda key: key,
+        "_render_generation_logs": lambda _task_id: None,
+    }
+    module = ast.fix_missing_locations(
+        ast.Module(body=selected_nodes, type_ignores=[])
+    )
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+
+    namespace["_render_generation_task_snapshot"](
+        "download-test",
+        {
+            "state": const.TASK_STATE_COMPLETE,
+            "progress": 100,
+            "videos": [str(video_path)],
+            "warnings": [],
+            "video_subject": "A day: in / Shanghai?",
+        },
+    )
+
+    assert fake_st.videos == [str(video_path)]
+    assert fake_st.downloads == [
+        (
+            "Download Video",
+            b"video-content",
+            {
+                "file_name": "A day in Shanghai.mp4",
+                "mime": "video/mp4",
+                "key": "download_generated_video_download-test_0",
+                "icon": ":material/download:",
+                "on_click": "ignore",
+                "use_container_width": True,
+            },
+        )
+    ]
+    open_task_folder.assert_called_once_with("download-test")
 
 
 def test_submit_generation_returns_while_pipeline_is_still_running():
