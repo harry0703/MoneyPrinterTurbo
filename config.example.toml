@@ -141,6 +141,11 @@ mimo_api_key = ""
 mimo_base_url = ""
 mimo_model_name = ""
 
+# Atlas Cloud, using the OpenAI-compatible Chat Completions API.
+atlascloud_api_key = ""
+atlascloud_base_url = ""
+atlascloud_model_name = ""
+
 # Cloudflare AI Gateway. The token requires AI Gateway Read/Edit and Workers AI
 # Read permissions. Leave gateway_id empty to use the Registry default.
 # Dashboard: https://dash.cloudflare.com/
