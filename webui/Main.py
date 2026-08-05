@@ -2059,9 +2059,10 @@ def _render_script_settings(panel, params):
     with panel:
         with st.container(border=True):
             st.write(tr("Video Script Settings"))
-            params.video_subject = st.text_input(
+            params.video_subject = st.text_area(
                 tr("Video Subject"),
                 placeholder=tr("Video Subject Placeholder"),
+                height=96,
                 key="video_subject",
             ).strip()
 
