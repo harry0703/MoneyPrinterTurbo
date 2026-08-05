@@ -42,8 +42,8 @@ class TestMaterialSearchCache(unittest.TestCase):
                 },
                 "rendition": {
                     "id": "large",
-                    "width": 1920,
-                    "height": 1080,
+                    "width": 1080,
+                    "height": 1920,
                 },
             },
         )
@@ -346,6 +346,83 @@ class TestMaterialSearchCache(unittest.TestCase):
 
         self.assertEqual(remote_search.call_count, 1)
         self.assertEqual(first, second)
+
+    def test_search_wrapper_refreshes_mixed_orientation_cache(self):
+        """
+        升级前的缓存可能混入其它方向的素材。只返回过滤后的少量条目会降低素材
+        多样性，因此发现任意方向不匹配时应重新请求并替换整个候选集。
+        """
+        portrait_item = self._item("https://example.com/old-portrait.mp4")
+        landscape_item = self._item("https://example.com/old-landscape.mp4")
+        landscape_item.source_info["rendition"] = {
+            "id": "large",
+            "width": 1920,
+            "height": 1080,
+        }
+        material_cache.save_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+            items=[portrait_item, landscape_item],
+        )
+
+        refreshed_item = self._item("https://example.com/refreshed-portrait.mp4")
+        remote_search = Mock(return_value=[refreshed_item])
+        results = material._search_videos_with_cache(
+            provider="pixabay",
+            search_videos=remote_search,
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+
+        self.assertEqual(remote_search.call_count, 1)
+        self.assertEqual(
+            [item.url for item in results],
+            ["https://example.com/refreshed-portrait.mp4"],
+        )
+        cached_items = material_cache.load_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+        )
+        self.assertEqual(
+            [item.url for item in cached_items],
+            ["https://example.com/refreshed-portrait.mp4"],
+        )
+
+    def test_square_search_reuses_crop_compatible_cache(self):
+        """方形任务应继续复用可裁剪素材缓存，不能因原始方向不同反复请求远端。"""
+        landscape_item = self._item("https://example.com/landscape.mp4")
+        landscape_item.source_info["rendition"] = {
+            "id": "large",
+            "width": 1920,
+            "height": 1080,
+        }
+        material_cache.save_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.square,
+            items=[landscape_item],
+        )
+        remote_search = Mock(return_value=[])
+
+        results = material._search_videos_with_cache(
+            provider="pixabay",
+            search_videos=remote_search,
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.square,
+        )
+
+        self.assertEqual(remote_search.call_count, 0)
+        self.assertEqual(
+            [item.url for item in results],
+            ["https://example.com/landscape.mp4"],
+        )
 
     def test_search_wrapper_retries_after_empty_result(self):
         """空结果不缓存，下一次调用仍应访问远端，以便临时故障恢复后自动重试。"""

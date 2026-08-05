@@ -60,15 +60,6 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><img src="docs/sponsors/compshare-logo.png" alt="优云智算" height="34"></a><br>
-      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><strong>优云智算</strong></a>
-    </td>
-    <td align="left">
-      感谢 <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">优云智算</a> 赞助本项目！优云智算是 UCloud 旗下 AI 云平台，一站式提供国内外主流模型的 API 服务，一个 Key 即可调用所有模型。主打高性价比国产模型 CodingPlan 套餐（GLM5.2、Deepseek-v4等），同时提供官方转发的稳定海外模型通道，满足多场景开发需求。已兼容 Claude Code、Codex 等主流 AI 编程工具及通用 API 调用，支持企业级高并发、7×24 技术支持和自助开票。<a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">点击注册</a>，最高可获得 ¥10 免费体验金。
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
       <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><img src="docs/sponsors/cubence-logo.png" alt="Cubence" height="40"></a><br>
       <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><strong>Cubence</strong></a>
     </td>
@@ -78,11 +69,11 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.0029.org/?promo=AFF1"><img src="docs/sponsors/0029-logo.jpg" alt="0029 云桥" height="56"></a><br>
-      <a href="https://www.0029.org/?promo=AFF1"><strong>0029 云桥</strong></a>
+      <a href="https://www.quya.org/?promo=AFF1"><img src="docs/sponsors/0029-logo.jpg" alt="0029 云桥" height="56"></a><br>
+      <a href="https://www.quya.org/?promo=AFF1"><strong>0029 云桥</strong></a>
     </td>
     <td align="left">
-      感谢 <a href="https://www.0029.org/?promo=AFF1">0029.org 云桥</a> 赞助本项目！0029.org 云桥是一个集成了 Claude Code、Codex 以及 Gemini 最新模型的一站式中转平台，为你提供稳定、高效且高性价比的 AI 中转服务。本站提供灵活的包月套餐/按量计费计划，国内直连，无需魔法，极速响应。支持个人和企业接入，价格最低为官方 0.12 折。<a href="https://www.0029.org/?promo=AFF1">立即访问</a>。
+      感谢 <a href="https://www.quya.org/?promo=AFF1">0029.org 云桥</a> 赞助本项目！0029.org 云桥是一个集成了 Claude Code、Codex 以及 Gemini 最新模型的一站式中转平台，为你提供稳定、高效且高性价比的 AI 中转服务。本站提供灵活的包月套餐/按量计费计划，国内直连，无需魔法，极速响应。支持个人和企业接入，价格最低为官方 0.12 折。<a href="https://www.quya.org/?promo=AFF1">立即访问</a>。
     </td>
   </tr>
   <tr>

@@ -70,6 +70,12 @@ class TaskManager:
                 and not self.is_queue_empty()
             ):
                 task_info = self.dequeue()
+                if task_info is None:
+                    # dequeue() may skip and discard queue entries that no longer
+                    # pass current validation (see RedisTaskManager.dequeue) and
+                    # return None once nothing usable is left, even though
+                    # is_queue_empty() was False a moment earlier.
+                    return
                 func = task_info["func"]
                 args = task_info.get("args", ())
                 kwargs = task_info.get("kwargs", {})

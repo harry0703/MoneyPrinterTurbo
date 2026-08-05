@@ -120,11 +120,75 @@ _FINAL_VIDEO_PATTERN = re.compile(
     r"^final-(?P<index>\d+)\.(?P<extension>mp4|mov|mkv|webm)$",
     re.IGNORECASE,
 )
+_DOWNLOAD_FILENAME_INVALID_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_RUNTIME_CONFIG_SECTIONS = {
+    "app": config.app,
+    "azure": config.azure,
+    "chatterbox": config.chatterbox,
+    "elevenlabs": config.elevenlabs,
+    "siliconflow": config.siliconflow,
+    "ui": config.ui,
+}
 
 
 # -----------------------------------------------------------------------------
 # 启动配置、会话状态与本地化
 # -----------------------------------------------------------------------------
+
+
+def _set_runtime_config(section_name, key, value):
+    """
+    更新 WebUI 配置，但不等待正在生成视频的后台任务。
+
+    后台任务结束前，配置层只保留同一配置项的最新值；任务释放配置锁时会自动
+    应用并保存。页面控件值仍由 Streamlit session_state 维护，因此暂存期间的
+    rerun 不会把用户刚输入的内容重置为旧配置。
+    """
+    config_section = _RUNTIME_CONFIG_SECTIONS[section_name]
+    updated = config.update_config_nonblocking(config_section, key, value)
+    if not updated:
+        logger.debug(f"deferred WebUI config update: section={section_name}, key={key}")
+    return updated
+
+
+def _delete_runtime_config(section_name, key):
+    """删除 WebUI 配置项；后台任务占用配置时延后执行。"""
+    config_section = _RUNTIME_CONFIG_SECTIONS[section_name]
+    deleted = config.delete_config_nonblocking(config_section, key)
+    if not deleted:
+        logger.debug(f"deferred WebUI config delete: section={section_name}, key={key}")
+    return deleted
+
+
+def _save_runtime_config():
+    """请求保存 WebUI 配置；后台任务占用配置时立即返回。"""
+    saved = config.try_save_config()
+    if not saved:
+        logger.debug("deferred WebUI config save until active task completes")
+    return saved
+
+
+def _run_llm_read_operation(operation_name, operation):
+    """
+    使用稳定的当前 LLM 配置执行只读请求，并避免等待视频生成任务。
+
+    能立即取得配置锁时继续沿用原来的互斥保护；锁已被后台视频任务持有时，
+    全局配置在任务结束前不会发生变化，因此可以安全复制当前配置，并叠加页面
+    尚未落盘的 Provider、模型和密钥。这样新文案使用界面中的最新选择，同时
+    不会改变正在生成的视频任务。
+    """
+    with config.try_runtime_config_lock() as lock_acquired:
+        # 配置层在复制全局值和叠加待更新值期间持有队列锁，因此快照只能看到
+        # 更新前或更新后的完整状态，不会混用两组 Provider 参数。
+        app_config_snapshot = config.snapshot_config_with_pending(config.app)
+        if lock_acquired:
+            return operation(app_config_snapshot)
+
+    logger.info(
+        f"run read-only LLM operation with active task configuration: "
+        f"operation={operation_name}"
+    )
+    return operation(app_config_snapshot)
 
 
 def _parse_chatterbox_voices(voices):
@@ -141,28 +205,44 @@ def _sync_chatterbox_config_from_session_state():
     # “试听语音合成”按钮之后。如果试听时只读取 config.chatterbox，可能拿不到
     # 用户刚在输入框里填入的 base_url/model/voices。先从 session_state 同步一次，
     # 可以保证按钮逻辑和输入框显示逻辑使用同一份最新配置。
-    config.chatterbox["base_url"] = (
-        st.session_state.get(
-            "chatterbox_base_url_input",
-            config.chatterbox.get("base_url") or DEFAULT_CHATTERBOX_BASE_URL,
-        )
-        or ""
-    ).strip()
-    config.chatterbox["api_key"] = st.session_state.get(
-        "chatterbox_api_key_input", config.chatterbox.get("api_key", "")
+    _set_runtime_config(
+        "chatterbox",
+        "base_url",
+        (
+            st.session_state.get(
+                "chatterbox_base_url_input",
+                config.chatterbox.get("base_url") or DEFAULT_CHATTERBOX_BASE_URL,
+            )
+            or ""
+        ).strip(),
     )
-    config.chatterbox["model_id"] = (
+    _set_runtime_config(
+        "chatterbox",
+        "api_key",
         st.session_state.get(
-            "chatterbox_model_input",
-            config.chatterbox.get("model_id") or DEFAULT_CHATTERBOX_MODEL,
-        )
-        or DEFAULT_CHATTERBOX_MODEL
-    ).strip()
-    config.chatterbox["voices"] = _parse_chatterbox_voices(
-        st.session_state.get(
-            "chatterbox_voices_input",
-            config.chatterbox.get("voices") or DEFAULT_CHATTERBOX_VOICES,
-        )
+            "chatterbox_api_key_input", config.chatterbox.get("api_key", "")
+        ),
+    )
+    _set_runtime_config(
+        "chatterbox",
+        "model_id",
+        (
+            st.session_state.get(
+                "chatterbox_model_input",
+                config.chatterbox.get("model_id") or DEFAULT_CHATTERBOX_MODEL,
+            )
+            or DEFAULT_CHATTERBOX_MODEL
+        ).strip(),
+    )
+    _set_runtime_config(
+        "chatterbox",
+        "voices",
+        _parse_chatterbox_voices(
+            st.session_state.get(
+                "chatterbox_voices_input",
+                config.chatterbox.get("voices") or DEFAULT_CHATTERBOX_VOICES,
+            )
+        ),
     )
 
 
@@ -664,6 +744,17 @@ def _task_manager_label(processing_count):
     return f"{label} · {processing_count}"
 
 
+def _build_video_download_name(subject, index, total):
+    """根据视频主题生成跨平台安全的下载文件名。"""
+    safe_subject = _DOWNLOAD_FILENAME_INVALID_PATTERN.sub(" ", str(subject or ""))
+    safe_subject = re.sub(r"\s+", " ", safe_subject).strip(" .")[:80].rstrip(" .")
+    if not safe_subject:
+        safe_subject = "video"
+
+    suffix = f"-{index}" if total > 1 else ""
+    return f"{safe_subject}{suffix}.mp4"
+
+
 def _render_task_table(filtered_tasks, key_prefix):
     with st.container(key=f"task_table_header_{key_prefix}"):
         header_cols = st.columns([1.1, 1.7, 3.0, 0.8, 1.6], vertical_alignment="center")
@@ -1095,9 +1186,7 @@ def _render_top_bar():
         )
 
     with brand_col:
-        update_snapshot = version_checker.poll_available_update(
-            config.project_version
-        )
+        update_snapshot = version_checker.poll_available_update(config.project_version)
         if update_snapshot.complete:
             _render_brand(update_snapshot.available_version)
         else:
@@ -1149,8 +1238,8 @@ def _render_top_bar():
                     st.session_state["ui_language"] = selected_language_code
                     # 浏览器自动识别只影响当前会话；只有用户主动切换下拉框时才
                     # 写入 config.toml，后续新会话将优先使用该明确选择。
-                    config.ui["language"] = selected_language_code
-                    config.save_config()
+                    _set_runtime_config("ui", "language", selected_language_code)
+                    _save_runtime_config()
                     # 切换语言后强制刷新，避免 selectbox 继续展示旧语言文案。
                     st.rerun()
 
@@ -1373,7 +1462,34 @@ def _render_generation_task_snapshot(task_id, task):
     try:
         player_cols = st.columns(len(video_files) * 2 + 1)
         for i, url in enumerate(video_files):
-            player_cols[i * 2 + 1].video(url)
+            with player_cols[i * 2 + 1]:
+                st.video(url)
+                if not os.path.isfile(url):
+                    logger.warning(
+                        f"generated video is unavailable for download: "
+                        f"task_id={task_id}, video_file={url}"
+                    )
+                    continue
+
+                download_label = tr("Download Video")
+                if len(video_files) > 1:
+                    download_label = f"{download_label} {i + 1}"
+                download_name = _build_video_download_name(
+                    task.get("video_subject"),
+                    i + 1,
+                    len(video_files),
+                )
+                with open(url, "rb") as video_file:
+                    st.download_button(
+                        download_label,
+                        data=video_file,
+                        file_name=download_name,
+                        mime=mimetypes.guess_type(url)[0] or "video/mp4",
+                        key=f"download_generated_video_{task_id}_{i}",
+                        icon=":material/download:",
+                        on_click="ignore",
+                        use_container_width=True,
+                    )
     except Exception as exc:
         logger.exception(
             f"failed to render generated video preview: task_id={task_id}, "
@@ -1587,7 +1703,7 @@ def reset_subtitle_settings():
         "subtitle_background_color",
         "rounded_subtitle_background",
     ):
-        config.ui[key] = defaults[key]
+        _set_runtime_config("ui", key, defaults[key])
 
 
 @st.dialog(tr("Final Prompt Preview"), width="large")
@@ -1666,7 +1782,11 @@ def _get_material_api_keys(config_key):
 def _save_material_api_keys(config_key, value):
     """保存逗号分隔的素材 API Key，并允许用户显式清空旧配置。"""
     normalized_value = value.replace(" ", "")
-    config.app[config_key] = normalized_value.split(",") if normalized_value else []
+    _set_runtime_config(
+        "app",
+        config_key,
+        normalized_value.split(",") if normalized_value else [],
+    )
 
 
 def _format_file_size(size_bytes):
@@ -1812,7 +1932,7 @@ def _render_settings_dialog():
     with st.container():
         # 历史 hide_config 只用于隐藏旧基础设置面板。改为固定设置入口后，该值
         # 不再有用户可见意义，统一迁移为 false，避免旧配置影响后续版本。
-        config.app["hide_config"] = False
+        _set_runtime_config("app", "hide_config", False)
         (
             middle_config_panel,
             right_config_panel,
@@ -1834,7 +1954,7 @@ def _render_settings_dialog():
                 value=config.ui.get("hide_log", False),
                 key="hide_log_checkbox",
             )
-            config.ui["hide_log"] = hide_log
+            _set_runtime_config("ui", "hide_log", hide_log)
 
         _render_cache_management_settings(cache_config_panel)
 
@@ -1871,7 +1991,7 @@ def _render_settings_dialog():
                 vertical_alignment="top",
             )
             llm_helper = llm_help_panel.container()
-            config.app["llm_provider"] = llm_provider
+            _set_runtime_config("app", "llm_provider", llm_provider)
             llm_provider_spec = get_llm_provider(llm_provider)
             if llm_provider_spec is None:
                 # 正常情况下下拉选项全部来自 Registry，不会进入该分支；保留
@@ -1962,18 +2082,26 @@ def _render_settings_dialog():
                 )
             # 输入框展示 Registry 默认值，但配置只保存真实的用户覆盖值。
             # 这样默认模型、Base URL 更新后，未自定义的用户能够自动跟随。
-            config.app[llm_provider_spec.config_key("api_key")] = st_llm_api_key
-            config.app[llm_provider_spec.config_key("base_url")] = (
+            _set_runtime_config(
+                "app",
+                llm_provider_spec.config_key("api_key"),
+                st_llm_api_key,
+            )
+            _set_runtime_config(
+                "app",
+                llm_provider_spec.config_key("base_url"),
                 normalize_provider_override(
                     st_llm_base_url,
                     llm_default_base_url,
-                )
+                ),
             )
-            config.app[llm_provider_spec.config_key("model_name")] = (
+            _set_runtime_config(
+                "app",
+                llm_provider_spec.config_key("model_name"),
                 normalize_provider_override(
                     st_llm_model_name,
                     llm_provider_spec.default_model,
-                )
+                ),
             )
 
             # Provider 专用字段也由 Registry 声明。例如 Cloudflare AI Gateway
@@ -1986,9 +2114,13 @@ def _render_settings_dialog():
                     type="password" if field.secret else "default",
                     key=f"{llm_provider}_{field.config_suffix}_input",
                 )
-                config.app[field_config_key] = normalize_provider_override(
-                    field_value,
-                    field.default_value,
+                _set_runtime_config(
+                    "app",
+                    field_config_key,
+                    normalize_provider_override(
+                        field_value,
+                        field.default_value,
+                    ),
                 )
 
             if llm_form_panel.button(
@@ -1998,13 +2130,18 @@ def _render_settings_dialog():
                 type="secondary",
                 icon=":material/network_check:",
             ):
-                with llm_form_panel.spinner(tr("Testing LLM Connection")):
-                    with config.runtime_config_lock():
-                        connection_ok, connection_error, connection_elapsed = (
-                            llm.test_connection()
-                        )
+                with config.try_runtime_config_lock() as lock_acquired:
+                    if not lock_acquired:
+                        llm_form_panel.warning(tr("Runtime Configuration Busy"))
+                    else:
+                        with llm_form_panel.spinner(tr("Testing LLM Connection")):
+                            connection_ok, connection_error, connection_elapsed = (
+                                llm.test_connection()
+                            )
 
-                if connection_ok:
+                if not lock_acquired:
+                    connection_ok = None
+                elif connection_ok:
                     llm_form_panel.success(
                         tr("LLM Connection Test Succeeded").format(
                             provider=llm_provider_labels[llm_provider],
@@ -2046,7 +2183,7 @@ def _render_settings_dialog():
             )
             _save_material_api_keys("coverr_api_keys", coverr_api_key)
 
-    config.save_config()
+    _save_runtime_config()
 
 
 # -----------------------------------------------------------------------------
@@ -2059,9 +2196,10 @@ def _render_script_settings(panel, params):
     with panel:
         with st.container(border=True):
             st.write(tr("Video Script Settings"))
-            params.video_subject = st.text_input(
+            params.video_subject = st.text_area(
                 tr("Video Subject"),
                 placeholder=tr("Video Subject Placeholder"),
+                height=96,
                 key="video_subject",
             ).strip()
 
@@ -2153,20 +2291,29 @@ def _render_script_settings(panel, params):
                     st.warning(tr("Please Enter the Video Subject First"))
                 else:
                     with st.spinner(tr("Generating Video Script and Keywords")):
-                        with config.runtime_config_lock():
+
+                        def generate_script_and_terms(app_config_snapshot):
                             script = llm.generate_script(
                                 video_subject=params.video_subject,
                                 language=params.video_language,
                                 paragraph_number=params.paragraph_number,
                                 video_script_prompt=params.video_script_prompt,
                                 custom_system_prompt=params.custom_system_prompt,
+                                app_config=app_config_snapshot,
                             )
                             terms = llm.generate_terms(
                                 params.video_subject,
                                 script,
                                 amount=8 if params.match_materials_to_script else 5,
                                 match_script_order=params.match_materials_to_script,
+                                app_config=app_config_snapshot,
                             )
+                            return script, terms
+
+                        script, terms = _run_llm_read_operation(
+                            "generate_script_and_terms",
+                            generate_script_and_terms,
+                        )
                         if "Error: " in script:
                             st.error(tr(script))
                         elif "Error: " in terms:
@@ -2193,13 +2340,16 @@ def _render_script_settings(panel, params):
                     st.warning(tr("Please Enter the Video Subject"))
                 else:
                     with st.spinner(tr("Generating Video Keywords")):
-                        with config.runtime_config_lock():
-                            terms = llm.generate_terms(
+                        terms = _run_llm_read_operation(
+                            "generate_terms",
+                            lambda app_config_snapshot: llm.generate_terms(
                                 params.video_subject,
                                 params.video_script,
                                 amount=8 if params.match_materials_to_script else 5,
                                 match_script_order=params.match_materials_to_script,
-                            )
+                                app_config=app_config_snapshot,
+                            ),
+                        )
                         if "Error: " in terms:
                             st.error(tr(terms))
                         else:
@@ -2241,7 +2391,7 @@ def _render_video_settings(panel, params):
                     (v, label) for label, v in video_sources
                 )[value],
             )
-            config.app["video_source"] = params.video_source
+            _set_runtime_config("app", "video_source", params.video_source)
 
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
@@ -2279,7 +2429,11 @@ def _render_video_settings(panel, params):
                 key="match_materials_to_script",
                 on_change=sync_script_order_concat_mode,
             )
-            config.app["match_materials_to_script"] = params.match_materials_to_script
+            _set_runtime_config(
+                "app",
+                "match_materials_to_script",
+                params.match_materials_to_script,
+            )
 
             # 视频转场模式
             video_transition_modes = [
@@ -2384,9 +2538,9 @@ def _render_video_settings(panel, params):
             )
             if selected_video_codec == DEFAULT_VIDEO_CODEC_OPTION:
                 # 默认模式不持久化具体编码器，让配置表达“跟随项目默认值”。
-                config.app.pop("video_codec", None)
+                _delete_runtime_config("app", "video_codec")
             else:
-                config.app["video_codec"] = selected_video_codec
+                _set_runtime_config("app", "video_codec", selected_video_codec)
     return uploaded_files
 
 
@@ -2802,7 +2956,7 @@ def _render_elevenlabs_api_key_input(label_key):
     # 环境变量仅用于当前进程，不在用户未修改时自动复制到 config.toml。
     # 已有配置或用户主动修改输入时才更新本机配置，与 Sonilo 行为保持一致。
     if configured_key or entered_key != effective_key:
-        config.elevenlabs["api_key"] = entered_key
+        _set_runtime_config("elevenlabs", "api_key", entered_key)
     return entered_key
 
 
@@ -2838,7 +2992,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
         # 仅当用户确实修改输入或本来就使用配置时写回，避免把环境变量中的 Key
         # 在无操作的情况下复制进 config.toml。
         if configured_key or entered_key != effective_key:
-            config.app["sonilo_api_key"] = entered_key
+            _set_runtime_config("app", "sonilo_api_key", entered_key)
     elif params.bgm_type == "elevenlabs":
         if elevenlabs_api_key_rendered:
             # TTS 区域已经渲染共享输入框时不再创建第二个 widget，避免两个独立
@@ -2855,9 +3009,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
         format_func=lambda value: f"{int(value * 100)}%",
         disabled=not params.bgm_type,
     )
-    bgm_enabled = bgm_service.should_use_bgm(
-        params.bgm_type, params.bgm_volume
-    )
+    bgm_enabled = bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
 
     if params.bgm_type == "custom":
         uploaded_bgm_file = st.file_uploader(
@@ -2875,9 +3027,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
         )
         if uploaded_bgm_file is not None and bgm_enabled:
             try:
-                safe_name = bgm_service.sanitize_upload_filename(
-                    uploaded_bgm_file.name
-                )
+                safe_name = bgm_service.sanitize_upload_filename(uploaded_bgm_file.name)
                 # Streamlit 在调整音量等任意控件后都会重新执行页面。使用内容哈希
                 # 区分上传文件，并在当前会话内缓存完整解码结果，既不能只凭同名、
                 # 同大小文件误用旧结果，也避免每次 rerun 都重复调用 FFmpeg。
@@ -2927,9 +3077,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
 
                 if cached_validation.get("error"):
                     if cached_validation.get("error_type") == "service":
-                        raise bgm_service.BgmServiceError(
-                            cached_validation["error"]
-                        )
+                        raise bgm_service.BgmServiceError(cached_validation["error"])
                     raise bgm_service.BgmUploadError(cached_validation["error"])
             except bgm_service.BgmUploadError:
                 # 非法文件不能沿用上一次有效上传的名称，否则任务参数可能仍指向
@@ -2943,9 +3091,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
             else:
                 # 完整解码校验通过后才展示播放器和“已就绪”。文件仍只在点击
                 # 生成时持久化，用户仅预览或随后移除文件不会污染 storage/bgm。
-                uploaded_mime_type = str(
-                    getattr(uploaded_bgm_file, "type", "") or ""
-                )
+                uploaded_mime_type = str(getattr(uploaded_bgm_file, "type", "") or "")
                 preview_mime_type = (
                     uploaded_mime_type
                     if uploaded_mime_type.startswith("audio/")
@@ -3060,7 +3206,7 @@ def _render_audio_settings(panel, params):
                 format_func=lambda value: voice_mode_labels[value],
                 width="stretch",
             )
-            config.ui["voice_mode"] = voice_mode
+            _set_runtime_config("ui", "voice_mode", voice_mode)
             tts_mode_enabled = voice_mode == VOICE_MODE_TTS
 
             # Provider 下拉只负责选择自动配音服务；无配音已经由上方模式控制，
@@ -3093,7 +3239,7 @@ def _render_audio_settings(panel, params):
                 # 非自动配音模式不渲染 TTS 控件，但保留上次选择，切回后可以继续使用。
                 selected_tts_server = saved_tts_server
 
-            config.ui["tts_server"] = selected_tts_server
+            _set_runtime_config("ui", "tts_server", selected_tts_server)
 
             # 服务说明紧跟 Provider 选择，先告诉用户需要准备什么，再进入音色和
             # 凭证配置。没有说明的 Provider 不渲染空提示块。
@@ -3128,7 +3274,9 @@ def _render_audio_settings(panel, params):
                     config.elevenlabs.get("api_key", ""),
                 )
                 if saved_elevenlabs_api_key:
-                    config.elevenlabs["api_key"] = saved_elevenlabs_api_key
+                    _set_runtime_config(
+                        "elevenlabs", "api_key", saved_elevenlabs_api_key
+                    )
                 cache_key = f"elevenlabs_voices_{saved_elevenlabs_api_key}"
                 if cache_key not in st.session_state:
                     st.session_state[cache_key] = voice.get_elevenlabs_voices(
@@ -3203,7 +3351,7 @@ def _render_audio_settings(panel, params):
                 if not voice.is_no_voice(voice_name):
                     # 占位 sentinel 仅用于非自动模式的禁用展示，不覆盖用户上一次
                     # 真正选择的音色，切回自动配音后可以恢复原设置。
-                    config.ui["voice_name"] = voice_name
+                    _set_runtime_config("ui", "voice_name", voice_name)
             elif tts_mode_enabled:
                 # 如果没有声音可选，显示提示信息
                 st.warning(
@@ -3213,7 +3361,7 @@ def _render_audio_settings(panel, params):
                 )
                 voice_name = ""
                 params.voice_name = ""
-                config.ui["voice_name"] = ""
+                _set_runtime_config("ui", "voice_name", "")
             else:
                 # 非自动配音模式不显示音色控件，只复用保存值维持参数结构稳定。
                 voice_name = saved_voice_name or voice.NO_VOICE_NAME
@@ -3237,8 +3385,8 @@ def _render_audio_settings(panel, params):
                     type="password",
                     key="azure_speech_key_input",
                 )
-                config.azure["speech_region"] = azure_speech_region
-                config.azure["speech_key"] = azure_speech_key
+                _set_runtime_config("azure", "speech_region", azure_speech_region)
+                _set_runtime_config("azure", "speech_key", azure_speech_key)
 
             if tts_mode_enabled and selected_tts_server == "gemini-tts":
                 # Gemini TTS 与 Gemini LLM 共用同一份密钥；在音频面板提供直接入口，
@@ -3249,7 +3397,7 @@ def _render_audio_settings(panel, params):
                     type="password",
                     key="gemini_tts_api_key_input",
                 )
-                config.app["gemini_api_key"] = gemini_tts_api_key
+                _set_runtime_config("app", "gemini_api_key", gemini_tts_api_key)
 
             # 当选择硅基流动时，显示API key输入框和说明信息
             if tts_mode_enabled and (
@@ -3265,7 +3413,7 @@ def _render_audio_settings(panel, params):
                     key="siliconflow_api_key_input",
                 )
 
-                config.siliconflow["api_key"] = siliconflow_api_key
+                _set_runtime_config("siliconflow", "api_key", siliconflow_api_key)
 
             # 当选择 Xiaomi MiMo TTS 时，复用 MiMo LLM provider 的 API Key。
             # 这样用户如果同时使用 MiMo 生成文案和语音，只需要维护一份密钥。
@@ -3282,7 +3430,7 @@ def _render_audio_settings(panel, params):
                     key="mimo_tts_api_key_input",
                 )
 
-                config.app["mimo_api_key"] = mimo_api_key
+                _set_runtime_config("app", "mimo_api_key", mimo_api_key)
 
             # ElevenLabs API key section
             if tts_mode_enabled and (
@@ -3310,7 +3458,7 @@ def _render_audio_settings(panel, params):
                     default_value=saved_elevenlabs_model,
                     key="elevenlabs_model_select",
                 )
-                config.elevenlabs["model_id"] = elevenlabs_model
+                _set_runtime_config("elevenlabs", "model_id", elevenlabs_model)
 
             # Chatterbox API settings section (self-hosted, OpenAI-compatible)
             if tts_mode_enabled and (
@@ -3324,7 +3472,9 @@ def _render_audio_settings(panel, params):
                     key="chatterbox_base_url_input",
                     placeholder=tr("Chatterbox Base URL Placeholder"),
                 )
-                config.chatterbox["base_url"] = (chatterbox_base_url or "").strip()
+                _set_runtime_config(
+                    "chatterbox", "base_url", (chatterbox_base_url or "").strip()
+                )
 
                 chatterbox_api_key = st.text_input(
                     tr("Chatterbox API Key"),
@@ -3332,16 +3482,18 @@ def _render_audio_settings(panel, params):
                     type="password",
                     key="chatterbox_api_key_input",
                 )
-                config.chatterbox["api_key"] = chatterbox_api_key
+                _set_runtime_config("chatterbox", "api_key", chatterbox_api_key)
 
                 chatterbox_model = st.text_input(
                     tr("Chatterbox Model"),
                     value=config.chatterbox.get("model_id") or DEFAULT_CHATTERBOX_MODEL,
                     key="chatterbox_model_input",
                 )
-                config.chatterbox["model_id"] = (
-                    chatterbox_model or DEFAULT_CHATTERBOX_MODEL
-                ).strip()
+                _set_runtime_config(
+                    "chatterbox",
+                    "model_id",
+                    (chatterbox_model or DEFAULT_CHATTERBOX_MODEL).strip(),
+                )
 
                 _saved_chatterbox_voices = (
                     _parse_chatterbox_voices(config.chatterbox.get("voices"))
@@ -3355,8 +3507,10 @@ def _render_audio_settings(panel, params):
                     key="chatterbox_voices_input",
                     placeholder=tr("Chatterbox Voices Placeholder"),
                 )
-                config.chatterbox["voices"] = _parse_chatterbox_voices(
-                    chatterbox_voices
+                _set_runtime_config(
+                    "chatterbox",
+                    "voices",
+                    _parse_chatterbox_voices(chatterbox_voices),
                 )
 
             # 三种模式只渲染当前任务真正需要的控件。自动配音可调音量和语速；
@@ -3459,7 +3613,7 @@ def _render_subtitle_settings(panel, params):
                 key="font_name_select",
                 disabled=subtitle_settings_disabled,
             )
-            config.ui["font_name"] = params.font_name
+            _set_runtime_config("ui", "font_name", params.font_name)
 
             subtitle_positions = [
                 (tr("Top"), "top"),
@@ -3486,7 +3640,7 @@ def _render_subtitle_settings(panel, params):
                 disabled=subtitle_settings_disabled,
             )
             params.subtitle_position = selected_subtitle_position
-            config.ui["subtitle_position"] = params.subtitle_position
+            _set_runtime_config("ui", "subtitle_position", params.subtitle_position)
 
             if params.subtitle_position == "custom":
                 saved_custom_position = config.ui.get(
@@ -3505,7 +3659,9 @@ def _render_subtitle_settings(panel, params):
                     if params.custom_position < 0 or params.custom_position > 100:
                         st.error(tr("Please enter a value between 0 and 100"))
                     else:
-                        config.ui["custom_position"] = params.custom_position
+                        _set_runtime_config(
+                            "ui", "custom_position", params.custom_position
+                        )
                 except ValueError:
                     st.error(tr("Please enter a valid number"))
 
@@ -3522,7 +3678,7 @@ def _render_subtitle_settings(panel, params):
                     key="font_color_picker",
                     disabled=subtitle_settings_disabled,
                 )
-                config.ui["text_fore_color"] = params.text_fore_color
+                _set_runtime_config("ui", "text_fore_color", params.text_fore_color)
 
             with font_cols[1]:
                 saved_font_size = config.ui.get(
@@ -3536,7 +3692,7 @@ def _render_subtitle_settings(panel, params):
                     key="font_size_slider",
                     disabled=subtitle_settings_disabled,
                 )
-                config.ui["font_size"] = params.font_size
+                _set_runtime_config("ui", "font_size", params.font_size)
 
             stroke_cols = st.columns([0.42, 0.58])
             with stroke_cols[0]:
@@ -3576,7 +3732,11 @@ def _render_subtitle_settings(panel, params):
                     key="subtitle_background_enabled_checkbox",
                     disabled=subtitle_settings_disabled,
                 )
-            config.ui["subtitle_background_enabled"] = subtitle_background_enabled
+            _set_runtime_config(
+                "ui",
+                "subtitle_background_enabled",
+                subtitle_background_enabled,
+            )
 
             # 背景颜色和圆角样式都从属于字幕背景开关。子控件始终保留在页面中，
             # 父开关关闭时统一禁用，避免一个控件消失而另一个控件禁用造成布局跳动。
@@ -3597,7 +3757,11 @@ def _render_subtitle_settings(panel, params):
                     disabled=subtitle_settings_disabled
                     or not subtitle_background_enabled,
                 )
-            config.ui["subtitle_background_color"] = selected_subtitle_background_color
+            _set_runtime_config(
+                "ui",
+                "subtitle_background_color",
+                selected_subtitle_background_color,
+            )
             params.text_background_color = (
                 selected_subtitle_background_color
                 if subtitle_background_enabled
@@ -3629,8 +3793,10 @@ def _render_subtitle_settings(panel, params):
                 else False
             )
             if not subtitle_settings_disabled and subtitle_background_enabled:
-                config.ui["rounded_subtitle_background"] = (
-                    selected_rounded_subtitle_background
+                _set_runtime_config(
+                    "ui",
+                    "rounded_subtitle_background",
+                    selected_rounded_subtitle_background,
                 )
 
             if video.subtitle_colors_are_indistinguishable(params):
@@ -3665,9 +3831,9 @@ def _render_generation_controls(
     """
     校验生成依赖、提交任务，并渲染日志与成片结果。
 
-    返回本次页面执行是否成功提交了新任务。提交前已经保存过配置，调用方据此
-    跳过页面末尾的重复保存，避免后台长任务先持有配置锁后阻塞 Streamlit 主
-    脚本。主脚本必须及时结束，定时 Fragment 才能持续刷新进度和任务日志。
+    返回本次页面执行是否成功提交了新任务。提交前已经请求非阻塞保存，调用方
+    据此跳过页面末尾的重复请求。主脚本必须及时结束，定时 Fragment 才能持续
+    刷新进度和任务日志。
     """
     restore_upload_requirements = st.session_state.get(
         "task_restore_upload_requirements", {}
@@ -3702,7 +3868,7 @@ def _render_generation_controls(
     )
     render_onboarding_tour()
     if start_button:
-        config.save_config()
+        _save_runtime_config()
         task_id = st.session_state.get("pending_generation_task_id") or str(uuid4())
         _add_active_generation_task(
             task_id,
@@ -3950,11 +4116,10 @@ def _render_application():
         voice_mode,
     )
 
-    # 生成分支在启动后台线程前已经保存过配置。这里再次保存既没有收益，还可能
-    # 与持有 runtime_config_lock 的长任务竞争，使当前 Streamlit 脚本一直阻塞
-    # 到视频完成，进而让日志 Fragment 无法运行。普通页面交互仍保留统一保存。
+    # 生成分支在启动后台线程前已经请求过保存。普通控件交互继续请求非阻塞保存；
+    # 如果后台任务正在使用配置，配置层会在任务结束时自动应用并落盘最新值。
     if not generation_submitted:
-        config.save_config()
+        _save_runtime_config()
 
 
 _render_application()
