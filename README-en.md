@@ -28,6 +28,8 @@ English | [简体中文](README.md) | [Releases](https://github.com/harry0703/Mo
 
 ![](docs/api.jpg)
 
+---
+
 ## Special Thanks ❤️
 
 <div align="center">
@@ -104,6 +106,29 @@ Thanks to [Kimi](https://platform.kimi.ai/?aff=MoneyPrinterTurbo) for sponsoring
     </td>
   </tr>
 </table>
+
+## Another Open-Source Project from the Creator: MangoDisk ⭐
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/readme/en-dark.jpg">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/readme/en-light.jpg">
+      <img src="https://assets.mangodisk.app/images/readme/en-light.jpg" width="900" alt="MangoDisk open-source disk cleaner and disk space analyzer">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <strong>A safety-first, open-source disk cleaner and disk space analyzer for macOS and Windows</strong><br>
+  Find large and duplicate files, clean caches and app leftovers, and reclaim disk space safely.
+</p>
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">View the Open-Source Project</a>
+</p>
+
+---
 
 ## Features 🎯
 

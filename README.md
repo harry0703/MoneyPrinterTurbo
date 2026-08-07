@@ -28,6 +28,8 @@
 
 ![](docs/api.jpg)
 
+---
+
 ## 特别感谢 ❤️
 
 <div align="center">
@@ -104,6 +106,29 @@
     </td>
   </tr>
 </table>
+
+## 作者的另一个开源项目：MangoDisk ⭐
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/readme/zh-dark.jpg">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/readme/zh-light.jpg">
+      <img src="https://assets.mangodisk.app/images/readme/zh-light.jpg" width="900" alt="MangoDisk 开源磁盘清理与空间分析工具">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <strong>适用于 macOS 和 Windows 的安全优先开源磁盘清理与空间分析工具</strong><br>
+  查找大文件和重复文件，清理缓存与应用残留，安全释放磁盘空间。
+</p>
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">查看 GitHub 开源项目</a>
+</p>
+
+---
 
 ## 功能特性 🎯
 
