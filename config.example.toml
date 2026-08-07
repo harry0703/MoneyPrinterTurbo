@@ -284,6 +284,10 @@ model_size = "large-v3"
 # "float16" or "int8_float16" for CUDA.
 device = "cpu"
 compute_type = "int8"
+# Optional prompt that biases Whisper's decoder toward specific vocabulary
+# (brand names, technical terms). Passed as initial_prompt to transcribe().
+# Leave empty to disable.
+# initial_prompt = ""
 
 # =============================================================================
 # Material Request Proxy / 素材请求代理

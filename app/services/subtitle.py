@@ -15,6 +15,7 @@ from app.utils import utils
 model_size = config.whisper.get("model_size", "large-v3")
 device = config.whisper.get("device", "cpu")
 compute_type = config.whisper.get("compute_type", "int8")
+initial_prompt = config.whisper.get("initial_prompt", "") or None
 model = None
 
 
@@ -57,6 +58,7 @@ def create(audio_file, subtitle_file: str = ""):
         word_timestamps=True,
         vad_filter=True,
         vad_parameters=dict(min_silence_duration_ms=500),
+        **({"initial_prompt": initial_prompt} if initial_prompt else {}),
     )
 
     logger.info(
