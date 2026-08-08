@@ -23,6 +23,16 @@ _pending_config_save_requested = False
 _pending_config_flush_scheduled = False
 _MISSING = object()
 _DELETE = object()
+_APP_ENVIRONMENT_OVERRIDES = {
+    "MPT_SCRIPT_GENERATION_BACKEND": "script_generation_backend",
+    "MPT_LOOMLOOM_BASE_URL": "loomloom_base_url",
+    "MPT_LOOMLOOM_MARKET_LISTING_ID": "loomloom_market_listing_id",
+    "MPT_LOOMLOOM_MARKET_LISTING_VERSION_ID": "loomloom_market_listing_version_id",
+    "MPT_LOOMLOOM_RESULT_PORT_NAME": "loomloom_result_port_name",
+    "MPT_LOOMLOOM_VIDEO_MARKET_LISTING_ID": "loomloom_video_market_listing_id",
+    "MPT_LOOMLOOM_VIDEO_MARKET_LISTING_VERSION_ID": "loomloom_video_market_listing_version_id",
+    "MPT_LOOMLOOM_VIDEO_RESULT_PORT_NAME": "loomloom_video_result_port_name",
+}
 
 
 class _SynchronizedConfig(dict):
@@ -442,6 +452,15 @@ def load_config():
     return _config_
 
 
+def apply_app_environment_overrides(app_config, environ=None):
+    """Apply non-secret deployment settings without persisting shared credentials."""
+    environment = os.environ if environ is None else environ
+    for environment_key, config_key in _APP_ENVIRONMENT_OVERRIDES.items():
+        value = str(environment.get(environment_key, "") or "").strip()
+        if value:
+            app_config[config_key] = value
+
+
 def save_config():
     """
     原子保存运行时配置。
@@ -513,6 +532,7 @@ def save_config():
 
 _cfg = load_config()
 app = _SynchronizedConfig(_cfg.get("app", {}))
+apply_app_environment_overrides(app)
 whisper = _cfg.get("whisper", {})
 proxy = _cfg.get("proxy", {})
 azure = _SynchronizedConfig(_cfg.get("azure", {}))

@@ -21,6 +21,30 @@ listen_port = 8080
 # 是否隐藏 WebUI 基础配置面板。
 hide_config = false
 
+# Script generation backend. "local" keeps the existing LLM workflow.
+# "loomloom" uses a configured LoomLoom Market SkillBot to return multiple
+# independently generated script candidates. The WebUI integration is optional.
+script_generation_backend = "local"
+
+# LoomLoom Public API settings. Keep the user API token only in config.toml or
+# an injected runtime secret; never commit a real token. The selected Listing
+# script Listing accepts subject, requirements, and candidateIndex for each row
+# and returns inline JSON {script, videoTerms} on port "output". The optional
+# video Listing accepts scenePrompt, aspectRatio, and sceneIndex and returns one
+# video/mp4 Artifact on port "output" for every row.
+loomloom_base_url = ""
+loomloom_api_token = ""
+loomloom_market_listing_id = ""
+loomloom_market_listing_version_id = ""
+loomloom_result_port_name = "output"
+loomloom_request_timeout_seconds = 30
+loomloom_poll_interval_seconds = 2
+loomloom_run_timeout_seconds = 600
+loomloom_video_market_listing_id = ""
+loomloom_video_market_listing_version_id = ""
+loomloom_video_result_port_name = "output"
+loomloom_video_run_timeout_seconds = 1800
+
 # Timeout in seconds for a single Edge TTS streaming request.
 # 单次 Edge TTS 流式请求超时时间。慢网络可适当调大，设置为 0 表示禁用超时。
 edge_tts_timeout = 30
@@ -33,7 +57,7 @@ tls_verify = true
 # Video Materials / 视频素材
 # -----------------------------------------------------------------------------
 
-# Available values: "pexels", "pixabay", "coverr", "local".
+# Available values: "pexels", "pixabay", "coverr", "loomloom", "local".
 video_source = "pexels"
 
 # API key lists support key rotation. Use straight ASCII double quotes and

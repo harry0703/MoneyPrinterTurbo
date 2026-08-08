@@ -19,6 +19,7 @@ from app.services import (
     elevenlabs_music,
     llm,
     material,
+    loomloom,
     sonilo,
     subtitle,
     task_artifacts,
@@ -563,7 +564,9 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     return subtitle_path
 
 
-def get_video_materials(task_id, params, video_terms, audio_duration):
+def get_video_materials(
+    task_id, params, video_terms, audio_duration, runtime_context=None
+):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
@@ -577,6 +580,47 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             )
             return None
         return [material_info.url for material_info in materials]
+    elif params.video_source == "loomloom":
+        context = dict(runtime_context or {})
+        settings = context.get("loomloom_video_settings")
+        batch = context.get("loomloom_video_batch")
+        listing_version_id = str(
+            context.get("loomloom_video_listing_version_id", "") or ""
+        ).strip()
+        client_request_id = str(
+            context.get("loomloom_video_client_request_id", "") or ""
+        ).strip()
+        if not isinstance(settings, loomloom.LoomLoomSettings) or not isinstance(
+            batch, loomloom.LoomLoomVideoBatch
+        ):
+            _mark_task_failed(
+                task_id,
+                "materials",
+                "LoomLoom video generation requires a confirmed session quote",
+            )
+            return None
+
+        logger.info(
+            f"\n\n## generating {len(batch.input_rows)} video materials with LoomLoom"
+        )
+        try:
+            backend = loomloom.LoomLoomVideoBackend(settings)
+            execution = backend.execute(
+                batch,
+                client_request_id=client_request_id,
+                listing_version_id=listing_version_id,
+                confirm=True,
+            )
+            backend.wait_for_run(execution.run_id)
+            return list(
+                backend.download_video_results(
+                    execution.run_id,
+                    utils.task_dir(task_id),
+                )
+            )
+        except (loomloom.LoomLoomError, ValueError) as exc:
+            _mark_task_failed(task_id, "materials", str(exc))
+            return None
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
@@ -1045,6 +1089,7 @@ def _run_pipeline(
     params: VideoParams,
     stop_at: str = "video",
     voice_preview: dict | None = None,
+    runtime_context: dict | None = None,
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
@@ -1170,7 +1215,11 @@ def _run_pipeline(
 
     # 5. Get video materials
     downloaded_videos = get_video_materials(
-        task_id, params, video_terms, audio_duration
+        task_id,
+        params,
+        video_terms,
+        audio_duration,
+        runtime_context=runtime_context,
     )
     if not downloaded_videos:
         return _mark_task_failed(
@@ -1279,6 +1328,7 @@ def start(
     params: VideoParams,
     stop_at: str = "video",
     voice_preview: dict | None = None,
+    runtime_context: dict | None = None,
 ):
     """执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。"""
     try:
@@ -1287,6 +1337,7 @@ def start(
             params,
             stop_at=stop_at,
             voice_preview=voice_preview,
+            runtime_context=runtime_context,
         )
     except Exception as exc:
         logger.exception(

@@ -35,8 +35,17 @@ class TestConfigPersistence:
         assert example_config["listen_host"] == "0.0.0.0"
         assert example_config["listen_port"] == 8080
         assert example_config["log_level"] == "DEBUG"
-        assert app_config["video_source"] in {"pexels", "pixabay", "coverr", "local"}
+        assert app_config["video_source"] in {
+            "pexels",
+            "pixabay",
+            "coverr",
+            "loomloom",
+            "local",
+        }
         assert "match_materials_to_script" in app_config
+        assert app_config["script_generation_backend"] == "local"
+        assert app_config["loomloom_api_token"] == ""
+        assert app_config["loomloom_result_port_name"] == "output"
         assert example_config["whisper"]["device"] == "cpu"
 
     def test_example_config_covers_llm_provider_registry(self):
@@ -52,6 +61,39 @@ class TestConfigPersistence:
                 assert provider.config_key("model_name") in app_config
             for field in provider.extra_fields:
                 assert provider.config_key(field.config_suffix) in app_config
+
+    def test_loomloom_deployment_settings_support_non_secret_env_overrides(self):
+        app_config = {
+            "script_generation_backend": "local",
+            "loomloom_api_token": "",
+        }
+
+        config.apply_app_environment_overrides(
+            app_config,
+            environ={
+                "MPT_SCRIPT_GENERATION_BACKEND": "loomloom",
+                "MPT_LOOMLOOM_BASE_URL": "https://example.test/loom/v1",
+                "MPT_LOOMLOOM_MARKET_LISTING_ID": "listing-1",
+                "MPT_LOOMLOOM_MARKET_LISTING_VERSION_ID": "version-1",
+                "MPT_LOOMLOOM_RESULT_PORT_NAME": "output",
+                "MPT_LOOMLOOM_VIDEO_MARKET_LISTING_ID": "video-listing-1",
+                "MPT_LOOMLOOM_VIDEO_MARKET_LISTING_VERSION_ID": "video-version-1",
+                "MPT_LOOMLOOM_VIDEO_RESULT_PORT_NAME": "output",
+                "MPT_LOOMLOOM_API_TOKEN": "must-not-be-used",
+            },
+        )
+
+        assert app_config == {
+            "script_generation_backend": "loomloom",
+            "loomloom_api_token": "",
+            "loomloom_base_url": "https://example.test/loom/v1",
+            "loomloom_market_listing_id": "listing-1",
+            "loomloom_market_listing_version_id": "version-1",
+            "loomloom_result_port_name": "output",
+            "loomloom_video_market_listing_id": "video-listing-1",
+            "loomloom_video_market_listing_version_id": "video-version-1",
+            "loomloom_video_result_port_name": "output",
+        }
 
     def test_kimi_uses_current_default_model(self):
         """Kimi 未配置模型覆盖值时，应使用当前发布版本的默认模型。"""
