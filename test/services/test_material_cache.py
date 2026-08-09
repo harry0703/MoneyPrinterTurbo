@@ -144,6 +144,29 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertIsNone(loaded)
         self.assertFalse(cache_path.exists())
 
+    def test_slightly_future_dated_cache_is_still_parsed(self):
+        """Sub-second mtime skew must not bypass cache payload validation."""
+        cache_path = self._cache_path()
+        cache_path.write_text("{invalid-json", encoding="utf-8")
+        now = 2_000_000_000.0
+        slight_future_mtime = (
+            now + material_cache.MATERIAL_SEARCH_CACHE_FUTURE_TOLERANCE_SECONDS / 2
+        )
+        os.utime(cache_path, (slight_future_mtime, slight_future_mtime))
+
+        with patch("app.services.material_cache.logger.warning") as warning:
+            loaded = material_cache.load_material_search_cache(
+                provider="pixabay",
+                search_term="nature",
+                minimum_duration=5,
+                video_aspect=VideoAspect.portrait,
+                now=now,
+            )
+
+        self.assertIsNone(loaded)
+        self.assertFalse(cache_path.exists())
+        self.assertTrue(warning.called)
+
     def test_corrupted_cache_is_removed_without_breaking_search(self):
         """
         进程异常退出、磁盘故障或用户手动修改都可能留下损坏文件。读取失败应回退
@@ -580,7 +603,10 @@ class TestMaterialSearchCache(unittest.TestCase):
         now = 2_000_000_000.0
         stale_mtime = now - material_cache.MATERIAL_SEARCH_CACHE_TTL_SECONDS - 1
         os.utime(stale_path, (stale_mtime, stale_mtime))
-        os.utime(fresh_path, (now - 60, now - 60))
+        slight_future_mtime = (
+            now + material_cache.MATERIAL_SEARCH_CACHE_FUTURE_TOLERANCE_SECONDS / 2
+        )
+        os.utime(fresh_path, (slight_future_mtime, slight_future_mtime))
 
         deleted = material_cache.cleanup_expired_material_search_cache(
             now=now,

@@ -30,8 +30,12 @@ def format_log_record(record):
     """
     file_path = record["file"].path
     if os.path.isabs(file_path):
-        relative_path = os.path.relpath(file_path, PROJECT_ROOT)
-        record["file"].path = f"./{relative_path}"
+        file_path = f"./{os.path.relpath(file_path, PROJECT_ROOT)}"
+
+    # A previous Loguru sink may already have converted this record to a
+    # relative path. Normalize both absolute and relative forms so Windows,
+    # WebUI, and test output use the same separators.
+    record["file"].path = file_path.replace("\\", "/")
 
     # 日志消息有时会包含任务文件的绝对路径。统一缩短为项目相对路径，可以
     # 避免 WebUI 和终端因初始化入口不同而展示两套内容。

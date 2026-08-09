@@ -20,6 +20,8 @@ from app.utils import utils
 
 
 MATERIAL_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
+# Allow tiny filesystem timestamp skew after a cache file is created.
+MATERIAL_SEARCH_CACHE_FUTURE_TOLERANCE_SECONDS = 1.0
 _CACHE_FORMAT_VERSION = 2
 _CACHE_CLEANUP_INTERVAL_SECONDS = 60 * 60
 _CACHE_FILE_PATTERN = re.compile(r"^[0-9a-f]{64}\.json$")
@@ -239,9 +241,12 @@ def load_material_search_cache(
 
     current_time = time.time() if now is None else now
     cache_age = current_time - stat_result.st_mtime
-    # 系统时间回拨或文件从其它机器复制后，mtime 可能落在未来。此时不能把
-    # 缓存长期视为新鲜数据，直接失效并重新请求远端更可靠。
-    if cache_age < 0 or cache_age >= MATERIAL_SEARCH_CACHE_TTL_SECONDS:
+    # 系统时间回拨或文件从其它机器复制后，mtime 可能落在未来。明显超出容差
+    # 时直接失效；亚秒级偏差通常来自文件系统时间精度，应按新缓存继续解析。
+    if (
+        cache_age < -MATERIAL_SEARCH_CACHE_FUTURE_TOLERANCE_SECONDS
+        or cache_age >= MATERIAL_SEARCH_CACHE_TTL_SECONDS
+    ):
         _remove_invalid_cache(cache_path)
         return None
 
@@ -426,7 +431,11 @@ def cleanup_expired_material_search_cache(
                 if not entry.is_file(follow_symlinks=False):
                     continue
                 cache_age = current_time - entry.stat(follow_symlinks=False).st_mtime
-                if 0 <= cache_age < MATERIAL_SEARCH_CACHE_TTL_SECONDS:
+                if (
+                    -MATERIAL_SEARCH_CACHE_FUTURE_TOLERANCE_SECONDS
+                    <= cache_age
+                    < MATERIAL_SEARCH_CACHE_TTL_SECONDS
+                ):
                     continue
                 os.unlink(entry.path)
                 deleted_count += 1
