@@ -1,0 +1,4 @@
+interface:
+  display_name: "BPA 다국어 영상 소재 제작"
+  short_description: "원본 구조를 보존해 KR·JP·TW·EN 영상 광고 베리에이션 제작"
+  default_prompt: "Use $bpa-localize-ad-creatives to turn this approved source ad into production-ready localized language and ratio variations while preserving its concept and structure."
