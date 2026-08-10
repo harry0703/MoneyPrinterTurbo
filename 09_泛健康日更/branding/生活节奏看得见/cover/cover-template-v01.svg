@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">生活节奏看得见竖屏封面模板</title>
+  <desc id="desc">暖米白背景、深青绿标题、浅桃色插画替换区与跨平台安全区的可编辑模板。</desc>
+  <metadata>
+    Canvas: 1080x1920; grid: 8px; corner radius: 24px.
+    Critical safe area: x=72..900, y=160..1500. Focal safe area: x=96..852, y=240..1320.
+    Replace only the artwork inside group illustration-slot and the 8-12 Chinese-character headline.
+    The qa-guides group is hidden by default; set display:inline for safe-area inspection.
+  </metadata>
+  <defs>
+    <clipPath id="illustration-clip">
+      <rect x="512" y="392" width="448" height="840" rx="24" ry="24"/>
+    </clipPath>
+  </defs>
+
+  <g id="background">
+    <rect width="1080" height="1920" fill="#FFF8EC"/>
+    <circle cx="1016" cy="216" r="136" fill="#F5C79E"/>
+    <path d="M0 1632 C232 1536 408 1584 592 1720 C736 1824 896 1872 1080 1792 L1080 1920 L0 1920 Z" fill="#087F78"/>
+    <path d="M0 1744 C232 1632 448 1704 616 1824 C744 1912 912 1928 1080 1872 L1080 1920 L0 1920 Z" fill="#10BFAE"/>
+  </g>
+
+  <g id="series-marker" font-family="Microsoft YaHei, sans-serif">
+    <rect x="96" y="176" width="56" height="8" rx="4" fill="#10BFAE"/>
+    <text x="168" y="194" fill="#087F78" font-size="28" font-weight="600" letter-spacing="3">生活节奏 · 午后状态</text>
+  </g>
+
+  <g id="headline" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" fill="#24313D" font-weight="700">
+    <text x="96" y="464" font-size="80" letter-spacing="-1">找到自己的</text>
+    <text x="96" y="568" font-size="80" letter-spacing="-1">午后节奏</text>
+    <rect x="96" y="616" width="128" height="12" rx="6" fill="#10BFAE"/>
+  </g>
+
+  <g id="supporting-copy" font-family="Microsoft YaHei, sans-serif" fill="#24313D">
+    <text x="96" y="704" font-size="32">一次只观察一个小变化</text>
+    <text x="96" y="752" font-size="32">让日常更容易看见</text>
+  </g>
+
+  <g id="illustration-slot" clip-path="url(#illustration-clip)">
+    <rect x="512" y="392" width="448" height="840" rx="24" fill="#F5C79E"/>
+    <circle cx="776" cy="568" r="104" fill="#FFF8EC"/>
+    <circle cx="776" cy="568" r="64" fill="#10BFAE"/>
+    <path d="M448 1192 C592 1032 648 976 720 872 C776 792 848 736 992 680 L1040 784 C920 832 864 888 808 976 C744 1080 672 1160 560 1280 Z" fill="#087F78"/>
+    <path d="M560 1248 C664 1128 712 1064 760 984 C808 904 864 856 960 808" fill="none" stroke="#FFF8EC" stroke-width="32" stroke-linecap="round"/>
+    <g id="slot-label" font-family="Microsoft YaHei, sans-serif">
+      <rect x="560" y="1096" width="224" height="64" rx="24" fill="#FFF8EC"/>
+      <text x="672" y="1138" text-anchor="middle" fill="#087F78" font-size="24" font-weight="600">插画替换区</text>
+    </g>
+  </g>
+
+  <g id="footer" font-family="Microsoft YaHei, sans-serif">
+    <text x="96" y="1424" fill="#087F78" font-size="28" font-weight="600">生活节奏看得见</text>
+    <text x="96" y="1472" fill="#24313D" font-size="24">记录睡眠、进餐和日常活动中的小习惯</text>
+  </g>
+
+  <g id="qa-guides" display="none" fill="none" pointer-events="none">
+    <rect x="72" y="160" width="828" height="1340" stroke="#24313D" stroke-width="4" stroke-dasharray="16 12"/>
+    <rect x="96" y="240" width="756" height="1080" stroke="#10BFAE" stroke-width="4" stroke-dasharray="12 12"/>
+  </g>
+</svg>
