@@ -23,7 +23,7 @@
 | 5 | HC20260810-005 | 下午没精神，试试3分钟状态重启 | CDC/NIOSH + 系统综述/荟萃分析 | 中等偏高 | 3 分钟为编辑计时，不承诺恢复 |
 | 6 | HC20260810-006 | 午休后更困？先看入睡和醒来时间 | CDC/NIOSH + 原始重复测量实验 | 中等 | 午休反应有差异；无统一最佳时长 |
 | 7 | HC20260810-007 | 下午总靠咖啡顶，先记录饮用时间 | EFSA 科学意见 + 随机双盲实验 | 中等偏高 | 不设“下午禁咖啡”统一规则 |
-| 8 | HC20260810-008 | 午后嘴馋，先分清饿、渴还是习惯 | CDC + 原始随机交叉实验 | 中等 | 明确拒绝“渴=饿”普遍定律 |
+| 8 | HC20260810-008 | 午后嘴馋，先分清饿、渴还是习惯 | CDC + 原始随机交叉实验 | 中等偏低 | 不把“渴=饿”写成普遍定律 |
 | 9 | HC20260810-009 | 下午最难的任务，什么时候做更顺 | CDC/NIOSH + 系统综述 | 中等偏高 | 不存在人人相同的黄金时点 |
 | 10 | HC20260810-010 | 连续7天，找到自己的午后规律 | CDC + 原始纵向研究 | 中等 | 7 天仅第一轮观察，不是形成阈值 |
 
@@ -34,7 +34,7 @@
 | R01 | 官方安全指南 | CDC/NIOSH | 2024-04-03 | Driver Fatigue on the Job | https://www.cdc.gov/niosh/motor-vehicle/driver-fatigue/index.html | 午后状态多因素、困倦驾驶安全边界 |
 | R02 | 原始交叉实验 | American Physiological Society | 1998-02-01 | Effects of meals on objective and subjective measures of daytime sleepiness | https://doi.org/10.1152/jappl.1998.84.2.507 | 餐后困意及餐食组成无差异 |
 | R03 | 中国国家行动文件 | 国家卫生健康委员会 | 2019-07-15 | 健康中国行动（2019—2030年） | https://www.nhc.gov.cn/guihuaxxs/c100133/201907/2a6ed52f1c264203b5351bdbbadd2da8.shtml | 细嚼慢咽、食不过量、避免过度节食 |
-| R04 | 原始随机交叉实验 | Academy of Nutrition and Dietetics | 2014-03 | Slower eating speed lowers energy intake in normal-weight but not overweight/obese subjects | https://pubmed.ncbi.nlm.nih.gov/24388483/ | 吃速结果有组间差异 |
+| R04 | 原始随机交叉实验 | Academy of Nutrition and Dietetics | 2014-03 | Slower eating speed lowers energy intake in normal-weight but not overweight/obese subjects | https://pubmed.ncbi.nlm.nih.gov/24388483/ | 两组内显著性结果不同，但交互不显著，不能断言组间效果不同 |
 | R05 | 原始小样本研究 | Elsevier / Appetite | 1991-04 | Influences of meal size on post-lunch changes in performance efficiency, mood, and cardiovascular function | https://pubmed.ncbi.nlm.nih.gov/2064394/ | 餐量与午后结局并非全部同向 |
 | R06 | 国际指南 | WHO | 2020-11-25 | WHO guidelines on physical activity and sedentary behaviour: at a glance | https://www.who.int/publications/i/item/9789240014886 | 减少久坐、以活动替代部分久坐 |
 | R07 | 原始交叉先导实验 | BMJ Open | 2016-02-26 | Acute effects of breaking up prolonged sitting on fatigue and cognition: a pilot study | https://bmjopen.bmj.com/content/6/2/e009630 | 19 人特定条件结果及 3 分钟外推限制 |
@@ -44,8 +44,8 @@
 | R11 | 原始重复测量实验 | Oxford University Press / SLEEP | 2006-06 | A brief afternoon nap following nocturnal sleep restriction | https://pubmed.ncbi.nlm.nih.gov/16796222/ | 不同午睡时长的即时差异 |
 | R12 | 监管机构科学意见 | EFSA | 2015-05-27 | Scientific Opinion on the safety of caffeine | https://www.efsa.europa.eu/en/topics/topic/caffeine | 咖啡因时点、剂量与个体差异 |
 | R13 | 原始随机双盲实验 | American Academy of Sleep Medicine | 2013-11-15 | Caffeine effects on sleep taken 0, 3, or 6 hours before going to bed | https://pmc.ncbi.nlm.nih.gov/articles/PMC3805807/ | 固定高剂量与睡眠；禁止直接外推日常一杯 |
-| R14 | 官方生活方式页面 | CDC | 2025-01-17 | Steps for Losing Weight | https://www.cdc.gov/healthy-weight-growth/losing-weight/index.html | 记录吃喝、感受与情境线索 |
-| R15 | 原始随机交叉实验 | Elsevier / Physiology & Behavior | 2019-12-01 | Hydration status affects thirst ... but not energy intake | https://pubmed.ncbi.nlm.nih.gov/31676259/ | 口渴变化不等于饥饿或摄入变化 |
+| R14 | 官方生活方式页面 | CDC | 2025-01-17 | Steps for Losing Weight | https://www.cdc.gov/healthy-weight-growth/losing-weight/index.html | 记录几天的吃喝、感受与生活挑战字段 |
+| R15 | 原始随机交叉实验 | Elsevier / Physiology & Behavior | 2019-12-01 | Hydration status affects thirst ... but not energy intake | https://pubmed.ncbi.nlm.nih.gov/31676259/ | 16 人急性受控条件下，饥饿、饱足与能量摄入未见显著差异 |
 | R16 | 官方职业指南 | CDC/NIOSH | 2020-03-31 | Afternoon Dip in Wakefulness | https://www.cdc.gov/niosh/work-hour-training-for-nurses/longhours/mod2/21.html | 午后清醒度低谷的一般机制 |
 | R17 | 系统综述 | Taylor & Francis | 2025-04-28 | Chronotype and synchrony effects in human cognitive performance | https://pubmed.ncbi.nlm.nih.gov/40293205/ | 时点、年龄、任务和个体差异 |
 | R18 | 官方睡眠页面 | CDC | 2024-05-15 | About Sleep | https://www.cdc.gov/sleep/about/index.html | 多时点记录字段 |
