@@ -8,9 +8,11 @@
     <circle cx="512" cy="520" r="300" fill="#087F78"/>
     <circle cx="512" cy="520" r="238" fill="#FFF8EC"/>
   </g>
-  <g id="sun" fill="#F5C79E" stroke="#F5C79E" stroke-width="22" stroke-linecap="round">
-    <path d="M560 416 A72 72 0 0 1 704 416 Z" stroke="none"/>
-    <path d="M632 310v30M560 334l22 22M704 334l-22 22" fill="none"/>
+  <g id="sun" fill="#F5C79E">
+    <path id="sun-disc" d="M556 430 A76 76 0 0 1 708 430 Z"/>
+    <path id="sun-ray-center" d="M622 280h20l-2 28h-16z"/>
+    <path id="sun-ray-left" d="M550 306l14-14 20 20-15 15z"/>
+    <path id="sun-ray-right" d="M700 292l14 14-19 21-15-15z"/>
   </g>
-  <path id="single-walking-path" d="M382 742 C418 650 548 654 540 566 C532 496 594 470 632 438" fill="none" stroke="#10BFAE" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"/>
+  <path id="single-walking-path" d="M382 742 C418 650 548 654 540 566 C532 496 594 486 632 466" fill="none" stroke="#10BFAE" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

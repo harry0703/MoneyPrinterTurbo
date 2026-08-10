@@ -157,6 +157,7 @@ x_avatar:
   minimum_empty_margin: "12% each edge"
   verified_sizes: [1024, 256, 96, 48]
   circular_crop_verified: true
+  sunlight_geometry: "太阳盘/半圆与三条短直或梯形光线保持可见间隔；禁止圆头光线与日盘粘连成皇冠"
 
 x_platforms:
   orientation: "portrait"
