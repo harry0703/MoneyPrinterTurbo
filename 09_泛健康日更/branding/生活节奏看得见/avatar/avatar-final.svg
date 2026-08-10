@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">生活节奏看得见最终头像</title>
+  <desc id="desc">候选一的最终平色生产版：俯视餐盘、盘外日出和盘面单一路径。</desc>
+  <metadata>Selected production candidate: avatar-candidate-01.svg. Source concept: source/avatar-source-concept-01.png. No gradients or shadows.</metadata>
+  <rect width="1024" height="1024" fill="#FFF8EC"/>
+  <g id="sun" fill="#F5C79E" stroke="#F5C79E" stroke-width="26" stroke-linecap="round">
+    <circle cx="512" cy="262" r="82" stroke="none"/>
+    <path d="M512 178v24M438 192l18 18M586 192l-18 18" fill="none"/>
+  </g>
+  <g id="overhead-plate">
+    <circle cx="512" cy="548" r="300" fill="#087F78"/>
+    <circle cx="512" cy="548" r="242" fill="#FFF8EC"/>
+  </g>
+  <path id="single-walking-path" d="M436 774 C396 664 586 632 520 544 C466 472 500 402 548 330" fill="none" stroke="#10BFAE" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

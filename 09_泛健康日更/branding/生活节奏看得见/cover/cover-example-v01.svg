@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">生活节奏看得见完成态封面示例</title>
+  <desc id="desc">使用真实生成生活方式插画、无编辑标签的暖光生活节奏封面。</desc>
+  <metadata>
+    Raster source: source/cover-lifestyle-source-01.png generated with built-in image_gen.
+    Critical safe area x=72..900 y=160..1500; focal core-safe x=96..852 y=240..1320.
+    The same source image is split into core-safe and decorative-crop groups so only non-critical continuation extends beyond x=900.
+  </metadata>
+  <defs>
+    <clipPath id="slot-clip"><rect x="552" y="352" width="408" height="912" rx="24" ry="24"/></clipPath>
+    <clipPath id="core-clip"><rect x="552" y="352" width="300" height="912"/></clipPath>
+    <clipPath id="decorative-clip"><rect x="852" y="352" width="108" height="912"/></clipPath>
+  </defs>
+
+  <g id="background">
+    <rect width="1080" height="1920" fill="#FFF8EC"/>
+    <circle cx="1016" cy="216" r="136" fill="#F5C79E"/>
+    <path d="M0 1632 C232 1536 408 1584 592 1720 C736 1824 896 1872 1080 1792 L1080 1920 L0 1920 Z" fill="#087F78"/>
+    <path d="M0 1744 C232 1632 448 1704 616 1824 C744 1912 912 1928 1080 1872 L1080 1920 L0 1920 Z" fill="#10BFAE"/>
+  </g>
+
+  <g id="series-marker" font-family="Microsoft YaHei, sans-serif">
+    <rect x="96" y="176" width="64" height="8" rx="4" fill="#10BFAE"/>
+    <text x="176" y="204" fill="#087F78" font-size="36" font-weight="600" letter-spacing="2">生活节奏 · 午后状态</text>
+  </g>
+
+  <g id="headline" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" fill="#24313D" font-weight="700">
+    <text x="96" y="464" font-size="80" letter-spacing="-1">找到自己的</text>
+    <text x="96" y="568" font-size="80" letter-spacing="-1">午后节奏</text>
+    <rect x="96" y="616" width="128" height="12" rx="6" fill="#10BFAE"/>
+  </g>
+
+  <g id="supporting-copy" font-family="Microsoft YaHei, sans-serif" fill="#24313D" font-size="42">
+    <text x="96" y="704">先观察，再做小尝试</text>
+  </g>
+
+  <g id="illustration-slot" clip-path="url(#slot-clip)">
+    <rect x="552" y="352" width="408" height="912" rx="24" fill="#F5C79E"/>
+    <g id="core-safe" clip-path="url(#core-clip)">
+      <image x="480" y="352" width="488" height="912" preserveAspectRatio="xMidYMid slice" href="source/cover-lifestyle-source-01.png" xlink:href="source/cover-lifestyle-source-01.png"/>
+    </g>
+    <g id="decorative-crop" clip-path="url(#decorative-clip)">
+      <image x="480" y="352" width="488" height="912" preserveAspectRatio="xMidYMid slice" href="source/cover-lifestyle-source-01.png" xlink:href="source/cover-lifestyle-source-01.png"/>
+    </g>
+  </g>
+
+  <g id="footer" font-family="Microsoft YaHei, sans-serif">
+    <text x="96" y="1456" fill="#087F78" font-size="36" font-weight="600">生活节奏看得见</text>
+  </g>
+</svg>

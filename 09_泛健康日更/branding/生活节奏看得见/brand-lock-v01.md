@@ -24,7 +24,10 @@ style_prompt_full: >
   plain series marker. Keep all critical cover content inside x=72—900 and y=160—1500;
   keep the main face/object focal area inside x=96—852 and y=240—1320 so right-side and
   bottom platform controls cannot cover it. Use solid matte fields, natural rounded paths,
-  plate/sunlight/walking motifs, and restrained 160—240ms ease-out motion. Never use
+  overhead plate-rim/sunlight/single-walking-path motifs, and restrained 160—240ms
+  ease-out motion. Avatar production SVGs use only exact token fills with no gradients,
+  filters, opacity, shadows, or 3D road perspective; generated avatar images are concept
+  sources only and must never be shipped without deterministic flat-vector cleanup. Never use
   clinical blue, alert red, anatomy, organs, clinicians, white coats, stethoscopes, medical
   crosses, devices, data curves, pseudo-professional seals, certification badges, glossy
   medical-tech gradients, paper, pens, notebooks, generated text, logos, or watermarks.
@@ -61,7 +64,7 @@ typography:
   caption:
     family: "Microsoft YaHei"
     weight: "600"
-    style: "小型系列标识，字距 8%，不使用全包围徽章"
+    style: "系列标识 36px、辅助文案 42px、footer 36px；不使用全包围徽章"
   rules:
     - "标题仅使用本机已核实存在的 Noto Sans SC Bold：C:/Windows/Fonts/Noto Sans SC Bold (TrueType).otf"
     - "正文仅使用本机已核实存在的 Microsoft YaHei：C:/Windows/Fonts/msyh.ttc"
@@ -77,6 +80,9 @@ layout:
     - "跨平台关键安全区：x=72—900、y=160—1500；任何标题、系列标识、核心动作和必要对象均不得越界"
     - "主视觉焦点建议区：x=96—852、y=240—1320；右侧 x>900 与底部 y>1500 只放可裁切装饰"
     - "标题与插画之间至少 48px；外边距最少 72px；标题块宽度建议 440—760px"
+    - "v01 实测：标题首行 Noto Sans SC Bold 80px / kerning -1 宽 397px，右边 x=493；插画从 x=552 开始，净距 59px"
+    - "插画必须拆成 core-safe（x=552—852）与 decorative-crop（x=852—960）；只有 decorative-crop 可越过 x=900"
+    - "系列标识 36px、辅助文案 42px、footer 36px；必须同时通过 25%（270px 宽）与 360px 手机预览"
     - "卡片、插画窗与色块圆角统一 24px；禁止混用 16/20/28px"
     - "平台封面不叠加平台 Logo；中心裁切预览不得丢失标题或主视觉识别点"
     - "头像符号四边至少保留 12% 空白；默认目标为 16%—24%"
@@ -132,14 +138,25 @@ x_cover:
   headline_characters: "8—12"
   critical_safe_area: "x=72—900, y=160—1500"
   focal_safe_area: "x=96—852, y=240—1320"
+  illustration_core_safe: "x=552—852, y=352—1264"
+  illustration_decorative_crop: "x=852—960, y=352—1264"
+  measured_title_right_edge_px: 493
+  title_to_illustration_gap_px: 59
   template: "cover/cover-template-v01.svg"
   rendered_preview: "cover/cover-template-v01.png"
+  completed_example: "cover/cover-example-v01.svg"
+  completed_example_preview: "cover/cover-example-v01.png"
+  completed_example_source: "cover/source/cover-lifestyle-source-01.png"
 
 x_avatar:
   final_asset: "avatar/avatar-final.png"
-  source_candidate: "avatar/avatar-candidate-02.png"
+  final_vector: "avatar/avatar-final.svg"
+  source_candidate: "avatar/avatar-candidate-01.svg"
+  generated_concept_source: "avatar/source/avatar-source-concept-01.png"
+  production_method: "built-in image_gen concept followed by deterministic five-token SVG cleanup"
   minimum_empty_margin: "12% each edge"
   verified_sizes: [1024, 256, 96, 48]
+  circular_crop_verified: true
 
 x_platforms:
   orientation: "portrait"
@@ -160,9 +177,9 @@ x_platforms:
 
 每个画面只设一个主焦点与一个辅助强调。暖米白大面积留白降低“硬销”与“伪权威”感，也给四个平台的裁切和控件留出真实余量。
 
-### 3. 确定性文字，生成式插画
+### 3. 生成概念，确定性生产
 
-图像生成只负责无字生活插画；账号名、标题、系列标识、图标和清单全部在 SVG 或后期渲染层生成。任何模型自带文字、Logo、数字、UI 或水印都应退回重做。
+图像生成负责无字生活插画与头像概念探索；正式头像必须把对应概念清理为可编辑、五色锁定、无渐变/滤镜/阴影的 SVG，再确定性渲染 PNG。账号名、标题、系列标识、图标和清单全部在 SVG 或后期渲染层生成。任何模型自带文字、Logo、数字、UI 或水印都应退回重做。
 
 ### 4. 一个动作，一处强调
 
@@ -171,10 +188,11 @@ x_platforms:
 ## Cover Production Contract
 
 1. 复制 `cover/cover-template-v01.svg`，保留 1080×1920 画布、24px 圆角和 8px 网格。
-2. 将无字生成插画放入 `illustration-slot` 组的裁切窗；核心人物/对象保持在焦点安全区。
+2. 将无字生成插画分别放入 `illustration-slot/core-safe` 与 `illustration-slot/decorative-crop`；核心人物/对象只允许出现在 x=552—852，只有环境延展可进入 x=852—960。
 3. 将标题替换为 8—12 个中文字符，最多两行；不通过缩小字号硬塞长标题。
 4. 系列标识保持为普通行内文字与短横线，不加盾牌、圆章、十字或“认证”外形。
-5. 以全帧、中心裁切和 25% 缩略图检查；标题、主视觉和系列归属均须保留。
+5. 以全帧、25%（270×480）和 360×640 手机预览检查；标题、主视觉、系列归属与 footer 均须可读。
+6. 完成态验收使用 `cover/cover-example-v01.svg/png`；模板中的“插画替换区”标签不得出现在上线样张。
 
 ## Connectors
 
@@ -195,3 +213,4 @@ x_platforms:
 - 本品牌锁依据 `docs/superpowers/specs/2026-08-10-50-episode-general-wellness-design.md` 与 Task 3 简报创建。
 - 字体在 2026-08-10 于当前 Windows 主机核实；跨机使用前必须重新核实或打包字体授权。
 - 色彩对比以 WCAG 相对亮度公式验证；详见 `qa/brand-qa-v01.md`。
+- Fix Cycle 1 依据独立审查重做头像与封面；旧渐变候选和错误焦点 PASS 不再作为有效证据。
