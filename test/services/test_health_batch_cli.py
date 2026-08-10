@@ -102,9 +102,34 @@ def test_start_batch_accepts_validated_general_wellness_topics_file(tmp_path):
     assert active["content_profile"] == "general_wellness_uncredentialed"
     assert first_wave["content_profile"] == "general_wellness_uncredentialed"
     assert report["content_profile"] == "general_wellness_uncredentialed"
+    assert first_wave["audience"] == active["topics"][0]["audience"]
+    assert {topic["audience"] for topic in active["topics"]} == {
+        first_wave["audience"]
+    }
     assert [topic["content_id"] for topic in active["topics"]] == [
         f"HC20260810-{slot:03d}" for slot in range(1, 11)
     ]
+
+
+def test_start_batch_rejects_mixed_topic_audiences_before_creating_output(tmp_path):
+    payload = _topics_payload()
+    payload["topics"][-1]["audience"] = "35-60岁关注午后节奏的人群"
+    topics_file = tmp_path / "mixed-audiences.json"
+    topics_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    output = tmp_path / "inventory"
+
+    started = _run(
+        "start-batch",
+        "--date",
+        "20260810",
+        "--output",
+        str(output),
+        "--topics-file",
+        str(topics_file),
+    )
+
+    assert started.returncode == 3, started.stdout
+    assert not output.exists()
 
 
 def test_start_batch_rejects_invalid_topics_file_before_creating_output(tmp_path):

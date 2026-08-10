@@ -66,8 +66,13 @@ def start_batch(args: argparse.Namespace) -> int:
             topics=topics,
             content_profile=topics_payload.get("content_profile"),
         )
+        topic_audiences = {topic["audience"] for topic in batch["topics"]}
+        if len(topic_audiences) != 1:
+            raise health_content.HealthContentError("主题文件中的 audience 必须完全一致")
+        first_wave_audience = topic_audiences.pop()
     else:
         batch = health_content.create_seed_batch(args.date)
+        first_wave_audience = "35-60岁关注家庭健康的人群"
     version_root = output / "batches" / args.date
     _write_json(version_root / "active-batch.json", batch)
     _write_json(
@@ -76,7 +81,7 @@ def start_batch(args: argparse.Namespace) -> int:
             {
             "schema": "health-first-wave-v1",
             "batch_id": batch["batch_id"],
-            "audience": "35-60岁关注家庭健康的人群",
+            "audience": first_wave_audience,
             "content_style": "生活场景动画",
             "article_format": "7页卡片组",
             "platform_strategy": "一母版四包装",
