@@ -21,6 +21,7 @@ FORBIDDEN_CLAIMS = (
     "停药",
     "保证",
     "立即见效",
+    "立刻见效",
     "立即有用",
 )
 GENERAL_WELLNESS_PUBLIC_FORBIDDEN = FORBIDDEN_CLAIMS + (
@@ -199,6 +200,10 @@ def _is_nonempty_text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _is_optional_text(value: object) -> bool:
+    return isinstance(value, str) and (value == "" or bool(value.strip()))
+
+
 def validate_manifest(manifest: Mapping) -> dict:
     """验证事实卡、边界和安全表述，不会自动推进状态。"""
     _reject_credentials(manifest)
@@ -301,10 +306,14 @@ def _validate_review_contract_text(manifest: Mapping) -> None:
     )
     for field, required_keys, error_type, label in review_fields:
         value = manifest.get(field)
-        if not isinstance(value, Mapping) or any(
-            not _is_nonempty_text(value.get(key)) for key in required_keys
+        if not isinstance(value, Mapping) or any(key not in value for key in required_keys):
+            raise error_type(f"{label}必须保留完整字段")
+        if not _is_nonempty_text(value.get("status")) or any(
+            not _is_optional_text(value.get(key))
+            for key in required_keys
+            if key != "status"
         ):
-            raise error_type(f"{label}必须包含完整的非空文本字段")
+            raise error_type(f"{label}字段必须为文本")
 
 
 def _reject_general_wellness_public_terms(value: object) -> None:
@@ -407,6 +416,16 @@ def _require_final_qa(manifest: Mapping, medical_review: Mapping) -> None:
         raise FinalQARequired("医学审核与人工终审必须由不同审核人执行")
 
 
+def _require_automated_qa_record(manifest: Mapping) -> None:
+    automated_qa = manifest.get("automated_qa")
+    if (
+        not isinstance(automated_qa, Mapping)
+        or automated_qa.get("status") != "passed"
+        or not _is_nonempty_text(automated_qa.get("checked_at"))
+    ):
+        raise FinalQARequired("自动QA必须通过并记录检查时间")
+
+
 def run_automated_qa(manifest: Mapping) -> dict:
     """从当前内容重新计算QA，不信任输入中自报的通过结果。"""
     validated = validate_manifest(manifest)
@@ -475,11 +494,15 @@ def advance_topic_state(
     validated = validate_manifest(manifest)
     if target_state == "approved":
         _require_medical_review(validated)
+    elif target_state == "production":
+        _require_medical_review(validated)
     elif target_state == "automated_qa_passed":
         run_automated_qa(validated)
+        _require_automated_qa_record(validated)
     elif target_state == "final_qa_passed":
         review = _require_medical_review(validated)
         run_automated_qa(validated)
+        _require_automated_qa_record(validated)
         _require_final_qa(validated, review)
     elif target_state == "ready_to_publish":
         build_publish_pack(validated)
@@ -623,9 +646,7 @@ def build_publish_pack(manifest: Mapping) -> dict:
     validated = validate_manifest(manifest)
     review = _require_medical_review(validated)
     run_automated_qa(validated)
-    automated_qa = validated.get("automated_qa")
-    if not isinstance(automated_qa, Mapping) or automated_qa.get("status") != "passed":
-        raise FinalQARequired("自动QA必须通过后才能提交人工终审")
+    _require_automated_qa_record(validated)
     _require_final_qa(validated, review)
     score = calculate_quality_score(validated)
     _require_quality_gate(validated, score, "发布前")

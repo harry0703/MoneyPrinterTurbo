@@ -224,6 +224,84 @@ def test_state_transition_enforces_medical_and_final_gates():
         health_content.advance_topic_state(batch, content_id, "published", manifest)
 
 
+@pytest.mark.parametrize("workflow", ("general", "legacy"))
+def test_pending_review_records_are_filled_only_as_each_gate_is_reached(workflow):
+    if workflow == "general":
+        batch = health_content.create_seed_batch(
+            "20260810",
+            topics=_general_wellness_topics(),
+            content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+        )
+        manifest = _general_wellness_manifest()
+    else:
+        batch = health_content.create_seed_batch("20260809")
+        manifest = _approved_manifest()
+
+    content_id = batch["topics"][0]["content_id"]
+    manifest["medical_review"] = {
+        "status": "pending",
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": "",
+    }
+    manifest["automated_qa"] = {"status": "pending", "checked_at": ""}
+    manifest["final_qa"] = {
+        "status": "pending",
+        "reviewer": "",
+        "reviewed_at": "",
+    }
+
+    batch = health_content.advance_topic_state(
+        batch, content_id, "medical_review_pending", manifest
+    )
+
+    manifest["medical_review"].update(
+        status="approved",
+        reviewer="内部事实审核人",
+        reviewed_at="2026-08-10T09:00:00+08:00",
+    )
+    batch = health_content.advance_topic_state(batch, content_id, "approved", manifest)
+
+    downgraded_review = deepcopy(manifest)
+    downgraded_review["medical_review"].update(
+        status="pending", reviewer="", reviewed_at=""
+    )
+    with pytest.raises(health_content.MedicalReviewRequired):
+        health_content.advance_topic_state(
+            batch, content_id, "production", downgraded_review
+        )
+    batch = health_content.advance_topic_state(batch, content_id, "production", manifest)
+
+    with pytest.raises(health_content.FinalQARequired, match="自动QA"):
+        health_content.advance_topic_state(
+            batch, content_id, "automated_qa_passed", manifest
+        )
+    manifest["automated_qa"].update(
+        status="passed", checked_at="2026-08-10T10:00:00+08:00"
+    )
+    batch = health_content.advance_topic_state(
+        batch, content_id, "automated_qa_passed", manifest
+    )
+
+    with pytest.raises(health_content.FinalQARequired, match="人工终审"):
+        health_content.advance_topic_state(
+            batch, content_id, "final_qa_passed", manifest
+        )
+    manifest["final_qa"].update(
+        status="passed",
+        reviewer="内部成片终审人",
+        reviewed_at="2026-08-10T10:30:00+08:00",
+    )
+    batch = health_content.advance_topic_state(
+        batch, content_id, "final_qa_passed", manifest
+    )
+    batch = health_content.advance_topic_state(
+        batch, content_id, "ready_to_publish", manifest
+    )
+
+    assert batch["topics"][0]["state"] == "ready_to_publish"
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -444,6 +522,30 @@ def test_general_wellness_rejects_complete_public_policy_vocabulary(term):
 
     with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
         health_content.validate_manifest(manifest)
+
+
+def test_general_wellness_rejects_exact_immediate_effect_phrase_in_input():
+    manifest = _general_wellness_manifest()
+    manifest["interaction"] = "承诺立刻见效"
+
+    with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
+        health_content.validate_manifest(manifest)
+
+
+def test_general_wellness_rejects_exact_immediate_effect_phrase_in_final_pack(
+    monkeypatch,
+):
+    original = health_content._platform_package
+
+    def unsafe_generated_package(manifest, platform):
+        package = original(manifest, platform)
+        package["body"] = f"{package['body']} 承诺立刻见效"
+        return package
+
+    monkeypatch.setattr(health_content, "_platform_package", unsafe_generated_package)
+
+    with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
+        health_content.build_publish_pack(_general_wellness_manifest())
 
 
 @pytest.mark.parametrize(
