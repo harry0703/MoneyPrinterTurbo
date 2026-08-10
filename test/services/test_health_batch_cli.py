@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CLI = PROJECT_ROOT / "09_泛健康日更" / "scripts" / "health_batch.py"
@@ -141,6 +143,31 @@ def test_start_batch_rejects_invalid_topics_file_before_creating_output(tmp_path
 
         assert started.returncode == 3, started.stdout
         assert not output.exists()
+
+
+@pytest.mark.parametrize("field", ("category", "topic", "audience"))
+@pytest.mark.parametrize("invalid_value", (None, 42, True, [], {}))
+def test_start_batch_rejects_non_string_topic_text_without_creating_output(
+    tmp_path, field, invalid_value
+):
+    payload = _topics_payload()
+    payload["topics"][0][field] = invalid_value
+    topics_file = tmp_path / f"invalid-{field}.json"
+    topics_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    output = tmp_path / "inventory"
+
+    started = _run(
+        "start-batch",
+        "--date",
+        "20260810",
+        "--output",
+        str(output),
+        "--topics-file",
+        str(topics_file),
+    )
+
+    assert started.returncode == 3, started.stdout
+    assert not output.exists()
 
 
 def test_next_daily_returns_earliest_unfinished_topic_without_mutating_batch(tmp_path):

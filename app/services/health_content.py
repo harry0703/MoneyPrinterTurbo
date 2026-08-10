@@ -11,7 +11,19 @@ from typing import Iterable, Mapping
 
 PLATFORMS = ("wechat_channels", "douyin", "xiaohongshu", "kuaishou")
 GENERAL_WELLNESS_PROFILE = "general_wellness_uncredentialed"
-GENERAL_WELLNESS_PUBLIC_FORBIDDEN = (
+FORBIDDEN_CLAIMS = (
+    "根治",
+    "治愈",
+    "一招见效",
+    "排毒",
+    "逆转所有",
+    "医生不会告诉你",
+    "停药",
+    "保证",
+    "立即见效",
+    "立即有用",
+)
+GENERAL_WELLNESS_PUBLIC_FORBIDDEN = FORBIDDEN_CLAIMS + (
     "疾病",
     "诊断",
     "治疗",
@@ -30,6 +42,21 @@ GENERAL_WELLNESS_PUBLIC_FORBIDDEN = (
     "健康卫士",
     "体脂秤",
     "医疗器械",
+    "健康科普",
+    "不替代诊疗",
+    "诊疗",
+    "专家",
+    "医师",
+    "护士",
+    "药师",
+    "营养师",
+    "处方",
+    "药方",
+    "诊所",
+    "检测",
+    "检验",
+    "医学曲线",
+    "医疗曲线",
 )
 GENERAL_WELLNESS_SCORE_FLOORS = {
     "topic_value": 18,
@@ -41,6 +68,12 @@ GENERAL_WELLNESS_SCORE_FLOORS = {
 }
 _GENERAL_WELLNESS_ACCOUNT_NAME = "生活节奏看得见"
 _GENERAL_WELLNESS_ACCOUNT_BIO = "记录睡眠、进餐和日常活动中的小习惯"
+_GENERAL_WELLNESS_ONLY_FIELDS = (
+    "account_name",
+    "account_bio",
+    "observations",
+    "save_reason",
+)
 _GENERAL_WELLNESS_PUBLIC_FIELDS = (
     "account_name",
     "account_bio",
@@ -57,17 +90,6 @@ _GENERAL_WELLNESS_PUBLIC_FIELDS = (
     "observations",
     "save_reason",
 )
-FORBIDDEN_CLAIMS = (
-    "根治",
-    "治愈",
-    "一招见效",
-    "排毒",
-    "逆转所有",
-    "医生不会告诉你",
-    "停药",
-)
-
-
 class HealthContentError(ValueError):
     """健康内容合同或数据不合法。"""
 
@@ -104,7 +126,7 @@ def create_seed_batch(
     content_profile: str | None = None,
 ) -> dict:
     """创建10主题小测试批次，所有内容从资料核验状态开始。"""
-    if len(date) != 8 or not date.isdigit():
+    if not isinstance(date, str) or len(date) != 8 or not date.isdigit():
         raise HealthContentError("日期必须为YYYYMMDD")
     if topics is None:
         if content_profile is not None:
@@ -136,7 +158,7 @@ def create_seed_batch(
         for item in sorted(supplied_topics, key=lambda value: value["slot"]):
             _reject_credentials(item)
             if any(
-                not str(item.get(field, "")).strip()
+                not _is_nonempty_text(item.get(field))
                 for field in ("category", "topic", "audience")
             ):
                 raise HealthContentError("每个主题必须包含 category、topic 和 audience")
@@ -169,18 +191,38 @@ def create_seed_batch(
 
 
 def _require_text(manifest: Mapping, field: str, label: str) -> None:
-    if not str(manifest.get(field, "")).strip():
+    if not _is_nonempty_text(manifest.get(field)):
         raise HealthContentError(f"缺少{label}")
+
+
+def _is_nonempty_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
 
 
 def validate_manifest(manifest: Mapping) -> dict:
     """验证事实卡、边界和安全表述，不会自动推进状态。"""
     _reject_credentials(manifest)
+    if (
+        "content_profile" in manifest
+        and manifest.get("content_profile") != GENERAL_WELLNESS_PROFILE
+    ):
+        raise HealthContentError("不支持的内容 profile")
+    if "content_profile" not in manifest and any(
+        field in manifest for field in _GENERAL_WELLNESS_ONLY_FIELDS
+    ):
+        raise HealthContentError("通用生活方式 manifest 必须显式声明 profile")
     for field, label in (
         ("content_id", "内容ID"),
+        ("batch_id", "批次ID"),
+        ("category", "内容分类"),
+        ("audience", "目标人群"),
         ("topic", "主题"),
+        ("scenario", "生活场景"),
+        ("hook", "开场表述"),
         ("core_claim", "核心结论"),
+        ("mechanism", "解释"),
         ("action", "可执行动作"),
+        ("interaction", "互动问题"),
         ("medical_attention", "就医提醒"),
     ):
         _require_text(manifest, field, label)
@@ -190,22 +232,28 @@ def validate_manifest(manifest: Mapping) -> dict:
         raise HealthContentError("至少需要一个权威来源")
     for source in sources:
         if not isinstance(source, Mapping) or not all(
-            str(source.get(field, "")).strip()
+            _is_nonempty_text(source.get(field))
             for field in ("title", "publisher", "url", "published_at")
         ):
             raise HealthContentError("权威来源必须包含标题、发布方、链接和日期")
 
-    searchable = " ".join(
-        str(manifest.get(field, ""))
-        for field in ("topic", "hook", "core_claim", "mechanism", "action")
-    )
-    matched = [term for term in FORBIDDEN_CLAIMS if term in searchable]
-    if matched:
-        raise HealthContentError(f"检测到高风险表述: {', '.join(matched)}")
-    if not manifest.get("applicable_to") or not manifest.get("not_applicable_to"):
-        raise HealthContentError("必须声明适用与不适用人群")
+    for field in ("applicable_to", "not_applicable_to"):
+        boundaries = manifest.get(field)
+        if (
+            not isinstance(boundaries, list)
+            or not boundaries
+            or any(not _is_nonempty_text(item) for item in boundaries)
+        ):
+            raise HealthContentError("必须用非空文本列表声明适用与不适用人群")
+
+    _validate_review_contract_text(manifest)
     if manifest.get("content_profile") == GENERAL_WELLNESS_PROFILE:
         _validate_general_wellness_manifest(manifest)
+    else:
+        public_values = [
+            manifest.get(field) for field in _GENERAL_WELLNESS_PUBLIC_FIELDS
+        ]
+        _reject_public_terms(public_values, FORBIDDEN_CLAIMS, "检测到高风险表述")
     return deepcopy(dict(manifest))
 
 
@@ -220,26 +268,54 @@ def _validate_general_wellness_manifest(manifest: Mapping) -> None:
         raise HealthContentError("通用生活方式内容必须有三条观察")
     for observation in observations:
         if not isinstance(observation, Mapping) or not all(
-            str(observation.get(field, "")).strip() for field in ("label", "detail")
+            _is_nonempty_text(observation.get(field))
+            for field in ("label", "detail")
         ):
             raise HealthContentError("观察项必须包含标签和详情")
     _require_text(manifest, "save_reason", "收藏理由")
-
-    required_contract_fields = {
-        "medical_review": ("status", "reviewer", "reviewed_at", "notes"),
-        "automated_qa": ("status", "checked_at"),
-        "final_qa": ("status", "reviewer", "reviewed_at"),
-    }
-    for field, required_keys in required_contract_fields.items():
-        value = manifest.get(field)
-        if not isinstance(value, Mapping) or any(key not in value for key in required_keys):
-            raise HealthContentError(f"内部审核字段{field}不完整")
 
     public_values = [manifest.get(field) for field in _GENERAL_WELLNESS_PUBLIC_FIELDS]
     _reject_general_wellness_public_terms(public_values)
 
 
+def _validate_review_contract_text(manifest: Mapping) -> None:
+    review_fields = (
+        (
+            "medical_review",
+            ("status", "reviewer", "reviewed_at", "notes"),
+            MedicalReviewRequired,
+            "医学审核记录",
+        ),
+        (
+            "automated_qa",
+            ("status", "checked_at"),
+            FinalQARequired,
+            "自动QA记录",
+        ),
+        (
+            "final_qa",
+            ("status", "reviewer", "reviewed_at"),
+            FinalQARequired,
+            "人工终审记录",
+        ),
+    )
+    for field, required_keys, error_type, label in review_fields:
+        value = manifest.get(field)
+        if not isinstance(value, Mapping) or any(
+            not _is_nonempty_text(value.get(key)) for key in required_keys
+        ):
+            raise error_type(f"{label}必须包含完整的非空文本字段")
+
+
 def _reject_general_wellness_public_terms(value: object) -> None:
+    _reject_public_terms(
+        value,
+        GENERAL_WELLNESS_PUBLIC_FORBIDDEN,
+        "通用生活方式内容禁止公开使用",
+    )
+
+
+def _reject_public_terms(value: object, terms: Iterable[str], label: str) -> None:
     texts: list[str] = []
 
     def collect(nested: object) -> None:
@@ -254,9 +330,9 @@ def _reject_general_wellness_public_terms(value: object) -> None:
 
     collect(value)
     searchable = " ".join(texts)
-    matched = [term for term in GENERAL_WELLNESS_PUBLIC_FORBIDDEN if term in searchable]
+    matched = [term for term in terms if term in searchable]
     if matched:
-        raise HealthContentError(f"通用生活方式内容禁止公开使用: {', '.join(matched)}")
+        raise HealthContentError(f"{label}: {', '.join(matched)}")
 
 
 _CREDENTIAL_KEYS = {
@@ -311,8 +387,8 @@ def _require_medical_review(manifest: Mapping) -> Mapping:
     if not isinstance(review, Mapping) or review.get("status") != "approved":
         raise MedicalReviewRequired("必须先完成真实医学人工审核")
     if (
-        not str(review.get("reviewer", "")).strip()
-        or not str(review.get("reviewed_at", "")).strip()
+        not _is_nonempty_text(review.get("reviewer"))
+        or not _is_nonempty_text(review.get("reviewed_at"))
     ):
         raise MedicalReviewRequired("医学审核记录缺少审核人或时间")
     return review
@@ -323,8 +399,8 @@ def _require_final_qa(manifest: Mapping, medical_review: Mapping) -> None:
     if (
         not isinstance(final_qa, Mapping)
         or final_qa.get("status") != "passed"
-        or not str(final_qa.get("reviewer", "")).strip()
-        or not str(final_qa.get("reviewed_at", "")).strip()
+        or not _is_nonempty_text(final_qa.get("reviewer"))
+        or not _is_nonempty_text(final_qa.get("reviewed_at"))
     ):
         raise FinalQARequired("必须有独立人工终审通过记录")
     if final_qa["reviewer"] == medical_review["reviewer"]:
@@ -395,6 +471,7 @@ def advance_topic_state(
     if _STATE_TRANSITIONS.get(current_state) != target_state:
         raise HealthContentError(f"非法状态跃迁: {current_state} -> {target_state}")
 
+    _require_manifest_matches_batch(batch, content_id, manifest)
     validated = validate_manifest(manifest)
     if target_state == "approved":
         _require_medical_review(validated)
@@ -410,6 +487,27 @@ def advance_topic_state(
     topic["state"] = target_state
     topic.setdefault("state_history", []).append(target_state)
     return updated
+
+
+def _require_manifest_matches_batch(
+    batch: Mapping, content_id: str, manifest: Mapping
+) -> None:
+    if manifest.get("content_id") != content_id:
+        raise HealthContentError("manifest content_id 与当前主题不匹配")
+    if manifest.get("batch_id") != batch.get("batch_id"):
+        raise HealthContentError("manifest batch_id 与当前批次不匹配")
+
+    batch_has_profile = "content_profile" in batch
+    manifest_has_profile = "content_profile" in manifest
+    if batch_has_profile != manifest_has_profile:
+        raise HealthContentError("manifest profile 与当前批次不匹配")
+    if batch_has_profile:
+        batch_profile = batch.get("content_profile")
+        manifest_profile = manifest.get("content_profile")
+        if batch_profile != GENERAL_WELLNESS_PROFILE:
+            raise HealthContentError("不支持的批次 profile")
+        if manifest_profile != batch_profile:
+            raise HealthContentError("manifest profile 与当前批次不匹配")
 
 
 def _article_cards(manifest: Mapping) -> list[dict]:

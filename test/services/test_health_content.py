@@ -94,6 +94,18 @@ def _general_wellness_manifest() -> dict:
     return manifest
 
 
+def _general_wellness_topics() -> list[dict]:
+    return [
+        {
+            "slot": slot,
+            "category": f"lifestyle_{slot}",
+            "topic": f"第{slot}个日常习惯观察",
+            "audience": "35-60岁关注日常生活习惯的人群",
+        }
+        for slot in range(1, 11)
+    ]
+
+
 def test_seed_batch_has_ten_unique_topics_with_approved_mix():
     batch = health_content.create_seed_batch("20260809")
 
@@ -212,6 +224,70 @@ def test_state_transition_enforces_medical_and_final_gates():
         health_content.advance_topic_state(batch, content_id, "published", manifest)
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda manifest: manifest.update(content_id="HC20260810-002"),
+        lambda manifest: manifest.update(batch_id="HB20260809"),
+        lambda manifest: manifest.pop("content_profile"),
+        lambda manifest: manifest.update(content_profile="unknown_profile"),
+    ],
+)
+def test_general_batch_rejects_manifest_identity_or_profile_mismatch(mutation):
+    batch = health_content.create_seed_batch(
+        "20260810",
+        topics=_general_wellness_topics(),
+        content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+    )
+    manifest = _general_wellness_manifest()
+    mutation(manifest)
+
+    with pytest.raises(health_content.HealthContentError, match="匹配|profile"):
+        health_content.advance_topic_state(
+            batch,
+            "HC20260810-001",
+            "medical_review_pending",
+            manifest,
+        )
+
+
+def test_explicit_unknown_manifest_profile_fails_closed_for_direct_packaging():
+    manifest = _general_wellness_manifest()
+    manifest["content_profile"] = "unknown_profile"
+    manifest["quality"] = _approved_manifest()["quality"]
+    manifest["action"] = "去医院检查"
+
+    with pytest.raises(health_content.HealthContentError, match="profile"):
+        health_content.build_publish_pack(manifest)
+
+
+def test_profileless_direct_call_is_legacy_only_not_general_shaped():
+    manifest = _general_wellness_manifest()
+    manifest.pop("content_profile")
+
+    with pytest.raises(health_content.HealthContentError, match="profile"):
+        health_content.build_publish_pack(manifest)
+
+
+def test_legacy_91_point_manifest_cannot_advance_general_batch():
+    batch = health_content.create_seed_batch(
+        "20260810",
+        topics=_general_wellness_topics(),
+        content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+    )
+    legacy_manifest = _approved_manifest()
+    legacy_manifest["content_id"] = "HC20260810-001"
+    legacy_manifest["batch_id"] = "HB20260810"
+
+    with pytest.raises(health_content.HealthContentError, match="profile"):
+        health_content.advance_topic_state(
+            batch,
+            "HC20260810-001",
+            "medical_review_pending",
+            legacy_manifest,
+        )
+
+
 def test_publish_pack_contains_seven_cards_and_four_distinct_platform_packages():
     pack = health_content.build_publish_pack(_approved_manifest())
 
@@ -324,6 +400,156 @@ def test_general_wellness_forbidden_terms_are_checked_only_in_public_fields():
     public_copy["action"] = "建议去医院检查。"
     with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
         health_content.validate_manifest(public_copy)
+
+
+@pytest.mark.parametrize(
+    "term",
+    (
+        "根治",
+        "治愈",
+        "一招见效",
+        "排毒",
+        "逆转所有",
+        "医生不会告诉你",
+        "停药",
+        "保证立即有用",
+        "疾病",
+        "诊断",
+        "治疗",
+        "医生",
+        "医务",
+        "医院",
+        "门诊",
+        "检查",
+        "血糖",
+        "血压",
+        "血脂",
+        "尿酸",
+        "血氧",
+        "体温",
+        "减重云",
+        "健康卫士",
+        "体脂秤",
+        "医疗器械",
+        "健康科普",
+        "不替代诊疗",
+        "专家",
+        "处方",
+        "医学曲线",
+    ),
+)
+def test_general_wellness_rejects_complete_public_policy_vocabulary(term):
+    manifest = _general_wellness_manifest()
+    manifest["interaction"] = f"请分享你的习惯：{term}"
+
+    with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
+        health_content.validate_manifest(manifest)
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "topic",
+        "scenario",
+        "hook",
+        "core_claim",
+        "mechanism",
+        "action",
+        "interaction",
+        "applicable_to",
+        "not_applicable_to",
+        "medical_attention",
+        "observations",
+        "save_reason",
+    ),
+)
+def test_general_wellness_scans_every_public_content_field(field):
+    manifest = _general_wellness_manifest()
+    if field in {"applicable_to", "not_applicable_to"}:
+        manifest[field] = ["一招见效"]
+    elif field == "observations":
+        manifest[field][0]["detail"] = "一招见效"
+    else:
+        manifest[field] = "一招见效"
+
+    with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
+        health_content.validate_manifest(manifest)
+
+
+def test_general_wellness_internal_policy_terms_are_allowed_but_never_published():
+    manifest = _general_wellness_manifest()
+    internal_terms = "医院专家核对处方与医学曲线，仅作内部审核。"
+    manifest["sources"][0]["title"] = internal_terms
+    manifest["medical_review"]["notes"] = internal_terms
+
+    pack = health_content.build_publish_pack(manifest)
+
+    assert "医院" not in str(pack)
+    assert "专家" not in str(pack)
+    assert "处方" not in str(pack)
+    assert "医学曲线" not in str(pack)
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "content_id",
+        "batch_id",
+        "category",
+        "audience",
+        "topic",
+        "scenario",
+        "hook",
+        "core_claim",
+        "mechanism",
+        "action",
+        "interaction",
+        "medical_attention",
+        "save_reason",
+    ),
+)
+@pytest.mark.parametrize("invalid_value", (None, 42, True, [], {}, "   "))
+def test_general_wellness_rejects_non_string_or_blank_manifest_text(
+    field, invalid_value
+):
+    manifest = _general_wellness_manifest()
+    manifest[field] = invalid_value
+
+    with pytest.raises(health_content.HealthContentError):
+        health_content.validate_manifest(manifest)
+
+
+@pytest.mark.parametrize("invalid_value", (None, 42, True, [], {}, "   "))
+def test_general_wellness_rejects_non_string_nested_text(invalid_value):
+    manifests = []
+
+    source = _general_wellness_manifest()
+    source["sources"][0]["title"] = invalid_value
+    manifests.append(source)
+
+    observation = _general_wellness_manifest()
+    observation["observations"][0]["detail"] = invalid_value
+    manifests.append(observation)
+
+    audience_boundary = _general_wellness_manifest()
+    audience_boundary["applicable_to"][0] = invalid_value
+    manifests.append(audience_boundary)
+
+    medical_review = _general_wellness_manifest()
+    medical_review["medical_review"]["notes"] = invalid_value
+    manifests.append(medical_review)
+
+    automated_qa = _general_wellness_manifest()
+    automated_qa["automated_qa"]["checked_at"] = invalid_value
+    manifests.append(automated_qa)
+
+    final_qa = _general_wellness_manifest()
+    final_qa["final_qa"]["reviewer"] = invalid_value
+    manifests.append(final_qa)
+
+    for manifest in manifests:
+        with pytest.raises(health_content.HealthContentError):
+            health_content.validate_manifest(manifest)
 
 
 def test_metric_snapshots_are_unique_per_content_platform_format_and_window():
