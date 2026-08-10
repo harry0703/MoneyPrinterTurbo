@@ -160,6 +160,47 @@ def test_publish_pack_requires_automated_qa_and_independent_final_review():
         health_content.build_publish_pack(manifest)
 
 
+@pytest.mark.parametrize(
+    ("medical_reviewer", "final_reviewer"),
+    (
+        ("reviewer-a", " reviewer-a "),
+        (" reviewer-a ", "reviewer-a"),
+        ("Reviewer-A", "reviewer-a"),
+        ("Ｒｅｖｉｅｗｅｒ－Ａ", "reviewer-a"),
+        ("KELVIN", "kelvin"),
+        ("审核人", "　审核人　"),
+    ),
+)
+def test_independent_reviewer_gate_rejects_canonical_identity_equivalents(
+    medical_reviewer, final_reviewer
+):
+    manifest = _general_wellness_manifest()
+    manifest["medical_review"]["reviewer"] = medical_reviewer
+    manifest["final_qa"]["reviewer"] = final_reviewer
+
+    with pytest.raises(health_content.HealthContentError, match="审核人|前后空白"):
+        health_content.build_publish_pack(manifest)
+
+
+def test_reviewer_gate_rejects_noncanonical_boundary_whitespace():
+    manifest = _general_wellness_manifest()
+    manifest["medical_review"]["reviewer"] = " reviewer-a "
+    manifest["final_qa"]["reviewer"] = "reviewer-b"
+
+    with pytest.raises(health_content.HealthContentError, match="前后空白"):
+        health_content.build_publish_pack(manifest)
+
+
+def test_independent_reviewer_gate_allows_distinct_chinese_names_and_internal_spaces():
+    manifest = _general_wellness_manifest()
+    manifest["medical_review"]["reviewer"] = "王 小明"
+    manifest["final_qa"]["reviewer"] = "李 小红"
+
+    pack = health_content.build_publish_pack(manifest)
+
+    assert pack["status"] == "human_pending"
+
+
 def test_manifest_rejects_credential_fields_at_any_depth():
     manifest = _approved_manifest()
     manifest["sources"][0]["api_key"] = "must-not-be-stored"

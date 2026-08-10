@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import unicodedata
 from collections import Counter
 from copy import deepcopy
 from pathlib import Path
@@ -204,6 +205,18 @@ def _is_optional_text(value: object) -> bool:
     return isinstance(value, str) and (value == "" or bool(value.strip()))
 
 
+def _canonical_reviewer_identity(
+    value: object, error_type: type[HealthContentError]
+) -> str:
+    if not _is_nonempty_text(value):
+        raise error_type("审核人身份必须为非空文本")
+    normalized = unicodedata.normalize("NFKC", value)
+    trimmed = normalized.strip()
+    if normalized != trimmed:
+        raise error_type("审核人身份不得包含前后空白")
+    return trimmed.casefold()
+
+
 def validate_manifest(manifest: Mapping) -> dict:
     """验证事实卡、边界和安全表述，不会自动推进状态。"""
     _reject_credentials(manifest)
@@ -400,6 +413,7 @@ def _require_medical_review(manifest: Mapping) -> Mapping:
         or not _is_nonempty_text(review.get("reviewed_at"))
     ):
         raise MedicalReviewRequired("医学审核记录缺少审核人或时间")
+    _canonical_reviewer_identity(review["reviewer"], MedicalReviewRequired)
     return review
 
 
@@ -412,7 +426,13 @@ def _require_final_qa(manifest: Mapping, medical_review: Mapping) -> None:
         or not _is_nonempty_text(final_qa.get("reviewed_at"))
     ):
         raise FinalQARequired("必须有独立人工终审通过记录")
-    if final_qa["reviewer"] == medical_review["reviewer"]:
+    medical_identity = _canonical_reviewer_identity(
+        medical_review.get("reviewer"), MedicalReviewRequired
+    )
+    final_identity = _canonical_reviewer_identity(
+        final_qa["reviewer"], FinalQARequired
+    )
+    if final_identity == medical_identity:
         raise FinalQARequired("医学审核与人工终审必须由不同审核人执行")
 
 
