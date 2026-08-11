@@ -1,0 +1,79 @@
+{
+  "content_id": "HC20260810-010",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "weekly_pattern",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "连续7天，找到自己的午后规律",
+  "scenario": "周末客厅里回看手机七日点选，只找重复与例外，不给自己打分。",
+  "hook": "这一周的午后，不用给自己打分，只把重复和例外放到一起看。",
+  "core_claim": "七天只是覆盖工作日与周末的第一轮观察，不是习惯形成或稳定结论的期限。",
+  "mechanism": "持续使用同一组简单字段便于个人比较，漏记留空比补猜更诚实。",
+  "action": "每天用手机点选睡起、午餐饭后安排、午后时点三项，第七天只看重复和例外。",
+  "interaction": "回看一周时，你会先看重复，还是先看例外？",
+  "applicable_to": [
+    "希望了解个人午后节奏并能手机简记的普通成年人"
+  ],
+  "not_applicable_to": [
+    "轮班刚变、跨时区旅行或一周记录大量缺失的人"
+  ],
+  "medical_attention": "记录不能替代即时安全判断；难以保持清醒时先停止高风险操作。",
+  "observations": [
+    {
+      "label": "前夜睡起",
+      "detail": "保留大致入睡与起床时间"
+    },
+    {
+      "label": "午餐饭后",
+      "detail": "记录午餐结束与饭后安排"
+    },
+    {
+      "label": "午后时点",
+      "detail": "留意发沉和做事较顺的时点"
+    }
+  ],
+  "save_reason": "收藏这份周复盘，下一轮继续用同一组字段。",
+  "sources": [
+    {
+      "title": "About Sleep",
+      "publisher": "CDC",
+      "url": "https://www.cdc.gov/sleep/about/index.html",
+      "published_at": "2024-05-15"
+    },
+    {
+      "title": "How are habits formed: Modelling habit formation in the real world",
+      "publisher": "Wiley",
+      "url": "https://doi.org/10.1002/ejsp.674",
+      "published_at": "2009-07-16"
+    }
+  ],
+  "medical_review": {
+    "status": "pending",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "待Task8真实内部事实与原创审核；本Task不虚构通过。"
+  },
+  "quality": {
+    "topic_value": 20,
+    "medical_credibility": 19,
+    "retention": 19,
+    "visual_explanation": 14,
+    "save_value": 14,
+    "follow_conversion": 8
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "pending",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 57,
+  "narration_han_characters": 183,
+  "target_cps": 3.21
+}
