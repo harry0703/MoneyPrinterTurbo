@@ -1,4 +1,4 @@
-# MoneyPrinterTurbo configuration example.
+# clip configuration example.
 # The app copies this file to config.toml on first run. Keep API keys and other
 # credentials in config.toml; do not commit your local config.toml.
 
@@ -84,7 +84,7 @@ sonilo_timeout = 600
 llm_provider = "moonshot"
 
 # Kimi / Moonshot AI
-# API key: https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo
+# API key: https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=create-api-key
 moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""

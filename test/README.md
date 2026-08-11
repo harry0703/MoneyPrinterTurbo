@@ -1,6 +1,6 @@
-# MoneyPrinterTurbo Test Directory
+# clip-builder Test Directory
 
-This directory contains unit tests for the **MoneyPrinterTurbo** project.
+This directory contains unit tests for the **clip-builder** project.
 
 ## Directory Structure
 
@@ -17,24 +17,30 @@ The CI suite uses pytest, which also runs the existing `unittest.TestCase`
 tests:
 
 ```bash
+# Activate the virtual environment and install pytest if not already done
+source venv/bin/activate
+python -m pip install pytest
+```
+
+```bash
 # Run all tests
-uv run python -X utf8 -m pytest -q test
+python -X utf8 -m pytest -q test
 
 # Run a specific test file
-uv run python -X utf8 -m pytest -q test/services/test_video.py
+python -X utf8 -m pytest -q test/services/test_video.py
 
 # Run a specific test class
-uv run python -X utf8 -m pytest -q test/services/test_video.py::TestVideoService
+python -X utf8 -m pytest -q test/services/test_video.py::TestVideoService
 
 # Run a specific test method
-uv run python -X utf8 -m pytest -q test/services/test_video.py::TestVideoService::test_preprocess_video
+python -X utf8 -m pytest -q test/services/test_video.py::TestVideoService::test_preprocess_video
 ```
 
 To run the same branch coverage check used by CI:
 
 ```bash
-uv run python -X utf8 -m coverage run -m pytest -q test
-uv run python -m coverage report
+python -X utf8 -m coverage run -m pytest -q test
+python -m coverage report
 ```
 
 Live provider tests are skipped by default. To run tests that may call external

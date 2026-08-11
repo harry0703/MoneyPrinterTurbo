@@ -499,7 +499,7 @@ class VideoMaterialRetrieveResponse(BaseResponse):
                         {
                             "name": "example.mp4",
                             "size": 12345678,
-                            "file": "/MoneyPrinterTurbo/resource/videos/example.mp4",
+                            "file": "/clip-builder/resource/videos/example.mp4",
                         }
                     ]
                 },
@@ -513,7 +513,7 @@ class VideoMaterialUploadResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "file": "/MoneyPrinterTurbo/resource/videos/example.mp4",
+                    "file": "/clip-builder/resource/videos/example.mp4",
                 },
             },
         }

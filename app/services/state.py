@@ -100,7 +100,7 @@ class RedisState(BaseState):
     Redis-backed task state.
 
     Trust boundary: Redis is expected to be private to this application. Task
-    values are written by MoneyPrinterTurbo and converted back from strings for
+    values are written by clip-builder and converted back from strings for
     compatibility with existing state records. Do not expose this Redis database
     to untrusted writers without replacing deserialization with a stricter
     schema-based format.

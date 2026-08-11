@@ -1,4 +1,4 @@
-"""检查 MoneyPrinterTurbo 是否存在可用的新正式版本。"""
+"""检查 clip-builder 是否存在可用的新正式版本。"""
 
 import threading
 import time
@@ -12,10 +12,10 @@ from packaging.version import InvalidVersion, Version
 
 
 LATEST_RELEASE_API_URL: Final = (
-    "https://api.github.com/repos/harry0703/MoneyPrinterTurbo/releases/latest"
+    "https://api.github.com/repos/RafaGomezGuillen/clip-builder/releases/latest"
 )
 LATEST_RELEASE_PAGE_URL: Final = (
-    "https://github.com/harry0703/MoneyPrinterTurbo/releases/latest"
+    "https://github.com/RafaGomezGuillen/clip-builder/releases/latest"
 )
 # 更新检查只是辅助功能，网络异常不能明显拖慢本地 WebUI。连接与读取分别限制
 # 超时时间，既允许 GitHub 在普通网络下完成响应，也避免离线环境长时间等待。
@@ -23,7 +23,7 @@ RELEASE_CHECK_TIMEOUT: Final = (1.0, 2.0)
 RELEASE_CHECK_HEADERS: Final = {
     "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "MoneyPrinterTurbo-Version-Checker",
+    "User-Agent": "clip-builder-Version-Checker",
 }
 UPDATE_CHECK_CACHE_TTL_SECONDS: Final = 12 * 60 * 60
 
@@ -91,7 +91,7 @@ def get_available_update(current_version: str) -> str | None:
 
     normalized_latest_version = str(latest_version)
     logger.info(
-        "MoneyPrinterTurbo update available: "
+        "clip-builder update available: "
         f"current={installed_version}, latest={normalized_latest_version}"
     )
     return normalized_latest_version
@@ -180,7 +180,7 @@ class AsyncUpdateChecker:
             # get_available_update 已处理预期的网络和数据异常。此处是后台线程的
             # 最后保护边界，必须记录完整堆栈，避免意外异常静默终止后永久 pending。
             logger.exception(
-                "unexpected error while checking for a MoneyPrinterTurbo update"
+                "unexpected error while checking for a clip-builder update"
             )
             available_version = None
 
