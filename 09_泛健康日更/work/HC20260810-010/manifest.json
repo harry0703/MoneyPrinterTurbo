@@ -8,10 +8,10 @@
   "audience": "中国大陆35—60岁用户",
   "topic": "连续7天，找到自己的午后规律",
   "scenario": "周末客厅里回看手机七日点选，只找重复与例外，不给自己打分。",
-  "hook": "这一周的午后，不用给自己打分，只把重复和例外放到一起看。",
+  "hook": "七天回看，只找重复例外。",
   "core_claim": "七天只是覆盖工作日与周末的第一轮观察，不是习惯形成或稳定结论的期限。",
   "mechanism": "持续使用同一组简单字段便于个人比较，漏记留空比补猜更诚实。",
-  "action": "每天用手机点选睡起、午餐饭后安排、午后时点三项，第七天只看重复和例外。",
+  "action": "连续七天用手机记录同样三项，漏记留空，第七天只看重复与例外。",
   "interaction": "回看一周时，你会先看重复，还是先看例外？",
   "applicable_to": [
     "希望了解个人午后节奏并能手机简记的普通成年人"
@@ -34,7 +34,7 @@
       "detail": "留意发沉和做事较顺的时点"
     }
   ],
-  "save_reason": "收藏这份周复盘，下一轮继续用同一组字段。",
+  "save_reason": "同一组字段可留给下一轮继续记录和比较。",
   "sources": [
     {
       "title": "About Sleep",
@@ -59,7 +59,7 @@
     "topic_value": 20,
     "medical_credibility": 19,
     "retention": 19,
-    "visual_explanation": 14,
+    "visual_explanation": 15,
     "save_value": 14,
     "follow_conversion": 8
   },
@@ -74,6 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 57,
-  "narration_han_characters": 183,
-  "target_cps": 3.21
+  "narration_han_characters": 188,
+  "target_cps": 3.3,
+  "public_topic": "连续七天记录午后变化"
 }

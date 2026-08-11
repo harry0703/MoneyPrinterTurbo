@@ -66,6 +66,7 @@ def _general_wellness_manifest() -> dict:
             "account_name": "生活节奏看得见",
             "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
             "topic": "午饭后总想打盹，先观察3件事",
+            "public_topic": "午后犯困先看三件事",
             "scenario": "午饭后明显困倦",
             "hook": "吃完午饭总想睡，先别急着归因。",
             "core_claim": "饭后困倦可以从睡眠、进餐和饭后安排三个方向观察。",
@@ -481,6 +482,7 @@ def test_general_wellness_profile_requires_identity_observations_and_save_reason
         lambda item: item.update(account_bio="其他简介"),
         lambda item: item.update(observations=item["observations"][:2]),
         lambda item: item.update(save_reason=""),
+        lambda item: item.pop("public_topic"),
         lambda item: item.pop("medical_review"),
         lambda item: item["automated_qa"].pop("checked_at"),
         lambda item: item["final_qa"].pop("reviewer"),
@@ -592,7 +594,7 @@ def test_general_wellness_rejects_exact_immediate_effect_phrase_in_final_pack(
 @pytest.mark.parametrize(
     "field",
     (
-        "topic",
+        "public_topic",
         "scenario",
         "hook",
         "core_claim",
@@ -641,6 +643,7 @@ def test_general_wellness_internal_policy_terms_are_allowed_but_never_published(
         "category",
         "audience",
         "topic",
+        "public_topic",
         "scenario",
         "hook",
         "core_claim",
@@ -660,6 +663,45 @@ def test_general_wellness_rejects_non_string_or_blank_manifest_text(
 
     with pytest.raises(health_content.HealthContentError):
         health_content.validate_manifest(manifest)
+
+
+@pytest.mark.parametrize("invalid_value", (None, 42, True, [], {}, "   "))
+def test_general_wellness_requires_nonblank_string_public_topic(invalid_value):
+    manifest = _general_wellness_manifest()
+    manifest["public_topic"] = invalid_value
+
+    with pytest.raises(health_content.HealthContentError, match="公开题面"):
+        health_content.validate_manifest(manifest)
+
+
+def test_general_wellness_rejects_forbidden_public_topic():
+    manifest = _general_wellness_manifest()
+    manifest["public_topic"] = "专家教你看午后状态"
+
+    with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
+        health_content.validate_manifest(manifest)
+
+
+@pytest.mark.parametrize(
+    ("internal_topic", "public_topic"),
+    (
+        ("午后嘴馋，先分清饿、渴还是习惯", "午后嘴馋先记三类线索"),
+        ("下午最难的任务，什么时候做更顺", "下午难任务何时做更顺"),
+        ("连续7天，找到自己的午后规律", "连续七天记录午后变化"),
+    ),
+)
+def test_general_wellness_publish_pack_never_leaks_internal_approved_topic(
+    internal_topic, public_topic
+):
+    manifest = _general_wellness_manifest()
+    manifest["topic"] = internal_topic
+    manifest["public_topic"] = public_topic
+
+    pack = health_content.build_publish_pack(manifest)
+    serialized = str(pack)
+
+    assert internal_topic not in serialized
+    assert public_topic in serialized
 
 
 @pytest.mark.parametrize("invalid_value", (None, 42, True, [], {}, "   "))

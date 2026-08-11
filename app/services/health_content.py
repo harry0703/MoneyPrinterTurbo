@@ -73,13 +73,14 @@ _GENERAL_WELLNESS_ACCOUNT_BIO = "记录睡眠、进餐和日常活动中的小�
 _GENERAL_WELLNESS_ONLY_FIELDS = (
     "account_name",
     "account_bio",
+    "public_topic",
     "observations",
     "save_reason",
 )
 _GENERAL_WELLNESS_PUBLIC_FIELDS = (
     "account_name",
     "account_bio",
-    "topic",
+    "public_topic",
     "scenario",
     "hook",
     "core_claim",
@@ -280,6 +281,7 @@ def _validate_general_wellness_manifest(manifest: Mapping) -> None:
         raise HealthContentError("通用生活方式内容的账号名不匹配")
     if manifest.get("account_bio") != _GENERAL_WELLNESS_ACCOUNT_BIO:
         raise HealthContentError("通用生活方式内容的账号简介不匹配")
+    _require_text(manifest, "public_topic", "公开题面")
 
     observations = manifest.get("observations")
     if not isinstance(observations, list) or len(observations) != 3:
@@ -557,7 +559,7 @@ def _article_cards(manifest: Mapping) -> list[dict]:
     if manifest.get("content_profile") == GENERAL_WELLNESS_PROFILE:
         observations = manifest["observations"]
         cards = (
-            ("封面", manifest["topic"]),
+            ("封面", manifest["public_topic"]),
             ("场景", manifest["scenario"]),
             ("观察一", f"{observations[0]['label']}：{observations[0]['detail']}"),
             ("观察二", f"{observations[1]['label']}：{observations[1]['detail']}"),
@@ -585,7 +587,11 @@ def _article_cards(manifest: Mapping) -> list[dict]:
 
 
 def _platform_package(manifest: Mapping, platform: str) -> dict:
-    topic = manifest["topic"]
+    topic = (
+        manifest["public_topic"]
+        if manifest.get("content_profile") == GENERAL_WELLNESS_PROFILE
+        else manifest["topic"]
+    )
     hook = manifest["hook"]
     action = manifest["action"]
     interaction = manifest["interaction"]

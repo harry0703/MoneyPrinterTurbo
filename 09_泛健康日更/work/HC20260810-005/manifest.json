@@ -8,7 +8,7 @@
   "audience": "中国大陆35—60岁用户",
   "topic": "下午没精神，试试3分钟状态重启",
   "scenario": "办公室里想休息，却把流程列得太满，迟迟没有开始。",
-  "hook": "下午没精神时，很多人把休息计划得太满，结果还没开始就放弃。",
+  "hook": "下午卡住，重启别排满。",
   "core_claim": "短暂停顿可能小幅改变主观感受，但三分钟只是低门槛计时，不是恢复公式。",
   "mechanism": "微休息效果受睡眠、时段、任务与情境影响，总体表现变化并不确定。",
   "action": "设三分钟系统计时，只做离开屏幕、换姿势或看远处中的一件。",
@@ -34,7 +34,7 @@
       "detail": "感受清醒度是否有变化"
     }
   ],
-  "save_reason": "存好这段流程，卡住时少想一步就能启动。",
+  "save_reason": "简短流程可留作下次卡住时的启动提示。",
   "sources": [
     {
       "title": "Rest Breaks",
@@ -58,7 +58,7 @@
   "quality": {
     "topic_value": 19,
     "medical_credibility": 19,
-    "retention": 20,
+    "retention": 19,
     "visual_explanation": 15,
     "save_value": 14,
     "follow_conversion": 8
@@ -74,6 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 56,
-  "narration_han_characters": 182,
-  "target_cps": 3.25
+  "narration_han_characters": 168,
+  "target_cps": 3.0,
+  "public_topic": "下午没精神的小重启"
 }

@@ -8,10 +8,10 @@
   "audience": "中国大陆35—60岁用户",
   "topic": "午后嘴馋，先分清饿、渴还是习惯",
   "scenario": "社区休息区看见零食后伸手，先停一下分开感受和场景。",
-  "hook": "午后手伸向零食前，问自己三句：肚子真的饿吗，口里觉得渴吗，还是刚好看到食物或到了固定时点？",
+  "hook": "午后嘴馋，先记三类线索。",
   "core_claim": "口渴与饥饿可能不同步，不能把渴变饿写成普遍规律，也不能由一次记录认定原因。",
   "mechanism": "小样本受控条件未支持渴必然变饿，只能把饿、渴和场景当作个人观察字段。",
-  "action": "拿零食前在手机点选饿、渴、场景三项，再决定吃、喝或先离开当时位置。",
+  "action": "拿零食前在手机点选饿、渴、场景三类线索，再自主决定下一步。",
   "interaction": "你午后想吃东西时，哪个场景出现得更频繁？",
   "applicable_to": [
     "常在固定午后场景想吃零食的普通成年人"
@@ -34,7 +34,7 @@
       "detail": "记录看到食物、暂停或固定时点"
     }
   ],
-  "save_reason": "收藏三句自问，下回想吃东西时多一个停顿。",
+  "save_reason": "三类线索可留作同类场景再次出现时的参照。",
   "sources": [
     {
       "title": "Steps for Losing Weight",
@@ -74,6 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 56,
-  "narration_han_characters": 180,
-  "target_cps": 3.21
+  "narration_han_characters": 169,
+  "target_cps": 3.02,
+  "public_topic": "午后嘴馋先记三类线索"
 }

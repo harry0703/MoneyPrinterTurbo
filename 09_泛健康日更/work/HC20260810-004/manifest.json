@@ -8,10 +8,10 @@
   "audience": "中国大陆35—60岁用户",
   "topic": "饭后一直坐和轻松走动，感受有什么不同",
   "scenario": "社区午后，同一个人把一直坐着和轻松走一段放进不同日子比较。",
-  "hook": "连续几天饭后都坐着，不妨挑一天轻松走动，看看自己的感受有没有差别。",
+  "hook": "七天饭后，坐走各有感受。",
   "core_claim": "减少连续久坐符合活动方向，但饭后走动不代表人人都会更舒服。",
   "mechanism": "小样本材料只支持特定条件下的短期差异，因此适合个人对比，不适合承诺结果。",
-  "action": "在安全平坦处短短走一段，保持能自然说话的程度，再与平常坐着的感受比较。",
+  "action": "七天内在安全与日程允许时分别观察坐着和轻走，今天先如实记录一种安排。",
   "interaction": "你饭后更常坐着，还是轻松走一段？",
   "applicable_to": [
     "饭后常久坐且能安全轻松活动的普通成年人"
@@ -34,7 +34,7 @@
       "detail": "比较舒适、困意与做事感觉"
     }
   ],
-  "save_reason": "收藏这套对比法，改天换同类场景再验证。",
+  "save_reason": "七天对照可留作饭后坐走感受的第一轮记录。",
   "sources": [
     {
       "title": "WHO guidelines on physical activity and sedentary behaviour: at a glance",
@@ -74,6 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 54,
-  "narration_han_characters": 169,
-  "target_cps": 3.13
+  "narration_han_characters": 167,
+  "target_cps": 3.09,
+  "public_topic": "饭后坐着或轻走的感受"
 }

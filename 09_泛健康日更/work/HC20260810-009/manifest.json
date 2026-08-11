@@ -8,10 +8,10 @@
   "audience": "中国大陆35—60岁用户",
   "topic": "下午最难的任务，什么时候做更顺",
   "scenario": "同一段难度高的工作，在两个下午时点启动，感受并不完全一样。",
-  "hook": "同一项费脑的工作，午后刚开始就卡住，换个时点却可能顺一些。",
+  "hook": "下午难任务，换时点再比。",
   "core_claim": "不存在人人相同的下午黄金时点，任务、睡眠、环境与个人偏好都会改变表现。",
   "mechanism": "材料显示时点关系存在明显差异，因此适合用同类任务做个人重复比较。",
-  "action": "截取同类任务的一小段，记录开始时间、启动难度与返工次数，下次换时点再比。",
+  "action": "截取同类任务的一小段，分别记录两个下午时点的启动、返工与完成感。",
   "interaction": "你下午处理难任务时，更在意启动还是返工？",
   "applicable_to": [
     "能在可调整范围内安排个人任务顺序的普通成年人"
@@ -34,7 +34,7 @@
       "detail": "记录启动用时、返工与完成感"
     }
   ],
-  "save_reason": "留好任务对比，下周排活时能多一条个人依据。",
+  "save_reason": "任务对比可留作下周排活的一条个人依据。",
   "sources": [
     {
       "title": "Afternoon Dip in Wakefulness",
@@ -58,7 +58,7 @@
   "quality": {
     "topic_value": 19,
     "medical_credibility": 19,
-    "retention": 20,
+    "retention": 19,
     "visual_explanation": 15,
     "save_value": 14,
     "follow_conversion": 8
@@ -74,6 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 56,
-  "narration_han_characters": 178,
-  "target_cps": 3.18
+  "narration_han_characters": 169,
+  "target_cps": 3.02,
+  "public_topic": "下午难任务何时做更顺"
 }

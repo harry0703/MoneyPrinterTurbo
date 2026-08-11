@@ -8,7 +8,7 @@
   "audience": "中国大陆35—60岁用户",
   "topic": "下午总靠咖啡顶，先记录饮用时间",
   "scenario": "桌边的咖啡杯成为时点提示，而不是继续加量的信号。",
-  "hook": "看到桌边那只咖啡杯，先别续杯，把时间当作线索。",
+  "hook": "桌边咖啡，先记饮用时点。",
   "core_claim": "咖啡因影响与时点、份量和个人敏感度有关，不能设所有人的统一停饮时点。",
   "mechanism": "固定高量小样本结果不能直接等同日常一杯，个人重复记录比统一禁令稳妥。",
   "action": "把末次饮用时间和大致份量记进手机，晚上补一条入睡感受。",
@@ -34,7 +34,7 @@
       "detail": "补充躺下与入睡的主观感受"
     }
   ],
-  "save_reason": "存下这张时间卡，下一杯更容易看懂前后关系。",
+  "save_reason": "时间卡可留作下一杯与当晚感受的前后比较。",
   "sources": [
     {
       "title": "Scientific Opinion on the safety of caffeine",
@@ -61,7 +61,7 @@
     "retention": 19,
     "visual_explanation": 15,
     "save_value": 14,
-    "follow_conversion": 9
+    "follow_conversion": 8
   },
   "automated_qa": {
     "status": "pending",
@@ -74,6 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 56,
-  "narration_han_characters": 184,
-  "target_cps": 3.29
+  "narration_han_characters": 169,
+  "target_cps": 3.02,
+  "public_topic": "下午喝咖啡先记时点"
 }

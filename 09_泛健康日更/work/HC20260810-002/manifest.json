@@ -8,7 +8,7 @@
   "audience": "中国大陆35—60岁用户",
   "topic": "吃饭太快，下午状态有什么不同",
   "scenario": "办公室午餐结束后，同样一份饭，一次匆匆吃完，一次中途停顿。",
-  "hook": "同样一份午餐，匆匆吃完和从容吃完，下午感受可能并不相同。",
+  "hook": "同份午餐，快慢有何不同？",
   "core_claim": "放慢一点能增加留意份量与饱足感的机会，但不代表下午就会更清醒。",
   "mechanism": "进餐速度适合作为个人对比变量，现有材料不能把它写成午后状态的单一解释。",
   "action": "午餐中途停一下，问自己还饿吗、已经够了吗，再决定是否继续。",
@@ -34,7 +34,7 @@
       "detail": "记录清醒与专注的主观感受"
     }
   ],
-  "save_reason": "留住中途停顿，下顿饭可以直接照着试。",
+  "save_reason": "中途停顿可留作下顿饭的再次尝试。",
   "sources": [
     {
       "title": "健康中国行动（2019—2030年）",
@@ -59,9 +59,9 @@
     "topic_value": 19,
     "medical_credibility": 19,
     "retention": 19,
-    "visual_explanation": 14,
+    "visual_explanation": 15,
     "save_value": 14,
-    "follow_conversion": 9
+    "follow_conversion": 8
   },
   "automated_qa": {
     "status": "pending",
@@ -74,6 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 55,
-  "narration_han_characters": 176,
-  "target_cps": 3.2
+  "narration_han_characters": 166,
+  "target_cps": 3.02,
+  "public_topic": "吃饭快慢与下午感受"
 }
