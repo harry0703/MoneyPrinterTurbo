@@ -1497,11 +1497,12 @@ def _render_generation_task_snapshot(task_id, task):
         )
 
     _render_generation_logs(task_id)
-    if st.session_state.get("opened_generation_task_id") != task_id:
-        # 原同步流程会在生成完成后自动打开任务目录。Fragment 可能重复运行，
-        # 因此用会话标记保证每个任务只打开一次，避免连续弹出 Finder/资源管理器。
-        st.session_state["opened_generation_task_id"] = task_id
-        open_task_folder(task_id)
+    if st.session_state.get("handled_generation_task_id") != task_id:
+        # Fragment 可能重复渲染同一个完成任务。无论是否开启自动打开目录，
+        # 每个任务都只处理一次完成事件，避免重复弹出资源管理器或重复写入日志。
+        st.session_state["handled_generation_task_id"] = task_id
+        if config.ui.get("open_task_folder_on_completion", True):
+            open_task_folder(task_id)
         logger.info(f"{tr('Video Generation Completed')}: task_id={task_id}")
 
 
@@ -1571,7 +1572,11 @@ def get_llm_provider_tips(provider_id, **kwargs):
         return tips
 
     format_context = {
-        "api_key_url": provider.api_key_url,
+        "api_key_url": (
+            provider.international_api_key_url
+            if tips_language == "en" and provider.international_api_key_url
+            else provider.api_key_url
+        ),
         "default_model": provider.default_model,
         "default_base_url": provider.default_base_url,
         **{

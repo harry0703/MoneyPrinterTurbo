@@ -6,6 +6,7 @@ import time
 from collections.abc import Mapping
 from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -131,8 +132,18 @@ def test_webui_runtime_config_updates_do_not_use_blocking_writes():
     assert direct_writes == []
 
 
-def test_completed_task_renders_subject_named_video_download(tmp_path):
-    """完成任务应提供主题命名的下载，且下载数据必须来自实际成片。"""
+@pytest.mark.parametrize(
+    ("ui_config", "expected_open_count"),
+    [
+        ({}, 1),
+        ({"open_task_folder_on_completion": True}, 1),
+        ({"open_task_folder_on_completion": False}, 0),
+    ],
+)
+def test_completed_task_renders_subject_named_video_download(
+    tmp_path, ui_config, expected_open_count
+):
+    """完成任务应提供成片下载，并按 WebUI 配置决定是否自动打开目录。"""
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     selected_nodes = []
     target_names = {
@@ -187,6 +198,7 @@ def test_completed_task_renders_subject_named_video_download(tmp_path):
     open_task_folder = MagicMock()
     namespace = {
         "Mapping": Mapping,
+        "config": SimpleNamespace(ui=ui_config),
         "const": const,
         "logger": MagicMock(),
         "mimetypes": __import__("mimetypes"),
@@ -226,7 +238,9 @@ def test_completed_task_renders_subject_named_video_download(tmp_path):
             },
         )
     ]
-    open_task_folder.assert_called_once_with("download-test")
+    assert open_task_folder.call_count == expected_open_count
+    if expected_open_count:
+        open_task_folder.assert_called_once_with("download-test")
 
 
 def test_submit_generation_returns_while_pipeline_is_still_running():

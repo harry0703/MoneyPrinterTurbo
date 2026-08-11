@@ -84,7 +84,7 @@ sonilo_timeout = 600
 llm_provider = "moonshot"
 
 # Kimi / Moonshot AI
-# API key: https://platform.kimi.com/console/api-keys
+# API key: https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo
 moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""
@@ -286,6 +286,10 @@ model_size = "large-v3"
 # "float16" or "int8_float16" for CUDA.
 device = "cpu"
 compute_type = "int8"
+# Optional prompt that biases Whisper's decoder toward specific vocabulary
+# (brand names, technical terms). Passed as initial_prompt to transcribe().
+# Leave empty to disable.
+# initial_prompt = ""
 
 # =============================================================================
 # Material Request Proxy / 素材请求代理
@@ -338,6 +342,10 @@ voices = ["default-Female"]
 [ui]
 # Hide generation logs in the WebUI.
 hide_log = false
+
+# Open the task folder automatically after video generation completes.
+# 视频生成完成后是否自动打开任务目录；关闭后仍可在任务管理中手动打开。
+open_task_folder_on_completion = true
 
 # The WebUI writes the remaining preferences automatically. Uncomment values
 # below only when you want to define initial defaults manually.
