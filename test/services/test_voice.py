@@ -1024,7 +1024,10 @@ class TestElevenLabsVoice(unittest.TestCase):
     @patch("app.services.voice.config")
     def test_elevenlabs_tts_no_api_key(self, mock_config):
         mock_config.elevenlabs.get.return_value = ""
-        result = vs.elevenlabs_tts("Hello", "abc123", "/tmp/test.mp3")
+        # Key 解析包含环境变量回退，宿主机上导出的 ELEVENLABS_API_KEY 会让
+        # "未配置 Key" 这个前提不再成立，因此显式清空。
+        with patch.dict(os.environ, {}, clear=True):
+            result = vs.elevenlabs_tts("Hello", "abc123", "/tmp/test.mp3")
         self.assertIsNone(result)
 
     @patch("app.services.voice.config")
@@ -1032,6 +1035,58 @@ class TestElevenLabsVoice(unittest.TestCase):
         mock_config.elevenlabs.get.return_value = "fake-key"
         result = vs.elevenlabs_tts("  ", "abc123", "/tmp/test.mp3")
         self.assertIsNone(result)
+
+    def test_api_key_prefers_config_over_environment(self):
+        with (
+            patch.object(vs.config, "elevenlabs", {"api_key": "config-key"}),
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": "env-key"}),
+        ):
+            self.assertEqual(vs.get_elevenlabs_api_key(), "config-key")
+
+    def test_api_key_falls_back_to_environment(self):
+        """
+        只设置 ELEVENLABS_API_KEY 的部署此前会在界面上看起来正常，却在生成阶段
+        以 "API key is not set" 失败，因为 TTS 只读取 config.toml。
+        """
+        with (
+            patch.object(vs.config, "elevenlabs", {"api_key": ""}),
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": "env-key"}),
+        ):
+            self.assertEqual(vs.get_elevenlabs_api_key(), "env-key")
+
+    def test_api_key_ignores_surrounding_whitespace(self):
+        with (
+            patch.object(vs.config, "elevenlabs", {"api_key": "   "}),
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": "  env-key  "}),
+        ):
+            self.assertEqual(vs.get_elevenlabs_api_key(), "env-key")
+
+    def test_api_key_missing_everywhere_is_empty(self):
+        with (
+            patch.object(vs.config, "elevenlabs", {}),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            self.assertEqual(vs.get_elevenlabs_api_key(), "")
+
+    def test_api_key_resolution_matches_music_service(self):
+        """TTS 与配乐共用同一个账号配置，两者的解析结果必须一致。"""
+        from app.services import elevenlabs_music
+
+        for config_key, env_key in (("config-key", "env-key"), ("", "env-key")):
+            with self.subTest(config_key=config_key, env_key=env_key):
+                with (
+                    patch.object(vs.config, "elevenlabs", {"api_key": config_key}),
+                    patch.object(
+                        elevenlabs_music.config,
+                        "elevenlabs",
+                        {"api_key": config_key},
+                    ),
+                    patch.dict(os.environ, {"ELEVENLABS_API_KEY": env_key}),
+                ):
+                    self.assertEqual(
+                        vs.get_elevenlabs_api_key(),
+                        elevenlabs_music.get_api_key(),
+                    )
 
 
 if __name__ == "__main__":

@@ -252,6 +252,18 @@ def is_elevenlabs_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("elevenlabs:")
 
 
+def get_elevenlabs_api_key() -> str:
+    """
+    读取 ElevenLabs TTS 使用的 API Key。
+
+    与 elevenlabs_music.get_api_key 保持一致：环境变量仅作为本机配置未填写时的
+    后备来源。缺少该回退时，只设置 ELEVENLABS_API_KEY 的部署会在界面上看起来
+    正常，却在生成阶段失败并提示 API Key 未设置。
+    """
+    configured_key = str(config.elevenlabs.get("api_key", "") or "").strip()
+    return configured_key or os.getenv("ELEVENLABS_API_KEY", "").strip()
+
+
 def is_chatterbox_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("chatterbox:")
 
@@ -1288,7 +1300,7 @@ def elevenlabs_tts(
         logger.error("ElevenLabs TTS text is empty")
         return None
 
-    api_key = config.elevenlabs.get("api_key", "")
+    api_key = get_elevenlabs_api_key()
     if not api_key:
         logger.error("ElevenLabs API key is not set")
         return None

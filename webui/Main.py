@@ -2784,8 +2784,9 @@ def _render_elevenlabs_api_key_input(label_key):
     后渲染的输入框还会覆盖共享配置。这里统一使用一个 key，并集中处理环境变量
     回填、配置更新和音色缓存失效，确保界面显示与后台任务始终读取同一个值。
     """
+    env_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
     configured_key = str(config.elevenlabs.get("api_key", "") or "").strip()
-    effective_key = configured_key or os.getenv("ELEVENLABS_API_KEY", "").strip()
+    effective_key = configured_key or env_key
     entered_key = st.text_input(
         tr(label_key),
         value=effective_key,
@@ -2799,8 +2800,15 @@ def _render_elevenlabs_api_key_input(label_key):
                 del st.session_state[cache_key]
 
     # 环境变量仅用于当前进程，不在用户未修改时自动复制到 config.toml。
-    # 已有配置或用户主动修改输入时才更新本机配置，与 Sonilo 行为保持一致。
-    if configured_key or entered_key != effective_key:
+    #
+    # An empty widget value must never clobber a stored key. Streamlit password
+    # inputs report an empty value whenever a session is replayed — for example
+    # when a still-open browser tab reconnects after a server restart — and the
+    # previous condition wrote that empty string straight back into config.toml,
+    # wiping the saved key on every restart. A replayed empty value cannot be
+    # told apart from a deliberate clear by value alone, so the stored key wins;
+    # remove it by editing config.toml.
+    if entered_key and entered_key != env_key:
         config.elevenlabs["api_key"] = entered_key
     return entered_key
 
@@ -3126,7 +3134,14 @@ def _render_audio_settings(panel, params):
                     "elevenlabs_api_key_input",
                     config.elevenlabs.get("api_key", ""),
                 )
-                if saved_elevenlabs_api_key:
+                # A key that only came from ELEVENLABS_API_KEY must not be copied
+                # into config.toml, which `save_config` rewrites on nearly every
+                # interaction. Both TTS and background music fall back to the
+                # environment variable themselves, so leaving it out costs
+                # nothing and keeps the secret in .env where it was put.
+                if saved_elevenlabs_api_key and saved_elevenlabs_api_key != os.getenv(
+                    "ELEVENLABS_API_KEY", ""
+                ).strip():
                     config.elevenlabs["api_key"] = saved_elevenlabs_api_key
                 cache_key = f"elevenlabs_voices_{saved_elevenlabs_api_key}"
                 if cache_key not in st.session_state:
