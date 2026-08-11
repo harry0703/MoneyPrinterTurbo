@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.models.schema import VideoAspect, VideoParams
+from app.models.schema import AudioRequest, SubtitleRequest, VideoAspect, VideoParams
 
 
 class TestVideoAspect(unittest.TestCase):
@@ -21,6 +21,28 @@ class TestVideoAspect(unittest.TestCase):
 
 
 class TestVideoParams(unittest.TestCase):
+    def test_normalizes_multiple_video_sources(self):
+        params = VideoParams(
+            video_subject="Coffee",
+            video_sources=["Pexels", "pixabay", "pexels"],
+        )
+
+        self.assertEqual(params.video_sources, ["pexels", "pixabay"])
+        self.assertEqual(params.video_source, "pexels")
+
+    def test_accepts_legacy_video_source_input(self):
+        params = VideoParams(video_subject="Coffee", video_source="coverr")
+
+        self.assertEqual(params.video_sources, ["coverr"])
+        self.assertEqual(params.video_source, "coverr")
+
+    def test_auxiliary_requests_use_local_source_lists(self):
+        subtitle = SubtitleRequest(video_script="script")
+        audio = AudioRequest(video_script="script", video_source="local")
+
+        self.assertEqual(subtitle.video_sources, ["local"])
+        self.assertEqual(audio.video_sources, ["local"])
+
     def test_rejects_non_positive_generation_counts(self):
         for field_name in ("video_clip_duration", "video_count"):
             for value in (0, -1, None):

@@ -1,5 +1,4 @@
 import os
-import random
 import threading
 from pathlib import Path
 from typing import Any, Callable, List
@@ -773,37 +772,49 @@ def _search_videos_with_cache(
 def download_videos(
     task_id: str,
     search_terms: List[str],
-    source: str = "pexels",
+    source: str | List[str] = "pexels",
     video_aspect: VideoAspect = VideoAspect.portrait,
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
-    provider = "pexels"
-    remote_search_videos = search_videos_pexels
-    if source == "pixabay":
-        provider = "pixabay"
-        remote_search_videos = search_videos_pixabay
-    elif source == "coverr":
-        provider = "coverr"
-        remote_search_videos = search_videos_coverr
-    elif source == "youtube":
-        provider = "youtube"
-        remote_search_videos = search_videos_youtube
+    sources = [source] if isinstance(source, str) else list(source or [])
+    sources = [str(item).strip().lower() for item in sources if str(item).strip()]
+    provider_searchers = {
+        "pexels": search_videos_pexels,
+        "pixabay": search_videos_pixabay,
+        "coverr": search_videos_coverr,
+        "youtube": search_videos_youtube,
+    }
 
     def search_videos(
         search_term: str,
         minimum_duration: int,
         video_aspect: VideoAspect,
     ) -> List[MaterialInfo]:
-        return _search_videos_with_cache(
-            provider=provider,
-            search_videos=remote_search_videos,
-            search_term=search_term,
-            minimum_duration=minimum_duration,
-            video_aspect=video_aspect,
-        )
+        results = []
+        for provider in sources:
+            remote_search_videos = provider_searchers.get(provider)
+            if remote_search_videos is None:
+                logger.warning(f"unsupported video provider skipped: {provider}")
+                continue
+            try:
+                results.extend(
+                    _search_videos_with_cache(
+                        provider=provider,
+                        search_videos=remote_search_videos,
+                        search_term=search_term,
+                        minimum_duration=minimum_duration,
+                        video_aspect=video_aspect,
+                    )
+                )
+            except Exception as exc:
+                logger.error(
+                    "video provider search failed; continuing with remaining providers: "
+                    f"provider={provider}, error={type(exc).__name__}, detail={exc}"
+                )
+        return results
 
     material_directory = config.app.get("material_directory", "").strip()
     if material_directory == "task":
@@ -844,10 +855,6 @@ def download_videos(
     )
     video_paths = []
     material_sources: list[dict[str, Any]] = []
-
-    concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
-    if concat_mode_value == VideoConcatMode.random.value:
-        random.shuffle(valid_video_items)
 
     total_duration = 0.0
     for item in valid_video_items:

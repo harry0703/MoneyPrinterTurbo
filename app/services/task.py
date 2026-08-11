@@ -564,7 +564,8 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
 
 def get_video_materials(task_id, params, video_terms, audio_duration):
-    if params.video_source == "local":
+    video_sources = list(getattr(params, "video_sources", None) or [params.video_source])
+    if "local" in video_sources:
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
             materials=params.video_materials, clip_duration=params.video_clip_duration
@@ -576,15 +577,22 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
                 "no valid local video materials were found",
             )
             return None
-        return [material_info.url for material_info in materials]
+        local_video_paths = [material_info.url for material_info in materials]
+        online_sources = [source for source in video_sources if source != "local"]
+        if not online_sources:
+            return local_video_paths
     else:
-        logger.info(f"\n\n## downloading videos from {params.video_source}")
+        local_video_paths = []
+        online_sources = video_sources
+
+    if online_sources:
+        logger.info(f"\n\n## downloading videos from {online_sources}")
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
         # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
         downloaded_videos = material.download_videos(
             task_id=task_id,
             search_terms=video_terms,
-            source=params.video_source,
+            source=online_sources,
             video_aspect=params.video_aspect,
             video_concat_mode=(
                 VideoConcatMode.sequential
@@ -595,14 +603,14 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             max_clip_duration=params.video_clip_duration,
             match_script_order=params.match_materials_to_script,
         )
-        if not downloaded_videos:
+        if not downloaded_videos and not local_video_paths:
             _mark_task_failed(
                 task_id,
                 "materials",
-                f"failed to download video materials from {params.video_source}",
+                f"failed to download video materials from {video_sources}",
             )
             return None
-        return downloaded_videos
+        return local_video_paths + downloaded_videos
 
 
 def generate_final_videos(
@@ -1108,7 +1116,7 @@ def _run_pipeline(
 
     # 2. Generate terms
     video_terms = ""
-    if params.video_source != "local":
+    if "local" not in (params.video_sources or []):
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             return _mark_task_failed(

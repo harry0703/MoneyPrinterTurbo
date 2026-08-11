@@ -755,6 +755,90 @@ class TestMaterialTlsVerification(unittest.TestCase):
             ["a1.mp4", "b1.mp4", "a2.mp4"],
         )
 
+    def test_download_videos_merges_sources_in_order_and_deduplicates_urls(self):
+        provider_items = {
+            "pexels": [
+                material.MaterialInfo(provider="pexels", url="https://v/a.mp4", duration=2),
+                material.MaterialInfo(provider="pexels", url="https://v/shared.mp4", duration=2),
+            ],
+            "pixabay": [
+                material.MaterialInfo(provider="pixabay", url="https://v/shared.mp4", duration=2),
+                material.MaterialInfo(provider="pixabay", url="https://v/b.mp4", duration=2),
+            ],
+            "coverr": [
+                material.MaterialInfo(provider="coverr", url="https://v/c.mp4", duration=2),
+            ],
+        }
+        downloaded_urls = []
+
+        def fake_search(search_term, minimum_duration, video_aspect):
+            return provider_items[search_term]
+
+        def fake_save_video(video_url, save_dir=""):
+            downloaded_urls.append(video_url)
+            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(material, "search_videos_pexels", side_effect=lambda search_term, **kwargs: fake_search("pexels", minimum_duration=kwargs["minimum_duration"], video_aspect=kwargs["video_aspect"])),
+            patch.object(material, "search_videos_pixabay", side_effect=lambda search_term, **kwargs: fake_search("pixabay", minimum_duration=kwargs["minimum_duration"], video_aspect=kwargs["video_aspect"])),
+            patch.object(material, "search_videos_coverr", side_effect=lambda search_term, **kwargs: fake_search("coverr", minimum_duration=kwargs["minimum_duration"], video_aspect=kwargs["video_aspect"])),
+            patch.object(material.material_cache, "load_material_search_cache", return_value=None),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(material.task_artifacts, "patch_script_data", return_value=True),
+        ):
+            result = material.download_videos(
+                task_id="multi-provider-order",
+                search_terms=["pexels", "pixabay", "coverr"],
+                source=["pexels", "pixabay", "coverr"],
+                video_concat_mode="sequential",
+                audio_duration=20,
+                max_clip_duration=2,
+            )
+
+        self.assertEqual(
+            downloaded_urls,
+            ["https://v/a.mp4", "https://v/shared.mp4", "https://v/b.mp4", "https://v/c.mp4"],
+        )
+        self.assertEqual(result, ["/tmp/a.mp4", "/tmp/shared.mp4", "/tmp/b.mp4", "/tmp/c.mp4"])
+
+    def test_download_videos_continues_after_provider_failure(self):
+        pixabay_item = material.MaterialInfo(
+            provider="pixabay", url="https://v/pixabay.mp4", duration=2
+        )
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(material, "search_videos_pexels", side_effect=TimeoutError("timeout")),
+            patch.object(material, "search_videos_pixabay", return_value=[pixabay_item]),
+            patch.object(material.material_cache, "load_material_search_cache", return_value=None),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(material, "save_video", return_value="/tmp/pixabay.mp4"),
+            patch.object(material.task_artifacts, "patch_script_data", return_value=True),
+        ):
+            result = material.download_videos(
+                task_id="partial-provider-failure",
+                search_terms=["term"],
+                source=["pexels", "pixabay"],
+                video_concat_mode="sequential",
+                audio_duration=2,
+                max_clip_duration=2,
+            )
+
+        self.assertEqual(result, ["/tmp/pixabay.mp4"])
+
+    def test_download_videos_with_empty_source_selection_returns_empty(self):
+        with patch.object(material, "save_video") as save_video:
+            result = material.download_videos(
+                task_id="empty-provider-selection",
+                search_terms=["term"],
+                source=[],
+            )
+
+        self.assertEqual(result, [])
+        save_video.assert_not_called()
+
     def test_material_source_persistence_failure_does_not_break_download(self):
         """辅助任务记录失败时，已经下载成功的素材仍应正常返回给成片主流程。"""
         item = material.MaterialInfo(
