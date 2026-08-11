@@ -414,7 +414,8 @@ def _build_restore_upload_requirements(params: Mapping) -> dict:
 def _get_unmet_restore_upload_requirements(
     requirements: Mapping | None,
     *,
-    video_sources: list[str],
+    video_sources: list[str] | None = None,
+    video_source: str | None = None,
     voice_name: str,
     has_local_materials: bool,
     has_custom_audio: bool,
@@ -422,6 +423,8 @@ def _get_unmet_restore_upload_requirements(
 ) -> set[str]:
     """返回当前表单仍未满足的历史上传文件依赖。"""
     requirements = requirements or {}
+    if video_sources is None:
+        video_sources = [video_source] if video_source else []
     unmet = set()
 
     if (
