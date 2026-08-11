@@ -391,7 +391,7 @@ Solution: [See how to download the model manually from Hugging Face](#subtitle-g
 
 ## Feedback & Suggestions 📢
 
-- You can submit an [issue](https://github.com/harry0703/clip-builder/issues) or a [pull request](https://github.com/harry0703/clip-builder/pulls).
+- You can submit an [issue](https://github.com/RafaGomezGuillen/clip-builder/issues) or a [pull request](https://github.com/RafaGomezGuillen/clip-builder/pulls).
 
 ## License 📝
 

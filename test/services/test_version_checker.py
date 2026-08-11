@@ -45,11 +45,11 @@ class TestVersionChecker(unittest.TestCase):
 
     @patch("app.services.version_checker.requests.get")
     def test_prerelease_comparison_uses_semantic_versions(self, request_get):
-        request_get.return_value = self._response("v1.3.3")
+        request_get.return_value = self._response("v1.4.0")
 
-        result = version_checker.get_available_update("1.3.3rc1")
+        result = version_checker.get_available_update("1.4.0rc1")
 
-        self.assertEqual(result, "1.3.3")
+        self.assertEqual(result, "1.4.0")
 
     @patch("app.services.version_checker.requests.get")
     def test_invalid_current_version_skips_network_request(self, request_get):
