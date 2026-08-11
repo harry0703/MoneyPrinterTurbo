@@ -126,6 +126,19 @@ def _bgm_type(value: str) -> str:
     )
 
 
+def _parse_video_sources(values: Sequence[str] | None) -> list[str]:
+    sources = []
+    for value in values or ["pexels"]:
+        sources.extend(item.strip().lower() for item in value.split(",") if item.strip())
+    valid_sources = {"pexels", "pixabay", "coverr", "youtube", "local"}
+    invalid_sources = [source for source in sources if source not in valid_sources]
+    if invalid_sources:
+        raise argparse.ArgumentTypeError(
+            f"video-source must be one of: {', '.join(sorted(valid_sources))}"
+        )
+    return list(dict.fromkeys(sources))
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -211,9 +224,11 @@ Output and exit status:
     material_group = parser.add_argument_group("materials and pipeline")
     material_group.add_argument(
         "--video-source",
-        default="pexels",
-        choices=["pexels", "pixabay", "coverr", "youtube", "local"],
-        help="video material provider; online providers require matching API keys in config.toml",
+        "--video-sources",
+        dest="video_sources",
+        action="append",
+        default=None,
+        help="video material provider; repeat or comma-separate to select multiple providers",
     )
     material_group.add_argument(
         "--video-materials",
@@ -451,7 +466,8 @@ Output and exit status:
     if not args.video_subject.strip() and not args.video_script.strip():
         parser.error("one of --video-subject or --video-script is required")
 
-    if args.video_source == "local" and args.stop_at == "terms":
+    selected_sources = _parse_video_sources(args.video_sources)
+    if "local" in selected_sources and args.stop_at == "terms":
         parser.error(
             "--stop-at terms has no effect with --video-source local "
             "(search terms are not generated for local sources)"
@@ -459,12 +475,12 @@ Output and exit status:
 
     stage_requires_materials = args.stop_at in {"materials", "video"}
     has_video_materials = bool((args.video_materials or "").strip())
-    if args.video_source == "local" and stage_requires_materials and not has_video_materials:
+    if "local" in selected_sources and stage_requires_materials and not has_video_materials:
         parser.error(
             "--video-materials is required with --video-source local when "
             "--stop-at is materials or video"
         )
-    if args.video_source != "local" and has_video_materials:
+    if "local" not in selected_sources and has_video_materials:
         parser.error("--video-materials can only be used with --video-source local")
 
     if args.bgm_file:
@@ -522,7 +538,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_subject": args.video_subject.strip(),
         "video_script": args.video_script,
         "video_terms": video_terms,
-        "video_source": args.video_source,
+        "video_sources": _parse_video_sources(args.video_sources),
         "video_materials": video_materials,
         "video_count": args.video_count,
         "video_aspect": args.video_aspect,
@@ -713,7 +729,7 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
         # 下游根据 resource/fonts 内的文件名拼接路径，因此仍保留纯文件名。
         params.font_name = os.path.basename(font_path)
 
-    if params.video_source != "local" or stop_at not in {"materials", "video"}:
+    if "local" not in params.video_sources or stop_at not in {"materials", "video"}:
         return
 
     local_videos_dir = utils.storage_dir("local_videos", create=True)

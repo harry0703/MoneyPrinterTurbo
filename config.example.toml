@@ -34,7 +34,7 @@ tls_verify = true
 # -----------------------------------------------------------------------------
 
 # Available values: "pexels", "pixabay", "coverr", "youtube", "local".
-video_source = "pexels"
+video_sources = ["pexels"]
 
 # API key lists support key rotation. Use straight ASCII double quotes and
 # separate multiple keys with commas, for example: ["key-1", "key-2"].

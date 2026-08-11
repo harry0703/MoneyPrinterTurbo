@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, List, Literal, Optional, Union
 
 import pydantic
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.config import config
 
@@ -87,7 +87,7 @@ class VideoParams(BaseModel):
     match_materials_to_script: bool = False
     video_count: int = Field(default=1, ge=1)
 
-    video_source: Optional[str] = "pexels"
+    video_sources: List[str] = Field(default_factory=lambda: ["pexels"])
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
     )
@@ -122,6 +122,28 @@ class VideoParams(BaseModel):
     video_script_prompt: str = Field(default="", max_length=2000)
     custom_system_prompt: str = Field(default="", max_length=8000)
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_video_sources(cls, values):
+        if not isinstance(values, dict):
+            return values
+        values = dict(values)
+        if "video_sources" not in values and "video_source" in values:
+            values["video_sources"] = values.pop("video_source")
+        sources = values.get("video_sources", ["pexels"])
+        if isinstance(sources, str):
+            sources = [sources]
+        normalized_sources = [
+            str(source).strip().lower() for source in sources or [] if str(source).strip()
+        ]
+        values["video_sources"] = list(dict.fromkeys(normalized_sources))
+        return values
+
+    @property
+    def video_source(self) -> str:
+        """Return the first source for compatibility with legacy callers."""
+        return self.video_sources[0] if self.video_sources else ""
+
 
 class SubtitleRequest(BaseModel):
     video_script: str
@@ -140,8 +162,22 @@ class SubtitleRequest(BaseModel):
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
-    video_source: Optional[str] = "local"
+    video_sources: List[str] = Field(default_factory=lambda: ["local"])
     subtitle_enabled: Optional[str] = "true"
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_video_sources(cls, values):
+        values = dict(values)
+        if "video_sources" not in values and "video_source" in values:
+            values["video_sources"] = values.pop("video_source")
+        if isinstance(values.get("video_sources"), str):
+            values["video_sources"] = [values["video_sources"]]
+        return values
+
+    @property
+    def video_source(self) -> str:
+        return self.video_sources[0] if self.video_sources else ""
 
 
 class AudioRequest(BaseModel):
@@ -153,7 +189,21 @@ class AudioRequest(BaseModel):
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
-    video_source: Optional[str] = "local"
+    video_sources: List[str] = Field(default_factory=lambda: ["local"])
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_video_sources(cls, values):
+        values = dict(values)
+        if "video_sources" not in values and "video_source" in values:
+            values["video_sources"] = values.pop("video_source")
+        if isinstance(values.get("video_sources"), str):
+            values["video_sources"] = [values["video_sources"]]
+        return values
+
+    @property
+    def video_source(self) -> str:
+        return self.video_sources[0] if self.video_sources else ""
 
 
 class VideoScriptParams:
