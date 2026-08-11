@@ -258,11 +258,11 @@ def _prepare_source_info(
 ) -> dict[str, Any]:
     width, height, format_id = _best_dimensions(info)
     asset_id = str(info.get("id") or "").strip()
-    source_page = _safe_public_url(
-        info.get("webpage_url")
-        or info.get("original_url")
-        or _canonical_watch_url(info)
-    )
+    source_page = _canonical_watch_url(info)
+    if not source_page:
+        source_page = _safe_public_url(
+            info.get("webpage_url") or info.get("original_url")
+        )
     source_info: dict[str, Any] = {
         "provider": "youtube",
         "search_term": search_term,
@@ -432,7 +432,7 @@ class YoutubeProvider:
 
             item = MaterialInfo()
             item.provider = "youtube"
-            item.url = str(info.get("webpage_url") or _canonical_watch_url(info) or "")
+            item.url = str(_canonical_watch_url(info) or info.get("webpage_url") or "")
             item.duration = duration
             item.source_info = _prepare_source_info(info, search_term=search_term)
             if item.url:

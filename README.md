@@ -98,7 +98,6 @@ All examples below were generated with clip-builder.
 - If you do not want to install or configure the project manually: generate videos with an AI Agent
 - Windows users: use the one-click package first for the fastest local trial
 - macOS / Linux users: use `uv` for the primary local setup path
-- If you want a more isolated runtime: use Docker deployment
 
 ### Generate Videos with an AI Agent
 
@@ -127,7 +126,7 @@ After launching, the browser will open automatically (if it opens blank, it is r
 
 ### macOS / Linux
 
-Use the local setup or Docker instructions below.
+Use the local setup instructions below.
 
 ## Installation & Deployment 📥
 
@@ -165,33 +164,6 @@ video_source = "youtube"
 
 YouTube is provided as an additional source of footage. You are responsible for using content with the appropriate permissions, licenses, or other legal basis.
 
-### Docker Deployment 🐳
-
-#### ① Launch the Docker Container
-
-If you haven't installed Docker, please install it first https://www.docker.com/products/docker-desktop/
-If you are using a Windows system, please refer to Microsoft's documentation:
-
-1. https://learn.microsoft.com/en-us/windows/wsl/install
-2. https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers
-
-```shell
-cd clip-builder
-docker compose -f docker-compose.release.yml up
-```
-
-> The recommended default is `docker-compose.release.yml`, which pulls the prebuilt image from GitHub Container Registry: `ghcr.io/harry0703/clip-builder:latest`.
-> If you need to build the image locally, you can still run `docker compose up`.
-> Before the first start, copy `config.example.toml` to `config.toml` so it can be mounted into the containers.
-
-#### ② Access the WebUI
-
-Open your browser and visit http://127.0.0.1:8501
-
-#### ③ Access the API Documentation
-
-Open your browser and visit http://127.0.0.1:8080/docs or http://127.0.0.1:8080/redoc
-
 ### Manual Deployment 📦
 
 #### ① Create a Python Virtual Environment
@@ -223,6 +195,14 @@ Notes:
 
 Note that you need to execute the following commands in the `root directory` of the clip-builder project
 
+#### ③ Access the WebUI
+
+Open your browser and visit http://127.0.0.1:8501
+
+#### ④ Access the API Documentation
+
+Open your browser and visit http://127.0.0.1:8080/docs or http://127.0.0.1:8080/redoc
+
 ###### Windows
 
 ```powershell
@@ -247,7 +227,7 @@ MPT_WEBUI_HOST=0.0.0.0 sh webui.sh
 
 After launching, the browser will open automatically
 
-#### ③ Launch the API Service 🚀
+#### ⑤ Launch the API Service 🚀
 
 ```shell
 uv run python main.py
@@ -259,7 +239,7 @@ If you have already activated the virtual environment manually, you can still ru
 python main.py
 ```
 
-#### ④ Pure CLI Mode (No Browser) ⌨️
+#### ⑥ Pure CLI Mode (No Browser) ⌨️
 
 If you cannot use a browser or port forwarding, generate videos directly from the
 command line. The simplest complete generation command is:

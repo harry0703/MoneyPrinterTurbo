@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from loguru import logger
+from pydantic import BaseModel
 
 from app.utils import utils
 
@@ -16,6 +17,15 @@ from app.utils import utils
 def _script_file(task_id: str) -> Path:
     """返回任务脚本清单路径，并复用统一的任务目录创建逻辑。"""
     return Path(utils.task_dir(task_id)) / "script.json"
+
+
+def _json_default(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        serialized = dict(value.__dict__)
+        if hasattr(value, "video_source"):
+            serialized["video_source"] = value.video_source
+        return serialized
+    return value.__dict__
 
 
 def _write_json_atomic(target: Path, payload: Mapping[str, Any]) -> None:
@@ -43,7 +53,7 @@ def _write_json_atomic(target: Path, payload: Mapping[str, Any]) -> None:
                 temp_file,
                 ensure_ascii=False,
                 indent=4,
-                default=lambda value: value.__dict__,
+                default=_json_default,
             )
             temp_file.write("\n")
             temp_file.flush()
