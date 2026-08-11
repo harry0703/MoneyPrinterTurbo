@@ -60,8 +60,8 @@
     "medical_credibility": 19,
     "retention": 19,
     "visual_explanation": 15,
-    "save_value": 14,
-    "follow_conversion": 8
+    "save_value": 13,
+    "follow_conversion": 9
   },
   "automated_qa": {
     "status": "pending",
@@ -74,7 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 54,
-  "narration_han_characters": 167,
-  "target_cps": 3.09,
+  "narration_han_characters": 172,
+  "target_cps": 3.19,
   "public_topic": "饭后坐着或轻走的感受"
 }

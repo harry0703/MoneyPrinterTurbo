@@ -58,7 +58,7 @@
   "quality": {
     "topic_value": 20,
     "medical_credibility": 19,
-    "retention": 19,
+    "retention": 18,
     "visual_explanation": 15,
     "save_value": 14,
     "follow_conversion": 8
@@ -74,7 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 57,
-  "narration_han_characters": 188,
-  "target_cps": 3.3,
+  "narration_han_characters": 172,
+  "target_cps": 3.02,
   "public_topic": "连续七天记录午后变化"
 }

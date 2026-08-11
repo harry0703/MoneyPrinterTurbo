@@ -58,10 +58,10 @@
   "quality": {
     "topic_value": 19,
     "medical_credibility": 19,
-    "retention": 19,
-    "visual_explanation": 15,
-    "save_value": 14,
-    "follow_conversion": 8
+    "retention": 18,
+    "visual_explanation": 14,
+    "save_value": 13,
+    "follow_conversion": 9
   },
   "automated_qa": {
     "status": "pending",
@@ -74,7 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 54,
-  "narration_han_characters": 165,
-  "target_cps": 3.06,
+  "narration_han_characters": 167,
+  "target_cps": 3.09,
   "public_topic": "午休后更困先看时点"
 }

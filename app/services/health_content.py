@@ -59,6 +59,7 @@ GENERAL_WELLNESS_PUBLIC_FORBIDDEN = FORBIDDEN_CLAIMS + (
     "检验",
     "医学曲线",
     "医疗曲线",
+    "最难",
 )
 GENERAL_WELLNESS_SCORE_FLOORS = {
     "topic_value": 18,
@@ -206,6 +207,10 @@ def _is_optional_text(value: object) -> bool:
     return isinstance(value, str) and (value == "" or bool(value.strip()))
 
 
+def _canonical_text(value: str) -> str:
+    return unicodedata.normalize("NFKC", value).strip().casefold()
+
+
 def _canonical_reviewer_identity(
     value: object, error_type: type[HealthContentError]
 ) -> str:
@@ -282,6 +287,8 @@ def _validate_general_wellness_manifest(manifest: Mapping) -> None:
     if manifest.get("account_bio") != _GENERAL_WELLNESS_ACCOUNT_BIO:
         raise HealthContentError("通用生活方式内容的账号简介不匹配")
     _require_text(manifest, "public_topic", "公开题面")
+    if _canonical_text(manifest["public_topic"]) == _canonical_text(manifest["topic"]):
+        raise HealthContentError("公开题面不得与内部题面相同")
 
     observations = manifest.get("observations")
     if not isinstance(observations, list) or len(observations) != 3:

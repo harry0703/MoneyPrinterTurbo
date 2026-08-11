@@ -58,10 +58,10 @@
   "quality": {
     "topic_value": 19,
     "medical_credibility": 19,
-    "retention": 19,
-    "visual_explanation": 15,
-    "save_value": 14,
-    "follow_conversion": 8
+    "retention": 18,
+    "visual_explanation": 14,
+    "save_value": 13,
+    "follow_conversion": 9
   },
   "automated_qa": {
     "status": "pending",

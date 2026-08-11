@@ -682,6 +682,30 @@ def test_general_wellness_rejects_forbidden_public_topic():
         health_content.validate_manifest(manifest)
 
 
+def test_general_wellness_rejects_public_topic_equal_to_internal_topic_after_normalization():
+    manifest = _general_wellness_manifest()
+    manifest["topic"] = "下午最难的任务，什么时候做更顺"
+    manifest["public_topic"] = "  下午最难的任务，什么时候做更顺  "
+
+    with pytest.raises(health_content.HealthContentError, match="公开题面.*内部题面"):
+        health_content.validate_manifest(manifest)
+    with pytest.raises(health_content.HealthContentError, match="公开题面.*内部题面"):
+        health_content.build_publish_pack(manifest)
+
+
+def test_general_wellness_rejects_exact_most_difficult_phrase_without_blocking_recent():
+    manifest = _general_wellness_manifest()
+    manifest["public_topic"] = "下午最难的任务何时做"
+
+    with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
+        health_content.validate_manifest(manifest)
+
+    safe_manifest = _general_wellness_manifest()
+    safe_manifest["public_topic"] = "最近午后感受怎样记录"
+
+    health_content.validate_manifest(safe_manifest)
+
+
 @pytest.mark.parametrize(
     ("internal_topic", "public_topic"),
     (

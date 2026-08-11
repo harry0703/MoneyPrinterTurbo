@@ -58,10 +58,10 @@
   "quality": {
     "topic_value": 19,
     "medical_credibility": 19,
-    "retention": 19,
+    "retention": 18,
     "visual_explanation": 15,
-    "save_value": 14,
-    "follow_conversion": 8
+    "save_value": 13,
+    "follow_conversion": 9
   },
   "automated_qa": {
     "status": "pending",
@@ -74,7 +74,7 @@
   },
   "production_status": "content_package_ready_for_internal_review",
   "target_duration_seconds": 56,
-  "narration_han_characters": 168,
-  "target_cps": 3.0,
+  "narration_han_characters": 169,
+  "target_cps": 3.02,
   "public_topic": "下午没精神的小重启"
 }
