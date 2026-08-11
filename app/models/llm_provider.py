@@ -79,12 +79,12 @@ LLM_PROVIDER_REGISTRY = (
         api_key_url=(
             "https://platform.kimi.com?"
             "track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&"
-            "aff=moneyprinterturbo"
+            "aff=clip-builder"
         ),
         international_api_key_url=(
             "https://platform.kimi.ai?"
             "track_id=track-f6b0a640d35c41deb03b247242a1058c&"
-            "aff=moneyprinterturbo"
+            "aff=clip-builder"
         ),
         default_model="kimi-k3",
         default_base_url="https://api.moonshot.cn/v1",
@@ -139,7 +139,7 @@ LLM_PROVIDER_REGISTRY = (
         api_key_url=(
             "https://www.volcengine.com/activity/ai618?utm_campaign=hw&"
             "utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&"
-            "utm_term=MoneyPrinterTurbo"
+            "utm_term=clip-builder"
         ),
         default_model="doubao-seed-2-1-turbo-260628",
         default_base_url="https://ark.cn-beijing.volces.com/api/v3",

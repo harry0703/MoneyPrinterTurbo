@@ -1,7 +1,7 @@
 """
 TwelveLabs (https://twelvelabs.io) integration — optional, opt-in helpers.
 
-This module wraps two TwelveLabs models so MoneyPrinterTurbo can make better
+This module wraps two TwelveLabs models so clip-builder can make better
 use of the stock/B-roll footage it downloads:
 
   * Marengo (multimodal embeddings, 512-dim) — used to *semantically reorder*

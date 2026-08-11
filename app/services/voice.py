@@ -1410,7 +1410,7 @@ def chatterbox_tts(
         "input": text,
         "voice": voice,
         "response_format": "mp3",
-        # OpenAI speech API accepts speed 0.25-4.0; MoneyPrinterTurbo's rate is a
+        # OpenAI speech API accepts speed 0.25-4.0; clip-builder's rate is a
         # 1.0-centred multiplier, so it maps directly (clamped to the valid range).
         "speed": max(0.25, min(4.0, float(voice_rate or 1.0))),
     }
