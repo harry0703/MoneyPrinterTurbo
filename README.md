@@ -33,12 +33,12 @@
 ## 特别感谢 ❤️
 
 <div align="center">
-  <a href="https://platform.kimi.com/?aff=MoneyPrinterTurbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-zh.png" alt="Kimi 赞助 MoneyPrinterTurbo" width="100%"></a>
+  <a href="https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-zh.png" alt="Kimi 赞助 MoneyPrinterTurbo" width="100%"></a>
 </div>
 
-感谢 [Kimi](https://platform.kimi.com/?aff=MoneyPrinterTurbo) 赞助本项目！[Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=MoneyPrinterTurbo) 是 Moonshot AI 迄今能力最强的模型，也是全球首个开源 3T 级模型，拥有原生视觉能力与 100 万 Token 上下文，在知识工作、推理和长周期任务中展现前沿性能。在 MoneyPrinterTurbo 中，K3 能直接驱动视频创作，不仅撰写视频文案，还会提炼素材搜索关键词、决定成片画面；对内容理解越准确，匹配到的素材就越贴题。
+感谢 [Kimi](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo) 赞助本项目！[Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) 是 Moonshot AI 迄今能力最强的模型，也是全球首个开源 3T 级模型，拥有原生视觉能力与 100 万 Token 上下文，在知识工作、推理和长周期任务中展现前沿性能。在 MoneyPrinterTurbo 中，K3 能直接驱动视频创作，不仅撰写视频文案，还会提炼素材搜索关键词、决定成片画面；对内容理解越准确，匹配到的素材就越贴题。
 
-**MoneyPrinterTurbo 已接入 Kimi。前往 Kimi 开放平台（[中文站](https://platform.kimi.com/?aff=MoneyPrinterTurbo)｜[Global](https://platform.kimi.ai/?aff=MoneyPrinterTurbo)）体验 API，或了解 [Kimi Code 订阅](https://www.kimi.com/code?aff=MoneyPrinterTurbo)。**
+**MoneyPrinterTurbo 用户专属优惠：新用户通过专属链接注册，首次成功充值可获充值金额 10% 的 API 额度，最高赠送 ¥1000。活动截至 2026 年 9 月 30 日。前往 Kimi 开放平台（[中文站](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo)｜[Global](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo)）体验 API。**
 <br>
 
 <table align="center">
@@ -58,15 +58,6 @@
     </td>
     <td align="left">
       感谢 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> 赞助本项目！CCSub 是稳定、实惠的 AI API 中转平台，是 Claude Code 官方订阅的超强平替。一个 API Key 即可调用 Claude Opus 4.8、Sonnet 4.6、Haiku 4.5、GPT-5、Gemini 等模型，价格约为官方直连的 1/3，全球直连无需梯子。兼容 Claude Code、Codex、Cursor、Cline、Continue、Windsurf 等所有主流 AI 编程工具。前往 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> 注册即送 $5 体验额度。
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
-      <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><img src="docs/sponsors/cubence-logo.png" alt="Cubence" height="40"></a><br>
-      <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><strong>Cubence</strong></a>
-    </td>
-    <td align="left">
-      感谢 <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt">Cubence</a> 对本项目的支持。Cubence 是一家专注于 AI 模型 API 接入服务的平台，致力于为开发者和团队提供稳定、便捷的模型调用体验。自 2025 年 9 月上线以来，Cubence 已支持 Claude Code、Codex、Gemini 等多种 AI 模型与开发工具相关的 API 接入场景，适合需要统一管理和调用多模型能力的用户使用。Cubence 为本开源项目用户提供了专属优惠码：<a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><code>MPT</code></a>。首次购买时使用该优惠码，<a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt">可享受 9 折优惠</a>。
     </td>
   </tr>
   <tr>

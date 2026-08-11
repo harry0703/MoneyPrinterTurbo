@@ -38,7 +38,7 @@ PEXELS_API_KEY_HELP_URL = (
 RECOMMENDED_LLM_PROVIDERS = {
     "moonshot": (
         "Kimi / Moonshot AI",
-        "https://platform.kimi.com/console/api-keys?aff=MoneyPrinterTurbo",
+        "https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo",
     ),
     "openai": ("OpenAI", "https://platform.openai.com/api-keys"),
     "gemini": ("Google Gemini", "https://aistudio.google.com/app/apikey"),

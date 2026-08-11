@@ -1571,7 +1571,11 @@ def get_llm_provider_tips(provider_id, **kwargs):
         return tips
 
     format_context = {
-        "api_key_url": provider.api_key_url,
+        "api_key_url": (
+            provider.international_api_key_url
+            if tips_language == "en" and provider.international_api_key_url
+            else provider.api_key_url
+        ),
         "default_model": provider.default_model,
         "default_base_url": provider.default_base_url,
         **{

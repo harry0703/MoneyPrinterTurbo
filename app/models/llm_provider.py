@@ -29,6 +29,7 @@ class LLMProviderSpec:
     default_label: str
     adapter: str = "openai_compatible"
     api_key_url: str = ""
+    international_api_key_url: str = ""
     default_model: str = ""
     default_base_url: str = ""
     requires_api_key: bool = True
@@ -75,7 +76,16 @@ LLM_PROVIDER_REGISTRY = (
     LLMProviderSpec(
         "moonshot",
         "Kimi / Moonshot AI",
-        api_key_url="https://platform.kimi.com/console/api-keys?aff=MoneyPrinterTurbo",
+        api_key_url=(
+            "https://platform.kimi.com?"
+            "track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&"
+            "aff=moneyprinterturbo"
+        ),
+        international_api_key_url=(
+            "https://platform.kimi.ai?"
+            "track_id=track-f6b0a640d35c41deb03b247242a1058c&"
+            "aff=moneyprinterturbo"
+        ),
         default_model="kimi-k3",
         default_base_url="https://api.moonshot.cn/v1",
     ),

@@ -82,7 +82,7 @@ sonilo_timeout = 600
 llm_provider = "moonshot"
 
 # Kimi / Moonshot AI
-# API key: https://platform.kimi.com/console/api-keys
+# API key: https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo
 moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""
