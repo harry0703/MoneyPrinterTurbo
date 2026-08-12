@@ -316,16 +316,9 @@ def _submit_claimed_task(
                 "before acceptance; retry the request"
             ),
         )
-    if acceptance != const.IDEMPOTENCY_ACCEPTED:
-        raise HttpException(
-            task_id=task_id,
-            status_code=409,
-            message=(
-                f"{task_id}: idempotency_pending: another submission with "
-                "this key is in flight; retry shortly"
-            ),
-        )
 
+    # submit_idempotent 只返回 QUEUE_FULL / STALE / ACCEPTED；前两者已在
+    # 上面处理，走到这里即 ACCEPTED。
     logger.success(f"Task created: {utils.to_json(task)}")
     return utils.get_response(200, task)
 

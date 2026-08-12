@@ -45,7 +45,9 @@ Redis transaction for Redis):
 If a submitter fails before atomic acceptance, its pending claim expires after
 five seconds. An identical retry can then claim the key and submit safely. A
 request that times out while another live owner is pending receives retryable
-**HTTP 409** with `idempotency_pending`. Once accepted, duplicates return
+**HTTP 409** with `idempotency_pending`. If the caller's own claim expires
+between reserve and acceptance, the request receives retryable **HTTP 409**
+with `idempotency_stale`; just retry. Once accepted, duplicates return
 **HTTP 200** immediately; they do not wait for a worker to start.
 
 "Canonical parameters" are the full request payload hashed deterministically
@@ -74,4 +76,6 @@ differences do not affect equality.
 - Deleting a task (`DELETE /api/v1/tasks/{task_id}`) does **not** expire its
   idempotency reservation; a follow-up retry with the same key still returns the
   existing task id (the task record may no longer exist). This keeps retry
-  semantics predictable and is only cleared on queue-full rejection.
+  semantics predictable; a pending reservation is cleared on queue-full
+  rejection and on acceptance failures (an exception during submission aborts
+  the owner's pending claim), and a pending claim expires after five seconds.

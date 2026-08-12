@@ -197,8 +197,8 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 # dashscope MultiModalConversation 的 chat 响应结构：
                 # output.choices[0].message.content[0]["text"]。使用 MultiModal
                 # 是为了兼容 qwen3 系列模型（含关闭深度思考的开关），旧的
-                # Generation API 及其 `_extract_qwen_generation_text` 兜底逻辑
-                # 与该响应形态不兼容，因此在此分支不再复用。
+                # Generation API 兜底逻辑与该响应形态不兼容，因此在此分支
+                # 不再复用。
                 try:
                     choices = response.output.choices
                 except AttributeError:
