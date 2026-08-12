@@ -19,6 +19,7 @@ from app.services import (
     elevenlabs_music,
     llm,
     material,
+    minimax_music,
     sonilo,
     subtitle,
     task_artifacts,
@@ -59,6 +60,13 @@ _INTERRUPTED_CROSS_POST_ERROR = (
 # 文件扩展名、领域异常和 WebUI 警告代码；任务编排、0 音量短路及失败降级
 # 全部复用同一路径，避免后续新增供应商时维护多份相似流程。
 _VIDEO_MUSIC_PROVIDERS = {
+    "minimax": {
+        "service": minimax_music,
+        "error_type": minimax_music.MiniMaxMusicError,
+        "suffix": minimax_music.output_suffix,
+        "warning_code": "minimax_bgm_failed",
+        "display_name": "MiniMax",
+    },
     "sonilo": {
         "service": sonilo,
         "error_type": sonilo.SoniloError,
@@ -657,9 +665,12 @@ def generate_final_videos(
             service = video_music_provider["service"]
             display_name = video_music_provider["display_name"]
             warning_code = video_music_provider["warning_code"]
+            suffix = video_music_provider["suffix"]
+            if callable(suffix):
+                suffix = suffix()
             generated_bgm_path = path.join(
                 utils.task_dir(task_id),
-                (f"{params.bgm_type}-bgm-{index}{video_music_provider['suffix']}"),
+                f"{params.bgm_type}-bgm-{index}{suffix}",
             )
             try:
                 service.generate_bgm(
