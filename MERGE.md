@@ -92,6 +92,29 @@ startup-drain test; rewrote the wake test as `test_queued_work_dispatches_when_c
 
 1. **Redis video-task crash recovery** (visibility-lease consumer on top of
    upstream's model) — if the fork's original restart-safety is still required.
-2. **`_extract_qwen_generation_text`** in `app/services/llm.py` is now dead code
-   after the qwen fix; safe to remove in a follow-up.
-3. Consumer-impact details are in [MIGRATION.md](./MIGRATION.md).
+2. Consumer-impact details are in [MIGRATION.md](./MIGRATION.md).
+
+## Post-review hardening (code-review loop)
+
+After the first code-review pass, addressed:
+
+- `state.py`: extracted shared `_reserve_outcome` / `_task_record_fields`
+  helpers (dedup across Memory/Redis adapters); `RedisState.get_idempotency`
+  now reuses `_decode_idempotency`.
+- `video.py`: a `STALE` acceptance now returns a distinct retryable
+  `idempotency_stale` 409 (accurate message for one's own expired claim);
+  covered by a new unit test.
+- `llm.py`: removed dead `_extract_qwen_generation_text` / `_get_response_field`
+  helpers left over from the qwen fix.
+- `docs/idempotent-submission.md`: rewritten the restart/persistence section to
+  match the merged (dispatcher-less) reality; documented empty-string
+  `idempotency_key` as omitted.
+- `base_manager.py`: documented the accept-then-dispatch queue-capacity
+  policy (`max_queued_tasks + available_slots`).
+
+Judgement-call items deliberately not changed (documented rationale in the
+review): `IdempotentAcceptance` covers the `(task_id, params_hash, owner_token)`
+clump where it matters; `accept_idempotent_task` reaching into the manager is
+required for one atomic Redis transaction; `dequeue`'s `sm.state` use is
+inherited upstream coupling; plain-string outcome constants match the existing
+codebase pattern (incl. upstream's `CROSS_POST_STATE_*`).

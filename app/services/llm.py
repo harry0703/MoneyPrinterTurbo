@@ -100,43 +100,6 @@ def _extract_chat_completion_text(response, llm_provider: str) -> str:
     return _normalize_text_response(content, llm_provider)
 
 
-def _get_response_field(value, key: str):
-    """兼容 dict 和 SDK 响应对象的字段读取。"""
-    if isinstance(value, dict):
-        return value.get(key)
-
-    try:
-        return value[key]
-    except (KeyError, TypeError, AttributeError):
-        return getattr(value, key, None)
-
-
-def _extract_qwen_generation_text(response) -> str:
-    """
-    从 DashScope Generation 响应中提取文本。
-
-    Qwen 使用 `messages` 调用时返回的是 chat 结构：
-    `output.choices[0].message.content`；旧 completion 形态才会返回
-    `output.text`。这里两个路径都兼容，避免 `output.text` 为 None 时
-    继续 `.replace()` 触发不可诊断的 AttributeError。
-    """
-    output = _get_response_field(response, "output")
-    choices = _get_response_field(output, "choices") if output else None
-    if choices is not None:
-        if not choices:
-            logger.warning("Qwen returned an empty choices list")
-            raise ValueError("[qwen] returned empty choices")
-
-        first_choice = choices[0]
-        message = _get_response_field(first_choice, "message")
-        content = _get_response_field(message, "content") if message else None
-        if content is not None:
-            return _normalize_text_response(content, "qwen")
-
-    text = _get_response_field(output, "text") if output else None
-    return _normalize_text_response(text, "qwen")
-
-
 def _generate_response(prompt: str, app_config=None) -> str:
     try:
         # WebUI 在视频生成期间允许用户准备下一条文案。调用方可以传入提交瞬间

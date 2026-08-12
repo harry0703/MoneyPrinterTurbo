@@ -2,6 +2,7 @@ import sys
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -11,6 +12,7 @@ import app.asgi as asgi
 from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.v1 import video as video_controller
 from app.models import const
+from app.models.exception import HttpException
 from app.services import state as sm
 
 
@@ -177,6 +179,25 @@ class TestIdempotentVideoSubmission(unittest.TestCase):
             json={**self.base_body, "idempotency_key": "not-a-uuid"},
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_stale_claim_returns_retryable_409(self):
+        """自己的提交租期在 accept 前过期时返回可重试的 409，而非"他人占用"。"""
+        key = "99999999-9999-9999-9999-999999999999"
+        body = MagicMock()
+        body.model_dump.return_value = {**self.base_body, "idempotency_key": key}
+
+        with patch.object(
+            video_controller.task_manager,
+            "submit_idempotent",
+            return_value=const.IDEMPOTENCY_STALE,
+        ):
+            with self.assertRaises(HttpException) as raised:
+                video_controller._submit_claimed_task(
+                    "request-stale", key, "hash", "owner-1", body, stop_at="video"
+                )
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertIn("idempotency_stale", raised.exception.message)
 
 
 if __name__ == "__main__":

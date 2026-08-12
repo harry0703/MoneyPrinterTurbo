@@ -62,6 +62,25 @@ def _pending_claim_matches(existing: dict | None, acceptance: IdempotentAcceptan
     )
 
 
+def _reserve_outcome(existing: dict | None, params_hash: str) -> str:
+    """Classify a live idempotency record for a reserve attempt."""
+    if existing["params_hash"] != params_hash:
+        return const.IDEMPOTENCY_CONFLICT
+    if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
+        return const.IDEMPOTENCY_DUPLICATE
+    return const.IDEMPOTENCY_PENDING
+
+
+def _task_record_fields(task_id: str, state: int, progress: int, kwargs: dict) -> dict:
+    """Build the common initial task-hash fields shared by both adapters."""
+    return {
+        "task_id": task_id,
+        "state": state,
+        "progress": progress,
+        **kwargs,
+    }
+
+
 # Base class for state management
 class BaseState(ABC):
     @abstractmethod
@@ -152,12 +171,9 @@ class MemoryState(BaseState):
             progress = 100
 
         with self._lock:
-            self._tasks[task_id] = {
-                "task_id": task_id,
-                "state": state,
-                "progress": progress,
-                **kwargs,
-            }
+            self._tasks[task_id] = _task_record_fields(
+                task_id, state, progress, kwargs
+            )
 
     def get_task(self, task_id: str):
         with self._lock:
@@ -205,11 +221,7 @@ class MemoryState(BaseState):
                     "expires_at": now + lease_seconds,
                 }
                 return const.IDEMPOTENCY_CREATED
-            if existing["params_hash"] != params_hash:
-                return const.IDEMPOTENCY_CONFLICT
-            if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
-                return const.IDEMPOTENCY_DUPLICATE
-            return const.IDEMPOTENCY_PENDING
+            return _reserve_outcome(existing, params_hash)
 
     def get_idempotency(self, task_id: str):
         """Return a snapshot of a live claim, expiring stale pending claims."""
@@ -333,12 +345,7 @@ class RedisState(BaseState):
         if progress > 100:
             progress = 100
 
-        fields = {
-            "task_id": task_id,
-            "state": state,
-            "progress": progress,
-            **kwargs,
-        }
+        fields = _task_record_fields(task_id, state, progress, kwargs)
 
         for field, value in fields.items():
             self._redis.hset(task_id, field, str(value))
@@ -398,20 +405,11 @@ class RedisState(BaseState):
             existing = self.get_idempotency(task_id)
             if existing is None:
                 continue
-            if existing["params_hash"] != params_hash:
-                return const.IDEMPOTENCY_CONFLICT
-            if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
-                return const.IDEMPOTENCY_DUPLICATE
-            return const.IDEMPOTENCY_PENDING
+            return _reserve_outcome(existing, params_hash)
 
     def get_idempotency(self, task_id: str):
         """Read and decode a Redis idempotency record."""
-        value = self._redis.get(f"idem:{task_id}")
-        if value is None:
-            return None
-        if isinstance(value, bytes):
-            value = value.decode("utf-8")
-        return json.loads(value)
+        return self._decode_idempotency(self._redis.get(f"idem:{task_id}"))
 
     def abort_idempotent_task(self, task_id: str, owner_token: str) -> bool:
         from redis.exceptions import WatchError

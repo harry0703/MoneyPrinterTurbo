@@ -15,8 +15,9 @@ without creating a duplicate job.
 ```
 
 - `idempotency_key` is a `UUID` string. Omit it (or send `null`) to keep the
-  legacy server-generated task id behavior.
-- A non-UUID `idempotency_key` is rejected with **HTTP 400**.
+  legacy server-generated task id behavior. An empty string is treated as
+  omitted (server-generated id).
+- A non-UUID, non-empty `idempotency_key` is rejected with **HTTP 400**.
 
 ## Ordering and outcomes
 
@@ -60,21 +61,16 @@ differences do not affect equality.
   `RedisState` (set `enable_redis = true`) for cross-restart idempotency.
 - Redis accepted records carry a 24h TTL. Pending claims use the five-second
   recovery lease described above.
-- Application startup immediately drains accepted Redis queue entries left by
-  a previous process. If a worker thread cannot start, an autonomous dispatcher
-  retries the accepted entry; accepted duplicates also wake that dispatcher.
-  Redis moves a queued entry into an owner-token claim before starting a worker
-  and renews that claim for the worker's full execution. The claim is removed
-  only after the task function returns from its terminal state update. If the
-  process or worker exits earlier, the five-second dispatch lease expires and
-  another process returns non-terminal work to the queue. Redis writes a
-  24-hour terminal marker atomically with each `COMPLETE` or `FAILED` task
-  update. Recovery watches that marker as well as the task record, so normal
-  task deletion cannot make an expired claim replay finished provider work.
-  A newly accepted submission clears any older marker in its acceptance
-  transaction. Graceful shutdown enters a draining state: it continues
-  renewing active claims until their workers finish and does not start queued
-  work during shutdown.
+- Queue dispatch is a plain FIFO (`lpop`): accepted work is dispatched when a
+  concurrent slot frees (`task_done` -> `check_queue`) or on a later submission.
+  If a worker thread cannot start, the item is returned to the queue and picked
+  up by the next dispatch pass. There is **no autonomous dispatcher** and **no
+  owner-token claim / lease renewal** around dequeued Redis work.
+- Application startup does **not** drain queued Redis work; it only recovers
+  interrupted cross-posts. After a restart, Redis-queued tasks sit until a new
+  submission or a completing worker triggers `check_queue()`. A worker that dies
+  mid-task is not automatically retried. This is an inherited upstream gap
+  (upstream v1.3.x behaves the same); see `MERGE.md` for the rationale.
 - Deleting a task (`DELETE /api/v1/tasks/{task_id}`) does **not** expire its
   idempotency reservation; a follow-up retry with the same key still returns the
   existing task id (the task record may no longer exist). This keeps retry

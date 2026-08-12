@@ -68,6 +68,10 @@ class TaskManager:
 
         task_info = {"func": func, "args": (), "kwargs": task_kwargs}
         with self.lock:
+            # 幂等路径先接受入队、后调度（accept -> check_queue），与 add_task
+            # 的先调度、后入队时序不同：接受时可供立即派发的槽位（available_slots）
+            # 会在随后的 check_queue 中清出队列，因此队列容量按
+            # max_queued_tasks + available_slots 计算，接受后队列仍不超过上限。
             available_slots = max(
                 0, self.max_concurrent_tasks - self.current_tasks
             )

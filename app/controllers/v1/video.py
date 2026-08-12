@@ -304,6 +304,18 @@ def _submit_claimed_task(
             status_code=429,
             message=f"{request_id}: task queue is full, please try again later",
         )
+    if acceptance == const.IDEMPOTENCY_STALE:
+        # 自己的 pending 短租期在 reserve 与 accept 之间过期（或已被其它
+        # owner 顶替）。这不是并发提交，而是本请求的提交窗口已经失效，
+        # 客户端应直接重试同一请求。
+        raise HttpException(
+            task_id=task_id,
+            status_code=409,
+            message=(
+                f"{task_id}: idempotency_stale: the submission claim expired "
+                "before acceptance; retry the request"
+            ),
+        )
     if acceptance != const.IDEMPOTENCY_ACCEPTED:
         raise HttpException(
             task_id=task_id,
