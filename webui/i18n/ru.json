@@ -275,6 +275,14 @@
     "Custom Position (% from top)": "Пользовательское положение (% от верхнего края)",
     "Please enter a value between 0 and 100": "Введите значение от 0 до 100",
     "Please enter a valid number": "Введите корректное число",
-    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов"
+    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов",
+    "Enable Gif Overlays": "Анимированные GIF-вставки",
+    "Gif Overlays Help": "Накладывает реакционные гифки из KLIPY на эмоциональные пики сценария. Моменты выбирает LLM по таймингу субтитров.",
+    "Gif Overlays Missing Key": "Укажите klipy_api_keys в config.toml, чтобы включить GIF-вставки.",
+    "Gif Count": "Максимум гифок",
+    "Gif Size": "Ширина гифки",
+    "Gif Size Help": "Доля ширины кадра, которую занимает карточка с гифкой.",
+    "Gif Rating": "Возрастной фильтр гифок",
+    "Gif Rating Help": "Фильтр контента KLIPY: g — самый строгий, r допускает взрослый юмор."
   }
 }

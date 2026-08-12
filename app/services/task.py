@@ -13,10 +13,11 @@ from loguru import logger
 
 from app.config import config
 from app.models import const
-from app.models.schema import VideoConcatMode, VideoParams
+from app.models.schema import VideoAspect, VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
     elevenlabs_music,
+    klipy,
     llm,
     material,
     sonilo,
@@ -563,6 +564,115 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     return subtitle_path
 
 
+def _srt_time_to_seconds(value: str) -> float:
+    hours, minutes, seconds = value.strip().replace(",", ".").split(":")
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def _subtitle_windows(subtitle_path: str) -> list[tuple]:
+    """Return ``((start, end), text)`` windows parsed from an SRT file."""
+    windows = []
+    for _, times, text in subtitle.file_to_subtitles(subtitle_path):
+        try:
+            start_raw, end_raw = times.split(" --> ")
+            start = _srt_time_to_seconds(start_raw)
+            end = _srt_time_to_seconds(end_raw)
+        except (ValueError, IndexError):
+            logger.warning(f"skipping subtitle line with invalid timing: {times!r}")
+            continue
+        if end > start and text.strip():
+            windows.append(((start, end), text.strip()))
+    return windows
+
+
+def _gif_timeline(task_id, params, video_script, sub_maker, subtitle_path) -> list[tuple]:
+    """
+    Resolve the timeline gif overlays are pinned to.
+
+    Overlays are timed per spoken line, which normally comes from the rendered
+    subtitles. With subtitles switched off there is no SRT on disk, so a
+    throwaway one is written from the same TTS timings to keep both paths
+    identical.
+    """
+    if subtitle_path and os.path.exists(subtitle_path):
+        return _subtitle_windows(subtitle_path)
+
+    if sub_maker is None:
+        logger.warning("no subtitle timings available, skip gif overlays")
+        return []
+
+    timeline_path = path.join(utils.task_dir(task_id), "gif-timeline.srt")
+    try:
+        voice.create_subtitle(
+            text=video_script, sub_maker=sub_maker, subtitle_file=timeline_path
+        )
+    except Exception as error:
+        logger.warning(f"failed to build gif timeline: {str(error)}")
+        return []
+
+    if not os.path.exists(timeline_path):
+        logger.warning("gif timeline was not produced, skip gif overlays")
+        return []
+    return _subtitle_windows(timeline_path)
+
+
+def generate_gif_overlays(
+    task_id, params, video_script, sub_maker, subtitle_path
+) -> list[dict]:
+    """Pick emotional peaks of the script and download a gif for each of them."""
+    if not params.gif_enabled:
+        return []
+
+    logger.info("\n\n## picking gif moments")
+    windows = _gif_timeline(task_id, params, video_script, sub_maker, subtitle_path)
+    if not windows:
+        return []
+
+    moments = llm.generate_gif_moments(
+        subtitle_lines=windows,
+        amount=params.gif_amount,
+        app_config=config.app,
+    )
+    if not moments:
+        logger.warning("no gif moments were picked, continue without overlays")
+        return []
+
+    aspect = VideoAspect(params.video_aspect)
+    video_width, _ = aspect.to_resolution()
+    min_width = max(220, int(video_width * params.gif_size))
+
+    overlays = []
+    used_slugs = set()
+    for moment in moments:
+        (start, end), _ = windows[moment["index"]]
+        try:
+            gif = klipy.fetch_gif(
+                moment["query"],
+                min_width=min_width,
+                rating=params.gif_rating,
+                exclude_slugs=used_slugs,
+            )
+        except ValueError as error:
+            # A missing API key must not fail a task the user did not scope to gifs.
+            logger.warning(f"gif overlays are disabled: {str(error)}")
+            return []
+        if gif is None:
+            continue
+        used_slugs.add(gif.slug)
+        overlays.append(
+            {
+                "path": gif.url,
+                "start": start,
+                "end": end,
+                "query": moment["query"],
+                "title": gif.title,
+            }
+        )
+
+    logger.success(f"prepared {len(overlays)} gif overlays")
+    return overlays
+
+
 def get_video_materials(task_id, params, video_terms, audio_duration):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
@@ -606,7 +716,13 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
 
 
 def generate_final_videos(
-    task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
+    task_id,
+    params,
+    downloaded_videos,
+    audio_file,
+    subtitle_path,
+    audio_duration,
+    gif_overlays=None,
 ):
     final_video_paths = []
     combined_video_paths = []
@@ -687,6 +803,7 @@ def generate_final_videos(
             output_file=final_video_path,
             params=params,
             bgm_file_override=bgm_file_override,
+            gif_overlays=gif_overlays,
         )
         if (
             video_music_provider is not None
@@ -1166,6 +1283,10 @@ def _run_pipeline(
         )
         return {"subtitle_path": subtitle_path}
 
+    gif_overlays = generate_gif_overlays(
+        task_id, params, video_script, sub_maker, subtitle_path
+    )
+
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     # 5. Get video materials
@@ -1203,6 +1324,7 @@ def _run_pipeline(
         audio_file,
         subtitle_path,
         audio_duration,
+        gif_overlays=gif_overlays,
     )
 
     if not final_video_paths:

@@ -2545,7 +2545,59 @@ def _render_video_settings(panel, params):
                 _delete_runtime_config("app", "video_codec")
             else:
                 _set_runtime_config("app", "video_codec", selected_video_codec)
+
+            _render_gif_overlay_settings(params)
     return uploaded_files
+
+
+def _render_gif_overlay_settings(params):
+    """渲染 KLIPY 动图叠加设置。"""
+    has_klipy_key = bool(config.app.get("klipy_api_keys"))
+    params.gif_enabled = st.checkbox(
+        tr("Enable Gif Overlays"),
+        value=bool(config.ui.get("gif_enabled", False)) and has_klipy_key,
+        disabled=not has_klipy_key,
+        key="gif_enabled_checkbox",
+        help=tr("Gif Overlays Help"),
+    )
+    if not has_klipy_key:
+        st.caption(tr("Gif Overlays Missing Key"))
+        params.gif_enabled = False
+    _set_runtime_config("ui", "gif_enabled", params.gif_enabled)
+
+    if not params.gif_enabled:
+        return
+
+    params.gif_amount = st.slider(
+        tr("Gif Count"),
+        min_value=1,
+        max_value=15,
+        value=int(config.ui.get("gif_amount", 5)),
+        key="gif_amount_slider",
+    )
+    _set_runtime_config("ui", "gif_amount", params.gif_amount)
+
+    params.gif_size = st.slider(
+        tr("Gif Size"),
+        min_value=0.10,
+        max_value=0.90,
+        value=float(config.ui.get("gif_size", 0.42)),
+        step=0.02,
+        format="%.2f",
+        key="gif_size_slider",
+        help=tr("Gif Size Help"),
+    )
+    _set_runtime_config("ui", "gif_size", params.gif_size)
+
+    gif_ratings = ["g", "pg", "pg-13", "r"]
+    params.gif_rating = stable_selectbox(
+        tr("Gif Rating"),
+        options=gif_ratings,
+        default_value=config.ui.get("gif_rating", "pg"),
+        key="gif_rating_select",
+        help=tr("Gif Rating Help"),
+    )
+    _set_runtime_config("ui", "gif_rating", params.gif_rating)
 
 
 def _estimate_voiceover_duration_range(

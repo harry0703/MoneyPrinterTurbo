@@ -21,9 +21,10 @@ from moviepy import (
     TextClip,
     VideoFileClip,
     afx,
+    vfx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from app.config import config
 from app.models import const
@@ -876,6 +877,220 @@ def _rounded_subtitle_background_clip(
     return ImageClip(np.array(img), transparent=True)
 
 
+# Horizontal offset from the frame centre, as a share of the frame width.
+_GIF_SIDE_OFFSET_RANGE = (0.05, 0.13)
+# Tilt in degrees. Anything past ~7 stops reading as a tilt and looks broken.
+_GIF_TILT_RANGE = (2.0, 6.0)
+_GIF_VERTICAL_JITTER = 0.07
+
+
+def _rounded_mask_clip(width: int, height: int, radius: int) -> ImageClip:
+    """Build a float mask so a rectangular gif renders with rounded corners."""
+    img = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(img).rounded_rectangle(
+        [0, 0, max(0, width - 1), max(0, height - 1)],
+        radius=max(0, int(radius)),
+        fill=255,
+    )
+    return ImageClip(np.array(img).astype(float) / 255.0, is_mask=True)
+
+
+def _gif_shadow_clip(width: int, height: int, radius: int, spread: int) -> ImageClip:
+    img = Image.new("RGBA", (width + spread * 2, height + spread * 2), (0, 0, 0, 0))
+    ImageDraw.Draw(img).rounded_rectangle(
+        [spread, spread, spread + width - 1, spread + height - 1],
+        radius=max(0, int(radius)),
+        fill=(0, 0, 0, 110),
+    )
+    img = img.filter(ImageFilter.GaussianBlur(radius=max(1, spread // 2)))
+    return ImageClip(np.array(img), transparent=True)
+
+
+def _gif_overlay_box(
+    gif_clip: VideoFileClip,
+    video_width: int,
+    video_height: int,
+    size_ratio: float,
+) -> tuple[int, int]:
+    target_width = max(1, int(video_width * size_ratio))
+    source_width = max(1, int(gif_clip.w))
+    source_height = max(1, int(gif_clip.h))
+    target_height = max(1, int(target_width * source_height / source_width))
+
+    # A tall gif must not push into the subtitle band or off-frame.
+    max_height = int(video_height * 0.45)
+    if target_height > max_height:
+        target_height = max_height
+        target_width = max(1, int(target_height * source_width / source_height))
+    return target_width, target_height
+
+
+def _deterministic_unit(seed: str) -> float:
+    """Stable 0..1 value, so re-rendering a task reproduces the same layout."""
+    return int(utils.md5(seed)[:8], 16) / 0xFFFFFFFF
+
+
+def _gif_overlay_placement(
+    index: int,
+    seed: str,
+    box_height: int,
+    video_width: int,
+    video_height: int,
+    params: VideoParams,
+) -> tuple[int, int, float]:
+    """
+    Scatter overlays instead of stacking them all in the middle of the frame.
+
+    Consecutive gifs alternate sides and each one tilts towards the centre of
+    the frame, which reads as pinned-on rather than pasted-in. Offsets are
+    derived from the gif itself so the same task always renders identically.
+
+    Subtitles are drawn at 95% of the height for "bottom" and at 5% for "top",
+    so the vertical anchor sits on the opposite side of whichever band is used.
+    """
+    side = -1 if index % 2 == 0 else 1
+    horizontal_jitter = _deterministic_unit(f"{seed}:x:{index}")
+    vertical_jitter = _deterministic_unit(f"{seed}:y:{index}")
+    tilt_jitter = _deterministic_unit(f"{seed}:tilt:{index}")
+
+    offset_ratio = _GIF_SIDE_OFFSET_RANGE[0] + horizontal_jitter * (
+        _GIF_SIDE_OFFSET_RANGE[1] - _GIF_SIDE_OFFSET_RANGE[0]
+    )
+    center_x = int(video_width / 2 + side * offset_ratio * video_width)
+
+    if params.subtitle_enabled and params.subtitle_position == "top":
+        base_center_y = video_height * 0.60
+    else:
+        base_center_y = video_height * 0.32
+    center_y = int(
+        base_center_y
+        + (vertical_jitter - 0.5) * 2 * _GIF_VERTICAL_JITTER * video_height
+    )
+
+    # Rotate() turns anticlockwise on a positive angle, so a gif sitting left of
+    # the centre needs a negative angle to lean its top edge back towards it.
+    tilt = _GIF_TILT_RANGE[0] + tilt_jitter * (_GIF_TILT_RANGE[1] - _GIF_TILT_RANGE[0])
+    angle = side * tilt
+
+    margin = int(video_height * 0.03)
+    center_y = max(
+        margin + box_height // 2,
+        min(center_y, video_height - margin - box_height // 2),
+    )
+    return center_x, center_y, angle
+
+
+def _centered_position(
+    center_x: int,
+    center_y: int,
+    width: int,
+    height: int,
+    video_width: int,
+    video_height: int,
+) -> tuple[int, int]:
+    """Place a clip by its centre, clamped so a tilted card never leaves the frame."""
+    x = int(center_x - width / 2)
+    y = int(center_y - height / 2)
+    x = max(0, min(x, max(0, video_width - width)))
+    y = max(0, min(y, max(0, video_height - height)))
+    return x, y
+
+
+def _build_gif_overlay_clips(
+    gif_overlays: List[dict],
+    video_width: int,
+    video_height: int,
+    params: VideoParams,
+    clip_stack: ExitStack,
+) -> List[VideoFileClip]:
+    """
+    Turn downloaded gifs into positioned overlay clips.
+
+    Each entry needs "path", "start" and "end". A gif shorter than its window is
+    looped, a longer one is trimmed, so the overlay always covers exactly the
+    subtitle line it was picked for.
+    """
+    overlays: List[VideoFileClip] = []
+    size_ratio = max(0.1, min(float(getattr(params, "gif_size", 0.42) or 0.42), 0.9))
+    fade = 0.25
+
+    for overlay in gif_overlays:
+        gif_path = str(overlay.get("path") or "")
+        if not gif_path or not os.path.exists(gif_path):
+            continue
+
+        start = float(overlay.get("start", 0.0))
+        end = float(overlay.get("end", 0.0))
+        window = end - start
+        if window <= 0:
+            continue
+
+        try:
+            gif_clip = clip_stack.enter_context(
+                _open_video_clip_quietly(gif_path, audio=False)
+            )
+            if not gif_clip.duration or gif_clip.duration <= 0:
+                logger.warning(f"skipping gif overlay without duration: {gif_path}")
+                continue
+
+            box_width, box_height = _gif_overlay_box(
+                gif_clip, video_width, video_height, size_ratio
+            )
+            gif_clip = gif_clip.resized(new_size=(box_width, box_height))
+            if gif_clip.duration < window:
+                gif_clip = gif_clip.with_effects([vfx.Loop(duration=window)])
+            gif_clip = gif_clip.with_duration(window)
+
+            radius = max(8, int(min(box_width, box_height) * 0.08))
+            gif_clip = gif_clip.with_mask(
+                _rounded_mask_clip(box_width, box_height, radius).with_duration(window)
+            )
+
+            # Sides alternate across the overlays that actually made it into the
+            # composite, so a skipped gif does not put two cards on one side.
+            placed_index = len(overlays) // 2
+            center_x, center_y, angle = _gif_overlay_placement(
+                index=placed_index,
+                seed=os.path.basename(gif_path),
+                box_height=box_height,
+                video_width=video_width,
+                video_height=video_height,
+                params=params,
+            )
+            spread = max(4, int(box_width * 0.03))
+            shadow = _gif_shadow_clip(box_width, box_height, radius, spread)
+            shadow = shadow.with_duration(window)
+            if angle:
+                # Rotate() carries the rounded mask along via apply_to=["mask"]
+                # and grows the clip size, so both layers are placed by centre.
+                rotate = vfx.Rotate(angle, expand=True)
+                gif_clip = gif_clip.with_effects([rotate])
+                shadow = shadow.with_effects([rotate])
+
+            x, y = _centered_position(
+                center_x, center_y, gif_clip.w, gif_clip.h, video_width, video_height
+            )
+            shadow_x, shadow_y = _centered_position(
+                center_x, center_y, shadow.w, shadow.h, video_width, video_height
+            )
+            shadow = shadow.with_start(start).with_position((shadow_x, shadow_y))
+            gif_clip = gif_clip.with_start(start).with_position((x, y))
+
+            effects = [vfx.CrossFadeIn(fade), vfx.CrossFadeOut(fade)]
+            if window > fade * 2:
+                shadow = shadow.with_effects(effects)
+                gif_clip = gif_clip.with_effects(effects)
+
+            overlays.append(shadow)
+            overlays.append(gif_clip)
+        except Exception as error:
+            # A broken gif must never take the whole render down with it.
+            logger.warning(f"failed to build gif overlay: {gif_path} => {str(error)}")
+
+    logger.info(f"built {len(overlays) // 2} gif overlays")
+    return overlays
+
+
 def _get_visible_center_position(
     text_clip: TextClip,
     container_width: int,
@@ -975,6 +1190,7 @@ def generate_video(
     output_file: str,
     params: VideoParams,
     bgm_file_override: str | None = None,
+    gif_overlays: List[dict] | None = None,
 ) -> bool:
     """
     合成最终视频，并返回本次背景音乐处理是否成功。
@@ -1199,6 +1415,20 @@ def generate_video(
                 text_clips.append(clip)
             video_clip = CompositeVideoClip([video_clip, *text_clips])
             clip_stack.callback(video_clip.close)
+
+        # Gif overlays sit above the footage but below nothing else, so they are
+        # composited after subtitles to keep the text readable on top of them.
+        if gif_overlays:
+            overlay_clips = _build_gif_overlay_clips(
+                gif_overlays,
+                video_width=video_width,
+                video_height=video_height,
+                params=params,
+                clip_stack=clip_stack,
+            )
+            if overlay_clips:
+                video_clip = CompositeVideoClip([video_clip, *overlay_clips])
+                clip_stack.callback(video_clip.close)
 
         bgm_enabled = bgm_service.should_use_bgm(
             params.bgm_type, params.bgm_volume

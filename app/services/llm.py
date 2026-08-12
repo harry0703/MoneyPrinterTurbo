@@ -700,6 +700,110 @@ Please note that you must use English for generating video search terms; Chinese
     return search_terms
 
 
+def generate_gif_moments(
+    subtitle_lines: List[tuple],
+    amount: int = 5,
+    app_config=None,
+) -> List[dict]:
+    """
+    Mark the emotional peaks of a script and describe a gif for each of them.
+
+    ``subtitle_lines`` holds ``((start, end), text)`` entries as produced by
+    ``subtitle.file_to_subtitles``. The returned entries reference those lines
+    by position, so callers keep full control over the actual timing.
+    """
+    if not subtitle_lines:
+        return []
+
+    numbered = "\n".join(
+        f"{index}. {str(line[1]).strip()}"
+        for index, line in enumerate(subtitle_lines)
+        if str(line[1]).strip()
+    )
+    if not numbered:
+        return []
+
+    amount = max(1, min(amount, len(subtitle_lines)))
+    prompt = f"""
+# Role: Video GIF Moment Picker
+
+## Goals:
+Pick at most {amount} lines of a video script that carry the strongest emotional
+beat, and describe a reaction GIF that fits the tone of each picked line.
+
+## Constrains:
+1. return a json-array of objects with the keys "index" and "query".
+2. "index" must be the number of a line listed below, and must not repeat.
+3. "query" must be 2-4 english words describing a reaction gif, never a literal
+   translation of the line. describe the emotion or the visual gag.
+4. spread the picks across the script, do not put them all next to each other.
+5. skip neutral or purely informational lines, it is fine to return fewer picks.
+6. you must only return the json-array. you must not return anything else.
+
+## Output Example:
+[{{"index": 0, "query": "confused math lady"}}, {{"index": 4, "query": "mind blown"}}]
+
+## Script Lines:
+{numbered}
+""".strip()
+
+    moments: List[dict] = []
+    response = ""
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt)
+            else:
+                response = _generate_response(prompt, app_config=app_config)
+            if response.startswith("Error: "):
+                logger.error(f"failed to generate gif moments: {response}")
+                return []
+            parsed = json.loads(_strip_code_fence(response))
+        except Exception as e:
+            logger.warning(f"failed to generate gif moments: {str(e)}")
+            match = re.search(r"\[.*]", response, re.DOTALL) if response else None
+            if not match:
+                continue
+            try:
+                parsed = json.loads(match.group())
+            except Exception as inner_error:
+                logger.warning(f"failed to parse gif moments: {str(inner_error)}")
+                continue
+
+        moments = _normalize_gif_moments(parsed, len(subtitle_lines), amount)
+        if moments:
+            break
+        if i < _max_retries - 1:
+            logger.warning(f"failed to generate gif moments, trying again... {i + 1}")
+
+    logger.success(f"completed: \n{moments}")
+    return moments
+
+
+def _normalize_gif_moments(parsed, line_count: int, amount: int) -> List[dict]:
+    if not isinstance(parsed, list):
+        logger.error("gif moments response is not a list")
+        return []
+
+    moments: List[dict] = []
+    seen_indexes: set[int] = set()
+    for entry in parsed:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            index = int(entry.get("index"))
+        except (TypeError, ValueError):
+            continue
+        query = str(entry.get("query") or "").strip()
+        if not query or index in seen_indexes or not 0 <= index < line_count:
+            continue
+        seen_indexes.add(index)
+        moments.append({"index": index, "query": query})
+
+    moments.sort(key=lambda item: item["index"])
+    return moments[:amount]
+
+
 # =============================================================================
 # Social publishing metadata
 #

@@ -302,6 +302,14 @@
     "llm_provider_tips.cloudflare": "##### Cloudflare AI Gateway 配置说明\n- **API Key**: 在 [Cloudflare 控制台]({api_key_url}) 创建 API Token，需要 `AI Gateway - Read`、`AI Gateway - Edit` 和 `Workers AI - Read` 权限\n- **Account ID**: 填写 Cloudflare 账号 ID\n- **Gateway ID**: 默认 `{default_gateway_id}`；也可以填写已创建的 Gateway ID\n- **Base Url**: 无需填写，程序会根据 Account ID 自动构造 REST API 地址\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式填写 AI Gateway 支持的模型 ID",
     "llm_provider_tips.minimax": "##### MiniMax 配置说明\n- **API Key**: 在 [中国站](https://platform.minimaxi.com/) 或 [国际站](https://platform.minimax.io/) 创建\n- **Base Url**: 中国站使用 `https://api.minimaxi.com/v1`；国际站使用 `{default_base_url}`（默认）\n- **Model Name**: 默认 `{default_model}`；也可以填写当前账号支持的其它模型 ID\n\n请确保 API Key 与 Base Url 来自同一平台，否则可能出现鉴权失败。",
     "llm_provider_tips.pollinations": "##### Pollinations AI 配置说明\n- **API Key**: 在 [Pollinations]({api_key_url}) 创建\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；也可以填写 [模型目录](https://gen.pollinations.ai/v1/models) 中支持 Chat Completions 的其它模型 ID",
-    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)"
+    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)",
+    "Enable Gif Overlays": "动图叠加",
+    "Gif Overlays Help": "在文案的情绪高点叠加 KLIPY 动图，具体位置由大模型根据字幕时间轴挑选。",
+    "Gif Overlays Missing Key": "请在 config.toml 中设置 klipy_api_keys 后开启动图叠加。",
+    "Gif Count": "动图数量上限",
+    "Gif Size": "动图宽度",
+    "Gif Size Help": "动图卡片占画面宽度的比例。",
+    "Gif Rating": "动图内容分级",
+    "Gif Rating Help": "KLIPY 内容过滤：g 最严格，r 允许成人幽默。"
   }
 }

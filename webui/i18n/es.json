@@ -275,6 +275,14 @@
     "Please Enter the Coverr API Key": "Introduce la **API Key de Coverr**",
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Predeterminado (recomendado)",
-    "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264."
+    "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264.",
+    "Enable Gif Overlays": "Animated Gif Overlays",
+    "Gif Overlays Help": "Overlays reaction gifs from KLIPY on the emotional peaks of the script. The moments are picked by the LLM from the subtitle timeline.",
+    "Gif Overlays Missing Key": "Set klipy_api_keys in config.toml to enable gif overlays.",
+    "Gif Count": "Maximum Number of Gifs",
+    "Gif Size": "Gif Width",
+    "Gif Size Help": "Share of the video width taken by the gif card.",
+    "Gif Rating": "Gif Content Rating",
+    "Gif Rating Help": "KLIPY content filter: g is the strictest, r allows adult humour."
   }
 }

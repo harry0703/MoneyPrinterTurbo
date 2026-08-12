@@ -49,6 +49,12 @@ pixabay_api_keys = []
 # Register at https://coverr.co/developers?ctx=header_navigation
 coverr_api_keys = []
 
+# Optional KLIPY integration for animated reaction gifs overlaid on the
+# emotional peaks of the script. Request a key at https://partner.klipy.com/
+# Test keys are limited to 100 requests per hour; a video uses one request per
+# overlay, and downloaded gifs are cached on disk.
+klipy_api_keys = []
+
 # Optional TwelveLabs integration for semantic material ranking and video QA.
 # Install the optional dependency with: uv sync --extra twelvelabs
 # Create an API key at https://playground.twelvelabs.io/

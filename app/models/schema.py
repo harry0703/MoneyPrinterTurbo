@@ -106,6 +106,12 @@ class VideoParams(BaseModel):
     video_music_prompt: str = Field(default="", max_length=2000)
     sonilo_bgm_prompt: str = Field(default="", max_length=2000)
 
+    # Animated reaction gifs overlaid on the emotional peaks of the script.
+    gif_enabled: bool = False
+    gif_amount: int = Field(default=5, ge=1, le=15)
+    gif_size: float = Field(default=0.42, ge=0.1, le=0.9)
+    gif_rating: str = "pg"
+
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
     custom_position: float = config.ui.get("custom_position", 70.0)

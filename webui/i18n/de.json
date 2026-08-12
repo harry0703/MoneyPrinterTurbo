@@ -275,6 +275,14 @@
     "Video Source Settings": "**Videoquellen-Einstellungen**",
     "Coverr": "Coverr",
     "Coverr API Key": "Coverr API-Schlüssel ([API-Schlüssel holen](https://coverr.co/developers?ctx=header_navigation))",
-    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein"
+    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein",
+    "Enable Gif Overlays": "Animated Gif Overlays",
+    "Gif Overlays Help": "Overlays reaction gifs from KLIPY on the emotional peaks of the script. The moments are picked by the LLM from the subtitle timeline.",
+    "Gif Overlays Missing Key": "Set klipy_api_keys in config.toml to enable gif overlays.",
+    "Gif Count": "Maximum Number of Gifs",
+    "Gif Size": "Gif Width",
+    "Gif Size Help": "Share of the video width taken by the gif card.",
+    "Gif Rating": "Gif Content Rating",
+    "Gif Rating Help": "KLIPY content filter: g is the strictest, r allows adult humour."
   }
 }
