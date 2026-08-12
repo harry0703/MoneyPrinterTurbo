@@ -587,6 +587,58 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"])
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
 
+    def test_minimax_tts_uses_regional_endpoint_and_hex_audio(self):
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {"data": {"audio": b"audio".hex(), "status": 2}, "base_resp": {"status_code": 0}}
+
+        class _Clip:
+            duration = 2.5
+
+            def close(self):
+                pass
+
+        captured = {}
+
+        def _post(url, json=None, headers=None, timeout=None):
+            captured.update(url=url, json=json, headers=headers, timeout=timeout)
+            return _Response()
+
+        settings = {
+            "api_key": "test-key", "base_url": vs.MINIMAX_TTS_CN_URL,
+            "model_id": "speech-2.8-turbo", "voice_id": "male-qn-qingse",
+            "sample_rate": 32000, "bitrate": 128000, "audio_format": "mp3", "channel": 1,
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.config, "minimax_tts", settings
+        ), patch.object(vs.requests, "post", side_effect=_post), patch.object(
+            vs, "AudioFileClip", return_value=_Clip()
+        ):
+            voice_file = str(Path(tmp_dir) / "minimax.mp3")
+            result = vs.minimax_tts("Speech test.", "male-qn-qingse", 1.2, voice_file, 1.5)
+            self.assertEqual(Path(voice_file).read_bytes(), b"audio")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(captured["url"], "https://api.minimaxi.com/v1/t2a_v2")
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer test-key")
+        self.assertEqual(captured["json"]["model"], "speech-2.8-turbo")
+        self.assertEqual(captured["json"]["text"], "Speech test.")
+        self.assertEqual(captured["json"]["voice_setting"]["voice_id"], "male-qn-qingse")
+        self.assertEqual(captured["json"]["audio_setting"]["format"], "mp3")
+
+    def test_minimax_voice_helpers_and_dispatch(self):
+        with patch.object(vs.config, "minimax_tts", {"voice_id": "narrator"}):
+            self.assertEqual(vs.get_minimax_voices(), ["minimax:narrator"])
+        self.assertTrue(vs.is_minimax_voice("minimax:narrator"))
+        sentinel = object()
+        with patch.object(vs, "minimax_tts", return_value=sentinel) as implementation:
+            result = vs.tts("test", "minimax:narrator", 1.0, "voice.mp3", 1.0)
+        self.assertIs(result, sentinel)
+        implementation.assert_called_once_with("test", "narrator", 1.0, "voice.mp3", 1.0)
+
     def test_chatterbox_voice_helpers(self):
         """is_chatterbox_voice / get_chatterbox_voices basics and normalisation."""
         self.assertTrue(vs.is_chatterbox_voice("chatterbox:default-Female"))
