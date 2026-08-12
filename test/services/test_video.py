@@ -9,10 +9,12 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 from moviepy import (
     ImageClip,
     VideoFileClip,
 )
+from PIL import ImageFont
 
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -126,12 +128,8 @@ class TestVideoService(unittest.TestCase):
         source_video.with_audio_result = final_video
 
         with (
-            patch.object(
-                vd, "_open_video_clip_quietly", return_value=source_video
-            ),
-            patch.object(
-                vd, "AudioFileClip", side_effect=[voice_source, bgm_source]
-            ),
+            patch.object(vd, "_open_video_clip_quietly", return_value=source_video),
+            patch.object(vd, "AudioFileClip", side_effect=[voice_source, bgm_source]),
             patch.object(vd, "CompositeAudioClip", return_value=mixed_audio),
             patch.object(vd, "_write_videofile_with_codec_fallback") as writer,
             patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
@@ -166,9 +164,7 @@ class TestVideoService(unittest.TestCase):
         source_video.with_audio_result = final_video
 
         with (
-            patch.object(
-                vd, "_open_video_clip_quietly", return_value=source_video
-            ),
+            patch.object(vd, "_open_video_clip_quietly", return_value=source_video),
             patch.object(
                 vd,
                 "AudioFileClip",
@@ -229,9 +225,7 @@ class TestVideoService(unittest.TestCase):
                     ) as audio_file_clip,
                     patch.object(vd, "get_bgm_file") as get_bgm_file,
                     patch.object(vd, "CompositeAudioClip") as composite_audio,
-                    patch.object(
-                        vd, "_write_videofile_with_codec_fallback"
-                    ) as writer,
+                    patch.object(vd, "_write_videofile_with_codec_fallback") as writer,
                     patch.object(
                         vd, "_get_configured_video_codec", return_value="libx264"
                     ),
@@ -404,7 +398,9 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_ffmpeg_binary_uses_configured_env_path(self):
         """配置中显式指定 ffmpeg 时，应优先使用该路径。"""
-        with patch.dict(os.environ, {"IMAGEIO_FFMPEG_EXE": "/tmp/custom-ffmpeg"}, clear=True):
+        with patch.dict(
+            os.environ, {"IMAGEIO_FFMPEG_EXE": "/tmp/custom-ffmpeg"}, clear=True
+        ):
             self.assertEqual(utils.get_ffmpeg_binary(), "/tmp/custom-ffmpeg")
 
     def test_get_ffmpeg_binary_falls_back_to_imageio_ffmpeg(self):
@@ -416,9 +412,11 @@ class TestVideoService(unittest.TestCase):
             get_ffmpeg_exe=lambda: "/tmp/bundled-ffmpeg"
         )
 
-        with patch.dict(os.environ, {}, clear=True), patch.object(
-            utils.shutil, "which", return_value=None
-        ), patch.dict(sys.modules, {"imageio_ffmpeg": fake_imageio_ffmpeg}):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(utils.shutil, "which", return_value=None),
+            patch.dict(sys.modules, {"imageio_ffmpeg": fake_imageio_ffmpeg}),
+        ):
             self.assertEqual(utils.get_ffmpeg_binary(), "/tmp/bundled-ffmpeg")
 
     def test_get_effective_video_codec_falls_back_when_encoder_missing(self):
@@ -459,7 +457,9 @@ class TestVideoService(unittest.TestCase):
             "run",
             side_effect=OSError("permission denied"),
         ):
-            self.assertFalse(vd._ffmpeg_encoder_exists("C:/ffmpeg/bin/ffmpeg.exe", "h264_nvenc"))
+            self.assertFalse(
+                vd._ffmpeg_encoder_exists("C:/ffmpeg/bin/ffmpeg.exe", "h264_nvenc")
+            )
 
     def test_write_videofile_falls_back_after_runtime_encoder_failure(self):
         """
@@ -524,9 +524,7 @@ class TestVideoService(unittest.TestCase):
             return_value=r"C:\Users\Test User's Videos\clip.mp4",
         ):
             self.assertEqual(
-                vd._format_ffmpeg_concat_path(
-                    r"C:\Users\Test User's Videos\clip.mp4"
-                ),
+                vd._format_ffmpeg_concat_path(r"C:\Users\Test User's Videos\clip.mp4"),
                 "C:/Users/Test User'\\''s Videos/clip.mp4",
             )
 
@@ -563,8 +561,7 @@ class TestVideoService(unittest.TestCase):
                     )
 
         used_codecs = [
-            call.args[0][call.args[0].index("-c:v") + 1]
-            for call in run.call_args_list
+            call.args[0][call.args[0].index("-c:v") + 1] for call in run.call_args_list
         ]
         self.assertEqual(used_codecs, ["h264_nvenc", "libx264"])
         self.assertIn("h264_nvenc", vd._runtime_disabled_video_codecs)
@@ -675,6 +672,7 @@ class TestVideoService(unittest.TestCase):
         Ensure `combine_videos` safely handles
         `video_transition_mode=None`.
         """
+
         class _FakeAudioClip:
             @property
             def duration(self):
@@ -848,7 +846,9 @@ class TestVideoService(unittest.TestCase):
                     with patch.object(
                         vd, "_write_videofile_with_codec_fallback"
                     ) as write_mock:
-                        with patch.object(vd, "concat_video_clips_with_ffmpeg") as concat_mock:
+                        with patch.object(
+                            vd, "concat_video_clips_with_ffmpeg"
+                        ) as concat_mock:
                             with patch.object(vd, "delete_files"):
                                 result = vd.combine_videos(
                                     combined_video_path=combined_video_path,
@@ -932,15 +932,9 @@ class TestVideoService(unittest.TestCase):
         同一个源素材的最后一个切片可能短于目标片段时长。首轮去重时应优先
         选择较长片段，否则会因为累计时长不足而提前复用素材。
         """
-        short_tail = vd.SubClippedVideoClip(
-            "a.mp4", 6, 6.5, source_file_path="a.mp4"
-        )
-        full_clip = vd.SubClippedVideoClip(
-            "a.mp4", 0, 3, source_file_path="a.mp4"
-        )
-        other_source = vd.SubClippedVideoClip(
-            "b.mp4", 0, 3, source_file_path="b.mp4"
-        )
+        short_tail = vd.SubClippedVideoClip("a.mp4", 6, 6.5, source_file_path="a.mp4")
+        full_clip = vd.SubClippedVideoClip("a.mp4", 0, 3, source_file_path="a.mp4")
+        other_source = vd.SubClippedVideoClip("b.mp4", 0, 3, source_file_path="b.mp4")
 
         ordered_clips = vd._prioritize_unique_source_clips(
             subclipped_items=[short_tail, full_clip, other_source],
@@ -951,35 +945,33 @@ class TestVideoService(unittest.TestCase):
             clip for clip in ordered_clips if clip.source_file_path == "a.mp4"
         )
         self.assertEqual(first_a_clip, full_clip)
-    
+
     def test_wrap_text(self):
         """test text wrapping function"""
         try:
             font_path = os.path.join(utils.font_dir(), "STHeitiMedium.ttc")
             if not os.path.exists(font_path):
                 self.fail(f"font file not found: {font_path}")
-                
+
             # test english text wrapping
-            test_text_en = "This is a test text for wrapping long sentences in english language"
-            
+            test_text_en = (
+                "This is a test text for wrapping long sentences in english language"
+            )
+
             wrapped_text_en, text_height_en = vd.wrap_text(
-                text=test_text_en,
-                max_width=300,
-                font=font_path,
-                fontsize=30
+                text=test_text_en, max_width=300, font=font_path, fontsize=30
             )
             print(wrapped_text_en, text_height_en)
             # verify text is wrapped
             self.assertIn("\n", wrapped_text_en)
-            
+
             # test chinese text wrapping
-            test_text_zh = "这是一段用来测试中文长句换行的文本内容，应该会根据宽度限制进行换行处理"
+            test_text_zh = (
+                "这是一段用来测试中文长句换行的文本内容，应该会根据宽度限制进行换行处理"
+            )
             wrapped_text_zh, text_height_zh = vd.wrap_text(
-                text=test_text_zh,
-                max_width=300,
-                font=font_path,
-                fontsize=30
-            )   
+                text=test_text_zh, max_width=300, font=font_path, fontsize=30
+            )
             print(wrapped_text_zh, text_height_zh)
             # verify chinese text is wrapped
             self.assertIn("\n", wrapped_text_zh)
@@ -1021,6 +1013,275 @@ class TestVideoService(unittest.TestCase):
                 with patch("sys.platform", platform):
                     result = vd._get_temp_audio_dir("/some/output/dir")
                     self.assertEqual(result, "/some/output/dir")
+
+
+class _FakeSubtitlesClip:
+    """generate_video only reads .subtitles and closes the clip; no srt parsing."""
+
+    def __init__(self, subtitles):
+        self.subtitles = subtitles
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.close()
+
+    def close(self):
+        pass
+
+
+class _FakeSubtitleTextClip:
+    """Records constructor kwargs and supports create_text_clip chained calls."""
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.w = 300
+        self.h = 100
+        self.mask = None
+
+    def with_start(self, *_args):
+        return self
+
+    def with_end(self, *_args):
+        return self
+
+    def with_duration(self, *_args):
+        return self
+
+    def with_position(self, *_args):
+        return self
+
+    def close(self):
+        pass
+
+
+class TestSubtitleCapsAndHighlight(unittest.TestCase):
+    def setUp(self):
+        self.font_path = os.path.join(utils.font_dir(), "STHeitiMedium.ttc")
+        if not os.path.exists(self.font_path):
+            self.fail(f"font file not found: {self.font_path}")
+
+    def _run_generate_video(self, params, phrase):
+        """Drive the subtitle branch of generate_video with all IO faked."""
+        source_video = _FakeMoviePyClip()
+        voice_source = _FakeMoviePyClip()
+        composite = _FakeMoviePyClip()
+        composite.with_audio_result = _FakeMoviePyClip()
+        fake_sub = _FakeSubtitlesClip([((0.0, 1.5), phrase)])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            subtitle_path = os.path.join(temp_dir, "subtitle.srt")
+            Path(subtitle_path).write_text(
+                f"1\n00:00:00,000 --> 00:00:01,500\n{phrase}\n",
+                encoding="utf-8",
+            )
+            with (
+                patch.object(vd, "_open_video_clip_quietly", return_value=source_video),
+                patch.object(vd, "AudioFileClip", return_value=voice_source),
+                patch.object(vd, "SubtitlesClip", return_value=fake_sub),
+                patch.object(
+                    vd,
+                    "TextClip",
+                    side_effect=lambda **kwargs: _FakeSubtitleTextClip(**kwargs),
+                ) as text_clip_cls,
+                patch.object(
+                    vd,
+                    "create_highlighted_text_clip",
+                    side_effect=lambda **kwargs: _FakeSubtitleTextClip(**kwargs),
+                ) as highlight_builder,
+                patch.object(vd, "CompositeVideoClip", return_value=composite),
+                patch.object(vd, "_write_videofile_with_codec_fallback"),
+                patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+            ):
+                vd.generate_video(
+                    video_path="combined.mp4",
+                    audio_path="voice.mp3",
+                    subtitle_path=subtitle_path,
+                    output_file=os.path.join(temp_dir, "final.mp4"),
+                    params=params,
+                )
+        return text_clip_cls, highlight_builder
+
+    def test_pick_highlight_word_prefers_word_with_digit(self):
+        self.assertEqual(
+            vd.pick_highlight_word("невероятная скидка 90 процентов"), "90"
+        )
+
+    def test_pick_highlight_word_falls_back_to_longest_word(self):
+        self.assertEqual(
+            vd.pick_highlight_word("как быстро заработать деньги"), "заработать"
+        )
+
+    def test_pick_highlight_word_strips_punctuation(self):
+        self.assertEqual(vd.pick_highlight_word("это «деньги!!!»"), "деньги")
+
+    def test_pick_highlight_word_returns_none_for_stopwords_only(self):
+        self.assertIsNone(vd.pick_highlight_word("потому что это только для нас"))
+
+    def test_pick_highlight_word_single_word_phrase(self):
+        self.assertEqual(vd.pick_highlight_word("мотивация"), "мотивация")
+        self.assertIsNone(vd.pick_highlight_word("кот"))
+
+    def test_pick_highlight_word_ignores_stopwords_in_uppercase(self):
+        self.assertIsNone(vd.pick_highlight_word("ПОТОМУ ЧТО ТОЛЬКО"))
+        self.assertEqual(vd.pick_highlight_word("КАК БЫСТРО ЗАРАБОТАТЬ"), "ЗАРАБОТАТЬ")
+
+    def test_create_highlighted_text_clip_fits_ninety_percent_of_frame(self):
+        max_width = int(1080 * 0.9)
+        phrase = "EARN 1000 DOLLARS EVERY SINGLE DAY"
+        wrapped, _ = vd.wrap_text(
+            phrase, max_width=max_width, font=self.font_path, fontsize=60
+        )
+        clip = vd.create_highlighted_text_clip(
+            wrapped_txt=wrapped,
+            font_path=self.font_path,
+            font_size=60,
+            text_color="#FFFFFF",
+            highlight_word="1000",
+            highlight_color="#FFD700",
+            stroke_color="#000000",
+            stroke_width=2,
+            interline=15,
+            width=max_width,
+            margin_y=18,
+        )
+        try:
+            frame = clip.get_frame(0)
+            mask = clip.mask.get_frame(0)
+
+            self.assertGreater(clip.h, 0)
+            self.assertLessEqual(clip.w, max_width)
+            self.assertEqual(frame.shape[1], max_width)
+            self.assertGreater(int((mask > 0.5).sum()), 0)
+        finally:
+            clip.close()
+
+    def test_create_highlighted_text_clip_paints_keyword_in_highlight_color(self):
+        line = "EARN 1000 NOW"
+        width = 900
+        clip = vd.create_highlighted_text_clip(
+            wrapped_txt=line,
+            font_path=self.font_path,
+            font_size=60,
+            text_color="#FFFFFF",
+            highlight_word="1000",
+            highlight_color="#FFD700",
+            stroke_color="#000000",
+            stroke_width=2,
+            interline=15,
+            width=width,
+            margin_y=20,
+        )
+        try:
+            frame = clip.get_frame(0)
+            mask = clip.mask.get_frame(0)
+            gold = np.all(frame == np.array([255, 215, 0]), axis=-1) & (mask > 0.9)
+            white = np.all(frame == np.array([255, 255, 255]), axis=-1) & (mask > 0.9)
+
+            self.assertGreater(int(gold.sum()), 0)
+            self.assertGreater(int(white.sum()), 0)
+
+            font = ImageFont.truetype(self.font_path, 60)
+            x0 = (width - font.getlength(line)) / 2
+            x_start = x0 + font.getlength("EARN ")
+            x_end = x_start + font.getlength("1000")
+            xs = np.where(gold)[1]
+            self.assertGreaterEqual(xs.min(), x_start - 4)
+            self.assertLessEqual(xs.max(), x_end + 4)
+        finally:
+            clip.close()
+
+    def test_create_highlighted_text_clip_keyword_on_wrapped_line(self):
+        phrase = "TOP FIVE AMAZING TRICKS"
+        keyword = vd.pick_highlight_word(phrase)
+        self.assertEqual(keyword, "AMAZING")
+
+        font_size = 40
+        interline = 10
+        font = ImageFont.truetype(self.font_path, font_size)
+        # Force a break right after "TOP FIVE" so the keyword lands below.
+        bbox = font.getbbox("TOP FIVE AMAZING")
+        max_width = int(bbox[2] - bbox[0]) - 1
+        wrapped, _ = vd.wrap_text(
+            phrase, max_width=max_width, font=self.font_path, fontsize=font_size
+        )
+        lines = wrapped.split("\n")
+        keyword_line = next(
+            index for index, item in enumerate(lines) if keyword in item
+        )
+        self.assertGreater(keyword_line, 0)
+
+        clip = vd.create_highlighted_text_clip(
+            wrapped_txt=wrapped,
+            font_path=self.font_path,
+            font_size=font_size,
+            text_color="#FFFFFF",
+            highlight_word=keyword,
+            highlight_color="#FFD700",
+            stroke_color=None,
+            stroke_width=0,
+            interline=interline,
+            width=max_width,
+            margin_y=0,
+        )
+        try:
+            frame = clip.get_frame(0)
+            mask = clip.mask.get_frame(0)
+            gold = np.all(frame == np.array([255, 215, 0]), axis=-1) & (mask > 0.9)
+            self.assertGreater(int(gold.sum()), 0)
+
+            ascent, descent = font.getmetrics()
+            line_height = ascent + descent
+            band_top = keyword_line * (line_height + interline)
+            ys = np.where(gold)[0]
+            self.assertGreaterEqual(ys.min(), band_top)
+            self.assertLessEqual(ys.max(), band_top + line_height)
+        finally:
+            clip.close()
+
+    def test_generate_video_uppercases_subtitles_when_enabled(self):
+        params = vd.VideoParams(
+            video_subject="test",
+            bgm_type="",
+            subtitle_uppercase=True,
+        )
+        text_clip_cls, highlight_builder = self._run_generate_video(
+            params, "hello money world"
+        )
+
+        text_clip_cls.assert_called_once()
+        self.assertEqual(text_clip_cls.call_args.kwargs["text"], "HELLO MONEY WORLD")
+        highlight_builder.assert_not_called()
+
+    def test_generate_video_combines_uppercase_with_highlight(self):
+        params = vd.VideoParams(
+            video_subject="test",
+            bgm_type="",
+            subtitle_uppercase=True,
+            subtitle_highlight_enabled=True,
+            subtitle_highlight_color="#FF00FF",
+        )
+        text_clip_cls, highlight_builder = self._run_generate_video(
+            params, "earn 1000 dollars fast"
+        )
+
+        text_clip_cls.assert_not_called()
+        highlight_builder.assert_called_once()
+        kwargs = highlight_builder.call_args.kwargs
+        self.assertEqual(kwargs["wrapped_txt"], "EARN 1000 DOLLARS FAST")
+        self.assertEqual(kwargs["highlight_word"], "1000")
+        self.assertEqual(kwargs["highlight_color"], "#FF00FF")
+
+    def test_generate_video_defaults_keep_textclip_path(self):
+        params = vd.VideoParams(video_subject="test", bgm_type="")
+        text_clip_cls, highlight_builder = self._run_generate_video(
+            params, "hello money world"
+        )
+
+        text_clip_cls.assert_called_once()
+        self.assertEqual(text_clip_cls.call_args.kwargs["text"], "hello money world")
+        highlight_builder.assert_not_called()
 
 
 class TestMaterialResolutionTolerance(unittest.TestCase):

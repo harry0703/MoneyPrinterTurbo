@@ -69,6 +69,7 @@ commercial-content policies агент должен перепроверять �
 | `architecture/photo-overlays.md` | фото-вставки из локальной папки с анимациями появления |
 | `architecture/claude-cli-provider.md` | провайдер `claude_code` (генерация через `claude -p`) и пресет промпта по плейбуку |
 | `architecture/hook-selection.md` | выбор первой строки: генератор кандидатов, фильтр, скорер |
+| `architecture/subtitle-highlight.md` | капс и смысловая подсветка ключевого слова в субтитрах |
 | `architecture/decisions/` | микро-ADR — по файлу на принятое решение |
 | `changelog.md` | changelog; запись обязательна на каждый бамп версии в `pyproject.toml` |
 | `TODO/` | нереализованные фичи, по файлу на фичу |

@@ -11,6 +11,15 @@
   (`photo_enabled = false`). CLI: `--photo-enabled/--no-photo-enabled`,
   `--photo-dir`, `--photo-amount`, `--photo-size`, `--photo-animation` —
   `architecture/photo-overlays.md`.
+- **Капс в субтитрах** (`subtitle_uppercase`, по умолчанию выключено): текст фразы
+  поднимается в верхний регистр только при рендере, в TTS уходит как есть.
+  CLI: `--subtitle-uppercase/--no-subtitle-uppercase`.
+- **Подсветка ключевого слова в субтитрах** (`subtitle_highlight_enabled`, по умолчанию
+  выключено; цвет — `subtitle_highlight_color`, по умолчанию `#FFD700`): одно слово на
+  фразу выбирается детерминированной эвристикой (цифра > самое длинное слово ≥5 букв
+  вне стоп-списка) и рисуется другим цветом через PIL → `ImageClip`. Karaoke-подсветка
+  невозможна без пословных таймингов TTS — `architecture/subtitle-highlight.md`.
+  CLI: `--subtitle-highlight`, `--subtitle-highlight-color`.
 - **CLI: gif-флаги** — `--gif-enabled/--no-gif-enabled`, `--gif-amount`, `--gif-size`,
   `--gif-rating`; раньше gif-оверлеи включались только из WebUI или кодом через
   `VideoParams`.
