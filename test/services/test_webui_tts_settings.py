@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -93,4 +94,63 @@ def test_tts_provider_inputs_render_the_standardized_labels():
             assert api_key_input.proto.type == api_key_input.proto.PASSWORD
             assert not getattr(api_key_input.proto, "help", "")
 
+    assert [str(item.value) for item in app.exception] == []
+
+
+def test_elevenlabs_reconnect_restores_saved_key_before_loading_voices():
+    """
+    服务重启后浏览器可能重放空密码状态；WebUI 应保留配置并在当前 rerun 就用
+    已保存的 Key 加载音色，而不是只避免写空、却继续以空 Key 请求服务。
+    """
+    test_config = dict(config.elevenlabs, api_key="saved-key")
+    test_ui = dict(
+        config.ui,
+        voice_mode="tts",
+        tts_server="elevenlabs",
+        voice_name="",
+    )
+
+    with (
+        patch.object(config, "elevenlabs", test_config),
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+        patch.object(voice, "get_elevenlabs_voices", return_value=[]) as get_voices,
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "en"
+        app.session_state["elevenlabs_api_key_input"] = ""
+        app.run()
+
+    assert test_config["api_key"] == "saved-key"
+    assert app.session_state["elevenlabs_api_key_input"] == "saved-key"
+    assert get_voices.call_count >= 1
+    assert all(call.args == ("saved-key",) for call in get_voices.call_args_list)
+    assert [str(item.value) for item in app.exception] == []
+
+
+def test_elevenlabs_environment_key_is_used_without_persisting_it():
+    """环境变量可以驱动音色加载，但不能被 WebUI 自动复制进 config.toml。"""
+    test_config = dict(config.elevenlabs, api_key="")
+    test_ui = dict(
+        config.ui,
+        voice_mode="tts",
+        tts_server="elevenlabs",
+        voice_name="",
+    )
+
+    with (
+        patch.object(config, "elevenlabs", test_config),
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+        patch.dict(os.environ, {"ELEVENLABS_API_KEY": "env-key"}),
+        patch.object(voice, "get_elevenlabs_voices", return_value=[]) as get_voices,
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "en"
+        app.run()
+
+    assert test_config["api_key"] == ""
+    assert app.session_state["elevenlabs_api_key_input"] == "env-key"
+    assert get_voices.call_count >= 1
+    assert all(call.args == ("env-key",) for call in get_voices.call_args_list)
     assert [str(item.value) for item in app.exception] == []

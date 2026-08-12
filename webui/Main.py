@@ -2935,6 +2935,45 @@ def _get_reusable_full_voice_preview(params, voice_mode: str) -> dict | None:
     }
 
 
+def _sync_elevenlabs_api_key_input():
+    """
+    同步 ElevenLabs 密码控件、持久化配置和环境变量，并返回当前有效 Key。
+
+    Streamlit 在浏览器标签页连接到重启后的服务时，可能重放一个空的密码控件
+    状态。这个空值无法与用户主动清空可靠区分，因此当配置文件或环境变量仍有
+    Key 时，优先恢复有效值，防止空状态覆盖配置并确保本次 rerun 能立即加载
+    音色。需要彻底删除 Key 时应修改配置文件或环境变量，避免重连误判。
+    """
+    widget_key = "elevenlabs_api_key_input"
+    configured_key = str(config.elevenlabs.get("api_key", "") or "").strip()
+    env_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
+    effective_key = configured_key or env_key
+    had_widget_state = widget_key in st.session_state
+    entered_key = str(st.session_state.get(widget_key, "") or "").strip()
+
+    if not entered_key and effective_key:
+        # 重连后的空状态不能覆盖有效凭证，同时必须在渲染音色列表之前恢复，
+        # 否则配置文件虽然没有被清空，当前页面仍会使用空 Key 请求 ElevenLabs。
+        st.session_state[widget_key] = effective_key
+        entered_key = effective_key
+        if had_widget_state:
+            logger.debug("restored ElevenLabs API key after empty session replay")
+    elif not had_widget_state:
+        # 先初始化再创建控件，避免同时传 value 和 session_state 触发 Streamlit
+        # 的默认值冲突警告；没有任何 Key 时初始化为空即可。
+        st.session_state[widget_key] = entered_key
+
+    if entered_key and entered_key != effective_key:
+        # 用户主动输入的新值才落入 config.toml。环境变量作为有效值回填时不会
+        # 被复制到文件，容器或部署平台注入的密钥仍只保留在运行环境中。
+        for cache_key in list(st.session_state.keys()):
+            if str(cache_key).startswith("elevenlabs_voices_"):
+                del st.session_state[cache_key]
+        _set_runtime_config("elevenlabs", "api_key", entered_key)
+
+    return entered_key
+
+
 def _render_elevenlabs_api_key_input(label_key):
     """
     渲染 ElevenLabs TTS 与配乐共用的唯一 API Key 输入状态。
@@ -2943,25 +2982,12 @@ def _render_elevenlabs_api_key_input(label_key):
     后渲染的输入框还会覆盖共享配置。这里统一使用一个 key，并集中处理环境变量
     回填、配置更新和音色缓存失效，确保界面显示与后台任务始终读取同一个值。
     """
-    configured_key = str(config.elevenlabs.get("api_key", "") or "").strip()
-    effective_key = configured_key or os.getenv("ELEVENLABS_API_KEY", "").strip()
-    entered_key = st.text_input(
+    _sync_elevenlabs_api_key_input()
+    return st.text_input(
         tr(label_key),
-        value=effective_key,
         type="password",
         key="elevenlabs_api_key_input",
     ).strip()
-
-    if entered_key != effective_key:
-        for cache_key in list(st.session_state.keys()):
-            if str(cache_key).startswith("elevenlabs_voices_"):
-                del st.session_state[cache_key]
-
-    # 环境变量仅用于当前进程，不在用户未修改时自动复制到 config.toml。
-    # 已有配置或用户主动修改输入时才更新本机配置，与 Sonilo 行为保持一致。
-    if configured_key or entered_key != effective_key:
-        _set_runtime_config("elevenlabs", "api_key", entered_key)
-    return entered_key
 
 
 def _render_background_music_settings(params, elevenlabs_api_key_rendered=False):
@@ -3270,17 +3296,9 @@ def _render_audio_settings(panel, params):
                 # 获取 Xiaomi MiMo TTS 的预置音色列表
                 filtered_voices = voice.get_mimo_voices()
             elif selected_tts_server == "elevenlabs":
-                # Read from session_state first so the API key is available before
-                # the Play Voice button runs (which is earlier in the script than
-                # the API key text_input widget).
-                saved_elevenlabs_api_key = st.session_state.get(
-                    "elevenlabs_api_key_input",
-                    config.elevenlabs.get("api_key", ""),
-                )
-                if saved_elevenlabs_api_key:
-                    _set_runtime_config(
-                        "elevenlabs", "api_key", saved_elevenlabs_api_key
-                    )
+                # 音色列表位于 Key 输入框之前渲染，必须先统一恢复重连状态并读取
+                # 配置/环境变量，否则页面会用空 Key 加载并缓存空音色列表。
+                saved_elevenlabs_api_key = _sync_elevenlabs_api_key_input()
                 cache_key = f"elevenlabs_voices_{saved_elevenlabs_api_key}"
                 if cache_key not in st.session_state:
                     st.session_state[cache_key] = voice.get_elevenlabs_voices(
