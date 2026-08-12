@@ -4,6 +4,10 @@
 > Status: product/engineering context for an AI-assisted short-form content factory  
 > Primary use: give this file to coding agents working inside the repository so they understand the product goal, assumptions, architecture, research priors, constraints, and MVP boundaries.
 
+Ремесленная часть (хуки, структура сценария, форматы, тайминги, публикация) вынесена в
+`../playbook/` — здесь от неё остались заголовки-указатели. Этот файл держит продуктовую
+рамку: цели, метрики, движки, ограничения.
+
 ---
 
 ## 0. TL;DR FOR THE AGENT
@@ -390,53 +394,11 @@ They must be replaced by our own account-level data as soon as we have enough ob
 
 ## 6.1 TikTok length
 
-Socialinsider analyzed more than 6M TikTok videos published Jan–Jun 2026.
-
-Reported engagement by length:
-
-```text
-0–15s       5.90%
-15–30s      6.00%
-30–60s      4.20%
-60–90s      4.80%
-90–120s     5.15%
-120–180s    5.50%
->180s       5.90%
-```
-
-Reported median views:
-
-```text
-1–15s       1,274
-15–30s      1,000
-30–60s      2,200
-60–90s      7,200
-90–120s     9,620
-120–180s    11,136
->180s       10,150
-```
-
-Interpretation:
-
-- roughly 15–30 sec performed best for engagement in this dataset,
-- 2–3 minute videos had the highest median views,
-- therefore "all TikToks should be 10–15 seconds" is not a good universal assumption,
-- long videos only make sense when the story can sustain attention.
-
-Source:
-https://www.socialinsider.io/blog/how-long-are-tiktok-videos/
+Вынесено → `../playbook/timing.md`.
 
 ## 6.2 Instagram Reels length
 
-Current Socialinsider research indicates Reels in roughly the 30–60 second area are strong for reach.
-
-A specific length analysis reported 45–60 seconds as the highest engagement bracket and highest median-view bracket in the studied sample.
-
-Use **45–60 sec** as an initial prior, not a rule.
-
-Sources:
-https://www.socialinsider.io/blog/instagram-reels-length/
-https://www.socialinsider.io/blog/instagram-reels-statistics/
+Вынесено → `../playbook/timing.md`.
 
 ## 6.3 TikTok 2026 platform-level dataset
 
@@ -493,236 +455,25 @@ https://ads.tiktok.com/business/en/next
 
 ## 6.5 Important interpretation
 
-Do not blindly turn these datasets into constants.
-
-Example:
-
-Wrong:
-
-```python
-if platform == "instagram":
-    duration = 52
-```
-
-Better:
-
-```python
-prior = DurationPrior(
-    platform="instagram",
-    preferred_range=(45, 60),
-    confidence="external_benchmark"
-)
-```
-
-Then our own data can override it later.
+Вынесено → `../playbook/timing.md`.
 
 ---
 
 # 7. INITIAL CONTENT FORMATS
 
-The system should support reusable **formats**, not just niches.
-
-A niche describes the subject.
-
-A format describes the storytelling mechanic.
-
-Initial Format Registry candidates:
-
-```text
-micro_documentary
-mystery_reveal
-myth_busting
-explainer
-one_detail
-hot_take
-story_twist
-ranking
-timeline
-primary_source_reveal
-before_after
-three_clues
-comment_followup
-news_context
-why_it_happened
-```
-
-## 7.1 Mystery / reveal
-
-Example:
-
-```text
-"Everyone saw this goal.
-But look at the player on the left."
-```
-
-Structure:
-
-```text
-hook
-→ open loop
-→ clues / context
-→ escalation
-→ reveal
-→ optional second payoff
-```
-
-## 7.2 Myth busting
-
-```text
-"Everyone says X.
-The actual story is Y."
-```
-
-Good for:
-
-- history,
-- sports narratives,
-- tech myths,
-- cybersecurity,
-- gaming lore.
-
-## 7.3 One detail
-
-```text
-"Almost nobody noticed this detail."
-```
-
-Works especially well when the visual material can actually demonstrate the detail.
-
-## 7.4 Explainer
-
-```text
-"Why does X happen?"
-```
-
-Useful for VPN/privacy channels and evergreen acquisition content.
-
-## 7.5 Primary source reveal
-
-Show:
-
-- real document,
-- chart,
-- map,
-- screenshot,
-- archive excerpt,
-- public record.
-
-Then highlight the relevant portion.
-
-This can create stronger perceived authenticity than generic stock footage.
-
-## 7.6 Comment follow-up
-
-Generate a new video based on:
-
-- a real viewer question,
-- a disagreement,
-- a frequently repeated misconception,
-- a high-performing comment.
-
-This should be a later feature after comments ingestion exists.
+Вынесено → `../playbook/formats.md`.
 
 ---
 
 # 8. HOOK SYSTEM
 
-The first seconds are a separate optimization problem.
-
-Do not let the general script generator casually produce one introduction.
-
-Create a dedicated Hook Generator / Hook Scorer.
-
-For one idea, generate multiple hook candidates.
-
-Possible hook classes:
-
-```text
-contradiction
-specific_detail
-direct_question
-unexpected_number
-visual_instruction
-controversy
-stakes
-prediction
-before_after
-myth
-confession
-challenge
-```
-
-Examples:
-
-Generic bad opening:
-
-```text
-"Hi everyone, today we're going to talk about..."
-```
-
-Better:
-
-```text
-"This goal should never have counted."
-```
-
-```text
-"Look at the player on the left one second before the shot."
-```
-
-```text
-"Everyone remembers the goal. Almost nobody remembers what happened 14 seconds earlier."
-```
-
-The system should log `hook_type` as structured metadata.
+Вынесено → `../playbook/hooks.md`.
 
 ---
 
 # 9. SCRIPT / STORY DESIGN
 
-A video should not be treated as a paragraph read aloud.
-
-The script should have timed beats.
-
-Canonical structure:
-
-```text
-0s        hook
-
-immediately:
-identify subject / context
-
-then:
-new information
-
-then:
-escalation / unresolved question
-
-then:
-payoff
-
-optional:
-second twist
-
-final:
-soft CTA / branding
-```
-
-The viewer should receive a reason to continue watching every few seconds.
-
-Possible attention refresh mechanisms:
-
-- new fact,
-- new question,
-- visual change,
-- diagram,
-- zoom/highlight,
-- contradiction,
-- escalation,
-- emotional shift,
-- payoff preview.
-
-Avoid padding scripts merely to hit a duration target.
+Вынесено → `../playbook/script.md`.
 
 ---
 
@@ -839,43 +590,7 @@ Human approval should operate primarily at this layer in v1.
 
 # 12. FACTUALITY / RESEARCH
 
-For factual channels, hallucinated facts can destroy the brand.
-
-The script process should conceptually be:
-
-```text
-idea
-↓
-source retrieval / research
-↓
-claim list
-↓
-source-backed outline
-↓
-script
-↓
-claim verification
-```
-
-Store source URLs / IDs associated with the video.
-
-Example:
-
-```json
-{
-  "claims": [
-    {
-      "text": "...",
-      "source": "https://...",
-      "confidence": 0.93
-    }
-  ]
-}
-```
-
-The system does not need a massive RAG architecture in v1 if normal web research is sufficient.
-
-For evergreen internal knowledge, RAG can be added later.
+Вынесено → `../playbook/script.md`.
 
 ---
 
@@ -1432,136 +1147,31 @@ Tag experiments explicitly:
 
 # 25. INITIAL CONTENT MIX (WORKING HYPOTHESIS)
 
-For an exploratory channel:
-
-```text
-30% trend-reactive
-30% curiosity / surprising story
-20% explanation / myth-busting
-10% ranking/list
-10% experimental formats
-```
-
-This is NOT a proven universal optimum.
-
-It is merely a reasonable exploration allocation.
+Вынесено → `../playbook/formats.md`.
 
 ---
 
 # 26. INITIAL DURATION PRIORS
 
-Again: initial only.
-
-```yaml
-tiktok:
-  fast:
-    target: 20-30s
-  story:
-    target: 60-150s
-
-instagram_reels:
-  default:
-    target: 45-60s
-
-youtube_shorts:
-  default:
-    target: 20-40s
-```
-
-The YouTube range here is a product hypothesis, not an externally proven optimum.
-
-Once we have enough data, the scheduler/idea generator should use account-specific priors.
+Вынесено → `../playbook/timing.md`.
 
 ---
 
 # 27. POSTING FREQUENCY
 
-Do not hard-code "post N times/day because the algorithm wants it".
-
-There is no universal magic posting frequency.
-
-The purpose of frequent publishing for this project is:
-
-**more experiments per unit time**
-
-not:
-
-**appease the algorithm**
-
-A reasonable MVP may produce a small number of videos per account/day, but throughput should be constrained by:
-
-- content quality,
-- human review capacity,
-- platform limits,
-- cost,
-- risk,
-- account health,
-- experiment usefulness.
+Вынесено → `../playbook/publishing.md`.
 
 ---
 
 # 28. POSTING TIME
 
-Internet benchmark studies disagree.
-
-Use posting time as an exploration variable.
-
-Start with broad evening windows where benchmarks often show activity, but do not treat them as rules.
-
-After enough posts, derive account-specific time/day distributions.
-
-Store:
-
-```text
-day_of_week
-local_publish_hour
-timezone
-```
-
-in analytics.
+Вынесено → `../playbook/publishing.md`.
 
 ---
 
 # 29. HASHTAGS / SEO / METADATA
 
-Do not optimize for spammy generic hashtags.
-
-Prefer:
-
-- clear topic name,
-- entities,
-- search-aligned narration,
-- on-screen keywords where appropriate,
-- natural caption,
-- a few relevant hashtags.
-
-Example:
-
-Narration:
-
-```text
-"Why was Messi's 2012 scoring record so unusual?"
-```
-
-Caption:
-
-```text
-How Messi scored 91 goals in 2012.
-```
-
-Tags:
-
-```text
-#Messi #FootballHistory
-```
-
-Not:
-
-```text
-#fyp #viral #viralvideo #xyzbca
-```
-
-YouTube Shorts should not depend heavily on hashtags for discovery.
+Вынесено → `../playbook/publishing.md`.
 
 ---
 
@@ -1856,24 +1466,7 @@ The system is only attractive if acquisition economics make sense.
 
 # 38. VIDEO QA
 
-Before publish, basic automated checks:
-
-```text
-video exists
-audio exists
-duration within platform constraints
-correct aspect ratio
-subtitles visible
-no blank frames
-no obvious repeated clip loop
-no missing fonts/assets
-promotion element not clipped
-branding correct
-caption non-empty
-license metadata present
-```
-
-Optional LLM/multimodal QA can come later.
+Вынесено → `../playbook/publishing.md`.
 
 ---
 

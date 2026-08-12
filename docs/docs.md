@@ -56,7 +56,13 @@ commercial-content policies агент должен перепроверять �
 
 | Где | Что |
 |---|---|
-| `product/content-factory-context.md` | полный продуктовый контекст: цели, метрики, форматы, hook-система, trend/idea engines, аналитика, autonomy levels, cost model |
+| `playbook/` | как делать контент — ремесленная часть, канон для сценарных агентов |
+| `playbook/hooks.md` | хуки: классы, генератор кандидатов + скорер, `hook_type` в метаданные |
+| `playbook/script.md` | структура сценария по тактам, удержание внимания, фактология и claim-цепочка |
+| `playbook/formats.md` | реестр форматов (механика сторителлинга ≠ ниша) и стартовый микс |
+| `playbook/timing.md` | длительности как приоры, датасеты и источники, приор ≠ константа |
+| `playbook/publishing.md` | частота, время публикации, метаданные/хештеги, QA перед публикацией |
+| `product/content-factory-context.md` | продуктовый контекст: цели, метрики, trend/idea engines, аналитика, autonomy levels, cost model, ограничения |
 | `architecture/` | реализованные механики пайплайна — по файлу на подсистему |
 | `architecture/gif-overlays.md` | GIF-вставки KLIPY на эмоциональных пиках сценария |
 | `architecture/decisions/` | микро-ADR — по файлу на принятое решение |
