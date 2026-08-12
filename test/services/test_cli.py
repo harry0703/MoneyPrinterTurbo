@@ -169,6 +169,55 @@ class TestCli(unittest.TestCase):
         self.assertEqual(params.bgm_volume, 0.3)
         self.assertEqual(params.n_threads, 4)
 
+    def test_gif_overlays_disabled_by_default(self):
+        args = cli.parse_args(["--video-subject", "test"])
+        params = cli.build_video_params(args)
+
+        self.assertFalse(params.gif_enabled)
+        self.assertEqual(params.gif_amount, 5)
+        self.assertEqual(params.gif_size, 0.42)
+        self.assertEqual(params.gif_rating, "pg")
+
+    def test_gif_flags_map_to_video_params(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--gif-enabled",
+                "--gif-amount",
+                "9",
+                "--gif-size",
+                "0.5",
+                "--gif-rating",
+                "pg-13",
+            ]
+        )
+        params = cli.build_video_params(args)
+
+        self.assertTrue(params.gif_enabled)
+        self.assertEqual(params.gif_amount, 9)
+        self.assertEqual(params.gif_size, 0.5)
+        self.assertEqual(params.gif_rating, "pg-13")
+
+    def test_no_gif_enabled_flag_disables_overlays(self):
+        args = cli.parse_args(["--video-subject", "test", "--no-gif-enabled"])
+        params = cli.build_video_params(args)
+
+        self.assertFalse(params.gif_enabled)
+
+    def test_invalid_gif_values_are_argument_errors(self):
+        invalid_argvs = [
+            ["--video-subject", "test", "--gif-amount", "0"],
+            ["--video-subject", "test", "--gif-amount", "16"],
+            ["--video-subject", "test", "--gif-size", "0.05"],
+            ["--video-subject", "test", "--gif-size", "nan"],
+            ["--video-subject", "test", "--gif-rating", "nc-17"],
+        ]
+        for argv in invalid_argvs:
+            with self.subTest(argv=argv), self.assertRaises(SystemExit) as cm:
+                cli.parse_args(argv)
+            self.assertEqual(cm.exception.code, 2)
+
     def test_custom_audio_file_maps_to_video_params(self):
         args = cli.parse_args(
             [

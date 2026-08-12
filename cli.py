@@ -77,6 +77,24 @@ def _percent_position(value: str) -> float:
     return parsed
 
 
+def _gif_amount(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1 or parsed > 15:
+        raise argparse.ArgumentTypeError(
+            f"gif-amount must be between 1 and 15, got {parsed}"
+        )
+    return parsed
+
+
+def _gif_size(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed < 0.1 or parsed > 0.9:
+        raise argparse.ArgumentTypeError(
+            f"gif-size must be a finite number between 0.1 and 0.9, got {value!r}"
+        )
+    return parsed
+
+
 def _hex_color(value: str) -> str:
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
         raise argparse.ArgumentTypeError(
@@ -274,6 +292,36 @@ Output and exit status:
             "preserve script keyword order while selecting and concatenating materials "
             "(default: disabled)"
         ),
+    )
+    video_group.add_argument(
+        "--gif-enabled",
+        default=None,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            "overlay animated reaction gifs on the emotional peaks of the script "
+            "(default: disabled)"
+        ),
+    )
+    video_group.add_argument(
+        "--gif-amount",
+        type=_gif_amount,
+        default=None,
+        help="maximum number of gif overlays, between 1 and 15 (default: 5)",
+    )
+    video_group.add_argument(
+        "--gif-size",
+        type=_gif_size,
+        default=None,
+        help=(
+            "gif width as a fraction of the video width, between 0.1 and 0.9 "
+            "(default: 0.42)"
+        ),
+    )
+    video_group.add_argument(
+        "--gif-rating",
+        choices=["g", "pg", "pg-13", "r"],
+        default=None,
+        help="maximum content rating for gif search (default: pg)",
     )
     video_group.add_argument(
         "--n-threads",
@@ -539,6 +587,10 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_transition_mode",
         "video_clip_duration",
         "match_materials_to_script",
+        "gif_enabled",
+        "gif_amount",
+        "gif_size",
+        "gif_rating",
         "n_threads",
         "voice_volume",
         "voice_rate",

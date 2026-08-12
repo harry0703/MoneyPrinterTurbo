@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- **CLI: gif-флаги** — `--gif-enabled/--no-gif-enabled`, `--gif-amount`, `--gif-size`,
+  `--gif-rating`; раньше gif-оверлеи включались только из WebUI или кодом через
+  `VideoParams`.
 - **Пресет `playbook` включён по умолчанию** (`config.example.toml`): текст ролика
   строится по модели из `docs/playbook/`, а не по апстримному общему промпту.
 - **Выбор хука отдельным шагом** — `hook_candidates = 5` кандидатов, детерминированный
