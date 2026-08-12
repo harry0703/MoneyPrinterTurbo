@@ -223,6 +223,28 @@ LLM_PROVIDER_REGISTRY = (
         show_api_key=False,
     ),
     LLMProviderSpec(
+        "claude_code",
+        "Claude Code CLI",
+        adapter="claude_code",
+        default_model="opus",
+        requires_api_key=False,
+        requires_base_url=False,
+        show_api_key=False,
+        show_base_url=False,
+        extra_fields=(
+            LLMProviderField(
+                "binary_path",
+                "Claude CLI Path",
+                default_value="claude",
+            ),
+            LLMProviderField(
+                "effort",
+                "Thinking Effort",
+                default_value="medium",
+            ),
+        ),
+    ),
+    LLMProviderSpec(
         "oneapi",
         "OneAPI",
         api_key_url="https://github.com/songquanpeng/one-api",

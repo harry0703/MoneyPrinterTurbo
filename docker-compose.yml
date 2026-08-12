@@ -1,5 +1,8 @@
 x-common-volumes: &common-volumes
   - ./:/MoneyPrinterTurbo
+  # Uncomment for the `claude_code` LLM provider: the image only ships the CLI,
+  # and the host login is what authorizes it inside the container.
+  # - ${HOME}/.claude:/root/.claude
 
 services:
   webui:

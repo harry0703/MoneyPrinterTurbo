@@ -25,6 +25,8 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
         for i in 1 2 3; do \
             echo "Attempt $i: installing system dependencies"; \
             apt-get update && apt-get install -y --no-install-recommends \
+                ca-certificates \
+                curl \
                 git \
                 ffmpeg && break || \
             echo "Attempt $i failed, retrying..."; \
@@ -34,6 +36,8 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
                 sed -i 's/mirrors.aliyun.com\/debian-security/mirrors.tuna.tsinghua.edu.cn\/debian-security/g' /etc/apt/sources.list && \
                 ( \
                     apt-get update && apt-get install -y --no-install-recommends \
+                        ca-certificates \
+                        curl \
                         git \
                         ffmpeg || \
                     ( \
@@ -41,6 +45,8 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
                         sed -i 's/mirrors.tuna.tsinghua.edu.cn/deb.debian.org/g' /etc/apt/sources.list && \
                         sed -i 's/mirrors.tuna.tsinghua.edu.cn\/debian-security/security.debian.org/g' /etc/apt/sources.list; \
                         apt-get update && apt-get install -y --no-install-recommends \
+                            ca-certificates \
+                            curl \
                             git \
                             ffmpeg; \
                     ); \
@@ -49,6 +55,16 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
             sleep 5; \
         done \
     ) && rm -rf /var/lib/apt/lists/*
+
+# Optional Claude Code CLI, used by the `claude_code` LLM provider. The image
+# only ships the binary; credentials stay on the host and must be mounted at
+# runtime (-v ~/.claude:/root/.claude), because the CLI authenticates with an
+# interactive Claude login instead of an API key.
+ARG INSTALL_CLAUDE_CODE=1
+ENV PATH="/root/.local/bin:${PATH}"
+RUN if [ "$INSTALL_CLAUDE_CODE" = "1" ]; then \
+        curl -fsSL https://claude.ai/install.sh | bash && claude --version; \
+    fi
 
 # Copy only the requirements.txt first to leverage Docker cache
 COPY requirements.txt ./
@@ -78,5 +94,7 @@ CMD ["streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--serve
 # 2. Run the Docker container using the following command
 ## For Linux or MacOS:
 # docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 127.0.0.1:8501:8501 moneyprinterturbo
+## Add -v ~/.claude:/root/.claude when llm_provider = "claude_code"
+## Skip the CLI with: docker build --build-arg INSTALL_CLAUDE_CODE=0 -t moneyprinterturbo .
 ## For Windows:
 # docker run -v ${PWD}/config.toml:/MoneyPrinterTurbo/config.toml -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 127.0.0.1:8501:8501 moneyprinterturbo

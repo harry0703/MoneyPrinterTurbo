@@ -87,6 +87,18 @@ sonilo_timeout = 600
 # Registry defaults; only set them when you need an explicit override.
 llm_provider = "moonshot"
 
+# Script prompt preset. Empty keeps the generic upstream script prompt.
+# "playbook" switches to the docs/playbook rules: beat structure, hook rules,
+# retention rule, duration priors, and the anti-template constraints.
+# A custom_system_prompt sent with the request still wins over the preset.
+script_prompt_preset = ""
+# Duration prior used by the preset: "tiktok", "instagram_reels", or
+# "youtube_shorts".
+script_preset_platform = "tiktok"
+# Optional storytelling mechanic from docs/playbook/formats.md, for example
+# "mystery_reveal" or "myth_busting". Empty lets the model choose.
+script_preset_format = ""
+
 # Kimi / Moonshot AI
 # API key: https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo
 moonshot_api_key = ""
@@ -183,6 +195,17 @@ evolink_model_name = ""
 # Set model_name to a model installed by `ollama pull` or shown by `ollama list`.
 ollama_base_url = ""
 ollama_model_name = ""
+
+# Claude Code CLI. Generates text through the locally installed `claude` binary
+# in headless mode, reusing an interactive Claude login instead of an API key.
+# Install: https://claude.ai/install.sh, then run `claude` once to log in.
+# Leave binary_path empty for `claude` on PATH; effort accepts low, medium,
+# high, xhigh, or max.
+claude_code_model_name = ""
+claude_code_binary_path = ""
+claude_code_effort = ""
+# Hard timeout in seconds for a single generation call.
+claude_code_timeout = 300
 
 # OneAPI. Use the token, Base URL, and model ID from your OneAPI deployment.
 # Project: https://github.com/songquanpeng/one-api

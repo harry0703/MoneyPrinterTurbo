@@ -283,6 +283,7 @@
     "Default Video Encoder": "默认（推荐）",
     "Video Encoder Help": "高级选项。“默认”跟随项目的稳定编码策略，当前使用 libx264；选择硬件编码器时，如果当前 FFmpeg、显卡或驱动不可用，会自动回退到 libx264。",
     "llm_provider_tips.ollama": "##### Ollama 配置说明\n- **API Key**: 无需填写\n- **Base Url**: 本机运行时通常为 `http://localhost:11434/v1`；Docker 部署时通常为 `http://host.docker.internal:11434/v1`{docker_hint}\n- **Model Name**: 必填；运行 `ollama list` 查看本机已安装的模型，例如 `qwen:7b`",
+    "llm_provider_tips.claude_code": "##### Claude Code CLI 配置说明\n- **API Key**: 无需填写，直接复用本机 `claude` 登录状态，由 Claude 订阅承担额度\n- **Base Url**: 无需填写，生成通过本地 CLI 的无头模式完成\n- **Model Name**: 默认 `{default_model}`；可填写 `opus`、`sonnet` 等别名或完整模型 ID\n- **Claude CLI Path**: 默认使用 PATH 中的 `{default_binary_path}`；安装在其它位置时填写绝对路径\n- **Thinking Effort**: 默认 `{default_effort}`；可选 `low`、`medium`、`high`、`xhigh`、`max`\n> 使用 https://claude.ai/install.sh 安装后先运行一次 `claude` 完成登录。每个生成步骤都会启动一个本地进程，速度慢于 HTTP Provider，并受订阅额度限制。",
     "llm_provider_tips.ollama.docker_hint": "\n  > 检测到容器环境，未配置 Base Url 时会默认使用 `http://host.docker.internal:11434/v1`\n",
     "llm_provider_tips.openai": "##### OpenAI 配置说明\n- **API Key**: 在 [OpenAI Platform]({api_key_url}) 创建\n- **Base Url**: 默认 `{default_base_url}`；使用兼容服务时可填写对应地址\n- **Model Name**: 默认 `{default_model}`；也可以填写当前账号支持的其它模型 ID\n> 部分地区访问官方服务时可能需要配置网络代理",
     "llm_provider_tips.aihubmix": "##### AIHubMix 配置说明\n- **API Key**: 在 [AIHubMix 控制台]({api_key_url}) 创建\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；也可以填写平台支持的其它模型 ID",

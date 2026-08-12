@@ -10,6 +10,7 @@ from openai.types.chat import ChatCompletion
 
 from app.config import config
 from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
+from app.services import claude_cli, script_prompt
 
 _max_retries = 5
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
@@ -212,6 +213,17 @@ def _generate_response(prompt: str, app_config=None) -> str:
                     f"{llm_provider}: {field.config_suffix} is not set, "
                     "please set it in the config.toml file."
                 )
+
+        if adapter == "claude_code":
+            # 订阅制 CLI 没有 API Key 和 Base URL，凭据由本机 `claude` 登录状态提供。
+            text = claude_cli.generate(
+                prompt,
+                model=model_name,
+                effort=extra_values["effort"],
+                binary=extra_values["binary_path"],
+                timeout=runtime_app_config.get("claude_code_timeout", 0),
+            )
+            return _normalize_text_response(text, llm_provider)
 
         if adapter == "qwen":
             import dashscope
@@ -462,6 +474,27 @@ def _normalize_script_paragraph_number(paragraph_number: int | None) -> int:
     return value
 
 
+def _default_script_system_prompt() -> str:
+    preset = str(config.app.get("script_prompt_preset", "")).strip().lower()
+    if preset != script_prompt.PLAYBOOK_PRESET:
+        if preset:
+            logger.warning(
+                f"unknown script_prompt_preset '{preset}', "
+                "falling back to the default script prompt"
+            )
+        return DEFAULT_SCRIPT_SYSTEM_PROMPT
+
+    try:
+        return script_prompt.build_playbook_system_prompt(
+            platform=config.app.get("script_preset_platform", ""),
+            video_format=config.app.get("script_preset_format", ""),
+        )
+    except OSError as e:
+        # 模板缺失不应让整条流水线失败：退回上游通用提示词，仍然能出稿。
+        logger.error(f"failed to load the playbook script prompt: {e}")
+        return DEFAULT_SCRIPT_SYSTEM_PROMPT
+
+
 def build_script_prompt(
     video_subject: str,
     language: str = "",
@@ -479,7 +512,7 @@ def build_script_prompt(
 
     # 将“脚本生成规则”和“运行时上下文”分开拼接。这样高级用户即使覆盖默认
     # system prompt，也不会漏掉视频主题、语言、段落数这些每次生成都必须带上的参数。
-    prompt = custom_system_prompt or DEFAULT_SCRIPT_SYSTEM_PROMPT
+    prompt = custom_system_prompt or _default_script_system_prompt()
     prompt += f"""
 
 # Initialization:

@@ -31,6 +31,16 @@ RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() 
 
 
 class TestScriptPromptOptions(unittest.TestCase):
+    def setUp(self):
+        # 本地 config.toml 可能启用了 script_prompt_preset。这里断言的是默认
+        # 提示词链路，预设本身在 test_script_prompt.py 覆盖。
+        self.original_app_config = dict(config.app)
+        config.app["script_prompt_preset"] = ""
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
     def test_normalize_text_response_removes_think_blocks(self):
         """
         reasoning 模型可能返回 `<think>...</think>`。脚本生成链路必须只保留
@@ -312,6 +322,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "aimlapi",
                 "evolink",
                 "ollama",
+                "claude_code",
                 "oneapi",
                 "litellm",
                 "groq",
@@ -1295,6 +1306,75 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         self.assertIn("Error:", result)
         self.assertIn("unsupported llm provider", result)
+
+    def test_claude_code_provider_runs_through_the_local_cli(self):
+        """订阅制 CLI 不走 HTTP 客户端，配置留空时使用 Registry 默认值。"""
+        config.app.update(
+            {
+                "llm_provider": "claude_code",
+                "claude_code_model_name": "",
+                "claude_code_binary_path": "",
+                "claude_code_effort": "",
+                "claude_code_timeout": 120,
+            }
+        )
+
+        with (
+            patch.object(llm, "OpenAI") as openai_client,
+            patch.object(
+                llm.claude_cli, "generate", return_value="hello\nclaude"
+            ) as generate,
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_not_called()
+        generate.assert_called_once_with(
+            "Say hello",
+            model="opus",
+            effort="medium",
+            binary="claude",
+            timeout=120,
+        )
+        # 与 HTTP Provider 保持同一份归一化，避免脚本换行行为出现分叉。
+        self.assertEqual(result, "helloclaude")
+
+    def test_claude_code_provider_forwards_configured_overrides(self):
+        config.app.update(
+            {
+                "llm_provider": "claude_code",
+                "claude_code_model_name": "sonnet",
+                "claude_code_binary_path": "/opt/bin/claude",
+                "claude_code_effort": "high",
+                "claude_code_timeout": 600,
+            }
+        )
+
+        with patch.object(llm.claude_cli, "generate", return_value="ok") as generate:
+            llm._generate_response("Say hello")
+
+        generate.assert_called_once_with(
+            "Say hello",
+            model="sonnet",
+            effort="high",
+            binary="/opt/bin/claude",
+            timeout=600,
+        )
+
+    def test_claude_code_failure_is_reported_as_provider_error(self):
+        """CLI 故障必须走统一的 `Error:` 通道，让调用方在真实故障点结束任务。"""
+        config.app["llm_provider"] = "claude_code"
+
+        with patch.object(
+            llm.claude_cli,
+            "generate",
+            side_effect=llm.claude_cli.ClaudeCliError(
+                "claude cli timed out after 300s"
+            ),
+        ):
+            result = llm._generate_response("Say hello")
+
+        self.assertIn("Error:", result)
+        self.assertIn("timed out", result)
 
 
 class TestRuntimeEnvironmentDetection(unittest.TestCase):
