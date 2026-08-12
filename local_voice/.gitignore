@@ -1,0 +1,9 @@
+*
+!.gitignore
+!README.md
+!reference/
+!reference/.gitkeep
+!scripts/
+!scripts/.gitkeep
+!output/
+!output/.gitkeep
