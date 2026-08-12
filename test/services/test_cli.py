@@ -58,9 +58,11 @@ class TestCli(unittest.TestCase):
         self.assertEqual(params.video_terms, ["foo", "bar"])
 
     def test_run_cli_dispatches_task_start(self):
-        with patch("app.services.task.start", return_value={"script": "ok"}) as start, patch(
-            "app.utils.utils.get_uuid", return_value="task-123"
-        ), patch("builtins.print") as print_mock:
+        with (
+            patch("app.services.task.start", return_value={"script": "ok"}) as start,
+            patch("app.utils.utils.get_uuid", return_value="task-123"),
+            patch("builtins.print") as print_mock,
+        ):
             code = cli.run_cli(["--video-subject", "命令行测试", "--stop-at", "script"])
 
         self.assertEqual(code, 0)
@@ -72,9 +74,11 @@ class TestCli(unittest.TestCase):
         print_mock.assert_called_once()
 
     def test_run_cli_returns_error_when_task_fails(self):
-        with patch("app.services.task.start", return_value=None), patch(
-            "app.utils.utils.get_uuid", return_value="task-456"
-        ), patch.object(cli.logger, "error") as log_error:
+        with (
+            patch("app.services.task.start", return_value=None),
+            patch("app.utils.utils.get_uuid", return_value="task-456"),
+            patch.object(cli.logger, "error") as log_error,
+        ):
             code = cli.run_cli(["--video-subject", "失败场景"])
 
         self.assertEqual(code, 1)
@@ -90,11 +94,12 @@ class TestCli(unittest.TestCase):
             "error": "TTS request timed out",
         }
 
-        with patch("app.services.task.start", return_value=failure), patch(
-            "app.utils.utils.get_uuid", return_value="task-structured-failure"
-        ), patch.object(cli.logger, "error") as log_error, patch(
-            "builtins.print"
-        ) as print_mock:
+        with (
+            patch("app.services.task.start", return_value=failure),
+            patch("app.utils.utils.get_uuid", return_value="task-structured-failure"),
+            patch.object(cli.logger, "error") as log_error,
+            patch("builtins.print") as print_mock,
+        ):
             code = cli.run_cli(["--video-subject", "失败场景"])
 
         self.assertEqual(code, 1)
@@ -157,7 +162,9 @@ class TestCli(unittest.TestCase):
         self.assertEqual(params.video_language, "en")
         self.assertEqual(params.paragraph_number, 3)
         self.assertEqual(params.video_script_prompt, "use a lighter tone")
-        self.assertEqual(params.custom_system_prompt, "write concise short-form scripts")
+        self.assertEqual(
+            params.custom_system_prompt, "write concise short-form scripts"
+        )
         self.assertEqual(params.video_concat_mode, "sequential")
         self.assertEqual(params.video_transition_mode, "FadeIn")
         self.assertEqual(params.video_clip_duration, 4)
@@ -268,6 +275,33 @@ class TestCli(unittest.TestCase):
         self.assertEqual(params.text_background_color, "#000001")
         self.assertTrue(params.rounded_subtitle_background)
 
+    def test_subtitle_caps_and_highlight_flags_reach_video_params(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--subtitle-uppercase",
+                "--subtitle-highlight",
+                "--subtitle-highlight-color",
+                "#FF8800",
+            ]
+        )
+
+        params = cli.build_video_params(args)
+
+        self.assertTrue(params.subtitle_uppercase)
+        self.assertTrue(params.subtitle_highlight_enabled)
+        self.assertEqual(params.subtitle_highlight_color, "#FF8800")
+
+    def test_subtitle_caps_and_highlight_default_to_disabled(self):
+        args = cli.parse_args(["--video-subject", "test"])
+
+        params = cli.build_video_params(args)
+
+        self.assertFalse(params.subtitle_uppercase)
+        self.assertFalse(params.subtitle_highlight_enabled)
+        self.assertEqual(params.subtitle_highlight_color, "#FFD700")
+
     def test_disabled_subtitle_background_rejects_rounding(self):
         with self.assertRaises(SystemExit) as cm:
             cli.parse_args(
@@ -313,6 +347,7 @@ class TestCli(unittest.TestCase):
         # We need a real video file; use a tiny one via moviepy
         try:
             from moviepy import ColorClip
+
             clip = ColorClip(size=(640, 640), color=(0, 0, 0), duration=1)
             clip.write_videofile(test_filepath, fps=1, logger=None)
             clip.close()
@@ -322,7 +357,9 @@ class TestCli(unittest.TestCase):
         try:
             materials = [MaterialInfo(provider="local", url=test_filename, duration=0)]
             result = vd.preprocess_video(materials=materials, clip_duration=4)
-            self.assertTrue(len(result) > 0, "preprocess_video should return valid materials")
+            self.assertTrue(
+                len(result) > 0, "preprocess_video should return valid materials"
+            )
             self.assertTrue(
                 os.path.isabs(result[0].url),
                 f"material url should be absolute path, got: {result[0].url}",
@@ -331,7 +368,6 @@ class TestCli(unittest.TestCase):
         finally:
             if os.path.exists(test_filepath):
                 os.remove(test_filepath)
-
 
     def test_local_source_requires_video_materials(self):
         with self.assertRaises(SystemExit) as cm:
@@ -355,12 +391,18 @@ class TestCli(unittest.TestCase):
 
     def test_local_source_stop_at_terms_rejected(self):
         with self.assertRaises(SystemExit) as cm:
-            cli.parse_args([
-                "--video-subject", "test",
-                "--video-source", "local",
-                "--video-materials", "a.mp4",
-                "--stop-at", "terms",
-            ])
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--video-source",
+                    "local",
+                    "--video-materials",
+                    "a.mp4",
+                    "--stop-at",
+                    "terms",
+                ]
+            )
         self.assertNotEqual(cm.exception.code, 0)
 
     def test_video_materials_rejected_for_online_source(self):
@@ -503,23 +545,17 @@ class TestCli(unittest.TestCase):
 
     def test_custom_position_requires_custom_subtitle_position(self):
         with self.assertRaises(SystemExit) as cm:
-            cli.parse_args(
-                ["--video-subject", "test", "--custom-position", "50"]
-            )
+            cli.parse_args(["--video-subject", "test", "--custom-position", "50"])
 
         self.assertEqual(cm.exception.code, 2)
 
     def test_task_id_must_be_uuid(self):
         task_id = str(uuid4())
-        args = cli.parse_args(
-            ["--video-subject", "test", "--task-id", task_id]
-        )
+        args = cli.parse_args(["--video-subject", "test", "--task-id", task_id])
         self.assertEqual(args.task_id, task_id)
 
         with self.assertRaises(SystemExit) as cm:
-            cli.parse_args(
-                ["--video-subject", "test", "--task-id", "../../escape"]
-            )
+            cli.parse_args(["--video-subject", "test", "--task-id", "../../escape"])
         self.assertEqual(cm.exception.code, 2)
 
     def test_prepare_cli_files_accepts_relative_and_absolute_materials(self):
@@ -551,7 +587,9 @@ class TestCli(unittest.TestCase):
                 os.chdir(old_cwd)
 
             prepared_paths = [Path(item.url) for item in params.video_materials]
-            self.assertTrue(all(path.parent == Path(managed_dir) for path in prepared_paths))
+            self.assertTrue(
+                all(path.parent == Path(managed_dir) for path in prepared_paths)
+            )
             self.assertEqual(
                 {path.read_bytes() for path in prepared_paths},
                 {b"relative-video", b"absolute-image"},
@@ -570,8 +608,9 @@ class TestCli(unittest.TestCase):
         )
         params = cli.build_video_params(args)
 
-        with tempfile.TemporaryDirectory() as managed_dir, patch(
-            "app.utils.utils.storage_dir", return_value=managed_dir
+        with (
+            tempfile.TemporaryDirectory() as managed_dir,
+            patch("app.utils.utils.storage_dir", return_value=managed_dir),
         ):
             with self.assertRaisesRegex(ValueError, "does not exist"):
                 cli.prepare_cli_files(params, stop_at="video")

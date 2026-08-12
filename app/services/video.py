@@ -2,6 +2,7 @@ import itertools
 import io
 import os
 import random
+import re
 import gc
 import subprocess
 import sys
@@ -38,6 +39,7 @@ from app.models.schema import (
 from app.services import bgm as bgm_service
 from app.services.utils import video_effects
 from app.utils import file_security, utils
+
 
 class SubClippedVideoClip:
     def __init__(
@@ -277,7 +279,9 @@ def _get_temp_audio_dir(output_dir: str) -> str:
     return output_dir
 
 
-def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason: str, **kwargs):
+def _fallback_write_videofile(
+    clip, output_file: str, failed_codec: str, reason: str, **kwargs
+):
     """
     硬件编码失败后用 libx264 重试，只有重试成功才禁用该硬件编码器。
 
@@ -454,39 +458,40 @@ def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileC
 def close_clip(clip):
     if clip is None:
         return
-        
+
     try:
         # close main resources
-        if hasattr(clip, 'reader') and clip.reader is not None:
+        if hasattr(clip, "reader") and clip.reader is not None:
             clip.reader.close()
-            
+
         # close audio resources
-        if hasattr(clip, 'audio') and clip.audio is not None:
-            if hasattr(clip.audio, 'reader') and clip.audio.reader is not None:
+        if hasattr(clip, "audio") and clip.audio is not None:
+            if hasattr(clip.audio, "reader") and clip.audio.reader is not None:
                 clip.audio.reader.close()
             del clip.audio
-            
+
         # close mask resources
-        if hasattr(clip, 'mask') and clip.mask is not None:
-            if hasattr(clip.mask, 'reader') and clip.mask.reader is not None:
+        if hasattr(clip, "mask") and clip.mask is not None:
+            if hasattr(clip.mask, "reader") and clip.mask.reader is not None:
                 clip.mask.reader.close()
             del clip.mask
-            
+
         # handle child clips in composite clips
-        if hasattr(clip, 'clips') and clip.clips:
+        if hasattr(clip, "clips") and clip.clips:
             for child_clip in clip.clips:
                 if child_clip is not clip:  # avoid possible circular references
                     close_clip(child_clip)
-            
+
         # clear clip list
-        if hasattr(clip, 'clips'):
+        if hasattr(clip, "clips"):
             clip.clips = []
-            
+
     except Exception as e:
         logger.error(f"failed to close clip: {str(e)}")
-    
+
     del clip
     gc.collect()
+
 
 def delete_files(files: List[str] | str):
     if isinstance(files, str):
@@ -519,9 +524,7 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
         except ValueError as exc:
             # API 请求里的 bgm_file 来自用户输入，只允许解析到用户 BGM 或内置
             # 歌曲目录，阻止 MoviePy 读取配置、密钥等任意服务器文件。
-            logger.warning(
-                f"reject unsafe bgm file: {bgm_file}, error: {str(exc)}"
-            )
+            logger.warning(f"reject unsafe bgm file: {bgm_file}, error: {str(exc)}")
             return ""
         return resolved_bgm_file
 
@@ -588,7 +591,7 @@ def combine_videos(
         clip_duration = clip.duration
         clip_w, clip_h = clip.size
         close_clip(clip)
-        
+
         start_time = 0
 
         while start_time < clip_duration:
@@ -617,21 +620,21 @@ def combine_videos(
         subclipped_items=subclipped_items,
         concat_mode=video_concat_mode,
     )
-        
+
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
-    
+
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
         if video_duration >= required_video_duration:
             break
-        
+
         logger.debug(
-            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
+            f"processing clip {i + 1}: {subclipped_item.width}x{subclipped_item.height}, "
             f"source: {os.path.basename(subclipped_item.source_file_path)}, "
             f"current duration: {video_duration:.2f}s, "
             f"remaining: {required_video_duration - video_duration:.2f}s"
         )
-        
+
         try:
             clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
@@ -647,8 +650,10 @@ def combine_videos(
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
-                
+                logger.debug(
+                    f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}"
+                )
+
                 if clip_ratio == video_ratio:
                     clip = clip.resized(new_size=(video_width, video_height))
                 else:
@@ -660,10 +665,14 @@ def combine_videos(
                     new_width = int(clip_w * scale_factor)
                     new_height = int(clip_h * scale_factor)
 
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
-                    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
+                    background = ColorClip(
+                        size=(video_width, video_height), color=(0, 0, 0)
+                    ).with_duration(clip_duration)
+                    clip_resized = clip.resized(
+                        new_size=(new_width, new_height)
+                    ).with_position("center")
                     clip = CompositeVideoClip([background, clip_resized])
-                    
+
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip
@@ -693,9 +702,9 @@ def combine_videos(
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
-                
+
             # wirte clip to temp file
-            clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
+            clip_file = f"{output_dir}/temp-clip-{i + 1}.mp4"
             _write_videofile_with_codec_fallback(
                 clip,
                 clip_file,
@@ -718,10 +727,10 @@ def combine_videos(
                 )
             )
             video_duration += clip_duration_saved
-            
+
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
-    
+
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
     if video_duration < required_video_duration:
         logger.warning(
@@ -737,15 +746,15 @@ def combine_videos(
         logger.info(
             f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, "
             f"required duration: {required_video_duration:.2f}s, "
-            f"looped {len(processed_clips)-len(base_clips)} clips"
+            f"looped {len(processed_clips) - len(base_clips)} clips"
         )
-     
+
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
     if not processed_clips:
         logger.warning("no clips available for merging")
         return combined_video_path
-    
+
     clip_files = [clip.file_path for clip in processed_clips]
     logger.info(f"concatenating {len(clip_files)} clips with ffmpeg")
     concat_video_clips_with_ffmpeg(
@@ -755,10 +764,10 @@ def combine_videos(
         output_dir=output_dir,
         max_duration=audio_duration,
     )
-    
+
     # clean temp files
     delete_files(clip_files)
-            
+
     logger.info("video combining completed")
     return combined_video_path
 
@@ -842,6 +851,200 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
     height = len(lines) * height
     return result, height
+
+
+_TOKEN_EDGE_RE = re.compile(r"^\W+|\W+$", re.UNICODE)
+
+# Russian function words that must never become the highlighted keyword. Kept
+# small on purpose: the length >= 5 filter already drops most of them, the set
+# only covers the longer ones plus common short pronouns and prepositions.
+_HIGHLIGHT_STOPWORDS = frozenset(
+    {
+        "и",
+        "а",
+        "но",
+        "или",
+        "либо",
+        "ни",
+        "же",
+        "ли",
+        "бы",
+        "не",
+        "нет",
+        "в",
+        "во",
+        "на",
+        "за",
+        "к",
+        "ко",
+        "с",
+        "со",
+        "у",
+        "о",
+        "об",
+        "обо",
+        "от",
+        "до",
+        "по",
+        "под",
+        "над",
+        "при",
+        "про",
+        "для",
+        "без",
+        "из",
+        "через",
+        "между",
+        "перед",
+        "после",
+        "около",
+        "вокруг",
+        "я",
+        "ты",
+        "он",
+        "она",
+        "оно",
+        "мы",
+        "вы",
+        "они",
+        "меня",
+        "тебя",
+        "его",
+        "её",
+        "нас",
+        "вас",
+        "их",
+        "себя",
+        "мой",
+        "твой",
+        "свой",
+        "наш",
+        "ваш",
+        "этот",
+        "эта",
+        "это",
+        "эти",
+        "тот",
+        "та",
+        "то",
+        "те",
+        "весь",
+        "вся",
+        "всё",
+        "все",
+        "этого",
+        "этому",
+        "своего",
+        "своей",
+        "своих",
+        "что",
+        "чтобы",
+        "как",
+        "когда",
+        "тогда",
+        "если",
+        "потому",
+        "поэтому",
+        "также",
+        "тоже",
+        "даже",
+        "именно",
+        "только",
+        "который",
+        "которая",
+        "которое",
+        "которые",
+        "которых",
+    }
+)
+
+
+def _strip_token(token: str) -> str:
+    return _TOKEN_EDGE_RE.sub("", token)
+
+
+def pick_highlight_word(phrase: str) -> str | None:
+    """
+    Deterministic keyword choice for subtitle highlighting: a word with a
+    digit wins, otherwise the longest non-stopword of 5+ chars, else None.
+    """
+    tokens = [
+        stripped
+        for stripped in (_strip_token(token) for token in phrase.split())
+        if stripped
+    ]
+    for token in tokens:
+        if any(char.isdigit() for char in token):
+            return token
+    candidates = [
+        token
+        for token in tokens
+        if len(token) >= 5 and token.lower() not in _HIGHLIGHT_STOPWORDS
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=len)
+
+
+def create_highlighted_text_clip(
+    *,
+    wrapped_txt: str,
+    font_path: str,
+    font_size: int,
+    text_color: str,
+    highlight_word: str | None,
+    highlight_color: str,
+    stroke_color: str | None,
+    stroke_width: int,
+    interline: int,
+    width: int,
+    height: int | None = None,
+    margin_y: int = 0,
+) -> ImageClip:
+    """
+    Render wrapped subtitle text into an RGBA ImageClip, painting one keyword
+    in a different color. TextClip cannot mix colors within a line, so this
+    path re-implements its centered layout with PIL word by word.
+    """
+    font = ImageFont.truetype(font_path, font_size)
+    stroke_width = max(0, int(stroke_width))
+    ascent, descent = font.getmetrics()
+    line_height = ascent + descent
+    lines = wrapped_txt.split("\n")
+    text_block_h = line_height * len(lines) + interline * (len(lines) - 1)
+    img_h = height if height is not None else text_block_h + 2 * margin_y
+    img_h = max(int(img_h), text_block_h)
+    img = Image.new("RGBA", (max(1, int(width)), max(1, img_h)), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    stroke_fill = stroke_color if stroke_width > 0 else None
+    highlight_pending = bool(highlight_word)
+    y = int(round((img.height - text_block_h) / 2))
+    for line in lines:
+        x0 = (img.width - font.getlength(line)) / 2
+        words = line.split(" ")
+        for index, word in enumerate(words):
+            if not word:
+                continue
+            # Offsets come from the full line prefix, not accumulated word
+            # widths, so per-word rendering keeps TextClip-like spacing.
+            prefix = " ".join(words[:index])
+            x = x0 + (font.getlength(f"{prefix} ") if prefix else 0.0)
+            color = text_color
+            if highlight_pending and _strip_token(word) == highlight_word:
+                color = highlight_color
+                highlight_pending = False
+            draw.text(
+                (x, y),
+                word,
+                font=font,
+                fill=color,
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+            )
+        y += line_height + interline
+
+    return ImageClip(np.array(img), transparent=True)
 
 
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
@@ -1092,7 +1295,7 @@ def _build_gif_overlay_clips(
 
 
 def _get_visible_center_position(
-    text_clip: TextClip,
+    text_clip: TextClip | ImageClip,
     container_width: int,
     container_height: int,
 ) -> tuple[int, int]:
@@ -1235,6 +1438,11 @@ def generate_video(
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
+        if getattr(params, "subtitle_uppercase", False):
+            phrase = phrase.upper()
+        highlight_enabled = bool(getattr(params, "subtitle_highlight_enabled", False))
+        highlight_word = pick_highlight_word(phrase) if highlight_enabled else None
+        highlight_color = getattr(params, "subtitle_highlight_color", "#FFD700")
         max_width = video_width * 0.9
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
@@ -1285,19 +1493,34 @@ def generate_video(
 
             box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
             radius = max(8, int(params.font_size * 0.4))
-            text_clip = TextClip(
-                text=wrapped_txt,
-                font=font_path,
-                font_size=params.font_size,
-                color=params.text_fore_color,
-                bg_color=None,
-                stroke_color=params.stroke_color,
-                stroke_width=params.stroke_width,
-                interline=interline,
-                size=(box_w, None),
-                text_align="center",
-                margin=(0, text_clip_margin_y),
-            )
+            if highlight_enabled:
+                text_clip = create_highlighted_text_clip(
+                    wrapped_txt=wrapped_txt,
+                    font_path=font_path,
+                    font_size=params.font_size,
+                    text_color=params.text_fore_color,
+                    highlight_word=highlight_word,
+                    highlight_color=highlight_color,
+                    stroke_color=params.stroke_color,
+                    stroke_width=params.stroke_width,
+                    interline=interline,
+                    width=box_w,
+                    margin_y=text_clip_margin_y,
+                )
+            else:
+                text_clip = TextClip(
+                    text=wrapped_txt,
+                    font=font_path,
+                    font_size=params.font_size,
+                    color=params.text_fore_color,
+                    bg_color=None,
+                    stroke_color=params.stroke_color,
+                    stroke_width=params.stroke_width,
+                    interline=interline,
+                    size=(box_w, None),
+                    text_align="center",
+                    margin=(0, text_clip_margin_y),
+                )
             clip_h = max(clip_h, text_clip.h)
             bg_clip = _rounded_subtitle_background_clip(
                 width=box_w,
@@ -1316,19 +1539,34 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            text_clip = TextClip(
-                text=wrapped_txt,
-                font=font_path,
-                font_size=params.font_size,
-                color=params.text_fore_color,
-                bg_color=None,
-                stroke_color=params.stroke_color,
-                stroke_width=params.stroke_width,
-                interline=interline,
-                size=(int(max_width), None),
-                text_align="center",
-                margin=(0, text_clip_margin_y),
-            )
+            if highlight_enabled:
+                text_clip = create_highlighted_text_clip(
+                    wrapped_txt=wrapped_txt,
+                    font_path=font_path,
+                    font_size=params.font_size,
+                    text_color=params.text_fore_color,
+                    highlight_word=highlight_word,
+                    highlight_color=highlight_color,
+                    stroke_color=params.stroke_color,
+                    stroke_width=params.stroke_width,
+                    interline=interline,
+                    width=int(max_width),
+                    margin_y=text_clip_margin_y,
+                )
+            else:
+                text_clip = TextClip(
+                    text=wrapped_txt,
+                    font=font_path,
+                    font_size=params.font_size,
+                    color=params.text_fore_color,
+                    bg_color=None,
+                    stroke_color=params.stroke_color,
+                    stroke_width=params.stroke_width,
+                    interline=interline,
+                    size=(int(max_width), None),
+                    text_align="center",
+                    margin=(0, text_clip_margin_y),
+                )
             size = (size[0], max(size[1], text_clip.h))
             bg_clip = _rounded_subtitle_background_clip(
                 width=size[0],
@@ -1347,18 +1585,33 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            _clip = TextClip(
-                text=wrapped_txt,
-                font=font_path,
-                font_size=params.font_size,
-                color=params.text_fore_color,
-                bg_color=None,
-                stroke_color=params.stroke_color,
-                stroke_width=params.stroke_width,
-                interline=interline,
-                size=size,
-                text_align="center",
-            )
+            if highlight_enabled:
+                _clip = create_highlighted_text_clip(
+                    wrapped_txt=wrapped_txt,
+                    font_path=font_path,
+                    font_size=params.font_size,
+                    text_color=params.text_fore_color,
+                    highlight_word=highlight_word,
+                    highlight_color=highlight_color,
+                    stroke_color=params.stroke_color,
+                    stroke_width=params.stroke_width,
+                    interline=interline,
+                    width=size[0],
+                    height=size[1],
+                )
+            else:
+                _clip = TextClip(
+                    text=wrapped_txt,
+                    font=font_path,
+                    font_size=params.font_size,
+                    color=params.text_fore_color,
+                    bg_color=None,
+                    stroke_color=params.stroke_color,
+                    stroke_width=params.stroke_width,
+                    interline=interline,
+                    size=size,
+                    text_align="center",
+                )
         duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
@@ -1430,9 +1683,7 @@ def generate_video(
                 video_clip = CompositeVideoClip([video_clip, *overlay_clips])
                 clip_stack.callback(video_clip.close)
 
-        bgm_enabled = bgm_service.should_use_bgm(
-            params.bgm_type, params.bgm_volume
-        )
+        bgm_enabled = bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
         if not bgm_enabled and params.bgm_type:
             # 所有 BGM 来源共用这一条短路规则。音量不大于 0 时不能解析随机或
             # 自定义文件，也不能加载提供商返回的文件，避免无意义的 IO 和混音。

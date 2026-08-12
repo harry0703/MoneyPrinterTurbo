@@ -91,8 +91,10 @@ class VideoParams(BaseModel):
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
     )
-    
-    custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore TTS and can still use Whisper subtitles
+
+    custom_audio_file: Optional[str] = (
+        None  # Custom audio file path, will ignore TTS and can still use Whisper subtitles
+    )
     video_language: Optional[str] = ""  # auto detect
 
     voice_name: Optional[str] = ""
@@ -113,12 +115,17 @@ class VideoParams(BaseModel):
     gif_rating: str = "pg"
 
     subtitle_enabled: Optional[bool] = True
-    subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
+    subtitle_position: Optional[str] = config.ui.get(
+        "subtitle_position", "bottom"
+    )  # top, bottom, center, custom
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = False
     rounded_subtitle_background: bool = False
+    subtitle_uppercase: bool = False
+    subtitle_highlight_enabled: bool = False
+    subtitle_highlight_color: str = "#FFD700"
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
@@ -444,6 +451,7 @@ class BgmUploadResponse(BaseResponse):
             },
         }
 
+
 class VideoMaterialRetrieveResponse(BaseResponse):
     class Config:
         json_schema_extra = {
@@ -461,6 +469,7 @@ class VideoMaterialRetrieveResponse(BaseResponse):
                 },
             },
         }
+
 
 class VideoMaterialUploadResponse(BaseResponse):
     class Config:
