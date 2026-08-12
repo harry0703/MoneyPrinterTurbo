@@ -84,6 +84,9 @@ class VideoParams(BaseModel):
     video_transition_mode: Optional[VideoTransitionMode] = None
     video_clip_duration: int = Field(default=5, ge=1)
     video_clip_speed: Optional[float] = 1.0
+    # One uninterrupted segment cut from a random position of a single long source,
+    # center-cropped to fill the frame, instead of many concatenated clips.
+    continuous_background: bool = False
     match_materials_to_script: bool = False
     video_count: int = Field(default=1, ge=1)
 

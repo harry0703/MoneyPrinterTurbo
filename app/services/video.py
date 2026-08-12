@@ -539,6 +539,174 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     return ""
 
 
+def _center_crop_geometry(
+    source_width: int,
+    source_height: int,
+    video_width: int,
+    video_height: int,
+) -> tuple[int, int, int, int]:
+    """Largest centered rectangle of the source that already has the target ratio."""
+    target_ratio = video_width / video_height
+    if source_width / source_height > target_ratio:
+        crop_width = min(source_width, int(round(source_height * target_ratio)))
+        crop_height = source_height
+    else:
+        crop_width = source_width
+        crop_height = min(source_height, int(round(source_width / target_ratio)))
+
+    # yuv420p subsamples chroma by 2, so odd crop sizes are rejected by the encoder.
+    crop_width -= crop_width % 2
+    crop_height -= crop_height % 2
+    return (
+        crop_width,
+        crop_height,
+        (source_width - crop_width) // 2,
+        (source_height - crop_height) // 2,
+    )
+
+
+def _pick_continuous_background_source(
+    video_paths: List[str], source_duration_needed: float
+) -> tuple[str, float, int, int] | None:
+    """Pick a source long enough for the whole narration and a random start inside it."""
+    candidates: List[tuple[str, float, int, int]] = []
+    for video_path in video_paths:
+        try:
+            clip = _open_video_clip_quietly(video_path)
+        except Exception as exc:
+            logger.warning(
+                f"failed to probe background source {video_path}: {str(exc)}"
+            )
+            continue
+
+        try:
+            source_duration = float(clip.duration or 0.0)
+            source_width, source_height = clip.size
+        finally:
+            close_clip(clip)
+
+        if source_duration >= source_duration_needed:
+            candidates.append(
+                (video_path, source_duration, int(source_width), int(source_height))
+            )
+
+    if not candidates:
+        return None
+
+    video_path, source_duration, source_width, source_height = random.choice(candidates)
+    start_time = random.uniform(0.0, source_duration - source_duration_needed)
+    return video_path, start_time, source_width, source_height
+
+
+def _build_continuous_background(
+    combined_video_path: str,
+    video_paths: List[str],
+    required_video_duration: float,
+    video_width: int,
+    video_height: int,
+    threads: int,
+    clip_speed: float,
+) -> bool:
+    """
+    Write the background as one uninterrupted segment cut from a single source video.
+
+    Cutting, cropping and scaling run inside a single FFmpeg filter chain. MoviePy would
+    resample every frame in Python instead, which costs minutes per minute of footage.
+
+    Returns False when no source is long enough or FFmpeg fails, so the caller falls
+    back to the default multi-clip concatenation.
+    """
+    source_duration_needed = required_video_duration * clip_speed
+    picked = _pick_continuous_background_source(video_paths, source_duration_needed)
+    if picked is None:
+        logger.warning(
+            "continuous background needs one source video of at least "
+            f"{source_duration_needed:.2f}s, falling back to clip concatenation"
+        )
+        return False
+
+    source_path, start_time, source_width, source_height = picked
+    crop_width, crop_height, crop_x, crop_y = _center_crop_geometry(
+        source_width, source_height, video_width, video_height
+    )
+    filters = [
+        f"crop={crop_width}:{crop_height}:{crop_x}:{crop_y}",
+        f"scale={video_width}:{video_height}",
+    ]
+    if clip_speed != 1.0:
+        filters.append(f"setpts=PTS/{clip_speed}")
+    filters.append(f"fps={fps}")
+
+    logger.info(
+        f"continuous background: {os.path.basename(source_path)}, "
+        f"start {start_time:.2f}s, {source_duration_needed:.2f}s of source footage, "
+        f"crop {crop_width}x{crop_height}+{crop_x}+{crop_y}"
+    )
+
+    def build_command(codec: str) -> list[str]:
+        command = [
+            utils.get_ffmpeg_binary(),
+            "-y",
+            # Input-side seek and duration keep FFmpeg from decoding the skipped part
+            # and stay correct when setpts rescales the output timeline.
+            "-ss",
+            f"{start_time:.3f}",
+            "-t",
+            f"{source_duration_needed:.3f}",
+            "-i",
+            source_path,
+            "-an",
+            "-vf",
+            ",".join(filters),
+            "-c:v",
+            codec,
+        ]
+        if codec == _DEFAULT_VIDEO_CODEC:
+            # This file is an intermediate that generate_video re-encodes anyway, and
+            # the default preset costs ~3.5x the encoding time. Preset names are
+            # encoder specific, so hardware codecs keep their own defaults.
+            command.extend(["-preset", "veryfast"])
+        command.extend(
+            [
+                "-threads",
+                str(threads or 2),
+                "-pix_fmt",
+                "yuv420p",
+                combined_video_path,
+            ]
+        )
+        return command
+
+    def run_cut(codec: str) -> None:
+        result = subprocess.run(
+            build_command(codec),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            error_message = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(error_message or "ffmpeg continuous background failed")
+
+    try:
+        effective_codec = _get_effective_video_codec()
+        try:
+            run_cut(effective_codec)
+        except Exception as exc:
+            if effective_codec == _DEFAULT_VIDEO_CODEC:
+                raise
+            run_cut(_DEFAULT_VIDEO_CODEC)
+            _disable_runtime_video_codec(effective_codec, str(exc))
+    except Exception as exc:
+        logger.error(
+            f"failed to cut continuous background: {str(exc)}, "
+            "falling back to clip concatenation"
+        )
+        return False
+
+    return True
+
+
 def combine_videos(
     combined_video_path: str,
     video_paths: List[str],
@@ -549,6 +717,7 @@ def combine_videos(
     max_clip_duration: int = 5,
     threads: int = 2,
     clip_speed: float = 1.0,
+    continuous_background: bool = False,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -582,6 +751,18 @@ def combine_videos(
 
     aspect = VideoAspect(video_aspect)
     video_width, video_height = aspect.to_resolution()
+
+    if continuous_background and _build_continuous_background(
+        combined_video_path=combined_video_path,
+        video_paths=video_paths,
+        required_video_duration=required_video_duration,
+        video_width=video_width,
+        video_height=video_height,
+        threads=threads,
+        clip_speed=normalized_clip_speed,
+    ):
+        logger.info("video combining completed")
+        return combined_video_path
 
     processed_clips = []
     subclipped_items = []
@@ -1140,9 +1321,7 @@ def _gif_overlay_box(
     video_height: int,
     size_ratio: float,
 ) -> tuple[int, int]:
-    return _overlay_box(
-        gif_clip.w, gif_clip.h, video_width, video_height, size_ratio
-    )
+    return _overlay_box(gif_clip.w, gif_clip.h, video_width, video_height, size_ratio)
 
 
 def _deterministic_unit(seed: str) -> float:
@@ -1327,7 +1506,9 @@ def _pick_photo_animation(seed: str, params: VideoParams) -> str:
     if choice in _PHOTO_ANIMATIONS:
         return choice
     unit = _deterministic_unit(f"{seed}:animation")
-    return _PHOTO_ANIMATIONS[min(len(_PHOTO_ANIMATIONS) - 1, int(unit * len(_PHOTO_ANIMATIONS)))]
+    return _PHOTO_ANIMATIONS[
+        min(len(_PHOTO_ANIMATIONS) - 1, int(unit * len(_PHOTO_ANIMATIONS)))
+    ]
 
 
 def _photo_card_image(
@@ -1466,9 +1647,9 @@ def _build_photo_overlay_clips(
                 card_image = _photo_card_image(
                     photo, box_width, box_height, radius, spread, angle
                 )
-                card = ImageClip(
-                    np.array(card_image), transparent=True
-                ).with_duration(window)
+                card = ImageClip(np.array(card_image), transparent=True).with_duration(
+                    window
+                )
                 card_w, card_h = card.w, card.h
                 x, y = _centered_position(
                     center_x, center_y, card_w, card_h, video_width, video_height
@@ -1508,7 +1689,9 @@ def _build_photo_overlay_clips(
             placed += 1
         except Exception as error:
             # A broken photo must never take the whole render down with it.
-            logger.warning(f"failed to build photo overlay: {photo_path} => {str(error)}")
+            logger.warning(
+                f"failed to build photo overlay: {photo_path} => {str(error)}"
+            )
 
     logger.info(f"built {placed} photo overlays")
     return overlays

@@ -70,6 +70,12 @@ twelvelabs_rerank_terms = false
 # 默认关闭，开启后会减少随机性，使素材顺序更贴近文案结构。
 match_materials_to_script = false
 
+# Use one uninterrupted segment cut from a random position of a single long source
+# video, center-cropped to fill the frame, instead of concatenating many short clips.
+# Needs a source at least as long as the narration; otherwise the pipeline falls back
+# to the default concatenation. Useful for gameplay-style backgrounds.
+continuous_background = false
+
 # Optional Sonilo video-matched original background music.
 # Create a key at https://platform.sonilo.com/dashboard. The WebUI can also save
 # this value, or you can set the SONILO_API_KEY environment variable instead.

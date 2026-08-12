@@ -67,6 +67,7 @@ commercial-content policies агент должен перепроверять �
 | `architecture/` | реализованные механики пайплайна — по файлу на подсистему |
 | `architecture/gif-overlays.md` | GIF-вставки KLIPY на эмоциональных пиках сценария |
 | `architecture/photo-overlays.md` | фото-вставки из локальной папки с анимациями появления |
+| `architecture/continuous-background.md` | непрерывный фон: один отрезок длинного видео с кропом по центру |
 | `architecture/claude-cli-provider.md` | провайдер `claude_code` (генерация через `claude -p`) и пресет промпта по плейбуку |
 | `architecture/hook-selection.md` | выбор первой строки: генератор кандидатов, фильтр, скорер |
 | `architecture/subtitle-highlight.md` | капс и смысловая подсветка ключевого слова в субтитрах |

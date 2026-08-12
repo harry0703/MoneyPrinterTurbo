@@ -293,6 +293,8 @@
     "Photo Size": "Photo Width",
     "Photo Size Help": "Share of the video width taken by the photo card.",
     "Photo Animation": "Photo Entry Animation",
-    "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo."
+    "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo.",
+    "Continuous Background": "Kesintisiz Arka Plan",
+    "Continuous Background Help": "Birçok klibi birleştirmek yerine, uzun bir videonun rastgele bir noktasından alınan kesintisiz tek bir bölümü kullanır ve kareyi dolduracak şekilde ortadan kırpar."
   }
 }

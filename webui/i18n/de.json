@@ -293,6 +293,8 @@
     "Photo Size": "Photo Width",
     "Photo Size Help": "Share of the video width taken by the photo card.",
     "Photo Animation": "Photo Entry Animation",
-    "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo."
+    "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo.",
+    "Continuous Background": "Durchgehender Hintergrund",
+    "Continuous Background Help": "Verwendet einen ununterbrochenen Ausschnitt ab einer zufälligen Stelle eines langen Videos, zentriert zugeschnitten auf das Bildformat, statt vieler aneinandergereihter Clips."
   }
 }

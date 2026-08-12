@@ -864,6 +864,162 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(write_mock.call_count, 4)
         self.assertEqual(concat_mock.call_args.kwargs["max_duration"], 10.0)
 
+    def _run_continuous_background(
+        self,
+        *,
+        source_durations,
+        audio_duration,
+        clip_speed=1.0,
+        source_size=(1920, 1080),
+        ffmpeg_returncode=0,
+    ):
+        """Record the FFmpeg command the continuous background mode builds."""
+
+        ffmpeg_commands = []
+        concat_calls = []
+
+        class _FakeAudioClip:
+            duration = audio_duration
+
+            def close(self):
+                pass
+
+        class _FakeVideoClip:
+            def __init__(self, duration, size):
+                self.duration = duration
+                self.size = tuple(size)
+                self.w, self.h = self.size
+
+            def subclipped(self, start_time, end_time):
+                return _FakeVideoClip(end_time - start_time, self.size)
+
+            def close(self):
+                pass
+
+        def _open_fake_video_clip(video_path, audio=False):
+            return _FakeVideoClip(source_durations[video_path], source_size)
+
+        def _fake_ffmpeg_run(command, **_kwargs):
+            ffmpeg_commands.append(command)
+            return types.SimpleNamespace(
+                returncode=ffmpeg_returncode, stdout="", stderr="boom"
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+            with (
+                patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()),
+                patch.object(
+                    vd, "_open_video_clip_quietly", side_effect=_open_fake_video_clip
+                ),
+                patch.object(vd.subprocess, "run", side_effect=_fake_ffmpeg_run),
+                patch.object(vd, "_write_videofile_with_codec_fallback"),
+                patch.object(
+                    vd,
+                    "concat_video_clips_with_ffmpeg",
+                    side_effect=lambda **kwargs: concat_calls.append(kwargs),
+                ),
+                patch.object(vd, "delete_files"),
+                # Pin the random start so the cut range can be asserted exactly.
+                patch.object(
+                    vd.random, "uniform", side_effect=lambda low, high: (low + high) / 2
+                ),
+            ):
+                vd.combine_videos(
+                    combined_video_path=combined_video_path,
+                    video_paths=list(source_durations),
+                    audio_file=os.path.join(temp_dir, "audio.mp3"),
+                    max_clip_duration=5,
+                    clip_speed=clip_speed,
+                    continuous_background=True,
+                )
+
+        return ffmpeg_commands, concat_calls
+
+    @staticmethod
+    def _ffmpeg_option(command, name):
+        return command[command.index(name) + 1]
+
+    def test_continuous_background_cuts_one_segment_covering_audio(self):
+        """One uninterrupted cut covering the narration, without the concat step."""
+
+        ffmpeg_commands, concat_calls = self._run_continuous_background(
+            source_durations={"gameplay.mp4": 100.0},
+            audio_duration=10.0,
+        )
+
+        self.assertEqual(len(ffmpeg_commands), 1)
+        command = ffmpeg_commands[0]
+        # Seek and duration must precede -i so FFmpeg skips instead of decoding.
+        self.assertLess(command.index("-ss"), command.index("-i"))
+        self.assertLess(command.index("-t"), command.index("-i"))
+        self.assertAlmostEqual(float(self._ffmpeg_option(command, "-ss")), 44.95)
+        self.assertAlmostEqual(float(self._ffmpeg_option(command, "-t")), 10.1)
+        self.assertEqual(self._ffmpeg_option(command, "-i"), "gameplay.mp4")
+        self.assertEqual(concat_calls, [])
+
+    def test_continuous_background_center_crops_landscape_source(self):
+        """A landscape source must fill the portrait frame by cropping, not letterboxing."""
+
+        ffmpeg_commands, _ = self._run_continuous_background(
+            source_durations={"gameplay.mp4": 100.0},
+            audio_duration=10.0,
+        )
+
+        video_filter = self._ffmpeg_option(ffmpeg_commands[0], "-vf")
+        # 1920x1080 keeps its full height; only the sides outside 9:16 are cut.
+        self.assertIn("crop=608:1080:656:0", video_filter)
+        self.assertIn("scale=1080:1920", video_filter)
+        self.assertNotIn("setpts", video_filter)
+
+    def test_continuous_background_reads_more_source_when_sped_up(self):
+        """Speed changes scale both the source range and the output timeline."""
+
+        ffmpeg_commands, _ = self._run_continuous_background(
+            source_durations={"gameplay.mp4": 100.0},
+            audio_duration=10.0,
+            clip_speed=2.0,
+        )
+
+        command = ffmpeg_commands[0]
+        self.assertAlmostEqual(float(self._ffmpeg_option(command, "-t")), 20.2)
+        self.assertIn("setpts=PTS/2.0", self._ffmpeg_option(command, "-vf"))
+
+    def test_continuous_background_skips_sources_shorter_than_audio(self):
+        """Sources shorter than the narration must not be picked; the background would cut out."""
+
+        ffmpeg_commands, _ = self._run_continuous_background(
+            source_durations={"short.mp4": 5.0, "gameplay.mp4": 100.0},
+            audio_duration=10.0,
+        )
+
+        self.assertEqual(self._ffmpeg_option(ffmpeg_commands[0], "-i"), "gameplay.mp4")
+
+    def test_continuous_background_falls_back_when_no_source_is_long_enough(self):
+        """With no long-enough source, fall back to concatenation instead of a short video."""
+
+        ffmpeg_commands, concat_calls = self._run_continuous_background(
+            source_durations={"short.mp4": 4.0},
+            audio_duration=10.0,
+            source_size=(1080, 1920),
+        )
+
+        self.assertEqual(ffmpeg_commands, [])
+        self.assertEqual(len(concat_calls), 1)
+
+    def test_continuous_background_falls_back_when_ffmpeg_fails(self):
+        """A failing cut must not leave the task without a background video."""
+
+        ffmpeg_commands, concat_calls = self._run_continuous_background(
+            source_durations={"gameplay.mp4": 100.0},
+            audio_duration=10.0,
+            source_size=(1080, 1920),
+            ffmpeg_returncode=1,
+        )
+
+        self.assertEqual(len(ffmpeg_commands), 1)
+        self.assertEqual(len(concat_calls), 1)
+
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 

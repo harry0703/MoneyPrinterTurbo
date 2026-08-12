@@ -2439,6 +2439,18 @@ def _render_video_settings(panel, params):
                 params.match_materials_to_script,
             )
 
+            params.continuous_background = st.checkbox(
+                tr("Continuous Background"),
+                help=tr("Continuous Background Help"),
+                value=bool(config.app.get("continuous_background", False)),
+                key="continuous_background_checkbox",
+            )
+            _set_runtime_config(
+                "app",
+                "continuous_background",
+                params.continuous_background,
+            )
+
             # 视频转场模式
             video_transition_modes = [
                 (tr("None"), VideoTransitionMode.none.value),

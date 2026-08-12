@@ -246,9 +246,7 @@ def _mark_task_failed(task_id: str, stage: str, error: str) -> dict:
 
     message = str(error or "unknown task error").strip()
     progress = int((existing_task or {}).get("progress", 0) or 0)
-    logger.error(
-        f"task failed, task_id: {task_id}, stage: {stage}, error: {message}"
-    )
+    logger.error(f"task failed, task_id: {task_id}, stage: {stage}, error: {message}")
     failure = {
         "task_id": task_id,
         "state": const.TASK_STATE_FAILED,
@@ -519,14 +517,15 @@ def generate_audio(task_id, params, video_script, voice_preview=None):
             return None, None, None
         return custom_audio_file, audio_duration, None
 
+
 def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
-    '''
+    """
     Generate subtitle for the video script.
     If subtitle generation is disabled or no subtitle maker is provided, it will return an empty string.
     Otherwise, it will generate the subtitle using the specified provider.
     Returns:
         - subtitle_path: path to the generated subtitle file
-    '''
+    """
     logger.info("\n\n## generating subtitle")
     if not params.subtitle_enabled:
         return ""
@@ -598,7 +597,9 @@ def _subtitle_windows(subtitle_path: str) -> list[tuple]:
     return windows
 
 
-def _gif_timeline(task_id, params, video_script, sub_maker, subtitle_path) -> list[tuple]:
+def _gif_timeline(
+    task_id, params, video_script, sub_maker, subtitle_path
+) -> list[tuple]:
     """
     Resolve the timeline gif overlays are pinned to.
 
@@ -720,7 +721,9 @@ def _spread_photo_moments(window_count: int, amount: int) -> list[int]:
     """Fallback when the LLM gives nothing: spread photos evenly over the script."""
     amount = max(1, min(amount, window_count))
     step = window_count / amount
-    return sorted({min(window_count - 1, int(step * i + step / 2)) for i in range(amount)})
+    return sorted(
+        {min(window_count - 1, int(step * i + step / 2)) for i in range(amount)}
+    )
 
 
 def generate_photo_overlays(
@@ -854,6 +857,7 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             clip_speed=params.video_clip_speed,
+            continuous_background=params.continuous_background,
         )
 
         _progress += 50 / params.video_count / 2
@@ -1159,9 +1163,7 @@ def _run_cross_post_with_slot(*args) -> None:
         # _run_cross_post 已处理预期异常；这里是最后一道保护，避免未来新增
         # 逻辑抛出的异常只保存在无人读取的 Future 中。
         task_id = str(args[0]) if args else "unknown"
-        logger.exception(
-            f"cross-post worker crashed, task_id: {task_id}, error: {exc}"
-        )
+        logger.exception(f"cross-post worker crashed, task_id: {task_id}, error: {exc}")
         if args:
             _record_cross_post_failure(task_id, exc)
     finally:
@@ -1423,15 +1425,17 @@ def _run_pipeline(
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
     # 6. Generate final videos
-    final_video_paths, combined_video_paths, generation_warnings = generate_final_videos(
-        task_id,
-        params,
-        downloaded_videos,
-        audio_file,
-        subtitle_path,
-        audio_duration,
-        gif_overlays=gif_overlays,
-        photo_overlays=photo_overlays,
+    final_video_paths, combined_video_paths, generation_warnings = (
+        generate_final_videos(
+            task_id,
+            params,
+            downloaded_videos,
+            audio_file,
+            subtitle_path,
+            audio_duration,
+            gif_overlays=gif_overlays,
+            photo_overlays=photo_overlays,
+        )
     )
 
     if not final_video_paths:
@@ -1452,9 +1456,7 @@ def _run_pipeline(
         and upload_post.upload_post_service.auto_upload
     )
     platforms = (
-        list(upload_post.upload_post_service.platforms)
-        if cross_post_enabled
-        else []
+        list(upload_post.upload_post_service.platforms) if cross_post_enabled else []
     )
     should_cross_post = cross_post_enabled and bool(platforms)
     if cross_post_enabled and not platforms:

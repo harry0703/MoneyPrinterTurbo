@@ -321,6 +321,8 @@
     "Photo Size": "照片宽度",
     "Photo Size Help": "照片卡片占画面宽度的比例。",
     "Photo Animation": "入场动画",
-    "Photo Animation Help": "照片的出现方式：pop（缩放弹出）、slide（侧边滑入）、kenburns（缓慢变焦）或 random（每张随机）。"
+    "Photo Animation Help": "照片的出现方式：pop（缩放弹出）、slide（侧边滑入）、kenburns（缓慢变焦）或 random（每张随机）。",
+    "Continuous Background": "连续背景",
+    "Continuous Background Help": "从一个长视频的随机位置截取一段连续画面并居中裁剪铺满画面，而不是拼接多个短片段。"
   }
 }

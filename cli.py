@@ -313,6 +313,16 @@ Output and exit status:
         ),
     )
     video_group.add_argument(
+        "--continuous-background",
+        default=None,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            "use one uninterrupted segment cut from a random position of a single "
+            "long source video, center-cropped to fill the frame, instead of many "
+            "concatenated clips (default: disabled)"
+        ),
+    )
+    video_group.add_argument(
         "--match-materials-to-script",
         default=None,
         action=argparse.BooleanOptionalAction,
@@ -671,6 +681,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_concat_mode",
         "video_transition_mode",
         "video_clip_duration",
+        "continuous_background",
         "match_materials_to_script",
         "gif_enabled",
         "gif_amount",
