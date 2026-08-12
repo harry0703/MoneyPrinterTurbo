@@ -66,6 +66,7 @@ commercial-content policies агент должен перепроверять �
 | `architecture/` | реализованные механики пайплайна — по файлу на подсистему |
 | `architecture/gif-overlays.md` | GIF-вставки KLIPY на эмоциональных пиках сценария |
 | `architecture/claude-cli-provider.md` | провайдер `claude_code` (генерация через `claude -p`) и пресет промпта по плейбуку |
+| `architecture/hook-selection.md` | выбор первой строки: генератор кандидатов, фильтр, скорер |
 | `architecture/decisions/` | микро-ADR — по файлу на принятое решение |
 | `changelog.md` | changelog; запись обязательна на каждый бамп версии в `pyproject.toml` |
 | `TODO/` | нереализованные фичи, по файлу на фичу |

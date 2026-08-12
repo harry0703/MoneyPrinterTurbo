@@ -99,6 +99,16 @@ def _resolve_format(video_format: str | None) -> str:
     return value
 
 
+def platform_label(platform: str | None) -> str:
+    return _PLATFORM_LABELS[_resolve_platform(platform)]
+
+
+def format_skeleton(video_format: str | None) -> tuple[str, str]:
+    """Resolve a format name into ``(name, skeleton)``; unknown names give ``("", "")``."""
+    resolved = _resolve_format(video_format)
+    return resolved, FORMAT_SKELETONS.get(resolved, "")
+
+
 def _format_block(video_format: str) -> str:
     if not video_format:
         return ""

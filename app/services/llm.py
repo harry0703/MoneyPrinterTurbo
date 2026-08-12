@@ -10,7 +10,7 @@ from openai.types.chat import ChatCompletion
 
 from app.config import config
 from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
-from app.services import claude_cli, script_prompt
+from app.services import claude_cli, hooks, script_prompt
 
 _max_retries = 5
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
@@ -495,12 +495,89 @@ def _default_script_system_prompt() -> str:
         return DEFAULT_SCRIPT_SYSTEM_PROMPT
 
 
+def _playbook_preset_enabled() -> bool:
+    preset = str(config.app.get("script_prompt_preset", "")).strip().lower()
+    return preset == script_prompt.PLAYBOOK_PRESET
+
+
+def _request_json(prompt: str, what: str, app_config=None):
+    """Run a provider call that must come back as JSON, with the usual retries."""
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt=prompt)
+            else:
+                response = _generate_response(prompt=prompt, app_config=app_config)
+            if response.startswith("Error: "):
+                logger.error(f"failed to generate {what}: {response}")
+                return None
+            return hooks.extract_json(response)
+        except Exception as e:
+            logger.warning(f"failed to parse {what}: {str(e)}")
+        if i < _max_retries - 1:
+            logger.warning(f"failed to generate {what}, trying again... {i + 1}")
+    return None
+
+
+def generate_hook(
+    video_subject: str,
+    language: str = "",
+    app_config=None,
+) -> dict:
+    """Pick the opening line for one video: several candidates, then a scorer.
+
+    Returns an empty dict when the step is off or nothing usable came back —
+    the script step then runs without a forced opening instead of failing.
+    """
+    if not _playbook_preset_enabled():
+        return {}
+
+    count = hooks.normalize_candidate_count(config.app.get("hook_candidates", None))
+    if count <= 0:
+        return {}
+
+    platform = config.app.get("script_preset_platform", "")
+    video_format = config.app.get("script_preset_format", "")
+
+    logger.info(f"generating hook candidates: subject={video_subject}, count={count}")
+    parsed = _request_json(
+        hooks.build_candidates_prompt(
+            video_subject=video_subject,
+            language=language,
+            count=count,
+            platform=platform,
+            video_format=video_format,
+        ),
+        "hook candidates",
+        app_config=app_config,
+    )
+    candidates = hooks.parse_candidates(parsed, count) if parsed is not None else []
+    if not candidates:
+        logger.warning("no usable hook candidates, falling back to a plain script")
+        return {}
+
+    if len(candidates) == 1:
+        chosen = dict(candidates[0])
+    else:
+        scored = _request_json(
+            hooks.build_scorer_prompt(video_subject, candidates),
+            "hook score",
+            app_config=app_config,
+        )
+        chosen = hooks.parse_choice(scored, candidates)
+
+    chosen["candidates"] = len(candidates)
+    logger.success(f"hook [{chosen.get('hook_type')}]: {chosen.get('hook')}")
+    return chosen
+
+
 def build_script_prompt(
     video_subject: str,
     language: str = "",
     paragraph_number: int = 1,
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
+    hook: str = "",
 ) -> str:
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
@@ -521,6 +598,13 @@ def build_script_prompt(
 """.rstrip()
     if language:
         prompt += f"\n- language: {language}"
+    if hook.strip():
+        # 钩子由独立的生成/打分步骤选出，这里只要求逐字复用，不允许改写：
+        # 否则 hook_type 记录的类别与实际开场白对不上，留存数据就失去意义。
+        prompt += (
+            f"\n- opening line, use it verbatim as the first sentence and build "
+            f"the rest of the script around it: {hook.strip()}"
+        )
     if video_script_prompt:
         prompt += f"""
 
@@ -537,6 +621,7 @@ def generate_script(
     paragraph_number: int = 1,
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
+    hook: str = "",
     app_config=None,
 ) -> str:
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
@@ -552,6 +637,7 @@ def generate_script(
         paragraph_number=paragraph_number,
         video_script_prompt=video_script_prompt,
         custom_system_prompt=custom_system_prompt,
+        hook=hook,
     )
     final_script = ""
     logger.info(

@@ -87,17 +87,21 @@ sonilo_timeout = 600
 # Registry defaults; only set them when you need an explicit override.
 llm_provider = "moonshot"
 
-# Script prompt preset. Empty keeps the generic upstream script prompt.
-# "playbook" switches to the docs/playbook rules: beat structure, hook rules,
-# retention rule, duration priors, and the anti-template constraints.
+# Script prompt preset. "playbook" builds the script from the docs/playbook
+# rules: beat structure, hook rules, retention rule, duration priors, and the
+# anti-template constraints. Set it to "" for the generic upstream prompt.
 # A custom_system_prompt sent with the request still wins over the preset.
-script_prompt_preset = ""
+script_prompt_preset = "playbook"
 # Duration prior used by the preset: "tiktok", "instagram_reels", or
 # "youtube_shorts".
 script_preset_platform = "tiktok"
 # Optional storytelling mechanic from docs/playbook/formats.md, for example
 # "mystery_reveal" or "myth_busting". Empty lets the model choose.
 script_preset_format = ""
+# Opening lines proposed before the script is written; a scorer then picks one.
+# Costs two extra LLM calls per video. 0 disables the step and lets the script
+# generator open the video itself. Only used by the "playbook" preset.
+hook_candidates = 5
 
 # Kimi / Moonshot AI
 # API key: https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo

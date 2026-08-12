@@ -75,17 +75,53 @@ class TestTaskService(unittest.TestCase):
             custom_system_prompt="Only write short narration.",
         )
 
-        with patch.object(tm.llm, "generate_script", return_value="生成的文案") as generate:
+        with (
+            patch.object(tm.llm, "generate_hook", return_value={}) as pick_hook,
+            patch.object(tm.llm, "generate_script", return_value="生成的文案") as generate,
+        ):
             result = tm.generate_script("task-id", params)
 
         self.assertEqual(result, "生成的文案")
+        pick_hook.assert_called_once_with(video_subject="咖啡", language="zh-CN")
         generate.assert_called_once_with(
             video_subject="咖啡",
             language="zh-CN",
             paragraph_number=2,
             video_script_prompt="语气轻松",
             custom_system_prompt="Only write short narration.",
+            hook="",
         )
+
+    def test_generate_script_stores_the_chosen_hook(self):
+        """hook_type 要和成片一起留在任务状态里，否则留存数据无法按开场白类别对齐。"""
+        params = VideoParams(video_subject="咖啡", video_script="")
+        chosen = {"hook": "看杯口那圈油脂。", "hook_type": "visual_instruction"}
+
+        with (
+            patch.object(tm.llm, "generate_hook", return_value=chosen),
+            patch.object(tm.llm, "generate_script", return_value="生成的文案") as generate,
+            patch.object(tm.sm.state, "update_task") as update_task,
+        ):
+            tm.generate_script("task-id", params)
+
+        self.assertEqual(generate.call_args.kwargs["hook"], "看杯口那圈油脂。")
+        update_task.assert_called_once_with(
+            "task-id", hook="看杯口那圈油脂。", hook_type="visual_instruction"
+        )
+
+    def test_user_supplied_script_skips_the_hook_step(self):
+        """用户自带文案时不应再为开场白付费，也不能改写他写好的第一句。"""
+        params = VideoParams(video_subject="咖啡", video_script="我自己写的文案")
+
+        with (
+            patch.object(tm.llm, "generate_hook") as pick_hook,
+            patch.object(tm.llm, "generate_script") as generate,
+        ):
+            result = tm.generate_script("task-id", params)
+
+        self.assertEqual(result, "我自己写的文案")
+        pick_hook.assert_not_called()
+        generate.assert_not_called()
 
     def test_generate_final_videos_forwards_clip_speed(self):
         """任务编排层必须把用户选择的画面速度传给视频合成服务。"""
