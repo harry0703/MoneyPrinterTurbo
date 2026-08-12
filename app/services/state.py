@@ -11,6 +11,19 @@ from app.config import config
 from app.models import const
 
 
+_PATCH_EXISTING_TASK_SCRIPT = """
+if redis.call("EXISTS", KEYS[1]) == 0 then
+    return 0
+end
+
+for index = 1, #ARGV, 2 do
+    redis.call("HSET", KEYS[1], ARGV[index], ARGV[index + 1])
+end
+
+return 1
+"""
+
+
 @dataclass(frozen=True)
 class IdempotentAcceptance:
     """Values required to atomically publish and queue one claimed task."""
@@ -49,6 +62,25 @@ def _pending_claim_matches(existing: dict | None, acceptance: IdempotentAcceptan
     )
 
 
+def _reserve_outcome(existing: dict | None, params_hash: str) -> str:
+    """Classify a live idempotency record for a reserve attempt."""
+    if existing["params_hash"] != params_hash:
+        return const.IDEMPOTENCY_CONFLICT
+    if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
+        return const.IDEMPOTENCY_DUPLICATE
+    return const.IDEMPOTENCY_PENDING
+
+
+def _task_record_fields(task_id: str, state: int, progress: int, kwargs: dict) -> dict:
+    """Build the common initial task-hash fields shared by both adapters."""
+    return {
+        "task_id": task_id,
+        "state": state,
+        "progress": progress,
+        **kwargs,
+    }
+
+
 # Base class for state management
 class BaseState(ABC):
     @abstractmethod
@@ -61,6 +93,11 @@ class BaseState(ABC):
 
     @abstractmethod
     def get_all_tasks(self, page: int, page_size: int):
+        pass
+
+    @abstractmethod
+    def patch_task(self, task_id: str, **kwargs) -> bool:
+        """只更新已有任务的指定字段；任务不存在时返回 False。"""
         pass
 
     @abstractmethod
@@ -134,17 +171,25 @@ class MemoryState(BaseState):
             progress = 100
 
         with self._lock:
-            self._tasks[task_id] = {
-                "task_id": task_id,
-                "state": state,
-                "progress": progress,
-                **kwargs,
-            }
+            self._tasks[task_id] = _task_record_fields(
+                task_id, state, progress, kwargs
+            )
 
     def get_task(self, task_id: str):
         with self._lock:
             task = self._tasks.get(task_id, None)
             return copy.deepcopy(task) if task is not None else None
+
+    def patch_task(self, task_id: str, **kwargs) -> bool:
+        # 异步发布只应补充发布状态，不能覆盖已经保存的视频、字幕等结果。
+        # 在同一把锁内完成存在性判断和字段合并，也可避免任务删除后
+        # 被后台线程重建。
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task is None:
+                return False
+            task.update(copy.deepcopy(kwargs))
+            return True
 
     def delete_task(self, task_id: str):
         with self._lock:
@@ -176,11 +221,7 @@ class MemoryState(BaseState):
                     "expires_at": now + lease_seconds,
                 }
                 return const.IDEMPOTENCY_CREATED
-            if existing["params_hash"] != params_hash:
-                return const.IDEMPOTENCY_CONFLICT
-            if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
-                return const.IDEMPOTENCY_DUPLICATE
-            return const.IDEMPOTENCY_PENDING
+            return _reserve_outcome(existing, params_hash)
 
     def get_idempotency(self, task_id: str):
         """Return a snapshot of a live claim, expiring stale pending claims."""
@@ -261,26 +302,14 @@ class RedisState(BaseState):
         cursor = 0
         total = 0
         while True:
-            cursor, keys = self._redis.scan(cursor, count=page_size)
-            # This Redis database is shared by three kinds of keys: task-record
-            # HASHes (the only thing this listing wants), idempotency
-            # reservations (idem:{task_id}, STRING), and the worker queue
-            # (task_queue, LIST). Filtering by name prefix is fragile — it must
-            # be updated for every new non-hash key or it HGETALLs the wrong
-            # type and raises WRONGTYPE. Filter by the authoritative key TYPE
-            # instead: keep only hashes, so both idem: strings and the
-            # task_queue list are dropped uniformly, and the total counts real
-            # task records only.
-            if keys:
-                # TYPE is O(1) on the server; call it per key. We deliberately
-                # avoid a pipeline here because not every Redis client
-                # implementation (e.g. fakeredis used in tests) exposes one, and
-                # a handful of TYPE calls per SCAN batch is negligible.
-                keys = [
-                    k
-                    for k in keys
-                    if self._redis.type(k) in (b"hash", "hash")
-                ]
+            # Redis 数据库中除了任务 Hash，还可能存在 RedisTaskManager 使用的
+            # List 队列。只扫描 Hash 可以避免对队列执行 HGETALL 时触发
+            # WRONGTYPE，同时保证 total 只统计真正的任务记录。
+            cursor, keys = self._redis.scan(
+                cursor,
+                count=page_size,
+                _type="HASH",
+            )
             batch_start = total
             batch_size = len(keys)
             total += batch_size
@@ -316,57 +345,10 @@ class RedisState(BaseState):
         if progress > 100:
             progress = 100
 
-        fields = {
-            "task_id": task_id,
-            "state": state,
-            "progress": progress,
-            **kwargs,
-        }
-        encoded_fields = {
-            field: str(value) for field, value in fields.items()
-        }
-        if state in {const.TASK_STATE_COMPLETE, const.TASK_STATE_FAILED}:
-            terminal_key = (
-                f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
-            )
-            from redis.exceptions import WatchError
+        fields = _task_record_fields(task_id, state, progress, kwargs)
 
-            while True:
-                with self._redis.pipeline() as pipe:
-                    try:
-                        pipe.watch(task_id, terminal_key)
-                        task_type = self._redis_type_name(
-                            pipe.type(task_id)
-                        )
-                        terminal_type = self._redis_type_name(
-                            pipe.type(terminal_key)
-                        )
-                        if task_type not in {"none", "hash"}:
-                            pipe.unwatch()
-                            raise TypeError(
-                                "Redis task key has unexpected type: "
-                                f"{task_type}"
-                            )
-                        if terminal_type not in {"none", "string"}:
-                            pipe.unwatch()
-                            raise TypeError(
-                                "Redis terminal marker has unexpected type: "
-                                f"{terminal_type}"
-                            )
-
-                        pipe.multi()
-                        pipe.hset(task_id, mapping=encoded_fields)
-                        pipe.set(
-                            terminal_key,
-                            str(state),
-                            ex=const.IDEMPOTENCY_ACCEPTED_TTL_SECONDS,
-                        )
-                        pipe.execute()
-                        return
-                    except WatchError:
-                        continue
-
-        self._redis.hset(task_id, mapping=encoded_fields)
+        for field, value in fields.items():
+            self._redis.hset(task_id, field, str(value))
 
     def get_task(self, task_id: str):
         task_data = self._redis.hgetall(task_id)
@@ -378,6 +360,25 @@ class RedisState(BaseState):
             for key, value in task_data.items()
         }
         return task
+
+    def patch_task(self, task_id: str, **kwargs) -> bool:
+        if not kwargs:
+            return False
+
+        arguments = []
+        for field, value in kwargs.items():
+            arguments.extend((field, str(value)))
+
+        # EXISTS 和 HSET 如果分成两条命令，后台发布线程与删除请求并发时，
+        # HSET 可能在删除后重新创建一条残缺任务。Lua 脚本由 Redis 原子执行，
+        # 可以保证任务不存在时不写入，且不会改变现有字段之外的数据。
+        updated = self._redis.eval(
+            _PATCH_EXISTING_TASK_SCRIPT,
+            1,
+            task_id,
+            *arguments,
+        )
+        return bool(updated)
 
     def delete_task(self, task_id: str):
         self._redis.delete(task_id)
@@ -404,20 +405,11 @@ class RedisState(BaseState):
             existing = self.get_idempotency(task_id)
             if existing is None:
                 continue
-            if existing["params_hash"] != params_hash:
-                return const.IDEMPOTENCY_CONFLICT
-            if existing["phase"] == const.IDEMPOTENCY_PHASE_ACCEPTED:
-                return const.IDEMPOTENCY_DUPLICATE
-            return const.IDEMPOTENCY_PENDING
+            return _reserve_outcome(existing, params_hash)
 
     def get_idempotency(self, task_id: str):
         """Read and decode a Redis idempotency record."""
-        value = self._redis.get(f"idem:{task_id}")
-        if value is None:
-            return None
-        if isinstance(value, bytes):
-            value = value.decode("utf-8")
-        return json.loads(value)
+        return self._decode_idempotency(self._redis.get(f"idem:{task_id}"))
 
     def abort_idempotent_task(self, task_id: str, owner_token: str) -> bool:
         from redis.exceptions import WatchError
@@ -451,9 +443,6 @@ class RedisState(BaseState):
         from redis.exceptions import WatchError
 
         idem_key = f"idem:{acceptance.task_id}"
-        terminal_key = (
-            f"{const.TASK_TERMINAL_MARKER_PREFIX}{acceptance.task_id}"
-        )
         encoded_task = {
             field: str(value) for field, value in acceptance.task_record().items()
         }
@@ -470,7 +459,6 @@ class RedisState(BaseState):
                         idem_key,
                         acceptance.task_id,
                         task_manager.queue,
-                        terminal_key,
                     )
                     raw = pipe.get(idem_key)
                     existing = self._decode_idempotency(raw)
@@ -492,7 +480,6 @@ class RedisState(BaseState):
                         return const.IDEMPOTENCY_QUEUE_FULL
 
                     pipe.multi()
-                    pipe.delete(terminal_key)
                     pipe.hset(acceptance.task_id, mapping=encoded_task)
                     task_manager.enqueue_transaction(pipe, acceptance.task_info)
                     pipe.set(

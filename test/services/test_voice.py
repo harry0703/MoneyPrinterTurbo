@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import os
+import shutil
 import unittest
 import sys
 import tempfile
@@ -99,6 +100,24 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(getattr(sub_maker, "subs", []), ["第一句话", "Second sentence"])
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
         self.assertGreater(vs.get_audio_duration(sub_maker), 0)
+
+    def test_get_audio_duration_accepts_non_mp3_files(self):
+        """
+        自定义音频（custom_audio_file）常见为 m4a/wav/aac 等非 mp3 格式。
+        get_audio_duration 不应因扩展名不是 .mp3 就报 "Invalid target type" 并返回 0，
+        而应交给 moviepy(ffmpeg) 读取真实时长。
+        """
+        for path in ("custom-audio.m4a", "voice.wav", "clip.aac"):
+            with patch.object(vs.os.path, "exists", return_value=True), \
+                    patch.object(vs, "AudioFileClip") as mock_afc:
+                mock_afc.return_value.__enter__.return_value.duration = 28.89
+                self.assertEqual(vs.get_audio_duration(path), 28.89)
+                mock_afc.assert_called_once_with(path)
+
+    def test_get_audio_duration_missing_file_returns_zero(self):
+        """音频文件不存在时安全返回 0，而不是抛异常或读取失败。"""
+        with patch.object(vs.os.path, "exists", return_value=False):
+            self.assertEqual(vs.get_audio_duration("does-not-exist.m4a"), 0.0)
 
     def test_no_voice_alias_none_is_supported_temporarily(self):
         """
@@ -335,7 +354,10 @@ class TestVoiceService(unittest.TestCase):
             voice_file = f"{temp_dir}/tts-azure-v2-{voice_name}.mp3"
             subtitle_file = f"{temp_dir}/tts-azure-v2-{voice_name}.srt"
             sub_maker = vs.azure_tts_v2(
-                text=text_zh, voice_name=voice_name, voice_file=voice_file
+                text=text_zh,
+                voice_name=voice_name,
+                voice_file=voice_file,
+                voice_rate=1.0,
             )
             if not sub_maker:
                 self.fail("azure tts v2 failed")
@@ -345,11 +367,43 @@ class TestVoiceService(unittest.TestCase):
 
         self.loop.run_until_complete(_do())
 
-    def test_gemini_tts_uses_legacy_submaker_fields(self):
+    def test_azure_tts_v2_ssml_applies_rate_and_escapes_text(self):
+        """Azure V2 必须通过 SSML 应用语速，并避免用户文案破坏 XML。"""
+        ssml = vs._build_azure_v2_ssml(
+            text='A < B & "quoted"',
+            voice_name="zh-CN-XiaoxiaoMultilingualNeural",
+            voice_rate=1.8,
+        )
+
+        self.assertIn('xml:lang="zh-CN"', ssml)
+        self.assertIn('rate="1.8"', ssml)
+        self.assertIn("A &lt; B &amp; \"quoted\"", ssml)
+
+    def test_tts_forwards_rate_to_azure_v2(self):
+        """统一 TTS 入口不能在分发 Azure V2 时丢失 voice_rate。"""
+        voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
+        with patch.object(vs, "azure_tts_v2", return_value=object()) as mock_tts:
+            result = vs.tts(
+                text="语速测试",
+                voice_name=voice_name,
+                voice_rate=1.8,
+                voice_file="/tmp/azure-v2-rate.mp3",
+            )
+
+        self.assertIsNotNone(result)
+        mock_tts.assert_called_once_with(
+            "语速测试",
+            voice_name,
+            "/tmp/azure-v2-rate.mp3",
+            voice_rate=1.8,
+        )
+
+    def test_gemini_tts_uses_google_genai_and_compatible_submaker_fields(self):
         """
         验证 Gemini TTS 在 edge_tts 7.x 环境下仍会返回项目兼容的字幕结构，
         并且可以被 `subtitle_provider=edge` 的字幕生成链路直接消费，
-        避免再次回退 Whisper。
+        避免再次回退 Whisper。同时使用不存在的嵌套输出目录，覆盖 API 或
+        CLI 直接调用服务时没有提前创建任务目录的边界情况。
         """
 
         class _InlineData:
@@ -372,11 +426,11 @@ class TestVoiceService(unittest.TestCase):
             def __init__(self, data):
                 self.candidates = [_Candidate(data)]
 
-        class _FakeModel:
-            def __init__(self, name):
-                self.name = name
+        captured = {}
 
-            def generate_content(self, contents, generation_config):
+        class _FakeModels:
+            def generate_content(self, **kwargs):
+                captured.update(kwargs)
                 tone = (
                     AudioSegment.silent(duration=1800)
                     .set_frame_rate(24000)
@@ -385,13 +439,31 @@ class TestVoiceService(unittest.TestCase):
                 )
                 return _Response(tone.raw_data)
 
-        voice_file = f"{temp_dir}/tts-gemini-Zephyr.mp3"
-        subtitle_file = f"{temp_dir}/tts-gemini-Zephyr.srt"
+        class _FakeClient:
+            def __init__(self, **kwargs):
+                captured["client_kwargs"] = kwargs
+                self.models = _FakeModels()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                captured["closed"] = True
+
+        temp_root = Path(tempfile.mkdtemp(prefix="gemini-tts-output-"))
+        self.addCleanup(shutil.rmtree, temp_root, True)
+        output_dir = temp_root / "nested" / "audio"
+        voice_file = str(output_dir / "tts-gemini-Zephyr.mp3")
+        subtitle_file = str(output_dir / "tts-gemini-Zephyr.srt")
         text = "Gemini subtitle generation should work now. Testing multiple lines."
 
-        with patch("google.generativeai.configure"), patch(
-            "google.generativeai.GenerativeModel", _FakeModel
-        ), patch.object(vs.config, "app", dict(vs.config.app, gemini_api_key="test-key")):
+        self.assertFalse(output_dir.exists())
+
+        with patch("google.genai.Client", _FakeClient), patch.object(
+            vs.config,
+            "app",
+            dict(vs.config.app, gemini_api_key="test-key"),
+        ):
             sub_maker = vs.gemini_tts(
                 text=text,
                 voice_name="Zephyr",
@@ -400,6 +472,7 @@ class TestVoiceService(unittest.TestCase):
             )
 
         self.assertIsNotNone(sub_maker)
+        self.assertTrue(Path(voice_file).is_file())
         self.assertEqual(
             getattr(sub_maker, "subs", []),
             ["Gemini subtitle generation should work now", "Testing multiple lines"],
@@ -407,6 +480,16 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
         self.assertEqual(sub_maker.offset[0][0], 0)
         self.assertLess(sub_maker.offset[0][1], sub_maker.offset[1][1])
+        self.assertEqual(captured["client_kwargs"], {"api_key": "test-key"})
+        self.assertEqual(captured["model"], "gemini-2.5-flash-preview-tts")
+        self.assertEqual(captured["contents"], text)
+        self.assertEqual(captured["config"].response_modalities, ["AUDIO"])
+        voice_config = captured["config"].speech_config.voice_config
+        self.assertEqual(
+            voice_config.prebuilt_voice_config.voice_name,
+            "Zephyr",
+        )
+        self.assertTrue(captured["closed"])
 
         vs.create_subtitle(sub_maker=sub_maker, text=text, subtitle_file=subtitle_file)
         subtitle_content = Path(subtitle_file).read_text(encoding="utf-8")
@@ -923,7 +1006,6 @@ class TestElevenLabsVoice(unittest.TestCase):
         mock_config.elevenlabs.get.return_value = "fake-api-key"
         mock_post.return_value.status_code = 200
         mock_post.return_value.content = b"fake-mp3-bytes"
-        mock_clip = mock_clip_cls.return_value.__enter__.return_value
         mock_clip_cls.return_value.duration = 3.0
         mock_clip_cls.return_value.close = lambda: None
 
@@ -942,7 +1024,10 @@ class TestElevenLabsVoice(unittest.TestCase):
     @patch("app.services.voice.config")
     def test_elevenlabs_tts_no_api_key(self, mock_config):
         mock_config.elevenlabs.get.return_value = ""
-        result = vs.elevenlabs_tts("Hello", "abc123", "/tmp/test.mp3")
+        # Key 解析包含环境变量回退，测试必须显式清空宿主环境，避免开发机或 CI
+        # 恰好设置 ELEVENLABS_API_KEY 后改变“未配置”的测试前提。
+        with patch.dict(os.environ, {}, clear=True):
+            result = vs.elevenlabs_tts("Hello", "abc123", "/tmp/test.mp3")
         self.assertIsNone(result)
 
     @patch("app.services.voice.config")
@@ -950,6 +1035,42 @@ class TestElevenLabsVoice(unittest.TestCase):
         mock_config.elevenlabs.get.return_value = "fake-key"
         result = vs.elevenlabs_tts("  ", "abc123", "/tmp/test.mp3")
         self.assertIsNone(result)
+
+    def test_elevenlabs_api_key_prefers_config(self):
+        with (
+            patch.object(vs.config, "elevenlabs", {"api_key": "config-key"}),
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": "env-key"}),
+        ):
+            self.assertEqual(vs.get_elevenlabs_api_key(), "config-key")
+
+    def test_elevenlabs_api_key_falls_back_to_environment(self):
+        with (
+            patch.object(vs.config, "elevenlabs", {"api_key": ""}),
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": " env-key "}),
+        ):
+            self.assertEqual(vs.get_elevenlabs_api_key(), "env-key")
+
+    def test_elevenlabs_api_key_matches_music_service(self):
+        """TTS 和配乐共用同一账号配置，两条生成链路必须解析出相同 Key。"""
+        from app.services import elevenlabs_music
+
+        for configured_key, env_key in (("config-key", "env-key"), ("", "env-key")):
+            with self.subTest(configured_key=configured_key):
+                with (
+                    patch.object(
+                        vs.config, "elevenlabs", {"api_key": configured_key}
+                    ),
+                    patch.object(
+                        elevenlabs_music.config,
+                        "elevenlabs",
+                        {"api_key": configured_key},
+                    ),
+                    patch.dict(os.environ, {"ELEVENLABS_API_KEY": env_key}),
+                ):
+                    self.assertEqual(
+                        vs.get_elevenlabs_api_key(),
+                        elevenlabs_music.get_api_key(),
+                    )
 
 
 if __name__ == "__main__":

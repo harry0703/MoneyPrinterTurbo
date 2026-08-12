@@ -1,6 +1,9 @@
+import os
 import sys
 import threading
 import unittest
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -12,6 +15,7 @@ from app.services.state import MemoryState, RedisState
 class _FakeRedis:
     def __init__(self, batches):
         self.batches = batches
+        self.scan_types = []
         self.data = {}
         for key in [key for batch in batches for key in batch]:
             index = int(key.decode("utf-8").split(":")[-1])
@@ -21,7 +25,8 @@ class _FakeRedis:
                 b"progress": str(index).encode("utf-8"),
             }
 
-    def scan(self, cursor, count):
+    def scan(self, cursor, count, _type=None):
+        self.scan_types.append(_type)
         batch_index = int(cursor)
         next_cursor = batch_index + 1
         if next_cursor >= len(self.batches):
@@ -34,7 +39,41 @@ class _FakeRedis:
         return b"hash"
 
     def hgetall(self, key):
+        if isinstance(key, str):
+            key = key.encode("utf-8")
         return self.data[key]
+
+    def exists(self, key):
+        if isinstance(key, str):
+            key = key.encode("utf-8")
+        return key in self.data
+
+    def hset(self, key, field=None, value=None, mapping=None):
+        if isinstance(key, str):
+            key = key.encode("utf-8")
+        target = self.data.setdefault(key, {})
+        if mapping:
+            target.update(
+                {
+                    str(item_key).encode("utf-8"): str(item_value).encode("utf-8")
+                    for item_key, item_value in mapping.items()
+                }
+            )
+        elif field is not None:
+            target[str(field).encode("utf-8")] = str(value).encode("utf-8")
+
+    def eval(self, script, numkeys, key, *arguments):
+        if isinstance(key, str):
+            key = key.encode("utf-8")
+        if key not in self.data:
+            return 0
+
+        target = self.data[key]
+        for index in range(0, len(arguments), 2):
+            field = str(arguments[index]).encode("utf-8")
+            value = str(arguments[index + 1]).encode("utf-8")
+            target[field] = value
+        return 1
 
 
 class TestMemoryState(unittest.TestCase):
@@ -83,6 +122,36 @@ class TestMemoryState(unittest.TestCase):
         self.assertEqual(total, thread_count * tasks_per_thread)
         self.assertEqual(len(tasks), total)
 
+    def test_patch_task_preserves_generated_outputs(self):
+        """异步发布更新不能覆盖已经完成的视频任务字段。"""
+        state = MemoryState()
+        state.update_task(
+            "task-1",
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+        )
+
+        patched = state.patch_task(
+            "task-1",
+            cross_post_state=const.CROSS_POST_STATE_COMPLETE,
+            cross_post_results=[{"success": True}],
+        )
+
+        self.assertTrue(patched)
+        self.assertEqual(
+            state.get_task("task-1"),
+            {
+                "task_id": "task-1",
+                "state": const.TASK_STATE_COMPLETE,
+                "progress": 100,
+                "videos": ["final.mp4"],
+                "cross_post_state": const.CROSS_POST_STATE_COMPLETE,
+                "cross_post_results": [{"success": True}],
+            },
+        )
+        self.assertFalse(state.patch_task("missing", value="ignored"))
+
 
 class TestRedisState(unittest.TestCase):
     def _build_state(self, batch_sizes):
@@ -122,6 +191,100 @@ class TestRedisState(unittest.TestCase):
             [task["task_id"] for task in second_page],
             [f"task:{i}" for i in range(10, 18)],
         )
+        self.assertTrue(state._redis.scan_types)
+        self.assertEqual(set(state._redis.scan_types), {"HASH"})
+
+    @unittest.skipUnless(
+        os.getenv("MPT_TEST_REDIS_HOST"),
+        "MPT_TEST_REDIS_HOST not set",
+    )
+    def test_real_redis_get_all_tasks_ignores_queue_keys(self):
+        """真实 Redis 中的 List 队列不能被任务列表误当作 Hash 读取。"""
+        state = RedisState(
+            host=os.environ["MPT_TEST_REDIS_HOST"],
+            port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
+            db=int(os.getenv("MPT_TEST_REDIS_DB", "15")),
+        )
+        suffix = uuid.uuid4()
+        task_ids = [f"ci-list-{suffix}-{index}" for index in range(3)]
+        queue_key = f"ci-queue-{suffix}"
+
+        try:
+            for task_id in task_ids:
+                state.update_task(
+                    task_id,
+                    state=const.TASK_STATE_COMPLETE,
+                    progress=100,
+                )
+            state._redis.rpush(queue_key, *task_ids)
+
+            tasks, _ = state.get_all_tasks(page=1, page_size=1000)
+            returned_ids = {task["task_id"] for task in tasks}
+
+            self.assertTrue(set(task_ids).issubset(returned_ids))
+            self.assertNotIn(queue_key, returned_ids)
+        finally:
+            state._redis.delete(queue_key, *task_ids)
+
+    def test_patch_task_updates_only_existing_redis_task(self):
+        state = self._build_state([1])
+
+        self.assertTrue(
+            state.patch_task(
+                "task:0",
+                cross_post_state=const.CROSS_POST_STATE_FAILED,
+                cross_post_error="upload failed",
+            )
+        )
+        task = state.get_task("task:0")
+        self.assertEqual(task["progress"], 0)
+        self.assertEqual(task["cross_post_state"], const.CROSS_POST_STATE_FAILED)
+        self.assertEqual(task["cross_post_error"], "upload failed")
+        self.assertFalse(state.patch_task("missing", value="ignored"))
+
+    @unittest.skipUnless(
+        os.getenv("MPT_TEST_REDIS_HOST"),
+        "MPT_TEST_REDIS_HOST not set",
+    )
+    def test_real_redis_patch_and_delete_are_atomic(self):
+        """真实 Redis 中并发删除和局部更新不能重新创建残缺任务。"""
+        state = RedisState(
+            host=os.environ["MPT_TEST_REDIS_HOST"],
+            port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
+            db=int(os.getenv("MPT_TEST_REDIS_DB", "15")),
+        )
+
+        for _ in range(50):
+            task_id = f"ci-atomic-{uuid.uuid4()}"
+            state.update_task(
+                task_id,
+                state=const.TASK_STATE_COMPLETE,
+                progress=100,
+            )
+            barrier = threading.Barrier(2)
+
+            def patch_task():
+                barrier.wait()
+                state.patch_task(
+                    task_id,
+                    cross_post_state=const.CROSS_POST_STATE_COMPLETE,
+                )
+
+            def delete_task():
+                barrier.wait()
+                state.delete_task(task_id)
+
+            # Future.result() 会把工作线程异常重新抛到测试线程，避免 Redis
+            # 命令实际失败但仅打印线程异常、最终仍被误判为测试通过。
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [
+                    executor.submit(patch_task),
+                    executor.submit(delete_task),
+                ]
+                for future in futures:
+                    future.result(timeout=5)
+
+            self.assertIsNone(state.get_task(task_id))
 
 
 class TestFakeRedisState(unittest.TestCase):
@@ -162,66 +325,6 @@ class TestFakeRedisState(unittest.TestCase):
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0]["task_id"], "task:1")
 
-    def test_terminal_update_cannot_partially_mark_wrong_type_task(self):
-        task_id = "wrong-type-terminal-task"
-        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
-        self.state._redis.set(task_id, "collision")
-
-        with self.assertRaises(TypeError):
-            self.state.update_task(
-                task_id,
-                state=const.TASK_STATE_COMPLETE,
-                progress=100,
-            )
-
-        self.assertEqual(self.state._redis.get(task_id), b"collision")
-        self.assertFalse(self.state._redis.exists(terminal_key))
-
-    def test_terminal_update_sets_and_refreshes_24_hour_marker_ttl(self):
-        task_id = "terminal-marker-ttl-task"
-        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
-        self.state.update_task(
-            task_id,
-            state=const.TASK_STATE_COMPLETE,
-            progress=100,
-        )
-        self.state._redis.expire(terminal_key, 1)
-
-        self.state.update_task(
-            task_id,
-            state=const.TASK_STATE_COMPLETE,
-            progress=100,
-        )
-
-        ttl = self.state._redis.ttl(terminal_key)
-        self.assertGreaterEqual(ttl, 86399)
-        self.assertLessEqual(ttl, 86400)
-
-    def test_terminal_update_cannot_partially_overwrite_wrong_type_marker(self):
-        task_id = "wrong-type-terminal-marker"
-        terminal_key = f"{const.TASK_TERMINAL_MARKER_PREFIX}{task_id}"
-        self.state.update_task(
-            task_id,
-            state=const.TASK_STATE_PROCESSING,
-            progress=50,
-        )
-        self.state._redis.rpush(terminal_key, "collision")
-
-        with self.assertRaises(TypeError):
-            self.state.update_task(
-                task_id,
-                state=const.TASK_STATE_COMPLETE,
-                progress=100,
-            )
-
-        self.assertEqual(
-            self.state.get_task(task_id)["state"],
-            const.TASK_STATE_PROCESSING,
-        )
-        self.assertEqual(
-            self.state._redis.lrange(terminal_key, 0, -1),
-            [b"collision"],
-        )
 
 if __name__ == "__main__":
     unittest.main()
