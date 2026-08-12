@@ -218,6 +218,62 @@ class TestCli(unittest.TestCase):
                 cli.parse_args(argv)
             self.assertEqual(cm.exception.code, 2)
 
+    def test_photo_overlays_disabled_by_default(self):
+        args = cli.parse_args(["--video-subject", "test"])
+        params = cli.build_video_params(args)
+
+        self.assertFalse(params.photo_enabled)
+        self.assertEqual(params.photo_dir, "")
+        self.assertEqual(params.photo_amount, 5)
+        self.assertEqual(params.photo_size, 0.42)
+        self.assertEqual(params.photo_animation, "random")
+
+    def test_photo_flags_map_to_video_params(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            args = cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--photo-enabled",
+                    "--photo-dir",
+                    tmp_dir,
+                    "--photo-amount",
+                    "3",
+                    "--photo-size",
+                    "0.5",
+                    "--photo-animation",
+                    "pop",
+                ]
+            )
+            params = cli.build_video_params(args)
+
+        self.assertTrue(params.photo_enabled)
+        self.assertEqual(params.photo_dir, tmp_dir)
+        self.assertEqual(params.photo_amount, 3)
+        self.assertEqual(params.photo_size, 0.5)
+        self.assertEqual(params.photo_animation, "pop")
+
+    def test_no_photo_enabled_flag_disables_overlays(self):
+        args = cli.parse_args(["--video-subject", "test", "--no-photo-enabled"])
+        params = cli.build_video_params(args)
+
+        self.assertFalse(params.photo_enabled)
+
+    def test_invalid_photo_values_are_argument_errors(self):
+        invalid_argvs = [
+            ["--video-subject", "test", "--photo-amount", "0"],
+            ["--video-subject", "test", "--photo-amount", "16"],
+            ["--video-subject", "test", "--photo-size", "0.05"],
+            ["--video-subject", "test", "--photo-size", "nan"],
+            ["--video-subject", "test", "--photo-animation", "spiral"],
+            ["--video-subject", "test", "--photo-dir", "/does/not/exist"],
+            ["--video-subject", "test", "--photo-dir", ""],
+        ]
+        for argv in invalid_argvs:
+            with self.subTest(argv=argv), self.assertRaises(SystemExit) as cm:
+                cli.parse_args(argv)
+            self.assertEqual(cm.exception.code, 2)
+
     def test_custom_audio_file_maps_to_video_params(self):
         args = cli.parse_args(
             [

@@ -2547,6 +2547,7 @@ def _render_video_settings(panel, params):
                 _set_runtime_config("app", "video_codec", selected_video_codec)
 
             _render_gif_overlay_settings(params)
+            _render_photo_overlay_settings(params)
     return uploaded_files
 
 
@@ -2598,6 +2599,60 @@ def _render_gif_overlay_settings(params):
         help=tr("Gif Rating Help"),
     )
     _set_runtime_config("ui", "gif_rating", params.gif_rating)
+
+
+def _render_photo_overlay_settings(params):
+    params.photo_enabled = st.checkbox(
+        tr("Enable Photo Overlays"),
+        value=bool(config.ui.get("photo_enabled", False)),
+        key="photo_enabled_checkbox",
+        help=tr("Photo Overlays Help"),
+    )
+    _set_runtime_config("ui", "photo_enabled", params.photo_enabled)
+
+    if not params.photo_enabled:
+        return
+
+    params.photo_dir = st.text_input(
+        tr("Photo Directory"),
+        value=str(config.ui.get("photo_dir", "")),
+        key="photo_dir_input",
+        help=tr("Photo Directory Help"),
+    ).strip()
+    _set_runtime_config("ui", "photo_dir", params.photo_dir)
+    if params.photo_dir and not os.path.isdir(params.photo_dir):
+        st.warning(tr("Photo Directory Missing"))
+
+    params.photo_amount = st.slider(
+        tr("Photo Count"),
+        min_value=1,
+        max_value=15,
+        value=int(config.ui.get("photo_amount", 5)),
+        key="photo_amount_slider",
+    )
+    _set_runtime_config("ui", "photo_amount", params.photo_amount)
+
+    params.photo_size = st.slider(
+        tr("Photo Size"),
+        min_value=0.10,
+        max_value=0.90,
+        value=float(config.ui.get("photo_size", 0.42)),
+        step=0.02,
+        format="%.2f",
+        key="photo_size_slider",
+        help=tr("Photo Size Help"),
+    )
+    _set_runtime_config("ui", "photo_size", params.photo_size)
+
+    photo_animations = ["random", "pop", "slide", "kenburns"]
+    params.photo_animation = stable_selectbox(
+        tr("Photo Animation"),
+        options=photo_animations,
+        default_value=config.ui.get("photo_animation", "random"),
+        key="photo_animation_select",
+        help=tr("Photo Animation Help"),
+    )
+    _set_runtime_config("ui", "photo_animation", params.photo_animation)
 
 
 def _estimate_voiceover_duration_range(

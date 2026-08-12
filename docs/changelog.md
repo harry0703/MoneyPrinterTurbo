@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- **Фото-вставки из локальной папки** на сильных фразах сценария: моменты выбирает
+  LLM (фолбэк — равномерная раскладка), каждое фото показывается 1.5–2.5 сек с
+  анимацией появления (`pop`/`slide`/`kenburns`/`random`); выключены по умолчанию
+  (`photo_enabled = false`). CLI: `--photo-enabled/--no-photo-enabled`,
+  `--photo-dir`, `--photo-amount`, `--photo-size`, `--photo-animation` —
+  `architecture/photo-overlays.md`.
 - **CLI: gif-флаги** — `--gif-enabled/--no-gif-enabled`, `--gif-amount`, `--gif-size`,
   `--gif-rating`; раньше gif-оверлеи включались только из WebUI или кодом через
   `VideoParams`.

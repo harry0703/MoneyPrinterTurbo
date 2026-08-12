@@ -62,9 +62,11 @@ commercial-content policies агент должен перепроверять �
 | `playbook/formats.md` | реестр форматов (механика сторителлинга ≠ ниша) и стартовый микс |
 | `playbook/timing.md` | длительности как приоры, датасеты и источники, приор ≠ константа |
 | `playbook/publishing.md` | частота, время публикации, метаданные/хештеги, QA перед публикацией |
+| `playbook/media-scouting.md` | массовая скачка картинок/гифок/видео из поисковой выдачи: ddgs + Playwright + yt-dlp, обход граблей Google/YouTube |
 | `product/content-factory-context.md` | продуктовый контекст: цели, метрики, trend/idea engines, аналитика, autonomy levels, cost model, ограничения |
 | `architecture/` | реализованные механики пайплайна — по файлу на подсистему |
 | `architecture/gif-overlays.md` | GIF-вставки KLIPY на эмоциональных пиках сценария |
+| `architecture/photo-overlays.md` | фото-вставки из локальной папки с анимациями появления |
 | `architecture/claude-cli-provider.md` | провайдер `claude_code` (генерация через `claude -p`) и пресет промпта по плейбуку |
 | `architecture/hook-selection.md` | выбор первой строки: генератор кандидатов, фильтр, скорер |
 | `architecture/decisions/` | микро-ADR — по файлу на принятое решение |

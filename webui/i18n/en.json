@@ -311,6 +311,16 @@
     "Gif Size": "Gif Width",
     "Gif Size Help": "Share of the video width taken by the gif card.",
     "Gif Rating": "Gif Content Rating",
-    "Gif Rating Help": "KLIPY content filter: g is the strictest, r allows adult humour."
+    "Gif Rating Help": "KLIPY content filter: g is the strictest, r allows adult humour.",
+    "Enable Photo Overlays": "Photo Overlays",
+    "Photo Overlays Help": "Overlays photos from a local directory on the strongest lines of the script. Each photo pops up for 1.5-2.5 seconds.",
+    "Photo Directory": "Photo Directory",
+    "Photo Directory Help": "Local directory with jpg/jpeg/png/webp files. Photos are assigned to script lines in filename order.",
+    "Photo Directory Missing": "This directory does not exist.",
+    "Photo Count": "Maximum Number of Photos",
+    "Photo Size": "Photo Width",
+    "Photo Size Help": "Share of the video width taken by the photo card.",
+    "Photo Animation": "Photo Entry Animation",
+    "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo."
   }
 }

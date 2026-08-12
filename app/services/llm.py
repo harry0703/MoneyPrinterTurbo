@@ -923,6 +923,107 @@ def _normalize_gif_moments(parsed, line_count: int, amount: int) -> List[dict]:
     return moments[:amount]
 
 
+def generate_photo_moments(
+    subtitle_lines: List[tuple],
+    amount: int = 5,
+    app_config=None,
+) -> List[int]:
+    """
+    Pick the script lines a supporting photo should land on.
+
+    Unlike gif moments there is nothing to search for — the photos come from a
+    local directory — so the model only returns line indexes.
+    """
+    if not subtitle_lines:
+        return []
+
+    numbered = "\n".join(
+        f"{index}. {str(line[1]).strip()}"
+        for index, line in enumerate(subtitle_lines)
+        if str(line[1]).strip()
+    )
+    if not numbered:
+        return []
+
+    amount = max(1, min(amount, len(subtitle_lines)))
+    prompt = f"""
+# Role: Video Photo Moment Picker
+
+## Goals:
+Pick at most {amount} lines of a video script where showing a supporting photo
+on screen would reinforce what the narrator is saying.
+
+## Constrains:
+1. return a json-array of line numbers, e.g. [0, 4, 9].
+2. every number must reference a line listed below, and must not repeat.
+3. prefer lines that mention something concrete or emotionally strong.
+4. spread the picks across the script, do not put them all next to each other.
+5. it is fine to return fewer picks than the maximum.
+6. you must only return the json-array. you must not return anything else.
+
+## Output Example:
+[0, 4, 9]
+
+## Script Lines:
+{numbered}
+""".strip()
+
+    indexes: List[int] = []
+    response = ""
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt)
+            else:
+                response = _generate_response(prompt, app_config=app_config)
+            if response.startswith("Error: "):
+                logger.error(f"failed to generate photo moments: {response}")
+                return []
+            parsed = json.loads(_strip_code_fence(response))
+        except Exception as e:
+            logger.warning(f"failed to generate photo moments: {str(e)}")
+            match = re.search(r"\[.*]", response, re.DOTALL) if response else None
+            if not match:
+                continue
+            try:
+                parsed = json.loads(match.group())
+            except Exception as inner_error:
+                logger.warning(f"failed to parse photo moments: {str(inner_error)}")
+                continue
+
+        indexes = _normalize_photo_moments(parsed, len(subtitle_lines), amount)
+        if indexes:
+            break
+        if i < _max_retries - 1:
+            logger.warning(f"failed to generate photo moments, trying again... {i + 1}")
+
+    logger.success(f"completed: \n{indexes}")
+    return indexes
+
+
+def _normalize_photo_moments(parsed, line_count: int, amount: int) -> List[int]:
+    if not isinstance(parsed, list):
+        logger.error("photo moments response is not a list")
+        return []
+
+    indexes: List[int] = []
+    seen: set[int] = set()
+    for entry in parsed:
+        if isinstance(entry, dict):
+            entry = entry.get("index")
+        try:
+            index = int(entry)
+        except (TypeError, ValueError):
+            continue
+        if index in seen or not 0 <= index < line_count:
+            continue
+        seen.add(index)
+        indexes.append(index)
+
+    indexes.sort()
+    return indexes[:amount]
+
+
 # =============================================================================
 # Social publishing metadata
 #

@@ -95,6 +95,32 @@ def _gif_size(value: str) -> float:
     return parsed
 
 
+def _photo_amount(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1 or parsed > 15:
+        raise argparse.ArgumentTypeError(
+            f"photo-amount must be between 1 and 15, got {parsed}"
+        )
+    return parsed
+
+
+def _photo_size(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed < 0.1 or parsed > 0.9:
+        raise argparse.ArgumentTypeError(
+            f"photo-size must be a finite number between 0.1 and 0.9, got {value!r}"
+        )
+    return parsed
+
+
+def _photo_dir(value: str) -> str:
+    if not value.strip():
+        raise argparse.ArgumentTypeError("photo-dir must not be empty")
+    if not os.path.isdir(value):
+        raise argparse.ArgumentTypeError(f"photo-dir does not exist: {value!r}")
+    return value
+
+
 def _hex_color(value: str) -> str:
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
         raise argparse.ArgumentTypeError(
@@ -322,6 +348,42 @@ Output and exit status:
         choices=["g", "pg", "pg-13", "r"],
         default=None,
         help="maximum content rating for gif search (default: pg)",
+    )
+    video_group.add_argument(
+        "--photo-enabled",
+        default=None,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            "overlay photos from a local directory on the strongest lines of "
+            "the script (default: disabled)"
+        ),
+    )
+    video_group.add_argument(
+        "--photo-dir",
+        type=_photo_dir,
+        default=None,
+        help="local directory with jpg/jpeg/png/webp files for photo overlays",
+    )
+    video_group.add_argument(
+        "--photo-amount",
+        type=_photo_amount,
+        default=None,
+        help="maximum number of photo overlays, between 1 and 15 (default: 5)",
+    )
+    video_group.add_argument(
+        "--photo-size",
+        type=_photo_size,
+        default=None,
+        help=(
+            "photo width as a fraction of the video width, between 0.1 and 0.9 "
+            "(default: 0.42)"
+        ),
+    )
+    video_group.add_argument(
+        "--photo-animation",
+        choices=["random", "pop", "slide", "kenburns"],
+        default=None,
+        help="photo entry animation (default: random, picked per photo)",
     )
     video_group.add_argument(
         "--n-threads",
@@ -591,6 +653,11 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "gif_amount",
         "gif_size",
         "gif_rating",
+        "photo_enabled",
+        "photo_dir",
+        "photo_amount",
+        "photo_size",
+        "photo_animation",
         "n_threads",
         "voice_volume",
         "voice_rate",

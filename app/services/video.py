@@ -24,7 +24,7 @@ from moviepy import (
     vfx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from app.config import config
 from app.models import const
@@ -895,15 +895,40 @@ def _rounded_mask_clip(width: int, height: int, radius: int) -> ImageClip:
     return ImageClip(np.array(img).astype(float) / 255.0, is_mask=True)
 
 
-def _gif_shadow_clip(width: int, height: int, radius: int, spread: int) -> ImageClip:
+def _shadow_image(width: int, height: int, radius: int, spread: int) -> Image.Image:
     img = Image.new("RGBA", (width + spread * 2, height + spread * 2), (0, 0, 0, 0))
     ImageDraw.Draw(img).rounded_rectangle(
         [spread, spread, spread + width - 1, spread + height - 1],
         radius=max(0, int(radius)),
         fill=(0, 0, 0, 110),
     )
-    img = img.filter(ImageFilter.GaussianBlur(radius=max(1, spread // 2)))
-    return ImageClip(np.array(img), transparent=True)
+    return img.filter(ImageFilter.GaussianBlur(radius=max(1, spread // 2)))
+
+
+def _gif_shadow_clip(width: int, height: int, radius: int, spread: int) -> ImageClip:
+    return ImageClip(
+        np.array(_shadow_image(width, height, radius, spread)), transparent=True
+    )
+
+
+def _overlay_box(
+    source_width: int,
+    source_height: int,
+    video_width: int,
+    video_height: int,
+    size_ratio: float,
+) -> tuple[int, int]:
+    target_width = max(1, int(video_width * size_ratio))
+    source_width = max(1, int(source_width))
+    source_height = max(1, int(source_height))
+    target_height = max(1, int(target_width * source_height / source_width))
+
+    # A tall overlay must not push into the subtitle band or off-frame.
+    max_height = int(video_height * 0.45)
+    if target_height > max_height:
+        target_height = max_height
+        target_width = max(1, int(target_height * source_width / source_height))
+    return target_width, target_height
 
 
 def _gif_overlay_box(
@@ -912,17 +937,9 @@ def _gif_overlay_box(
     video_height: int,
     size_ratio: float,
 ) -> tuple[int, int]:
-    target_width = max(1, int(video_width * size_ratio))
-    source_width = max(1, int(gif_clip.w))
-    source_height = max(1, int(gif_clip.h))
-    target_height = max(1, int(target_width * source_height / source_width))
-
-    # A tall gif must not push into the subtitle band or off-frame.
-    max_height = int(video_height * 0.45)
-    if target_height > max_height:
-        target_height = max_height
-        target_width = max(1, int(target_height * source_width / source_height))
-    return target_width, target_height
+    return _overlay_box(
+        gif_clip.w, gif_clip.h, video_width, video_height, size_ratio
+    )
 
 
 def _deterministic_unit(seed: str) -> float:
@@ -1091,6 +1108,209 @@ def _build_gif_overlay_clips(
     return overlays
 
 
+_PHOTO_ANIMATIONS = ("pop", "slide", "kenburns")
+_PHOTO_ENTRY_DURATION = 0.35
+_PHOTO_POP_START_SCALE = 0.85
+_PHOTO_KENBURNS_ZOOM = 0.10
+
+
+def _ease_out(progress: float) -> float:
+    progress = max(0.0, min(1.0, progress))
+    return 1.0 - (1.0 - progress) ** 3
+
+
+def _pick_photo_animation(seed: str, params: VideoParams) -> str:
+    choice = str(getattr(params, "photo_animation", "random") or "random").lower()
+    if choice in _PHOTO_ANIMATIONS:
+        return choice
+    unit = _deterministic_unit(f"{seed}:animation")
+    return _PHOTO_ANIMATIONS[min(len(_PHOTO_ANIMATIONS) - 1, int(unit * len(_PHOTO_ANIMATIONS)))]
+
+
+def _photo_card_image(
+    photo: Image.Image,
+    box_width: int,
+    box_height: int,
+    radius: int,
+    spread: int,
+    angle: float,
+) -> Image.Image:
+    """
+    Bake shadow + rounded photo into a single RGBA card.
+
+    A static photo never changes between frames, so unlike gifs the tilt is
+    applied once here in PIL instead of per-frame through vfx.Rotate. PIL's
+    rotate() is anticlockwise on a positive angle, same as vfx.Rotate.
+    """
+    resized = photo.resize((box_width, box_height), Image.LANCZOS)
+    rounded = Image.new("L", (box_width, box_height), 0)
+    ImageDraw.Draw(rounded).rounded_rectangle(
+        [0, 0, max(0, box_width - 1), max(0, box_height - 1)],
+        radius=max(0, int(radius)),
+        fill=255,
+    )
+    card = Image.new("RGBA", (box_width, box_height), (0, 0, 0, 0))
+    card.paste(resized, (0, 0), rounded)
+
+    canvas = _shadow_image(box_width, box_height, radius, spread)
+    canvas.alpha_composite(card, (spread, spread))
+    if angle:
+        canvas = canvas.rotate(angle, expand=True, resample=Image.BICUBIC)
+    return canvas
+
+
+def _build_photo_overlay_clips(
+    photo_overlays: List[dict],
+    video_width: int,
+    video_height: int,
+    params: VideoParams,
+    clip_stack: ExitStack,
+) -> List[VideoFileClip]:
+    """
+    Turn local photos into positioned overlay clips with an entry animation.
+
+    Layout (side alternation, tilt, jitter) is shared with gif overlays, so
+    photos read as part of the same visual system.
+    """
+    overlays: List[VideoFileClip] = []
+    size_ratio = max(0.1, min(float(getattr(params, "photo_size", 0.42) or 0.42), 0.9))
+    fade = 0.25
+    placed = 0
+
+    for overlay in photo_overlays:
+        photo_path = str(overlay.get("path") or "")
+        if not photo_path or not os.path.exists(photo_path):
+            continue
+
+        start = float(overlay.get("start", 0.0))
+        end = float(overlay.get("end", 0.0))
+        window = end - start
+        if window <= 0:
+            continue
+
+        try:
+            with Image.open(photo_path) as source:
+                photo = ImageOps.exif_transpose(source).convert("RGB")
+
+            box_width, box_height = _overlay_box(
+                photo.width, photo.height, video_width, video_height, size_ratio
+            )
+            radius = max(8, int(min(box_width, box_height) * 0.08))
+            spread = max(4, int(box_width * 0.03))
+            seed = os.path.basename(photo_path)
+            center_x, center_y, angle = _gif_overlay_placement(
+                index=placed,
+                seed=seed,
+                box_height=box_height,
+                video_width=video_width,
+                video_height=video_height,
+                params=params,
+            )
+            side = -1 if placed % 2 == 0 else 1
+            animation = _pick_photo_animation(seed, params)
+            entry = min(_PHOTO_ENTRY_DURATION, window / 2)
+            fade_effects = (
+                [vfx.CrossFadeIn(fade), vfx.CrossFadeOut(fade)]
+                if window > fade * 2
+                else []
+            )
+
+            if animation == "kenburns":
+                # The photo slowly zooms inside a fixed card, so the frame,
+                # mask and shadow stay put while the content drifts.
+                inner = ImageClip(
+                    np.array(photo.resize((box_width, box_height), Image.LANCZOS))
+                ).with_duration(window)
+
+                def zoom(t: float, window: float = window) -> float:
+                    return 1.0 + _PHOTO_KENBURNS_ZOOM * (t / window)
+
+                inner = inner.resized(zoom).with_position(
+                    lambda t, z=zoom, w=box_width, h=box_height: (
+                        (w - w * z(t)) / 2,
+                        (h - h * z(t)) / 2,
+                    )
+                )
+                card = CompositeVideoClip(
+                    [inner], size=(box_width, box_height)
+                ).with_duration(window)
+                card = card.with_mask(
+                    _rounded_mask_clip(box_width, box_height, radius).with_duration(
+                        window
+                    )
+                )
+                shadow = _gif_shadow_clip(box_width, box_height, radius, spread)
+                shadow = shadow.with_duration(window)
+                if angle:
+                    rotate = vfx.Rotate(angle, expand=True)
+                    card = card.with_effects([rotate])
+                    shadow = shadow.with_effects([rotate])
+
+                x, y = _centered_position(
+                    center_x, center_y, card.w, card.h, video_width, video_height
+                )
+                shadow_x, shadow_y = _centered_position(
+                    center_x, center_y, shadow.w, shadow.h, video_width, video_height
+                )
+                card = card.with_start(start).with_position((x, y))
+                shadow = shadow.with_start(start).with_position((shadow_x, shadow_y))
+                if fade_effects:
+                    card = card.with_effects(fade_effects)
+                    shadow = shadow.with_effects(fade_effects)
+                overlays.append(shadow)
+                overlays.append(card)
+            else:
+                card_image = _photo_card_image(
+                    photo, box_width, box_height, radius, spread, angle
+                )
+                card = ImageClip(
+                    np.array(card_image), transparent=True
+                ).with_duration(window)
+                card_w, card_h = card.w, card.h
+                x, y = _centered_position(
+                    center_x, center_y, card_w, card_h, video_width, video_height
+                )
+
+                if animation == "pop":
+
+                    def scale(t: float, entry: float = entry) -> float:
+                        if t >= entry:
+                            return 1.0
+                        return _PHOTO_POP_START_SCALE + (
+                            1.0 - _PHOTO_POP_START_SCALE
+                        ) * _ease_out(t / entry)
+
+                    card = card.resized(scale).with_position(
+                        lambda t, s=scale, x=x, y=y, w=card_w, h=card_h: (
+                            x + w * (1.0 - s(t)) / 2,
+                            y + h * (1.0 - s(t)) / 2,
+                        )
+                    )
+                else:  # slide
+                    off_x = -card_w if side < 0 else video_width
+                    card = card.with_position(
+                        lambda t, x=x, y=y, off_x=off_x, entry=entry: (
+                            x
+                            if t >= entry
+                            else off_x + (x - off_x) * _ease_out(t / entry),
+                            y,
+                        )
+                    )
+
+                card = card.with_start(start)
+                if fade_effects:
+                    card = card.with_effects(fade_effects)
+                overlays.append(card)
+
+            placed += 1
+        except Exception as error:
+            # A broken photo must never take the whole render down with it.
+            logger.warning(f"failed to build photo overlay: {photo_path} => {str(error)}")
+
+    logger.info(f"built {placed} photo overlays")
+    return overlays
+
+
 def _get_visible_center_position(
     text_clip: TextClip,
     container_width: int,
@@ -1191,6 +1411,7 @@ def generate_video(
     params: VideoParams,
     bgm_file_override: str | None = None,
     gif_overlays: List[dict] | None = None,
+    photo_overlays: List[dict] | None = None,
 ) -> bool:
     """
     合成最终视频，并返回本次背景音乐处理是否成功。
@@ -1428,6 +1649,18 @@ def generate_video(
             )
             if overlay_clips:
                 video_clip = CompositeVideoClip([video_clip, *overlay_clips])
+                clip_stack.callback(video_clip.close)
+
+        if photo_overlays:
+            photo_clips = _build_photo_overlay_clips(
+                photo_overlays,
+                video_width=video_width,
+                video_height=video_height,
+                params=params,
+                clip_stack=clip_stack,
+            )
+            if photo_clips:
+                video_clip = CompositeVideoClip([video_clip, *photo_clips])
                 clip_stack.callback(video_clip.close)
 
         bgm_enabled = bgm_service.should_use_bgm(

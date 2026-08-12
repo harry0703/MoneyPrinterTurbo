@@ -311,6 +311,16 @@
     "Gif Size": "动图宽度",
     "Gif Size Help": "动图卡片占画面宽度的比例。",
     "Gif Rating": "动图内容分级",
-    "Gif Rating Help": "KLIPY 内容过滤：g 最严格，r 允许成人幽默。"
+    "Gif Rating Help": "KLIPY 内容过滤：g 最严格，r 允许成人幽默。",
+    "Enable Photo Overlays": "照片叠加",
+    "Photo Overlays Help": "把本地目录中的照片叠加到文案最有力的句子上，每张照片展示 1.5-2.5 秒。",
+    "Photo Directory": "照片目录",
+    "Photo Directory Help": "包含 jpg/jpeg/png/webp 文件的本地目录，照片按文件名顺序分配到文案句子。",
+    "Photo Directory Missing": "该目录不存在。",
+    "Photo Count": "照片数量上限",
+    "Photo Size": "照片宽度",
+    "Photo Size Help": "照片卡片占画面宽度的比例。",
+    "Photo Animation": "入场动画",
+    "Photo Animation Help": "照片的出现方式：pop（缩放弹出）、slide（侧边滑入）、kenburns（缓慢变焦）或 random（每张随机）。"
   }
 }

@@ -686,6 +686,87 @@ def generate_gif_overlays(
     return overlays
 
 
+_PHOTO_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+_PHOTO_DISPLAY_RANGE = (1.5, 2.5)
+
+
+def _list_photo_files(photo_dir: str) -> list[str]:
+    """Collect overlay photos sorted by name, so assignment stays deterministic."""
+    if not photo_dir or not os.path.isdir(photo_dir):
+        return []
+    files = [
+        path.join(photo_dir, name)
+        for name in sorted(os.listdir(photo_dir))
+        if name.lower().endswith(_PHOTO_EXTENSIONS)
+        and os.path.isfile(path.join(photo_dir, name))
+    ]
+    return files
+
+
+def _validate_photo_overlay_params(params) -> str | None:
+    """Cheap preflight so a bad photo dir fails before LLM/TTS quota is spent."""
+    if not params.photo_enabled:
+        return None
+    if not params.photo_dir:
+        return "photo overlays are enabled but photo_dir is empty"
+    if not os.path.isdir(params.photo_dir):
+        return f"photo_dir does not exist: {params.photo_dir}"
+    if not _list_photo_files(params.photo_dir):
+        return f"photo_dir contains no jpg/jpeg/png/webp files: {params.photo_dir}"
+    return None
+
+
+def _spread_photo_moments(window_count: int, amount: int) -> list[int]:
+    """Fallback when the LLM gives nothing: spread photos evenly over the script."""
+    amount = max(1, min(amount, window_count))
+    step = window_count / amount
+    return sorted({min(window_count - 1, int(step * i + step / 2)) for i in range(amount)})
+
+
+def generate_photo_overlays(
+    task_id, params, video_script, sub_maker, subtitle_path
+) -> list[dict]:
+    """Pin local photos to script lines, each shown for a short fixed burst."""
+    if not params.photo_enabled:
+        return []
+
+    logger.info("\n\n## picking photo moments")
+    photos = _list_photo_files(params.photo_dir)
+    if not photos:
+        logger.warning("no photos found in photo_dir, continue without photo overlays")
+        return []
+
+    windows = _gif_timeline(task_id, params, video_script, sub_maker, subtitle_path)
+    if not windows:
+        return []
+
+    amount = min(params.photo_amount, len(photos), len(windows))
+    indexes = llm.generate_photo_moments(
+        subtitle_lines=windows,
+        amount=amount,
+        app_config=config.app,
+    )
+    if not indexes:
+        logger.warning("no photo moments were picked, falling back to even spread")
+        indexes = _spread_photo_moments(len(windows), amount)
+
+    timeline_end = windows[-1][0][1]
+    overlays = []
+    for photo_path, index in zip(photos, indexes[:amount]):
+        (start, _), _ = windows[index]
+        jitter = video._deterministic_unit(f"{os.path.basename(photo_path)}:window")
+        duration = _PHOTO_DISPLAY_RANGE[0] + jitter * (
+            _PHOTO_DISPLAY_RANGE[1] - _PHOTO_DISPLAY_RANGE[0]
+        )
+        end = min(start + duration, timeline_end)
+        if end <= start:
+            continue
+        overlays.append({"path": photo_path, "start": start, "end": end})
+
+    logger.success(f"prepared {len(overlays)} photo overlays")
+    return overlays
+
+
 def get_video_materials(task_id, params, video_terms, audio_duration):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
@@ -736,6 +817,7 @@ def generate_final_videos(
     subtitle_path,
     audio_duration,
     gif_overlays=None,
+    photo_overlays=None,
 ):
     final_video_paths = []
     combined_video_paths = []
@@ -817,6 +899,7 @@ def generate_final_videos(
             params=params,
             bgm_file_override=bgm_file_override,
             gif_overlays=gif_overlays,
+            photo_overlays=photo_overlays,
         )
         if (
             video_music_provider is not None
@@ -1218,6 +1301,13 @@ def _run_pipeline(
             except video_music_provider["error_type"] as exc:
                 return _mark_task_failed(task_id, "preflight", str(exc))
 
+    # Photo overlays only matter once the pipeline reaches the video stages,
+    # but a bad directory is free to detect and must not waste LLM/TTS quota.
+    if stop_at in ("materials", "video"):
+        photo_error = _validate_photo_overlay_params(params)
+        if photo_error:
+            return _mark_task_failed(task_id, "preflight", photo_error)
+
     # 1. Generate script
     video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
@@ -1299,6 +1389,9 @@ def _run_pipeline(
     gif_overlays = generate_gif_overlays(
         task_id, params, video_script, sub_maker, subtitle_path
     )
+    photo_overlays = generate_photo_overlays(
+        task_id, params, video_script, sub_maker, subtitle_path
+    )
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
@@ -1338,6 +1431,7 @@ def _run_pipeline(
         subtitle_path,
         audio_duration,
         gif_overlays=gif_overlays,
+        photo_overlays=photo_overlays,
     )
 
     if not final_video_paths:
