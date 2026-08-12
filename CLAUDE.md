@@ -87,6 +87,11 @@ CI (`.github/workflows/ci.yml`) на 3.11 и 3.13 гоняет `compileall` → 
 Апстрим `harry0703/MoneyPrinterTurbo` — ремоут `origin`, **в него не пушим**. Свой форк —
 `sobak333N/MoneyPrinterTurbo`, ремоут `fork`, он же `remote.pushDefault`.
 
+`gh` установлен, авторизован под `sobak333N` и прописан git credential helper'ом —
+пользоваться им разрешено для всех операций с GitHub (push, PR, issues); ad-hoc
+credential helper с `GITHUB_PAT_TOKEN` больше не нужен. Слово «пуш» от пользователя —
+уже подтверждение: сразу `git push fork <ветка>` без повторного вопроса.
+
 ## Рабочий режим
 
 Приоритет — time-to-market. По умолчанию писать код самому и доводить до зелёного
