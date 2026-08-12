@@ -11,26 +11,12 @@ class TaskQueueFullError(ValueError):
 
 
 class TaskManager:
-    _DISPATCH_RETRY_SECONDS = 0.1
-
     def __init__(self, max_concurrent_tasks: int, max_queued_tasks: int = 100):
         self.max_concurrent_tasks = max_concurrent_tasks
         self.max_queued_tasks = max_queued_tasks
         self.current_tasks = 0
         self.lock = threading.Lock()
         self.queue = self.create_queue()
-        self._dispatcher_lock = threading.Lock()
-        self._dispatcher_wake = threading.Event()
-        self._dispatcher_stop = threading.Event()
-        self._dispatcher_thread = None
-        self._pending_ack_lock = threading.Lock()
-        self._pending_acknowledgements = []
-        self._active_dispatch_lock = threading.Lock()
-        self._active_dispatch_condition = threading.Condition(
-            self._active_dispatch_lock
-        )
-        self._active_dispatches = {}
-        self._dispatch_draining = False
 
     def create_queue(self):
         raise NotImplementedError()
@@ -41,6 +27,9 @@ class TaskManager:
                 logger.info(
                     f"add task: {func.__name__}, current_tasks: {self.current_tasks}"
                 )
+                # 在线程启动前先预占并发名额。原实现在线程内部递增，连续请求
+                # 可能都在子线程获得锁之前看到 current_tasks=0，从而突破并发
+                # 上限。启动失败时回滚名额，让后续请求仍可正常调度。
                 self.current_tasks += 1
                 try:
                     self.execute_task(func, *args, **kwargs)
@@ -74,7 +63,7 @@ class TaskManager:
         func: Callable,
         task_kwargs: dict,
     ) -> str:
-        """Atomically accept idempotent work before attempting worker dispatch."""
+        """Atomically accept idempotent work, then dispatch it from the queue."""
         from app.services.state import IdempotentAcceptance
 
         task_info = {"func": func, "args": (), "kwargs": task_kwargs}
@@ -111,134 +100,50 @@ class TaskManager:
             logger.exception(
                 f"accepted task remains queued after dispatch failure: {task_id}: {exc}"
             )
-            self.start_dispatcher()
         return outcome
 
-    def start_dispatcher(self):
-        """Start the queue consumer and immediately drain recoverable work."""
-        with self._dispatcher_lock:
-            if self._dispatcher_thread and self._dispatcher_thread.is_alive():
-                self._dispatcher_wake.set()
-                return
-            self._dispatcher_stop.clear()
-            self._dispatcher_wake.clear()
-            self._dispatch_draining = False
-            self._dispatcher_thread = threading.Thread(
-                target=self._dispatch_loop,
-                name="task-queue-dispatcher",
-                daemon=True,
-            )
-            self._dispatcher_thread.start()
-            self._dispatcher_wake.set()
-
-    def wake_dispatcher(self):
-        """Signal a running queue consumer that accepted work may be waiting."""
-        self._dispatcher_wake.set()
-
-    def stop_dispatcher(self):
-        """Stop the queue consumer without interrupting active task workers."""
-        with self._dispatcher_lock:
-            thread = self._dispatcher_thread
-            if thread is None:
-                return
-            self._dispatcher_stop.set()
-            self._dispatcher_wake.set()
-        if thread is not threading.current_thread():
-            thread.join(timeout=2)
-        with self._dispatcher_lock:
-            if self._dispatcher_thread is thread and not thread.is_alive():
-                self._dispatcher_thread = None
-
-    def stop_dispatcher_when_idle(self):
-        """Drain owned workers without starting queued work, then stop."""
-        with self.lock:
-            self._dispatch_draining = True
-        with self._active_dispatch_condition:
-            while self._active_dispatches:
-                self._active_dispatch_condition.wait()
-        self.stop_dispatcher()
-
-    def _dispatch_loop(self):
-        while not self._dispatcher_stop.is_set():
-            self._dispatcher_wake.wait(timeout=self._DISPATCH_RETRY_SECONDS)
-            self._dispatcher_wake.clear()
-            if self._dispatcher_stop.is_set():
-                break
-            try:
-                self._retry_pending_acknowledgements()
-                self.renew_active_dispatches()
-                self.recover_expired_dispatches()
-                self.check_queue()
-            except Exception as exc:
-                logger.exception(f"task dispatch failed; retrying queued work: {exc}")
-                if not self._dispatcher_stop.wait(self._DISPATCH_RETRY_SECONDS):
-                    self._dispatcher_wake.set()
-
     def execute_task(self, func: Callable, *args: Any, **kwargs: Any):
-        dispatch_task = kwargs.pop("_dispatch_task_info", None)
         thread = threading.Thread(
-            target=self.run_task,
-            args=(func, *args),
-            kwargs={**kwargs, "_dispatch_task_info": dispatch_task},
-            daemon=False,
+            target=self.run_task, args=(func, *args), kwargs=kwargs
         )
         thread.start()
 
-    def run_task(
-        self,
-        func: Callable,
-        *args: Any,
-        _dispatch_task_info=None,
-        **kwargs: Any,
-    ):
-        completed = False
+    def run_task(self, func: Callable, *args: Any, **kwargs: Any):
         try:
             func(*args, **kwargs)  # call the function here, passing *args and **kwargs.
-            completed = True
-        except Exception as exc:
-            logger.exception(f"task worker exited unexpectedly: {exc}")
         finally:
-            if _dispatch_task_info is not None:
-                self._finish_worker_dispatch(_dispatch_task_info, completed)
             self.task_done()
 
     def check_queue(self):
         with self.lock:
-            if self._dispatch_draining:
-                return
-            while (
+            if (
                 self.current_tasks < self.max_concurrent_tasks
                 and not self.is_queue_empty()
             ):
                 task_info = self.dequeue()
                 if task_info is None:
-                    break
+                    # dequeue() may skip and discard queue entries that no longer
+                    # pass current validation (see RedisTaskManager.dequeue) and
+                    # return None once nothing usable is left, even though
+                    # is_queue_empty() was False a moment earlier.
+                    return
                 func = task_info["func"]
                 args = task_info.get("args", ())
                 kwargs = task_info.get("kwargs", {})
+                # 与直接创建任务保持同一计数时机，避免刚出队的任务尚未在线程
+                # 内计数时，又有新请求绕过队列占用同一个并发名额。
                 self.current_tasks += 1
-                self._mark_dispatch_active(task_info)
                 try:
-                    self.execute_task(
-                        func,
-                        *args,
-                        _dispatch_task_info=task_info,
-                        **kwargs,
-                    )
+                    self.execute_task(func, *args, **kwargs)
                 except Exception:
                     self.current_tasks -= 1
-                    self._discard_dispatch_active(task_info)
-                    self.requeue(task_info)
+                    self.enqueue(task_info)
                     raise
 
     def task_done(self):
         with self.lock:
             self.current_tasks -= 1
-        try:
-            self.check_queue()
-        except Exception as exc:
-            logger.exception(f"task dispatch failed after worker completion: {exc}")
-            self.start_dispatcher()
+        self.check_queue()
 
     def enqueue(self, task: Dict):
         raise NotImplementedError()
@@ -248,73 +153,6 @@ class TaskManager:
         if pipeline is not None:
             raise TypeError("this task manager does not support Redis transactions")
         self.enqueue(task)
-
-    def requeue(self, task: Dict):
-        """Restore a dequeued job after worker dispatch fails."""
-        self.enqueue(task)
-
-    def acknowledge_dispatch(self, task: Dict):
-        """Remove backend dispatch bookkeeping after worker completion."""
-
-    def recover_expired_dispatches(self):
-        """Return expired backend claims to the queue when supported."""
-
-    def renew_active_dispatches(self):
-        """Extend ownership leases for work still running in this process."""
-
-    def _mark_dispatch_active(self, task: Dict):
-        claim_id = task.get("_dispatch_claim_id")
-        if claim_id:
-            with self._active_dispatch_lock:
-                self._active_dispatches[claim_id] = task
-
-    def _discard_dispatch_active(self, task: Dict):
-        claim_id = task.get("_dispatch_claim_id")
-        if claim_id:
-            with self._active_dispatch_condition:
-                self._active_dispatches.pop(claim_id, None)
-                if not self._active_dispatches:
-                    self._active_dispatch_condition.notify_all()
-
-    def _active_dispatch_snapshot(self):
-        with self._active_dispatch_lock:
-            return list(self._active_dispatches.values())
-
-    def _finish_worker_dispatch(self, task: Dict, completed: bool):
-        if not completed:
-            # An unexpected worker failure stops lease renewal. Another
-            # process can recover the claim after its visibility timeout.
-            self._discard_dispatch_active(task)
-            return
-        try:
-            self.acknowledge_dispatch(task)
-        except Exception as exc:
-            # The task function returned only after its terminal state write.
-            # Keep renewing ownership while an ambiguous ack is retried.
-            logger.exception(
-                f"worker finished but dispatch acknowledgement failed: {exc}"
-            )
-            self._defer_acknowledgement(task)
-            self.start_dispatcher()
-            return
-        self._discard_dispatch_active(task)
-
-    def _defer_acknowledgement(self, task: Dict):
-        with self._pending_ack_lock:
-            self._pending_acknowledgements.append(task)
-
-    def _retry_pending_acknowledgements(self):
-        with self._pending_ack_lock:
-            pending = list(self._pending_acknowledgements)
-        for task in pending:
-            try:
-                self.acknowledge_dispatch(task)
-            except Exception:
-                continue
-            with self._pending_ack_lock:
-                if task in self._pending_acknowledgements:
-                    self._pending_acknowledgements.remove(task)
-            self._discard_dispatch_active(task)
 
     def dequeue(self):
         raise NotImplementedError()

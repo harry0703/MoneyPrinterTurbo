@@ -1,0 +1,16 @@
+# Auto detect text files and normalize line endings in the repository
+* text=auto
+
+# Binary assets
+*.mp3 binary
+*.mp4 binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.ttc binary
+*.otf binary
+*.woff binary
+*.woff2 binary

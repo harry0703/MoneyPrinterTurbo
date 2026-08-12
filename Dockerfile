@@ -26,7 +26,6 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
             echo "Attempt $i: installing system dependencies"; \
             apt-get update && apt-get install -y --no-install-recommends \
                 git \
-                imagemagick \
                 ffmpeg && break || \
             echo "Attempt $i failed, retrying..."; \
             if [ "$DOCKER_BUILD_MIRROR" = "china" ] && [ $i -eq 3 ]; then \
@@ -36,7 +35,6 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
                 ( \
                     apt-get update && apt-get install -y --no-install-recommends \
                         git \
-                        imagemagick \
                         ffmpeg || \
                     ( \
                         echo "Tsinghua mirror failed, switching to default Debian mirror"; \
@@ -44,7 +42,6 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
                         sed -i 's/mirrors.tuna.tsinghua.edu.cn\/debian-security/security.debian.org/g' /etc/apt/sources.list; \
                         apt-get update && apt-get install -y --no-install-recommends \
                             git \
-                            imagemagick \
                             ffmpeg; \
                     ); \
                 ); \
@@ -52,9 +49,6 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
             sleep 5; \
         done \
     ) && rm -rf /var/lib/apt/lists/*
-
-# Fix security policy for ImageMagick
-RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
 
 # Copy only the requirements.txt first to leverage Docker cache
 COPY requirements.txt ./
@@ -74,8 +68,9 @@ COPY . .
 # Expose the port the app runs on
 EXPOSE 8501
 
-# Command to run the application
-CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False","--server.showEmailPrompt=False"]
+# 容器内部必须监听 0.0.0.0，宿主机仍通过 docker 端口映射限制为 127.0.0.1。
+# browser.serverAddress 只决定浏览器展示的访问地址，不能替代 server.address。
+CMD ["streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.serverAddress=127.0.0.1", "--server.enableCORS=True", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal", "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False"]
 
 # 1. Build the Docker image using the following command
 # docker build -t moneyprinterturbo .
