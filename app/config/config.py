@@ -527,6 +527,7 @@ ui = _SynchronizedConfig(
         },
     )
 )
+campaign_features = _cfg.get("campaign_features", {})
 
 hostname = socket.gethostname()
 

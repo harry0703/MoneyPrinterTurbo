@@ -2,6 +2,17 @@
 # The app copies this file to config.toml on first run. Keep API keys and other
 # credentials in config.toml; do not commit your local config.toml.
 
+[campaign_features]
+# All new campaign/story/memory paths are opt-in. These defaults preserve the
+# existing manual and unattended MoneyPrinterTurbo behavior.
+campaign_engine = false
+story_engine = false
+content_memory = false
+structured_mpt_payload_adapter = false
+automatic_daily_campaign_planning = false
+memory_duplicate_blocking = false
+memory_duplicate_warnings = false
+
 # =============================================================================
 # API Service / API 服务
 # =============================================================================

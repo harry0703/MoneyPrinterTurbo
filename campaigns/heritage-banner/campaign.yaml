@@ -1,0 +1,293 @@
+schema_version: 1.0.0
+campaign_id: heritage-banner-facebook
+display_name: Heritage Banner
+description: Warm, careful prompts that help families and communities notice, preserve, and share memory.
+enabled: true
+timezone: America/Chicago
+enabled_platforms: [facebook]
+default_content_type: vertical_reel
+default_aspect_ratio: "9:16"
+min_duration_seconds: 20
+max_duration_seconds: 60
+posting_cadence:
+  frequency: daily
+  local_time: "09:00"
+  days_of_week: [0, 1, 2, 3, 4, 5, 6]
+target_audience:
+  description: Adults who care about family stories, local memory, traditions, and community continuity.
+  problems:
+    - Stories and context can disappear before anyone records them.
+    - People may not know how to begin a respectful memory conversation.
+  interests: [family memory, local history, traditions, craftsmanship, community stories]
+  motivations: [preserve context, connect generations, honor contributors, invite reflection]
+brand_positioning: A thoughtful guide for preserving shared memory with warmth, consent, and practical care.
+brand_voice: [warm, reflective, grounded, respectful, plainspoken]
+tone_constraints:
+  - Avoid sensationalism
+  - Avoid generic clickbait
+  - Avoid certainty about undocumented history
+  - Avoid guilt-driven engagement
+content_pillars:
+  - id: family-memory
+    name: Family memory
+    weight: 1.2
+    audience_goals: [prompt a conversation, preserve context]
+    themes:
+      - {id: family-questions, name: Gentle questions, weight: 1.2, audience_goal: Invite a respectful family conversation.}
+      - {id: family-artifacts, name: Family artifacts, weight: 1.0, audience_goal: Connect an object or record to its context.}
+    allowed_story_formats: [reflective-question, family-memory-prompt, object-centered-story]
+    preferred_hooks: [direct-question, emotional-recognition, story-opening]
+    preferred_ctas: [Ask one careful question today., Write down one detail while it is fresh.]
+    visual_treatments: [warm documentary detail, archival-inspired textures]
+  - id: local-history
+    name: Local history
+    weight: 1.0
+    audience_goals: [notice familiar places, distinguish memory from verified fact]
+    themes:
+      - {id: gathering-places, name: Gathering places, weight: 1.1, audience_goal: Invite viewers to recall a shared place.}
+      - {id: local-helpers, name: Local helpers, weight: 1.0, audience_goal: Notice everyday contributions without inventing biography.}
+    allowed_story_formats: [micro-history, place-centered-story, community-engagement-prompt]
+    preferred_hooks: [specific-historical-detail, curiosity-gap, direct-question]
+    preferred_ctas: [Share a memory if this brings one to mind., Add the context that only your community knows.]
+    visual_treatments: [quiet streets and landmarks, respectful documentary detail]
+  - id: traditions
+    name: Traditions
+    weight: 1.0
+    audience_goals: [recognize recurring practices, encourage intergenerational sharing]
+    themes:
+      - {id: shared-routines, name: Shared routines, weight: 1.1, audience_goal: Notice the meaning inside an ordinary routine.}
+      - {id: seasonal-traditions, name: Seasonal traditions, weight: 1.0, audience_goal: Invite timely reflection without claiming universality.}
+    allowed_story_formats: [tradition-spotlight, before-and-after, list-narrative, quote-interpretation]
+    preferred_hooks: [identity-framing, unexpected-contrast, emotional-recognition]
+    preferred_ctas: [Name one tradition you hope continues., Record who taught you the routine.]
+    visual_treatments: [hands and everyday rituals, warm seasonal detail]
+  - id: craftsmanship
+    name: Craftsmanship
+    weight: 0.9
+    audience_goals: [honor learned skill, connect objects to makers]
+    themes:
+      - {id: repair-and-making, name: Repair and making, weight: 1.0, audience_goal: Recognize skill carried through practice.}
+      - {id: maker-context, name: Maker context, weight: 1.0, audience_goal: Preserve who made something and how it was used.}
+    allowed_story_formats: [object-centered-story, three-part-lesson, before-and-after]
+    preferred_hooks: [unexpected-contrast, common-mistake, story-opening]
+    preferred_ctas: [Write the maker's name beside the object., Ask how this skill was learned.]
+    visual_treatments: [close-up craftsmanship, tactile material details]
+  - id: intergenerational-wisdom
+    name: Intergenerational wisdom
+    weight: 1.0
+    audience_goals: [share practical wisdom carefully, invite multiple perspectives]
+    themes:
+      - {id: sayings-and-lessons, name: Sayings and lessons, weight: 1.0, audience_goal: Interpret inherited advice without presenting it as universal.}
+      - {id: listening-practices, name: Listening practices, weight: 1.1, audience_goal: "Help viewers listen, label uncertainty, and preserve attribution."}
+    allowed_story_formats: [three-part-lesson, quote-interpretation]
+    preferred_hooks: [common-mistake, identity-framing, direct-question]
+    preferred_ctas: [Ask who first shared that lesson., Keep the speaker's context with the words.]
+    visual_treatments: [intergenerational hands, notebooks and recorded context]
+  - id: community-identity
+    name: Community identity
+    weight: 1.0
+    audience_goals: [encourage inclusive participation, preserve shared context]
+    themes:
+      - {id: community-stories, name: Community stories, weight: 1.2, audience_goal: Invite a contribution without pressuring disclosure.}
+      - {id: ethical-sharing, name: Ethical sharing, weight: 1.0, audience_goal: "Encourage consent, attribution, and backups."}
+    allowed_story_formats: [community-engagement-prompt, reflective-question, three-part-lesson, place-centered-story]
+    preferred_hooks: [direct-question, challenge, what-if-framing]
+    preferred_ctas: [Share only what is yours to share., Keep one additional copy with the source note attached.]
+    visual_treatments: [community spaces without identifiable private people, documentary notebooks]
+themes:
+  - family and community continuity
+  - careful preservation
+  - consent and attribution
+  - ordinary details with shared meaning
+story_formats:
+  - id: reflective-question
+    name: Reflective question
+    weight: 1.2
+    beat_structure: [hook, context, reflection, resolution, cta]
+    hook_patterns:
+      - "What might we learn if we pause and ask about {topic}?"
+      - "What does {topic} bring to mind for you?"
+  - id: micro-history
+    name: Micro-history
+    weight: 0.7
+    beat_structure: [hook, context, discovery, reflection, cta]
+    hook_patterns: ["One detail can change how we notice {topic}."]
+    constraints: [Specific claims require verified source notes.]
+  - id: family-memory-prompt
+    name: Family-memory prompt
+    weight: 1.2
+    beat_structure: [hook, setup, example, reflection, cta]
+    hook_patterns: ["Who would you ask about {topic}?", "What story sits just behind {topic}?"]
+  - id: tradition-spotlight
+    name: Tradition spotlight
+    weight: 1.0
+    beat_structure: [hook, context, example, resolution, cta]
+    hook_patterns: ["The meaning of {topic} may be hiding in the routine."]
+  - id: before-and-after
+    name: Before and after
+    weight: 0.8
+    beat_structure: [hook, setup, contrast, resolution, cta]
+    hook_patterns: ["What changes when we add context to {topic}?"]
+  - id: three-part-lesson
+    name: Three-part lesson
+    weight: 1.0
+    beat_structure: [hook, setup, discovery, resolution, cta]
+    hook_patterns: ["Three careful steps can preserve the context around {topic}."]
+  - id: myth-versus-reality
+    name: Myth versus reality
+    weight: 0.5
+    beat_structure: [hook, setup, contrast, resolution, cta]
+    hook_patterns: ["Preserving {topic} is not about having every answer."]
+  - id: object-centered-story
+    name: Object-centered story
+    weight: 1.1
+    beat_structure: [hook, setup, discovery, reflection, cta]
+    hook_patterns: ["What could this object tell us about {topic}?", "Start with the smallest detail in {topic}."]
+  - id: place-centered-story
+    name: Place-centered story
+    weight: 1.0
+    beat_structure: [hook, context, example, reflection, cta]
+    hook_patterns: ["How many memories might gather around {topic}?"]
+  - id: first-person-frame
+    name: First-person anecdotal frame
+    weight: 0.4
+    beat_structure: [hook, setup, reflection, resolution, cta]
+    hook_patterns: ["A first-person memory can begin with {topic}."]
+    constraints: [Frame examples as hypothetical unless supplied by a source.]
+  - id: mini-mystery
+    name: Mini mystery
+    weight: 0.5
+    beat_structure: [hook, setup, tension, discovery, resolution]
+    hook_patterns: ["What context is missing from {topic}?"]
+  - id: emotional-reveal
+    name: Emotional reveal
+    weight: 0.6
+    beat_structure: [hook, setup, discovery, reflection, cta]
+    hook_patterns: ["Sometimes {topic} matters for a reason we cannot see at first."]
+  - id: list-narrative
+    name: List with narrative progression
+    weight: 0.8
+    beat_structure: [hook, setup, example, resolution, cta]
+    hook_patterns: ["Three details can keep {topic} connected to its story."]
+  - id: quote-interpretation
+    name: Quote or saying with interpretation
+    weight: 0.7
+    beat_structure: [hook, context, reflection, resolution, cta]
+    hook_patterns: ["A familiar saying can open a new question about {topic}."]
+    constraints: [Do not fabricate or misattribute quotations.]
+  - id: community-engagement-prompt
+    name: Community engagement prompt
+    weight: 1.1
+    beat_structure: [hook, context, reflection, resolution, cta]
+    hook_patterns: ["What would your community add to the story of {topic}?"]
+allowed_formats:
+  - reflective-question
+  - micro-history
+  - family-memory-prompt
+  - tradition-spotlight
+  - before-and-after
+  - three-part-lesson
+  - object-centered-story
+  - place-centered-story
+  - list-narrative
+  - quote-interpretation
+  - community-engagement-prompt
+preferred_formats: [reflective-question, family-memory-prompt, object-centered-story, community-engagement-prompt]
+disallowed_formats: [first-person-frame, mini-mystery, emotional-reveal, myth-versus-reality]
+hook_styles:
+  - direct-question
+  - curiosity-gap
+  - unexpected-contrast
+  - emotional-recognition
+  - specific-historical-detail
+  - challenge
+  - common-mistake
+  - what-if-framing
+  - identity-framing
+  - story-opening
+calls_to_action:
+  - Share a memory if this brings one to mind.
+  - Ask one careful question today.
+  - Write down one detail while it is fresh.
+  - Share only what is yours to share.
+caption_styles: [short_social, reflective_question, community_prompt]
+visual_styles:
+  - warm documentary detail
+  - archival-inspired textures
+  - quiet community places
+  - hands, objects, and notebooks
+seasonal_rules:
+  - id: year-end-traditions
+    start_month_day: "11-15"
+    end_month_day: "12-31"
+    eligible_seed_ids: [hb-009, hb-010, hb-026, hb-027]
+    weight_multiplier: 1.8
+content_exclusions:
+  - invented genealogy
+  - fabricated quotation
+  - unverified private-person allegation
+  - partisan political persuasion
+duplicate_cooldown_days: 30
+cooldowns:
+  topic: 30
+  theme: 3
+  hook: 14
+  story_format: 3
+  script: 3650
+  caption: 14
+  visual_concept: 7
+  media: 3650
+safety_constraints:
+  - Do not identify private people without supplied consent and context.
+  - Clearly distinguish hypothetical examples, memory, general context, and verified facts.
+  - Do not invent historical citations, dates, quotations, or biographies.
+  - Do not request or expose sensitive personal information.
+seed_content:
+  - {id: hb-001, topic: a familiar gathering place and the memories people associate with it, pillar_id: local-history, theme_id: gathering-places}
+  - {id: hb-002, topic: a recipe craft or routine that families continue to share, pillar_id: traditions, theme_id: shared-routines}
+  - {id: hb-003, topic: asking before sharing a story that belongs partly to someone else, pillar_id: community-identity, theme_id: ethical-sharing}
+  - {id: hb-004, topic: keeping a simple backup of story notes and their context, pillar_id: community-identity, theme_id: ethical-sharing}
+  - {id: hb-005, topic: the story behind a neighbor who quietly helped a community, pillar_id: local-history, theme_id: local-helpers}
+  - {id: hb-006, topic: three gentle questions to ask when recording a family or community story, pillar_id: family-memory, theme_id: family-questions}
+  - {id: hb-007, topic: introducing The Heritage Banner as an invitation to preserve shared stories, pillar_id: community-identity, theme_id: community-stories}
+  - {id: hb-008, topic: the note written on the back of an old photograph, pillar_id: family-memory, theme_id: family-artifacts}
+  - {id: hb-009, topic: a holiday routine whose smallest details matter most, pillar_id: traditions, theme_id: seasonal-traditions}
+  - {id: hb-010, topic: who taught the family recipe and what they changed, pillar_id: traditions, theme_id: seasonal-traditions}
+  - {id: hb-011, topic: the everyday object that still carries its maker's story, pillar_id: craftsmanship, theme_id: maker-context}
+  - {id: hb-012, topic: why repair marks can be part of an object's history, pillar_id: craftsmanship, theme_id: repair-and-making}
+  - {id: hb-013, topic: recording how a hand tool was used before the knowledge fades, pillar_id: craftsmanship, theme_id: repair-and-making}
+  - {id: hb-014, topic: a family saying and the context that gives it meaning, pillar_id: intergenerational-wisdom, theme_id: sayings-and-lessons}
+  - {id: hb-015, topic: listening without correcting someone else's memory, pillar_id: intergenerational-wisdom, theme_id: listening-practices}
+  - {id: hb-016, topic: marking uncertainty when two people remember an event differently, pillar_id: intergenerational-wisdom, theme_id: listening-practices}
+  - {id: hb-017, topic: the first question to ask about an unlabeled photograph, pillar_id: family-memory, theme_id: family-artifacts}
+  - {id: hb-018, topic: preserving the name connected to a handmade object, pillar_id: craftsmanship, theme_id: maker-context}
+  - {id: hb-019, topic: what a familiar park bench or front step may mean to a community, pillar_id: local-history, theme_id: gathering-places}
+  - {id: hb-020, topic: inviting multiple perspectives on a shared local place, pillar_id: local-history, theme_id: gathering-places}
+  - {id: hb-021, topic: crediting the person who supplied a community story, pillar_id: community-identity, theme_id: ethical-sharing}
+  - {id: hb-022, topic: choosing what should remain private in a family archive, pillar_id: family-memory, theme_id: family-questions}
+  - {id: hb-023, topic: using a simple date place and name to preserve context, pillar_id: family-memory, theme_id: family-artifacts}
+  - {id: hb-024, topic: the routine a community repeats without writing it down, pillar_id: traditions, theme_id: shared-routines}
+  - {id: hb-025, topic: how a shared meal becomes a record of connection, pillar_id: traditions, theme_id: shared-routines}
+  - {id: hb-026, topic: a seasonal decoration and the hands that made it, pillar_id: traditions, theme_id: seasonal-traditions}
+  - {id: hb-027, topic: asking which seasonal tradition a family hopes will continue, pillar_id: traditions, theme_id: seasonal-traditions}
+  - {id: hb-028, topic: a practical lesson learned by watching someone work, pillar_id: intergenerational-wisdom, theme_id: sayings-and-lessons}
+  - {id: hb-029, topic: the local helper whose contribution deserves a careful question, pillar_id: local-history, theme_id: local-helpers}
+  - {id: hb-030, topic: creating a community story prompt that does not pressure disclosure, pillar_id: community-identity, theme_id: community-stories}
+  - {id: hb-031, topic: storing a voice note together with who spoke and when, pillar_id: community-identity, theme_id: ethical-sharing}
+  - {id: hb-032, topic: one ordinary detail worth carrying into the next generation, pillar_id: intergenerational-wisdom, theme_id: sayings-and-lessons}
+stop_phrases:
+  - Share a memory if this brings one to mind.
+  - Ask one careful question today.
+  - The Heritage Banner
+metadata:
+  brand_id: heritage-banner
+  legacy_campaign_id: heritage-banner-facebook
+  legacy_source: campaigns/heritage-banner/marketing-plan.json
+  recovered_task_receipts: 3
+  hashtags: ["#TheHeritageBanner", "#CommunityStories"]
+  mpt_defaults:
+    video_concat_mode: sequential
+    video_transition_mode: null
+    video_clip_duration: 5
+    match_materials_to_script: true
+    video_count: 1
