@@ -13,12 +13,14 @@ fallbacks for benchmarking and human QA.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
 from loguru import logger
 
 from app.utils import utils
+from app.config import config
 
 
 def _asset_plan_path(task_id: str) -> Path:
@@ -84,6 +86,13 @@ def route_assets(task_id: str, params, scene_plan: Dict[str, Any]) -> List[Dict[
             "selected_asset": None,
             "selected_reason": "not_searched",
         }
+        # mark if H3 generation should be requested for generated_video preferred paths
+        try:
+            h3_enabled = bool(config.app.get("h3_enabled", False))
+        except Exception:
+            h3_enabled = False
+        if preferred == "generated_video":
+            decision["h3_requested"] = h3_enabled
         decisions.append(decision)
 
     asset_plan = {"task_id": task_id, "decisions": decisions}
