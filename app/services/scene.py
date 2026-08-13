@@ -87,8 +87,9 @@ def route_scene_assets(task_id: str, params, scene_plan: Dict[str, Any]) -> List
     """
     logger.info(f"route_scene_assets: task_id={task_id}, scenes={len(scene_plan.get('scenes', []))}")
     try:
-        from app.services import asset_router, asset_validator, material
+        from app.services import asset_router, asset_validator, material, scene_h3
         from moviepy.video.io.VideoFileClip import VideoFileClip
+        from app.config import config
     except Exception as exc:
         logger.exception(f"failed to import routing dependencies: {exc}")
         return None
@@ -107,13 +108,34 @@ def route_scene_assets(task_id: str, params, scene_plan: Dict[str, Any]) -> List
         selected = None
         selected_meta = None
 
+        # First, honor any H3 request for generated_video items
+        if dec.get("h3_requested") and config.app.get("h3_enabled"):
+            try:
+                # prepare a prompt from scene; real implementation would be richer
+                prompt = dec.get("search_queries", [""])[0] if dec.get("search_queries") else ""
+                res = scene_h3.VideoGenerator.generate(dec, prompt, settings={})
+                if isinstance(res, dict) and res.get("success") and res.get("path"):
+                    selected = res.get("path")
+                    dec["selected_asset"] = selected
+                    dec["selected_reason"] = "h3_generated"
+                    dec["score"] = {"final_score": 0.75, "note": "h3_stub_score"}
+                    logger.info(f"H3 generated asset for scene {scene_id}: {selected}")
+                else:
+                    logger.info(f"H3 generation declined or failed for scene {scene_id}: {res}")
+            except Exception as exc:
+                logger.warning(f"H3 generation error for scene {scene_id}: {exc}")
+
+        if selected:
+            selected_paths.append(selected)
+            continue
+
         for asset_type in fallback_chain:
             # map asset_type to provider list
             providers = []
             if asset_type == "stock":
                 providers = ["pexels", "pixabay", "coverr"]
             elif asset_type == "generated_video":
-                # H3 handled separately; skip generation here
+                # H3 already attempted above; skip generation here
                 providers = []
             else:
                 # image, graphics, local: not handled by video router now
