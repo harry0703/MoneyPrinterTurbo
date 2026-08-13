@@ -34,6 +34,11 @@ from app.services import bgm as bgm_service
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
+import io
+import csv
+import json
+from fastapi.responses import JSONResponse
+
 
 # 认证依赖项
 # router = new_router(dependencies=[Depends(base.verify_token)])
@@ -318,13 +323,109 @@ def get_bgm_list(request: Request):
             {
                 "name": filename,
                 "size": os.path.getsize(file),
-                # 只返回文件名，避免把服务器绝对路径暴露给调用方。服务端会
-                # 在 storage/bgm 和 resource/songs 两个白名单目录中重新解析。
-                "file": filename,
             }
         )
-    response = {"files": bgm_list}
-    return utils.get_response(200, response)
+    return utils.get_response(200, {"musics": bgm_list})
+
+
+@router.get("/tasks/{task_id}/scene_debug", summary="Preview Scene Plan and Asset Plan")
+def get_scene_debug(request: Request, task_id: str = Path(..., description="Task ID")):
+    """Return scene_plan.json and asset_plan.json for debugging/preview.
+
+    If asset_plan.json contains scores and selected_asset, they are included.
+    """
+    request_id = base.get_task_id(request)
+    task_dir = utils.task_dir(task_id)
+    scene_path = os.path.join(task_dir, "scene_plan.json")
+    asset_path = os.path.join(task_dir, "asset_plan.json")
+
+    if not os.path.exists(scene_path):
+        raise HttpException(task_id=task_id, status_code=404, message=f"{request_id}: scene_plan.json not found")
+
+    try:
+        with open(scene_path, "r", encoding="utf-8") as f:
+            scene = json.load(f)
+    except Exception as exc:
+        raise HttpException(task_id=task_id, status_code=500, message=f"{request_id}: failed to read scene_plan.json: {exc}")
+
+    asset = None
+    if os.path.exists(asset_path):
+        try:
+            with open(asset_path, "r", encoding="utf-8") as f:
+                asset = json.load(f)
+        except Exception:
+            asset = None
+
+    payload = {"scene_plan": scene, "asset_plan": asset}
+    return JSONResponse(content=payload)
+
+
+@router.get("/tasks/{task_id}/qa_export", summary="Export scene-level QA CSV/JSON")
+def get_scene_qa_export(
+    request: Request,
+    task_id: str = Path(..., description="Task ID"),
+    format: str = Query("csv", regex="^(csv|json)$"),
+):
+    """Export a QA table for human evaluation. Supported formats: csv, json."""
+    request_id = base.get_task_id(request)
+    task_dir = utils.task_dir(task_id)
+    scene_path = os.path.join(task_dir, "scene_plan.json")
+    asset_path = os.path.join(task_dir, "asset_plan.json")
+
+    if not os.path.exists(scene_path):
+        raise HttpException(task_id=task_id, status_code=404, message=f"{request_id}: scene_plan.json not found")
+
+    try:
+        with open(scene_path, "r", encoding="utf-8") as f:
+            scene = json.load(f)
+    except Exception as exc:
+        raise HttpException(task_id=task_id, status_code=500, message=f"{request_id}: failed to read scene_plan.json: {exc}")
+
+    asset = None
+    if os.path.exists(asset_path):
+        try:
+            with open(asset_path, "r", encoding="utf-8") as f:
+                asset = json.load(f)
+        except Exception:
+            asset = None
+
+    scenes = scene.get("scenes", []) if isinstance(scene, dict) else []
+    decisions = asset.get("decisions", []) if isinstance(asset, dict) else []
+    # map decisions by scene_id
+    decision_map = {d.get("scene_id"): d for d in decisions}
+
+    rows = []
+    for s in scenes:
+        sid = s.get("scene_id")
+        d = decision_map.get(sid, {})
+        selected = d.get("selected_asset")
+        score = None
+        if isinstance(d.get("score"), dict):
+            score = d["score"].get("final_score")
+        rows.append(
+            {
+                "scene_id": sid,
+                "narration": s.get("narration"),
+                "visual_description": s.get("visual_description"),
+                "selected_asset": selected,
+                "score": score,
+                "human_score": "",
+                "accepted": "",
+            }
+        )
+
+    if format == "json":
+        return JSONResponse(content={"task_id": task_id, "rows": rows})
+
+    # CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["scene_id", "narration", "visual_description", "selected_asset", "score", "human_score", "accepted"])
+    for r in rows:
+        writer.writerow([r["scene_id"], r["narration"], r["visual_description"], r["selected_asset"], r["score"], r["human_score"], r["accepted"]])
+    output.seek(0)
+    return StreamingResponse(output.getvalue(), media_type="text/csv")
+
 
 
 @router.post(
