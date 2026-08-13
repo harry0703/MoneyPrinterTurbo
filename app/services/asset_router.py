@@ -26,12 +26,13 @@ def _asset_plan_path(task_id: str) -> Path:
 
 
 def save_asset_plan(task_id: str, asset_plan: Dict[str, Any]) -> None:
-    tmp = _asset_plan_path(task_id).parent / ("." + _asset_plan_path(task_id).name + ".tmp")
+    target = _asset_plan_path(task_id)
+    tmp = target.parent / ("." + target.name + ".tmp")
     try:
         with open(tmp, "w", encoding="utf-8") as fp:
             json.dump(asset_plan, fp, ensure_ascii=False, indent=4)
             fp.write("\n")
-        tmp.replace(_asset_plan_path(task_id))
+        os.replace(tmp, target)
         logger.info(f"saved asset_plan.json for task {task_id}")
     finally:
         try:
