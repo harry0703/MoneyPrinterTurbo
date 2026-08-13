@@ -577,6 +577,15 @@ Output and exit status:
         default=None,
         help="subtitle keyword highlight color in #RRGGBB format (default: #FFD700)",
     )
+    subtitle_group.add_argument(
+        "--subtitle-highlight-mode",
+        choices=["keyword", "karaoke"],
+        default=None,
+        help=(
+            "highlight one keyword for the whole phrase, or move the highlight "
+            "word by word as it is spoken (default: keyword)"
+        ),
+    )
 
     execution_group = parser.add_argument_group("execution")
     execution_group.add_argument(
@@ -711,6 +720,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "subtitle_uppercase",
         "subtitle_highlight_enabled",
         "subtitle_highlight_color",
+        "subtitle_highlight_mode",
     ]
     for name in optional_arg_names:
         value = getattr(args, name)

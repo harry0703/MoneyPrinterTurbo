@@ -18,6 +18,7 @@ from app.utils import utils
 from app.services import voice as vs
 from app.services import task as task_service
 from pydub import AudioSegment
+from pydub.generators import Sine
 
 temp_dir = utils.storage_dir("temp")
 
@@ -462,7 +463,7 @@ class TestVoiceService(unittest.TestCase):
         with patch("google.genai.Client", _FakeClient), patch.object(
             vs.config,
             "app",
-            dict(vs.config.app, gemini_api_key="test-key"),
+            dict(vs.config.app, gemini_api_key="test-key", gemini_tts_style_prompt=""),
         ):
             sub_maker = vs.gemini_tts(
                 text=text,
@@ -495,6 +496,251 @@ class TestVoiceService(unittest.TestCase):
         subtitle_content = Path(subtitle_file).read_text(encoding="utf-8")
         self.assertIn("Gemini subtitle generation should work now", subtitle_content)
         self.assertIn("Testing multiple lines", subtitle_content)
+
+    def _patch_gemini_client(self, audio_segment, captured):
+        """Stub `google.genai.Client` returning ``audio_segment`` as raw PCM."""
+
+        class _FakeModels:
+            def generate_content(self, **kwargs):
+                captured.update(kwargs)
+                return SimpleNamespace(
+                    candidates=[
+                        SimpleNamespace(
+                            content=SimpleNamespace(
+                                parts=[
+                                    SimpleNamespace(
+                                        inline_data=SimpleNamespace(
+                                            data=audio_segment.raw_data
+                                        )
+                                    )
+                                ]
+                            )
+                        )
+                    ]
+                )
+
+        class _FakeClient:
+            def __init__(self, **kwargs):
+                self.models = _FakeModels()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        return patch("google.genai.Client", _FakeClient)
+
+    @staticmethod
+    def _gemini_pcm(*parts):
+        segment = AudioSegment.empty()
+        for part in parts:
+            segment += part
+        return segment.set_frame_rate(24000).set_channels(1).set_sample_width(2)
+
+    @staticmethod
+    def _gemini_speech(duration_ms):
+        return Sine(440).to_audio_segment(duration=duration_ms)
+
+    @staticmethod
+    def _gemini_audio_seconds(sub_maker):
+        """Final audio length as written into the legacy subtitle timeline.
+
+        Read from the timeline rather than the mp3: pydub needs ffprobe to
+        measure one, and this environment ships ffmpeg only.
+        """
+        return sub_maker.offset[-1][1] / 10000000
+
+    def test_legacy_timeline_puts_phrase_borders_on_real_pauses(self):
+        """
+        按总时长比例分配会把停顿也算成说话时间，误差逐句累积。给出语音
+        区间后，句子边界必须落在真实停顿上，而不是文本长度的中点。
+        """
+        sub_maker = vs.ensure_legacy_submaker_fields(vs.SubMaker())
+
+        filled = vs.populate_legacy_submaker_with_full_text(
+            sub_maker=sub_maker,
+            text="Первая фраза. Вторая фраза.",
+            audio_duration_seconds=10.0,
+            speech_spans=[(0.0, 2.0), (8.0, 10.0)],
+        )
+
+        first_end = filled.offset[0][1] / 10000000
+        self.assertAlmostEqual(first_end, 2.0, delta=0.05)
+        self.assertEqual(filled.offset[1][0], filled.offset[0][1])
+        self.assertAlmostEqual(filled.offset[-1][1] / 10000000, 10.0, delta=0.01)
+
+    def test_legacy_timeline_without_speech_spans_keeps_char_ratio(self):
+        """没有语音区间时必须保持原有行为，避免影响其他 TTS 链路。"""
+        sub_maker = vs.ensure_legacy_submaker_fields(vs.SubMaker())
+
+        filled = vs.populate_legacy_submaker_with_full_text(
+            sub_maker=sub_maker,
+            text="Первая фраза. Вторая фраза.",
+            audio_duration_seconds=10.0,
+        )
+
+        self.assertAlmostEqual(filled.offset[0][1] / 10000000, 5.0, delta=0.2)
+
+    def test_split_script_lines_breaks_long_lines_at_word_borders(self):
+        text = (
+            "стартовый уикенд принёс двести сорок четыре миллиона рублей "
+            "при прогнозе двести двадцать двести пятьдесят"
+        )
+
+        with patch.object(
+            vs.config, "app", dict(vs.config.app, subtitle_max_chars=45)
+        ):
+            lines = vs.split_script_lines(text)
+
+        self.assertGreater(len(lines), 1)
+        for line in lines:
+            self.assertLessEqual(len(line), 45)
+        self.assertEqual(" ".join(lines), text)
+
+    def test_split_script_lines_disabled_by_default(self):
+        text = "одна длинная фраза без знаков препинания которая никуда не делась"
+
+        with patch.object(vs.config, "app", dict(vs.config.app, subtitle_max_chars=0)):
+            self.assertEqual(vs.split_script_lines(text), [text])
+
+    def test_gemini_tts_style_prompt_stays_out_of_the_subtitles(self):
+        """
+        风格提示只用于控制 Gemini 的语速和语气，不能进入字幕文本，
+        否则朗读指令会作为一行字幕出现在成片里。
+        """
+        captured = {}
+        audio = self._gemini_pcm(AudioSegment.silent(duration=1800))
+        temp_root = Path(tempfile.mkdtemp(prefix="gemini-style-"))
+        self.addCleanup(shutil.rmtree, temp_root, True)
+        text = "Первое предложение. Второе предложение."
+
+        with self._patch_gemini_client(audio, captured), patch.object(
+            vs.config,
+            "app",
+            dict(
+                vs.config.app,
+                gemini_api_key="test-key",
+                gemini_tts_style_prompt="Читай быстро:",
+                gemini_tts_max_pause_ms=0,
+            ),
+        ):
+            sub_maker = vs.gemini_tts(
+                text=text,
+                voice_name="Charon",
+                voice_rate=1.0,
+                voice_file=str(temp_root / "voice.mp3"),
+            )
+
+        self.assertIsNotNone(sub_maker)
+        self.assertEqual(captured["contents"], f"Читай быстро:\n\n{text}")
+        self.assertEqual(
+            getattr(sub_maker, "subs", []),
+            ["Первое предложение", "Второе предложение"],
+        )
+
+    def test_gemini_tts_trims_long_pauses_to_the_configured_length(self):
+        """
+        Gemini 的句间停顿远超短视频的节奏，这里验证超过 0.5 秒的静音
+        会被压缩到配置值，并且时间轴按压缩后的音频重新计算。
+        """
+        captured = {}
+        audio = self._gemini_pcm(
+            self._gemini_speech(400),
+            AudioSegment.silent(duration=1500),
+            self._gemini_speech(400),
+        )
+        temp_root = Path(tempfile.mkdtemp(prefix="gemini-pause-"))
+        self.addCleanup(shutil.rmtree, temp_root, True)
+        voice_file = str(temp_root / "voice.mp3")
+
+        with self._patch_gemini_client(audio, captured), patch.object(
+            vs.config,
+            "app",
+            dict(
+                vs.config.app,
+                gemini_api_key="test-key",
+                gemini_tts_style_prompt="",
+                gemini_tts_max_pause_ms=250,
+            ),
+        ):
+            sub_maker = vs.gemini_tts(
+                text="Раз. Два.",
+                voice_name="Charon",
+                voice_rate=1.0,
+                voice_file=voice_file,
+            )
+
+        self.assertIsNotNone(sub_maker)
+        self.assertTrue(Path(voice_file).is_file())
+        self.assertAlmostEqual(
+            self._gemini_audio_seconds(sub_maker), 0.4 + 0.25 + 0.4, delta=0.1
+        )
+
+    def test_gemini_tts_short_pauses_survive_the_trimming(self):
+        """低于 0.5 秒的停顿属于正常断句，不应被裁剪。"""
+        captured = {}
+        audio = self._gemini_pcm(
+            self._gemini_speech(400),
+            AudioSegment.silent(duration=300),
+            self._gemini_speech(400),
+        )
+        temp_root = Path(tempfile.mkdtemp(prefix="gemini-short-pause-"))
+        self.addCleanup(shutil.rmtree, temp_root, True)
+        voice_file = str(temp_root / "voice.mp3")
+
+        with self._patch_gemini_client(audio, captured), patch.object(
+            vs.config,
+            "app",
+            dict(
+                vs.config.app,
+                gemini_api_key="test-key",
+                gemini_tts_style_prompt="",
+                gemini_tts_max_pause_ms=250,
+            ),
+        ):
+            sub_maker = vs.gemini_tts(
+                text="Раз. Два.",
+                voice_name="Charon",
+                voice_rate=1.0,
+                voice_file=voice_file,
+            )
+
+        self.assertAlmostEqual(
+            self._gemini_audio_seconds(sub_maker), len(audio) / 1000.0, delta=0.1
+        )
+
+    def test_gemini_tts_applies_voice_rate_after_generation(self):
+        """
+        Gemini 没有语速参数，`voice_rate` 只能在生成后用 ffmpeg 实现，
+        否则 CLI 的 --voice-rate 对该 provider 会静默失效。
+        """
+        captured = {}
+        audio = self._gemini_pcm(self._gemini_speech(2000))
+        temp_root = Path(tempfile.mkdtemp(prefix="gemini-rate-"))
+        self.addCleanup(shutil.rmtree, temp_root, True)
+        voice_file = str(temp_root / "voice.mp3")
+
+        with self._patch_gemini_client(audio, captured), patch.object(
+            vs.config,
+            "app",
+            dict(
+                vs.config.app,
+                gemini_api_key="test-key",
+                gemini_tts_style_prompt="",
+                gemini_tts_max_pause_ms=0,
+            ),
+        ):
+            sub_maker = vs.gemini_tts(
+                text="Раз. Два.",
+                voice_name="Charon",
+                voice_rate=1.5,
+                voice_file=voice_file,
+            )
+
+        self.assertAlmostEqual(
+            self._gemini_audio_seconds(sub_maker), 2.0 / 1.5, delta=0.15
+        )
 
     def test_mimo_tts_uses_openai_compatible_audio_response(self):
         """

@@ -8,6 +8,7 @@ import os
 import queue
 import re
 import subprocess
+import tempfile
 import threading
 import time
 import unicodedata
@@ -27,6 +28,8 @@ from app.config import config
 from app.utils import utils
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
+# Pauses shorter than this read as natural phrasing and are left untouched.
+_GEMINI_SILENCE_DETECT_MS = 500
 _MIMO_DEFAULT_BASE_URL = "https://api.xiaomimimo.com/v1"
 _MIMO_DEFAULT_TTS_MODEL = "mimo-v2.5-tts"
 NO_VOICE_NAME = "no-voice"
@@ -85,14 +88,14 @@ def get_siliconflow_voices() -> list[str]:
 def get_gemini_voices() -> list[str]:
     """
     获取Gemini TTS的声音列表
-    
+
     Returns:
         声音列表，格式为 ["gemini:Zephyr-Female", "gemini:Puck-Male", ...]
     """
     # Gemini TTS支持的语音列表
     voices_with_gender = [
         ("Zephyr", "Female"),
-        ("Puck", "Male"), 
+        ("Puck", "Male"),
         ("Charon", "Male"),
         ("Kore", "Female"),
         ("Fenrir", "Male"),
@@ -107,12 +110,9 @@ def get_gemini_voices() -> list[str]:
         ("Orion", "Male"),
         ("Atlas", "Male"),
     ]
-    
+
     # 添加gemini:前缀，并格式化为显示名称
-    return [
-        f"gemini:{voice}-{gender}"
-        for voice, gender in voices_with_gender
-    ]
+    return [f"gemini:{voice}-{gender}" for voice, gender in voices_with_gender]
 
 
 def get_mimo_voices() -> list[str]:
@@ -298,7 +298,9 @@ def estimate_no_voice_duration(text: str) -> float:
 
     cjk_chars = len(re.findall(r"[\u4e00-\u9fff]", normalized_text))
     words = len(re.findall(r"[A-Za-z0-9]+", normalized_text))
-    ascii_word_chars = sum(len(word) for word in re.findall(r"[A-Za-z0-9]+", normalized_text))
+    ascii_word_chars = sum(
+        len(word) for word in re.findall(r"[A-Za-z0-9]+", normalized_text)
+    )
     other_text_chars = 0
     for char in normalized_text:
         # Unicode category 以 L 开头表示各语种字母，N 表示数字。前面已经单独
@@ -506,8 +508,99 @@ def ensure_legacy_submaker_fields(sub_maker: SubMaker) -> SubMaker:
     return sub_maker
 
 
+def _split_long_line(line: str, max_chars: int) -> list[str]:
+    """Break one line into near-equal parts at word boundaries."""
+    line = line.strip()
+    if len(line) <= max_chars:
+        return [line] if line else []
+
+    words = line.split()
+    if len(words) < 2:
+        return [line]
+
+    parts_count = math.ceil(len(line) / max_chars)
+    target = len(line) / parts_count
+    parts: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        # The last part takes whatever is left: stopping early would drop words.
+        if current and len(candidate) > target and len(parts) < parts_count - 1:
+            parts.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        parts.append(current)
+    return parts
+
+
+def split_script_lines(text: str) -> list[str]:
+    """Script lines for both the subtitle file and the legacy TTS timeline.
+
+    Both must split identically: `create_subtitle` matches the two line lists
+    against each other and silently gives up when the counts differ.
+    """
+    lines = utils.split_string_by_punctuations(text)
+    max_chars = int(config.app.get("subtitle_max_chars", 0) or 0)
+    if max_chars <= 0:
+        return lines
+
+    split_lines: list[str] = []
+    for line in lines:
+        split_lines.extend(_split_long_line(line, max_chars))
+    return split_lines
+
+
+def _speech_time_to_wall_clock(speech_position: float, speech_spans: list) -> float:
+    """Map a position on the speech-only timeline back to real playback time."""
+    consumed = 0.0
+    for start, end in speech_spans:
+        span = end - start
+        if consumed + span >= speech_position:
+            return start + (speech_position - consumed)
+        consumed += span
+    return speech_spans[-1][1] if speech_spans else speech_position
+
+
+def _snap_to_nearest_pause(
+    position: float,
+    speech_spans: list,
+    used_pauses: set,
+    window: float = 1.2,
+    floor: float = 0.0,
+) -> float:
+    """Pull a phrase border onto a real pause when one is close enough.
+
+    Proportional placement lands near a pause but rarely on it, and the
+    leftover offset is what a viewer reads as out-of-sync text.
+    """
+    best_index = None
+    best_distance = window
+    for index in range(len(speech_spans) - 1):
+        if index in used_pauses:
+            continue
+        pause_middle = (speech_spans[index][1] + speech_spans[index + 1][0]) / 2
+        # Snapping backwards past `floor` would collapse the phrase that is
+        # still being spoken into a zero-length cue.
+        if pause_middle <= floor:
+            continue
+        distance = abs(pause_middle - position)
+        if distance <= best_distance:
+            best_index, best_distance = index, distance
+
+    if best_index is None:
+        return position
+
+    used_pauses.add(best_index)
+    return (speech_spans[best_index][1] + speech_spans[best_index + 1][0]) / 2
+
+
 def populate_legacy_submaker_with_full_text(
-    sub_maker: SubMaker, text: str, audio_duration_seconds: float
+    sub_maker: SubMaker,
+    text: str,
+    audio_duration_seconds: float,
+    speech_spans: Union[list, None] = None,
 ) -> SubMaker:
     """
     用整段文本填充项目历史沿用的 `subs/offset` 字幕结构。
@@ -524,6 +617,8 @@ def populate_legacy_submaker_with_full_text(
         sub_maker: 需要写入兼容字段的字幕对象
         text: 原始脚本文本
         audio_duration_seconds: 音频总时长，单位秒
+        speech_spans: 语音区间 `[(start_s, end_s), ...]`，用于把时长按“说话
+            时间”而不是总时长分配。传 None 时退回旧的按总时长比例分配。
 
     Returns:
         已填充兼容字幕数据的 SubMaker 对象
@@ -543,37 +638,76 @@ def populate_legacy_submaker_with_full_text(
     # Gemini / SiliconFlow 这类路径拿不到逐词边界时，仍然尽量沿用项目
     # 原来的“按标点断句 + 按字符数比例分配时长”的策略。这样既能让
     # create_subtitle() 匹配脚本断句，也能避免再次回退 Whisper。
-    sentences = utils.split_string_by_punctuations(normalized_text)
-    if not sentences:
-        sentences = [normalized_text]
+    # 分两级：标点断出的句子才对齐真实停顿，句内为了长度再切出来的行
+    # 只在句子时间片内部按字符数细分。朗读在句号处停顿，在破折号或换气
+    # 处也停顿，把行边界拉到后者会让字幕比语音早跳一整行。
+    max_chars = int(config.app.get("subtitle_max_chars", 0) or 0)
+    groups = []
+    for sentence in utils.split_string_by_punctuations(normalized_text):
+        lines = _split_long_line(sentence, max_chars) if max_chars > 0 else [sentence]
+        lines = [line.strip() for line in lines if line.strip()]
+        if lines:
+            groups.append(lines)
+    if not groups:
+        groups = [[normalized_text]]
 
-    total_chars = sum(len(sentence) for sentence in sentences)
+    total_chars = sum(len(line) for lines in groups for line in lines)
     if total_chars <= 0:
         sub_maker.subs.append(normalized_text)
         sub_maker.offset.append((0, audio_duration_100ns))
         return sub_maker
 
-    current_offset = 0
-    for index, sentence in enumerate(sentences):
-        cleaned_sentence = sentence.strip()
-        if not cleaned_sentence:
-            continue
+    # 按总时长分配会把停顿也当成“在说话”，误差逐句累积；给了语音区间
+    # 就改成按说话时间分配，句子边界自然落到真实停顿上。
+    total_speech = sum(end - start for start, end in speech_spans or [])
 
-        # 前面的句子按字符数比例分配时长，最后一句兜底吃掉剩余时长，
-        # 避免整数取整导致总时长丢失或字幕结束时间短于音频。
-        if index == len(sentences) - 1:
-            sentence_end = audio_duration_100ns
+    current_offset = 0
+    consumed_chars = 0
+    used_pauses: set = set()
+    for group_index, lines in enumerate(groups):
+        consumed_chars += sum(len(line) for line in lines)
+
+        # 最后一句兜底吃掉剩余时长，避免整数取整导致总时长丢失或字幕
+        # 结束时间短于音频。
+        if group_index == len(groups) - 1:
+            group_end = audio_duration_100ns
+        elif total_speech > 0:
+            speech_position = total_speech * (consumed_chars / total_chars)
+            wall_clock = _speech_time_to_wall_clock(speech_position, speech_spans)
+            wall_clock = _snap_to_nearest_pause(
+                wall_clock,
+                speech_spans,
+                used_pauses,
+                floor=current_offset / 10000000 + 0.3,
+            )
+            group_end = min(int(wall_clock * 10000000), audio_duration_100ns)
+            group_end = max(group_end, current_offset + 1)
         else:
-            sentence_chars = len(cleaned_sentence)
-            sentence_duration = max(
-                int(audio_duration_100ns * (sentence_chars / total_chars)),
+            group_chars = sum(len(line) for line in lines)
+            group_duration = max(
+                int(audio_duration_100ns * (group_chars / total_chars)),
                 1,
             )
-            sentence_end = min(current_offset + sentence_duration, audio_duration_100ns)
+            group_end = min(current_offset + group_duration, audio_duration_100ns)
 
-        sub_maker.subs.append(cleaned_sentence)
-        sub_maker.offset.append((current_offset, sentence_end))
-        current_offset = sentence_end
+        group_chars = sum(len(line) for line in lines)
+        line_start = current_offset
+        line_consumed = 0
+        for line_index, line in enumerate(lines):
+            line_consumed += len(line)
+            if line_index == len(lines) - 1:
+                line_end = group_end
+            else:
+                line_end = current_offset + int(
+                    (group_end - current_offset) * (line_consumed / group_chars)
+                )
+                line_end = max(min(line_end, group_end), line_start + 1)
+
+            sub_maker.subs.append(line)
+            sub_maker.offset.append((line_start, line_end))
+            line_start = line_end
+
+        current_offset = group_end
 
     return sub_maker
 
@@ -617,9 +751,7 @@ def get_edge_tts_timeout_seconds() -> Union[float, None]:
       `edge_tts_timeout = 60`；
     - 设置为 0 或负数表示显式禁用超时，保留完全向后兼容。
     """
-    raw_timeout = config.app.get(
-        "edge_tts_timeout", _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS
-    )
+    raw_timeout = config.app.get("edge_tts_timeout", _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS)
     try:
         timeout_seconds = float(raw_timeout)
     except (TypeError, ValueError):
@@ -669,14 +801,10 @@ def _stream_edge_tts_sync_with_timeout(
     while True:
         remaining_seconds = deadline - time.monotonic()
         if remaining_seconds <= 0:
-            raise TimeoutError(
-                f"edge_tts stream timed out after {timeout_seconds:g}s"
-            )
+            raise TimeoutError(f"edge_tts stream timed out after {timeout_seconds:g}s")
 
         try:
-            item_type, payload = stream_queue.get(
-                timeout=min(0.5, remaining_seconds)
-            )
+            item_type, payload = stream_queue.get(timeout=min(0.5, remaining_seconds))
         except queue.Empty:
             continue
 
@@ -705,9 +833,7 @@ def stream_edge_tts_chunks(
     """
     if hasattr(communicate, "stream_sync"):
         if timeout_seconds:
-            _stream_edge_tts_sync_with_timeout(
-                communicate, on_chunk, timeout_seconds
-            )
+            _stream_edge_tts_sync_with_timeout(communicate, on_chunk, timeout_seconds)
             return
 
         for chunk in communicate.stream_sync():
@@ -754,6 +880,7 @@ def azure_tts_v1(
             timeout_seconds = get_edge_tts_timeout_seconds()
 
             with open(voice_file, "wb") as file:
+
                 def _handle_chunk(chunk):
                     chunk_type = chunk["type"]
                     if chunk_type == "audio":
@@ -941,9 +1068,7 @@ def _build_azure_v2_ssml(text: str, voice_name: str, voice_rate: float) -> str:
 
     voice_locale_parts = voice_name.split("-", 2)
     voice_locale = (
-        "-".join(voice_locale_parts[:2])
-        if len(voice_locale_parts) >= 2
-        else "en-US"
+        "-".join(voice_locale_parts[:2]) if len(voice_locale_parts) >= 2 else "en-US"
     )
     escaped_text = escape(text)
     escaped_voice_name = escape(voice_name, {'"': "&quot;"})
@@ -1061,6 +1186,79 @@ def azure_tts_v2(
     return None
 
 
+def _trim_long_pauses(audio_segment, max_pause_ms: int):
+    """Shorten every silence longer than ``max_pause_ms`` down to that length.
+
+    Gemini paces sentences with pauses far longer than a short-form video
+    tolerates, and it has no speed control to tighten them.
+    """
+    from pydub import AudioSegment, silence
+
+    detected = silence.detect_silence(
+        audio_segment,
+        min_silence_len=_GEMINI_SILENCE_DETECT_MS,
+        silence_thresh=audio_segment.dBFS - 22,
+        seek_step=10,
+    )
+    if not detected:
+        return audio_segment
+
+    trimmed = AudioSegment.empty()
+    position = 0
+    for start, end in detected:
+        trimmed += audio_segment[position:start]
+        trimmed += audio_segment[start : min(start + max_pause_ms, end)]
+        position = end
+    trimmed += audio_segment[position:]
+    return trimmed
+
+
+def _detect_speech_spans(audio_segment) -> list:
+    """Speech intervals in seconds, pauses excluded."""
+    from pydub import silence
+
+    spans = silence.detect_nonsilent(
+        audio_segment,
+        min_silence_len=_GEMINI_SILENCE_DETECT_MS // 2,
+        silence_thresh=audio_segment.dBFS - 22,
+        seek_step=10,
+    )
+    return [(start / 1000.0, end / 1000.0) for start, end in spans]
+
+
+def _apply_audio_tempo(audio_segment, voice_rate: float):
+    """Stretch or compress the timeline without shifting pitch."""
+    from pydub import AudioSegment
+
+    ffmpeg_binary = utils.get_ffmpeg_binary()
+    if not ffmpeg_binary:
+        logger.warning("ffmpeg is not available, keeping the original voice rate")
+        return audio_segment
+
+    with tempfile.TemporaryDirectory(prefix="gemini-tempo-") as work_dir:
+        source = os.path.join(work_dir, "source.wav")
+        target = os.path.join(work_dir, "target.wav")
+        audio_segment.export(source, format="wav").close()
+        try:
+            subprocess.run(
+                [
+                    ffmpeg_binary,
+                    "-y",
+                    "-i",
+                    source,
+                    "-filter:a",
+                    f"atempo={voice_rate:.3f}",
+                    target,
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except (subprocess.CalledProcessError, OSError) as e:
+            logger.warning(f"failed to apply voice rate {voice_rate}: {str(e)}")
+            return audio_segment
+        return AudioSegment.from_wav(target)
+
+
 def gemini_tts(
     text: str,
     voice_name: str,
@@ -1070,14 +1268,14 @@ def gemini_tts(
 ) -> Union[SubMaker, None]:
     """
     使用Google Gemini TTS生成语音
-    
+
     Args:
         text: 要转换的文本
         voice_name: 语音名称，如 "Zephyr", "Puck" 等
-        voice_rate: 语音速率（当前未使用）
+        voice_rate: 语音速率，通过 ffmpeg atempo 在生成后应用（0.5–2.0）
         voice_file: 输出音频文件路径
         voice_volume: 音频音量（当前未使用）
-        
+
     Returns:
         SubMaker对象或None
     """
@@ -1086,8 +1284,9 @@ def gemini_tts(
     from pydub import AudioSegment
     from google import genai
     from google.genai import types
+
     _configure_pydub_ffmpeg(AudioSegment)
-    
+
     try:
         api_key = config.app.get("gemini_api_key", "")
         if not api_key:
@@ -1095,6 +1294,11 @@ def gemini_tts(
             return None
 
         logger.info(f"start, voice name: {voice_name}, try: 1")
+
+        # The style prompt shapes delivery only: subtitles and timings below are
+        # built from `text`, so it must never reach the script side.
+        style_prompt = str(config.app.get("gemini_tts_style_prompt", "") or "").strip()
+        contents = f"{style_prompt}\n\n{text}" if style_prompt else text
 
         generation_config = types.GenerateContentConfig(
             response_modalities=["AUDIO"],
@@ -1112,7 +1316,7 @@ def gemini_tts(
         with genai.Client(api_key=api_key) as client:
             response = client.models.generate_content(
                 model="gemini-2.5-flash-preview-tts",
-                contents=text,
+                contents=contents,
                 config=generation_config,
             )
 
@@ -1120,18 +1324,18 @@ def gemini_tts(
         if not response.candidates or not response.candidates[0].content:
             logger.error("No audio content received from Gemini TTS")
             return None
-            
+
         # 获取音频数据
         audio_data = None
         for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
+            if hasattr(part, "inline_data") and part.inline_data:
                 audio_data = part.inline_data.data
                 break
-                
+
         if not audio_data:
             logger.error("No audio data found in response")
             return None
-            
+
         # 音频数据已经是原始字节，不需要base64解码
         if isinstance(audio_data, str):
             # 如果是字符串，则需要base64解码
@@ -1139,23 +1343,30 @@ def gemini_tts(
         else:
             # 如果已经是字节，直接使用
             audio_bytes = audio_data
-        
+
         # 尝试不同的音频格式 - Gemini可能返回不同的格式
         audio_segment = None
-        
+
         # Gemini返回Linear PCM格式，按照文档参数解析
         try:
             audio_segment = AudioSegment.from_file(
-                io.BytesIO(audio_bytes), 
+                io.BytesIO(audio_bytes),
                 format="raw",
                 frame_rate=24000,  # Gemini TTS默认采样率
-                channels=1,        # 单声道
-                sample_width=2     # 16-bit
+                channels=1,  # 单声道
+                sample_width=2,  # 16-bit
             )
         except Exception as e:
             logger.error(f"Failed to load PCM audio: {e}")
             return None
-        
+
+        max_pause_ms = int(config.app.get("gemini_tts_max_pause_ms", 0) or 0)
+        if max_pause_ms > 0:
+            audio_segment = _trim_long_pauses(audio_segment, max_pause_ms)
+
+        if voice_rate and abs(voice_rate - 1.0) > 0.01:
+            audio_segment = _apply_audio_tempo(audio_segment, voice_rate)
+
         # API、CLI 或测试可以直接把尚不存在的嵌套目录作为输出位置。这里在
         # 真正写文件前统一创建父目录，避免一次成功的 Gemini 请求最后因为
         # 本地路径不存在而丢失结果，也让该 provider 与其他 TTS 实现行为一致。
@@ -1165,9 +1376,9 @@ def gemini_tts(
         # 会持续累积，并在 Windows 上增加后续覆盖或删除音频文件失败的概率。
         exported_audio = audio_segment.export(voice_file, format="mp3")
         exported_audio.close()
-        
+
         logger.info(f"completed, output file: {voice_file}")
-        
+
         # Gemini 拿不到 edge_tts 那种逐词边界事件，因此这里退回到
         # 项目原有的 `subs/offset` 兼容结构，至少保证后续字幕与时长
         # 计算链路可继续工作。
@@ -1177,10 +1388,13 @@ def gemini_tts(
             sub_maker=sub_maker,
             text=text,
             audio_duration_seconds=audio_duration,
+            speech_spans=_detect_speech_spans(audio_segment),
         )
-        
+
     except ImportError as e:
-        logger.error(f"Missing required package for Gemini TTS: {str(e)}. Please install: pip install pydub")
+        logger.error(
+            f"Missing required package for Gemini TTS: {str(e)}. Please install: pip install pydub"
+        )
         return None
     except Exception as e:
         logger.error(f"Gemini TTS failed, error: {str(e)}")
@@ -1260,7 +1474,9 @@ def mimo_tts(
                 raise ValueError("MiMo TTS returned empty audio data")
 
             audio_bytes = base64.b64decode(audio_data)
-            audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
+            audio_segment = AudioSegment.from_file(
+                io.BytesIO(audio_bytes), format="wav"
+            )
 
             output_format = utils.parse_extension(voice_file) or "mp3"
             if output_format == "wav":
@@ -1343,7 +1559,10 @@ def elevenlabs_tts(
                 except Exception:
                     pass
 
-                if response.status_code in _NON_RETRYABLE_CODES or error_status in _NON_RETRYABLE_STATUSES:
+                if (
+                    response.status_code in _NON_RETRYABLE_CODES
+                    or error_status in _NON_RETRYABLE_STATUSES
+                ):
                     logger.error(
                         f"ElevenLabs TTS failed (non-retryable) — voice_id: {voice_id}, "
                         f"status: {response.status_code}, error: {error_status or response.text[:200]}. "
@@ -1501,7 +1720,7 @@ def _build_subtitle_formatter():
 
 # 阿拉伯语变音符号和 Tatweel 拉长符在 edge-tts 返回文本中可能出现，
 # 这些字符不影响语义，但会导致脚本文本和字幕 cue 字符串精确匹配失败。
-_ARABIC_DIACRITICS = re.compile("[\u0610-\u061A\u064B-\u065F\u0670\u0640\u06D6-\u06ED]")
+_ARABIC_DIACRITICS = re.compile("[\u0610-\u061a\u064b-\u065f\u0670\u0640\u06d6-\u06ed]")
 
 
 def _normalize_arabic(text: str) -> str:
@@ -1523,7 +1742,9 @@ def _normalize_arabic(text: str) -> str:
     return text
 
 
-def _match_script_line(script_lines: list[str], current_text: str, sub_index: int) -> str:
+def _match_script_line(
+    script_lines: list[str], current_text: str, sub_index: int
+) -> str:
     """
     尝试把当前累计的字幕文本，与脚本中的某一条标准断句匹配起来。
 
@@ -1694,7 +1915,7 @@ def create_subtitle(sub_maker: SubMaker, text: str, subtitle_file: str):
     3. 生成新的字幕文件
     """
     text = _format_text(text)
-    script_lines = utils.split_string_by_punctuations(text)
+    script_lines = split_script_lines(text)
     try:
         if hasattr(sub_maker, "cues") and sub_maker.cues:
             sub_items = _build_subtitle_items_from_edge_cues(sub_maker, script_lines)
@@ -1728,6 +1949,7 @@ def _get_audio_duration_from_submaker(sub_maker: SubMaker):
         return 0.0
     return legacy_offsets[-1][1] / 10000000
 
+
 def _get_audio_duration_from_file(audio_file: str) -> float:
     """
     获取音频文件时长（支持 mp3/m4a/wav/aac 等 ffmpeg 可解码的格式）
@@ -1744,6 +1966,7 @@ def _get_audio_duration_from_file(audio_file: str) -> float:
         logger.error(f"Failed to get audio duration from file: {str(e)}")
         return 0.0
 
+
 def get_audio_duration(target: Union[str, SubMaker]) -> float:
     """
     获取音频时长
@@ -1757,6 +1980,7 @@ def get_audio_duration(target: Union[str, SubMaker]) -> float:
     else:
         logger.error(f"Invalid target type: {type(target)}")
         return 0.0
+
 
 if __name__ == "__main__":
     voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"

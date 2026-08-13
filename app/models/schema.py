@@ -136,6 +136,7 @@ class VideoParams(BaseModel):
     subtitle_uppercase: bool = False
     subtitle_highlight_enabled: bool = False
     subtitle_highlight_color: str = "#FFD700"
+    subtitle_highlight_mode: str = "keyword"
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"

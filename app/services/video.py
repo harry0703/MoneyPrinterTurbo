@@ -1167,6 +1167,38 @@ def pick_highlight_word(phrase: str) -> str | None:
     return max(candidates, key=len)
 
 
+def karaoke_word_windows(phrase: str, start: float, end: float) -> list:
+    """Split a phrase into ``(word, start, end)`` slots weighted by word length.
+
+    TTS without word boundaries gives nothing better than this; inside a short
+    phrase the error stays well under one word.
+    """
+    words = [
+        (token, _strip_token(token)) for token in phrase.split() if _strip_token(token)
+    ]
+    duration = end - start
+    if not words or duration <= 0:
+        return []
+
+    total_weight = sum(len(stripped) for _, stripped in words)
+    if total_weight <= 0:
+        return []
+
+    windows = []
+    consumed = 0
+    for index, (_, stripped) in enumerate(words):
+        consumed += len(stripped)
+        word_end = (
+            end
+            if index == len(words) - 1
+            else start + duration * consumed / total_weight
+        )
+        word_start = windows[-1][2] if windows else start
+        if word_end > word_start:
+            windows.append((stripped, word_start, word_end))
+    return windows
+
+
 def create_highlighted_text_clip(
     *,
     wrapped_txt: str,
@@ -1838,14 +1870,17 @@ def generate_video(
             return "#000000" if params.text_background_color else None
         return params.text_background_color
 
-    def create_text_clip(subtitle_item):
+    def create_text_clip(subtitle_item, highlight_override=None, window=None):
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
         if getattr(params, "subtitle_uppercase", False):
             phrase = phrase.upper()
         highlight_enabled = bool(getattr(params, "subtitle_highlight_enabled", False))
-        highlight_word = pick_highlight_word(phrase) if highlight_enabled else None
+        if highlight_override is not None:
+            highlight_word = highlight_override
+        else:
+            highlight_word = pick_highlight_word(phrase) if highlight_enabled else None
         highlight_color = getattr(params, "subtitle_highlight_color", "#FFD700")
         max_width = video_width * 0.9
         bg_color = resolve_subtitle_background_color()
@@ -2016,10 +2051,10 @@ def generate_video(
                     size=size,
                     text_align="center",
                 )
-        duration = subtitle_item[0][1] - subtitle_item[0][0]
-        _clip = _clip.with_start(subtitle_item[0][0])
-        _clip = _clip.with_end(subtitle_item[0][1])
-        _clip = _clip.with_duration(duration)
+        clip_start, clip_end = window or subtitle_item[0]
+        _clip = _clip.with_start(clip_start)
+        _clip = _clip.with_end(clip_end)
+        _clip = _clip.with_duration(clip_end - clip_start)
         if params.subtitle_position == "bottom":
             _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
         elif params.subtitle_position == "top":
@@ -2066,10 +2101,32 @@ def generate_video(
                     make_textclip=make_textclip,
                 )
             )
+            karaoke_enabled = (
+                bool(getattr(params, "subtitle_highlight_enabled", False))
+                and str(getattr(params, "subtitle_highlight_mode", "keyword"))
+                == "karaoke"
+            )
             text_clips = []
             for item in sub.subtitles:
-                clip = create_text_clip(subtitle_item=item)
-                text_clips.append(clip)
+                phrase = item[1]
+                if getattr(params, "subtitle_uppercase", False):
+                    phrase = phrase.upper()
+                windows = (
+                    karaoke_word_windows(phrase, item[0][0], item[0][1])
+                    if karaoke_enabled
+                    else []
+                )
+                if not windows:
+                    text_clips.append(create_text_clip(subtitle_item=item))
+                    continue
+                for word, word_start, word_end in windows:
+                    text_clips.append(
+                        create_text_clip(
+                            subtitle_item=item,
+                            highlight_override=word,
+                            window=(word_start, word_end),
+                        )
+                    )
             video_clip = CompositeVideoClip([video_clip, *text_clips])
             clip_stack.callback(video_clip.close)
 

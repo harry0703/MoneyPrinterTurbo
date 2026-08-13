@@ -126,6 +126,13 @@ openai_model_name = ""
 gemini_api_key = ""
 gemini_model_name = ""
 
+# Gemini TTS (voice_name = "gemini:<Voice>-<Gender>") only.
+# Delivery instruction prepended to the TTS request: shapes tempo and tone,
+# is not spoken and never reaches the subtitles.
+gemini_tts_style_prompt = ""
+# Pauses longer than 0.5s are shortened to this many milliseconds. 0 disables.
+gemini_tts_max_pause_ms = 0
+
 # DeepSeek
 # API key: https://platform.deepseek.com/api_keys
 deepseek_api_key = ""
@@ -383,6 +390,10 @@ hide_log = false
 # Open the task folder automatically after video generation completes.
 # 视频生成完成后是否自动打开任务目录；关闭后仍可在任务管理中手动打开。
 open_task_folder_on_completion = true
+
+# Break subtitle lines longer than this many characters at a word boundary.
+# 0 keeps whatever the punctuation split produced.
+subtitle_max_chars = 0
 
 # The WebUI writes the remaining preferences automatically. Uncomment values
 # below only when you want to define initial defaults manually.

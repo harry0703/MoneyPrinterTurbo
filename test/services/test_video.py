@@ -1283,6 +1283,31 @@ class TestSubtitleCapsAndHighlight(unittest.TestCase):
         self.assertIsNone(vd.pick_highlight_word("ПОТОМУ ЧТО ТОЛЬКО"))
         self.assertEqual(vd.pick_highlight_word("КАК БЫСТРО ЗАРАБОТАТЬ"), "ЗАРАБОТАТЬ")
 
+    def test_karaoke_word_windows_cover_the_phrase_without_gaps(self):
+        windows = vd.karaoke_word_windows("РАЗ ДВА ТРИ", 10.0, 13.0)
+
+        self.assertEqual([word for word, _, _ in windows], ["РАЗ", "ДВА", "ТРИ"])
+        self.assertEqual(windows[0][1], 10.0)
+        self.assertEqual(windows[-1][2], 13.0)
+        for previous, following in zip(windows, windows[1:]):
+            self.assertEqual(previous[2], following[1])
+
+    def test_karaoke_word_windows_weigh_words_by_length(self):
+        windows = vd.karaoke_word_windows("НЕТ ОЧЕНЬДЛИННОЕСЛОВО", 0.0, 10.0)
+
+        short_duration = windows[0][2] - windows[0][1]
+        long_duration = windows[1][2] - windows[1][1]
+        self.assertLess(short_duration, long_duration)
+
+    def test_karaoke_word_windows_ignore_punctuation_only_tokens(self):
+        windows = vd.karaoke_word_windows("«СЛОВО» — ДРУГОЕ", 0.0, 4.0)
+
+        self.assertEqual([word for word, _, _ in windows], ["СЛОВО", "ДРУГОЕ"])
+
+    def test_karaoke_word_windows_empty_for_zero_length_phrase(self):
+        self.assertEqual(vd.karaoke_word_windows("", 0.0, 4.0), [])
+        self.assertEqual(vd.karaoke_word_windows("СЛОВО", 4.0, 4.0), [])
+
     def test_create_highlighted_text_clip_fits_ninety_percent_of_frame(self):
         max_width = int(1080 * 0.9)
         phrase = "EARN 1000 DOLLARS EVERY SINGLE DAY"
