@@ -78,9 +78,21 @@ def generate_scene_plan(task_id: str, params, video_script: str) -> Dict[str, An
 def route_scene_assets(task_id: str, params, scene_plan: Dict[str, Any]) -> List[Any] | None:
     """Route assets for each scene.
 
-    Minimal stub: return None to indicate no pre-acquired materials. The real
-    router will search providers and return downloaded material descriptors.
+    Initial implementation delegates to app.services.asset_router to produce an
+    asset_plan.json and returns a list of selected assets if any were acquired.
+    Currently the router produces decisions and does not perform downloads; this
+    function returns None when no pre-acquired materials are available so the
+    legacy material pipeline remains the default.
     """
-    logger.info(f"route_scene_assets stub: task_id={task_id}, scenes={len(scene_plan.get('scenes', []))}")
-    # For now, do not acquire assets — let legacy material pipeline run as fallback.
-    return None
+    logger.info(f"route_scene_assets: task_id={task_id}, scenes={len(scene_plan.get('scenes', []))}")
+    try:
+        from app.services import asset_router, asset_validator
+
+        decisions = asset_router.route_assets(task_id, params, scene_plan)
+        # At this stage decisions contain selected_asset==None. Keep compatibility
+        # with downstream by returning None (fallback to legacy). In future this
+        # code will attempt acquisition and validation and return material list.
+        return None
+    except Exception as exc:
+        logger.exception(f"asset routing failed: {exc}")
+        return None
