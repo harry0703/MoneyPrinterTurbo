@@ -29,6 +29,14 @@ from app.utils import utils
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
 _MIMO_DEFAULT_BASE_URL = "https://api.xiaomimimo.com/v1"
 _MIMO_DEFAULT_TTS_MODEL = "mimo-v2.5-tts"
+MINIMAX_TTS_GLOBAL_URL = "https://api.minimax.io/v1/t2a_v2"
+MINIMAX_TTS_CN_URL = "https://api.minimaxi.com/v1/t2a_v2"
+MINIMAX_TTS_DEFAULT_MODEL = "speech-2.8-hd"
+MINIMAX_TTS_DEFAULT_VOICE = "English_expressive_narrator"
+MINIMAX_TTS_MODELS = (
+    "speech-2.8-hd", "speech-2.8-turbo", "speech-2.6-hd", "speech-2.6-turbo",
+    "speech-02-hd", "speech-02-turbo", "speech-01-hd", "speech-01-turbo",
+)
 NO_VOICE_NAME = "no-voice"
 # `none` 是 PR #981 里曾使用过的无配音标识。这里短期兼容这个值，避免
 # 已经手动调用过该分支的 API 用户升级后立即失效；WebUI 和新代码统一使用
@@ -139,6 +147,12 @@ def get_mimo_voices() -> list[str]:
     return [f"mimo:{voice}-{gender}" for voice, gender in voices_with_gender]
 
 
+def get_minimax_voices() -> list[str]:
+    """Return the configured MiniMax voice for the TTS selector."""
+    voice_id = str(config.minimax_tts.get("voice_id", MINIMAX_TTS_DEFAULT_VOICE) or MINIMAX_TTS_DEFAULT_VOICE).strip()
+    return [f"minimax:{voice_id}"]
+
+
 def get_elevenlabs_voices(api_key: str) -> list[str]:
     if not api_key:
         return []
@@ -246,6 +260,10 @@ def is_gemini_voice(voice_name: str):
 def is_mimo_voice(voice_name: str):
     """检查是否是 Xiaomi MiMo TTS 的声音"""
     return voice_name.startswith("mimo:")
+
+
+def is_minimax_voice(voice_name: str | None) -> bool:
+    return (voice_name or "").startswith("minimax:")
 
 
 def is_elevenlabs_voice(voice_name: str) -> bool:
@@ -433,6 +451,12 @@ def tts(
         else:
             logger.error(f"Invalid mimo voice name format: {voice_name}")
             return None
+    elif is_minimax_voice(voice_name):
+        voice_id = voice_name.split(":", 1)[1].strip()
+        if voice_id:
+            return minimax_tts(text, voice_id, voice_rate, voice_file, voice_volume)
+        logger.error(f"Invalid MiniMax voice name format: {voice_name}")
+        return None
     elif is_elevenlabs_voice(voice_name):
         # 格式: elevenlabs:{voice_id}:{name}
         parts = voice_name.split(":")
@@ -1284,6 +1308,85 @@ def mimo_tts(
         except Exception as e:
             logger.error(f"mimo tts failed: {str(e)}")
 
+    return None
+
+
+def _resolve_minimax_tts_url(configured_url: str) -> str:
+    configured_url = (configured_url or "").strip().rstrip("/")
+    if not configured_url:
+        return MINIMAX_TTS_GLOBAL_URL
+    if configured_url in {MINIMAX_TTS_GLOBAL_URL, MINIMAX_TTS_CN_URL}:
+        return configured_url
+    if configured_url.endswith("/v1"):
+        return f"{configured_url}/t2a_v2"
+    return configured_url
+
+
+def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, voice_volume: float = 1.0) -> Union[SubMaker, None]:
+    """Generate speech with the synchronous MiniMax T2A HTTP API."""
+    text, voice_id = (text or "").strip(), (voice_id or "").strip()
+    if not text or not voice_id:
+        logger.error("MiniMax TTS requires text and a voice ID")
+        return None
+    settings = config.minimax_tts
+    api_key = str(settings.get("api_key", "") or config.app.get("minimax_api_key", "") or "").strip()
+    if not api_key:
+        logger.error("MiniMax TTS API key is not set")
+        return None
+    url = _resolve_minimax_tts_url(str(settings.get("base_url", "") or ""))
+    model = str(settings.get("model_id", MINIMAX_TTS_DEFAULT_MODEL) or MINIMAX_TTS_DEFAULT_MODEL).strip()
+    if model not in MINIMAX_TTS_MODELS:
+        logger.error(f"Unsupported MiniMax TTS model: {model}")
+        return None
+    try:
+        speed = max(0.5, min(2.0, float(voice_rate or 1.0)))
+        volume = max(0.0, min(10.0, float(voice_volume or 1.0)))
+        pitch = max(-12, min(12, int(settings.get("pitch", 0) or 0)))
+        sample_rate = int(settings.get("sample_rate", 32000) or 32000)
+        bitrate = int(settings.get("bitrate", 128000) or 128000)
+        channel = int(settings.get("channel", 1) or 1)
+    except (TypeError, ValueError) as exc:
+        logger.error(f"Invalid MiniMax TTS audio setting: {str(exc)}")
+        return None
+    audio_format = str(settings.get("audio_format", "mp3") or "mp3").strip()
+    if audio_format not in {"mp3", "wav", "flac", "pcm"}:
+        logger.error(f"Unsupported MiniMax TTS audio format: {audio_format}")
+        return None
+    payload = {
+        "model": model, "text": text, "stream": False, "language_boost": "auto", "output_format": "hex",
+        "voice_setting": {"voice_id": voice_id, "speed": speed, "vol": volume, "pitch": pitch},
+        "audio_setting": {"sample_rate": sample_rate, "bitrate": bitrate, "format": audio_format, "channel": channel},
+    }
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    for attempt in range(3):
+        try:
+            logger.info(f"start MiniMax TTS, model: {model}, voice: {voice_id}, try: {attempt + 1}")
+            response = requests.post(url, json=payload, headers=headers, timeout=120)
+            if response.status_code != 200:
+                logger.error(f"MiniMax TTS failed with status {response.status_code}: {response.text[:200]}")
+                continue
+            body = response.json()
+            data = body.get("data") or {}
+            base_resp = body.get("base_resp") or {}
+            if base_resp.get("status_code") != 0 or data.get("status") != 2:
+                logger.error(f"MiniMax TTS returned an unsuccessful response: status_code={base_resp.get('status_code')}, audio_status={data.get('status')}")
+                continue
+            audio_hex = data.get("audio")
+            if not isinstance(audio_hex, str) or not audio_hex:
+                logger.error("MiniMax TTS returned empty audio data")
+                continue
+            ensure_file_path_exists(voice_file)
+            with open(voice_file, "wb") as output:
+                output.write(bytes.fromhex(audio_hex))
+            audio_clip = AudioFileClip(voice_file)
+            audio_duration = audio_clip.duration
+            audio_clip.close()
+            logger.success(f"MiniMax TTS succeeded: {voice_file}")
+            return populate_legacy_submaker_with_full_text(
+                ensure_legacy_submaker_fields(SubMaker()), text, audio_duration
+            )
+        except (OSError, ValueError, requests.RequestException) as exc:
+            logger.error(f"MiniMax TTS failed: {str(exc)}")
     return None
 
 

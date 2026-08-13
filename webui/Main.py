@@ -126,6 +126,7 @@ _RUNTIME_CONFIG_SECTIONS = {
     "azure": config.azure,
     "chatterbox": config.chatterbox,
     "elevenlabs": config.elevenlabs,
+    "minimax_tts": config.minimax_tts,
     "siliconflow": config.siliconflow,
     "ui": config.ui,
 }
@@ -951,6 +952,8 @@ def _infer_tts_server_from_voice(voice_name):
         return "gemini-tts"
     if voice.is_mimo_voice(voice_name):
         return "mimo-tts"
+    if voice.is_minimax_voice(voice_name):
+        return "minimax-tts"
     if voice.is_elevenlabs_voice(voice_name):
         return "elevenlabs"
     if voice.is_chatterbox_voice(voice_name):
@@ -2663,6 +2666,16 @@ def _get_voice_preview_provider_signature(tts_server: str) -> dict:
         }
     if tts_server == "mimo-tts":
         return {"credential": _credential_signature(config.app.get("mimo_api_key", ""))}
+    if tts_server == "minimax-tts":
+        return {
+            "base_url": config.minimax_tts.get("base_url", ""),
+            "model_id": config.minimax_tts.get("model_id", ""),
+            "voice_id": config.minimax_tts.get("voice_id", ""),
+            "credential": _credential_signature(
+                config.minimax_tts.get("api_key", "")
+                or config.app.get("minimax_api_key", "")
+            ),
+        }
     if tts_server == "elevenlabs":
         return {
             "model_id": config.elevenlabs.get("model_id", ""),
@@ -3247,6 +3260,7 @@ def _render_audio_settings(panel, params):
                 ("siliconflow", "SiliconFlow TTS"),
                 ("gemini-tts", "Google Gemini TTS"),
                 ("mimo-tts", "Xiaomi MiMo TTS"),
+                ("minimax-tts", "MiniMax TTS"),
                 ("elevenlabs", "ElevenLabs TTS"),
                 ("chatterbox", "Chatterbox TTS"),
             ]
@@ -3295,6 +3309,8 @@ def _render_audio_settings(panel, params):
             elif selected_tts_server == "mimo-tts":
                 # 获取 Xiaomi MiMo TTS 的预置音色列表
                 filtered_voices = voice.get_mimo_voices()
+            elif selected_tts_server == "minimax-tts":
+                filtered_voices = voice.get_minimax_voices()
             elif selected_tts_server == "elevenlabs":
                 # 音色列表位于 Key 输入框之前渲染，必须先统一恢复重连状态并读取
                 # 配置/环境变量，否则页面会用空 Key 加载并缓存空音色列表。
@@ -3333,6 +3349,8 @@ def _render_audio_settings(panel, params):
                 if voice.is_chatterbox_voice(v):
                     name = v.split(":", 1)[1] if ":" in v else v
                     return name.replace("-Female", "").replace("-Male", "")
+                if voice.is_minimax_voice(v):
+                    return v.split(":", 1)[1]
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))
@@ -3453,6 +3471,59 @@ def _render_audio_settings(panel, params):
                 )
 
                 _set_runtime_config("app", "mimo_api_key", mimo_api_key)
+
+            if tts_mode_enabled and (
+                selected_tts_server == "minimax-tts"
+                or (voice_name and voice.is_minimax_voice(voice_name))
+            ):
+                minimax_tts_api_key = st.text_input(
+                    tr("MiniMax TTS API Key"),
+                    value=config.minimax_tts.get("api_key", ""),
+                    type="password",
+                    key="minimax_tts_api_key_input",
+                )
+                _set_runtime_config("minimax_tts", "api_key", minimax_tts_api_key)
+
+                minimax_tts_endpoints = [
+                    voice.MINIMAX_TTS_GLOBAL_URL,
+                    voice.MINIMAX_TTS_CN_URL,
+                ]
+                configured_endpoint = config.minimax_tts.get(
+                    "base_url", voice.MINIMAX_TTS_GLOBAL_URL
+                )
+                if configured_endpoint not in minimax_tts_endpoints:
+                    configured_endpoint = voice.MINIMAX_TTS_GLOBAL_URL
+                minimax_tts_base_url = stable_selectbox(
+                    tr("MiniMax TTS Endpoint"),
+                    options=minimax_tts_endpoints,
+                    default_value=configured_endpoint,
+                    key="minimax_tts_endpoint_select",
+                )
+                _set_runtime_config("minimax_tts", "base_url", minimax_tts_base_url)
+
+                configured_model = config.minimax_tts.get(
+                    "model_id", voice.MINIMAX_TTS_DEFAULT_MODEL
+                )
+                if configured_model not in voice.MINIMAX_TTS_MODELS:
+                    configured_model = voice.MINIMAX_TTS_DEFAULT_MODEL
+                minimax_tts_model = stable_selectbox(
+                    tr("MiniMax TTS Model"),
+                    options=list(voice.MINIMAX_TTS_MODELS),
+                    default_value=configured_model,
+                    key="minimax_tts_model_select",
+                )
+                _set_runtime_config("minimax_tts", "model_id", minimax_tts_model)
+
+                minimax_tts_voice_id = st.text_input(
+                    tr("MiniMax TTS Voice ID"),
+                    value=config.minimax_tts.get(
+                        "voice_id", voice.MINIMAX_TTS_DEFAULT_VOICE
+                    ),
+                    key="minimax_tts_voice_id_input",
+                )
+                _set_runtime_config(
+                    "minimax_tts", "voice_id", minimax_tts_voice_id.strip()
+                )
 
             # ElevenLabs API key section
             if tts_mode_enabled and (

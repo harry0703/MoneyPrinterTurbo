@@ -314,6 +314,21 @@ speech_region = ""
 # SiliconFlow TTS API key: https://siliconflow.cn/
 api_key = ""
 
+[minimax_tts]
+# API key: https://platform.minimax.io/user-center/basic-information/interface-key
+# Global endpoint: https://api.minimax.io/v1/t2a_v2
+# China endpoint: https://api.minimaxi.com/v1/t2a_v2
+# The MiniMax text-generation API key is used as a fallback when this is empty.
+api_key = ""
+base_url = "https://api.minimax.io/v1/t2a_v2"
+model_id = "speech-2.8-hd"
+voice_id = "English_expressive_narrator"
+sample_rate = 32000
+bitrate = 128000
+audio_format = "mp3"
+channel = 1
+pitch = 0
+
 [elevenlabs]
 # API key: https://elevenlabs.io/app/settings/api-keys
 # Favorite voices in the ElevenLabs voice library are shown in the WebUI.
