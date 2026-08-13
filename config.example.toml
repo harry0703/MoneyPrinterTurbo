@@ -29,6 +29,19 @@ edge_tts_timeout = 30
 # 默认应保持开启；仅在可信代理或自签名证书环境中临时关闭。
 tls_verify = true
 
+# Scene Engine feature flags
+# Enable the Scene Engine pipeline which generates scene plans and routes assets.
+scene_engine_enabled = false
+# Enable additional debug endpoints and verbose artifact saving for Scene Engine.
+scene_engine_debug = false
+# When true, asset candidates that fail strict validation will be rejected and
+# cause fallback to legacy pipeline. When false, validation is advisory.
+scene_engine_strict_validation = false
+# Enable H3 (internal generated-video provider) support. H3 remains disabled
+# by default and must be explicitly enabled along with provider credentials.
+h3_enabled = false
+
+
 # -----------------------------------------------------------------------------
 # Video Materials / 视频素材
 # -----------------------------------------------------------------------------
