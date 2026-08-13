@@ -427,6 +427,106 @@ def get_scene_qa_export(
     return StreamingResponse(output.getvalue(), media_type="text/csv")
 
 
+@router.post(
+    "/tasks/{task_id}/scenes/{scene_id}/regenerate",
+    summary="Regenerate routing and asset selection for a single scene",
+)
+def regenerate_scene(
+    request: Request,
+    task_id: str = Path(..., description="Task ID"),
+    scene_id: int = Path(..., description="Scene ID"),
+):
+    """Re-run routing/acquisition for a single scene and update asset_plan.json.
+
+    This endpoint is feature-flag guarded by scene_engine_enabled. It will:
+    - Load scene_plan.json and asset_plan.json
+    - Extract the single scene and invoke scene.route_scene_assets on a mini-plan
+    - Merge the returned decision into the existing asset_plan.json and persist
+    - Return the updated decision
+    """
+    request_id = base.get_task_id(request)
+    if not config.app.get("scene_engine_enabled"):
+        raise HttpException(task_id=request_id, status_code=403, message=f"{request_id}: scene engine is disabled")
+
+    task_dir = utils.task_dir(task_id)
+    scene_path = os.path.join(task_dir, "scene_plan.json")
+    asset_path = os.path.join(task_dir, "asset_plan.json")
+
+    if not os.path.exists(scene_path):
+        raise HttpException(task_id=task_id, status_code=404, message=f"{request_id}: scene_plan.json not found")
+
+    try:
+        with open(scene_path, "r", encoding="utf-8") as f:
+            scene_plan = json.load(f)
+    except Exception as exc:
+        raise HttpException(task_id=task_id, status_code=500, message=f"{request_id}: failed to read scene_plan.json: {exc}")
+
+    scenes = scene_plan.get("scenes", []) if isinstance(scene_plan, dict) else []
+    target_scene = None
+    for s in scenes:
+        # allow numeric or string scene ids
+        sid = s.get("scene_id")
+        try:
+            if int(sid) == int(scene_id):
+                target_scene = s
+                break
+        except Exception:
+            continue
+
+    if not target_scene:
+        raise HttpException(task_id=task_id, status_code=404, message=f"{request_id}: scene {scene_id} not found in scene_plan.json")
+
+    try:
+        # build a mini plan and let scene.route_scene_assets attempt acquisition
+        from app.services import scene as scene_service
+
+        mini_plan = {"task_id": task_id, "scenes": [target_scene]}
+        # route_scene_assets saves an asset_plan for the mini-plan; it returns selected_paths or None
+        selected = scene_service.route_scene_assets(task_id, params=tm.VideoParams(), scene_plan=mini_plan)
+    except Exception as exc:
+        raise HttpException(task_id=task_id, status_code=500, message=f"{request_id}: failed to regenerate scene: {exc}")
+
+    # load newly written asset_plan (for mini plan) and merge into existing asset_plan
+    try:
+        new_decisions = []
+        if os.path.exists(asset_path):
+            with open(asset_path, "r", encoding="utf-8") as f:
+                new_plan = json.load(f)
+                new_decisions = new_plan.get("decisions", []) if isinstance(new_plan, dict) else []
+    except Exception:
+        new_decisions = []
+
+    try:
+        # load existing and merge
+        existing = {"decisions": []}
+        if os.path.exists(asset_path):
+            with open(asset_path, "r", encoding="utf-8") as f:
+                existing = json.load(f) if f else {"decisions": []}
+        existing_decisions = existing.get("decisions", []) if isinstance(existing, dict) else []
+    except Exception:
+        existing_decisions = []
+
+    # Build a map and replace
+    merged_map = {d.get("scene_id"): d for d in existing_decisions}
+    for nd in new_decisions:
+        merged_map[nd.get("scene_id")] = nd
+
+    merged_decisions = list(merged_map.values())
+    merged_plan = {"task_id": task_id, "decisions": merged_decisions}
+
+    try:
+        from app.services import asset_router
+
+        asset_router.save_asset_plan(task_id, merged_plan)
+    except Exception as exc:
+        logger.exception(f"failed to persist merged asset_plan: {exc}")
+        raise HttpException(task_id=task_id, status_code=500, message=f"{request_id}: failed to persist merged asset_plan: {exc}")
+
+    # return the updated decision for the scene
+    updated_decision = merged_map.get(scene_id) or merged_map.get(str(scene_id))
+    return JSONResponse(content={"task_id": task_id, "scene_id": scene_id, "decision": updated_decision})
+
+
 
 @router.post(
     "/musics",
