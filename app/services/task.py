@@ -1119,6 +1119,31 @@ def _run_pipeline(
 
     save_script_data(task_id, video_script, video_terms, params)
 
+    # Scene Engine: feature-flagged integration point. When enabled, generate
+    # a scene plan and attempt routing before legacy material acquisition.
+    scene_candidates = None
+    if config.app.get("scene_engine_enabled", False):
+        try:
+            from app.services import scene as scene_service
+
+            logger.info("scene engine enabled: generating scene plan")
+            scene_plan = scene_service.generate_scene_plan(task_id, params, video_script)
+            try:
+                scene_service.save_scene_plan(task_id, scene_plan)
+            except Exception:
+                logger.warning("failed to persist scene_plan.json, continuing")
+
+            # route_scene_assets may return a list of pre-acquired materials or None
+            scene_candidates = scene_service.route_scene_assets(task_id, params, scene_plan)
+            if scene_candidates:
+                logger.info(f"scene engine returned {len(scene_candidates)} candidate materials")
+        except Exception as exc:
+            logger.exception(f"scene engine error: {exc}")
+            if config.app.get("scene_engine_strict_validation", False):
+                return _mark_task_failed(task_id, "scene", f"scene engine error: {exc}")
+            else:
+                logger.warning("scene engine failed, falling back to legacy materials")
+
     if stop_at == "terms":
         sm.state.update_task(
             task_id, state=const.TASK_STATE_COMPLETE, progress=100, terms=video_terms
@@ -1169,9 +1194,15 @@ def _run_pipeline(
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     # 5. Get video materials
-    downloaded_videos = get_video_materials(
-        task_id, params, video_terms, audio_duration
-    )
+    if config.app.get("scene_engine_enabled", False) and scene_candidates:
+        # scene_candidates is expected to be material-like list compatible with
+        # downstream generate_final_videos. For now we accept any truthy value
+        # returned by the scene router.
+        downloaded_videos = scene_candidates
+    else:
+        downloaded_videos = get_video_materials(
+            task_id, params, video_terms, audio_duration
+        )
     if not downloaded_videos:
         return _mark_task_failed(
             task_id,
