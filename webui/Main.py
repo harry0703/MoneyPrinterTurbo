@@ -1634,7 +1634,13 @@ def stable_selectbox(label, options, default_value, key, format_func=None, **kwa
 
     widget_key = localized_widget_key(key)
     selected_value = st.session_state.get(widget_key)
-    if selected_value not in options:
+    accepts_custom_value = bool(kwargs.get("accept_new_options"))
+    has_valid_custom_value = (
+        accepts_custom_value
+        and isinstance(selected_value, str)
+        and bool(selected_value.strip())
+    )
+    if selected_value not in options and not has_valid_custom_value:
         # 如果上游选项发生变化（例如切换 TTS provider 后声音列表变了），
         # 旧值已经不合法。控件创建前直接初始化 session_state，之后只让 key
         # 管理状态，不再同时传入 index。这样可以避免 Streamlit 在 rerun 时
@@ -2668,13 +2674,10 @@ def _get_voice_preview_provider_signature(tts_server: str) -> dict:
         return {"credential": _credential_signature(config.app.get("mimo_api_key", ""))}
     if tts_server == "minimax-tts":
         return {
-            "base_url": config.minimax_tts.get("base_url", ""),
+            "base_url": voice.get_minimax_tts_endpoint(),
             "model_id": config.minimax_tts.get("model_id", ""),
             "voice_id": config.minimax_tts.get("voice_id", ""),
-            "credential": _credential_signature(
-                config.minimax_tts.get("api_key", "")
-                or config.app.get("minimax_api_key", "")
-            ),
+            "credential": _credential_signature(voice.get_minimax_tts_api_key()),
         }
     if tts_server == "elevenlabs":
         return {
@@ -2946,6 +2949,147 @@ def _get_reusable_full_voice_preview(params, voice_mode: str) -> dict | None:
         "voice_rate": float(params.voice_rate),
         "voice_volume": float(params.voice_volume),
     }
+
+
+def _sync_minimax_tts_api_key_input():
+    """
+    同步 MiniMax TTS 密码控件，并返回当前有效 Key。
+
+    TTS 专用 Key 为空时允许复用 MiniMax LLM Key。共享 Key 只用于当前控件和
+    请求，不自动复制到 [minimax_tts]，避免同一凭证在配置文件中重复维护。
+    """
+    widget_key = "minimax_tts_api_key_input"
+    configured_key = str(config.minimax_tts.get("api_key", "") or "").strip()
+    shared_key = str(
+        config.app.get("minimax_api_key", "")
+        or os.getenv("MINIMAX_API_KEY", "")
+        or ""
+    ).strip()
+    effective_key = configured_key or shared_key
+    had_widget_state = widget_key in st.session_state
+    entered_key = str(st.session_state.get(widget_key, "") or "").strip()
+
+    if not entered_key and effective_key:
+        # 浏览器重连可能重放空密码状态。恢复已配置凭证，防止空值覆盖配置，
+        # 同时确保当前 rerun 的试听请求可以直接使用有效 Key。
+        st.session_state[widget_key] = effective_key
+        entered_key = effective_key
+        if had_widget_state:
+            logger.debug("restored MiniMax TTS API key after empty session replay")
+    elif not had_widget_state:
+        st.session_state[widget_key] = effective_key
+        entered_key = effective_key
+
+    if entered_key and entered_key != effective_key:
+        _set_runtime_config("minimax_tts", "api_key", entered_key)
+
+    return entered_key
+
+
+def _get_cached_minimax_voices(api_key: str, endpoint: str) -> list[dict[str, str]]:
+    """按站点和凭证摘要读取当前会话中的 MiniMax 音色查询结果。"""
+    cache = st.session_state.get("minimax_tts_voice_catalog_cache", {})
+    cache_key = f"{endpoint}|{_credential_signature(api_key)}"
+    cached_voices = cache.get(cache_key, [])
+    return cached_voices if isinstance(cached_voices, list) else []
+
+
+def _cache_minimax_voices(
+    api_key: str,
+    endpoint: str,
+    voices: list[dict[str, str]],
+):
+    """缓存主动查询到的音色，避免普通控件 rerun 后重复请求 MiniMax。"""
+    cache = st.session_state.setdefault("minimax_tts_voice_catalog_cache", {})
+    cache_key = f"{endpoint}|{_credential_signature(api_key)}"
+    cache[cache_key] = voices
+
+
+def _render_minimax_tts_settings() -> tuple[list[str], dict[str, str]]:
+    """渲染 MiniMax TTS 配置，并返回统一音色选择器使用的选项和文案。"""
+    effective_api_key = _sync_minimax_tts_api_key_input()
+    effective_api_key = st.text_input(
+        tr("MiniMax TTS API Key"),
+        type="password",
+        key="minimax_tts_api_key_input",
+    ).strip()
+
+    dedicated_key = str(config.minimax_tts.get("api_key", "") or "").strip()
+    minimax_tts_endpoints = [voice.MINIMAX_TTS_GLOBAL_URL, voice.MINIMAX_TTS_CN_URL]
+    effective_endpoint = voice.get_minimax_tts_endpoint()
+    if effective_endpoint not in minimax_tts_endpoints:
+        effective_endpoint = voice.MINIMAX_TTS_GLOBAL_URL
+    minimax_tts_base_url = stable_selectbox(
+        tr("MiniMax TTS Endpoint"),
+        options=minimax_tts_endpoints,
+        default_value=effective_endpoint,
+        key="minimax_tts_endpoint_select",
+        # 复用 LLM Key 时必须跟随 LLM 所在区域，避免界面允许选择一个实际
+        # 不会生效的地址；填写独立 TTS Key 后即可单独选择站点。
+        disabled=not dedicated_key,
+    )
+    if dedicated_key:
+        _set_runtime_config("minimax_tts", "base_url", minimax_tts_base_url)
+
+    configured_model = config.minimax_tts.get("model_id", voice.MINIMAX_TTS_DEFAULT_MODEL)
+    if configured_model not in voice.MINIMAX_TTS_MODELS:
+        configured_model = voice.MINIMAX_TTS_DEFAULT_MODEL
+    minimax_tts_model = stable_selectbox(
+        tr("MiniMax TTS Model"),
+        options=list(voice.MINIMAX_TTS_MODELS),
+        default_value=configured_model,
+        key="minimax_tts_model_select",
+    )
+    _set_runtime_config("minimax_tts", "model_id", minimax_tts_model)
+
+    if st.button(
+        tr("Load MiniMax Voices"),
+        key="load_minimax_voices_button",
+        icon=":material/refresh:",
+        use_container_width=True,
+    ):
+        try:
+            available_voices = voice.get_minimax_voice_catalog(
+                api_key=effective_api_key,
+                endpoint=minimax_tts_base_url,
+                voice_type="all",
+            )
+        except Exception as exc:
+            # 这里必须把异常暴露给用户并记录日志。账号区域不匹配、Key 权限不足
+            # 或网络失败都很常见，静默返回空列表会让用户误以为账号没有音色。
+            logger.warning(f"load MiniMax voices failed: {exc}")
+            st.error(tr("MiniMax Voices Load Failed").format(error=str(exc)))
+        else:
+            _cache_minimax_voices(
+                effective_api_key,
+                minimax_tts_base_url,
+                available_voices,
+            )
+            st.success(
+                tr("MiniMax Voices Loaded").format(count=len(available_voices))
+            )
+
+    available_voices = _get_cached_minimax_voices(
+        effective_api_key,
+        minimax_tts_base_url,
+    )
+    voice_labels = {
+        f"minimax:{item['voice_id']}": (
+            f"{item['voice_name']} ({item['voice_id']})"
+            if item["voice_name"] != item["voice_id"]
+            else item["voice_id"]
+        )
+        for item in available_voices
+    }
+    configured_voice_id = str(
+        config.minimax_tts.get("voice_id", voice.MINIMAX_TTS_DEFAULT_VOICE)
+        or voice.MINIMAX_TTS_DEFAULT_VOICE
+    ).strip()
+    configured_voice = f"minimax:{configured_voice_id}"
+    # 尚未点击获取音色、接口暂时不可用或配置使用列表外克隆音色时，仍保留
+    # 当前 Voice ID，确保原有生成流程不依赖远端音色查询结果。
+    voice_labels.setdefault(configured_voice, configured_voice_id)
+    return list(voice_labels), voice_labels
 
 
 def _sync_elevenlabs_api_key_input():
@@ -3292,6 +3436,15 @@ def _render_audio_settings(panel, params):
                 if provider_tips:
                     st.info(provider_tips)
 
+            # MiniMax 只复用下方通用“配音声音”选择器。Provider 配置函数负责
+            # 刷新远端音色并返回友好文案，不再额外渲染 Voice ID 和音色下拉框。
+            minimax_voices = []
+            minimax_voice_labels = {}
+            if tts_mode_enabled and selected_tts_server == "minimax-tts":
+                minimax_voices, minimax_voice_labels = (
+                    _render_minimax_tts_settings()
+                )
+
             # 根据选择的TTS服务器获取声音列表
             filtered_voices = []
             saved_voice_name = config.ui.get("voice_name", "")
@@ -3310,7 +3463,7 @@ def _render_audio_settings(panel, params):
                 # 获取 Xiaomi MiMo TTS 的预置音色列表
                 filtered_voices = voice.get_mimo_voices()
             elif selected_tts_server == "minimax-tts":
-                filtered_voices = voice.get_minimax_voices()
+                filtered_voices = minimax_voices
             elif selected_tts_server == "elevenlabs":
                 # 音色列表位于 Key 输入框之前渲染，必须先统一恢复重连状态并读取
                 # 配置/环境变量，否则页面会用空 Key 加载并缓存空音色列表。
@@ -3350,7 +3503,7 @@ def _render_audio_settings(panel, params):
                     name = v.split(":", 1)[1] if ":" in v else v
                     return name.replace("-Female", "").replace("-Male", "")
                 if voice.is_minimax_voice(v):
-                    return v.split(":", 1)[1]
+                    return minimax_voice_labels.get(v, v.split(":", 1)[1])
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))
@@ -3384,8 +3537,25 @@ def _render_audio_settings(panel, params):
                     options=list(friendly_names.keys()),
                     default_value=list(friendly_names.keys())[saved_voice_name_index],
                     key=f"speech_synthesis_select_{selected_tts_server}",
-                    format_func=lambda value: friendly_names[value],
+                    format_func=lambda value: friendly_names.get(
+                        value,
+                        str(value).removeprefix("minimax:"),
+                    ),
+                    # MiniMax 支持用户直接输入列表外的克隆或生成音色 ID；其它
+                    # Provider 维持原选择器行为，不扩大本次修改的影响范围。
+                    accept_new_options=selected_tts_server == "minimax-tts",
                 )
+
+                if selected_tts_server == "minimax-tts":
+                    custom_voice_id = str(voice_name or "").strip()
+                    if custom_voice_id and not voice.is_minimax_voice(custom_voice_id):
+                        voice_name = f"minimax:{custom_voice_id}"
+                    if voice.is_minimax_voice(voice_name):
+                        _set_runtime_config(
+                            "minimax_tts",
+                            "voice_id",
+                            voice_name.split(":", 1)[1],
+                        )
 
                 params.voice_name = voice_name
                 if not voice.is_no_voice(voice_name):
@@ -3471,59 +3641,6 @@ def _render_audio_settings(panel, params):
                 )
 
                 _set_runtime_config("app", "mimo_api_key", mimo_api_key)
-
-            if tts_mode_enabled and (
-                selected_tts_server == "minimax-tts"
-                or (voice_name and voice.is_minimax_voice(voice_name))
-            ):
-                minimax_tts_api_key = st.text_input(
-                    tr("MiniMax TTS API Key"),
-                    value=config.minimax_tts.get("api_key", ""),
-                    type="password",
-                    key="minimax_tts_api_key_input",
-                )
-                _set_runtime_config("minimax_tts", "api_key", minimax_tts_api_key)
-
-                minimax_tts_endpoints = [
-                    voice.MINIMAX_TTS_GLOBAL_URL,
-                    voice.MINIMAX_TTS_CN_URL,
-                ]
-                configured_endpoint = config.minimax_tts.get(
-                    "base_url", voice.MINIMAX_TTS_GLOBAL_URL
-                )
-                if configured_endpoint not in minimax_tts_endpoints:
-                    configured_endpoint = voice.MINIMAX_TTS_GLOBAL_URL
-                minimax_tts_base_url = stable_selectbox(
-                    tr("MiniMax TTS Endpoint"),
-                    options=minimax_tts_endpoints,
-                    default_value=configured_endpoint,
-                    key="minimax_tts_endpoint_select",
-                )
-                _set_runtime_config("minimax_tts", "base_url", minimax_tts_base_url)
-
-                configured_model = config.minimax_tts.get(
-                    "model_id", voice.MINIMAX_TTS_DEFAULT_MODEL
-                )
-                if configured_model not in voice.MINIMAX_TTS_MODELS:
-                    configured_model = voice.MINIMAX_TTS_DEFAULT_MODEL
-                minimax_tts_model = stable_selectbox(
-                    tr("MiniMax TTS Model"),
-                    options=list(voice.MINIMAX_TTS_MODELS),
-                    default_value=configured_model,
-                    key="minimax_tts_model_select",
-                )
-                _set_runtime_config("minimax_tts", "model_id", minimax_tts_model)
-
-                minimax_tts_voice_id = st.text_input(
-                    tr("MiniMax TTS Voice ID"),
-                    value=config.minimax_tts.get(
-                        "voice_id", voice.MINIMAX_TTS_DEFAULT_VOICE
-                    ),
-                    key="minimax_tts_voice_id_input",
-                )
-                _set_runtime_config(
-                    "minimax_tts", "voice_id", minimax_tts_voice_id.strip()
-                )
 
             # ElevenLabs API key section
             if tts_mode_enabled and (

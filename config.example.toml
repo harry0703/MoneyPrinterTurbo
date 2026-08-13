@@ -318,9 +318,10 @@ api_key = ""
 # API key: https://platform.minimax.io/user-center/basic-information/interface-key
 # Global endpoint: https://api.minimax.io/v1/t2a_v2
 # China endpoint: https://api.minimaxi.com/v1/t2a_v2
-# The MiniMax text-generation API key is used as a fallback when this is empty.
+# When api_key is empty, the MiniMax LLM key and its matching regional endpoint
+# are reused automatically. Set both fields only when TTS uses a separate key.
 api_key = ""
-base_url = "https://api.minimax.io/v1/t2a_v2"
+base_url = ""
 model_id = "speech-2.8-hd"
 voice_id = "English_expressive_narrator"
 sample_rate = 32000

@@ -629,9 +629,153 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(captured["json"]["voice_setting"]["voice_id"], "male-qn-qingse")
         self.assertEqual(captured["json"]["audio_setting"]["format"], "mp3")
 
+    def test_minimax_tts_reuses_cn_llm_key_and_endpoint(self):
+        """TTS 未单独配置时，应复用同区域的 MiniMax LLM 凭证和地址。"""
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {"data": {"audio": b"audio".hex(), "status": 2}, "base_resp": {"status_code": 0}}
+
+        class _Clip:
+            duration = 1.25
+
+            def close(self):
+                pass
+
+        captured = {}
+
+        def _post(url, json=None, headers=None, timeout=None):
+            captured.update(url=url, headers=headers)
+            return _Response()
+
+        settings = {
+            "api_key": "", "base_url": vs.MINIMAX_TTS_GLOBAL_URL,
+            "model_id": vs.MINIMAX_TTS_DEFAULT_MODEL, "audio_format": "mp3",
+        }
+        app_settings = {
+            "minimax_api_key": "shared-cn-key",
+            "minimax_base_url": "https://api.minimaxi.com/v1",
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.config, "minimax_tts", settings
+        ), patch.object(vs.config, "app", app_settings), patch.object(
+            vs.requests, "post", side_effect=_post
+        ), patch.object(vs, "AudioFileClip", return_value=_Clip()):
+            voice_file = str(Path(tmp_dir) / "minimax.mp3")
+            result = vs.minimax_tts("测试。", "male-qn-qingse", 1.0, voice_file)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(captured["url"], vs.MINIMAX_TTS_CN_URL)
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer shared-cn-key")
+
+    def test_get_minimax_voice_catalog_normalizes_all_voice_types(self):
+        """音色查询应统一不同来源的响应结构，并忽略重复或空 Voice ID。"""
+
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {
+                    "system_voice": [
+                        {"voice_id": "system-1", "voice_name": "系统音色"},
+                        {"voice_id": "", "voice_name": "无效音色"},
+                    ],
+                    "voice_cloning": [
+                        {"voice_id": "clone-1", "voice_name": "我的克隆音色"},
+                        {"voice_id": "system-1", "voice_name": "重复音色"},
+                    ],
+                    "voice_generation": [{"voice_id": "generated-1"}],
+                    "base_resp": {"status_code": "0"},
+                }
+
+        with patch.object(vs.requests, "post", return_value=_Response()) as post:
+            catalog = vs.get_minimax_voice_catalog(
+                api_key="test-key",
+                endpoint=vs.MINIMAX_TTS_CN_URL,
+            )
+
+        post.assert_called_once_with(
+            "https://api.minimaxi.com/v1/get_voice",
+            json={"voice_type": "all"},
+            headers={
+                "Authorization": "Bearer test-key",
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        )
+        self.assertEqual(
+            catalog,
+            [
+                {
+                    "voice_id": "system-1",
+                    "voice_name": "系统音色",
+                    "voice_type": "system",
+                },
+                {
+                    "voice_id": "clone-1",
+                    "voice_name": "我的克隆音色",
+                    "voice_type": "voice_cloning",
+                },
+                {
+                    "voice_id": "generated-1",
+                    "voice_name": "generated-1",
+                    "voice_type": "voice_generation",
+                },
+            ],
+        )
+
+    def test_get_minimax_voice_catalog_exposes_provider_error(self):
+        """远端业务错误应明确抛出，不能被伪装成账号没有可用音色。"""
+
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {
+                    "base_resp": {
+                        "status_code": 1004,
+                        "status_msg": "invalid api key",
+                    }
+                }
+
+        with patch.object(vs.requests, "post", return_value=_Response()):
+            with self.assertRaisesRegex(RuntimeError, "invalid api key"):
+                vs.get_minimax_voice_catalog(api_key="invalid-key")
+
+    def test_minimax_tts_does_not_leave_invalid_audio_output(self):
+        """响应音频无法解析时，不应覆盖已有文件或留下临时文件。"""
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {"data": {"audio": b"invalid-audio".hex(), "status": 2}, "base_resp": {"status_code": 0}}
+
+        settings = {
+            "api_key": "test-key", "base_url": vs.MINIMAX_TTS_GLOBAL_URL,
+            "model_id": vs.MINIMAX_TTS_DEFAULT_MODEL, "audio_format": "mp3",
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.config, "minimax_tts", settings
+        ), patch.object(vs.requests, "post", return_value=_Response()), patch.object(
+            vs, "AudioFileClip", side_effect=OSError("invalid audio")
+        ):
+            voice_path = Path(tmp_dir) / "minimax.mp3"
+            voice_path.write_bytes(b"existing-audio")
+            result = vs.minimax_tts("Speech test.", "English_expressive_narrator", 1.0, str(voice_path))
+
+            self.assertIsNone(result)
+            self.assertEqual(voice_path.read_bytes(), b"existing-audio")
+            self.assertEqual([path.name for path in Path(tmp_dir).iterdir()], ["minimax.mp3"])
+
     def test_minimax_voice_helpers_and_dispatch(self):
         with patch.object(vs.config, "minimax_tts", {"voice_id": "narrator"}):
             self.assertEqual(vs.get_minimax_voices(), ["minimax:narrator"])
+        self.assertEqual(vs.get_minimax_voices("custom-voice"), ["minimax:custom-voice"])
         self.assertTrue(vs.is_minimax_voice("minimax:narrator"))
         sentinel = object()
         with patch.object(vs, "minimax_tts", return_value=sentinel) as implementation:

@@ -21,6 +21,7 @@ TTS_API_KEY_LABELS = {
     "SiliconFlow API Key": "cloud.siliconflow.cn/account/ak",
     "Gemini API Key": "aistudio.google.com/app/apikey",
     "MiMo API Key": "mimo.mi.com/docs/",
+    "MiniMax TTS API Key": "platform.minimaxi.com",
     "ElevenLabs API Key": "elevenlabs.io/app/settings/api-keys",
     "Chatterbox API Key": "github.com/travisvn/chatterbox-tts-api",
 }
@@ -30,6 +31,7 @@ TTS_PROVIDER_WIDGETS = {
     "siliconflow": ("siliconflow_api_key_input", "SiliconFlow API Key"),
     "gemini-tts": ("gemini_tts_api_key_input", "Gemini API Key"),
     "mimo-tts": ("mimo_tts_api_key_input", "MiMo API Key"),
+    "minimax-tts": ("minimax_tts_api_key_input", "MiniMax TTS API Key"),
     "elevenlabs": ("elevenlabs_api_key_input", "ElevenLabs API Key"),
     "chatterbox": ("chatterbox_api_key_input", "Chatterbox API Key"),
 }
@@ -153,4 +155,156 @@ def test_elevenlabs_environment_key_is_used_without_persisting_it():
     assert app.session_state["elevenlabs_api_key_input"] == "env-key"
     assert get_voices.call_count >= 1
     assert all(call.args == ("env-key",) for call in get_voices.call_args_list)
+    assert [str(item.value) for item in app.exception] == []
+
+
+def test_minimax_reconnect_restores_saved_tts_key():
+    """浏览器重连后的空状态不能清除已经保存的 MiniMax TTS Key。"""
+    test_config = dict(config.minimax_tts, api_key="saved-tts-key", base_url=voice.MINIMAX_TTS_GLOBAL_URL)
+    test_ui = dict(config.ui, voice_mode="tts", tts_server="minimax-tts", voice_name="")
+
+    with (
+        patch.object(config, "minimax_tts", test_config),
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "en"
+        app.session_state["minimax_tts_api_key_input"] = ""
+        app.run()
+
+    assert test_config["api_key"] == "saved-tts-key"
+    assert app.session_state["minimax_tts_api_key_input"] == "saved-tts-key"
+    assert [str(item.value) for item in app.exception] == []
+
+
+def test_minimax_shared_llm_key_is_not_duplicated_in_tts_config():
+    """共享 LLM Key 应自动匹配区域，但不能被复制进 TTS 专用配置。"""
+    test_config = dict(config.minimax_tts, api_key="", base_url="")
+    test_app_config = dict(
+        config.app,
+        minimax_api_key="shared-cn-key",
+        minimax_base_url="https://api.minimaxi.com/v1",
+    )
+    test_ui = dict(config.ui, voice_mode="tts", tts_server="minimax-tts", voice_name="")
+
+    with (
+        patch.object(config, "minimax_tts", test_config),
+        patch.object(config, "app", test_app_config),
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "en"
+        app.run()
+
+    api_key_input = _widget_by_key(app.text_input, "minimax_tts_api_key_input")
+    endpoint_select = _widget_by_key(app.selectbox, "minimax_tts_endpoint_select")
+    assert api_key_input.value == "shared-cn-key"
+    assert test_config["api_key"] == ""
+    assert endpoint_select.value == voice.MINIMAX_TTS_CN_URL
+    assert endpoint_select.disabled
+    assert [str(item.value) for item in app.exception] == []
+
+
+def test_minimax_voice_selector_accepts_a_custom_voice_id():
+    """MiniMax 通用音色选择器应开启列表外 Voice ID 输入能力。"""
+    test_config = dict(
+        config.minimax_tts,
+        api_key="test-key",
+        base_url=voice.MINIMAX_TTS_GLOBAL_URL,
+        voice_id="old-voice",
+    )
+    test_ui = dict(
+        config.ui,
+        voice_mode="tts",
+        tts_server="minimax-tts",
+        voice_name="minimax:old-voice",
+    )
+
+    with (
+        patch.object(config, "minimax_tts", test_config),
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "en"
+        app.run()
+        voice_select = _widget_by_key(
+            app.selectbox,
+            "speech_synthesis_select_minimax-tts",
+        )
+
+    assert voice_select.proto.accept_new_options
+    assert voice_select.value == "minimax:old-voice"
+    assert [str(item.value) for item in app.exception] == []
+
+
+def test_minimax_voices_load_only_on_demand_and_sync_the_selected_voice():
+    """音色列表只在用户点击后加载，选择结果应同步到配置和通用音色控件。"""
+    test_config = dict(
+        config.minimax_tts,
+        api_key="test-key",
+        base_url=voice.MINIMAX_TTS_CN_URL,
+        voice_id="old-voice",
+    )
+    test_ui = dict(
+        config.ui,
+        voice_mode="tts",
+        tts_server="minimax-tts",
+        voice_name="minimax:old-voice",
+    )
+    catalog = [
+        {
+            "voice_id": "Chinese (Mandarin)_News_Anchor",
+            "voice_name": "新闻女声",
+            "voice_type": "system",
+        },
+        {
+            "voice_id": "English_expressive_narrator",
+            "voice_name": "Expressive Narrator",
+            "voice_type": "system",
+        },
+    ]
+
+    with (
+        patch.object(config, "minimax_tts", test_config),
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+        patch.object(
+            voice,
+            "get_minimax_voice_catalog",
+            return_value=catalog,
+        ) as get_catalog,
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "zh"
+        app.run()
+
+        # 普通页面 rerun 不能主动消耗 MiniMax API；只有点击按钮才查询。
+        get_catalog.assert_not_called()
+        _widget_by_key(app.button, "load_minimax_voices_button").click().run()
+        get_catalog.assert_called_once_with(
+            api_key="test-key",
+            endpoint=voice.MINIMAX_TTS_CN_URL,
+            voice_type="all",
+        )
+
+        voice_select = _widget_by_key(
+            app.selectbox,
+            "speech_synthesis_select_minimax-tts",
+        )
+        voice_select.set_value("minimax:Chinese (Mandarin)_News_Anchor").run()
+
+        assert test_config["voice_id"] == "Chinese (Mandarin)_News_Anchor"
+        assert voice_select.value == "minimax:Chinese (Mandarin)_News_Anchor"
+
+    voice_select = _widget_by_key(app.selectbox, "speech_synthesis_select_minimax-tts")
+    assert voice_select.proto.accept_new_options
+    assert test_config["voice_id"] == "Chinese (Mandarin)_News_Anchor"
+    assert test_ui["voice_name"] == "minimax:Chinese (Mandarin)_News_Anchor"
+    assert voice_select.value == "minimax:Chinese (Mandarin)_News_Anchor"
+    assert get_catalog.call_count == 1
+    assert not any(item.label == "MiniMax TTS Voice ID" for item in app.text_input)
+    assert not any(item.label == "MiniMax Voice Catalog" for item in app.selectbox)
     assert [str(item.value) for item in app.exception] == []
