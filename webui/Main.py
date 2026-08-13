@@ -2638,11 +2638,23 @@ def _render_photo_overlay_settings(params):
     params.photo_amount = st.slider(
         tr("Photo Count"),
         min_value=1,
-        max_value=15,
+        max_value=40,
         value=int(config.ui.get("photo_amount", 5)),
         key="photo_amount_slider",
     )
     _set_runtime_config("ui", "photo_amount", params.photo_amount)
+
+    params.photo_duration = st.slider(
+        tr("Photo Duration"),
+        min_value=0.8,
+        max_value=6.0,
+        value=float(config.ui.get("photo_duration", 2.0)),
+        step=0.1,
+        format="%.1f",
+        key="photo_duration_slider",
+        help=tr("Photo Duration Help"),
+    )
+    _set_runtime_config("ui", "photo_duration", params.photo_duration)
 
     params.photo_size = st.slider(
         tr("Photo Size"),

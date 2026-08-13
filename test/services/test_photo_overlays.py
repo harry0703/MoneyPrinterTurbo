@@ -117,6 +117,26 @@ class TestPhotoMomentSpread(unittest.TestCase):
         self.assertTrue(all(0 <= i < 2 for i in indexes))
 
 
+class TestPhotoSelection(unittest.TestCase):
+    def test_all_photos_are_used_when_they_fit(self):
+        photos = ["a.jpg", "b.jpg"]
+        self.assertEqual(task._select_photos(photos, 5), photos)
+
+    def test_sampling_spans_the_whole_directory(self):
+        photos = [f"{i:02d}.jpg" for i in range(20)]
+        picked = task._select_photos(photos, 4)
+
+        self.assertEqual(len(picked), 4)
+        self.assertEqual(picked[0], "00.jpg")
+        self.assertGreaterEqual(picked[-1], "15.jpg")
+
+    def test_sampling_keeps_order_and_uniqueness(self):
+        photos = [f"{i:02d}.jpg" for i in range(9)]
+        picked = task._select_photos(photos, 5)
+
+        self.assertEqual(picked, sorted(set(picked)))
+
+
 class TestPhotoOverlayPipeline(unittest.TestCase):
     def setUp(self):
         self.params = VideoParams(video_subject="test")
@@ -149,13 +169,9 @@ class TestPhotoOverlayPipeline(unittest.TestCase):
             self.params.photo_dir = _make_photo_dir(tmp_dir, ["a.jpg", "b.jpg"])
             with (
                 patch("app.services.task._gif_timeline", return_value=self.windows),
-                patch(
-                    "app.services.llm.generate_photo_moments", return_value=[0, 2]
-                ),
+                patch("app.services.llm.generate_photo_moments", return_value=[0, 2]),
             ):
-                overlays = task.generate_photo_overlays(
-                    "t", self.params, "s", None, ""
-                )
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
 
         self.assertEqual(len(overlays), 2)
         self.assertEqual(overlays[0]["start"], 0.0)
@@ -170,13 +186,60 @@ class TestPhotoOverlayPipeline(unittest.TestCase):
                 patch("app.services.task._gif_timeline", return_value=self.windows),
                 patch("app.services.llm.generate_photo_moments", return_value=[1]),
             ):
-                overlays = task.generate_photo_overlays(
-                    "t", self.params, "s", None, ""
-                )
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
 
         duration = overlays[0]["end"] - overlays[0]["start"]
-        self.assertGreaterEqual(duration, task._PHOTO_DISPLAY_RANGE[0])
-        self.assertLessEqual(duration, task._PHOTO_DISPLAY_RANGE[1])
+        self.assertGreaterEqual(
+            duration, self.params.photo_duration - task._PHOTO_DISPLAY_JITTER
+        )
+        self.assertLessEqual(
+            duration, self.params.photo_duration + task._PHOTO_DISPLAY_JITTER
+        )
+
+    def test_display_duration_follows_the_configured_value(self):
+        self.params.photo_duration = 4.0
+        long_windows = [((0.0, 20.0), "only line")]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = _make_photo_dir(tmp_dir, ["a.jpg"])
+            with (
+                patch("app.services.task._gif_timeline", return_value=long_windows),
+                patch("app.services.llm.generate_photo_moments", return_value=[0]),
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        duration = overlays[0]["end"] - overlays[0]["start"]
+        self.assertGreaterEqual(duration, 3.5)
+        self.assertLessEqual(duration, 4.5)
+
+    def test_overlays_never_run_at_the_same_time(self):
+        self.params.photo_duration = 3.0
+        dense_windows = [((float(i), float(i) + 1.0), f"line {i}") for i in range(10)]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = _make_photo_dir(
+                tmp_dir, ["a.jpg", "b.jpg", "c.jpg"]
+            )
+            with (
+                patch("app.services.task._gif_timeline", return_value=dense_windows),
+                patch(
+                    "app.services.llm.generate_photo_moments", return_value=[0, 1, 2]
+                ),
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        self.assertEqual(len(overlays), 3)
+        for earlier, later in zip(overlays, overlays[1:]):
+            self.assertGreaterEqual(later["start"], earlier["end"])
+
+    def test_unsorted_llm_moments_stay_chronological(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = _make_photo_dir(tmp_dir, ["a.jpg", "b.jpg"])
+            with (
+                patch("app.services.task._gif_timeline", return_value=self.windows),
+                patch("app.services.llm.generate_photo_moments", return_value=[2, 0]),
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        self.assertEqual([o["start"] for o in overlays], [0.0, 9.0])
 
     def test_display_window_is_clamped_to_the_timeline_end(self):
         short_windows = [((0.0, 1.0), "only line")]
@@ -186,9 +249,7 @@ class TestPhotoOverlayPipeline(unittest.TestCase):
                 patch("app.services.task._gif_timeline", return_value=short_windows),
                 patch("app.services.llm.generate_photo_moments", return_value=[0]),
             ):
-                overlays = task.generate_photo_overlays(
-                    "t", self.params, "s", None, ""
-                )
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
 
         self.assertEqual(overlays[0]["end"], 1.0)
 
@@ -199,9 +260,7 @@ class TestPhotoOverlayPipeline(unittest.TestCase):
                 patch("app.services.task._gif_timeline", return_value=self.windows),
                 patch("app.services.llm.generate_photo_moments", return_value=[]),
             ):
-                overlays = task.generate_photo_overlays(
-                    "t", self.params, "s", None, ""
-                )
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
 
         self.assertEqual(len(overlays), 2)
 
@@ -214,9 +273,7 @@ class TestPhotoOverlayPipeline(unittest.TestCase):
                     "app.services.llm.generate_photo_moments", return_value=[0]
                 ) as mocked_llm,
             ):
-                overlays = task.generate_photo_overlays(
-                    "t", self.params, "s", None, ""
-                )
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
 
         self.assertEqual(len(overlays), 1)
         self.assertEqual(mocked_llm.call_args.kwargs["amount"], 1)

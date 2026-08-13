@@ -688,7 +688,7 @@ def generate_gif_overlays(
 
 
 _PHOTO_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
-_PHOTO_DISPLAY_RANGE = (1.5, 2.5)
+_PHOTO_DISPLAY_JITTER = 0.5
 
 
 def _list_photo_files(photo_dir: str) -> list[str]:
@@ -726,6 +726,14 @@ def _spread_photo_moments(window_count: int, amount: int) -> list[int]:
     )
 
 
+def _select_photos(photos: list[str], amount: int) -> list[str]:
+    """Sample across the whole directory, so themes sorted last are not dropped."""
+    if amount >= len(photos):
+        return photos
+    step = len(photos) / amount
+    return [photos[min(len(photos) - 1, int(step * i))] for i in range(amount)]
+
+
 def generate_photo_overlays(
     task_id, params, video_script, sub_maker, subtitle_path
 ) -> list[dict]:
@@ -754,17 +762,23 @@ def generate_photo_overlays(
         indexes = _spread_photo_moments(len(windows), amount)
 
     timeline_end = windows[-1][0][1]
+    base_duration = float(getattr(params, "photo_duration", 2.0) or 2.0)
     overlays = []
-    for photo_path, index in zip(photos, indexes[:amount]):
-        (start, _), _ = windows[index]
+    previous_end = 0.0
+    for photo_path, index in zip(
+        _select_photos(photos, amount), sorted(indexes[:amount])
+    ):
+        (window_start, _), _ = windows[index]
+        # Subtitle windows are shorter than a photo burst, so consecutive picks
+        # would stack cards on top of each other without this shift.
+        start = max(window_start, previous_end)
         jitter = video._deterministic_unit(f"{os.path.basename(photo_path)}:window")
-        duration = _PHOTO_DISPLAY_RANGE[0] + jitter * (
-            _PHOTO_DISPLAY_RANGE[1] - _PHOTO_DISPLAY_RANGE[0]
-        )
+        duration = base_duration + (jitter * 2 - 1) * _PHOTO_DISPLAY_JITTER
         end = min(start + duration, timeline_end)
         if end <= start:
             continue
         overlays.append({"path": photo_path, "start": start, "end": end})
+        previous_end = end
 
     logger.success(f"prepared {len(overlays)} photo overlays")
     return overlays

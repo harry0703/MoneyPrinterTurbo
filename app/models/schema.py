@@ -120,8 +120,9 @@ class VideoParams(BaseModel):
     # Static photos from a local directory overlaid the same way as gifs.
     photo_enabled: bool = False
     photo_dir: str = ""
-    photo_amount: int = Field(default=5, ge=1, le=15)
+    photo_amount: int = Field(default=5, ge=1, le=40)
     photo_size: float = Field(default=0.42, ge=0.1, le=0.9)
+    photo_duration: float = Field(default=2.0, ge=0.8, le=6.0)
     photo_animation: str = "random"  # random / pop / slide / kenburns
 
     subtitle_enabled: Optional[bool] = True

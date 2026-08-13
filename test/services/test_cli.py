@@ -233,6 +233,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(params.photo_dir, "")
         self.assertEqual(params.photo_amount, 5)
         self.assertEqual(params.photo_size, 0.42)
+        self.assertEqual(params.photo_duration, 2.0)
         self.assertEqual(params.photo_animation, "random")
 
     def test_photo_flags_map_to_video_params(self):
@@ -248,6 +249,8 @@ class TestCli(unittest.TestCase):
                     "3",
                     "--photo-size",
                     "0.5",
+                    "--photo-duration",
+                    "2.5",
                     "--photo-animation",
                     "pop",
                 ]
@@ -258,6 +261,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(params.photo_dir, tmp_dir)
         self.assertEqual(params.photo_amount, 3)
         self.assertEqual(params.photo_size, 0.5)
+        self.assertEqual(params.photo_duration, 2.5)
         self.assertEqual(params.photo_animation, "pop")
 
     def test_no_photo_enabled_flag_disables_overlays(self):
@@ -269,9 +273,12 @@ class TestCli(unittest.TestCase):
     def test_invalid_photo_values_are_argument_errors(self):
         invalid_argvs = [
             ["--video-subject", "test", "--photo-amount", "0"],
-            ["--video-subject", "test", "--photo-amount", "16"],
+            ["--video-subject", "test", "--photo-amount", "41"],
             ["--video-subject", "test", "--photo-size", "0.05"],
             ["--video-subject", "test", "--photo-size", "nan"],
+            ["--video-subject", "test", "--photo-duration", "0.5"],
+            ["--video-subject", "test", "--photo-duration", "7"],
+            ["--video-subject", "test", "--photo-duration", "nan"],
             ["--video-subject", "test", "--photo-animation", "spiral"],
             ["--video-subject", "test", "--photo-dir", "/does/not/exist"],
             ["--video-subject", "test", "--photo-dir", ""],

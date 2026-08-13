@@ -101,9 +101,9 @@ def _gif_size(value: str) -> float:
 
 def _photo_amount(value: str) -> int:
     parsed = int(value)
-    if parsed < 1 or parsed > 15:
+    if parsed < 1 or parsed > 40:
         raise argparse.ArgumentTypeError(
-            f"photo-amount must be between 1 and 15, got {parsed}"
+            f"photo-amount must be between 1 and 40, got {parsed}"
         )
     return parsed
 
@@ -113,6 +113,15 @@ def _photo_size(value: str) -> float:
     if not math.isfinite(parsed) or parsed < 0.1 or parsed > 0.9:
         raise argparse.ArgumentTypeError(
             f"photo-size must be a finite number between 0.1 and 0.9, got {value!r}"
+        )
+    return parsed
+
+
+def _photo_duration(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed < 0.8 or parsed > 6.0:
+        raise argparse.ArgumentTypeError(
+            f"photo-duration must be a finite number between 0.8 and 6.0, got {value!r}"
         )
     return parsed
 
@@ -380,7 +389,7 @@ Output and exit status:
         "--photo-amount",
         type=_photo_amount,
         default=None,
-        help="maximum number of photo overlays, between 1 and 15 (default: 5)",
+        help="maximum number of photo overlays, between 1 and 40 (default: 5)",
     )
     video_group.add_argument(
         "--photo-size",
@@ -389,6 +398,15 @@ Output and exit status:
         help=(
             "photo width as a fraction of the video width, between 0.1 and 0.9 "
             "(default: 0.42)"
+        ),
+    )
+    video_group.add_argument(
+        "--photo-duration",
+        type=_photo_duration,
+        default=None,
+        help=(
+            "average seconds a photo stays on screen, between 0.8 and 6.0 "
+            "(default: 2.0)"
         ),
     )
     video_group.add_argument(
@@ -700,6 +718,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "photo_dir",
         "photo_amount",
         "photo_size",
+        "photo_duration",
         "photo_animation",
         "n_threads",
         "voice_volume",
