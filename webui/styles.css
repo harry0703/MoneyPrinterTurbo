@@ -353,6 +353,177 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
     }
 }
 
+/* -------------------------------------------------------------------------
+   Creation workspace refresh
+   ------------------------------------------------------------------------- */
+
+/* Give the page a calm workspace surface without forcing a specific theme.
+   The existing Streamlit foreground colors remain the source of truth. */
+[data-testid="stAppViewContainer"] {
+    background:
+        radial-gradient(
+            circle at 6% 0%,
+            color-mix(in srgb, #ff4b4b 8%, transparent),
+            transparent 32rem
+        ),
+        radial-gradient(
+            circle at 95% 12%,
+            color-mix(in srgb, #7c5cff 7%, transparent),
+            transparent 28rem
+        );
+}
+
+div[data-testid="stMainBlockContainer"] {
+    max-width: 1640px !important;
+    margin: 0 auto !important;
+    padding-right: 2rem !important;
+    padding-left: 2rem !important;
+}
+
+div[class*="st-key-top_bar"] {
+    margin-bottom: 1.1rem !important;
+    padding: 0.8rem 1rem !important;
+    border: 1px solid color-mix(in srgb, currentColor 12%, transparent) !important;
+    border-radius: 1rem !important;
+    background: color-mix(in srgb, currentColor 4%, transparent) !important;
+    box-shadow: 0 0.8rem 2.5rem color-mix(in srgb, #000 12%, transparent) !important;
+}
+
+div[class*="st-key-top_bar"] .mpt-brand__name {
+    font-size: clamp(1.85rem, 3vw, 2.45rem) !important;
+    letter-spacing: -0.045em !important;
+}
+
+/* The four settings modules now behave like a compact stepper. */
+div[class*="st-key-main_settings_grid"] {
+    margin-top: 0.35rem !important;
+    padding: 0.35rem !important;
+    border: 1px solid color-mix(in srgb, currentColor 10%, transparent) !important;
+    border-radius: 1.15rem !important;
+    background: color-mix(in srgb, currentColor 2.5%, transparent) !important;
+}
+
+div[class*="st-key-main_settings_grid"] [data-testid="stTabs"] {
+    gap: 0.75rem !important;
+}
+
+div[class*="st-key-main_settings_grid"] [data-baseweb="tab-list"] {
+    gap: 0.35rem !important;
+    padding: 0.35rem !important;
+    border: 1px solid color-mix(in srgb, currentColor 9%, transparent) !important;
+    border-radius: 0.85rem !important;
+    background: color-mix(in srgb, currentColor 3%, transparent) !important;
+}
+
+div[class*="st-key-main_settings_grid"] button[role="tab"] {
+    min-height: 2.55rem !important;
+    padding: 0.45rem 1rem !important;
+    border-radius: 0.65rem !important;
+    color: color-mix(in srgb, currentColor 72%, transparent) !important;
+    font-weight: 600 !important;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease !important;
+}
+
+div[class*="st-key-main_settings_grid"] button[role="tab"]:hover {
+    color: inherit !important;
+    background: color-mix(in srgb, currentColor 7%, transparent) !important;
+    transform: translateY(-1px);
+}
+
+div[class*="st-key-main_settings_grid"] button[role="tab"][aria-selected="true"] {
+    color: inherit !important;
+    background: color-mix(in srgb, #ff4b4b 15%, transparent) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, #ff4b4b 35%, transparent) !important;
+}
+
+div[class*="st-key-main_settings_grid"] [data-testid="stTabContent"] {
+    padding: 0.7rem 0.3rem 0.15rem !important;
+}
+
+/* Settings cards get more breathing room now that they have a full-width tab. */
+div[class*="st-key-script_settings_panel"],
+div[class*="st-key-video_settings_panel"],
+div[class*="st-key-audio_settings_panel"],
+div[class*="st-key-subtitle_settings_panel"] {
+    min-height: 0 !important;
+    padding: 1.15rem 1.25rem 1.05rem !important;
+    border: 1px solid color-mix(in srgb, currentColor 13%, transparent) !important;
+    border-radius: 0.95rem !important;
+    background: color-mix(in srgb, currentColor 3%, transparent) !important;
+    box-shadow: 0 0.6rem 1.8rem color-mix(in srgb, #000 8%, transparent) !important;
+}
+
+div[class*="st-key-script_settings_panel"] > div,
+div[class*="st-key-video_settings_panel"] > div,
+div[class*="st-key-audio_settings_panel"] > div,
+div[class*="st-key-subtitle_settings_panel"] > div {
+    gap: 0.3rem !important;
+}
+
+/* Keep the primary action and its live result visually together. */
+div[class*="st-key-generation_controls"] {
+    margin-top: 1rem !important;
+    padding: 0.9rem 1rem 1rem !important;
+    border: 1px solid color-mix(in srgb, #ff4b4b 22%, currentColor 10%) !important;
+    border-radius: 1rem !important;
+    background: color-mix(in srgb, #ff4b4b 5%, transparent) !important;
+}
+
+div[class*="st-key-generate_video_button"] button {
+    min-height: 3rem !important;
+    border-radius: 0.75rem !important;
+    font-weight: 700 !important;
+    box-shadow: 0 0.65rem 1.5rem color-mix(in srgb, #ff4b4b 18%, transparent) !important;
+}
+
+div[class*="st-key-generation_status_card"] {
+    margin-top: 0.85rem !important;
+    padding: 0.85rem 1rem 0.75rem !important;
+    border: 1px solid color-mix(in srgb, #ff4b4b 28%, currentColor 10%) !important;
+    border-radius: 0.9rem !important;
+    background: color-mix(in srgb, #ff4b4b 6%, transparent) !important;
+}
+
+div[class*="st-key-generation_status_card"] [data-testid="stMetricValue"] {
+    font-size: 1.35rem !important;
+}
+
+div[class*="st-key-generation_status_card"] [data-testid="stProgress"] > div {
+    height: 0.55rem !important;
+    border-radius: 999px !important;
+}
+
+@media (max-width: 700px) {
+    div[data-testid="stMainBlockContainer"] {
+        padding-right: 0.75rem !important;
+        padding-left: 0.75rem !important;
+    }
+
+    div[class*="st-key-main_settings_grid"] {
+        padding: 0.2rem !important;
+        border-radius: 0.85rem !important;
+    }
+
+    div[class*="st-key-main_settings_grid"] [data-baseweb="tab-list"] {
+        overflow-x: auto !important;
+        scrollbar-width: thin;
+    }
+
+    div[class*="st-key-main_settings_grid"] button[role="tab"] {
+        flex: 0 0 auto !important;
+        padding-right: 0.7rem !important;
+        padding-left: 0.7rem !important;
+        font-size: 0.82rem !important;
+    }
+
+    div[class*="st-key-script_settings_panel"],
+    div[class*="st-key-video_settings_panel"],
+    div[class*="st-key-audio_settings_panel"],
+    div[class*="st-key-subtitle_settings_panel"] {
+        padding: 0.85rem 0.8rem !important;
+    }
+}
+
 /* 移动端隐藏桌面表头，并将任务行重排为“主题 + 元信息 + 操作”紧凑结构。 */
 @media (max-width: 700px) {
     div[class*="st-key-task_table_header_"] {
