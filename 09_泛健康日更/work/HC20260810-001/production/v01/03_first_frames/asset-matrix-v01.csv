@@ -1,0 +1,11 @@
+shot,reuse_status,source_plan,candidate_min,high_risk_reason,frame_contract
+S01,new,project-generated raster source; selected source documented in inventory,2,cover+餐+盘,场景共鸣: 餐后人物在暖光餐桌旁短暂眨眼; camera=85mm中近景固定，缓慢推近; formal=HC20260810-001-v01-S01-firstframe.png
+S02,new,project-generated raster source; selected source documented in inventory,2,手+餐+盘,建立多因素问题: 人物抬眼看向窗光，手离开餐盘; camera=侧后方中景，光线切换硬切; formal=HC20260810-001-v01-S02-firstframe.png
+S03,deterministic-board,deterministic review board from existing project asset,1,none,观察昨晚: 家中夜晚关灯与早晨拉帘用两段静态板呈现; camera=无相机运动，确定性双板切换; formal=HC20260810-001-v01-S03-firstframe.png
+S04,new,project-generated raster source; selected source documented in inventory,2,手+餐+餐具,观察午餐: 餐桌同一人物放慢一口后停下餐具; camera=俯侧45度近景，餐具与手同框; formal=HC20260810-001-v01-S04-firstframe.png
+S05,new,project-generated raster source; selected source documented in inventory,2,餐+饭,观察饭后: 人物从餐椅起身，朝客厅方向迈一步; camera=全身中景，小幅横移跟随; formal=HC20260810-001-v01-S05-firstframe.png
+S06,new,project-generated raster source; selected source documented in inventory,2,手+手机+屏幕,执行三项点选: 人物手持黑屏手机，拇指点按三个空白位置; camera=越肩近景固定，屏幕不反光; formal=HC20260810-001-v01-S06-firstframe.png
+S07,new,existing project-generated asset; selected source documented in inventory,2,手+手机,记录感受: 人物放下手机，闭眼感受片刻; camera=正面中近景，轻微后拉; formal=HC20260810-001-v01-S07-firstframe.png
+S08,deterministic-board,deterministic review board from existing project asset,1,none,重复比较: 三次不同日光色块并列，人物剪影保持一致; camera=无相机运动，确定性信息板; formal=HC20260810-001-v01-S08-firstframe.png
+S09,new,project-generated raster source; selected source documented in inventory,2,钥匙+车钥匙+盘,安全边界: 人物把车钥匙放回置物盘并走向沙发; camera=腰部中景，先定后短跟; formal=HC20260810-001-v01-S09-firstframe.png
+S10,deterministic-board,deterministic review board from existing project asset,1,none,保存理由: 品牌暖米白结束卡，三枚青绿圆点依次出现; camera=无相机运动; formal=HC20260810-001-v01-S10-firstframe.png

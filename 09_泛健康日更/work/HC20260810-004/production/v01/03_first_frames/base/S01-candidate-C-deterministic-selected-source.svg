@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <title>Seven alternating seated and walking silhouette tiles</title>
+  <desc>Text-free deterministic lifestyle board using the locked five-color brand palette.</desc>
+
+  <defs>
+    <g id="seated-icon" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Chair: the tall back, horizontal seat, and grounded legs make sitting explicit. -->
+      <path d="M31 63 L31 127 L151 127" stroke="#087F78" stroke-width="20"/>
+      <path d="M47 128 L34 171 M137 128 L150 171" stroke="#087F78" stroke-width="18"/>
+      <!-- Person: vertical torso, horizontal thigh, bent knee and grounded foot. -->
+      <circle cx="82" cy="35" r="23" fill="#24313D" stroke="none"/>
+      <path d="M79 67 C75 84 75 103 78 119" stroke="#24313D" stroke-width="23"/>
+      <path d="M82 77 L125 101" stroke="#24313D" stroke-width="18"/>
+      <path d="M78 119 L132 120 L133 160 L174 160" stroke="#24313D" stroke-width="22"/>
+      <path d="M83 119 L112 145 L106 171" stroke="#24313D" stroke-width="18"/>
+    </g>
+
+    <g id="walking-icon" fill="none" stroke="#FFF8EC" stroke-linecap="round" stroke-linejoin="round">
+      <!-- A forward-leaning body with separated arms and a wide stride. -->
+      <circle cx="94" cy="31" r="23" fill="#FFF8EC" stroke="none"/>
+      <path d="M93 63 L103 113" stroke-width="23"/>
+      <path d="M96 76 L52 99" stroke-width="19"/>
+      <path d="M98 76 L142 91" stroke-width="19"/>
+      <path d="M103 113 L56 160 L25 160" stroke-width="23"/>
+      <path d="M103 113 L151 151 L184 151" stroke-width="23"/>
+    </g>
+  </defs>
+
+  <!-- Warm editorial field. All action silhouettes stay inside the locked focal-safe area. -->
+  <rect width="1080" height="1920" fill="#FFF8EC"/>
+
+  <!-- A quiet sunlight/path motif frames the seven-day rhythm without adding data or text. -->
+  <circle cx="108" cy="286" r="52" fill="#F5C79E"/>
+  <path d="M108 286 C157 266 190 268 226 284" fill="none" stroke="#087F78" stroke-width="16" stroke-linecap="round"/>
+  <path d="M854 1716 C911 1702 952 1708 988 1738" fill="none" stroke="#10BFAE" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Day 1: seated. -->
+  <g>
+    <rect x="120" y="344" width="780" height="168" rx="24" fill="#F5C79E"/>
+    <rect x="120" y="344" width="20" height="168" rx="10" fill="#087F78"/>
+    <use href="#seated-icon" xlink:href="#seated-icon" transform="translate(238 340) scale(0.92)"/>
+  </g>
+
+  <!-- Day 2: walking. -->
+  <g>
+    <rect x="180" y="536" width="780" height="168" rx="24" fill="#10BFAE"/>
+    <rect x="940" y="536" width="20" height="168" rx="10" fill="#087F78"/>
+    <use href="#walking-icon" xlink:href="#walking-icon" transform="translate(672 536) scale(0.92)"/>
+  </g>
+
+  <!-- Day 3: seated. -->
+  <g>
+    <rect x="120" y="728" width="780" height="168" rx="24" fill="#F5C79E"/>
+    <rect x="120" y="728" width="20" height="168" rx="10" fill="#087F78"/>
+    <use href="#seated-icon" xlink:href="#seated-icon" transform="translate(238 724) scale(0.92)"/>
+  </g>
+
+  <!-- Day 4: walking. -->
+  <g>
+    <rect x="180" y="920" width="780" height="168" rx="24" fill="#10BFAE"/>
+    <rect x="940" y="920" width="20" height="168" rx="10" fill="#087F78"/>
+    <use href="#walking-icon" xlink:href="#walking-icon" transform="translate(672 920) scale(0.92)"/>
+  </g>
+
+  <!-- Day 5: seated. -->
+  <g>
+    <rect x="120" y="1112" width="780" height="168" rx="24" fill="#F5C79E"/>
+    <rect x="120" y="1112" width="20" height="168" rx="10" fill="#087F78"/>
+    <use href="#seated-icon" xlink:href="#seated-icon" transform="translate(238 1108) scale(0.92)"/>
+  </g>
+
+  <!-- Day 6: walking. -->
+  <g>
+    <rect x="180" y="1304" width="780" height="168" rx="24" fill="#10BFAE"/>
+    <rect x="940" y="1304" width="20" height="168" rx="10" fill="#087F78"/>
+    <use href="#walking-icon" xlink:href="#walking-icon" transform="translate(672 1304) scale(0.92)"/>
+  </g>
+
+  <!-- Day 7: seated. -->
+  <g>
+    <rect x="120" y="1496" width="780" height="168" rx="24" fill="#F5C79E"/>
+    <rect x="120" y="1496" width="20" height="168" rx="10" fill="#087F78"/>
+    <use href="#seated-icon" xlink:href="#seated-icon" transform="translate(238 1492) scale(0.92)"/>
+  </g>
+</svg>

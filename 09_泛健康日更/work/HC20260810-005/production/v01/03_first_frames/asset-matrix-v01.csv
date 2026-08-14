@@ -1,0 +1,11 @@
+shot,reuse_status,source_plan,candidate_min,high_risk_reason,frame_contract
+S01,new,imagegen character-reference,2,cover+visible hands,front office mid-shot; character briefly raises then lowers empty hands
+S02,new,imagegen character-reference,2,visible hands+keyboard,top-down desk; hands moving away from keyboard
+S03,new,imagegen character-reference,2,screen/action clarity,three-quarter face close shot looking toward ambient window light
+S04,deterministic-board,deterministic render,2,screen/three-state board,three text-free lifestyle panels with no person silhouette
+S05,new,imagegen character-reference,2,phone+finger,over-shoulder clean replacement screen; one tap
+S06,new,imagegen character-reference,2,visible hands+walking limbs,office-to-window wide; character starts moving to window
+S07,new,imagegen character-reference,2,visible hands+seated posture,side full-body; character seated after returning
+S08,deterministic-board,deterministic render,1,none,text-free three-branch neutral board
+S09,deterministic-board,imagegen still life,2,car keys,ordinary office desk with one car-key set
+S10,deterministic-board,deterministic render,1,none,text-free single teal dot on short path ending card

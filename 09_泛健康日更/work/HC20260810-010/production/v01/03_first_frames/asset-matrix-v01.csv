@@ -1,0 +1,11 @@
+shot,reuse_status,source_plan,candidate_min,high_risk_reason,frame_contract
+S01,deterministic-board,imagegen lifestyle editorial board,2,cover,top-down seven blank rounded tiles arranged in a circle; one tile offset to show an exception; no chart axes
+S02,new,imagegen character-reference,2,visible hands+phone,front medium-wide living-room view; same character seated on sofa and glancing at a natural 1:2.1 black-screen phone
+S03,deterministic-board,imagegen lifestyle editorial diptych,1,none,text-free vertical night-and-morning home-light diptych; no clock or numbers
+S04,new,imagegen character-reference,2,food+cutlery+visible hands,side full-body dining view; same character collects exactly one plate and begins one safe step away
+S05,new,imagegen character-reference,2,visible hands+two-state continuity,quiet afternoon room; same character pauses while leaning lightly on chair before one easy household action
+S06,deterministic-board,imagegen lifestyle editorial board,1,none,seven blank rounded tiles; exactly one warm-cream empty tile; no zero or scoring marks
+S07,deterministic-board,imagegen lifestyle editorial board,1,none,six same-color blank tiles grouped together and one peach exception tile separated; no charts or arrows
+S08,new,imagegen character-reference,2,visible hand+object count,top-down home console; exactly three neutral daily objects and one visible hand moving only one object
+S09,deterministic-board,imagegen lifestyle editorial board,1,none,five weekday tiles and two weekend tiles linked by one short neutral path; no conclusion badge
+S10,deterministic-board,imagegen lifestyle editorial board,1,none,the same seven-tile set continues along a calm path into a second group; one pause dot stays at the path start; no warning icon

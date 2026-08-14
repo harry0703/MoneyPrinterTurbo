@@ -1,0 +1,11 @@
+shot,reuse_status,source_plan,candidate_min,high_risk_reason,frame_contract
+S01,new,imagegen character-reference,2,cover+visible hand+hot drink,coffee cup centered at warm dining table; character hand pauses before reaching
+S02,new,imagegen character-reference,2,visible hand+hot-drink pot,table close shot; character pushes one refill pot back to table edge
+S03,new,imagegen still life,2,hot drink,top-down coffee cup with natural late-day window-light cue
+S04,deterministic-board,imagegen still life,2,drink vessels,two distinct unbranded cup shapes side by side; text-free
+S05,new,imagegen character-reference,2,visible hand+phone,night bedroom medium-wide; character seated on bed edge with clean-screen phone lowered
+S06,new,"imagegen + character-reference-v01.png; selected=base/HC20260810-007-v01-S06-candidate-05-phone-audit-selected-source.png; source_sha256=632c94c8e126aa69c3dd1cbfd3efe5292216f6b9856c87a2d2ea288aaa349b45; formal_sha256=57ec7fd4f7f4d9dc9a1c5ab226cba8832a982f971179b2f769cbf0659d331b05",2,phone+fingers,"over-shoulder near-front-on solid deep-gray screen; two spatially separated taps; fingertip outside central 70%; visible outer ratio approximately 2.09"
+S07,deterministic-board,imagegen still life,2,three drink vessels,three identical unbranded cups along a sunlight path; text-free
+S08,deterministic-board,imagegen abstract board,1,none,text-free calm night-window color panels
+S09,new,imagegen character-reference,2,visible hands+hot drink+car keys,coffee left on table while character walks toward sofa away from one key set
+S10,deterministic-board,imagegen still life,2,drink vessel,text-free coffee-cup silhouette and short path closing board
