@@ -237,32 +237,31 @@ export default function Home() {
         );
       default:
         return (
-          <div className="space-y-7">
-            <FieldGroup label="Video idea" description="Start with one clear sentence. You can refine the script below.">
-              <textarea className="min-h-28 w-full resize-y rounded-2xl border border-white/10 bg-[#10111a] px-4 py-4 text-base text-white outline-none transition placeholder:text-[#646678] focus:border-[#ff5b62]/60 focus:ring-4 focus:ring-[#ff5b62]/10" placeholder="Example: How AI is changing everyday life" value={form.subject} onChange={(event) => updateForm("subject", event.target.value)} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <FieldGroup label="Video idea" description="One clear sentence to anchor the story.">
+              <textarea className="min-h-28 w-full resize-y rounded-xl border border-white/10 bg-[#10111a] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-[#646678] focus:border-[#ff5b62]/60 focus:ring-4 focus:ring-[#ff5b62]/10" placeholder="Example: How AI is changing everyday life" value={form.subject} onChange={(event) => updateForm("subject", event.target.value)} />
             </FieldGroup>
-            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
-              <FieldGroup label="Video script" description="Optional — generate one from your idea or write your own.">
-                <textarea className="min-h-36 w-full resize-y rounded-2xl border border-white/10 bg-[#10111a] px-4 py-4 text-sm leading-6 text-white outline-none transition placeholder:text-[#646678] focus:border-[#ff5b62]/60 focus:ring-4 focus:ring-[#ff5b62]/10" placeholder="Your narration will appear here..." value={form.script} onChange={(event) => updateForm("script", event.target.value)} />
+            <FieldGroup label="Video script" description="Optional — write it or generate it with AI.">
+              <textarea className="min-h-28 w-full resize-y rounded-xl border border-white/10 bg-[#10111a] px-3.5 py-3 text-sm leading-5 text-white outline-none transition placeholder:text-[#646678] focus:border-[#ff5b62]/60 focus:ring-4 focus:ring-[#ff5b62]/10" placeholder="Your narration will appear here..." value={form.script} onChange={(event) => updateForm("script", event.target.value)} />
+              <button className="mt-2 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white transition hover:border-[#ff5b62]/50 hover:bg-[#ff5b62]/10 disabled:cursor-wait disabled:opacity-50" onClick={generateScript} disabled={isGeneratingScript}>{isGeneratingScript ? "Writing..." : "Generate with AI"}</button>
+            </FieldGroup>
+            <div className="md:col-span-2">
+              <FieldGroup label="Keywords" description="Optional — comma-separated visual hints.">
+                <input className="w-full rounded-xl border border-white/10 bg-[#10111a] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-[#646678] focus:border-[#ff5b62]/60 focus:ring-4 focus:ring-[#ff5b62]/10" placeholder="technology, people, future, creativity" value={form.keywords} onChange={(event) => updateForm("keywords", event.target.value)} />
               </FieldGroup>
-              <button className="mb-0.5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-[#ff5b62]/50 hover:bg-[#ff5b62]/10 disabled:cursor-wait disabled:opacity-50" onClick={generateScript} disabled={isGeneratingScript}>{isGeneratingScript ? "Writing..." : "Generate with AI"}</button>
             </div>
-            <FieldGroup label="Keywords" description="Optional — comma-separated visual hints.">
-              <input className="w-full rounded-xl border border-white/10 bg-[#10111a] px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#646678] focus:border-[#ff5b62]/60 focus:ring-4 focus:ring-[#ff5b62]/10" placeholder="technology, people, future, creativity" value={form.keywords} onChange={(event) => updateForm("keywords", event.target.value)} />
-            </FieldGroup>
           </div>
         );
     }
   }, [activeStep, form, isGeneratingScript]);
 
   return (
-    <main className="mx-auto min-h-screen max-w-[1480px] px-5 pb-10 pt-5 sm:px-8 lg:px-10">
-      <header className="glass subtle-ring mb-7 flex flex-wrap items-center justify-between gap-5 rounded-3xl px-5 py-4 sm:px-7">
+    <main className="mx-auto min-h-screen max-w-[1480px] px-4 pb-5 pt-3 sm:px-6 lg:px-8">
+      <header className="glass subtle-ring mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-2.5 sm:px-5">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[#ff5b62] to-[#8f73ff] text-xl font-black shadow-lg shadow-[#ff5b62]/20">✦</div>
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#ff5b62] to-[#8f73ff] text-lg font-black shadow-lg shadow-[#ff5b62]/20">✦</div>
           <div>
-            <div className="flex items-baseline gap-2"><h1 className="text-xl font-bold tracking-[-0.04em] sm:text-2xl">MoneyPrinterTurbo</h1><span className="text-xs font-semibold text-[#77798b]">v1.3.4</span></div>
-            <p className="mt-0.5 text-xs text-[#9899aa]">Turn one idea into a ready-to-publish short.</p>
+            <div className="flex items-baseline gap-2"><h1 className="text-lg font-bold tracking-[-0.04em] sm:text-xl">MoneyPrinterTurbo</h1><span className="text-[11px] font-semibold text-[#77798b]">v1.3.4</span></div>
           </div>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -271,38 +270,38 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <section className="glass rounded-3xl p-5 sm:p-7">
-          <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-            <div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#ff8f94]">Creation workspace</p><h2 className="text-2xl font-bold tracking-[-0.04em] sm:text-3xl">Build your next video</h2><p className="mt-2 max-w-xl text-sm leading-6 text-[#9899aa]">A calmer flow for story, visuals, sound, and captions. Your settings stay focused instead of fighting for screen space.</p></div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-right"><div className="text-xs text-[#77798b]">Step</div><div className="font-semibold">{steps.findIndex((step) => step.id === activeStep) + 1} <span className="text-[#77798b]">/ {steps.length}</span></div></div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <section className="glass rounded-2xl p-4 sm:p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff8f94]">Creation workspace</p><h2 className="mt-1 text-xl font-bold tracking-[-0.04em] sm:text-2xl">Build your next video</h2></div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.035] px-2.5 py-1.5 text-right text-xs"><span className="text-[#77798b]">Step </span><span className="font-semibold">{steps.findIndex((step) => step.id === activeStep) + 1}<span className="text-[#77798b]"> / {steps.length}</span></span></div>
           </div>
 
-          <nav className="mb-7 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/10 p-1.5 sm:grid-cols-4">
-            {steps.map((step, index) => <button key={step.id} className={`rounded-xl px-3 py-3 text-left transition ${activeStep === step.id ? "bg-[#ff5b62]/12 text-white shadow-[inset_0_0_0_1px_rgba(255,91,98,.32)]" : "text-[#77798b] hover:bg-white/[0.04] hover:text-white"}`} onClick={() => setActiveStep(step.id)}><span className="mr-2 inline-grid h-6 w-6 place-items-center rounded-lg bg-white/[0.06] text-xs font-bold">{index + 1}</span><span className="text-sm font-semibold">{step.label}</span><span className="mt-1 block pl-8 text-[11px] text-[#77798b]">{step.hint}</span></button>)}
+          <nav className="mb-4 grid grid-cols-4 gap-1 rounded-xl border border-white/10 bg-black/10 p-1">
+            {steps.map((step, index) => <button key={step.id} className={`rounded-lg px-2 py-2 text-center transition ${activeStep === step.id ? "bg-[#ff5b62]/12 text-white shadow-[inset_0_0_0_1px_rgba(255,91,98,.32)]" : "text-[#77798b] hover:bg-white/[0.04] hover:text-white"}`} onClick={() => setActiveStep(step.id)}><span className="mr-1 inline-grid h-5 w-5 place-items-center rounded-md bg-white/[0.06] text-[10px] font-bold">{index + 1}</span><span className="text-xs font-semibold sm:text-sm">{step.label}</span></button>)}
           </nav>
 
-          <div className="min-h-[360px]">{stepContent}</div>
+          <div className="min-h-[290px]">{stepContent}</div>
           {error && <div className="mt-5 rounded-xl border border-rose-400/25 bg-rose-400/[0.08] px-4 py-3 text-sm text-rose-100">{error}</div>}
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5"><p className="text-xs text-[#77798b]">You can change any step before rendering.</p><div className="flex gap-2"><button className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-[#b2b3c1] transition hover:bg-white/[0.05]" onClick={() => setForm(initialForm)}>Reset</button><button className="rounded-xl bg-gradient-to-r from-[#ff5b62] to-[#f07679] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#ff5b62]/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60" onClick={generateVideo} disabled={isSubmitting}>{isSubmitting ? "Starting..." : "Generate video  ↗"}</button></div></div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3"><p className="text-[11px] text-[#77798b]">Change any step before rendering.</p><div className="flex gap-2"><button className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-[#b2b3c1] transition hover:bg-white/[0.05]" onClick={() => setForm(initialForm)}>Reset</button><button className="rounded-lg bg-gradient-to-r from-[#ff5b62] to-[#f07679] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-[#ff5b62]/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60" onClick={generateVideo} disabled={isSubmitting}>{isSubmitting ? "Starting..." : "Generate video  ↗"}</button></div></div>
         </section>
 
         <aside className="space-y-5">
-          <section className="glass overflow-hidden rounded-3xl p-4">
+          <section className="glass overflow-hidden rounded-2xl p-3">
             <div className="mb-3 flex items-center justify-between px-1"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#77798b]">Preview</p><h3 className="mt-1 font-semibold">Your final frame</h3></div><span className="rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-[#9899aa]">{form.aspect === "portrait" ? "9:16" : "16:9"}</span></div>
-            <div className={`phone-grid relative mx-auto flex aspect-[9/13] max-w-[250px] items-end overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-b from-[#28294a] via-[#17182b] to-[#10111a] p-5 ${form.aspect === "landscape" ? "aspect-video max-w-none" : ""}`}>
+            <div className={`phone-grid relative mx-auto flex h-52 max-w-[180px] items-end overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-b from-[#28294a] via-[#17182b] to-[#10111a] p-4 ${form.aspect === "landscape" ? "h-36 max-w-none" : ""}`}>
               {previewVideo ? <video className="absolute inset-0 h-full w-full object-cover" src={assetUrl(previewVideo)} controls /> : <><div className="absolute left-1/2 top-1/3 h-24 w-24 -translate-x-1/2 rounded-full bg-[#ff5b62]/20 blur-2xl" /><div className="relative z-10"><div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff8f94]">MoneyPrinterTurbo</div><p className="max-w-[180px] text-xl font-bold leading-tight tracking-[-0.04em]">{previewTitle}</p><div className="mt-4 h-1 w-16 rounded-full bg-[#ff5b62]" /></div></>}
             </div>
           </section>
 
-          <section className="glass rounded-3xl p-5">
+          <section className="glass rounded-2xl p-4">
             <div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#77798b]">Live status</p><h3 className="mt-1 font-semibold">{currentTask ? stateLabel(currentTask) : "Ready when you are"}</h3></div><span className="text-sm font-bold text-[#ff8f94]">{currentTask ? `${progress}%` : "—"}</span></div>
             <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff5b62] to-[#a57eff] transition-all duration-500" style={{ width: `${progress}%` }} /></div>
             <p className="mt-3 text-xs leading-5 text-[#77798b]">{currentTask?.error || (currentTask?.state === TASK_COMPLETE ? "Your video is ready to preview and download." : "Generation progress will stay here while you continue planning the next one.")}</p>
             {previewVideo && <a className="mt-4 block rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/[0.08]" href={assetUrl(previewVideo)} download>Download video ↓</a>}
           </section>
 
-          <section className="glass rounded-3xl p-5"><div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#77798b]">Recent work</p><h3 className="mt-1 font-semibold">Task history</h3></div><span className="rounded-full bg-white/[0.06] px-2 py-1 text-xs text-[#9899aa]">{tasks.length}</span></div><div className="space-y-2">{tasks.length === 0 ? <p className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-xs leading-5 text-[#77798b]">Your generated videos will appear here.</p> : tasks.slice(0, 4).map((task) => <button key={task.task_id} className="w-full rounded-xl border border-white/10 bg-white/[0.025] p-3 text-left transition hover:border-white/20 hover:bg-white/[0.06]" onClick={() => setCurrentTask(task)}><div className="flex items-center justify-between gap-3"><span className="truncate text-sm font-medium">{task.video_subject || "Untitled video"}</span><span className="text-xs text-[#ff8f94]">{task.progress}%</span></div><div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.08]"><div className="h-full rounded-full bg-[#ff5b62]" style={{ width: `${task.progress}%` }} /></div></button>)}</div></section>
+          <section className="glass rounded-2xl p-4"><div className="mb-3 flex items-center justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77798b]">Recent work</p><h3 className="mt-1 text-sm font-semibold">Task history</h3></div><span className="rounded-full bg-white/[0.06] px-2 py-1 text-xs text-[#9899aa]">{tasks.length}</span></div><div className="space-y-1.5">{tasks.length === 0 ? <p className="rounded-lg border border-dashed border-white/10 px-3 py-3 text-[11px] leading-4 text-[#77798b]">Your generated videos will appear here.</p> : tasks.slice(0, 4).map((task) => <button key={task.task_id} className="w-full rounded-lg border border-white/10 bg-white/[0.025] p-2.5 text-left transition hover:border-white/20 hover:bg-white/[0.06]" onClick={() => setCurrentTask(task)}><div className="flex items-center justify-between gap-3"><span className="truncate text-xs font-medium">{task.video_subject || "Untitled video"}</span><span className="text-[11px] text-[#ff8f94]">{task.progress}%</span></div><div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.08]"><div className="h-full rounded-full bg-[#ff5b62]" style={{ width: `${task.progress}%` }} /></div></button>)}</div></section>
         </aside>
       </div>
     </main>
