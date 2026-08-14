@@ -71,3 +71,114 @@ button {
 .subtle-ring {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 16px 38px rgba(0, 0, 0, 0.2);
 }
+
+.studio-panel {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.studio-panel-accent {
+  border-color: rgba(255, 91, 98, 0.28);
+}
+
+.studio-panel-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.compact-input,
+.compact-textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.6rem;
+  background: #10111a;
+  color: #f7f7fb;
+  font-size: 0.76rem;
+  line-height: 1.25rem;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.compact-input {
+  height: 2.25rem;
+  padding: 0 0.7rem;
+}
+
+.compact-textarea {
+  resize: vertical;
+  padding: 0.55rem 0.7rem;
+}
+
+.compact-input:focus,
+.compact-textarea:focus {
+  border-color: rgba(255, 91, 98, 0.65);
+  box-shadow: 0 0 0 3px rgba(255, 91, 98, 0.1);
+}
+
+.compact-input::placeholder,
+.compact-textarea::placeholder {
+  color: #646678;
+}
+
+.compact-range {
+  width: 100%;
+  accent-color: #ff5b62;
+}
+
+.compact-button {
+  min-height: 2.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.035);
+  color: #f7f7fb;
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: border-color 150ms ease, background 150ms ease, opacity 150ms ease;
+}
+
+.compact-button:hover {
+  border-color: rgba(255, 91, 98, 0.5);
+  background: rgba(255, 91, 98, 0.1);
+}
+
+.compact-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.compact-expander {
+  color: #a7a8b6;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.compact-expander span {
+  display: inline-block;
+  margin-right: 0.3rem;
+  color: #ff8f94;
+}
+
+.compact-note {
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.7rem;
+  color: #77798b;
+  font-size: 0.68rem;
+  line-height: 1.1rem;
+}
+
+@media (max-width: 1023px) {
+  .studio-panels {
+    height: auto !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .studio-panel {
+    min-height: 30rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .studio-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
