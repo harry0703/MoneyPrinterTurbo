@@ -487,6 +487,14 @@ Trying to load the model directly from the local cache, if it exists.
 
 </details>
 
+## 开发者说明 — 文档更新 (2026-08-15)
+
+- 已为关键公开函数添加和补充 Python docstrings（例如 app/services/llm.py 的 generate_script、generate_terms、build_script_prompt）。
+- 在若干复杂逻辑处补充了内联注释（示例：app/services/utils/video_effects.py、app/services/llm.py），便于维护与审计。
+- README 与代码状态保持同步：项目主体为 Python (3.11+)，主要模块位于 app/，测试位于 test/。
+
+如果需要，可以继续将 docstrings 转换为 Sphinx/ MkDocs 文档页或自动生成 API 文档。
+
 ## 反馈建议 📢
 
 - 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) 或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。

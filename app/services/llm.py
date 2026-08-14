@@ -469,6 +469,13 @@ def build_script_prompt(
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
 ) -> str:
+    """Build the full prompt used to request a video script from an LLM.
+
+    The returned prompt contains the system-level instructions (either the
+    default or a user-provided custom system prompt), the video subject,
+    language and the number of paragraphs. This centralizes prompt
+    construction so callers can reuse consistent prompt formatting.
+    """
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
         video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
@@ -506,6 +513,19 @@ def generate_script(
     custom_system_prompt: str = "",
     app_config=None,
 ) -> str:
+    """Generate a video script for a given subject using the configured LLM.
+
+    Args:
+        video_subject: Short description of the video's topic.
+        language: Preferred language code or empty to auto-detect.
+        paragraph_number: Number of paragraphs to return (clamped to safe range).
+        video_script_prompt: Optional user instructions appended to the prompt.
+        custom_system_prompt: Optional override for the system prompt.
+        app_config: Optional runtime configuration snapshot used for the request.
+
+    Returns:
+        The generated script as a single string (paragraphs separated by blank lines).
+    """
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
         video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
@@ -599,6 +619,18 @@ def generate_terms(
     match_script_order: bool = False,
     app_config=None,
 ) -> List[str]:
+    """Generate a list of stock-video search terms for a video.
+
+    Args:
+        video_subject: The video's subject used to guide term generation.
+        video_script: Full video script text for context when ordering is required.
+        amount: Number of search terms to generate.
+        match_script_order: If True, terms should follow the script chronology.
+        app_config: Optional runtime configuration snapshot used for the request.
+
+    Returns:
+        A list of search-term strings. On failure, returns an empty list.
+    """
     if match_script_order:
         goal = (
             f"Generate {amount} chronological stock-video search terms that follow "

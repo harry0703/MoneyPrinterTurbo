@@ -15,6 +15,11 @@ from app.models import const
 
 
 def get_response(status: int, data: Any = None, message: str = ""):
+    """Create a standardized API response object.
+
+    Returns a dict with at least a "status" key and optional "data" and
+    "message" fields used by the web UI and API endpoints.
+    """
     obj = {
         "status": status,
     }
@@ -26,6 +31,11 @@ def get_response(status: int, data: Any = None, message: str = ""):
 
 
 def to_json(obj):
+    """Serialize an arbitrary Python object into a JSON string for debugging.
+
+    Provides simple handling for bytes, custom objects and nested structures.
+    Returns a pretty-printed JSON string or None on failure.
+    """
     try:
         # Define a helper function to handle different types of objects
         def serialize(o):
@@ -59,6 +69,7 @@ def to_json(obj):
 
 
 def get_uuid(remove_hyphen: bool = False):
+    """Return a UUID string. If remove_hyphen is True the hyphens are removed."""
     u = str(uuid4())
     if remove_hyphen:
         u = u.replace("-", "")
@@ -179,6 +190,10 @@ def get_ffmpeg_binary() -> str:
 
 
 def run_in_background(func, *args, **kwargs):
+    """Start func(*args, **kwargs) in a new thread and return the Thread object.
+
+    Exceptions inside the background thread are logged but do not propagate.
+    """
     def run():
         try:
             func(*args, **kwargs)
@@ -191,6 +206,7 @@ def run_in_background(func, *args, **kwargs):
 
 
 def time_convert_seconds_to_hmsm(seconds) -> str:
+    """Convert seconds to an SRT-style HH:MM:SS,mmm time string."""
     hours = int(seconds // 3600)
     seconds = seconds % 3600
     minutes = int(seconds // 60)
@@ -200,6 +216,7 @@ def time_convert_seconds_to_hmsm(seconds) -> str:
 
 
 def text_to_srt(idx: int, msg: str, start_time: float, end_time: float) -> str:
+    """Format a single SRT block from index, text and start/end times."""
     start_time = time_convert_seconds_to_hmsm(start_time)
     end_time = time_convert_seconds_to_hmsm(end_time)
     srt = """%d
@@ -222,6 +239,11 @@ def str_contains_punctuation(word):
 
 
 def split_string_by_punctuations(s):
+    """Split text into segments using punctuation while preserving numeric punctuation.
+
+    Keeps decimal points and thousand-separators inside numbers (e.g. 2.5, 1,000)
+    to avoid breaking numeric tokens that are meaningful to downstream steps.
+    """
     result = []
     txt = ""
 
@@ -348,8 +370,12 @@ def resolve_ui_language(
 
 @lru_cache(maxsize=8)
 def load_locales(i18n_dir):
-    # WebUI 每次交互都会触发 Streamlit 重新执行脚本，语言文件运行期不会变化，
-    # 因此缓存解析结果，避免反复读取和解析所有 i18n JSON 文件。
+    """Load all JSON locale files from i18n_dir and cache the result.
+
+    Returned mapping is {lang_code: translations_dict}. The function is cached
+    because Streamlit re-executes frequently while locale files are static at
+    runtime.
+    """
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:
