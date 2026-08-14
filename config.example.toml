@@ -130,8 +130,12 @@ gemini_model_name = ""
 # Delivery instruction prepended to the TTS request: shapes tempo and tone,
 # is not spoken and never reaches the subtitles.
 gemini_tts_style_prompt = ""
-# Pauses longer than 0.5s are shortened to this many milliseconds. 0 disables.
+# Pauses longer than `gemini_tts_pause_detect_ms` are shortened to this many
+# milliseconds. 0 disables the trimming entirely.
 gemini_tts_max_pause_ms = 0
+# What counts as a long pause, in milliseconds (default 500). Anything shorter
+# is left alone, so breaths inside a sentence survive.
+gemini_tts_pause_detect_ms = 500
 
 # DeepSeek
 # API key: https://platform.deepseek.com/api_keys

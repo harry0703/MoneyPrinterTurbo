@@ -37,19 +37,20 @@ text_zh = """
 12日天气短暂好转，早晚清凉；
 """
 
-voice_rate=1.0
-voice_volume=1.0
+voice_rate = 1.0
+voice_volume = 1.0
 RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() in {
     "1",
     "true",
     "yes",
 }
-                    
+
+
 class TestVoiceService(unittest.TestCase):
     def setUp(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-    
+
     def tearDown(self):
         self.loop.close()
 
@@ -65,9 +66,7 @@ class TestVoiceService(unittest.TestCase):
     def test_get_all_azure_voices_filtered(self):
         filtered = vs.get_all_azure_voices(filter_locals=["zh-CN", "en-US"])
         self.assertTrue(len(filtered) > 0)
-        self.assertTrue(
-            all(v.startswith(("zh-CN", "en-US")) for v in filtered)
-        )
+        self.assertTrue(all(v.startswith(("zh-CN", "en-US")) for v in filtered))
 
     def test_no_voice_tts_generates_silent_audio_and_subtitle_timeline(self):
         """
@@ -82,11 +81,15 @@ class TestVoiceService(unittest.TestCase):
             Path(command[-1]).write_bytes(b"fake-silent-mp3")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            vs.utils,
-            "get_ffmpeg_binary",
-            return_value="/tmp/fake-ffmpeg",
-        ), patch.object(vs.subprocess, "run", side_effect=fake_run):
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(
+                vs.utils,
+                "get_ffmpeg_binary",
+                return_value="/tmp/fake-ffmpeg",
+            ),
+            patch.object(vs.subprocess, "run", side_effect=fake_run),
+        ):
             voice_file = str(Path(tmp_dir) / "silent.mp3")
             sub_maker = vs.tts(
                 text="第一句话。Second sentence.",
@@ -98,7 +101,9 @@ class TestVoiceService(unittest.TestCase):
             self.assertEqual(Path(voice_file).read_bytes(), b"fake-silent-mp3")
 
         self.assertIsNotNone(sub_maker)
-        self.assertEqual(getattr(sub_maker, "subs", []), ["第一句话", "Second sentence"])
+        self.assertEqual(
+            getattr(sub_maker, "subs", []), ["第一句话", "Second sentence"]
+        )
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
         self.assertGreater(vs.get_audio_duration(sub_maker), 0)
 
@@ -109,8 +114,10 @@ class TestVoiceService(unittest.TestCase):
         而应交给 moviepy(ffmpeg) 读取真实时长。
         """
         for path in ("custom-audio.m4a", "voice.wav", "clip.aac"):
-            with patch.object(vs.os.path, "exists", return_value=True), \
-                    patch.object(vs, "AudioFileClip") as mock_afc:
+            with (
+                patch.object(vs.os.path, "exists", return_value=True),
+                patch.object(vs, "AudioFileClip") as mock_afc,
+            ):
                 mock_afc.return_value.__enter__.return_value.duration = 28.89
                 self.assertEqual(vs.get_audio_duration(path), 28.89)
                 mock_afc.assert_called_once_with(path)
@@ -138,7 +145,9 @@ class TestVoiceService(unittest.TestCase):
             "Это длинный тестовый сценарий без озвучки. "
             "Он должен получить достаточно времени для чтения субтитров."
         )
-        arabic_text = "هذا اختبار طويل بدون تعليق صوتي، ويجب أن يحصل على وقت كاف لقراءة الترجمة."
+        arabic_text = (
+            "هذا اختبار طويل بدون تعليق صوتي، ويجب أن يحصل على وقت كاف لقراءة الترجمة."
+        )
 
         self.assertGreater(vs.estimate_no_voice_duration(russian_text), 8.0)
         self.assertGreater(vs.estimate_no_voice_duration(arabic_text), 8.0)
@@ -148,14 +157,18 @@ class TestVoiceService(unittest.TestCase):
         即使 FFmpeg 进程返回成功，也要确认输出文件真实存在且非空。这样可以把
         异常收敛在 TTS 阶段，而不是拖到后续视频合成阶段才暴露。
         """
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            vs.utils,
-            "get_ffmpeg_binary",
-            return_value="/tmp/fake-ffmpeg",
-        ), patch.object(
-            vs.subprocess,
-            "run",
-            return_value=SimpleNamespace(returncode=0, stdout="", stderr=""),
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(
+                vs.utils,
+                "get_ffmpeg_binary",
+                return_value="/tmp/fake-ffmpeg",
+            ),
+            patch.object(
+                vs.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="", stderr=""),
+            ),
         ):
             voice_file = str(Path(tmp_dir) / "missing-silent.mp3")
 
@@ -192,7 +205,7 @@ class TestVoiceService(unittest.TestCase):
 
         voice_name = "siliconflow:FunAudioLLM/CosyVoice2-0.5B:alex-Male"
         voice_name = vs.parse_voice_name(voice_name)
-        
+
         async def _do():
             parts = voice_name.split(":")
             if len(parts) >= 3:
@@ -205,18 +218,25 @@ class TestVoiceService(unittest.TestCase):
                 voice_file = f"{temp_dir}/tts-siliconflow-{voice}.mp3"
                 subtitle_file = f"{temp_dir}/tts-siliconflow-{voice}.srt"
                 sub_maker = vs.siliconflow_tts(
-                    text=text_zh, model=model, voice=full_voice, voice_file=voice_file, voice_rate=voice_rate, voice_volume=voice_volume
+                    text=text_zh,
+                    model=model,
+                    voice=full_voice,
+                    voice_file=voice_file,
+                    voice_rate=voice_rate,
+                    voice_volume=voice_volume,
                 )
                 if not sub_maker:
                     self.fail("siliconflow tts failed")
-                vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
+                vs.create_subtitle(
+                    sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file
+                )
                 audio_duration = vs.get_audio_duration(sub_maker)
                 print(f"voice: {voice_name}, audio duration: {audio_duration}s")
             else:
                 self.fail("siliconflow invalid voice name")
 
         self.loop.run_until_complete(_do())
-    
+
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,
         "MPT_RUN_INTEGRATION_TESTS not set",
@@ -225,15 +245,20 @@ class TestVoiceService(unittest.TestCase):
         voice_name = "zh-CN-XiaoyiNeural-Female"
         voice_name = vs.parse_voice_name(voice_name)
         print(voice_name)
-        
+
         voice_file = f"{temp_dir}/tts-azure-v1-{voice_name}.mp3"
         subtitle_file = f"{temp_dir}/tts-azure-v1-{voice_name}.srt"
         sub_maker = vs.azure_tts_v1(
-            text=text_zh, voice_name=voice_name, voice_file=voice_file, voice_rate=voice_rate
+            text=text_zh,
+            voice_name=voice_name,
+            voice_file=voice_file,
+            voice_rate=voice_rate,
         )
         if not sub_maker:
             self.fail("azure tts v1 failed")
-        vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
+        vs.create_subtitle(
+            sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file
+        )
         audio_duration = vs.get_audio_duration(sub_maker)
         print(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
@@ -274,9 +299,11 @@ class TestVoiceService(unittest.TestCase):
                     return ""
                 return "1\n00:00:00,000 --> 00:00:01,000\nlegacy\n"
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            vs.edge_tts, "Communicate", _LegacyCommunicate
-        ), patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker):
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(vs.edge_tts, "Communicate", _LegacyCommunicate),
+            patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker),
+        ):
             voice_file = str(Path(tmp_dir) / "legacy-edge-tts.mp3")
             sub_maker = vs.azure_tts_v1(
                 text="legacy edge tts compatibility",
@@ -318,12 +345,15 @@ class TestVoiceService(unittest.TestCase):
             def get_srt(self):
                 return ""
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            vs.edge_tts, "Communicate", _HangingCommunicate
-        ), patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker), patch.object(
-            vs.config,
-            "app",
-            dict(vs.config.app, edge_tts_timeout=0.05),
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(vs.edge_tts, "Communicate", _HangingCommunicate),
+            patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker),
+            patch.object(
+                vs.config,
+                "app",
+                dict(vs.config.app, edge_tts_timeout=0.05),
+            ),
         ):
             voice_file = Path(tmp_dir) / "hanging-edge-tts.mp3"
             started_at = time.monotonic()
@@ -344,7 +374,9 @@ class TestVoiceService(unittest.TestCase):
         "MPT_RUN_INTEGRATION_TESTS not set",
     )
     def test_azure_tts_v2(self):
-        if not vs.config.azure.get("speech_key") or not vs.config.azure.get("speech_region"):
+        if not vs.config.azure.get("speech_key") or not vs.config.azure.get(
+            "speech_region"
+        ):
             self.skipTest("Azure speech key or region is not configured")
 
         voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
@@ -362,7 +394,9 @@ class TestVoiceService(unittest.TestCase):
             )
             if not sub_maker:
                 self.fail("azure tts v2 failed")
-            vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
+            vs.create_subtitle(
+                sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file
+            )
             audio_duration = vs.get_audio_duration(sub_maker)
             print(f"voice: {voice_name}, audio duration: {audio_duration}s")
 
@@ -378,7 +412,7 @@ class TestVoiceService(unittest.TestCase):
 
         self.assertIn('xml:lang="zh-CN"', ssml)
         self.assertIn('rate="1.8"', ssml)
-        self.assertIn("A &lt; B &amp; \"quoted\"", ssml)
+        self.assertIn('A &lt; B &amp; "quoted"', ssml)
 
     def test_tts_forwards_rate_to_azure_v2(self):
         """统一 TTS 入口不能在分发 Azure V2 时丢失 voice_rate。"""
@@ -460,10 +494,15 @@ class TestVoiceService(unittest.TestCase):
 
         self.assertFalse(output_dir.exists())
 
-        with patch("google.genai.Client", _FakeClient), patch.object(
-            vs.config,
-            "app",
-            dict(vs.config.app, gemini_api_key="test-key", gemini_tts_style_prompt=""),
+        with (
+            patch("google.genai.Client", _FakeClient),
+            patch.object(
+                vs.config,
+                "app",
+                dict(
+                    vs.config.app, gemini_api_key="test-key", gemini_tts_style_prompt=""
+                ),
+            ),
         ):
             sub_maker = vs.gemini_tts(
                 text=text,
@@ -588,9 +627,7 @@ class TestVoiceService(unittest.TestCase):
             "при прогнозе двести двадцать двести пятьдесят"
         )
 
-        with patch.object(
-            vs.config, "app", dict(vs.config.app, subtitle_max_chars=45)
-        ):
+        with patch.object(vs.config, "app", dict(vs.config.app, subtitle_max_chars=45)):
             lines = vs.split_script_lines(text)
 
         self.assertGreater(len(lines), 1)
@@ -615,14 +652,17 @@ class TestVoiceService(unittest.TestCase):
         self.addCleanup(shutil.rmtree, temp_root, True)
         text = "Первое предложение. Второе предложение."
 
-        with self._patch_gemini_client(audio, captured), patch.object(
-            vs.config,
-            "app",
-            dict(
-                vs.config.app,
-                gemini_api_key="test-key",
-                gemini_tts_style_prompt="Читай быстро:",
-                gemini_tts_max_pause_ms=0,
+        with (
+            self._patch_gemini_client(audio, captured),
+            patch.object(
+                vs.config,
+                "app",
+                dict(
+                    vs.config.app,
+                    gemini_api_key="test-key",
+                    gemini_tts_style_prompt="Читай быстро:",
+                    gemini_tts_max_pause_ms=0,
+                ),
             ),
         ):
             sub_maker = vs.gemini_tts(
@@ -654,14 +694,17 @@ class TestVoiceService(unittest.TestCase):
         self.addCleanup(shutil.rmtree, temp_root, True)
         voice_file = str(temp_root / "voice.mp3")
 
-        with self._patch_gemini_client(audio, captured), patch.object(
-            vs.config,
-            "app",
-            dict(
-                vs.config.app,
-                gemini_api_key="test-key",
-                gemini_tts_style_prompt="",
-                gemini_tts_max_pause_ms=250,
+        with (
+            self._patch_gemini_client(audio, captured),
+            patch.object(
+                vs.config,
+                "app",
+                dict(
+                    vs.config.app,
+                    gemini_api_key="test-key",
+                    gemini_tts_style_prompt="",
+                    gemini_tts_max_pause_ms=250,
+                ),
             ),
         ):
             sub_maker = vs.gemini_tts(
@@ -689,14 +732,17 @@ class TestVoiceService(unittest.TestCase):
         self.addCleanup(shutil.rmtree, temp_root, True)
         voice_file = str(temp_root / "voice.mp3")
 
-        with self._patch_gemini_client(audio, captured), patch.object(
-            vs.config,
-            "app",
-            dict(
-                vs.config.app,
-                gemini_api_key="test-key",
-                gemini_tts_style_prompt="",
-                gemini_tts_max_pause_ms=250,
+        with (
+            self._patch_gemini_client(audio, captured),
+            patch.object(
+                vs.config,
+                "app",
+                dict(
+                    vs.config.app,
+                    gemini_api_key="test-key",
+                    gemini_tts_style_prompt="",
+                    gemini_tts_max_pause_ms=250,
+                ),
             ),
         ):
             sub_maker = vs.gemini_tts(
@@ -710,6 +756,78 @@ class TestVoiceService(unittest.TestCase):
             self._gemini_audio_seconds(sub_maker), len(audio) / 1000.0, delta=0.1
         )
 
+    def test_gemini_tts_pause_detect_threshold_is_configurable(self):
+        """Порог детекта паузы отделён от порога речи для субтитров."""
+        captured = {}
+        audio = self._gemini_pcm(
+            self._gemini_speech(400),
+            AudioSegment.silent(duration=800),
+            self._gemini_speech(400),
+        )
+        temp_root = Path(tempfile.mkdtemp(prefix="gemini-detect-"))
+        self.addCleanup(shutil.rmtree, temp_root, True)
+
+        with (
+            self._patch_gemini_client(audio, captured),
+            patch.object(
+                vs.config,
+                "app",
+                dict(
+                    vs.config.app,
+                    gemini_api_key="test-key",
+                    gemini_tts_style_prompt="",
+                    gemini_tts_max_pause_ms=700,
+                    gemini_tts_pause_detect_ms=1000,
+                ),
+            ),
+        ):
+            sub_maker = vs.gemini_tts(
+                text="Раз. Два.",
+                voice_name="Charon",
+                voice_rate=1.0,
+                voice_file=str(temp_root / "voice.mp3"),
+            )
+
+        self.assertAlmostEqual(
+            self._gemini_audio_seconds(sub_maker), len(audio) / 1000.0, delta=0.1
+        )
+
+    def test_gemini_tts_trims_pauses_above_the_configured_detect_threshold(self):
+        """Пауза длиннее порога детекта ужимается до max_pause_ms."""
+        captured = {}
+        audio = self._gemini_pcm(
+            self._gemini_speech(400),
+            AudioSegment.silent(duration=1500),
+            self._gemini_speech(400),
+        )
+        temp_root = Path(tempfile.mkdtemp(prefix="gemini-detect-long-"))
+        self.addCleanup(shutil.rmtree, temp_root, True)
+
+        with (
+            self._patch_gemini_client(audio, captured),
+            patch.object(
+                vs.config,
+                "app",
+                dict(
+                    vs.config.app,
+                    gemini_api_key="test-key",
+                    gemini_tts_style_prompt="",
+                    gemini_tts_max_pause_ms=700,
+                    gemini_tts_pause_detect_ms=1000,
+                ),
+            ),
+        ):
+            sub_maker = vs.gemini_tts(
+                text="Раз. Два.",
+                voice_name="Charon",
+                voice_rate=1.0,
+                voice_file=str(temp_root / "voice.mp3"),
+            )
+
+        self.assertAlmostEqual(
+            self._gemini_audio_seconds(sub_maker), 0.4 + 0.7 + 0.4, delta=0.1
+        )
+
     def test_gemini_tts_applies_voice_rate_after_generation(self):
         """
         Gemini 没有语速参数，`voice_rate` 只能在生成后用 ffmpeg 实现，
@@ -721,14 +839,17 @@ class TestVoiceService(unittest.TestCase):
         self.addCleanup(shutil.rmtree, temp_root, True)
         voice_file = str(temp_root / "voice.mp3")
 
-        with self._patch_gemini_client(audio, captured), patch.object(
-            vs.config,
-            "app",
-            dict(
-                vs.config.app,
-                gemini_api_key="test-key",
-                gemini_tts_style_prompt="",
-                gemini_tts_max_pause_ms=0,
+        with (
+            self._patch_gemini_client(audio, captured),
+            patch.object(
+                vs.config,
+                "app",
+                dict(
+                    vs.config.app,
+                    gemini_api_key="test-key",
+                    gemini_tts_style_prompt="",
+                    gemini_tts_max_pause_ms=0,
+                ),
             ),
         ):
             sub_maker = vs.gemini_tts(
@@ -784,22 +905,27 @@ class TestVoiceService(unittest.TestCase):
             chat=SimpleNamespace(completions=fake_completions)
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            vs,
-            "OpenAI",
-            return_value=fake_client,
-        ) as openai_client, patch(
-            "pydub.AudioSegment.from_file",
-            return_value=_FakeAudioSegment(),
-        ), patch.object(
-            vs.config,
-            "app",
-            dict(
-                vs.config.app,
-                mimo_api_key="mimo-key",
-                mimo_base_url="https://api.xiaomimimo.com/v1",
-                mimo_tts_model_name="mimo-v2.5-tts",
-                mimo_tts_style_prompt="用清晰的中文旁白朗读。",
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(
+                vs,
+                "OpenAI",
+                return_value=fake_client,
+            ) as openai_client,
+            patch(
+                "pydub.AudioSegment.from_file",
+                return_value=_FakeAudioSegment(),
+            ),
+            patch.object(
+                vs.config,
+                "app",
+                dict(
+                    vs.config.app,
+                    mimo_api_key="mimo-key",
+                    mimo_base_url="https://api.xiaomimimo.com/v1",
+                    mimo_tts_model_name="mimo-v2.5-tts",
+                    mimo_tts_style_prompt="用清晰的中文旁白朗读。",
+                ),
             ),
         ):
             voice_file = str(Path(tmp_dir) / "mimo-tts.mp3")
@@ -830,7 +956,9 @@ class TestVoiceService(unittest.TestCase):
         )
         self.assertEqual(generated_audio, b"fake-mp3")
         self.assertIsNotNone(sub_maker)
-        self.assertEqual(getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"])
+        self.assertEqual(
+            getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"]
+        )
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
 
     def test_chatterbox_voice_helpers(self):
@@ -885,18 +1013,19 @@ class TestVoiceService(unittest.TestCase):
             captured["headers"] = headers
             return _FakeResponse()
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            vs.config,
-            "chatterbox",
-            {
-                "base_url": "http://localhost:4123/v1/",
-                "api_key": "secret",
-                "model_id": "chatterbox",
-            },
-        ), patch.object(
-            vs.requests, "post", side_effect=_fake_post
-        ) as post, patch.object(
-            vs, "AudioFileClip", return_value=_FakeClip()
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(
+                vs.config,
+                "chatterbox",
+                {
+                    "base_url": "http://localhost:4123/v1/",
+                    "api_key": "secret",
+                    "model_id": "chatterbox",
+                },
+            ),
+            patch.object(vs.requests, "post", side_effect=_fake_post) as post,
+            patch.object(vs, "AudioFileClip", return_value=_FakeClip()),
         ):
             voice_file = str(Path(tmp_dir) / "chatterbox.mp3")
             sub_maker = vs.chatterbox_tts(
@@ -925,9 +1054,10 @@ class TestVoiceService(unittest.TestCase):
 
     def test_chatterbox_tts_requires_base_url(self):
         """Missing base_url short-circuits without any network call."""
-        with patch.object(
-            vs.config, "chatterbox", {"base_url": ""}
-        ), patch.object(vs.requests, "post") as post:
+        with (
+            patch.object(vs.config, "chatterbox", {"base_url": ""}),
+            patch.object(vs.requests, "post") as post,
+        ):
             result = vs.chatterbox_tts(
                 text="hi", voice="default", voice_file="unused.mp3"
             )
@@ -942,11 +1072,13 @@ class TestVoiceService(unittest.TestCase):
             content = b""
             text = "boom"
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            vs.config, "chatterbox", {"base_url": "http://localhost:4123/v1"}
-        ), patch.object(
-            vs.requests, "post", return_value=_FakeResponse()
-        ) as post:
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(
+                vs.config, "chatterbox", {"base_url": "http://localhost:4123/v1"}
+            ),
+            patch.object(vs.requests, "post", return_value=_FakeResponse()) as post,
+        ):
             voice_file = str(Path(tmp_dir) / "chatterbox.mp3")
             result = vs.chatterbox_tts(
                 text="hi", voice="default", voice_file=voice_file
@@ -966,13 +1098,18 @@ class TestVoiceService(unittest.TestCase):
             2.4,
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            task_service.config,
-            "app",
-            dict(task_service.config.app, subtitle_provider="edge"),
-        ), patch("app.services.subtitle.create") as whisper_create, patch(
-            "app.utils.utils.task_dir",
-            lambda tid="": str(Path(tmp_dir) / tid) if tid else str(Path(tmp_dir)),
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(
+                task_service.config,
+                "app",
+                dict(task_service.config.app, subtitle_provider="edge"),
+            ),
+            patch("app.services.subtitle.create") as whisper_create,
+            patch(
+                "app.utils.utils.task_dir",
+                lambda tid="": str(Path(tmp_dir) / tid) if tid else str(Path(tmp_dir)),
+            ),
         ):
             task_id = "gemini-subtitle-edge-task"
             Path(tmp_dir, task_id).mkdir(parents=True, exist_ok=True)
@@ -988,7 +1125,9 @@ class TestVoiceService(unittest.TestCase):
             self.assertTrue(Path(subtitle_path).exists())
             self.assertFalse(whisper_create.called)
             subtitle_content = Path(subtitle_path).read_text(encoding="utf-8")
-            self.assertIn("Gemini subtitle generation should work now", subtitle_content)
+            self.assertIn(
+                "Gemini subtitle generation should work now", subtitle_content
+            )
             self.assertIn("Testing multiple lines", subtitle_content)
 
     def test_script_split_keeps_thousand_separator_comma(self):
@@ -1193,7 +1332,6 @@ class TestVoiceService(unittest.TestCase):
 
 
 class TestElevenLabsVoice(unittest.TestCase):
-
     def test_is_elevenlabs_voice_true(self):
         self.assertTrue(vs.is_elevenlabs_voice("elevenlabs:pNInz6obpgDQGcFmaJgB:Adam"))
 
@@ -1223,10 +1361,13 @@ class TestElevenLabsVoice(unittest.TestCase):
             ]
         }
         result = vs.get_elevenlabs_voices("fake-api-key")
-        self.assertEqual(result, [
-            "elevenlabs:abc123:Adam",
-            "elevenlabs:def456:Rachel",
-        ])
+        self.assertEqual(
+            result,
+            [
+                "elevenlabs:abc123:Adam",
+                "elevenlabs:def456:Rachel",
+            ],
+        )
         mock_get.assert_called_once()
         call_kwargs = mock_get.call_args
         self.assertIn("xi-api-key", call_kwargs.kwargs.get("headers", {}))
@@ -1241,6 +1382,7 @@ class TestElevenLabsVoice(unittest.TestCase):
     @patch("app.services.voice.requests.get")
     def test_get_elevenlabs_voices_network_error(self, mock_get):
         import requests as req_lib
+
         mock_get.side_effect = req_lib.exceptions.ConnectionError("timeout")
         result = vs.get_elevenlabs_voices("fake-key")
         self.assertEqual(result, [])
@@ -1303,9 +1445,7 @@ class TestElevenLabsVoice(unittest.TestCase):
         for configured_key, env_key in (("config-key", "env-key"), ("", "env-key")):
             with self.subTest(configured_key=configured_key):
                 with (
-                    patch.object(
-                        vs.config, "elevenlabs", {"api_key": configured_key}
-                    ),
+                    patch.object(vs.config, "elevenlabs", {"api_key": configured_key}),
                     patch.object(
                         elevenlabs_music.config,
                         "elevenlabs",
@@ -1322,4 +1462,4 @@ class TestElevenLabsVoice(unittest.TestCase):
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v2
-    unittest.main() 
+    unittest.main()

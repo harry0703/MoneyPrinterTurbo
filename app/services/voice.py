@@ -1186,17 +1186,20 @@ def azure_tts_v2(
     return None
 
 
-def _trim_long_pauses(audio_segment, max_pause_ms: int):
-    """Shorten every silence longer than ``max_pause_ms`` down to that length.
+def _trim_long_pauses(audio_segment, max_pause_ms: int, detect_ms: int = 0):
+    """Shorten every silence longer than ``detect_ms`` down to ``max_pause_ms``.
 
     Gemini paces sentences with pauses far longer than a short-form video
-    tolerates, and it has no speed control to tighten them.
+    tolerates, and it has no speed control to tighten them. ``detect_ms`` is
+    kept separate from the speech-span threshold below: raising it changes what
+    counts as a pause, not how subtitle timings are measured.
     """
     from pydub import AudioSegment, silence
 
+    detect_ms = max(int(detect_ms or 0), max_pause_ms + 1)
     detected = silence.detect_silence(
         audio_segment,
-        min_silence_len=_GEMINI_SILENCE_DETECT_MS,
+        min_silence_len=detect_ms,
         silence_thresh=audio_segment.dBFS - 22,
         seek_step=10,
     )
@@ -1362,7 +1365,11 @@ def gemini_tts(
 
         max_pause_ms = int(config.app.get("gemini_tts_max_pause_ms", 0) or 0)
         if max_pause_ms > 0:
-            audio_segment = _trim_long_pauses(audio_segment, max_pause_ms)
+            detect_ms = int(
+                config.app.get("gemini_tts_pause_detect_ms", _GEMINI_SILENCE_DETECT_MS)
+                or _GEMINI_SILENCE_DETECT_MS
+            )
+            audio_segment = _trim_long_pauses(audio_segment, max_pause_ms, detect_ms)
 
         if voice_rate and abs(voice_rate - 1.0) > 0.01:
             audio_segment = _apply_audio_tempo(audio_segment, voice_rate)
