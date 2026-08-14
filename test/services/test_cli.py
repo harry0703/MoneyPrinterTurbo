@@ -232,7 +232,7 @@ class TestCli(unittest.TestCase):
         self.assertFalse(params.photo_enabled)
         self.assertEqual(params.photo_dir, "")
         self.assertEqual(params.photo_amount, 5)
-        self.assertEqual(params.photo_size, 0.42)
+        self.assertEqual(params.photo_size, 0.63)
         self.assertEqual(params.photo_duration, 2.0)
         self.assertEqual(params.photo_animation, "random")
 

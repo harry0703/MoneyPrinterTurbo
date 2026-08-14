@@ -2660,7 +2660,7 @@ def _render_photo_overlay_settings(params):
         tr("Photo Size"),
         min_value=0.10,
         max_value=0.90,
-        value=float(config.ui.get("photo_size", 0.42)),
+        value=float(config.ui.get("photo_size", 0.63)),
         step=0.02,
         format="%.2f",
         key="photo_size_slider",

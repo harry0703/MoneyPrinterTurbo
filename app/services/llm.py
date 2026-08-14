@@ -1001,6 +1001,134 @@ on screen would reinforce what the narrator is saying.
     return indexes
 
 
+def generate_photo_theme_plan(
+    subtitle_lines: List[tuple],
+    themes: List[dict],
+    amount: int = 5,
+    app_config=None,
+) -> List[dict]:
+    """
+    Match photo themes to the script lines they illustrate.
+
+    The model never sees the photos themselves — it picks a theme per line and
+    the caller takes a concrete file out of that theme's pool.
+    """
+    if not subtitle_lines or not themes:
+        return []
+
+    numbered = "\n".join(
+        f"{index}. {str(line[1]).strip()}"
+        for index, line in enumerate(subtitle_lines)
+        if str(line[1]).strip()
+    )
+    if not numbered:
+        return []
+
+    listed = "\n".join(
+        f"- {theme['name']}: "
+        + (
+            str(theme.get("description") or "").strip()
+            or "files: " + ", ".join(theme.get("samples") or [])
+        )
+        for theme in themes
+        if theme.get("name")
+    )
+    if not listed:
+        return []
+
+    amount = max(1, min(amount, len(subtitle_lines)))
+    prompt = f"""
+# Role: Video Photo Director
+
+## Goals:
+Decide which photo theme should be shown on screen while the narrator reads a
+line of the script, for at most {amount} lines.
+
+## Constrains:
+1. return a json-array of objects, e.g. [{{"line": 0, "theme": "film"}}].
+2. "line" must be a line number listed below and must not repeat.
+3. "theme" must be copied exactly from the theme names listed below.
+4. pick the theme that illustrates what the line is actually about; when no
+   theme fits the line, leave that line out instead of guessing.
+5. neighbouring lines about the same subject may reuse the same theme.
+6. at most {amount} objects, returning fewer is fine.
+7. you must only return the json-array. you must not return anything else.
+
+## Output Example:
+[{{"line": 0, "theme": "film"}}, {{"line": 5, "theme": "spider"}}]
+
+## Photo Themes:
+{listed}
+
+## Script Lines:
+{numbered}
+""".strip()
+
+    names = [str(theme.get("name") or "") for theme in themes]
+    plan: List[dict] = []
+    response = ""
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt)
+            else:
+                response = _generate_response(prompt, app_config=app_config)
+            if response.startswith("Error: "):
+                logger.error(f"failed to generate photo theme plan: {response}")
+                return []
+            parsed = json.loads(_strip_code_fence(response))
+        except Exception as e:
+            logger.warning(f"failed to generate photo theme plan: {str(e)}")
+            match = re.search(r"\[.*]", response, re.DOTALL) if response else None
+            if not match:
+                continue
+            try:
+                parsed = json.loads(match.group())
+            except Exception as inner_error:
+                logger.warning(f"failed to parse photo theme plan: {str(inner_error)}")
+                continue
+
+        plan = _normalize_photo_theme_plan(parsed, len(subtitle_lines), names, amount)
+        if plan:
+            break
+        if i < _max_retries - 1:
+            logger.warning(
+                f"failed to generate photo theme plan, trying again... {i + 1}"
+            )
+
+    logger.success(f"completed: \n{plan}")
+    return plan
+
+
+def _normalize_photo_theme_plan(
+    parsed, line_count: int, theme_names: List[str], amount: int
+) -> List[dict]:
+    if not isinstance(parsed, list):
+        logger.error("photo theme plan response is not a list")
+        return []
+
+    known = {str(name).strip().lower(): str(name) for name in theme_names if name}
+    plan: List[dict] = []
+    seen: set[int] = set()
+    for entry in parsed:
+        if not isinstance(entry, dict):
+            continue
+        raw_line = entry.get("line", entry.get("index"))
+        raw_theme = entry.get("theme", entry.get("name"))
+        try:
+            line = int(raw_line)
+        except (TypeError, ValueError):
+            continue
+        theme = known.get(str(raw_theme).strip().lower())
+        if theme is None or line in seen or not 0 <= line < line_count:
+            continue
+        seen.add(line)
+        plan.append({"line": line, "theme": theme})
+
+    plan.sort(key=lambda item: item["line"])
+    return plan[:amount]
+
+
 def _normalize_photo_moments(parsed, line_count: int, amount: int) -> List[int]:
     if not isinstance(parsed, list):
         logger.error("photo moments response is not a list")

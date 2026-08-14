@@ -147,6 +147,11 @@ class TestPhotoOverlayPipeline(unittest.TestCase):
             ((4.0, 9.0), "line two"),
             ((9.0, 12.0), "line three"),
         ]
+        theme_plan = patch(
+            "app.services.llm.generate_photo_theme_plan", return_value=[]
+        )
+        self.addCleanup(theme_plan.stop)
+        self.mocked_theme_plan = theme_plan.start()
 
     def test_disabled_flag_skips_every_external_call(self):
         self.params.photo_enabled = False
@@ -230,6 +235,42 @@ class TestPhotoOverlayPipeline(unittest.TestCase):
         for earlier, later in zip(overlays, overlays[1:]):
             self.assertGreaterEqual(later["start"], earlier["end"])
 
+    def test_dense_picks_stay_on_their_own_line(self):
+        self.params.photo_duration = 3.0
+        dense_windows = [((float(i), float(i) + 1.0), f"line {i}") for i in range(10)]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = _make_photo_dir(
+                tmp_dir, ["a.jpg", "b.jpg", "c.jpg"]
+            )
+            with (
+                patch("app.services.task._gif_timeline", return_value=dense_windows),
+                patch(
+                    "app.services.llm.generate_photo_moments", return_value=[0, 2, 4]
+                ),
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        self.assertEqual([o["start"] for o in overlays], [0.0, 2.0, 4.0])
+        self.assertEqual([o["end"] for o in overlays[:2]], [2.0, 4.0])
+        self.assertGreaterEqual(overlays[2]["end"], 6.5)
+
+    def test_picks_too_close_together_are_dropped(self):
+        self.params.photo_duration = 3.0
+        crowded = [((0.0, 5.0), "one"), ((0.5, 5.0), "two"), ((6.0, 12.0), "three")]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = _make_photo_dir(
+                tmp_dir, ["a.jpg", "b.jpg", "c.jpg"]
+            )
+            with (
+                patch("app.services.task._gif_timeline", return_value=crowded),
+                patch(
+                    "app.services.llm.generate_photo_moments", return_value=[0, 1, 2]
+                ),
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        self.assertEqual([o["start"] for o in overlays], [0.5, 6.0])
+
     def test_unsorted_llm_moments_stay_chronological(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             self.params.photo_dir = _make_photo_dir(tmp_dir, ["a.jpg", "b.jpg"])
@@ -277,6 +318,168 @@ class TestPhotoOverlayPipeline(unittest.TestCase):
 
         self.assertEqual(len(overlays), 1)
         self.assertEqual(mocked_llm.call_args.kwargs["amount"], 1)
+
+
+class TestPhotoThemePlanning(unittest.TestCase):
+    def setUp(self):
+        self.params = VideoParams(video_subject="test")
+        self.params.photo_enabled = True
+        self.params.photo_amount = 5
+        self.windows = [
+            ((0.0, 4.0), "about the film"),
+            ((4.0, 9.0), "about the actor"),
+            ((9.0, 14.0), "about the film again"),
+        ]
+
+    def _themed_dir(self, tmp_dir: str) -> str:
+        return _make_photo_dir(
+            tmp_dir, ["10-film-00.jpg", "10-film-01.jpg", "20-actor-00.jpg"]
+        )
+
+    def test_photos_follow_the_matched_theme(self):
+        plan = [{"line": 0, "theme": "film"}, {"line": 1, "theme": "actor"}]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = self._themed_dir(tmp_dir)
+            with (
+                patch("app.services.task._gif_timeline", return_value=self.windows),
+                patch("app.services.llm.generate_photo_theme_plan", return_value=plan),
+                patch("app.services.llm.generate_photo_moments") as mocked_moments,
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        self.assertEqual(
+            [os.path.basename(o["path"]) for o in overlays],
+            ["10-film-00.jpg", "20-actor-00.jpg"],
+        )
+        self.assertEqual(overlays[0]["start"], 0.0)
+        mocked_moments.assert_not_called()
+
+    def test_repeated_theme_walks_through_its_pool(self):
+        plan = [{"line": 0, "theme": "film"}, {"line": 2, "theme": "film"}]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = self._themed_dir(tmp_dir)
+            with (
+                patch("app.services.task._gif_timeline", return_value=self.windows),
+                patch("app.services.llm.generate_photo_theme_plan", return_value=plan),
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        self.assertEqual(
+            [os.path.basename(o["path"]) for o in overlays],
+            ["10-film-00.jpg", "10-film-01.jpg"],
+        )
+
+    def test_exhausted_theme_wraps_instead_of_borrowing_another(self):
+        plan = [
+            {"line": 0, "theme": "actor"},
+            {"line": 1, "theme": "actor"},
+        ]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = self._themed_dir(tmp_dir)
+            with (
+                patch("app.services.task._gif_timeline", return_value=self.windows),
+                patch("app.services.llm.generate_photo_theme_plan", return_value=plan),
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        self.assertEqual(
+            [os.path.basename(o["path"]) for o in overlays],
+            ["20-actor-00.jpg", "20-actor-00.jpg"],
+        )
+
+    def test_empty_plan_falls_back_to_line_moments(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = self._themed_dir(tmp_dir)
+            with (
+                patch("app.services.task._gif_timeline", return_value=self.windows),
+                patch("app.services.llm.generate_photo_theme_plan", return_value=[]),
+                patch(
+                    "app.services.llm.generate_photo_moments", return_value=[1]
+                ) as mocked_moments,
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        mocked_moments.assert_called_once()
+        self.assertEqual(len(overlays), 1)
+        self.assertEqual(overlays[0]["start"], 4.0)
+
+    def test_single_theme_directory_skips_theme_matching(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = _make_photo_dir(tmp_dir, ["film-00.jpg"])
+            with (
+                patch("app.services.task._gif_timeline", return_value=self.windows),
+                patch("app.services.llm.generate_photo_theme_plan") as mocked_plan,
+                patch("app.services.llm.generate_photo_moments", return_value=[0]),
+            ):
+                overlays = task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        mocked_plan.assert_not_called()
+        self.assertEqual(len(overlays), 1)
+
+    def test_themes_are_described_to_the_llm(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.params.photo_dir = self._themed_dir(tmp_dir)
+            with (
+                patch("app.services.task._gif_timeline", return_value=self.windows),
+                patch(
+                    "app.services.llm.generate_photo_theme_plan", return_value=[]
+                ) as mocked_plan,
+                patch("app.services.llm.generate_photo_moments", return_value=[0]),
+            ):
+                task.generate_photo_overlays("t", self.params, "s", None, "")
+
+        themes = mocked_plan.call_args.kwargs["themes"]
+        self.assertEqual([theme["name"] for theme in themes], ["film", "actor"])
+        self.assertEqual(themes[0]["samples"], ["10-film-00.jpg", "10-film-01.jpg"])
+
+
+class TestPhotoThemePlanNormalization(unittest.TestCase):
+    def test_unknown_themes_and_repeated_lines_are_dropped(self):
+        parsed = [
+            {"line": 1, "theme": "film"},
+            {"line": 1, "theme": "actor"},
+            {"line": 2, "theme": "nothing"},
+            {"line": 9, "theme": "film"},
+        ]
+        plan = llm._normalize_photo_theme_plan(parsed, 3, ["film", "actor"], 5)
+
+        self.assertEqual(plan, [{"line": 1, "theme": "film"}])
+
+    def test_theme_names_match_case_insensitively(self):
+        plan = llm._normalize_photo_theme_plan(
+            [{"line": 0, "theme": " FILM "}], 2, ["film"], 5
+        )
+
+        self.assertEqual(plan, [{"line": 0, "theme": "film"}])
+
+    def test_plan_is_sorted_and_capped(self):
+        parsed = [{"line": i, "theme": "film"} for i in (4, 0, 2)]
+        plan = llm._normalize_photo_theme_plan(parsed, 5, ["film"], 2)
+
+        self.assertEqual([entry["line"] for entry in plan], [0, 2])
+
+    def test_non_list_response_is_rejected(self):
+        self.assertEqual(
+            llm._normalize_photo_theme_plan({"line": 0}, 3, ["film"], 5), []
+        )
+
+    def test_missing_themes_skip_the_llm_call(self):
+        with patch("app.services.llm._generate_response") as mocked:
+            self.assertEqual(
+                llm.generate_photo_theme_plan([((0.0, 1.0), "line")], [], amount=3), []
+            )
+        mocked.assert_not_called()
+
+    def test_parses_plain_json_response(self):
+        lines = [((0.0, 2.0), "one"), ((2.0, 4.0), "two")]
+        themes = [{"name": "film", "description": "movie stills"}]
+        with patch(
+            "app.services.llm._generate_response",
+            return_value='[{"line": 1, "theme": "film"}]',
+        ):
+            plan = llm.generate_photo_theme_plan(lines, themes, amount=3)
+
+        self.assertEqual(plan, [{"line": 1, "theme": "film"}])
 
 
 class TestPhotoAnimationChoice(unittest.TestCase):

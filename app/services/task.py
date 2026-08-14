@@ -20,6 +20,7 @@ from app.services import (
     klipy,
     llm,
     material,
+    photo_library,
     sonilo,
     subtitle,
     task_artifacts,
@@ -687,21 +688,14 @@ def generate_gif_overlays(
     return overlays
 
 
-_PHOTO_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 _PHOTO_DISPLAY_JITTER = 0.5
+# Below this a card reads as a flash, so the pick is dropped instead.
+_PHOTO_MIN_DISPLAY = 1.0
 
 
 def _list_photo_files(photo_dir: str) -> list[str]:
     """Collect overlay photos sorted by name, so assignment stays deterministic."""
-    if not photo_dir or not os.path.isdir(photo_dir):
-        return []
-    files = [
-        path.join(photo_dir, name)
-        for name in sorted(os.listdir(photo_dir))
-        if name.lower().endswith(_PHOTO_EXTENSIONS)
-        and os.path.isfile(path.join(photo_dir, name))
-    ]
-    return files
+    return photo_library.list_photo_files(photo_dir)
 
 
 def _validate_photo_overlay_params(params) -> str | None:
@@ -734,6 +728,48 @@ def _select_photos(photos: list[str], amount: int) -> list[str]:
     return [photos[min(len(photos) - 1, int(step * i))] for i in range(amount)]
 
 
+def _plan_photo_placements(
+    themes: list[photo_library.PhotoTheme],
+    photos: list[str],
+    windows: list,
+    amount: int,
+) -> list[tuple[int, str]]:
+    """Decide which photo lands on which script line, best effort first."""
+    if len(themes) > 1:
+        plan = llm.generate_photo_theme_plan(
+            subtitle_lines=windows,
+            themes=[
+                {
+                    "name": theme.name,
+                    "description": theme.description,
+                    "samples": theme.samples(),
+                }
+                for theme in themes
+            ],
+            amount=amount,
+            app_config=config.app,
+        )
+        picker = photo_library.ThemedPhotoPicker(themes)
+        placements = [
+            (entry["line"], photo)
+            for entry in plan
+            if (photo := picker.take(entry["theme"]))
+        ]
+        if placements:
+            return placements
+        logger.warning("no photo themes were matched, falling back to line moments")
+
+    indexes = llm.generate_photo_moments(
+        subtitle_lines=windows,
+        amount=amount,
+        app_config=config.app,
+    )
+    if not indexes:
+        logger.warning("no photo moments were picked, falling back to even spread")
+        indexes = _spread_photo_moments(len(windows), amount)
+    return list(zip(sorted(indexes[:amount]), _select_photos(photos, amount)))
+
+
 def generate_photo_overlays(
     task_id, params, video_script, sub_maker, subtitle_path
 ) -> list[dict]:
@@ -742,7 +778,8 @@ def generate_photo_overlays(
         return []
 
     logger.info("\n\n## picking photo moments")
-    photos = _list_photo_files(params.photo_dir)
+    themes = photo_library.discover_photo_themes(params.photo_dir)
+    photos = [photo for theme in themes for photo in theme.files]
     if not photos:
         logger.warning("no photos found in photo_dir, continue without photo overlays")
         return []
@@ -752,33 +789,28 @@ def generate_photo_overlays(
         return []
 
     amount = min(params.photo_amount, len(photos), len(windows))
-    indexes = llm.generate_photo_moments(
-        subtitle_lines=windows,
-        amount=amount,
-        app_config=config.app,
-    )
-    if not indexes:
-        logger.warning("no photo moments were picked, falling back to even spread")
-        indexes = _spread_photo_moments(len(windows), amount)
+    placements = _plan_photo_placements(themes, photos, windows, amount)
 
     timeline_end = windows[-1][0][1]
     base_duration = float(getattr(params, "photo_duration", 2.0) or 2.0)
     overlays = []
-    previous_end = 0.0
-    for photo_path, index in zip(
-        _select_photos(photos, amount), sorted(indexes[:amount])
-    ):
+    ordered = sorted(placements[:amount])
+    for position, (index, photo_path) in enumerate(ordered):
         (window_start, _), _ = windows[index]
-        # Subtitle windows are shorter than a photo burst, so consecutive picks
-        # would stack cards on top of each other without this shift.
-        start = max(window_start, previous_end)
+        # Subtitle windows are shorter than a photo burst. Cards are cut at the
+        # next pick instead of being pushed past it: a matched photo shown after
+        # its own line has already been read is worse than a short one.
+        next_start = (
+            windows[ordered[position + 1][0]][0][0]
+            if position + 1 < len(ordered)
+            else timeline_end
+        )
         jitter = video._deterministic_unit(f"{os.path.basename(photo_path)}:window")
         duration = base_duration + (jitter * 2 - 1) * _PHOTO_DISPLAY_JITTER
-        end = min(start + duration, timeline_end)
-        if end <= start:
+        end = min(window_start + duration, next_start, timeline_end)
+        if end - window_start < _PHOTO_MIN_DISPLAY:
             continue
-        overlays.append({"path": photo_path, "start": start, "end": end})
-        previous_end = end
+        overlays.append({"path": photo_path, "start": window_start, "end": end})
 
     logger.success(f"prepared {len(overlays)} photo overlays")
     return overlays

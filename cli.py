@@ -397,7 +397,7 @@ Output and exit status:
         default=None,
         help=(
             "photo width as a fraction of the video width, between 0.1 and 0.9 "
-            "(default: 0.42)"
+            "(default: 0.63)"
         ),
     )
     video_group.add_argument(

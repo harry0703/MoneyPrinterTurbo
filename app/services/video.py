@@ -1298,6 +1298,11 @@ _GIF_SIDE_OFFSET_RANGE = (0.05, 0.13)
 # Tilt in degrees. Anything past ~7 stops reading as a tilt and looks broken.
 _GIF_TILT_RANGE = (2.0, 6.0)
 _GIF_VERTICAL_JITTER = 0.07
+_GIF_MAX_HEIGHT_RATIO = 0.45
+# Photo cards run bigger than gifs, so a portrait shot needs more headroom
+# before the cap starts eating the requested width back.
+_PHOTO_MAX_HEIGHT_RATIO = 0.62
+_PHOTO_DEFAULT_SIZE = 0.63
 
 
 def _rounded_mask_clip(width: int, height: int, radius: int) -> ImageClip:
@@ -1333,6 +1338,7 @@ def _overlay_box(
     video_width: int,
     video_height: int,
     size_ratio: float,
+    max_height_ratio: float = _GIF_MAX_HEIGHT_RATIO,
 ) -> tuple[int, int]:
     target_width = max(1, int(video_width * size_ratio))
     source_width = max(1, int(source_width))
@@ -1340,7 +1346,7 @@ def _overlay_box(
     target_height = max(1, int(target_width * source_height / source_width))
 
     # A tall overlay must not push into the subtitle band or off-frame.
-    max_height = int(video_height * 0.45)
+    max_height = int(video_height * max_height_ratio)
     if target_height > max_height:
         target_height = max_height
         target_width = max(1, int(target_height * source_width / source_height))
@@ -1368,6 +1374,7 @@ def _gif_overlay_placement(
     video_width: int,
     video_height: int,
     params: VideoParams,
+    box_width: int = 0,
 ) -> tuple[int, int, float]:
     """
     Scatter overlays instead of stacking them all in the middle of the frame.
@@ -1387,6 +1394,12 @@ def _gif_overlay_placement(
     offset_ratio = _GIF_SIDE_OFFSET_RANGE[0] + horizontal_jitter * (
         _GIF_SIDE_OFFSET_RANGE[1] - _GIF_SIDE_OFFSET_RANGE[0]
     )
+    if box_width > 0:
+        # A wide card offset by the full share would hang off the frame and get
+        # clamped flat against the edge, killing the side-to-side alternation.
+        margin_x = int(video_width * 0.02)
+        room = max(0, (video_width - box_width) / 2 - margin_x)
+        offset_ratio = min(offset_ratio, room / video_width)
     center_x = int(video_width / 2 + side * offset_ratio * video_width)
 
     if params.subtitle_enabled and params.subtitle_position == "top":
@@ -1589,7 +1602,16 @@ def _build_photo_overlay_clips(
     photos read as part of the same visual system.
     """
     overlays: List[VideoFileClip] = []
-    size_ratio = max(0.1, min(float(getattr(params, "photo_size", 0.42) or 0.42), 0.9))
+    size_ratio = max(
+        0.1,
+        min(
+            float(
+                getattr(params, "photo_size", _PHOTO_DEFAULT_SIZE)
+                or _PHOTO_DEFAULT_SIZE
+            ),
+            0.9,
+        ),
+    )
     fade = 0.25
     placed = 0
 
@@ -1609,7 +1631,12 @@ def _build_photo_overlay_clips(
                 photo = ImageOps.exif_transpose(source).convert("RGB")
 
             box_width, box_height = _overlay_box(
-                photo.width, photo.height, video_width, video_height, size_ratio
+                photo.width,
+                photo.height,
+                video_width,
+                video_height,
+                size_ratio,
+                max_height_ratio=_PHOTO_MAX_HEIGHT_RATIO,
             )
             radius = max(8, int(min(box_width, box_height) * 0.08))
             spread = max(4, int(box_width * 0.03))
@@ -1621,6 +1648,7 @@ def _build_photo_overlay_clips(
                 video_width=video_width,
                 video_height=video_height,
                 params=params,
+                box_width=box_width,
             )
             side = -1 if placed % 2 == 0 else 1
             animation = _pick_photo_animation(seed, params)
