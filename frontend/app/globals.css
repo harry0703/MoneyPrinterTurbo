@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --ink: #f7f7fb;
+  --muted: #9899aa;
+  --panel: rgba(22, 23, 35, 0.76);
+  --panel-strong: #1c1d2a;
+  --line: rgba(255, 255, 255, 0.1);
+  --accent: #ff5b62;
+  --accent-soft: rgba(255, 91, 98, 0.13);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 91, 98, 0.14), transparent 34rem),
+    radial-gradient(circle at 100% 12%, rgba(110, 93, 255, 0.11), transparent 30rem),
+    #0d0e15;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  color: #fff;
+  background: rgba(255, 91, 98, 0.45);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  background-clip: padding-box;
+}
+
+.glass {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(22px);
+}
+
+.phone-grid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.subtle-ring {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 16px 38px rgba(0, 0, 0, 0.2);
+}
