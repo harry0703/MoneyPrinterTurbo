@@ -28,6 +28,20 @@ English | [简体中文](README.md) | [Releases](https://github.com/harry0703/Mo
 
 ![](docs/api.jpg)
 
+### Next.js Studio Workspace (New) ✨
+
+MoneyPrinterTurbo now includes a modern Next.js workspace that is separated from the Python generation engine. Python continues to handle scripts, footage, voiceover, subtitles, and rendering while Next.js provides the interactive experience.
+
+- **TypeScript + Next.js + Tailwind CSS** frontend
+- Flat four-column creation workspace with less card chrome and scrolling
+- Tabbed runtime settings for language models, material sources, and voice providers
+- Gemini-style live generation feed with natural-language Python execution updates
+- Dynamic creative constellation with small emoji agents instead of a traditional stepper
+- Floating result preview with playback, open-file, fullscreen, and download actions
+- Task history, voice samples, uploads, and protected runtime credentials remain compatible with the Python workflow
+
+Launch the new frontend with `webui-next.bat`. It runs the Next.js workspace at `http://127.0.0.1:3000` and the Python API at `http://127.0.0.1:8080`. The original Streamlit workflow remains available through `webui.bat`.
+
 ---
 
 ## Special Thanks ❤️
@@ -124,6 +138,8 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 ## Features 🎯
 
 - [x] Provides **AI Agent**, **WebUI**, **API**, and **CLI** workflows, with code organized by controller, service, and model responsibilities
+- [x] Provides a separate **Next.js + TypeScript + Tailwind CSS** studio frontend while reusing the existing Python video engine
+- [x] Provides a Gemini-style live generation feed, dynamic execution activity, and floating video result preview
 - [x] Supports **AI-generated video scripts** and custom scripts
 - [x] Supports various **high-definition video** sizes
   - [x] Portrait 9:16, `1080x1920`
@@ -310,6 +326,14 @@ Note that you need to execute the following commands in the `root directory` of 
 ```powershell
 .\webui.bat
 ```
+
+To use the new Next.js studio workspace, run:
+
+```powershell
+.\webui-next.bat
+```
+
+The new workspace opens at `http://127.0.0.1:3000` and automatically starts the Python API at `http://127.0.0.1:8080`.
 
 You can also run `webui.bat` in CMD.
 `webui.bat` prefers the project `.venv` or bundled Python from the portable package. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`.

@@ -28,6 +28,20 @@
 
 ![](docs/api.jpg)
 
+### Next.js 工作台（新版前端） ✨
+
+项目现在同时提供一个与 Python 生成引擎分离的现代化 Next.js 工作台。Python 继续负责脚本、素材、配音、字幕和视频渲染，Next.js 负责交互体验。
+
+- **TypeScript + Next.js + Tailwind CSS** 前端
+- 四列扁平化创作工作区，减少卡片和页面滚动
+- 分页式运行时设置：语言模型、素材来源和语音 Provider
+- Gemini 风格的实时生成 Feed，显示 Python 引擎正在执行的自然语言动作
+- 动态创作星座布局与 Emoji agent 动画，不使用传统步骤条
+- 生成完成后在浮层中直接预览、打开或下载视频
+- 任务历史、语音试听、素材上传和配置密钥均与原 Python 工作流保持一致
+
+新版前端通过 `webui-next.bat` 启动，默认地址为 `http://127.0.0.1:3000`；Python API 运行在 `http://127.0.0.1:8080`。原有的 `webui.bat` Streamlit 工作流仍然保留。
+
 ---
 
 ## 特别感谢 ❤️
@@ -124,6 +138,8 @@
 ## 功能特性 🎯
 
 - [x] 提供 **AI Agent**、**WebUI**、**API** 和 **CLI** 四种使用方式，代码按控制器、服务和模型等职责分层
+- [x] 提供独立的 **Next.js + TypeScript + Tailwind CSS** 创作工作台，并复用现有 Python 视频生成引擎
+- [x] 支持 Gemini 风格的实时生成 Feed、动态执行状态和浮层视频结果预览
 - [x] 支持 **AI 自动生成视频脚本**，也可以使用自定义脚本
 - [x] 支持多种 **高清视频** 尺寸
   - [x] 竖屏 9:16，`1080x1920`
@@ -311,6 +327,14 @@ pip install -r requirements.txt
 ```powershell
 .\webui.bat
 ```
+
+如需使用新版 Next.js 工作台，请运行：
+
+```powershell
+.\webui-next.bat
+```
+
+新版工作台打开 `http://127.0.0.1:3000`，并自动启动 `http://127.0.0.1:8080` 的 Python API。
 
 在 CMD 中也可以执行 `webui.bat`。
 `webui.bat` 会优先使用项目 `.venv` 或一键包内置 Python；如果没有找到项目 Python，但已安装 `uv`，会自动切换为 `uv run streamlit`。
