@@ -89,6 +89,15 @@ textarea.control { resize: vertical; min-height: 5rem; }
 .generation-feed-intro { animation: generation-feed-in .3s ease-out; }
 .generation-agent-avatar { background: linear-gradient(145deg, #ff6c74, #9b61da); box-shadow: 0 8px 24px rgba(255,91,98,.22); animation: generation-breathe 2.6s ease-in-out infinite; }
 .generation-feed-line { background: linear-gradient(to bottom, rgba(255,155,159,.45), rgba(255,255,255,.08), transparent); }
+.generation-constellation { overflow: hidden; border: 1px solid rgba(255,255,255,.1); border-radius: 1.1rem; background: radial-gradient(circle at 50% 44%, rgba(185,115,255,.12), transparent 42%), #111018; background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px), radial-gradient(circle at 50% 44%, rgba(185,115,255,.12), transparent 42%); background-size: 20px 20px, 20px 20px, auto; }
+.generation-constellation::after { content: "✦"; position: absolute; left: 50%; top: 44%; color: rgba(255,155,159,.65); font-size: 1.2rem; transform: translate(-50%, -50%); animation: generation-signal 1.8s ease-in-out infinite; }
+.generation-node { z-index: 2; width: 44%; min-height: 4.5rem; box-shadow: 0 10px 24px rgba(0,0,0,.2); animation: generation-node-in .35s ease-out both; }
+.generation-node-0 { left: 3%; top: 8%; }
+.generation-node-1 { right: 3%; top: 14%; animation-delay: .06s; }
+.generation-node-2 { bottom: 16%; left: 3%; animation-delay: .12s; }
+.generation-node-3 { bottom: 10%; right: 3%; animation-delay: .18s; }
+.generation-node-active { border-color: rgba(255,91,98,.45); background: rgba(255,91,98,.1); box-shadow: 0 0 24px rgba(255,91,98,.1); }
+.generation-thinking { z-index: 4; max-width: 82%; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
 .generation-feed-row { animation: generation-feed-in .3s ease-out both; }
 .generation-feed-row:nth-child(2) { animation-delay: .05s; }
 .generation-feed-row:nth-child(3) { animation-delay: .1s; }
@@ -99,6 +108,7 @@ textarea.control { resize: vertical; min-height: 5rem; }
 .generation-feed-row-thinking { animation: generation-feed-in .25s ease-out; }
 .generation-typing { display: inline-block; width: 1.2em; overflow: hidden; vertical-align: bottom; animation: generation-typing 1.2s steps(4, end) infinite; }
 @keyframes generation-feed-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes generation-node-in { from { opacity: 0; transform: translateY(7px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes generation-doodle-pop { 0%, 100% { transform: rotate(-5deg) scale(1); } 50% { transform: rotate(5deg) scale(1.12); } }
 @keyframes generation-typing { from { width: 0; } to { width: 1.2em; } }
 @keyframes generation-breathe { 0%, 100% { transform: scale(.97) rotate(-2deg); } 50% { transform: scale(1.04) rotate(2deg); } }
