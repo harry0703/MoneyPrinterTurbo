@@ -1,0 +1,3988 @@
+{
+  "status": "PASS",
+  "generated_at": "2026-08-15T10:30:00+08:00",
+  "summary": {
+    "checks": 682,
+    "passed": 682,
+    "failed": 0,
+    "article_pngs": 70,
+    "covers": 10,
+    "unique_article_hashes": 70,
+    "unique_cover_hashes": 10
+  },
+  "failures": [],
+  "checks": [
+    {
+      "label": "HC20260810-001 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-001/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-001/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-001/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-001/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-001/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-001/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-001/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-002/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-002/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-002/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-002/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-002/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-002/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-002/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-003/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-003/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-003/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-003/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-003/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-003/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-003/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-004/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-004/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-004/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-004/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-004/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-004/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-004/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-005/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-006/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-006/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-006/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-006/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-006/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-006/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-006/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-007/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-007/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-007/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-007/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-007/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-007/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-007/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-008/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-008/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-008/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-008/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-008/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-008/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-008/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-009/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-010/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-010/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-010/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-010/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-010/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-010/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-010/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 forbidden visible term scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "70 article PNGs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "10 dedicated covers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "70 unique article PNG hashes",
+      "ok": true,
+      "detail": "unique=70"
+    },
+    {
+      "label": "10 unique cover hashes",
+      "ok": true,
+      "detail": "unique=10"
+    },
+    {
+      "label": "HC20260810-B01-article-cards-contactsheet-25pct-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-B01-cover-contactsheet-25pct-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-B01-cover-center-crop-4x5-contactsheet-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-B01-cover-center-crop-1x1-contactsheet-v01.png exists",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "inventory": [
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A01",
+      "sha256": "dde00f453882aecd1f9837f5321b530e0d23ec22bdcda52c81dd82b6ab218a30",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A02",
+      "sha256": "0417441c5920328f0a4b0a87353290779c59aeb4af3341780d79d956676420ab",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A03",
+      "sha256": "4f4f6f37e132a3d12aa64c2ff377ae7f30eb7fe744ef94a23928df563d9020eb",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A04",
+      "sha256": "74073fe893fe03ee824e5bd24b1021d41e3e5dd2902e13c443a26c35729582de",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A05",
+      "sha256": "2c75311000b601ecef03fb5bfcd654b94aa41968f2f7ca0e78e90f73221cca69",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A06",
+      "sha256": "8e837494271b658cc31c141de834882cc66fa4c7c9508821bc82b682ee4f11d0",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A07",
+      "sha256": "69942e6f0f304239c36ce696f4b49260b6bab4b3e84401895c3f99520f4ce765",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "cover-v01",
+      "sha256": "357a665095856e43ced64c9f30aa840ec3bba0d8a00c9d051cbbdc5b4e1007c9",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A01",
+      "sha256": "1bad3304d8f601ee6dca03cd6032dd2543bc621d7876788dc7463cca4cf6d726",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A02",
+      "sha256": "feb27acf23a5a8c65f6631197d47c5ccb75031e5a254b334aa3476b05241a3fa",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A03",
+      "sha256": "1a7f097ad941b141c9c4a8d6675556f794f1c8e29fa5ad430d4be5f21dfd744d",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A04",
+      "sha256": "31f2d9d3638ee5b93d09c127af14d58c6de9e0a9ce7cf1adf9796c50a6a4799b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A05",
+      "sha256": "e5c689b5e09cc99452db781940d8d5f4f06678d92d053a8dec733f6af4e27558",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A06",
+      "sha256": "cc9bb91aecb909cdde5f7b8365738e3edc50d60afd525a73e888a21a6eac75b9",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A07",
+      "sha256": "8eaa1e037af6f19da0407a4c39987709dded0fe2df4040845d6c31f28a1ed593",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "cover-v01",
+      "sha256": "ebec3e2ce1adaa0e1e0ad548105eb5188dfae0a43d5f29ced1ebf65af5c642b9",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A01",
+      "sha256": "01c1f64dce33c7d8de997c4fb671a7f07a57fef11c85e741839973ca92a1ff04",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A02",
+      "sha256": "5f5342df8d6f32efee53ac2f5f058c4ad986be6288760c09e4079c2dc5e6f65b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A03",
+      "sha256": "118085d005f1399c4c0b07bd4be45363fba0ef3b9f28089cbe778519707ca547",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A04",
+      "sha256": "9891c96ed488bc09dd3a05735ee6f79cb2ad79286a084cde5292ec2f43c75329",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A05",
+      "sha256": "71b57e15b202a089550dbd3ee3c3a24f420ea491c5298fe6a606fe85f6462e6a",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A06",
+      "sha256": "97de4484b093346a677e1bd4e628f499ac8d1a2c61984905d5a520299774e077",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A07",
+      "sha256": "9ab62ab12139db7c0970b401723eb5a7b6ac56750951de4071c1a8358273e3bb",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "cover-v01",
+      "sha256": "8189e9bb577b4c522a1bcc33edae5ed3cf76b712a8ab9b150631b83c5e8eb9ec",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A01",
+      "sha256": "3d5d8fa230be8339f302fdfff7f709a787cb7f06f69e3895a067bcd2d0d2b09b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A02",
+      "sha256": "806111913d6d647869a579cb84e50642aaaa47589e2685dca9f22399e4ee3400",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A03",
+      "sha256": "6ea9e02986308828e1a5baf4c5ee852dcd00b250cec21f04a801ca1079c2a971",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A04",
+      "sha256": "2a32b76cb0ab4665325ceba1a11c032034be3a6ee0cf479e6e50b2506bf13d13",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A05",
+      "sha256": "02fe83a7151069f9fc98ccad05b6b6ef5bb24b5d0347d27fc650f57934ba7ab5",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A06",
+      "sha256": "de879809d6f933de818521caa438dd7982d417f82102310708ea71acd2153bff",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A07",
+      "sha256": "7fec7ad535079d3a9d26456b65453f2ca4b6ba79959004f50a44ac7cf239166b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "cover-v01",
+      "sha256": "b98967594b628018bda6c0a8c1c10868652e13c742ffdb66093a1faf95f08732",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A01",
+      "sha256": "06fe5c09c9d43471bd4837c7f8d0958bcd531d97eec4e95340fa649ffa8f6f78",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A02",
+      "sha256": "36c364001aa6e0ecaad62f4fc262a7ca0fca916e7db9873c3d393c225d310a89",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A03",
+      "sha256": "1ba857d66ae6a3055cf26869865a754bf7ff6e799181ce42154092681c4b7dd8",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A04",
+      "sha256": "9a8d0797b321c3b4bdae5d4cc0a7bc2ea5a0042e40292164029f63d7860c7a3e",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A05",
+      "sha256": "ffc1e6c6f7b2158b8fdbcc20418f48a8400cb08e17849e151dcb1493c81cc6c8",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A06",
+      "sha256": "8de8feb7d8b1dde2e86f679a863a806b2700470f4bd5ef79f0aecf558ccc5d08",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A07",
+      "sha256": "0fa4d44aee308a619116b6998ebc52a27a54e9f1bc56589411ce40654ab36cee",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "cover-v01",
+      "sha256": "196a3876e2a88017a894aee20f632b6059703295d84e37164841af6f5e452d99",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A01",
+      "sha256": "61fba38532e13b3e65353972221cf103b1c52476c9fd1c5f20d9116c6c7c6d4c",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A02",
+      "sha256": "ba81f227244bb3ca14b5a8dfc2b3df9f06140f793cc02f67079c0cf2f866f399",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A03",
+      "sha256": "1784d298bcfc33181f6f51d31d5ba1b749afddd70f35f68f7b8d4f04c13ff1cc",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A04",
+      "sha256": "c91afe60c9caccf242d9a8bb5f05c47c10528a8f91ec8a8ef14587bb530f14e9",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A05",
+      "sha256": "30e05f766caba36f1f6fe81aaa0ec91d03ea57fac9d92127e8d3f9317b9aed5f",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A06",
+      "sha256": "0d52479e7fc5d2aa60c56c1523c5eba468106756322be5cf5165d05091967658",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A07",
+      "sha256": "4cbd225e2d66e893bb4c03bca74337001d728eeed5f8f03729614d51443839fe",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "cover-v01",
+      "sha256": "ef90f3ccf95534a5f025bad37006446fc69a550c4917053efc79eef32c2c8879",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A01",
+      "sha256": "f05bf9ffb77e195624382e11bcae64ebfa80bc06815da448efb514493b638713",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A02",
+      "sha256": "cbd44108c64fa3030a5228c09adc694176d2235d45e3f34a78ba81bd90552d4a",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A03",
+      "sha256": "1d6cbccf376b652e5ec41c624b196b119cbcb29b9c05f1b7b046d236788dee6a",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A04",
+      "sha256": "eb7b415a375bd93b4bb02fa8dfefee7ae4ac6f205d1bd9462531b9465d48848b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A05",
+      "sha256": "fd682f57786470c37da0fbd61d822b5e2afac39cc0890a2001917769b82d9e31",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A06",
+      "sha256": "fa927109e2e413f4cc3f51e0185764064ce77d1e4dccc0c2620f35ec965d8f06",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A07",
+      "sha256": "3e112607a63d0e515f4c1081175a7a2cab9178a192df6cac62288335665b2a16",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "cover-v01",
+      "sha256": "1dda827fb8cd1d66f29e5e660c250a40d54f50cd6132a19ec0f713cec1f6523e",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A01",
+      "sha256": "92cc5278fd50b807ba6207172caa3c620643f7846c43edd09fe7e58ab7dc18e0",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A02",
+      "sha256": "9ff70fa69512f0b9eb495e38777f0f21c2d58428abfdac59523bfbee548d5065",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A03",
+      "sha256": "78f9633b11f1d3cc47b17e5a675dd7f708e4029200a2df2e084403d37f35ed93",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A04",
+      "sha256": "97663f4fb7280f6a2ca8d5eb8b36b157b1bbf648cf986658c578ba7d74903dc2",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A05",
+      "sha256": "eebb909a660fbbe8851acda833b8b46f0e8ee3aa512d438a7000a3a03961210c",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A06",
+      "sha256": "8e1884200afeb671a02d52f869e4a7e903e5027f27ad05b4303a79b99275272c",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A07",
+      "sha256": "ce9b1e85722fbc46c6e9f848343724dd7a08cbfaf22d9cd6f478ade32606c935",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "cover-v01",
+      "sha256": "c317ef0a603594a36caaec31809c2a05ece60ea74e7127691e163f2638fbeb94",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A01",
+      "sha256": "5c8bc55da02bd844d64e88a0e365e5a5f81952b0f9e8cc2219e5f5e3ea4013a5",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A02",
+      "sha256": "da87ea55502f67cd0c731666098187fa3d36d064ed30d849c4793b159e16ae27",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A03",
+      "sha256": "c66db41baee6d560ef77c80925b102a675c42f029d84ae8cee28dab7aefb566c",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A04",
+      "sha256": "cc458ea4a501aedfcd331e2922b3a868496028a68445b6e6c7befd4cd0218d28",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A05",
+      "sha256": "cc948fbf29074b42b131b232701e4021ee3977902d8066c9efaa9b2bc06197d5",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A06",
+      "sha256": "7dcd42b0088c8a078a48972ca00aaf0dc9d6410b91190dc26057430ca646863a",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A07",
+      "sha256": "fcce6683721ade7609417d7124e61c8e6f550822e37a75513a1b78374404b4f0",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "cover-v01",
+      "sha256": "06290127eea19450575d2a19b011e86da6174ac2b1112b68a9ec6eaa8b1d6fa2",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A01",
+      "sha256": "16c965f31c2b6972741296eac1473011928ea670c013a86c1fbbb3433b4ffb8c",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A02",
+      "sha256": "0a6e7ff042d78c1e599d1b924d76f3cdec84fc2142628d17ad28c07945fee0e8",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A03",
+      "sha256": "cb6dfc4fd2a96d0004814f0608bd84e54aaeff15d35719e3c7ea5f9ea60c0d63",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A04",
+      "sha256": "2d941a507d33d224660eee0011a1a99629ae79d89f98169d5e7368823fbfdd0e",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A05",
+      "sha256": "e780efcbe6f4b8b4b1c398ecdf3c384cb422a247bd22e5e05af8e6223b6d5e48",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A06",
+      "sha256": "96af3013ef070f943a00b3f66f69b25d35e436e9546e28de4cc0c5306a3b2f16",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A07",
+      "sha256": "913ef5290889e0a2efc89a8e2357a642d8fb16147b30bc8765dc05c86a376246",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "cover-v01",
+      "sha256": "3da3bb892e824f22b02f79408465ca3e7198383a746eca01d1f301a8f19a5ebd",
+      "width": 1080,
+      "height": 1920
+    }
+  ]
+}
