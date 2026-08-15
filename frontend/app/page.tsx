@@ -47,6 +47,9 @@ type Task = {
 
 type UiOptions = {
   version?: string;
+  languages?: string[];
+  defaults?: Record<string, string | number | boolean>;
+  llm_providers?: Array<{ id: string; label: string; default_model: string; default_base_url: string; show_api_key: boolean; show_base_url: boolean; extra_fields: string[] }>;
   fonts: string[];
   songs: string[];
   voices: Record<string, string[]>;
@@ -70,6 +73,7 @@ type FormState = {
   clipDuration: number;
   clipSpeed: number;
   videoCount: number;
+  videoCodec: string;
   voiceMode: VoiceMode;
   ttsServer: string;
   voice: string;
@@ -108,6 +112,7 @@ const initialForm: FormState = {
   clipDuration: 3,
   clipSpeed: 1,
   videoCount: 1,
+  videoCodec: "__default__",
   voiceMode: "tts",
   ttsServer: "azure-tts-v1",
   voice: "zh-CN-XiaoxiaoNeural-Female",
@@ -175,7 +180,7 @@ function formatBytes(bytes: number) {
 
 export default function Home() {
   const [form, setForm] = useState<FormState>(initialForm);
-  const [options, setOptions] = useState<UiOptions>({ fonts: [], songs: [], voices: {} , local_material_extensions: [], audio_extensions: [] });
+  const [options, setOptions] = useState<UiOptions>({ fonts: ["MicrosoftYaHeiBold.ttc"], songs: [], voices: { "azure-tts-v1": ["zh-CN-XiaoxiaoNeural-Female"] }, local_material_extensions: [], audio_extensions: [".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"] });
   const [materials, setMaterials] = useState<Material[]>([]);
   const [audioPath, setAudioPath] = useState("");
   const [audioPreviewUrl, setAudioPreviewUrl] = useState("");
@@ -188,6 +193,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [drawer, setDrawer] = useState<"tasks" | "settings" | null>(null);
+  const [uiLanguage, setUiLanguage] = useState("en-US");
   const [settings, setSettings] = useState<SettingsMap>({});
   const [settingsDraft, setSettingsDraft] = useState({
     llmProvider: "openai",
@@ -224,8 +230,28 @@ export default function Home() {
     void Promise.all([
       api<UiOptions>("/ui/options").then((data) => {
         setOptions(data);
-        if (data.fonts[0]) setForm((previous) => ({ ...previous, font: previous.font || data.fonts[0] }));
-        if (data.voices["azure-tts-v1"]?.[0]) setForm((previous) => ({ ...previous, voice: previous.voice || data.voices["azure-tts-v1"][0] }));
+        const defaults = data.defaults || {};
+        setUiLanguage(String(defaults.language || "en-US"));
+        const defaultServer = String(defaults.tts_server || "azure-tts-v1");
+        const serverVoices = data.voices[defaultServer] || data.voices["azure-tts-v1"] || [];
+        setForm((previous) => ({
+          ...previous,
+          source: (defaults.video_source as FormState["source"]) || previous.source,
+          videoCodec: String(defaults.video_codec || previous.videoCodec),
+          ttsServer: defaultServer,
+          voiceMode: (defaults.voice_mode as VoiceMode) || previous.voiceMode,
+          voice: String(defaults.voice_name || serverVoices[0] || previous.voice),
+          font: String(defaults.font_name || data.fonts[0] || previous.font),
+          position: (defaults.subtitle_position as FormState["position"]) || previous.position,
+          customPosition: Number(defaults.custom_position ?? previous.customPosition),
+          fontColor: String(defaults.text_fore_color || previous.fontColor),
+          fontSize: Number(defaults.font_size ?? previous.fontSize),
+          strokeColor: String(defaults.stroke_color || previous.strokeColor),
+          strokeWidth: Number(defaults.stroke_width ?? previous.strokeWidth),
+          subtitleBackground: Boolean(defaults.subtitle_background_enabled ?? previous.subtitleBackground),
+          subtitleBackgroundColor: String(defaults.subtitle_background_color || previous.subtitleBackgroundColor),
+          roundedBackground: Boolean(defaults.rounded_subtitle_background ?? previous.roundedBackground),
+        }));
       }),
       loadTasks(),
       api<SettingsMap>("/settings").then(setSettings),
@@ -387,13 +413,22 @@ export default function Home() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save settings"); }
   };
 
+  const changeLanguage = async (language: string) => {
+    setUiLanguage(language);
+    try {
+      await api("/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: "ui", values: { language } }) });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not save language");
+    }
+  };
+
   const selectedProviderLabel = providers.find(([id]) => id === form.ttsServer)?.[1] || form.ttsServer;
 
   return (
     <main className="min-h-screen overflow-auto px-3 py-3 sm:px-5 lg:h-screen lg:overflow-hidden lg:px-7">
       <header className="mb-3 flex shrink-0 items-center justify-between rounded-2xl border border-white/10 bg-[#15181d]/90 px-4 py-3 shadow-xl shadow-black/10 sm:px-5">
         <div className="flex min-w-0 items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#ff5b62] to-[#b973ff] text-lg font-black text-white shadow-lg shadow-[#ff5b62]/20">✦</div><div className="min-w-0"><div className="flex items-baseline gap-2"><h1 className="truncate text-xl font-bold tracking-[-.05em] sm:text-2xl">MoneyPrinterTurbo</h1><span className="text-[11px] font-semibold text-[#858b96]">v{options.version || "1.3.4"}</span></div><p className="hidden text-[11px] text-[#858b96] sm:block">Short-form video studio · Next frontend / Python engine</p></div></div>
-        <div className="flex items-center gap-2 text-xs"><span className="hidden items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[.07] px-3 py-2 text-emerald-200 sm:flex"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />Engine connected</span><button className="button" onClick={() => setDrawer("tasks")}><History size={15} /> Tasks <span className="text-[#9899aa]">{tasks.length}</span></button><button className="button" onClick={() => setDrawer("settings")}><Settings size={15} /> Settings</button></div>
+        <div className="flex items-center gap-2 text-xs"><span className="hidden items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[.07] px-3 py-2 text-emerald-200 sm:flex"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />Engine connected</span><button className="button" onClick={() => setDrawer("tasks")}><History size={15} /> Tasks <span className="text-[#9899aa]">{tasks.length}</span></button><button className="button" onClick={() => setDrawer("settings")}><Settings size={15} /> Settings</button><select aria-label="Language" className="control !h-9 !min-h-9 !w-32 !py-1.5" value={uiLanguage} onChange={(event) => void changeLanguage(event.target.value)}>{(options.languages || ["en-US"]).map((language) => <option key={language}>{language}</option>)}</select></div>
       </header>
 
       <section className="studio-grid grid h-full min-h-0 gap-3 lg:grid-cols-4">
@@ -416,6 +451,7 @@ export default function Home() {
           <Range label="Maximum clip duration" value={form.clipDuration} min={2} max={10} step={1} suffix="s" onChange={(value) => setValue("clipDuration", value)} />
           <Range label="Clip speed" value={form.clipSpeed} min={0.5} max={2} step={0.05} suffix="×" onChange={(value) => setValue("clipSpeed", value)} />
           <Field label="Videos per run"><select className="control" value={form.videoCount} onChange={(event) => setValue("videoCount", Number(event.target.value))}>{[1, 2, 3, 4, 5].map((count) => <option key={count}>{count}</option>)}</select></Field>
+          <Field label="Video encoder"><select className="control" value={form.videoCodec} onChange={async (event) => { const value = event.target.value; setValue("videoCodec", value); try { await api("/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: "app", values: { video_codec: value === "__default__" ? "" : value } }) }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save video encoder"); } }}><option value="__default__">Default video encoder</option><option value="libx264">libx264 (CPU)</option><option value="h264_nvenc">NVIDIA NVENC</option><option value="h264_amf">AMD AMF</option><option value="h264_qsv">Intel QSV</option><option value="h264_mf">Windows MediaFoundation</option><option value="h264_videotoolbox">macOS VideoToolbox</option></select></Field>
         </Panel>
 
         <Panel title="Audio Settings" eyebrow="03">

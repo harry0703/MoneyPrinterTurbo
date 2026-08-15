@@ -17,6 +17,7 @@ from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1.base import new_router
 from app.models.exception import HttpException
+from app.models.llm_provider import LLM_PROVIDER_REGISTRY
 from app.models.schema import (
     AudioRequest,
     BgmRetrieveResponse,
@@ -216,6 +217,40 @@ def get_ui_options(request: Request):
         200,
         {
             "version": config.project_version,
+            "languages": [
+                "zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US", "es-ES",
+                "fr-FR", "ru-RU", "vi-VN", "th-TH", "tr-TR",
+            ],
+            "defaults": {
+                "language": config.ui.get("language", "en-US"),
+                "video_source": config.app.get("video_source", "pexels"),
+                "video_codec": config.app.get("video_codec", "__default__"),
+                "tts_server": config.ui.get("tts_server", "azure-tts-v1"),
+                "voice_mode": config.ui.get("voice_mode", "tts"),
+                "voice_name": config.ui.get("voice_name", ""),
+                "font_name": config.ui.get("font_name", ""),
+                "subtitle_position": config.ui.get("subtitle_position", "bottom"),
+                "custom_position": config.ui.get("custom_position", 70),
+                "text_fore_color": config.ui.get("text_fore_color", "#FFFFFF"),
+                "font_size": config.ui.get("font_size", 60),
+                "stroke_color": config.ui.get("stroke_color", "#000000"),
+                "stroke_width": config.ui.get("stroke_width", 1.5),
+                "subtitle_background_enabled": config.ui.get("subtitle_background_enabled", False),
+                "subtitle_background_color": config.ui.get("subtitle_background_color", "#000000"),
+                "rounded_subtitle_background": config.ui.get("rounded_subtitle_background", False),
+            },
+            "llm_providers": [
+                {
+                    "id": provider.provider_id,
+                    "label": provider.default_label,
+                    "default_model": provider.default_model,
+                    "default_base_url": provider.default_base_url,
+                    "show_api_key": provider.show_api_key,
+                    "show_base_url": provider.show_base_url,
+                    "extra_fields": [field.config_suffix for field in provider.extra_fields],
+                }
+                for provider in LLM_PROVIDER_REGISTRY
+            ],
             "fonts": fonts,
             "songs": sorted(set(songs), key=str.lower),
             "voices": voices,
