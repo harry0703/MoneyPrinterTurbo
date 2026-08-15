@@ -1408,14 +1408,7 @@ def _render_generation_logs(task_id):
     if not log_records:
         return
 
-    # 原始日志可能包含数百行。默认展开会把生成状态推到页面很远，
-    # 也会让每次 fragment 刷新都造成明显的页面跳动。保留完整日志，
-    # 但将它收进按需展开的诊断面板。
-    with st.expander(
-        f"{tr('Task Progress')} · logs ({len(log_records)})",
-        expanded=False,
-    ):
-        st.code("\n".join(log_records), language="text", wrap_lines=True)
+    st.code("\n".join(log_records))
 
 
 def _render_generation_task_snapshot(task_id, task):
@@ -1428,18 +1421,11 @@ def _render_generation_task_snapshot(task_id, task):
     state = _normalize_task_state(task.get("state"))
     progress = max(0, min(100, int(task.get("progress", 0) or 0)))
     if state == const.TASK_STATE_PROCESSING:
-        with st.container(key="generation_status_card", border=True):
-            status_cols = st.columns(
-                [4.5, 1.0],
-                vertical_alignment="center",
-                gap="small",
-            )
-            with status_cols[0]:
-                st.markdown(f"**{tr('Generating Video')}**")
-                st.caption(tr("Task Status Processing"))
-            with status_cols[1]:
-                st.metric(tr("Task Progress"), f"{progress}%")
-            st.progress(progress, text=f"{tr('Task Progress')}: {progress}%")
+        st.info(tr("Generating Video"))
+        st.progress(
+            progress,
+            text=f"{tr('Task Progress')}: {progress}%",
+        )
         _render_generation_logs(task_id)
         return
 
@@ -2222,7 +2208,7 @@ def _render_settings_dialog():
 def _render_script_settings(panel, params):
     """渲染文案设置并更新生成参数。"""
     with panel:
-        with st.container(key="script_settings_panel", border=True):
+        with st.container(border=True):
             st.write(tr("Video Script Settings"))
             params.video_subject = st.text_area(
                 tr("Video Subject"),
@@ -2394,7 +2380,7 @@ def _render_video_settings(panel, params):
     """渲染视频设置并返回本次选择的本地素材。"""
     uploaded_files = []
     with panel:
-        with st.container(key="video_settings_panel", border=True):
+        with st.container(border=True):
             st.write(tr("Video Settings"))
             video_concat_modes = [
                 (tr("Sequential"), "sequential"),
@@ -3376,7 +3362,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
 def _render_audio_settings(panel, params):
     """渲染音频设置并返回上传音频与当前配音模式。"""
     with panel:
-        with st.container(key="audio_settings_panel", border=True):
+        with st.container(border=True):
             st.write(tr("Audio Settings"))
 
             # 配音方式是音频设置的一级状态，负责明确区分自动配音、用户上传和无配音。
@@ -3812,7 +3798,7 @@ def _render_audio_settings(panel, params):
 def _render_subtitle_settings(panel, params):
     """渲染字幕设置并更新生成参数。"""
     with panel:
-        with st.container(key="subtitle_settings_panel", border=True):
+        with st.container(border=True):
             st.write(tr("Subtitle Settings"))
             st.session_state.setdefault(
                 "subtitle_enabled_checkbox",
@@ -4312,41 +4298,33 @@ def _render_application():
     if restore_applied or restore_succeeded:
         st.success(tr("Task Configuration Loaded"))
 
+    with st.container(key="main_settings_grid"):
+        panel = st.columns(4)
+    left_panel = panel[0]
+    middle_panel = panel[1]
+    audio_panel = panel[2]
+    right_panel = panel[3]
+
     params = VideoParams(video_subject="")
     params.match_materials_to_script = bool(
         st.session_state.get("match_materials_to_script", False)
     )
+    _render_script_settings(left_panel, params)
 
-    # Keep the creation flow focused: the previous four-column layout showed every
-    # control at once, making the page extremely tall and forcing narrow panels on
-    # laptops. Tabs preserve the existing settings modules while giving each one a
-    # comfortable working width and a clear step in the creation flow.
-    with st.container(key="main_settings_grid"):
-        settings_tabs = st.tabs(
-            [
-                tr("Video Script Settings").replace("**", ""),
-                tr("Video Settings").replace("**", ""),
-                tr("Audio Settings").replace("**", ""),
-                tr("Subtitle Settings").replace("**", ""),
-            ],
-            key="creation_settings_tabs",
-        )
+    uploaded_files = _render_video_settings(middle_panel, params)
+    uploaded_audio_file, uploaded_bgm_file, voice_mode = _render_audio_settings(
+        audio_panel, params
+    )
 
-        _render_script_settings(settings_tabs[0], params)
-        uploaded_files = _render_video_settings(settings_tabs[1], params)
-        uploaded_audio_file, uploaded_bgm_file, voice_mode = _render_audio_settings(
-            settings_tabs[2], params
-        )
-        _render_subtitle_settings(settings_tabs[3], params)
+    _render_subtitle_settings(right_panel, params)
 
-    with st.container(key="generation_controls"):
-        generation_submitted = _render_generation_controls(
-            params,
-            uploaded_files,
-            uploaded_audio_file,
-            uploaded_bgm_file,
-            voice_mode,
-        )
+    generation_submitted = _render_generation_controls(
+        params,
+        uploaded_files,
+        uploaded_audio_file,
+        uploaded_bgm_file,
+        voice_mode,
+    )
 
     # 生成分支在启动后台线程前已经请求过保存。普通控件交互继续请求非阻塞保存；
     # 如果后台任务正在使用配置，配置层会在任务结束时自动应用并落盘最新值。
