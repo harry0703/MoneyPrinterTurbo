@@ -182,3 +182,70 @@ button {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Flat studio pass: keep structure through spacing and dividers instead of stacked cards. */
+.studio-panels {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.studio-panel.glass {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.studio-panel + .studio-panel {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.studio-panel-accent {
+  border-color: transparent;
+}
+
+.studio-panel-content {
+  padding-right: 0.35rem;
+}
+
+.compact-input,
+.compact-textarea {
+  border-color: rgba(255, 255, 255, 0.08);
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.compact-input {
+  height: 2.1rem;
+}
+
+.compact-textarea {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.compact-button {
+  min-height: 2rem;
+  border-color: transparent;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #ff8f94;
+  text-align: left;
+}
+
+.compact-button:hover {
+  border-color: transparent;
+  background: rgba(255, 91, 98, 0.08);
+}
+
+.compact-expander {
+  padding: 0.15rem 0;
+}
+
+@media (max-width: 1023px) {
+  .studio-panel + .studio-panel {
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
