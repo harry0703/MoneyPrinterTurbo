@@ -1,6 +1,11 @@
+from typing import Any
+
 from fastapi import Request
+from pydantic import BaseModel, Field
 
 from app.controllers.v1.base import new_router
+from app.config import config
+from app.models.exception import HttpException
 from app.models.schema import (
     VideoScriptRequest,
     VideoScriptResponse,
@@ -15,6 +20,59 @@ from app.utils import utils
 # authentication dependency
 # router = new_router(dependencies=[Depends(base.verify_token)])
 router = new_router()
+
+
+class RuntimeSettingsRequest(BaseModel):
+    section: str = Field(min_length=1, max_length=40)
+    values: dict[str, Any]
+
+
+_SETTINGS_SECTIONS = {
+    "app": config.app,
+    "azure": config.azure,
+    "chatterbox": config.chatterbox,
+    "elevenlabs": config.elevenlabs,
+    "minimax_tts": config.minimax_tts,
+    "siliconflow": config.siliconflow,
+    "ui": config.ui,
+}
+_SECRET_KEY_PARTS = ("key", "token", "password", "secret")
+
+
+def _safe_settings_snapshot() -> dict[str, dict[str, Any]]:
+    snapshot: dict[str, dict[str, Any]] = {}
+    for section_name, section in _SETTINGS_SECTIONS.items():
+        values: dict[str, Any] = {}
+        for key, value in dict(section).items():
+            if any(part in key.lower() for part in _SECRET_KEY_PARTS):
+                values[key] = {"configured": bool(value)}
+            else:
+                values[key] = value
+        snapshot[section_name] = values
+    return snapshot
+
+
+@router.get("/settings", summary="Read non-secret runtime settings")
+def get_runtime_settings(request: Request):
+    return utils.get_response(200, _safe_settings_snapshot())
+
+
+@router.put("/settings", summary="Update runtime settings")
+def update_runtime_settings(request: Request, body: RuntimeSettingsRequest):
+    section = _SETTINGS_SECTIONS.get(body.section)
+    if section is None:
+        raise HttpException(
+            task_id="",
+            status_code=400,
+            message=f"unsupported settings section: {body.section}",
+        )
+
+    for key, value in body.values.items():
+        if not isinstance(key, str) or not key or len(key) > 100:
+            continue
+        config.update_config_nonblocking(section, key, value)
+    config.try_save_config()
+    return utils.get_response(200, _safe_settings_snapshot())
 
 
 @router.post(

@@ -2,6 +2,7 @@ import glob
 import os
 import pathlib
 import shutil
+from uuid import uuid4
 from typing import Union
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
@@ -33,11 +34,14 @@ from app.models.schema import (
 from app.services import bgm as bgm_service
 from app.services import state as sm
 from app.services import task as tm
+from app.services import voice as voice_service
 from app.utils import file_security, utils
 
 # 认证依赖项
 # router = new_router(dependencies=[Depends(base.verify_token)])
 router = new_router()
+
+_CUSTOM_AUDIO_SUFFIXES = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
@@ -176,6 +180,73 @@ def create_video(
     background_tasks: BackgroundTasks, request: Request, body: TaskVideoRequest
 ):
     return create_task(request, body, stop_at="video")
+
+
+@router.get("/ui/options", summary="Get frontend creation options")
+def get_ui_options(request: Request):
+    """Expose non-secret assets and provider catalogs to the decoupled frontend."""
+    fonts_dir = utils.font_dir()
+    fonts = []
+    if os.path.isdir(fonts_dir):
+        for root, _, files in os.walk(fonts_dir):
+            fonts.extend(
+                file
+                for file in files
+                if pathlib.Path(file).suffix.lower() in {".ttf", ".ttc"}
+            )
+    fonts.sort(key=str.lower)
+
+    songs = [os.path.basename(file) for file in bgm_service.list_bgm_files()]
+    voices = {
+        "azure-tts-v1": voice_service.get_all_azure_voices(),
+        "azure-tts-v2": voice_service.get_all_azure_voices(),
+        "siliconflow": voice_service.get_siliconflow_voices(),
+        "gemini-tts": voice_service.get_gemini_voices(),
+        "mimo-tts": voice_service.get_mimo_voices(),
+        "minimax-tts": voice_service.get_minimax_voices(),
+        "elevenlabs": voice_service.get_elevenlabs_voices(
+            str(config.elevenlabs.get("api_key", "") or "")
+        ),
+        "chatterbox": voice_service.get_chatterbox_voices(),
+    }
+    if not voices["chatterbox"]:
+        voices["chatterbox"] = ["chatterbox:default-Female"]
+
+    return utils.get_response(
+        200,
+        {
+            "version": config.project_version,
+            "fonts": fonts,
+            "songs": sorted(set(songs), key=str.lower),
+            "voices": voices,
+            "local_material_extensions": sorted(
+                ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
+            ),
+            "audio_extensions": sorted(_CUSTOM_AUDIO_SUFFIXES),
+        },
+    )
+
+
+@router.post("/audio_uploads", summary="Upload a custom voiceover file")
+def upload_audio_file(request: Request, file: UploadFile = File(...)):
+    """Store an uploaded voiceover under a project-relative safe path."""
+    safe_filename = _sanitize_upload_filename(file.filename, base.get_task_id(request))
+    suffix = pathlib.Path(safe_filename).suffix.lower()
+    if suffix not in _CUSTOM_AUDIO_SUFFIXES:
+        raise HttpException(
+            task_id=base.get_task_id(request),
+            status_code=400,
+            message="unsupported custom audio format",
+        )
+
+    upload_dir = utils.storage_dir("audio_uploads", create=True)
+    stored_name = f"{uuid4().hex}{suffix}"
+    stored_path = os.path.join(upload_dir, stored_name)
+    with open(stored_path, "wb") as output:
+        shutil.copyfileobj(file.file, output)
+
+    relative_path = os.path.relpath(stored_path, utils.root_dir()).replace("\\", "/")
+    return utils.get_response(200, {"file": relative_path})
 
 
 @router.post("/subtitle", response_model=TaskResponse, summary="Generate subtitle only")
