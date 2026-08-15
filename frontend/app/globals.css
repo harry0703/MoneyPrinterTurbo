@@ -51,6 +51,20 @@ textarea.control { resize: vertical; min-height: 5rem; }
 .check input { width: 1rem; height: 1rem; accent-color: var(--accent); }
 .panel-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
 .panel-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); }
+.settings-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: .55rem .4rem .65rem;
+  font-size: .7rem;
+  font-weight: 700;
+  transition: color .15s, border-color .15s;
+}
+.settings-tabs button:hover { color: var(--text); }
+.settings-tabs button.active { border-bottom-color: var(--accent); color: #ff9b9f; }
+.settings-content { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+.settings-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); }
 
 /* Slick studio surface: the columns are a continuous workspace, not four cards. */
 .studio-header {
