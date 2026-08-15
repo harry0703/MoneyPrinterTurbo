@@ -66,10 +66,15 @@ class MemoryState(BaseState):
             progress = 100
 
         with self._lock:
+            existing = self._tasks.get(task_id, {})
             self._tasks[task_id] = {
                 "task_id": task_id,
                 "state": state,
                 "progress": progress,
+                # Task updates historically replace the in-memory snapshot.
+                # Keep the bounded live event timeline across those updates so
+                # the frontend can show generation steps without losing them.
+                "events": existing.get("events", []),
                 **kwargs,
             }
 

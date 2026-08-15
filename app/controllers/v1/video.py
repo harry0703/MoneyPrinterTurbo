@@ -312,6 +312,7 @@ def create_task(
             "params": body.model_dump(),
         }
         sm.state.update_task(task_id)
+        tm.append_task_event(task_id, "Generation queued", "queue", 0)
         task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)

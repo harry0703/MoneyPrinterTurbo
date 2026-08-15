@@ -65,6 +65,13 @@ textarea.control { resize: vertical; min-height: 5rem; }
 .settings-tabs button.active { border-bottom-color: var(--accent); color: #ff9b9f; }
 .settings-content { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
 .settings-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); }
+.generation-popup { animation: generation-pop-in .22s ease-out; }
+.generation-pill { animation: generation-pop-in .18s ease-out; }
+.generation-pill:hover { border-color: rgba(255,91,98,.7); background: #211821; }
+@keyframes generation-pop-in {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 
 /* Slick studio surface: the columns are a continuous workspace, not four cards. */
 .studio-header {

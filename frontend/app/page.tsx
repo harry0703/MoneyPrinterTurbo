@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  AlertCircle,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Download,
@@ -10,6 +12,8 @@ import {
   FolderOpen,
   History,
   LoaderCircle,
+  Maximize2,
+  Minimize2,
   Mic2,
   Play,
   RefreshCw,
@@ -32,6 +36,14 @@ type VoiceMode = "tts" | "upload" | "none";
 type SettingsMap = Record<string, Record<string, unknown>>;
 
 type Material = { name: string; url: string };
+type TaskEvent = {
+  id?: string;
+  timestamp?: number;
+  message?: string;
+  stage?: string;
+  level?: string;
+  progress?: number;
+};
 type Task = {
   task_id: string;
   state?: number;
@@ -43,6 +55,9 @@ type Task = {
   params?: { video_subject?: string };
   video_subject?: string;
   warnings?: Array<{ code?: string; video_index?: number } | string>;
+  events?: TaskEvent[];
+  current_stage?: string;
+  stage_label?: string;
 };
 
 type UiOptions = {
@@ -193,6 +208,8 @@ export default function Home() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [drawer, setDrawer] = useState<"tasks" | "settings" | null>(null);
+  const [generationOpen, setGenerationOpen] = useState(false);
+  const [generationMinimized, setGenerationMinimized] = useState(false);
   const [uiLanguage, setUiLanguage] = useState("en-US");
   const [settings, setSettings] = useState<SettingsMap>({});
   const [settingsDraft, setSettingsDraft] = useState({
@@ -413,6 +430,7 @@ export default function Home() {
         stroke_width: form.strokeWidth,
       }) });
       setTaskId(task.task_id); setCurrentTask({ task_id: task.task_id, state: PROCESSING, progress: 0 });
+      setGenerationOpen(true); setGenerationMinimized(false);
       setNotice("Video generation queued");
       void loadTasks();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not start generation"); }
@@ -500,6 +518,8 @@ export default function Home() {
 
       {drawer === "tasks" && <TaskDrawer tasks={tasks} currentTaskId={taskId} onClose={() => setDrawer(null)} onRefresh={loadTasks} onOpen={(task) => { setTaskId(task.task_id); setCurrentTask(task); setDrawer(null); }} />}
       {drawer === "settings" && <CompactSettingsDrawer draft={settingsDraft} setDraft={setSettingsDraft} settings={settings} llmProviders={options.llm_providers || []} onClose={() => setDrawer(null)} onSave={saveSettings} />}
+      {generationOpen && currentTask && !generationMinimized && <GenerationDialog task={currentTask} onMinimize={() => setGenerationMinimized(true)} onClose={() => setGenerationOpen(false)} />}
+      {generationOpen && currentTask && generationMinimized && <button className="generation-pill fixed bottom-5 right-5 z-40 flex items-center gap-3 rounded-full border border-[#ff5b62]/40 bg-[#17141b]/95 px-4 py-3 text-left shadow-2xl shadow-black/40 backdrop-blur" onClick={() => setGenerationMinimized(false)}><span className="grid h-8 w-8 place-items-center rounded-full bg-[#ff5b62]/15 text-[#ff9b9f]"><LoaderCircle className="animate-spin" size={16} /></span><span><span className="block text-xs font-bold text-white">Generation in progress</span><span className="block text-[11px] text-[#aeb4bf]">{progress}% · {currentTask.stage_label || "Working"}</span></span><Maximize2 size={14} className="ml-2 text-[#9899aa]" /></button>}
     </main>
   );
 }
@@ -516,6 +536,39 @@ function TaskDrawer({ tasks, currentTaskId, onClose, onRefresh, onOpen }: { task
   const [busy, setBusy] = useState("");
   const remove = async (task: Task) => { setBusy(task.task_id); try { await api(`/tasks/${task.task_id}`, { method: "DELETE" }); await onRefresh(); } catch { /* the main screen will remain usable */ } finally { setBusy(""); } };
   return <aside className="fixed inset-y-0 right-0 z-20 w-full max-w-md border-l border-white/10 bg-[#111419] p-5 shadow-2xl"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#ff8f94]">Recent work</p><h2 className="mt-1 text-xl font-bold">Task manager</h2></div><button className="button" onClick={onClose}><X size={16} /></button></div><div className="mt-5 grid gap-2">{tasks.length === 0 && <p className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-[#858b96]">Your generated videos will appear here.</p>}{tasks.map((task) => <div key={task.task_id} className={`rounded-xl border p-3 ${task.task_id === currentTaskId ? "border-[#ff5b62]/45 bg-[#ff5b62]/[.06]" : "border-white/10 bg-white/[.02]"}`}><div className="flex items-start justify-between gap-3"><button className="min-w-0 text-left" onClick={() => onOpen(task)}><p className="truncate text-sm font-semibold">{taskTitle(task)}</p><p className="mt-1 text-[11px] text-[#858b96]">{task.state === COMPLETE ? "Complete" : task.state === FAILED ? "Failed" : "Processing"} · {task.progress || 0}%</p></button><button className="button !min-h-8 !p-2" disabled={busy === task.task_id || task.state === PROCESSING} onClick={() => remove(task)} title="Delete task">{busy === task.task_id ? <LoaderCircle className="animate-spin" size={14} /> : <Trash2 size={14} />}</button></div><div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[.08]"><div className="h-full bg-[#ff5b62]" style={{ width: `${task.progress || 0}%` }} /></div></div>)}</div><button className="button mt-5 w-full" onClick={onRefresh}><RefreshCw size={14} /> Refresh task history</button></aside>;
+}
+
+function fallbackGenerationEvents(task: Task): TaskEvent[] {
+  const steps = [
+    ["queue", "Generation queued", 0],
+    ["script", "Writing the narration script", 5],
+    ["terms", "Planning visual search beats", 10],
+    ["audio", "Creating the voiceover", 20],
+    ["subtitle", "Designing captions", 30],
+    ["materials", "Collecting footage", 40],
+    ["render", "Rendering the final video", 50],
+  ] as const;
+  return steps.map(([stage, message, progress]) => ({ stage, message, progress, level: task.state === FAILED && task.failed_stage === stage ? "error" : "info" }));
+}
+
+function GenerationDialog({ task, onMinimize, onClose }: { task: Task; onMinimize: () => void; onClose: () => void }) {
+  const events = task.events?.length ? task.events : fallbackGenerationEvents(task);
+  const isProcessing = task.state === PROCESSING;
+  const isComplete = task.state === COMPLETE;
+  const isFailed = task.state === FAILED;
+  const currentLabel = task.stage_label || (isComplete ? "Your video is ready" : isFailed ? task.error || "Generation failed" : "Preparing your video");
+  const eventIcon = (event: TaskEvent, index: number) => {
+    if (event.level === "error") return <AlertCircle size={16} className="text-rose-300" />;
+    if (isComplete || index < events.length - 1 || (event.progress || 0) < (task.progress || 0)) return <CheckCircle2 size={16} className="text-emerald-300" />;
+    if (isProcessing && index === events.length - 1) return <LoaderCircle size={16} className="animate-spin text-[#ff9b9f]" />;
+    return <span className="h-2.5 w-2.5 rounded-full border border-[#6d7280]" />;
+  };
+  return <aside className="generation-popup fixed bottom-5 right-5 z-40 flex max-h-[min(720px,calc(100vh-2rem))] w-[min(460px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#15131b]/[.98] shadow-2xl shadow-black/50 backdrop-blur-xl" role="dialog" aria-label="Video generation progress">
+    <div className="flex shrink-0 items-start justify-between border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><span className={`grid h-10 w-10 place-items-center rounded-xl ${isComplete ? "bg-emerald-400/15 text-emerald-300" : isFailed ? "bg-rose-400/15 text-rose-300" : "bg-gradient-to-br from-[#ff5b62] to-[#b973ff] text-white"}`}>{isComplete ? <CheckCircle2 size={20} /> : isFailed ? <AlertCircle size={20} /> : <LoaderCircle className="animate-spin" size={20} />}</span><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#ff8f94]">{isProcessing ? "Live generation" : isComplete ? "Generation complete" : "Generation stopped"}</p><h2 className="mt-1 text-base font-bold text-white">{isProcessing ? "Creating your short" : isComplete ? "Your video is ready" : "Generation needs attention"}</h2></div></div><div className="flex items-center gap-1"><button className="button !min-h-8 !p-2" onClick={onMinimize} title="Minimize"><Minimize2 size={14} /></button><button className="button !min-h-8 !p-2" onClick={onClose} title="Close"><span className="text-base leading-none">×</span></button></div></div>
+    <div className="shrink-0 px-5 pt-4"><div className="flex items-end justify-between gap-4"><div><p className="text-sm font-semibold text-white">{currentLabel}</p><p className="mt-1 text-xs text-[#858b96]">The Python engine is working in the background.</p></div><span className="text-lg font-bold text-[#ff9b9f]">{task.progress || 0}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[.08]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff5b62] via-[#ff8f94] to-[#b973ff] transition-all duration-700" style={{ width: `${task.progress || 0}%` }} /></div></div>
+    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4"><div className="mb-3 flex items-center justify-between"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#858b96]">Execution timeline</p><span className="text-[11px] text-[#666d79]">{events.length} steps</span></div><div className="relative grid gap-1 before:absolute before:bottom-4 before:left-[7px] before:top-4 before:w-px before:bg-white/10">{events.map((event, index) => <div key={event.id || `${event.stage}-${index}`} className={`relative flex gap-3 rounded-xl px-2 py-2.5 ${index === events.length - 1 && isProcessing ? "bg-[#ff5b62]/[.08]" : ""}`}><span className="relative z-10 grid h-5 w-5 shrink-0 place-items-center bg-[#15131b]">{eventIcon(event, index)}</span><div className="min-w-0 flex-1"><p className={`text-xs ${index === events.length - 1 && isProcessing ? "font-semibold text-white" : "text-[#c8ccd5]"}`}>{event.message}</p><div className="mt-1 flex items-center gap-2 text-[10px] text-[#666d79]"><span>{event.stage}</span>{event.timestamp && <><span>·</span><span>{new Date(event.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></>}</div></div>{event.progress !== undefined && <span className="pt-0.5 text-[10px] text-[#858b96]">{event.progress}%</span>}</div>)}</div></div>
+    <div className="flex shrink-0 items-center justify-between border-t border-white/10 px-5 py-3"><p className="text-[11px] text-[#858b96]">You can keep working while this runs.</p>{isComplete && task.videos?.[0] && <a className="button button-primary !min-h-8 !px-3" href={assetUrl(task.videos[0])} target="_blank" rel="noreferrer">Open video ↗</a>}</div>
+  </aside>;
 }
 
 function SettingsDrawer({ draft, setDraft, settings, onClose, onSave }: { draft: { llmProvider: string; llmApiKey: string; llmBaseUrl: string; llmModel: string; pexels: string; pixabay: string; coverr: string; azureKey: string; azureRegion: string; geminiKey: string; minimaxKey: string }; setDraft: (value: { llmProvider: string; llmApiKey: string; llmBaseUrl: string; llmModel: string; pexels: string; pixabay: string; coverr: string; azureKey: string; azureRegion: string; geminiKey: string; minimaxKey: string }) => void; settings: SettingsMap; onClose: () => void; onSave: () => Promise<void> }) {
