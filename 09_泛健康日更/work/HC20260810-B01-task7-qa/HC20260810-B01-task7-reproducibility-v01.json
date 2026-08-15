@@ -1,0 +1,965 @@
+{
+  "status": "PASS",
+  "schema": "task7-double-build-v01",
+  "builds": [
+    "isolated-build-a",
+    "isolated-build-b"
+  ],
+  "files_compared": 233,
+  "required_files_compared": 126,
+  "path_sets_equal": true,
+  "all_byte_sha_equal": true,
+  "mismatches": [],
+  "input_files_compared": 40,
+  "input_manifests_equal": true,
+  "input_mismatches": [],
+  "runtime": {
+    "node": "v25.2.1",
+    "magick_version": "Version: ImageMagick 7.1.2-29 Q16-HDRI x64 360eda5:20260727 https://imagemagick.org\r\nCopyright: (C) 1999 ImageMagick Studio LLC\r\nLicense: https://imagemagick.org/license/\r\nFeatures: Channel-masks(64-bit) Cipher DPC HDRI Modules OpenCL OpenMP(2.0) \r\nDelegates (built-in): bzlib cairo freetype gslib heic jng jp2 jpeg jxl lcms lqr lzma openexr pangocairo png ps raqm raw rsvg tiff webp xml zip zlib\r\nCompiler: Visual Studio 2026 (195136248)",
+    "magick_thread_limit": 1,
+    "fonts": {
+      "C:/Windows/Fonts/Noto Sans SC Bold (TrueType).otf": {
+        "exists": true,
+        "sha256": "d1961be1161ea1be08496c920862d06ea5c23a757628f4fd69368de1d9f51bed"
+      },
+      "C:/Windows/Fonts/msyh.ttc": {
+        "exists": true,
+        "sha256": "d79c55e68b1131eea0cc1c47be4f572d964f28c682e143db2ad09c1e4cb07a3f"
+      }
+    }
+  },
+  "output_manifest": {
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A01.png": {
+      "bytes": 485190,
+      "sha256": "325f1a73d1182fd01638801283acf9757cd8a401adc3072099a158316d58658d"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A02.png": {
+      "bytes": 640848,
+      "sha256": "6d5b43265741c46acc85d1ee06890395c454e4e4b348ac7ca374056a79cfc020"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A03.png": {
+      "bytes": 62586,
+      "sha256": "3a84d71dfbd7e4e0985cae5781ed054c79de31490ca9caa22444d56baba35f0d"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A04.png": {
+      "bytes": 63152,
+      "sha256": "03aab9ecb9bbd9fda81306cb326727e50935bce669a5cbdc443a23005a27051e"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A05.png": {
+      "bytes": 70713,
+      "sha256": "ff7e6119ef323a69248de609c14759937181832c882115e75c8370c75bed3c3e"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A06.png": {
+      "bytes": 323983,
+      "sha256": "4242fc7a9158b2c4cc1ba4ced07c2af5d1f3f7c4cddbc2d0d07eed8608315b81"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A07.png": {
+      "bytes": 67824,
+      "sha256": "1d71017d673668da7b01347ad045fc0f253d211475421865283cc11048ead20a"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 684316,
+      "sha256": "1043c5c4afc7c2fa14ca5fa1ed7064853eada84d37503a903b1f7ac78c5219e7"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1852,
+      "sha256": "590b7d0fe9195ab00e39bf663e6492979bb05f51617d40c6b10fe8ff13d93b72"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1729,
+      "sha256": "323981dadb5e9a4c4d76c78025f30b04630cbd166c214f92f5016a1544101c2c"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 1872,
+      "sha256": "bee680eda71405bce83ecf0da65e7adfed2b21772b8b146be58ce45d4c18071d"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 2031,
+      "sha256": "e4cbf1a4cf635781907054bbcd33b2932ed5def61514c9890e0f9795b1fa61cf"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2198,
+      "sha256": "dce2da294d95a6cde234d63b3f2146a22b044da2c8663ba9b33ba0bd9d06ce10"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1956,
+      "sha256": "d9dc68e217b557ab8bc8bfaf0c7ec0ae63108c79f7cbf16d9ad4c10408f5328f"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2382,
+      "sha256": "8edb697753a971c210d1301cf2fbc3bcf986ecf773202fef7651c2b0c4cb4736"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1634,
+      "sha256": "d30b40480664aeba290dddb1334f39279d2b07cffcd33789cf0e279184f964c7"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 656,
+      "sha256": "bf7f36d3346f5cc35deaf7f49efd7c754c7d7022c0054f0c22e879aab1928852"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 1993345,
+      "sha256": "b3c852ff963fd4abbfb187b6ba1d59fab1de01d83c2101125aac671a0e681394"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/source/illustrations/scene-secondary.png": {
+      "bytes": 2141249,
+      "sha256": "dff77f067c2c0efa0302617c9e39ab3086f96db7819bd1c6327ebbaa7444811d"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 281025,
+      "sha256": "db38847b2949ab027cc0bc3c090504d8b55b0dd854cec969639c06a25e1b8452"
+    },
+    "09_泛健康日更/work/HC20260810-001/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "09d3cb4ccc8fb99fe2a6797d89404d9b3363bcf249309400a65cf81c91624361"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A01.png": {
+      "bytes": 494091,
+      "sha256": "709db0dfaadbf78cc5e11132227b058ab4a11a65fee6e842f89b3fc5aa89f2ff"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A02.png": {
+      "bytes": 589594,
+      "sha256": "dbc96b95d627e2028535dbaed00a52b9184b89c3460dca92e6f62a5161677d84"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A03.png": {
+      "bytes": 64252,
+      "sha256": "6324dce22658b90fe233257b6752478486e0f9891bdfb7591286ac91b67ac768"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A04.png": {
+      "bytes": 57900,
+      "sha256": "52a12207ec0378af6c8ad3f5fd13bea5eb667d83bc20f66b7fd65ff3e83a1734"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A05.png": {
+      "bytes": 67351,
+      "sha256": "2d99601aa2a874efb943cf87e51fa60c1a5034a46def472e8cd5b2a25e6e1beb"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A06.png": {
+      "bytes": 324078,
+      "sha256": "79b6db0d05d141ede5d568f822518d4ba0ad802061c7581729371d648ef082d2"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A07.png": {
+      "bytes": 76305,
+      "sha256": "31d8ca0bc41c5f3953bf577d3e81a8c07ff5486d4188859e3925efd173ebd22c"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 433313,
+      "sha256": "a17470179aa9cace360b7d7aad039b65aac8a7d314d8f0f063a95241330fdea6"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1854,
+      "sha256": "fec03e3243f5f38ac559dbefd43350ffd252317329f973b624bea6872d378a63"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1738,
+      "sha256": "e7656044762e8e7b931697d7133178e2e7c2ce7056f40e07e31ecfe37b3976a5"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 2040,
+      "sha256": "75f368000a782992b4b17366c1ab93b9e70a0a491ec63c905abc122a0d9213c8"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 1985,
+      "sha256": "6a626552c12c3b8a1f852610fcaaffe9af934187234277789697a840e719b951"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2172,
+      "sha256": "6c52948c396dacd9869c1d936d5995c90ca03fdf9b6b10e5e80b134fe2ff5ad9"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1955,
+      "sha256": "5e5a840ef5a4bc0a52e51642395469dcd3ce70b6ffb47118d3b0a6c70f93b629"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2942,
+      "sha256": "3501730a5039d85f73666c045a0a19351db98710728ef2a284746fcada3a03ef"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1727,
+      "sha256": "56e27fccc4e5a744ddd532dc9dd43d08dca1faca4ee9f39763114e4d1362497b"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 656,
+      "sha256": "ceab8aa4abeebc2fd66698d3fdbc350b82921d938882b61e948aa7f0e36368e1"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 1920132,
+      "sha256": "262f918aa070df29b4ace913fb544b26baa7ce389d03dac8b18ee1055e082e5f"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/source/illustrations/scene-secondary.png": {
+      "bytes": 2115059,
+      "sha256": "333ddb73f1db1e5874491469ea43911994fe92919c83e69a33440eab7f44d4b5"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 276337,
+      "sha256": "681572331ce317ff1d5375b17d047cd5ad2ba9640f638c1c9b3699e1a41f8a6c"
+    },
+    "09_泛健康日更/work/HC20260810-002/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "45f9d9c58883e9ad0ff7642cd6bd5116df86806c531732df363fbdf86651acf4"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A01.png": {
+      "bytes": 484859,
+      "sha256": "b17cd00d3f9300c695dd27a46734320ead5c1dd7f9fd3aa44fd722e69370d12b"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A02.png": {
+      "bytes": 570099,
+      "sha256": "aa4ccb6c5cd30ad17fafe3924a0583f90866acea43084cb0fac384f2d1516ba7"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A03.png": {
+      "bytes": 68341,
+      "sha256": "ba43c2ee57913f5378e9b84bd7c7408bd0030952122c39c3ffa590d34c40a006"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A04.png": {
+      "bytes": 56829,
+      "sha256": "7860a8adbecf090ad316e1afe9ec529637f2ae8df8cd5de281c23cbf5a410d45"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A05.png": {
+      "bytes": 67073,
+      "sha256": "ec6d45862f68aa4693fa2d12ab298f7188c9451324bbe3534aa9bec6bb6da8d0"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A06.png": {
+      "bytes": 321194,
+      "sha256": "b17107ff3e4b11bc64f7aebe7719c54bba2a22791efc767eb0631652a9980c74"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A07.png": {
+      "bytes": 76400,
+      "sha256": "2d49af2da45a87fe9a8568b6ec5c7ed5ca528ae9ffb6fa3be91fbe5a7bf97d33"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 442058,
+      "sha256": "a2d5b4e0ad4007621c041cd4afc11f54730f4db6dd9b8a4e02e9b859f4d5e544"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1843,
+      "sha256": "7bb234089d7bb75cf09faba14e730ca11f2fee3e41ca9d56b8f0320f55b88008"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1750,
+      "sha256": "f2bb2de75f6dc16543677bd79b4a440b29cec48ee9b9e991d68746125dbaa9d8"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 2247,
+      "sha256": "33dbcb7d74d1868777269ec2455476fd85d505d21190a62026c3a303ee4d1f95"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 1943,
+      "sha256": "b53b6a5852c833142632c916196c9b3dbb40f37fcace9de5c6fffff9d68d6a9e"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2334,
+      "sha256": "63a8add5ff6246c7ab9cd627907296269643805631c85b99895475c86e6cd9c6"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1956,
+      "sha256": "534941a0804879e7980367cda5b35441aaea9770725eba6623ab4a8f9cb91c35"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2934,
+      "sha256": "6a07a4520a57916b5360e3f89b9da46dfdf3a5986c3e8c9e0a642d2e1c4614f1"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1643,
+      "sha256": "067357faa774869885b940b8a0847956ce85f6c7487d48003a6c690cdd57c939"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 656,
+      "sha256": "e5637c692516173c226927877a4d9b8cc5636d0c6a3f5e0b963096e937430010"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 2070415,
+      "sha256": "32fad8b746573df906464e3acbc66adcf5a7e4d04c5a56cd10d828bcc4b6a358"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/source/illustrations/scene-secondary.png": {
+      "bytes": 2053472,
+      "sha256": "06a0cca336f9c9ac43b082c507c23b0088adabd85a5cc4cbc7cfda418f2fff45"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 271130,
+      "sha256": "cf5194edcba7a96a73be05e80dc91c670a497e43781e697ad75ccbeb147a350c"
+    },
+    "09_泛健康日更/work/HC20260810-003/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "a27dc1d387f5da1e885bb14daee33c2c2f1565512e5fd774d5a9fb0cf12a4573"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A01.png": {
+      "bytes": 698211,
+      "sha256": "56616a5570deb1966f73370e6ef43023046520ea0e02e96e583f110796aaf4a5"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A02.png": {
+      "bytes": 1035274,
+      "sha256": "5d3ff01fd83f0f498a15eefa14e1fcd810d7ddeb64202724f9df83d453d67177"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A03.png": {
+      "bytes": 56894,
+      "sha256": "16a214c779582a7c73353ae697df18434d15e6d3efdef9b08d79669aa7d42cff"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A04.png": {
+      "bytes": 60070,
+      "sha256": "540a64bd96738516e868ba3cd29f9afa7c4f6baace34392b28b89dc05e14771a"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A05.png": {
+      "bytes": 67816,
+      "sha256": "1d7c04fec5b674438bd8a5b4e30a35ee8aead90f9ab2c69298714c838a257305"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A06.png": {
+      "bytes": 435910,
+      "sha256": "88dcaa44d10e2d3c55841a26504ee65821ec62ca70b50fbd0a747e30ba1d38b9"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A07.png": {
+      "bytes": 68944,
+      "sha256": "23cb58451d444ad63d35221420750eec0efacfb7588206e8bf0decbdde92ab59"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 822043,
+      "sha256": "2e2d5315fc0196d804df496259e2b59b7648b7fefb1255dfead2abcac61d6bea"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1891,
+      "sha256": "66ae0b73e568e5446c2315125cf43125ec73828854573ebcb8a4331b3ac35f14"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1750,
+      "sha256": "0c6f48c7ce2f668d4aeba129bedc7abed79af2f5896c3065e1a8ed3babb982a5"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 2026,
+      "sha256": "47ff8e30614f76af2159eed1d6ce7d47e95978e03db079882606661dee9b76e6"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 1919,
+      "sha256": "18ed4b99e72b7784197ef8d842f53ef3b70b2c89d0b46b2410e630a5a470b9c7"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2155,
+      "sha256": "6ce0c5a267d0e7ae65183ec6c5f1388ba0e4889a184d4c1dc7508e2ac9028bdb"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1949,
+      "sha256": "11689b009f14792b47402a779714e975063ab66de86366cb4dbff848efc8ee53"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2290,
+      "sha256": "d668d4e13245c5dbb60b91316cef7ea0d14f4fef3326ee36f7307b0d67707ef1"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1591,
+      "sha256": "fc116a9ec44bef67aee27662c4dbf45748fe3db2849fc87f7015817ffa89c508"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 656,
+      "sha256": "02cfa66d414b7947cedbf884767e311d49c5931db746238cc661cbe25af78ba4"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 2746759,
+      "sha256": "950757e90a34ee63a3377b026dacd0d2d2bc28120f75c4adb0b31cdbc6815cee"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/source/illustrations/scene-secondary.png": {
+      "bytes": 2691596,
+      "sha256": "36fd7218d48a35b33f354e7c07c0ec42c3597113ad21cb27aa84006ed3dfaa96"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 331948,
+      "sha256": "ae62be9721d62225c6a1aea116e83774ed4597dc53ce26b3a40328aed9f8a711"
+    },
+    "09_泛健康日更/work/HC20260810-004/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "0e19670de22d99d11cb7ec6128ed4c78b5c41a450de4ca98f7f675d83fdd5504"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A01.png": {
+      "bytes": 500533,
+      "sha256": "24b9a734e9be8703c672fa37761b98861bac7f1c2af15c3f5a3175caf609d0ba"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A02.png": {
+      "bytes": 548706,
+      "sha256": "4fcc8ec18de67d0a4392bea4bf431e939a1ee9cd6f9ff7569c07eb2b68213dcf"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A03.png": {
+      "bytes": 57157,
+      "sha256": "df60c7b528f1e838e4118cd3f829915f6e6ebbc2b5e95a965b0369ee362355d5"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A04.png": {
+      "bytes": 58423,
+      "sha256": "6096b9c9726ae6b3f3b47221af7fd82ca90c346bb488294675e164e0747f7431"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A05.png": {
+      "bytes": 70789,
+      "sha256": "8a7432149687666b09a71693f2f3617522a8708f57ce59e892c2bc2dad611733"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A06.png": {
+      "bytes": 323727,
+      "sha256": "66fbe55038bda3f6519fbae08c2deba28bcce8a9b7b6614df5dc3549250c0019"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A07.png": {
+      "bytes": 66566,
+      "sha256": "1459cc230cb2d9b373b0b53a6fa9f2f89183362af0bc48b44f5938327bc85096"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 51571,
+      "sha256": "6383e1c9efb6a5a12220d8b520c62ad8dcbda2390c7692cfaf09fc51a6638a61"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1882,
+      "sha256": "9eb28e14e93f080af7587d3d1cdfd30a54c7f403bd45848ad06f592a79cea130"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1734,
+      "sha256": "6dcaf937f25735f91cdaa1a84e1493e1032284a664da2220f7c4b4e351371058"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 1982,
+      "sha256": "e6c9459e8f60aa4ffb065f3879631f66cedc01a4da82156627534d1a43938193"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 2560,
+      "sha256": "5e911e9a0c875f0de86a212b49652fee7cdea06720dacd4f5c96e117691524be"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2102,
+      "sha256": "56c249b275af6ee65eaf65f6781f99c9b9f094656479b35f8b5bd02bf5387572"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1959,
+      "sha256": "5f8e26f8c3f9e63f7d734438941b1b1337e7051e0ac1f176dc3fc5a2cf870b1c"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2451,
+      "sha256": "c6a072650f050d8b8f828a897114e23bd2fa1c40af121ac46102649ec6c6cd0c"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1915,
+      "sha256": "e8510c9a073d186d28ba9ca12457a85c4e27a05446174c586b6fee7fb41e692d"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 438,
+      "sha256": "e2ab35f006007b7cc24ecfec65e67087b6fbe5378a57333f7492f9f30dff909d"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 2211777,
+      "sha256": "84ee0f278cccf95a7107f377b4570a93b17a3122e0af18f36339d235099d3dc0"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 263823,
+      "sha256": "7dec6f4b03be01debf276657aa2224cba836b79db900c2362b938d75eb7fdc13"
+    },
+    "09_泛健康日更/work/HC20260810-005/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "2a5530f6b12a0c8e96cc8751aa9e3537236f1c7f847df974614432cfe4ea025e"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A01.png": {
+      "bytes": 376819,
+      "sha256": "1929bf7fa57a61213a3efabed19e3f74ce6538ee89d22f55a6b7f516507aab3d"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A02.png": {
+      "bytes": 576463,
+      "sha256": "cd83a2e8c56ddb62ae8ddea1f12af676af31ced7adff28b7805cac0f02ce0509"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A03.png": {
+      "bytes": 57059,
+      "sha256": "b6bcd185f065d54b331d4eb803cd25bec9446ff5f2c68a9716bcb30c18fb46d4"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A04.png": {
+      "bytes": 54681,
+      "sha256": "9bcd95a78457f8d51c7d43753a0634362ba61f2dcf59ae68aa34c88a55359f33"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A05.png": {
+      "bytes": 71450,
+      "sha256": "6feae30f7337f04e18eb5920bc794093cc8199c3cd9c8744a5e0e229f0d36447"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A06.png": {
+      "bytes": 240183,
+      "sha256": "673520d7d6a1501760cb50d0029bcd95fa608b8b6c6834377f50edb8597dac4b"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A07.png": {
+      "bytes": 67343,
+      "sha256": "41daedb247f329a958269523d0abbae23438af922f923038408785a9c6b2aef1"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 333564,
+      "sha256": "f94b0ef44981c749d423c15b72361603ce3d2d4d593043c881103bc1aaa8c2ce"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1851,
+      "sha256": "0777bfb0552e4ea72dc574edd7a90e82abf16099526c66834abff3c13820dbf6"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1747,
+      "sha256": "235fbb2d2047db8b12a350f0065b75a2d9212faa52d388b7c5d108b0e9126d89"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 2099,
+      "sha256": "8ca3597d782d66653647ecfbaada173ec0f2bc6cc38da4a5905c931a66def67d"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 1906,
+      "sha256": "5cc772bd75e2900b90d2b7f263c41dd170189c966b267b8cd21c5afca5867d27"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2139,
+      "sha256": "7433e36c9fe333f398d38f3174153f2d0edf4e41db5bbbefaae1aedcf7e78983"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1946,
+      "sha256": "c371e9ad8a58b901c88bff87bfca292f120e93d8d854d1c16ada5452b21e4ee2"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2609,
+      "sha256": "44455d4e47494546996decb9ef0c1c65dbb915af00c879960df9d372fd3b13fc"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1693,
+      "sha256": "53dc22d445bbb45af72a7f5813401fed624964de023c3d54ab7ed28962a90ed3"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 656,
+      "sha256": "b68b83df3357a98a3ffe8c5ae8cbdb952fd4de5b30a470d6dfec394af9669ca3"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 1688710,
+      "sha256": "6da9004450024f7c3df3fffe3e0e18fdf3f1d3751327855dbb2abe78f68ddadd"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/source/illustrations/scene-secondary.png": {
+      "bytes": 2200114,
+      "sha256": "8ef36806244aa23ec5c2de5b6352ac4cdedc441ea4e5d4a0e4884703c1c3c7fd"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 242656,
+      "sha256": "13365104f7efc0ca7b4fb5fa6221b469f301a4a874d1f3477816cf78a14b614b"
+    },
+    "09_泛健康日更/work/HC20260810-006/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "c375a887965f4171042c9d493ddd607dd34a1808f7a06f2b798073e42c45de11"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A01.png": {
+      "bytes": 563399,
+      "sha256": "85bb2ed8a21e106dcac0c98f0d475076ac3f4c4c8ca2c47858c475b058f39115"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A02.png": {
+      "bytes": 613869,
+      "sha256": "cf7d31069f292addbbb080a6a44799b76e0297897c5bfae4c57d3280390e0731"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A03.png": {
+      "bytes": 58279,
+      "sha256": "9499456c349a2f24106653646d1624d68a99542e361a0da524ac890103178a95"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A04.png": {
+      "bytes": 59658,
+      "sha256": "9cd161dc829c676720fc39a688575a551110db5642c3f8f2ffea7f354b3a66e1"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A05.png": {
+      "bytes": 68391,
+      "sha256": "2cbb02a538f5d6c4941360e310d9d6d80e128b8745bce2828ca7a6de9601a491"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A06.png": {
+      "bytes": 360562,
+      "sha256": "6534d2123493e235ee2269f26d4fe83b85f8a177f52fa6e1e90546849652e64b"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A07.png": {
+      "bytes": 71959,
+      "sha256": "2a83c1cf56e8c702c57c4c686f0312740c45324c2c995607c8c8e23da1afea80"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 543335,
+      "sha256": "6ddc1c75a1a4c8b6ba659db085638d6df6c4d7ac0bca6b8c20ec35ac66513f4a"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1846,
+      "sha256": "da4080da2249399cadac62ff26e8783dc434dad8d480bc8272b7b8cacfd1fbae"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1735,
+      "sha256": "cd7d78c43054578f63213118a3562d01cb5b200b1c63b1f37becf6ffd6c9f948"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 2147,
+      "sha256": "6d9e991b1dcceb08eee2e3f098ba9f7f661ee6aced471237c5e2bea948c0ad10"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 2311,
+      "sha256": "e8b8fd4b2f565deb9c1adb63103d7721b8d59290b0856b332844bd82f137c9b5"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2065,
+      "sha256": "50644858eff489d0e7f9dff190c10c98d7ce995eacd6647255474e5ff270f0bb"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1956,
+      "sha256": "0bb06267126317898b29d704459ee236692796bf07b32295e4e0d50ff8d0f569"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2841,
+      "sha256": "865e094b13c22732b48bd57b04cf1ff1fbe940d1ad286739d33d20abbfcffc0d"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1643,
+      "sha256": "d412007d0042d4be0e6daa43064cb3d142834ad5cd43185abef9279b003079c5"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 656,
+      "sha256": "9da0bc533e5d5b31b2da939d73b98064d97e43d789d32fa49e88aa2b479e203b"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 2275080,
+      "sha256": "2708995cb40bf82de0a015a0465d0be4561e520e8d85c672eb6ffcc04967826d"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/source/illustrations/scene-secondary.png": {
+      "bytes": 2127611,
+      "sha256": "16ec5daff52082f399981e9e98d0986a5c055ecc54a3ac95af8968fedc787cf7"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 275185,
+      "sha256": "070418d92401adb9443cd3d2b5617f868f007daee7b967421c09fc857f8d2ac1"
+    },
+    "09_泛健康日更/work/HC20260810-007/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "f75cd432a0f67b79335c79ceb0819a8bca9cde0226aa49cb094a6a21478b1439"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A01.png": {
+      "bytes": 550997,
+      "sha256": "3423d29a2abc5024a0a199cbe8b7837793685c507d18f707681a2e845d782517"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A02.png": {
+      "bytes": 725719,
+      "sha256": "fab32155f5f2e6e86c0d3be4230843181364dc13758bd407b20712f61889654d"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A03.png": {
+      "bytes": 65233,
+      "sha256": "67d28305f7570e7941a077e3dc91c6dd3438b4da574cc4422c55c169ee1938b5"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A04.png": {
+      "bytes": 58975,
+      "sha256": "44a781b634923ebd5fd6df5a7ddf3638956333ae31334af858a69887636ca64f"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A05.png": {
+      "bytes": 68965,
+      "sha256": "b8c0738faacf9a26035746cd6c2d9cae49552605726bc85f9d250e7b09e9df09"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A06.png": {
+      "bytes": 359261,
+      "sha256": "f3c9a4fd799a9f00777269af94801657456824422deead373d93cbff22a164a8"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A07.png": {
+      "bytes": 80129,
+      "sha256": "0b25a02fb850da08ecc1c2dfdad2357173c7d5d988e97e39bd3aa5914eafcc9c"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 703624,
+      "sha256": "0b1d15d0ae91d57000ba1ca139375f7f95d81b448c6c77900013d84675e26724"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1897,
+      "sha256": "4cae765774b5ed1e9be1e7929ac912be2c492f7f548e16988d55a2ffbab71d89"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1747,
+      "sha256": "f9601159d14d1e9dd8ed4d0f949c4d369d35cd526f96c9d9275af1de3c4fb990"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 2159,
+      "sha256": "b12fd4fddf4fea225cfc545f96094cce1097d2cf702659198555bd05c9fd1cf2"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 1930,
+      "sha256": "438182bc08767289df6981fe29c8c68dd5f3f85716b1351353c19e7e2374ad54"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2212,
+      "sha256": "47b0b68e9023010dd52112018171eca1ca7b01bd83864c39d11884c9e4f2acd6"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1952,
+      "sha256": "88f9cbf395dd2fea574deedb27876de2eb6f3d6b3dacaf24c684dada22eea932"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2768,
+      "sha256": "d3dd14d810efeaa5edc01806b1f1b53dafa51dbace3503b07e4f4f1944b1dd4a"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1594,
+      "sha256": "d700fd400c57878f1146a732f72c6645d40b0713f05973ebdc65fd976ec144a6"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 656,
+      "sha256": "7751614e7de847e648b663c42d57a6b158fa7f816c3411d17ebd449f707b296d"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 2158421,
+      "sha256": "8ecebf818b6d9971d2b59f9fae7b8f43bc09b84d74b2afe0d65fba4715bcf9f3"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/source/illustrations/scene-secondary.png": {
+      "bytes": 2252789,
+      "sha256": "6c9b2689e407458d1bc761769a300db31ab55243fd80da2588584aab3420378b"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 309733,
+      "sha256": "0cf4e356262e19bae1cd3438ced7aa742fab9ae432f711aa1f305c58ca3b01ff"
+    },
+    "09_泛健康日更/work/HC20260810-008/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "086ce86708b95180556fa87e0209d2f56ed4873aa121468b8bc2f12bdf40fc4e"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A01.png": {
+      "bytes": 72811,
+      "sha256": "89a8d7826813601a52040a72064e63dab6fd799f700ee35f4f498d1553873603"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A02.png": {
+      "bytes": 72954,
+      "sha256": "2203a82a4d5a3ca5873281584f2eda3a0584a86096b1dc51b4dbb8a86eeb6848"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A03.png": {
+      "bytes": 57304,
+      "sha256": "6fa4aedc1e961de9171541136e8482313f30ff0a1507c05fc3c27c4f9ed30373"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A04.png": {
+      "bytes": 56566,
+      "sha256": "debef681868a80f0db902702923dc688137579a94447b8266bd6cfaca441be84"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A05.png": {
+      "bytes": 72383,
+      "sha256": "48d658974c4cb0841d21a28cedc75250bc0557f1b8c274ca3f01f55bdcb5cda4"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A06.png": {
+      "bytes": 76268,
+      "sha256": "38116f69440f913ad1f35eb2b44760d235f7805525e685b5bd7c956c86dd8341"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A07.png": {
+      "bytes": 64231,
+      "sha256": "b73a52f4a92cb1a5b6aa07f9baa3d64d612a0a9d2fbddcaf7e346f86e402c254"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 57901,
+      "sha256": "9162a9115c4fb4e42d8af0d304dc6752673e4c6ee88478517c3134b3c165e711"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 2063,
+      "sha256": "f3016f8550c03b31e6c8e04f15e6f4ccfd63cf04a727a413492e32c76078c188"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1947,
+      "sha256": "ebba8da8c30b726d18efd31d1c870f02c934dbb798113da774ffc15cea413007"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 2058,
+      "sha256": "7aa38fdec2c1cf8cab3bc4ba6b584e45cf9b62d398f974a76d76a449cef4d31a"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 1894,
+      "sha256": "da56759f9fe2a2db02f5f19a41c32c62aa9f94a7122d2340e4ad7bfe9772b9de"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2201,
+      "sha256": "653cb6655d39d9aef762a2e54d07e5deb0706ff68c4d266660ec6d5879df7abd"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 2156,
+      "sha256": "d066c4d263718bab8486e06e0035fc229a7772d8a90bb0696bf0fc54d9f0f12f"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2906,
+      "sha256": "ddca6c9ba630a9cbcc10569808872ef5e74e086d84641afd83c7b4ff8a2e45ce"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 2025,
+      "sha256": "4d84ea4f5feaafe358da0d89965b7a839be77cef46ccbec66b4e3e93de287a74"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 294,
+      "sha256": "52cec33a60148a3db62b42e46c3e9ace7bd448d94663ec04dedcc8b02d94190e"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 176962,
+      "sha256": "aa29abbd8f0f7e58d4ba52041ed32e4b35abdc3267e0d84c48049c51ebdf40bc"
+    },
+    "09_泛健康日更/work/HC20260810-009/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "ff88c6eff098d5ee6a118741f620d42f3dbf8aed995128f50f93154db496956a"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A01.png": {
+      "bytes": 485171,
+      "sha256": "31240301df4a978a8aa106e10b82f93edde38e4a362ddb0b35f8fcb9828ff379"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A02.png": {
+      "bytes": 515839,
+      "sha256": "3f14660896d699176dec5644206485f8ff609ab0577723c12badc0c2f2a1c4ff"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A03.png": {
+      "bytes": 58278,
+      "sha256": "e196ce5137412540abdb0052c829b2b0b01c9430ae6ddd4b601cf1ebd0c61d80"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A04.png": {
+      "bytes": 63566,
+      "sha256": "60480dee0b007155fb1d6732b4ae11cf7b0e7c20cd30f531b4ee070a2f58a8f0"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A05.png": {
+      "bytes": 69653,
+      "sha256": "f85210d31f0649f75d884b5ee897db8de37af914331ce7a838446d3111fbe551"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A06.png": {
+      "bytes": 319111,
+      "sha256": "e88a90328c606dd4fe1151662e1f839d2d8d50ab56f11f919f893808f30e827b"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A07.png": {
+      "bytes": 71391,
+      "sha256": "241d2e0625fb6a876ce7a31863beeb672cd6461c72329cd316c29427d4b7b58f"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/cover-v01.png": {
+      "bytes": 421244,
+      "sha256": "43958456295fcaa1fb1a737106eae1715ba95965843695d9c74c241326113295"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/A01.svg": {
+      "bytes": 1891,
+      "sha256": "e52ae387139cd3a93b3b851d4b98a27bb88221c7988806be9e05c10dfba89538"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/A02.svg": {
+      "bytes": 1750,
+      "sha256": "1cbc1d491f69e1d9337426cd72fe5af46075adb075cc3e269c5e44d32f4e5fec"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/A03.svg": {
+      "bytes": 1812,
+      "sha256": "b8abe2b473878d06979abbed707fc3e3699b2bef164695d085f2fbf48770c5aa"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/A04.svg": {
+      "bytes": 2039,
+      "sha256": "e15f54da8f8a66d6e12dee266a5a18be36268d64356ebf3c4f0343d4139006a6"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/A05.svg": {
+      "bytes": 2167,
+      "sha256": "ab5df110e8c5d2015c78995e422cbe888fad34075353c4cc922bccae69b6f3cc"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/A06.svg": {
+      "bytes": 1952,
+      "sha256": "6822d0a2bfde70de9be2b6ea63ac4c66513dc141741cad0f385b10baec65e189"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/A07.svg": {
+      "bytes": 2336,
+      "sha256": "7267375738f22f3382eb1b86daaf2725cf4b902c9530c7bcc07cbf1a8394c814"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/cover-v01.svg": {
+      "bytes": 1730,
+      "sha256": "37e2cad86966cd20aecce1ffd43feaec517eb62445fb5c9f0785933c274440b5"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/illustrations/provenance-v01.md": {
+      "bytes": 656,
+      "sha256": "9b825bb83e303477028f5ba6f6c21c03d15964312fa7833f3d80f561da575e09"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/illustrations/scene-primary.png": {
+      "bytes": 2021064,
+      "sha256": "8eec1b6dbbaa62c6f3d9109028124f9a93fbcd4d07ace5391b900ad9cb15ff78"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/source/illustrations/scene-secondary.png": {
+      "bytes": 1893845,
+      "sha256": "9d966931dde8e51774459f557e79c402888f9959826b4bc149bbd47ca1553d44"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/05_qa/article-contactsheet-v01.png": {
+      "bytes": 262483,
+      "sha256": "842377ca80886894e02d3aa2ac9422dd5945b0217be1098d86fac7c8d754ca62"
+    },
+    "09_泛健康日更/work/HC20260810-010/production/v01/05_qa/article-qa-v01.md": {
+      "bytes": 1729,
+      "sha256": "f571789253e7b0bbdbebe7eb9595c111a041505a4f981657feca927050cb80da"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-001-cover-center-crop-1x1-v01.png": {
+      "bytes": 662218,
+      "sha256": "bdf5398dc597e54ec917149423e489380e817352a2251d734bbd271d12974483"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-001-cover-center-crop-4x5-v01.png": {
+      "bytes": 674143,
+      "sha256": "5186ae80d4f7ad9789c3797584d4b9f8623863eb4f99bb1c26aff969d8545793"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-002-cover-center-crop-1x1-v01.png": {
+      "bytes": 399852,
+      "sha256": "65378a11ab04108c614b55d0feadd06b4df95e20c94230a6903069aac67e4994"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-002-cover-center-crop-4x5-v01.png": {
+      "bytes": 418383,
+      "sha256": "32439bf8e4dd3907962af97a6cdedba9e4ea4569b74769a35c608ccd05e6aba6"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-003-cover-center-crop-1x1-v01.png": {
+      "bytes": 340146,
+      "sha256": "96310f4496dc61613fc9b5dee3f5101b16e95b267325efb8d1709aca2c08a1f9"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-003-cover-center-crop-4x5-v01.png": {
+      "bytes": 430287,
+      "sha256": "14162c9e02c33a4e645f79d5c4a25cb24d6e97dc18712eb3560ff3ab8bc3ba6b"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-004-cover-center-crop-1x1-v01.png": {
+      "bytes": 799620,
+      "sha256": "1793bd7d127c1c37afdda82a849b9a9f6f9e0fc5f12f54485558cb6767d4f58a"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-004-cover-center-crop-4x5-v01.png": {
+      "bytes": 809469,
+      "sha256": "a4418d76c19ead4e24d1653631a793ad036a1584e99bc025666a9c3d835a0e26"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-005-cover-center-crop-1x1-v01.png": {
+      "bytes": 31497,
+      "sha256": "a55a417a3aba4d1c14733c891564aa085c04c87e3288beb1a59d2996bdcbebd0"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-005-cover-center-crop-4x5-v01.png": {
+      "bytes": 41954,
+      "sha256": "284ae4889004046a5337627e68893aa5cb1bacf338c0acaed09ae883619c3e25"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-006-cover-center-crop-1x1-v01.png": {
+      "bytes": 299984,
+      "sha256": "a01e49215892afcf793e12887b18271697c5f65e36fabdd701cf2d41f25308cc"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-006-cover-center-crop-4x5-v01.png": {
+      "bytes": 318551,
+      "sha256": "87b47309ac8cbf0be580f8f2158ab9c71a30854719c12bc86a4d31cfe4ac2d4d"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-007-cover-center-crop-1x1-v01.png": {
+      "bytes": 422392,
+      "sha256": "009339e5217e2a0fe70ebe3ae3b256fb1aad6db8c3db8fd46a87422639240666"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-007-cover-center-crop-4x5-v01.png": {
+      "bytes": 529511,
+      "sha256": "8bf9f8c157f07f56c9e26f360e4a51396e9eb3d780ab32e23eebd62151efbe01"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-008-cover-center-crop-1x1-v01.png": {
+      "bytes": 680867,
+      "sha256": "1884cb01623a4ff6f14ef746a19c84fb3ac94de9622afe59defbd43f483d7c5d"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-008-cover-center-crop-4x5-v01.png": {
+      "bytes": 690920,
+      "sha256": "e88af33d78db1c4094df5f0f551dd0ce38d5f00a43a22e0543c1ee14efe19337"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-009-cover-center-crop-1x1-v01.png": {
+      "bytes": 37824,
+      "sha256": "cf2e57b446c4102638743fc372831f89c63110f92225ace8a3267cdaf062acc0"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-009-cover-center-crop-4x5-v01.png": {
+      "bytes": 48354,
+      "sha256": "c6a631071e4f1e02a86e571c73fa7d8aff245b1066ae456b8e1ad412f26f4f17"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-010-cover-center-crop-1x1-v01.png": {
+      "bytes": 387714,
+      "sha256": "a691c0408a25ecbb4dac6713585ef82656da7811de0f666164dc748f8998dd85"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-010-cover-center-crop-4x5-v01.png": {
+      "bytes": 405582,
+      "sha256": "d57965eb104fe5ef846fda9b0e5687aa27b47b3c0311016c90d52c978e0b8409"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-article-cards-contactsheet-25pct-v01.png": {
+      "bytes": 2687711,
+      "sha256": "18d29f29708df643827e06b1faa47b3edd2672af5cc606c7aeb626b033cc0d3a"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-cover-center-crop-1x1-contactsheet-v01.png": {
+      "bytes": 516235,
+      "sha256": "bd4cedf4c6e7339a17cd9bfcf2f35071ac90fda10e0ae5886a1aaa9e3e47b8c7"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-cover-center-crop-4x5-contactsheet-v01.png": {
+      "bytes": 556043,
+      "sha256": "5724aabdc8c6e81ba50e6398fcb1b5b93ff12c25c5611092cfbf836a782bf718"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-cover-contactsheet-25pct-v01.png": {
+      "bytes": 575501,
+      "sha256": "6cef173097fe64ce6e6bd131432f760c71ce87acfaf6786171ea2542e04b5802"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-task7-asset-inventory-v01.csv": {
+      "bytes": 8917,
+      "sha256": "2acdd8a80213e35bda8d482ffdd77b6aa37dca974f145fc8c8938c204bf4a3e4"
+    },
+    "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-task7-mechanical-qa-v01.json": {
+      "bytes": 141344,
+      "sha256": "a8be7b66e5121b3adc5efc0d61cf0e187474cf496355f22647591c053f9e4ebd"
+    }
+  }
+}
