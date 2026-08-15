@@ -499,7 +499,7 @@ export default function Home() {
       {currentVideo && <section className="mt-3 rounded-2xl border border-white/10 bg-[#15181d]/90 p-4"><div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold">Generated result</h2><a className="text-xs text-[#ff9b9f]" href={assetUrl(currentVideo)} target="_blank" rel="noreferrer">Open file ↗</a></div><video className="max-h-[420px] w-full rounded-xl bg-black object-contain" controls src={assetUrl(currentVideo)} /></section>}
 
       {drawer === "tasks" && <TaskDrawer tasks={tasks} currentTaskId={taskId} onClose={() => setDrawer(null)} onRefresh={loadTasks} onOpen={(task) => { setTaskId(task.task_id); setCurrentTask(task); setDrawer(null); }} />}
-      {drawer === "settings" && <CompactSettingsDrawer draft={settingsDraft} setDraft={setSettingsDraft} settings={settings} onClose={() => setDrawer(null)} onSave={saveSettings} />}
+      {drawer === "settings" && <CompactSettingsDrawer draft={settingsDraft} setDraft={setSettingsDraft} settings={settings} llmProviders={options.llm_providers || []} onClose={() => setDrawer(null)} onSave={saveSettings} />}
     </main>
   );
 }
@@ -540,20 +540,32 @@ type SettingsDraft = {
   minimaxKey: string;
 };
 
-function CompactSettingsDrawer({ draft, setDraft, settings, onClose, onSave }: { draft: SettingsDraft; setDraft: (value: SettingsDraft) => void; settings: SettingsMap; onClose: () => void; onSave: () => Promise<void> }) {
+function CompactSettingsDrawer({ draft, setDraft, settings, llmProviders, onClose, onSave }: { draft: SettingsDraft; setDraft: (value: SettingsDraft) => void; settings: SettingsMap; llmProviders: NonNullable<UiOptions["llm_providers"]>; onClose: () => void; onSave: () => Promise<void> }) {
   const [tab, setTab] = useState<"model" | "materials" | "voice">("model");
   const update = (key: keyof SettingsDraft, value: string) => setDraft({ ...draft, [key]: value });
   const configured = (section: string, key: string) => Boolean((settings[section]?.[key] as { configured?: boolean } | undefined)?.configured);
   const secretValue = (value: string) => value.startsWith("__") ? "" : value;
   const status = (section: string, key: string, value: string) => value.startsWith("__") || configured(section, key) ? " · active" : "";
   const input = (key: keyof SettingsDraft, section: string, configKey: string, label: string) => <Field label={`${label}${status(section, configKey, draft[key])}`}><input className="control" type="password" value={secretValue(draft[key])} placeholder={draft[key].startsWith("__") ? "Saved key is active" : "Enter API key"} onChange={(event) => update(key, event.target.value)} /></Field>;
+  const changeProvider = (providerId: string) => {
+    const provider = llmProviders.find((item) => item.id === providerId);
+    const appSettings = settings.app || {};
+    const providerConfigured = Boolean((appSettings[`${providerId}_api_key`] as { configured?: boolean } | undefined)?.configured);
+    setDraft({
+      ...draft,
+      llmProvider: providerId,
+      llmApiKey: providerConfigured ? "__configured__" : "",
+      llmBaseUrl: String(appSettings[`${providerId}_base_url`] || provider?.default_base_url || ""),
+      llmModel: String(appSettings[`${providerId}_model_name`] || provider?.default_model || ""),
+    });
+  };
 
   return <aside className="settings-drawer fixed inset-y-0 right-0 z-20 flex w-full max-w-xl flex-col border-l border-white/10 bg-[#111419] p-5 shadow-2xl">
     <div className="flex shrink-0 items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#ff8f94]">Runtime configuration</p><h2 className="mt-1 text-xl font-bold">Settings</h2></div><button className="button" onClick={onClose}><X size={16} /></button></div>
     <p className="mt-3 shrink-0 rounded-lg border border-amber-400/20 bg-amber-400/[.05] p-3 text-xs leading-5 text-amber-100">Saved keys stay on the Python engine. Active credentials are shown as status, never exposed as plaintext.</p>
     <nav className="settings-tabs mt-4 grid shrink-0 grid-cols-3 border-y border-white/10 py-2"><button className={tab === "model" ? "active" : ""} onClick={() => setTab("model")}>Language model</button><button className={tab === "materials" ? "active" : ""} onClick={() => setTab("materials")}>Materials</button><button className={tab === "voice" ? "active" : ""} onClick={() => setTab("voice")}>Voice providers</button></nav>
     <div className="settings-content mt-4 min-h-0 flex-1 overflow-y-auto pr-2">
-      {tab === "model" && <section className="grid gap-3"><p className="text-xs text-[#858b96]">The selected provider is shared with the Python CLI and generation engine.</p><Field label="Provider"><input className="control" value={draft.llmProvider} onChange={(event) => update("llmProvider", event.target.value)} placeholder="moonshot, openai, gemini..." /></Field>{input("llmApiKey", "app", `${draft.llmProvider}_api_key`, "API key")}<Field label="Base URL"><input className="control" value={draft.llmBaseUrl} onChange={(event) => update("llmBaseUrl", event.target.value)} placeholder="https://api.openai.com/v1" /></Field><Field label="Model name"><input className="control" value={draft.llmModel} onChange={(event) => update("llmModel", event.target.value)} placeholder="gpt-4o-mini" /></Field></section>}
+      {tab === "model" && <section className="grid gap-3"><p className="text-xs text-[#858b96]">The selected provider is shared with the Python CLI and generation engine.</p><Field label="Provider"><select className="control" value={draft.llmProvider} onChange={(event) => changeProvider(event.target.value)}>{llmProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></Field>{input("llmApiKey", "app", `${draft.llmProvider}_api_key`, "API key")}<Field label="Base URL"><input className="control" value={draft.llmBaseUrl} onChange={(event) => update("llmBaseUrl", event.target.value)} placeholder="https://api.openai.com/v1" /></Field><Field label="Model name"><input className="control" value={draft.llmModel} onChange={(event) => update("llmModel", event.target.value)} placeholder="gpt-4o-mini" /></Field></section>}
       {tab === "materials" && <section className="grid gap-3"><p className="text-xs text-[#858b96]">Material keys are used when the selected video source searches online footage.</p>{input("pexels", "app", "pexels_api_keys", "Pexels API key")}{input("pixabay", "app", "pixabay_api_keys", "Pixabay API key")}{input("coverr", "app", "coverr_api_keys", "Coverr API key")}</section>}
       {tab === "voice" && <section className="grid gap-3"><p className="text-xs text-[#858b96]">Voice provider credentials power automatic narration and voice samples.</p><div className="grid grid-cols-2 gap-3">{input("azureKey", "azure", "speech_key", "Azure speech key")}<Field label="Azure region"><input className="control" value={draft.azureRegion} onChange={(event) => update("azureRegion", event.target.value)} placeholder="eastus" /></Field></div>{input("geminiKey", "app", "gemini_api_key", "Gemini TTS key")}{input("minimaxKey", "app", "minimax_api_key", "MiniMax key")}</section>}
     </div>
