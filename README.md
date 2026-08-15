@@ -40,6 +40,18 @@
 - 生成完成后在浮层中直接预览、打开或下载视频
 - 任务历史、语音试听、素材上传和配置密钥均与原 Python 工作流保持一致
 
+#### 前端现代化贡献
+
+Next.js 工作台由 [Harshad Hindlekar](https://github.com/HarshadHindlekar) 负责现代化与接入，让现有 Python 视频引擎更易用，也让生成过程更加直观。此次贡献包括：
+
+- 将原有密集布局改造成简洁、扁平且响应式的创作工作区
+- 将前端体验与 Python API 分离，同时保留原有视频生成流程
+- 使用 TypeScript、Next.js 和 Tailwind CSS 重建前端界面
+- 新增运行时设置抽屉，按语言模型、素材、语音、Provider 和凭据分区管理
+- 使用 Gemini 风格的实时活动 Feed 与创作星座视图展示生成进度
+- 增加任务历史、语音试听、完成视频预览、打开文件、全屏和下载流程
+- 更新 README 预览图，让贡献者运行项目之前即可了解新版工作流
+
 新版前端通过 `webui-next.bat` 启动，默认地址为 `http://127.0.0.1:3000`；Python API 运行在 `http://127.0.0.1:8080`。原有的 `webui.bat` Streamlit 工作流仍然保留。
 
 ---

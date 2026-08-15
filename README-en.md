@@ -40,6 +40,18 @@ MoneyPrinterTurbo now includes a modern Next.js workspace that is separated from
 - Floating result preview with playback, open-file, fullscreen, and download actions
 - Task history, voice samples, uploads, and protected runtime credentials remain compatible with the Python workflow
 
+#### Frontend modernization contribution
+
+The Next.js workspace was modernized and integrated by [Harshad Hindlekar](https://github.com/HarshadHindlekar) to make the existing Python video engine easier to use and easier to understand at a glance. This contribution includes:
+
+- Replacing the dense legacy presentation with a clean, flat, responsive studio workspace
+- Separating the frontend experience from the Python API while preserving the existing generation workflow
+- Rebuilding the interface with TypeScript, Next.js, and Tailwind CSS
+- Adding focused runtime settings drawers with provider, material, voice, language, and credential sections
+- Making generation progress visible through an interactive Gemini-inspired activity feed and creative constellation view
+- Adding task history, voice preview, completed-video preview, open-file, fullscreen, and download flows
+- Refreshing the README visuals so reviewers can see the new workflow before running the project
+
 Launch the new frontend with `webui-next.bat`. It runs the Next.js workspace at `http://127.0.0.1:3000` and the Python API at `http://127.0.0.1:8080`. The original Streamlit workflow remains available through `webui.bat`.
 
 ---
