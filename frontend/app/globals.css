@@ -86,6 +86,21 @@ textarea.control { resize: vertical; min-height: 5rem; }
 .generation-activity { transition: transform .18s, border-color .18s, background .18s; }
 .generation-activity-active { transform: translateX(3px); }
 .generation-signal { animation: generation-signal 1.1s ease-in-out infinite; }
+.generation-feed-intro { animation: generation-feed-in .3s ease-out; }
+.generation-agent-avatar { background: linear-gradient(145deg, #ff6c74, #9b61da); box-shadow: 0 8px 24px rgba(255,91,98,.22); animation: generation-breathe 2.6s ease-in-out infinite; }
+.generation-feed-line { background: linear-gradient(to bottom, rgba(255,155,159,.45), rgba(255,255,255,.08), transparent); }
+.generation-feed-row { animation: generation-feed-in .3s ease-out both; }
+.generation-feed-row:nth-child(2) { animation-delay: .05s; }
+.generation-feed-row:nth-child(3) { animation-delay: .1s; }
+.generation-feed-row:nth-child(4) { animation-delay: .15s; }
+.generation-feed-emoji { border: 1px solid rgba(255,255,255,.1); background: #211c28; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+.generation-feed-emoji-active { border-color: rgba(255,91,98,.5); background: rgba(255,91,98,.14); animation: generation-doodle-pop 1.8s ease-in-out infinite; }
+.generation-feed-row-active p:first-child { color: #fff; }
+.generation-feed-row-thinking { animation: generation-feed-in .25s ease-out; }
+.generation-typing { display: inline-block; width: 1.2em; overflow: hidden; vertical-align: bottom; animation: generation-typing 1.2s steps(4, end) infinite; }
+@keyframes generation-feed-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes generation-doodle-pop { 0%, 100% { transform: rotate(-5deg) scale(1); } 50% { transform: rotate(5deg) scale(1.12); } }
+@keyframes generation-typing { from { width: 0; } to { width: 1.2em; } }
 @keyframes generation-breathe { 0%, 100% { transform: scale(.97) rotate(-2deg); } 50% { transform: scale(1.04) rotate(2deg); } }
 @keyframes generation-ring { to { transform: rotate(360deg); } }
 @keyframes generation-float-one { 0%, 100% { transform: translate3d(0, 4px, 0) rotate(-5deg); } 50% { transform: translate3d(0, -9px, 0) rotate(7deg); } }
