@@ -303,7 +303,7 @@ export default function Home() {
         if (!active) return;
         setCurrentTask(task);
         if (task.state === PROCESSING) window.setTimeout(poll, 900);
-        else { setGenerationMinimized(false); void loadTasks(); }
+        else { setGenerationOpen(true); setGenerationMinimized(false); void loadTasks(); }
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Could not read task status");
       }
@@ -514,8 +514,6 @@ export default function Home() {
       {error && <div className="mt-2 rounded-xl border border-rose-400/25 bg-rose-400/[.08] px-4 py-2 text-xs text-rose-100">{error}</div>}
       {notice && !error && <div className="mt-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[.06] px-4 py-2 text-xs text-emerald-100">{notice}</div>}
       <footer className="studio-footer mt-3 flex shrink-0 flex-wrap items-center gap-3 border-t border-white/10 px-1 pt-3 sm:px-2"><div className="min-w-[180px] flex-1"><div className="flex items-center justify-between text-xs"><span className="font-semibold text-white">{taskStatus(currentTask)}</span><span className="text-[#ff8f94]">{currentTask ? `${progress}%` : "—"}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.08]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff5b62] to-[#b973ff] transition-all duration-500" style={{ width: `${progress}%` }} /></div></div>{currentVideo && <a className="button" href={assetUrl(currentVideo)} download><Download size={14} /> Download result</a>}<button className="button" onClick={reset}><RotateCcw size={14} /> Reset</button><button className="button button-primary px-6" onClick={generateVideo} disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" size={15} /> : <WandSparkles size={15} />} {isSubmitting ? "Starting..." : "Generate video ↗"}</button></footer>
-      {currentVideo && <section className="mt-3 rounded-2xl border border-white/10 bg-[#15181d]/90 p-4"><div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold">Generated result</h2><a className="text-xs text-[#ff9b9f]" href={assetUrl(currentVideo)} target="_blank" rel="noreferrer">Open file ↗</a></div><video className="max-h-[420px] w-full rounded-xl bg-black object-contain" controls src={assetUrl(currentVideo)} /></section>}
-
       {drawer === "tasks" && <TaskDrawer tasks={tasks} currentTaskId={taskId} onClose={() => setDrawer(null)} onRefresh={loadTasks} onOpen={(task) => { setTaskId(task.task_id); setCurrentTask(task); setDrawer(null); }} />}
       {drawer === "settings" && <CompactSettingsDrawer draft={settingsDraft} setDraft={setSettingsDraft} settings={settings} llmProviders={options.llm_providers || []} onClose={() => setDrawer(null)} onSave={saveSettings} />}
       {generationOpen && currentTask && !generationMinimized && <GenerationDialog task={currentTask} onMinimize={() => setGenerationMinimized(true)} onClose={() => setGenerationOpen(false)} />}
