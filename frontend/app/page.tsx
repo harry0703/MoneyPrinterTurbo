@@ -178,6 +178,7 @@ export default function Home() {
   const [options, setOptions] = useState<UiOptions>({ fonts: [], songs: [], voices: {} , local_material_extensions: [], audio_extensions: [] });
   const [materials, setMaterials] = useState<Material[]>([]);
   const [audioPath, setAudioPath] = useState("");
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [taskId, setTaskId] = useState("");
@@ -305,6 +306,27 @@ export default function Home() {
     finally { setIsGeneratingScript(false); }
   };
 
+  const previewVoice = async () => {
+    if (!form.voice || !form.script.trim()) {
+      setError("Add a script before requesting a voice sample");
+      return;
+    }
+    setError("");
+    try {
+      const response = await fetch("/api/voice-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: form.script.slice(0, 1000), voice_name: form.voice, voice_rate: form.voiceRate, voice_volume: form.voiceVolume }),
+      });
+      if (!response.ok) throw new Error("Voice preview failed");
+      if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(URL.createObjectURL(await response.blob()));
+      setNotice("Voice sample ready");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Voice preview failed");
+    }
+  };
+
   const generateVideo = async () => {
     setError(""); setNotice("");
     if (!form.subject.trim() && !form.script.trim()) { setError("Video subject and script cannot both be empty"); return; }
@@ -398,7 +420,7 @@ export default function Home() {
 
         <Panel title="Audio Settings" eyebrow="03">
           <Field label="Voiceover mode"><div className="segmented">{([["tts", "Automatic"], ["upload", "Upload"], ["none", "None"]] as const).map(([value, label]) => <button key={value} className={form.voiceMode === value ? "active" : ""} onClick={() => setValue("voiceMode", value)}>{label}</button>)}</div></Field>
-          {form.voiceMode === "tts" && <><Field label="Voiceover service"><select className="control" value={form.ttsServer} onChange={(event) => updateProvider(event.target.value)}>{providers.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field><Field label={`Voice · ${selectedProviderLabel}`}><select className="control" value={form.voice} onChange={(event) => setValue("voice", event.target.value)}>{voices.length ? voices.map((voice) => <option key={voice} value={voice}>{voice}</option>) : <option value="">No voices loaded</option>}</select></Field><div className="grid grid-cols-2 gap-3"><Range label="Volume" value={form.voiceVolume} min={0.6} max={5} step={0.1} suffix="×" onChange={(value) => setValue("voiceVolume", value)} /><Range label="Speed" value={form.voiceRate} min={0.8} max={2} step={0.1} suffix="×" onChange={(value) => setValue("voiceRate", value)} /></div><button className="button w-full" onClick={() => setNotice("Voice preview is available after the provider is configured in Settings")}><Play size={14} /> Voice sample</button></>}
+          {form.voiceMode === "tts" && <><Field label="Voiceover service"><select className="control" value={form.ttsServer} onChange={(event) => updateProvider(event.target.value)}>{providers.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field><Field label={`Voice · ${selectedProviderLabel}`}><select className="control" value={form.voice} onChange={(event) => setValue("voice", event.target.value)}>{voices.length ? voices.map((voice) => <option key={voice} value={voice}>{voice}</option>) : <option value="">No voices loaded</option>}</select></Field><div className="grid grid-cols-2 gap-3"><Range label="Volume" value={form.voiceVolume} min={0.6} max={5} step={0.1} suffix="×" onChange={(value) => setValue("voiceVolume", value)} /><Range label="Speed" value={form.voiceRate} min={0.8} max={2} step={0.1} suffix="×" onChange={(value) => setValue("voiceRate", value)} /></div><button className="button w-full" onClick={previewVoice}><Play size={14} /> Voice sample</button>{audioPreviewUrl && <audio className="w-full" controls src={audioPreviewUrl} />}</>}
           {form.voiceMode === "upload" && <div className="rounded-lg border border-dashed border-white/15 p-3"><label className="button w-full"><FileAudio size={15} /> {uploading ? "Uploading..." : "Upload voiceover"}<input className="hidden" type="file" accept={options.audio_extensions.map((extension) => `.${extension.replace(".", "")}`).join(",")} onChange={onAudio} /></label>{audioPath && <p className="mt-2 text-[11px] text-emerald-200">Voiceover file ready</p>}</div>}
           <div className="mt-1 border-t border-white/10 pt-3"><Field label="Background music"><select className="control" value={form.bgmType} onChange={(event) => setValue("bgmType", event.target.value)}><option value="random">Random background music</option><option value="none">No background music</option><option value="custom">Custom music</option><option value="sonilo">Sonilo music</option><option value="elevenlabs">ElevenLabs music</option></select></Field>{form.bgmType === "custom" && <><select className="control mt-2" value={form.bgmFile} onChange={(event) => setValue("bgmFile", event.target.value)}><option value="">Choose uploaded or built-in music</option>{options.songs.map((song) => <option key={song}>{song}</option>)}</select><label className="button button-quiet mt-2 w-full"><Upload size={14} /> Upload music<input className="hidden" type="file" accept="audio/*" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; try { const result = await uploadFile("/musics", file); setValue("bgmFile", result.file); setNotice("Background music uploaded"); } catch (reason) { setError(reason instanceof Error ? reason.message : "Music upload failed"); } }} /></label></>}<Range label="Music volume" value={form.bgmVolume} min={0} max={1} step={0.05} suffix="×" onChange={(value) => setValue("bgmVolume", value)} />{(form.bgmType === "sonilo" || form.bgmType === "elevenlabs") && <Field label="Music prompt"><input className="control" value={form.musicPrompt} onChange={(event) => setValue("musicPrompt", event.target.value)} placeholder="Mood, tempo, atmosphere" /></Field>}</div>
         </Panel>
@@ -419,6 +441,7 @@ export default function Home() {
       {error && <div className="mt-2 rounded-xl border border-rose-400/25 bg-rose-400/[.08] px-4 py-2 text-xs text-rose-100">{error}</div>}
       {notice && !error && <div className="mt-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[.06] px-4 py-2 text-xs text-emerald-100">{notice}</div>}
       <footer className="mt-3 flex shrink-0 flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-[#15181d]/90 px-4 py-3 sm:px-5"><div className="min-w-[180px] flex-1"><div className="flex items-center justify-between text-xs"><span className="font-semibold text-white">{taskStatus(currentTask)}</span><span className="text-[#ff8f94]">{currentTask ? `${progress}%` : "—"}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.08]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff5b62] to-[#b973ff] transition-all duration-500" style={{ width: `${progress}%` }} /></div></div>{currentVideo && <a className="button" href={assetUrl(currentVideo)} download><Download size={14} /> Download result</a>}<button className="button" onClick={reset}><RotateCcw size={14} /> Reset</button><button className="button button-primary px-6" onClick={generateVideo} disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" size={15} /> : <WandSparkles size={15} />} {isSubmitting ? "Starting..." : "Generate video ↗"}</button></footer>
+      {currentVideo && <section className="mt-3 rounded-2xl border border-white/10 bg-[#15181d]/90 p-4"><div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold">Generated result</h2><a className="text-xs text-[#ff9b9f]" href={assetUrl(currentVideo)} target="_blank" rel="noreferrer">Open file ↗</a></div><video className="max-h-[420px] w-full rounded-xl bg-black object-contain" controls src={assetUrl(currentVideo)} /></section>}
 
       {drawer === "tasks" && <TaskDrawer tasks={tasks} currentTaskId={taskId} onClose={() => setDrawer(null)} onRefresh={loadTasks} onOpen={(task) => { setTaskId(task.task_id); setCurrentTask(task); setDrawer(null); }} />}
       {drawer === "settings" && <SettingsDrawer draft={settingsDraft} setDraft={setSettingsDraft} settings={settings} onClose={() => setDrawer(null)} onSave={saveSettings} />}

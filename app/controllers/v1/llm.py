@@ -1,6 +1,9 @@
+import os
 from typing import Any
+from uuid import uuid4
 
-from fastapi import Request
+from fastapi import BackgroundTasks, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.controllers.v1.base import new_router
@@ -25,6 +28,13 @@ router = new_router()
 class RuntimeSettingsRequest(BaseModel):
     section: str = Field(min_length=1, max_length=40)
     values: dict[str, Any]
+
+
+class VoicePreviewRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1000)
+    voice_name: str = Field(min_length=1, max_length=300)
+    voice_rate: float = Field(default=1.0, ge=0.5, le=3.0)
+    voice_volume: float = Field(default=1.0, ge=0.1, le=5.0)
 
 
 _SETTINGS_SECTIONS = {
@@ -73,6 +83,51 @@ def update_runtime_settings(request: Request, body: RuntimeSettingsRequest):
         config.update_config_nonblocking(section, key, value)
     config.try_save_config()
     return utils.get_response(200, _safe_settings_snapshot())
+
+
+@router.post("/voice-preview", summary="Generate a short voice preview")
+def generate_voice_preview(
+    request: Request,
+    body: VoicePreviewRequest,
+    background_tasks: BackgroundTasks,
+):
+    preview_file = os.path.join(
+        utils.storage_dir("temp", create=True), f"next-voice-{uuid4().hex}.mp3"
+    )
+    # Keep preview generation on the same voice dispatcher used by video tasks.
+    from app.services import voice
+
+    try:
+        result = voice.tts(
+            text=body.text,
+            voice_name=body.voice_name,
+            voice_rate=body.voice_rate,
+            voice_file=preview_file,
+            voice_volume=body.voice_volume,
+        )
+    except Exception as exc:
+        raise HttpException(
+            task_id="",
+            status_code=502,
+            message=f"voice preview failed: {str(exc)}",
+        ) from exc
+    if result is None or not os.path.isfile(preview_file):
+        raise HttpException(task_id="", status_code=502, message="voice preview failed")
+
+    background_tasks.add_task(_remove_preview_file, preview_file)
+    return FileResponse(
+        preview_file,
+        media_type="audio/mpeg",
+        filename="voice-preview.mp3",
+        background=background_tasks,
+    )
+
+
+def _remove_preview_file(file_path: str):
+    try:
+        os.remove(file_path)
+    except FileNotFoundError:
+        pass
 
 
 @router.post(
