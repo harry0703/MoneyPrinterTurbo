@@ -68,6 +68,29 @@ textarea.control { resize: vertical; min-height: 5rem; }
 .generation-popup { animation: generation-pop-in .22s ease-out; }
 .generation-pill { animation: generation-pop-in .18s ease-out; }
 .generation-pill:hover { border-color: rgba(255,91,98,.7); background: #211821; }
+.generation-scene { isolation: isolate; }
+.generation-grid {
+  opacity: .42;
+  background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(circle, black 20%, transparent 78%);
+}
+.generation-orb { background: radial-gradient(circle at 35% 28%, #ffb0b3, #b973ff 38%, #5a2c76 72%, #21132d); box-shadow: 0 0 42px rgba(255,91,98,.28), inset -10px -12px 22px rgba(33,19,45,.55); animation: generation-breathe 2.6s ease-in-out infinite; }
+.generation-orb-glow { background: rgba(255,255,255,.16); filter: blur(10px); }
+.generation-orb-ring { border: 1px solid rgba(255,155,159,.42); animation: generation-ring 2.8s linear infinite; }
+.generation-doodle { position: absolute; z-index: 2; display: grid; height: 2rem; width: 2rem; place-items: center; border: 1px solid rgba(255,255,255,.12); border-radius: .8rem; background: rgba(255,255,255,.07); font-size: 1.05rem; box-shadow: 0 8px 24px rgba(0,0,0,.22); }
+.generation-doodle-one { left: 17%; top: 25%; animation: generation-float-one 4.4s ease-in-out infinite; }
+.generation-doodle-two { right: 17%; top: 20%; animation: generation-float-two 5s ease-in-out infinite; }
+.generation-doodle-three { bottom: 21%; left: 24%; animation: generation-float-two 4.8s ease-in-out .4s infinite; }
+.generation-doodle-four { bottom: 18%; right: 22%; animation: generation-float-one 5.2s ease-in-out .7s infinite; }
+.generation-activity { transition: transform .18s, border-color .18s, background .18s; }
+.generation-activity-active { transform: translateX(3px); }
+.generation-signal { animation: generation-signal 1.1s ease-in-out infinite; }
+@keyframes generation-breathe { 0%, 100% { transform: scale(.97) rotate(-2deg); } 50% { transform: scale(1.04) rotate(2deg); } }
+@keyframes generation-ring { to { transform: rotate(360deg); } }
+@keyframes generation-float-one { 0%, 100% { transform: translate3d(0, 4px, 0) rotate(-5deg); } 50% { transform: translate3d(0, -9px, 0) rotate(7deg); } }
+@keyframes generation-float-two { 0%, 100% { transform: translate3d(0, -3px, 0) rotate(5deg); } 50% { transform: translate3d(0, 10px, 0) rotate(-8deg); } }
+@keyframes generation-signal { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.2); } }
 @keyframes generation-pop-in {
   from { opacity: 0; transform: translateY(10px) scale(.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
