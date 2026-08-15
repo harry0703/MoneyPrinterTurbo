@@ -195,28 +195,28 @@ export default function Home() {
   const progress = currentTask?.progress ?? 0;
 
   return (
-    <main className="studio-shell flex min-h-screen flex-col overflow-auto px-3 py-3 sm:px-5 lg:h-screen lg:min-h-[620px] lg:overflow-hidden lg:px-7">
+    <main className="studio-shell theme-edit-bay flex min-h-screen flex-col overflow-auto px-3 py-3 sm:px-5 lg:h-screen lg:min-h-[620px] lg:overflow-hidden lg:px-7">
       <header className="glass mb-3 flex shrink-0 items-center justify-between rounded-2xl px-4 py-2.5 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#ff5b62] to-[#8f73ff] text-lg font-black shadow-lg shadow-[#ff5b62]/20">✦</div>
-          <div className="min-w-0"><div className="flex items-baseline gap-2"><h1 className="truncate text-lg font-bold tracking-[-0.045em] sm:text-xl">MoneyPrinterTurbo</h1><span className="text-[11px] font-semibold text-[#77798b]">v1.3.4</span></div><p className="hidden text-[11px] text-[#77798b] sm:block">Short-form video studio</p></div>
+          <div className="edit-bay-mark grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[10px] font-black tracking-[-0.08em]">MPT</div>
+          <div className="min-w-0"><div className="flex items-baseline gap-2"><h1 className="truncate text-lg font-bold tracking-[-0.045em] sm:text-xl">MoneyPrinterTurbo</h1><span className="text-[11px] font-semibold text-[#77798b]">v1.3.4</span></div><p className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77798b] sm:block">Edit bay / master cut</p></div>
         </div>
-        <div className="flex items-center gap-2 text-xs sm:text-sm"><span className="hidden items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-2 text-emerald-200 sm:flex"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />Local workspace</span><button className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 font-semibold text-white transition hover:bg-white/[0.08]" onClick={loadTasks}>Tasks <span className="ml-1 text-[#9899aa]">{tasks.length}</span></button></div>
+        <div className="flex items-center gap-2 text-xs sm:text-sm"><span className="edit-bay-status hidden items-center gap-2 rounded-full px-3 py-2 sm:flex"><span className="h-2 w-2 rounded-full" />Signal live</span><button className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 font-semibold text-white transition hover:bg-white/[0.08]" onClick={loadTasks}>Rolls <span className="ml-1 text-[#9899aa]">{tasks.length}</span></button></div>
       </header>
 
       <section className="min-h-0 flex-1">
         <div className="studio-panels grid h-full min-h-0 gap-3 lg:grid-cols-4">
-          <Panel title="Video Script" eyebrow="01" accent>
+          <Panel title="Story" eyebrow="01" accent>
             <Field label="Video subject"><textarea className="compact-textarea h-16" placeholder="How AI is changing everyday life" value={form.subject} onChange={(event) => updateForm("subject", event.target.value)} /></Field>
             <Field label="Script language"><select className="compact-input" value={form.language} onChange={(event) => updateForm("language", event.target.value)}><option value="auto">Auto Detect</option><option value="en-US">English</option><option value="zh-CN">中文</option><option value="es-ES">Español</option><option value="hi-IN">हिन्दी</option></select></Field>
-            <div className="compact-expander"><span>⌄</span> Advanced script settings</div>
-            <MiniButton onClick={generateScript} disabled={isGeneratingScript}>{isGeneratingScript ? "Writing script..." : "✦ Generate script & keywords"}</MiniButton>
-            <Field label="Video script"><textarea className="compact-textarea h-32" placeholder="Write or generate the narration..." value={form.script} onChange={(event) => updateForm("script", event.target.value)} /></Field>
-            <MiniButton onClick={generateScript} disabled={isGeneratingScript}>{isGeneratingScript ? "Working..." : "✦ Generate keywords with AI"}</MiniButton>
+            <div className="compact-expander"><span>⌄</span> More story controls</div>
+            <MiniButton onClick={generateScript} disabled={isGeneratingScript}>{isGeneratingScript ? "Writing draft..." : "＋ Draft story & beats"}</MiniButton>
+            <Field label="Narration"><textarea className="compact-textarea h-32" placeholder="Write or generate the narration..." value={form.script} onChange={(event) => updateForm("script", event.target.value)} /></Field>
+            <MiniButton onClick={generateScript} disabled={isGeneratingScript}>{isGeneratingScript ? "Extracting..." : "＋ Extract visual beats"}</MiniButton>
             <Field label="Video keywords"><input className="compact-input" placeholder="technology, people, future" value={form.keywords} onChange={(event) => updateForm("keywords", event.target.value)} /></Field>
           </Panel>
 
-          <Panel title="Video Settings" eyebrow="02">
+          <Panel title="Cut" eyebrow="02">
             <Field label="Video source"><select className="compact-input" value={form.source} onChange={(event) => updateForm("source", event.target.value as FormState["source"])}><option value="pexels">Pexels</option><option value="pixabay">Pixabay</option><option value="coverr">Coverr</option></select></Field>
             <Field label="Concatenation"><select className="compact-input" value={form.concat} onChange={(event) => updateForm("concat", event.target.value as FormState["concat"])}><option value="random">Random (Recommended)</option><option value="sequential">Sequential</option></select></Field>
             <Check label="Match visuals to script order" checked={form.concat === "sequential"} onChange={(checked) => updateForm("concat", checked ? "sequential" : "random")} />
@@ -227,7 +227,7 @@ export default function Home() {
             <Field label="Videos per run"><select className="compact-input" value={form.videoCount} onChange={(event) => updateForm("videoCount", Number(event.target.value))}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select></Field>
           </Panel>
 
-          <Panel title="Audio Settings" eyebrow="03">
+          <Panel title="Voice" eyebrow="03">
             <Field label="Voiceover mode"><div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-black/10 p-1"><Choice active={form.voiceover === "auto"} onClick={() => updateForm("voiceover", "auto")}>Auto</Choice><Choice active={form.voiceover === "none"} onClick={() => updateForm("voiceover", "none")}>None</Choice></div></Field>
             <Field label="Voice service"><select className="compact-input"><option>Azure TTS v1</option><option>Edge TTS</option><option>Chatterbox</option></select></Field>
             <Field label="Voice"><select className="compact-input" value={form.voice} onChange={(event) => updateForm("voice", event.target.value)}><option value="zh-CN-XiaoxiaoNeural-Female">Xiaoxiao · Female</option><option value="en-US-JennyNeural-Female">Jenny · Female</option><option value="en-US-GuyNeural-Male">Guy · Male</option></select></Field>
@@ -238,7 +238,7 @@ export default function Home() {
             <div className="compact-note">Voiceover and music stay balanced automatically during rendering.</div>
           </Panel>
 
-          <Panel title="Subtitle Settings" eyebrow="04">
+          <Panel title="Type" eyebrow="04">
             <Check label="Enable subtitles" checked={form.subtitles} onChange={(checked) => updateForm("subtitles", checked)} strong />
             <Field label="Font"><select className="compact-input" value={form.font} onChange={(event) => updateForm("font", event.target.value)}><option>BeVietnamPro-Bold.ttf</option><option>MicrosoftYaHeiBold.ttc</option><option>STHeitiMedium.ttc</option></select></Field>
             <Field label="Position"><select className="compact-input" value={form.subtitlePosition} onChange={(event) => updateForm("subtitlePosition", event.target.value as FormState["subtitlePosition"])}><option value="top">Top</option><option value="center">Center</option><option value="bottom">Bottom</option></select></Field>
@@ -252,10 +252,10 @@ export default function Home() {
 
       {error && <div className="mt-2 shrink-0 rounded-xl border border-rose-400/25 bg-rose-400/[0.08] px-3 py-2 text-xs text-rose-100">{error}</div>}
       <footer className="glass mt-3 flex shrink-0 flex-wrap items-center gap-3 rounded-2xl px-4 py-2.5 sm:px-5">
-        <div className="min-w-[180px] flex-1"><div className="flex items-center justify-between text-xs"><span className="font-semibold text-white">{taskLabel(currentTask)}</span><span className="text-[#ff8f94]">{currentTask ? `${progress}%` : "—"}</span></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.08]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff5b62] to-[#a57eff] transition-all duration-500" style={{ width: `${progress}%` }} /></div></div>
+        <div className="min-w-[180px] flex-1"><div className="flex items-center justify-between text-xs"><span className="font-semibold text-white"><span className="mr-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[#77798b]">Master output</span>{taskLabel(currentTask)}</span><span className="text-[#ff8f94]">{currentTask ? `${progress}%` : "—"}</span></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.08]"><div className="h-full rounded-full bg-gradient-to-r from-[#ff5b62] to-[#a57eff] transition-all duration-500" style={{ width: `${progress}%` }} /></div></div>
         {previewVideo && <a className="rounded-lg border border-emerald-400/25 bg-emerald-400/[0.08] px-3 py-2 text-xs font-semibold text-emerald-100" href={assetUrl(previewVideo)} download>Download result ↓</a>}
         <button className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-[#b2b3c1] transition hover:bg-white/[0.05]" onClick={() => setForm(initialForm)}>Reset</button>
-        <button className="rounded-lg bg-gradient-to-r from-[#ff5b62] to-[#f07679] px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#ff5b62]/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60" onClick={generateVideo} disabled={isSubmitting}>{isSubmitting ? "Starting..." : "Generate video  ↗"}</button>
+        <button className="edit-bay-action rounded-lg bg-gradient-to-r from-[#ff5b62] to-[#f07679] px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#ff5b62]/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60" onClick={generateVideo} disabled={isSubmitting}>{isSubmitting ? "Spooling..." : "Cut master  ↗"}</button>
       </footer>
     </main>
   );

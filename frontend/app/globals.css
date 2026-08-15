@@ -249,3 +249,159 @@ button {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 }
+
+/* Edit bay theme: a quiet post-production console instead of a generic AI dashboard. */
+.theme-edit-bay {
+  --edit-bg: #111616;
+  --edit-surface: rgba(17, 23, 22, 0.78);
+  --edit-ink: #f1ede5;
+  --edit-muted: #929b99;
+  --edit-line: rgba(138, 216, 194, 0.16);
+  --edit-amber: #e5a85b;
+  --edit-amber-soft: rgba(229, 168, 91, 0.14);
+  --edit-mint: #8ad8c2;
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(229, 168, 91, 0.11), transparent 28rem),
+    radial-gradient(circle at 96% 16%, rgba(138, 216, 194, 0.08), transparent 26rem),
+    linear-gradient(rgba(138, 216, 194, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(138, 216, 194, 0.025) 1px, transparent 1px),
+    var(--edit-bg);
+  background-size: auto, auto, 42px 42px, 42px 42px, auto;
+  color: var(--edit-ink);
+}
+
+.theme-edit-bay::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  opacity: 0.5;
+  background: linear-gradient(90deg, transparent 0, transparent 49.9%, rgba(229, 168, 91, 0.035) 50%, transparent 50.1%);
+}
+
+.theme-edit-bay .glass {
+  border-color: var(--edit-line);
+  background: var(--edit-surface);
+  box-shadow: none;
+  backdrop-filter: blur(14px);
+}
+
+.theme-edit-bay .edit-bay-mark {
+  border: 1px solid rgba(229, 168, 91, 0.52);
+  background: var(--edit-amber);
+  color: #17201e;
+  box-shadow: 0 0 0 4px rgba(229, 168, 91, 0.08);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.theme-edit-bay .edit-bay-status {
+  border: 1px solid rgba(138, 216, 194, 0.3);
+  background: rgba(138, 216, 194, 0.06);
+  color: var(--edit-mint);
+}
+
+.theme-edit-bay .edit-bay-status > span {
+  background: var(--edit-mint);
+  box-shadow: 0 0 10px rgba(138, 216, 194, 0.8);
+}
+
+.theme-edit-bay .studio-panels {
+  border-color: var(--edit-line);
+}
+
+.theme-edit-bay .studio-panel + .studio-panel {
+  border-left-color: var(--edit-line);
+}
+
+.theme-edit-bay .studio-panel > div:first-child {
+  border-bottom-color: var(--edit-line) !important;
+}
+
+.theme-edit-bay .studio-panel h2 {
+  color: var(--edit-ink) !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.theme-edit-bay .studio-panel h2 + span,
+.theme-edit-bay .studio-panel > div:first-child > span:last-child {
+  background: var(--edit-amber) !important;
+}
+
+.theme-edit-bay .compact-input,
+.theme-edit-bay .compact-textarea {
+  border-color: rgba(138, 216, 194, 0.14);
+  background: rgba(7, 12, 12, 0.42);
+  color: var(--edit-ink);
+}
+
+.theme-edit-bay .compact-input:focus,
+.theme-edit-bay .compact-textarea:focus {
+  border-color: var(--edit-amber);
+  box-shadow: 0 0 0 3px rgba(229, 168, 91, 0.11);
+}
+
+.theme-edit-bay .compact-range {
+  accent-color: var(--edit-amber);
+}
+
+.theme-edit-bay .compact-button {
+  color: var(--edit-amber);
+}
+
+.theme-edit-bay .compact-button:hover {
+  background: var(--edit-amber-soft);
+  color: var(--edit-ink);
+}
+
+.theme-edit-bay .compact-expander span,
+.theme-edit-bay .edit-bay-action {
+  color: var(--edit-amber) !important;
+}
+
+.theme-edit-bay .edit-bay-action {
+  border: 1px solid rgba(229, 168, 91, 0.45);
+  background: var(--edit-amber) !important;
+  color: #17201e !important;
+  box-shadow: 0 8px 24px rgba(229, 168, 91, 0.14) !important;
+}
+
+.theme-edit-bay .edit-bay-action:hover {
+  filter: brightness(1.08);
+}
+
+.theme-edit-bay .compact-note {
+  border-color: rgba(138, 216, 194, 0.17);
+  color: var(--edit-muted);
+}
+
+.theme-edit-bay .studio-panel-content {
+  scrollbar-color: rgba(229, 168, 91, 0.42) transparent;
+}
+
+.theme-edit-bay [class*="text-[#ff8f94]"],
+.theme-edit-bay [class*="text-[#ff9b9f]"] {
+  color: var(--edit-amber) !important;
+}
+
+.theme-edit-bay [class*="bg-[#ff5b62]"] {
+  background-color: var(--edit-amber) !important;
+}
+
+.theme-edit-bay [class*="border-[#ff5b62]"] {
+  border-color: var(--edit-amber) !important;
+}
+
+.theme-edit-bay .h-full.rounded-full.bg-gradient-to-r {
+  background-image: linear-gradient(90deg, var(--edit-amber), var(--edit-mint)) !important;
+}
+
+.theme-edit-bay header button,
+.theme-edit-bay footer button:not(.edit-bay-action) {
+  border-color: rgba(138, 216, 194, 0.14);
+}
