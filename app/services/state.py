@@ -67,16 +67,18 @@ class MemoryState(BaseState):
 
         with self._lock:
             existing = self._tasks.get(task_id, {})
-            self._tasks[task_id] = {
+            task = {
                 "task_id": task_id,
                 "state": state,
                 "progress": progress,
-                # Task updates historically replace the in-memory snapshot.
-                # Keep the bounded live event timeline across those updates so
-                # the frontend can show generation steps without losing them.
-                "events": existing.get("events", []),
                 **kwargs,
             }
+            # Task updates historically replace the in-memory snapshot. Keep
+            # the bounded live event timeline only after a task has started
+            # emitting events, preserving the legacy shape for other tasks.
+            if "events" in existing:
+                task["events"] = existing["events"]
+            self._tasks[task_id] = task
 
     def get_task(self, task_id: str):
         with self._lock:
