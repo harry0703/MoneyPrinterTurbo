@@ -2,6 +2,7 @@ import glob
 import os
 import pathlib
 import shutil
+from uuid import uuid4
 from typing import Union
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
@@ -16,6 +17,7 @@ from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1.base import new_router
 from app.models.exception import HttpException
+from app.models.llm_provider import LLM_PROVIDER_REGISTRY
 from app.models.schema import (
     AudioRequest,
     BgmRetrieveResponse,
@@ -33,11 +35,14 @@ from app.models.schema import (
 from app.services import bgm as bgm_service
 from app.services import state as sm
 from app.services import task as tm
+from app.services import voice as voice_service
 from app.utils import file_security, utils
 
 # 认证依赖项
 # router = new_router(dependencies=[Depends(base.verify_token)])
 router = new_router()
+
+_CUSTOM_AUDIO_SUFFIXES = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
@@ -178,6 +183,107 @@ def create_video(
     return create_task(request, body, stop_at="video")
 
 
+@router.get("/ui/options", summary="Get frontend creation options")
+def get_ui_options(request: Request):
+    """Expose non-secret assets and provider catalogs to the decoupled frontend."""
+    fonts_dir = utils.font_dir()
+    fonts = []
+    if os.path.isdir(fonts_dir):
+        for root, _, files in os.walk(fonts_dir):
+            fonts.extend(
+                file
+                for file in files
+                if pathlib.Path(file).suffix.lower() in {".ttf", ".ttc"}
+            )
+    fonts.sort(key=str.lower)
+
+    songs = [os.path.basename(file) for file in bgm_service.list_bgm_files()]
+    voices = {
+        "azure-tts-v1": voice_service.get_all_azure_voices(),
+        "azure-tts-v2": voice_service.get_all_azure_voices(),
+        "siliconflow": voice_service.get_siliconflow_voices(),
+        "gemini-tts": voice_service.get_gemini_voices(),
+        "mimo-tts": voice_service.get_mimo_voices(),
+        "minimax-tts": voice_service.get_minimax_voices(),
+        "elevenlabs": voice_service.get_elevenlabs_voices(
+            str(config.elevenlabs.get("api_key", "") or "")
+        ),
+        "chatterbox": voice_service.get_chatterbox_voices(),
+    }
+    if not voices["chatterbox"]:
+        voices["chatterbox"] = ["chatterbox:default-Female"]
+
+    return utils.get_response(
+        200,
+        {
+            "version": config.project_version,
+            "languages": [
+                "zh-CN", "zh-HK", "zh-TW", "de-DE", "en-US", "es-ES",
+                "fr-FR", "ru-RU", "vi-VN", "th-TH", "tr-TR",
+            ],
+            "defaults": {
+                "language": config.ui.get("language", "en-US"),
+                "video_source": config.app.get("video_source", "pexels"),
+                "video_codec": config.app.get("video_codec", "__default__"),
+                "tts_server": config.ui.get("tts_server", "azure-tts-v1"),
+                "voice_mode": config.ui.get("voice_mode", "tts"),
+                "voice_name": config.ui.get("voice_name", ""),
+                "font_name": config.ui.get("font_name", ""),
+                "subtitle_position": config.ui.get("subtitle_position", "bottom"),
+                "custom_position": config.ui.get("custom_position", 70),
+                "text_fore_color": config.ui.get("text_fore_color", "#FFFFFF"),
+                "font_size": config.ui.get("font_size", 60),
+                "stroke_color": config.ui.get("stroke_color", "#000000"),
+                "stroke_width": config.ui.get("stroke_width", 1.5),
+                "subtitle_background_enabled": config.ui.get("subtitle_background_enabled", False),
+                "subtitle_background_color": config.ui.get("subtitle_background_color", "#000000"),
+                "rounded_subtitle_background": config.ui.get("rounded_subtitle_background", False),
+            },
+            "llm_providers": [
+                {
+                    "id": provider.provider_id,
+                    "label": provider.default_label,
+                    "default_model": provider.default_model,
+                    "default_base_url": provider.default_base_url,
+                    "show_api_key": provider.show_api_key,
+                    "show_base_url": provider.show_base_url,
+                    "extra_fields": [field.config_suffix for field in provider.extra_fields],
+                }
+                for provider in LLM_PROVIDER_REGISTRY
+            ],
+            "fonts": fonts,
+            "songs": sorted(set(songs), key=str.lower),
+            "voices": voices,
+            "local_material_extensions": sorted(
+                ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
+            ),
+            "audio_extensions": sorted(_CUSTOM_AUDIO_SUFFIXES),
+        },
+    )
+
+
+@router.post("/audio_uploads", summary="Upload a custom voiceover file")
+def upload_audio_file(request: Request, file: UploadFile = File(...)):
+    """Store an uploaded voiceover under a project-relative safe path."""
+    safe_filename = _sanitize_upload_filename(file.filename, base.get_task_id(request))
+    suffix = pathlib.Path(safe_filename).suffix.lower()
+    if suffix not in _CUSTOM_AUDIO_SUFFIXES:
+        raise HttpException(
+            task_id=base.get_task_id(request),
+            status_code=400,
+            message="unsupported custom audio format",
+        )
+
+    upload_dir = utils.storage_dir("audio_uploads", create=True)
+    stored_name = f"{uuid4().hex}{suffix}"
+    stored_path = os.path.join(upload_dir, stored_name)
+    with open(stored_path, "wb") as output:
+        shutil.copyfileobj(file.file, output)
+
+    relative_path = os.path.relpath(stored_path, utils.root_dir()).replace("\\", "/")
+    return utils.get_response(200, {"file": relative_path})
+
+
 @router.post("/subtitle", response_model=TaskResponse, summary="Generate subtitle only")
 def create_subtitle(
     background_tasks: BackgroundTasks, request: Request, body: SubtitleRequest
@@ -206,6 +312,7 @@ def create_task(
             "params": body.model_dump(),
         }
         sm.state.update_task(task_id)
+        tm.append_task_event(task_id, "Generation queued", "queue", 0)
         task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
