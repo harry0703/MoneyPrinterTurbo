@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -254,6 +255,108 @@ def test_advance_updates_active_batch_atomically_without_skipping_states(tmp_pat
     )
     assert skipped.returncode == 3
     assert "非法状态跃迁" in json.loads(skipped.stdout)["error"]
+
+
+def test_prepare_quality_only_updates_only_review_policy_atomically(tmp_path):
+    from test.services.test_health_content import _general_wellness_manifest
+
+    manifest = _general_wellness_manifest()
+    manifest["medical_review"]["status"] = "pending"
+    manifest["final_qa"]["status"] = "pending"
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+    result = _run("prepare-quality-only", "--manifest", str(manifest_path))
+
+    assert result.returncode == 0, result.stdout
+    stored = json.loads(manifest_path.read_text("utf-8"))
+    assert stored["medical_review"] == {
+        "status": "not_required",
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": "一般生活方式内容不要求外部医学审核。",
+    }
+    assert stored["final_qa"] == {
+        "status": "not_required",
+        "reviewer": "",
+        "reviewed_at": "",
+    }
+    assert stored["automated_qa"] == {"status": "pending", "checked_at": ""}
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_prepare_quality_only_rejects_legacy_without_rewriting(tmp_path):
+    from test.services.test_health_content import _approved_manifest
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(_approved_manifest(), ensure_ascii=False), encoding="utf-8"
+    )
+    before = manifest_path.read_bytes()
+
+    result = _run("prepare-quality-only", "--manifest", str(manifest_path))
+
+    assert result.returncode == 3, result.stdout
+    assert manifest_path.read_bytes() == before
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_general_direct_production_updates_active_reference_and_rejects_skips(tmp_path):
+    from test.services.test_health_content import _general_wellness_manifest
+
+    output = tmp_path / "inventory"
+    topics_file = tmp_path / "topics.json"
+    topics_file.write_text(
+        json.dumps(_topics_payload(), ensure_ascii=False), encoding="utf-8"
+    )
+    started = _run(
+        "start-batch",
+        "--date",
+        "20260810",
+        "--output",
+        str(output),
+        "--topics-file",
+        str(topics_file),
+    )
+    assert started.returncode == 0, started.stdout
+    batch_path = output / "active-batch.json"
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(_general_wellness_manifest(), ensure_ascii=False), encoding="utf-8"
+    )
+
+    skipped = _run(
+        "advance",
+        "--batch",
+        str(batch_path),
+        "--content-id",
+        "HC20260810-001",
+        "--to",
+        "automated_qa_passed",
+        "--manifest",
+        str(manifest_path),
+    )
+    assert skipped.returncode == 3, skipped.stdout
+    assert "非法状态跃迁" in json.loads(skipped.stdout)["error"]
+
+    result = _run(
+        "advance",
+        "--batch",
+        str(batch_path),
+        "--content-id",
+        "HC20260810-001",
+        "--to",
+        "production",
+        "--manifest",
+        str(manifest_path),
+    )
+
+    assert result.returncode == 0, result.stdout
+    active_bytes = batch_path.read_bytes()
+    active = json.loads(active_bytes)
+    current_ref = json.loads((output / "current-batch-ref.json").read_text("utf-8"))
+    assert active["topics"][0]["state"] == "production"
+    assert current_ref["active_sha256"] == sha256(active_bytes).hexdigest()
 
 
 def test_metrics_csv_round_trip_preserves_missing_values_and_blocks_duplicates(

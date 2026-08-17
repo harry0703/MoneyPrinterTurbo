@@ -219,6 +219,31 @@ def _atomic_replace_json(path: Path, payload: dict, suffix: str) -> None:
     os.replace(temporary, path)
 
 
+def prepare_quality_only(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.manifest).resolve()
+    manifest = _read_json(manifest_path)
+    if manifest.get("content_profile") != health_content.GENERAL_WELLNESS_PROFILE:
+        raise health_content.HealthContentError(
+            "仅显式 general_wellness_uncredentialed manifest 可切换免外部审核策略"
+        )
+    manifest["medical_review"] = {
+        "status": "not_required",
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": "一般生活方式内容不要求外部医学审核。",
+    }
+    manifest["automated_qa"] = {"status": "pending", "checked_at": ""}
+    manifest["final_qa"] = {
+        "status": "not_required",
+        "reviewer": "",
+        "reviewed_at": "",
+    }
+    validated = health_content.validate_manifest(manifest)
+    _atomic_replace_json(manifest_path, validated, "quality-only")
+    _dump({"status": "quality_only_prepared", "manifest": str(manifest_path)})
+    return 0
+
+
 def advance(args: argparse.Namespace) -> int:
     batch_path = Path(args.batch).resolve()
     batch = _read_json(batch_path)
@@ -305,6 +330,12 @@ def _parser() -> argparse.ArgumentParser:
     advance_parser.add_argument("--to", required=True)
     advance_parser.add_argument("--manifest", required=True)
     advance_parser.set_defaults(handler=advance)
+
+    prepare_parser = commands.add_parser(
+        "prepare-quality-only", help="将一般生活方式manifest切换为免外部审核策略"
+    )
+    prepare_parser.add_argument("--manifest", required=True)
+    prepare_parser.set_defaults(handler=prepare_quality_only)
 
     publish = commands.add_parser("build-publish-pack", help="生成四平台人工发布包")
     publish.add_argument("--manifest", required=True)
