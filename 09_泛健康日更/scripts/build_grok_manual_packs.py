@@ -20,6 +20,12 @@ SUPPORTED_CONTENT_IDS = {f"HC20260810-{number:03d}" for number in range(1, 11)}
 VERSION = "v01"
 EXPECTED_SHOTS = [f"S{number:02d}" for number in range(1, 11)]
 DETERMINISTIC_SHOTS = {"S03", "S08", "S10"}
+DUAL_SOURCE_SHOTS = {
+    ("HC20260810-004", "S03"),
+    ("HC20260810-006", "S01"),
+    ("HC20260810-009", "S01"),
+    ("HC20260810-010", "S05"),
+}
 REPARSE_POINT_FLAG = 0x400
 
 
@@ -323,8 +329,8 @@ PROMPT_ACTIONS_004: dict[str, tuple[str, str]] = {
         "Keep the empty flat community path and single bench in place, allowing only low-amplitude leaf and tree-shadow movement; make one extremely slow push-in with the 24 mm environmental wide view, with no pedestrian or runner entering and no bench changing into steps",
     ),
     "S03": (
-        "以当前同一长椅和同一人物为构图锁定分别制作两条独立源：第一条只保持坐稳并自然呼吸，第二条从同构图长椅起身后只向步道前走一步；两条源后期硬切，不分屏、不融合成双人，人物衣着、长椅、路径与机位一致",
-        "Using the current bench and woman as the locked composition, make two independent sources: the first only holds a stable seated posture with natural breathing, and the second starts from the matching bench setup, rises, and takes exactly one step onto the path; hard-cut the two sources in post, never split-screen or merge them into two people, and match clothing, bench, path, and camera position",
+        "必须分别生成 Source A 和 Source B：Source A 只让当前同一长椅上的同一人物坐稳并自然呼吸；Source B 从匹配构图的同一长椅起身后只向步道前走一步。两次生成的人物衣着、长椅、路径与机位一致；不得在单条 clip 内制作硬切或分屏，不得融合成双人，两条独立源只在后期硬切",
+        "You must generate Source A and Source B separately: Source A only keeps the same woman settled on the current bench with natural breathing; Source B starts from the matching setup on the same bench, rises, and takes exactly one step onto the path. Match clothing, bench, path, and camera position across both generations; do not create a hard cut or split screen inside one clip, do not merge them into two people, and hard-cut the two independent sources only in post",
     ),
     "S04": (
         "同一位女性在长椅上坐稳，只完成一次低幅自然呼吸；双手始终平放大腿、双脚落地，不起身、不走动、不出现手机或记录物，侧面全身远景固定",
@@ -360,7 +366,7 @@ PROMPT_ACTIONS_004: dict[str, tuple[str, str]] = {
 SHOT_SEMANTIC_CONTRACTS_004: dict[str, dict[str, Any]] = {
     "S01": {"storyboard": {"人物动作": ("七块日光色板", "坐姿与步行剪影交替"), "相机": ("无相机运动", "确定性铺陈"), "ai_source_layer": ("无AI动态源", "七块无字色板与剪影")}, "prompt_zh": ("七块纵向色板", "坐、走、坐、走、坐、走、坐", "椅背、坐面、屈膝和落地脚", "分腿、对侧摆臂")},
     "S02": {"storyboard": {"人物动作": ("社区步道全景与长椅同框",), "相机": ("24mm环境广角", "极慢推入"), "ai_source_layer": ("无人环境动态源", "树影轻动")}, "prompt_zh": ("无人社区平坦步道", "唯一长椅", "极慢推入", "不得出现行人或跑者")},
-    "S03": {"storyboard": {"人物动作": ("同一人物一天坐长椅", "另一天从长椅起步"), "相机": ("匹配构图硬切", "不做分屏人物融合"), "ai_source_layer": ("两条独立动态源", "坐姿呼吸", "起身一步")}, "prompt_zh": ("两条独立源", "坐稳并自然呼吸", "只向步道前走一步", "不分屏、不融合成双人")},
+    "S03": {"storyboard": {"人物动作": ("同一人物一天坐长椅", "另一天从长椅起步"), "相机": ("匹配构图硬切", "不做分屏人物融合"), "ai_source_layer": ("两条独立动态源", "坐姿呼吸", "起身一步")}, "prompt_zh": ("分别生成 Source A 和 Source B", "Source A", "坐稳并自然呼吸", "Source B", "只向步道前走一步", "不得在单条 clip 内制作硬切或分屏", "两条独立源只在后期硬切")},
     "S04": {"storyboard": {"人物动作": ("长椅安静坐着", "手里没有记录物"), "相机": ("侧面全身远景固定",), "ai_source_layer": ("自然坐姿与呼吸",)}, "prompt_zh": ("一次低幅自然呼吸", "双手始终平放大腿", "双脚落地", "不出现手机或记录物")},
     "S05": {"storyboard": {"人物动作": ("站在平坦步道入口观察路面",), "相机": ("低机位广角", "轻微前移"), "ai_source_layer": ("只转头确认路线",)}, "prompt_zh": ("站定在平坦步道入口", "只把头部转向", "身体和双脚不走动", "不把入口变成楼梯或坡道")},
     "S06": {"storyboard": {"人物动作": ("轻松走动", "步幅自然"), "相机": ("平行侧跟中远景", "速度恒定"), "ai_source_layer": ("连续走三步", "方向不反转")}, "prompt_zh": ("严格完成三步", "第三步后停止继续前走", "恒速", "不反向、不跑步、不跨越、不循环多走")},
@@ -459,8 +465,8 @@ VISUAL_REVIEW_NOTES_005 = {
 
 PROMPT_ACTIONS_006: dict[str, tuple[str, str]] = {
     "S01": (
-        "以当前客厅沙发、同一位女性和同一机位分别制作两条独立源：第一条只把右手中的唯一一部无品牌手机短距离放到现有圆桌上后松手，第二条保持匹配构图并从闭眼静止相位只睁眼醒来一次；手机始终为四角完整的纯深青空白屏，现有杯子和靠垫不动，两条源只在后期硬切，绝不融合成连续变形镜头",
-        "Using the current living-room sofa, the same woman, and the same camera position, make two independent sources: in the first, she only lowers the single unbranded phone from her right hand onto the existing round table and releases it; in the second, preserve the matching composition and let her open her eyes once from a still eyes-closed phase. Keep the phone's four corners complete and its screen uniformly deep teal and blank, keep the existing cup and cushions still, and hard-cut the two sources only in post, never blending them into one morphing continuous shot",
+        "必须分别生成 Source A 和 Source B：Source A 只把同一位女性右手中的唯一一部无品牌手机短距离放到现有圆桌上后松手；Source B 保持当前客厅沙发与同一机位的匹配构图，从闭眼静止相位只睁眼醒来一次。手机四角完整并保持纯深青空白，现有杯子和靠垫不动；不得在单条 clip 内制作硬切或分屏，不得融合成连续变形镜头，两条独立源只在后期硬切",
+        "You must generate Source A and Source B separately: in Source A, the same woman only lowers the single unbranded phone from her right hand onto the existing round table and releases it; Source B preserves the matching living-room sofa composition and camera position and lets her open her eyes once from a still eyes-closed phase. Keep all four phone corners complete and uniformly deep teal and blank, with the existing cup and cushions still; do not create a hard cut or split screen inside one clip, never blend them into a morphing continuous shot, and hard-cut the two independent sources only in post",
     ),
     "S02": (
         "后期保持暖米白底上恰好四段无字色带完全静止，严格保留躺下、等待、睡着、醒来的从左到右顺序、形状、颜色与间距；不做相机运动，不添加时钟、时间、数字、曲线或进度动画，只在后期叠加解释文字",
@@ -502,7 +508,7 @@ PROMPT_ACTIONS_006: dict[str, tuple[str, str]] = {
 
 
 SHOT_SEMANTIC_CONTRACTS_006: dict[str, dict[str, Any]] = {
-    "S01": {"storyboard": {"人物动作": ("系统闹钟占位", "人物醒来画面硬切"), "相机": ("同机位中景匹配剪辑",), "ai_source_layer": ("两条人物源", "放下手机", "醒来睁眼")}, "prompt_zh": ("两条独立源", "唯一一部无品牌手机", "只睁眼醒来一次", "只在后期硬切", "绝不融合")},
+    "S01": {"storyboard": {"人物动作": ("系统闹钟占位", "人物醒来画面硬切"), "相机": ("同机位中景匹配剪辑",), "ai_source_layer": ("两条人物源", "放下手机", "醒来睁眼")}, "prompt_zh": ("分别生成 Source A 和 Source B", "Source A", "唯一一部无品牌手机", "Source B", "只睁眼醒来一次", "不得在单条 clip 内制作硬切或分屏", "两条独立源只在后期硬切")},
     "S02": {"storyboard": {"人物动作": ("无字时间带", "躺下、等待、睡着、醒来"), "相机": ("无相机运动", "确定性时间带"), "ai_source_layer": ("无AI动态源", "不显示数字的色块时间带")}, "prompt_zh": ("恰好四段无字色带", "躺下、等待、睡着、醒来", "完全静止", "不添加时钟、时间、数字、曲线")},
     "S03": {"storyboard": {"人物动作": ("放好靠枕", "黑屏手机留在边桌"), "相机": ("客厅广角固定",), "ai_source_layer": ("只调整一次靠枕",)}, "prompt_zh": ("一只米白靠垫", "摆正一次", "唯一一部黑屏手机", "始终平放且不触碰")},
     "S04": {"storyboard": {"人物动作": ("窗帘光线渐暗", "人物闭眼保持自然姿态"), "相机": ("侧面中远景固定",), "ai_source_layer": ("人物闭眼与自然呼吸",)}, "prompt_zh": ("闭眼和双手交叠姿态", "一次低幅自然呼吸", "窗帘日光均匀缓慢变暗", "侧面中远景固定")},
@@ -675,8 +681,8 @@ VISUAL_REVIEW_NOTES_008 = {
 
 PROMPT_ACTIONS_009: dict[str, tuple[str, str]] = {
     "S01": (
-        "把正式首帧作为同一办公位的匹配构图：同一位女性始终坐定、双手停在唯一一把键盘旁准备开始，唯一一台纯深色显示器和桌椅位置不动；先保留较早下午的自然窗光，随后只用一次硬切换到完全相同机位和构图的较晚下午光线，人物身份、米色开衫、低饱和蓝色内搭、深蓝长裤、姿势和物件数量不变。两段必须像同一任务在两个时点的独立环境源，不做分屏、叠化、人物融合、时间码或可读时钟，也不让人物输入或离座",
-        "Use the formal first frame as the matched composition of the same workstation: keep the same woman seated and ready, with both hands paused beside the single keyboard, while the single solid-dark monitor, desk, and chair remain fixed. Hold the earlier-afternoon natural window light first, then use exactly one hard cut to the identical camera position and composition under later-afternoon light, preserving her identity, beige cardigan, muted-blue top, navy trousers, pose, and prop count. The two phases must read as independent environmental sources for the same task at two time points, with no split screen, dissolve, person blend, timecode, readable clock, typing, or leaving the seat",
+        "必须分别生成 Source A 和 Source B，并把正式首帧作为同一办公位的匹配构图：Source A 只保留较早下午的自然窗光，Source B 只保留完全相同机位和构图的较晚下午光线；同一位女性始终坐定，双手停在唯一一把键盘旁，唯一一台纯深色显示器和桌椅位置不动，人物身份、米色开衫、低饱和蓝色内搭、深蓝长裤、姿势和物件数量一致。不得在单条 clip 内制作硬切或分屏，不做叠化、人物融合、时间码或可读时钟，也不让人物输入或离座；两条独立源只在后期硬切",
+        "You must generate Source A and Source B separately, using the formal first frame as the matched composition of the same workstation: Source A keeps only the earlier-afternoon natural window light, while Source B keeps only the later-afternoon light at the identical camera position and composition. Keep the same woman seated with both hands paused beside the single keyboard, the single solid-dark monitor, desk, and chair fixed, and preserve identity, beige cardigan, muted-blue top, navy trousers, pose, and prop count. Do not create a hard cut or split screen inside one clip, and add no dissolve, person blend, timecode, readable clock, typing, or leaving the seat; hard-cut the two independent sources only in post",
     ),
     "S02": (
         "后期保持现有一枚金色空心圆环和下方恰好三枚个人路径色块的形状、数量、顺序、间距与暖米白背景不变，只让金色圆环做一次低幅淡出，三枚色块全程静止并在淡出后留下；不把圆环做成带指针或刻度的可读时钟，不出现数字、时间、统一时段结论、评分图、效率仪表或模型动态，不上传Grok",
@@ -718,7 +724,7 @@ PROMPT_ACTIONS_009: dict[str, tuple[str, str]] = {
 
 
 SHOT_SEMANTIC_CONTRACTS_009: dict[str, dict[str, Any]] = {
-    "S01": {"storyboard": {"人物动作": ("同一办公位在较早与较晚日光下匹配切换",), "相机": ("固定广角匹配构图",), "ai_source_layer": ("两段环境动态源", "人物坐定准备开始")}, "prompt_zh": ("同一办公位", "较早下午", "一次硬切", "较晚下午", "同一任务在两个时点", "不做分屏、叠化、人物融合、时间码或可读时钟")},
+    "S01": {"storyboard": {"人物动作": ("同一办公位在较早与较晚日光下匹配切换",), "相机": ("固定广角匹配构图",), "ai_source_layer": ("两段环境动态源", "人物坐定准备开始")}, "prompt_zh": ("分别生成 Source A 和 Source B", "Source A", "较早下午", "Source B", "较晚下午", "不得在单条 clip 内制作硬切或分屏", "两条独立源只在后期硬切", "叠化、人物融合、时间码或可读时钟")},
     "S02": {"storyboard": {"人物动作": ("黄金色时钟轮廓淡出", "个人路径色块留下"), "相机": ("无相机运动",), "ai_source_layer": ("无AI动态源", "确定性图形板")}, "prompt_zh": ("一枚金色空心圆环", "恰好三枚个人路径色块", "只让金色圆环做一次低幅淡出", "不把圆环做成带指针或刻度的可读时钟", "效率仪表", "不上传Grok")},
     "S03": {"storyboard": {"人物动作": ("只拖出一个小色块",), "相机": ("越肩中景", "屏幕纯色无界面"), "ai_source_layer": ("一次拖动", "任务卡由后期叠加")}, "prompt_zh": ("唯一一台纯蓝灰空屏显示器", "唯一一个触控板", "一次短距离单向拖动", "一个小色块的位移只留给后期确定性叠加", "不得拖多个块")},
     "S04": {"storyboard": {"人物动作": ("人物坐直", "手离键盘"), "相机": ("侧面半身中景固定",), "ai_source_layer": ("人物只做坐直动作",)}, "prompt_zh": ("已经坐直", "双手已离开工作台", "一次极小幅坐姿落稳", "人物不输入、不离座", "画外键盘不得移入画面")},
@@ -751,8 +757,8 @@ PROMPT_ACTIONS_010: dict[str, tuple[str, str]] = {
         "In post-production, hold exactly seven text-free record blocks completely still in the overhead living-room tabletop composition: six matching teal blocks remain inside the circle and one peach exception block remains outside it, with count, color, inside/outside relation, spacing, tabletop, and window light unchanged. Apply one low-amplitude whole-frame fade-in only; do not add or remove a category or turn the board into numbers, a chart, weekly calendar, or task interface, and do not upload to Grok",
     ),
     "S02": (
-        "以正式首帧为唯一构图参考：45岁中国女性在沙发上坐稳，双脚落地，现有双手自然持唯一一部手机，手机背壳持续朝向镜头；正面中远景与人物、双手、手机背壳全部保持静态，不抬起、不转动、不点按。米色开衫、低饱和蓝色内搭、深蓝长裤、沙发和光线不变；出现马克杯、第二部手机、额外人物或额外手，或手机翻向另一面，均一票淘汰",
-        "Use the formal first frame as the sole composition reference: keep the 45-year-old Chinese woman settled on the sofa with both feet grounded and both existing hands naturally holding the only phone, its back shell continuously facing the camera. Hold the frontal medium-long composition, woman, hands, and phone back completely static—no lifting, turning, or tapping. Preserve the beige cardigan, muted-blue top, navy trousers, sofa, and light; reject any mug, second phone, extra person, extra hand, or turn toward the opposite face of the phone",
+        "以正式首帧为唯一构图参考：45岁中国女性在沙发上坐稳，双脚落地，右手单手持唯一一部手机背壳，左手平放在左侧大腿；正面中远景、人物、右手、手机背壳与左手全部保持静态，不抬起、不转动、不点按。米色开衫、低饱和蓝色内搭、深蓝长裤、沙发和光线不变；出现马克杯、第二部手机、额外人物或额外手，或手机翻向另一面，均一票淘汰",
+        "Use the formal first frame as the sole composition reference: keep the 45-year-old Chinese woman settled on the sofa with both feet grounded; her right hand alone holds the back shell of the only phone while her left hand stays flat on her left thigh. Hold the frontal medium-long composition, woman, right hand, phone back, and left hand completely static—no lifting, turning, or tapping. Preserve the beige cardigan, muted-blue top, navy trousers, sofa, and light; reject any mug, second phone, extra person, extra hand, or turn toward the opposite face of the phone",
     ),
     "S03": (
         "后期保持现有上下恰好两张无字生活板完全静止：上板仅为夜间关灯环境，下板仅为清晨拉帘环境；两板的床、灯、窗、窗帘、手部数量、上下位置和光线相位不变，只用一次确定性硬切安排前后顺序。不得补人物因果表演、时钟、数字、周历、待办界面或模型动态，不上传Grok",
@@ -763,8 +769,8 @@ PROMPT_ACTIONS_010: dict[str, tuple[str, str]] = {
         "Continue from the formal-frame phase in which the same woman already holds the only front-readable plate with both hands and is mid-step; complete only the final foot placement of that one step and stop, with no second step. Lock the side full-body dining-table medium view, keeping the plate front-readable without tilt or rotation and preserving both hands, both feet, and the single-plate count. Reject a second plate at the edge, any utensil, extra person, extra hand, or an edge-on plate",
     ),
     "S05": (
-        "把正式首帧作为同一房间、同一人物和同一把椅子的匹配依据，制作两个彼此独立的时点并只用一次硬切连接：第一段人物手扶椅背、肩部轻微放松后短暂停住；第二段表示稍后，她只把这同一把椅子向原位轻推一小段并停住。两个侧面全身机位分别固定，人物身份、服装、房间、椅子和折叠布数量不变；不得分屏、叠化、角色融合、同步发生、夸张虚弱表演、诊断暗示或新增任务物件",
-        "Use the formal first frame as the matching reference for the same room, woman, and single chair, creating two independent time points joined by exactly one hard cut. In the first phase, she rests one hand on the chair back, lets her shoulders relax slightly, and pauses; in the later phase, she moves only that same chair a short distance back toward its place and stops. Lock each side full-body camera and preserve identity, clothing, room, chair, and folded-cloth count; reject split screen, dissolve, person blending, simultaneous phases, exaggerated weakness, diagnostic implication, or any new task prop",
+        "必须分别生成 Source A 和 Source B，并把正式首帧作为同一房间、同一人物和同一把椅子的匹配依据，形成两个彼此独立的时点：Source A 只让人物手扶椅背、肩部轻微放松后短暂停住；Source B 表示稍后，她只把同一把椅子向原位轻推一小段并停住。两个侧面全身机位分别固定，人物身份、服装、房间、椅子和折叠布数量不变；不得在单条 clip 内制作硬切或分屏，不得叠化、角色融合、同步发生、夸张虚弱表演、诊断暗示或新增任务物件，两条独立源只在后期硬切",
+        "You must generate Source A and Source B separately, using the formal first frame as the matching reference for the same room, woman, and single chair: in Source A, she only rests one hand on the chair back, lets her shoulders relax slightly, and pauses; in Source B, at a later time point, she only moves that same chair a short distance back toward its place and stops. Lock each side full-body camera and preserve identity, clothing, room, chair, and folded-cloth count; do not create a hard cut or split screen inside one clip, and reject dissolve, person blending, simultaneous phases, exaggerated weakness, diagnostic implication, or any new task prop; hard-cut the two independent sources only in post",
     ),
     "S06": (
         "后期保持俯拍置物台上的恰好七个位置完全静止：六块青绿色实心记录块保持原位，唯一一处暖米白空位只保留现有细边框，不填色、不写零、不补猜；数量、两行排列、植物、镜面边缘和光影均不变。不得改成评分格、周历、待办界面、数字或模型动态，不上传Grok",
@@ -791,10 +797,10 @@ PROMPT_ACTIONS_010: dict[str, tuple[str, str]] = {
 
 SHOT_SEMANTIC_CONTRACTS_010: dict[str, dict[str, Any]] = {
     "S01": {"storyboard": {"人物动作": ("七块记录色板围成一圈", "重复与例外用不同位置表示"), "相机": ("俯视确定性构图", "低幅淡入"), "ai_source_layer": ("无AI动态源", "七块无字记录板")}, "prompt_zh": ("恰好七块", "六块同色青绿块", "一块浅桃例外块", "圆形内", "圆形外", "一次低幅整体淡入", "周历或待办界面")},
-    "S02": {"storyboard": {"人物动作": ("人物坐在沙发上", "看向黑屏手机"), "相机": ("正面中远景固定",), "ai_source_layer": ("人物只抬起手机看一眼",)}, "prompt_zh": ("双脚落地", "唯一一部手机", "手机背壳持续朝向镜头", "保持静态", "不抬起、不转动、不点按", "马克杯", "第二部手机")},
+    "S02": {"storyboard": {"人物动作": ("人物坐在沙发上", "看向黑屏手机"), "相机": ("正面中远景固定",), "ai_source_layer": ("人物只抬起手机看一眼",)}, "prompt_zh": ("双脚落地", "右手单手持唯一一部手机背壳", "左手平放在左侧大腿", "全部保持静态", "不抬起、不转动、不点按", "马克杯", "第二部手机")},
     "S03": {"storyboard": {"人物动作": ("夜晚关灯", "早晨拉帘", "两张生活板"), "相机": ("无相机运动",), "ai_source_layer": ("无AI动态源", "确定性日夜剪影板")}, "prompt_zh": ("恰好两张无字生活板", "夜间关灯", "清晨拉帘", "确定性硬切", "时钟、数字、周历、待办界面")},
     "S04": {"storyboard": {"人物动作": ("收好餐具并离开餐桌",), "相机": ("餐桌侧面全身中景",), "ai_source_layer": ("收一只餐具后离开一步",)}, "prompt_zh": ("唯一一只正面可见餐盘", "完成这一步的最后落脚", "不再迈第二步", "侧面全身中景固定", "边缘第二只盘")},
-    "S05": {"storyboard": {"人物动作": ("先倚椅发沉", "另一时点顺畅完成一小事"), "相机": ("相同房间两个机位硬切",), "ai_source_layer": ("两条独立人物源", "短暂停顿", "完成小动作")}, "prompt_zh": ("两个彼此独立的时点", "一次硬切", "肩部轻微放松后短暂停住", "同一把椅子向原位轻推一小段", "不得分屏、叠化、角色融合、同步发生", "诊断暗示")},
+    "S05": {"storyboard": {"人物动作": ("先倚椅发沉", "另一时点顺畅完成一小事"), "相机": ("相同房间两个机位硬切",), "ai_source_layer": ("两条独立人物源", "短暂停顿", "完成小动作")}, "prompt_zh": ("分别生成 Source A 和 Source B", "Source A", "肩部轻微放松后短暂停住", "Source B", "同一把椅子向原位轻推一小段", "不得在单条 clip 内制作硬切或分屏", "两条独立源只在后期硬切", "诊断暗示")},
     "S06": {"storyboard": {"人物动作": ("七块色板中一块保持暖米白空白",), "相机": ("无相机运动",), "ai_source_layer": ("无AI动态源", "确定性缺失板")}, "prompt_zh": ("恰好七个位置", "六块青绿色实心记录块", "唯一一处暖米白空位", "不填色、不写零、不补猜", "评分格、周历、待办界面")},
     "S07": {"storyboard": {"人物动作": ("相同颜色色块靠拢", "一块例外色保持距离"), "相机": ("无相机运动",), "ai_source_layer": ("无AI动态源", "确定性聚类板")}, "prompt_zh": ("恰好七块", "六块同色青绿块", "唯一一块浅桃例外块", "两行聚类", "百分比、统计图", "医学结论")},
     "S08": {"storyboard": {"人物动作": ("三个生活物件中只移动一个位置",), "相机": ("俯拍家中置物台固定",), "ai_source_layer": ("只移动一个普通生活物件",)}, "prompt_zh": ("恰好三件普通生活物", "一只灰色陶杯", "一块右上方浅桃色折叠布", "一个右下方圆形木杯垫", "只让灰色陶杯", "折叠布和木杯垫从头到尾完全不动", "不同时移动第二件物品")},
@@ -805,7 +811,7 @@ SHOT_SEMANTIC_CONTRACTS_010: dict[str, dict[str, Any]] = {
 
 VISUAL_REVIEW_NOTES_010 = {
     "S01": "俯视桌面恰好七块：六块同色青绿块围成圆形，一块浅桃例外块在圆外；仅适合确定性静态板",
-    "S02": "同一人物双脚落地坐在沙发，现有双手持唯一手机；只可见手机背壳，限制为全程静态，不作相反一面的任何声称",
+    "S02": "同一人物双脚落地坐在沙发；仅右手持唯一手机背壳，左手平放左侧大腿，全程静态，不作相反一面的任何声称",
     "S03": "上下恰好两张生活板分别呈现夜间关灯与清晨拉帘；无时钟、数字或周历",
     "S04": "同一人物双手托住唯一一只正面可见餐盘，处于一步的迈步相位；只完成当前步后停住",
     "S05": "同一人物在房间内手扶唯一一把椅子，折叠布留在右后方；适合两个独立时点硬切，不作症状或诊断演绎",
@@ -1170,13 +1176,24 @@ def _prompt_line(
         if deterministic
         else "Manually upload the matching text-free first frame with the Grok browser extension; the first frame is the sole composition reference"
     )
+    omit_phone_face_terms = (content_id, shot) == ("HC20260810-010", "S02")
+    safety_zh = (
+        "不新增文字、数字、Logo、水印、纸张、纸笔、本册、人物或物体。"
+        if omit_phone_face_terms
+        else "不新增文字、数字、Logo、水印、UI、纸张、纸笔、本册、人物或物体。"
+    )
+    safety_en = (
+        "add no text, numbers, Logo, watermark, paper, pen, notebook, person, or object."
+        if omit_phone_face_terms
+        else "add no text, numbers, Logo, watermark, UI, paper, pen, notebook, person, or object."
+    )
     return (
         f"{shot}｜generation_mode={mode}｜中文指令：{operation_zh}。低幅动作：{chinese_action}。"
         "保持人物身份与场景、服装、道具数量、结构、路径、光线与竖屏构图；"
-        "不新增文字、数字、Logo、水印、UI、纸张、纸笔、本册、人物或物体。"
+        f"{safety_zh}"
         f" English instruction: {operation_en}. Low-amplitude action: {english_action}. "
         "Preserve identity and scene, clothing, prop count, structure, direction, lighting, and vertical framing; "
-        "add no text, numbers, Logo, watermark, UI, paper, pen, notebook, person, or object."
+        f"{safety_en}"
     )
 
 
@@ -1198,6 +1215,10 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
     storyboard_sha = _sha256_file(inputs["storyboard_path"])
     episode_qa_sha = _sha256_file(inputs["episode_qa_path"])
     batch_qa_sha = _sha256_file(inputs["batch_qa_path"])
+    raw_root = (
+        f"09_泛健康日更/work/{content_id}/production/{VERSION}/"
+        "05_grok_videos/01_raw/"
+    )
 
     for shot in EXPECTED_SHOTS:
         image = inputs["images"][shot]
@@ -1211,13 +1232,20 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
         storyboard_row = rows_by_shot[shot]
         deterministic = shot in inputs["deterministic_shots"]
         mode = "deterministic_post" if deterministic else "grok_manual"
-        output_template = (
-            f"09_泛健康日更/work/{content_id}/production/{VERSION}/06_edit/01_rough_cut/"
-            f"{content_id}-{VERSION}-{shot}-deterministic-post.mp4"
-            if deterministic
-            else f"09_泛健康日更/work/{content_id}/production/{VERSION}/05_grok_videos/01_raw/"
-            f"{content_id}-{VERSION}-{shot}-grok-source.mp4"
-        )
+        if deterministic:
+            output_template = (
+                f"09_泛健康日更/work/{content_id}/production/{VERSION}/06_edit/01_rough_cut/"
+                f"{content_id}-{VERSION}-{shot}-deterministic-post.mp4"
+            )
+        elif (content_id, shot) in DUAL_SOURCE_SHOTS:
+            output_template = "|".join(
+                f"{raw_root}{content_id}-{VERSION}-{shot}{source}-takeNN.mp4"
+                for source in ("A", "B")
+            )
+        else:
+            output_template = (
+                f"{raw_root}{content_id}-{VERSION}-{shot}-takeNN.mp4"
+            )
         manifest_rows.append(
             {
                 "batch_id": inputs["batch"]["batch_id"],
@@ -1248,6 +1276,43 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
 
     dynamic_list = "、".join(shot for shot in EXPECTED_SHOTS if shot not in inputs["deterministic_shots"])
     deterministic_list = "、".join(shot for shot in EXPECTED_SHOTS if shot in inputs["deterministic_shots"])
+    required_output_count = sum(
+        0
+        if row["generation_mode"] == "deterministic_post"
+        else 2
+        if (content_id, row["shot"]) in DUAL_SOURCE_SHOTS
+        else 1
+        for row in manifest_rows
+    )
+    guide_rows: list[str] = []
+    dual_guide_rows: list[str] = []
+    for row in manifest_rows:
+        shot = row["shot"]
+        target_seconds = float(row["timeline_end"]) - float(row["timeline_start"])
+        templates = row["output_template"].split("|")
+        names = [Path(template).name for template in templates]
+        row_output_count = (
+            0
+            if row["generation_mode"] == "deterministic_post"
+            else len(templates)
+        )
+        guide_rows.append(
+            f"| {shot} | `{row['generation_mode']}` | {target_seconds:.2f}s / "
+            f"{float(row['minimum_grok_source_seconds']):.2f}s | {row_output_count} | "
+            f"{'；'.join(f'`{name}`' for name in names)} |"
+        )
+        if (content_id, shot) in DUAL_SOURCE_SHOTS:
+            dual_guide_rows.append(
+                f"- {shot}：required_output_count=2；Source A 保存为 `{names[0]}`；"
+                f"Source B 保存为 `{names[1]}`；两条独立源只在后期硬切；"
+                "不得在单条 clip 内制作硬切或分屏。"
+            )
+    guide_table = "\n".join(guide_rows)
+    dual_guide = "\n".join(dual_guide_rows) or "- 本期无双源镜头。"
+    combined_path = (
+        f"09_泛健康日更/work/{content_id}/production/{VERSION}/04_grok_batch/"
+        f"manual_pack/{combined_name}"
+    )
     guide = f"""# {content_id} {VERSION} Grok 手动生成指南
 
 ## 边界
@@ -1256,11 +1321,33 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
 - 动态镜头 {dynamic_list}：使用 **Grok 浏览器扩展**手动上传 `01_first_frames/` 中的对应图片，并粘贴 `02_prompts/` 中的同号提示词。
 - {deterministic_list} 无需上传 Grok；它们标记为 `generation_mode=deterministic_post`，只按提示词在后期制作确定性动效。
 
+## 本期操作参数
+
+- 合并提示词：`{combined_path}`。
+- 动态源保存目录：`{raw_root}`。
+- 镜头总数：10。
+- 必需动态源输出总数：{required_output_count}（已计入双源镜头的 A/B 增量）。
+- 并发：1；任何时刻只运行一个生成任务。
+- 每次生成后等待：至少 30 秒，再开始下一次生成。
+- 每个必需动态源候选：至少 2 个；本期至少保存 {required_output_count * 2} 个候选文件。
+- 动态输出使用带 `takeNN` 的候选文件名；`NN` 从 `01` 起按候选递增。
+- `deterministic_post` 不上传 Grok，使用表内固定后期输出名，不使用 `takeNN`。
+
+## 目标时长 / 最低源时长
+
+| 镜号 | generation_mode | 目标时长 / 最低源时长 | required_output_count | 输出命名 |
+|---|---|---:|---:|---|
+{guide_table}
+
+## 双源镜头
+
+{dual_guide}
+
 ## 手动操作
 
 1. 按 S01 到 S10 顺序处理；动态镜头的无字首帧是唯一构图参考。
 2. 每个动态镜头只执行提示词中的一个低幅动作，不生成文字、Logo、水印、纸张、纸笔、本册或 UI。
-3. 手动保存动态输出到 `05_grok_videos/01_raw/`，使用 `MANIFEST.csv` 的 `output_template` 文件名。
+3. 手动保存动态输出到上述 `05_grok_videos/01_raw/` 仓库完整路径，使用 `MANIFEST.csv` 的 `output_template` 文件名；双源镜头分别生成并分别保存 A/B。
 4. 保持 1.0 倍速；禁止慢动作、循环、插帧或模型生成 UI。任何补时只按锁定分镜的 `extension_strategy` 使用末帧短停或确定性叠加。
 5. 生成完成不等于通过质检；后续必须保留原文件并逐镜检查首、中、尾帧。
 """
@@ -1272,6 +1359,13 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
         for shot in EXPECTED_SHOTS
     )
     contact_sheet_path = inputs["contact_sheet_path"]
+    dual_qa = (
+        f"- 双源镜头：{'、'.join(shot for cid, shot in sorted(DUAL_SOURCE_SHOTS) if cid == content_id)}；"
+        "每个提示词明确要求 Source A / Source B 分别生成，两个命名模板写入 MANIFEST，"
+        "不得在单条 clip 内制作硬切或分屏，只允许后期硬切。"
+        if any(cid == content_id for cid, _ in DUAL_SOURCE_SHOTS)
+        else "- 双源镜头：无；每个动态镜头 required_output_count=1。"
+    )
     qa = f"""# {content_id} {VERSION} Grok 手动包 QA
 
 ## 结果
@@ -1282,6 +1376,8 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
 - 排除：未消费 `storyboard_with_copy/`、带字联系表、UI 预览或候选图。
 - 提示词：10 条中英双语单行，{deterministic_list} 为 `deterministic_post` 且无需上传 Grok；其余动态镜头为 `grok_manual`，最小 Grok 源时长均不超过 5.8 秒。
 - 合并 TXT：恰好 10 条非空提示词，相邻恰好一个空行，UTF-8 + LF。
+- 必需动态源输出：{required_output_count} 个；每个必需源至少保留 2 个候选，并发为 1，每次生成后至少等待 30 秒。
+{dual_qa}
 
 ## 必需源质量证据
 

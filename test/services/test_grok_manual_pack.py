@@ -6,7 +6,9 @@ import hashlib
 import importlib.util
 import os
 import re
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -296,28 +298,118 @@ def test_output_parent_link_is_rejected_before_staging(tmp_path: Path) -> None:
     assert list(real_parent.iterdir()) == []
 
 
-def test_lf_attributes_are_scoped_to_001_manual_pack() -> None:
-    targets = {
-        "001": "09_泛健康日更/work/HC20260810-001/production/v01/04_grok_batch/manual_pack/MANIFEST.csv",
-        "002": "09_泛健康日更/work/HC20260810-002/production/v01/04_grok_batch/manual_pack/MANIFEST.csv",
-    }
+def _episode_text_paths(root: Path, content_id: str) -> list[Path]:
+    production = root / "09_泛健康日更" / "work" / content_id / "production" / "v01"
+    pack = production / "04_grok_batch" / "manual_pack"
+    return [
+        root / "09_泛健康日更" / "work" / content_id / "manifest.json",
+        production / "02_script_storyboard" / "storyboard-v01.md",
+        production / "05_qa" / "first-frame-qa-v01.md",
+        pack / f"{content_id}-v01-Grok-Automation-10条提示词.txt",
+        pack / "MANIFEST.csv",
+        pack / "MANUAL-GENERATION-GUIDE.md",
+        pack / "MANUAL-PACK-QA.md",
+        *sorted((pack / "02_prompts").glob("*-prompt-zh-en.txt")),
+    ]
 
-    def attributes(path: str) -> dict[str, str]:
-        result = subprocess.run(
-            ["git", "check-attr", "text", "eol", "--", path],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
+
+def test_fresh_windows_checkout_with_autocrlf_true_verifies_all_ten_packs(
+    tmp_path: Path,
+) -> None:
+    fresh = tmp_path / "fresh-detached"
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(fresh), "HEAD"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+    )
+    try:
+        overlay_paths = [
+            Path(".gitattributes"),
+            SCRIPT_PATH.relative_to(REPO_ROOT),
+            *[
+                path.relative_to(REPO_ROOT)
+                for content_id in CONTENT_IDS
+                for path in _episode_text_paths(REPO_ROOT, content_id)[3:]
+            ],
+        ]
+        for relative in overlay_paths:
+            shutil.copyfile(REPO_ROOT / relative, fresh / relative)
+        subprocess.run(
+            ["git", "add", "--", *(path.as_posix() for path in overlay_paths)],
+            cwd=fresh,
             check=True,
         )
-        return {
-            line.rsplit(": ", 2)[-2]: line.rsplit(": ", 1)[-1]
-            for line in result.stdout.splitlines()
-        }
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Task 8 test",
+                "-c",
+                "user.email=task8-test@example.invalid",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "test checkout attributes",
+            ],
+            cwd=fresh,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(["git", "config", "core.autocrlf", "true"], cwd=fresh, check=True)
+        relative_paths = [
+            path.relative_to(fresh).as_posix()
+            for content_id in CONTENT_IDS
+            for path in _episode_text_paths(fresh, content_id)
+        ]
+        for path in relative_paths:
+            (fresh / path).unlink()
+        subprocess.run(["git", "checkout", "--", *relative_paths], cwd=fresh, check=True)
 
-    assert attributes(targets["001"]) == {"text": "set", "eol": "lf"}
-    assert attributes(targets["002"]) == {"text": "auto", "eol": "unspecified"}
+        for path in relative_paths:
+            assert b"\r" not in (fresh / path).read_bytes(), f"not LF-only: {path}"
+        for content_id in CONTENT_IDS:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "09_泛健康日更/scripts/build_grok_manual_packs.py",
+                    "verify",
+                    "--content-id",
+                    content_id,
+                ],
+                cwd=fresh,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            if result.returncode:
+                spec = importlib.util.spec_from_file_location(
+                    "fresh_build_grok_manual_packs",
+                    fresh / "09_泛健康日更" / "scripts" / "build_grok_manual_packs.py",
+                )
+                assert spec and spec.loader
+                fresh_builder = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(fresh_builder)
+                inputs = fresh_builder._validate_inputs(content_id, fresh)
+                pack = fresh_builder._default_output(inputs)
+                expected = fresh_builder._render_expected(inputs, pack)["MANIFEST.csv"]
+                actual = (pack / "MANIFEST.csv").read_bytes()
+                actual_row = next(csv.DictReader(actual.decode("utf-8").splitlines()))
+                expected_row = next(csv.DictReader(expected.decode("utf-8").splitlines()))
+                field_diff = {
+                    field: (actual_row[field], expected_row[field])
+                    for field in actual_row
+                    if actual_row[field] != expected_row[field]
+                }
+                pytest.fail(f"{content_id}: {result.stderr}; first-row diff={field_diff}")
+    finally:
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", str(fresh)],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+        )
 
 
 def test_manual_pack_qa_contains_reproducible_view_image_log() -> None:
@@ -381,6 +473,9 @@ def test_batch_manual_pack_inventory_has_exact_100_shot_bindings() -> None:
     }
     assert {row["pack_status"] for row in inventory} == {"verified"}
 
+    inventory_by_key = {
+        (row["content_id"], row["shot_id"]): row for row in inventory
+    }
     total_copies = 0
     total_prompts = 0
     total_combined = 0
@@ -401,6 +496,7 @@ def test_batch_manual_pack_inventory_has_exact_100_shot_bindings() -> None:
         total_prompts += len(prompts)
         total_combined += len(combined)
         for row in rows:
+            inventory_row = inventory_by_key[(content_id, row["shot"])]
             source = REPO_ROOT / row["source_path"]
             copied = REPO_ROOT / row["copy_path"]
             prompt = REPO_ROOT / row["prompt_path"]
@@ -409,6 +505,21 @@ def test_batch_manual_pack_inventory_has_exact_100_shot_bindings() -> None:
             assert source.read_bytes() == copied.read_bytes()
             assert row["sha256"] == _sha256(source) == _sha256(copied)
             assert row["prompt_sha256"] == _sha256(prompt)
+            assert inventory_row == {
+                "content_id": row["content_id"],
+                "shot_id": row["shot"],
+                "generation_mode": row["generation_mode"],
+                "source_first_frame": row["source_path"],
+                "copy_first_frame": row["copy_path"],
+                "source_sha256": row["sha256"],
+                "copy_sha256": row["sha256"],
+                "prompt_file": row["prompt_path"],
+                "prompt_sha256": row["prompt_sha256"],
+                "timeline": f'{row["timeline_start"]}-{row["timeline_end"]}',
+                "minimum_grok_source_seconds": row["minimum_grok_source_seconds"],
+                "raw_output_template": row["output_template"],
+                "pack_status": "verified",
+            }
             with Image.open(copied) as image:
                 assert image.size == (1080, 1920)
             if row["generation_mode"] == "grok_manual":
@@ -440,8 +551,12 @@ def test_all_prompt_documents_are_safe_and_use_exact_blank_line_format() -> None
         assert len(lines) == 10
         for shot, line in zip((f"S{number:02d}" for number in range(1, 11)), lines, strict=True):
             assert line.startswith(f"{shot}｜")
-            assert "不新增文字、数字、Logo、水印、UI、纸张、纸笔、本册、人物或物体" in line
-            assert "add no text, numbers, Logo, watermark, UI, paper, pen, notebook, person, or object" in line
+            if (content_id, shot) == ("HC20260810-010", "S02"):
+                assert "不新增文字、数字、Logo、水印、纸张、纸笔、本册、人物或物体" in line
+                assert "add no text, numbers, Logo, watermark, paper, pen, notebook, person, or object" in line
+            else:
+                assert "不新增文字、数字、Logo、水印、UI、纸张、纸笔、本册、人物或物体" in line
+                assert "add no text, numbers, Logo, watermark, UI, paper, pen, notebook, person, or object" in line
             for clause in re.split(r"[。；.;]", line):
                 if re.search(r"(?:新增|添加|加入)(?:一名|一个|一只|额外)", clause):
                     assert re.search(r"不|不得|禁止|无|只", clause)
@@ -536,7 +651,10 @@ def test_phone_shots_preserve_task6_constraints_and_010_s02_is_static_back_shell
                 encoding="utf-8"
             )
             assert "手机" in prompt
-            assert "不新增文字、数字、Logo、水印、UI" in prompt
+            if (content_id, row["镜号"]) == ("HC20260810-010", "S02"):
+                assert "UI" not in prompt
+            else:
+                assert "不新增文字、数字、Logo、水印、UI" in prompt
     prompt_010_s02 = (
         REPO_ROOT
         / "09_泛健康日更"
@@ -601,8 +719,108 @@ def test_batch_qa_reports_exact_ten_pack_gates_without_claiming_generation() -> 
         "output_template",
         "尚未生成视频",
         "尚未通过最终 QA",
+        "成片技术检查",
+        "成片内容检查",
+        "四平台发布前预览",
     ):
         assert phrase in qa
+    assert "final_qa_reviewer" not in qa
+    assert "签名" not in qa
+
+
+DUAL_SOURCE_SHOTS = {
+    ("HC20260810-004", "S03"),
+    ("HC20260810-006", "S01"),
+    ("HC20260810-009", "S01"),
+    ("HC20260810-010", "S05"),
+}
+
+
+def test_dual_source_shots_require_separate_a_b_generation_and_unambiguous_names() -> None:
+    builder = _load_builder()
+    assert builder.DUAL_SOURCE_SHOTS == DUAL_SOURCE_SHOTS
+    for content_id in CONTENT_IDS:
+        pack = (
+            REPO_ROOT
+            / "09_泛健康日更"
+            / "work"
+            / content_id
+            / "production"
+            / "v01"
+            / "04_grok_batch"
+            / "manual_pack"
+        )
+        with (pack / "MANIFEST.csv").open(encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        guide = (pack / "MANUAL-GENERATION-GUIDE.md").read_text(encoding="utf-8")
+        for row in rows:
+            key = (content_id, row["shot"])
+            prompt = (REPO_ROOT / row["prompt_path"]).read_text(encoding="utf-8")
+            if key in DUAL_SOURCE_SHOTS:
+                assert "Source A" in prompt and "Source B" in prompt
+                assert "分别生成" in prompt and "separately" in prompt
+                assert "不得在单条 clip 内制作硬切或分屏" in prompt
+                assert "do not create a hard cut or split screen inside one clip" in prompt.lower()
+                expected_a = f"{content_id}-v01-{row['shot']}A-takeNN.mp4"
+                expected_b = f"{content_id}-v01-{row['shot']}B-takeNN.mp4"
+                output_templates = row["output_template"].split("|")
+                assert len(output_templates) == 2
+                assert output_templates[0].endswith(expected_a)
+                assert output_templates[1].endswith(expected_b)
+                assert f"{row['shot']}：required_output_count=2" in guide
+                assert expected_a in guide and expected_b in guide
+                assert "两条独立源只在后期硬切" in guide
+            elif row["generation_mode"] == "grok_manual":
+                assert "|" not in row["output_template"]
+
+
+def test_all_guides_are_complete_operator_handoffs() -> None:
+    expected_output_counts = {
+        "HC20260810-001": 7,
+        "HC20260810-002": 7,
+        "HC20260810-003": 7,
+        "HC20260810-004": 8,
+        "HC20260810-005": 6,
+        "HC20260810-006": 8,
+        "HC20260810-007": 6,
+        "HC20260810-008": 5,
+        "HC20260810-009": 8,
+        "HC20260810-010": 5,
+    }
+    for content_id, expected_output_count in expected_output_counts.items():
+        production_rel = f"09_泛健康日更/work/{content_id}/production/v01"
+        pack = REPO_ROOT / production_rel / "04_grok_batch" / "manual_pack"
+        guide = (pack / "MANUAL-GENERATION-GUIDE.md").read_text(encoding="utf-8")
+        for phrase in (
+            f"合并提示词：`{production_rel}/04_grok_batch/manual_pack/{content_id}-v01-Grok-Automation-10条提示词.txt`",
+            f"动态源保存目录：`{production_rel}/05_grok_videos/01_raw/`",
+            "镜头总数：10",
+            f"必需动态源输出总数：{expected_output_count}",
+            "并发：1",
+            "每次生成后等待：至少 30 秒",
+            "每个必需动态源候选：至少 2 个",
+            "目标时长 / 最低源时长",
+            "动态输出使用带 `takeNN` 的候选文件名",
+            "`deterministic_post` 不上传 Grok",
+        ):
+            assert phrase in guide, f"missing guide field for {content_id}: {phrase}"
+        for number in range(1, 11):
+            assert f"| S{number:02d} |" in guide
+
+
+def test_010_s02_contract_matches_visible_right_hand_and_left_thigh() -> None:
+    builder = _load_builder()
+    action_zh, action_en = builder.PROMPT_ACTIONS_010["S02"]
+    contract = "\n".join((action_zh, action_en))
+    for phrase in ("右手单手持唯一一部手机背壳", "左手平放在左侧大腿", "right hand alone", "left hand stays flat on her left thigh"):
+        assert phrase in contract
+    for forbidden in ("双手持", "双手自然持", "屏幕", "UI", "比例", "跟踪", "both hands holding", "screen", "ratio", "tracking", "trackable"):
+        assert forbidden not in contract
+    prompt = builder._prompt_line("S02", content_id="HC20260810-010")
+    for forbidden in ("屏幕", "UI", "比例", "跟踪"):
+        assert forbidden not in prompt
+    for forbidden in ("screen", "ratio", "tracking", "trackable"):
+        assert not re.search(rf"\b{forbidden}\b", prompt, re.I)
 
 
 def test_008_prompt_contract_locks_counts_phone_and_noncausal_boards() -> None:
@@ -671,7 +889,8 @@ def test_010_prompt_contract_locks_back_shell_one_item_and_observation_window() 
     assert set(builder.PROMPT_ACTIONS_010) == set(builder.EXPECTED_SHOTS)
     assert set(builder.SHOT_SEMANTIC_CONTRACTS_010) == set(builder.EXPECTED_SHOTS)
     assert set(builder.VISUAL_REVIEW_NOTES_010) == set(builder.EXPECTED_SHOTS)
-    assert "手机背壳持续朝向镜头" in prompts["S02"]
+    assert "右手单手持唯一一部手机背壳" in prompts["S02"]
+    assert "左手平放在左侧大腿" in prompts["S02"]
     assert "全部保持静态" in prompts["S02"]
     assert "马克杯、第二部手机" in prompts["S02"]
     for forbidden in ("屏幕", "比例", "跟踪", "screen", "ratio", "tracking", "trackable"):

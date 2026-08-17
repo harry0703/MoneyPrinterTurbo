@@ -3,11 +3,13 @@
 ## 结果
 
 - 活动主题状态：`production`；批次：`HB20260810`。
-- 分镜：`09_泛健康日更/work/HC20260810-004/production/v01/02_script_storyboard/storyboard-v01.md`，SHA-256 `547b0195f09d82012ed3a72dc2180165361cab6e5a21f68368a916653d259af4`，按表头名解析并确认恰好 S01–S10。
+- 分镜：`09_泛健康日更/work/HC20260810-004/production/v01/02_script_storyboard/storyboard-v01.md`，SHA-256 `5c64f5db3f961b50639b8a8580e3236544f016dd465b906ddb083b9ad0d3f858`，按表头名解析并确认恰好 S01–S10。
 - 正式首帧：仅消费 `03_first_frames/` 根目录中 10 张无字 PNG；全部 1080×1920、哈希唯一，拷贝后字节与源文件相同。
 - 排除：未消费 `storyboard_with_copy/`、带字联系表、UI 预览或候选图。
 - 提示词：10 条中英双语单行，S01、S08、S10 为 `deterministic_post` 且无需上传 Grok；其余动态镜头为 `grok_manual`，最小 Grok 源时长均不超过 5.8 秒。
 - 合并 TXT：恰好 10 条非空提示词，相邻恰好一个空行，UTF-8 + LF。
+- 必需动态源输出：8 个；每个必需源至少保留 2 个候选，并发为 1，每次生成后至少等待 30 秒。
+- 双源镜头：S03；每个提示词明确要求 Source A / Source B 分别生成，两个命名模板写入 MANIFEST，不得在单条 clip 内制作硬切或分屏，只允许后期硬切。
 
 ## 必需源质量证据
 
