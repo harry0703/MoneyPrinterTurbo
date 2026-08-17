@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import csv
+import copy as copy_module
 import hashlib
 import importlib.util
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -36,6 +39,13 @@ def _tree_bytes(root: Path) -> dict[str, bytes]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+
+
+def _directory_symlink_or_skip(target: Path, link: Path) -> None:
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlink unavailable: {exc}")
 
 
 def test_builds_and_verifies_production_sample() -> None:
@@ -209,3 +219,113 @@ def test_storyboard_parser_resolves_columns_by_header_name(tmp_path: Path) -> No
     rows = builder._parse_storyboard(path)
     assert [row["镜号"] for row in rows] == [f"S{number:02d}" for number in range(1, 11)]
     assert rows[5]["人物动作"] == "人物手持黑屏手机，拇指点按三个空白位置"
+
+
+def test_approved_prompt_phases_match_locked_first_frames() -> None:
+    builder = _load_builder()
+    prompts = {shot: builder._prompt_line(shot) for shot in ("S01", "S02", "S04", "S05", "S09")}
+
+    assert "一次轻靠椅背并缓慢自然眨眼的连贯小动作" in prompts["S01"]
+    assert "手保持在已经离开餐盘的位置" in prompts["S02"]
+    assert "继续完成放勺的最后阶段" in prompts["S04"]
+    assert "勺子只做极小幅落稳，随即手轻轻收回" in prompts["S04"]
+    assert "人物已经站起" in prompts["S05"]
+    assert "镜头轻微横移跟随" in prompts["S05"]
+    assert "钥匙保持在置物盘中" in prompts["S09"]
+    assert "朝沙发方向只迈一小步" in prompts["S09"]
+    assert "镜头先固定，后轻微跟随" in prompts["S09"]
+
+
+def test_semantic_contract_binds_storyboard_and_prompt_mapping() -> None:
+    builder = _load_builder()
+    assert hasattr(builder, "SHOT_SEMANTIC_CONTRACTS"), "explicit shot contracts are required"
+    assert hasattr(builder, "_validate_semantic_contracts"), "contract validator is required"
+    storyboard = PRODUCTION_ROOT / "02_script_storyboard" / "storyboard-v01.md"
+    rows = builder._parse_storyboard(storyboard)
+    prompts = {shot: builder._prompt_line(shot) for shot in builder.EXPECTED_SHOTS}
+    builder._validate_semantic_contracts(rows, prompts)
+
+    contracts = builder.SHOT_SEMANTIC_CONTRACTS
+    assert set(contracts) == set(builder.EXPECTED_SHOTS)
+    for row in rows:
+        contract = contracts[row["镜号"]]
+        for column in ("人物动作", "相机", "ai_source_layer"):
+            assert contract["storyboard"][column]
+            for fragment in contract["storyboard"][column]:
+                assert fragment in row[column]
+        for fragment in contract["prompt_zh"]:
+            assert fragment in prompts[row["镜号"]]
+
+    drifted_rows = copy_module.deepcopy(rows)
+    drifted_rows[3]["ai_source_layer"] = "人物只挥手"
+    with pytest.raises(builder.ManualPackError, match="semantic contract.*S04.*ai_source_layer"):
+        builder._validate_semantic_contracts(drifted_rows, prompts)
+
+    drifted_prompts = dict(prompts)
+    drifted_prompts["S09"] = drifted_prompts["S09"].replace("朝沙发方向只迈一小步", "保持原地不动")
+    with pytest.raises(builder.ManualPackError, match="semantic contract.*S09.*prompt"):
+        builder._validate_semantic_contracts(rows, drifted_prompts)
+
+
+def test_repo_root_link_is_rejected_before_output_creation(tmp_path: Path) -> None:
+    builder = _load_builder()
+    linked_repo = tmp_path / "linked-repo"
+    _directory_symlink_or_skip(REPO_ROOT, linked_repo)
+    output = tmp_path / "output" / "manual_pack"
+
+    with pytest.raises(builder.ManualPackError, match="reparse"):
+        builder.build_manual_pack(CONTENT_ID, repo_root=linked_repo, output_dir=output)
+
+    assert not output.exists()
+    assert not list(tmp_path.glob(".manual_pack.staging-*"))
+
+
+def test_output_parent_link_is_rejected_before_staging(tmp_path: Path) -> None:
+    builder = _load_builder()
+    real_parent = tmp_path / "real-parent"
+    real_parent.mkdir()
+    linked_parent = tmp_path / "linked-parent"
+    _directory_symlink_or_skip(real_parent, linked_parent)
+    output = linked_parent / "manual_pack"
+
+    with pytest.raises(builder.ManualPackError, match="reparse"):
+        builder.build_manual_pack(CONTENT_ID, repo_root=REPO_ROOT, output_dir=output)
+
+    assert not output.exists()
+    assert list(real_parent.iterdir()) == []
+
+
+def test_lf_attributes_are_scoped_to_001_manual_pack() -> None:
+    targets = {
+        "001": "09_泛健康日更/work/HC20260810-001/production/v01/04_grok_batch/manual_pack/MANIFEST.csv",
+        "002": "09_泛健康日更/work/HC20260810-002/production/v01/04_grok_batch/manual_pack/MANIFEST.csv",
+    }
+
+    def attributes(path: str) -> dict[str, str]:
+        result = subprocess.run(
+            ["git", "check-attr", "text", "eol", "--", path],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+        )
+        return {
+            line.rsplit(": ", 2)[-2]: line.rsplit(": ", 1)[-1]
+            for line in result.stdout.splitlines()
+        }
+
+    assert attributes(targets["001"]) == {"text": "set", "eol": "lf"}
+    assert attributes(targets["002"]) == {"text": "auto", "eol": "unspecified"}
+
+
+def test_manual_pack_qa_contains_reproducible_view_image_log() -> None:
+    qa = (MANUAL_PACK / "MANUAL-PACK-QA.md").read_text(encoding="utf-8")
+    assert "审阅方式：`view_image`" in qa
+    assert "审阅日期：`2026-08-17`" in qa
+    source_root = PRODUCTION_ROOT / "03_first_frames"
+    for shot in (f"S{number:02d}" for number in range(1, 11)):
+        source = source_root / f"{CONTENT_ID}-v01-{shot}-firstframe.png"
+        assert f"| {shot} | `{_sha256(source)}` |" in qa
+    assert "storyboard-with-copy-contactsheet-v01.png" in qa
+    assert "不是 Grok 动态或最终 QA 批准" in qa

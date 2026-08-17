@@ -29,24 +29,24 @@ class ManualPackError(RuntimeError):
 
 PROMPT_ACTIONS: dict[str, tuple[str, str]] = {
     "S01": (
-        "餐后坐在藤编餐椅上的45岁中国女性只完成一次缓慢自然眨眼，背部和手部保持当前位置，镜头只做极轻微推近",
-        "The seated 45-year-old Chinese woman makes one slow natural blink only; keep her back and hands in place, with an extremely subtle camera push-in",
+        "餐后坐在藤编餐椅上的45岁中国女性只完成一次轻靠椅背并缓慢自然眨眼的连贯小动作，手部保持原位，镜头只做极轻微推近",
+        "The seated 45-year-old Chinese woman makes one connected, low-amplitude action: a light settle back into the chair with one slow natural blink; keep her hands in place, with an extremely subtle camera push-in",
     ),
     "S02": (
-        "餐桌旁的同一位女性只将视线缓慢抬向左侧窗光，手、餐盘、椅子与侧后方构图均不动",
-        "The same woman beside the dining table slowly raises only her gaze toward the window light on the left; keep hands, plate, chair, and rear-side framing still",
+        "餐桌旁的同一位女性只将视线缓慢抬向左侧窗光，手保持在已经离开餐盘的位置，餐盘、椅子与侧后方构图均不动",
+        "The same woman beside the dining table slowly raises only her gaze toward the window light on the left; keep her hand in its already-away-from-the-plate position, and keep the plate, chair, and rear-side framing still",
     ),
     "S03": (
         "后期将左侧夜间暗光和右侧早晨窗光做一次缓慢交叉淡化，中央深青分隔、灯、窗帘和家具保持原位",
         "In post-production, make one slow crossfade between the dark night side and the morning window-light side; keep the central teal divider, lamps, curtains, and furniture fixed",
     ),
     "S04": (
-        "餐桌前的同一位女性只将靠近勺子的手轻轻收回一小段，勺子、剩余菜品、餐盘和俯侧构图不变",
-        "The same woman at the dining table gently withdraws only the hand nearest the spoon by a short distance; keep the spoon, remaining greens, plate, and high oblique framing unchanged",
+        "餐桌前的同一位女性从当前首帧手部位置继续完成放勺的最后阶段：指尖轻触勺柄，勺子只做极小幅落稳，随即手轻轻收回，不重新拿起餐具；剩余菜品和餐盘不动，俯侧45度近景固定",
+        "From the current first-frame hand position, the same woman completes only the final phase of setting down and releasing the spoon: fingertips lightly contact the handle, the spoon makes a tiny settling motion, then the hand gently withdraws without picking the utensil up again; keep the remaining greens and plate still, with a fixed 45-degree high oblique close view",
     ),
     "S05": (
-        "同一位女性从餐桌后沿当前方向朝客厅只迈一小步，米色开衫、蓝色上衣、深蓝长裤与家具位置不变",
-        "The same woman takes only one small step in the current direction from the dining area toward the living room; preserve her beige cardigan, blue top, navy trousers, and all furniture positions",
+        "同一位女性人物已经站起，只沿当前方向从餐区朝客厅迈一小步，镜头轻微横移跟随；米色开衫、蓝色上衣、深蓝长裤与家具位置不变",
+        "The same woman is already standing and takes only one small step in the current direction from the dining area toward the living room, with a slight lateral camera follow; preserve her beige cardigan, blue top, navy trousers, and all furniture positions",
     ),
     "S06": (
         "越肩视角中的同一位女性只用拇指依次轻点黑屏上三个空白位置，手机四角、纯黑屏幕、另一只手和木桌不动",
@@ -61,13 +61,111 @@ PROMPT_ACTIONS: dict[str, tuple[str, str]] = {
         "In post-production, give the deep-teal, peach, and green daylight panels one gentle sequential brightness cue; keep the three seated silhouettes, arch panels, and plants motionless",
     ),
     "S09": (
-        "同一位女性只将放好车钥匙的右手从置物盘上方轻轻抬离，钥匙留在盘中，行走方向、沙发和青绿柜体不变",
-        "The same woman gently lifts only her right hand away from the tray after placing the car key; leave the key in the tray and preserve her travel direction, sofa, and teal cabinet",
+        "在当前已把车钥匙放入盘中的状态下，钥匙保持在置物盘中，同一位女性朝沙发方向只迈一小步，镜头先固定，后轻微跟随；青绿柜体、沙发和行走方向不变",
+        "With the car key already placed in the tray, keep the key in the tray while the same woman takes only one small step toward the sofa; keep the camera fixed first, then follow slightly, preserving the teal cabinet, sofa, and travel direction",
     ),
     "S10": (
         "后期让暖米白结束板上的三枚青绿圆点按从下到上的顺序各淡入一次，浅桃拱形、植物影子和背景完全不动",
         "In post-production, fade in each of the three teal dots once from bottom to top on the warm off-white end board; keep the peach arches, plant shadow, and background completely still",
     ),
+}
+
+
+SHOT_SEMANTIC_CONTRACTS: dict[str, dict[str, Any]] = {
+    "S01": {
+        "storyboard": {
+            "人物动作": ("短暂眨眼",),
+            "相机": ("85mm中近景固定", "缓慢推近"),
+            "ai_source_layer": ("自然眨眼", "轻靠椅背"),
+        },
+        "prompt_zh": ("轻靠椅背", "缓慢自然眨眼", "极轻微推近"),
+    },
+    "S02": {
+        "storyboard": {
+            "人物动作": ("抬眼看向窗光", "手离开餐盘"),
+            "相机": ("侧后方中景",),
+            "ai_source_layer": ("只做抬眼动作",),
+        },
+        "prompt_zh": ("视线缓慢抬向左侧窗光", "手保持在已经离开餐盘的位置"),
+    },
+    "S03": {
+        "storyboard": {
+            "人物动作": ("夜晚关灯", "早晨拉帘"),
+            "相机": ("无相机运动",),
+            "ai_source_layer": ("无AI动态源",),
+        },
+        "prompt_zh": ("夜间暗光", "早晨窗光", "交叉淡化"),
+    },
+    "S04": {
+        "storyboard": {
+            "人物动作": ("放慢一口后停下餐具",),
+            "相机": ("俯侧45度近景", "餐具与手同框"),
+            "ai_source_layer": ("放下餐具一个动作",),
+        },
+        "prompt_zh": ("放勺的最后阶段", "勺子只做极小幅落稳", "手轻轻收回", "俯侧45度近景固定"),
+    },
+    "S05": {
+        "storyboard": {
+            "人物动作": ("从餐椅起身", "朝客厅方向迈一步"),
+            "相机": ("全身中景", "小幅横移跟随"),
+            "ai_source_layer": ("起身并迈一步", "方向固定"),
+        },
+        "prompt_zh": ("人物已经站起", "朝客厅迈一小步", "镜头轻微横移跟随"),
+    },
+    "S06": {
+        "storyboard": {
+            "人物动作": ("拇指点按三个空白位置",),
+            "相机": ("越肩近景固定",),
+            "ai_source_layer": ("黑屏手机", "单手点按", "不生成界面"),
+        },
+        "prompt_zh": ("拇指依次轻点", "黑屏上三个空白位置", "手机四角"),
+    },
+    "S07": {
+        "storyboard": {
+            "人物动作": ("放下手机", "闭眼感受片刻"),
+            "相机": ("正面中近景", "轻微后拉"),
+            "ai_source_layer": ("放下手机", "一次自然呼吸"),
+        },
+        "prompt_zh": ("手机已放在桌面", "一次自然呼吸", "轻微后拉"),
+    },
+    "S08": {
+        "storyboard": {
+            "人物动作": ("三次不同日光色块并列", "人物剪影保持一致"),
+            "相机": ("无相机运动",),
+            "ai_source_layer": ("无AI动态源", "纯色日光", "人物剪影"),
+        },
+        "prompt_zh": ("三块日光场景", "依次各做一次轻微亮度提示"),
+    },
+    "S09": {
+        "storyboard": {
+            "人物动作": ("把车钥匙放回置物盘", "走向沙发"),
+            "相机": ("腰部中景", "先定后短跟"),
+            "ai_source_layer": ("放下钥匙后离开一步",),
+        },
+        "prompt_zh": ("钥匙保持在置物盘中", "朝沙发方向只迈一小步", "镜头先固定，后轻微跟随"),
+    },
+    "S10": {
+        "storyboard": {
+            "人物动作": ("三枚青绿圆点依次出现",),
+            "相机": ("无相机运动",),
+            "ai_source_layer": ("无AI动态源", "纯确定性结束板"),
+        },
+        "prompt_zh": ("三枚青绿圆点", "从下到上的顺序各淡入一次"),
+    },
+}
+
+
+VISUAL_REVIEW_NOTES = {
+    "S01": "暖光餐桌旁坐姿人物，闭眼、手与餐盘关系清楚",
+    "S02": "同一人物侧后坐姿，手已离盘，视线面向窗光",
+    "S03": "夜间暗光与早晨窗光双板，中央分隔稳定",
+    "S04": "餐具已在桌面，手在勺子附近，支持放勺最后落稳阶段",
+    "S05": "人物已站立行走，从餐区朝客厅的方向清楚",
+    "S06": "越肩黑屏手机，四角完整，拇指点按位置清楚",
+    "S07": "手机已平放桌面，人物闭眼静坐",
+    "S08": "三块色板与三个一致坐姿剪影，适合确定性亮度提示",
+    "S09": "车钥匙在置物盘中，人物朝沙发方向处于离开姿态",
+    "S10": "暖米白结束板与三枚青绿圆点，无文字",
 }
 
 
@@ -87,23 +185,43 @@ def _as_posix(path: Path, repo_root: Path) -> str:
 
 
 def _require_regular_file(path: Path, label: str) -> None:
+    _assert_no_reparse_ancestors(path)
     if not path.is_file() or path.is_symlink():
         raise ManualPackError(f"missing or unsafe {label}: {path}")
-    attributes = getattr(path.stat(), "st_file_attributes", 0)
+    attributes = getattr(path.lstat(), "st_file_attributes", 0)
     if attributes & REPARSE_POINT_FLAG:
         raise ManualPackError(f"reparse point forbidden for {label}: {path}")
 
 
-def _assert_no_reparse_ancestors(path: Path) -> None:
-    current = path.resolve(strict=False)
+def _lexical_absolute(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _inspect_lexical_chain(path: Path) -> None:
+    current = path
     while True:
-        if current.exists():
-            attributes = getattr(current.stat(), "st_file_attributes", 0)
+        if os.path.lexists(current):
+            attributes = getattr(current.lstat(), "st_file_attributes", 0)
             if current.is_symlink() or attributes & REPARSE_POINT_FLAG:
                 raise ManualPackError(f"reparse path forbidden: {current}")
         if current.parent == current:
             break
         current = current.parent
+
+
+def _assert_no_reparse_ancestors(path: Path) -> Path:
+    lexical = _lexical_absolute(path)
+    _inspect_lexical_chain(lexical)
+    resolved = lexical.resolve(strict=False)
+    _inspect_lexical_chain(resolved)
+    return resolved
+
+
+def _require_within(path: Path, parent: Path, label: str) -> None:
+    try:
+        path.relative_to(parent)
+    except ValueError as exc:
+        raise ManualPackError(f"{label} escapes required root: {path}") from exc
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:
@@ -166,8 +284,37 @@ def _parse_storyboard(path: Path) -> list[dict[str, str]]:
     return rows
 
 
+def _validate_semantic_contracts(
+    storyboard_rows: list[dict[str, str]], prompts: dict[str, str]
+) -> None:
+    rows_by_shot = {row["镜号"]: row for row in storyboard_rows}
+    if set(rows_by_shot) != set(EXPECTED_SHOTS) or set(prompts) != set(EXPECTED_SHOTS):
+        raise ManualPackError("semantic contract requires exact S01-S10 storyboard and prompt sets")
+    if set(SHOT_SEMANTIC_CONTRACTS) != set(EXPECTED_SHOTS):
+        raise ManualPackError("semantic contract mapping must cover exact S01-S10")
+
+    for shot in EXPECTED_SHOTS:
+        contract = SHOT_SEMANTIC_CONTRACTS[shot]
+        row = rows_by_shot[shot]
+        for column, fragments in contract["storyboard"].items():
+            value = row[column]
+            for fragment in fragments:
+                if fragment not in value:
+                    raise ManualPackError(
+                        f"semantic contract mismatch: {shot} storyboard {column} missing {fragment!r}"
+                    )
+        for fragment in contract["prompt_zh"]:
+            if fragment not in prompts[shot]:
+                raise ManualPackError(
+                    f"semantic contract mismatch: {shot} prompt missing {fragment!r}"
+                )
+
+
 def _validate_batch(repo_root: Path, content_id: str) -> dict[str, Any]:
-    batch_root = repo_root / "09_泛健康日更" / "data" / "01_一般生活方式50集" / "batch-01"
+    batch_root = _assert_no_reparse_ancestors(
+        repo_root / "09_泛健康日更" / "data" / "01_一般生活方式50集" / "batch-01"
+    )
+    _require_within(batch_root, repo_root, "batch root")
     active_path = batch_root / "active-batch.json"
     ref_path = batch_root / "current-batch-ref.json"
     active = _load_json(active_path, "active batch")
@@ -178,6 +325,9 @@ def _validate_batch(repo_root: Path, content_id: str) -> dict[str, Any]:
     if not isinstance(snapshot_value, str) or Path(snapshot_value).is_absolute():
         raise ManualPackError("invalid batch snapshot path")
     snapshot_path = batch_root / Path(snapshot_value)
+    snapshot_resolved = _assert_no_reparse_ancestors(snapshot_path)
+    _require_within(snapshot_resolved, batch_root, "batch snapshot")
+    snapshot_path = snapshot_resolved
     _require_regular_file(snapshot_path, "batch snapshot")
     if reference.get("sha256") != _sha256_file(snapshot_path):
         raise ManualPackError("current batch reference does not bind snapshot bytes")
@@ -203,10 +353,11 @@ def _validate_batch(repo_root: Path, content_id: str) -> dict[str, Any]:
 def _validate_inputs(content_id: str, repo_root: Path) -> dict[str, Any]:
     if content_id != SUPPORTED_CONTENT_ID:
         raise ManualPackError(f"unsupported sample content id: {content_id}")
-    _assert_no_reparse_ancestors(repo_root)
+    repo_root = _assert_no_reparse_ancestors(repo_root)
     batch = _validate_batch(repo_root, content_id)
     episode_root = repo_root / "09_泛健康日更" / "work" / content_id
     production_root = episode_root / "production" / VERSION
+    _require_within(_assert_no_reparse_ancestors(production_root), repo_root, "production root")
     episode_manifest_path = episode_root / "manifest.json"
     episode_manifest = _load_json(episode_manifest_path, "episode manifest")
     if episode_manifest.get("content_id") != content_id or episode_manifest.get("batch_id") != batch["batch_id"]:
@@ -214,6 +365,8 @@ def _validate_inputs(content_id: str, repo_root: Path) -> dict[str, Any]:
 
     storyboard_path = production_root / "02_script_storyboard" / "storyboard-v01.md"
     storyboard_rows = _parse_storyboard(storyboard_path)
+    prompts = {shot: _prompt_line(shot) for shot in EXPECTED_SHOTS}
+    _validate_semantic_contracts(storyboard_rows, prompts)
     first_frame_root = production_root / "03_first_frames"
     _assert_no_reparse_ancestors(first_frame_root)
     expected_names = [f"{content_id}-{VERSION}-{shot}-firstframe.png" for shot in EXPECTED_SHOTS]
@@ -250,8 +403,10 @@ def _validate_inputs(content_id: str, repo_root: Path) -> dict[str, Any]:
         / "HC20260810-B01-task6-qa"
         / "HC20260810-B01-first-frame-qa-v01.md"
     )
+    contact_sheet_path = production_root / "05_qa" / "storyboard-with-copy-contactsheet-v01.png"
     _require_regular_file(episode_qa_path, "episode Task 6 QA")
     _require_regular_file(batch_qa_path, "batch Task 6 QA")
+    _require_regular_file(contact_sheet_path, "storyboard-with-copy contact sheet")
     episode_qa_text = episode_qa_path.read_text(encoding="utf-8")
     batch_qa_text = batch_qa_path.read_text(encoding="utf-8")
     if not all(image["sha256"] in episode_qa_text for image in images.values()):
@@ -281,9 +436,11 @@ def _validate_inputs(content_id: str, repo_root: Path) -> dict[str, Any]:
         "episode_manifest_path": episode_manifest_path,
         "storyboard_path": storyboard_path,
         "storyboard_rows": storyboard_rows,
+        "prompts": prompts,
         "images": images,
         "episode_qa_path": episode_qa_path,
         "batch_qa_path": batch_qa_path,
+        "contact_sheet_path": contact_sheet_path,
         "batch": batch,
     }
 
@@ -324,7 +481,7 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
     repo_root: Path = inputs["repo_root"]
     content_id: str = inputs["content_id"]
     rows_by_shot = {row["镜号"]: row for row in inputs["storyboard_rows"]}
-    prompts = {shot: _prompt_line(shot) for shot in EXPECTED_SHOTS}
+    prompts = inputs["prompts"]
     artifacts: dict[str, bytes] = {}
     manifest_rows: list[dict[str, str]] = []
     storyboard_sha = _sha256_file(inputs["storyboard_path"])
@@ -396,6 +553,11 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
 """
     artifacts["MANUAL-GENERATION-GUIDE.md"] = guide.encode("utf-8")
 
+    visual_review_rows = "\n".join(
+        f"| {shot} | `{inputs['images'][shot]['sha256']}` | {VISUAL_REVIEW_NOTES[shot]} |"
+        for shot in EXPECTED_SHOTS
+    )
+    contact_sheet_path = inputs["contact_sheet_path"]
     qa = f"""# {content_id} {VERSION} Grok 手动包 QA
 
 ## 结果
@@ -415,8 +577,16 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
 
 ## 视觉核对边界
 
-- 10 张正式首帧及带字联系表已逐项打开用于理解动作、人物和场景上下文；带字层仅审阅，不会被复制。
-- 这份本地 QA 不声称 Grok 动态连续性或最终成片已通过。
+- 审阅方式：`view_image`。
+- 审阅日期：`2026-08-17`。
+- 审阅者：`Codex Task 7 implementation review`。
+- 带字联系表：`{_as_posix(contact_sheet_path, repo_root)}`，SHA-256 `{_sha256_file(contact_sheet_path)}`；只用于理解文案/动作上下文，不会被复制。
+
+| 镜号 | 正式首帧 SHA-256 | `view_image` 逐镜结论 |
+|---|---|---|
+{visual_review_rows}
+
+- 上述记录不是 Grok 动态或最终 QA 批准，也不是外部审批或发布许可。
 """
     artifacts["MANUAL-PACK-QA.md"] = qa.encode("utf-8")
     return artifacts
@@ -464,14 +634,17 @@ def build_manual_pack(
     repo_root: Path | str | None = None,
     output_dir: Path | str | None = None,
 ) -> Path:
-    root = Path(repo_root) if repo_root is not None else _default_repo_root()
-    inputs = _validate_inputs(content_id, root.resolve())
-    destination = Path(output_dir) if output_dir is not None else _default_output(inputs)
-    destination = destination.resolve(strict=False)
-    _assert_no_reparse_ancestors(destination)
+    root_input = Path(repo_root) if repo_root is not None else _default_repo_root()
+    root = _assert_no_reparse_ancestors(root_input)
+    inputs = _validate_inputs(content_id, root)
+    destination_input = Path(output_dir) if output_dir is not None else _default_output(inputs)
+    destination = _assert_no_reparse_ancestors(destination_input)
+    if output_dir is None:
+        _require_within(destination, inputs["production_root"], "manual pack output")
     expected = _render_expected(inputs, destination)
 
     destination.parent.mkdir(parents=True, exist_ok=True)
+    _assert_no_reparse_ancestors(destination.parent)
     staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=destination.parent))
     try:
         _write_staging(staging, expected)
@@ -479,6 +652,7 @@ def build_manual_pack(
         if destination.exists():
             _compare_tree(destination, expected)
             return destination
+        _assert_no_reparse_ancestors(destination.parent)
         try:
             os.replace(staging, destination)
         except OSError:
@@ -498,11 +672,13 @@ def verify_manual_pack(
     repo_root: Path | str | None = None,
     output_dir: Path | str | None = None,
 ) -> Path:
-    root = Path(repo_root) if repo_root is not None else _default_repo_root()
-    inputs = _validate_inputs(content_id, root.resolve())
-    destination = Path(output_dir) if output_dir is not None else _default_output(inputs)
-    destination = destination.resolve(strict=False)
-    _assert_no_reparse_ancestors(destination)
+    root_input = Path(repo_root) if repo_root is not None else _default_repo_root()
+    root = _assert_no_reparse_ancestors(root_input)
+    inputs = _validate_inputs(content_id, root)
+    destination_input = Path(output_dir) if output_dir is not None else _default_output(inputs)
+    destination = _assert_no_reparse_ancestors(destination_input)
+    if output_dir is None:
+        _require_within(destination, inputs["production_root"], "manual pack output")
     expected = _render_expected(inputs, destination)
     _compare_tree(destination, expected)
     return destination
