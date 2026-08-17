@@ -3,7 +3,7 @@
 ## 结果
 
 - 活动主题状态：`production`；批次：`HB20260810`。
-- 分镜：`09_泛健康日更/work/HC20260810-001/production/v01/02_script_storyboard/storyboard-v01.md`，SHA-256 `845e5274fb96248852136256527757bc04e9586fdaa129111037fe67da4a392c`，按表头名解析并确认恰好 S01–S10。
+- 分镜：`09_泛健康日更/work/HC20260810-001/production/v01/02_script_storyboard/storyboard-v01.md`，SHA-256 `17dcad272b94c6ce1da6228b6bf12c1d6c8622d99e1ec37dc9630f54a343732e`，按表头名解析并确认恰好 S01–S10。
 - 正式首帧：仅消费 `03_first_frames/` 根目录中 10 张无字 PNG；全部 1080×1920、哈希唯一，拷贝后字节与源文件相同。
 - 排除：未消费 `storyboard_with_copy/`、带字联系表、UI 预览或候选图。
 - 提示词：10 条中英双语单行，S03/S08/S10 为 `deterministic_post` 且无需上传 Grok；其余 7 镜为 `grok_manual`，最小 Grok 源时长均不超过 5.8 秒。
