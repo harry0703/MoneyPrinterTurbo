@@ -34,6 +34,7 @@ dependencies = [
     "audioop-lts==0.2.2; python_version >= '3.13'",
     "litellm==1.86.2",
     "google-genai==2.11.0",
+    "psycopg[binary]==3.2.12",
 ]
 
 [project.optional-dependencies]
@@ -43,12 +44,18 @@ dependencies = [
 twelvelabs = [
     "twelvelabs>=1.2.8",
 ]
+# Browser-driven media scouting. Only needed for the scouting tooling; install
+# with `uv sync --extra scout`.
+scout = [
+    "playwright>=1.49.0",
+]
 
 [dependency-groups]
 dev = [
     "coverage==7.15.1",
     "pytest==9.1.1",
     "ruff==0.15.21",
+    "testcontainers[postgres]==4.14.0",
 ]
 
 [tool.ruff.lint.per-file-ignores]

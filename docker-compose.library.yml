@@ -1,0 +1,21 @@
+# Photo asset library storage: `docker compose -f docker-compose.library.yml up -d`,
+# then call `app.services.asset_library.init_library()` once to create the schema.
+# Defaults match `photo_library_db_*` in config.example.toml (password: asset_library).
+services:
+  library-db:
+    image: pgvector/pgvector:pg17
+    container_name: "moneyprinterturbo-library-db"
+    environment:
+      POSTGRES_DB: asset_library
+      POSTGRES_USER: asset_library
+      POSTGRES_PASSWORD: asset_library
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ./storage/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U asset_library -d asset_library" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
