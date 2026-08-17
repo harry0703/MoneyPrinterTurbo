@@ -169,6 +169,12 @@ LLM_PROVIDER_REGISTRY = (
     ),
     # 聚合与统一接入平台
     LLMProviderSpec(
+        "atlascloud",
+        "Atlas Cloud",
+        default_model="deepseek-ai/deepseek-v4-pro",
+        default_base_url="https://api.atlascloud.ai/v1",
+    ),
+    LLMProviderSpec(
         "cloudflare",
         "Cloudflare AI Gateway",
         adapter="cloudflare_ai_gateway",
