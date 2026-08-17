@@ -260,6 +260,37 @@ def test_search_skips_assets_whose_file_disappeared(
     assert len(asset_library.list_assets()) == 1
 
 
+def test_usage_counts_only_sees_the_recent_task_window(
+    library_db: str, tmp_path: Any
+) -> None:
+    ids = []
+    for index in range(3):
+        source = _write_image(str(tmp_path / "src" / f"{index}.png"), color=70 + index)
+        ids.append(asset_library.ingest_file(source, group="bulk").asset.id)
+    first, second, third = ids
+
+    asset_library.record_usage(first, "task-1")
+    asset_library.record_usage(first, "task-2")
+    asset_library.record_usage(second, "task-2")
+    asset_library.record_usage(second, "task-3")
+    asset_library.record_usage(first, "task-4")
+    asset_library.record_usage(first, "task-4")
+    asset_library.record_usage(third, "task-4")
+
+    assert asset_library.usage_counts(0) == {}
+    assert asset_library.usage_counts(-5) == {}
+    assert asset_library.usage_counts(1) == {first: 2, third: 1}
+    assert asset_library.usage_counts(2) == {first: 2, second: 1, third: 1}
+    assert asset_library.usage_counts(10) == {first: 4, second: 2, third: 1}
+
+
+def test_usage_counts_is_empty_without_usages(library_db: str, tmp_path: Any) -> None:
+    source = _write_image(str(tmp_path / "src" / "spider.png"))
+    asset_library.ingest_file(source, group="spiders")
+
+    assert asset_library.usage_counts(5) == {}
+
+
 def test_search_plan_uses_the_hnsw_index(library_db: str, tmp_path: Any) -> None:
     for index in range(20):
         source = _write_image(str(tmp_path / "src" / f"{index}.png"), color=index)

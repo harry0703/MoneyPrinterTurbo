@@ -283,6 +283,25 @@ def record_usage(asset_id: int, task_id: str) -> None:
         )
 
 
+def usage_counts(recent_tasks: int) -> dict[int, int]:
+    """How often each asset was used across the last `recent_tasks` distinct tasks."""
+    if recent_tasks <= 0:
+        return {}
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "WITH recent AS ("
+            "  SELECT task_id FROM asset_usage GROUP BY task_id "
+            # now() is the transaction timestamp, so usages recorded together
+            # share a used_at; the identity column breaks those ties.
+            "  ORDER BY max(used_at) DESC, max(id) DESC LIMIT %s"
+            ") "
+            "SELECT asset_id, count(*) AS total FROM asset_usage "
+            "WHERE task_id IN (SELECT task_id FROM recent) GROUP BY asset_id",
+            (recent_tasks,),
+        )
+        return {row["asset_id"]: row["total"] for row in cur.fetchall()}
+
+
 def delete_asset(asset_id: int) -> bool:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM asset WHERE id = %s RETURNING rel_path", (asset_id,))

@@ -44,6 +44,7 @@ from app.services.asset_library.store import (
     search_assets,
     set_tags,
     summary,
+    usage_counts,
 )
 
 __all__ = [
@@ -74,4 +75,5 @@ __all__ = [
     "search_assets",
     "set_tags",
     "summary",
+    "usage_counts",
 ]
