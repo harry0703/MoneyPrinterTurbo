@@ -17,6 +17,13 @@
 
 # Deterministic Grok manual-pack text bytes
 /09_泛健康日更/scripts/build_grok_manual_packs.py text eol=lf
+/09_泛健康日更/data/01_一般生活方式50集/batch-01/active-batch.json text eol=lf
+/09_泛健康日更/data/01_一般生活方式50集/batch-01/current-batch-ref.json text eol=lf
+/09_泛健康日更/data/01_一般生活方式50集/batch-01/batches/20260810/active-batch.json text eol=lf
+/09_泛健康日更/work/HC20260810-001/manifest.json text eol=lf
+/09_泛健康日更/work/HC20260810-001/production/v01/02_script_storyboard/storyboard-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-001/production/v01/05_qa/first-frame-qa-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task6-qa/HC20260810-B01-first-frame-qa-v01.md text eol=lf
 /09_泛健康日更/work/HC20260810-*/production/v01/04_grok_batch/manual_pack/*.txt text eol=lf
 /09_泛健康日更/work/HC20260810-*/production/v01/04_grok_batch/manual_pack/**/*.txt text eol=lf
 /09_泛健康日更/work/HC20260810-*/production/v01/04_grok_batch/manual_pack/*.csv text eol=lf
