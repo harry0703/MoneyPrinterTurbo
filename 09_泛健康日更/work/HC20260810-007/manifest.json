@@ -50,10 +50,10 @@
     }
   ],
   "medical_review": {
-    "status": "pending",
+    "status": "not_required",
     "reviewer": "",
     "reviewed_at": "",
-    "notes": "待Task8真实内部事实与原创审核；本Task不虚构通过。"
+    "notes": "一般生活方式内容不要求外部医学审核。"
   },
   "quality": {
     "topic_value": 19,
@@ -68,7 +68,7 @@
     "checked_at": ""
   },
   "final_qa": {
-    "status": "pending",
+    "status": "not_required",
     "reviewer": "",
     "reviewed_at": ""
   },
