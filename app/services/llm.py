@@ -1152,6 +1152,116 @@ def _normalize_photo_moments(parsed, line_count: int, amount: int) -> List[int]:
     return indexes[:amount]
 
 
+def generate_photo_briefs(
+    video_subject: str,
+    subtitle_lines: List[tuple],
+    amount: int = 5,
+    app_config=None,
+) -> List[dict]:
+    """
+    Describe the frame that should illustrate each picked line of the script.
+
+    One call covers the whole script. Every returned brief is used twice: as the
+    text vectorized to search the asset library, and as the query used to fetch
+    the picture from the internet when the library has nothing fitting.
+    """
+    if not subtitle_lines:
+        return []
+
+    numbered = "\n".join(
+        f"{index}. {str(line[1]).strip()}"
+        for index, line in enumerate(subtitle_lines)
+        if str(line[1]).strip()
+    )
+    if not numbered:
+        return []
+
+    amount = max(1, min(amount, len(subtitle_lines)))
+    prompt = f"""
+# Role: Video Photo Researcher
+
+## Goals:
+Pick at most {amount} lines of a video script about "{video_subject}" that gain
+the most from a photo on screen, and describe the photo each of them needs.
+
+## Constrains:
+1. return a json-array of objects with the keys "index" and "brief".
+2. "index" must be the number of a line listed below, and must not repeat.
+3. "brief" must be written in russian, 3-10 words, and must describe what is
+   visible in the frame: object, setting, angle. no camera jargon, no emotions,
+   no words about the narrator or the video itself.
+4. "brief" must work as a plain image search query, so name concrete things
+   instead of abstractions: "экран телефона с уведомлением о платеже", not
+   "успех и деньги".
+5. never retell the line word for word — a line is speech, a brief is a picture.
+6. spread the picks across the script, skip lines nothing can be shown for.
+   returning fewer picks is fine.
+7. you must only return the json-array. you must not return anything else.
+
+## Output Example:
+[{{"index": 0, "brief": "ноутбук с открытой таблицей на кухонном столе"}}, {{"index": 4, "brief": "очередь людей у банкомата"}}]
+
+## Script Lines:
+{numbered}
+""".strip()
+
+    briefs: List[dict] = []
+    response = ""
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt)
+            else:
+                response = _generate_response(prompt, app_config=app_config)
+            if response.startswith("Error: "):
+                logger.error(f"failed to generate photo briefs: {response}")
+                return []
+            parsed = json.loads(_strip_code_fence(response))
+        except Exception as e:
+            logger.warning(f"failed to generate photo briefs: {str(e)}")
+            match = re.search(r"\[.*]", response, re.DOTALL) if response else None
+            if not match:
+                continue
+            try:
+                parsed = json.loads(match.group())
+            except Exception as inner_error:
+                logger.warning(f"failed to parse photo briefs: {str(inner_error)}")
+                continue
+
+        briefs = _normalize_photo_briefs(parsed, len(subtitle_lines), amount)
+        if briefs:
+            break
+        if i < _max_retries - 1:
+            logger.warning(f"failed to generate photo briefs, trying again... {i + 1}")
+
+    logger.success(f"completed: \n{briefs}")
+    return briefs
+
+
+def _normalize_photo_briefs(parsed, line_count: int, amount: int) -> List[dict]:
+    if not isinstance(parsed, list):
+        logger.error("photo briefs response is not a list")
+        return []
+
+    briefs: List[dict] = []
+    seen: set[int] = set()
+    for entry in parsed:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            index = int(entry.get("index", entry.get("line")))
+        except (TypeError, ValueError):
+            continue
+        brief = str(entry.get("brief") or entry.get("query") or "").strip()
+        if not brief or index in seen or not 0 <= index < line_count:
+            continue
+        seen.add(index)
+        briefs.append({"index": index, "brief": brief})
+
+    briefs.sort(key=lambda item: item["index"])
+    return briefs[:amount]
+
+
 # =============================================================================
 # Social publishing metadata
 #
