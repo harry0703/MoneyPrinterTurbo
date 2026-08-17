@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from PIL import Image
 
 from app.config import config
-from app.services import asset_vision
+from app.services import asset_vision, codex_cli
 
 GOOD_RESPONSE = {
     "caption": "Красная плашка с надписью на тёмном фоне.",
@@ -48,6 +48,7 @@ class TestAssetVision(unittest.TestCase):
 
     def _enable(self):
         config.app["photo_library_enabled"] = True
+        config.app["photo_library_vision_provider"] = "gemini"
         config.app["gemini_api_key"] = "test-key"
 
     # ---------------- disabled / no-op behavior ----------------
@@ -62,11 +63,32 @@ class TestAssetVision(unittest.TestCase):
 
     def test_disabled_when_no_api_key(self):
         config.app["photo_library_enabled"] = True
+        config.app["photo_library_vision_provider"] = "gemini"
         config.app.pop("gemini_api_key", None)
         self.assertFalse(asset_vision.is_enabled())
         with patch.object(asset_vision, "_client") as client:
             self.assertIsNone(asset_vision.annotate_image(self.image_path))
         client.assert_not_called()
+
+    def test_missing_provider_setting_keeps_legacy_gemini_behavior(self) -> None:
+        self._enable()
+        config.app.pop("photo_library_vision_provider", None)
+        client = _client_returning(json.dumps(GOOD_RESPONSE))
+
+        with patch.object(asset_vision, "_client", return_value=client):
+            result = asset_vision.annotate_image(self.image_path)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.model, config.app["photo_library_vision_model"])
+
+    def test_unknown_provider_is_safe_and_visible(self) -> None:
+        config.app["photo_library_enabled"] = True
+        config.app["photo_library_vision_provider"] = "unknown"
+        with patch.object(asset_vision.logger, "warning") as warning:
+            self.assertFalse(asset_vision.is_enabled())
+            self.assertIsNone(asset_vision.annotate_image(self.image_path))
+        self.assertTrue(warning.called)
+        self.assertIn("unknown vision provider", warning.call_args.args[0])
 
     # ---------------- happy path ----------------
 
@@ -112,6 +134,89 @@ class TestAssetVision(unittest.TestCase):
         self.assertEqual(part.inline_data.mime_type, "image/png")
         self.assertEqual(part.inline_data.data, Path(self.image_path).read_bytes())
 
+    def test_codex_dispatch_normalizes_and_sets_provenance(self) -> None:
+        config.app.update(
+            {
+                "photo_library_enabled": True,
+                "photo_library_vision_provider": "codex_cli",
+                "photo_library_codex_model": "gpt-test",
+                "photo_library_codex_binary_path": "/opt/codex with spaces",
+                "photo_library_codex_effort": "low",
+                "photo_library_codex_timeout": 91,
+            }
+        )
+        config.app.pop("gemini_api_key", None)
+        payload = dict(GOOD_RESPONSE, caption="  Кадр.  ", min_display=99.0)
+        with (
+            patch.object(codex_cli, "check_chatgpt_login"),
+            patch.object(codex_cli, "generate_json", return_value=payload) as generate,
+            patch.object(asset_vision, "_client") as gemini,
+        ):
+            result = asset_vision.annotate_image(self.image_path)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.caption, "Кадр.")
+        self.assertEqual(result.tags, {"распродажа": 0.9, "графика": 1.0})
+        self.assertEqual(result.min_display, asset_vision.MIN_DISPLAY_CEIL)
+        self.assertEqual(result.model, "codex_cli:gpt-test")
+        gemini.assert_not_called()
+        self.assertEqual(generate.call_args.args[0], asset_vision.PROMPT)
+        self.assertEqual(generate.call_args.args[1], Path(self.image_path))
+        self.assertEqual(generate.call_args.args[2], asset_vision._CODEX_OUTPUT_SCHEMA)
+        self.assertEqual(
+            generate.call_args.kwargs,
+            {
+                "model": "gpt-test",
+                "effort": "low",
+                "binary": "/opt/codex with spaces",
+                "timeout": 91,
+            },
+        )
+
+    def test_codex_empty_options_use_adapter_defaults(self) -> None:
+        config.app.update(
+            {
+                "photo_library_enabled": True,
+                "photo_library_vision_provider": "codex_cli",
+                "photo_library_codex_model": "",
+                "photo_library_codex_binary_path": "",
+                "photo_library_codex_effort": "",
+                "photo_library_codex_timeout": "",
+            }
+        )
+        with (
+            patch.object(codex_cli, "check_chatgpt_login"),
+            patch.object(
+                codex_cli, "generate_json", return_value=GOOD_RESPONSE
+            ) as generate,
+        ):
+            result = asset_vision.annotate_image(self.image_path)
+
+        self.assertEqual(result.model, f"codex_cli:{codex_cli.DEFAULT_MODEL}")
+        self.assertEqual(generate.call_args.kwargs["model"], codex_cli.DEFAULT_MODEL)
+        self.assertEqual(generate.call_args.kwargs["effort"], "")
+        self.assertEqual(generate.call_args.kwargs["binary"], "")
+        self.assertEqual(generate.call_args.kwargs["timeout"], "")
+
+    def test_codex_model_argument_overrides_config(self) -> None:
+        config.app.update(
+            {
+                "photo_library_enabled": True,
+                "photo_library_vision_provider": "codex_cli",
+                "photo_library_codex_model": "configured",
+            }
+        )
+        with (
+            patch.object(codex_cli, "check_chatgpt_login"),
+            patch.object(
+                codex_cli, "generate_json", return_value=GOOD_RESPONSE
+            ) as generate,
+        ):
+            result = asset_vision.annotate_image(self.image_path, model="override")
+
+        self.assertEqual(result.model, "codex_cli:override")
+        self.assertEqual(generate.call_args.kwargs["model"], "override")
+
     # ---------------- degradation ----------------
 
     def test_returns_none_on_garbage_response(self):
@@ -138,6 +243,79 @@ class TestAssetVision(unittest.TestCase):
         client.__enter__.return_value = client
         client.models.generate_content.side_effect = RuntimeError("api down")
         with patch.object(asset_vision, "_client", return_value=client):
+            self.assertIsNone(asset_vision.annotate_image(self.image_path))
+
+    def test_codex_unavailable_is_disabled_without_gemini_key(self) -> None:
+        config.app.update(
+            {
+                "photo_library_enabled": True,
+                "photo_library_vision_provider": "codex_cli",
+            }
+        )
+        config.app.pop("gemini_api_key", None)
+        with (
+            patch.object(
+                codex_cli,
+                "check_chatgpt_login",
+                side_effect=codex_cli.CodexCliError("not logged in"),
+            ),
+            patch.object(codex_cli, "generate_json") as generate,
+        ):
+            self.assertFalse(asset_vision.is_enabled())
+            self.assertIsNone(asset_vision.annotate_image(self.image_path))
+        generate.assert_not_called()
+
+    def test_codex_schema_error_and_next_asset_remain_processable(self) -> None:
+        config.app.update(
+            {
+                "photo_library_enabled": True,
+                "photo_library_vision_provider": "codex_cli",
+            }
+        )
+        with (
+            patch.object(codex_cli, "check_chatgpt_login"),
+            patch.object(
+                codex_cli,
+                "generate_json",
+                side_effect=[{"caption": "missing fields"}, GOOD_RESPONSE],
+            ),
+        ):
+            self.assertIsNone(asset_vision.annotate_image(self.image_path))
+            result = asset_vision.annotate_image(self.image_path)
+        self.assertIsNotNone(result)
+
+    def test_codex_empty_caption_is_rejected(self) -> None:
+        config.app.update(
+            {
+                "photo_library_enabled": True,
+                "photo_library_vision_provider": "codex_cli",
+            }
+        )
+        with (
+            patch.object(codex_cli, "check_chatgpt_login"),
+            patch.object(
+                codex_cli,
+                "generate_json",
+                return_value=dict(GOOD_RESPONSE, caption="   "),
+            ),
+        ):
+            self.assertIsNone(asset_vision.annotate_image(self.image_path))
+
+    def test_codex_runtime_error_does_not_escape_facade(self) -> None:
+        config.app.update(
+            {
+                "photo_library_enabled": True,
+                "photo_library_vision_provider": "codex_cli",
+            }
+        )
+        with (
+            patch.object(codex_cli, "check_chatgpt_login"),
+            patch.object(
+                codex_cli,
+                "generate_json",
+                side_effect=codex_cli.CodexCliError("usage limit"),
+            ),
+        ):
             self.assertIsNone(asset_vision.annotate_image(self.image_path))
 
     def test_missing_file_does_not_raise(self):

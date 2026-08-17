@@ -101,9 +101,16 @@ photo_library_db_password = "asset_library"
 # unless given as an absolute path.
 photo_library_root = "storage/library"
 
-# Tagging and embedding models used to annotate library assets. Reuses the
-# gemini_api_key set above under LLM Providers.
+# Vision provider used to annotate assets. Gemini reuses gemini_api_key from
+# LLM Providers; codex_cli reuses a local `codex login` ChatGPT subscription.
+photo_library_vision_provider = "gemini"
 photo_library_vision_model = "gemini-3.6-flash"
+photo_library_codex_model = "gpt-5.6-luna"
+# Leave blank to discover `codex` on PATH.
+photo_library_codex_binary_path = ""
+photo_library_codex_effort = "low"
+photo_library_codex_timeout = 300
+# Embeddings remain on Gemini regardless of the vision provider.
 photo_library_embed_model = "gemini-embedding-001"
 
 # Selection weights and score thresholds. Placeholder until calibrated on a
