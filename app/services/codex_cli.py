@@ -17,15 +17,8 @@ LOGIN_TIMEOUT = 10
 VALID_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
 _MAX_ERROR_LENGTH = 500
-_STRIPPED_ENV_KEYS = frozenset(
-    {
-        "CODEX_ACCESS_TOKEN",
-        "CODEX_API_KEY",
-        "CODEX_CI",
-        "CODEX_THREAD_ID",
-        "OPENAI_API_KEY",
-    }
-)
+_INHERITED_CODEX_ENV_KEYS = frozenset({"CODEX_HOME"})
+_STRIPPED_ENV_PREFIXES = ("CODEX_", "OPENAI_")
 _DISABLED_FEATURES = (
     "shell_tool",
     "unified_exec",
@@ -51,21 +44,25 @@ def _truncate(text: str) -> str:
 
 def _child_env() -> dict[str, str]:
     return {
-        key: value for key, value in os.environ.items() if key not in _STRIPPED_ENV_KEYS
+        key: value
+        for key, value in os.environ.items()
+        if key in _INHERITED_CODEX_ENV_KEYS
+        or not key.startswith(_STRIPPED_ENV_PREFIXES)
     }
 
 
 def _resolve_binary(binary: str) -> str:
     value = (binary or "").strip() or DEFAULT_BINARY
-    executable = shutil.which(value)
-    if not executable and os.path.isfile(value) and os.access(value, os.X_OK):
-        executable = value
+    candidate = str(Path(value).expanduser())
+    executable = shutil.which(candidate)
+    if not executable and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+        executable = candidate
     if not executable:
         raise CodexCliError(
             f"codex cli '{value}' was not found or is not executable. Install Codex, "
             "log in with `codex login`, or set photo_library_codex_binary_path."
         )
-    return executable
+    return str(Path(executable).resolve())
 
 
 def _resolve_effort(effort: str | None) -> str:

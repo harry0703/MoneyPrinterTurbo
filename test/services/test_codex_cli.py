@@ -55,7 +55,9 @@ def test_safe_invocation_forwards_image_schema_prompt_and_environment(
         "CODEX_CI": "1",
         "CODEX_ACCESS_TOKEN": "token",
         "CODEX_API_KEY": "codex-key",
+        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "nested-agent",
         "OPENAI_API_KEY": "openai-key",
+        "OPENAI_BASE_URL": "https://api.example.invalid",
     }
     with (
         patch.dict(os.environ, environment, clear=True),
@@ -110,10 +112,34 @@ def test_safe_invocation_forwards_image_schema_prompt_and_environment(
         "CODEX_CI",
         "CODEX_ACCESS_TOKEN",
         "CODEX_API_KEY",
+        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
         "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
     ):
         assert key not in child_env
     assert "shell" not in exec_call.kwargs
+
+
+def test_relative_binary_is_made_absolute_before_isolated_cwd(
+    tmp_path: Path,
+) -> None:
+    binary = tmp_path / "bin" / "codex"
+    image = tmp_path / "asset.png"
+    image.write_bytes(b"image")
+    captured: dict[str, Any] = {}
+    with (
+        patch.object(codex_cli.shutil, "which", return_value=str(binary)),
+        patch.object(
+            codex_cli.subprocess,
+            "run",
+            side_effect=_successful_run(captured),
+        ) as run,
+    ):
+        codex_cli.generate_json("prompt", image, SCHEMA, binary="bin/codex")
+
+    expected = str(binary.resolve())
+    assert run.call_args_list[0].args[0][0] == expected
+    assert run.call_args_list[1].args[0][0] == expected
 
 
 def test_empty_options_use_documented_defaults(tmp_path: Path) -> None:
