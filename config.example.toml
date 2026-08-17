@@ -96,14 +96,14 @@ photo_library_db_host = "127.0.0.1"
 photo_library_db_port = 5433
 photo_library_db_name = "asset_library"
 photo_library_db_user = "asset_library"
-photo_library_db_password = ""
+photo_library_db_password = "asset_library"
 # Directory where library asset files are stored, relative to the project root
 # unless given as an absolute path.
 photo_library_root = "storage/library"
 
 # Tagging and embedding models used to annotate library assets. Reuses the
 # gemini_api_key set above under LLM Providers.
-photo_library_vision_model = "gemini-2.5-flash"
+photo_library_vision_model = "gemini-3.6-flash"
 photo_library_embed_model = "gemini-embedding-001"
 
 # Selection weights and score thresholds. Placeholder until calibrated on a
