@@ -6,7 +6,7 @@
 - 分镜：`09_泛健康日更/work/HC20260810-001/production/v01/02_script_storyboard/storyboard-v01.md`，SHA-256 `17dcad272b94c6ce1da6228b6bf12c1d6c8622d99e1ec37dc9630f54a343732e`，按表头名解析并确认恰好 S01–S10。
 - 正式首帧：仅消费 `03_first_frames/` 根目录中 10 张无字 PNG；全部 1080×1920、哈希唯一，拷贝后字节与源文件相同。
 - 排除：未消费 `storyboard_with_copy/`、带字联系表、UI 预览或候选图。
-- 提示词：10 条中英双语单行，S03/S08/S10 为 `deterministic_post` 且无需上传 Grok；其余 7 镜为 `grok_manual`，最小 Grok 源时长均不超过 5.8 秒。
+- 提示词：10 条中英双语单行，S03、S08、S10 为 `deterministic_post` 且无需上传 Grok；其余动态镜头为 `grok_manual`，最小 Grok 源时长均不超过 5.8 秒。
 - 合并 TXT：恰好 10 条非空提示词，相邻恰好一个空行，UTF-8 + LF。
 
 ## 必需源质量证据
@@ -19,7 +19,7 @@
 
 - 审阅方式：`view_image`。
 - 审阅日期：`2026-08-17`。
-- 审阅者：`Codex Task 7 implementation review`。
+- 审阅者：`Codex Task 8 manual-pack review`。
 - 带字联系表：`09_泛健康日更/work/HC20260810-001/production/v01/05_qa/storyboard-with-copy-contactsheet-v01.png`，SHA-256 `d3e2be9bf647cf12f5a6038b43917af4d70d964bdfae694cb2550ff5f21f3840`；只用于理解文案/动作上下文，不会被复制。
 
 | 镜号 | 正式首帧 SHA-256 | `view_image` 逐镜结论 |
