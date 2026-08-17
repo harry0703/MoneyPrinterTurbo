@@ -6,13 +6,15 @@ import math
 import os
 import re
 import shutil
-from typing import TYPE_CHECKING, Sequence
+import sys
+from typing import TYPE_CHECKING, Callable, Sequence
 from uuid import UUID, uuid4
 
 from loguru import logger
 
 if TYPE_CHECKING:
     from app.models.schema import MaterialInfo, VideoParams
+    from app.services.asset_library import Asset, IngestResult
 
 
 DEFAULT_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
@@ -942,6 +944,10 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
 
 
 def run_cli(argv: Sequence[str] | None = None) -> int:
+    effective_argv = list(sys.argv[1:]) if argv is None else list(argv)
+    if effective_argv and effective_argv[0] == "library":
+        return run_library_cli(effective_argv[1:])
+
     args = parse_args(argv)
     try:
         params = build_video_params(args)
@@ -975,6 +981,386 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 
     print(json.dumps({"task_id": task_id, "result": result}, ensure_ascii=False))
     return 0
+
+
+def _split_tags(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [tag.strip() for tag in re.split(r"[,，]", value) if tag.strip()]
+
+
+def _library_asset_path(value: str) -> str:
+    if not value.strip():
+        raise argparse.ArgumentTypeError("path must not be empty")
+    expanded = os.path.expanduser(value.strip())
+    if not os.path.exists(expanded):
+        raise argparse.ArgumentTypeError(f"path does not exist: {value!r}")
+    return expanded
+
+
+def _library_script_file(value: str) -> str:
+    if not value.strip():
+        raise argparse.ArgumentTypeError("script must not be empty")
+    expanded = os.path.expanduser(value.strip())
+    if not os.path.isfile(expanded):
+        raise argparse.ArgumentTypeError(f"script file does not exist: {value!r}")
+    return expanded
+
+
+def _build_library_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="cli.py library",
+        description="Manage the photo asset library (Postgres + pgvector) without the WebUI.",
+    )
+    subparsers = parser.add_subparsers(dest="action", required=True)
+
+    add_parser = subparsers.add_parser(
+        "add", help="ingest one photo file, or a directory of photos, into the library"
+    )
+    add_parser.add_argument("path", type=_library_asset_path)
+    add_parser.add_argument(
+        "--tags",
+        default=None,
+        metavar="TAG[,TAG...]",
+        help="comma-separated manual tags",
+    )
+    add_parser.add_argument("--caption", default=None, help="manual caption")
+    add_parser.add_argument(
+        "--min-display",
+        type=_positive_float,
+        default=None,
+        dest="min_display",
+        help="manual minimum on-screen seconds",
+    )
+    add_parser.add_argument(
+        "--group",
+        default=None,
+        help=(
+            "tag applied to a single ingested file (default: manual); ignored "
+            "for a directory, whose subdirectory names become the groups"
+        ),
+    )
+
+    list_parser = subparsers.add_parser("list", help="list library assets")
+    list_parser.add_argument(
+        "--tags",
+        default=None,
+        metavar="TAG[,TAG...]",
+        help="keep assets matching any tag",
+    )
+
+    tag_parser = subparsers.add_parser("tag", help="replace an asset's manual tags")
+    tag_parser.add_argument("id", type=_positive_int)
+    tag_parser.add_argument(
+        "--tags",
+        required=True,
+        metavar="TAG[,TAG...]",
+        help="comma-separated manual tags",
+    )
+
+    rm_parser = subparsers.add_parser("rm", help="delete an asset record and its file")
+    rm_parser.add_argument("id", type=_positive_int)
+
+    subparsers.add_parser("stats", help="print library totals and tag breakdown")
+
+    backfill_parser = subparsers.add_parser(
+        "backfill", help="annotate and embed assets that are still missing either"
+    )
+    backfill_parser.add_argument(
+        "--limit",
+        type=_positive_int,
+        default=50,
+        help="maximum assets to process per missing kind (default: 50)",
+    )
+
+    calibrate_parser = subparsers.add_parser(
+        "calibrate",
+        help="rank library candidates for each line of a script, with score breakdown",
+    )
+    calibrate_parser.add_argument(
+        "--script",
+        required=True,
+        type=_library_script_file,
+        help="an .srt file, or a plain-text file with one script line per line",
+    )
+    calibrate_parser.add_argument("--subject", default="", help="video subject/topic")
+    calibrate_parser.add_argument(
+        "--top",
+        type=_positive_int,
+        default=5,
+        help="candidates printed per script line (default: 5)",
+    )
+    calibrate_parser.add_argument(
+        "--amount",
+        type=_positive_int,
+        default=5,
+        help="max script lines to generate visual briefs for (default: 5)",
+    )
+    return parser
+
+
+def _print_ingest_result(result: IngestResult) -> None:
+    asset = result.asset
+    status = "created" if result.created else "exists"
+    print(
+        f"{status} id={asset.id} path={asset.rel_path} "
+        f"tags=[{','.join(asset.tag_names())}]"
+    )
+
+
+def _library_add(args: argparse.Namespace) -> int:
+    from app.services import asset_library
+
+    asset_library.init_library()
+    tags = _split_tags(args.tags)
+
+    if os.path.isfile(args.path):
+        group = args.group or "manual"
+        result = asset_library.ingest_file(
+            args.path,
+            group=group,
+            tags=tags,
+            caption=args.caption,
+            min_display=args.min_display,
+        )
+        _print_ingest_result(result)
+        return 0
+
+    if os.path.isdir(args.path):
+        results = asset_library.ingest_directory(
+            args.path,
+            tags=tags,
+            caption=args.caption,
+            min_display=args.min_display,
+        )
+        for result in results:
+            _print_ingest_result(result)
+        created = sum(1 for result in results if result.created)
+        print(
+            f"ingested {len(results)} file(s): {created} created, "
+            f"{len(results) - created} already existed"
+        )
+        return 0
+
+    raise ValueError(f"path is neither a file nor a directory: {args.path}")
+
+
+def _format_asset_line(asset: Asset) -> str:
+    min_display = "-" if asset.min_display is None else f"{asset.min_display:g}"
+    has_text = "-" if asset.has_text is None else str(asset.has_text)
+    return (
+        f"id={asset.id} path={asset.rel_path} origin={asset.origin} "
+        f"has_text={has_text} min_display={min_display} "
+        f"tags=[{','.join(asset.tag_names())}] caption={asset.caption or '-'}"
+    )
+
+
+def _library_list(args: argparse.Namespace) -> int:
+    from app.services import asset_library
+
+    assets = asset_library.list_assets(any_tags=_split_tags(args.tags))
+    if not assets:
+        print("no assets found")
+        return 0
+    for asset in assets:
+        print(_format_asset_line(asset))
+    print(f"{len(assets)} asset(s)")
+    return 0
+
+
+def _library_tag(args: argparse.Namespace) -> int:
+    from app.services import asset_library
+
+    if asset_library.get_asset(args.id) is None:
+        raise ValueError(f"asset not found: id={args.id}")
+    tags = _split_tags(args.tags)
+    asset_library.set_tags(args.id, tags, manual=True)
+    print(f"tagged id={args.id} tags=[{','.join(tags)}]")
+    return 0
+
+
+def _library_rm(args: argparse.Namespace) -> int:
+    from app.services import asset_library
+
+    if not asset_library.delete_asset(args.id):
+        raise ValueError(f"asset not found: id={args.id}")
+    print(f"deleted id={args.id}")
+    return 0
+
+
+def _library_stats(args: argparse.Namespace) -> int:
+    from app.services import asset_library
+
+    result = asset_library.summary()
+    print(f"total={result.total}")
+    print(f"without_annotation={result.without_annotation}")
+    print(f"without_embedding={result.without_embedding}")
+    if not result.tags:
+        print("tags: none")
+    else:
+        print("tags:")
+        for tag, count in result.tags.items():
+            print(f"  {tag}: {count}")
+    return 0
+
+
+def _library_backfill(args: argparse.Namespace) -> int:
+    from app.services import asset_embed, asset_library, asset_vision
+
+    annotated = 0
+    for asset in asset_library.assets_missing_annotation(limit=args.limit):
+        try:
+            annotation = asset_vision.annotate_image(
+                asset_library.asset_path(asset.rel_path)
+            )
+            if annotation is None:
+                print(f"skip annotate id={asset.id}: no annotation returned")
+                continue
+            tags = [
+                asset_library.AssetTag(tag=name, weight=weight)
+                for name, weight in annotation.tags.items()
+            ]
+            asset_library.save_annotation(
+                asset.id,
+                model=annotation.model,
+                caption=annotation.caption,
+                tags=tags,
+                has_text=annotation.has_text,
+                min_display=annotation.min_display,
+            )
+            annotated += 1
+            print(f"annotated id={asset.id}")
+        except Exception as error:
+            logger.warning(f"backfill: annotation failed for id={asset.id}: {error}")
+
+    embedded = 0
+    for asset in asset_library.assets_missing_embedding(limit=args.limit):
+        try:
+            if not asset.caption.strip():
+                print(f"skip embed id={asset.id}: no caption to embed")
+                continue
+            embedding = asset_embed.embed_text(asset.caption)
+            if embedding is None:
+                print(f"skip embed id={asset.id}: no embedding returned")
+                continue
+            asset_library.save_embedding(
+                asset.id, embedding.vector, model=embedding.model
+            )
+            embedded += 1
+            print(f"embedded id={asset.id}")
+        except Exception as error:
+            logger.warning(f"backfill: embedding failed for id={asset.id}: {error}")
+
+    print(f"backfill done: {annotated} annotated, {embedded} embedded")
+    return 0
+
+
+def _library_srt_seconds(value: str) -> float:
+    hours, minutes, seconds = value.strip().replace(",", ".").split(":")
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def _library_srt_lines(entries: list[tuple]) -> list[tuple]:
+    # Only the text is used downstream (LLM briefing reads line[1]); real
+    # timings are parsed anyway so calibrate output reflects the actual file.
+    lines = []
+    for _, times, text in entries:
+        try:
+            start_raw, end_raw = str(times).split(" --> ")
+            window = (_library_srt_seconds(start_raw), _library_srt_seconds(end_raw))
+        except (ValueError, AttributeError):
+            continue
+        if text.strip():
+            lines.append((window, text.strip()))
+    return lines
+
+
+def _library_script_lines(path: str) -> list[tuple]:
+    if path.lower().endswith(".srt"):
+        from app.services import subtitle
+
+        return _library_srt_lines(subtitle.file_to_subtitles(path))
+    with open(path, "r", encoding="utf-8") as handle:
+        lines = [line.strip() for line in handle if line.strip()]
+    return [
+        ((float(index), float(index + 1)), line) for index, line in enumerate(lines)
+    ]
+
+
+def _library_calibrate(args: argparse.Namespace) -> int:
+    from app.config import config
+    from app.services import asset_retrieval, llm
+
+    subtitle_lines = _library_script_lines(args.script)
+    if not subtitle_lines:
+        print("no script lines found")
+        return 0
+
+    briefs = llm.generate_photo_briefs(
+        args.subject, subtitle_lines, args.amount, config.app
+    )
+    if not briefs:
+        print("no visual briefs were generated")
+        return 0
+
+    for brief in sorted(briefs, key=lambda item: int(item["index"])):
+        text = str(brief["brief"])
+        print(f"\n[{brief['index']}] {text}")
+        candidates = asset_retrieval.rank_candidates(text, limit=args.top)
+        if not candidates:
+            print("  (no candidates)")
+            continue
+        print(
+            f"  {'rank':>4} {'id':>6} {'cosine':>7} {'tag':>7} "
+            f"{'recency':>8} {'score':>7} verdict"
+        )
+        for rank, candidate in enumerate(candidates, start=1):
+            verdict = asset_retrieval.score_verdict(candidate.score)
+            print(
+                f"  {rank:>4} {candidate.asset.id:>6} {candidate.cosine:>7.3f} "
+                f"{candidate.tag_score:>7.3f} {candidate.recency_penalty:>8.3f} "
+                f"{candidate.score:>7.3f} {verdict}"
+            )
+        if len(candidates) > 1:
+            print(
+                f"  margin(top1-top2)={candidates[0].score - candidates[1].score:.3f}"
+            )
+        else:
+            print("  margin(top1-top2)=n/a")
+    return 0
+
+
+_LIBRARY_ACTIONS: dict[str, Callable[[argparse.Namespace], int]] = {
+    "add": _library_add,
+    "list": _library_list,
+    "tag": _library_tag,
+    "rm": _library_rm,
+    "stats": _library_stats,
+    "backfill": _library_backfill,
+    "calibrate": _library_calibrate,
+}
+
+
+def run_library_cli(argv: Sequence[str]) -> int:
+    args = _build_library_parser().parse_args(argv)
+
+    from app.services import asset_library
+
+    if not asset_library.is_enabled():
+        logger.error(
+            "invalid library input: photo asset library is disabled; "
+            "set photo_library_enabled = true in config.toml"
+        )
+        return 2
+
+    try:
+        return _LIBRARY_ACTIONS[args.action](args)
+    except (ValueError, OSError) as exc:
+        logger.error(f"invalid library input: {exc}")
+        return 2
+    except Exception as exc:
+        logger.exception(f"library command failed: action={args.action}, error={exc}")
+        return 1
 
 
 if __name__ == "__main__":
