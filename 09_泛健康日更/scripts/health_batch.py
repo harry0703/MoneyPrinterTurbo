@@ -192,8 +192,9 @@ def next_daily(args: argparse.Namespace) -> int:
 
 
 def build_publish_pack(args: argparse.Namespace) -> int:
-    manifest = _read_json(args.manifest)
-    pack = health_content.build_publish_pack(manifest)
+    manifest_path = Path(args.manifest).resolve()
+    manifest = _read_json(manifest_path)
+    pack = health_content.build_publish_pack(manifest, manifest_path.parent)
     destination = Path(args.output).resolve()
     _write_json(destination, pack)
     _dump(
@@ -247,9 +248,10 @@ def prepare_quality_only(args: argparse.Namespace) -> int:
 def advance(args: argparse.Namespace) -> int:
     batch_path = Path(args.batch).resolve()
     batch = _read_json(batch_path)
-    manifest = _read_json(args.manifest)
+    manifest_path = Path(args.manifest).resolve()
+    manifest = _read_json(manifest_path)
     updated = health_content.advance_topic_state(
-        batch, args.content_id, args.to, manifest
+        batch, args.content_id, args.to, manifest, manifest_path.parent
     )
     mutation_root = batch_path.parent
     lock_path = mutation_root / ".batch-mutation.lock"

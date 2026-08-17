@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
+import os
 import unicodedata
 from collections import Counter
 from copy import deepcopy
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Iterable, Mapping
 
 
@@ -94,6 +97,29 @@ _GENERAL_WELLNESS_PUBLIC_FIELDS = (
     "observations",
     "save_reason",
 )
+_AUTOMATED_QA_EVIDENCE_RELATIVE_PATH = Path(
+    "production/v01/05_qa/automated-qa-evidence-v01.json"
+)
+_AUTOMATED_QA_EVIDENCE_SCHEMA = "automated-qa-evidence-v01"
+_AUTOMATED_QA_ARTIFACTS = {
+    "final_video": (1, None, {".mp4", ".mov", ".webm"}),
+    "audio": (1, None, {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"}),
+    "subtitle": (1, None, {".srt", ".ass", ".vtt"}),
+    "cover": (1, None, {".png", ".jpg", ".jpeg", ".webp"}),
+    "article_cards": (7, 7, {".png", ".jpg", ".jpeg", ".webp"}),
+    "edit_manifest": (1, None, {".json"}),
+}
+_AUTOMATED_QA_CHECKS = (
+    "video_technical",
+    "video_content",
+    "audio",
+    "subtitles",
+    "cover",
+    "article_cards",
+    "package",
+)
+
+
 class HealthContentError(ValueError):
     """健康内容合同或数据不合法。"""
 
@@ -474,7 +500,9 @@ def _require_automated_qa_record(manifest: Mapping) -> None:
         raise FinalQARequired("自动QA必须通过并记录检查时间")
 
 
-def run_automated_qa(manifest: Mapping) -> dict:
+def run_automated_qa(
+    manifest: Mapping, artifact_root: str | Path | None = None
+) -> dict:
     """从当前内容重新计算QA，不信任输入中自报的通过结果。"""
     validated = validate_manifest(manifest)
     score = calculate_quality_score(validated)
@@ -483,6 +511,7 @@ def run_automated_qa(manifest: Mapping) -> dict:
         _reject_general_wellness_public_terms(
             [validated.get(field) for field in _GENERAL_WELLNESS_PUBLIC_FIELDS]
         )
+        _require_quality_only_artifact_evidence(validated, artifact_root)
         return {
             "status": "passed",
             "checks": {
@@ -490,6 +519,7 @@ def run_automated_qa(manifest: Mapping) -> dict:
                 "quality_score": score,
                 "platform_count": len(PLATFORMS),
                 "article_card_count": len(_article_cards(validated)),
+                "artifact_evidence": True,
             },
         }
     _require_medical_review(validated)
@@ -503,6 +533,140 @@ def run_automated_qa(manifest: Mapping) -> dict:
             "article_card_count": len(_article_cards(validated)),
         },
     }
+
+
+def _require_quality_only_artifact_evidence(
+    manifest: Mapping, artifact_root: str | Path | None
+) -> None:
+    if artifact_root is None:
+        raise FinalQARequired("自动QA制品证据缺失")
+    root = Path(artifact_root)
+    if not root.is_dir() or _is_reparse_point(root):
+        raise FinalQARequired("自动QA制品证据根目录无效")
+    try:
+        root = root.resolve(strict=True)
+    except OSError as exc:
+        raise FinalQARequired("自动QA制品证据根目录无法解析") from exc
+
+    evidence_path = root / _AUTOMATED_QA_EVIDENCE_RELATIVE_PATH
+    if not evidence_path.is_file() or _path_has_reparse_point(root, evidence_path):
+        raise FinalQARequired("自动QA制品证据缺失")
+    try:
+        with evidence_path.open("r", encoding="utf-8") as handle:
+            evidence = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise FinalQARequired("自动QA制品证据无法读取") from exc
+    if not isinstance(evidence, Mapping):
+        raise FinalQARequired("自动QA制品证据必须是对象")
+    if (
+        evidence.get("schema_version") != _AUTOMATED_QA_EVIDENCE_SCHEMA
+        or evidence.get("content_id") != manifest.get("content_id")
+        or evidence.get("content_profile") != GENERAL_WELLNESS_PROFILE
+        or evidence.get("status") != "passed"
+    ):
+        raise FinalQARequired("自动QA制品证据身份或状态无效")
+
+    checks = evidence.get("checks")
+    if not isinstance(checks, Mapping) or any(
+        checks.get(name) != "passed" for name in _AUTOMATED_QA_CHECKS
+    ):
+        raise FinalQARequired("自动QA制品证据检查未通过")
+
+    artifacts = evidence.get("artifacts")
+    if not isinstance(artifacts, Mapping) or set(artifacts) != set(
+        _AUTOMATED_QA_ARTIFACTS
+    ):
+        raise FinalQARequired("自动QA制品证据制品类别不完整")
+    seen_paths: set[str] = set()
+    for kind, (minimum, exact, extensions) in _AUTOMATED_QA_ARTIFACTS.items():
+        entries = artifacts[kind]
+        if (
+            not isinstance(entries, list)
+            or len(entries) < minimum
+            or (exact is not None and len(entries) != exact)
+        ):
+            raise FinalQARequired(f"自动QA制品证据缺少{kind}")
+        for entry in entries:
+            _validate_quality_only_artifact_entry(
+                root, entry, kind, extensions, seen_paths
+            )
+
+
+def _validate_quality_only_artifact_entry(
+    root: Path,
+    entry: object,
+    kind: str,
+    extensions: set[str],
+    seen_paths: set[str],
+) -> None:
+    if not isinstance(entry, Mapping) or set(entry) != {"path", "bytes", "sha256"}:
+        raise FinalQARequired(f"自动QA制品证据的{kind}记录无效")
+    raw_path = entry.get("path")
+    expected_bytes = entry.get("bytes")
+    expected_sha256 = entry.get("sha256")
+    if (
+        not _is_nonempty_text(raw_path)
+        or type(expected_bytes) is not int
+        or expected_bytes <= 0
+        or not isinstance(expected_sha256, str)
+        or len(expected_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in expected_sha256)
+    ):
+        raise FinalQARequired(f"自动QA制品证据的{kind}记录无效")
+    candidate = Path(raw_path)
+    windows_path = PureWindowsPath(raw_path)
+    if candidate.is_absolute() or windows_path.is_absolute() or windows_path.drive:
+        raise FinalQARequired("自动QA制品证据路径必须相对episode根目录")
+    if _path_has_reparse_point(root, root / candidate):
+        raise FinalQARequired("自动QA制品证据路径包含重解析点")
+    try:
+        resolved = (root / candidate).resolve(strict=True)
+    except OSError as exc:
+        raise FinalQARequired(f"自动QA制品证据的{kind}文件不存在") from exc
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise FinalQARequired("自动QA制品证据路径越出episode根目录") from exc
+    if _path_has_reparse_point(root, resolved) or not resolved.is_file():
+        raise FinalQARequired("自动QA制品证据路径包含重解析点")
+    normalized_path = os.path.normcase(str(resolved))
+    if normalized_path in seen_paths:
+        raise FinalQARequired("自动QA制品证据不能重复绑定同一文件")
+    seen_paths.add(normalized_path)
+    if resolved.suffix.lower() not in extensions:
+        raise FinalQARequired(f"自动QA制品证据的{kind}文件扩展名无效")
+    try:
+        actual_bytes = resolved.stat().st_size
+        actual_sha256 = hashlib.sha256(resolved.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise FinalQARequired(f"自动QA制品证据的{kind}文件无法读取") from exc
+    if actual_bytes <= 0 or actual_bytes != expected_bytes or actual_sha256 != expected_sha256:
+        raise FinalQARequired(f"自动QA制品证据的{kind}哈希或字节数不匹配")
+
+
+def _path_has_reparse_point(root: Path, path: Path) -> bool:
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return True
+    current = root
+    if _is_reparse_point(current):
+        return True
+    for part in relative.parts:
+        current /= part
+        if _is_reparse_point(current):
+            return True
+    return False
+
+
+def _is_reparse_point(path: Path) -> bool:
+    try:
+        status = path.lstat()
+    except OSError:
+        return True
+    return path.is_symlink() or bool(
+        getattr(status, "st_file_attributes", 0) & 0x400
+    )
 
 
 def run_preproduction_qa(manifest: Mapping) -> dict:
@@ -564,7 +728,11 @@ def _state_transitions_for(manifest: Mapping) -> Mapping[str, str]:
 
 
 def advance_topic_state(
-    batch: Mapping, content_id: str, target_state: str, manifest: Mapping
+    batch: Mapping,
+    content_id: str,
+    target_state: str,
+    manifest: Mapping,
+    artifact_root: str | Path | None = None,
 ) -> dict:
     """按固定门禁推进单期内容，不允许自动进入已发布。"""
     if target_state == "published":
@@ -590,10 +758,9 @@ def advance_topic_state(
         if target_state == "production":
             run_preproduction_qa(validated)
         elif target_state == "automated_qa_passed":
-            run_automated_qa(validated)
-            _require_automated_qa_record(validated)
+            run_automated_qa(validated, artifact_root)
         elif target_state == "ready_to_publish":
-            build_publish_pack(validated)
+            build_publish_pack(validated, artifact_root)
     elif target_state == "approved":
         _require_medical_review(validated)
     elif target_state == "production":
@@ -747,12 +914,13 @@ def _platform_package(manifest: Mapping, platform: str) -> dict:
     }
 
 
-def build_publish_pack(manifest: Mapping) -> dict:
+def build_publish_pack(
+    manifest: Mapping, artifact_root: str | Path | None = None
+) -> dict:
     """仅生成待人工发布资料，不调用任何平台接口。"""
     validated = validate_manifest(manifest)
     if _is_quality_only_general_wellness(validated):
-        run_automated_qa(validated)
-        _require_automated_qa_record(validated)
+        run_automated_qa(validated, artifact_root)
     else:
         review = _require_medical_review(validated)
         run_automated_qa(validated)

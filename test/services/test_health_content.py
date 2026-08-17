@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from hashlib import sha256
+import json
+from pathlib import Path
 
 import pytest
 
@@ -134,6 +137,54 @@ def _general_wellness_topics() -> list[dict]:
         }
         for slot in range(1, 11)
     ]
+
+
+def _write_quality_only_artifact_evidence(episode_root: Path, manifest: dict) -> Path:
+    artifacts = {
+        "final_video": [("production/v01/06_final/final.mp4", b"final video")],
+        "audio": [("production/v01/06_final/voice.wav", b"final audio")],
+        "subtitle": [("production/v01/06_final/subtitles.srt", b"1\\n00:00:00,000 --> 00:00:01,000\\n" )],
+        "cover": [("production/v01/06_final/cover.png", b"cover image")],
+        "article_cards": [
+            (f"production/v01/06_final/card-{page}.png", f"card {page}".encode())
+            for page in range(1, 8)
+        ],
+        "edit_manifest": [("production/v01/06_final/edit-manifest.json", b"{}")],
+    }
+    serialized_artifacts = {}
+    for kind, files in artifacts.items():
+        serialized_artifacts[kind] = []
+        for relative_path, content in files:
+            path = episode_root / relative_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+            serialized_artifacts[kind].append(
+                {
+                    "path": relative_path,
+                    "bytes": len(content),
+                    "sha256": sha256(content).hexdigest(),
+                }
+            )
+    evidence = {
+        "schema_version": "automated-qa-evidence-v01",
+        "content_id": manifest["content_id"],
+        "content_profile": manifest["content_profile"],
+        "status": "passed",
+        "artifacts": serialized_artifacts,
+        "checks": {
+            "video_technical": "passed",
+            "video_content": "passed",
+            "audio": "passed",
+            "subtitles": "passed",
+            "cover": "passed",
+            "article_cards": "passed",
+            "package": "passed",
+        },
+    }
+    evidence_path = episode_root / "production/v01/05_qa/automated-qa-evidence-v01.json"
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    return episode_root
 
 
 def test_seed_batch_has_ten_unique_topics_with_approved_mix():
@@ -318,7 +369,7 @@ def test_state_transition_enforces_medical_and_final_gates():
         health_content.advance_topic_state(batch, content_id, "published", manifest)
 
 
-def test_general_wellness_uses_three_step_quality_only_flow():
+def test_general_wellness_uses_three_step_quality_only_flow(tmp_path):
     batch = health_content.create_seed_batch(
         "20260810",
         topics=_general_wellness_topics(),
@@ -326,13 +377,119 @@ def test_general_wellness_uses_three_step_quality_only_flow():
     )
     manifest = _general_wellness_manifest()
     content_id = manifest["content_id"]
+    artifact_root = _write_quality_only_artifact_evidence(tmp_path, manifest)
 
     batch = health_content.advance_topic_state(batch, content_id, "production", manifest)
-    batch = health_content.advance_topic_state(batch, content_id, "automated_qa_passed", manifest)
-    batch = health_content.advance_topic_state(batch, content_id, "ready_to_publish", manifest)
+    batch = health_content.advance_topic_state(
+        batch, content_id, "automated_qa_passed", manifest, artifact_root
+    )
+    batch = health_content.advance_topic_state(
+        batch, content_id, "ready_to_publish", manifest, artifact_root
+    )
     assert batch["topics"][0]["state_history"][-3:] == [
         "production", "automated_qa_passed", "ready_to_publish"
     ]
+
+
+def test_general_wellness_self_reported_qa_cannot_bypass_missing_artifacts():
+    batch = health_content.create_seed_batch(
+        "20260810",
+        topics=_general_wellness_topics(),
+        content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+    )
+    manifest = _general_wellness_manifest()
+    content_id = manifest["content_id"]
+    batch = health_content.advance_topic_state(batch, content_id, "production", manifest)
+    before = deepcopy(batch)
+
+    with pytest.raises(health_content.FinalQARequired, match="制品证据"):
+        health_content.advance_topic_state(
+            batch, content_id, "automated_qa_passed", manifest
+        )
+    assert batch == before
+
+    with pytest.raises(health_content.FinalQARequired, match="制品证据"):
+        health_content.build_publish_pack(manifest)
+
+
+def test_general_wellness_automated_qa_recomputes_bound_artifact_evidence(tmp_path):
+    manifest = _general_wellness_manifest()
+    artifact_root = _write_quality_only_artifact_evidence(tmp_path, manifest)
+    batch = health_content.create_seed_batch(
+        "20260810",
+        topics=_general_wellness_topics(),
+        content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+    )
+
+    report = health_content.run_automated_qa(manifest, artifact_root)
+    batch = health_content.advance_topic_state(
+        batch, manifest["content_id"], "production", manifest, artifact_root
+    )
+    batch = health_content.advance_topic_state(
+        batch, manifest["content_id"], "automated_qa_passed", manifest, artifact_root
+    )
+    pack = health_content.build_publish_pack(manifest, artifact_root)
+
+    assert report["checks"]["artifact_evidence"] is True
+    assert batch["topics"][0]["state"] == "automated_qa_passed"
+    assert pack["status"] == "human_pending"
+
+
+def test_general_wellness_ready_to_publish_rechecks_artifact_evidence(tmp_path):
+    manifest = _general_wellness_manifest()
+    artifact_root = _write_quality_only_artifact_evidence(tmp_path, manifest)
+    batch = health_content.create_seed_batch(
+        "20260810",
+        topics=_general_wellness_topics(),
+        content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+    )
+    batch = health_content.advance_topic_state(
+        batch, manifest["content_id"], "production", manifest, artifact_root
+    )
+    batch = health_content.advance_topic_state(
+        batch, manifest["content_id"], "automated_qa_passed", manifest, artifact_root
+    )
+    (artifact_root / "production/v01/05_qa/automated-qa-evidence-v01.json").unlink()
+    before = deepcopy(batch)
+
+    with pytest.raises(health_content.FinalQARequired, match="制品证据"):
+        health_content.advance_topic_state(
+            batch, manifest["content_id"], "ready_to_publish", manifest, artifact_root
+        )
+
+    assert batch == before
+
+
+@pytest.mark.parametrize("mutation", ("escape", "wrong_hash", "missing_audio", "wrong_extension", "duplicate"))
+def test_general_wellness_rejects_tampered_artifact_evidence(tmp_path, mutation):
+    manifest = _general_wellness_manifest()
+    artifact_root = _write_quality_only_artifact_evidence(tmp_path, manifest)
+    evidence_path = artifact_root / "production/v01/05_qa/automated-qa-evidence-v01.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    if mutation == "escape":
+        evidence["artifacts"]["final_video"][0]["path"] = "../outside.mp4"
+    elif mutation == "wrong_hash":
+        evidence["artifacts"]["audio"][0]["sha256"] = "0" * 64
+    elif mutation == "missing_audio":
+        evidence["artifacts"].pop("audio")
+    elif mutation == "wrong_extension":
+        path = artifact_root / "production/v01/06_final/voice.txt"
+        content = b"final audio"
+        path.write_bytes(content)
+        evidence["artifacts"]["audio"][0] = {
+            "path": "production/v01/06_final/voice.txt",
+            "bytes": len(content),
+            "sha256": sha256(content).hexdigest(),
+        }
+    else:
+        evidence["artifacts"]["cover"].append(
+            evidence["artifacts"]["cover"][0].copy()
+        )
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    with pytest.raises(health_content.FinalQARequired, match="制品证据"):
+        health_content.run_automated_qa(manifest, artifact_root)
 
 
 @pytest.mark.parametrize("illegal", ("medical_review_pending", "approved", "final_qa_passed"))
@@ -499,8 +656,11 @@ def test_publish_pack_contains_seven_cards_and_four_distinct_platform_packages()
     assert len({item["body"] for item in pack["platforms"].values()}) == 4
 
 
-def test_general_wellness_publish_pack_uses_only_lifestyle_public_copy():
-    pack = health_content.build_publish_pack(_general_wellness_manifest())
+def test_general_wellness_publish_pack_uses_only_lifestyle_public_copy(tmp_path):
+    manifest = _general_wellness_manifest()
+    pack = health_content.build_publish_pack(
+        manifest, _write_quality_only_artifact_evidence(tmp_path, manifest)
+    )
     serialized = str(pack)
 
     assert [card["role"] for card in pack["article_cards"]] == [
@@ -549,10 +709,12 @@ def test_general_wellness_publish_pack_uses_only_lifestyle_public_copy():
     }
 
 
-def test_general_wellness_pack_needs_automated_qa_but_not_human_review():
+def test_general_wellness_pack_uses_verified_artifacts_but_not_human_review(tmp_path):
     manifest = _general_wellness_manifest()
 
-    pack = health_content.build_publish_pack(manifest)
+    pack = health_content.build_publish_pack(
+        manifest, _write_quality_only_artifact_evidence(tmp_path, manifest)
+    )
 
     assert pack["status"] == "human_pending"
     assert _recursive_key_set(pack).isdisjoint(
@@ -568,20 +730,26 @@ def test_general_wellness_pack_needs_automated_qa_but_not_human_review():
     )
 
 
-def test_general_wellness_pack_rejects_pending_automated_qa():
+def test_general_wellness_pack_does_not_trust_pending_manifest_qa_status(tmp_path):
     manifest = _general_wellness_manifest()
     manifest["automated_qa"]["status"] = "pending"
 
-    with pytest.raises(health_content.FinalQARequired, match="自动QA"):
-        health_content.build_publish_pack(manifest)
+    pack = health_content.build_publish_pack(
+        manifest, _write_quality_only_artifact_evidence(tmp_path, manifest)
+    )
+
+    assert pack["status"] == "human_pending"
 
 
-def test_general_wellness_pack_rejects_automated_qa_without_timestamp():
+def test_general_wellness_pack_does_not_trust_manifest_qa_timestamp(tmp_path):
     manifest = _general_wellness_manifest()
     manifest["automated_qa"]["checked_at"] = ""
 
-    with pytest.raises(health_content.FinalQARequired, match="自动QA"):
-        health_content.build_publish_pack(manifest)
+    pack = health_content.build_publish_pack(
+        manifest, _write_quality_only_artifact_evidence(tmp_path, manifest)
+    )
+
+    assert pack["status"] == "human_pending"
 
 
 def test_general_wellness_profile_requires_identity_observations_and_save_reason():
@@ -603,13 +771,16 @@ def test_general_wellness_profile_requires_identity_observations_and_save_reason
             health_content.validate_manifest(manifest)
 
 
-def test_general_wellness_quality_gate_requires_92_total():
+def test_general_wellness_quality_gate_requires_92_total(tmp_path):
     score_91 = _general_wellness_manifest()
     score_91["quality"]["follow_conversion"] = 8
     with pytest.raises(health_content.QualityGateFailed, match="92"):
         health_content.build_publish_pack(score_91)
 
-    pack = health_content.build_publish_pack(_general_wellness_manifest())
+    manifest = _general_wellness_manifest()
+    pack = health_content.build_publish_pack(
+        manifest, _write_quality_only_artifact_evidence(tmp_path, manifest)
+    )
     assert pack["quality_score"] == 92
 
 
@@ -636,11 +807,15 @@ def test_general_wellness_quality_gate_requires_each_floor_above_92_total(
         health_content.build_publish_pack(manifest)
 
 
-def test_general_wellness_forbidden_terms_are_checked_only_in_public_fields():
+def test_general_wellness_forbidden_terms_are_checked_only_in_public_fields(tmp_path):
     internal_only = _general_wellness_manifest()
     internal_only["medical_review"]["notes"] = "医生已检查内部事实依据。"
     health_content.validate_manifest(internal_only)
-    assert "医生" not in str(health_content.build_publish_pack(internal_only))
+    assert "医生" not in str(
+        health_content.build_publish_pack(
+            internal_only, _write_quality_only_artifact_evidence(tmp_path, internal_only)
+        )
+    )
 
     public_copy = _general_wellness_manifest()
     public_copy["action"] = "建议去医院检查。"
@@ -701,7 +876,7 @@ def test_general_wellness_rejects_exact_immediate_effect_phrase_in_input():
 
 
 def test_general_wellness_rejects_exact_immediate_effect_phrase_in_final_pack(
-    monkeypatch,
+    monkeypatch, tmp_path
 ):
     original = health_content._platform_package
 
@@ -713,7 +888,10 @@ def test_general_wellness_rejects_exact_immediate_effect_phrase_in_final_pack(
     monkeypatch.setattr(health_content, "_platform_package", unsafe_generated_package)
 
     with pytest.raises(health_content.HealthContentError, match="禁止公开使用"):
-        health_content.build_publish_pack(_general_wellness_manifest())
+        manifest = _general_wellness_manifest()
+        health_content.build_publish_pack(
+            manifest, _write_quality_only_artifact_evidence(tmp_path, manifest)
+        )
 
 
 @pytest.mark.parametrize(
@@ -746,13 +924,15 @@ def test_general_wellness_scans_every_public_content_field(field):
         health_content.validate_manifest(manifest)
 
 
-def test_general_wellness_internal_policy_terms_are_allowed_but_never_published():
+def test_general_wellness_internal_policy_terms_are_allowed_but_never_published(tmp_path):
     manifest = _general_wellness_manifest()
     internal_terms = "医院专家核对处方与医学曲线，仅作内部审核。"
     manifest["sources"][0]["title"] = internal_terms
     manifest["medical_review"]["notes"] = internal_terms
 
-    pack = health_content.build_publish_pack(manifest)
+    pack = health_content.build_publish_pack(
+        manifest, _write_quality_only_artifact_evidence(tmp_path, manifest)
+    )
 
     assert "医院" not in str(pack)
     assert "专家" not in str(pack)
@@ -840,13 +1020,15 @@ def test_general_wellness_rejects_exact_most_difficult_phrase_without_blocking_r
     ),
 )
 def test_general_wellness_publish_pack_never_leaks_internal_approved_topic(
-    internal_topic, public_topic
+    internal_topic, public_topic, tmp_path
 ):
     manifest = _general_wellness_manifest()
     manifest["topic"] = internal_topic
     manifest["public_topic"] = public_topic
 
-    pack = health_content.build_publish_pack(manifest)
+    pack = health_content.build_publish_pack(
+        manifest, _write_quality_only_artifact_evidence(tmp_path, manifest)
+    )
     serialized = str(pack)
 
     assert internal_topic not in serialized

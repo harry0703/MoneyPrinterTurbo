@@ -359,6 +359,209 @@ def test_general_direct_production_updates_active_reference_and_rejects_skips(tm
     assert current_ref["active_sha256"] == sha256(active_bytes).hexdigest()
 
 
+def test_general_cli_self_reported_qa_cannot_write_state_or_publish_pack(tmp_path):
+    from test.services.test_health_content import _general_wellness_manifest
+
+    output = tmp_path / "inventory"
+    topics_file = tmp_path / "topics.json"
+    topics_file.write_text(
+        json.dumps(_topics_payload(), ensure_ascii=False), encoding="utf-8"
+    )
+    assert _run(
+        "start-batch",
+        "--date",
+        "20260810",
+        "--output",
+        str(output),
+        "--topics-file",
+        str(topics_file),
+    ).returncode == 0
+    batch_path = output / "active-batch.json"
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(_general_wellness_manifest(), ensure_ascii=False), encoding="utf-8"
+    )
+    assert _run(
+        "advance",
+        "--batch",
+        str(batch_path),
+        "--content-id",
+        "HC20260810-001",
+        "--to",
+        "production",
+        "--manifest",
+        str(manifest_path),
+    ).returncode == 0
+    before = batch_path.read_bytes()
+    reference_path = output / "current-batch-ref.json"
+    reference_before = reference_path.read_bytes()
+
+    advanced = _run(
+        "advance",
+        "--batch",
+        str(batch_path),
+        "--content-id",
+        "HC20260810-001",
+        "--to",
+        "automated_qa_passed",
+        "--manifest",
+        str(manifest_path),
+    )
+    pack_path = tmp_path / "publish-pack.json"
+    packed = _run(
+        "build-publish-pack",
+        "--manifest",
+        str(manifest_path),
+        "--output",
+        str(pack_path),
+    )
+
+    assert advanced.returncode == 2, advanced.stdout
+    assert packed.returncode == 2, packed.stdout
+    assert batch_path.read_bytes() == before
+    assert reference_path.read_bytes() == reference_before
+    assert not pack_path.exists()
+    assert not (output / ".batch-mutation.lock").exists()
+    assert not list(output.glob(".batch-mutation-*.journal.json"))
+
+
+def test_general_cli_recomputes_manifest_bound_artifact_evidence(tmp_path):
+    from test.services.test_health_content import (
+        _general_wellness_manifest,
+        _write_quality_only_artifact_evidence,
+    )
+
+    output = tmp_path / "inventory"
+    topics_file = tmp_path / "topics.json"
+    topics_file.write_text(
+        json.dumps(_topics_payload(), ensure_ascii=False), encoding="utf-8"
+    )
+    assert _run(
+        "start-batch",
+        "--date",
+        "20260810",
+        "--output",
+        str(output),
+        "--topics-file",
+        str(topics_file),
+    ).returncode == 0
+    episode_root = tmp_path / "episode"
+    manifest = _general_wellness_manifest()
+    _write_quality_only_artifact_evidence(episode_root, manifest)
+    manifest_path = episode_root / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    batch_path = output / "active-batch.json"
+
+    assert _run(
+        "advance",
+        "--batch",
+        str(batch_path),
+        "--content-id",
+        manifest["content_id"],
+        "--to",
+        "production",
+        "--manifest",
+        str(manifest_path),
+    ).returncode == 0
+    assert _run(
+        "advance",
+        "--batch",
+        str(batch_path),
+        "--content-id",
+        manifest["content_id"],
+        "--to",
+        "automated_qa_passed",
+        "--manifest",
+        str(manifest_path),
+    ).returncode == 0
+    pack_path = tmp_path / "publish-pack.json"
+    packed = _run(
+        "build-publish-pack",
+        "--manifest",
+        str(manifest_path),
+        "--output",
+        str(pack_path),
+    )
+    advanced = _run(
+        "advance",
+        "--batch",
+        str(batch_path),
+        "--content-id",
+        manifest["content_id"],
+        "--to",
+        "ready_to_publish",
+        "--manifest",
+        str(manifest_path),
+    )
+
+    assert packed.returncode == 0, packed.stdout
+    assert json.loads(pack_path.read_text(encoding="utf-8"))["status"] == "human_pending"
+    assert advanced.returncode == 0, advanced.stdout
+    assert json.loads(batch_path.read_text(encoding="utf-8"))["topics"][0]["state"] == "ready_to_publish"
+
+
+def test_general_cli_ready_to_publish_rechecks_artifact_evidence(tmp_path):
+    from test.services.test_health_content import (
+        _general_wellness_manifest,
+        _write_quality_only_artifact_evidence,
+    )
+
+    output = tmp_path / "inventory"
+    topics_file = tmp_path / "topics.json"
+    topics_file.write_text(
+        json.dumps(_topics_payload(), ensure_ascii=False), encoding="utf-8"
+    )
+    assert _run(
+        "start-batch",
+        "--date",
+        "20260810",
+        "--output",
+        str(output),
+        "--topics-file",
+        str(topics_file),
+    ).returncode == 0
+    episode_root = tmp_path / "episode"
+    manifest = _general_wellness_manifest()
+    _write_quality_only_artifact_evidence(episode_root, manifest)
+    manifest_path = episode_root / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    batch_path = output / "active-batch.json"
+    for target in ("production", "automated_qa_passed"):
+        assert _run(
+            "advance",
+            "--batch",
+            str(batch_path),
+            "--content-id",
+            manifest["content_id"],
+            "--to",
+            target,
+            "--manifest",
+            str(manifest_path),
+        ).returncode == 0
+    (episode_root / "production/v01/05_qa/automated-qa-evidence-v01.json").unlink()
+    before = batch_path.read_bytes()
+    reference_path = output / "current-batch-ref.json"
+    reference_before = reference_path.read_bytes()
+
+    ready = _run(
+        "advance",
+        "--batch",
+        str(batch_path),
+        "--content-id",
+        manifest["content_id"],
+        "--to",
+        "ready_to_publish",
+        "--manifest",
+        str(manifest_path),
+    )
+
+    assert ready.returncode == 2, ready.stdout
+    assert batch_path.read_bytes() == before
+    assert reference_path.read_bytes() == reference_before
+    assert not (output / ".batch-mutation.lock").exists()
+    assert not list(output.glob(".batch-mutation-*.journal.json"))
+
+
 def test_metrics_csv_round_trip_preserves_missing_values_and_blocks_duplicates(
     tmp_path,
 ):
