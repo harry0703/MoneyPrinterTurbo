@@ -22,6 +22,36 @@ CONTENT_ID = CONTENT_IDS[0]
 EPISODE_ROOT = REPO_ROOT / "09_泛健康日更" / "work" / CONTENT_ID
 PRODUCTION_ROOT = EPISODE_ROOT / "production" / "v01"
 MANUAL_PACK = PRODUCTION_ROOT / "04_grok_batch" / "manual_pack"
+ARCHIVE_ROOT_RELATIVE = (
+    Path("09_泛健康日更")
+    / "work"
+    / "HC20260810-B01-task8-qa"
+    / "archive_v00"
+    / "external-review-superseded"
+)
+ARCHIVE_TEXT_PATHS = [
+    ARCHIVE_ROOT_RELATIVE / "ARCHIVE-MANIFEST.csv",
+    ARCHIVE_ROOT_RELATIVE / "SUPERSEDED.md",
+    ARCHIVE_ROOT_RELATIVE / "batch" / "HC20260810-B01-review-index.md",
+    *[
+        ARCHIVE_ROOT_RELATIVE
+        / "handoffs"
+        / f"HC20260810-{number:03d}-review-handoff-v01.md"
+        for number in range(1, 11)
+    ],
+    ARCHIVE_ROOT_RELATIVE / "tools" / "build-review-handoffs.py",
+    ARCHIVE_ROOT_RELATIVE / "tools" / "probe-review-transaction.py",
+]
+TASK9_TEXT_PATHS = [
+    Path("09_泛健康日更")
+    / "work"
+    / "HC20260810-B01-task9-qa"
+    / "HC20260810-B01-grok-manual-pack-inventory-v01.csv",
+    Path("09_泛健康日更")
+    / "work"
+    / "HC20260810-B01-task9-qa"
+    / "HC20260810-B01-grok-manual-pack-qa-v01.md",
+]
 
 
 def _load_builder():
@@ -49,6 +79,36 @@ def _directory_symlink_or_skip(target: Path, link: Path) -> None:
         os.symlink(target, link, target_is_directory=True)
     except OSError as exc:
         pytest.skip(f"directory symlink unavailable: {exc}")
+
+
+def _local_git_config_value(key: str) -> str | None:
+    result = subprocess.run(
+        ["git", "config", "--local", "--get", key],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 1:
+        return None
+    assert result.returncode == 0, result.stderr
+    return result.stdout.rstrip("\r\n")
+
+
+def _restore_local_git_config_value(key: str, original: str | None) -> None:
+    if _local_git_config_value(key) == original:
+        return
+    if original is None:
+        subprocess.run(
+            ["git", "config", "--local", "--unset-all", key],
+            cwd=REPO_ROOT,
+            check=True,
+        )
+    else:
+        subprocess.run(
+            ["git", "config", "--local", key, original],
+            cwd=REPO_ROOT,
+            check=True,
+        )
 
 
 def test_builds_and_verifies_production_sample() -> None:
@@ -316,6 +376,11 @@ def _episode_text_paths(root: Path, content_id: str) -> list[Path]:
 def test_fresh_windows_checkout_with_autocrlf_true_verifies_all_ten_packs(
     tmp_path: Path,
 ) -> None:
+    original_autocrlf = _local_git_config_value("core.autocrlf")
+    protected_text = {
+        relative: (REPO_ROOT / relative).read_bytes()
+        for relative in [*ARCHIVE_TEXT_PATHS, *TASK9_TEXT_PATHS]
+    }
     fresh = tmp_path / "fresh-detached"
     subprocess.run(
         ["git", "worktree", "add", "--detach", str(fresh), "HEAD"],
@@ -356,18 +421,42 @@ def test_fresh_windows_checkout_with_autocrlf_true_verifies_all_ten_packs(
             check=True,
             capture_output=True,
         )
-        subprocess.run(["git", "config", "core.autocrlf", "true"], cwd=fresh, check=True)
         relative_paths = [
             path.relative_to(fresh).as_posix()
             for content_id in CONTENT_IDS
             for path in _episode_text_paths(fresh, content_id)
-        ]
+        ] + [path.as_posix() for path in [*ARCHIVE_TEXT_PATHS, *TASK9_TEXT_PATHS]]
         for path in relative_paths:
             (fresh / path).unlink()
-        subprocess.run(["git", "checkout", "--", *relative_paths], cwd=fresh, check=True)
+        subprocess.run(
+            ["git", "-c", "core.autocrlf=true", "checkout", "--", *relative_paths],
+            cwd=fresh,
+            check=True,
+        )
 
         for path in relative_paths:
             assert b"\r" not in (fresh / path).read_bytes(), f"not LF-only: {path}"
+        for relative, expected in protected_text.items():
+            assert (fresh / relative).read_bytes() == expected, relative.as_posix()
+
+        archive_result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "test/services/test_quality_only_task8_archive.py",
+                "-q",
+            ],
+            cwd=fresh,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert archive_result.returncode == 0, (
+            f"{archive_result.stdout}\n{archive_result.stderr}"
+        )
+        assert "4 passed" in archive_result.stdout
         for content_id in CONTENT_IDS:
             result = subprocess.run(
                 [
@@ -404,12 +493,16 @@ def test_fresh_windows_checkout_with_autocrlf_true_verifies_all_ten_packs(
                 }
                 pytest.fail(f"{content_id}: {result.stderr}; first-row diff={field_diff}")
     finally:
-        subprocess.run(
-            ["git", "worktree", "remove", "--force", str(fresh)],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-        )
+        try:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(fresh)],
+                cwd=REPO_ROOT,
+                check=True,
+                capture_output=True,
+            )
+        finally:
+            _restore_local_git_config_value("core.autocrlf", original_autocrlf)
+            assert _local_git_config_value("core.autocrlf") == original_autocrlf
 
 
 def test_manual_pack_qa_contains_reproducible_view_image_log() -> None:

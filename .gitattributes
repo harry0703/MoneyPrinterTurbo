@@ -111,3 +111,24 @@
 /09_泛健康日更/work/HC20260810-010/production/v01/04_grok_batch/manual_pack/**/*.csv text eol=lf
 /09_泛健康日更/work/HC20260810-010/production/v01/04_grok_batch/manual_pack/*.md text eol=lf
 /09_泛健康日更/work/HC20260810-010/production/v01/04_grok_batch/manual_pack/**/*.md text eol=lf
+
+# Frozen Task 8 archive text bytes (exact paths; PNG assets remain binary)
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/ARCHIVE-MANIFEST.csv text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/SUPERSEDED.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/batch/HC20260810-B01-review-index.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-001-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-002-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-003-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-004-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-005-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-006-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-007-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-008-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-009-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/handoffs/HC20260810-010-review-handoff-v01.md text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/tools/build-review-handoffs.py text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task8-qa/archive_v00/external-review-superseded/tools/probe-review-transaction.py text eol=lf
+
+# Task 9 Batch 01 QA text bytes (exact paths)
+/09_泛健康日更/work/HC20260810-B01-task9-qa/HC20260810-B01-grok-manual-pack-inventory-v01.csv text eol=lf
+/09_泛健康日更/work/HC20260810-B01-task9-qa/HC20260810-B01-grok-manual-pack-qa-v01.md text eol=lf
