@@ -125,6 +125,15 @@ class VideoParams(BaseModel):
     photo_duration: float = Field(default=2.0, ge=0.8, le=6.0)
     photo_animation: str = "random"  # random / pop / slide / kenburns
 
+    # Selection from the photo asset library (Postgres+pgvector). Elements of
+    # photo_require use "path:<relative path>" or "tag:<tag>"; list order is
+    # the order assets appear in the video.
+    photo_require: list[str] = []
+    photo_prefer_tags: list[str] = []
+    photo_only_tags: list[str] = []
+    photo_exclude_tags: list[str] = []
+    photo_max_duration: float = Field(default=8.0, ge=0.8, le=20.0)
+
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get(
         "subtitle_position", "bottom"

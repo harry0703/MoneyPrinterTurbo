@@ -85,6 +85,46 @@ sonilo_base_url = "https://api.sonilo.com"
 sonilo_timeout = 600
 
 # -----------------------------------------------------------------------------
+# Photo Asset Library / 照片素材库
+# -----------------------------------------------------------------------------
+
+# Vector-searched library of photo assets stored in Postgres+pgvector, with
+# scouting to fetch missing assets from search. Disabled by default; the
+# pipeline's photo overlay behavior is unchanged without it.
+photo_library_enabled = false
+photo_library_db_host = "127.0.0.1"
+photo_library_db_port = 5433
+photo_library_db_name = "asset_library"
+photo_library_db_user = "asset_library"
+photo_library_db_password = ""
+# Directory where library asset files are stored, relative to the project root
+# unless given as an absolute path.
+photo_library_root = "storage/library"
+
+# Tagging and embedding models used to annotate library assets. Reuses the
+# gemini_api_key set above under LLM Providers.
+photo_library_vision_model = "gemini-2.5-flash"
+photo_library_embed_model = "gemini-embedding-001"
+
+# Selection weights and score thresholds. Placeholder until calibrated on a
+# live library; the owner will replace these once real usage data is
+# available.
+photo_library_weight_semantic = 0.7
+photo_library_weight_tags = 0.3
+photo_library_weight_recency = 0.2
+photo_library_score_accept = 0.62
+photo_library_score_reject = 0.45
+# Recency window: how many of the most recent tasks count toward asset
+# freshness scoring.
+photo_library_recency_window = 20
+
+# Fetch additional photo assets from search when the library doesn't have
+# enough matches. Disabled by default.
+photo_scout_enabled = false
+# Maximum number of search requests per pipeline run.
+photo_scout_search_limit = 3
+
+# -----------------------------------------------------------------------------
 # LLM Providers / 大模型提供商
 # -----------------------------------------------------------------------------
 
