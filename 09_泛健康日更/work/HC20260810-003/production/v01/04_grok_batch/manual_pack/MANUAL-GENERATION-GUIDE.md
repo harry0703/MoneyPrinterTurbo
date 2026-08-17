@@ -3,12 +3,14 @@
 ## 边界
 
 - 本包是用户操作的浏览器扩展输入包，不包含已生成视频，也不代表外部审批或最终 QA。
-- 动态镜头 S01、S02、S04、S05、S06、S08、S09：使用 **Grok 浏览器扩展**手动上传 `01_first_frames/` 中的对应图片，并粘贴 `02_prompts/` 中的同号提示词。
+- 动态镜头 S01、S02、S04、S05、S06、S08、S09：使用 **Grok 浏览器扩展**手动上传 `09_泛健康日更/work/HC20260810-003/production/v01/04_grok_batch/manual_pack/01_first_frames/` 中的对应图片，并粘贴 `02_prompts/` 中的同号提示词。
 - S03、S07、S10 无需上传 Grok；它们标记为 `generation_mode=deterministic_post`，只按提示词在后期制作确定性动效。
 
 ## 本期操作参数
 
 - 合并提示词：`09_泛健康日更/work/HC20260810-003/production/v01/04_grok_batch/manual_pack/HC20260810-003-v01-Grok-Automation-10条提示词.txt`。
+- 首帧图片目录：`09_泛健康日更/work/HC20260810-003/production/v01/04_grok_batch/manual_pack/01_first_frames/`。
+- Grok 保存文件夹名称：`HC20260810-003-S01-S10`。
 - 动态源保存目录：`09_泛健康日更/work/HC20260810-003/production/v01/05_grok_videos/01_raw/`。
 - 镜头总数：10。
 - 必需动态源输出总数：7（已计入双源镜头的 A/B 增量）。

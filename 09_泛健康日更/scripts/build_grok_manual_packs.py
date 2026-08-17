@@ -1313,17 +1313,24 @@ def _render_expected(inputs: dict[str, Any], output_dir: Path) -> dict[str, byte
         f"09_泛健康日更/work/{content_id}/production/{VERSION}/04_grok_batch/"
         f"manual_pack/{combined_name}"
     )
+    first_frame_directory = (
+        f"09_泛健康日更/work/{content_id}/production/{VERSION}/04_grok_batch/"
+        "manual_pack/01_first_frames/"
+    )
+    grok_save_folder = f"{content_id}-S01-S10"
     guide = f"""# {content_id} {VERSION} Grok 手动生成指南
 
 ## 边界
 
 - 本包是用户操作的浏览器扩展输入包，不包含已生成视频，也不代表外部审批或最终 QA。
-- 动态镜头 {dynamic_list}：使用 **Grok 浏览器扩展**手动上传 `01_first_frames/` 中的对应图片，并粘贴 `02_prompts/` 中的同号提示词。
+- 动态镜头 {dynamic_list}：使用 **Grok 浏览器扩展**手动上传 `{first_frame_directory}` 中的对应图片，并粘贴 `02_prompts/` 中的同号提示词。
 - {deterministic_list} 无需上传 Grok；它们标记为 `generation_mode=deterministic_post`，只按提示词在后期制作确定性动效。
 
 ## 本期操作参数
 
 - 合并提示词：`{combined_path}`。
+- 首帧图片目录：`{first_frame_directory}`。
+- Grok 保存文件夹名称：`{grok_save_folder}`。
 - 动态源保存目录：`{raw_root}`。
 - 镜头总数：10。
 - 必需动态源输出总数：{required_output_count}（已计入双源镜头的 A/B 增量）。

@@ -808,6 +808,41 @@ def test_all_guides_are_complete_operator_handoffs() -> None:
             assert f"| S{number:02d} |" in guide
 
 
+@pytest.mark.parametrize("content_id", CONTENT_IDS)
+def test_guides_use_full_repo_relative_first_frame_upload_directory(
+    content_id: str,
+) -> None:
+    production_rel = f"09_泛健康日更/work/{content_id}/production/v01"
+    guide = (
+        REPO_ROOT
+        / production_rel
+        / "04_grok_batch"
+        / "manual_pack"
+        / "MANUAL-GENERATION-GUIDE.md"
+    ).read_text(encoding="utf-8")
+    first_frame_directory = (
+        f"{production_rel}/04_grok_batch/manual_pack/01_first_frames/"
+    )
+    assert f"首帧图片目录：`{first_frame_directory}`" in guide
+    assert "上传 `01_first_frames/`" not in guide
+
+
+@pytest.mark.parametrize("content_id", CONTENT_IDS)
+def test_guides_use_workflow_grok_save_folder_name(content_id: str) -> None:
+    guide = (
+        REPO_ROOT
+        / "09_泛健康日更"
+        / "work"
+        / content_id
+        / "production"
+        / "v01"
+        / "04_grok_batch"
+        / "manual_pack"
+        / "MANUAL-GENERATION-GUIDE.md"
+    ).read_text(encoding="utf-8")
+    assert f"Grok 保存文件夹名称：`{content_id}-S01-S10`" in guide
+
+
 def test_010_s02_contract_matches_visible_right_hand_and_left_thigh() -> None:
     builder = _load_builder()
     action_zh, action_en = builder.PROMPT_ACTIONS_010["S02"]
