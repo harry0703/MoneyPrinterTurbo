@@ -110,6 +110,20 @@ def _general_wellness_manifest() -> dict:
     return manifest
 
 
+def _recursive_key_set(value: object) -> set[str]:
+    if isinstance(value, dict):
+        keys = set(value)
+        for nested in value.values():
+            keys.update(_recursive_key_set(nested))
+        return keys
+    if isinstance(value, list):
+        keys: set[str] = set()
+        for nested in value:
+            keys.update(_recursive_key_set(nested))
+        return keys
+    return set()
+
+
 def _general_wellness_topics() -> list[dict]:
     return [
         {
@@ -541,24 +555,32 @@ def test_general_wellness_pack_needs_automated_qa_but_not_human_review():
     pack = health_content.build_publish_pack(manifest)
 
     assert pack["status"] == "human_pending"
-    assert "medical_review" not in str(pack)
-    assert "final_qa" not in str(pack)
-    assert "reviewer" not in str(pack)
+    assert _recursive_key_set(pack).isdisjoint(
+        {
+            "medical_review",
+            "automated_qa",
+            "final_qa",
+            "reviewer",
+            "reviewed_at",
+            "checked_at",
+            "notes",
+        }
+    )
 
 
 def test_general_wellness_pack_rejects_pending_automated_qa():
     manifest = _general_wellness_manifest()
-    manifest["automated_qa"] = {"status": "pending", "checked_at": ""}
+    manifest["automated_qa"]["status"] = "pending"
 
     with pytest.raises(health_content.FinalQARequired, match="自动QA"):
         health_content.build_publish_pack(manifest)
 
 
-def test_general_wellness_pack_still_enforces_92_and_all_floors():
+def test_general_wellness_pack_rejects_automated_qa_without_timestamp():
     manifest = _general_wellness_manifest()
-    manifest["quality"]["visual_explanation"] = 13
+    manifest["automated_qa"]["checked_at"] = ""
 
-    with pytest.raises(health_content.QualityGateFailed):
+    with pytest.raises(health_content.FinalQARequired, match="自动QA"):
         health_content.build_publish_pack(manifest)
 
 
@@ -581,7 +603,7 @@ def test_general_wellness_profile_requires_identity_observations_and_save_reason
             health_content.validate_manifest(manifest)
 
 
-def test_general_wellness_quality_gate_requires_92_total_and_each_floor():
+def test_general_wellness_quality_gate_requires_92_total():
     score_91 = _general_wellness_manifest()
     score_91["quality"]["follow_conversion"] = 8
     with pytest.raises(health_content.QualityGateFailed, match="92"):
@@ -590,11 +612,28 @@ def test_general_wellness_quality_gate_requires_92_total_and_each_floor():
     pack = health_content.build_publish_pack(_general_wellness_manifest())
     assert pack["quality_score"] == 92
 
-    below_floor = _general_wellness_manifest()
-    below_floor["quality"]["visual_explanation"] = 13
-    below_floor["quality"]["medical_credibility"] = 20
-    with pytest.raises(health_content.QualityGateFailed, match="visual_explanation"):
-        health_content.build_publish_pack(below_floor)
+
+@pytest.mark.parametrize(
+    ("field", "below_floor", "compensation_field", "compensation_value"),
+    (
+        ("topic_value", 17, "medical_credibility", 20),
+        ("medical_credibility", 17, "topic_value", 20),
+        ("retention", 17, "medical_credibility", 20),
+        ("visual_explanation", 13, "medical_credibility", 20),
+        ("save_value", 12, "topic_value", 20),
+        ("follow_conversion", 7, "topic_value", 20),
+    ),
+)
+def test_general_wellness_quality_gate_requires_each_floor_above_92_total(
+    field, below_floor, compensation_field, compensation_value
+):
+    manifest = _general_wellness_manifest()
+    manifest["quality"][field] = below_floor
+    manifest["quality"][compensation_field] = compensation_value
+
+    assert sum(manifest["quality"].values()) == 92
+    with pytest.raises(health_content.QualityGateFailed, match=field):
+        health_content.build_publish_pack(manifest)
 
 
 def test_general_wellness_forbidden_terms_are_checked_only_in_public_fields():
