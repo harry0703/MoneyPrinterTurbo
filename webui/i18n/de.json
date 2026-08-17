@@ -296,6 +296,16 @@
     "Photo Duration Help": "Average seconds a photo card stays on screen.",
     "Photo Animation": "Photo Entry Animation",
     "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo.",
+    "Photo Require": "Pflichtmaterialien",
+    "Photo Require Help": "Kommagetrennte Liste als path:<relativer Pfad> oder tag:<Tag>. Die Reihenfolge in der Liste ist die Reihenfolge im Video.",
+    "Photo Prefer Tags": "Bevorzugte Tags",
+    "Photo Prefer Tags Help": "Kommagetrennte Tags. Die Auswahl bevorzugt passende Materialien, verlangt sie aber nicht.",
+    "Photo Only Tags": "Auf Tags beschränken",
+    "Photo Only Tags Help": "Kommagetrennte Tags. Nur Materialien mit mindestens einem dieser Tags sind zulässig.",
+    "Photo Exclude Tags": "Ausgeschlossene Tags",
+    "Photo Exclude Tags Help": "Kommagetrennte Tags. Materialien mit einem dieser Tags werden nie ausgewählt.",
+    "Photo Max Duration": "Maximale Fotodauer",
+    "Photo Max Duration Help": "Obergrenze in Sekunden, wie lange ein einzelnes Bibliotheksmaterial eingeblendet bleibt.",
     "Continuous Background": "Durchgehender Hintergrund",
     "Continuous Background Help": "Verwendet einen ununterbrochenen Ausschnitt ab einer zufälligen Stelle eines langen Videos, zentriert zugeschnitten auf das Bildformat, statt vieler aneinandergereihter Clips."
   }

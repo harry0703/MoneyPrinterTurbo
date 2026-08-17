@@ -324,6 +324,16 @@
     "Photo Duration Help": "Average seconds a photo card stays on screen.",
     "Photo Animation": "Photo Entry Animation",
     "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo.",
+    "Photo Require": "Required Assets",
+    "Photo Require Help": "Comma-separated list as path:<relative path> or tag:<tag>. List order is the order the assets appear in the video.",
+    "Photo Prefer Tags": "Preferred Tags",
+    "Photo Prefer Tags Help": "Comma-separated tags. The picker favors matching assets but does not require them.",
+    "Photo Only Tags": "Restrict To Tags",
+    "Photo Only Tags Help": "Comma-separated tags. Only assets carrying at least one of these tags are eligible.",
+    "Photo Exclude Tags": "Excluded Tags",
+    "Photo Exclude Tags Help": "Comma-separated tags. Assets carrying any of these tags are never picked.",
+    "Photo Max Duration": "Max Photo Duration",
+    "Photo Max Duration Help": "Upper bound in seconds for how long a single library asset stays on screen.",
     "Continuous Background": "Continuous Background",
     "Continuous Background Help": "Use one uninterrupted segment cut from a random position of a single long video, center-cropped to fill the frame, instead of many concatenated clips."
   }

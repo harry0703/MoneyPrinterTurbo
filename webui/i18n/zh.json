@@ -324,6 +324,16 @@
     "Photo Duration Help": "照片卡片在画面上停留的平均秒数。",
     "Photo Animation": "入场动画",
     "Photo Animation Help": "照片的出现方式：pop（缩放弹出）、slide（侧边滑入）、kenburns（缓慢变焦）或 random（每张随机）。",
+    "Photo Require": "必需素材",
+    "Photo Require Help": "以逗号分隔的列表，格式为 path:<相对路径> 或 tag:<标签>。列表顺序即视频中出现的顺序。",
+    "Photo Prefer Tags": "优先标签",
+    "Photo Prefer Tags Help": "以逗号分隔的标签。挑选时优先匹配，但不强制要求。",
+    "Photo Only Tags": "限定标签",
+    "Photo Only Tags Help": "以逗号分隔的标签。只有带有其中至少一个标签的素材才会被选中。",
+    "Photo Exclude Tags": "排除标签",
+    "Photo Exclude Tags Help": "以逗号分隔的标签。带有其中任意标签的素材永远不会被选中。",
+    "Photo Max Duration": "照片最长时长",
+    "Photo Max Duration Help": "库中单个素材在画面上停留时间的上限（秒）。",
     "Continuous Background": "连续背景",
     "Continuous Background Help": "从一个长视频的随机位置截取一段连续画面并居中裁剪铺满画面，而不是拼接多个短片段。"
   }

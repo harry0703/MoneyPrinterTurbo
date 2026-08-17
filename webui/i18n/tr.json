@@ -296,6 +296,16 @@
     "Photo Duration Help": "Average seconds a photo card stays on screen.",
     "Photo Animation": "Photo Entry Animation",
     "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo.",
+    "Photo Require": "Zorunlu Materyaller",
+    "Photo Require Help": "path:<göreli yol> veya tag:<etiket> biçiminde, virgülle ayrılmış liste. Listedeki sıra, videodaki görünme sırasıdır.",
+    "Photo Prefer Tags": "Tercih Edilen Etiketler",
+    "Photo Prefer Tags Help": "Virgülle ayrılmış etiketler. Seçim eşleşen materyalleri önceliklendirir ama zorunlu kılmaz.",
+    "Photo Only Tags": "Etiketlerle Sınırla",
+    "Photo Only Tags Help": "Virgülle ayrılmış etiketler. Yalnızca bu etiketlerden en az birine sahip materyaller seçilebilir.",
+    "Photo Exclude Tags": "Hariç Tutulan Etiketler",
+    "Photo Exclude Tags Help": "Virgülle ayrılmış etiketler. Bu etiketlerden herhangi birine sahip materyaller asla seçilmez.",
+    "Photo Max Duration": "Azami Fotoğraf Süresi",
+    "Photo Max Duration Help": "Kütüphanedeki tek bir materyalin ekranda kalacağı sürenin saniye cinsinden üst sınırı.",
     "Continuous Background": "Kesintisiz Arka Plan",
     "Continuous Background Help": "Birçok klibi birleştirmek yerine, uzun bir videonun rastgele bir noktasından alınan kesintisiz tek bir bölümü kullanır ve kareyi dolduracak şekilde ortadan kırpar."
   }

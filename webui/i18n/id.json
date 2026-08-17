@@ -296,6 +296,16 @@
     "Photo Duration Help": "Average seconds a photo card stays on screen.",
     "Photo Animation": "Photo Entry Animation",
     "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo.",
+    "Photo Require": "Aset Wajib",
+    "Photo Require Help": "Daftar dipisahkan koma berformat path:<jalur relatif> atau tag:<tag>. Urutan dalam daftar adalah urutan kemunculan di video.",
+    "Photo Prefer Tags": "Tag Diutamakan",
+    "Photo Prefer Tags Help": "Tag dipisahkan koma. Pemilihan mengutamakan aset yang cocok, tetapi tidak mewajibkannya.",
+    "Photo Only Tags": "Batasi ke Tag",
+    "Photo Only Tags Help": "Tag dipisahkan koma. Hanya aset dengan setidaknya satu tag ini yang memenuhi syarat.",
+    "Photo Exclude Tags": "Tag Dikecualikan",
+    "Photo Exclude Tags Help": "Tag dipisahkan koma. Aset dengan salah satu tag ini tidak akan pernah dipilih.",
+    "Photo Max Duration": "Durasi Foto Maksimum",
+    "Photo Max Duration Help": "Batas atas dalam detik untuk berapa lama satu aset pustaka tetap tampil.",
     "Continuous Background": "Latar Belakang Berkelanjutan",
     "Continuous Background Help": "Gunakan satu potongan utuh dari posisi acak pada video panjang, dipangkas di tengah agar memenuhi bingkai, alih-alih banyak klip yang disambung."
   }

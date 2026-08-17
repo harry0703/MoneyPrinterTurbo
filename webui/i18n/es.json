@@ -296,6 +296,16 @@
     "Photo Duration Help": "Average seconds a photo card stays on screen.",
     "Photo Animation": "Photo Entry Animation",
     "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo.",
+    "Photo Require": "Recursos obligatorios",
+    "Photo Require Help": "Lista separada por comas en formato path:<ruta relativa> o tag:<etiqueta>. El orden de la lista es el orden en que aparecen en el vídeo.",
+    "Photo Prefer Tags": "Etiquetas preferidas",
+    "Photo Prefer Tags Help": "Etiquetas separadas por comas. La selección las prioriza, pero no las exige.",
+    "Photo Only Tags": "Restringir a etiquetas",
+    "Photo Only Tags Help": "Etiquetas separadas por comas. Solo se seleccionan recursos con al menos una de estas etiquetas.",
+    "Photo Exclude Tags": "Etiquetas excluidas",
+    "Photo Exclude Tags Help": "Etiquetas separadas por comas. Nunca se seleccionan recursos con alguna de estas etiquetas.",
+    "Photo Max Duration": "Duración máxima de foto",
+    "Photo Max Duration Help": "Límite superior en segundos de cuánto permanece en pantalla un recurso de la biblioteca.",
     "Continuous Background": "Fondo continuo",
     "Continuous Background Help": "Usa un fragmento ininterrumpido tomado de una posición aleatoria de un video largo, recortado al centro para llenar el encuadre, en lugar de muchos clips concatenados."
   }

@@ -2560,6 +2560,7 @@ def _render_video_settings(panel, params):
 
             _render_gif_overlay_settings(params)
             _render_photo_overlay_settings(params)
+            _render_photo_library_settings(params)
     return uploaded_files
 
 
@@ -2677,6 +2678,63 @@ def _render_photo_overlay_settings(params):
         help=tr("Photo Animation Help"),
     )
     _set_runtime_config("ui", "photo_animation", params.photo_animation)
+
+
+def _parse_comma_separated_list(value: str) -> list[str]:
+    return [item.strip() for item in re.split(r"[,，]", value) if item.strip()]
+
+
+def _render_photo_library_settings(params):
+    if not params.photo_enabled:
+        return
+
+    photo_require_input = st.text_input(
+        tr("Photo Require"),
+        value=str(config.ui.get("photo_require", "")),
+        key="photo_require_input",
+        help=tr("Photo Require Help"),
+    ).strip()
+    _set_runtime_config("ui", "photo_require", photo_require_input)
+    params.photo_require = _parse_comma_separated_list(photo_require_input)
+
+    photo_prefer_tags_input = st.text_input(
+        tr("Photo Prefer Tags"),
+        value=str(config.ui.get("photo_prefer_tags", "")),
+        key="photo_prefer_tags_input",
+        help=tr("Photo Prefer Tags Help"),
+    ).strip()
+    _set_runtime_config("ui", "photo_prefer_tags", photo_prefer_tags_input)
+    params.photo_prefer_tags = _parse_comma_separated_list(photo_prefer_tags_input)
+
+    photo_only_tags_input = st.text_input(
+        tr("Photo Only Tags"),
+        value=str(config.ui.get("photo_only_tags", "")),
+        key="photo_only_tags_input",
+        help=tr("Photo Only Tags Help"),
+    ).strip()
+    _set_runtime_config("ui", "photo_only_tags", photo_only_tags_input)
+    params.photo_only_tags = _parse_comma_separated_list(photo_only_tags_input)
+
+    photo_exclude_tags_input = st.text_input(
+        tr("Photo Exclude Tags"),
+        value=str(config.ui.get("photo_exclude_tags", "")),
+        key="photo_exclude_tags_input",
+        help=tr("Photo Exclude Tags Help"),
+    ).strip()
+    _set_runtime_config("ui", "photo_exclude_tags", photo_exclude_tags_input)
+    params.photo_exclude_tags = _parse_comma_separated_list(photo_exclude_tags_input)
+
+    params.photo_max_duration = st.number_input(
+        tr("Photo Max Duration"),
+        min_value=0.8,
+        max_value=20.0,
+        value=float(config.ui.get("photo_max_duration", 8.0)),
+        step=0.5,
+        format="%.1f",
+        key="photo_max_duration_input",
+        help=tr("Photo Max Duration Help"),
+    )
+    _set_runtime_config("ui", "photo_max_duration", params.photo_max_duration)
 
 
 def _estimate_voiceover_duration_range(

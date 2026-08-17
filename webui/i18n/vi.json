@@ -296,6 +296,16 @@
     "Photo Duration Help": "Average seconds a photo card stays on screen.",
     "Photo Animation": "Photo Entry Animation",
     "Photo Animation Help": "How each photo appears: pop (scale-in), slide (from the side), kenburns (slow zoom), or random per photo.",
+    "Photo Require": "Tài nguyên bắt buộc",
+    "Photo Require Help": "Danh sách cách nhau bằng dấu phẩy, dạng path:<đường dẫn tương đối> hoặc tag:<thẻ>. Thứ tự trong danh sách là thứ tự xuất hiện trong video.",
+    "Photo Prefer Tags": "Thẻ ưu tiên",
+    "Photo Prefer Tags Help": "Các thẻ cách nhau bằng dấu phẩy. Việc chọn sẽ ưu tiên tài nguyên khớp nhưng không bắt buộc.",
+    "Photo Only Tags": "Giới hạn theo thẻ",
+    "Photo Only Tags Help": "Các thẻ cách nhau bằng dấu phẩy. Chỉ tài nguyên có ít nhất một trong các thẻ này mới được chọn.",
+    "Photo Exclude Tags": "Thẻ loại trừ",
+    "Photo Exclude Tags Help": "Các thẻ cách nhau bằng dấu phẩy. Tài nguyên có bất kỳ thẻ nào trong số này sẽ không bao giờ được chọn.",
+    "Photo Max Duration": "Thời lượng ảnh tối đa",
+    "Photo Max Duration Help": "Giới hạn trên tính bằng giây cho thời gian một tài nguyên thư viện hiển thị trên màn hình.",
     "Continuous Background": "Nền liên tục",
     "Continuous Background Help": "Dùng một đoạn liền mạch cắt từ vị trí ngẫu nhiên của một video dài, cắt ở giữa để lấp đầy khung hình, thay vì ghép nhiều clip ngắn."
   }
