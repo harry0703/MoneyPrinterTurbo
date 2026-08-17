@@ -303,6 +303,25 @@ def _validate_general_wellness_manifest(manifest: Mapping) -> None:
 
     public_values = [manifest.get(field) for field in _GENERAL_WELLNESS_PUBLIC_FIELDS]
     _reject_general_wellness_public_terms(public_values)
+    _require_general_wellness_review_policy(manifest)
+
+
+def _is_quality_only_general_wellness(manifest: Mapping) -> bool:
+    return manifest.get("content_profile") == GENERAL_WELLNESS_PROFILE
+
+
+def _require_general_wellness_review_policy(manifest: Mapping) -> None:
+    for field in ("medical_review", "final_qa"):
+        review = manifest.get(field)
+        if (
+            not isinstance(review, Mapping)
+            or review.get("status") != "not_required"
+            or review.get("reviewer") != ""
+            or review.get("reviewed_at") != ""
+        ):
+            raise HealthContentError(
+                f"通用生活方式内容的{field}必须为 not_required 且不含人工审核信息"
+            )
 
 
 def _validate_review_contract_text(manifest: Mapping) -> None:
@@ -458,14 +477,48 @@ def _require_automated_qa_record(manifest: Mapping) -> None:
 def run_automated_qa(manifest: Mapping) -> dict:
     """从当前内容重新计算QA，不信任输入中自报的通过结果。"""
     validated = validate_manifest(manifest)
-    _require_medical_review(validated)
     score = calculate_quality_score(validated)
     _require_quality_gate(validated, score, "自动QA")
+    if _is_quality_only_general_wellness(validated):
+        _reject_general_wellness_public_terms(
+            [validated.get(field) for field in _GENERAL_WELLNESS_PUBLIC_FIELDS]
+        )
+        return {
+            "status": "passed",
+            "checks": {
+                "profile_boundary": True,
+                "quality_score": score,
+                "platform_count": len(PLATFORMS),
+                "article_card_count": len(_article_cards(validated)),
+            },
+        }
+    _require_medical_review(validated)
     return {
         "status": "passed",
         "checks": {
             "manifest_contract": True,
             "medical_review": True,
+            "quality_score": score,
+            "platform_count": len(PLATFORMS),
+            "article_card_count": len(_article_cards(validated)),
+        },
+    }
+
+
+def run_preproduction_qa(manifest: Mapping) -> dict:
+    """为通用生活方式内容复算生产前的质量与公开边界门禁。"""
+    validated = validate_manifest(manifest)
+    if not _is_quality_only_general_wellness(validated):
+        raise HealthContentError("生产前质量门禁仅适用于通用生活方式内容")
+    _reject_general_wellness_public_terms(
+        [validated.get(field) for field in _GENERAL_WELLNESS_PUBLIC_FIELDS]
+    )
+    score = calculate_quality_score(validated)
+    _require_quality_gate(validated, score, "生产前")
+    return {
+        "status": "passed",
+        "checks": {
+            "profile_boundary": True,
             "quality_score": score,
             "platform_count": len(PLATFORMS),
             "article_card_count": len(_article_cards(validated)),
@@ -488,7 +541,7 @@ def _require_quality_gate(manifest: Mapping, score: int, stage: str) -> None:
             )
 
 
-_STATE_TRANSITIONS = {
+_LEGACY_STATE_TRANSITIONS = {
     "research_pending": "medical_review_pending",
     "medical_review_pending": "approved",
     "approved": "production",
@@ -496,6 +549,18 @@ _STATE_TRANSITIONS = {
     "automated_qa_passed": "final_qa_passed",
     "final_qa_passed": "ready_to_publish",
 }
+
+_GENERAL_WELLNESS_STATE_TRANSITIONS = {
+    "research_pending": "production",
+    "production": "automated_qa_passed",
+    "automated_qa_passed": "ready_to_publish",
+}
+
+
+def _state_transitions_for(manifest: Mapping) -> Mapping[str, str]:
+    if _is_quality_only_general_wellness(manifest):
+        return _GENERAL_WELLNESS_STATE_TRANSITIONS
+    return _LEGACY_STATE_TRANSITIONS
 
 
 def advance_topic_state(
@@ -515,13 +580,21 @@ def advance_topic_state(
     )
     if topic is None:
         raise HealthContentError(f"批次中不存在内容: {content_id}")
-    current_state = topic.get("state")
-    if _STATE_TRANSITIONS.get(current_state) != target_state:
-        raise HealthContentError(f"非法状态跃迁: {current_state} -> {target_state}")
-
     _require_manifest_matches_batch(batch, content_id, manifest)
     validated = validate_manifest(manifest)
-    if target_state == "approved":
+    current_state = topic.get("state")
+    if _state_transitions_for(validated).get(current_state) != target_state:
+        raise HealthContentError(f"非法状态跃迁: {current_state} -> {target_state}")
+
+    if _is_quality_only_general_wellness(validated):
+        if target_state == "production":
+            run_preproduction_qa(validated)
+        elif target_state == "automated_qa_passed":
+            run_automated_qa(validated)
+            _require_automated_qa_record(validated)
+        elif target_state == "ready_to_publish":
+            build_publish_pack(validated)
+    elif target_state == "approved":
         _require_medical_review(validated)
     elif target_state == "production":
         _require_medical_review(validated)
@@ -677,10 +750,14 @@ def _platform_package(manifest: Mapping, platform: str) -> dict:
 def build_publish_pack(manifest: Mapping) -> dict:
     """仅生成待人工发布资料，不调用任何平台接口。"""
     validated = validate_manifest(manifest)
-    review = _require_medical_review(validated)
-    run_automated_qa(validated)
-    _require_automated_qa_record(validated)
-    _require_final_qa(validated, review)
+    if _is_quality_only_general_wellness(validated):
+        run_automated_qa(validated)
+        _require_automated_qa_record(validated)
+    else:
+        review = _require_medical_review(validated)
+        run_automated_qa(validated)
+        _require_automated_qa_record(validated)
+        _require_final_qa(validated, review)
     score = calculate_quality_score(validated)
     _require_quality_gate(validated, score, "发布前")
 

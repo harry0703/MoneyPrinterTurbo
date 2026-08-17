@@ -90,6 +90,21 @@ def _general_wellness_manifest() -> dict:
                 "save_value": 14,
                 "follow_conversion": 9,
             },
+            "medical_review": {
+                "status": "not_required",
+                "reviewer": "",
+                "reviewed_at": "",
+                "notes": "一般生活方式内容不要求外部医学审核。",
+            },
+            "automated_qa": {
+                "status": "passed",
+                "checked_at": "2026-08-17T15:30:00+08:00",
+            },
+            "final_qa": {
+                "status": "not_required",
+                "reviewer": "",
+                "reviewed_at": "",
+            },
         }
     )
     return manifest
@@ -137,6 +152,29 @@ def test_manifest_validation_blocks_unsafe_or_incomplete_health_content(
         health_content.validate_manifest(manifest)
 
 
+def test_general_wellness_requires_not_required_human_review_records():
+    manifest = _general_wellness_manifest()
+    assert health_content.validate_manifest(manifest)["medical_review"]["status"] == "not_required"
+    assert health_content.validate_manifest(manifest)["final_qa"]["status"] == "not_required"
+
+
+@pytest.mark.parametrize("field", ("medical_review", "final_qa"))
+def test_general_wellness_rejects_fake_human_approval(field):
+    manifest = _general_wellness_manifest()
+    manifest[field]["status"] = "approved" if field == "medical_review" else "passed"
+    manifest[field]["reviewer"] = "某审核人"
+    manifest[field]["reviewed_at"] = "2026-08-17T15:30:00+08:00"
+    with pytest.raises(health_content.HealthContentError, match="not_required"):
+        health_content.validate_manifest(manifest)
+
+
+def test_legacy_manifest_still_rejects_not_required_review_records():
+    manifest = _approved_manifest()
+    manifest["medical_review"].update(status="not_required", reviewer="", reviewed_at="")
+    with pytest.raises(health_content.MedicalReviewRequired):
+        health_content.build_publish_pack(manifest)
+
+
 def test_publish_pack_requires_medical_approval_and_quality_score_85():
     manifest = _approved_manifest()
     manifest["medical_review"]["status"] = "pending"
@@ -175,7 +213,7 @@ def test_publish_pack_requires_automated_qa_and_independent_final_review():
 def test_independent_reviewer_gate_rejects_canonical_identity_equivalents(
     medical_reviewer, final_reviewer
 ):
-    manifest = _general_wellness_manifest()
+    manifest = _approved_manifest()
     manifest["medical_review"]["reviewer"] = medical_reviewer
     manifest["final_qa"]["reviewer"] = final_reviewer
 
@@ -184,7 +222,7 @@ def test_independent_reviewer_gate_rejects_canonical_identity_equivalents(
 
 
 def test_reviewer_gate_rejects_noncanonical_boundary_whitespace():
-    manifest = _general_wellness_manifest()
+    manifest = _approved_manifest()
     manifest["medical_review"]["reviewer"] = " reviewer-a "
     manifest["final_qa"]["reviewer"] = "reviewer-b"
 
@@ -193,7 +231,7 @@ def test_reviewer_gate_rejects_noncanonical_boundary_whitespace():
 
 
 def test_independent_reviewer_gate_allows_distinct_chinese_names_and_internal_spaces():
-    manifest = _general_wellness_manifest()
+    manifest = _approved_manifest()
     manifest["medical_review"]["reviewer"] = "王 小明"
     manifest["final_qa"]["reviewer"] = "李 小红"
 
@@ -266,18 +304,39 @@ def test_state_transition_enforces_medical_and_final_gates():
         health_content.advance_topic_state(batch, content_id, "published", manifest)
 
 
-@pytest.mark.parametrize("workflow", ("general", "legacy"))
-def test_pending_review_records_are_filled_only_as_each_gate_is_reached(workflow):
-    if workflow == "general":
-        batch = health_content.create_seed_batch(
-            "20260810",
-            topics=_general_wellness_topics(),
-            content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+def test_general_wellness_uses_three_step_quality_only_flow():
+    batch = health_content.create_seed_batch(
+        "20260810",
+        topics=_general_wellness_topics(),
+        content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+    )
+    manifest = _general_wellness_manifest()
+    content_id = manifest["content_id"]
+
+    batch = health_content.advance_topic_state(batch, content_id, "production", manifest)
+    batch = health_content.advance_topic_state(batch, content_id, "automated_qa_passed", manifest)
+    batch = health_content.advance_topic_state(batch, content_id, "ready_to_publish", manifest)
+    assert batch["topics"][0]["state_history"][-3:] == [
+        "production", "automated_qa_passed", "ready_to_publish"
+    ]
+
+
+@pytest.mark.parametrize("illegal", ("medical_review_pending", "approved", "final_qa_passed"))
+def test_general_wellness_rejects_removed_human_states(illegal):
+    batch = health_content.create_seed_batch(
+        "20260810",
+        topics=_general_wellness_topics(),
+        content_profile=health_content.GENERAL_WELLNESS_PROFILE,
+    )
+    with pytest.raises(health_content.HealthContentError, match="非法状态跃迁"):
+        health_content.advance_topic_state(
+            batch, "HC20260810-001", illegal, _general_wellness_manifest()
         )
-        manifest = _general_wellness_manifest()
-    else:
-        batch = health_content.create_seed_batch("20260809")
-        manifest = _approved_manifest()
+
+
+def test_legacy_pending_review_records_are_filled_only_as_each_gate_is_reached():
+    batch = health_content.create_seed_batch("20260809")
+    manifest = _approved_manifest()
 
     content_id = batch["topics"][0]["content_id"]
     manifest["medical_review"] = {
