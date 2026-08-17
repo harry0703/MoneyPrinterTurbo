@@ -535,6 +535,33 @@ def test_general_wellness_publish_pack_uses_only_lifestyle_public_copy():
     }
 
 
+def test_general_wellness_pack_needs_automated_qa_but_not_human_review():
+    manifest = _general_wellness_manifest()
+
+    pack = health_content.build_publish_pack(manifest)
+
+    assert pack["status"] == "human_pending"
+    assert "medical_review" not in str(pack)
+    assert "final_qa" not in str(pack)
+    assert "reviewer" not in str(pack)
+
+
+def test_general_wellness_pack_rejects_pending_automated_qa():
+    manifest = _general_wellness_manifest()
+    manifest["automated_qa"] = {"status": "pending", "checked_at": ""}
+
+    with pytest.raises(health_content.FinalQARequired, match="自动QA"):
+        health_content.build_publish_pack(manifest)
+
+
+def test_general_wellness_pack_still_enforces_92_and_all_floors():
+    manifest = _general_wellness_manifest()
+    manifest["quality"]["visual_explanation"] = 13
+
+    with pytest.raises(health_content.QualityGateFailed):
+        health_content.build_publish_pack(manifest)
+
+
 def test_general_wellness_profile_requires_identity_observations_and_save_reason():
     mutations = (
         lambda item: item.update(account_name="其他账号"),
