@@ -260,6 +260,54 @@ def test_search_skips_assets_whose_file_disappeared(
     assert len(asset_library.list_assets()) == 1
 
 
+def test_tagged_unembedded_search_applies_hard_filters(
+    library_db: str, tmp_path: Any
+) -> None:
+    tagged = asset_library.ingest_file(
+        _write_image(str(tmp_path / "src" / "tagged.png"), color=25),
+        group="own",
+        tags=["payment"],
+    ).asset
+    excluded = asset_library.ingest_file(
+        _write_image(str(tmp_path / "src" / "excluded.png"), color=26),
+        group="own",
+        tags=["payment", "meme"],
+    ).asset
+    embedded = asset_library.ingest_file(
+        _write_image(str(tmp_path / "src" / "embedded.png"), color=27),
+        group="own",
+        tags=["payment"],
+    ).asset
+    unrelated = asset_library.ingest_file(
+        _write_image(str(tmp_path / "src" / "unrelated.png"), color=28),
+        group="other",
+    ).asset
+    asset_library.save_embedding(embedded.id, _vector(0), model="embed-v1")
+
+    found = asset_library.tagged_assets_without_embedding(
+        any_tags=[" PAYMENT "], exclude_tags=["meme"]
+    )
+    assert [asset.id for asset in found] == [tagged.id]
+
+    found = asset_library.tagged_assets_without_embedding(
+        any_tags=["payment"], exclude_ids=[tagged.id]
+    )
+    assert [asset.id for asset in found] == [excluded.id]
+    assert embedded.id not in {asset.id for asset in found}
+    assert unrelated.id not in {asset.id for asset in found}
+
+
+def test_tagged_unembedded_search_requires_a_meaningful_tag(
+    library_db: str, tmp_path: Any
+) -> None:
+    asset_library.ingest_file(
+        _write_image(str(tmp_path / "src" / "unembedded.png")), group="own"
+    )
+
+    assert asset_library.tagged_assets_without_embedding(any_tags=[]) == []
+    assert asset_library.tagged_assets_without_embedding(any_tags=["  "]) == []
+
+
 def test_usage_counts_only_sees_the_recent_task_window(
     library_db: str, tmp_path: Any
 ) -> None:

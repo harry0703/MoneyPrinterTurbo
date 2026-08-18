@@ -40,6 +40,12 @@ class _Embedding:
 class RetrievalTestCase(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
+        self.tagged_fallback = patch.object(
+            asset_retrieval.asset_library,
+            "tagged_assets_without_embedding",
+            return_value=[],
+        )
+        self.tagged_fallback.start()
         config.app["photo_library_enabled"] = True
         config.app["photo_library_weight_semantic"] = 0.7
         config.app["photo_library_weight_tags"] = 0.3
@@ -49,6 +55,7 @@ class RetrievalTestCase(unittest.TestCase):
         config.app["photo_library_recency_window"] = 20
 
     def tearDown(self):
+        self.tagged_fallback.stop()
         config.app.clear()
         config.app.update(self.original_app_config)
 
@@ -232,6 +239,134 @@ class TestScoring(RetrievalTestCase):
         self.assertEqual(kwargs["any_tags"], ("свои",))
         self.assertEqual(kwargs["exclude_tags"], ("мем",))
         self.assertEqual(kwargs["exclude_ids"], (4,))
+
+    def test_preferred_tag_adds_unembedded_candidates(self):
+        vector = _asset(2, distance=0.2, tags=[("other", 1.0)])
+        tagged = _asset(1, distance=None, tags=[("own", 1.0)])
+        with (
+            patch.object(
+                asset_retrieval.asset_embed, "embed_text", return_value=_Embedding()
+            ),
+            patch.object(
+                asset_retrieval.asset_library, "search_assets", return_value=[vector]
+            ),
+            patch.object(
+                asset_retrieval.asset_library,
+                "tagged_assets_without_embedding",
+                return_value=[tagged],
+            ) as fallback,
+            patch.object(
+                asset_retrieval.asset_library, "usage_counts", return_value={}
+            ),
+        ):
+            ranked = asset_retrieval.rank_candidates("кадр", prefer_tags=["own"])
+
+        self.assertEqual([item.asset.id for item in ranked], [2, 1])
+        self.assertEqual(ranked[0].cosine, 0.8)
+        self.assertEqual(ranked[1].cosine, 0.0)
+        self.assertEqual(ranked[1].tag_score, 1.0)
+        self.assertEqual(fallback.call_args.kwargs["any_tags"], ("own",))
+
+    def test_only_tags_drive_fallback_and_keep_exclusions(self):
+        with (
+            patch.object(
+                asset_retrieval.asset_embed, "embed_text", return_value=_Embedding()
+            ),
+            patch.object(
+                asset_retrieval.asset_library, "search_assets", return_value=[]
+            ),
+            patch.object(
+                asset_retrieval.asset_library,
+                "tagged_assets_without_embedding",
+                return_value=[_asset(3, tags=[("own", 1.0)])],
+            ) as fallback,
+            patch.object(
+                asset_retrieval.asset_library, "usage_counts", return_value={}
+            ),
+        ):
+            ranked = asset_retrieval.rank_candidates(
+                "кадр",
+                prefer_tags=["preferred"],
+                only_tags=["own"],
+                exclude_tags=["meme"],
+                exclude_ids=[7],
+            )
+
+        self.assertEqual([item.asset.id for item in ranked], [3])
+        self.assertEqual(fallback.call_args.kwargs["any_tags"], ("own",))
+        self.assertEqual(fallback.call_args.kwargs["exclude_tags"], ("meme",))
+        self.assertEqual(fallback.call_args.kwargs["exclude_ids"], (7,))
+
+    def test_no_tags_do_not_admit_arbitrary_unembedded_assets(self):
+        with (
+            patch.object(
+                asset_retrieval.asset_embed, "embed_text", return_value=_Embedding()
+            ),
+            patch.object(
+                asset_retrieval.asset_library,
+                "search_assets",
+                return_value=[_asset(2, distance=0.2)],
+            ),
+            patch.object(
+                asset_retrieval.asset_library, "tagged_assets_without_embedding"
+            ) as fallback,
+            patch.object(
+                asset_retrieval.asset_library, "usage_counts", return_value={}
+            ),
+        ):
+            ranked = asset_retrieval.rank_candidates("кадр")
+
+        self.assertEqual([item.asset.id for item in ranked], [2])
+        fallback.assert_not_called()
+
+    def test_fallback_deduplicates_without_changing_vector_candidate(self):
+        vector = _asset(2, distance=0.2, tags=[("own", 1.0)])
+        duplicate = _asset(2, distance=None, tags=[("own", 1.0)])
+        tagged = _asset(3, distance=None, tags=[("own", 0.5)])
+        tagged_duplicate = _asset(3, distance=None, tags=[("own", 0.1)])
+        with (
+            patch.object(
+                asset_retrieval.asset_embed, "embed_text", return_value=_Embedding()
+            ),
+            patch.object(
+                asset_retrieval.asset_library, "search_assets", return_value=[vector]
+            ),
+            patch.object(
+                asset_retrieval.asset_library,
+                "tagged_assets_without_embedding",
+                return_value=[duplicate, tagged, tagged_duplicate],
+            ),
+            patch.object(
+                asset_retrieval.asset_library, "usage_counts", return_value={}
+            ),
+        ):
+            ranked = asset_retrieval.rank_candidates("кадр", prefer_tags=["own"])
+
+        self.assertEqual([item.asset.id for item in ranked], [2, 3])
+        self.assertEqual(ranked[0].cosine, 0.8)
+
+    def test_fallback_failure_keeps_vector_candidates(self):
+        with (
+            patch.object(
+                asset_retrieval.asset_embed, "embed_text", return_value=_Embedding()
+            ),
+            patch.object(
+                asset_retrieval.asset_library,
+                "search_assets",
+                return_value=[_asset(2, distance=0.2)],
+            ),
+            patch.object(
+                asset_retrieval.asset_library,
+                "tagged_assets_without_embedding",
+                side_effect=RuntimeError("db down"),
+            ),
+            patch.object(
+                asset_retrieval.asset_library, "usage_counts", return_value={}
+            ),
+        ):
+            ranked = asset_retrieval.rank_candidates("кадр", prefer_tags=["own"])
+
+        self.assertEqual([item.asset.id for item in ranked], [2])
 
     def test_no_embedding_yields_no_candidates(self):
         with (

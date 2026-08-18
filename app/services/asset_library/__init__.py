@@ -44,6 +44,7 @@ from app.services.asset_library.store import (
     search_assets,
     set_tags,
     summary,
+    tagged_assets_without_embedding,
     usage_counts,
 )
 
@@ -75,5 +76,6 @@ __all__ = [
     "search_assets",
     "set_tags",
     "summary",
+    "tagged_assets_without_embedding",
     "usage_counts",
 ]

@@ -201,6 +201,25 @@ def _rank(
     except Exception as e:  # noqa: BLE001 - an unreachable library degrades, not raises
         logger.warning(f"asset_retrieval: library search failed: {e}")
         return []
+
+    fallback_tags = tuple(only_tags) if only_tags else tuple(prefer_tags)
+    if fallback_tags:
+        try:
+            unembedded = asset_library.tagged_assets_without_embedding(
+                any_tags=fallback_tags,
+                exclude_tags=tuple(exclude_tags),
+                exclude_ids=tuple(exclude_ids),
+                limit=max(limit, _POOL_LIMIT),
+            )
+        except Exception as e:  # noqa: BLE001 - vector results remain usable
+            logger.warning(f"asset_retrieval: tagged fallback failed: {e}")
+        else:
+            seen = {asset.id for asset in found}
+            for asset in unembedded:
+                if asset.id in seen:
+                    continue
+                found.append(asset)
+                seen.add(asset.id)
     return _score(found, prefer_tags, usage)[:limit]
 
 

@@ -196,6 +196,44 @@ def search_assets(
     return [asset for asset in found if os.path.isfile(asset_path(asset.rel_path))]
 
 
+def tagged_assets_without_embedding(
+    *,
+    any_tags: Sequence[str],
+    exclude_tags: Sequence[str] = (),
+    exclude_ids: Sequence[int] = (),
+    limit: int = 20,
+) -> list[Asset]:
+    wanted = [tag.tag for tag in normalize_tags(any_tags)]
+    if not wanted:
+        return []
+
+    clauses = [
+        "a.embedding IS NULL",
+        "EXISTS (SELECT 1 FROM asset_tag t "
+        "WHERE t.asset_id = a.id AND t.tag = ANY(%s))",
+    ]
+    params: list[Any] = [wanted]
+    if exclude_tags:
+        clauses.append(
+            "NOT EXISTS (SELECT 1 FROM asset_tag t "
+            "WHERE t.asset_id = a.id AND t.tag = ANY(%s))"
+        )
+        params.append([tag.tag for tag in normalize_tags(exclude_tags)])
+    if exclude_ids:
+        clauses.append("a.id <> ALL(%s)")
+        params.append(list(exclude_ids))
+    params.append(limit)
+
+    with connect() as conn, conn.cursor() as cur:
+        found = _fetch_assets(
+            cur,
+            f"SELECT {_ASSET_COLUMNS} FROM asset a "
+            f"WHERE {' AND '.join(clauses)} ORDER BY a.id LIMIT %s",
+            params,
+        )
+    return [asset for asset in found if os.path.isfile(asset_path(asset.rel_path))]
+
+
 def assets_missing_annotation(limit: int = 100) -> list[Asset]:
     with connect() as conn, conn.cursor() as cur:
         return _fetch_assets(
