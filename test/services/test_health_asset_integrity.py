@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import app.services.health_asset_integrity as integrity
 from app.services.health_asset_integrity import (
     GitInspectionError,
     GitInspector,
@@ -18,7 +19,7 @@ def _git(repo: Path, *args: str) -> bytes:
     env = os.environ.copy()
     env["GIT_OPTIONAL_LOCKS"] = "0"
     return subprocess.run(
-        ["git", *args],
+        ["git", "-c", f"safe.directory={repo.resolve()}", *args],
         cwd=repo,
         env=env,
         check=True,
@@ -49,6 +50,34 @@ def test_parse_porcelain_v1_z_preserves_unicode_and_spaces():
     ]
 
 
+@pytest.mark.parametrize(("status", "destination", "original"), [
+    ("R ", "新 名称.txt", "旧 名称.txt"),
+    ("C ", "副本 文件.txt", "原始 文件.txt"),
+])
+def test_parse_porcelain_v1_z_keeps_unicode_rename_and_copy_paths(
+    status: str, destination: str, original: str
+):
+    raw = f"{status} {destination}\0{original}\0".encode("utf-8")
+    entry = parse_porcelain_v1_z(raw)[0]
+    assert (entry.index_status, entry.worktree_status, entry.path, entry.original_path) == (
+        status[0],
+        status[1],
+        destination,
+        original,
+    )
+
+
+@pytest.mark.parametrize(("parser", "raw"), [
+    (parse_porcelain_v1_z, b"?? truncated"),
+    (parse_porcelain_v1_z, b"?? visible\0\0?? hidden\0"),
+    (parse_ls_tree_z, b"100644 blob 0123456789012345678901234567890123456789 1\ttruncated"),
+    (parse_ls_tree_z, b"100644 blob not-an-oid 1\tbad.txt\0"),
+])
+def test_nul_parsers_reject_truncated_or_malformed_machine_records(parser, raw: bytes):
+    with pytest.raises(GitInspectionError):
+        parser(raw)
+
+
 def test_parse_ls_tree_z_keeps_blob_size_and_path():
     raw = b"100644 blob 0123456789012345678901234567890123456789 12\tfoo bar.txt\0"
     assert parse_ls_tree_z(raw)[0].size == 12
@@ -70,3 +99,53 @@ def test_inspector_rejects_non_whitelisted_git_subcommand(tmp_path: Path):
     inspector = GitInspector(_repo(tmp_path))
     with pytest.raises(GitInspectionError, match="not allowed"):
         inspector._run(("restore", "."))
+
+
+def test_remote_head_terminates_options_and_requires_exact_requested_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    inspector = GitInspector(_repo(tmp_path))
+    oid = "0123456789012345678901234567890123456789"
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(args, **_kwargs):
+        calls.append(tuple(args))
+        return f"{oid}\trefs/heads/main\n".encode("ascii")
+
+    monkeypatch.setattr(inspector, "_run", fake_run)
+    assert inspector.remote_head("origin", "refs/heads/main") == oid
+    assert calls == [("ls-remote", "--exit-code", "--", "origin", "refs/heads/main")]
+
+    with pytest.raises(GitInspectionError):
+        inspector.remote_head("--get-url", "refs/heads/main")
+
+    monkeypatch.setattr(inspector, "_run", lambda _args: b"not-an-oid\trefs/heads/main\n")
+    with pytest.raises(GitInspectionError):
+        inspector.remote_head("origin", "refs/heads/main")
+
+    monkeypatch.setattr(inspector, "_run", lambda _args: f"{oid}\trefs/heads/other\n".encode("ascii"))
+    with pytest.raises(GitInspectionError):
+        inspector.remote_head("origin", "refs/heads/main")
+
+
+def test_constructor_probe_and_normal_call_use_read_only_git_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = tmp_path / "probe-repo"
+    repo.mkdir()
+    calls: list[tuple[list[str], dict]] = []
+
+    def fake_subprocess_run(command, **kwargs):
+        calls.append((command, kwargs))
+        if kwargs.get("text"):
+            return subprocess.CompletedProcess(command, 0, "true\n", "")
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr(integrity.subprocess, "run", fake_subprocess_run)
+    inspector = GitInspector(repo)
+    inspector._run(("status",))
+
+    assert len(calls) == 2
+    for command, kwargs in calls:
+        assert command[:3] == ["git", "-c", f"safe.directory={repo.resolve()}"]
+        assert kwargs["env"]["GIT_OPTIONAL_LOCKS"] == "0"

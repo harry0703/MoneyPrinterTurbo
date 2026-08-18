@@ -58,22 +58,44 @@ def _decode_path(raw: bytes) -> str:
     return raw.decode("utf-8", errors="surrogateescape")
 
 
+def _null_records(raw: bytes, record_type: str) -> tuple[bytes, ...]:
+    if not raw:
+        return ()
+    if not raw.endswith(b"\0"):
+        raise GitInspectionError(f"unterminated {record_type} -z output")
+    records = tuple(raw[:-1].split(b"\0"))
+    if any(not record for record in records):
+        raise GitInspectionError(f"invalid empty {record_type} -z record")
+    return records
+
+
+def _is_object_id(value: str) -> bool:
+    return len(value) in {40, 64} and all(character in "0123456789abcdefABCDEF" for character in value)
+
+
 def parse_porcelain_v1_z(raw: bytes) -> tuple[StatusEntry, ...]:
-    fields = raw.split(b"\0")
+    fields = _null_records(raw, "porcelain v1")
     result: list[StatusEntry] = []
     index = 0
-    while index < len(fields) and fields[index]:
+    while index < len(fields):
         field = fields[index]
         if len(field) < 4 or field[2:3] != b" ":
             raise GitInspectionError("invalid porcelain v1 -z record")
-        xy = field[:2].decode("ascii")
+        try:
+            xy = field[:2].decode("ascii")
+        except UnicodeDecodeError as error:
+            raise GitInspectionError("invalid porcelain v1 -z status") from error
         path = _decode_path(field[3:])
+        if not path:
+            raise GitInspectionError("porcelain v1 record is missing a path")
         original = None
         if "R" in xy or "C" in xy:
             index += 1
-            if index >= len(fields) or not fields[index]:
+            if index >= len(fields):
                 raise GitInspectionError("rename record is missing original path")
             original = _decode_path(fields[index])
+            if not original:
+                raise GitInspectionError("rename record is missing original path")
         result.append(StatusEntry(xy[0], xy[1], path, original))
         index += 1
     return tuple(result)
@@ -81,12 +103,23 @@ def parse_porcelain_v1_z(raw: bytes) -> tuple[StatusEntry, ...]:
 
 def parse_ls_tree_z(raw: bytes) -> tuple[TreeEntry, ...]:
     result: list[TreeEntry] = []
-    for record in raw.split(b"\0"):
-        if not record:
-            continue
-        metadata, path_raw = record.split(b"\t", 1)
-        mode, object_type, oid, size_raw = metadata.decode("ascii").split(" ", 3)
-        size = None if size_raw == "-" else int(size_raw)
+    for record in _null_records(raw, "ls-tree"):
+        try:
+            metadata, path_raw = record.split(b"\t", 1)
+            mode, object_type, oid, size_raw = metadata.decode("ascii").split(" ", 3)
+            if not path_raw or not mode.isdecimal() or object_type not in {"blob", "tree", "commit"}:
+                raise ValueError
+            if not _is_object_id(oid):
+                raise ValueError
+            size_value = size_raw.strip()
+            if size_value == "-":
+                size = None
+            elif size_value.isdecimal():
+                size = int(size_value)
+            else:
+                raise ValueError
+        except (UnicodeDecodeError, ValueError) as error:
+            raise GitInspectionError("invalid ls-tree -z record") from error
         result.append(TreeEntry(mode, object_type, oid, size, _decode_path(path_raw)))
     return tuple(result)
 
@@ -139,11 +172,26 @@ class GitInspector:
         return self._run(("cat-file", "blob", oid))
 
     def remote_head(self, remote: str, ref: str) -> str:
-        raw = self._run(("ls-remote", "--exit-code", remote, ref))
-        lines = raw.decode("ascii").splitlines()
-        if len(lines) != 1:
-            raise GitInspectionError(f"remote ref is ambiguous: {remote} {ref}")
-        return lines[0].split("\t", 1)[0]
+        if not remote or remote.startswith("-"):
+            raise GitInspectionError(f"invalid remote name: {remote!r}")
+        if not ref or any(character in ref for character in "\0\r\n"):
+            raise GitInspectionError(f"invalid remote ref: {ref!r}")
+        try:
+            expected_ref = ref.encode("utf-8")
+        except UnicodeEncodeError as error:
+            raise GitInspectionError(f"invalid remote ref: {ref!r}") from error
+        raw = self._run(("ls-remote", "--exit-code", "--", remote, ref))
+        suffix = b"\t" + expected_ref + b"\n"
+        if not raw.endswith(suffix):
+            raise GitInspectionError(f"remote ref is ambiguous or mismatched: {remote} {ref}")
+        oid_raw = raw[: -len(suffix)]
+        try:
+            oid = oid_raw.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise GitInspectionError(f"invalid remote object id: {remote} {ref}") from error
+        if not _is_object_id(oid):
+            raise GitInspectionError(f"invalid remote object id: {remote} {ref}")
+        return oid
 
     def snapshot(self) -> RepoSnapshot:
         head = self._run(("rev-parse", "HEAD")).decode("ascii").strip()
