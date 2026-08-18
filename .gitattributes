@@ -1,5 +1,6 @@
 # Auto detect text files and normalize line endings in the repository
 * text=auto
+/.gitattributes text eol=lf
 
 # Binary assets
 *.mp3 binary
@@ -132,3 +133,12 @@
 # Task 9 Batch 01 QA text bytes (exact paths)
 /09_泛健康日更/work/HC20260810-B01-task9-qa/HC20260810-B01-grok-manual-pack-inventory-v01.csv text eol=lf
 /09_泛健康日更/work/HC20260810-B01-task9-qa/HC20260810-B01-grok-manual-pack-qa-v01.md text eol=lf
+
+# Task 7 approved trend exchange (narrow paths; manifest-bound bytes stay LF)
+/app/services/health_trend_exchange.py text eol=lf
+/09_泛健康日更/scripts/import_trend_intelligence.py text eol=lf
+/09_泛健康日更/data/trend-intelligence/README.md text eol=lf
+/09_泛健康日更/data/trend-intelligence/HTI-????????-??/v01/top10.json text eol=lf
+/09_泛健康日更/data/trend-intelligence/HTI-????????-??/v01/evidence-summary.json text eol=lf
+/09_泛健康日更/data/trend-intelligence/HTI-????????-??/v01/bundle-manifest.json text eol=lf
+/test/services/test_health_trend_exchange.py text eol=lf
