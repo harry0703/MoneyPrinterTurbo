@@ -113,14 +113,12 @@ photo_library_codex_timeout = 300
 # Embeddings remain on Gemini regardless of the vision provider.
 photo_library_embed_model = "gemini-embedding-001"
 
-# Selection weights and score thresholds. Placeholder until calibrated on a
-# live library; the owner will replace these once real usage data is
-# available.
-photo_library_weight_semantic = 0.7
-photo_library_weight_tags = 0.3
-photo_library_weight_recency = 0.2
-photo_library_score_accept = 0.62
-photo_library_score_reject = 0.45
+# Selection weights and score thresholds, calibrated on the live library.
+photo_library_weight_semantic = 0.85
+photo_library_weight_tags = 0.10
+photo_library_weight_recency = 0.05
+photo_library_score_accept = 0.68
+photo_library_score_reject = 0.54
 # Recency window: how many of the most recent tasks count toward asset
 # freshness scoring.
 photo_library_recency_window = 20
