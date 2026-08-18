@@ -60,8 +60,8 @@ $XhsComment = @{comment_id='xhs-comment-synthetic-001'; note_id='xhs-synthetic-0
 [IO.File]::WriteAllText((Join-Path $InputRoot 'xhs-comments.jsonl'), (($XhsComment | ConvertTo-Json -Compress -Depth 5) + "`n"), $Utf8NoBom)
 
 $Queries = @(
-  @{query_id='dy-sleep-v1'; platform='dy'; keyword='睡眠'; window_start='2026-04-01T00:00:00+08:00'; window_end='2026-04-30T23:59:59+08:00'},
-  @{query_id='xhs-sleep-v1'; platform='xhs'; keyword='睡眠'; window_start='2026-04-01T00:00:00+08:00'; window_end='2026-04-30T23:59:59+08:00'}
+  @{query_id='dy-sleep-v1'; platform='dy'; keyword='睡眠'; window_start='2026-04-01T00:00:00+08:00'; window_end='2026-04-20T12:00:00+08:00'},
+  @{query_id='xhs-sleep-v1'; platform='xhs'; keyword='睡眠'; window_start='2026-04-01T00:00:00+08:00'; window_end='2026-04-20T12:00:00+08:00'}
 )
 $Sources = @(
   @{path=(Join-Path $InputRoot 'dy-posts.jsonl'); platform='dy'; record_kind='posts'},
@@ -118,7 +118,7 @@ $ImportedPath = Join-Path $FakeRepo "09_泛健康日更\data\trend-intelligence\
 
 ## 7. 生成只读边界报告
 
-Task 8 基线与 240 个删除路径哈希是本计划的已审核锚。路径哈希算法是：Git `-z` 原始路径字节排序后，以 LF 连接并保留末尾 LF，再计算 SHA-256。
+Task 8 基线 `f5f6d900b78cc583272d3f29bb1c6e3976b1109e`、240 个删除路径及路径摘要 `391aa69f5238ab573788c248ced49824a51a5fa08b4c3c9477d9bbf2eda26db6`，以及 MediaCrawler commit `d6f7c5bb906b6dac40ddf343ef9e26438a3de092` 都固定在受审脚本内，操作者不能用 CLI 参数改写。删除路径摘要算法是：Git `-z` 原始路径字节排序后，以 LF 连接并保留末尾 LF，再计算 SHA-256。
 
 ```powershell
 $BoundaryVerifier = Join-Path $Integration 'scripts\verify_boundaries.py'
@@ -129,14 +129,12 @@ uv run --project $Integration python $BoundaryVerifier `
   --curated-path (Join-Path $DataRoot "curated\$BatchId") `
   --approved-path $ApprovedPath `
   --imported-path $ImportedPath `
-  --external-manifest-sha256 $ExternalManifestSha256 `
-  --task8-base 'f5f6d900b78cc583272d3f29bb1c6e3976b1109e' `
-  --expected-media-crawler-commit 'd6f7c5bb906b6dac40ddf343ef9e26438a3de092' `
-  --expected-manual-deletion-count 240 `
-  --expected-manual-deletion-sha256 '391aa69f5238ab573788c248ced49824a51a5fa08b4c3c9477d9bbf2eda26db6'
+  --external-manifest-sha256 $ExternalManifestSha256
 ```
 
-只有所有必检项都能核验时，命令才输出一行 canonical UTF-8/LF JSON 并以 0 退出。缺路径、越界、无法检查、MediaCrawler 改动、锚不匹配或删除集改变都会非零失败，不会把 skip 记为 true。
+该命令会实际检查固定 BASE 到 HEAD 的五文件提交边界、明确的依赖/配置 pathspec 以及仓库内 Raw 的 tracked/untracked/落盘状态；同时递归枚举 Raw、Curated、Approved 和 Imported 的每个普通文件。JSON/JSONL 使用 UTF-8、NFC 键和唯一键严格解析，递归拒绝 cookie/session/token/api_key/secret/password/proxy/credential 等敏感键；所有扩展名都读取文件头识别常见媒体魔数。合成手机号/邮箱形状值不被当成真实凭据，但敏感键本身仍禁止。
+
+只有所有必检项都能核验时，命令才输出一行 canonical UTF-8/LF JSON 并以 0 退出。缺路径、原始路径链中的 symlink/junction/reparse、越界、非普通文件、不能扫描、MediaCrawler 改动、外部锚不匹配或固定删除集改变都会非零失败。不存在把 skip 记为 true 的通过路径，失败输出不包含合成载荷或给定绝对路径。
 
 ## 8. Raw 30 天到期报告
 

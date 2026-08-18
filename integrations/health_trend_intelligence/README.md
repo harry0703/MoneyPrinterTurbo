@@ -16,6 +16,16 @@ The ten synthetic candidates are not a real trend ranking, medical evidence,
 medical review, or a claim of real human selection. No media is downloaded and
 nothing is automatically published. Raw retention is report-only.
 
+The read-only boundary CLI pins the reviewed Task 8 base, exact 240-path
+deletion digest, and MediaCrawler commit inside the script. It verifies the
+five-file commit allowlist, explicit dependency/config pathspecs, actual Git
+Raw state, lexical and resolved path chains, and every regular artifact file.
+JSON/JSONL keys are parsed as unique NFC keys and checked recursively for
+credential fields; media extensions and common file signatures are rejected.
+Missing or unverifiable checks fail closed with no payload or supplied path in
+the error output. Synthetic phone/email-shaped values alone are not claimed to
+be real credentials.
+
 Run the focused synthetic contract from the MoneyPrinterTurbo repository root:
 
 ```powershell

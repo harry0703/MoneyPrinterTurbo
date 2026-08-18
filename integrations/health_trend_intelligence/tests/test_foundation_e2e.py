@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from health_trend_intelligence.batch import SourceSpec, register_batch
 from health_trend_intelligence.canonical import canonical_json_bytes, load_unique_json
 from health_trend_intelligence.curation import CuratedBatchResult, curate_batch
@@ -16,10 +18,6 @@ from health_trend_intelligence.exchange import (
     ApprovedExchangeResult,
     build_approved_exchange,
     verify_approved_exchange,
-)
-from health_trend_intelligence.models import (
-    APPROVED_DISCLAIMER,
-    APPROVED_MEDICAL_RISK_FLAG,
 )
 from health_trend_intelligence.privacy import PrivacyHasher
 from health_trend_intelligence.storage import DataLayout
@@ -34,13 +32,14 @@ BOUNDARY_SCRIPT = (
     / "verify_boundaries.py"
 )
 BATCH_ID = "HTI-20260818-08"
-TASK8_BASE = "f5f6d900b78cc583272d3f29bb1c6e3976b1109e"
 MANUAL_DELETION_COUNT = 240
 MANUAL_DELETION_SHA256 = (
     "391aa69f5238ab573788c248ced49824a51a5fa08b4c3c9477d9bbf2eda26db6"
 )
 SNAPSHOT = datetime(2026, 4, 20, 12, tzinfo=timezone(timedelta(hours=8)))
 HASH_KEY = b"task8-completely-synthetic-hash-key-v1"
+EXPECTED_DISCLAIMER = "该包只是选题情报，不是医学事实来源或可直接发布的脚本。"
+EXPECTED_MEDICAL_RISK_FLAG = "medical_claim_unverified"
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,10 +146,10 @@ def _selection(curated_manifest_sha256: str) -> dict[str, object]:
                 "homogeneity_pattern": f"完全合成同质化模式 {rank:02d}",
                 "narrative_gap": f"完全合成叙事缺口 {rank:02d}",
                 "original_visual_direction": f"完全合成原创视觉方向 {rank:02d}",
-                "risk_flags": [APPROVED_MEDICAL_RISK_FLAG],
+                "risk_flags": [EXPECTED_MEDICAL_RISK_FLAG],
                 "confidence": ("low", "medium", "high")[(rank - 1) % 3],
                 "missing_data": [],
-                "disclaimer": APPROVED_DISCLAIMER,
+                "disclaimer": EXPECTED_DISCLAIMER,
             }
         )
     return {
@@ -200,7 +199,7 @@ def _run_synthetic_pipeline(path: Path) -> SyntheticRun:
             "platform": platform,
             "keyword": "睡眠",
             "window_start": "2026-04-01T00:00:00+08:00",
-            "window_end": "2026-04-30T23:59:59+08:00",
+            "window_end": "2026-04-20T12:00:00+08:00",
         }
         for platform in ("dy", "xhs")
     ]
@@ -225,19 +224,23 @@ def _run_synthetic_pipeline(path: Path) -> SyntheticRun:
     selection_path = path / "synthetic-operator-selection.json"
     selection_path.write_bytes(canonical_json_bytes(_selection(curated.manifest_sha256)))
     approved = build_approved_exchange(layout, BATCH_ID, selection_path)
-    verified = verify_approved_exchange(approved.path, approved.manifest_sha256)
+    manifest_sha256 = hashlib.sha256(
+        (approved.path / "bundle-manifest.json").read_bytes()
+    ).hexdigest()
+    assert approved.manifest_sha256 == manifest_sha256
+    verified = verify_approved_exchange(approved.path, manifest_sha256)
 
     verify_trend_exchange, import_trend_exchange = _load_task7_api()
-    task7_verified = verify_trend_exchange(approved.path, approved.manifest_sha256)
+    task7_verified = verify_trend_exchange(approved.path, manifest_sha256)
     imported = import_trend_exchange(
         approved.path,
         _fake_repo(path / "fake-moneyprinter-repo"),
-        approved.manifest_sha256,
+        manifest_sha256,
     )
-    imported_verified = verify_trend_exchange(imported, approved.manifest_sha256)
+    imported_verified = verify_trend_exchange(imported, manifest_sha256)
     assert verified.candidate_count == task7_verified.candidate_count == 10
-    assert imported_verified.manifest_sha256 == approved.manifest_sha256
-    return SyntheticRun(layout, curated, approved, imported, approved.manifest_sha256)
+    assert imported_verified.manifest_sha256 == manifest_sha256
+    return SyntheticRun(layout, curated, approved, imported, manifest_sha256)
 
 
 def _tree_snapshot(path: Path) -> dict[str, tuple[int, str]]:
@@ -273,14 +276,6 @@ def _boundary_command(run: SyntheticRun) -> list[str]:
         str(run.imported_path),
         "--external-manifest-sha256",
         run.approved_manifest_sha256,
-        "--task8-base",
-        TASK8_BASE,
-        "--expected-media-crawler-commit",
-        "d6f7c5bb906b6dac40ddf343ef9e26438a3de092",
-        "--expected-manual-deletion-count",
-        str(MANUAL_DELETION_COUNT),
-        "--expected-manual-deletion-sha256",
-        MANUAL_DELETION_SHA256,
     ]
 
 
@@ -315,8 +310,11 @@ def test_foundation_pipeline_is_reproducible_private_and_one_way(tmp_path: Path)
     quarantine = _jsonl(first.curated.path / "quarantine.jsonl")
     assert sum(item["reason_code"] == "invalid_numeric" for item in quarantine) == 4
     approved = load_unique_json((first.approved.path / "top10.json").read_bytes())
-    assert all(candidate["risk_flags"] == [APPROVED_MEDICAL_RISK_FLAG] for candidate in approved)
-    assert all(candidate["disclaimer"] == APPROVED_DISCLAIMER for candidate in approved)
+    assert all(
+        candidate["risk_flags"] == [EXPECTED_MEDICAL_RISK_FLAG]
+        for candidate in approved
+    )
+    assert all(candidate["disclaimer"] == EXPECTED_DISCLAIMER for candidate in approved)
 
 
 def test_boundary_cli_is_canonical_fail_closed_and_payload_safe(tmp_path: Path) -> None:
@@ -369,3 +367,187 @@ def test_boundary_cli_hides_paths_when_runtime_dependencies_are_unavailable() ->
     assert completed.stdout == b""
     assert completed.stderr.replace(b"\r\n", b"\n") == b"boundary_verification_failed\n"
     assert str(PROJECT_ROOT).encode("utf-8") not in completed.stderr
+
+
+@pytest.fixture(scope="module")
+def boundary_run(tmp_path_factory: pytest.TempPathFactory) -> SyntheticRun:
+    return _run_synthetic_pipeline(tmp_path_factory.mktemp("task8-boundary-attacks"))
+
+
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        (
+            "boundary-extra.json",
+            (
+                b'{"outer":{"cookie" : "synthetic-secret",'
+                b'"session_id":"synthetic-session",'
+                b'"token":"synthetic-token",'
+                b'"api-key":"synthetic-api-key",'
+                b'"secret":"synthetic-value",'
+                b'"password":"synthetic-password",'
+                b'"proxy_credentials":"synthetic-proxy"}}\n'
+            ),
+        ),
+        ("duplicate.json", b'{"safe":1,"safe":2}\n'),
+        ("nfc-collision.jsonl", '{"é":1,"é":2}\n'.encode()),
+        ("mp4-in-bin.bin", b"\x00\x00\x00\x18ftypmp42synthetic"),
+        ("webm-in-data.data", b"\x1aE\xdf\xa3synthetic"),
+        ("ogg-in-text.txt", b"OggSsynthetic"),
+        ("mp3-in-json.data", b"ID3synthetic"),
+        ("png-in-json.data", b"\x89PNG\r\n\x1a\nsynthetic"),
+        ("jpeg-in-json.data", b"\xff\xd8\xffsynthetic"),
+        ("gif-in-json.data", b"GIF89asynthetic"),
+        ("riff-in-json.data", b"RIFF\x10\x00\x00\x00WAVEsynthetic"),
+        ("media-by-extension.mp4", b"synthetic-non-media-payload"),
+    ],
+)
+def test_boundary_cli_rejects_structured_secrets_and_disguised_media(
+    boundary_run: SyntheticRun,
+    name: str,
+    payload: bytes,
+) -> None:
+    probe = boundary_run.layout.raw / name
+    probe.write_bytes(payload)
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert b"synthetic-secret" not in completed.stderr
+    assert str(probe).encode("utf-8") not in completed.stderr
+
+
+def test_boundary_cli_allows_synthetic_phone_and_email_shapes(
+    boundary_run: SyntheticRun,
+) -> None:
+    probe = boundary_run.layout.raw / "synthetic-shapes.json"
+    probe.write_bytes(
+        b'{"note":"synthetic phone 13800138000 and test@example.invalid"}\n'
+    )
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+
+    assert completed.returncode == 0, completed.stderr.decode("utf-8", errors="replace")
+
+
+def test_boundary_cli_rejects_untracked_protected_config(
+    boundary_run: SyntheticRun,
+) -> None:
+    probe = PROJECT_ROOT / "config.task8-boundary-probe.json"
+    assert not probe.exists()
+    probe.write_bytes(b'{"synthetic":true}\n')
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert str(probe).encode("utf-8") not in completed.stderr
+
+
+def test_boundary_cli_rejects_repository_raw_even_when_untracked(
+    boundary_run: SyntheticRun,
+) -> None:
+    raw_directory = PROJECT_ROOT / "integrations" / "health_trend_intelligence" / "raw"
+    probe = raw_directory / "task8-boundary-probe.json"
+    assert not raw_directory.exists()
+    raw_directory.mkdir()
+    probe.write_bytes(b'{"synthetic":true}\n')
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+        raw_directory.rmdir()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert str(probe).encode("utf-8") not in completed.stderr
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows junction contract")
+def test_boundary_cli_rejects_junction_in_original_argument_chain(
+    boundary_run: SyntheticRun,
+    tmp_path: Path,
+) -> None:
+    junction = tmp_path / "raw-junction"
+    created = subprocess.run(
+        ["cmd.exe", "/c", "mklink", "/J", str(junction), str(boundary_run.layout.raw)],
+        capture_output=True,
+        check=False,
+    )
+    assert created.returncode == 0, created.stderr.decode("utf-8", errors="replace")
+    command = _boundary_command(boundary_run)
+    command[command.index("--raw-path") + 1] = str(junction)
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        junction.rmdir()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert str(junction).encode("utf-8") not in completed.stderr
+
+
+def test_boundary_cli_rejects_caller_selected_audit_anchors(
+    boundary_run: SyntheticRun,
+) -> None:
+    command = _boundary_command(boundary_run)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout.strip()
+    command.extend(
+        [
+            "--task8-base",
+            head,
+            "--expected-media-crawler-commit",
+            "d6f7c5bb906b6dac40ddf343ef9e26438a3de092",
+            "--expected-manual-deletion-count",
+            str(MANUAL_DELETION_COUNT),
+            "--expected-manual-deletion-sha256",
+            MANUAL_DELETION_SHA256,
+        ]
+    )
+    completed = subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
