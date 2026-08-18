@@ -207,6 +207,7 @@ class CuratedComment(StrictModel):
 
 
 APPROVED_DISCLAIMER = "该包只是选题情报，不是医学事实来源或可直接发布的脚本。"
+APPROVED_MEDICAL_RISK_FLAG = "medical_claim_unverified"
 _MISSING_TEXT_SENTINELS = frozenset(
     {
         "missing",
@@ -273,6 +274,15 @@ class ApprovedCandidate(StrictModel):
             sentinel = "".join(character for character in normalized if character.isalnum())
             if sentinel in _MISSING_TEXT_SENTINELS:
                 raise ValueError("missing sentinel is not evidence")
+        return values
+
+    @field_validator("risk_flags")
+    @classmethod
+    def validate_batch_wide_medical_risk_flag(
+        cls, values: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        if APPROVED_MEDICAL_RISK_FLAG not in values:
+            raise ValueError("unverified medical risk flag is required")
         return values
 
     @field_validator("platform_rank_evidence")

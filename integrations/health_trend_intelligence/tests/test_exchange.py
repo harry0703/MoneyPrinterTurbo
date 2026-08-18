@@ -224,8 +224,20 @@ def test_selection_rejects_duplicate_or_incomplete_coverage(mutation: str) -> No
         ("growth_evidence", "coo\u2028kie=value"),
         ("growth_evidence", "me＿dia=value"),
         ("growth_evidence", "custom-scheme:opaque-value"),
+        ("growth_evidence", "javascript:opaque-payload"),
+        ("growth_evidence", "vbscript:opaque-payload"),
         ("growth_evidence", "data:text/plain,synthetic-secret"),
         ("growth_evidence", "file:C:/synthetic-secret"),
+        ("growth_evidence", "about:blank"),
+        ("growth_evidence", "blob:synthetic-payload"),
+        ("growth_evidence", "chrome:settings"),
+        ("growth_evidence", "chrome-extension:synthetic-payload"),
+        ("growth_evidence", "resource:synthetic-payload"),
+        ("growth_evidence", "intent:synthetic-payload"),
+        ("growth_evidence", "market:synthetic-payload"),
+        ("growth_evidence", "ms-appx:synthetic-payload"),
+        ("growth_evidence", "ms-appdata:synthetic-payload"),
+        ("growth_evidence", "view-source:synthetic-payload"),
         ("growth_evidence", "tel:+15551234567"),
         ("growth_evidence", "custom+hti://synthetic-host/source"),
         ("growth_evidence", "custom+hti://[2001:db8::1]/source"),
@@ -234,7 +246,6 @@ def test_selection_rejects_duplicate_or_incomplete_coverage(mutation: str) -> No
         ("user_questions", r"raw\HTI-20260818-01\posts.jsonl"),
         ("risk_flags", "待核对 nickname 字段"),
         ("missing_data", "clip.mp4 素材待补"),
-        ("narrative_gap", "每天执行这个方法一定能治愈所有疾病"),
     ],
 )
 def test_builder_rejects_recursive_restricted_values_without_echo(
@@ -338,8 +349,8 @@ def test_payloads_are_canonical_allowlisted_and_summary_is_aggregate_only(tmp_pa
         "missing_data_candidate_count": 1,
         "missing_data_item_count": 1,
         "platform_coverage": {"both": 3, "dy": 7, "xhs": 6},
-        "risk_flag_item_count": 1,
-        "risk_flagged_candidate_count": 1,
+        "risk_flag_item_count": 11,
+        "risk_flagged_candidate_count": 10,
         "schema": "health_trend_evidence_summary.v1",
     }
     for candidate in top10:
@@ -449,8 +460,20 @@ def test_verifier_rejects_semantic_leak_even_when_hashes_are_rebound(tmp_path: P
         "coo\u2028kie=value",
         "me＿dia=value",
         "custom-scheme:opaque-value",
+        "javascript:opaque-payload",
+        "vbscript:opaque-payload",
         "data:text/plain,synthetic-secret",
         "file:C:/synthetic-secret",
+        "about:blank",
+        "blob:synthetic-payload",
+        "chrome:settings",
+        "chrome-extension:synthetic-payload",
+        "resource:synthetic-payload",
+        "intent:synthetic-payload",
+        "market:synthetic-payload",
+        "ms-appx:synthetic-payload",
+        "ms-appdata:synthetic-payload",
+        "view-source:synthetic-payload",
         "tel:+15551234567",
         "custom+hti://synthetic-host/source",
         "custom+hti://[2001:db8::1]/source",
@@ -466,9 +489,12 @@ def test_verifier_rejects_review_leaks_after_semantically_rebound_hashes(
     top10 = load_unique_json((result.path / "top10.json").read_bytes())
     top10[0]["growth_evidence"] = [unsafe]
     _rebind_payload(result, "top10.json", top10)
+    rebound_anchor = hashlib.sha256(
+        (result.path / "bundle-manifest.json").read_bytes()
+    ).hexdigest()
 
     with pytest.raises(ExchangeError) as captured:
-        verify_approved_exchange(result.path)
+        verify_approved_exchange(result.path, rebound_anchor)
 
     assert unsafe not in str(captured.value)
 
@@ -512,6 +538,62 @@ def test_manifest_binding_rejects_non_integer_or_negative_bytes(
 
     with pytest.raises(ExchangeError):
         verify_approved_exchange(result.path)
+
+
+def test_candidate_model_requires_batch_wide_unverified_medical_flag() -> None:
+    value = _selection_value("a" * 64)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    for candidate in candidates:
+        candidate["risk_flags"] = ["medical_claim_unverified"]
+    candidates[0]["risk_flags"] = []
+
+    with pytest.raises(ValidationError):
+        ApprovedSelection.model_validate_json(canonical_json_bytes(value))
+
+
+def test_builder_rejects_any_candidate_missing_batch_wide_risk_flag(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    for candidate in candidates:
+        candidate["risk_flags"] = ["medical_claim_unverified"]
+    candidates[7]["risk_flags"] = []
+
+    with pytest.raises(ExchangeError):
+        build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
+
+    assert not (layout.approved / BATCH_ID).exists()
+
+
+def test_anchored_verifier_rejects_missing_batch_wide_flag_after_full_rebind(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    for candidate in candidates:
+        candidate["risk_flags"] = ["medical_claim_unverified"]
+    result = build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
+    top10 = load_unique_json((result.path / "top10.json").read_bytes())
+    top10[7]["risk_flags"] = []
+    _rebind_payload(result, "top10.json", top10)
+    summary = load_unique_json((result.path / "evidence-summary.json").read_bytes())
+    summary["risk_flagged_candidate_count"] = 9
+    summary["risk_flag_item_count"] = 9
+    _rebind_payload(result, "evidence-summary.json", summary)
+    rebound_anchor = hashlib.sha256(
+        (result.path / "bundle-manifest.json").read_bytes()
+    ).hexdigest()
+
+    with pytest.raises(ExchangeError):
+        verify_approved_exchange(result.path, rebound_anchor)
 
 
 @pytest.mark.parametrize(
@@ -582,8 +664,8 @@ def test_anchored_verifier_rejects_medical_statement_after_flag_is_removed(
     top10[0]["risk_flags"] = []
     _rebind_payload(result, "top10.json", top10)
     summary = load_unique_json((result.path / "evidence-summary.json").read_bytes())
-    summary["risk_flagged_candidate_count"] = 1
-    summary["risk_flag_item_count"] = 1
+    summary["risk_flagged_candidate_count"] = 9
+    summary["risk_flag_item_count"] = 10
     _rebind_payload(result, "evidence-summary.json", summary)
     rebound_anchor = hashlib.sha256(
         (result.path / "bundle-manifest.json").read_bytes()

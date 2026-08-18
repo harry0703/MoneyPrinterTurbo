@@ -20,7 +20,12 @@ from pydantic import ValidationError
 
 from .canonical import canonical_json_bytes, load_unique_json
 from .curation import CurationError, verify_curated_batch
-from .models import APPROVED_DISCLAIMER, ApprovedCandidate, ApprovedSelection
+from .models import (
+    APPROVED_DISCLAIMER,
+    APPROVED_MEDICAL_RISK_FLAG,
+    ApprovedCandidate,
+    ApprovedSelection,
+)
 from .privacy import SensitiveDataError, assert_no_sensitive_data
 from .storage import (
     DataLayout,
@@ -125,7 +130,9 @@ _CONFUSABLE_ASCII = str.maketrans(
 )
 _URI_WITH_AUTHORITY = re.compile(r"(?<![\w])(?:[a-z][a-z0-9+.-]{0,31}):[\\/]{2}")
 _URI_WITHOUT_AUTHORITY = re.compile(
-    r"(?<![\w])(?:custom-scheme|data|file|magnet|mailto|sms|tel|urn):"
+    r"(?<![\w])(?:about|blob|chrome|chrome-extension|custom-scheme|data|file|intent|"
+    r"javascript|magnet|mailto|market|ms-appdata|ms-appx|resource|sms|tel|urn|"
+    r"vbscript|view-source):"
 )
 _COMPACT_URI = re.compile(r"(?:[a-z][a-z0-9+.-]{0,31})[\\/]{2}")
 _DOMAIN_CANDIDATE = re.compile(r"(?<![\w-])(?:[\w-]{1,63}\.)+[\w-]{2,63}(?![\w-])")
@@ -181,26 +188,6 @@ _MEDIA_EXTENSION = re.compile(
 )
 _RAW_EXCERPT = re.compile(r"raw\s*excerpt|原文|原句|摘录|全文", re.IGNORECASE)
 _CHINESE_RESTRICTED = re.compile(r"昵称|头像|凭据|令牌|媒体|身份")
-_MEDICAL_CLAIM = re.compile(
-    r"(?:一定|保证|必然|可以|能够).{0,16}(?:治愈|根治|确诊|治疗|预防疾病)"
-    r"|包治|药到病除|经医学证实|医学事实"
-)
-_MEDICAL_STATEMENT_GATE_VERSION = "medical_statement_gate.v2"
-_MEDICAL_CONTEXT = re.compile(
-    r"健康|身体|患者|疾病|病情|症状|诊断|医学|医疗|疗法|药物?"
-    r"|高血压|糖尿病|感冒|癌|肿瘤|炎症|感染|免疫|血压|血糖|血脂"
-    r"|维生素|心脏|肝脏?|肾脏?|肺部?|胃肠|关节|皮肤|头发|脱发"
-    r"|睡眠|失眠|熬夜|疼痛|疲劳|肥胖|体重|摄入|饮食|吸烟|饮酒|运动"
-)
-_MEDICAL_ASSERTION = re.compile(
-    r"会?导致|造成|引起|诱发|预防|改善|治疗|治愈|根治|缓解"
-    r"|降低.{0,12}风险|减少.{0,12}风险|增加.{0,12}风险|提高.{0,12}风险"
-    r"|应该|应当|建议|需要|必须|有效|疗效|有助于"
-)
-_QUESTION_MARKERS = re.compile(r"[?？]\s*\Z|是否|吗\s*[?？]?$|为什么|怎么|如何")
-_MEDICAL_UNVERIFIED_FLAG = "medical_claim_unverified"
-
-
 class ExchangeError(ValueError):
     """A privacy-safe exchange failure carrying only a stable reason code."""
 
@@ -394,38 +381,9 @@ def _assert_safe_text(value: str) -> None:
         raise ExchangeError("restricted_approved_content")
 
 
-def _is_unverified_medical_statement(value: str) -> bool:
-    if _MEDICAL_STATEMENT_GATE_VERSION != "medical_statement_gate.v2":
-        raise ExchangeError("medical_gate_version_invalid")
-    decoded = _normalize_approved_text_v2(value)
-    if _QUESTION_MARKERS.search(decoded):
-        return False
-    return bool(
-        _MEDICAL_CLAIM.search(decoded)
-        or (_MEDICAL_CONTEXT.search(decoded) and _MEDICAL_ASSERTION.search(decoded))
-    )
-
-
 def _assert_medical_risk_marking(candidates: tuple[ApprovedCandidate, ...]) -> None:
-    statement_fields = (
-        "topic",
-        "growth_evidence",
-        "user_questions",
-        "user_needs",
-        "misunderstandings",
-        "objections",
-        "homogeneity_pattern",
-        "narrative_gap",
-        "original_visual_direction",
-    )
     for candidate in candidates:
-        statements: list[str] = []
-        for field in statement_fields:
-            value = getattr(candidate, field)
-            statements.extend(value if isinstance(value, tuple) else (value,))
-        if any(_is_unverified_medical_statement(statement) for statement in statements) and (
-            _MEDICAL_UNVERIFIED_FLAG not in candidate.risk_flags
-        ):
+        if APPROVED_MEDICAL_RISK_FLAG not in candidate.risk_flags:
             raise ExchangeError("medical_claim_unverified")
 
 
