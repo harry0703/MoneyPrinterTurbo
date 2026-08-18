@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,21 +11,34 @@ import app.services.health_asset_integrity as integrity
 from app.services.health_asset_integrity import (
     GitInspectionError,
     GitInspector,
+    audit_health_assets,
+    is_lfs_pointer,
     parse_ls_tree_z,
     parse_porcelain_v1_z,
+    report_to_dict,
 )
 
 
 def _git(repo: Path, *args: str) -> bytes:
     env = os.environ.copy()
     env["GIT_OPTIONAL_LOCKS"] = "0"
-    return subprocess.run(
-        ["git", "-c", f"safe.directory={repo.resolve()}", *args],
+    completed = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={repo.resolve()}",
+            "-c",
+            "core.longpaths=true",
+            *args,
+        ],
         cwd=repo,
         env=env,
-        check=True,
+        check=False,
         capture_output=True,
-    ).stdout
+    )
+    if completed.returncode != 0:
+        raise AssertionError(completed.stderr.decode("utf-8", errors="replace"))
+    return completed.stdout
 
 
 def _repo(tmp_path: Path) -> Path:
@@ -40,6 +54,67 @@ def _repo(tmp_path: Path) -> Path:
     tracked.unlink()
     (repo / "未跟踪.txt").write_text("不应改动\n", encoding="utf-8")
     return repo
+
+
+def _manual_pack_files(content_id: str) -> dict[str, bytes]:
+    root = f"09_泛健康日更/work/{content_id}/production/v01/04_grok_batch/manual_pack"
+    payloads: dict[str, bytes] = {}
+    for shot in range(1, 11):
+        payloads[f"{root}/01_first_frames/{content_id}-v01-S{shot:02d}-firstframe.png"] = (
+            b"\x89PNG\r\n\x1a\n" + bytes([shot])
+        )
+        payloads[f"{root}/02_prompts/{content_id}-v01-S{shot:02d}-prompt-zh-en.txt"] = (
+            f"S{shot:02d} prompt\n".encode()
+        )
+    payloads[f"{root}/{content_id}-v01-Grok-Automation-10条提示词.txt"] = b"merged\n"
+    payloads[f"{root}/MANIFEST.csv"] = b"shot,path\n"
+    payloads[f"{root}/MANUAL-GENERATION-GUIDE.md"] = b"guide\n"
+    payloads[f"{root}/MANUAL-PACK-QA.md"] = b"qa\n"
+    return payloads
+
+
+def _write_files(repo: Path, payloads: dict[str, bytes]) -> None:
+    for relative, payload in payloads.items():
+        path = repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+
+
+def _repo_with_one_manual_pack(
+    tmp_path: Path, *, source_payload: bytes | None = b"\x89PNG\r\n\x1a\n\x01"
+) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init")
+    _git(repo, "config", "user.name", "Audit Test")
+    _git(repo, "config", "user.email", "audit@example.invalid")
+    content_id = "HC20260810-001"
+    _write_files(repo, _manual_pack_files(content_id))
+    if source_payload is not None:
+        source = (
+            repo
+            / f"09_泛健康日更/work/{content_id}/production/v01/03_first_frames/"
+            f"{content_id}-v01-S01-firstframe.png"
+        )
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(source_payload)
+    _git(repo, "add", "--all", ".")
+    _git(repo, "commit", "-m", "manual pack fixture")
+    for path in (repo / "09_泛健康日更").rglob("*"):
+        if path.is_file() and "manual_pack" in path.parts:
+            path.unlink()
+    return repo
+
+
+def _stub_lfs_success(monkeypatch: pytest.MonkeyPatch, paths: tuple[str, ...] = ()) -> None:
+    def fake_lfs(_inspector: GitInspector, args: tuple[str, ...]) -> bytes:
+        if args == ("version",):
+            return b"git-lfs/3.7.0\n"
+        if args == ("ls-files", "--all", "-n"):
+            return b"".join(path.encode("utf-8") + b"\n" for path in paths)
+        raise AssertionError(f"unexpected LFS arguments: {args!r}")
+
+    monkeypatch.setattr(integrity, "_run_lfs_readonly", fake_lfs)
 
 
 def test_parse_porcelain_v1_z_preserves_unicode_and_spaces():
@@ -284,3 +359,204 @@ def test_constructor_probe_and_normal_call_use_read_only_git_environment(
     for command, kwargs in calls:
         assert command[:3] == ["git", "-c", f"safe.directory={repo.resolve()}"]
         assert kwargs["env"]["GIT_OPTIONAL_LOCKS"] == "0"
+
+
+def test_audit_classifies_24_deletions_per_episode_and_head_recoverability(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.name", "Audit Test")
+    _git(repo, "config", "user.email", "audit@example.invalid")
+    for number in range(1, 11):
+        _write_files(repo, _manual_pack_files(f"HC20260810-{number:03d}"))
+    _git(repo, "add", "--all", ".")
+    _git(repo, "commit", "-m", "manual packs")
+    for path in (repo / "09_泛健康日更").rglob("*"):
+        if path.is_file() and "manual_pack" in path.parts:
+            path.unlink()
+    _stub_lfs_success(monkeypatch)
+
+    report = audit_health_assets(GitInspector(repo), remote=None, remote_ref=None)
+    payload = report_to_dict(report)
+
+    assert payload["summary"] == {
+        "audit_complete": True,
+        "deleted_manual_pack_files": 240,
+        "episodes": 10,
+        "first_frames": 100,
+        "prompts": 100,
+        "control_files": 40,
+        "large_blobs": 0,
+    }
+    assert {item["deleted_count"] for item in payload["episodes"]} == {24}
+    assert {item["head_blob_recoverable"] for item in payload["deleted_assets"]} == {True}
+    assert [item["content_id"] for item in payload["episodes"]] == [
+        f"HC20260810-{number:03d}" for number in range(1, 11)
+    ]
+
+
+def test_first_frame_source_comparison_is_reported_without_copying(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = _repo_with_one_manual_pack(tmp_path)
+    inspector = GitInspector(repo)
+    before = inspector.snapshot()
+    _stub_lfs_success(monkeypatch)
+
+    report = audit_health_assets(inspector, remote=None, remote_ref=None)
+
+    first_frame = next(item for item in report.deleted_assets if item.asset_kind == "first_frame")
+    assert first_frame.source_path.endswith(
+        "/03_first_frames/HC20260810-001-v01-S01-firstframe.png"
+    )
+    assert first_frame.source_exists is True
+    assert first_frame.source_sha256 == first_frame.head_blob_sha256
+    assert first_frame.source_matches_head is True
+    assert inspector.snapshot() == before
+
+
+@pytest.mark.parametrize(
+    ("source_payload", "expected_exists", "expected_matches"),
+    [
+        (None, False, None),
+        (b"different source bytes\n", True, False),
+    ],
+)
+def test_source_missing_or_mismatch_is_evidence_not_a_restore_decision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_payload: bytes | None,
+    expected_exists: bool,
+    expected_matches: bool | None,
+):
+    repo = _repo_with_one_manual_pack(tmp_path, source_payload=source_payload)
+    _stub_lfs_success(monkeypatch)
+
+    report = audit_health_assets(GitInspector(repo), remote=None, remote_ref=None)
+
+    first_frame = next(item for item in report.deleted_assets if item.asset_kind == "first_frame")
+    assert first_frame.source_exists is expected_exists
+    assert first_frame.source_matches_head is expected_matches
+    assert [option["id"] for option in report.decision_options] == [
+        "restore_exact_from_head",
+        "regenerate_outside_repo_and_compare",
+        "keep_deletions",
+    ]
+
+
+def test_lfs_pointer_and_plain_large_blob_are_not_confused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    pointer = (
+        b"version https://git-lfs.github.com/spec/v1\n"
+        + b"oid sha256:"
+        + b"a" * 64
+        + b"\nsize 99\n"
+    )
+    assert is_lfs_pointer(pointer) is True
+    assert is_lfs_pointer(b"\x89PNG\r\n\x1a\n") is False
+
+    repo = _repo_with_one_manual_pack(tmp_path)
+    (repo / "plain-large.bin").write_bytes(b"x" * 151)
+    (repo / "pointer.lfs").write_bytes(pointer + b"padding" * 8)
+    _git(repo, "add", "--", "plain-large.bin", "pointer.lfs")
+    _git(repo, "commit", "-m", "large blob fixtures")
+    monkeypatch.setattr(integrity, "LARGE_BLOB_THRESHOLD", 100)
+    _stub_lfs_success(monkeypatch, ("pointer.lfs",))
+
+    report = audit_health_assets(GitInspector(repo), remote=None, remote_ref=None)
+    blobs = {item.path: item for item in report.large_blobs}
+
+    assert blobs["plain-large.bin"].lfs_pointer is False
+    assert blobs["pointer.lfs"].lfs_pointer is True
+    assert report.lfs["tracked_paths"] == ["pointer.lfs"]
+
+
+def test_failed_lfs_probe_is_reported_as_incomplete_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = _repo_with_one_manual_pack(tmp_path)
+
+    def fail_lfs(_inspector: GitInspector, _args: tuple[str, ...]) -> bytes:
+        raise GitInspectionError("git lfs unavailable")
+
+    monkeypatch.setattr(integrity, "_run_lfs_readonly", fail_lfs)
+
+    report = audit_health_assets(GitInspector(repo), remote=None, remote_ref=None)
+
+    assert report.summary["audit_complete"] is False
+    assert report.lfs["complete"] is False
+    assert report.lfs["tracked_paths"] is None
+    assert "unavailable" in report.lfs["error"]
+
+
+def test_requested_remote_object_missing_locally_is_not_fetched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = _repo_with_one_manual_pack(tmp_path / "audit")
+    remote_repo = tmp_path / "remote"
+    remote_repo.mkdir()
+    _git(remote_repo, "init")
+    _git(remote_repo, "config", "user.name", "Audit Test")
+    _git(remote_repo, "config", "user.email", "audit@example.invalid")
+    (remote_repo / "remote-only.txt").write_text("remote\n", encoding="utf-8")
+    _git(remote_repo, "add", "--", "remote-only.txt")
+    _git(remote_repo, "commit", "-m", "remote fixture")
+    branch = _git(remote_repo, "symbolic-ref", "--short", "HEAD").decode().strip()
+    _stub_lfs_success(monkeypatch)
+
+    report = audit_health_assets(
+        GitInspector(repo), str(remote_repo), f"refs/heads/{branch}"
+    )
+
+    assert report.summary["audit_complete"] is False
+    assert report.remote["object_available_locally"] is False
+    assert report.remote["tree_comparison"] == "unavailable_without_fetch"
+
+
+def test_unavailable_requested_remote_is_incomplete_not_an_empty_comparison(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = _repo_with_one_manual_pack(tmp_path)
+    _stub_lfs_success(monkeypatch)
+
+    report = audit_health_assets(
+        GitInspector(repo), str(tmp_path / "missing-remote"), "refs/heads/main"
+    )
+
+    assert report.summary["audit_complete"] is False
+    assert report.remote["tree_comparison"] == "unavailable"
+    assert report.remote["error"]
+
+
+def test_changed_snapshot_aborts_the_audit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    inspector = GitInspector(_repo_with_one_manual_pack(tmp_path))
+    before = inspector.snapshot()
+    snapshots = iter((before, replace(before, status_sha256="0" * 64)))
+    monkeypatch.setattr(inspector, "snapshot", lambda: next(snapshots))
+    _stub_lfs_success(monkeypatch)
+
+    with pytest.raises(GitInspectionError, match="repository changed during audit"):
+        audit_health_assets(inspector, remote=None, remote_ref=None)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("pull",),
+        ("ls-files",),
+        ("ls-files", "--all"),
+        ("version", "--json"),
+        ["pull"],
+    ],
+)
+def test_lfs_helper_fails_closed_outside_its_exact_readonly_whitelist(
+    tmp_path: Path, args: tuple[str, ...] | list[str]
+):
+    inspector = GitInspector(_repo(tmp_path))
+    with pytest.raises(GitInspectionError, match="not allowed"):
+        integrity._run_lfs_readonly(inspector, args)
