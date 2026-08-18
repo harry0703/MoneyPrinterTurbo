@@ -204,3 +204,107 @@ class CuratedComment(StrictModel):
         if not _SHA256.fullmatch(value):
             raise ValueError("must be a lowercase SHA-256 hex digest")
         return value
+
+
+APPROVED_DISCLAIMER = "该包只是选题情报，不是医学事实来源或可直接发布的脚本。"
+
+
+class ApprovedCandidate(StrictModel):
+    """One human-ranked topic containing only the Approved interchange allowlist."""
+
+    rank: int = Field(ge=1, le=10)
+    topic: str
+    platform_rank_evidence: dict[Literal["dy", "xhs"], str] = Field(
+        min_length=1, max_length=2
+    )
+    growth_evidence: tuple[str, ...]
+    user_questions: tuple[str, ...]
+    user_needs: tuple[str, ...]
+    misunderstandings: tuple[str, ...]
+    objections: tuple[str, ...]
+    homogeneity_pattern: str
+    narrative_gap: str
+    original_visual_direction: str
+    risk_flags: tuple[str, ...]
+    confidence: Literal["low", "medium", "high"]
+    missing_data: tuple[str, ...]
+    disclaimer: Literal[APPROVED_DISCLAIMER]
+
+    _text_fields = (
+        "topic",
+        "homogeneity_pattern",
+        "narrative_gap",
+        "original_visual_direction",
+    )
+
+    @field_validator(
+        "growth_evidence",
+        "user_questions",
+        "user_needs",
+        "misunderstandings",
+        "objections",
+        "risk_flags",
+        "missing_data",
+    )
+    @classmethod
+    def validate_text_items(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        for value in values:
+            if not value.strip() or unicodedata.normalize("NFC", value) != value:
+                raise ValueError("items must be non-empty NFC-normalized text")
+        return values
+
+    @field_validator("platform_rank_evidence")
+    @classmethod
+    def validate_platform_evidence(
+        cls, value: dict[Literal["dy", "xhs"], str]
+    ) -> dict[Literal["dy", "xhs"], str]:
+        if any(
+            not item.strip() or unicodedata.normalize("NFC", item) != item
+            for item in value.values()
+        ):
+            raise ValueError("platform evidence must be non-empty NFC-normalized text")
+        return value
+
+
+class ApprovedSelection(StrictModel):
+    """Canonical, human-authored approval bound to exactly one Curated manifest."""
+
+    schema: Literal["health_trend_selection.v1"]
+    batch_id: str
+    curated_manifest_sha256: str
+    human_selection_status: Literal["approved"]
+    approved_at: AwareDatetime
+    candidates: tuple[ApprovedCandidate, ...] = Field(min_length=10, max_length=10)
+
+    _text_fields = ("batch_id",)
+
+    @field_validator("batch_id")
+    @classmethod
+    def validate_batch_id(cls, value: str) -> str:
+        if not _BATCH_ID.fullmatch(value):
+            raise ValueError("must match HTI-YYYYMMDD-NN")
+        return value
+
+    @field_validator("curated_manifest_sha256")
+    @classmethod
+    def validate_curated_manifest_sha256(cls, value: str) -> str:
+        if not _SHA256.fullmatch(value):
+            raise ValueError("must be a lowercase SHA-256 hex digest")
+        return value
+
+    @model_validator(mode="after")
+    def validate_candidate_set(self) -> ApprovedSelection:
+        if {candidate.rank for candidate in self.candidates} != set(range(1, 11)):
+            raise ValueError("candidate ranks must be the complete unique set 1..10")
+        topics = {
+            unicodedata.normalize("NFKC", " ".join(candidate.topic.split())).casefold()
+            for candidate in self.candidates
+        }
+        if "" in topics or len(topics) != 10:
+            raise ValueError("candidate topics must be unique after normalization")
+        covered_platforms = {
+            platform for candidate in self.candidates for platform in candidate.platform_rank_evidence
+        }
+        if covered_platforms != {"dy", "xhs"}:
+            raise ValueError("selection must contain rank evidence for both supported platforms")
+        return self

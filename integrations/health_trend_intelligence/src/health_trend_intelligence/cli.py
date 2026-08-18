@@ -13,6 +13,7 @@ from typer.core import TyperGroup
 from .batch import BatchInputError, build_retention_report, register_batch, verify_raw_batch
 from .canonical import load_unique_json
 from .curation import CurationError, curate_batch, verify_curated_batch
+from .exchange import ExchangeError, build_approved_exchange, verify_approved_exchange
 from .privacy import PrivacyConfigurationError, PrivacyHasher
 from .storage import DataLayout, PathSafetyError, assert_safe_regular_file
 
@@ -188,3 +189,50 @@ def verify_curated(
         ),
     )
     typer.echo(f"verified-curated {batch_id}")
+
+
+def _exchange_guard(command: str, batch_id: str, action: Callable[[], T]) -> T:
+    safe_batch_id = (
+        batch_id
+        if isinstance(batch_id, str) and _SAFE_BATCH_ID.fullmatch(batch_id)
+        else "<invalid-batch>"
+    )
+    if safe_batch_id == "<invalid-batch>":
+        typer.echo(f"{command} {safe_batch_id} invalid_input", err=True)
+        raise typer.Exit(code=3) from None
+    try:
+        return action()
+    except ExchangeError as error:
+        reason_code = error.reason_code
+    except (FileExistsError, OSError, PathSafetyError, TypeError, ValueError):
+        reason_code = "invalid_input"
+    typer.echo(f"{command} {safe_batch_id} {reason_code}", err=True)
+    raise typer.Exit(code=3) from None
+
+
+@app.command("build-approved")
+def build_approved(
+    root: Annotated[Path, typer.Option()],
+    batch_id: Annotated[str, typer.Option()],
+    selection: Annotated[Path, typer.Option()],
+) -> None:
+    result = _exchange_guard(
+        "build-approved",
+        batch_id,
+        lambda: build_approved_exchange(DataLayout.from_root(root), batch_id, selection),
+    )
+    typer.echo(f"built-approved {result.batch_id} candidates={result.candidate_count}")
+
+
+@app.command("verify-approved")
+def verify_approved(
+    path: Annotated[Path, typer.Option()],
+    expected_manifest_sha256: Annotated[str | None, typer.Option()] = None,
+) -> None:
+    batch_id = path.name
+    result = _exchange_guard(
+        "verify-approved",
+        batch_id,
+        lambda: verify_approved_exchange(path, expected_manifest_sha256),
+    )
+    typer.echo(f"verified-approved {result.batch_id} candidates={result.candidate_count}")
