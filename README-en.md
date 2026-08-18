@@ -18,6 +18,16 @@ English | [简体中文](README.md) | [Releases](https://github.com/harry0703/Mo
 
 </div>
 
+## How video generation works 🎞️
+
+MoneyPrinterTurbo is an automated video creation and editing pipeline, rather than a single text-to-video foundation model. The source selected under **Video Settings → Video Source** determines where the visual material comes from:
+
+- **Pexels (default), Pixabay, or Coverr:** an LLM writes the script and search terms, then MoneyPrinterTurbo retrieves matching stock footage. These clips already exist on the selected provider; they are not synthesized from the prompt. Review and follow the provider's license for your use case.
+- **Local file:** MoneyPrinterTurbo edits the video files you upload. Only use material you own or are authorized to use; the project does not automatically import arbitrary creator or channel URLs.
+- **Shengsuan Cloud AI Video:** the optional paid LoomLoom integration generates new AI video clips after you review and confirm a quote.
+
+Whichever source you choose, MoneyPrinterTurbo then uses the same production pipeline to arrange the clips and add voice-over, subtitles, background music, and transitions before rendering the final video. The relevance of stock-footage results depends on the generated or custom search terms, while AI-generated clips depend on the selected remote service.
+
 ## Screenshots 🖥️
 
 <h4 align="center">WebUI</h4>
@@ -131,6 +141,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 - [x] Supports **subtitle generation** with configurable fonts, position, color, size, outline, and background styles
 - [x] Supports random or custom **background music** with adjustable volume
 - [x] Supports your own **local assets** and free-to-use HD footage from **Pexels**, **Pixabay**, and **Coverr**
+- [x] Supports optional paid **AI-generated video clips** through **Shengsuan Cloud / LoomLoom**, with quote confirmation before generation
 - [x] Supports leading model providers including **Kimi / Moonshot AI**, **OpenAI**, **Google Gemini**, **DeepSeek**, **Alibaba Cloud Qwen**, **Microsoft Azure OpenAI**, **ByteDance VolcEngine Ark**, **xAI Grok**, **MiniMax**, and **Xiaomi MiMo**, plus unified gateways, aggregators, and local runtimes such as **Cloudflare AI Gateway**, **Alibaba ModelScope**, **AIHubMix**, **AIML API**, **EvoLink**, **Ollama**, **OneAPI**, **LiteLLM**, **Groq**, and **Pollinations AI**
 - [x] Supports one-click **cross-platform publishing** to **TikTok**, **Instagram**, and **YouTube Shorts** after video generation
 
