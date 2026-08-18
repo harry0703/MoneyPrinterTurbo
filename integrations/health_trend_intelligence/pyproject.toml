@@ -5,11 +5,14 @@ requires-python = ">=3.11,<3.12"
 dependencies = ["pydantic>=2.13.4,<3", "typer>=0.12.3,<1"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=78,<81"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/health_trend_intelligence"]
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 
 [project.scripts]

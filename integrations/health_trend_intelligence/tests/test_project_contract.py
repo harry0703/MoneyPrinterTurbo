@@ -27,6 +27,6 @@ def test_runtime_data_and_credentials_are_git_ignored() -> None:
 
 def test_wheel_includes_src_package_for_console_entrypoint() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))
-    assert project["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"] == [
-        "src/health_trend_intelligence"
-    ]
+    assert project["build-system"]["build-backend"] == "setuptools.build_meta"
+    assert project["tool"]["setuptools"]["package-dir"] == {"" : "src"}
+    assert project["tool"]["setuptools"]["packages"]["find"]["where"] == ["src"]
