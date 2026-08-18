@@ -14,6 +14,7 @@ from app.services.health_asset_integrity import (  # noqa: E402
     GitInspector,
     audit_health_assets,
     ensure_external_output,
+    verify_report_bundle,
     write_report_bundle,
 )
 
@@ -31,14 +32,31 @@ def main() -> int:
     audit.add_argument(
         "--remote-ref", default="refs/heads/feature/health-content-system"
     )
+    verify = subparsers.add_parser("verify")
+    verify.add_argument("--bundle", required=True, type=Path)
+    verify.add_argument("--audit-id", required=True)
     args = parser.parse_args()
     try:
+        if args.command == "verify":
+            manifest = verify_report_bundle(args.bundle, args.audit_id)
+            print(
+                json.dumps(
+                    {
+                        "status": "verified",
+                        "bundle": str(args.bundle.resolve()),
+                        "audit_id": manifest["audit_id"],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return 0
         output_parent = ensure_external_output(args.repo, args.output_parent)
         report = audit_health_assets(
             GitInspector(args.repo), remote=args.remote, remote_ref=args.remote_ref
         )
         output_parent = ensure_external_output(args.repo, output_parent)
         bundle = write_report_bundle(output_parent, args.audit_id, report)
+        verify_report_bundle(bundle, args.audit_id)
     except (GitInspectionError, OSError) as error:
         print(json.dumps({"status": "error", "error": str(error)}, ensure_ascii=False))
         return 3

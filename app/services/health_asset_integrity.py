@@ -1517,8 +1517,6 @@ def _verify_windows_staging(
         }
         if manifest["files"].get(name) != expected_binding:
             raise GitInspectionError(f"on-disk manifest mismatch: {name}")
-
-
 def _close_windows_staging(staging_state: _WindowsStaging | None) -> None:
     if staging_state is None:
         return
@@ -1555,22 +1553,95 @@ def _write_exclusive(path: Path | _WindowsFileTarget, payload: bytes) -> None:
         os.fsync(stream.fileno())
 
 
+def _assert_plain_bundle_directory(bundle: Path) -> None:
+    try:
+        if _is_reparse_point(bundle) or not bundle.is_dir():
+            raise GitInspectionError("audit bundle is not an ordinary directory")
+    except OSError as error:
+        raise GitInspectionError("cannot inspect audit bundle directory") from error
+
+
+def _read_regular_bundle_file(bundle: Path, name: str) -> bytes:
+    path = bundle / name
+    try:
+        if _is_reparse_point(path) or not path.is_file():
+            raise GitInspectionError(f"bundle entry is not a regular file: {name}")
+        return path.read_bytes()
+    except OSError as error:
+        raise GitInspectionError(f"cannot read bundle entry: {name}") from error
+
+
+def verify_report_bundle(bundle: Path, audit_id: str) -> dict[str, Any]:
+    """Validate an audit bundle's manifest marker and payload bindings.
+
+    The directory remains mutable by its owner after this function returns, so every
+    consumer must call this verifier immediately before using a bundle.
+    """
+    _validate_audit_id(audit_id)
+    bundle_path = _absolute_path(bundle)
+    if bundle_path.name != audit_id:
+        raise GitInspectionError("audit bundle directory does not match audit id")
+    _assert_plain_bundle_directory(bundle_path)
+    try:
+        entries = {entry.name for entry in bundle_path.iterdir()}
+    except OSError as error:
+        raise GitInspectionError("cannot enumerate audit bundle") from error
+    if entries != set(_BUNDLE_NAMES):
+        raise GitInspectionError("audit bundle does not contain the exact bundle files")
+
+    payloads = {
+        name: _read_regular_bundle_file(bundle_path, name)
+        for name in _BUNDLE_PAYLOAD_NAMES
+    }
+    manifest_bytes = _read_regular_bundle_file(bundle_path, "bundle-manifest.json")
+    try:
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise GitInspectionError("invalid audit bundle manifest") from error
+    if not isinstance(manifest, dict):
+        raise GitInspectionError("invalid audit bundle manifest")
+    if manifest.get("schema") != "health-asset-integrity-bundle-v1":
+        raise GitInspectionError("invalid audit bundle manifest schema")
+    if manifest.get("audit_id") != audit_id:
+        raise GitInspectionError("audit bundle manifest audit id mismatch")
+    if manifest.get("report_schema") != "health_asset_integrity.v1":
+        raise GitInspectionError("audit bundle manifest report schema mismatch")
+    files = manifest.get("files")
+    if not isinstance(files, dict) or set(files) != set(_BUNDLE_PAYLOAD_NAMES):
+        raise GitInspectionError("invalid audit bundle manifest file set")
+    for name, payload in payloads.items():
+        binding = files[name]
+        expected = {
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "bytes": len(payload),
+        }
+        if binding != expected:
+            raise GitInspectionError(f"audit bundle manifest mismatch: {name}")
+    _assert_plain_bundle_directory(bundle_path)
+    try:
+        final_entries = {entry.name for entry in bundle_path.iterdir()}
+    except OSError as error:
+        raise GitInspectionError("cannot enumerate audit bundle") from error
+    if final_entries != entries:
+        raise GitInspectionError("audit bundle changed during verification")
+    return manifest
+
+
 def write_report_bundle(
     output_parent: Path, audit_id: str, report: AuditReport
 ) -> Path:
     _validate_audit_id(audit_id)
-    if os.name != "nt":
-        raise GitInspectionError(
-            "secure bundle publication requires Windows handle semantics"
-        )
     output_path = _prepare_output_parent(output_parent)
     target = output_path / audit_id
     staging = output_path / f".{audit_id}.staging"
     if os.path.lexists(target) or os.path.lexists(staging):
         raise GitInspectionError(f"audit output already exists: {audit_id}")
-    staging_state: _WindowsStaging | None = None
+    created = False
     try:
-        staging_state = _open_windows_staging(output_path, staging.name)
+        target.mkdir()
+        created = True
+        _assert_plain_directory_chain(output_path)
+        _assert_plain_bundle_directory(target)
         payload = report_to_dict(report)
         rendered = {
             "audit.json": (
@@ -1580,9 +1651,7 @@ def write_report_bundle(
             "audit-summary.md": render_audit_summary(report),
         }
         for name in _BUNDLE_PAYLOAD_NAMES:
-            target_file = _WindowsFileTarget(staging_state.directory_handle, name)
-            staging_state.files[name] = target_file
-            _write_exclusive(target_file, rendered[name])
+            _write_exclusive(target / name, rendered[name])
         manifest = {
             "schema": "health-asset-integrity-bundle-v1",
             "audit_id": audit_id,
@@ -1598,30 +1667,17 @@ def write_report_bundle(
         manifest_bytes = (
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
         ).encode("utf-8")
-        manifest_target = _WindowsFileTarget(
-            staging_state.directory_handle, "bundle-manifest.json"
-        )
-        staging_state.files["bundle-manifest.json"] = manifest_target
-        _write_exclusive(manifest_target, manifest_bytes)
+        _write_exclusive(target / "bundle-manifest.json", manifest_bytes)
         _assert_plain_directory_chain(output_path)
-        if os.path.lexists(target):
-            raise GitInspectionError(f"audit output already exists: {audit_id}")
-        _verify_windows_staging(staging_state, staging, rendered, manifest_bytes)
-        _win_rename_handle_exclusive(
-            staging_state.directory_handle, staging_state.parent_handle, audit_id
-        )
+        verify_report_bundle(target, audit_id)
     except GitInspectionError:
         raise
     except OSError as error:
-        if os.path.lexists(target) or (
-            staging_state is None and os.path.lexists(staging)
-        ):
+        if not created and os.path.lexists(target):
             raise GitInspectionError(
                 f"audit output already exists: {audit_id}"
             ) from error
         raise GitInspectionError(f"failed to write audit bundle: {error}") from error
     except (UnicodeError, ValueError, TypeError, csv.Error) as error:
         raise GitInspectionError(f"failed to render audit bundle: {error}") from error
-    finally:
-        _close_windows_staging(staging_state)
     return target

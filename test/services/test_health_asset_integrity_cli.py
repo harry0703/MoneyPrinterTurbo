@@ -4,7 +4,6 @@ import csv
 import hashlib
 import io
 import json
-import os
 import subprocess
 import sys
 from dataclasses import fields, replace
@@ -324,7 +323,7 @@ def test_cli_refuses_existing_audit_id_without_rewrite(tmp_path: Path):
     assert {path.name: path.read_bytes() for path in bundle.iterdir()} == before
 
 
-def test_write_failure_preserves_non_consumable_staging_evidence(
+def test_write_failure_preserves_non_consumable_final_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     report = _complete_report(tmp_path / "fixture")
@@ -332,139 +331,144 @@ def test_write_failure_preserves_non_consumable_staging_evidence(
     original_write = integrity._write_exclusive
     calls = 0
 
-    def fail_second_write(path: Path, payload: bytes) -> None:
+    def fail_second_write(path_or_handle, payload: bytes) -> None:
         nonlocal calls
         calls += 1
         if calls == 2:
             raise OSError("injected write failure")
-        original_write(path, payload)
+        original_write(path_or_handle, payload)
 
     monkeypatch.setattr(integrity, "_write_exclusive", fail_second_write)
 
     with pytest.raises(GitInspectionError, match="injected write failure"):
         integrity.write_report_bundle(output_parent, "HCAS-TEST-01", report)
 
-    staging = output_parent / ".HCAS-TEST-01.staging"
-    assert staging.is_dir()
-    assert {path.name for path in staging.iterdir()} == {"audit.json"}
-    assert not (staging / "bundle-manifest.json").exists()
-    assert not (output_parent / "HCAS-TEST-01").exists()
-
-
-@pytest.mark.skipif(os.name != "nt", reason="Windows staging replacement boundary")
-@pytest.mark.parametrize("replacement_kind", ["directory", "junction"])
-def test_staging_replacement_after_first_write_never_publishes_or_follows_substitute(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    replacement_kind: str,
-):
-    report = _complete_report(tmp_path / "fixture")
-    output_parent = tmp_path / "evidence"
-    audit_id = f"HCAS-{replacement_kind.upper()}-RACE"
-    staging = output_parent / f".{audit_id}.staging"
-    owned_staging = output_parent / f".{audit_id}.owned"
-    substitute_sink = tmp_path / f"{replacement_kind}-substitute"
-    original_write = integrity._write_exclusive
-    calls = 0
-
-    def replace_staging_after_first_write(path_or_handle, payload: bytes) -> None:
-        nonlocal calls
-        original_write(path_or_handle, payload)
-        calls += 1
-        if calls != 1:
-            return
-        os.rename(staging, owned_staging)
-        substitute_sink.mkdir()
-        if replacement_kind == "directory":
-            staging.mkdir()
-        else:
-            _make_directory_reparse(staging, substitute_sink)
-
-    monkeypatch.setattr(
-        integrity, "_write_exclusive", replace_staging_after_first_write
-    )
-
-    with pytest.raises(GitInspectionError, match="staging directory changed"):
-        integrity.write_report_bundle(output_parent, audit_id, report)
-
-    assert not (output_parent / audit_id).exists()
-    assert owned_staging.is_dir()
-    assert (owned_staging / "audit.json").is_file()
-    assert list(substitute_sink.iterdir()) == []
-    if replacement_kind == "directory":
-        assert list(staging.iterdir()) == []
-
-
-@pytest.mark.parametrize(
-    ("mutation", "error_match"),
-    [
-        ("extra", "exact bundle files"),
-        ("corrupt-payload", "bundle entry bytes changed"),
-    ],
-)
-def test_prepublication_verification_rejects_staging_mutation(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    mutation: str,
-    error_match: str,
-):
-    report = _complete_report(tmp_path / "fixture")
-    output_parent = tmp_path / "evidence"
-    staging = output_parent / ".HCAS-TEST-01.staging"
-    original_write = integrity._write_exclusive
-    calls = 0
-
-    def mutate_staging_after_last_write(path_or_handle, payload: bytes) -> None:
-        nonlocal calls
-        original_write(path_or_handle, payload)
-        calls += 1
-        if calls != 4:
-            return
-        if mutation == "extra":
-            (staging / "unexpected.txt").write_bytes(b"foreign bytes")
-        else:
-            (staging / "audit.json").write_bytes(b"corrupted after manifest")
-
-    monkeypatch.setattr(integrity, "_write_exclusive", mutate_staging_after_last_write)
-
-    with pytest.raises(GitInspectionError, match=error_match):
+    bundle = output_parent / "HCAS-TEST-01"
+    assert bundle.is_dir()
+    assert {path.name for path in bundle.iterdir()} == {"audit.json"}
+    assert not (bundle / "bundle-manifest.json").exists()
+    with pytest.raises(GitInspectionError):
+        integrity.verify_report_bundle(bundle, "HCAS-TEST-01")
+    with pytest.raises(GitInspectionError, match="already exists"):
         integrity.write_report_bundle(output_parent, "HCAS-TEST-01", report)
 
-    assert not (output_parent / "HCAS-TEST-01").exists()
-    assert staging.is_dir()
+
+def test_manifest_is_the_last_exclusive_write_completion_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    report = _complete_report(tmp_path / "fixture")
+    written_names: list[str] = []
+    original_write = integrity._write_exclusive
+
+    def record_write(path: Path, payload: bytes) -> None:
+        written_names.append(path.name)
+        original_write(path, payload)
+
+    monkeypatch.setattr(integrity, "_write_exclusive", record_write)
+
+    bundle = integrity.write_report_bundle(
+        tmp_path / "evidence", "HCAS-TEST-01", report
+    )
+
+    assert written_names == [
+        "audit.json",
+        "deleted-assets.csv",
+        "audit-summary.md",
+        "bundle-manifest.json",
+    ]
+    assert integrity.verify_report_bundle(bundle, "HCAS-TEST-01")["audit_id"] == "HCAS-TEST-01"
 
 
-def test_publish_race_never_overwrites_existing_target_bytes(
+@pytest.mark.parametrize("mutation", ["payload", "manifest", "extra", "missing-marker"])
+def test_verifier_rejects_non_consumable_or_modified_bundle(
+    tmp_path: Path, mutation: str
+):
+    report = _complete_report(tmp_path / "fixture")
+    bundle = integrity.write_report_bundle(
+        tmp_path / "evidence", "HCAS-TEST-01", report
+    )
+
+    if mutation == "payload":
+        (bundle / "audit.json").write_bytes(b"changed report bytes")
+    elif mutation == "manifest":
+        (bundle / "bundle-manifest.json").write_bytes(b"changed marker bytes")
+    elif mutation == "extra":
+        (bundle / "late-extra.txt").write_bytes(b"foreign bytes")
+    else:
+        (bundle / "bundle-manifest.json").unlink()
+
+    with pytest.raises(GitInspectionError):
+        integrity.verify_report_bundle(bundle, "HCAS-TEST-01")
+
+
+def test_public_verifier_accepts_only_expected_audit_id_and_schema(tmp_path: Path):
+    report = _complete_report(tmp_path / "fixture")
+    bundle = integrity.write_report_bundle(
+        tmp_path / "evidence", "HCAS-TEST-01", report
+    )
+
+    manifest = integrity.verify_report_bundle(bundle, "HCAS-TEST-01")
+
+    assert manifest["schema"] == "health-asset-integrity-bundle-v1"
+    assert manifest["audit_id"] == "HCAS-TEST-01"
+    with pytest.raises(GitInspectionError):
+        integrity.verify_report_bundle(bundle, "HCAS-WRONG-ID")
+
+
+def test_cli_verify_rechecks_bundle_on_every_use(tmp_path: Path):
+    report = _complete_report(tmp_path / "fixture")
+    bundle = integrity.write_report_bundle(
+        tmp_path / "evidence", "HCAS-TEST-01", report
+    )
+
+    verified = _run(
+        "verify", "--bundle", str(bundle), "--audit-id", "HCAS-TEST-01"
+    )
+    assert verified.returncode == 0, verified.stdout
+    assert json.loads(verified.stdout)["status"] == "verified"
+
+    (bundle / "audit.json").write_bytes(b"tampered after first verification")
+    rejected = _run(
+        "verify", "--bundle", str(bundle), "--audit-id", "HCAS-TEST-01"
+    )
+    assert rejected.returncode == 3
+    assert json.loads(rejected.stdout)["status"] == "error"
+
+
+def test_writer_success_requires_final_public_verification(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     report = _complete_report(tmp_path / "fixture")
     output_parent = tmp_path / "evidence"
-    original_write = integrity._write_exclusive
-    calls = 0
+    bundle = output_parent / "HCAS-TEST-01"
+    original_verify = integrity.verify_report_bundle
 
-    def create_competing_target_after_last_write(
-        path_or_handle, payload: bytes
-    ) -> None:
-        nonlocal calls
-        original_write(path_or_handle, payload)
-        calls += 1
-        if calls == 4:
-            target = output_parent / "HCAS-TEST-01"
-            target.mkdir()
-            (target / "owner.txt").write_bytes(b"pre-existing owner bytes")
+    def add_extra_then_verify(path: Path, audit_id: str):
+        (bundle / "late-extra.txt").write_bytes(b"late extra")
+        return original_verify(path, audit_id)
 
-    monkeypatch.setattr(
-        integrity, "_write_exclusive", create_competing_target_after_last_write
-    )
+    monkeypatch.setattr(integrity, "verify_report_bundle", add_extra_then_verify)
+
+    with pytest.raises(GitInspectionError):
+        integrity.write_report_bundle(output_parent, "HCAS-TEST-01", report)
+
+    assert bundle.is_dir()
+    assert (bundle / "late-extra.txt").read_bytes() == b"late extra"
+
+
+def test_existing_partial_audit_id_is_never_reused(tmp_path: Path):
+    report = _complete_report(tmp_path / "fixture")
+    output_parent = tmp_path / "evidence"
+    partial = output_parent / "HCAS-TEST-01"
+    partial.mkdir(parents=True)
+    (partial / "owner.txt").write_bytes(b"pre-existing owner bytes")
 
     with pytest.raises(GitInspectionError, match="already exists"):
         integrity.write_report_bundle(output_parent, "HCAS-TEST-01", report)
 
-    target = output_parent / "HCAS-TEST-01"
-    assert {path.name: path.read_bytes() for path in target.iterdir()} == {
+    assert {path.name: path.read_bytes() for path in partial.iterdir()} == {
         "owner.txt": b"pre-existing owner bytes"
     }
-    assert (output_parent / ".HCAS-TEST-01.staging").is_dir()
 
 
 def test_cli_incomplete_remote_evidence_writes_bundle_and_exits_four(tmp_path: Path):
