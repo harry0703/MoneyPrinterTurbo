@@ -123,9 +123,10 @@ _CONFUSABLE_ASCII = str.maketrans(
         "х": "x",
     }
 )
-_URI_WITH_AUTHORITY = re.compile(r"(?<![\w])(?:[a-z][a-z0-9+.-]{0,31}):[\\/]{1,2}")
-_ANY_URI_SCHEME = re.compile(r"(?<![\w])(?:[a-z][a-z0-9+.-]{0,31})\s*:")
-_URI_WITHOUT_AUTHORITY = re.compile(r"(?<![\w])(?:data|file|magnet|mailto|sms|tel|urn):")
+_URI_WITH_AUTHORITY = re.compile(r"(?<![\w])(?:[a-z][a-z0-9+.-]{0,31}):[\\/]{2}")
+_URI_WITHOUT_AUTHORITY = re.compile(
+    r"(?<![\w])(?:custom-scheme|data|file|magnet|mailto|sms|tel|urn):"
+)
 _COMPACT_URI = re.compile(r"(?:[a-z][a-z0-9+.-]{0,31})[\\/]{2}")
 _DOMAIN_CANDIDATE = re.compile(r"(?<![\w-])(?:[\w-]{1,63}\.)+[\w-]{2,63}(?![\w-])")
 _IP_CANDIDATE = re.compile(
@@ -184,11 +185,17 @@ _MEDICAL_CLAIM = re.compile(
     r"(?:一定|保证|必然|可以|能够).{0,16}(?:治愈|根治|确诊|治疗|预防疾病)"
     r"|包治|药到病除|经医学证实|医学事实"
 )
+_MEDICAL_STATEMENT_GATE_VERSION = "medical_statement_gate.v2"
 _MEDICAL_CONTEXT = re.compile(
-    r"患者|高血压|糖尿病|疾病|感冒|癌|肿瘤|血压|血糖|维生素|药物?|症状|诊断|医学|心脏|肝脏?|肾脏?"
+    r"健康|身体|患者|疾病|病情|症状|诊断|医学|医疗|疗法|药物?"
+    r"|高血压|糖尿病|感冒|癌|肿瘤|炎症|感染|免疫|血压|血糖|血脂"
+    r"|维生素|心脏|肝脏?|肾脏?|肺部?|胃肠|关节|皮肤|头发|脱发"
+    r"|睡眠|失眠|熬夜|疼痛|疲劳|肥胖|体重|摄入|饮食|吸烟|饮酒|运动"
 )
 _MEDICAL_ASSERTION = re.compile(
-    r"应该|应当|建议|需要|必须|预防|治疗|治愈|根治|改善|缓解|降低|升高|减少|增加|导致|引起|有效|疗效|有助于|能够|可以|能"
+    r"会?导致|造成|引起|诱发|预防|改善|治疗|治愈|根治|缓解"
+    r"|降低.{0,12}风险|减少.{0,12}风险|增加.{0,12}风险|提高.{0,12}风险"
+    r"|应该|应当|建议|需要|必须|有效|疗效|有助于"
 )
 _QUESTION_MARKERS = re.compile(r"[?？]\s*\Z|是否|吗\s*[?？]?$|为什么|怎么|如何")
 _MEDICAL_UNVERIFIED_FLAG = "medical_claim_unverified"
@@ -372,7 +379,6 @@ def _assert_safe_text(value: str) -> None:
     compact_security = _security_compact(decoded)
     if (
         _URI_WITH_AUTHORITY.search(decoded)
-        or _ANY_URI_SCHEME.search(decoded)
         or re.search(r":\s*[\\/]\s*[\\/]", decoded)
         or _URI_WITHOUT_AUTHORITY.search(decoded)
         or _COMPACT_URI.search(compact_uri)
@@ -389,6 +395,8 @@ def _assert_safe_text(value: str) -> None:
 
 
 def _is_unverified_medical_statement(value: str) -> bool:
+    if _MEDICAL_STATEMENT_GATE_VERSION != "medical_statement_gate.v2":
+        raise ExchangeError("medical_gate_version_invalid")
     decoded = _normalize_approved_text_v2(value)
     if _QUESTION_MARKERS.search(decoded):
         return False

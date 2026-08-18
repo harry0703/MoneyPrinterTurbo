@@ -224,6 +224,10 @@ def test_selection_rejects_duplicate_or_incomplete_coverage(mutation: str) -> No
         ("growth_evidence", "coo\u2028kie=value"),
         ("growth_evidence", "me＿dia=value"),
         ("growth_evidence", "custom-scheme:opaque-value"),
+        ("growth_evidence", "data:text/plain,synthetic-secret"),
+        ("growth_evidence", "file:C:/synthetic-secret"),
+        ("growth_evidence", "tel:+15551234567"),
+        ("growth_evidence", "custom+hti://synthetic-host/source"),
         ("growth_evidence", "custom+hti://[2001:db8::1]/source"),
         ("growth_evidence", "例子.健康/source"),
         ("growth_evidence", "avatar value"),
@@ -445,6 +449,10 @@ def test_verifier_rejects_semantic_leak_even_when_hashes_are_rebound(tmp_path: P
         "coo\u2028kie=value",
         "me＿dia=value",
         "custom-scheme:opaque-value",
+        "data:text/plain,synthetic-secret",
+        "file:C:/synthetic-secret",
+        "tel:+15551234567",
+        "custom+hti://synthetic-host/source",
         "custom+hti://[2001:db8::1]/source",
         "例子.健康/source",
         "access token=supersecret",
@@ -508,7 +516,17 @@ def test_manifest_binding_rejects_non_integer_or_negative_bytes(
 
 @pytest.mark.parametrize(
     "statement",
-    ["高血压患者应该减少盐摄入", "维生素C预防感冒"],
+    [
+        "高血压患者应该减少盐摄入",
+        "维生素C预防感冒",
+        "熬夜会导致脱发",
+        "吸烟可能引起肺部疾病",
+        "高盐饮食会诱发高血压",
+        "规律运动可以改善失眠",
+        "这种疗法能治疗关节疼痛",
+        "少盐可以降低高血压风险",
+        "熬夜会增加脱发风险",
+    ],
 )
 def test_unverified_medical_statement_requires_standard_risk_flag(
     tmp_path: Path, statement: str
@@ -529,7 +547,7 @@ def test_unverified_medical_statement_requires_standard_risk_flag(
 
 @pytest.mark.parametrize(
     "statement",
-    ["高血压患者应该减少盐摄入", "维生素C预防感冒"],
+    ["高血压患者应该减少盐摄入", "维生素C预防感冒", "熬夜会导致脱发", "少盐可以降低高血压风险"],
 )
 def test_standard_risk_flag_allows_unverified_statement_with_disclaimer(
     tmp_path: Path, statement: str
@@ -547,6 +565,57 @@ def test_standard_risk_flag_allows_unverified_statement_with_disclaimer(
     top10 = load_unique_json((result.path / "top10.json").read_bytes())
     assert verified.candidate_count == 10
     assert top10[0]["disclaimer"] == "该包只是选题情报，不是医学事实来源或可直接发布的脚本。"
+
+
+def test_anchored_verifier_rejects_medical_statement_after_flag_is_removed(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    candidates[0]["narrative_gap"] = "熬夜会导致脱发"
+    candidates[0]["risk_flags"] = ["medical_claim_unverified"]
+    result = build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
+    top10 = load_unique_json((result.path / "top10.json").read_bytes())
+    top10[0]["risk_flags"] = []
+    _rebind_payload(result, "top10.json", top10)
+    summary = load_unique_json((result.path / "evidence-summary.json").read_bytes())
+    summary["risk_flagged_candidate_count"] = 1
+    summary["risk_flag_item_count"] = 1
+    _rebind_payload(result, "evidence-summary.json", summary)
+    rebound_anchor = hashlib.sha256(
+        (result.path / "bundle-manifest.json").read_bytes()
+    ).hexdigest()
+
+    with pytest.raises(ExchangeError):
+        verify_approved_exchange(result.path, rebound_anchor)
+
+
+@pytest.mark.parametrize(
+    ("field", "statement"),
+    [
+        ("growth_evidence", "Research question: compare public, aggregated trend signals"),
+        ("growth_evidence", "研究问题：比较公开且聚合的趋势信号"),
+        ("narrative_gap", "项目延期会导致交付计划调整"),
+    ],
+)
+def test_safe_prose_with_colons_or_nonmedical_causality_builds_and_verifies(
+    tmp_path: Path, field: str, statement: str
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    candidates[0][field] = (
+        [statement] if isinstance(candidates[0][field], list) else statement
+    )
+    result = build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
+
+    verified = verify_approved_exchange(result.path, result.manifest_sha256)
+    assert verified.candidate_count == 10
 
 
 def test_existing_destination_is_never_overwritten(tmp_path: Path) -> None:
