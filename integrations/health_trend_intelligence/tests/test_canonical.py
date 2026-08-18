@@ -15,6 +15,14 @@ def test_unique_json_rejects_duplicate_keys() -> None:
         load_unique_json(b'{"schema":"a","schema":"b"}')
 
 
+def test_unique_json_and_canonical_json_reject_nested_nfc_key_collisions() -> None:
+    payload = b'{"outer":{"\\u00e9":1,"e\\u0301":2}}'
+    with pytest.raises(ValueError, match="normalized duplicate|collision"):
+        load_unique_json(payload)
+    with pytest.raises(ValueError, match="duplicate JSON key after NFC normalization"):
+        canonical_json_bytes({"outer": {"\u00e9": 1, "e\u0301": 2}})
+
+
 def test_canonical_json_is_nfc_sorted_compact_utf8_and_single_lf() -> None:
     result = canonical_json_bytes({"z": "e\u0301", "a": ["\u4f60\u597d"]})
     assert result == b'{"a":["\xe4\xbd\xa0\xe5\xa5\xbd"],"z":"\xc3\xa9"}\n'
@@ -32,6 +40,15 @@ def test_canonical_jsonl_sorts_by_stable_key_and_uses_one_lf_per_record() -> Non
     records = ({"id": "b", "value": 2}, {"id": "a", "value": 1})
     assert canonical_jsonl_bytes(records, stable_key=lambda record: record["id"]) == (
         b'{"id":"a","value":1}\n{"id":"b","value":2}\n'
+    )
+
+
+def test_canonical_jsonl_uses_canonical_bytes_to_break_stable_key_ties() -> None:
+    first_order = ({"id": "b", "value": 2}, {"id": "a", "value": 1})
+    reverse_order = tuple(reversed(first_order))
+    assert canonical_jsonl_bytes(first_order, stable_key=lambda _: "same") == canonical_jsonl_bytes(
+        reverse_order,
+        stable_key=lambda _: "same",
     )
 
 

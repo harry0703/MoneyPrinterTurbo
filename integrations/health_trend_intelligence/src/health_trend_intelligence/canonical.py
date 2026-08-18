@@ -15,9 +15,10 @@ T = TypeVar("T")
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
+        normalized_key = unicodedata.normalize("NFC", key)
+        if normalized_key in result:
+            raise ValueError(f"normalized duplicate JSON key collision: {normalized_key}")
+        result[normalized_key] = value
     return result
 
 
@@ -80,10 +81,11 @@ def canonical_json_bytes(value: Any) -> bytes:
 def canonical_jsonl_bytes(records: Iterable[T], *, stable_key: Callable[[T], Any]) -> bytes:
     """Return records ordered by a caller-provided stable key, one JSON object per line."""
 
-    ordered_records = sorted(records, key=stable_key)
-    if any(not isinstance(record, Mapping) for record in ordered_records):
+    record_list = list(records)
+    if any(not isinstance(record, Mapping) for record in record_list):
         raise ValueError("JSONL records must be objects")
-    return b"".join(canonical_json_bytes(record) for record in ordered_records)
+    encoded_records = [(stable_key(record), canonical_json_bytes(record)) for record in record_list]
+    return b"".join(encoded for _, encoded in sorted(encoded_records))
 
 
 def sha256_bytes(payload: bytes) -> str:
