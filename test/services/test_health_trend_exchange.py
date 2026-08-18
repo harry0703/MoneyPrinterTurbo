@@ -204,6 +204,26 @@ def test_verify_rejects_contradictory_medical_verification_claims(
         verify_trend_exchange(source, anchor)
 
 
+def test_structured_risk_rejects_completed_verification_without_text_classifier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        del summary
+        candidates[0]["risk_flags"] = [
+            "medical_claim_unverified",
+            "medical_claim_verification_completed",
+        ]
+        return candidates, _summary("HTI-20260818-01", candidates), {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+    monkeypatch.setattr(
+        exchange, "_classify_medical_verification_statement", lambda value: None
+    )
+
+    with pytest.raises(TrendExchangeError, match="medical_verification_contradiction"):
+        verify_trend_exchange(source, anchor)
+
+
 def test_verify_allows_nonmedical_verified_research_metadata(tmp_path: Path) -> None:
     def mutate(candidates: list[dict[str, object]], summary: object):
         del summary
@@ -224,6 +244,62 @@ def test_verify_allows_nonmedical_verified_research_metadata(tmp_path: Path) -> 
 def test_verify_allows_explicitly_unverified_medical_research_text(tmp_path: Path) -> None:
     def mutate(candidates: list[dict[str, object]], summary: object):
         candidates[0]["topic"] = "Medical claim has not been verified"
+        return candidates, summary, {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    verified = verify_trend_exchange(source, anchor)
+
+    assert verified.candidate_count == 10
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "医学结论核验已完成",
+        "医学声明已通过验证",
+        "Clinical review is complete",
+        "Medical claim verification completed",
+        "Medical claim verification passed",
+        "Medical claim verification verified",
+        "Medical_claim-verification: completed",
+        "Ｍｅｄｉｃａｌ　ｃｌａｉｍ　ｖｅｒｉｆｉｃａｔｉｏｎ　ｐａｓｓｅｄ",
+        "医学_声明：已-通过 验证",
+    ],
+)
+def test_verify_rejects_completed_medical_verification_statements(
+    tmp_path: Path, statement: str
+) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        candidates[0]["growth_evidence"] = [statement]
+        return candidates, summary, {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    with pytest.raises(TrendExchangeError, match="medical_verification_contradiction"):
+        verify_trend_exchange(source, anchor)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Medical claim verification is incomplete",
+        "Medical claim verification is not complete",
+        "Medical claim verification is not verified",
+        "Medical claim verification has not been verified",
+        "Medical claim verification pending",
+        "医学声明尚未通过验证",
+        "医学声明未完成核验",
+        "医学声明没有通过验证",
+        "医学声明待核验",
+        "Ｍｅｄｉｃａｌ_ｃｌａｉｍ-ｖｅｒｉｆｉｃａｔｉｏｎ：ｎｏｔ ｖｅｒｉｆｉｅｄ",
+    ],
+)
+def test_verify_allows_incomplete_medical_verification_statements(
+    tmp_path: Path, statement: str
+) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        candidates[0]["growth_evidence"] = [statement]
         return candidates, summary, {}
 
     source, anchor = _write_bundle(tmp_path, mutate=mutate)
@@ -699,6 +775,102 @@ def test_import_failure_never_leaves_manifest_completion_marker(
     )
     retried = import_trend_exchange(source, repo, anchor)
     assert retried == target
+
+
+def test_staging_identity_failure_preserves_unique_stage_without_blocking_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, anchor = _write_bundle(tmp_path / "source")
+    repo = _fake_repo(tmp_path)
+    original_assert = exchange._assert_safe_directory
+    failed = False
+
+    def fail_first_staging_identity(path: Path, reason: str):
+        nonlocal failed
+        if Path(path).name.startswith(".v01-import-") and not failed:
+            failed = True
+            raise TrendExchangeError("synthetic_staging_identity_failure")
+        return original_assert(path, reason)
+
+    monkeypatch.setattr(exchange, "_assert_safe_directory", fail_first_staging_identity)
+    with pytest.raises(TrendExchangeError, match="synthetic_staging_identity_failure"):
+        import_trend_exchange(source, repo, anchor)
+
+    target = (
+        repo
+        / "09_泛健康日更"
+        / "data"
+        / "trend-intelligence"
+        / "HTI-20260818-01"
+        / "v01"
+    )
+    preserved = [
+        path for path in target.parent.iterdir() if path.name.startswith(".v01-import-")
+    ]
+    assert not target.exists()
+    assert len(preserved) == 1
+    assert list(preserved[0].iterdir()) == []
+
+    monkeypatch.setattr(exchange, "_assert_safe_directory", original_assert)
+    assert import_trend_exchange(source, repo, anchor) == target
+    assert preserved[0].is_dir()
+
+
+def test_post_identity_staging_initialization_failure_is_cleaned_for_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, anchor = _write_bundle(tmp_path / "source")
+    repo = _fake_repo(tmp_path)
+    original_assert = exchange._assert_safe_directory
+    original_write = exchange._exclusive_write
+    staging_identity_acquired = False
+
+    def fail_parent_check_after_staging_identity(path: Path, reason: str):
+        nonlocal staging_identity_acquired
+        candidate = Path(path)
+        if candidate.name.startswith(".v01-import-"):
+            identity = original_assert(path, reason)
+            staging_identity_acquired = True
+            return identity
+        if staging_identity_acquired and candidate.name == "HTI-20260818-01":
+            raise TrendExchangeError("synthetic_staging_initialization_failure")
+        return original_assert(path, reason)
+
+    monkeypatch.setattr(
+        exchange, "_assert_safe_directory", fail_parent_check_after_staging_identity
+    )
+
+    def reject_write_before_initialization_finishes(path: Path, payload: bytes) -> None:
+        del path, payload
+        raise AssertionError(
+            "payload write began before staging initialization finished"
+        )
+
+    monkeypatch.setattr(
+        exchange, "_exclusive_write", reject_write_before_initialization_finishes
+    )
+    with pytest.raises(
+        TrendExchangeError, match="synthetic_staging_initialization_failure"
+    ):
+        import_trend_exchange(source, repo, anchor)
+
+    target = (
+        repo
+        / "09_泛健康日更"
+        / "data"
+        / "trend-intelligence"
+        / "HTI-20260818-01"
+        / "v01"
+    )
+    assert staging_identity_acquired
+    assert not target.exists()
+    assert not any(
+        path.name.startswith(".v01-import-") for path in target.parent.iterdir()
+    )
+
+    monkeypatch.setattr(exchange, "_assert_safe_directory", original_assert)
+    monkeypatch.setattr(exchange, "_exclusive_write", original_write)
+    assert import_trend_exchange(source, repo, anchor) == target
 
 
 def test_import_rejects_same_byte_source_identity_replacement_during_copy(

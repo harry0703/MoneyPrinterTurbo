@@ -159,31 +159,35 @@ _SECRET_TOKEN = re.compile(
     re.I,
 )
 _PHONE_NUMBER = re.compile(r"(?<!\d)(?:\+?86[ -]?)?1[3-9]\d{9}(?!\d)")
-_ENGLISH_MEDICAL_CONTEXT = (
-    r"(?:medical(?:ly)?|medicine|clinical(?:ly)?|health[ _-]+claim)"
+_ENGLISH_MEDICAL_CONTEXT = re.compile(r"\b(?:medical|clinical|clinically)\b")
+_ENGLISH_VERIFICATION_CONTEXT = re.compile(
+    r"\b(?:claim|review|verification|verified)\b"
 )
-_ENGLISH_VERIFIED_STATE = (
-    r"(?:verified|verification.{0,12}(?:complete(?:d)?|done|finished|passed))"
+_ENGLISH_INCOMPLETE_VERIFICATION = (
+    re.compile(r"\b(?:incomplete|pending|unverified)\b"),
+    re.compile(
+        r"\b(?:has|have|is|was|were|remains?)\s+not\s+"
+        r"(?:been\s+)?(?:complete(?:d)?|passed|verified)\b"
+    ),
+    re.compile(r"\b(?:not|never)\s+(?:been\s+)?(?:complete(?:d)?|passed|verified)\b"),
 )
-_CONTRADICTORY_MEDICAL_ENGLISH = (
-    re.compile(
-        rf"\b{_ENGLISH_MEDICAL_CONTEXT}\b.{{0,48}}\b{_ENGLISH_VERIFIED_STATE}\b",
-        re.I,
-    ),
-    re.compile(
-        rf"\b{_ENGLISH_VERIFIED_STATE}\b.{{0,48}}\b{_ENGLISH_MEDICAL_CONTEXT}\b",
-        re.I,
-    ),
+_ENGLISH_COMPLETE_VERIFICATION = re.compile(
+    r"\b(?:complete|completed|passed|verified)\b"
 )
-_CONTRADICTORY_MEDICAL_CHINESE = (
+_CHINESE_MEDICAL_CONTEXT = re.compile(r"(?:医学|医疗|临床|健康(?:声明|结论))")
+_CHINESE_VERIFICATION_CONTEXT = re.compile(r"(?:声明|结论|核验|验证|审查|确认)")
+_CHINESE_INCOMPLETE_VERIFICATION = (
+    re.compile(r"(?:尚未|还未|并未|未曾|没有)(?:完成|通过)?(?:核验|验证|审查|确认)"),
+    re.compile(r"未完成(?:医学|医疗|临床)?(?:声明|结论)?(?:核验|验证|审查|确认)"),
+    re.compile(r"待(?:医学|医疗|临床)?(?:核验|验证|审查|确认)"),
+)
+_CHINESE_COMPLETE_VERIFICATION = (
     re.compile(
-        r"(?:医学|医疗|临床|健康(?:结论|声明)).{0,24}"
-        r"(?:已|已经|完成|通过|成功).{0,10}(?:核验|验证|确认|审查)"
+        r"(?:已|已经)(?:完成|通过|成功)?"
+        r"(?:医学|医疗|临床)?(?:声明|结论)?"
+        r"(?:核验|验证|审查|确认)"
     ),
-    re.compile(
-        r"(?:已|已经|完成|通过|成功).{0,10}"
-        r"(?:医学|医疗|临床).{0,10}(?:核验|验证|确认|审查)"
-    ),
+    re.compile(r"(?:核验|验证|审查|确认)(?:已|已经)?(?:完成|通过|成功)"),
 )
 
 
@@ -475,11 +479,31 @@ def _validate_candidates(value: object) -> list[dict[str, Any]]:
             has_medical_context = any(
                 context in compact_risk_flag for context in ("clinical", "medical")
             )
-            has_positive_verified_state = (
+            has_negative_verified_state = any(
+                state in compact_risk_flag
+                for state in (
+                    "unverified",
+                    "notverified",
+                    "notbeenverified",
+                    "neververified",
+                    "verificationincomplete",
+                    "verificationnotcomplete",
+                    "verificationpending",
+                )
+            )
+            has_positive_verified_state = not has_negative_verified_state and (
                 "verified" in compact_risk_flag
-                and "unverified" not in compact_risk_flag
-                and "notverified" not in compact_risk_flag
-                and "neververified" not in compact_risk_flag
+                or any(
+                    state in compact_risk_flag
+                    for state in (
+                        "reviewcomplete",
+                        "reviewcompleted",
+                        "reviewpassed",
+                        "verificationcomplete",
+                        "verificationcompleted",
+                        "verificationpassed",
+                    )
+                )
             )
             if has_medical_context and has_positive_verified_state:
                 raise TrendExchangeError("medical_verification_contradiction")
@@ -575,6 +599,41 @@ def _normalized_security_text(value: str) -> str:
     ).casefold()
 
 
+def _classify_medical_verification_statement(
+    value: str,
+) -> Literal["complete", "incomplete"] | None:
+    """Classify only explicit medical-verification statements, negatives first."""
+
+    normalized = _normalized_security_text(value)
+    words = " ".join(
+        "".join(
+            character if character.isalnum() else " " for character in normalized
+        ).split()
+    )
+    compact = words.replace(" ", "")
+
+    english_context = bool(
+        _ENGLISH_MEDICAL_CONTEXT.search(words)
+        and _ENGLISH_VERIFICATION_CONTEXT.search(words)
+    )
+    if english_context:
+        if any(pattern.search(words) for pattern in _ENGLISH_INCOMPLETE_VERIFICATION):
+            return "incomplete"
+        if _ENGLISH_COMPLETE_VERIFICATION.search(words):
+            return "complete"
+
+    chinese_context = bool(
+        _CHINESE_MEDICAL_CONTEXT.search(compact)
+        and _CHINESE_VERIFICATION_CONTEXT.search(compact)
+    )
+    if chinese_context:
+        if any(pattern.search(compact) for pattern in _CHINESE_INCOMPLETE_VERIFICATION):
+            return "incomplete"
+        if any(pattern.search(compact) for pattern in _CHINESE_COMPLETE_VERIFICATION):
+            return "complete"
+    return None
+
+
 def _contains_ip(value: str) -> bool:
     for match in _IP.finditer(value):
         candidate = match.group(0).strip("[]").split("%", 1)[0]
@@ -590,16 +649,7 @@ def _assert_safe_text(value: str) -> None:
     if value == _DISCLAIMER or value in _DECLARED_FILE_NAMES:
         return
     normalized = _normalized_security_text(value)
-    medical_claim_text = re.sub(r"[_-]+", " ", normalized)
-    medical_claim_text = re.sub(
-        r"\b(?:(?:has|have|is|was|were)\s+)?(?:not|never)\s+(?:been\s+)?verified\b",
-        "unverified",
-        medical_claim_text,
-    )
-    if any(
-        pattern.search(medical_claim_text)
-        for pattern in (*_CONTRADICTORY_MEDICAL_ENGLISH, *_CONTRADICTORY_MEDICAL_CHINESE)
-    ):
+    if _classify_medical_verification_statement(value) == "complete":
         raise TrendExchangeError("medical_verification_contradiction")
     defanged = re.sub(
         r"\s*(?:\[\s*dot\s*\]|\(\s*dot\s*\)|\bdot\b)\s*",
@@ -833,16 +883,17 @@ def import_trend_exchange(
         )
     except OSError as error:
         raise TrendExchangeError("destination_create_failed") from error
-    if (
-        _assert_safe_directory(destination_parent, "destination_boundary_invalid")
-        != parent_identity
-    ):
-        raise TrendExchangeError("destination_boundary_changed")
-    staging_identity = _assert_safe_directory(
-        staging, "destination_boundary_invalid"
-    )
+    staging_identity: tuple[int, int] | None = None
     published = False
     try:
+        staging_identity = _assert_safe_directory(
+            staging, "destination_boundary_invalid"
+        )
+        if (
+            _assert_safe_directory(destination_parent, "destination_boundary_invalid")
+            != parent_identity
+        ):
+            raise TrendExchangeError("destination_boundary_changed")
         for name in _PAYLOAD_FILES:
             current = _read_regular_file(source_snapshot.result.source / name)
             if current != source_snapshot.files[name]:
@@ -905,6 +956,10 @@ def import_trend_exchange(
             raise TrendExchangeError("destination_bytes_mismatch")
         return target
     except BaseException:
+        if staging_identity is None:
+            # Without a trusted identity, preserving this unique directory is safer
+            # than deleting a path that may have been replaced by another actor.
+            raise
         if not published and os.path.lexists(target):
             try:
                 published = (
