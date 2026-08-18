@@ -397,6 +397,35 @@ def test_audit_classifies_24_deletions_per_episode_and_head_recoverability(
     ]
 
 
+def test_audit_fails_closed_when_24_item_episode_contains_an_unrecognized_deletion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.name", "Audit Test")
+    _git(repo, "config", "user.email", "audit@example.invalid")
+    content_id = "HC20260810-001"
+    payloads = _manual_pack_files(content_id)
+    expected = (
+        f"09_泛健康日更/work/{content_id}/production/v01/04_grok_batch/manual_pack/"
+        f"02_prompts/{content_id}-v01-S10-prompt-zh-en.txt"
+    )
+    unexpected = expected.replace("S10", "S11")
+    payloads[unexpected] = payloads.pop(expected)
+    assert len(payloads) == 24
+    _write_files(repo, payloads)
+    _git(repo, "add", "--all", ".")
+    _git(repo, "commit", "-m", "unexpected manual pack shape")
+    for path in (repo / "09_泛健康日更").rglob("*"):
+        if path.is_file():
+            path.unlink()
+    _stub_lfs_success(monkeypatch)
+
+    with pytest.raises(GitInspectionError, match="unrecognized manual-pack deletion"):
+        audit_health_assets(GitInspector(repo), remote=None, remote_ref=None)
+
+
 def test_first_frame_source_comparison_is_reported_without_copying(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -490,6 +519,39 @@ def test_failed_lfs_probe_is_reported_as_incomplete_evidence(
     assert report.lfs["complete"] is False
     assert report.lfs["tracked_paths"] is None
     assert "unavailable" in report.lfs["error"]
+
+
+@pytest.mark.parametrize(
+    "version_output",
+    [
+        b"",
+        b"git version 2.51.0.windows.1\n",
+        b"git-lfs/not-a-version\n",
+    ],
+)
+def test_empty_or_malformed_successful_lfs_version_is_incomplete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    version_output: bytes,
+):
+    repo = _repo_with_one_manual_pack(tmp_path)
+
+    def malformed_version(_inspector: GitInspector, args: tuple[str, ...]) -> bytes:
+        if args == ("version",):
+            return version_output
+        if args == ("ls-files", "--all", "-n"):
+            return b""
+        raise AssertionError(f"unexpected LFS arguments: {args!r}")
+
+    monkeypatch.setattr(integrity, "_run_lfs_readonly", malformed_version)
+
+    report = audit_health_assets(GitInspector(repo), remote=None, remote_ref=None)
+
+    assert report.summary["audit_complete"] is False
+    assert report.lfs["complete"] is False
+    assert report.lfs["version"] is None
+    assert report.lfs["tracked_paths"] is None
+    assert report.lfs["error"] == "unrecognized Git LFS version output"
 
 
 def test_requested_remote_object_missing_locally_is_not_fetched(

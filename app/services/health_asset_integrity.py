@@ -364,7 +364,16 @@ def _sha256_file(path: Path) -> str:
 
 def _inspect_lfs(inspector: GitInspector) -> tuple[dict[str, Any], bool]:
     try:
-        version = _run_lfs_readonly(inspector, ("version",)).decode("utf-8").strip()
+        version_lines = (
+            _run_lfs_readonly(inspector, ("version",)).decode("utf-8").splitlines()
+        )
+        if len(version_lines) != 1 or re.fullmatch(
+            r"git-lfs/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
+            r"(?: \([^\r\n]+\))?",
+            version_lines[0] if version_lines else "",
+        ) is None:
+            raise GitInspectionError("unrecognized Git LFS version output")
+        version = version_lines[0]
         paths_raw = _run_lfs_readonly(inspector, ("ls-files", "--all", "-n"))
         tracked_paths = [
             line.decode("utf-8", errors="strict")
@@ -454,7 +463,9 @@ def audit_health_assets(
         content_id, relative = match.groups()
         asset_kind = _asset_kind(content_id, relative)
         if asset_kind is None:
-            continue
+            raise GitInspectionError(
+                f"unrecognized manual-pack deletion: {status_entry.path}"
+            )
         tree_entry = head_by_path.get(status_entry.path)
         if tree_entry is None or tree_entry.size is None:
             evidence_complete = False
