@@ -3,17 +3,68 @@
 from __future__ import annotations
 
 import os
+import re
 import stat
+import unicodedata
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 class PathSafetyError(ValueError):
     """Raised when a configured path is not safe to access."""
 
 
-def _has_parent_traversal(path: Path) -> bool:
-    return any(part == ".." for part in path.parts)
+_WINDOWS_DEVICE = re.compile(r"(?:con|prn|aux|nul|com[1-9]|lpt[1-9]|conin\$|conout\$)\Z")
+
+
+def _normalized_windows_component(component: str) -> str:
+    normalized = unicodedata.normalize("NFKC", component)
+    if (
+        not component
+        or component in {".", ".."}
+        or normalized in {".", ".."}
+        or component != component.rstrip(". ")
+        or normalized != normalized.rstrip(". ")
+        or any(separator in normalized for separator in ("/", "\\", ":"))
+    ):
+        raise PathSafetyError("unsafe Windows path component")
+    device_stem = normalized.split(".", 1)[0].casefold()
+    if _WINDOWS_DEVICE.fullmatch(device_stem):
+        raise PathSafetyError("Windows device path components are forbidden")
+    return normalized
+
+
+def validate_windows_basename(name: str) -> None:
+    """Require one portable Windows filename with no drive, ADS, or device alias."""
+
+    if not isinstance(name, str):
+        raise PathSafetyError("filename must be text")
+    windows_name = PureWindowsPath(name)
+    if windows_name.drive or windows_name.root or len(windows_name.parts) != 1:
+        raise PathSafetyError("filename must be one relative component")
+    _normalized_windows_component(name)
+
+
+def validate_windows_absolute_path(path: str | os.PathLike[str]) -> None:
+    """Reject Windows lexical aliases before resolution or filesystem access."""
+
+    raw = os.fspath(path)
+    if not isinstance(raw, str):
+        raise PathSafetyError("path must be text")
+    windows_path = PureWindowsPath(raw)
+    if (
+        not windows_path.is_absolute()
+        or not re.fullmatch(r"[A-Za-z]:", windows_path.drive)
+        or windows_path.root != "\\"
+        or raw.startswith(("\\\\", "//"))
+    ):
+        raise PathSafetyError("path must be a local absolute drive path")
+    drive_and_tail = raw[2:].replace("/", "\\")
+    lexical_parts = drive_and_tail.split("\\")
+    if any(part in {".", ".."} for part in lexical_parts):
+        raise PathSafetyError("path traversal is forbidden")
+    for component in windows_path.parts[1:]:
+        _normalized_windows_component(component)
 
 
 def _is_reparse(status: os.stat_result) -> bool:
@@ -35,8 +86,7 @@ def _path_chain(path: Path) -> tuple[Path, ...]:
 def assert_safe_path_chain(path: Path) -> None:
     """Reject lexical traversal and every existing reparse component."""
 
-    if not path.is_absolute() or _has_parent_traversal(path):
-        raise PathSafetyError("path must be absolute and traversal-free")
+    validate_windows_absolute_path(path)
     for component in _path_chain(path):
         try:
             status = component.lstat()
@@ -80,8 +130,7 @@ class DataLayout:
     @classmethod
     def from_root(cls, root: Path) -> DataLayout:
         configured = Path(root)
-        if not configured.is_absolute() or _has_parent_traversal(configured):
-            raise PathSafetyError("root must be an absolute traversal-free path")
+        validate_windows_absolute_path(configured)
         normalized = Path(os.path.abspath(os.fspath(configured)))
         assert_safe_path_chain(normalized)
         return cls(
@@ -93,15 +142,18 @@ class DataLayout:
 
     def validate(self, *, initialized: bool = False) -> None:
         expected = (self.root / "raw", self.root / "curated", self.root / "approved")
+        registry = self.raw / ".registry"
         if (self.raw, self.curated, self.approved) != expected:
             raise PathSafetyError("layout paths do not match the configured root")
         assert_safe_path_chain(self.root)
         for layer in expected:
             assert_safe_path_chain(layer)
+        assert_safe_path_chain(registry)
         if initialized:
             assert_safe_directory(self.root)
             for layer in expected:
                 assert_safe_directory(layer)
+            assert_safe_directory(registry)
 
     def initialize(self) -> None:
         self.validate()
@@ -112,3 +164,6 @@ class DataLayout:
         for layer in (self.raw, self.curated, self.approved):
             layer.mkdir(exist_ok=True)
             assert_safe_directory(layer)
+        registry = self.raw / ".registry"
+        registry.mkdir(exist_ok=True)
+        assert_safe_directory(registry)

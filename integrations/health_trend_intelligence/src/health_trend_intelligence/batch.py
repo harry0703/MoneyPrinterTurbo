@@ -5,10 +5,11 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Literal
 
 from pydantic import ValidationError
@@ -21,13 +22,24 @@ from .storage import (
     assert_safe_directory,
     assert_safe_path_chain,
     assert_safe_regular_file,
+    validate_windows_absolute_path,
+    validate_windows_basename,
 )
 
 MEDIA_CRAWLER_COMMIT = "d6f7c5bb906b6dac40ddf343ef9e26438a3de092"
 _BATCH_ID = re.compile(r"HTI-\d{8}-\d{2}\Z")
-_FORBIDDEN = re.compile(
-    r"cookie|token|secret|phone|mobile|profile|proxy|media|video|image|audio",
-    re.IGNORECASE,
+_FORBIDDEN_TERMS = (
+    "cookie",
+    "token",
+    "secret",
+    "phone",
+    "mobile",
+    "profile",
+    "proxy",
+    "media",
+    "video",
+    "image",
+    "audio",
 )
 
 
@@ -82,10 +94,19 @@ def _require_aware(value: datetime, field: str) -> None:
         raise BatchInputError(f"{field} must be timezone-aware")
 
 
+def _security_normalize(value: str) -> str:
+    return unicodedata.normalize("NFKC", value).casefold()
+
+
+def _is_forbidden_name(value: str) -> bool:
+    normalized = _security_normalize(value)
+    return any(term in normalized for term in _FORBIDDEN_TERMS)
+
+
 def _contains_forbidden_key(value: Any) -> bool:
     if isinstance(value, Mapping):
         return any(
-            _FORBIDDEN.search(key) is not None or _contains_forbidden_key(item)
+            _is_forbidden_name(key) or _contains_forbidden_key(item)
             for key, item in value.items()
         )
     if isinstance(value, list):
@@ -188,9 +209,12 @@ def _read_stable_source(path: Path) -> tuple[bytes, _FileIdentity]:
 def _prepare_source(value: object) -> _PreparedSource:
     spec = _coerce_source(value)
     path = spec.path
-    if not path.is_absolute() or ".." in path.parts:
-        raise BatchInputError("source paths must be absolute and traversal-free")
-    if path.suffix.casefold() != ".jsonl" or _FORBIDDEN.search(path.name):
+    try:
+        validate_windows_absolute_path(path)
+        validate_windows_basename(path.name)
+    except PathSafetyError as error:
+        raise BatchInputError("source path is unsafe") from error
+    if _security_normalize(path.suffix) != ".jsonl" or _is_forbidden_name(path.name):
         raise BatchInputError("source filename is forbidden")
     try:
         payload, identity = _read_stable_source(path)
@@ -243,8 +267,10 @@ def register_batch(
     except PathSafetyError as error:
         raise BatchInputError("data layout is unsafe or uninitialized") from error
     batch_dir = layout.raw / batch_id
+    registry_path = layout.raw / ".registry" / f"{batch_id}.sha256"
     assert_safe_path_chain(batch_dir)
-    if os.path.lexists(batch_dir):
+    assert_safe_path_chain(registry_path)
+    if os.path.lexists(batch_dir) or os.path.lexists(registry_path):
         raise FileExistsError("batch already exists")
     queries = _coerce_queries(query_manifest)
     query_payload = _query_bytes(queries)
@@ -254,7 +280,7 @@ def register_batch(
         raise BatchInputError("at least one source is required")
     prepared = tuple(_prepare_source(item) for item in sources)
     names = [item.spec.path.name for item in prepared]
-    if len({name.casefold() for name in names}) != len(names):
+    if len({_security_normalize(name) for name in names}) != len(names):
         raise BatchInputError("source destination names must be unique")
 
     inputs_dir = batch_dir / "inputs"
@@ -295,7 +321,10 @@ def register_batch(
             sources=tuple(bindings),
             state="raw_registered",
         )
-        _exclusive_write(manifest_path, canonical_json_bytes(manifest.model_dump(mode="json")))
+        manifest_payload = canonical_json_bytes(manifest.model_dump(mode="json"))
+        registry_payload = hashlib.sha256(manifest_payload).hexdigest().encode("ascii") + b"\n"
+        _exclusive_write(registry_path, registry_payload)
+        _exclusive_write(manifest_path, manifest_payload)
         return verify_raw_batch(layout, batch_id)
     except (BatchInputError, PathSafetyError, OSError, ValidationError, ValueError):
         if manifest_path.is_file():
@@ -307,43 +336,72 @@ def register_batch(
 
 
 def _safe_binding_path(batch_dir: Path, relative_path: str) -> Path:
+    if not isinstance(relative_path, str):
+        raise BatchInputError("manifest source path is unsafe")
     relative = PurePosixPath(relative_path)
+    windows_relative = PureWindowsPath(relative_path)
+    raw_parts = relative_path.split("/")
     if (
-        relative.is_absolute()
-        or ".." in relative.parts
+        "\\" in relative_path
+        or ":" in relative_path
+        or windows_relative.drive
+        or windows_relative.root
+        or relative.is_absolute()
+        or any(part in {"", ".", ".."} for part in raw_parts)
         or relative.as_posix() != relative_path
-        or len(relative.parts) != 2
-        or relative.parts[0] != "inputs"
-        or not relative.name.casefold().endswith(".jsonl")
-        or _FORBIDDEN.search(relative.name) is not None
+        or len(raw_parts) != 2
+        or raw_parts[0] != "inputs"
     ):
         raise BatchInputError("manifest source path is unsafe")
-    destination = batch_dir.joinpath(*relative.parts)
+    basename = raw_parts[1]
     try:
-        assert_safe_regular_file(destination)
+        validate_windows_basename(basename)
     except PathSafetyError as error:
+        raise BatchInputError("manifest source path is unsafe") from error
+    if _security_normalize(Path(basename).suffix) != ".jsonl" or _is_forbidden_name(basename):
+        raise BatchInputError("manifest source path is unsafe")
+    inputs_dir = batch_dir / "inputs"
+    destination = inputs_dir / basename
+    try:
+        if destination.relative_to(inputs_dir) != Path(basename):
+            raise BatchInputError("manifest source path is unsafe")
+        assert_safe_regular_file(destination)
+    except (PathSafetyError, ValueError) as error:
+        if isinstance(error, BatchInputError):
+            raise
         raise BatchInputError("manifest source path is unsafe") from error
     return destination
 
 
-def _load_manifest(path: Path) -> BatchManifest:
+def _load_manifest(path: Path) -> tuple[BatchManifest, bytes]:
     try:
-        assert_safe_regular_file(path)
-        payload = path.read_bytes()
+        payload, _ = _read_stable_source(path)
         value = load_unique_json(payload)
         if canonical_json_bytes(value) != payload:
             raise BatchInputError("manifest is not canonical")
-        return BatchManifest.model_validate_json(payload)
+        return BatchManifest.model_validate_json(payload), payload
     except (OSError, PathSafetyError, TypeError, ValueError, ValidationError) as error:
         if isinstance(error, BatchInputError):
             raise
         raise BatchInputError("batch manifest is invalid") from error
 
 
+def _verify_registry(layout: DataLayout, batch_id: str, manifest_payload: bytes) -> None:
+    path = layout.raw / ".registry" / f"{batch_id}.sha256"
+    try:
+        payload, _ = _read_stable_source(path)
+    except (BatchInputError, PathSafetyError) as error:
+        raise BatchInputError("batch registry is missing or unsafe") from error
+    if re.fullmatch(rb"[0-9a-f]{64}\n", payload) is None:
+        raise BatchInputError("batch registry has an invalid format")
+    expected = hashlib.sha256(manifest_payload).hexdigest().encode("ascii") + b"\n"
+    if payload != expected:
+        raise BatchInputError("batch manifest does not match its registry")
+
+
 def _verify_query_manifest(path: Path, expected_hash: str) -> None:
     try:
-        assert_safe_regular_file(path)
-        payload = path.read_bytes()
+        payload, _ = _read_stable_source(path)
         value = load_unique_json(payload)
         queries = _coerce_queries(value)
         if _query_bytes(queries) != payload:
@@ -368,11 +426,12 @@ def verify_raw_batch(layout: DataLayout, batch_id: str) -> BatchManifest:
         assert_safe_directory(inputs_dir)
     except PathSafetyError as error:
         raise BatchInputError("raw batch path is unsafe or incomplete") from error
-    manifest = _load_manifest(batch_dir / "batch-manifest.json")
+    manifest, manifest_payload = _load_manifest(batch_dir / "batch-manifest.json")
+    _verify_registry(layout, batch_id, manifest_payload)
     if manifest.batch_id != batch_id or manifest.state != "raw_registered":
         raise BatchInputError("batch manifest identity or state is invalid")
     _verify_query_manifest(batch_dir / "query-manifest.json", manifest.query_manifest_sha256)
-    if len({binding.relative_path.casefold() for binding in manifest.sources}) != len(
+    if len({_security_normalize(binding.relative_path) for binding in manifest.sources}) != len(
         manifest.sources
     ):
         raise BatchInputError("batch manifest contains duplicate source paths")
@@ -400,6 +459,13 @@ def verify_raw_batch(layout: DataLayout, batch_id: str) -> BatchManifest:
         raise BatchInputError("raw batch contains unbound artifacts")
     if actual_input_entries != expected_names:
         raise BatchInputError("raw inputs contain unbound artifacts")
+    try:
+        final_manifest_payload, _ = _read_stable_source(batch_dir / "batch-manifest.json")
+    except PathSafetyError as error:
+        raise BatchInputError("batch manifest became unsafe") from error
+    if final_manifest_payload != manifest_payload:
+        raise BatchInputError("batch manifest changed during verification")
+    _verify_registry(layout, batch_id, final_manifest_payload)
     return manifest
 
 

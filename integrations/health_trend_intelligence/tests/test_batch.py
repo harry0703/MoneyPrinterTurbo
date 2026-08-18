@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+import health_trend_intelligence.batch as batch_module
 from health_trend_intelligence.batch import (
     BatchInputError,
     SourceSpec,
@@ -72,6 +73,29 @@ def register_fixture_batch(
     return layout, manifest
 
 
+def batch_manifest_path(layout: DataLayout, batch_id: str) -> Path:
+    return layout.raw / batch_id / "batch-manifest.json"
+
+
+def registry_path(layout: DataLayout, batch_id: str) -> Path:
+    return layout.raw / ".registry" / f"{batch_id}.sha256"
+
+
+def rewrite_manifest(
+    layout: DataLayout,
+    batch_id: str,
+    data: dict[str, Any],
+    *,
+    rewrite_registry: bool,
+) -> None:
+    payload = canonical_json_bytes(data)
+    batch_manifest_path(layout, batch_id).write_bytes(payload)
+    if rewrite_registry:
+        registry = registry_path(layout, batch_id)
+        registry.parent.mkdir(exist_ok=True)
+        registry.write_bytes(hashlib.sha256(payload).hexdigest().encode("ascii") + b"\n")
+
+
 def test_register_is_no_overwrite_and_binds_exact_source_bytes(tmp_path: Path) -> None:
     layout, manifest = register_fixture_batch(tmp_path)
 
@@ -93,9 +117,139 @@ def test_register_is_no_overwrite_and_binds_exact_source_bytes(tmp_path: Path) -
         )
 
 
+def test_register_writes_exact_exclusive_manifest_registry_digest(tmp_path: Path) -> None:
+    layout, manifest = register_fixture_batch(tmp_path)
+    payload = batch_manifest_path(layout, manifest.batch_id).read_bytes()
+
+    assert registry_path(layout, manifest.batch_id).read_bytes() == (
+        hashlib.sha256(payload).hexdigest().encode("ascii") + b"\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["platform", "record_kind", "created_at", "snapshot_at", "source_collection"],
+)
+def test_registry_binding_rejects_canonical_manifest_metadata_changes(
+    tmp_path: Path, field: str
+) -> None:
+    layout, manifest = register_fixture_batch(tmp_path)
+    manifest_path = batch_manifest_path(layout, manifest.batch_id)
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if field == "platform":
+        data["sources"][0]["platform"] = "xhs"
+    elif field == "record_kind":
+        data["sources"][0]["record_kind"] = "comments"
+    elif field == "created_at":
+        data["created_at"] = "2026-08-19T15:30:00+08:00"
+    elif field == "snapshot_at":
+        data["snapshot_at"] = "2030-01-01T00:00:00Z"
+    else:
+        data["sources"] = []
+        (layout.raw / manifest.batch_id / manifest.sources[0].relative_path).unlink()
+    rewrite_manifest(layout, manifest.batch_id, data, rewrite_registry=False)
+
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, manifest.batch_id)
+
+
+@pytest.mark.parametrize(
+    "registry_payload",
+    [
+        b"A" * 64 + b"\n",
+        b"0" * 64,
+        b"0" * 64 + b"\nextra",
+        b"0" * 63 + b"\n",
+        b"g" * 64 + b"\n",
+    ],
+)
+def test_verify_rejects_malformed_or_nonmatching_registry(
+    tmp_path: Path, registry_payload: bytes
+) -> None:
+    layout, manifest = register_fixture_batch(tmp_path)
+    registry = registry_path(layout, manifest.batch_id)
+    registry.parent.mkdir(exist_ok=True)
+    registry.write_bytes(registry_payload)
+
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, manifest.batch_id)
+
+
+def test_orphan_registry_is_not_consumable_or_silently_overwritten(tmp_path: Path) -> None:
+    layout = initialized_layout(tmp_path)
+    registry = registry_path(layout, "HTI-20260818-01")
+    registry.parent.mkdir(exist_ok=True)
+    registry.write_bytes(b"0" * 64 + b"\n")
+
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, "HTI-20260818-01")
+    with pytest.raises(FileExistsError):
+        register_batch(
+            layout,
+            "HTI-20260818-01",
+            (query(),),
+            (source_spec(source_file(tmp_path)),),
+            SNAPSHOT,
+        )
+
+
+def test_manifest_without_registry_is_not_consumable(tmp_path: Path) -> None:
+    layout, manifest = register_fixture_batch(tmp_path)
+    registry = registry_path(layout, manifest.batch_id)
+    if registry.exists():
+        registry.unlink()
+
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, manifest.batch_id)
+
+
+def test_failure_after_registry_write_is_terminal_and_has_no_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layout = initialized_layout(tmp_path)
+    batch_id = "HTI-20260818-01"
+    original_write = batch_module._exclusive_write
+
+    def fail_manifest(path: Path, payload: bytes) -> None:
+        if path.name == "batch-manifest.json":
+            raise BatchInputError("synthetic manifest failure")
+        original_write(path, payload)
+
+    monkeypatch.setattr(batch_module, "_exclusive_write", fail_manifest)
+    with pytest.raises(BatchInputError):
+        register_batch(
+            layout,
+            batch_id,
+            (query(),),
+            (source_spec(source_file(tmp_path)),),
+            SNAPSHOT,
+        )
+
+    assert registry_path(layout, batch_id).is_file()
+    assert not batch_manifest_path(layout, batch_id).exists()
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, batch_id)
+    with pytest.raises(FileExistsError):
+        register_batch(
+            layout,
+            batch_id,
+            (query(),),
+            (source_spec(source_file(tmp_path)),),
+            SNAPSHOT,
+        )
+
+
 @pytest.mark.parametrize(
     "name",
-    ["clip-video.jsonl", "cookies.jsonl", "profile.jsonl", "voice-audio.jsonl"],
+    [
+        "clip-video.jsonl",
+        "cookies.jsonl",
+        "profile.jsonl",
+        "voice-audio.jsonl",
+        "ｔｏｋｅｎ.jsonl",
+        "𝕥𝕠𝕜𝕖𝕟.jsonl",
+        "ToKeN.jsonl",
+    ],
 )
 def test_registration_rejects_media_and_credential_file_names(
     tmp_path: Path, name: str
@@ -145,6 +299,8 @@ def test_registration_rejects_source_symlink_before_destination_creation(tmp_pat
         '{"é":1,"é":2}\n'.encode(),
         b'{"nested":{"phone_number":"123"}}\n',
         b'{"nested":[{"access_token":"value"}]}\n',
+        '{"nested":{"ＴＯＫＥＮ":"value"}}\n'.encode(),
+        '{"nested":[{"𝕥𝕠𝕜𝕖𝕟":"value"}]}\n'.encode(),
     ],
 )
 def test_registration_rejects_invalid_or_sensitive_jsonl(
@@ -209,6 +365,32 @@ def test_registration_rejects_relative_source_path(tmp_path: Path) -> None:
             "HTI-20260818-01",
             (query(),),
             (source_spec(Path("relative.jsonl")),),
+            SNAPSHOT,
+        )
+
+    assert not (layout.raw / "HTI-20260818-01").exists()
+
+
+@pytest.mark.parametrize(
+    "unsafe_path",
+    [
+        Path(r"\\server\share\source.jsonl"),
+        Path(r"C:\safe\source.jsonl:stream"),
+        Path(r"C:\safe\CON.jsonl"),
+        Path("C:\\safe\\trailing.jsonl. "),
+    ],
+)
+def test_registration_rejects_unsafe_source_lexically_before_destination(
+    tmp_path: Path, unsafe_path: Path
+) -> None:
+    layout = initialized_layout(tmp_path)
+
+    with pytest.raises(BatchInputError):
+        register_batch(
+            layout,
+            "HTI-20260818-01",
+            (query(),),
+            (source_spec(unsafe_path),),
             SNAPSHOT,
         )
 
@@ -295,6 +477,68 @@ def test_verify_reapplies_forbidden_filename_policy_to_tampered_manifest(
         verify_raw_batch(layout, manifest.batch_id)
 
 
+def test_binding_rejects_windows_drive_escape_even_with_rewritten_registry(
+    tmp_path: Path,
+) -> None:
+    layout, manifest = register_fixture_batch(tmp_path)
+    batch_dir = layout.raw / manifest.batch_id
+    original = batch_dir / manifest.sources[0].relative_path
+    inside = original.with_name("outside.jsonl")
+    original.rename(inside)
+    outside = tmp_path / "outside.jsonl"
+    outside.write_bytes(inside.read_bytes())
+    data = json.loads(batch_manifest_path(layout, manifest.batch_id).read_text(encoding="utf-8"))
+    data["sources"][0]["relative_path"] = f"inputs/{outside}"
+    rewrite_manifest(layout, manifest.batch_id, data, rewrite_registry=True)
+
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, manifest.batch_id)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        r"inputs/\\server\share\outside.jsonl",
+        "inputs/name:stream.jsonl",
+        "inputs/CON.jsonl",
+        "inputs/ＣＯＮ.jsonl",
+        "inputs/AUX.txt.jsonl",
+        "inputs/trailing.jsonl. ",
+        "inputs/.",
+        "inputs/../outside.jsonl",
+        "inputs//outside.jsonl",
+        "inputs/sub/outside.jsonl",
+        r"inputs\outside.jsonl",
+    ],
+)
+def test_binding_rejects_nonportable_or_unsafe_shapes(
+    tmp_path: Path, relative_path: str
+) -> None:
+    layout, manifest = register_fixture_batch(tmp_path)
+    data = json.loads(batch_manifest_path(layout, manifest.batch_id).read_text(encoding="utf-8"))
+    data["sources"][0]["relative_path"] = relative_path
+    rewrite_manifest(layout, manifest.batch_id, data, rewrite_registry=True)
+
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, manifest.batch_id)
+
+
+def test_binding_rejects_nfkc_sensitive_basename_with_rewritten_registry(
+    tmp_path: Path,
+) -> None:
+    layout, manifest = register_fixture_batch(tmp_path)
+    batch_dir = layout.raw / manifest.batch_id
+    original = batch_dir / manifest.sources[0].relative_path
+    renamed = original.with_name("ｔｏｋｅｎ.jsonl")
+    original.rename(renamed)
+    data = json.loads(batch_manifest_path(layout, manifest.batch_id).read_text(encoding="utf-8"))
+    data["sources"][0]["relative_path"] = "inputs/ｔｏｋｅｎ.jsonl"
+    rewrite_manifest(layout, manifest.batch_id, data, rewrite_registry=True)
+
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, manifest.batch_id)
+
+
 def test_retention_report_uses_exact_thirty_day_instant_across_timezones(
     tmp_path: Path,
 ) -> None:
@@ -358,6 +602,24 @@ def test_cli_usage_errors_also_return_three() -> None:
     result = CliRunner().invoke(app, ["verify-raw"])
 
     assert result.exit_code == 3
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["version", r"C:\private\secret-record.jsonl"],
+        ["init", "--unknown-token", r"C:\private\secret-record.jsonl"],
+        ["register", r"C:\private\secret-record.jsonl"],
+        ["verify-raw", r"C:\private\secret-record.jsonl"],
+        ["retention-report", r"C:\private\secret-record.jsonl"],
+        ["unknown-secret-command"],
+    ],
+)
+def test_cli_parse_errors_use_one_fixed_non_echoing_message(args: list[str]) -> None:
+    result = CliRunner().invoke(app, args)
+
+    assert result.exit_code == 3
+    assert result.output == "invalid command line\n"
 
 
 def test_cli_success_smoke_uses_only_batch_metadata(tmp_path: Path) -> None:

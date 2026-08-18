@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import health_trend_intelligence.storage as storage_module
 from health_trend_intelligence.storage import DataLayout, PathSafetyError
 
 
@@ -84,3 +85,28 @@ def test_layout_rejects_junction_component(tmp_path: Path) -> None:
         DataLayout.from_root(junction / "data")
 
     assert not (actual_parent / "data").exists()
+
+
+@pytest.mark.parametrize(
+    "raw_path",
+    [
+        r"\\server\share\data",
+        r"\\?\C:\data",
+        r"C:\safe\file:stream",
+        r"C:\safe\CON",
+        r"C:\safe\aux.jsonl",
+        "C:\\safe\\ＣＯＮ.jsonl",
+        "C:\\safe\\trailing. ",
+        r"C:\safe\..\data",
+        r"C:relative",
+    ],
+)
+def test_shared_windows_lexical_guard_rejects_unsafe_absolute_forms(raw_path: str) -> None:
+    with pytest.raises(PathSafetyError):
+        storage_module.validate_windows_absolute_path(raw_path)
+
+
+@pytest.mark.parametrize("suffix", ["CON", "aux.jsonl", "data:stream", "trailing. "])
+def test_layout_rejects_unsafe_windows_components(tmp_path: Path, suffix: str) -> None:
+    with pytest.raises(PathSafetyError):
+        DataLayout.from_root(tmp_path / suffix)

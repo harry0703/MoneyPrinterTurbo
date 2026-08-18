@@ -1,23 +1,51 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, TypeVar
 
 import typer
-from typer._click.exceptions import NoArgsIsHelpError, UsageError
+from typer._click.exceptions import UsageError
+from typer.core import TyperGroup
 
 from .batch import BatchInputError, build_retention_report, register_batch, verify_raw_batch
 from .canonical import load_unique_json
 from .storage import DataLayout, PathSafetyError, assert_safe_regular_file
 
-# Operational commands have one failure contract. Typer delegates argument
-# errors to Click before command callbacks run, so align that early path too.
-UsageError.exit_code = 3
-NoArgsIsHelpError.exit_code = 3
 
-app = typer.Typer(no_args_is_help=True, add_completion=False)
+class SafeTyperGroup(TyperGroup):
+    """Render every parser failure without reflecting untrusted argv."""
+
+    def main(
+        self,
+        args: Sequence[str] | None = None,
+        prog_name: str | None = None,
+        complete_var: str | None = None,
+        standalone_mode: bool = True,
+        windows_expand_args: bool = True,
+        **extra: Any,
+    ) -> Any:
+        try:
+            result = super().main(
+                args=args,
+                prog_name=prog_name,
+                complete_var=complete_var,
+                standalone_mode=False,
+                windows_expand_args=windows_expand_args,
+                **extra,
+            )
+        except UsageError:
+            typer.echo("invalid command line", err=True)
+            if standalone_mode:
+                raise SystemExit(3) from None
+            return 3
+        if standalone_mode and isinstance(result, int):
+            raise SystemExit(result)
+        return result
+
+
+app = typer.Typer(cls=SafeTyperGroup, no_args_is_help=True, add_completion=False)
 
 
 @app.callback()
