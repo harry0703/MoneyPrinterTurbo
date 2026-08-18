@@ -35,10 +35,13 @@ def main() -> int:
     verify = subparsers.add_parser("verify")
     verify.add_argument("--bundle", required=True, type=Path)
     verify.add_argument("--audit-id", required=True)
+    verify.add_argument("--expected-manifest-sha256")
     args = parser.parse_args()
     try:
         if args.command == "verify":
-            manifest = verify_report_bundle(args.bundle, args.audit_id)
+            manifest = verify_report_bundle(
+                args.bundle, args.audit_id, args.expected_manifest_sha256
+            )
             print(
                 json.dumps(
                     {
@@ -56,7 +59,6 @@ def main() -> int:
         )
         output_parent = ensure_external_output(args.repo, output_parent)
         bundle = write_report_bundle(output_parent, args.audit_id, report)
-        verify_report_bundle(bundle, args.audit_id)
     except (GitInspectionError, OSError) as error:
         print(json.dumps({"status": "error", "error": str(error)}, ensure_ascii=False))
         return 3

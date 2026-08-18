@@ -25,15 +25,16 @@ $python='E:\MoneyPrinterTurbo-3期\MoneyPrinterTurbo\.venv\Scripts\python.exe'
 
 The writer creates the final audit directory exactly once, writes and flushes the three payloads, then creates and flushes `bundle-manifest.json` last. That final file is the completion marker. A failed write leaves the final directory as incomplete evidence and it must not be consumed as a bundle. An existing audit ID, including incomplete output, is never overwritten or reused.
 
-The directory cannot be made permanently immutable against its owner on Windows: keeping every child handle open prevents the directory rename that the prior design required, while closing them creates a rename race. Therefore every reader must validate the directory again immediately before using it:
+The writer compares the final on-disk bytes to the exact payload and manifest bytes it rendered before it reports completion. After return, colocated hashes establish only internal consistency: a bundle owner could rewrite both content and manifest. Provenance verification therefore requires a trusted manifest SHA-256 recorded outside the bundle:
 
 ```powershell
 & $python '09_泛健康日更/scripts/audit_health_assets.py' verify `
   --bundle 'E:\MoneyPrinterTurbo-3期\audit-evidence\HCAS-20260818-01' `
-  --audit-id 'HCAS-20260818-01'
+  --audit-id 'HCAS-20260818-01' `
+  --expected-manifest-sha256 'a98fcb6c17d2d8d73907f3f170e1f788b62a4c9fc0c657382ed2ac8fe4906d09'
 ```
 
-Verification requires one ordinary, non-reparse directory; exactly the four expected regular files; the expected manifest and report schemas and audit ID; and the declared byte size and SHA-256 of every payload. Missing or invalid markers, changed files, or extra files are incomplete/invalid evidence and must not be read as an audit bundle.
+Provenance verification requires one ordinary, non-reparse directory; exactly the four expected regular files; the expected manifest and report schemas and audit ID; every declared payload byte size and SHA-256; and an exact 64-character lowercase trusted manifest hash. Missing or invalid anchors, markers, changed files, or extra files are invalid evidence and must not be consumed.
 
 ## Exit codes
 

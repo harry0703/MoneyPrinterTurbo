@@ -91,6 +91,10 @@ def _complete_report(tmp_path: Path):
     )
 
 
+def _manifest_sha256(bundle: Path) -> str:
+    return hashlib.sha256((bundle / "bundle-manifest.json").read_bytes()).hexdigest()
+
+
 def _make_directory_reparse(link: Path, target: Path) -> None:
     try:
         link.symlink_to(target, target_is_directory=True)
@@ -348,7 +352,7 @@ def test_write_failure_preserves_non_consumable_final_directory(
     assert {path.name for path in bundle.iterdir()} == {"audit.json"}
     assert not (bundle / "bundle-manifest.json").exists()
     with pytest.raises(GitInspectionError):
-        integrity.verify_report_bundle(bundle, "HCAS-TEST-01")
+        integrity.verify_report_bundle_consistency(bundle, "HCAS-TEST-01")
     with pytest.raises(GitInspectionError, match="already exists"):
         integrity.write_report_bundle(output_parent, "HCAS-TEST-01", report)
 
@@ -376,7 +380,10 @@ def test_manifest_is_the_last_exclusive_write_completion_marker(
         "audit-summary.md",
         "bundle-manifest.json",
     ]
-    assert integrity.verify_report_bundle(bundle, "HCAS-TEST-01")["audit_id"] == "HCAS-TEST-01"
+    assert (
+        integrity.verify_report_bundle_consistency(bundle, "HCAS-TEST-01")["audit_id"]
+        == "HCAS-TEST-01"
+    )
 
 
 @pytest.mark.parametrize("mutation", ["payload", "manifest", "extra", "missing-marker"])
@@ -398,7 +405,7 @@ def test_verifier_rejects_non_consumable_or_modified_bundle(
         (bundle / "bundle-manifest.json").unlink()
 
     with pytest.raises(GitInspectionError):
-        integrity.verify_report_bundle(bundle, "HCAS-TEST-01")
+        integrity.verify_report_bundle_consistency(bundle, "HCAS-TEST-01")
 
 
 def test_public_verifier_accepts_only_expected_audit_id_and_schema(tmp_path: Path):
@@ -407,12 +414,12 @@ def test_public_verifier_accepts_only_expected_audit_id_and_schema(tmp_path: Pat
         tmp_path / "evidence", "HCAS-TEST-01", report
     )
 
-    manifest = integrity.verify_report_bundle(bundle, "HCAS-TEST-01")
+    manifest = integrity.verify_report_bundle_consistency(bundle, "HCAS-TEST-01")
 
     assert manifest["schema"] == "health-asset-integrity-bundle-v1"
     assert manifest["audit_id"] == "HCAS-TEST-01"
     with pytest.raises(GitInspectionError):
-        integrity.verify_report_bundle(bundle, "HCAS-WRONG-ID")
+        integrity.verify_report_bundle_consistency(bundle, "HCAS-WRONG-ID")
 
 
 def _rebind_audit_payload(bundle: Path, payload: bytes) -> None:
@@ -466,7 +473,7 @@ def test_api_and_verify_cli_reject_ambiguous_or_non_report_audit_json(
         )
 
     with pytest.raises(GitInspectionError):
-        integrity.verify_report_bundle(bundle, "HCAS-TEST-01")
+        integrity.verify_report_bundle_consistency(bundle, "HCAS-TEST-01")
     cli = _run("verify", "--bundle", str(bundle), "--audit-id", "HCAS-TEST-01")
     assert cli.returncode == 3, case
     assert json.loads(cli.stdout)["status"] == "error"
@@ -478,39 +485,103 @@ def test_cli_verify_rechecks_bundle_on_every_use(tmp_path: Path):
         tmp_path / "evidence", "HCAS-TEST-01", report
     )
 
+    expected_manifest_sha256 = _manifest_sha256(bundle)
     verified = _run(
-        "verify", "--bundle", str(bundle), "--audit-id", "HCAS-TEST-01"
+        "verify",
+        "--bundle",
+        str(bundle),
+        "--audit-id",
+        "HCAS-TEST-01",
+        "--expected-manifest-sha256",
+        expected_manifest_sha256,
     )
     assert verified.returncode == 0, verified.stdout
     assert json.loads(verified.stdout)["status"] == "verified"
 
     (bundle / "audit.json").write_bytes(b"tampered after first verification")
     rejected = _run(
-        "verify", "--bundle", str(bundle), "--audit-id", "HCAS-TEST-01"
+        "verify",
+        "--bundle",
+        str(bundle),
+        "--audit-id",
+        "HCAS-TEST-01",
+        "--expected-manifest-sha256",
+        expected_manifest_sha256,
     )
     assert rejected.returncode == 3
     assert json.loads(rejected.stdout)["status"] == "error"
 
 
-def test_writer_success_requires_final_public_verification(
+def test_writer_rejects_jointly_changed_report_and_manifest_before_return(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     report = _complete_report(tmp_path / "fixture")
     output_parent = tmp_path / "evidence"
     bundle = output_parent / "HCAS-TEST-01"
-    original_verify = integrity.verify_report_bundle
+    original_write = integrity._write_exclusive
 
-    def add_extra_then_verify(path: Path, audit_id: str):
-        (bundle / "late-extra.txt").write_bytes(b"late extra")
-        return original_verify(path, audit_id)
+    def rewrite_report_after_manifest(path: Path, payload: bytes) -> None:
+        original_write(path, payload)
+        if path.name != "bundle-manifest.json":
+            return
+        audit_path = bundle / "audit.json"
+        audit = json.loads(audit_path.read_text("utf-8"))
+        audit["head_sha"] = "f" * 40
+        audit_bytes = (json.dumps(audit, ensure_ascii=False, indent=2) + "\n").encode(
+            "utf-8"
+        )
+        audit_path.write_bytes(audit_bytes)
+        manifest_path = bundle / "bundle-manifest.json"
+        manifest = json.loads(manifest_path.read_text("utf-8"))
+        manifest["files"]["audit.json"] = {
+            "sha256": hashlib.sha256(audit_bytes).hexdigest(),
+            "bytes": len(audit_bytes),
+        }
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
-    monkeypatch.setattr(integrity, "verify_report_bundle", add_extra_then_verify)
+    monkeypatch.setattr(integrity, "_write_exclusive", rewrite_report_after_manifest)
 
     with pytest.raises(GitInspectionError):
         integrity.write_report_bundle(output_parent, "HCAS-TEST-01", report)
 
     assert bundle.is_dir()
-    assert (bundle / "late-extra.txt").read_bytes() == b"late extra"
+    assert json.loads((bundle / "audit.json").read_text("utf-8"))["head_sha"] == "f" * 40
+
+
+@pytest.mark.parametrize(
+    ("expected_manifest_sha256", "expected_returncode"),
+    [
+        (None, 3),
+        ("0" * 64, 3),
+        ("not-a-valid-sha256", 3),
+        ("valid", 0),
+    ],
+)
+def test_verify_cli_requires_trusted_manifest_anchor(
+    tmp_path: Path,
+    expected_manifest_sha256: str | None,
+    expected_returncode: int,
+):
+    report = _complete_report(tmp_path / "fixture")
+    bundle = integrity.write_report_bundle(
+        tmp_path / "evidence", "HCAS-TEST-01", report
+    )
+    arguments = ["verify", "--bundle", str(bundle), "--audit-id", "HCAS-TEST-01"]
+    if expected_manifest_sha256 is not None:
+        arguments.extend(
+            [
+                "--expected-manifest-sha256",
+                _manifest_sha256(bundle)
+                if expected_manifest_sha256 == "valid"
+                else expected_manifest_sha256,
+            ]
+        )
+
+    result = _run(*arguments)
+
+    assert result.returncode == expected_returncode, result.stdout
 
 
 def test_existing_partial_audit_id_is_never_reused(tmp_path: Path):

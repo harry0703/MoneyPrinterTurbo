@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import csv
-import ctypes
 import hashlib
 import io
 import json
 import os
 import re
 import subprocess
-from ctypes import wintypes
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any, Sequence
@@ -93,130 +91,6 @@ _WINDOWS_RESERVED_AUDIT_IDS = frozenset(
         *(f"LPT{number}" for number in range(1, 10)),
     }
 )
-
-_DELETE = 0x00010000
-_SYNCHRONIZE = 0x00100000
-_GENERIC_READ = 0x80000000
-_GENERIC_WRITE = 0x40000000
-_FILE_LIST_DIRECTORY = 0x00000001
-_FILE_TRAVERSE = 0x00000020
-_FILE_READ_ATTRIBUTES = 0x00000080
-_FILE_SHARE_READ = 0x00000001
-_FILE_SHARE_WRITE = 0x00000002
-_FILE_SHARE_DELETE = 0x00000004
-_FILE_SHARE_ALL = _FILE_SHARE_READ | _FILE_SHARE_WRITE | _FILE_SHARE_DELETE
-_FILE_ATTRIBUTE_DIRECTORY = 0x00000010
-_FILE_ATTRIBUTE_NORMAL = 0x00000080
-_FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
-_FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
-_OPEN_EXISTING = 3
-_FILE_OPEN = 1
-_FILE_CREATE = 2
-_FILE_DIRECTORY_FILE = 0x00000001
-_FILE_WRITE_THROUGH = 0x00000002
-_FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020
-_FILE_NON_DIRECTORY_FILE = 0x00000040
-_OBJ_CASE_INSENSITIVE = 0x00000040
-_FILE_BEGIN = 0
-_FILE_STANDARD_INFO_CLASS = 1
-_FILE_RENAME_INFORMATION_CLASS = 10
-_FILE_ATTRIBUTE_TAG_INFO_CLASS = 9
-_FILE_ID_BOTH_DIRECTORY_INFO_CLASS = 10
-_FILE_ID_BOTH_DIRECTORY_RESTART_INFO_CLASS = 11
-_FILE_ID_INFO_CLASS = 18
-_ERROR_NO_MORE_FILES = 18
-_MAX_BUNDLE_FILE_BYTES = 128 * 1024 * 1024
-
-
-class _FILE_ID_128(ctypes.Structure):
-    _fields_ = [("Identifier", ctypes.c_ubyte * 16)]
-
-
-class _FILE_ID_INFO(ctypes.Structure):
-    _fields_ = [
-        ("VolumeSerialNumber", ctypes.c_ulonglong),
-        ("FileId", _FILE_ID_128),
-    ]
-
-
-class _FILE_ATTRIBUTE_TAG_INFO(ctypes.Structure):
-    _fields_ = [
-        ("FileAttributes", wintypes.DWORD),
-        ("ReparseTag", wintypes.DWORD),
-    ]
-
-
-class _FILE_STANDARD_INFO(ctypes.Structure):
-    _fields_ = [
-        ("AllocationSize", ctypes.c_longlong),
-        ("EndOfFile", ctypes.c_longlong),
-        ("NumberOfLinks", wintypes.DWORD),
-        ("DeletePending", wintypes.BOOLEAN),
-        ("Directory", wintypes.BOOLEAN),
-    ]
-
-
-class _FILE_ID_BOTH_DIR_INFO(ctypes.Structure):
-    _fields_ = [
-        ("NextEntryOffset", wintypes.DWORD),
-        ("FileIndex", wintypes.DWORD),
-        ("CreationTime", ctypes.c_longlong),
-        ("LastAccessTime", ctypes.c_longlong),
-        ("LastWriteTime", ctypes.c_longlong),
-        ("ChangeTime", ctypes.c_longlong),
-        ("EndOfFile", ctypes.c_longlong),
-        ("AllocationSize", ctypes.c_longlong),
-        ("FileAttributes", wintypes.DWORD),
-        ("FileNameLength", wintypes.DWORD),
-        ("EaSize", wintypes.DWORD),
-        ("ShortNameLength", ctypes.c_byte),
-        ("ShortName", ctypes.c_wchar * 12),
-        ("FileId", ctypes.c_longlong),
-        ("FileName", ctypes.c_wchar * 1),
-    ]
-
-
-class _UNICODE_STRING(ctypes.Structure):
-    _fields_ = [
-        ("Length", wintypes.USHORT),
-        ("MaximumLength", wintypes.USHORT),
-        ("Buffer", wintypes.LPWSTR),
-    ]
-
-
-class _OBJECT_ATTRIBUTES(ctypes.Structure):
-    _fields_ = [
-        ("Length", wintypes.ULONG),
-        ("RootDirectory", wintypes.HANDLE),
-        ("ObjectName", ctypes.POINTER(_UNICODE_STRING)),
-        ("Attributes", wintypes.ULONG),
-        ("SecurityDescriptor", wintypes.LPVOID),
-        ("SecurityQualityOfService", wintypes.LPVOID),
-    ]
-
-
-class _IO_STATUS_BLOCK(ctypes.Structure):
-    _fields_ = [
-        ("Status", wintypes.LPVOID),
-        ("Information", ctypes.c_size_t),
-    ]
-
-
-@dataclass
-class _WindowsFileTarget:
-    directory_handle: int
-    name: str
-    handle: int | None = None
-    identity: tuple[int, bytes] | None = None
-
-
-@dataclass
-class _WindowsStaging:
-    parent_handle: int
-    directory_handle: int
-    directory_identity: tuple[int, bytes]
-    files: dict[str, _WindowsFileTarget]
-
 
 class GitInspectionError(RuntimeError):
     pass
@@ -1049,499 +923,7 @@ def render_audit_summary(report: AuditReport) -> bytes:
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
-_WINDOWS_API: tuple[Any, Any] | None = None
-
-
-def _windows_api() -> tuple[Any, Any]:
-    global _WINDOWS_API
-    if os.name != "nt":
-        raise GitInspectionError(
-            "secure bundle publication requires Windows handle semantics"
-        )
-    if _WINDOWS_API is not None:
-        return _WINDOWS_API
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    ntdll = ctypes.WinDLL("ntdll", use_last_error=True)
-    kernel32.CreateFileW.argtypes = [
-        wintypes.LPCWSTR,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.LPVOID,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.HANDLE,
-    ]
-    kernel32.CreateFileW.restype = wintypes.HANDLE
-    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-    kernel32.CloseHandle.restype = wintypes.BOOL
-    kernel32.GetFileInformationByHandleEx.argtypes = [
-        wintypes.HANDLE,
-        ctypes.c_int,
-        wintypes.LPVOID,
-        wintypes.DWORD,
-    ]
-    kernel32.GetFileInformationByHandleEx.restype = wintypes.BOOL
-    kernel32.WriteFile.argtypes = [
-        wintypes.HANDLE,
-        wintypes.LPCVOID,
-        wintypes.DWORD,
-        ctypes.POINTER(wintypes.DWORD),
-        wintypes.LPVOID,
-    ]
-    kernel32.WriteFile.restype = wintypes.BOOL
-    kernel32.ReadFile.argtypes = [
-        wintypes.HANDLE,
-        wintypes.LPVOID,
-        wintypes.DWORD,
-        ctypes.POINTER(wintypes.DWORD),
-        wintypes.LPVOID,
-    ]
-    kernel32.ReadFile.restype = wintypes.BOOL
-    kernel32.FlushFileBuffers.argtypes = [wintypes.HANDLE]
-    kernel32.FlushFileBuffers.restype = wintypes.BOOL
-    kernel32.SetFilePointerEx.argtypes = [
-        wintypes.HANDLE,
-        ctypes.c_longlong,
-        ctypes.POINTER(ctypes.c_longlong),
-        wintypes.DWORD,
-    ]
-    kernel32.SetFilePointerEx.restype = wintypes.BOOL
-    ntdll.NtCreateFile.argtypes = [
-        ctypes.POINTER(wintypes.HANDLE),
-        wintypes.DWORD,
-        ctypes.POINTER(_OBJECT_ATTRIBUTES),
-        ctypes.POINTER(_IO_STATUS_BLOCK),
-        ctypes.POINTER(ctypes.c_longlong),
-        wintypes.ULONG,
-        wintypes.ULONG,
-        wintypes.ULONG,
-        wintypes.ULONG,
-        wintypes.LPVOID,
-        wintypes.ULONG,
-    ]
-    ntdll.NtCreateFile.restype = ctypes.c_long
-    ntdll.NtSetInformationFile.argtypes = [
-        wintypes.HANDLE,
-        ctypes.POINTER(_IO_STATUS_BLOCK),
-        wintypes.LPVOID,
-        wintypes.ULONG,
-        ctypes.c_int,
-    ]
-    ntdll.NtSetInformationFile.restype = ctypes.c_long
-    ntdll.RtlNtStatusToDosError.argtypes = [ctypes.c_long]
-    ntdll.RtlNtStatusToDosError.restype = wintypes.ULONG
-    _WINDOWS_API = kernel32, ntdll
-    return _WINDOWS_API
-
-
-def _raise_windows_error(action: str) -> None:
-    code = ctypes.get_last_error()
-    raise OSError(code, f"{action}: {ctypes.FormatError(code).strip()}")
-
-
-def _raise_nt_error(action: str, status: int) -> None:
-    _kernel32, ntdll = _windows_api()
-    code = int(ntdll.RtlNtStatusToDosError(status))
-    raise OSError(code, f"{action}: {ctypes.FormatError(code).strip()}")
-
-
-def _win_close(handle: int | None) -> None:
-    if handle is None:
-        return
-    kernel32, _ntdll = _windows_api()
-    kernel32.CloseHandle(wintypes.HANDLE(handle))
-
-
-def _win_open_directory_path(path: Path, *, lock_name: bool) -> int:
-    kernel32, _ntdll = _windows_api()
-    share = _FILE_SHARE_READ | _FILE_SHARE_WRITE
-    if not lock_name:
-        share |= _FILE_SHARE_DELETE
-    handle = kernel32.CreateFileW(
-        str(path),
-        _GENERIC_READ,
-        share,
-        None,
-        _OPEN_EXISTING,
-        _FILE_FLAG_BACKUP_SEMANTICS | _FILE_FLAG_OPEN_REPARSE_POINT,
-        None,
-    )
-    invalid_handle = ctypes.c_void_p(-1).value
-    if handle == invalid_handle:
-        _raise_windows_error(f"open directory handle {path}")
-    return int(handle)
-
-
-def _win_nt_relative_handle(
-    parent_handle: int,
-    name: str,
-    *,
-    directory: bool,
-    create: bool,
-) -> int:
-    _kernel32, ntdll = _windows_api()
-    name_buffer = ctypes.create_unicode_buffer(name)
-    name_bytes = name.encode("utf-16-le")
-    unicode_name = _UNICODE_STRING(
-        Length=len(name_bytes),
-        MaximumLength=len(name_bytes),
-        Buffer=ctypes.cast(name_buffer, wintypes.LPWSTR),
-    )
-    attributes = _OBJECT_ATTRIBUTES(
-        Length=ctypes.sizeof(_OBJECT_ATTRIBUTES),
-        RootDirectory=wintypes.HANDLE(parent_handle),
-        ObjectName=ctypes.pointer(unicode_name),
-        Attributes=_OBJ_CASE_INSENSITIVE,
-        SecurityDescriptor=None,
-        SecurityQualityOfService=None,
-    )
-    io_status = _IO_STATUS_BLOCK()
-    result_handle = wintypes.HANDLE()
-    if directory:
-        desired_access = (
-            _FILE_LIST_DIRECTORY
-            | _FILE_TRAVERSE
-            | _FILE_READ_ATTRIBUTES
-            | _DELETE
-            | _SYNCHRONIZE
-        )
-        file_attributes = _FILE_ATTRIBUTE_DIRECTORY
-        share_access = _FILE_SHARE_ALL
-        create_options = _FILE_DIRECTORY_FILE | _FILE_SYNCHRONOUS_IO_NONALERT
-    else:
-        desired_access = _GENERIC_READ | _GENERIC_WRITE | _DELETE | _SYNCHRONIZE
-        file_attributes = _FILE_ATTRIBUTE_NORMAL
-        share_access = _FILE_SHARE_READ | _FILE_SHARE_DELETE
-        create_options = (
-            _FILE_NON_DIRECTORY_FILE
-            | _FILE_SYNCHRONOUS_IO_NONALERT
-            | _FILE_WRITE_THROUGH
-        )
-        if not create:
-            desired_access = _GENERIC_READ | _FILE_READ_ATTRIBUTES | _SYNCHRONIZE
-            share_access = _FILE_SHARE_ALL
-            create_options |= _FILE_FLAG_OPEN_REPARSE_POINT
-    status = int(
-        ntdll.NtCreateFile(
-            ctypes.byref(result_handle),
-            desired_access,
-            ctypes.byref(attributes),
-            ctypes.byref(io_status),
-            None,
-            file_attributes,
-            share_access,
-            _FILE_CREATE if create else _FILE_OPEN,
-            create_options,
-            None,
-            0,
-        )
-    )
-    if status < 0:
-        _raise_nt_error(f"{'create' if create else 'open'} bundle entry {name}", status)
-    if result_handle.value is None:
-        raise OSError(f"Windows returned an empty handle for bundle entry {name}")
-    return int(result_handle.value)
-
-
-def _win_handle_identity(handle: int) -> tuple[int, bytes]:
-    kernel32, _ntdll = _windows_api()
-    identity = _FILE_ID_INFO()
-    if not kernel32.GetFileInformationByHandleEx(
-        wintypes.HANDLE(handle),
-        _FILE_ID_INFO_CLASS,
-        ctypes.byref(identity),
-        ctypes.sizeof(identity),
-    ):
-        _raise_windows_error("read handle identity")
-    return int(identity.VolumeSerialNumber), bytes(identity.FileId.Identifier)
-
-
-def _win_handle_attributes(handle: int) -> int:
-    kernel32, _ntdll = _windows_api()
-    attributes = _FILE_ATTRIBUTE_TAG_INFO()
-    if not kernel32.GetFileInformationByHandleEx(
-        wintypes.HANDLE(handle),
-        _FILE_ATTRIBUTE_TAG_INFO_CLASS,
-        ctypes.byref(attributes),
-        ctypes.sizeof(attributes),
-    ):
-        _raise_windows_error("read handle attributes")
-    return int(attributes.FileAttributes)
-
-
-def _win_handle_standard_info(handle: int) -> _FILE_STANDARD_INFO:
-    kernel32, _ntdll = _windows_api()
-    standard = _FILE_STANDARD_INFO()
-    if not kernel32.GetFileInformationByHandleEx(
-        wintypes.HANDLE(handle),
-        _FILE_STANDARD_INFO_CLASS,
-        ctypes.byref(standard),
-        ctypes.sizeof(standard),
-    ):
-        _raise_windows_error("read handle standard information")
-    return standard
-
-
-def _win_assert_plain_directory(handle: int, context: str) -> None:
-    attributes = _win_handle_attributes(handle)
-    if not attributes & _FILE_ATTRIBUTE_DIRECTORY:
-        raise GitInspectionError(f"{context} is not a directory")
-    if attributes & _FILE_ATTRIBUTE_REPARSE_POINT:
-        raise GitInspectionError(f"{context} is a reparse point")
-    if not _win_handle_standard_info(handle).Directory:
-        raise GitInspectionError(f"{context} is not a directory")
-
-
-def _win_assert_regular_file(handle: int, name: str) -> None:
-    attributes = _win_handle_attributes(handle)
-    standard = _win_handle_standard_info(handle)
-    if (
-        attributes & (_FILE_ATTRIBUTE_DIRECTORY | _FILE_ATTRIBUTE_REPARSE_POINT)
-        or standard.Directory
-    ):
-        raise GitInspectionError(f"bundle entry is not a regular file: {name}")
-
-
-def _win_write_all(handle: int, payload: bytes) -> None:
-    kernel32, _ntdll = _windows_api()
-    offset = 0
-    buffer = ctypes.create_string_buffer(payload)
-    while offset < len(payload):
-        written = wintypes.DWORD()
-        if not kernel32.WriteFile(
-            wintypes.HANDLE(handle),
-            ctypes.byref(buffer, offset),
-            len(payload) - offset,
-            ctypes.byref(written),
-            None,
-        ):
-            _raise_windows_error("write bundle entry")
-        if written.value == 0:
-            raise OSError("short Windows bundle write")
-        offset += int(written.value)
-    if not kernel32.FlushFileBuffers(wintypes.HANDLE(handle)):
-        _raise_windows_error("flush bundle entry")
-
-
-def _win_read_all(handle: int) -> bytes:
-    kernel32, _ntdll = _windows_api()
-    standard = _win_handle_standard_info(handle)
-    size = int(standard.EndOfFile)
-    if size < 0 or size > _MAX_BUNDLE_FILE_BYTES:
-        raise GitInspectionError(f"invalid bundle entry size: {size}")
-    if not kernel32.SetFilePointerEx(
-        wintypes.HANDLE(handle), ctypes.c_longlong(0), None, _FILE_BEGIN
-    ):
-        _raise_windows_error("rewind bundle entry")
-    chunks: list[bytes] = []
-    remaining = size
-    while remaining:
-        chunk_size = min(remaining, 1024 * 1024)
-        buffer = ctypes.create_string_buffer(chunk_size)
-        read = wintypes.DWORD()
-        if not kernel32.ReadFile(
-            wintypes.HANDLE(handle),
-            buffer,
-            chunk_size,
-            ctypes.byref(read),
-            None,
-        ):
-            _raise_windows_error("read bundle entry")
-        if read.value == 0:
-            raise GitInspectionError("short bundle entry read")
-        chunks.append(buffer.raw[: read.value])
-        remaining -= int(read.value)
-    return b"".join(chunks)
-
-
-def _win_directory_entries(handle: int) -> dict[str, int]:
-    kernel32, _ntdll = _windows_api()
-    entries: dict[str, int] = {}
-    information_class = _FILE_ID_BOTH_DIRECTORY_RESTART_INFO_CLASS
-    while True:
-        buffer = ctypes.create_string_buffer(64 * 1024)
-        if not kernel32.GetFileInformationByHandleEx(
-            wintypes.HANDLE(handle), information_class, buffer, len(buffer)
-        ):
-            error = ctypes.get_last_error()
-            if error == _ERROR_NO_MORE_FILES:
-                break
-            _raise_windows_error("enumerate staging directory")
-        information_class = _FILE_ID_BOTH_DIRECTORY_INFO_CLASS
-        address = ctypes.addressof(buffer)
-        offset = 0
-        while True:
-            entry = _FILE_ID_BOTH_DIR_INFO.from_address(address + offset)
-            name = ctypes.wstring_at(
-                address + offset + _FILE_ID_BOTH_DIR_INFO.FileName.offset,
-                entry.FileNameLength // ctypes.sizeof(ctypes.c_wchar),
-            )
-            if name not in {".", ".."}:
-                if name in entries:
-                    raise GitInspectionError(
-                        f"duplicate bundle directory entry: {name}"
-                    )
-                entries[name] = int(entry.FileAttributes)
-            if entry.NextEntryOffset == 0:
-                break
-            offset += int(entry.NextEntryOffset)
-    return entries
-
-
-def _win_assert_staging_path_identity(
-    staging: Path, expected: tuple[int, bytes]
-) -> None:
-    current_handle = None
-    try:
-        current_handle = _win_open_directory_path(staging, lock_name=False)
-        attributes = _win_handle_attributes(current_handle)
-        if (
-            attributes & _FILE_ATTRIBUTE_REPARSE_POINT
-            or not attributes & _FILE_ATTRIBUTE_DIRECTORY
-            or _win_handle_identity(current_handle) != expected
-        ):
-            raise GitInspectionError("staging directory changed during bundle write")
-    except OSError as error:
-        raise GitInspectionError(
-            "staging directory changed during bundle write"
-        ) from error
-    finally:
-        _win_close(current_handle)
-
-
-def _win_rename_handle_exclusive(
-    directory_handle: int, parent_handle: int, audit_id: str
-) -> None:
-    _kernel32, ntdll = _windows_api()
-    name_bytes = audit_id.encode("utf-16-le")
-
-    class _FILE_RENAME_INFO_BUFFER(ctypes.Structure):
-        _fields_ = [
-            ("Flags", wintypes.DWORD),
-            ("RootDirectory", wintypes.HANDLE),
-            ("FileNameLength", wintypes.DWORD),
-            ("FileName", ctypes.c_wchar * 1),
-        ]
-
-    file_name_offset = _FILE_RENAME_INFO_BUFFER.FileName.offset
-    buffer = ctypes.create_string_buffer(
-        ctypes.sizeof(_FILE_RENAME_INFO_BUFFER) + len(name_bytes)
-    )
-    rename_info = _FILE_RENAME_INFO_BUFFER.from_buffer(buffer)
-    rename_info.Flags = 0
-    rename_info.RootDirectory = wintypes.HANDLE(parent_handle)
-    rename_info.FileNameLength = len(name_bytes)
-    ctypes.memmove(
-        ctypes.addressof(buffer) + file_name_offset, name_bytes, len(name_bytes)
-    )
-    io_status = _IO_STATUS_BLOCK()
-    status = int(
-        ntdll.NtSetInformationFile(
-            wintypes.HANDLE(directory_handle),
-            ctypes.byref(io_status),
-            buffer,
-            len(buffer),
-            _FILE_RENAME_INFORMATION_CLASS,
-        )
-    )
-    if status < 0:
-        _raise_nt_error("publish audit bundle", status)
-
-
-def _open_windows_staging(output_path: Path, staging_name: str) -> _WindowsStaging:
-    parent_handle = None
-    directory_handle = None
-    try:
-        parent_handle = _win_open_directory_path(output_path, lock_name=True)
-        _win_assert_plain_directory(parent_handle, "output parent")
-        directory_handle = _win_nt_relative_handle(
-            parent_handle, staging_name, directory=True, create=True
-        )
-        _win_assert_plain_directory(directory_handle, "staging directory")
-        return _WindowsStaging(
-            parent_handle=parent_handle,
-            directory_handle=directory_handle,
-            directory_identity=_win_handle_identity(directory_handle),
-            files={},
-        )
-    except Exception:
-        _win_close(directory_handle)
-        _win_close(parent_handle)
-        raise
-
-
-def _verify_windows_staging(
-    staging_state: _WindowsStaging,
-    staging_path: Path,
-    rendered: dict[str, bytes],
-    manifest_bytes: bytes,
-) -> None:
-    _win_assert_staging_path_identity(staging_path, staging_state.directory_identity)
-    entries = _win_directory_entries(staging_state.directory_handle)
-    if set(entries) != set(_BUNDLE_NAMES) or len(entries) != len(_BUNDLE_NAMES):
-        raise GitInspectionError(
-            "staging directory does not contain the exact bundle files"
-        )
-    expected_payloads = {**rendered, "bundle-manifest.json": manifest_bytes}
-    disk_payloads: dict[str, bytes] = {}
-    for name in _BUNDLE_NAMES:
-        target = staging_state.files.get(name)
-        if target is None or target.identity is None:
-            raise GitInspectionError(f"missing bound bundle identity: {name}")
-        if entries[name] & (_FILE_ATTRIBUTE_DIRECTORY | _FILE_ATTRIBUTE_REPARSE_POINT):
-            raise GitInspectionError(f"bundle entry is not a regular file: {name}")
-        current_handle = None
-        try:
-            current_handle = _win_nt_relative_handle(
-                staging_state.directory_handle, name, directory=False, create=False
-            )
-            _win_assert_regular_file(current_handle, name)
-            if _win_handle_identity(current_handle) != target.identity:
-                raise GitInspectionError(f"bundle entry identity changed: {name}")
-            disk_payloads[name] = _win_read_all(current_handle)
-        finally:
-            _win_close(current_handle)
-        if disk_payloads[name] != expected_payloads[name]:
-            raise GitInspectionError(f"bundle entry bytes changed: {name}")
-    try:
-        manifest = json.loads(disk_payloads["bundle-manifest.json"].decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as error:
-        raise GitInspectionError("invalid on-disk bundle manifest") from error
-    if list(manifest.get("files", {})) != list(_BUNDLE_PAYLOAD_NAMES):
-        raise GitInspectionError("invalid on-disk bundle manifest file set")
-    for name in _BUNDLE_PAYLOAD_NAMES:
-        payload = disk_payloads[name]
-        expected_binding = {
-            "sha256": hashlib.sha256(payload).hexdigest(),
-            "bytes": len(payload),
-        }
-        if manifest["files"].get(name) != expected_binding:
-            raise GitInspectionError(f"on-disk manifest mismatch: {name}")
-def _close_windows_staging(staging_state: _WindowsStaging | None) -> None:
-    if staging_state is None:
-        return
-    for target in staging_state.files.values():
-        _win_close(target.handle)
-        target.handle = None
-    _win_close(staging_state.directory_handle)
-    _win_close(staging_state.parent_handle)
-
-
-def _write_exclusive(path: Path | _WindowsFileTarget, payload: bytes) -> None:
-    if isinstance(path, _WindowsFileTarget):
-        if path.handle is not None or path.identity is not None:
-            raise OSError(f"bundle entry already exists: {path.name}")
-        path.handle = _win_nt_relative_handle(
-            path.directory_handle, path.name, directory=False, create=True
-        )
-        try:
-            _win_assert_regular_file(path.handle, path.name)
-            path.identity = _win_handle_identity(path.handle)
-            _win_write_all(path.handle, payload)
-        finally:
-            _win_close(path.handle)
-            path.handle = None
-        return
+def _write_exclusive(path: Path, payload: bytes) -> None:
     with path.open("xb") as stream:
         offset = 0
         while offset < len(payload):
@@ -1593,12 +975,10 @@ def _decode_bundle_json(payload: bytes, context: str) -> dict[str, Any]:
     return decoded
 
 
-def verify_report_bundle(bundle: Path, audit_id: str) -> dict[str, Any]:
-    """Validate an audit bundle's manifest marker and payload bindings.
-
-    The directory remains mutable by its owner after this function returns, so every
-    consumer must call this verifier immediately before using a bundle.
-    """
+def _verify_report_bundle_consistency(
+    bundle: Path, audit_id: str
+) -> tuple[dict[str, Any], dict[str, bytes], bytes]:
+    """Read one internally consistent bundle state without asserting provenance."""
     _validate_audit_id(audit_id)
     bundle_path = _absolute_path(bundle)
     if bundle_path.name != audit_id:
@@ -1646,6 +1026,36 @@ def verify_report_bundle(bundle: Path, audit_id: str) -> dict[str, Any]:
         raise GitInspectionError("cannot enumerate audit bundle") from error
     if final_entries != entries:
         raise GitInspectionError("audit bundle changed during verification")
+    return manifest, payloads, manifest_bytes
+
+
+def verify_report_bundle_consistency(bundle: Path, audit_id: str) -> dict[str, Any]:
+    """Validate bundle structure and colocated bindings only, not provenance."""
+    manifest, _payloads, _manifest_bytes = _verify_report_bundle_consistency(
+        bundle, audit_id
+    )
+    return manifest
+
+
+def _validate_expected_manifest_sha256(expected_manifest_sha256: str | None) -> str:
+    if (
+        not isinstance(expected_manifest_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_manifest_sha256) is None
+    ):
+        raise GitInspectionError("expected manifest SHA-256 must be 64 lowercase hex")
+    return expected_manifest_sha256
+
+
+def verify_report_bundle(
+    bundle: Path, audit_id: str, expected_manifest_sha256: str | None
+) -> dict[str, Any]:
+    """Verify bundle consistency against a trusted external manifest hash."""
+    expected = _validate_expected_manifest_sha256(expected_manifest_sha256)
+    manifest, _payloads, manifest_bytes = _verify_report_bundle_consistency(
+        bundle, audit_id
+    )
+    if hashlib.sha256(manifest_bytes).hexdigest() != expected:
+        raise GitInspectionError("audit bundle manifest does not match trusted hash")
     return manifest
 
 
@@ -1691,7 +1101,11 @@ def write_report_bundle(
         ).encode("utf-8")
         _write_exclusive(target / "bundle-manifest.json", manifest_bytes)
         _assert_plain_directory_chain(output_path)
-        verify_report_bundle(target, audit_id)
+        _manifest, disk_payloads, disk_manifest_bytes = _verify_report_bundle_consistency(
+            target, audit_id
+        )
+        if disk_payloads != rendered or disk_manifest_bytes != manifest_bytes:
+            raise GitInspectionError("bundle bytes changed during writer verification")
     except GitInspectionError:
         raise
     except OSError as error:
