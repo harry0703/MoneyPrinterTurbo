@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import ntpath
 import os
 import subprocess
 import sys
@@ -172,6 +173,82 @@ def test_verify_accepts_exact_task6_bundle_and_public_research_text(tmp_path: Pa
 
 
 @pytest.mark.parametrize(
+    ("field", "contradiction"),
+    [
+        ("risk_flags", ["medical_claim_unverified", "medical_claim_verified"]),
+        (
+            "risk_flags",
+            ["medical_claim_unverified", "medical_claim_has_been_verified"],
+        ),
+        ("growth_evidence", ["该医学结论已经完成核验。"]),
+        ("growth_evidence", ["Medical claim has been verified"]),
+        ("topic", "Clinically verified wellness claim"),
+        ("narrative_gap", "Medical verified conclusion"),
+        ("homogeneity_pattern", "medical_claim_verified"),
+        ("homogeneity_pattern", "医学已核验"),
+        ("objections", ["已完成医学核验"]),
+        ("user_needs", ["Ｍｅｄｉｃａｌ　ｖｅｒｉｆｉｅｄ"]),
+    ],
+)
+def test_verify_rejects_contradictory_medical_verification_claims(
+    tmp_path: Path, field: str, contradiction: object
+) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        del summary
+        candidates[0][field] = contradiction
+        return candidates, _summary("HTI-20260818-01", candidates), {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    with pytest.raises(TrendExchangeError, match="medical_verification_contradiction"):
+        verify_trend_exchange(source, anchor)
+
+
+def test_verify_allows_nonmedical_verified_research_metadata(tmp_path: Path) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        del summary
+        candidates[0]["topic"] = "Verified public research metadata"
+        candidates[0]["risk_flags"] = [
+            "medical_claim_unverified",
+            "evidence_quality_verified",
+        ]
+        return candidates, _summary("HTI-20260818-01", candidates), {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    verified = verify_trend_exchange(source, anchor)
+
+    assert verified.candidate_count == 10
+
+
+def test_verify_allows_explicitly_unverified_medical_research_text(tmp_path: Path) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        candidates[0]["topic"] = "Medical claim has not been verified"
+        return candidates, summary, {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    verified = verify_trend_exchange(source, anchor)
+
+    assert verified.candidate_count == 10
+
+
+def test_verify_requires_exactly_one_unverified_medical_marker(tmp_path: Path) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        del summary
+        candidates[0]["risk_flags"] = [
+            "medical_claim_unverified",
+            "medical_claim_unverified",
+        ]
+        return candidates, _summary("HTI-20260818-01", candidates), {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    with pytest.raises(TrendExchangeError, match="medical_claim_unverified"):
+        verify_trend_exchange(source, anchor)
+
+
+@pytest.mark.parametrize(
     ("target", "value"),
     [
         ("manifest.schema", "health_trend_exchange.v2"),
@@ -304,6 +381,78 @@ def test_import_is_exact_versioned_byte_identical_and_no_overwrite(tmp_path: Pat
         import_trend_exchange(source, repo, anchor)
 
 
+def test_import_never_replaces_preexisting_empty_target(tmp_path: Path) -> None:
+    source, anchor = _write_bundle(tmp_path / "source")
+    repo = _fake_repo(tmp_path)
+    target = (
+        repo
+        / "09_泛健康日更"
+        / "data"
+        / "trend-intelligence"
+        / "HTI-20260818-01"
+        / "v01"
+    )
+    target.mkdir(parents=True)
+
+    with pytest.raises(FileExistsError):
+        import_trend_exchange(source, repo, anchor)
+
+    assert target.is_dir()
+    assert list(target.iterdir()) == []
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows rename semantics")
+def test_windows_publish_rename_does_not_replace_racing_empty_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, anchor = _write_bundle(tmp_path / "source")
+    repo = _fake_repo(tmp_path)
+    original_rename = Path.rename
+
+    def create_target_then_use_real_rename(staging: Path, target: Path) -> Path:
+        destination = Path(target)
+        if staging.name.startswith(".v01-import-") and destination.name == "v01":
+            destination.mkdir()
+        return original_rename(staging, destination)
+
+    monkeypatch.setattr(Path, "rename", create_target_then_use_real_rename)
+    with pytest.raises(FileExistsError):
+        import_trend_exchange(source, repo, anchor)
+
+    batch_root = (
+        repo
+        / "09_泛健康日更"
+        / "data"
+        / "trend-intelligence"
+        / "HTI-20260818-01"
+    )
+    target = batch_root / "v01"
+    assert target.is_dir()
+    assert list(target.iterdir()) == []
+    assert not any(path.name.startswith(".v01-import-") for path in batch_root.iterdir())
+
+
+def test_import_ignores_unknown_staging_directory_without_deleting_it(tmp_path: Path) -> None:
+    source, anchor = _write_bundle(tmp_path / "source")
+    repo = _fake_repo(tmp_path)
+    batch_root = (
+        repo
+        / "09_泛健康日更"
+        / "data"
+        / "trend-intelligence"
+        / "HTI-20260818-01"
+    )
+    unknown = batch_root / ".v01-import-unknown"
+    unknown.mkdir(parents=True)
+    sentinel = unknown / "do-not-delete.txt"
+    sentinel.write_text("operator-owned", encoding="utf-8")
+
+    target = import_trend_exchange(source, repo, anchor)
+
+    assert target.name == "v01"
+    assert sentinel.read_text("utf-8") == "operator-owned"
+
+
 def test_import_rejects_reparse_repo_parent(tmp_path: Path) -> None:
     source, anchor = _write_bundle(tmp_path / "source")
     outside = tmp_path / "outside"
@@ -316,6 +465,86 @@ def test_import_rejects_reparse_repo_parent(tmp_path: Path) -> None:
 
     with pytest.raises(TrendExchangeError, match="destination_boundary_invalid"):
         import_trend_exchange(source, repo, anchor)
+
+
+def test_verify_rejects_relative_existing_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, anchor = _write_bundle(tmp_path)
+    monkeypatch.chdir(source.parent)
+
+    with pytest.raises(TrendExchangeError, match="source_path_invalid"):
+        verify_trend_exchange(Path(source.name), anchor)
+
+
+def test_import_rejects_relative_existing_repo_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, anchor = _write_bundle(tmp_path / "source")
+    repo = _fake_repo(tmp_path)
+    monkeypatch.chdir(repo.parent)
+
+    with pytest.raises(TrendExchangeError, match="destination_path_invalid"):
+        import_trend_exchange(source, Path(repo.name), anchor)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows path grammar")
+def test_windows_drive_relative_existing_paths_are_rejected(tmp_path: Path) -> None:
+    source, anchor = _write_bundle(tmp_path / "source")
+    repo = _fake_repo(tmp_path)
+
+    def drive_relative(path: Path) -> Path:
+        drive, tail = ntpath.splitdrive(str(path))
+        relative_tail = tail.lstrip("\\/")
+        return Path(f"{drive}{relative_tail}")
+
+    with pytest.raises(TrendExchangeError, match="source_path_invalid"):
+        verify_trend_exchange(drive_relative(source), anchor)
+    with pytest.raises(TrendExchangeError, match="destination_path_invalid"):
+        import_trend_exchange(source, drive_relative(repo), anchor)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows path grammar")
+@pytest.mark.parametrize(
+    "unsafe",
+    [
+        r"\\server\share\bundle",
+        r"\\?\C:\bundle",
+        r"\\.\C:\bundle",
+    ],
+)
+def test_windows_unc_and_device_paths_are_rejected_before_filesystem_access(
+    unsafe: str,
+) -> None:
+    with pytest.raises(TrendExchangeError, match="source_path_invalid"):
+        verify_trend_exchange(Path(unsafe), "0" * 64)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows path grammar")
+@pytest.mark.parametrize(
+    "unsafe",
+    [
+        r"\\server\share\repo",
+        r"\\?\C:\repo",
+        r"\\.\C:\repo",
+    ],
+)
+def test_windows_unc_and_device_repo_roots_are_rejected_before_creation(
+    tmp_path: Path, unsafe: str
+) -> None:
+    source, anchor = _write_bundle(tmp_path)
+
+    with pytest.raises(TrendExchangeError, match="destination_path_invalid"):
+        import_trend_exchange(source, Path(unsafe), anchor)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows path grammar")
+def test_windows_workspace_drive_absolute_path_passes_local_path_grammar() -> None:
+    validated = exchange._validate_local_absolute_path(
+        PROJECT_ROOT, "source_path_invalid"
+    )
+
+    assert validated == PROJECT_ROOT
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows junction test")
@@ -454,6 +683,8 @@ def test_import_failure_never_leaves_manifest_completion_marker(
     with pytest.raises(TrendExchangeError):
         import_trend_exchange(source, repo, anchor)
 
+    monkeypatch.setattr(os, "fsync", original_fsync)
+
     target = (
         repo
         / "09_泛健康日更"
@@ -462,7 +693,12 @@ def test_import_failure_never_leaves_manifest_completion_marker(
         / "HTI-20260818-01"
         / "v01"
     )
-    assert not (target / "bundle-manifest.json").exists()
+    assert not target.exists()
+    assert not any(
+        path.name.startswith(".v01-import-") for path in target.parent.iterdir()
+    )
+    retried = import_trend_exchange(source, repo, anchor)
+    assert retried == target
 
 
 def test_import_rejects_same_byte_source_identity_replacement_during_copy(
@@ -514,6 +750,8 @@ def test_post_manifest_verification_failure_removes_completion_marker(
     with pytest.raises(TrendExchangeError, match="synthetic_post_manifest_failure"):
         import_trend_exchange(source, repo, anchor)
 
+    monkeypatch.setattr(exchange, "_verify_snapshot", original_verify)
+
     target = (
         repo
         / "09_泛健康日更"
@@ -522,4 +760,9 @@ def test_post_manifest_verification_failure_removes_completion_marker(
         / "HTI-20260818-01"
         / "v01"
     )
-    assert not (target / "bundle-manifest.json").exists()
+    assert not target.exists()
+    assert not any(
+        path.name.startswith(".v01-import-") for path in target.parent.iterdir()
+    )
+    retried = import_trend_exchange(source, repo, anchor)
+    assert retried == target

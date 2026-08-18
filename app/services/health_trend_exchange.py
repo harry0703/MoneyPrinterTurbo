@@ -7,9 +7,11 @@ import html
 import ipaddress
 import json
 import math
+import ntpath
 import os
 import re
 import stat
+import tempfile
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
@@ -157,6 +159,32 @@ _SECRET_TOKEN = re.compile(
     re.I,
 )
 _PHONE_NUMBER = re.compile(r"(?<!\d)(?:\+?86[ -]?)?1[3-9]\d{9}(?!\d)")
+_ENGLISH_MEDICAL_CONTEXT = (
+    r"(?:medical(?:ly)?|medicine|clinical(?:ly)?|health[ _-]+claim)"
+)
+_ENGLISH_VERIFIED_STATE = (
+    r"(?:verified|verification.{0,12}(?:complete(?:d)?|done|finished|passed))"
+)
+_CONTRADICTORY_MEDICAL_ENGLISH = (
+    re.compile(
+        rf"\b{_ENGLISH_MEDICAL_CONTEXT}\b.{{0,48}}\b{_ENGLISH_VERIFIED_STATE}\b",
+        re.I,
+    ),
+    re.compile(
+        rf"\b{_ENGLISH_VERIFIED_STATE}\b.{{0,48}}\b{_ENGLISH_MEDICAL_CONTEXT}\b",
+        re.I,
+    ),
+)
+_CONTRADICTORY_MEDICAL_CHINESE = (
+    re.compile(
+        r"(?:医学|医疗|临床|健康(?:结论|声明)).{0,24}"
+        r"(?:已|已经|完成|通过|成功).{0,10}(?:核验|验证|确认|审查)"
+    ),
+    re.compile(
+        r"(?:已|已经|完成|通过|成功).{0,10}"
+        r"(?:医学|医疗|临床).{0,10}(?:核验|验证|确认|审查)"
+    ),
+)
 
 
 class TrendExchangeError(ValueError):
@@ -205,6 +233,32 @@ def _directory_identity(status: os.stat_result) -> tuple[int, int]:
 
 def _absolute_without_resolving(path: Path) -> Path:
     return Path(os.path.abspath(os.fspath(path)))
+
+
+def _validate_local_absolute_path(path: Path, reason: str) -> Path:
+    raw = os.fspath(path)
+    if not isinstance(raw, str) or not raw or "\x00" in raw:
+        raise TrendExchangeError(reason)
+    if os.name == "nt":
+        if raw.startswith(("\\\\", "//")):
+            raise TrendExchangeError(reason)
+        drive, tail = ntpath.splitdrive(raw)
+        if (
+            re.fullmatch(r"[A-Za-z]:", drive) is None
+            or not tail.startswith(("\\", "/"))
+            or ".." in Path(raw).parts
+            or ":" in tail
+        ):
+            raise TrendExchangeError(reason)
+        try:
+            drive_status = Path(f"{drive}\\").lstat()
+        except OSError as error:
+            raise TrendExchangeError(reason) from error
+        if not stat.S_ISDIR(drive_status.st_mode) or _is_reparse(drive_status):
+            raise TrendExchangeError(reason)
+    elif not raw.startswith("/") or raw.startswith("//") or ".." in Path(raw).parts:
+        raise TrendExchangeError(reason)
+    return _absolute_without_resolving(Path(raw))
 
 
 def _assert_safe_directory(path: Path, reason: str) -> tuple[int, int]:
@@ -410,8 +464,25 @@ def _validate_candidates(value: object) -> list[dict[str, Any]]:
                 allow_empty=field == "missing_data",
                 reason="candidate_list_invalid",
             )
-        if _MEDICAL_RISK not in candidate["risk_flags"]:
+        if candidate["risk_flags"].count(_MEDICAL_RISK) != 1:
             raise TrendExchangeError("medical_claim_unverified")
+        for risk_flag in candidate["risk_flags"]:
+            compact_risk_flag = "".join(
+                character
+                for character in unicodedata.normalize("NFKC", risk_flag).casefold()
+                if character.isalnum()
+            )
+            has_medical_context = any(
+                context in compact_risk_flag for context in ("clinical", "medical")
+            )
+            has_positive_verified_state = (
+                "verified" in compact_risk_flag
+                and "unverified" not in compact_risk_flag
+                and "notverified" not in compact_risk_flag
+                and "neververified" not in compact_risk_flag
+            )
+            if has_medical_context and has_positive_verified_state:
+                raise TrendExchangeError("medical_verification_contradiction")
         platform = candidate.get("platform_rank_evidence")
         if (
             not isinstance(platform, dict)
@@ -519,6 +590,17 @@ def _assert_safe_text(value: str) -> None:
     if value == _DISCLAIMER or value in _DECLARED_FILE_NAMES:
         return
     normalized = _normalized_security_text(value)
+    medical_claim_text = re.sub(r"[_-]+", " ", normalized)
+    medical_claim_text = re.sub(
+        r"\b(?:(?:has|have|is|was|were)\s+)?(?:not|never)\s+(?:been\s+)?verified\b",
+        "unverified",
+        medical_claim_text,
+    )
+    if any(
+        pattern.search(medical_claim_text)
+        for pattern in (*_CONTRADICTORY_MEDICAL_ENGLISH, *_CONTRADICTORY_MEDICAL_CHINESE)
+    ):
+        raise TrendExchangeError("medical_verification_contradiction")
     defanged = re.sub(
         r"\s*(?:\[\s*dot\s*\]|\(\s*dot\s*\)|\bdot\b)\s*",
         ".",
@@ -570,7 +652,7 @@ def _verify_snapshot(source: Path, expected_manifest_sha256: str) -> _VerifiedSn
         expected_manifest_sha256
     ) is None:
         raise TrendExchangeError("expected_manifest_anchor_invalid")
-    source = _absolute_without_resolving(Path(source))
+    source = _validate_local_absolute_path(Path(source), "source_path_invalid")
     directory_identity = _assert_safe_directory(source, "source_directory_invalid")
     if _directory_names(source) != _EXPECTED_FILES:
         raise TrendExchangeError("source_file_set_invalid")
@@ -621,7 +703,7 @@ def verify_trend_exchange(
 
 
 def _ensure_destination_parent(repo_root: Path, batch_id: str) -> Path:
-    root = _absolute_without_resolving(repo_root)
+    root = _validate_local_absolute_path(repo_root, "destination_path_invalid")
     _assert_safe_directory(root, "destination_boundary_invalid")
     if _BATCH_ID.fullmatch(batch_id) is None:
         raise TrendExchangeError("destination_batch_invalid")
@@ -676,14 +758,47 @@ def _exclusive_write(path: Path, payload: bytes) -> None:
         raise TrendExchangeError("destination_file_changed")
 
 
-def _remove_completion_marker(target: Path) -> None:
-    marker = target / "bundle-manifest.json"
-    if not os.path.lexists(marker):
+def _cleanup_owned_exchange_directory(
+    path: Path, expected_identity: tuple[int, int]
+) -> None:
+    if not os.path.lexists(path):
         return
     try:
-        marker.unlink()
+        if (
+            _assert_safe_directory(path, "transaction_cleanup_failed")
+            != expected_identity
+        ):
+            raise TrendExchangeError("transaction_cleanup_failed")
+        names = frozenset(item.name for item in path.iterdir())
+        if not names <= _EXPECTED_FILES:
+            raise TrendExchangeError("transaction_cleanup_failed")
+        for name in names:
+            status = (path / name).lstat()
+            if (
+                _is_reparse(status)
+                or stat.S_ISLNK(status.st_mode)
+                or not stat.S_ISREG(status.st_mode)
+            ):
+                raise TrendExchangeError("transaction_cleanup_failed")
+        for name in ("bundle-manifest.json", *_PAYLOAD_FILES):
+            candidate = path / name
+            if os.path.lexists(candidate):
+                if (
+                    _assert_safe_directory(path, "transaction_cleanup_failed")
+                    != expected_identity
+                ):
+                    raise TrendExchangeError("transaction_cleanup_failed")
+                candidate.unlink()
+        if (
+            _assert_safe_directory(path, "transaction_cleanup_failed")
+            != expected_identity
+        ):
+            raise TrendExchangeError("transaction_cleanup_failed")
+        path.rmdir()
+    except TrendExchangeError:
+        raise
     except OSError as error:
-        raise TrendExchangeError("completion_marker_cleanup_failed") from error
+        raise TrendExchangeError("transaction_cleanup_failed") from error
 
 
 def _assert_same_source_snapshot(
@@ -707,27 +822,77 @@ def import_trend_exchange(
         Path(repo_root), source_snapshot.result.batch_id
     )
     target = destination_parent / "v01"
+    if os.path.lexists(target):
+        raise FileExistsError("destination_exists")
+    parent_identity = _assert_safe_directory(
+        destination_parent, "destination_boundary_invalid"
+    )
     try:
-        target.mkdir()
-    except FileExistsError:
-        raise
+        staging = Path(
+            tempfile.mkdtemp(prefix=".v01-import-", dir=destination_parent)
+        )
     except OSError as error:
         raise TrendExchangeError("destination_create_failed") from error
-    target_identity = _assert_safe_directory(target, "destination_boundary_invalid")
+    if (
+        _assert_safe_directory(destination_parent, "destination_boundary_invalid")
+        != parent_identity
+    ):
+        raise TrendExchangeError("destination_boundary_changed")
+    staging_identity = _assert_safe_directory(
+        staging, "destination_boundary_invalid"
+    )
+    published = False
     try:
         for name in _PAYLOAD_FILES:
             current = _read_regular_file(source_snapshot.result.source / name)
             if current != source_snapshot.files[name]:
                 raise TrendExchangeError("source_changed_during_import")
-            _exclusive_write(target / name, current.payload)
-            if _assert_safe_directory(target, "destination_boundary_invalid") != target_identity:
+            _exclusive_write(staging / name, current.payload)
+            if (
+                _assert_safe_directory(staging, "destination_boundary_invalid")
+                != staging_identity
+            ):
                 raise TrendExchangeError("destination_boundary_changed")
         _assert_same_source_snapshot(
             source_snapshot.result.source, expected_manifest_sha256, source_snapshot
         )
         manifest = source_snapshot.files["bundle-manifest.json"].payload
-        _exclusive_write(target / "bundle-manifest.json", manifest)
-        if _assert_safe_directory(target, "destination_boundary_invalid") != target_identity:
+        _exclusive_write(staging / "bundle-manifest.json", manifest)
+        if (
+            _assert_safe_directory(staging, "destination_boundary_invalid")
+            != staging_identity
+        ):
+            raise TrendExchangeError("destination_boundary_changed")
+        staging_snapshot = _verify_snapshot(staging, expected_manifest_sha256)
+        if any(
+            staging_snapshot.files[name].payload
+            != source_snapshot.files[name].payload
+            for name in _EXPECTED_FILES
+        ):
+            raise TrendExchangeError("destination_bytes_mismatch")
+        _assert_same_source_snapshot(
+            source_snapshot.result.source, expected_manifest_sha256, source_snapshot
+        )
+        if os.path.lexists(target):
+            raise FileExistsError("destination_exists")
+        if (
+            _assert_safe_directory(destination_parent, "destination_boundary_invalid")
+            != parent_identity
+        ):
+            raise TrendExchangeError("destination_boundary_changed")
+        try:
+            staging.rename(target)
+        except FileExistsError:
+            raise
+        except OSError as error:
+            if os.path.lexists(target):
+                raise FileExistsError("destination_exists") from error
+            raise TrendExchangeError("destination_publish_failed") from error
+        published = True
+        if (
+            _assert_safe_directory(target, "destination_boundary_invalid")
+            != staging_identity
+        ):
             raise TrendExchangeError("destination_boundary_changed")
         _assert_same_source_snapshot(
             source_snapshot.result.source, expected_manifest_sha256, source_snapshot
@@ -740,5 +905,14 @@ def import_trend_exchange(
             raise TrendExchangeError("destination_bytes_mismatch")
         return target
     except BaseException:
-        _remove_completion_marker(target)
+        if not published and os.path.lexists(target):
+            try:
+                published = (
+                    _assert_safe_directory(target, "transaction_cleanup_failed")
+                    == staging_identity
+                )
+            except TrendExchangeError:
+                published = False
+        cleanup_path = target if published else staging
+        _cleanup_owned_exchange_directory(cleanup_path, staging_identity)
         raise
