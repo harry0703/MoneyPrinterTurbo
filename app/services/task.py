@@ -15,6 +15,7 @@ from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
+from app.services import generation_lock
 from app.services import (
     elevenlabs_music,
     llm,
@@ -1410,13 +1411,21 @@ def start(
 ):
     """执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。"""
     try:
-        return _run_pipeline(
-            task_id,
-            params,
-            stop_at=stop_at,
-            voice_preview=voice_preview,
-            loomloom_video_request=loomloom_video_request,
-        )
+        # 主机级互斥：WebUI、CLI 和 API 属于不同进程，各自的队列互不可见。
+        # 只有在这里统一加锁，才能保证同一台机器上不会有两条流水线同时
+        # 争抢 CPU、内存和 FFmpeg 临时目录。
+        with generation_lock.acquire():
+            return _run_pipeline(
+                task_id,
+                params,
+                stop_at=stop_at,
+                voice_preview=voice_preview,
+                loomloom_video_request=loomloom_video_request,
+            )
+    except generation_lock.GenerationBusyError as exc:
+        # 并发被拒绝属于可预期结果，不需要记录异常堆栈。
+        logger.warning(f"task rejected, task_id: {task_id}, reason: {exc}")
+        return _mark_task_failed(task_id, "preflight", str(exc))
     except Exception as exc:
         logger.exception(
             f"unexpected task pipeline failure, task_id: {task_id}, error: {exc}"
