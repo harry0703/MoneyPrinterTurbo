@@ -1571,6 +1571,28 @@ def _read_regular_bundle_file(bundle: Path, name: str) -> bytes:
         raise GitInspectionError(f"cannot read bundle entry: {name}") from error
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON member: {key}")
+        result[key] = value
+    return result
+
+
+def _decode_bundle_json(payload: bytes, context: str) -> dict[str, Any]:
+    try:
+        decoded = json.loads(
+            payload.decode("utf-8", errors="strict"),
+            object_pairs_hook=_unique_json_object,
+        )
+    except (UnicodeError, json.JSONDecodeError, ValueError) as error:
+        raise GitInspectionError(f"invalid {context} JSON") from error
+    if not isinstance(decoded, dict):
+        raise GitInspectionError(f"invalid {context} JSON object")
+    return decoded
+
+
 def verify_report_bundle(bundle: Path, audit_id: str) -> dict[str, Any]:
     """Validate an audit bundle's manifest marker and payload bindings.
 
@@ -1594,12 +1616,7 @@ def verify_report_bundle(bundle: Path, audit_id: str) -> dict[str, Any]:
         for name in _BUNDLE_PAYLOAD_NAMES
     }
     manifest_bytes = _read_regular_bundle_file(bundle_path, "bundle-manifest.json")
-    try:
-        manifest = json.loads(manifest_bytes.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as error:
-        raise GitInspectionError("invalid audit bundle manifest") from error
-    if not isinstance(manifest, dict):
-        raise GitInspectionError("invalid audit bundle manifest")
+    manifest = _decode_bundle_json(manifest_bytes, "audit bundle manifest")
     if manifest.get("schema") != "health-asset-integrity-bundle-v1":
         raise GitInspectionError("invalid audit bundle manifest schema")
     if manifest.get("audit_id") != audit_id:
@@ -1617,6 +1634,11 @@ def verify_report_bundle(bundle: Path, audit_id: str) -> dict[str, Any]:
         }
         if binding != expected:
             raise GitInspectionError(f"audit bundle manifest mismatch: {name}")
+    audit_report = _decode_bundle_json(payloads["audit.json"], "audit report")
+    if audit_report.get("schema") != "health_asset_integrity.v1":
+        raise GitInspectionError("audit report schema mismatch")
+    if audit_report["schema"] != manifest["report_schema"]:
+        raise GitInspectionError("audit report schema does not match manifest")
     _assert_plain_bundle_directory(bundle_path)
     try:
         final_entries = {entry.name for entry in bundle_path.iterdir()}

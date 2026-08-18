@@ -415,6 +415,63 @@ def test_public_verifier_accepts_only_expected_audit_id_and_schema(tmp_path: Pat
         integrity.verify_report_bundle(bundle, "HCAS-WRONG-ID")
 
 
+def _rebind_audit_payload(bundle: Path, payload: bytes) -> None:
+    audit_path = bundle / "audit.json"
+    audit_path.write_bytes(payload)
+    manifest_path = bundle / "bundle-manifest.json"
+    manifest = json.loads(manifest_path.read_text("utf-8"))
+    manifest["files"]["audit.json"] = {
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "bytes": len(payload),
+    }
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize(
+    ("case", "audit_payload", "manifest_prefix"),
+    [
+        ("non-json", b"not json\n", None),
+        ("non-object", b"[]\n", None),
+        ("missing-schema", b'{"head_sha":"abc"}\n', None),
+        ("wrong-schema", b'{"schema":"attacker.invalid.v9"}\n', None),
+        (
+            "duplicate-audit-schema",
+            b'{"schema":"attacker.invalid.v9","schema":"health_asset_integrity.v1"}\n',
+            None,
+        ),
+        ("duplicate-manifest-schema", None, '"schema":"attacker.invalid.v9",'),
+        ("duplicate-manifest-audit-id", None, '"audit_id":"ATTACKER",'),
+    ],
+)
+def test_api_and_verify_cli_reject_ambiguous_or_non_report_audit_json(
+    tmp_path: Path,
+    case: str,
+    audit_payload: bytes | None,
+    manifest_prefix: str | None,
+):
+    report = _complete_report(tmp_path / "fixture")
+    bundle = integrity.write_report_bundle(
+        tmp_path / "evidence", "HCAS-TEST-01", report
+    )
+
+    if audit_payload is not None:
+        _rebind_audit_payload(bundle, audit_payload)
+    else:
+        manifest_path = bundle / "bundle-manifest.json"
+        manifest = manifest_path.read_text("utf-8")
+        manifest_path.write_text(
+            "{" + manifest_prefix + manifest[1:], encoding="utf-8"
+        )
+
+    with pytest.raises(GitInspectionError):
+        integrity.verify_report_bundle(bundle, "HCAS-TEST-01")
+    cli = _run("verify", "--bundle", str(bundle), "--audit-id", "HCAS-TEST-01")
+    assert cli.returncode == 3, case
+    assert json.loads(cli.stdout)["status"] == "error"
+
+
 def test_cli_verify_rechecks_bundle_on_every_use(tmp_path: Path):
     report = _complete_report(tmp_path / "fixture")
     bundle = integrity.write_report_bundle(
