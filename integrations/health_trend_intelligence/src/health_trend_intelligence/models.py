@@ -124,7 +124,7 @@ class CuratedPost(StrictModel):
     collect_count: int | None = Field(default=None, ge=0)
     share_count: int | None = Field(default=None, ge=0)
     query_ids: tuple[str, ...]
-    best_rank_in_query: int = Field(ge=0)
+    best_rank_in_query: int = Field(ge=1)
     duplicate_cluster_id: str
     ad_signal: bool
     suspicious_engagement_signal: bool
@@ -163,6 +163,17 @@ class CuratedPost(StrictModel):
             if not value.strip() or unicodedata.normalize("NFC", value) != value:
                 raise ValueError("items must be non-empty NFC-normalized text")
         return values
+
+    @model_validator(mode="after")
+    def validate_curated_derivations(self) -> CuratedPost:
+        if self.published_at > self.snapshot_at:
+            raise ValueError("published_at must be no later than snapshot_at")
+        expected_age = (self.snapshot_at - self.published_at).total_seconds() / 3600
+        if not math.isclose(self.age_hours, expected_age, rel_tol=0, abs_tol=1e-9):
+            raise ValueError("age_hours must match the snapshot interval")
+        if self.query_ids != tuple(sorted(set(self.query_ids))):
+            raise ValueError("query_ids must be sorted and unique")
+        return self
 
 
 class CuratedComment(StrictModel):

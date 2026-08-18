@@ -11,6 +11,8 @@ from typer.core import TyperGroup
 
 from .batch import BatchInputError, build_retention_report, register_batch, verify_raw_batch
 from .canonical import load_unique_json
+from .curation import CurationError, curate_batch, verify_curated_batch
+from .privacy import PrivacyConfigurationError, PrivacyHasher
 from .storage import DataLayout, PathSafetyError, assert_safe_regular_file
 
 
@@ -131,3 +133,46 @@ def retention_report(
             f"{entry.batch_id} age_days={entry.age_days} "
             f"eligible_for_manual_deletion={str(entry.eligible_for_manual_deletion).lower()}"
         )
+
+
+def _curation_guard(command: str, batch_id: str, action: Callable[[], T]) -> T:
+    try:
+        return action()
+    except CurationError as error:
+        reason_code = error.reason_code
+    except (
+        BatchInputError,
+        FileExistsError,
+        OSError,
+        PathSafetyError,
+        PrivacyConfigurationError,
+        TypeError,
+        ValueError,
+    ):
+        reason_code = "invalid_input"
+    typer.echo(f"{command} {batch_id} {reason_code}", err=True)
+    raise typer.Exit(code=3) from None
+
+
+@app.command("curate")
+def curate(root: Annotated[Path, typer.Option()], batch_id: Annotated[str, typer.Option()]) -> None:
+    _curation_guard(
+        "curate",
+        batch_id,
+        lambda: curate_batch(
+            DataLayout.from_root(root), batch_id, PrivacyHasher.from_environment()
+        ),
+    )
+    typer.echo(f"curated {batch_id}")
+
+
+@app.command("verify-curated")
+def verify_curated(
+    root: Annotated[Path, typer.Option()], batch_id: Annotated[str, typer.Option()]
+) -> None:
+    _curation_guard(
+        "verify-curated",
+        batch_id,
+        lambda: verify_curated_batch(DataLayout.from_root(root), batch_id),
+    )
+    typer.echo(f"verified-curated {batch_id}")
