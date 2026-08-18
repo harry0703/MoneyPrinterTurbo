@@ -804,7 +804,7 @@ def _finalize(
     posts, warnings = _recompute_suspicious(cluster_duplicates(drafts))
     comments = _deduplicate_comments(comment_rows)
     post_keys = {post.source_post_key for post in posts}
-    if post_keys and any(comment.source_post_key not in post_keys for comment in comments):
+    if any(comment.source_post_key not in post_keys for comment in comments):
         raise CurationError("comment_post_reference_mismatch")
     duplicate_records = raw_records - len(quarantine) - len(posts) - len(comments)
     if duplicate_records < 0:
@@ -1176,9 +1176,7 @@ def _verify_curated_path(
     expected_posts, warnings = _recompute_suspicious(cluster_duplicates(drafts))
     expected_comments = _deduplicate_comments(comment_rows)
     expected_post_keys = {post.source_post_key for post in expected_posts}
-    if expected_post_keys and any(
-        comment.source_post_key not in expected_post_keys for comment in expected_comments
-    ):
+    if any(comment.source_post_key not in expected_post_keys for comment in expected_comments):
         raise CurationError("comment_post_reference_mismatch")
 
     post_payload = _read_bytes(path / "posts.jsonl")

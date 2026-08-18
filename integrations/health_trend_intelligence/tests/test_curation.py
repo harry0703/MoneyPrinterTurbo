@@ -313,8 +313,10 @@ def test_identical_comments_deduplicate_and_count_once(tmp_path: Path) -> None:
     root = tmp_path / "root"
     layout = DataLayout.from_root(root)
     layout.initialize()
+    posts = root / "posts.jsonl"
     first = root / "comments_a.jsonl"
     second = root / "comments_b.jsonl"
+    _write_jsonl(posts, [_post("post-a")])
     _write_jsonl(first, [_comment("same-comment", "post-a")])
     _write_jsonl(second, [_comment("same-comment", "post-a"), _comment("other", "post-a")])
     register_batch(
@@ -329,15 +331,199 @@ def test_identical_comments_deduplicate_and_count_once(tmp_path: Path) -> None:
                 "window_end": "2026-04-30T23:59:59+08:00",
             }
         ],
-        [SourceSpec(first, "dy", "comments"), SourceSpec(second, "dy", "comments")],
+        [
+            SourceSpec(posts, "dy", "posts"),
+            SourceSpec(first, "dy", "comments"),
+            SourceSpec(second, "dy", "comments"),
+        ],
         datetime(2026, 4, 20, 12, tzinfo=CHINA_TZ),
     )
 
     result = curate_batch(layout, BATCH_ID, PrivacyHasher(b"synthetic-test-key"))
 
-    assert result.raw_records == 3
+    assert result.raw_records == 4
+    assert result.curated_posts == 1
     assert result.curated_comments == 2
     assert result.duplicate_records == 1
+
+
+def test_comments_only_batch_fails_without_ready(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    layout = DataLayout.from_root(root)
+    layout.initialize()
+    comments = root / "comments.jsonl"
+    _write_jsonl(comments, [_comment("comment-a", "post-a")])
+    register_batch(
+        layout,
+        BATCH_ID,
+        [
+            {
+                "query_id": "dy-sleep-v1",
+                "platform": "dy",
+                "keyword": "睡眠",
+                "window_start": "2026-04-01T00:00:00+08:00",
+                "window_end": "2026-04-30T23:59:59+08:00",
+            }
+        ],
+        [SourceSpec(comments, "dy", "comments")],
+        datetime(2026, 4, 20, 12, tzinfo=CHINA_TZ),
+    )
+
+    with pytest.raises(CurationError, match="comment_post_reference_mismatch"):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"synthetic-test-key"))
+
+    assert not (layout.curated / BATCH_ID).exists()
+    assert not (layout.curated / f"{BATCH_ID}.work" / "READY.json").exists()
+
+
+def test_comment_referencing_missing_post_fails_without_ready(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    layout = DataLayout.from_root(root)
+    layout.initialize()
+    posts = root / "posts.jsonl"
+    comments = root / "comments.jsonl"
+    _write_jsonl(posts, [_post("post-a")])
+    _write_jsonl(comments, [_comment("comment-a", "missing-post")])
+    register_batch(
+        layout,
+        BATCH_ID,
+        [
+            {
+                "query_id": "dy-sleep-v1",
+                "platform": "dy",
+                "keyword": "睡眠",
+                "window_start": "2026-04-01T00:00:00+08:00",
+                "window_end": "2026-04-30T23:59:59+08:00",
+            }
+        ],
+        [SourceSpec(posts, "dy", "posts"), SourceSpec(comments, "dy", "comments")],
+        datetime(2026, 4, 20, 12, tzinfo=CHINA_TZ),
+    )
+
+    with pytest.raises(CurationError, match="comment_post_reference_mismatch"):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"synthetic-test-key"))
+
+    assert not (layout.curated / BATCH_ID).exists()
+    assert not (layout.curated / f"{BATCH_ID}.work" / "READY.json").exists()
+
+
+def test_comments_fail_when_all_posts_are_quarantined(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    layout = DataLayout.from_root(root)
+    layout.initialize()
+    posts = root / "posts.jsonl"
+    comments = root / "comments.jsonl"
+    _write_jsonl(posts, [{"title": "synthetic invalid post"}])
+    _write_jsonl(comments, [_comment("comment-a", "post-a")])
+    register_batch(
+        layout,
+        BATCH_ID,
+        [
+            {
+                "query_id": "dy-sleep-v1",
+                "platform": "dy",
+                "keyword": "睡眠",
+                "window_start": "2026-04-01T00:00:00+08:00",
+                "window_end": "2026-04-30T23:59:59+08:00",
+            }
+        ],
+        [SourceSpec(posts, "dy", "posts"), SourceSpec(comments, "dy", "comments")],
+        datetime(2026, 4, 20, 12, tzinfo=CHINA_TZ),
+    )
+
+    with pytest.raises(CurationError, match="comment_post_reference_mismatch"):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"synthetic-test-key"))
+
+    assert not (layout.curated / BATCH_ID).exists()
+    assert not (layout.curated / f"{BATCH_ID}.work" / "READY.json").exists()
+
+
+def test_comments_only_resume_fails_without_ready(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    layout = DataLayout.from_root(root)
+    layout.initialize()
+    comments = root / "comments.jsonl"
+    _write_jsonl(comments, [_comment("comment-a", "post-a")])
+    register_batch(
+        layout,
+        BATCH_ID,
+        [
+            {
+                "query_id": "dy-sleep-v1",
+                "platform": "dy",
+                "keyword": "睡眠",
+                "window_start": "2026-04-01T00:00:00+08:00",
+                "window_end": "2026-04-30T23:59:59+08:00",
+            }
+        ],
+        [SourceSpec(comments, "dy", "comments")],
+        datetime(2026, 4, 20, 12, tzinfo=CHINA_TZ),
+    )
+
+    def interrupt(event: str) -> None:
+        if event == "chunk_committed":
+            raise InjectedInterruption
+
+    with pytest.raises(InjectedInterruption):
+        curate_batch(
+            layout,
+            BATCH_ID,
+            PrivacyHasher(b"synthetic-test-key"),
+            interrupt,
+        )
+    with pytest.raises(CurationError, match="comment_post_reference_mismatch"):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"synthetic-test-key"))
+
+    assert not (layout.curated / BATCH_ID).exists()
+    assert not (layout.curated / f"{BATCH_ID}.work" / "READY.json").exists()
+
+
+def test_final_verifier_rejects_orphan_comment_before_accepting_ready(
+    tmp_path: Path,
+) -> None:
+    result = _curate_fixture(tmp_path / "root")
+    post_chunk = next(
+        chunk
+        for chunk in (result.path / "chunks").iterdir()
+        if (chunk / "post-drafts.jsonl").read_bytes()
+    )
+    draft_path = post_chunk / "post-drafts.jsonl"
+    draft_path.write_bytes(b"")
+    quarantine_payload = b"".join(
+        canonical_json_bytes(
+            {
+                "line_number": line_number,
+                "platform": "dy",
+                "reason_code": "synthetic_invalid",
+                "schema": "health_trend_quarantine.v1",
+                "source_sha256": post_chunk.name,
+            }
+        )
+        for line_number in (1, 2)
+    )
+    (post_chunk / "quarantine.jsonl").write_bytes(quarantine_payload)
+    chunk_manifest_path = post_chunk / "chunk-manifest.json"
+    chunk_manifest = load_unique_json(chunk_manifest_path.read_bytes())
+    chunk_manifest["files"]["post-drafts.jsonl"] = {
+        "bytes": 0,
+        "records": 0,
+        "schema": "health_trend_post_draft.v1",
+        "sha256": hashlib.sha256(b"").hexdigest(),
+    }
+    chunk_manifest["files"]["quarantine.jsonl"] = {
+        "bytes": len(quarantine_payload),
+        "records": 2,
+        "schema": "health_trend_quarantine.v1",
+        "sha256": hashlib.sha256(quarantine_payload).hexdigest(),
+    }
+    chunk_manifest_path.write_bytes(canonical_json_bytes(chunk_manifest))
+
+    with pytest.raises(CurationError, match="comment_post_reference_mismatch"):
+        verify_curated_batch(
+            DataLayout.from_root(tmp_path / "root"),
+            BATCH_ID,
+            PrivacyHasher(b"synthetic-test-key"),
+        )
 
 
 def test_pii_redaction_count_is_record_based_after_resume(tmp_path: Path) -> None:
