@@ -13,7 +13,11 @@ from pathlib import Path
 import pytest
 
 import app.services.health_asset_integrity as integrity
-from app.services.health_asset_integrity import DeletedAsset, GitInspectionError, GitInspector
+from app.services.health_asset_integrity import (
+    DeletedAsset,
+    GitInspectionError,
+    GitInspector,
+)
 from test.services.health_asset_audit_fixtures import (
     REMOTE_NAME,
     REMOTE_REF,
@@ -31,6 +35,31 @@ BUNDLE_FILES = {
     "audit-summary.md",
     "bundle-manifest.json",
 }
+WINDOWS_RESERVED_AUDIT_IDS = (
+    "CON",
+    "con",
+    "PrN",
+    "aux",
+    "NUL",
+    "com1",
+    "COM2",
+    "com3",
+    "COM4",
+    "com5",
+    "COM6",
+    "com7",
+    "COM8",
+    "com9",
+    "LPT1",
+    "lpt2",
+    "LPT3",
+    "lpt4",
+    "LPT5",
+    "lpt6",
+    "LPT7",
+    "lpt8",
+    "LpT9",
+)
 
 
 def _run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -61,6 +90,20 @@ def _complete_report(tmp_path: Path):
     return integrity.audit_health_assets(
         GitInspector(repo), remote=REMOTE_NAME, remote_ref=REMOTE_REF
     )
+
+
+def _make_directory_reparse(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+        return
+    except OSError:
+        junction = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            check=False,
+        )
+        if junction.returncode != 0:
+            pytest.skip("directory symlinks and junctions are unavailable")
 
 
 def test_cli_rejects_output_inside_audited_repo(tmp_path: Path):
@@ -115,24 +158,7 @@ def test_cli_rejects_symlink_or_reparse_component_in_output_chain(tmp_path: Path
     real_output = tmp_path / "real-output"
     real_output.mkdir()
     linked_output = tmp_path / "linked-output"
-    try:
-        linked_output.symlink_to(real_output, target_is_directory=True)
-    except OSError:
-        junction = subprocess.run(
-            [
-                "cmd.exe",
-                "/d",
-                "/c",
-                "mklink",
-                "/J",
-                str(linked_output),
-                str(real_output),
-            ],
-            capture_output=True,
-            check=False,
-        )
-        if junction.returncode != 0:
-            pytest.skip("directory symlinks and junctions are unavailable")
+    _make_directory_reparse(linked_output, real_output)
 
     result = _run(*_audit_args(repo, linked_output / "child", "HCAS-TEST-01"))
 
@@ -156,6 +182,31 @@ def test_cli_writes_new_bundle_without_mutating_repo(tmp_path: Path):
     assert response == {"status": "complete", "bundle": str(bundle.resolve())}
 
 
+def test_writer_rejects_every_windows_reserved_device_audit_id_before_output_creation(
+    tmp_path: Path,
+):
+    report = _complete_report(tmp_path / "fixture")
+
+    for index, audit_id in enumerate(WINDOWS_RESERVED_AUDIT_IDS):
+        output_parent = tmp_path / f"reserved-{index}"
+        with pytest.raises(GitInspectionError, match="invalid audit id"):
+            integrity.write_report_bundle(output_parent, audit_id, report)
+        assert not output_parent.exists()
+
+
+def test_cli_rejects_case_insensitive_windows_reserved_device_audit_ids(tmp_path: Path):
+    repo = create_deleted_pack_repo(tmp_path / "fixture")
+
+    for index, audit_id in enumerate(
+        ("CON", "prn", "AuX", "nul", "com1", "COM9", "lpt1", "LpT9")
+    ):
+        output_parent = tmp_path / f"cli-reserved-{index}"
+        result = _run(*_audit_args(repo, output_parent, audit_id))
+        assert result.returncode == 3
+        assert "invalid audit id" in result.stdout
+        assert not output_parent.exists()
+
+
 def test_real_lfs_probe_fails_closed_before_unconfigured_repo_mutation(tmp_path: Path):
     repo = repo_with_one_manual_pack(tmp_path)
     before = repository_fingerprint(repo)
@@ -169,7 +220,9 @@ def test_real_lfs_probe_fails_closed_before_unconfigured_repo_mutation(tmp_path:
     assert repository_fingerprint(repo) == before
 
 
-@pytest.mark.parametrize("format_output", [b"0\n\n", b"0\r\r\n", b"00\n", b"0 injected\n"])
+@pytest.mark.parametrize(
+    "format_output", [b"0\n\n", b"0\r\r\n", b"00\n", b"0 injected\n"]
+)
 def test_lfs_probe_rejects_non_exact_local_format_records_before_lfs_runs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -222,9 +275,13 @@ def test_bundle_manifest_binds_hash_and_size_of_every_payload(tmp_path: Path):
         }
 
 
-def test_deleted_asset_csv_has_fixed_columns_and_deterministic_path_order(tmp_path: Path):
+def test_deleted_asset_csv_has_fixed_columns_and_deterministic_path_order(
+    tmp_path: Path,
+):
     report = _complete_report(tmp_path)
-    reversed_report = replace(report, deleted_assets=tuple(reversed(report.deleted_assets)))
+    reversed_report = replace(
+        report, deleted_assets=tuple(reversed(report.deleted_assets))
+    )
 
     rendered = integrity.render_deleted_assets_csv(reversed_report)
     rows = list(csv.DictReader(io.StringIO(rendered.decode("utf-8"))))
@@ -294,19 +351,111 @@ def test_write_failure_preserves_non_consumable_staging_evidence(
     assert not (output_parent / "HCAS-TEST-01").exists()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows staging replacement boundary")
+@pytest.mark.parametrize("replacement_kind", ["directory", "junction"])
+def test_staging_replacement_after_first_write_never_publishes_or_follows_substitute(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replacement_kind: str,
+):
+    report = _complete_report(tmp_path / "fixture")
+    output_parent = tmp_path / "evidence"
+    audit_id = f"HCAS-{replacement_kind.upper()}-RACE"
+    staging = output_parent / f".{audit_id}.staging"
+    owned_staging = output_parent / f".{audit_id}.owned"
+    substitute_sink = tmp_path / f"{replacement_kind}-substitute"
+    original_write = integrity._write_exclusive
+    calls = 0
+
+    def replace_staging_after_first_write(path_or_handle, payload: bytes) -> None:
+        nonlocal calls
+        original_write(path_or_handle, payload)
+        calls += 1
+        if calls != 1:
+            return
+        os.rename(staging, owned_staging)
+        substitute_sink.mkdir()
+        if replacement_kind == "directory":
+            staging.mkdir()
+        else:
+            _make_directory_reparse(staging, substitute_sink)
+
+    monkeypatch.setattr(
+        integrity, "_write_exclusive", replace_staging_after_first_write
+    )
+
+    with pytest.raises(GitInspectionError, match="staging directory changed"):
+        integrity.write_report_bundle(output_parent, audit_id, report)
+
+    assert not (output_parent / audit_id).exists()
+    assert owned_staging.is_dir()
+    assert (owned_staging / "audit.json").is_file()
+    assert list(substitute_sink.iterdir()) == []
+    if replacement_kind == "directory":
+        assert list(staging.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error_match"),
+    [
+        ("extra", "exact bundle files"),
+        ("corrupt-payload", "bundle entry bytes changed"),
+    ],
+)
+def test_prepublication_verification_rejects_staging_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    error_match: str,
+):
+    report = _complete_report(tmp_path / "fixture")
+    output_parent = tmp_path / "evidence"
+    staging = output_parent / ".HCAS-TEST-01.staging"
+    original_write = integrity._write_exclusive
+    calls = 0
+
+    def mutate_staging_after_last_write(path_or_handle, payload: bytes) -> None:
+        nonlocal calls
+        original_write(path_or_handle, payload)
+        calls += 1
+        if calls != 4:
+            return
+        if mutation == "extra":
+            (staging / "unexpected.txt").write_bytes(b"foreign bytes")
+        else:
+            (staging / "audit.json").write_bytes(b"corrupted after manifest")
+
+    monkeypatch.setattr(integrity, "_write_exclusive", mutate_staging_after_last_write)
+
+    with pytest.raises(GitInspectionError, match=error_match):
+        integrity.write_report_bundle(output_parent, "HCAS-TEST-01", report)
+
+    assert not (output_parent / "HCAS-TEST-01").exists()
+    assert staging.is_dir()
+
+
 def test_publish_race_never_overwrites_existing_target_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     report = _complete_report(tmp_path / "fixture")
     output_parent = tmp_path / "evidence"
-    original_rename = os.rename
+    original_write = integrity._write_exclusive
+    calls = 0
 
-    def create_competing_target(source: Path, target: Path) -> None:
-        target.mkdir()
-        (target / "owner.txt").write_bytes(b"pre-existing owner bytes")
-        original_rename(source, target)
+    def create_competing_target_after_last_write(
+        path_or_handle, payload: bytes
+    ) -> None:
+        nonlocal calls
+        original_write(path_or_handle, payload)
+        calls += 1
+        if calls == 4:
+            target = output_parent / "HCAS-TEST-01"
+            target.mkdir()
+            (target / "owner.txt").write_bytes(b"pre-existing owner bytes")
 
-    monkeypatch.setattr(integrity.os, "rename", create_competing_target)
+    monkeypatch.setattr(
+        integrity, "_write_exclusive", create_competing_target_after_last_write
+    )
 
     with pytest.raises(GitInspectionError, match="already exists"):
         integrity.write_report_bundle(output_parent, "HCAS-TEST-01", report)
@@ -331,7 +480,9 @@ def test_cli_incomplete_remote_evidence_writes_bundle_and_exits_four(tmp_path: P
     assert result.returncode == 4, result.stdout
     response = json.loads(result.stdout)
     assert response["status"] == "incomplete"
-    report = json.loads((output_parent / "HCAS-TEST-01" / "audit.json").read_text("utf-8"))
+    report = json.loads(
+        (output_parent / "HCAS-TEST-01" / "audit.json").read_text("utf-8")
+    )
     assert report["summary"]["audit_complete"] is False
     assert report["remote"]["tree_comparison"] == "unavailable"
     assert all("preferred" not in option for option in report["decision_options"])
@@ -344,7 +495,9 @@ def test_cli_default_requests_exact_local_fixture_remote_evidence(tmp_path: Path
     result = _run(*_audit_args(repo, output_parent, "HCAS-TEST-01"))
 
     assert result.returncode == 0, result.stdout
-    report = json.loads((output_parent / "HCAS-TEST-01" / "audit.json").read_text("utf-8"))
+    report = json.loads(
+        (output_parent / "HCAS-TEST-01" / "audit.json").read_text("utf-8")
+    )
     assert report["summary"]["audit_complete"] is True
     assert report["remote"] == {
         "requested": True,
