@@ -364,15 +364,18 @@ def _sha256_file(path: Path) -> str:
 
 def _inspect_lfs(inspector: GitInspector) -> tuple[dict[str, Any], bool]:
     try:
-        version_lines = (
-            _run_lfs_readonly(inspector, ("version",)).decode("utf-8").splitlines()
-        )
-        version_line = version_lines[0] if version_lines else ""
+        version_output = _run_lfs_readonly(inspector, ("version",)).decode("utf-8")
+        if version_output.endswith("\r\n"):
+            version_line = version_output[:-2]
+        elif version_output.endswith("\n"):
+            version_line = version_output[:-1]
+        else:
+            version_line = version_output
         has_control = any(
             ord(character) < 0x20 or 0x7F <= ord(character) <= 0x9F
             for character in version_line
         )
-        if len(version_lines) != 1 or has_control or re.fullmatch(
+        if has_control or re.fullmatch(
             r"git-lfs/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
             r"(?: \([^\r\n]+\))?",
             version_line,

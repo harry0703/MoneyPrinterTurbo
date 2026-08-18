@@ -117,6 +117,19 @@ def _stub_lfs_success(monkeypatch: pytest.MonkeyPatch, paths: tuple[str, ...] = 
     monkeypatch.setattr(integrity, "_run_lfs_readonly", fake_lfs)
 
 
+def _stub_lfs_version_output(
+    monkeypatch: pytest.MonkeyPatch, version_output: bytes
+) -> None:
+    def fake_lfs(_inspector: GitInspector, args: tuple[str, ...]) -> bytes:
+        if args == ("version",):
+            return version_output
+        if args == ("ls-files", "--all", "-n"):
+            return b""
+        raise AssertionError(f"unexpected LFS arguments: {args!r}")
+
+    monkeypatch.setattr(integrity, "_run_lfs_readonly", fake_lfs)
+
+
 def test_parse_porcelain_v1_z_preserves_unicode_and_spaces():
     entries = parse_porcelain_v1_z(" D 九期 资产.txt\0?? 未跟踪.txt\0".encode("utf-8"))
     assert [(item.index_status, item.worktree_status, item.path) for item in entries] == [
@@ -613,6 +626,89 @@ def test_lfs_version_accepts_representative_printable_installed_formats(
 
     assert report.summary["audit_complete"] is True
     assert report.lfs == {
+        "complete": True,
+        "version": version_line,
+        "tracked_paths": [],
+        "error": None,
+    }
+
+
+@pytest.mark.parametrize(
+    ("name", "terminal"),
+    [
+        ("VT", "\x0b"),
+        ("FF", "\x0c"),
+        ("FS", "\x1c"),
+        ("GS", "\x1d"),
+        ("RS", "\x1e"),
+        ("NEL", "\x85"),
+    ],
+)
+def test_lfs_version_rejects_nonstandard_control_terminal_substitutions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    terminal: str,
+):
+    inspector = GitInspector(_repo(tmp_path))
+    _stub_lfs_version_output(
+        monkeypatch, f"git-lfs/3.7.1{terminal}".encode("utf-8")
+    )
+
+    lfs, complete = integrity._inspect_lfs(inspector)
+
+    assert complete is False, name
+    assert lfs["error"] == "unrecognized Git LFS version output"
+
+
+def test_lfs_version_rejects_every_remaining_c0_and_c1_code_point(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    inspector = GitInspector(_repo(tmp_path))
+    terminal_substitutions = {0x0B, 0x0C, 0x1C, 0x1D, 0x1E, 0x85}
+    control_points = [
+        code_point
+        for code_point in (*range(0x20), *range(0x7F, 0xA0))
+        if code_point not in terminal_substitutions
+    ]
+    accepted: list[str] = []
+
+    for code_point in control_points:
+        control = chr(code_point)
+        version_output = f"git-lfs/3.7.1 (build{control}metadata)\n".encode("utf-8")
+        _stub_lfs_version_output(monkeypatch, version_output)
+        _lfs, complete = integrity._inspect_lfs(inspector)
+        if complete:
+            accepted.append(f"U+{code_point:04X}")
+
+    assert len(control_points) == 59
+    assert accepted == []
+
+
+@pytest.mark.parametrize(
+    ("version_line", "terminator"),
+    [
+        ("git-lfs/3.7.1", b""),
+        ("git-lfs/3.7.1", b"\n"),
+        ("git-lfs/3.7.1", b"\r\n"),
+        ("git-lfs/3.7.1 (GitHub; 可打印构建信息)", b"\n"),
+    ],
+)
+def test_lfs_version_accepts_only_optional_lf_or_crlf_and_printable_unicode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    version_line: str,
+    terminator: bytes,
+):
+    inspector = GitInspector(_repo(tmp_path))
+    _stub_lfs_version_output(
+        monkeypatch, version_line.encode("utf-8") + terminator
+    )
+
+    lfs, complete = integrity._inspect_lfs(inspector)
+
+    assert complete is True
+    assert lfs == {
         "complete": True,
         "version": version_line,
         "tracked_paths": [],
