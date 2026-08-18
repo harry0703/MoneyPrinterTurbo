@@ -50,6 +50,28 @@ def test_parse_porcelain_v1_z_preserves_unicode_and_spaces():
     ]
 
 
+@pytest.mark.parametrize("raw", [
+    b"MM changed.txt\0",
+    b"UU conflicted.txt\0",
+    b"?? untracked.txt\0",
+    b"!! ignored.txt\0",
+])
+def test_parse_porcelain_v1_z_accepts_valid_status_combinations(raw: bytes):
+    assert len(parse_porcelain_v1_z(raw)) == 1
+
+
+@pytest.mark.parametrize("raw", [
+    b"ZZ impossible.txt\0",
+    b"?  impossible.txt\0",
+    b"!  impossible.txt\0",
+    b"U  impossible.txt\0",
+    b"   impossible.txt\0",
+])
+def test_parse_porcelain_v1_z_rejects_impossible_status_combinations(raw: bytes):
+    with pytest.raises(GitInspectionError):
+        parse_porcelain_v1_z(raw)
+
+
 @pytest.mark.parametrize(("status", "destination", "original"), [
     ("R ", "新 名称.txt", "旧 名称.txt"),
     ("C ", "副本 文件.txt", "原始 文件.txt"),
@@ -82,6 +104,39 @@ def test_parse_ls_tree_z_keeps_blob_size_and_path():
     raw = b"100644 blob 0123456789012345678901234567890123456789 12\tfoo bar.txt\0"
     assert parse_ls_tree_z(raw)[0].size == 12
     assert parse_ls_tree_z(raw)[0].path == "foo bar.txt"
+
+
+def test_parse_ls_tree_z_accepts_valid_mode_type_size_combinations():
+    oid = b"0123456789012345678901234567890123456789"
+    raw = b"".join([
+        b"100644 blob " + oid + b"      12\tregular.txt\0",
+        b"100755 blob " + oid + b"       3\texecutable.sh\0",
+        b"120000 blob " + oid + b"       8\tlink\0",
+        b"040000 tree " + oid + b" -\tdirectory\0",
+        b"160000 commit " + oid + b" -\tsubmodule\0",
+    ])
+    assert [(entry.mode, entry.object_type, entry.size) for entry in parse_ls_tree_z(raw)] == [
+        ("100644", "blob", 12),
+        ("100755", "blob", 3),
+        ("120000", "blob", 8),
+        ("040000", "tree", None),
+        ("160000", "commit", None),
+    ]
+
+
+@pytest.mark.parametrize("record", [
+    b"999999 blob 0123456789012345678901234567890123456789 1\tbad.txt\0",
+    b"100644 tree 0123456789012345678901234567890123456789 1\tbad.txt\0",
+    b"100644 blob 0123456789012345678901234567890123456789 -\tbad.txt\0",
+    b"040000 tree 0123456789012345678901234567890123456789 1\tbad.txt\0",
+    b"160000 commit 0123456789012345678901234567890123456789 1\tbad.txt\0",
+    b"100644 blob 0123456789012345678901234567890123456789 -1\tbad.txt\0",
+    b"100644 blob 0123456789012345678901234567890123456789 nope\tbad.txt\0",
+    b"040000 blob 0123456789012345678901234567890123456789 -\tbad.txt\0",
+])
+def test_parse_ls_tree_z_rejects_impossible_mode_type_size_combinations(record: bytes):
+    with pytest.raises(GitInspectionError):
+        parse_ls_tree_z(record)
 
 
 def test_inspector_does_not_change_head_index_or_status(tmp_path: Path):

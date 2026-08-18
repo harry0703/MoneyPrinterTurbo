@@ -21,6 +21,12 @@ ALLOWED_GIT_SUBCOMMANDS = {
     "symbolic-ref",
 }
 
+_ORDINARY_INDEX_STATUSES = frozenset(" MTADRC")
+_ORDINARY_WORKTREE_STATUSES = frozenset(" MTD")
+_UNMERGED_STATUSES = frozenset({"DD", "AU", "UD", "UA", "DU", "AA", "UU"})
+_SPECIAL_STATUSES = frozenset({"??", "!!"})
+_BLOB_MODES = frozenset({"100644", "100755", "120000"})
+
 
 class GitInspectionError(RuntimeError):
     pass
@@ -73,6 +79,16 @@ def _is_object_id(value: str) -> bool:
     return len(value) in {40, 64} and all(character in "0123456789abcdefABCDEF" for character in value)
 
 
+def _is_valid_porcelain_status(status: str) -> bool:
+    if status in _UNMERGED_STATUSES or status in _SPECIAL_STATUSES:
+        return True
+    return (
+        status != "  "
+        and status[0] in _ORDINARY_INDEX_STATUSES
+        and status[1] in _ORDINARY_WORKTREE_STATUSES
+    )
+
+
 def parse_porcelain_v1_z(raw: bytes) -> tuple[StatusEntry, ...]:
     fields = _null_records(raw, "porcelain v1")
     result: list[StatusEntry] = []
@@ -85,6 +101,8 @@ def parse_porcelain_v1_z(raw: bytes) -> tuple[StatusEntry, ...]:
             xy = field[:2].decode("ascii")
         except UnicodeDecodeError as error:
             raise GitInspectionError("invalid porcelain v1 -z status") from error
+        if not _is_valid_porcelain_status(xy):
+            raise GitInspectionError("invalid porcelain v1 -z status")
         path = _decode_path(field[3:])
         if not path:
             raise GitInspectionError("porcelain v1 record is missing a path")
@@ -112,9 +130,17 @@ def parse_ls_tree_z(raw: bytes) -> tuple[TreeEntry, ...]:
             if not _is_object_id(oid):
                 raise ValueError
             size_value = size_raw.strip()
-            if size_value == "-":
+            if mode == "040000" and object_type == "tree":
+                if size_value != "-":
+                    raise ValueError
                 size = None
-            elif size_value.isdecimal():
+            elif mode == "160000" and object_type == "commit":
+                if size_value != "-":
+                    raise ValueError
+                size = None
+            elif mode in _BLOB_MODES and object_type == "blob":
+                if not size_value.isdecimal():
+                    raise ValueError
                 size = int(size_value)
             else:
                 raise ValueError
