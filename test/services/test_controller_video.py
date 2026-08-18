@@ -173,6 +173,30 @@ class TestVideoControllerTasks(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 429)
         delete_task.assert_called_once_with("task-123")
 
+    def test_create_task_removes_state_when_scheduler_fails(self):
+        """调度器未能接管任务时，不能留下永远处于 processing 的状态。"""
+        body = MagicMock()
+        body.model_dump.return_value = {"video_subject": "Coffee"}
+        scheduling_error = RuntimeError("can't start new thread")
+        state = sm.MemoryState()
+
+        with (
+            patch.object(video_controller.utils, "get_uuid", return_value="task-123"),
+            patch.object(video_controller.sm, "state", state),
+            patch.object(
+                video_controller.task_manager,
+                "add_task",
+                side_effect=scheduling_error,
+            ),
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                video_controller.create_task(
+                    self._request(), body, stop_at="video"
+                )
+
+        self.assertIs(raised.exception, scheduling_error)
+        self.assertIsNone(state.get_task("task-123"))
+
     def test_get_all_tasks_preserves_pagination(self):
         """任务列表响应必须包含状态层返回的总数和请求分页参数。"""
         with patch.object(
