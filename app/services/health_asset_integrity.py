@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
+import json
 import os
 import re
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -46,6 +49,13 @@ _CONTROL_FILES = frozenset({
     "MANUAL-GENERATION-GUIDE.md",
     "MANUAL-PACK-QA.md",
 })
+_AUDIT_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+_BUNDLE_PAYLOAD_NAMES = (
+    "audit.json",
+    "deleted-assets.csv",
+    "audit-summary.md",
+)
 
 
 class GitInspectionError(RuntimeError):
@@ -322,6 +332,21 @@ def _run_lfs_readonly(inspector: GitInspector, args: Sequence[str]) -> bytes:
         raise GitInspectionError(
             f"git lfs command not allowed: {' '.join(normalized) or '<empty>'}"
         )
+    if normalized == ("ls-files", "--all", "-n"):
+        format_probe = subprocess.run(
+            inspector._command(
+                "config", "--local", "--get", "lfs.repositoryformatversion"
+            ),
+            cwd=inspector.repo,
+            env=inspector._environment(),
+            capture_output=True,
+            check=False,
+        )
+        if format_probe.returncode != 0 or format_probe.stdout not in {b"0\n", b"0\r\n"}:
+            raise GitInspectionError(
+                "Git LFS repository format is not initialized; refusing a probe "
+                "that may mutate repository config"
+            )
     completed = subprocess.run(
         inspector._command("lfs", *normalized),
         cwd=inspector.repo,
@@ -598,3 +623,263 @@ def _json_safe(value: Any) -> Any:
 
 def report_to_dict(report: AuditReport) -> dict[str, Any]:
     return _json_safe(asdict(report))
+
+
+def _absolute_path(path: Path) -> Path:
+    try:
+        return Path(os.path.abspath(os.fspath(path)))
+    except (OSError, ValueError) as error:
+        raise GitInspectionError(f"invalid output path: {path!s}") from error
+
+
+def _path_chain(path: Path) -> tuple[Path, ...]:
+    anchor = Path(path.anchor)
+    current = anchor
+    chain = [current]
+    for part in path.parts[1:]:
+        current /= part
+        chain.append(current)
+    return tuple(chain)
+
+
+def _is_reparse_point(path: Path) -> bool:
+    metadata = path.lstat()
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    return path.is_symlink() or bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _assert_plain_directory_chain(path: Path) -> None:
+    for component in _path_chain(path):
+        if not os.path.lexists(component):
+            break
+        try:
+            if _is_reparse_point(component):
+                raise GitInspectionError(
+                    f"output path contains a symlink or reparse point: {component}"
+                )
+            if not component.is_dir():
+                raise GitInspectionError(
+                    f"output path component is not a directory: {component}"
+                )
+        except OSError as error:
+            raise GitInspectionError(
+                f"cannot safely inspect output path component: {component}"
+            ) from error
+
+
+def ensure_external_output(repo: Path, output_parent: Path) -> Path:
+    try:
+        repo_root = repo.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise GitInspectionError(f"cannot resolve audited repository: {repo}") from error
+    output_path = _absolute_path(output_parent)
+    _assert_plain_directory_chain(output_path)
+    try:
+        resolved_output = output_path.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise GitInspectionError(f"cannot resolve output path: {output_parent}") from error
+    if resolved_output == repo_root or repo_root in resolved_output.parents:
+        raise GitInspectionError("audit output must be outside audited repository")
+    return resolved_output
+
+
+def _prepare_output_parent(output_parent: Path) -> Path:
+    output_path = _absolute_path(output_parent)
+    _assert_plain_directory_chain(output_path)
+    for component in _path_chain(output_path):
+        if os.path.lexists(component):
+            continue
+        try:
+            component.mkdir()
+        except FileExistsError:
+            pass
+        except OSError as error:
+            raise GitInspectionError(
+                f"cannot create output directory: {component}"
+            ) from error
+        try:
+            if _is_reparse_point(component) or not component.is_dir():
+                raise GitInspectionError(
+                    f"output path contains a symlink or reparse point: {component}"
+                )
+        except OSError as error:
+            raise GitInspectionError(
+                f"cannot safely inspect output path component: {component}"
+            ) from error
+    _assert_plain_directory_chain(output_path)
+    try:
+        return output_path.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise GitInspectionError(f"cannot resolve output path: {output_parent}") from error
+
+
+def _validate_audit_id(audit_id: str) -> None:
+    if _AUDIT_ID_RE.fullmatch(audit_id) is None:
+        raise GitInspectionError(f"invalid audit id: {audit_id!r}")
+
+
+def render_deleted_assets_csv(report: AuditReport) -> bytes:
+    columns = tuple(field.name for field in fields(DeletedAsset))
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=columns, lineterminator="\n")
+    writer.writeheader()
+    for asset in sorted(report.deleted_assets, key=lambda item: item.path):
+        writer.writerow(asdict(asset))
+    return output.getvalue().encode("utf-8")
+
+
+def _markdown_cell(value: Any) -> str:
+    if value is None:
+        return "—"
+    return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\r", "").replace(
+        "\n", "<br>"
+    )
+
+
+def render_audit_summary(report: AuditReport) -> bytes:
+    summary = report.summary
+    remote = report.remote
+    lfs = report.lfs
+    mutation = report.mutation_guard
+    lines = [
+        "# Health asset integrity audit summary",
+        "",
+        f"- Schema: `{_markdown_cell(report.schema)}`",
+        f"- Repository: `{_markdown_cell(report.repo_root)}`",
+        f"- Branch / HEAD: `{_markdown_cell(report.branch)}` / `{_markdown_cell(report.head_sha)}`",
+        f"- Audit complete: `{str(bool(summary['audit_complete'])).lower()}`",
+        "",
+        "## Counts",
+        "",
+        "| Deleted manual-pack files | Episodes | First frames | Prompts | Control files | Large blobs |",
+        "| ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| {deleted_manual_pack_files} | {episodes} | {first_frames} | {prompts} | "
+        "{control_files} | {large_blobs} |".format(**summary),
+        "",
+        "## Per-episode evidence",
+        "",
+        "| Content ID | Deleted | First frames | Prompts | Control files |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    for episode in sorted(report.episodes, key=lambda item: str(item["content_id"])):
+        lines.append(
+            "| {content_id} | {deleted_count} | {first_frames} | {prompts} | "
+            "{control_files} |".format(
+                **{key: _markdown_cell(value) for key, value in episode.items()}
+            )
+        )
+    lines.extend([
+        "",
+        "## Remote evidence",
+        "",
+        f"- Requested: `{str(bool(remote['requested'])).lower()}`",
+        f"- Remote / ref: `{_markdown_cell(remote['name'])}` / `{_markdown_cell(remote['ref'])}`",
+        f"- OID: `{_markdown_cell(remote['oid'])}`",
+        f"- Object available locally: `{_markdown_cell(remote['object_available_locally'])}`",
+        f"- Tree comparison: `{_markdown_cell(remote['tree_comparison'])}`",
+        f"- Error: `{_markdown_cell(remote['error'])}`",
+        "",
+        "## LFS evidence",
+        "",
+        f"- Complete: `{str(bool(lfs['complete'])).lower()}`",
+        f"- Version: `{_markdown_cell(lfs['version'])}`",
+        f"- Tracked path count: `{_markdown_cell(None if lfs['tracked_paths'] is None else len(lfs['tracked_paths']))}`",
+        f"- Error: `{_markdown_cell(lfs['error'])}`",
+        "",
+        "## Large-blob evidence",
+        "",
+        "| Path | OID | Bytes | LFS pointer |",
+        "| --- | --- | ---: | --- |",
+    ])
+    for blob in sorted(report.large_blobs, key=lambda item: item.path):
+        lines.append(
+            f"| {_markdown_cell(blob.path)} | `{_markdown_cell(blob.oid)}` | "
+            f"{blob.size} | `{str(blob.lfs_pointer).lower()}` |"
+        )
+    if not report.large_blobs:
+        lines.append("| _None_ | — | — | — |")
+    lines.extend([
+        "",
+        "## Mutation guard",
+        "",
+        f"- Unchanged: `{str(bool(mutation['unchanged'])).lower()}`",
+        f"- Before status SHA-256: `{_markdown_cell(mutation['before']['status_sha256'])}`",
+        f"- After status SHA-256: `{_markdown_cell(mutation['after']['status_sha256'])}`",
+        f"- Before index SHA-256: `{_markdown_cell(mutation['before']['index_sha256'])}`",
+        f"- After index SHA-256: `{_markdown_cell(mutation['after']['index_sha256'])}`",
+        "",
+        "## User decision options",
+        "",
+        "No option is preferred. Only the user may choose a disposition after reading the evidence.",
+        "",
+    ])
+    for option in report.decision_options:
+        lines.append(f"- `{_markdown_cell(option['id'])}` — {_markdown_cell(option['meaning'])}")
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def _write_exclusive(path: Path, payload: bytes) -> None:
+    with path.open("xb") as stream:
+        offset = 0
+        while offset < len(payload):
+            written = stream.write(payload[offset:])
+            if written is None or written <= 0:
+                raise OSError(f"short write: {path}")
+            offset += written
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def write_report_bundle(output_parent: Path, audit_id: str, report: AuditReport) -> Path:
+    _validate_audit_id(audit_id)
+    output_path = _prepare_output_parent(output_parent)
+    target = output_path / audit_id
+    staging = output_path / f".{audit_id}.staging"
+    if os.path.lexists(target) or os.path.lexists(staging):
+        raise GitInspectionError(f"audit output already exists: {audit_id}")
+    try:
+        staging.mkdir(exist_ok=False)
+    except FileExistsError as error:
+        raise GitInspectionError(f"audit output already exists: {audit_id}") from error
+    except OSError as error:
+        raise GitInspectionError(f"cannot create audit staging directory: {staging}") from error
+    try:
+        payload = report_to_dict(report)
+        rendered = {
+            "audit.json": (
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+            ).encode("utf-8"),
+            "deleted-assets.csv": render_deleted_assets_csv(report),
+            "audit-summary.md": render_audit_summary(report),
+        }
+        for name in _BUNDLE_PAYLOAD_NAMES:
+            _write_exclusive(staging / name, rendered[name])
+        manifest = {
+            "schema": "health-asset-integrity-bundle-v1",
+            "audit_id": audit_id,
+            "report_schema": report.schema,
+            "files": {
+                name: {
+                    "sha256": hashlib.sha256(rendered[name]).hexdigest(),
+                    "bytes": len(rendered[name]),
+                }
+                for name in _BUNDLE_PAYLOAD_NAMES
+            },
+        }
+        manifest_bytes = (
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+        ).encode("utf-8")
+        _write_exclusive(staging / "bundle-manifest.json", manifest_bytes)
+        _assert_plain_directory_chain(output_path)
+        if os.path.lexists(target):
+            raise GitInspectionError(f"audit output already exists: {audit_id}")
+        os.rename(staging, target)
+    except GitInspectionError:
+        raise
+    except OSError as error:
+        if os.path.lexists(target):
+            raise GitInspectionError(f"audit output already exists: {audit_id}") from error
+        raise GitInspectionError(f"failed to write audit bundle: {error}") from error
+    except (UnicodeError, ValueError, TypeError, csv.Error) as error:
+        raise GitInspectionError(f"failed to render audit bundle: {error}") from error
+    return target

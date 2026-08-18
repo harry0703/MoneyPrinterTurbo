@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -17,93 +16,13 @@ from app.services.health_asset_integrity import (
     parse_porcelain_v1_z,
     report_to_dict,
 )
-
-
-def _git(repo: Path, *args: str) -> bytes:
-    env = os.environ.copy()
-    env["GIT_OPTIONAL_LOCKS"] = "0"
-    completed = subprocess.run(
-        [
-            "git",
-            "-c",
-            f"safe.directory={repo.resolve()}",
-            "-c",
-            "core.longpaths=true",
-            *args,
-        ],
-        cwd=repo,
-        env=env,
-        check=False,
-        capture_output=True,
-    )
-    if completed.returncode != 0:
-        raise AssertionError(completed.stderr.decode("utf-8", errors="replace"))
-    return completed.stdout
-
-
-def _repo(tmp_path: Path) -> Path:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init")
-    _git(repo, "config", "user.name", "Audit Test")
-    _git(repo, "config", "user.email", "audit@example.invalid")
-    tracked = repo / "九期 资产.txt"
-    tracked.write_text("锁定资产\n", encoding="utf-8", newline="\n")
-    _git(repo, "add", "--", tracked.name)
-    _git(repo, "commit", "-m", "fixture")
-    tracked.unlink()
-    (repo / "未跟踪.txt").write_text("不应改动\n", encoding="utf-8")
-    return repo
-
-
-def _manual_pack_files(content_id: str) -> dict[str, bytes]:
-    root = f"09_泛健康日更/work/{content_id}/production/v01/04_grok_batch/manual_pack"
-    payloads: dict[str, bytes] = {}
-    for shot in range(1, 11):
-        payloads[f"{root}/01_first_frames/{content_id}-v01-S{shot:02d}-firstframe.png"] = (
-            b"\x89PNG\r\n\x1a\n" + bytes([shot])
-        )
-        payloads[f"{root}/02_prompts/{content_id}-v01-S{shot:02d}-prompt-zh-en.txt"] = (
-            f"S{shot:02d} prompt\n".encode()
-        )
-    payloads[f"{root}/{content_id}-v01-Grok-Automation-10条提示词.txt"] = b"merged\n"
-    payloads[f"{root}/MANIFEST.csv"] = b"shot,path\n"
-    payloads[f"{root}/MANUAL-GENERATION-GUIDE.md"] = b"guide\n"
-    payloads[f"{root}/MANUAL-PACK-QA.md"] = b"qa\n"
-    return payloads
-
-
-def _write_files(repo: Path, payloads: dict[str, bytes]) -> None:
-    for relative, payload in payloads.items():
-        path = repo / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(payload)
-
-
-def _repo_with_one_manual_pack(
-    tmp_path: Path, *, source_payload: bytes | None = b"\x89PNG\r\n\x1a\n\x01"
-) -> Path:
-    repo = tmp_path / "repo"
-    repo.mkdir(parents=True)
-    _git(repo, "init")
-    _git(repo, "config", "user.name", "Audit Test")
-    _git(repo, "config", "user.email", "audit@example.invalid")
-    content_id = "HC20260810-001"
-    _write_files(repo, _manual_pack_files(content_id))
-    if source_payload is not None:
-        source = (
-            repo
-            / f"09_泛健康日更/work/{content_id}/production/v01/03_first_frames/"
-            f"{content_id}-v01-S01-firstframe.png"
-        )
-        source.parent.mkdir(parents=True, exist_ok=True)
-        source.write_bytes(source_payload)
-    _git(repo, "add", "--all", ".")
-    _git(repo, "commit", "-m", "manual pack fixture")
-    for path in (repo / "09_泛健康日更").rglob("*"):
-        if path.is_file() and "manual_pack" in path.parts:
-            path.unlink()
-    return repo
+from test.services.health_asset_audit_fixtures import (
+    git as _git,
+    manual_pack_files as _manual_pack_files,
+    repo as _repo,
+    repo_with_one_manual_pack as _repo_with_one_manual_pack,
+    write_files as _write_files,
+)
 
 
 def _stub_lfs_success(monkeypatch: pytest.MonkeyPatch, paths: tuple[str, ...] = ()) -> None:
