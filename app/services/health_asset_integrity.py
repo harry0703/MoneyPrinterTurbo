@@ -21,10 +21,18 @@ ALLOWED_GIT_SUBCOMMANDS = {
     "symbolic-ref",
 }
 
-_ORDINARY_INDEX_STATUSES = frozenset(" MTADRC")
-_ORDINARY_WORKTREE_STATUSES = frozenset(" MTD")
+_ORDINARY_STATUSES = frozenset({
+    " A", " M", " D", " R", " C",
+    "M ", "MM", "MT", "MD",
+    "T ", "TM", "TT", "TD",
+    "A ", "AM", "AT", "AD",
+    "D ",
+    "R ", "RM", "RT", "RD",
+    "C ", "CM", "CT", "CD",
+})
 _UNMERGED_STATUSES = frozenset({"DD", "AU", "UD", "UA", "DU", "AA", "UU"})
 _SPECIAL_STATUSES = frozenset({"??", "!!"})
+_VALID_PORCELAIN_STATUSES = _ORDINARY_STATUSES | _UNMERGED_STATUSES | _SPECIAL_STATUSES
 _BLOB_MODES = frozenset({"100644", "100755", "120000"})
 
 
@@ -80,13 +88,7 @@ def _is_object_id(value: str) -> bool:
 
 
 def _is_valid_porcelain_status(status: str) -> bool:
-    if status in _UNMERGED_STATUSES or status in _SPECIAL_STATUSES:
-        return True
-    return (
-        status != "  "
-        and status[0] in _ORDINARY_INDEX_STATUSES
-        and status[1] in _ORDINARY_WORKTREE_STATUSES
-    )
+    return status in _VALID_PORCELAIN_STATUSES
 
 
 def parse_porcelain_v1_z(raw: bytes) -> tuple[StatusEntry, ...]:

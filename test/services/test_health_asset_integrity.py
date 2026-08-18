@@ -60,6 +60,63 @@ def test_parse_porcelain_v1_z_accepts_valid_status_combinations(raw: bytes):
     assert len(parse_porcelain_v1_z(raw)) == 1
 
 
+@pytest.mark.parametrize("status", [
+    " A", " M", " D", " R", " C",
+    "M ", "MM", "MT", "MD",
+    "T ", "TM", "TT", "TD",
+    "A ", "AM", "AT", "AD",
+    "D ",
+    "R ", "RM", "RT", "RD",
+    "C ", "CM", "CT", "CD",
+])
+def test_parse_porcelain_v1_z_accepts_every_documented_ordinary_status(status: str):
+    raw = f"{status} path.txt\0".encode("utf-8")
+    if "R" in status or "C" in status:
+        raw += b"original.txt\0"
+    assert parse_porcelain_v1_z(raw)[0].path == "path.txt"
+
+
+@pytest.mark.parametrize(("status", "accepted"), [
+    (" A", True),
+    (" M", True),
+    (" D", True),
+    (" R", True),
+    (" C", True),
+    ("M ", True),
+    ("MT", True),
+    ("AD", True),
+    ("R ", True),
+    ("CD", True),
+    ("D ", True),
+    (" T", False),
+    ("DM", False),
+    ("DT", False),
+    ("DA", False),
+])
+def test_parse_porcelain_v1_z_enforces_documented_ordinary_status_boundaries(
+    status: str, accepted: bool
+):
+    raw = f"{status} path.txt\0".encode("utf-8")
+    if "R" in status or "C" in status:
+        raw += b"original.txt\0"
+    if accepted:
+        assert parse_porcelain_v1_z(raw)[0].path == "path.txt"
+    else:
+        with pytest.raises(GitInspectionError):
+            parse_porcelain_v1_z(raw)
+
+
+def test_inspector_status_accepts_intent_to_add_from_real_git(tmp_path: Path):
+    repo = _repo(tmp_path)
+    intent = repo / "intent.txt"
+    intent.write_text("intent\n", encoding="utf-8")
+    _git(repo, "add", "-N", "--", intent.name)
+
+    entry = next(item for item in GitInspector(repo).status() if item.path == intent.name)
+
+    assert (entry.index_status, entry.worktree_status) == (" ", "A")
+
+
 @pytest.mark.parametrize("raw", [
     b"ZZ impossible.txt\0",
     b"?  impossible.txt\0",
