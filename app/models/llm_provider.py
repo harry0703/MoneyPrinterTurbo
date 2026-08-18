@@ -169,6 +169,13 @@ LLM_PROVIDER_REGISTRY = (
     ),
     # 聚合与统一接入平台
     LLMProviderSpec(
+        "shengsuanyun",
+        "Shengsuan Cloud",
+        api_key_url="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK",
+        default_model="deepseek/deepseek-v4-flash",
+        default_base_url="https://router.shengsuanyun.com/api/v1",
+    ),
+    LLMProviderSpec(
         "cloudflare",
         "Cloudflare AI Gateway",
         adapter="cloudflare_ai_gateway",

@@ -4,6 +4,7 @@ import re
 import unittest
 from pathlib import Path
 
+from app.models.llm_provider import get_llm_provider
 from app.utils import utils
 
 
@@ -16,6 +17,39 @@ SECONDARY_LOCALES = ("de", "es", "id", "pt", "ru", "tr", "vi")
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
+)
+# Shengsuan Cloud 目前只提供中英文界面。次要语言统一回退英文，避免在七个
+# locale 中复制同一份英文后长期不同步；其它普通界面文案仍必须完整翻译。
+ENGLISH_FALLBACK_KEYS = frozenset(
+    {
+        "AI Video Quote Required",
+        "AI Video Quote Retained For Retry",
+        "AI Video Quote Summary",
+        "AI Video Quote Summary Singular",
+        "AI Video Scene Count",
+        "Confirm AI Video Charge",
+        "Confirm AI Video Charge Help",
+        "Confirm AI Video Charge Required",
+        "Local LLM Script Generation",
+        "llm_provider_label.shengsuanyun",
+        "LoomLoom Poll Retry Pending",
+        "LoomLoom Poll Retry Warning",
+        "Resume LoomLoom Status Check",
+        "LoomLoom Quote Summary Singular",
+        "LoomLoom Video Terms Reuse Help",
+        "Script Generation Method",
+        "Script Generation Method Help",
+        "Shengsuan Cloud AI Video",
+        "Shengsuan Cloud AI Video Help",
+        "Shengsuan Cloud API Key",
+        "Shengsuan Cloud API Key Help",
+        "Shengsuan Cloud API Key Placeholder",
+        "Shengsuan Cloud API Key Required",
+        "Shengsuan Cloud API Key Reused",
+        "Shengsuan Cloud Batch Script Generation",
+        "Stop Tracking LoomLoom Run",
+        "Stop Tracking LoomLoom Run Help",
+    }
 )
 FORMAT_PLACEHOLDER_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")
 MARKDOWN_URL_PATTERN = re.compile(r"\[[^\]]+\]\((https?://[^)]+)\)")
@@ -44,7 +78,12 @@ def _load_translation(locale):
 
 def _required_translation_keys(translations):
     """返回二级语言必须维护的 key，Provider 长说明统一回退英文。"""
-    return {key for key in translations if not key.startswith(PROVIDER_TIPS_PREFIXES)}
+    return {
+        key
+        for key in translations
+        if key not in ENGLISH_FALLBACK_KEYS
+        and not key.startswith(PROVIDER_TIPS_PREFIXES)
+    }
 
 
 def _format_placeholders(value):
@@ -95,6 +134,24 @@ class TestWebuiI18n(unittest.TestCase):
 
         self.assertEqual(sorted(visitor.keys - en_keys), [])
 
+    def test_shengsuanyun_provider_tips_keep_registration_and_model_links(self):
+        """合作入口和模型目录属于产品配置，避免后续改文案时误删追踪链接。"""
+        expected_urls = {
+            "https://www.shengsuanyun.com/?from=CH_XUQ4OTSK",
+            "https://global.modelmesh.info/model",
+        }
+
+        for locale in ("zh", "en"):
+            with self.subTest(locale=locale):
+                tips = _load_translation(locale)["llm_provider_tips.shengsuanyun"]
+                provider = get_llm_provider("shengsuanyun")
+                rendered = tips.format(
+                    api_key_url=provider.api_key_url,
+                    default_base_url=provider.default_base_url,
+                    default_model=provider.default_model,
+                )
+                self.assertEqual(_markdown_urls(rendered), expected_urls)
+
     def test_secondary_locales_cover_english_locale(self):
         en_translations = _load_translation("en")
         required_en_keys = _required_translation_keys(en_translations)
@@ -115,6 +172,12 @@ class TestWebuiI18n(unittest.TestCase):
                 )
                 self.assertEqual(duplicated_keys, [])
 
+    def test_secondary_locales_do_not_duplicate_english_fallback_keys(self):
+        for locale in SECONDARY_LOCALES:
+            with self.subTest(locale=locale):
+                locale_keys = set(_load_translation(locale))
+                self.assertEqual(sorted(ENGLISH_FALLBACK_KEYS & locale_keys), [])
+
     def test_secondary_locales_cover_static_webui_labels(self):
         tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
         visitor = _TrKeyVisitor()
@@ -123,7 +186,10 @@ class TestWebuiI18n(unittest.TestCase):
         for locale in SECONDARY_LOCALES:
             with self.subTest(locale=locale):
                 locale_keys = set(_load_translation(locale))
-                self.assertEqual(sorted(visitor.keys - locale_keys), [])
+                self.assertEqual(
+                    sorted(visitor.keys - locale_keys - ENGLISH_FALLBACK_KEYS),
+                    [],
+                )
 
     def test_secondary_locales_preserve_format_placeholders(self):
         en_translations = _load_translation("en")

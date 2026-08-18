@@ -35,8 +35,20 @@ class TestConfigPersistence:
         assert example_config["listen_host"] == "0.0.0.0"
         assert example_config["listen_port"] == 8080
         assert example_config["log_level"] == "DEBUG"
-        assert app_config["video_source"] in {"pexels", "pixabay", "coverr", "local"}
+        assert app_config["video_source"] in {
+            "pexels",
+            "pixabay",
+            "coverr",
+            "loomloom",
+            "local",
+        }
         assert "match_materials_to_script" in app_config
+        assert app_config["script_generation_backend"] == "local"
+        assert app_config["loomloom_api_token"] == ""
+        assert app_config["loomloom_video_run_timeout_seconds"] == 1800
+        assert "loomloom_market_listing_id" not in app_config
+        assert "loomloom_video_market_listing_id" not in app_config
+        assert app_config["shengsuanyun_api_key"] == ""
         assert example_config["whisper"]["device"] == "cpu"
 
     def test_example_config_covers_llm_provider_registry(self):
@@ -438,9 +450,7 @@ class TestConfigPersistence:
             "pending-provider_api_key": "pending-key",
             "pending-provider_model_name": "pending-model",
         }
-        original_values = {
-            key: config.app.get(key, config._MISSING) for key in keys
-        }
+        original_values = {key: config.app.get(key, config._MISSING) for key in keys}
         updates_finished = threading.Event()
 
         def queue_updates():

@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "name": "MoneyPrinterTurbo AI 视频素材",
+    "description": "为 MoneyPrinterTurbo 批量生成无字幕、无配音的短视频素材片段。",
+    "scenario": "short-video-material-generation",
+    "inputSummary": "场景描述、画面比例和场景编号",
+    "primaryOutputType": "video",
+    "tags": [
+      "MoneyPrinterTurbo",
+      "短视频",
+      "AI 视频素材"
+    ]
+  },
+  "steps": [
+    {
+      "stepId": "stp_video01",
+      "displayName": "生成视频素材",
+      "executionUnit": "video-generate",
+      "instruction": "生成可用于短视频剪辑的独立视频素材片段。不要生成字幕、文字、标题、水印、Logo 或口播音频。保持主体运动和镜头运动自然，避免突然切镜。",
+      "defaultModelRef": {
+        "modelKey": "google/veo3.1-fast-preview"
+      },
+      "staticParams": {
+        "generate_audio": "false",
+        "sample_count": "1"
+      }
+    }
+  ],
+  "inputSchema": {
+    "instructions": [
+      "每一行生成一段独立 MP4 视频素材。",
+      "场景编号用于让同一主题的多个素材保持镜头差异。"
+    ],
+    "fields": [
+      {
+        "key": "scenePrompt",
+        "label": "场景描述",
+        "description": "需要生成的视频画面、主体、动作和镜头要求",
+        "valueType": "string",
+        "required": true,
+        "order": 1,
+        "presentation": {
+          "widget": "textarea",
+          "placeholder": "例如：现代办公室中的工作人员使用 AI 助手，自然光，缓慢推进镜头"
+        }
+      },
+      {
+        "key": "aspectRatio",
+        "label": "画面比例",
+        "description": "MoneyPrinterTurbo 最终成片使用的画面比例",
+        "valueType": "enum",
+        "enumValues": [
+          "9:16",
+          "16:9"
+        ],
+        "required": true,
+        "order": 2
+      },
+      {
+        "key": "sceneIndex",
+        "label": "场景编号",
+        "description": "同一批次中从 1 开始的场景序号",
+        "valueType": "string",
+        "required": true,
+        "order": 3
+      }
+    ],
+    "sampleRows": [
+      {
+        "values": {
+          "scenePrompt": "现代办公室中的工作人员使用 AI 助手，自然光，缓慢推进镜头，无文字无水印",
+          "aspectRatio": "9:16",
+          "sceneIndex": "1"
+        }
+      }
+    ]
+  },
+  "fieldBindings": [
+    {
+      "fieldKey": "aspectRatio",
+      "stepId": "stp_video01",
+      "paramKey": "aspect_ratio",
+      "bindMode": "shared"
+    }
+  ],
+  "paramBindings": [
+    {
+      "stepId": "stp_video01",
+      "paramKey": "prompt",
+      "bindMode": "shared",
+      "separator": "\n",
+      "sources": [
+        {
+          "kind": "field_ref",
+          "fieldKey": "scenePrompt"
+        },
+        {
+          "kind": "literal",
+          "literal": "场景编号："
+        },
+        {
+          "kind": "field_ref",
+          "fieldKey": "sceneIndex"
+        }
+      ]
+    }
+  ]
+}

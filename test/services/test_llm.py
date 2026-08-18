@@ -306,6 +306,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "grok",
                 "minimax",
                 "mimo",
+                "shengsuanyun",
                 "cloudflare",
                 "modelscope",
                 "aihubmix",
@@ -325,6 +326,15 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             get_llm_provider("azure").default_label,
             "Microsoft Azure OpenAI",
+        )
+        shengsuanyun = get_llm_provider("shengsuanyun")
+        self.assertEqual(
+            shengsuanyun.api_key_url,
+            "https://www.shengsuanyun.com/?from=CH_XUQ4OTSK",
+        )
+        self.assertEqual(
+            shengsuanyun.default_model,
+            "deepseek/deepseek-v4-flash",
         )
 
     def test_provider_registry_uses_conventional_locale_and_config_keys(self):

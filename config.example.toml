@@ -21,6 +21,23 @@ listen_port = 8080
 # 是否隐藏 WebUI 基础配置面板。
 hide_config = false
 
+# Script generation backend. "local" keeps the existing LLM workflow.
+# "loomloom" uses a configured LoomLoom Market SkillBot to return multiple
+# independently generated script candidates. The WebUI integration is optional.
+script_generation_backend = "local"
+
+# LoomLoom Public API settings. The WebUI supports the public MoneyPrinterTurbo
+# SkillBot below out of the box. Configure the key in the WebUI or a private
+# config.toml, and never commit a real key. The fixed SkillBot accepts subject,
+# requirements, and candidateIndex for each row
+# and returns inline JSON {script, videoTerms} on port "output".
+loomloom_base_url = "https://loomloom.shengsuanyun.com/loom/v1"
+loomloom_api_token = ""
+loomloom_request_timeout_seconds = 30
+loomloom_poll_interval_seconds = 2
+loomloom_run_timeout_seconds = 600
+loomloom_video_run_timeout_seconds = 1800
+
 # Timeout in seconds for a single Edge TTS streaming request.
 # 单次 Edge TTS 流式请求超时时间。慢网络可适当调大，设置为 0 表示禁用超时。
 edge_tts_timeout = 30
@@ -33,7 +50,9 @@ tls_verify = true
 # Video Materials / 视频素材
 # -----------------------------------------------------------------------------
 
-# Available values: "pexels", "pixabay", "coverr", "local".
+# Available values: "pexels", "pixabay", "coverr", "loomloom", "local".
+# "loomloom" is a paid Shengsuan Cloud source and requires explicit
+# confirmation in the WebUI before each generation request.
 video_source = "pexels"
 
 # API key lists support key rotation. Use straight ASCII double quotes and
@@ -86,6 +105,12 @@ llm_provider = "moonshot"
 moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""
+
+# Shengsuan Cloud, OpenAI-compatible multi-model API.
+# API docs: https://lean.shengsuanyun.com/apidocs/api/openai-api
+shengsuanyun_api_key = ""
+shengsuanyun_base_url = ""
+shengsuanyun_model_name = ""
 
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
