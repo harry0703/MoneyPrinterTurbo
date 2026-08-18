@@ -554,6 +554,72 @@ def test_empty_or_malformed_successful_lfs_version_is_incomplete(
     assert report.lfs["error"] == "unrecognized Git LFS version output"
 
 
+@pytest.mark.parametrize("control", ["\x00", "\x01", "\x1f", "\x80", "\x9f"])
+def test_lfs_version_rejects_c0_and_c1_controls_anywhere_in_build_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    control: str,
+):
+    repo = _repo_with_one_manual_pack(tmp_path)
+    version_output = (
+        f"git-lfs/3.7.1 (GitHub; windows amd64;{control} injected)\n".encode("utf-8")
+    )
+
+    def contaminated_version(_inspector: GitInspector, args: tuple[str, ...]) -> bytes:
+        if args == ("version",):
+            return version_output
+        if args == ("ls-files", "--all", "-n"):
+            return b""
+        raise AssertionError(f"unexpected LFS arguments: {args!r}")
+
+    monkeypatch.setattr(integrity, "_run_lfs_readonly", contaminated_version)
+
+    report = audit_health_assets(GitInspector(repo), remote=None, remote_ref=None)
+
+    assert report.summary["audit_complete"] is False
+    assert report.lfs == {
+        "complete": False,
+        "version": None,
+        "tracked_paths": None,
+        "error": "unrecognized Git LFS version output",
+    }
+
+
+@pytest.mark.parametrize(
+    "version_line",
+    [
+        "git-lfs/3.7.1",
+        "git-lfs/3.7.1 (GitHub; windows amd64; go 1.25.1; git b84b3384)",
+        "git-lfs/3.7.1-rc.1+build.5 (GitHub; linux amd64; go 1.24.0)",
+    ],
+)
+def test_lfs_version_accepts_representative_printable_installed_formats(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    version_line: str,
+):
+    repo = _repo_with_one_manual_pack(tmp_path)
+
+    def printable_version(_inspector: GitInspector, args: tuple[str, ...]) -> bytes:
+        if args == ("version",):
+            return f"{version_line}\n".encode("utf-8")
+        if args == ("ls-files", "--all", "-n"):
+            return b""
+        raise AssertionError(f"unexpected LFS arguments: {args!r}")
+
+    monkeypatch.setattr(integrity, "_run_lfs_readonly", printable_version)
+
+    report = audit_health_assets(GitInspector(repo), remote=None, remote_ref=None)
+
+    assert report.summary["audit_complete"] is True
+    assert report.lfs == {
+        "complete": True,
+        "version": version_line,
+        "tracked_paths": [],
+        "error": None,
+    }
+
+
 def test_requested_remote_object_missing_locally_is_not_fetched(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

@@ -367,13 +367,18 @@ def _inspect_lfs(inspector: GitInspector) -> tuple[dict[str, Any], bool]:
         version_lines = (
             _run_lfs_readonly(inspector, ("version",)).decode("utf-8").splitlines()
         )
-        if len(version_lines) != 1 or re.fullmatch(
+        version_line = version_lines[0] if version_lines else ""
+        has_control = any(
+            ord(character) < 0x20 or 0x7F <= ord(character) <= 0x9F
+            for character in version_line
+        )
+        if len(version_lines) != 1 or has_control or re.fullmatch(
             r"git-lfs/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
             r"(?: \([^\r\n]+\))?",
-            version_lines[0] if version_lines else "",
+            version_line,
         ) is None:
             raise GitInspectionError("unrecognized Git LFS version output")
-        version = version_lines[0]
+        version = version_line
         paths_raw = _run_lfs_readonly(inspector, ("ls-files", "--all", "-n"))
         tracked_paths = [
             line.decode("utf-8", errors="strict")
