@@ -7,6 +7,7 @@ import time
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from functools import partial
 from os import path
+from typing import Any
 from uuid import uuid4
 
 from loguru import logger
@@ -16,10 +17,13 @@ from app.models import const
 from app.models.schema import VideoAspect, VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
+    asset_library,
+    asset_retrieval,
     elevenlabs_music,
     klipy,
     llm,
     material,
+    media_scout,
     photo_library,
     sonilo,
     subtitle,
@@ -698,9 +702,83 @@ def _list_photo_files(photo_dir: str) -> list[str]:
     return photo_library.list_photo_files(photo_dir)
 
 
-def _validate_photo_overlay_params(params) -> str | None:
+def _library_assets() -> list[asset_library.Asset]:
+    assets: list[asset_library.Asset] = []
+    offset = 0
+    while True:
+        page = asset_library.list_assets(limit=500, offset=offset)
+        assets.extend(page)
+        if len(page) < 500:
+            return assets
+        offset += 500
+
+
+def _missing_photo_requirements(
+    requirements: list[str], assets: list[asset_library.Asset]
+) -> list[str]:
+    available = [
+        asset
+        for asset in assets
+        if os.path.isfile(asset_library.asset_path(asset.rel_path))
+    ]
+    used_ids: set[int] = set()
+    missing: list[str] = []
+    for raw_requirement in requirements:
+        requirement = str(raw_requirement or "").strip()
+        match: asset_library.Asset | None = None
+        if requirement.startswith(asset_retrieval.REQUIRE_PATH_PREFIX):
+            wanted = (
+                os.path.normpath(
+                    requirement[len(asset_retrieval.REQUIRE_PATH_PREFIX) :]
+                )
+                .replace("\\", "/")
+                .strip("/")
+            )
+            match = next(
+                (
+                    asset
+                    for asset in available
+                    if asset.id not in used_ids
+                    and os.path.normpath(asset.rel_path).replace("\\", "/") == wanted
+                ),
+                None,
+            )
+        elif requirement.startswith(asset_retrieval.REQUIRE_TAG_PREFIX):
+            wanted = (
+                requirement[len(asset_retrieval.REQUIRE_TAG_PREFIX) :].strip().lower()
+            )
+            match = next(
+                (
+                    asset
+                    for asset in available
+                    if asset.id not in used_ids and wanted in asset.tag_names()
+                ),
+                None,
+            )
+        if match is None:
+            missing.append(requirement)
+        else:
+            used_ids.add(match.id)
+    return missing
+
+
+def _validate_photo_overlay_params(params: VideoParams) -> str | None:
     """Cheap preflight so a bad photo dir fails before LLM/TTS quota is spent."""
     if not params.photo_enabled:
+        return None
+    if asset_library.is_enabled():
+        try:
+            summary = asset_library.summary()
+            if summary.total <= 0:
+                return "photo asset library is empty"
+            requirements = list(getattr(params, "photo_require", ()) or ())
+            if requirements:
+                missing = _missing_photo_requirements(requirements, _library_assets())
+                if missing:
+                    return "required photo assets are missing: " + ", ".join(missing)
+        except Exception as error:
+            logger.warning(f"photo asset library preflight failed: {error}")
+            return f"photo asset library is unavailable: {error}"
         return None
     if not params.photo_dir:
         return "photo overlays are enabled but photo_dir is empty"
@@ -776,6 +854,10 @@ def generate_photo_overlays(
     """Pin local photos to script lines, each shown for a short fixed burst."""
     if not params.photo_enabled:
         return []
+    if asset_library.is_enabled():
+        return _generate_library_photo_overlays(
+            task_id, params, video_script, sub_maker, subtitle_path
+        )
 
     logger.info("\n\n## picking photo moments")
     themes = photo_library.discover_photo_themes(params.photo_dir)
@@ -813,6 +895,111 @@ def generate_photo_overlays(
         overlays.append({"path": photo_path, "start": window_start, "end": end})
 
     logger.success(f"prepared {len(overlays)} photo overlays")
+    return overlays
+
+
+def _select_library_assets(
+    params: VideoParams, windows: list[tuple[Any, str]]
+) -> list[asset_retrieval.Assignment]:
+    selection = asset_retrieval.select_assets(
+        params.video_subject,
+        windows,
+        amount=min(params.photo_amount, len(windows)),
+        require=params.photo_require,
+        prefer_tags=params.photo_prefer_tags,
+        only_tags=params.photo_only_tags,
+        exclude_tags=params.photo_exclude_tags,
+        app_config=config.app,
+    )
+    assignments = sorted(selection.assignments, key=lambda assignment: assignment.index)
+    if (
+        not selection.unsatisfied
+        or params.photo_only_tags
+        or not media_scout.is_enabled()
+    ):
+        return assignments
+
+    used_ids = {assignment.asset.id for assignment in assignments}
+    searches_left = max(0, media_scout.search_limit())
+    for slot in selection.unsatisfied:
+        if searches_left <= 0:
+            break
+        if slot.index is None or not slot.brief.strip():
+            continue
+        searches_left -= 1
+        downloaded = media_scout.scout_images(slot.brief, limit=1)
+        asset = next((item for item in downloaded if item.id not in used_ids), None)
+        if asset is None:
+            continue
+        assignments.append(
+            asset_retrieval.Assignment(
+                index=slot.index,
+                brief=slot.brief,
+                asset=asset,
+                verdict="scout",
+            )
+        )
+        used_ids.add(asset.id)
+    return sorted(assignments, key=lambda assignment: assignment.index)
+
+
+def _library_display_duration(
+    params: VideoParams, asset: asset_library.Asset, photo_path: str
+) -> float:
+    if asset.min_display is None:
+        base_duration = float(getattr(params, "photo_duration", 2.0) or 2.0)
+        jitter = video._deterministic_unit(f"{os.path.basename(photo_path)}:window")
+        duration = base_duration + (jitter * 2 - 1) * _PHOTO_DISPLAY_JITTER
+    else:
+        duration = float(asset.min_display)
+    return min(duration, float(params.photo_max_duration))
+
+
+def _generate_library_photo_overlays(
+    task_id: str,
+    params: VideoParams,
+    video_script: str,
+    sub_maker: Any,
+    subtitle_path: str,
+) -> list[dict]:
+    logger.info("\n\n## picking photos from asset library")
+    windows = _gif_timeline(task_id, params, video_script, sub_maker, subtitle_path)
+    if not windows:
+        return []
+
+    assignments = _select_library_assets(params, windows)
+    timeline_end = windows[-1][0][1]
+    overlays: list[dict] = []
+    for position, assignment in enumerate(assignments):
+        if assignment.index < 0 or assignment.index >= len(windows):
+            logger.warning(
+                f"photo asset assignment index is out of range: {assignment.index}"
+            )
+            continue
+        photo_path = asset_library.asset_path(assignment.asset.rel_path)
+        if not os.path.isfile(photo_path):
+            logger.warning(f"photo asset file is missing: {photo_path}")
+            continue
+        window_start = windows[assignment.index][0][0]
+        next_start = (
+            windows[assignments[position + 1].index][0][0]
+            if position + 1 < len(assignments)
+            and 0 <= assignments[position + 1].index < len(windows)
+            else timeline_end
+        )
+        duration = _library_display_duration(params, assignment.asset, photo_path)
+        end = min(window_start + duration, next_start, timeline_end)
+        if end - window_start < _PHOTO_MIN_DISPLAY:
+            continue
+        overlays.append({"path": photo_path, "start": window_start, "end": end})
+        try:
+            asset_library.record_usage(assignment.asset.id, task_id)
+        except Exception as error:
+            logger.warning(
+                f"failed to record photo asset usage {assignment.asset.id}: {error}"
+            )
+
+    logger.success(f"prepared {len(overlays)} photo overlays from asset library")
     return overlays
 
 
