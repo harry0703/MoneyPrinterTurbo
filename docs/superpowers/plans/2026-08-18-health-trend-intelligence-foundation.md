@@ -168,7 +168,8 @@ git commit -m "feat: scaffold isolated health trend intelligence"
 
 **Interfaces:**
 - Consumes: Python 3.11 and Pydantic 2.x from Task 1.
-- Produces: `BatchManifest`, `QuerySpec`, `SourceFileBinding`, `CuratedPost`, `CuratedComment`, `ApprovedCandidate`, `ApprovedExchange`, `canonical_json_bytes()`, `canonical_jsonl_bytes()`, `sha256_bytes()`, and `load_unique_json()`.
+- Produces: `BatchManifest`, `QuerySpec`, `SourceFileBinding`, `CuratedPost`, `CuratedComment`, `canonical_json_bytes()`, `canonical_jsonl_bytes()`, `sha256_bytes()`, and `load_unique_json()`.
+- Ownership boundary: Task 6 adds `ApprovedCandidate`, `ApprovedSelection`, and the `ApprovedExchangeResult` dataclass after Curated verification exists; Task 2 must not invent an earlier `ApprovedExchange` schema.
 
 - [ ] **Step 1: Write failing strict-schema tests**
 
