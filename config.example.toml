@@ -399,3 +399,57 @@ open_task_folder_on_completion = true
 # subtitle_background_enabled = false
 # subtitle_background_color = "#000000"
 # rounded_subtitle_background = false
+
+[instagram]
+# Direct Instagram Reels publishing through the private mobile API.
+#
+# This bypasses the paid upload-post.com relay: no subscription, but you are
+# responsible for the account. Instagram blocks accounts that behave like
+# bots, so the service reuses a stored session instead of logging in again
+# before every upload, and enforces its own rate limits below.
+#
+# Requires the isolated worker dependencies (instagrapi pins a Pillow version
+# that conflicts with MoviePy, so it runs in its own uv environment).
+enabled = false
+
+# Local safety limits, checked before any request is sent and counted per
+# account, never shared between them. Instagram penalties apply to the whole
+# account, so these deliberately stay below the thresholds the platform is
+# reported to tolerate (~3-5 reels per hour).
+max_uploads_per_hour = 3
+max_uploads_per_day = 10
+
+# Single account: fill in username and password here.
+username = ""
+password = ""
+
+# Only needed when the account has two-factor authentication enabled. Fill in
+# a fresh code right before running the session check, then clear it: codes
+# expire within seconds and are not reusable.
+verification_code = ""
+
+# Optional outbound proxy, e.g. "http://user:pass@host:port".
+proxy = ""
+
+# Several accounts: repeat the block below instead of the fields above, then
+# pass --account <label> when publishing. Each account keeps its own stored
+# session and its own upload quota.
+#
+# A proxy is optional and usually unnecessary: Instagram natively supports
+# several accounts per person, so a shared IP is not suspicious on its own.
+# What actually draws enforcement is the combination of automated posting,
+# a high cadence and near-identical content across accounts. Varying the
+# content matters far more than separating the egress; consider a proxy only
+# once you run four or more accounts from the same machine.
+#
+# [[instagram.accounts]]
+# label = "science"
+# username = ""
+# password = ""
+# proxy = ""
+#
+# [[instagram.accounts]]
+# label = "travel"
+# username = ""
+# password = ""
+# proxy = ""
