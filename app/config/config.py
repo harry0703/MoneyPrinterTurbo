@@ -23,6 +23,7 @@ _pending_config_save_requested = False
 _pending_config_flush_scheduled = False
 _MISSING = object()
 _DELETE = object()
+_UTF8_BOM = "\ufeff"
 
 
 class _SynchronizedConfig(dict):
@@ -419,6 +420,43 @@ def get_default_ollama_base_url() -> str:
     return f"http://{_DOCKER_HOST_GATEWAY_NAME}:11434/v1"
 
 
+def _load_toml_config(config_path: str):
+    """
+    加载 TOML，并兼容 Windows 编辑器可能写入的重复 UTF-8 BOM。
+
+    ``utf-8-sig`` 只会移除文件开头的一个 BOM。部分 Windows 编辑器或
+    解压、保存流程可能再次写入 BOM，导致第二个不可见字符进入 TOML
+    解析器并在第一行报错。这里仅在标准解析失败后做一次只读归一化，
+    不回写原文件，避免意外覆盖用户已经填写的 API Key。
+    """
+    try:
+        return toml.load(config_path)
+    except (toml.TomlDecodeError, UnicodeDecodeError) as exc:
+        logger.warning(
+            "load config failed, retry with UTF-8 BOM compatibility: "
+            f"path={config_path}, error={type(exc).__name__}: {exc}"
+        )
+
+    try:
+        with open(config_path, mode="r", encoding="utf-8-sig") as fp:
+            config_content = fp.read()
+
+        normalized_content = config_content.lstrip(_UTF8_BOM)
+        removed_bom_count = len(config_content) - len(normalized_content)
+        if removed_bom_count:
+            logger.warning(
+                "removed repeated UTF-8 BOM characters while loading config: "
+                f"path={config_path}, count={removed_bom_count}"
+            )
+        return toml.loads(normalized_content)
+    except (toml.TomlDecodeError, UnicodeDecodeError) as exc:
+        logger.error(
+            "config file is not valid TOML after UTF-8 BOM normalization: "
+            f"path={config_path}, error={type(exc).__name__}: {exc}"
+        )
+        raise
+
+
 def load_config():
     # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurbo/config.toml'
     if os.path.isdir(config_file):
@@ -432,14 +470,7 @@ def load_config():
 
     logger.info(f"load config from file: {config_file}")
 
-    try:
-        _config_ = toml.load(config_file)
-    except Exception as e:
-        logger.warning(f"load config failed: {str(e)}, try to load as utf-8-sig")
-        with open(config_file, mode="r", encoding="utf-8-sig") as fp:
-            _cfg_content = fp.read()
-            _config_ = toml.loads(_cfg_content)
-    return _config_
+    return _load_toml_config(config_file)
 
 
 def save_config():
