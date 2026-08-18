@@ -353,8 +353,8 @@ Expected: FAIL because `DataLayout` and registration do not exist.
 2. Accept only UTF-8 JSONL files declared as `dy/xhs` and `posts/comments`.
 3. Reject file names/keys matching `cookie|token|secret|phone|mobile|profile|proxy|media|video|image|audio` case-insensitively.
 4. Copy each source with exclusive create into `raw/<batch-id>/inputs/`, fsync it, then bind relative path/bytes/SHA-256/line count.
-5. Write `query-manifest.json`, then `batch-manifest.json` last; never rewrite an existing batch.
-6. Re-open and verify every byte before returning.
+5. Compute the final canonical batch-manifest digest, write it once with exclusive create to `raw/.registry/<batch-id>.sha256`, then write `batch-manifest.json` last inside the batch; never rewrite either file or an existing batch.
+6. Re-open and verify every byte plus the registry-bound manifest digest before returning. This detects partial writes, accidental changes and single-file manifest tampering; it does not claim to resist a local administrator who deliberately rewrites both the batch and its registry.
 
 `build_retention_report()` returns entries older than 30 days but never deletes them. Add CLI commands:
 
