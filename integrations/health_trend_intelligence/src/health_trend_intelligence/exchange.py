@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import html
+import ipaddress
 import os
 import re
+import stat
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -70,12 +72,103 @@ _ALLOWED_KEYS = frozenset().union(
     _SELECTION_FIELDS,
     {"both", "dy", "high", "low", "medium", "xhs"},
 )
-_URL = re.compile(r"(?:https?|hxxps?)//|www\.|wwwdot", re.IGNORECASE)
-_DOMAIN = re.compile(
-    r"\b[a-z0-9-]{2,}\s*(?:\.|\[\.\]|\(\.\)|dot)\s*(?:cn|co|com|io|net|org)\b",
+_APPROVED_TEXT_SCAN_VERSION = "approved_text_scan.v2"
+_UNICODE_DOMAIN_DOTS = str.maketrans({"。": ".", "．": ".", "｡": "."})
+_CONFUSABLE_ASCII = str.maketrans(
+    {
+        "Α": "a",
+        "Β": "b",
+        "Ε": "e",
+        "Ι": "i",
+        "Κ": "k",
+        "Ο": "o",
+        "Ρ": "p",
+        "Τ": "t",
+        "Υ": "y",
+        "Χ": "x",
+        "α": "a",
+        "β": "b",
+        "ε": "e",
+        "ι": "i",
+        "κ": "k",
+        "ο": "o",
+        "ρ": "p",
+        "τ": "t",
+        "υ": "y",
+        "χ": "x",
+        "А": "a",
+        "В": "b",
+        "Е": "e",
+        "К": "k",
+        "М": "m",
+        "Н": "h",
+        "О": "o",
+        "Р": "p",
+        "С": "c",
+        "Т": "t",
+        "Х": "x",
+        "а": "a",
+        "в": "b",
+        "е": "e",
+        "і": "i",
+        "ј": "j",
+        "к": "k",
+        "м": "m",
+        "н": "h",
+        "о": "o",
+        "р": "p",
+        "с": "c",
+        "т": "t",
+        "у": "y",
+        "х": "x",
+    }
+)
+_URI_WITH_AUTHORITY = re.compile(r"(?<![\w])(?:[a-z][a-z0-9+.-]{0,31}):[\\/]{1,2}")
+_ANY_URI_SCHEME = re.compile(r"(?<![\w])(?:[a-z][a-z0-9+.-]{0,31})\s*:")
+_URI_WITHOUT_AUTHORITY = re.compile(r"(?<![\w])(?:data|file|magnet|mailto|sms|tel|urn):")
+_COMPACT_URI = re.compile(r"(?:[a-z][a-z0-9+.-]{0,31})[\\/]{2}")
+_DOMAIN_CANDIDATE = re.compile(r"(?<![\w-])(?:[\w-]{1,63}\.)+[\w-]{2,63}(?![\w-])")
+_IP_CANDIDATE = re.compile(
+    r"(?<![\w])(?:\[[0-9a-f:.%]+\]|(?:\d{1,3}\.){3}\d{1,3}|[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,})(?![\w])",
     re.IGNORECASE,
 )
-_COMPACT_DOMAIN = re.compile(r"[a-z0-9-]{2,}(?:dot|\.)(?:cn|co|com|io|net|org)\b")
+_SENSITIVE_COMPACT_LABELS = (
+    "accesstoken",
+    "apikey",
+    "authorization",
+    "audio",
+    "avatar",
+    "bearer",
+    "cookie",
+    "credential",
+    "identity",
+    "image",
+    "media",
+    "nickname",
+    "openid",
+    "password",
+    "rawuserid",
+    "refreshtoken",
+    "secuid",
+    "session",
+    "sourceurl",
+    "token",
+    "userid",
+    "video",
+    "xsectoken",
+)
+_DECLARED_SAFE_TEXT_VALUES = frozenset(
+    {
+        "approved",
+        "bundle-manifest.json",
+        "evidence-summary.json",
+        "health_trend_evidence_summary.v1",
+        "health_trend_exchange.v1",
+        "health_trend_selection.v1",
+        "top10.json",
+        "v01",
+    }
+)
 _RAW_PATH = re.compile(r"(?:^|[\\/])(?:raw|curated)(?:[\\/]|$)", re.IGNORECASE)
 _IDENTITY_OR_MEDIA = re.compile(
     r"\b(?:avatar|bearer|cookie|credential|identifier|media|nickname|source[_ -]?url|token|url|user[_ -]?id|video|audio|image|id)\b",
@@ -91,6 +184,14 @@ _MEDICAL_CLAIM = re.compile(
     r"(?:一定|保证|必然|可以|能够).{0,16}(?:治愈|根治|确诊|治疗|预防疾病)"
     r"|包治|药到病除|经医学证实|医学事实"
 )
+_MEDICAL_CONTEXT = re.compile(
+    r"患者|高血压|糖尿病|疾病|感冒|癌|肿瘤|血压|血糖|维生素|药物?|症状|诊断|医学|心脏|肝脏?|肾脏?"
+)
+_MEDICAL_ASSERTION = re.compile(
+    r"应该|应当|建议|需要|必须|预防|治疗|治愈|根治|改善|缓解|降低|升高|减少|增加|导致|引起|有效|疗效|有助于|能够|可以|能"
+)
+_QUESTION_MARKERS = re.compile(r"[?？]\s*\Z|是否|吗\s*[?？]?$|为什么|怎么|如何")
+_MEDICAL_UNVERIFIED_FLAG = "medical_claim_unverified"
 
 
 class ExchangeError(ValueError):
@@ -120,6 +221,49 @@ class ApprovedExchangeResult:
     input_curated_manifest_sha256: str
 
 
+@dataclass(frozen=True, slots=True)
+class _FileIdentity:
+    device: int
+    inode: int
+    size: int
+    modified_ns: int
+    changed_ns: int
+
+
+@dataclass(frozen=True, slots=True)
+class _DirectoryIdentity:
+    device: int
+    inode: int
+
+
+def _file_identity(status: os.stat_result) -> _FileIdentity:
+    return _FileIdentity(
+        device=status.st_dev,
+        inode=status.st_ino,
+        size=status.st_size,
+        modified_ns=status.st_mtime_ns,
+        changed_ns=status.st_ctime_ns,
+    )
+
+
+def _directory_identity(status: os.stat_result) -> _DirectoryIdentity:
+    return _DirectoryIdentity(device=status.st_dev, inode=status.st_ino)
+
+
+def _is_reparse(status: os.stat_result) -> bool:
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return stat.S_ISLNK(status.st_mode) or bool(
+        getattr(status, "st_file_attributes", 0) & reparse_flag
+    )
+
+
+def _opened_file_status(stream: Any, path: Path) -> os.stat_result:
+    """Return status for the already-open handle; ``path`` is for testable binding context."""
+
+    del path
+    return os.fstat(stream.fileno())
+
+
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
@@ -127,12 +271,25 @@ def _sha256(payload: bytes) -> str:
 def _read_stable_bytes(path: Path) -> bytes:
     try:
         assert_safe_regular_file(path)
-        first = path.read_bytes()
+        path_before = path.lstat()
+        with path.open("rb") as stream:
+            opened_before = _opened_file_status(stream, path)
+            first = stream.read()
+            stream.seek(0)
+            second = stream.read()
+            opened_after = _opened_file_status(stream, path)
         assert_safe_regular_file(path)
-        second = path.read_bytes()
+        path_after = path.lstat()
     except (OSError, PathSafetyError) as error:
         raise ExchangeError("input_unavailable") from error
-    if first != second or _sha256(first) != _sha256(second):
+    statuses = (path_before, opened_before, opened_after, path_after)
+    if (
+        any(_is_reparse(status) or not stat.S_ISREG(status.st_mode) for status in statuses)
+        or len({_file_identity(status) for status in statuses}) != 1
+        or len(first) != opened_before.st_size
+        or first != second
+        or _sha256(first) != _sha256(second)
+    ):
         raise ExchangeError("input_changed")
     return first
 
@@ -157,37 +314,111 @@ def _load_canonical_value(payload: bytes, reason_code: str) -> Any:
     return value
 
 
-def _decoded_text(value: str) -> str:
+def _normalize_approved_text_v2(value: str) -> str:
+    """Apply the versioned fail-closed normalization used by both build and verify."""
+
+    if _APPROVED_TEXT_SCAN_VERSION != "approved_text_scan.v2":
+        raise ExchangeError("approved_text_scan_version_invalid")
     decoded = unicodedata.normalize("NFKC", html.unescape(value)).casefold()
     for _ in range(3):
         expanded = unquote(decoded)
         if expanded == decoded:
             break
         decoded = expanded
-    return "".join(
+    without_controls = "".join(
         character
         for character in decoded
         if not unicodedata.category(character).startswith("C")
     )
+    return without_controls.translate(_UNICODE_DOMAIN_DOTS).translate(_CONFUSABLE_ASCII)
+
+
+def _contains_ip_address(value: str) -> bool:
+    for match in _IP_CANDIDATE.finditer(value):
+        candidate = match.group(0).strip("[]")
+        candidate = candidate.split("%", 1)[0]
+        try:
+            ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        return True
+    return False
+
+
+def _contains_domain(value: str) -> bool:
+    dotted = re.sub(r"\s*(?:\[\s*dot\s*\]|\(\s*dot\s*\)|\bdot\b)\s*", ".", value)
+    for match in _DOMAIN_CANDIDATE.finditer(dotted):
+        labels = match.group(0).split(".")
+        if labels[-1].isdigit() or not any(character.isalpha() for character in labels[-1]):
+            continue
+        try:
+            encoded = [label.encode("idna").decode("ascii") for label in labels]
+        except UnicodeError:
+            continue
+        if all(label and len(label) <= 63 for label in encoded):
+            return True
+    return False
+
+
+def _security_compact(value: str) -> str:
+    return "".join(character for character in value if character.isalnum())
 
 
 def _assert_safe_text(value: str) -> None:
-    if value == APPROVED_DISCLAIMER:
+    if value == APPROVED_DISCLAIMER or value in _DECLARED_SAFE_TEXT_VALUES:
         return
-    decoded = _decoded_text(value)
-    compact = re.sub(r"[\s\[\](){}<>:'\"`]+", "", decoded)
+    decoded = _normalize_approved_text_v2(value)
+    compact_uri = re.sub(r"[\s\[\](){}<>:'\"`]+", "", decoded)
+    compact_security = _security_compact(decoded)
     if (
-        _URL.search(compact)
-        or _DOMAIN.search(decoded)
-        or _COMPACT_DOMAIN.search(compact)
+        _URI_WITH_AUTHORITY.search(decoded)
+        or _ANY_URI_SCHEME.search(decoded)
+        or re.search(r":\s*[\\/]\s*[\\/]", decoded)
+        or _URI_WITHOUT_AUTHORITY.search(decoded)
+        or _COMPACT_URI.search(compact_uri)
+        or _contains_ip_address(decoded)
+        or _contains_domain(decoded)
+        or any(label in compact_security for label in _SENSITIVE_COMPACT_LABELS)
         or _RAW_PATH.search(decoded)
         or _IDENTITY_OR_MEDIA.search(decoded)
         or _MEDIA_EXTENSION.search(decoded)
         or _RAW_EXCERPT.search(decoded)
         or _CHINESE_RESTRICTED.search(decoded)
-        or _MEDICAL_CLAIM.search(decoded)
     ):
         raise ExchangeError("restricted_approved_content")
+
+
+def _is_unverified_medical_statement(value: str) -> bool:
+    decoded = _normalize_approved_text_v2(value)
+    if _QUESTION_MARKERS.search(decoded):
+        return False
+    return bool(
+        _MEDICAL_CLAIM.search(decoded)
+        or (_MEDICAL_CONTEXT.search(decoded) and _MEDICAL_ASSERTION.search(decoded))
+    )
+
+
+def _assert_medical_risk_marking(candidates: tuple[ApprovedCandidate, ...]) -> None:
+    statement_fields = (
+        "topic",
+        "growth_evidence",
+        "user_questions",
+        "user_needs",
+        "misunderstandings",
+        "objections",
+        "homogeneity_pattern",
+        "narrative_gap",
+        "original_visual_direction",
+    )
+    for candidate in candidates:
+        statements: list[str] = []
+        for field in statement_fields:
+            value = getattr(candidate, field)
+            statements.extend(value if isinstance(value, tuple) else (value,))
+        if any(_is_unverified_medical_statement(statement) for statement in statements) and (
+            _MEDICAL_UNVERIFIED_FLAG not in candidate.risk_flags
+        ):
+            raise ExchangeError("medical_claim_unverified")
 
 
 def _assert_approved_content(payload: object) -> None:
@@ -220,12 +451,65 @@ def _assert_approved_content(payload: object) -> None:
     scan(payload)
 
 
-def _exclusive_write(path: Path, payload: bytes) -> None:
+def _capture_directory_identity(path: Path) -> _DirectoryIdentity:
     try:
+        assert_safe_directory(path)
+        status = path.lstat()
+    except (OSError, PathSafetyError) as error:
+        raise ExchangeError("write_boundary_invalid") from error
+    if _is_reparse(status) or not stat.S_ISDIR(status.st_mode):
+        raise ExchangeError("write_boundary_invalid")
+    return _directory_identity(status)
+
+
+def _assert_directory_identity(path: Path, expected: _DirectoryIdentity) -> None:
+    if _capture_directory_identity(path) != expected:
+        raise ExchangeError("write_boundary_changed")
+
+
+def _assert_write_boundary(
+    approved: Path,
+    work: Path,
+    approved_identity: _DirectoryIdentity,
+    work_identity: _DirectoryIdentity,
+) -> None:
+    _assert_directory_identity(approved, approved_identity)
+    _assert_directory_identity(work, work_identity)
+
+
+def _exclusive_write(
+    path: Path,
+    payload: bytes,
+    *,
+    approved: Path,
+    work: Path,
+    approved_identity: _DirectoryIdentity,
+    work_identity: _DirectoryIdentity,
+) -> None:
+    try:
+        _assert_write_boundary(approved, work, approved_identity, work_identity)
         with path.open("xb") as output:
+            opened_before = _opened_file_status(output, path)
+            if _is_reparse(opened_before) or not stat.S_ISREG(opened_before.st_mode):
+                raise ExchangeError("write_target_invalid")
+            _assert_write_boundary(approved, work, approved_identity, work_identity)
+            assert_safe_regular_file(path)
+            path_before = path.lstat()
+            if _directory_identity(path_before) != _directory_identity(opened_before):
+                raise ExchangeError("write_target_changed")
             output.write(payload)
             output.flush()
             os.fsync(output.fileno())
+            opened_after = _opened_file_status(output, path)
+        _assert_write_boundary(approved, work, approved_identity, work_identity)
+        assert_safe_regular_file(path)
+        path_after = path.lstat()
+        if (
+            _directory_identity(opened_before) != _directory_identity(opened_after)
+            or _file_identity(opened_after) != _file_identity(path_after)
+            or opened_after.st_size != len(payload)
+        ):
+            raise ExchangeError("write_target_changed")
     except FileExistsError as error:
         raise ExchangeError("destination_conflict") from error
     except OSError as error:
@@ -320,6 +604,7 @@ def _selection_from_payload(payload: bytes) -> ApprovedSelection:
     except ValidationError as error:
         raise ExchangeError("selection_invalid") from error
     _assert_approved_content(selection.model_dump(mode="json"))
+    _assert_medical_risk_marking(selection.candidates)
     return selection
 
 
@@ -352,12 +637,15 @@ def build_approved_exchange(
     work = layout.approved / f"{batch_id}.work"
     if os.path.lexists(destination) or os.path.lexists(work):
         raise ExchangeError("destination_conflict")
+    approved_identity = _capture_directory_identity(layout.approved)
     try:
         work.mkdir()
     except FileExistsError as error:
         raise ExchangeError("destination_conflict") from error
     except OSError as error:
         raise ExchangeError("write_failed") from error
+    _assert_directory_identity(layout.approved, approved_identity)
+    work_identity = _capture_directory_identity(work)
 
     candidates = tuple(sorted(selection.candidates, key=lambda candidate: candidate.rank))
     top10_value = [candidate.model_dump(mode="json") for candidate in candidates]
@@ -366,8 +654,14 @@ def build_approved_exchange(
     _assert_approved_content(summary_value)
     top10_payload = canonical_json_bytes(top10_value)
     summary_payload = canonical_json_bytes(summary_value)
-    _exclusive_write(work / "top10.json", top10_payload)
-    _exclusive_write(work / "evidence-summary.json", summary_payload)
+    write_boundary = {
+        "approved": layout.approved,
+        "work": work,
+        "approved_identity": approved_identity,
+        "work_identity": work_identity,
+    }
+    _exclusive_write(work / "top10.json", top10_payload, **write_boundary)
+    _exclusive_write(work / "evidence-summary.json", summary_payload, **write_boundary)
 
     _assert_inputs_unchanged(
         layout,
@@ -393,7 +687,7 @@ def build_approved_exchange(
     }
     manifest_payload = canonical_json_bytes(manifest_value)
     work_manifest = work / "bundle-manifest.json"
-    _exclusive_write(work_manifest, manifest_payload)
+    _exclusive_write(work_manifest, manifest_payload, **write_boundary)
     manifest_sha256 = _sha256(manifest_payload)
     published = False
     try:
@@ -407,8 +701,16 @@ def build_approved_exchange(
         )
         if os.path.lexists(destination):
             raise ExchangeError("destination_conflict")
+        _assert_write_boundary(
+            layout.approved,
+            work,
+            approved_identity,
+            work_identity,
+        )
         work.rename(destination)
         published = True
+        _assert_directory_identity(layout.approved, approved_identity)
+        _assert_directory_identity(destination, work_identity)
         return verify_approved_exchange(destination, manifest_sha256)
     except OSError as error:
         _remove_completion_marker(work_manifest)
@@ -428,7 +730,8 @@ def _validate_manifest(value: dict[str, Any]) -> None:
         value.get("schema") != "health_trend_exchange.v1"
         or value.get("version") != "v01"
         or value.get("human_selection_status") != "approved"
-        or value.get("candidate_count") != 10
+        or type(value.get("candidate_count")) is not int
+        or value["candidate_count"] != 10
         or value.get("disclaimer") != APPROVED_DISCLAIMER
         or not isinstance(value.get("batch_id"), str)
         or _BATCH_ID.fullmatch(value["batch_id"]) is None
@@ -452,13 +755,70 @@ def _validate_manifest(value: dict[str, Any]) -> None:
             raise ExchangeError("manifest_files_invalid")
         if (
             binding.get("relative_path") != expected_name
-            or isinstance(binding.get("bytes"), bool)
-            or not isinstance(binding.get("bytes"), int)
+            or type(binding.get("bytes")) is not int
             or binding["bytes"] < 0
             or not isinstance(binding.get("sha256"), str)
             or _SHA256.fullmatch(binding["sha256"]) is None
         ):
             raise ExchangeError("manifest_files_invalid")
+
+
+def _require_count(value: object, *, minimum: int = 0, maximum: int | None = None) -> int:
+    if type(value) is not int or value < minimum or (maximum is not None and value > maximum):
+        raise ExchangeError("summary_count_invalid")
+    return value
+
+
+def _validate_summary_schema(value: dict[str, Any]) -> None:
+    if set(value) != _SUMMARY_FIELDS:
+        raise ExchangeError("summary_fields_invalid")
+    if (
+        value.get("schema") != "health_trend_evidence_summary.v1"
+        or not isinstance(value.get("batch_id"), str)
+        or _BATCH_ID.fullmatch(value["batch_id"]) is None
+        or _require_count(value.get("candidate_count"), maximum=10) != 10
+    ):
+        raise ExchangeError("summary_invalid")
+
+    platform = value.get("platform_coverage")
+    if not isinstance(platform, dict) or set(platform) != {"both", "dy", "xhs"}:
+        raise ExchangeError("summary_platform_invalid")
+    dy = _require_count(platform["dy"], maximum=10)
+    xhs = _require_count(platform["xhs"], maximum=10)
+    both = _require_count(platform["both"], maximum=10)
+    if both > min(dy, xhs) or dy + xhs - both != 10:
+        raise ExchangeError("summary_platform_invalid")
+
+    confidence = value.get("confidence_counts")
+    if not isinstance(confidence, dict) or set(confidence) != {"high", "low", "medium"}:
+        raise ExchangeError("summary_confidence_invalid")
+    confidence_counts = [_require_count(confidence[level], maximum=10) for level in confidence]
+    if sum(confidence_counts) != 10:
+        raise ExchangeError("summary_confidence_invalid")
+
+    evidence = value.get("evidence_item_counts")
+    expected_evidence = {
+        "growth_evidence",
+        "misunderstandings",
+        "objections",
+        "user_needs",
+        "user_questions",
+    }
+    if not isinstance(evidence, dict) or set(evidence) != expected_evidence:
+        raise ExchangeError("summary_evidence_invalid")
+    for field in expected_evidence:
+        _require_count(evidence[field], minimum=10)
+
+    risk_candidates = _require_count(
+        value.get("risk_flagged_candidate_count"), maximum=10
+    )
+    risk_items = _require_count(value.get("risk_flag_item_count"))
+    missing_candidates = _require_count(
+        value.get("missing_data_candidate_count"), maximum=10
+    )
+    missing_items = _require_count(value.get("missing_data_item_count"))
+    if risk_items < risk_candidates or missing_items < missing_candidates:
+        raise ExchangeError("summary_count_invalid")
 
 
 def verify_approved_exchange(
@@ -530,9 +890,11 @@ def _verify_approved_exchange(
         raise ExchangeError("top10_order_invalid")
 
     summary = _load_canonical_object(payloads["evidence-summary.json"], "summary_noncanonical")
-    if set(summary) != _SUMMARY_FIELDS or summary != _summary_value(manifest["batch_id"], candidates):
+    _validate_summary_schema(summary)
+    if summary != _summary_value(manifest["batch_id"], candidates):
         raise ExchangeError("summary_invalid")
     _assert_approved_content(top10)
+    _assert_medical_risk_marking(candidates)
     _assert_approved_content(summary)
     _assert_approved_content(manifest)
     if _directory_names(approved_path) != _EXPECTED_FILES:

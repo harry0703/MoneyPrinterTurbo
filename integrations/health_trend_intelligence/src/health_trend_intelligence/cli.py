@@ -221,7 +221,10 @@ def build_approved(
         batch_id,
         lambda: build_approved_exchange(DataLayout.from_root(root), batch_id, selection),
     )
-    typer.echo(f"built-approved {result.batch_id} candidates={result.candidate_count}")
+    typer.echo(
+        f"built-approved {result.batch_id} candidates={result.candidate_count} "
+        "provenance=unanchored local-consistency-only content=not-medically-verified"
+    )
 
 
 @app.command("verify-approved")
@@ -235,4 +238,12 @@ def verify_approved(
         batch_id,
         lambda: verify_approved_exchange(path, expected_manifest_sha256),
     )
-    typer.echo(f"verified-approved {result.batch_id} candidates={result.candidate_count}")
+    provenance = (
+        "provenance=anchored"
+        if expected_manifest_sha256 is not None
+        else "provenance=unanchored local-consistency-only"
+    )
+    typer.echo(
+        f"verified-approved {result.batch_id} candidates={result.candidate_count} "
+        f"{provenance} content=not-medically-verified"
+    )

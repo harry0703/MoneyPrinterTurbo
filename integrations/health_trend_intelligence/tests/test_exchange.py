@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -127,6 +128,18 @@ def _write_selection(root: Path, value: dict[str, object], name: str = "selectio
     return path
 
 
+def _rebind_payload(result, name: str, value: object) -> None:
+    payload = canonical_json_bytes(value)
+    (result.path / name).write_bytes(payload)
+    manifest_path = result.path / "bundle-manifest.json"
+    manifest = load_unique_json(manifest_path.read_bytes())
+    for binding in manifest["files"]:
+        if binding["relative_path"] == name:
+            binding["bytes"] = len(payload)
+            binding["sha256"] = hashlib.sha256(payload).hexdigest()
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+
+
 def _build_valid_exchange(root: Path):
     layout, manifest_sha256 = _curated_layout(root)
     selection = _selection_path(root, manifest_sha256)
@@ -203,6 +216,17 @@ def test_selection_rejects_duplicate_or_incomplete_coverage(mutation: str) -> No
         ("growth_evidence", "h t t p s : / / example dot com / source"),
         ("growth_evidence", "h\u200bt\u200bt\u200bp\u200bs://10.0.0.1/source"),
         ("growth_evidence", "example [dot] com / source"),
+        ("growth_evidence", "ftp://10.0.0.1/source"),
+        ("growth_evidence", "example.dev/source"),
+        ("growth_evidence", "httрs://example。com/source"),
+        ("growth_evidence", "xsec＿token=supersecret"),
+        ("growth_evidence", "access-token=supersecret"),
+        ("growth_evidence", "coo\u2028kie=value"),
+        ("growth_evidence", "me＿dia=value"),
+        ("growth_evidence", "custom-scheme:opaque-value"),
+        ("growth_evidence", "custom+hti://[2001:db8::1]/source"),
+        ("growth_evidence", "例子.健康/source"),
+        ("growth_evidence", "avatar value"),
         ("user_questions", r"raw\HTI-20260818-01\posts.jsonl"),
         ("risk_flags", "待核对 nickname 字段"),
         ("missing_data", "clip.mp4 素材待补"),
@@ -241,6 +265,43 @@ def test_invalid_or_noncanonical_selection_fails_before_destination_creation(tmp
     selection.write_text('{"schema":"health_trend_selection.v1", "schema":"duplicate"}')
     with pytest.raises(ExchangeError):
         build_approved_exchange(layout, BATCH_ID, selection)
+    assert not (layout.approved / BATCH_ID).exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("growth_evidence", []),
+        ("user_questions", []),
+        ("user_needs", []),
+        ("misunderstandings", []),
+        ("objections", []),
+        ("growth_evidence", ["NaN"]),
+        ("growth_evidence", ["Ｎ／Ａ"]),
+        ("growth_evidence", ["N - A"]),
+        ("growth_evidence", ["N.A."]),
+        ("growth_evidence", ["not applicable"]),
+        ("growth_evidence", [" null "]),
+        ("growth_evidence", ["NONE"]),
+        ("growth_evidence", ["unknown"]),
+        ("growth_evidence", ["未知"]),
+        ("growth_evidence", ["不详"]),
+        ("growth_evidence", ["暂无"]),
+    ],
+)
+def test_required_evidence_rejects_empty_or_missing_sentinels_before_publication(
+    tmp_path: Path, field: str, invalid: list[str]
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    candidates[0][field] = invalid
+
+    with pytest.raises(ExchangeError):
+        build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
+
     assert not (layout.approved / BATCH_ID).exists()
 
 
@@ -374,6 +435,120 @@ def test_verifier_rejects_semantic_leak_even_when_hashes_are_rebound(tmp_path: P
         verify_approved_exchange(result.path)
 
 
+@pytest.mark.parametrize(
+    "unsafe",
+    [
+        "ftp://10.0.0.1/source",
+        "example.dev/source",
+        "httрs://example。com/source",
+        "xsec＿token=supersecret",
+        "coo\u2028kie=value",
+        "me＿dia=value",
+        "custom-scheme:opaque-value",
+        "custom+hti://[2001:db8::1]/source",
+        "例子.健康/source",
+        "access token=supersecret",
+        "avatar value",
+    ],
+)
+def test_verifier_rejects_review_leaks_after_semantically_rebound_hashes(
+    tmp_path: Path, unsafe: str
+) -> None:
+    result = _build_valid_exchange(tmp_path / "root")
+    top10 = load_unique_json((result.path / "top10.json").read_bytes())
+    top10[0]["growth_evidence"] = [unsafe]
+    _rebind_payload(result, "top10.json", top10)
+
+    with pytest.raises(ExchangeError) as captured:
+        verify_approved_exchange(result.path)
+
+    assert unsafe not in str(captured.value)
+
+
+@pytest.mark.parametrize("candidate_count", [10.0, True])
+def test_manifest_rejects_non_integer_candidate_count(
+    tmp_path: Path, candidate_count: object
+) -> None:
+    result = _build_valid_exchange(tmp_path / "root")
+    manifest_path = result.path / "bundle-manifest.json"
+    manifest = load_unique_json(manifest_path.read_bytes())
+    manifest["candidate_count"] = candidate_count
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+
+    with pytest.raises(ExchangeError):
+        verify_approved_exchange(result.path)
+
+
+@pytest.mark.parametrize("invalid_count", [4.0, True, -1])
+def test_summary_rejects_non_integer_or_negative_counts(
+    tmp_path: Path, invalid_count: object
+) -> None:
+    result = _build_valid_exchange(tmp_path / "root")
+    summary = load_unique_json((result.path / "evidence-summary.json").read_bytes())
+    summary["confidence_counts"]["high"] = invalid_count
+    _rebind_payload(result, "evidence-summary.json", summary)
+
+    with pytest.raises(ExchangeError):
+        verify_approved_exchange(result.path)
+
+
+@pytest.mark.parametrize("invalid_bytes", [1.0, True, -1])
+def test_manifest_binding_rejects_non_integer_or_negative_bytes(
+    tmp_path: Path, invalid_bytes: object
+) -> None:
+    result = _build_valid_exchange(tmp_path / "root")
+    manifest_path = result.path / "bundle-manifest.json"
+    manifest = load_unique_json(manifest_path.read_bytes())
+    manifest["files"][0]["bytes"] = invalid_bytes
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+
+    with pytest.raises(ExchangeError):
+        verify_approved_exchange(result.path)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    ["高血压患者应该减少盐摄入", "维生素C预防感冒"],
+)
+def test_unverified_medical_statement_requires_standard_risk_flag(
+    tmp_path: Path, statement: str
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    candidates[0]["narrative_gap"] = statement
+    candidates[0]["risk_flags"] = []
+
+    with pytest.raises(ExchangeError):
+        build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
+
+    assert not (layout.approved / BATCH_ID).exists()
+
+
+@pytest.mark.parametrize(
+    "statement",
+    ["高血压患者应该减少盐摄入", "维生素C预防感冒"],
+)
+def test_standard_risk_flag_allows_unverified_statement_with_disclaimer(
+    tmp_path: Path, statement: str
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    candidates[0]["narrative_gap"] = statement
+    candidates[0]["risk_flags"] = ["medical_claim_unverified"]
+    result = build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
+
+    verified = verify_approved_exchange(result.path, result.manifest_sha256)
+    top10 = load_unique_json((result.path / "top10.json").read_bytes())
+    assert verified.candidate_count == 10
+    assert top10[0]["disclaimer"] == "该包只是选题情报，不是医学事实来源或可直接发布的脚本。"
+
+
 def test_existing_destination_is_never_overwritten(tmp_path: Path) -> None:
     root = tmp_path / "root"
     layout, curated_sha256 = _curated_layout(root)
@@ -399,9 +574,9 @@ def test_selection_change_during_build_never_publishes(
     original_write = exchange._exclusive_write
     changed = False
 
-    def mutate_after_first_write(path: Path, payload: bytes) -> None:
+    def mutate_after_first_write(path: Path, payload: bytes, **kwargs) -> None:
         nonlocal changed
-        original_write(path, payload)
+        original_write(path, payload, **kwargs)
         if not changed:
             changed = True
             value = load_unique_json(selection.read_bytes())
@@ -426,9 +601,9 @@ def test_change_after_manifest_write_leaves_no_consumable_work_package(
     original_write = exchange._exclusive_write
     writes = 0
 
-    def mutate_after_manifest(path: Path, payload: bytes) -> None:
+    def mutate_after_manifest(path: Path, payload: bytes, **kwargs) -> None:
         nonlocal writes
-        original_write(path, payload)
+        original_write(path, payload, **kwargs)
         writes += 1
         if writes == 3:
             value = load_unique_json(selection.read_bytes())
@@ -468,6 +643,101 @@ def test_verifier_rechecks_payload_bytes_after_semantic_validation(
         verify_approved_exchange(result.path)
 
 
+def test_selection_replacement_during_open_handle_read_fails_before_work_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import health_trend_intelligence.exchange as exchange
+
+    root = tmp_path / "root"
+    layout, curated_sha256 = _curated_layout(root)
+    selection = _selection_path(root, curated_sha256)
+    original = exchange._opened_file_status
+    replaced = False
+
+    def replace_after_open(stream, path: Path):
+        nonlocal replaced
+        status = original(stream, path)
+        if path == selection and not replaced:
+            replaced = True
+            moved = selection.with_suffix(".moved")
+            selection.rename(moved)
+            selection.write_bytes(moved.read_bytes())
+        return status
+
+    monkeypatch.setattr(exchange, "_opened_file_status", replace_after_open)
+    with pytest.raises(ExchangeError):
+        build_approved_exchange(layout, BATCH_ID, selection)
+
+    assert not (layout.approved / f"{BATCH_ID}.work").exists()
+
+
+def test_work_reparse_after_validation_receives_no_payload_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import health_trend_intelligence.exchange as exchange
+
+    root = tmp_path / "root"
+    layout, curated_sha256 = _curated_layout(root)
+    selection = _selection_path(root, curated_sha256)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    original = exchange._assert_write_boundary
+    replaced = False
+
+    def replace_after_first_check(*args, **kwargs):
+        nonlocal replaced
+        result = original(*args, **kwargs)
+        if not replaced:
+            work = layout.approved / f"{BATCH_ID}.work"
+            work.rmdir()
+            try:
+                os.symlink(outside, work, target_is_directory=True)
+            except OSError as error:
+                if getattr(error, "winerror", None) == 1314:
+                    pytest.skip("current account cannot create directory symlinks")
+                raise
+            replaced = True
+        return result
+
+    monkeypatch.setattr(exchange, "_assert_write_boundary", replace_after_first_check)
+    with pytest.raises(ExchangeError):
+        build_approved_exchange(layout, BATCH_ID, selection)
+
+    outside_payload = outside / "top10.json"
+    assert not outside_payload.exists() or outside_payload.read_bytes() == b""
+
+
+def test_work_directory_identity_replacement_receives_no_payload_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import health_trend_intelligence.exchange as exchange
+
+    root = tmp_path / "root"
+    layout, curated_sha256 = _curated_layout(root)
+    selection = _selection_path(root, curated_sha256)
+    original = exchange._assert_write_boundary
+    replaced = False
+
+    def replace_with_new_directory(*args, **kwargs):
+        nonlocal replaced
+        result = original(*args, **kwargs)
+        if not replaced:
+            work = layout.approved / f"{BATCH_ID}.work"
+            moved = layout.approved / f"{BATCH_ID}.moved"
+            work.rename(moved)
+            work.mkdir()
+            replaced = True
+        return result
+
+    monkeypatch.setattr(exchange, "_assert_write_boundary", replace_with_new_directory)
+    with pytest.raises(ExchangeError):
+        build_approved_exchange(layout, BATCH_ID, selection)
+
+    replacement_payload = layout.approved / f"{BATCH_ID}.work" / "top10.json"
+    assert replacement_payload.is_file()
+    assert replacement_payload.read_bytes() == b""
+
+
 def test_cli_build_and_verify_use_safe_exit_codes_and_messages(tmp_path: Path) -> None:
     root = tmp_path / "root"
     layout, curated_sha256 = _curated_layout(root)
@@ -479,7 +749,10 @@ def test_cli_build_and_verify_use_safe_exit_codes_and_messages(tmp_path: Path) -
         ["build-approved", "--root", str(root), "--batch-id", BATCH_ID, "--selection", str(selection)],
     )
     assert built.exit_code == 0
-    assert built.stdout.strip() == f"built-approved {BATCH_ID} candidates=10"
+    assert built.stdout.strip() == (
+        f"built-approved {BATCH_ID} candidates=10 provenance=unanchored "
+        "local-consistency-only content=not-medically-verified"
+    )
     manifest_sha256 = hashlib.sha256(
         (layout.approved / BATCH_ID / "bundle-manifest.json").read_bytes()
     ).hexdigest()
@@ -494,7 +767,20 @@ def test_cli_build_and_verify_use_safe_exit_codes_and_messages(tmp_path: Path) -
         ],
     )
     assert verified.exit_code == 0
-    assert verified.stdout.strip() == f"verified-approved {BATCH_ID} candidates=10"
+    assert verified.stdout.strip() == (
+        f"verified-approved {BATCH_ID} candidates=10 provenance=anchored "
+        "content=not-medically-verified"
+    )
+
+    unanchored = runner.invoke(
+        app,
+        ["verify-approved", "--path", str(layout.approved / BATCH_ID)],
+    )
+    assert unanchored.exit_code == 0
+    assert unanchored.stdout.strip() == (
+        f"verified-approved {BATCH_ID} candidates=10 provenance=unanchored "
+        "local-consistency-only content=not-medically-verified"
+    )
 
     invalid = runner.invoke(
         app,

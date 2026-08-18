@@ -207,6 +207,24 @@ class CuratedComment(StrictModel):
 
 
 APPROVED_DISCLAIMER = "该包只是选题情报，不是医学事实来源或可直接发布的脚本。"
+_MISSING_TEXT_SENTINELS = frozenset(
+    {
+        "missing",
+        "na",
+        "nan",
+        "none",
+        "notapplicable",
+        "notavailable",
+        "null",
+        "tbd",
+        "unknown",
+        "不详",
+        "暂无",
+        "无",
+        "未知",
+        "缺失",
+    }
+)
 
 
 class ApprovedCandidate(StrictModel):
@@ -217,11 +235,11 @@ class ApprovedCandidate(StrictModel):
     platform_rank_evidence: dict[Literal["dy", "xhs"], str] = Field(
         min_length=1, max_length=2
     )
-    growth_evidence: tuple[str, ...]
-    user_questions: tuple[str, ...]
-    user_needs: tuple[str, ...]
-    misunderstandings: tuple[str, ...]
-    objections: tuple[str, ...]
+    growth_evidence: tuple[str, ...] = Field(min_length=1)
+    user_questions: tuple[str, ...] = Field(min_length=1)
+    user_needs: tuple[str, ...] = Field(min_length=1)
+    misunderstandings: tuple[str, ...] = Field(min_length=1)
+    objections: tuple[str, ...] = Field(min_length=1)
     homogeneity_pattern: str
     narrative_gap: str
     original_visual_direction: str
@@ -251,6 +269,10 @@ class ApprovedCandidate(StrictModel):
         for value in values:
             if not value.strip() or unicodedata.normalize("NFC", value) != value:
                 raise ValueError("items must be non-empty NFC-normalized text")
+            normalized = unicodedata.normalize("NFKC", value).strip().casefold()
+            sentinel = "".join(character for character in normalized if character.isalnum())
+            if sentinel in _MISSING_TEXT_SENTINELS:
+                raise ValueError("missing sentinel is not evidence")
         return values
 
     @field_validator("platform_rank_evidence")
