@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
 from collections import defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, fields, replace
@@ -52,6 +53,10 @@ _FINAL_FILES = frozenset(
         "READY.json",
     }
 )
+_FINAL_OUTPUT_FILES = frozenset(
+    {"posts.jsonl", "comments.jsonl", "quarantine.jsonl", "curated-manifest.json"}
+)
+_FINAL_STAGE = "finalize.tmp"
 _OUTPUT_SCHEMAS = {
     "posts.jsonl": "health_trend_post.v1",
     "comments.jsonl": "health_trend_comment.v1",
@@ -75,6 +80,7 @@ class CurationError(ValueError):
 class CurationCheckpoint:
     schema: Literal["health_trend_checkpoint.v1"]
     raw_manifest_sha256: str
+    curation_key_id: str
     completed_source_sha256: tuple[str, ...]
 
 
@@ -180,11 +186,18 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def _atomic_write(path: Path, payload: bytes) -> None:
+def _atomic_write(
+    path: Path,
+    payload: bytes,
+    event_hook: EventHook | None = None,
+    temp_event: str | None = None,
+) -> None:
     temporary = path.with_name(f"{path.name}.tmp")
     if os.path.lexists(temporary):
         raise CurationError("unexpected_artifact")
     _exclusive_write(temporary, payload)
+    if temp_event is not None:
+        _emit(event_hook, temp_event)
     try:
         os.replace(temporary, path)
         _fsync_directory(path.parent)
@@ -216,7 +229,12 @@ def _raw_manifest_payload(layout: DataLayout, batch_id: str) -> bytes:
 
 
 def _checkpoint_from_value(value: Mapping[str, Any]) -> CurationCheckpoint:
-    if set(value) != {"schema", "raw_manifest_sha256", "completed_source_sha256"}:
+    if set(value) != {
+        "schema",
+        "raw_manifest_sha256",
+        "curation_key_id",
+        "completed_source_sha256",
+    }:
         raise CurationError("checkpoint_invalid")
     completed = value["completed_source_sha256"]
     if not isinstance(completed, list) or any(not isinstance(item, str) for item in completed):
@@ -224,11 +242,13 @@ def _checkpoint_from_value(value: Mapping[str, Any]) -> CurationCheckpoint:
     checkpoint = CurationCheckpoint(
         schema=value["schema"],  # type: ignore[arg-type]
         raw_manifest_sha256=value["raw_manifest_sha256"],  # type: ignore[arg-type]
+        curation_key_id=value["curation_key_id"],  # type: ignore[arg-type]
         completed_source_sha256=tuple(completed),
     )
     if (
         checkpoint.schema != "health_trend_checkpoint.v1"
         or _SHA256.fullmatch(checkpoint.raw_manifest_sha256) is None
+        or _SHA256.fullmatch(checkpoint.curation_key_id) is None
         or tuple(sorted(set(completed))) != checkpoint.completed_source_sha256
         or any(_SHA256.fullmatch(item) is None for item in completed)
     ):
@@ -245,7 +265,7 @@ def _checkpoint_bytes(checkpoint: CurationCheckpoint) -> bytes:
     return canonical_json_bytes(asdict(checkpoint))
 
 
-def _line_values(payload: bytes) -> list[dict[str, Any]]:
+def _canonical_line_values(payload: bytes) -> list[dict[str, Any]]:
     if not payload:
         return []
     if not payload.endswith(b"\n"):
@@ -256,6 +276,26 @@ def _line_values(payload: bytes) -> list[dict[str, Any]]:
             value = load_unique_json(line)
             if not isinstance(value, dict) or canonical_json_bytes(value) != line:
                 raise ValueError
+        except (TypeError, ValueError) as error:
+            raise CurationError("jsonl_invalid") from error
+        values.append(value)
+    return values
+
+
+def _raw_line_values(payload: bytes) -> list[dict[str, Any]]:
+    if not payload:
+        raise CurationError("jsonl_invalid")
+    lines = payload.split(b"\n")
+    if lines[-1] == b"":
+        lines.pop()
+    if not lines or any(not line.strip() for line in lines):
+        raise CurationError("jsonl_invalid")
+    values: list[dict[str, Any]] = []
+    for line in lines:
+        try:
+            value = load_unique_json(line)
+            if not isinstance(value, dict):
+                raise TypeError
         except (TypeError, ValueError) as error:
             raise CurationError("jsonl_invalid") from error
         values.append(value)
@@ -343,17 +383,20 @@ def _process_source(
     chunk_dir: Path,
     raw_manifest_sha256: str,
     query_manifest_sha256: str,
+    curation_key_id: str,
+    event_hook: EventHook | None,
 ) -> None:
-    if os.path.lexists(chunk_dir):
+    temporary_dir = chunk_dir.with_name(f"{chunk_dir.name}.tmp")
+    if os.path.lexists(chunk_dir) or os.path.lexists(temporary_dir):
         raise CurationError("unexpected_chunk")
     try:
-        chunk_dir.mkdir()
-        assert_safe_directory(chunk_dir)
+        temporary_dir.mkdir()
+        assert_safe_directory(temporary_dir)
     except (OSError, PathSafetyError) as error:
         raise CurationError("chunk_write_failed") from error
 
     raw_payload = _read_bytes(_source_path(layout, batch_id, binding))
-    raw_values = _line_values(raw_payload)
+    raw_values = _raw_line_values(raw_payload)
     drafts: list[dict[str, Any]] = []
     comments: list[dict[str, Any]] = []
     quarantine: list[dict[str, Any]] = []
@@ -428,11 +471,14 @@ def _process_source(
         ),
     }
     for name, (payload, _, _) in payloads.items():
-        _exclusive_write(chunk_dir / name, payload)
+        _exclusive_write(temporary_dir / name, payload)
+        if name == "post-drafts.jsonl":
+            _emit(event_hook, "chunk_payload_staged")
     chunk_manifest = {
         "schema": "health_trend_chunk.v1",
         "raw_manifest_sha256": raw_manifest_sha256,
         "query_manifest_sha256": query_manifest_sha256,
+        "curation_key_id": curation_key_id,
         "source": {
             "bytes": binding.bytes,
             "platform": binding.platform,
@@ -447,7 +493,20 @@ def _process_source(
         },
         "pii_redacted_records": pii_redacted,
     }
-    _exclusive_write(chunk_dir / "chunk-manifest.json", canonical_json_bytes(chunk_manifest))
+    _exclusive_write(temporary_dir / "chunk-manifest.json", canonical_json_bytes(chunk_manifest))
+    _verify_chunk(
+        temporary_dir,
+        binding,
+        raw_manifest_sha256,
+        query_manifest_sha256,
+        curation_key_id,
+    )
+    _emit(event_hook, "chunk_manifest_staged")
+    try:
+        temporary_dir.rename(chunk_dir)
+    except OSError as error:
+        raise CurationError("chunk_publish_failed") from error
+    _emit(event_hook, "chunk_published")
 
 
 def _verify_bound_file(value: Any, payload: bytes, count: int, schema: str) -> None:
@@ -461,6 +520,7 @@ def _verify_chunk(
     binding: SourceFileBinding,
     raw_manifest_sha256: str,
     query_manifest_sha256: str,
+    curation_key_id: str,
 ) -> tuple[list[CuratedPostDraft], list[CuratedComment], list[QuarantineRecord], int, str]:
     if _directory_names(chunk_dir) != _CHUNK_FILES:
         raise CurationError("chunk_file_set_mismatch")
@@ -479,6 +539,7 @@ def _verify_chunk(
             "schema",
             "raw_manifest_sha256",
             "query_manifest_sha256",
+            "curation_key_id",
             "source",
             "files",
             "pii_redacted_records",
@@ -486,6 +547,7 @@ def _verify_chunk(
         or manifest["schema"] != "health_trend_chunk.v1"
         or manifest["raw_manifest_sha256"] != raw_manifest_sha256
         or manifest["query_manifest_sha256"] != query_manifest_sha256
+        or manifest["curation_key_id"] != curation_key_id
         or manifest["source"] != expected_source
         or set(manifest["files"]) != _CHUNK_FILES - {"chunk-manifest.json"}
         or isinstance(manifest["pii_redacted_records"], bool)
@@ -497,15 +559,17 @@ def _verify_chunk(
     draft_payload = _read_bytes(chunk_dir / "post-drafts.jsonl")
     comment_payload = _read_bytes(chunk_dir / "comments.jsonl")
     quarantine_payload = _read_bytes(chunk_dir / "quarantine.jsonl")
-    drafts = [_draft_from_value(value) for value in _line_values(draft_payload)]
+    drafts = [_draft_from_value(value) for value in _canonical_line_values(draft_payload)]
     try:
         comments = [
             CuratedComment.model_validate_json(canonical_json_bytes(value))
-            for value in _line_values(comment_payload)
+            for value in _canonical_line_values(comment_payload)
         ]
     except ValidationError as error:
         raise CurationError("chunk_record_invalid") from error
-    quarantine = [_quarantine_from_value(value) for value in _line_values(quarantine_payload)]
+    quarantine = [
+        _quarantine_from_value(value) for value in _canonical_line_values(quarantine_payload)
+    ]
     _verify_bound_file(
         manifest["files"]["post-drafts.jsonl"],
         draft_payload,
@@ -622,6 +686,7 @@ def _collect_chunks(
     bindings: dict[str, SourceFileBinding],
     raw_manifest_sha256: str,
     query_manifest_sha256: str,
+    curation_key_id: str,
 ) -> tuple[
     list[CuratedPostDraft],
     list[CuratedComment],
@@ -642,6 +707,7 @@ def _collect_chunks(
             bindings[source_sha],
             raw_manifest_sha256,
             query_manifest_sha256,
+            curation_key_id,
         )
         drafts.extend(values[0])
         comments.extend(values[1])
@@ -686,6 +752,7 @@ def _manifest_value(
     batch_id: str,
     raw_manifest_sha256: str,
     query_manifest_sha256: str,
+    curation_key_id: str,
     raw_records: int,
     payloads: dict[str, tuple[bytes, int, str]],
     duplicate_records: int,
@@ -699,6 +766,7 @@ def _manifest_value(
         "batch_id": batch_id,
         "raw_manifest_sha256": raw_manifest_sha256,
         "query_manifest_sha256": query_manifest_sha256,
+        "curation_key_id": curation_key_id,
         "raw_records": raw_records,
         "curated_posts": payloads["posts.jsonl"][1],
         "curated_comments": payloads["comments.jsonl"][1],
@@ -720,16 +788,24 @@ def _finalize(
     batch_id: str,
     raw_manifest_sha256: str,
     query_manifest_sha256: str,
+    curation_key_id: str,
     raw_records: int,
     bindings: dict[str, SourceFileBinding],
     checkpoint_payload: bytes,
     event_hook: EventHook | None,
 ) -> None:
     drafts, comment_rows, quarantine, pii_redacted, chunk_hashes = _collect_chunks(
-        work_dir / "chunks", bindings, raw_manifest_sha256, query_manifest_sha256
+        work_dir / "chunks",
+        bindings,
+        raw_manifest_sha256,
+        query_manifest_sha256,
+        curation_key_id,
     )
     posts, warnings = _recompute_suspicious(cluster_duplicates(drafts))
     comments = _deduplicate_comments(comment_rows)
+    post_keys = {post.source_post_key for post in posts}
+    if post_keys and any(comment.source_post_key not in post_keys for comment in comments):
+        raise CurationError("comment_post_reference_mismatch")
     duplicate_records = raw_records - len(quarantine) - len(posts) - len(comments)
     if duplicate_records < 0:
         raise CurationError("count_mismatch")
@@ -738,6 +814,7 @@ def _finalize(
         batch_id=batch_id,
         raw_manifest_sha256=raw_manifest_sha256,
         query_manifest_sha256=query_manifest_sha256,
+        curation_key_id=curation_key_id,
         raw_records=raw_records,
         payloads=payloads,
         duplicate_records=duplicate_records,
@@ -746,16 +823,42 @@ def _finalize(
         checkpoint_payload=checkpoint_payload,
         chunk_hashes=chunk_hashes,
     )
+    stage_dir = work_dir / _FINAL_STAGE
+    if os.path.lexists(stage_dir):
+        raise CurationError("unexpected_artifact")
+    try:
+        stage_dir.mkdir()
+        assert_safe_directory(stage_dir)
+    except (OSError, PathSafetyError) as error:
+        raise CurationError("final_stage_failed") from error
     for name, (payload, _, _) in payloads.items():
-        _exclusive_write(work_dir / name, payload)
+        _exclusive_write(stage_dir / name, payload)
+        if name == "posts.jsonl":
+            _emit(event_hook, "final_posts_staged")
     manifest_payload = canonical_json_bytes(manifest)
-    _exclusive_write(work_dir / "curated-manifest.json", manifest_payload)
+    _exclusive_write(stage_dir / "curated-manifest.json", manifest_payload)
+    _emit(event_hook, "curated_manifest_staged")
     ready = {
         "schema": "health_trend_curated_ready.v1",
         "batch_id": batch_id,
         "manifest_sha256": _sha256(manifest_payload),
+        "curation_key_id": curation_key_id,
     }
-    _exclusive_write(work_dir / "READY.json", canonical_json_bytes(ready))
+    for name in sorted(_FINAL_OUTPUT_FILES):
+        try:
+            os.replace(stage_dir / name, work_dir / name)
+        except OSError as error:
+            raise CurationError("final_stage_publish_failed") from error
+    try:
+        stage_dir.rmdir()
+    except OSError as error:
+        raise CurationError("final_stage_publish_failed") from error
+    _atomic_write(
+        work_dir / "READY.json",
+        canonical_json_bytes(ready),
+        event_hook,
+        "ready_temp_written",
+    )
     _emit(event_hook, "ready_committed")
 
 
@@ -766,6 +869,145 @@ def _bindings_by_sha(
     if len(bindings) != len(manifest_sources):
         raise CurationError("duplicate_source_sha256")
     return bindings
+
+
+def _remove_regular_file(path: Path) -> None:
+    try:
+        assert_safe_regular_file(path)
+        path.unlink()
+    except (OSError, PathSafetyError) as error:
+        raise CurationError("unsafe_recovery_artifact") from error
+
+
+def _remove_allowed_directory(path: Path, allowed_names: frozenset[str]) -> None:
+    names = _directory_names(path)
+    if not names <= allowed_names:
+        raise CurationError("unexpected_recovery_artifact")
+    for name in names:
+        try:
+            assert_safe_regular_file(path / name)
+        except PathSafetyError as error:
+            raise CurationError("unsafe_recovery_artifact") from error
+    try:
+        shutil.rmtree(path)
+    except OSError as error:
+        raise CurationError("recovery_cleanup_failed") from error
+
+
+def _recover_work_state(
+    work_dir: Path,
+    bindings: dict[str, SourceFileBinding],
+    raw_manifest_sha256: str,
+    query_manifest_sha256: str,
+    curation_key_id: str,
+) -> tuple[CurationCheckpoint, bytes]:
+    chunks_dir = work_dir / "chunks"
+    assert_safe_directory(chunks_dir)
+    checkpoint_path = work_dir / "checkpoint.json"
+    checkpoint_temp = work_dir / "checkpoint.json.tmp"
+    root_names = _directory_names(work_dir)
+    if "READY.json" in root_names:
+        if root_names != _FINAL_FILES:
+            raise CurationError("final_file_set_mismatch")
+        return _load_checkpoint(checkpoint_path)
+
+    allowed_root = {
+        "chunks",
+        "checkpoint.json",
+        "checkpoint.json.tmp",
+        _FINAL_STAGE,
+        "READY.json.tmp",
+        *_FINAL_OUTPUT_FILES,
+    }
+    if not root_names <= allowed_root:
+        raise CurationError("unexpected_work_artifact")
+
+    if "checkpoint.json" in root_names:
+        checkpoint, checkpoint_payload = _load_checkpoint(checkpoint_path)
+    else:
+        if _directory_names(chunks_dir):
+            raise CurationError("checkpoint_missing")
+        checkpoint = CurationCheckpoint(
+            schema="health_trend_checkpoint.v1",
+            raw_manifest_sha256=raw_manifest_sha256,
+            curation_key_id=curation_key_id,
+            completed_source_sha256=(),
+        )
+        checkpoint_payload = _checkpoint_bytes(checkpoint)
+
+    if checkpoint.raw_manifest_sha256 != raw_manifest_sha256:
+        raise CurationError("checkpoint_raw_mismatch")
+    if checkpoint.curation_key_id != curation_key_id:
+        raise CurationError("curation_key_mismatch")
+    if not set(checkpoint.completed_source_sha256) <= set(bindings):
+        raise CurationError("checkpoint_unknown_source")
+
+    if "checkpoint.json.tmp" in root_names:
+        temporary_payload = _read_bytes(checkpoint_temp)
+        candidates = [checkpoint_payload]
+        completed = set(checkpoint.completed_source_sha256)
+        for source_sha in sorted(set(bindings) - completed):
+            candidates.append(
+                _checkpoint_bytes(
+                    replace(
+                        checkpoint,
+                        completed_source_sha256=tuple(sorted(completed | {source_sha})),
+                    )
+                )
+            )
+        if not any(candidate.startswith(temporary_payload) for candidate in candidates):
+            raise CurationError("checkpoint_temp_invalid")
+        _remove_regular_file(checkpoint_temp)
+    if "checkpoint.json" not in root_names:
+        _atomic_write(checkpoint_path, checkpoint_payload)
+
+    completed = set(checkpoint.completed_source_sha256)
+    for name in sorted(_directory_names(chunks_dir)):
+        is_temporary = name.endswith(".tmp")
+        source_sha = name.removesuffix(".tmp") if is_temporary else name
+        if source_sha not in bindings:
+            raise CurationError("checkpoint_unknown_source")
+        path = chunks_dir / name
+        if source_sha in completed:
+            if is_temporary:
+                raise CurationError("unexpected_chunk")
+            _verify_chunk(
+                path,
+                bindings[source_sha],
+                raw_manifest_sha256,
+                query_manifest_sha256,
+                curation_key_id,
+            )
+            continue
+        if is_temporary:
+            _remove_allowed_directory(path, _CHUNK_FILES)
+            continue
+        names = _directory_names(path)
+        if names == _CHUNK_FILES:
+            _verify_chunk(
+                path,
+                bindings[source_sha],
+                raw_manifest_sha256,
+                query_manifest_sha256,
+                curation_key_id,
+            )
+        else:
+            raise CurationError("unexpected_chunk")
+        _remove_allowed_directory(path, _CHUNK_FILES)
+    if set(_directory_names(chunks_dir)) != completed:
+        raise CurationError("checkpoint_chunk_mismatch")
+
+    if _FINAL_STAGE in root_names:
+        _remove_allowed_directory(work_dir / _FINAL_STAGE, _FINAL_OUTPUT_FILES)
+    for name in sorted(_FINAL_OUTPUT_FILES & root_names):
+        _remove_regular_file(work_dir / name)
+    if "READY.json.tmp" in root_names:
+        ready_temp = work_dir / "READY.json.tmp"
+        payload = _read_bytes(ready_temp)
+        if not b'{"batch_id":'.startswith(payload) and not payload.startswith(b'{"batch_id":'):
+            raise CurationError("ready_temp_invalid")
+        _remove_regular_file(ready_temp)
+    return _load_checkpoint(checkpoint_path)
 
 
 def curate_batch(
@@ -784,6 +1026,7 @@ def curate_batch(
     except (BatchInputError, PathSafetyError, OSError, ValueError) as error:
         raise CurationError("raw_verification_failed") from error
     raw_manifest_sha256 = _sha256(_raw_manifest_payload(layout, batch_id))
+    curation_key_id = hasher.identifier("hti-curation-key-id-v1", domain="post")
     queries = _load_queries(layout, batch_id)
     bindings = _bindings_by_sha(raw_manifest.sources)
     final_dir = layout.curated / batch_id
@@ -791,7 +1034,7 @@ def curate_batch(
     if os.path.lexists(final_dir):
         if os.path.lexists(work_dir):
             raise CurationError("destination_conflict")
-        return verify_curated_batch(layout, batch_id)
+        return verify_curated_batch(layout, batch_id, hasher)
 
     if not os.path.lexists(work_dir):
         try:
@@ -804,40 +1047,42 @@ def curate_batch(
         checkpoint = CurationCheckpoint(
             schema="health_trend_checkpoint.v1",
             raw_manifest_sha256=raw_manifest_sha256,
+            curation_key_id=curation_key_id,
             completed_source_sha256=(),
         )
         _atomic_write(work_dir / "checkpoint.json", _checkpoint_bytes(checkpoint))
 
+    checkpoint, _ = _recover_work_state(
+        work_dir,
+        bindings,
+        raw_manifest_sha256,
+        raw_manifest.query_manifest_sha256,
+        curation_key_id,
+    )
     root_names = _directory_names(work_dir)
     if "READY.json" in root_names:
-        if root_names != _FINAL_FILES:
-            raise CurationError("final_file_set_mismatch")
-        verified_work = _verify_curated_path(layout, batch_id, work_dir)
-        _emit(event_hook, "curation_completed")
+        _verify_curated_path(layout, batch_id, work_dir, curation_key_id)
+        _emit(event_hook, "publication_started")
         if os.path.lexists(final_dir):
             raise CurationError("destination_conflict")
         try:
             work_dir.rename(final_dir)
         except OSError as error:
             raise CurationError("finalize_move_failed") from error
-        return replace(verified_work, path=final_dir)
+        verified_final = _verify_curated_path(layout, batch_id, final_dir, curation_key_id)
+        _emit(event_hook, "curation_completed")
+        return verified_final
     if root_names != {"chunks", "checkpoint.json"}:
         raise CurationError("unexpected_work_artifact")
 
-    checkpoint, _ = _load_checkpoint(work_dir / "checkpoint.json")
-    if checkpoint.raw_manifest_sha256 != raw_manifest_sha256:
-        raise CurationError("checkpoint_raw_mismatch")
-    if not set(checkpoint.completed_source_sha256) <= set(bindings):
-        raise CurationError("checkpoint_unknown_source")
     chunks_dir = work_dir / "chunks"
-    if _directory_names(chunks_dir) != set(checkpoint.completed_source_sha256):
-        raise CurationError("checkpoint_chunk_mismatch")
     for source_sha in checkpoint.completed_source_sha256:
         _verify_chunk(
             chunks_dir / source_sha,
             bindings[source_sha],
             raw_manifest_sha256,
             raw_manifest.query_manifest_sha256,
+            curation_key_id,
         )
 
     completed = set(checkpoint.completed_source_sha256)
@@ -851,14 +1096,23 @@ def curate_batch(
             chunks_dir / source_sha,
             raw_manifest_sha256,
             raw_manifest.query_manifest_sha256,
+            curation_key_id,
+            event_hook,
         )
         completed.add(source_sha)
         checkpoint = CurationCheckpoint(
             schema="health_trend_checkpoint.v1",
             raw_manifest_sha256=raw_manifest_sha256,
+            curation_key_id=curation_key_id,
             completed_source_sha256=tuple(sorted(completed)),
         )
-        _atomic_write(work_dir / "checkpoint.json", _checkpoint_bytes(checkpoint))
+        _atomic_write(
+            work_dir / "checkpoint.json",
+            _checkpoint_bytes(checkpoint),
+            event_hook,
+            "checkpoint_temp_written",
+        )
+        _emit(event_hook, "checkpoint_committed")
         _emit(event_hook, "chunk_committed")
 
     checkpoint, checkpoint_payload = _load_checkpoint(work_dir / "checkpoint.json")
@@ -870,23 +1124,31 @@ def curate_batch(
         batch_id,
         raw_manifest_sha256,
         raw_manifest.query_manifest_sha256,
+        curation_key_id,
         sum(binding.records for binding in raw_manifest.sources),
         bindings,
         checkpoint_payload,
         event_hook,
     )
-    verified_work = _verify_curated_path(layout, batch_id, work_dir)
-    _emit(event_hook, "curation_completed")
+    _verify_curated_path(layout, batch_id, work_dir, curation_key_id)
+    _emit(event_hook, "publication_started")
     if os.path.lexists(final_dir):
         raise CurationError("destination_conflict")
     try:
         work_dir.rename(final_dir)
     except OSError as error:
         raise CurationError("finalize_move_failed") from error
-    return replace(verified_work, path=final_dir)
+    verified_final = _verify_curated_path(layout, batch_id, final_dir, curation_key_id)
+    _emit(event_hook, "curation_completed")
+    return verified_final
 
 
-def _verify_curated_path(layout: DataLayout, batch_id: str, path: Path) -> CuratedBatchResult:
+def _verify_curated_path(
+    layout: DataLayout,
+    batch_id: str,
+    path: Path,
+    expected_key_id: str | None = None,
+) -> CuratedBatchResult:
     try:
         raw_manifest = verify_raw_batch(layout, batch_id)
     except (BatchInputError, PathSafetyError, OSError, ValueError) as error:
@@ -902,14 +1164,22 @@ def _verify_curated_path(layout: DataLayout, batch_id: str, path: Path) -> Curat
         checkpoint.completed_source_sha256
     ) != set(bindings):
         raise CurationError("checkpoint_mismatch")
+    if expected_key_id is not None and checkpoint.curation_key_id != expected_key_id:
+        raise CurationError("curation_key_mismatch")
     drafts, comment_rows, quarantine_chunks, pii_redacted, chunk_hashes = _collect_chunks(
         path / "chunks",
         bindings,
         raw_manifest_sha256,
         raw_manifest.query_manifest_sha256,
+        checkpoint.curation_key_id,
     )
     expected_posts, warnings = _recompute_suspicious(cluster_duplicates(drafts))
     expected_comments = _deduplicate_comments(comment_rows)
+    expected_post_keys = {post.source_post_key for post in expected_posts}
+    if expected_post_keys and any(
+        comment.source_post_key not in expected_post_keys for comment in expected_comments
+    ):
+        raise CurationError("comment_post_reference_mismatch")
 
     post_payload = _read_bytes(path / "posts.jsonl")
     comment_payload = _read_bytes(path / "comments.jsonl")
@@ -917,15 +1187,17 @@ def _verify_curated_path(layout: DataLayout, batch_id: str, path: Path) -> Curat
     try:
         posts = tuple(
             CuratedPost.model_validate_json(canonical_json_bytes(value))
-            for value in _line_values(post_payload)
+            for value in _canonical_line_values(post_payload)
         )
         comments = tuple(
             CuratedComment.model_validate_json(canonical_json_bytes(value))
-            for value in _line_values(comment_payload)
+            for value in _canonical_line_values(comment_payload)
         )
     except ValidationError as error:
         raise CurationError("curated_record_invalid") from error
-    quarantine = [_quarantine_from_value(value) for value in _line_values(quarantine_payload)]
+    quarantine = [
+        _quarantine_from_value(value) for value in _canonical_line_values(quarantine_payload)
+    ]
     expected_payloads = _output_payloads(expected_posts, expected_comments, quarantine_chunks)
     actual_payloads = {
         "posts.jsonl": (post_payload, len(posts), _OUTPUT_SCHEMAS["posts.jsonl"]),
@@ -951,6 +1223,7 @@ def _verify_curated_path(layout: DataLayout, batch_id: str, path: Path) -> Curat
         batch_id=batch_id,
         raw_manifest_sha256=raw_manifest_sha256,
         query_manifest_sha256=raw_manifest.query_manifest_sha256,
+        curation_key_id=checkpoint.curation_key_id,
         raw_records=raw_records,
         payloads=actual_payloads,
         duplicate_records=duplicate_records,
@@ -968,6 +1241,7 @@ def _verify_curated_path(layout: DataLayout, batch_id: str, path: Path) -> Curat
         "schema": "health_trend_curated_ready.v1",
         "batch_id": batch_id,
         "manifest_sha256": manifest_sha256,
+        "curation_key_id": checkpoint.curation_key_id,
     }:
         raise CurationError("ready_mismatch")
     return CuratedBatchResult(
@@ -982,7 +1256,9 @@ def _verify_curated_path(layout: DataLayout, batch_id: str, path: Path) -> Curat
     )
 
 
-def verify_curated_batch(layout: DataLayout, batch_id: str) -> CuratedBatchResult:
+def verify_curated_batch(
+    layout: DataLayout, batch_id: str, hasher: PrivacyHasher | None = None
+) -> CuratedBatchResult:
     """Independently re-open and verify all Curated and still-bound Raw bytes."""
 
     if not isinstance(layout, DataLayout):
@@ -990,4 +1266,7 @@ def verify_curated_batch(layout: DataLayout, batch_id: str) -> CuratedBatchResul
     path = layout.curated / batch_id
     if os.path.lexists(layout.curated / f"{batch_id}.work"):
         raise CurationError("unfinished_work_exists")
-    return _verify_curated_path(layout, batch_id, path)
+    expected_key_id = (
+        hasher.identifier("hti-curation-key-id-v1", domain="post") if hasher is not None else None
+    )
+    return _verify_curated_path(layout, batch_id, path, expected_key_id)

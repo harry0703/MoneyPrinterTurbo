@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -61,6 +62,7 @@ def version() -> None:
 
 
 T = TypeVar("T")
+_SAFE_BATCH_ID = re.compile(r"HTI-\d{8}-\d{2}\Z")
 
 
 def _guarded(action: Callable[[], T]) -> T:
@@ -136,6 +138,14 @@ def retention_report(
 
 
 def _curation_guard(command: str, batch_id: str, action: Callable[[], T]) -> T:
+    safe_batch_id = (
+        batch_id
+        if isinstance(batch_id, str) and _SAFE_BATCH_ID.fullmatch(batch_id)
+        else "<invalid-batch>"
+    )
+    if safe_batch_id == "<invalid-batch>":
+        typer.echo(f"{command} {safe_batch_id} invalid_input", err=True)
+        raise typer.Exit(code=3) from None
     try:
         return action()
     except CurationError as error:
@@ -150,7 +160,7 @@ def _curation_guard(command: str, batch_id: str, action: Callable[[], T]) -> T:
         ValueError,
     ):
         reason_code = "invalid_input"
-    typer.echo(f"{command} {batch_id} {reason_code}", err=True)
+    typer.echo(f"{command} {safe_batch_id} {reason_code}", err=True)
     raise typer.Exit(code=3) from None
 
 
@@ -173,6 +183,8 @@ def verify_curated(
     _curation_guard(
         "verify-curated",
         batch_id,
-        lambda: verify_curated_batch(DataLayout.from_root(root), batch_id),
+        lambda: verify_curated_batch(
+            DataLayout.from_root(root), batch_id, PrivacyHasher.from_environment()
+        ),
     )
     typer.echo(f"verified-curated {batch_id}")

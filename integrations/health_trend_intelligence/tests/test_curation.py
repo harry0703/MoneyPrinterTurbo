@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -217,10 +218,24 @@ def test_event_hook_exposes_only_stable_stage_names(tmp_path: Path) -> None:
 
     assert events == [
         "curation_started",
+        "chunk_payload_staged",
+        "chunk_manifest_staged",
+        "chunk_published",
+        "checkpoint_temp_written",
+        "checkpoint_committed",
         "chunk_committed",
+        "chunk_payload_staged",
+        "chunk_manifest_staged",
+        "chunk_published",
+        "checkpoint_temp_written",
+        "checkpoint_committed",
         "chunk_committed",
         "finalization_started",
+        "final_posts_staged",
+        "curated_manifest_staged",
+        "ready_temp_written",
         "ready_committed",
+        "publication_started",
         "curation_completed",
     ]
     assert all("post-a" not in event and "comment-a" not in event for event in events)
@@ -438,9 +453,12 @@ def test_cli_curate_and_verify_use_metadata_only(
     assert "post-a" not in curated.output + verified.output
 
 
-def test_cli_curation_failure_prints_only_identifier_and_reason(tmp_path: Path) -> None:
+def test_cli_curation_failure_prints_only_identifier_and_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     secret_root = tmp_path / "secret-root-name"
     layout = _registered_layout(secret_root)
+    monkeypatch.setenv("HTI_HASH_KEY", "hex:" + "11" * 32)
     result = CliRunner().invoke(
         app, ["verify-curated", "--root", str(secret_root), "--batch-id", BATCH_ID]
     )
@@ -449,3 +467,222 @@ def test_cli_curation_failure_prints_only_identifier_and_reason(tmp_path: Path) 
     assert result.output == f"verify-curated {BATCH_ID} directory_unavailable\n"
     assert str(secret_root) not in result.output
     assert not (layout.curated / BATCH_ID).exists()
+
+
+def test_task3_accepted_noncanonical_raw_curates_successfully(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    layout = DataLayout.from_root(root)
+    layout.initialize()
+    source = root / "dy_posts.jsonl"
+    row = _post("post-a")
+    reversed_row = dict(reversed(tuple(row.items())))
+    source.write_text(json.dumps(reversed_row, ensure_ascii=False, indent=None), encoding="utf-8")
+    register_batch(
+        layout,
+        BATCH_ID,
+        [
+            {
+                "query_id": "dy-sleep-v1",
+                "platform": "dy",
+                "keyword": "睡眠",
+                "window_start": "2026-04-01T00:00:00+08:00",
+                "window_end": "2026-04-30T23:59:59+08:00",
+            }
+        ],
+        [SourceSpec(source, "dy", "posts")],
+        datetime(2026, 4, 20, 12, tzinfo=CHINA_TZ),
+    )
+
+    result = curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"))
+
+    assert result.raw_records == 1
+    assert result.curated_posts == 1
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        "chunk_payload_staged",
+        "chunk_manifest_staged",
+        "chunk_published",
+        "checkpoint_temp_written",
+        "checkpoint_committed",
+        "final_posts_staged",
+        "curated_manifest_staged",
+        "ready_temp_written",
+        "ready_committed",
+        "publication_started",
+        "curation_completed",
+    ],
+)
+def test_every_write_interruption_resumes_to_clean_tree(tmp_path: Path, event: str) -> None:
+    root = tmp_path / "interrupted"
+    layout = _registered_layout(root)
+
+    def interrupt(observed: str) -> None:
+        if observed == event:
+            raise InjectedInterruption
+
+    with pytest.raises(InjectedInterruption):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"), interrupt)
+
+    resumed = curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"))
+    clean_layout = _registered_layout(tmp_path / "clean")
+    clean = curate_batch(clean_layout, BATCH_ID, PrivacyHasher(b"key-a"))
+    assert _tree_sha256(resumed.path) == _tree_sha256(clean.path)
+
+
+def test_partial_checkpoint_and_ready_temp_are_rebuilt(tmp_path: Path) -> None:
+    checkpoint_root = tmp_path / "checkpoint"
+    checkpoint_layout = _registered_layout(checkpoint_root)
+
+    def checkpoint_interrupt(event: str) -> None:
+        if event == "checkpoint_temp_written":
+            raise InjectedInterruption
+
+    with pytest.raises(InjectedInterruption):
+        curate_batch(
+            checkpoint_layout,
+            BATCH_ID,
+            PrivacyHasher(b"key-a"),
+            checkpoint_interrupt,
+        )
+    checkpoint_temp = checkpoint_layout.curated / f"{BATCH_ID}.work" / "checkpoint.json.tmp"
+    checkpoint_temp.write_bytes(checkpoint_temp.read_bytes()[:17])
+    checkpoint_result = curate_batch(checkpoint_layout, BATCH_ID, PrivacyHasher(b"key-a"))
+
+    ready_root = tmp_path / "ready"
+    ready_layout = _registered_layout(ready_root)
+
+    def ready_interrupt(event: str) -> None:
+        if event == "ready_temp_written":
+            raise InjectedInterruption
+
+    with pytest.raises(InjectedInterruption):
+        curate_batch(ready_layout, BATCH_ID, PrivacyHasher(b"key-a"), ready_interrupt)
+    ready_temp = ready_layout.curated / f"{BATCH_ID}.work" / "READY.json.tmp"
+    ready_temp.write_bytes(ready_temp.read_bytes()[:13])
+    ready_result = curate_batch(ready_layout, BATCH_ID, PrivacyHasher(b"key-a"))
+
+    clean_layout = _registered_layout(tmp_path / "clean")
+    clean = curate_batch(clean_layout, BATCH_ID, PrivacyHasher(b"key-a"))
+    assert _tree_sha256(checkpoint_result.path) == _tree_sha256(clean.path)
+    assert _tree_sha256(ready_result.path) == _tree_sha256(clean.path)
+
+
+@pytest.mark.parametrize(
+    ("event", "artifact"),
+    [
+        ("chunk_payload_staged", "post-drafts.jsonl"),
+        ("chunk_manifest_staged", "chunk-manifest.json"),
+    ],
+)
+def test_partial_chunk_staging_is_rebuilt(tmp_path: Path, event: str, artifact: str) -> None:
+    layout = _registered_layout(tmp_path / "root")
+
+    def interrupt(observed: str) -> None:
+        if observed == event:
+            raise InjectedInterruption
+
+    with pytest.raises(InjectedInterruption):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"), interrupt)
+    temporary_chunk = next(
+        path
+        for path in (layout.curated / f"{BATCH_ID}.work" / "chunks").iterdir()
+        if path.name.endswith(".tmp")
+    )
+    target = temporary_chunk / artifact
+    target.write_bytes(target.read_bytes()[:11])
+
+    resumed = curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"))
+    clean_layout = _registered_layout(tmp_path / "clean")
+    clean = curate_batch(clean_layout, BATCH_ID, PrivacyHasher(b"key-a"))
+    assert _tree_sha256(resumed.path) == _tree_sha256(clean.path)
+
+
+def test_partial_published_chunk_fails_closed(tmp_path: Path) -> None:
+    layout = _registered_layout(tmp_path / "root")
+
+    def interrupt(observed: str) -> None:
+        if observed == "chunk_published":
+            raise InjectedInterruption
+
+    with pytest.raises(InjectedInterruption):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"), interrupt)
+    published_chunk = next(
+        path
+        for path in (layout.curated / f"{BATCH_ID}.work" / "chunks").iterdir()
+        if not path.name.endswith(".tmp")
+    )
+    (published_chunk / "chunk-manifest.json").unlink()
+
+    with pytest.raises(CurationError, match="unexpected_chunk"):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"))
+
+
+def test_changed_hasher_cannot_resume_completed_chunk(tmp_path: Path) -> None:
+    layout = _registered_layout(tmp_path / "root")
+
+    def interrupt(event: str) -> None:
+        if event == "chunk_committed":
+            raise InjectedInterruption
+
+    with pytest.raises(InjectedInterruption):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"), interrupt)
+
+    with pytest.raises(CurationError, match="curation_key_mismatch"):
+        curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-b"))
+
+
+def test_final_comments_reference_a_curated_post(tmp_path: Path) -> None:
+    result = _curate_fixture(tmp_path / "root")
+    posts = {
+        load_unique_json(line)["source_post_key"]
+        for line in (result.path / "posts.jsonl").read_bytes().splitlines()
+    }
+    comments = [
+        load_unique_json(line)
+        for line in (result.path / "comments.jsonl").read_bytes().splitlines()
+    ]
+
+    assert comments
+    assert {comment["source_post_key"] for comment in comments} <= posts
+
+
+@pytest.mark.parametrize("command", ["curate", "verify-curated"])
+@pytest.mark.parametrize(
+    "untrusted",
+    [
+        r"C:\synthetic-secret-source\records.jsonl",
+        "bad\nrecord-content",
+        "post_id=synthetic-secret",
+        "hex:" + "ab" * 32,
+    ],
+)
+def test_cli_invalid_batch_id_never_echoes_untrusted_text(
+    tmp_path: Path, command: str, untrusted: str
+) -> None:
+    result = CliRunner().invoke(
+        app, [command, "--root", str(tmp_path / "root"), "--batch-id", untrusted]
+    )
+
+    assert result.exit_code == 3
+    assert untrusted not in result.output
+    assert result.output == f"{command} <invalid-batch> invalid_input\n"
+
+
+def test_curation_completed_observes_published_verified_final(tmp_path: Path) -> None:
+    layout = _registered_layout(tmp_path / "root")
+    observed: list[str] = []
+
+    def inspect(event: str) -> None:
+        if event == "curation_completed":
+            final_path = layout.curated / BATCH_ID
+            assert final_path.is_dir()
+            assert verify_curated_batch(layout, BATCH_ID).path == final_path
+            observed.append(event)
+
+    result = curate_batch(layout, BATCH_ID, PrivacyHasher(b"key-a"), inspect)
+
+    assert result.path == layout.curated / BATCH_ID
+    assert observed == ["curation_completed"]
