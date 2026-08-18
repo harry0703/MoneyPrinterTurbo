@@ -22,12 +22,16 @@ _DOMAIN_PREFIXES: dict[HashDomain, bytes] = {
     "comment": b"comment\0",
     "post": b"post\0",
 }
+_HORIZONTAL_SPACE = r"[^\S\r\n]*"
 _EMAIL = re.compile(
-    r"(?<![\w.+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w.-])",
+    rf"(?<![\w.+-])[A-Z0-9_%+-]+"
+    rf"(?:{_HORIZONTAL_SPACE}\.{_HORIZONTAL_SPACE}[A-Z0-9_%+-]+)*"
+    rf"{_HORIZONTAL_SPACE}@{_HORIZONTAL_SPACE}[A-Z0-9-]+"
+    rf"(?:{_HORIZONTAL_SPACE}\.{_HORIZONTAL_SPACE}[A-Z0-9-]+)+(?![\w.-])",
     re.IGNORECASE,
 )
 _PHONE = re.compile(r"(?<!\d)(?:\+?86[\s-]*)?1[3-9](?:[\s-]*\d){9}(?!\d)")
-_URL_STOP = r"\s，。；、！？）》】\]"
+_URL_STOP = r"\s" + re.escape(",;!?，。；！？、()（）[]{}<>《》【】\"'“”‘’")
 _URL = re.compile(
     rf"(?P<base>https?://[^{_URL_STOP}?#]+)"
     rf"(?P<tail>(?:\?[^{_URL_STOP}#]*)?(?:#[^{_URL_STOP}]*)?)",
@@ -38,11 +42,12 @@ _WECHAT = re.compile(
     r"[A-Za-z][A-Za-z0-9_-]{5,31}",
     re.IGNORECASE,
 )
-_HANDLE = re.compile(r"(?<![\w@])@[A-Za-z0-9_][A-Za-z0-9_.-]{1,31}")
+_HANDLE = re.compile(r"(?<!@)@[\w](?:[\w.-]{0,29}[\w])(?![\w.-])")
 _BEARER = re.compile(r"\bbearer\s+[A-Za-z0-9._~+/-]{12,}\b", re.IGNORECASE)
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b")
 _API_KEY = re.compile(r"\b(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{12,}\b", re.IGNORECASE)
 _HEX_KEY = re.compile(r"[0-9A-Fa-f]+\Z")
+_SAFE_FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
 _FORBIDDEN_KEYS = frozenset(
     {
@@ -181,6 +186,42 @@ def redact_text(text: str) -> RedactionResult:
     )
 
 
+def _stable_sort_token(value: object) -> bytes:
+    """Return an internal deterministic token without rendering values in errors."""
+
+    if value is None:
+        return b"none"
+    if isinstance(value, bool):
+        return b"bool:" + str(value).encode("ascii")
+    if isinstance(value, str):
+        return b"str:" + unicodedata.normalize("NFKC", value).encode("utf-8")
+    if isinstance(value, bytes):
+        return b"bytes:" + value
+    if isinstance(value, int):
+        return b"int:" + str(value).encode("ascii")
+    if isinstance(value, float):
+        return b"float:" + value.hex().encode("ascii")
+    if isinstance(value, (date, datetime)):
+        return b"date:" + value.isoformat().encode("ascii")
+    if isinstance(value, tuple):
+        return b"tuple:" + b"\0".join(_stable_sort_token(item) for item in value)
+    if isinstance(value, frozenset):
+        return b"frozenset:" + b"\0".join(sorted(_stable_sort_token(item) for item in value))
+    if isinstance(value, BaseModel):
+        parts = []
+        for name in type(value).model_fields:
+            parts.append(name.encode("utf-8") + b"=" + _stable_sort_token(getattr(value, name)))
+        return b"model:" + b"\0".join(parts)
+    if is_dataclass(value) and not isinstance(value, type):
+        parts = [
+            field.name.encode("utf-8") + b"=" + _stable_sort_token(getattr(value, field.name))
+            for field in fields(value)
+        ]
+        return b"dataclass:" + b"\0".join(parts)
+    type_name = f"{type(value).__module__}.{type(value).__qualname__}"
+    return b"unsupported:" + type_name.encode("utf-8")
+
+
 def assert_no_sensitive_data(payload: object) -> None:
     """Recursively reject raw identity fields and credential-shaped values."""
 
@@ -189,13 +230,45 @@ def assert_no_sensitive_data(payload: object) -> None:
     def fail(path: str, reason: str) -> None:
         raise SensitiveDataError(f"sensitive data at {path}: {reason}")
 
+    def text_reason(value: str) -> str | None:
+        normalized = unicodedata.normalize("NFKC", value)
+        if _BEARER.search(normalized) or _JWT.search(normalized) or _API_KEY.search(normalized):
+            return "credential-shaped value"
+        if redact_text(normalized).contains_personal_data:
+            return "personal-data-shaped value"
+        return None
+
+    def check_name(name: str, path: str) -> None:
+        normalized = unicodedata.normalize("NFKC", name).strip()
+        if normalized.casefold() in _FORBIDDEN_KEYS:
+            fail(path, "forbidden key")
+        reason = text_reason(normalized)
+        if reason is not None:
+            fail(path, reason.removesuffix(" value") + " key")
+
+    def model_field_path(parent: str, name: str, index: int) -> str:
+        if _SAFE_FIELD_NAME.fullmatch(name):
+            return f"{parent}.{name}"
+        return f"{parent}.<field:{index}>"
+
+    def check_mapping_collisions(value: dict[object, object], path: str) -> None:
+        nfc_names: set[str] = set()
+        nfkc_names: set[str] = set()
+        for key in value:
+            if not isinstance(key, str):
+                continue
+            nfc_name = unicodedata.normalize("NFC", key).strip()
+            nfkc_name = unicodedata.normalize("NFKC", key).strip().casefold()
+            if nfc_name in nfc_names or nfkc_name in nfkc_names:
+                fail(path, "normalized key collision")
+            nfc_names.add(nfc_name)
+            nfkc_names.add(nfkc_name)
+
     def scan(value: object, path: str) -> None:
         if isinstance(value, str):
-            normalized = unicodedata.normalize("NFKC", value)
-            if _BEARER.search(normalized) or _JWT.search(normalized) or _API_KEY.search(normalized):
-                fail(path, "credential-shaped value")
-            if redact_text(normalized).contains_personal_data:
-                fail(path, "personal-data-shaped value")
+            reason = text_reason(value)
+            if reason is not None:
+                fail(path, reason)
             return
         if value is None or isinstance(value, (bool, int, float, bytes, date, datetime)):
             return
@@ -206,24 +279,35 @@ def assert_no_sensitive_data(payload: object) -> None:
         visited.add(identity)
 
         if isinstance(value, BaseModel):
-            for name in type(value).model_fields:
-                scan(getattr(value, name), f"{path}.{name}")
+            for index, (name, field_info) in enumerate(type(value).model_fields.items()):
+                safe_path = model_field_path(path, name, index)
+                check_name(name, f"{path}.<field:{index}>")
+                if isinstance(field_info.alias, str) and field_info.alias != name:
+                    check_name(field_info.alias, f"{path}.<field:{index}>")
+                scan(getattr(value, name), safe_path)
             return
         if is_dataclass(value) and not isinstance(value, type):
-            for field in fields(value):
-                scan(getattr(value, field.name), f"{path}.{field.name}")
+            for index, field in enumerate(fields(value)):
+                safe_path = model_field_path(path, field.name, index)
+                check_name(field.name, f"{path}.<field:{index}>")
+                scan(getattr(value, field.name), safe_path)
             return
         if isinstance(value, dict):
-            for key, item in value.items():
+            check_mapping_collisions(value, path)
+            ordered_items = sorted(value.items(), key=lambda pair: _stable_sort_token(pair[0]))
+            for index, (key, item) in enumerate(ordered_items):
+                safe_path = f"{path}[{index}]"
                 if not isinstance(key, str):
-                    fail(path, "non-text mapping key")
-                normalized_key = unicodedata.normalize("NFKC", key).strip().casefold()
-                if normalized_key in _FORBIDDEN_KEYS:
-                    fail(path, "forbidden key")
-                scan(item, f"{path}[{key!r}]")
+                    fail(safe_path, "non-text mapping key")
+                check_name(key, safe_path)
+                scan(item, safe_path)
             return
         if isinstance(value, (list, tuple)):
             for index, item in enumerate(value):
+                scan(item, f"{path}[{index}]")
+            return
+        if isinstance(value, (set, frozenset)):
+            for index, item in enumerate(sorted(value, key=_stable_sort_token)):
                 scan(item, f"{path}[{index}]")
             return
         fail(path, "unsupported recursive value type")

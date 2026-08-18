@@ -120,6 +120,40 @@ def test_redaction_leaves_clean_normalized_text_auditable() -> None:
     assert result.redaction_kinds == ()
 
 
+def test_redaction_removes_unicode_handle_and_only_locally_deobfuscates_email() -> None:
+    result = redact_text(
+        "前文 联系＠张三；邮箱 Person . alias ＠ Example . invalid；普通 A B 保持分开"
+    )
+
+    assert result.contains_personal_data is True
+    assert result.redaction_kinds == ("email", "handle")
+    assert result.text_redacted == (
+        "前文 联系[REDACTED_HANDLE];邮箱 [REDACTED_EMAIL];普通 A B 保持分开"
+    )
+    assert "张三" not in result.text_redacted
+    assert "Person" not in result.text_redacted
+    assert "A B" in result.text_redacted
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    ["，", "；", "！", "？", ",", ";", "!", "?", "（", "(", "“", '"', "\n"],
+)
+def test_url_redaction_stops_at_normalized_prose_boundaries_and_preserves_path(
+    boundary: str,
+) -> None:
+    result = redact_text(
+        f"前 https://example.invalid/a%2Fb/path?token=synthetic-secret#part{boundary}后文保留"
+    )
+
+    assert result.contains_personal_data is True
+    assert result.redaction_kinds == ("url",)
+    assert "https://example.invalid/a%2Fb/path" in result.text_redacted
+    assert "synthetic-secret" not in result.text_redacted
+    assert "#part" not in result.text_redacted
+    assert "后文保留" in result.text_redacted
+
+
 @dataclass(frozen=True)
 class NestedDataclass:
     values: tuple[dict[str, str], ...]
@@ -129,15 +163,24 @@ class NestedModel(BaseModel):
     payload: object
 
 
+@dataclass(frozen=True)
+class SensitiveFieldDataclass:
+    user_id: str
+
+
+class SensitiveFieldModel(BaseModel):
+    user_id: str
+
+
 @pytest.mark.parametrize(
     ("payload", "safe_path"),
     [
-        ({"outer": [{"ｘｓｅｃ＿ｔｏｋｅｎ": "hidden"}]}, "$['outer'][0]"),
-        ({"outer": [{" USER_ID ": "hidden"}]}, "$['outer'][0]"),
-        (NestedDataclass(({"nickname": "hidden"},)), "$.values[0]"),
-        (NestedModel(payload={"safe": "Bearer synthetic-credential-123456"}), "$.payload['safe']"),
-        ({"safe": "https://example.invalid/path?access_token=hidden"}, "$['safe']"),
-        ({"safe": "eyJhbGciOiJIUzI1NiJ9.c3ludGhldGlj.c2lnbmF0dXJl"}, "$['safe']"),
+        ({"outer": [{"ｘｓｅｃ＿ｔｏｋｅｎ": "hidden"}]}, "$[0][0][0]"),
+        ({"outer": [{" USER_ID ": "hidden"}]}, "$[0][0][0]"),
+        (NestedDataclass(({"nickname": "hidden"},)), "$.values[0][0]"),
+        (NestedModel(payload={"safe": "Bearer synthetic-credential-123456"}), "$.payload[0]"),
+        ({"safe": "https://example.invalid/path?access_token=hidden"}, "$[0]"),
+        ({"safe": "eyJhbGciOiJIUzI1NiJ9.c3ludGhldGlj.c2lnbmF0dXJl"}, "$[0]"),
     ],
 )
 def test_sensitive_scanner_recurses_and_reports_only_safe_path_and_reason(
@@ -155,6 +198,101 @@ def test_sensitive_scanner_recurses_and_reports_only_safe_path_and_reason(
         "eyJhbGciOiJIUzI1NiJ9",
     ):
         assert forbidden_value not in message
+
+
+@pytest.mark.parametrize(
+    ("secret_key", "safe_value"),
+    [
+        ("Bearer synthetic-mapping-secret-123456", "clean"),
+        ("Person ＠ Example . invalid", "clean"),
+        ("Bearer synthetic-mapping-secret-123456", "Person ＠ Example . invalid"),
+    ],
+)
+def test_sensitive_mapping_keys_fail_before_values_without_echoing_or_logging(
+    secret_key: str,
+    safe_value: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with pytest.raises(SensitiveDataError) as caught:
+        assert_no_sensitive_data({secret_key: safe_value})
+
+    rendered = f"{caught.value!s}\n{caught.value!r}\n{caplog.text}"
+    assert "$[0]" in rendered
+    assert "key" in rendered
+    for secret_part in ("synthetic-mapping-secret-123456", "Person", "Example"):
+        assert secret_part not in rendered
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"e\u0301": "first", "é": "second"},
+        {"Ａ": "first", "a": "second"},
+    ],
+)
+def test_mapping_key_normalization_collisions_fail_closed_without_key_echo(
+    payload: dict[str, str],
+) -> None:
+    with pytest.raises(SensitiveDataError, match="normalized key collision") as caught:
+        assert_no_sensitive_data(payload)
+
+    message = str(caught.value)
+    assert message == "sensitive data at $: normalized key collision"
+    assert "first" not in message
+    assert "second" not in message
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"safe": "clean"},
+        ["clean"],
+        ("clean",),
+        {"clean", "also-clean"},
+        frozenset({"clean", "also-clean"}),
+        NestedModel(payload="clean"),
+        NestedDataclass(({"safe": "clean"},)),
+    ],
+)
+def test_sensitive_scanner_accepts_all_declared_recursive_container_types(payload: object) -> None:
+    assert_no_sensitive_data(payload)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"safe": "Bearer synthetic-container-secret-123456"},
+        ["Bearer synthetic-container-secret-123456"],
+        ("Bearer synthetic-container-secret-123456",),
+        {"clean", "Bearer synthetic-container-secret-123456"},
+        frozenset({"clean", "Bearer synthetic-container-secret-123456"}),
+        NestedModel(payload="Bearer synthetic-container-secret-123456"),
+        NestedDataclass(({"safe": "Bearer synthetic-container-secret-123456"},)),
+    ],
+)
+def test_sensitive_scanner_recurses_stably_without_element_repr(payload: object) -> None:
+    messages: set[str] = set()
+    for _ in range(10):
+        with pytest.raises(SensitiveDataError, match="credential-shaped value") as caught:
+            assert_no_sensitive_data(payload)
+        messages.add(str(caught.value))
+
+    assert len(messages) == 1
+    message = messages.pop()
+    assert "synthetic-container-secret-123456" not in message
+    assert "Bearer" not in message
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [SensitiveFieldDataclass(user_id="clean"), SensitiveFieldModel(user_id="clean")],
+)
+def test_model_and_dataclass_field_names_use_same_forbidden_key_guard(payload: object) -> None:
+    with pytest.raises(SensitiveDataError, match="forbidden key") as caught:
+        assert_no_sensitive_data(payload)
+
+    assert "clean" not in str(caught.value)
+    assert "user_id" not in str(caught.value)
 
 
 def test_sensitive_scanner_accepts_curated_shapes_and_sha256_values() -> None:

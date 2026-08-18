@@ -154,6 +154,47 @@ def test_mapping_uses_title_fallback_and_versioned_phrase_boundaries() -> None:
     assert draft.medical_risk_signal is False
 
 
+def test_mapping_redacts_unicode_handle_and_spaced_email_without_logging_originals(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    post_row = load_row("dy_posts.jsonl")
+    post_row["title"] = "合成标题 联系＠张三 邮箱 Person ＠ Example.invalid"
+    comment_row = load_row("dy_comments.jsonl")
+    comment_row["content"] = "合成评论 联系＠李四 邮箱 Comment ＠ Example.invalid"
+
+    draft = map_post(post_row, context("dy"), PrivacyHasher(b"test-key"))
+    comment = map_comment(comment_row, context("dy"), PrivacyHasher(b"test-key"))
+
+    assert "张三" not in draft.title_redacted
+    assert "Person" not in draft.title_redacted
+    assert "[REDACTED_HANDLE]" in draft.title_redacted
+    assert "[REDACTED_EMAIL]" in draft.title_redacted
+    assert "李四" not in comment.text_redacted
+    assert "Comment" not in comment.text_redacted
+    assert comment.contains_personal_data is True
+    assert comment.excluded_reason == "personal_data_redacted"
+    for original in ("张三", "Person", "李四", "Comment"):
+        assert original not in caplog.text
+
+
+def test_url_redaction_keeps_following_ad_and_medical_phrases_visible_to_signals(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    row = load_row("dy_posts.jsonl")
+    row["title"] = (
+        "前 https://example.invalid/a%2Fb?token=synthetic-url-secret，立即下单，保证根治。"
+    )
+
+    draft = map_post(row, context("dy"), PrivacyHasher(b"test-key"))
+
+    assert draft.title_redacted == (
+        "前 https://example.invalid/a%2Fb,立即下单,保证根治。"
+    )
+    assert draft.ad_signal is True
+    assert draft.medical_risk_signal is True
+    assert "synthetic-url-secret" not in caplog.text
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
