@@ -159,35 +159,54 @@ _SECRET_TOKEN = re.compile(
     re.I,
 )
 _PHONE_NUMBER = re.compile(r"(?<!\d)(?:\+?86[ -]?)?1[3-9]\d{9}(?!\d)")
-_ENGLISH_MEDICAL_CONTEXT = re.compile(r"\b(?:medical|clinical|clinically)\b")
-_ENGLISH_VERIFICATION_CONTEXT = re.compile(
-    r"\b(?:claim|review|verification|verified)\b"
+_MEDICAL_QUALIFIERS = frozenset(
+    {"clinical", "clinically", "health", "medical", "medically", "medicine"}
 )
-_ENGLISH_INCOMPLETE_VERIFICATION = (
-    re.compile(r"\b(?:incomplete|pending|unverified)\b"),
-    re.compile(
-        r"\b(?:has|have|is|was|were|remains?)\s+not\s+"
-        r"(?:been\s+)?(?:complete(?:d)?|passed|verified)\b"
-    ),
-    re.compile(r"\b(?:not|never)\s+(?:been\s+)?(?:complete(?:d)?|passed|verified)\b"),
+_VERIFICATION_SCOPES = frozenset(
+    {
+        "claim",
+        "claims",
+        "conclusion",
+        "review",
+        "reviews",
+        "validate",
+        "validation",
+        "verification",
+    }
 )
-_ENGLISH_COMPLETE_VERIFICATION = re.compile(
-    r"\b(?:complete|completed|passed|verified)\b"
+_AFFIRMATIVE_VERIFICATION_STATES = frozenset(
+    {"approved", "complete", "completed", "passed", "validated", "verified"}
 )
-_CHINESE_MEDICAL_CONTEXT = re.compile(r"(?:医学|医疗|临床|健康(?:声明|结论))")
+_ENGLISH_NEGATED_VERIFICATION = re.compile(
+    r"\b(?:(?:has|have|had|is|was|were)\s+)?(?:not|never)\s+"
+    r"(?:(?:been|clinically|medically|successfully|yet)\s+){0,3}"
+    r"(?:approved|complete|completed|passed|validated|verified)\b"
+)
+_ENGLISH_INCOMPLETE_STATE = re.compile(r"\b(?:incomplete|pending|unverified)\b")
+_CHINESE_MEDICAL_CONTEXT = re.compile(r"(?:医学|医疗|临床|健康)")
 _CHINESE_VERIFICATION_CONTEXT = re.compile(r"(?:声明|结论|核验|验证|审查|确认)")
-_CHINESE_INCOMPLETE_VERIFICATION = (
-    re.compile(r"(?:尚未|还未|并未|未曾|没有)(?:完成|通过)?(?:核验|验证|审查|确认)"),
-    re.compile(r"未完成(?:医学|医疗|临床)?(?:声明|结论)?(?:核验|验证|审查|确认)"),
+_CHINESE_NEGATED_VERIFICATION = (
+    re.compile(
+        r"(?:尚未|还未|并未|未曾|没有|未)(?:顺利|成功)?"
+        r"(?:完成|通过)?(?:医学|医疗|临床)?(?:声明|结论)?"
+        r"(?:核验|验证|审查|确认)"
+    ),
+    re.compile(
+        r"(?:核验|验证|审查|确认)(?:尚未|还未|并未|未曾|没有|未)"
+        r"(?:顺利|成功)?(?:完成|通过|成功)"
+    ),
     re.compile(r"待(?:医学|医疗|临床)?(?:核验|验证|审查|确认)"),
 )
-_CHINESE_COMPLETE_VERIFICATION = (
+_CHINESE_AFFIRMATIVE_VERIFICATION = (
     re.compile(
-        r"(?:已|已经)(?:完成|通过|成功)?"
+        r"(?:已|已经)(?:顺利|成功|正式)?(?:完成|通过)?"
         r"(?:医学|医疗|临床)?(?:声明|结论)?"
         r"(?:核验|验证|审查|确认)"
     ),
-    re.compile(r"(?:核验|验证|审查|确认)(?:已|已经)?(?:完成|通过|成功)"),
+    re.compile(
+        r"(?:核验|验证|审查|确认)(?:已|已经)?"
+        r"(?:顺利|成功|正式)?(?:完成|通过|成功)"
+    ),
 )
 
 
@@ -471,41 +490,14 @@ def _validate_candidates(value: object) -> list[dict[str, Any]]:
         if candidate["risk_flags"].count(_MEDICAL_RISK) != 1:
             raise TrendExchangeError("medical_claim_unverified")
         for risk_flag in candidate["risk_flags"]:
-            compact_risk_flag = "".join(
-                character
-                for character in unicodedata.normalize("NFKC", risk_flag).casefold()
-                if character.isalnum()
-            )
-            has_medical_context = any(
-                context in compact_risk_flag for context in ("clinical", "medical")
-            )
-            has_negative_verified_state = any(
-                state in compact_risk_flag
-                for state in (
-                    "unverified",
-                    "notverified",
-                    "notbeenverified",
-                    "neververified",
-                    "verificationincomplete",
-                    "verificationnotcomplete",
-                    "verificationpending",
-                )
-            )
-            has_positive_verified_state = not has_negative_verified_state and (
-                "verified" in compact_risk_flag
-                or any(
-                    state in compact_risk_flag
-                    for state in (
-                        "reviewcomplete",
-                        "reviewcompleted",
-                        "reviewpassed",
-                        "verificationcomplete",
-                        "verificationcompleted",
-                        "verificationpassed",
-                    )
-                )
-            )
-            if has_medical_context and has_positive_verified_state:
+            if risk_flag == _MEDICAL_RISK:
+                continue
+            risk_tokens = frozenset(_normalized_statement_words(risk_flag).split())
+            if (
+                risk_tokens & _MEDICAL_QUALIFIERS
+                and risk_tokens & _VERIFICATION_SCOPES
+                and risk_tokens & _AFFIRMATIVE_VERIFICATION_STATES
+            ):
                 raise TrendExchangeError("medical_verification_contradiction")
         platform = candidate.get("platform_rank_evidence")
         if (
@@ -599,39 +591,60 @@ def _normalized_security_text(value: str) -> str:
     ).casefold()
 
 
-def _classify_medical_verification_statement(
-    value: str,
-) -> Literal["complete", "incomplete"] | None:
-    """Classify only explicit medical-verification statements, negatives first."""
-
+def _normalized_statement_words(value: str) -> str:
     normalized = _normalized_security_text(value)
-    words = " ".join(
+    return " ".join(
         "".join(
             character if character.isalnum() else " " for character in normalized
         ).split()
     )
-    compact = words.replace(" ", "")
 
-    english_context = bool(
-        _ENGLISH_MEDICAL_CONTEXT.search(words)
-        and _ENGLISH_VERIFICATION_CONTEXT.search(words)
-    )
-    if english_context:
-        if any(pattern.search(words) for pattern in _ENGLISH_INCOMPLETE_VERIFICATION):
-            return "incomplete"
-        if _ENGLISH_COMPLETE_VERIFICATION.search(words):
-            return "complete"
 
-    chinese_context = bool(
-        _CHINESE_MEDICAL_CONTEXT.search(compact)
-        and _CHINESE_VERIFICATION_CONTEXT.search(compact)
-    )
-    if chinese_context:
-        if any(pattern.search(compact) for pattern in _CHINESE_INCOMPLETE_VERIFICATION):
-            return "incomplete"
-        if any(pattern.search(compact) for pattern in _CHINESE_COMPLETE_VERIFICATION):
-            return "complete"
-    return None
+def _classify_medical_verification_statement(
+    value: str,
+) -> Literal["complete", "incomplete"] | None:
+    """Mask bounded negative clauses, then find affirmative medical status."""
+
+    saw_incomplete = False
+    normalized = _normalized_security_text(value)
+    for statement in re.split(r"[.!?;\r\n。！？；]+", normalized):
+        words = _normalized_statement_words(statement)
+        if not words:
+            continue
+        tokens = frozenset(words.split())
+        english_context = bool(
+            (tokens & _MEDICAL_QUALIFIERS and tokens & _VERIFICATION_SCOPES)
+            or (
+                tokens & {"clinically", "medically"}
+                and tokens & {"validated", "verified"}
+            )
+            or ("medical" in tokens and "verified" in tokens)
+        )
+        if english_context:
+            masked = _ENGLISH_NEGATED_VERIFICATION.sub(" ", words)
+            masked = _ENGLISH_INCOMPLETE_STATE.sub(" ", masked)
+            if masked != words:
+                saw_incomplete = True
+            if frozenset(masked.split()) & _AFFIRMATIVE_VERIFICATION_STATES:
+                return "complete"
+
+        compact = words.replace(" ", "")
+        chinese_context = bool(
+            _CHINESE_MEDICAL_CONTEXT.search(compact)
+            and _CHINESE_VERIFICATION_CONTEXT.search(compact)
+        )
+        if chinese_context:
+            masked_compact = compact
+            for pattern in _CHINESE_NEGATED_VERIFICATION:
+                masked_compact = pattern.sub("", masked_compact)
+            if masked_compact != compact:
+                saw_incomplete = True
+            if any(
+                pattern.search(masked_compact)
+                for pattern in _CHINESE_AFFIRMATIVE_VERIFICATION
+            ):
+                return "complete"
+    return "incomplete" if saw_incomplete else None
 
 
 def _contains_ip(value: str) -> bool:

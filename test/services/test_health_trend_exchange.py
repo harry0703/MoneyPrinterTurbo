@@ -204,30 +204,58 @@ def test_verify_rejects_contradictory_medical_verification_claims(
         verify_trend_exchange(source, anchor)
 
 
-def test_structured_risk_rejects_completed_verification_without_text_classifier(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "conflicting_flag",
+    [
+        "medical_claim_verified_and_unverified",
+        "clinical_review_approved",
+        "health_claim_verification_passed",
+        "medicine_claim_validated",
+        "medical_validate_completed",
+        "ｃｌｉｎｉｃａｌ_ｒｅｖｉｅｗ-ｖｅｒｉｆｉｅｄ",
+    ],
+)
+def test_structured_risk_rejects_any_positive_medical_status(
+    tmp_path: Path, conflicting_flag: str
 ) -> None:
     def mutate(candidates: list[dict[str, object]], summary: object):
         del summary
         candidates[0]["risk_flags"] = [
             "medical_claim_unverified",
-            "medical_claim_verification_completed",
+            conflicting_flag,
         ]
         return candidates, _summary("HTI-20260818-01", candidates), {}
 
     source, anchor = _write_bundle(tmp_path, mutate=mutate)
-    monkeypatch.setattr(
-        exchange, "_classify_medical_verification_statement", lambda value: None
-    )
-
     with pytest.raises(TrendExchangeError, match="medical_verification_contradiction"):
         verify_trend_exchange(source, anchor)
+
+
+@pytest.mark.parametrize(
+    "nonmedical_flag",
+    [
+        "evidence_quality_verified",
+        "public_metadata_approved",
+        "research_pipeline_completed",
+    ],
+)
+def test_structured_risk_allows_nonmedical_positive_status(
+    tmp_path: Path, nonmedical_flag: str
+) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        del summary
+        candidates[0]["risk_flags"] = ["medical_claim_unverified", nonmedical_flag]
+        return candidates, _summary("HTI-20260818-01", candidates), {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    assert verify_trend_exchange(source, anchor).candidate_count == 10
 
 
 def test_verify_allows_nonmedical_verified_research_metadata(tmp_path: Path) -> None:
     def mutate(candidates: list[dict[str, object]], summary: object):
         del summary
-        candidates[0]["topic"] = "Verified public research metadata"
+        candidates[0]["topic"] = "Verified public health research metadata"
         candidates[0]["risk_flags"] = [
             "medical_claim_unverified",
             "evidence_quality_verified",
@@ -265,6 +293,15 @@ def test_verify_allows_explicitly_unverified_medical_research_text(tmp_path: Pat
         "Medical_claim-verification: completed",
         "Ｍｅｄｉｃａｌ　ｃｌａｉｍ　ｖｅｒｉｆｉｃａｔｉｏｎ　ｐａｓｓｅｄ",
         "医学_声明：已-通过 验证",
+        "The claim was medically verified",
+        "Health claim has been verified",
+        "The medicine claim was verified",
+        "Clinical review was approved",
+        "Medicine claim has been validated",
+        "Health claim verification is complete",
+        "Medical verification is complete, not incomplete",
+        "Medical verification has not been verified, but later passed",
+        "医学核验顺利通过",
     ],
 )
 def test_verify_rejects_completed_medical_verification_statements(
@@ -293,6 +330,17 @@ def test_verify_rejects_completed_medical_verification_statements(
         "医学声明没有通过验证",
         "医学声明待核验",
         "Ｍｅｄｉｃａｌ_ｃｌａｉｍ-ｖｅｒｉｆｉｃａｔｉｏｎ：ｎｏｔ ｖｅｒｉｆｉｅｄ",
+        "Medical review incomplete",
+        "The claim was not medically verified",
+        "Medical verification has not passed",
+        "Medical verification has not yet passed",
+        "Medical verification was not completed",
+        "Medical verification was not successfully completed",
+        "Medical verification is unverified",
+        "Clinical review is pending",
+        "Medicine claim validation has not passed",
+        "医学核验并未完成",
+        "医学声明尚未完成验证",
     ],
 )
 def test_verify_allows_incomplete_medical_verification_statements(
