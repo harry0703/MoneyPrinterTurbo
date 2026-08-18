@@ -61,7 +61,7 @@ def test_parse_porcelain_v1_z_accepts_valid_status_combinations(raw: bytes):
 
 
 @pytest.mark.parametrize("status", [
-    " A", " M", " D", " R", " C",
+    " A", " M", " T", " D", " R", " C",
     "M ", "MM", "MT", "MD",
     "T ", "TM", "TT", "TD",
     "A ", "AM", "AT", "AD",
@@ -79,6 +79,7 @@ def test_parse_porcelain_v1_z_accepts_every_documented_ordinary_status(status: s
 @pytest.mark.parametrize(("status", "accepted"), [
     (" A", True),
     (" M", True),
+    (" T", True),
     (" D", True),
     (" R", True),
     (" C", True),
@@ -88,7 +89,6 @@ def test_parse_porcelain_v1_z_accepts_every_documented_ordinary_status(status: s
     ("R ", True),
     ("CD", True),
     ("D ", True),
-    (" T", False),
     ("DM", False),
     ("DT", False),
     ("DA", False),
@@ -115,6 +115,29 @@ def test_inspector_status_accepts_intent_to_add_from_real_git(tmp_path: Path):
     entry = next(item for item in GitInspector(repo).status() if item.path == intent.name)
 
     assert (entry.index_status, entry.worktree_status) == (" ", "A")
+
+
+def test_real_worktree_type_change_is_accepted(tmp_path: Path):
+    repo = tmp_path / "r"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.name", "Audit Test")
+    _git(repo, "config", "user.email", "audit@example.invalid")
+    _git(repo, "config", "core.symlinks", "true")
+    target = repo / "target.txt"
+    target.write_text("target\n", encoding="utf-8")
+    kind = repo / "kind"
+    kind.write_text(f"{target.name}\n", encoding="utf-8")
+    oid = _git(repo, "hash-object", "-w", "--", kind.name).decode("ascii").strip()
+    _git(repo, "add", "--", target.name)
+    _git(repo, "update-index", "--add", "--cacheinfo", f"120000,{oid},{kind.name}")
+    _git(repo, "commit", "-m", "symlink fixture")
+    kind.write_text("regular file\n", encoding="utf-8")
+
+    assert _git(repo, "status", "--porcelain=v1", "-z") == b" T kind\0"
+    entry = next(item for item in GitInspector(repo).status() if item.path == kind.name)
+
+    assert (entry.index_status, entry.worktree_status) == (" ", "T")
 
 
 @pytest.mark.parametrize("raw", [

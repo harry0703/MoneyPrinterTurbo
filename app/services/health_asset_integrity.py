@@ -22,7 +22,7 @@ ALLOWED_GIT_SUBCOMMANDS = {
 }
 
 _ORDINARY_STATUSES = frozenset({
-    " A", " M", " D", " R", " C",
+    " A", " M", " T", " D", " R", " C",
     "M ", "MM", "MT", "MD",
     "T ", "TM", "TT", "TD",
     "A ", "AM", "AT", "AD",
