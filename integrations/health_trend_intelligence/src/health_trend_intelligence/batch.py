@@ -74,6 +74,7 @@ class _FileIdentity:
 @dataclass(frozen=True, slots=True)
 class _PreparedSource:
     spec: SourceSpec
+    destination_name: str
     payload: bytes
     records: int
     identity: _FileIdentity
@@ -101,6 +102,13 @@ def _security_normalize(value: str) -> str:
 def _is_forbidden_name(value: str) -> bool:
     normalized = _security_normalize(value)
     return any(term in normalized for term in _FORBIDDEN_TERMS)
+
+
+def _canonical_jsonl_basename(value: str) -> str:
+    suffix = Path(value).suffix
+    if not suffix.isascii() or suffix.casefold() != ".jsonl":
+        raise BatchInputError("source filename is forbidden")
+    return f"{value[: -len(suffix)]}.jsonl"
 
 
 def _contains_forbidden_key(value: Any) -> bool:
@@ -214,14 +222,21 @@ def _prepare_source(value: object) -> _PreparedSource:
         validate_windows_basename(path.name)
     except PathSafetyError as error:
         raise BatchInputError("source path is unsafe") from error
-    if _security_normalize(path.suffix) != ".jsonl" or _is_forbidden_name(path.name):
+    destination_name = _canonical_jsonl_basename(path.name)
+    if _is_forbidden_name(path.name):
         raise BatchInputError("source filename is forbidden")
     try:
         payload, identity = _read_stable_source(path)
     except PathSafetyError as error:
         raise BatchInputError("source path is unsafe") from error
     records = _validate_jsonl(payload)
-    return _PreparedSource(spec=spec, payload=payload, records=records, identity=identity)
+    return _PreparedSource(
+        spec=spec,
+        destination_name=destination_name,
+        payload=payload,
+        records=records,
+        identity=identity,
+    )
 
 
 def _read_for_copy(prepared: _PreparedSource) -> bytes:
@@ -279,7 +294,7 @@ def register_batch(
     if not sources:
         raise BatchInputError("at least one source is required")
     prepared = tuple(_prepare_source(item) for item in sources)
-    names = [item.spec.path.name for item in prepared]
+    names = [item.destination_name for item in prepared]
     if len({_security_normalize(name) for name in names}) != len(names):
         raise BatchInputError("source destination names must be unique")
 
@@ -293,8 +308,8 @@ def register_batch(
         bindings: list[SourceFileBinding] = []
         for item in prepared:
             payload = _read_for_copy(item)
-            relative_path = PurePosixPath("inputs", item.spec.path.name).as_posix()
-            destination = inputs_dir / item.spec.path.name
+            relative_path = PurePosixPath("inputs", item.destination_name).as_posix()
+            destination = inputs_dir / item.destination_name
             _exclusive_write(destination, payload)
             copied, _ = _read_stable_source(destination)
             copied_records = _validate_jsonl(copied)
@@ -358,7 +373,11 @@ def _safe_binding_path(batch_dir: Path, relative_path: str) -> Path:
         validate_windows_basename(basename)
     except PathSafetyError as error:
         raise BatchInputError("manifest source path is unsafe") from error
-    if _security_normalize(Path(basename).suffix) != ".jsonl" or _is_forbidden_name(basename):
+    try:
+        canonical_basename = _canonical_jsonl_basename(basename)
+    except BatchInputError as error:
+        raise BatchInputError("manifest source path is unsafe") from error
+    if canonical_basename != basename or _is_forbidden_name(basename):
         raise BatchInputError("manifest source path is unsafe")
     inputs_dir = batch_dir / "inputs"
     destination = inputs_dir / basename

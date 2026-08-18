@@ -268,6 +268,55 @@ def test_registration_rejects_media_and_credential_file_names(
     assert not (layout.raw / "HTI-20260818-01").exists()
 
 
+@pytest.mark.parametrize("name", ["data.ｊｓｏｎｌ", "data.𝕛𝕤𝕠𝕟𝕝"])
+def test_registration_rejects_nfkc_compatible_non_ascii_jsonl_extension(
+    tmp_path: Path, name: str
+) -> None:
+    layout = initialized_layout(tmp_path)
+
+    with pytest.raises(BatchInputError):
+        register_batch(
+            layout,
+            "HTI-20260818-01",
+            (query(),),
+            (source_spec(source_file(tmp_path, name)),),
+            SNAPSHOT,
+        )
+
+    assert not (layout.raw / "HTI-20260818-01").exists()
+
+
+def test_registration_accepts_ascii_uppercase_extension_but_stores_canonical_lowercase(
+    tmp_path: Path,
+) -> None:
+    source = source_file(tmp_path, "data.JSONL")
+    layout, manifest = register_fixture_batch(tmp_path, source=source)
+
+    assert manifest.sources[0].relative_path == "inputs/data.jsonl"
+    assert (layout.raw / manifest.batch_id / "inputs" / "data.jsonl").is_file()
+    assert verify_raw_batch(layout, manifest.batch_id) == manifest
+
+
+def test_registration_rejects_destination_collision_after_extension_normalization(
+    tmp_path: Path,
+) -> None:
+    layout = initialized_layout(tmp_path)
+    first = source_file(tmp_path / "first", "data.JSONL")
+    second = source_file(tmp_path / "second", "data.jsonl")
+
+    with pytest.raises(BatchInputError):
+        register_batch(
+            layout,
+            "HTI-20260818-01",
+            (query(),),
+            (source_spec(first), source_spec(second)),
+            SNAPSHOT,
+        )
+
+    assert not (layout.raw / "HTI-20260818-01").exists()
+    assert not registry_path(layout, "HTI-20260818-01").exists()
+
+
 def test_registration_rejects_source_symlink_before_destination_creation(tmp_path: Path) -> None:
     layout = initialized_layout(tmp_path)
     actual = source_file(tmp_path)
@@ -533,6 +582,26 @@ def test_binding_rejects_nfkc_sensitive_basename_with_rewritten_registry(
     original.rename(renamed)
     data = json.loads(batch_manifest_path(layout, manifest.batch_id).read_text(encoding="utf-8"))
     data["sources"][0]["relative_path"] = "inputs/ｔｏｋｅｎ.jsonl"
+    rewrite_manifest(layout, manifest.batch_id, data, rewrite_registry=True)
+
+    with pytest.raises(BatchInputError):
+        verify_raw_batch(layout, manifest.batch_id)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["data.ｊｓｏｎｌ", "data.𝕛𝕤𝕠𝕟𝕝", "data.JSONL"],
+)
+def test_binding_rejects_noncanonical_jsonl_extension_even_with_rewritten_registry(
+    tmp_path: Path, name: str
+) -> None:
+    layout, manifest = register_fixture_batch(tmp_path)
+    batch_dir = layout.raw / manifest.batch_id
+    original = batch_dir / manifest.sources[0].relative_path
+    renamed = original.with_name(name)
+    original.rename(renamed)
+    data = json.loads(batch_manifest_path(layout, manifest.batch_id).read_text(encoding="utf-8"))
+    data["sources"][0]["relative_path"] = f"inputs/{name}"
     rewrite_manifest(layout, manifest.batch_id, data, rewrite_registry=True)
 
     with pytest.raises(BatchInputError):
