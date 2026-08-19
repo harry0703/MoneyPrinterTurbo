@@ -110,6 +110,10 @@ class VideoParams(BaseModel):
     # 每屏最多显示的词数。0 表示按标点断句（原有行为）；短视频常用 2-4 词，
     # 仅对以空格分词的语言有意义。
     max_subtitle_words: int = Field(default=0, ge=0, le=12)
+    # 逐词高亮：竖屏短视频常见样式，当前朗读的词加底色块。
+    subtitle_highlight_enabled: bool = False
+    subtitle_highlight_color: str = "#FF2E88"
+    subtitle_uppercase: bool = False
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"

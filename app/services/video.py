@@ -35,7 +35,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
-from app.services.utils import video_effects
+from app.services.utils import subtitle_render, video_effects
 from app.utils import file_security, utils
 
 class SubClippedVideoClip:
@@ -1015,6 +1015,57 @@ def generate_video(
             return "#000000" if params.text_background_color else None
         return params.text_background_color
 
+    def position_subtitle_clip(clip):
+        """字幕定位逻辑对普通字幕和高亮字幕完全一致，抽出来避免两处维护。"""
+        if params.subtitle_position == "bottom":
+            return clip.with_position(("center", video_height * 0.95 - clip.h))
+        if params.subtitle_position == "top":
+            return clip.with_position(("center", video_height * 0.05))
+        if params.subtitle_position == "custom":
+            margin = 10
+            max_y = video_height - clip.h - margin
+            custom_y = (video_height - clip.h) * (params.custom_position / 100)
+            return clip.with_position(("center", max(margin, min(custom_y, max_y))))
+        return clip.with_position(("center", "center"))
+
+    def create_highlighted_clips(subtitle_item):
+        """
+        把一条字幕展开成"每个词轮流高亮"的一组图像片段。
+
+        逐词高亮无法用 TextClip 表达，因此改为自行绘制位图。每个词占用
+        一个时间片，画面内容相同，只有高亮位置不同。
+        """
+        (start, end), phrase = subtitle_item[0], subtitle_item[1]
+        words = phrase.split()
+        if not words:
+            return []
+
+        max_width = int(video_width * 0.86)
+        intervals = subtitle_render.split_word_intervals(words, start, end)
+        clips = []
+
+        for index, (word_start, word_end) in enumerate(intervals):
+            duration = max(0.01, word_end - word_start)
+            frame = subtitle_render.render_caption(
+                words=words,
+                active_index=index,
+                font_path=font_path,
+                font_size=int(params.font_size),
+                max_width=max_width,
+                text_color=params.text_fore_color,
+                stroke_color=params.stroke_color,
+                stroke_width=int(params.stroke_width),
+                highlight_color=getattr(
+                    params, "subtitle_highlight_color", "#FF2E88"
+                ),
+                uppercase=bool(getattr(params, "subtitle_uppercase", False)),
+            )
+            clip = ImageClip(frame, transparent=True, duration=duration)
+            clip = clip.with_start(word_start).with_end(word_end)
+            clips.append(position_subtitle_clip(clip))
+
+        return clips
+
     def create_text_clip(subtitle_item):
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
@@ -1193,10 +1244,17 @@ def generate_video(
                     make_textclip=make_textclip,
                 )
             )
+            highlight_enabled = bool(
+                getattr(params, "subtitle_highlight_enabled", False)
+            )
             text_clips = []
             for item in sub.subtitles:
-                clip = create_text_clip(subtitle_item=item)
-                text_clips.append(clip)
+                if highlight_enabled:
+                    # 高亮样式下每个词都要单独出一帧，因此一条字幕会展开成
+                    # 多个只有高亮位置不同的图像片段。
+                    text_clips.extend(create_highlighted_clips(subtitle_item=item))
+                else:
+                    text_clips.append(create_text_clip(subtitle_item=item))
             video_clip = CompositeVideoClip([video_clip, *text_clips])
             clip_stack.callback(video_clip.close)
 
