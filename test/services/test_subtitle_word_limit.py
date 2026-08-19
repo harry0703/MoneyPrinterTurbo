@@ -131,5 +131,40 @@ class WhisperReChunkTest(unittest.TestCase):
         self.assertEqual(open(self.path, encoding="utf-8").read(), before)
 
 
+
+class PauseSplitTest(unittest.TestCase):
+    """
+    WordBoundary 不带标点，句子边界只能靠停顿识别。这些用例锁定该行为，
+    避免回归成"把上一句结尾和下一句开头拼在同一屏"。
+    """
+
+    def setUp(self):
+        self.path = os.path.join(tempfile.mkdtemp(), "subtitle.srt")
+
+    def test_group_is_flushed_on_a_long_pause(self):
+        cues = [
+            _cue("Why", 0.0, 0.3),
+            _cue("is", 0.3, 0.6),
+            # 0.6 -> 1.6 是一秒的停顿，说明这里是句子边界。
+            _cue("Sunlight", 1.6, 2.0),
+            _cue("looks", 2.0, 2.4),
+        ]
+        voice.create_subtitle(
+            sub_maker=_sub_maker(cues), text="x", subtitle_file=self.path, max_words=3
+        )
+        texts = [text for text, _, _ in _read_cues(self.path)]
+        self.assertEqual(texts, ["Why is", "Sunlight looks"])
+
+    def test_continuous_speech_is_not_split(self):
+        """连读的词不能被误判成句子边界，否则字幕会碎成一词一屏。"""
+        cues = [_cue(word, index * 0.3, index * 0.3 + 0.29)
+                for index, word in enumerate(["one", "two", "three", "four"])]
+        voice.create_subtitle(
+            sub_maker=_sub_maker(cues), text="x", subtitle_file=self.path, max_words=3
+        )
+        texts = [text for text, _, _ in _read_cues(self.path)]
+        self.assertEqual(texts, ["one two three", "four"])
+
+
 if __name__ == "__main__":
     unittest.main()

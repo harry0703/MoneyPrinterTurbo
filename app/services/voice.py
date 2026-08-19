@@ -1948,6 +1948,11 @@ def _build_subtitle_items_from_legacy_submaker(
     return sub_items
 
 
+# 词间停顿超过该阈值时视为语义停顿（句末或逗号）。0.24 秒足以区分正常连读
+# 与断句，又不会把语速稍慢的连续词误判成两句。单位是 100 纳秒。
+_SUBTITLE_PAUSE_SPLIT_100NS = 2400000
+
+
 def _build_subtitle_items_by_word_count(
     sub_maker: SubMaker, max_words: int
 ) -> list[str]:
@@ -1968,6 +1973,7 @@ def _build_subtitle_items_by_word_count(
     group_words = []
     group_start = None
     group_end = None
+    previous_end = None
 
     def flush():
         nonlocal sub_index, group_words, group_start, group_end
@@ -2005,6 +2011,15 @@ def _build_subtitle_items_by_word_count(
 
         for word, weight in zip(words, weights):
             word_start = cursor
+
+            # WordBoundary 事件不携带标点，无法直接判断句子边界，但停顿可以。
+            # 词间出现明显间隔时先收口，避免出现"sky blue Sunlight"这种把
+            # 上一句结尾和下一句开头拼在一屏的读法。
+            if (
+                previous_end is not None
+                and word_start - previous_end > _SUBTITLE_PAUSE_SPLIT_100NS
+            ):
+                flush()
             word_end = (
                 cue_end
                 if len(words) == 1
@@ -2016,6 +2031,7 @@ def _build_subtitle_items_by_word_count(
                 group_start = word_start
             group_words.append(word)
             group_end = word_end
+            previous_end = word_end
             if len(group_words) >= max_words:
                 flush()
 
