@@ -3645,9 +3645,19 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
         and cached_preview.get("fingerprint") in valid_fingerprints
         and cached_preview.get("audio_bytes")
     ):
+        # 只在用户本次明确点击“试听音色”时自动播放。Streamlit 的其它控件
+        # 也会触发页面 rerun；如果对缓存音频永久开启 autoplay，修改任意设置
+        # 都可能让旧试听从头播放。完整试听继续保留手动播放，避免较长音频在
+        # 生成完成后意外打断用户。
+        should_autoplay = bool(
+            short_preview_requested
+            and cached_preview.get("preview_type") == "sample"
+            and cached_preview.get("fingerprint") == sample_fingerprint
+        )
         st.audio(
             cached_preview["audio_bytes"],
             format=cached_preview.get("mime_type", "audio/mp3"),
+            autoplay=should_autoplay,
         )
         if cached_preview.get("preview_type") == "full":
             duration = cached_preview.get("duration")
