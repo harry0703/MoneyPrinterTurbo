@@ -95,12 +95,20 @@ def save_state(state: dict) -> None:
     os.replace(temp_path, path)
 
 
+def _has_video(record: dict) -> bool:
+    video_path = record.get("video_path")
+    return bool(video_path and os.path.isfile(video_path))
+
+
 def select_entry(plan: dict, state: dict, args) -> dict | None:
     """
     选出本次要执行的条目。
 
     默认只做"当天及之前尚未完成的最早一条"，这样偶尔漏跑一天，第二天会
     自动补上，而不会一次性把积压的视频全部推到同一天发布。
+
+    ``--next`` 用于计划正式开始之前的预生成：忽略排期日期，直接取第一条
+    还没有成片的条目，方便先渲染几条出来检查风格。
     """
     schedule = plan["schedule"]
 
@@ -110,13 +118,27 @@ def select_entry(plan: dict, state: dict, args) -> dict | None:
                 return entry
         raise SystemExit(f"unknown plan entry: {args.id}")
 
+    candidates = [
+        entry
+        for entry in schedule
+        if not args.account or entry["account"] == args.account
+    ]
+
+    if getattr(args, "next", False):
+        pending = [
+            entry
+            for entry in candidates
+            if state.get(entry["id"], {}).get("status") != STATUS_DONE
+            and not _has_video(state.get(entry["id"], {}))
+        ]
+        return pending[0] if pending else None
+
     today = args.date or date.today().isoformat()
     pending = [
         entry
-        for entry in schedule
+        for entry in candidates
         if entry["date"] <= today
         and state.get(entry["id"], {}).get("status") != STATUS_DONE
-        and (not args.account or entry["account"] == args.account)
     ]
     return pending[0] if pending else None
 
@@ -201,6 +223,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--id", default="", help="run one specific plan entry")
     parser.add_argument("--date", default="", help="treat this ISO date as today")
     parser.add_argument(
+        "--next",
+        action="store_true",
+        help="take the next entry with no video yet, ignoring the schedule date",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="re-generate even when a video already exists for the entry",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="show the selected entry and exit"
     )
     parser.add_argument(
@@ -252,7 +284,7 @@ def main(argv=None) -> int:
     try:
         # 生成成功但发布失败时保留视频，重跑直接续做发布。渲染一条视频
         # 需要十几分钟，不应该因为一次网络错误就重来。
-        video_path = record.get("video_path")
+        video_path = None if args.force else record.get("video_path")
         if not (video_path and os.path.isfile(video_path)):
             video_path = generate_video(plan, entry)
             record.update({"status": STATUS_GENERATED, "video_path": video_path})

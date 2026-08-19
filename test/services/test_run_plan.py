@@ -44,6 +44,8 @@ class _Args:
         self.account = kwargs.get("account", "")
         self.id = kwargs.get("id", "")
         self.date = kwargs.get("date", "")
+        self.next = kwargs.get("next", False)
+        self.force = kwargs.get("force", False)
 
 
 class SelectEntryTest(unittest.TestCase):
@@ -87,6 +89,45 @@ class SelectEntryTest(unittest.TestCase):
     def test_unknown_id_fails_loudly(self):
         with self.assertRaises(SystemExit):
             run_plan.select_entry(_plan(), {}, _Args(id="nope-999"))
+
+
+class NextModeTest(unittest.TestCase):
+    """``--next`` 用于计划开始之前预生成，必须忽略排期日期。"""
+
+    def test_ignores_the_schedule_date(self):
+        entry = run_plan.select_entry(
+            _plan(), {}, _Args(date="2026-01-01", account="why", next=True)
+        )
+        self.assertEqual(entry["id"], "why-001")
+
+    def test_skips_entries_that_already_have_a_video(self):
+        """已经渲染过的条目不该被重复选中，否则永远停在第一条。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            existing = os.path.join(tmp, "final-1.mp4")
+            with open(existing, "wb") as handle:
+                handle.write(b"v")
+            state = {"why-001": {"status": run_plan.STATUS_GENERATED,
+                                 "video_path": existing}}
+            entry = run_plan.select_entry(
+                _plan(), state, _Args(account="why", next=True)
+            )
+        self.assertEqual(entry["id"], "why-002")
+
+    def test_missing_video_file_is_regenerated(self):
+        """状态说有视频但文件已被删除时，必须重新选中该条目。"""
+        state = {"why-001": {"status": run_plan.STATUS_GENERATED,
+                             "video_path": "/nope/gone.mp4"}}
+        entry = run_plan.select_entry(_plan(), state, _Args(account="why", next=True))
+        self.assertEqual(entry["id"], "why-001")
+
+    def test_returns_none_when_everything_is_rendered(self):
+        state = {
+            entry["id"]: {"status": run_plan.STATUS_DONE}
+            for entry in _plan()["schedule"]
+        }
+        self.assertIsNone(
+            run_plan.select_entry(_plan(), state, _Args(next=True))
+        )
 
 
 class BuildParamsTest(unittest.TestCase):
@@ -171,6 +212,33 @@ class ResumeTest(unittest.TestCase):
 
         publish.assert_not_called()
         self.assertEqual(code, 0)
+
+    def test_force_regenerates_an_existing_video(self):
+        """改了字幕或语速之后需要重做同一条，不该被迫手工删状态文件。"""
+        with patch.object(run_plan, "generate_video", return_value=self.video_path):
+            with patch.object(
+                run_plan, "publish_video", return_value={"url": "u"}
+            ):
+                run_plan.main(["--id", "why-001"])
+
+        with patch.object(
+            run_plan, "generate_video", return_value=self.video_path
+        ) as generate:
+            with patch.object(run_plan, "publish_video", return_value={"url": "u"}):
+                run_plan.main(["--id", "why-001", "--force"])
+
+        generate.assert_called_once()
+
+    def test_without_force_an_existing_video_is_reused(self):
+        with patch.object(run_plan, "generate_video", return_value=self.video_path):
+            with patch.object(run_plan, "publish_video", return_value={"url": "u"}):
+                run_plan.main(["--id", "why-001"])
+
+        with patch.object(run_plan, "generate_video") as generate:
+            with patch.object(run_plan, "publish_video", return_value={"url": "u"}):
+                run_plan.main(["--id", "why-001"])
+
+        generate.assert_not_called()
 
     def test_nothing_due_exits_cleanly(self):
         """没有待办时必须正常退出，否则 cron 每次都会报警。"""
