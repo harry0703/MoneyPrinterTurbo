@@ -121,9 +121,11 @@ class VideoParams(BaseModel):
     outro_handle: str = ""
     outro_label: str = "FOLLOW"
     outro_accent_color: str = "#FF2E88"
-    outro_duration: float = Field(default=1.2, ge=0.0, le=5.0)
-    # 角标中心相对画面高度的位置，默认略高于中线，避开字幕与平台自带的界面。
-    outro_position: float = Field(default=0.30, ge=0.0, le=1.0)
+    outro_duration: float = Field(default=2.2, ge=0.0, le=8.0)
+    # 角标中心相对画面高度的位置。字幕居中显示时最高可占到 781~1139px，
+    # 因此默认值必须让角标整体收在 780px 以上，否则遇到需要折行的长词就会
+    # 与字幕叠在一起。
+    outro_position: float = Field(default=0.25, ge=0.0, le=1.0)
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"

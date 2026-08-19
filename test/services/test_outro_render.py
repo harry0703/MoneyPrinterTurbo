@@ -182,6 +182,26 @@ class BuildOutroClipsTest(unittest.TestCase):
     def test_zero_duration_is_skipped(self):
         self.assertEqual(self._build(self._params(outro_duration=0.0)), [])
 
+    def test_badge_clears_a_wrapped_centred_caption(self):
+        """
+        三个长单词会折成两行，居中字幕因此可以向上顶到 y=781。角标压在字幕上
+        是无法通过一次抽帧发现的偶发问题,这里用实测高度把边界钉死。
+        """
+        from app.services.utils import subtitle_render
+
+        caption = subtitle_render.render_caption(
+            words=["EXTRAORDINARY", "CIRCUMSTANCES", "EVERYWHERE"],
+            active_index=1,
+            font_path=FONT,
+            font_size=80,
+            max_width=int(1080 * 0.86),
+            stroke_width=8,
+        )
+        caption_top = 1920 / 2 - caption.shape[0] / 2
+
+        clip = self._build(self._params())[-1]
+        self.assertLess(clip.pos(0)[1] + clip.h, caption_top)
+
 
 if __name__ == "__main__":
     unittest.main()

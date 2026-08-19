@@ -181,15 +181,19 @@ def _outro_fields(profile: dict) -> dict:
     logo = outro.get("logo", "")
     if logo and not os.path.isabs(logo):
         logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), logo)
-    return {
+    fields = {
         "outro_enabled": bool(logo),
         "outro_logo_path": logo,
         "outro_handle": outro.get("handle", ""),
-        "outro_duration": float(outro.get("duration", 1.2)),
+        "outro_duration": float(outro.get("duration", 2.2)),
         "outro_accent_color": profile["defaults"].get(
             "subtitle_highlight_color", "#FF2E88"
         ),
     }
+    # 高度只在计划里显式给出时才覆盖，默认沿用留有字幕间距的安全值。
+    if outro.get("position") is not None:
+        fields["outro_position"] = float(outro["position"])
+    return fields
 
 
 def generate_video(plan: dict, entry: dict) -> str:

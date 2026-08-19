@@ -2,7 +2,7 @@
 片尾"关注"角标的逐帧绘制。
 
 短视频的完播率决定分发量，因此这里刻意不做"另起一段片尾"：动画直接叠加在
-正片最后一秒多的画面上，成片时长不变，观众也不会收到"结束了"的信号而提前
+正片最后两秒多的画面上，成片时长不变，观众也不会收到"结束了"的信号而提前
 划走。模块只负责画出某一时刻的角标，出现时机与叠加交给合成层。
 
 与 ``subtitle_render`` 同理，MoviePy 无法表达"logo 弹入 + 按钮呼吸"这类
@@ -201,7 +201,7 @@ def render_outro_frames(
     accent_color: str = "#FF2E88",
     logo_size: int = 300,
     label: str = "FOLLOW",
-    duration: float = 1.2,
+    duration: float = 2.2,
     fps: int = 25,
 ) -> list[np.ndarray]:
     """

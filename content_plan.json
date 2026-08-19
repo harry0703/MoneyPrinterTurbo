@@ -53,7 +53,7 @@
       "outro": {
         "logo": "resource/branding/whyThough.jpg",
         "handle": "@why.though101",
-        "duration": 1.2
+        "duration": 2.2
       }
     },
     "waypoint": {
@@ -97,7 +97,7 @@
       "outro": {
         "logo": "resource/branding/Waypoint.jpg",
         "handle": "@waypoint.60",
-        "duration": 1.2
+        "duration": 2.2
       }
     },
     "creature": {
@@ -141,7 +141,7 @@
       "outro": {
         "logo": "resource/branding/CreatureFeature.jpg",
         "handle": "@creature.feature60",
-        "duration": 1.2
+        "duration": 2.2
       }
     }
   },

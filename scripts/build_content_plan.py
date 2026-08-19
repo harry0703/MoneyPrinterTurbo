@@ -26,11 +26,11 @@ POSTING_WEEKDAYS = {0, 1, 2, 3, 4}  # 周一至周五，每周 5 条
 ACCOUNTS = {
     "why": {
         "instagram_username": "why.though101",
-        # 片尾角标叠在正片最后一秒多，不额外增加时长。
+        # 片尾角标叠在正片最后两秒多，不额外增加时长。
         "outro": {
             "logo": "resource/branding/whyThough.jpg",
             "handle": "@why.though101",
-            "duration": 1.2,
+            "duration": 2.2,
         },
         "theme": "Everyday science and curiosity",
         "defaults": {
@@ -72,11 +72,11 @@ ACCOUNTS = {
     },
     "waypoint": {
         "instagram_username": "waypoint.60",
-        # 片尾角标叠在正片最后一秒多，不额外增加时长。
+        # 片尾角标叠在正片最后两秒多，不额外增加时长。
         "outro": {
             "logo": "resource/branding/Waypoint.jpg",
             "handle": "@waypoint.60",
-            "duration": 1.2,
+            "duration": 2.2,
         },
         "theme": "Remote and remarkable places",
         "defaults": {
@@ -116,11 +116,11 @@ ACCOUNTS = {
     },
     "creature": {
         "instagram_username": "creature.feature60",
-        # 片尾角标叠在正片最后一秒多，不额外增加时长。
+        # 片尾角标叠在正片最后两秒多，不额外增加时长。
         "outro": {
             "logo": "resource/branding/CreatureFeature.jpg",
             "handle": "@creature.feature60",
-            "duration": 1.2,
+            "duration": 2.2,
         },
         "theme": "Strange facts about wild animals",
         "defaults": {
