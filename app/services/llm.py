@@ -64,7 +64,7 @@ def _normalize_text_response(content, llm_provider: str) -> str:
     if not content:
         raise ValueError(f"[{llm_provider}] returned empty text content")
 
-    return content.replace("\n", "")
+    return content.strip("\n")
 
 
 def _sanitize_error_message(error: object) -> str:
