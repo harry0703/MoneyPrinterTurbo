@@ -35,7 +35,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
-from app.services.utils import subtitle_render, video_effects
+from app.services.utils import outro_render, subtitle_render, video_effects
 from app.utils import file_security, utils
 
 class SubClippedVideoClip:
@@ -968,6 +968,67 @@ def subtitle_font_supports_text(font_path: str, text: str) -> bool:
     return _subtitle_font_supports_sample(font_path, sample)
 
 
+_OUTRO_FPS = 25
+# 角标按画面宽度取尺寸，1080 宽时约 300px，与平台头像的视觉比例接近。
+_OUTRO_LOGO_WIDTH_RATIO = 0.28
+
+
+def build_outro_clips(params: VideoParams, video_width: int, video_height: int,
+                      total_duration: float, font_path: str) -> list:
+    """
+    构造片尾"关注"角标的图像片段，叠加在正片最后一段上。
+
+    返回空列表表示本次不加角标：未启用、时长为 0、logo 缺失或正片过短。
+    正片短于角标两倍时直接放弃——在一条 5 秒的视频上盖 1.2 秒的关注提示，
+    观众几乎没看到内容就先看到了推广。
+    """
+    if not getattr(params, "outro_enabled", False):
+        return []
+
+    duration = float(getattr(params, "outro_duration", 0.0) or 0.0)
+    if duration <= 0 or total_duration < duration * 2:
+        if duration > 0:
+            logger.warning(
+                f"skipping outro: video is too short "
+                f"({total_duration:.1f}s) for a {duration:.1f}s badge"
+            )
+        return []
+
+    logo_path = getattr(params, "outro_logo_path", "") or ""
+    if not logo_path or not os.path.isfile(logo_path):
+        logger.warning(f"skipping outro: logo not found: {logo_path!r}")
+        return []
+
+    frames = outro_render.render_outro_frames(
+        logo_path=logo_path,
+        handle=getattr(params, "outro_handle", "") or "",
+        font_path=font_path,
+        accent_color=getattr(params, "outro_accent_color", "#FF2E88"),
+        logo_size=int(video_width * _OUTRO_LOGO_WIDTH_RATIO),
+        label=getattr(params, "outro_label", "FOLLOW") or "FOLLOW",
+        duration=duration,
+        fps=_OUTRO_FPS,
+    )
+    if not frames:
+        return []
+
+    start = total_duration - duration
+    step = duration / len(frames)
+    center_y = video_height * float(getattr(params, "outro_position", 0.30))
+
+    clips = []
+    for index, frame in enumerate(frames):
+        frame_start = start + index * step
+        # 最后一帧补到正片结尾，避免浮点累计误差留下一帧空隙。
+        frame_end = total_duration if index == len(frames) - 1 else frame_start + step
+        clip = ImageClip(frame, transparent=True, duration=max(0.01, frame_end - frame_start))
+        clip = clip.with_start(frame_start).with_end(frame_end)
+        clips.append(clip.with_position(("center", center_y - clip.h / 2)))
+
+    logger.info(f"  ⑥ outro: {os.path.basename(logo_path)} ({duration:.1f}s)")
+    return clips
+
+
 def generate_video(
     video_path: str,
     audio_path: str,
@@ -1256,6 +1317,17 @@ def generate_video(
                 else:
                     text_clips.append(create_text_clip(subtitle_item=item))
             video_clip = CompositeVideoClip([video_clip, *text_clips])
+            clip_stack.callback(video_clip.close)
+
+        outro_clips = build_outro_clips(
+            params=params,
+            video_width=video_width,
+            video_height=video_height,
+            total_duration=video_clip.duration,
+            font_path=font_path or os.path.join(utils.font_dir(), "BeVietnamPro-Bold.ttf"),
+        )
+        if outro_clips:
+            video_clip = CompositeVideoClip([video_clip, *outro_clips])
             clip_stack.callback(video_clip.close)
 
         bgm_enabled = bgm_service.should_use_bgm(

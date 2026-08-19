@@ -26,6 +26,12 @@ POSTING_WEEKDAYS = {0, 1, 2, 3, 4}  # 周一至周五，每周 5 条
 ACCOUNTS = {
     "why": {
         "instagram_username": "why.though101",
+        # 片尾角标叠在正片最后一秒多，不额外增加时长。
+        "outro": {
+            "logo": "resource/branding/why.png",
+            "handle": "@why.though101",
+            "duration": 1.2,
+        },
         "theme": "Everyday science and curiosity",
         "defaults": {
             "video_aspect": "9:16",
@@ -45,7 +51,7 @@ ACCOUNTS = {
             "subtitle_uppercase": True,
             "font_name": "BeVietnamPro-Bold.ttf",
             "stroke_width": 8,
-            "font_size": 88,
+            "font_size": 80,
             "subtitle_position": "center",
             "video_language": "en-US",
         },
@@ -66,6 +72,12 @@ ACCOUNTS = {
     },
     "waypoint": {
         "instagram_username": "waypoint.60",
+        # 片尾角标叠在正片最后一秒多，不额外增加时长。
+        "outro": {
+            "logo": "resource/branding/waypoint.png",
+            "handle": "@waypoint.60",
+            "duration": 1.2,
+        },
         "theme": "Remote and remarkable places",
         "defaults": {
             "video_aspect": "9:16",
@@ -86,7 +98,7 @@ ACCOUNTS = {
             "subtitle_uppercase": True,
             "font_name": "BeVietnamPro-Bold.ttf",
             "stroke_width": 8,
-            "font_size": 84,
+            "font_size": 76,
             "subtitle_position": "bottom",
             "video_language": "en-GB",
         },
@@ -104,6 +116,12 @@ ACCOUNTS = {
     },
     "creature": {
         "instagram_username": "creature.feature60",
+        # 片尾角标叠在正片最后一秒多，不额外增加时长。
+        "outro": {
+            "logo": "resource/branding/creature.png",
+            "handle": "@creature.feature60",
+            "duration": 1.2,
+        },
         "theme": "Strange facts about wild animals",
         "defaults": {
             "video_aspect": "9:16",
@@ -123,7 +141,7 @@ ACCOUNTS = {
             "subtitle_uppercase": True,
             "font_name": "BeVietnamPro-Bold.ttf",
             "stroke_width": 8,
-            "font_size": 92,
+            "font_size": 84,
             "subtitle_position": "center",
             "video_language": "en-US",
         },

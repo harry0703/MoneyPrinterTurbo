@@ -165,7 +165,31 @@ def build_params(plan: dict, entry: dict):
     # 每条视频的曲目由计划固定，保证同一账号的听感稳定且可复现。
     if entry.get("bgm_file"):
         fields["bgm_file"] = entry["bgm_file"]
+    fields.update(_outro_fields(profile))
     return VideoParams(**fields)
+
+
+def _outro_fields(profile: dict) -> dict:
+    """
+    把账号档案里的片尾配置翻译成 VideoParams 字段。
+
+    强调色沿用该账号字幕的高亮色，片尾与正片自然是同一套视觉，不必再维护
+    一份可能与字幕不一致的配色。logo 路径按仓库根解析，计划文件里保持相对
+    路径，本机与服务器可以共用同一份计划。
+    """
+    outro = profile.get("outro") or {}
+    logo = outro.get("logo", "")
+    if logo and not os.path.isabs(logo):
+        logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), logo)
+    return {
+        "outro_enabled": bool(logo),
+        "outro_logo_path": logo,
+        "outro_handle": outro.get("handle", ""),
+        "outro_duration": float(outro.get("duration", 1.2)),
+        "outro_accent_color": profile["defaults"].get(
+            "subtitle_highlight_color", "#FF2E88"
+        ),
+    }
 
 
 def generate_video(plan: dict, entry: dict) -> str:
