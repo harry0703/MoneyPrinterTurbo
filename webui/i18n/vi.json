@@ -333,6 +333,7 @@
     "Upload-Post Profile Username": "Tên người dùng hồ sơ Upload-Post",
     "Upload-Post Profile Username Help": "Nhập tên người dùng hiển thị tại [Manage Users]({manage_users_url}), không phải email tài khoản Upload-Post. Người dùng xuất bản này phải được kết nối với các nền tảng đã chọn.",
     "Upload-Post Setup Guide": "Trước khi bật tự động xuất bản:\n1. Tạo khóa API tại [API Keys]({api_keys_url}).\n2. Tạo hoặc chọn người dùng xuất bản tại [Manage Users]({manage_users_url}), sau đó kết nối các nền tảng đích.\n\nNhập **tên người dùng** xuất bản đó bên dưới, không phải email tài khoản Upload-Post.",
-    "YouTube Privacy Status": "Trạng thái quyền riêng tư của YouTube"
+    "YouTube Privacy Status": "Trạng thái quyền riêng tư của YouTube",
+    "Material Provider Mode": "Stock Provider Strategy", "Locked Provider": "Locked (one provider)", "Fallback Providers": "Fallback (in order)", "Fan-out Providers": "Fan-out (all selected)", "Material Provider Mode Help": "Locked uses only the first provider.", "Material Providers": "Stock Providers", "Material Providers Help": "Choose providers and order them by priority.", "Select at Least One Material Provider": "Select at least one stock provider.", "Fan-out Quota Warning": "Fan-out searches every selected provider for every keyword.", "API Key Missing": "Thiếu khóa API", "Material Provider Results": "Kết quả nhà cung cấp tư liệu", "Material Provider Result": "{provider}: {status} · {category} · {count} kết quả · {duration} giây", "Material Provider Other": "Khác", "Material Provider Unknown": "Không rõ", "Selected Material Provider Keys Missing": "Thiếu khóa API cho: {providers}"
   }
 }

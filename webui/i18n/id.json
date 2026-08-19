@@ -333,6 +333,7 @@
     "Upload-Post Profile Username": "Nama Pengguna Profil Upload-Post",
     "Upload-Post Profile Username Help": "Masukkan Username yang ditampilkan di [Manage Users]({manage_users_url}), bukan email akun Upload-Post Anda. Pengguna penerbitan ini harus terhubung ke platform yang dipilih.",
     "Upload-Post Setup Guide": "Sebelum mengaktifkan publikasi otomatis:\n1. Buat kunci API di [API Keys]({api_keys_url}).\n2. Buat atau pilih pengguna penerbitan di [Manage Users]({manage_users_url}), lalu hubungkan platform tujuan.\n\nMasukkan **Username** pengguna penerbitan tersebut di bawah, bukan email akun Upload-Post Anda.",
-    "YouTube Privacy Status": "Status Privasi YouTube"
+    "YouTube Privacy Status": "Status Privasi YouTube",
+    "Material Provider Mode": "Stock Provider Strategy", "Locked Provider": "Locked (one provider)", "Fallback Providers": "Fallback (in order)", "Fan-out Providers": "Fan-out (all selected)", "Material Provider Mode Help": "Locked uses only the first provider.", "Material Providers": "Stock Providers", "Material Providers Help": "Choose providers and order them by priority.", "Select at Least One Material Provider": "Select at least one stock provider.", "Fan-out Quota Warning": "Fan-out searches every selected provider for every keyword.", "API Key Missing": "Kunci API tidak ada", "Material Provider Results": "Hasil penyedia materi", "Material Provider Result": "{provider}: {status} · {category} · {count} hasil · {duration} dtk", "Material Provider Other": "Lainnya", "Material Provider Unknown": "Tidak diketahui", "Selected Material Provider Keys Missing": "Kunci API tidak ada untuk: {providers}"
   }
 }

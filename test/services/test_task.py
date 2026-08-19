@@ -30,8 +30,16 @@ class TestTaskService(unittest.TestCase):
         # 影响后续恢复测试，同时不会触碰真正线程池中的生产任务。
         with tm._cross_post_registry_lock:
             tm._cross_post_futures.clear()
+        # Pipeline unit tests mock every downstream stage and must not depend on
+        # a developer's local stock-provider credentials. Dedicated provider
+        # strategy tests exercise the real preflight behavior separately.
+        self._material_provider_key_patch = patch.object(
+            tm.material, "validate_material_provider_keys", return_value=None
+        )
+        self._material_provider_key_patch.start()
 
     def tearDown(self):
+        self._material_provider_key_patch.stop()
         with tm._cross_post_registry_lock:
             tm._cross_post_futures.clear()
 

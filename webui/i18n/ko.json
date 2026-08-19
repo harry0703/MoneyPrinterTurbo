@@ -333,6 +333,21 @@
     "Upload-Post Profile Username": "Upload-Post 게시 사용자 이름",
     "Upload-Post Profile Username Help": "[사용자 관리]({manage_users_url})에 표시된 사용자 이름을 입력하세요. Upload-Post 계정 이메일이 아닙니다. 이 게시 사용자는 선택한 플랫폼에 연결되어 있어야 합니다.",
     "Upload-Post Setup Guide": "자동 게시를 활성화하기 전에:\n1. [API 키]({api_keys_url})에서 API 키를 생성하세요.\n2. [사용자 관리]({manage_users_url})에서 게시 사용자를 생성하거나 선택한 다음 대상 플랫폼을 연결하세요.\n\n아래에 Upload-Post 계정 이메일이 아닌 해당 게시 사용자의 **사용자 이름**을 입력하세요.",
-    "YouTube Privacy Status": "YouTube 공개 상태"
+    "YouTube Privacy Status": "YouTube 공개 상태",
+    "Material Provider Mode": "스톡 제공업체 전략",
+    "Locked Provider": "고정 (제공업체 1개)",
+    "Fallback Providers": "순차 대체",
+    "Fan-out Providers": "병렬 검색 (선택한 제공업체 모두)",
+    "Material Provider Mode Help": "고정 모드는 선택한 제공업체 하나만 사용합니다. 순차 대체는 오류, 검색 결과 없음 또는 다운로드 길이 부족 시 다음 제공업체를 시도합니다.",
+    "Material Providers": "스톡 제공업체",
+    "Material Providers Help": "제공업체를 선택하고 우선순위 순서로 배치하세요.",
+    "Select at Least One Material Provider": "스톡 제공업체를 하나 이상 선택하세요.",
+    "Fan-out Quota Warning": "병렬 검색은 각 키워드마다 선택한 모든 제공업체를 호출하므로 여러 검색 할당량을 사용할 수 있습니다.",
+    "API Key Missing": "API 키 없음",
+    "Material Provider Results": "스톡 제공업체 결과",
+    "Material Provider Result": "{provider}: {status} · {category} · 결과 {count}개 · {duration}초",
+    "Material Provider Other": "기타",
+    "Material Provider Unknown": "알 수 없음",
+    "Selected Material Provider Keys Missing": "선택한 스톡 제공업체의 API 키가 없습니다: {providers}"
   }
 }

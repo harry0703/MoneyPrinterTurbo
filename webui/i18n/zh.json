@@ -398,6 +398,7 @@
     "Upload-Post Profile Username": "Upload-Post 发布用户名称",
     "Upload-Post Profile Username Help": "填写 [Manage Users]({manage_users_url}) 页面显示的 Username，而不是 Upload-Post 登录邮箱；该发布用户需要已经连接所选平台。",
     "Upload-Post Setup Guide": "启用自动发布前，请先：\n1. 在 [API Keys]({api_keys_url}) 页面创建 API Key。\n2. 在 [Manage Users]({manage_users_url}) 页面创建或选择发布用户，并连接目标平台。\n\n下方请填写该发布用户的 **Username**，而不是 Upload-Post 登录邮箱。",
-    "YouTube Privacy Status": "YouTube 隐私状态"
+    "YouTube Privacy Status": "YouTube 隐私状态",
+    "Material Provider Mode": "素材供应商策略", "Locked Provider": "锁定（单一供应商）", "Fallback Providers": "故障转移（按顺序）", "Fan-out Providers": "扇出（全部选中）", "Material Provider Mode Help": "锁定模式只使用所选的单一供应商；故障转移会在出错、无结果或下载时长不足时按顺序尝试下一个供应商。", "Material Providers": "素材供应商", "Material Providers Help": "按优先级选择供应商；故障转移从前往后搜索，扇出也按相同顺序合并结果。", "Select at Least One Material Provider": "至少选择一个素材供应商。", "Fan-out Quota Warning": "扇出模式会针对每个关键词请求所有选中的供应商，可能消耗多方额度。", "API Key Missing": "缺少 API Key", "Material Provider Results": "素材供应商结果", "Material Provider Result": "{provider}：{status} · {category} · {count} 个结果 · {duration} 秒", "Material Provider Other": "其他", "Material Provider Unknown": "未知", "Selected Material Provider Keys Missing": "所选素材供应商缺少 API Key：{providers}"
   }
 }

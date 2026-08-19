@@ -333,6 +333,21 @@
     "Upload-Post Profile Username": "Nom d'utilisateur du profil Upload-Post",
     "Upload-Post Profile Username Help": "Saisissez le nom d'utilisateur affiché dans [Manage Users]({manage_users_url}), et non l'adresse e-mail de votre compte Upload-Post. Cet utilisateur de publication doit être connecté aux plateformes sélectionnées.",
     "Upload-Post Setup Guide": "Avant d'activer la publication automatique :\n1. Créez une clé API dans [API Keys]({api_keys_url}).\n2. Créez ou sélectionnez un utilisateur de publication dans [Manage Users]({manage_users_url}), puis connectez les plateformes cibles.\n\nSaisissez ci-dessous son **nom d'utilisateur**, et non l'adresse e-mail de votre compte Upload-Post.",
-    "YouTube Privacy Status": "Statut de confidentialité YouTube"
+    "YouTube Privacy Status": "Statut de confidentialité YouTube",
+    "Material Provider Mode": "Stratégie des fournisseurs de stock",
+    "Locked Provider": "Verrouillé (un fournisseur)",
+    "Fallback Providers": "Repli (dans l’ordre)",
+    "Fan-out Providers": "Parallèle (tous les fournisseurs sélectionnés)",
+    "Material Provider Mode Help": "Le mode verrouillé utilise uniquement le fournisseur sélectionné. Le repli essaie le suivant après une erreur, un résultat vide ou une durée insuffisante.",
+    "Material Providers": "Fournisseurs de stock",
+    "Material Providers Help": "Sélectionnez les fournisseurs et placez-les dans l’ordre de priorité.",
+    "Select at Least One Material Provider": "Sélectionnez au moins un fournisseur de stock.",
+    "Fan-out Quota Warning": "Le mode parallèle interroge chaque fournisseur sélectionné pour chaque mot-clé et peut consommer plusieurs quotas.",
+    "API Key Missing": "Clé API manquante",
+    "Material Provider Results": "Résultats des fournisseurs de stock",
+    "Material Provider Result": "{provider} : {status} · {category} · {count} résultats · {duration} s",
+    "Material Provider Other": "Autre",
+    "Material Provider Unknown": "Inconnu",
+    "Selected Material Provider Keys Missing": "Clés API manquantes pour les fournisseurs sélectionnés : {providers}"
   }
 }
