@@ -65,9 +65,12 @@ ACCOUNTS = {
             "never greet the viewer, never ask them to subscribe. "
             "Keep the whole script between 95 and 115 words."
         ),
-        "hashtags": [
-            "#didyouknow", "#science", "#curiosity", "#explained", "#sciencefacts",
-            "#learnsomethingnew", "#facts", "#education", "#mindblown", "#whytho",
+        # 固定标签定义账号主题，平台据此分类；轮换标签负责触达不同的检索面。
+        "hashtag_core": ["#science", "#didyouknow"],
+        "hashtag_pool": [
+            "#curiosity", "#explained", "#sciencefacts", "#learnsomethingnew",
+            "#education", "#mindblown", "#howitworks", "#everydayscience",
+            "#physics", "#whytho",
         ],
     },
     "waypoint": {
@@ -109,9 +112,10 @@ ACCOUNTS = {
             "Never greet the viewer, never mention the video itself. "
             "Keep the whole script between 110 and 140 words."
         ),
-        "hashtags": [
-            "#travel", "#geography", "#hiddenplaces", "#travelfacts", "#explore",
-            "#earth", "#wanderlust", "#destination", "#offthebeatenpath", "#planetearth",
+        "hashtag_core": ["#geography", "#travel"],
+        "hashtag_pool": [
+            "#hiddenplaces", "#remoteplaces", "#earth", "#explore", "#travelfacts",
+            "#offthebeatenpath", "#planetearth", "#islands", "#maps", "#wanderlust",
         ],
     },
     "creature": {
@@ -152,9 +156,11 @@ ACCOUNTS = {
             "Never greet the viewer, never mention the video itself. "
             "Keep the whole script between 90 and 110 words."
         ),
-        "hashtags": [
-            "#animals", "#wildlife", "#animalfacts", "#nature", "#didyouknow",
-            "#creatures", "#wildlifefacts", "#animalkingdom", "#naturefacts", "#strangebutrue",
+        "hashtag_core": ["#animals", "#wildlife"],
+        "hashtag_pool": [
+            "#animalfacts", "#nature", "#creatures", "#wildlifefacts",
+            "#animalkingdom", "#naturefacts", "#strangebutrue", "#ocean",
+            "#birds", "#zoology",
         ],
     },
 }
@@ -421,6 +427,25 @@ BGM_POOLS = {
 }
 
 
+# 每条 5 个标签：数量早已不是杠杆，2020 年那种 30 个标签的堆砌现在只会被当成
+# 垃圾信息。真正起作用的是相关性，以及不要让每条视频都用完全相同的标签块。
+ROTATING_HASHTAGS = 3
+
+
+def build_hashtags(profile: dict, index: int) -> str:
+    """
+    组装一条视频的标签串。
+
+    固定两个定义账号主题的标签，其余在池内按序轮换，避免同一账号的每条
+    视频都挂着一模一样的标签块。
+    """
+    pool = profile["hashtag_pool"]
+    start = (index * ROTATING_HASHTAGS) % len(pool)
+    rotating = [pool[(start + offset) % len(pool)] for offset in range(ROTATING_HASHTAGS)]
+    tags = " ".join(profile["hashtag_core"] + rotating)
+    return tags
+
+
 def build_schedule() -> list[dict]:
     """按工作日排期，并让三个账号错开主题顺序，避免同一天风格雷同。"""
     cursors = {account: 0 for account in ACCOUNTS}
@@ -443,7 +468,7 @@ def build_schedule() -> list[dict]:
             cursors[account] = index + 1
             counters[account] += 1
             subject = pool[index]
-            hashtags = " ".join(profile["hashtags"])
+            hashtags = build_hashtags(profile, index)
             # 在池内轮换而不是随机：同一账号相邻两条不会撞曲，且计划可复现。
             bgm_pool = BGM_POOLS[account]
             bgm_file = bgm_pool[index % len(bgm_pool)]

@@ -38,23 +38,27 @@
         "video_language": "en-US"
       },
       "video_script_prompt": "Open with the exact question in the subject, asked in under 8 words. Then answer it plainly in everyday language, no jargon, no filler. End on the single most surprising detail. Never say 'in this video', never greet the viewer, never ask them to subscribe. Keep the whole script between 95 and 115 words.",
-      "hashtags": [
-        "#didyouknow",
-        "#science",
-        "#curiosity",
-        "#explained",
-        "#sciencefacts",
-        "#learnsomethingnew",
-        "#facts",
-        "#education",
-        "#mindblown",
-        "#whytho"
-      ],
       "outro": {
         "logo": "resource/branding/whyThough.jpg",
         "handle": "@why.though101",
         "duration": 2.2
-      }
+      },
+      "hashtag_core": [
+        "#science",
+        "#didyouknow"
+      ],
+      "hashtag_pool": [
+        "#curiosity",
+        "#explained",
+        "#sciencefacts",
+        "#learnsomethingnew",
+        "#education",
+        "#mindblown",
+        "#howitworks",
+        "#everydayscience",
+        "#physics",
+        "#whytho"
+      ]
     },
     "waypoint": {
       "instagram_username": "waypoint.60",
@@ -82,23 +86,27 @@
         "video_language": "en-GB"
       },
       "video_script_prompt": "Open with a single striking factual statement about the place, under 10 words, no question. Then explain how it came to be that way and what it is like to be there. Documentary tone, calm and precise. Never greet the viewer, never mention the video itself. Keep the whole script between 110 and 140 words.",
-      "hashtags": [
-        "#travel",
-        "#geography",
-        "#hiddenplaces",
-        "#travelfacts",
-        "#explore",
-        "#earth",
-        "#wanderlust",
-        "#destination",
-        "#offthebeatenpath",
-        "#planetearth"
-      ],
       "outro": {
         "logo": "resource/branding/Waypoint.jpg",
         "handle": "@waypoint.60",
         "duration": 2.2
-      }
+      },
+      "hashtag_core": [
+        "#geography",
+        "#travel"
+      ],
+      "hashtag_pool": [
+        "#hiddenplaces",
+        "#remoteplaces",
+        "#earth",
+        "#explore",
+        "#travelfacts",
+        "#offthebeatenpath",
+        "#planetearth",
+        "#islands",
+        "#maps",
+        "#wanderlust"
+      ]
     },
     "creature": {
       "instagram_username": "creature.feature60",
@@ -126,23 +134,27 @@
         "video_language": "en-US"
       },
       "video_script_prompt": "Open with the strangest fact stated flatly in under 8 words, no question. Then explain why it is true and what it lets the animal do. Bright, energetic tone but never childish. Never greet the viewer, never mention the video itself. Keep the whole script between 90 and 110 words.",
-      "hashtags": [
-        "#animals",
-        "#wildlife",
-        "#animalfacts",
-        "#nature",
-        "#didyouknow",
-        "#creatures",
-        "#wildlifefacts",
-        "#animalkingdom",
-        "#naturefacts",
-        "#strangebutrue"
-      ],
       "outro": {
         "logo": "resource/branding/CreatureFeature.jpg",
         "handle": "@creature.feature60",
         "duration": 2.2
-      }
+      },
+      "hashtag_core": [
+        "#animals",
+        "#wildlife"
+      ],
+      "hashtag_pool": [
+        "#animalfacts",
+        "#nature",
+        "#creatures",
+        "#wildlifefacts",
+        "#animalkingdom",
+        "#naturefacts",
+        "#strangebutrue",
+        "#ocean",
+        "#birds",
+        "#zoology"
+      ]
     }
   },
   "schedule": [
@@ -152,7 +164,7 @@
       "account": "why",
       "subject": "Why is the sky blue?",
       "bgm_file": "output020.mp3",
-      "caption": "Why is the sky blue?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is the sky blue?\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
       "id": "waypoint-001",
@@ -160,7 +172,7 @@
       "account": "waypoint",
       "subject": "The city that is sinking two millimetres a year",
       "bgm_file": "output024.mp3",
-      "caption": "The city that is sinking two millimetres a year\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The city that is sinking two millimetres a year\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "creature-001",
@@ -168,7 +180,7 @@
       "account": "creature",
       "subject": "An octopus has three hearts",
       "bgm_file": "output000.mp3",
-      "caption": "An octopus has three hearts\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "An octopus has three hearts\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-002",
@@ -176,7 +188,7 @@
       "account": "why",
       "subject": "Why are sunsets red?",
       "bgm_file": "output016.mp3",
-      "caption": "Why are sunsets red?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why are sunsets red?\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
       "id": "waypoint-002",
@@ -184,7 +196,7 @@
       "account": "waypoint",
       "subject": "The town where the sun does not set for months",
       "bgm_file": "output003.mp3",
-      "caption": "The town where the sun does not set for months\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The town where the sun does not set for months\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "creature-002",
@@ -192,7 +204,7 @@
       "account": "creature",
       "subject": "Why cats purr",
       "bgm_file": "output019.mp3",
-      "caption": "Why cats purr\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Why cats purr\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
       "id": "why-003",
@@ -200,7 +212,7 @@
       "account": "why",
       "subject": "Why does it smell like that before it rains?",
       "bgm_file": "output013.mp3",
-      "caption": "Why does it smell like that before it rains?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does it smell like that before it rains?\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
       "id": "waypoint-003",
@@ -208,7 +220,7 @@
       "account": "waypoint",
       "subject": "The most isolated inhabited island on Earth",
       "bgm_file": "output014.mp3",
-      "caption": "The most isolated inhabited island on Earth\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The most isolated inhabited island on Earth\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "creature-003",
@@ -216,7 +228,7 @@
       "account": "creature",
       "subject": "This bird flies 11,000 km without landing",
       "bgm_file": "output015.mp3",
-      "caption": "This bird flies 11,000 km without landing\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "This bird flies 11,000 km without landing\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
       "id": "why-004",
@@ -224,7 +236,7 @@
       "account": "why",
       "subject": "Why is the sea salty?",
       "bgm_file": "output005.mp3",
-      "caption": "Why is the sea salty?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is the sea salty?\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
       "id": "waypoint-004",
@@ -232,7 +244,7 @@
       "account": "waypoint",
       "subject": "The most dangerous road in the world",
       "bgm_file": "output017.mp3",
-      "caption": "The most dangerous road in the world\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The most dangerous road in the world\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "creature-004",
@@ -240,7 +252,7 @@
       "account": "creature",
       "subject": "Flamingos are not born pink",
       "bgm_file": "output008.mp3",
-      "caption": "Flamingos are not born pink\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Flamingos are not born pink\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
       "id": "why-005",
@@ -248,7 +260,7 @@
       "account": "why",
       "subject": "Why is snow white when ice is clear?",
       "bgm_file": "output009.mp3",
-      "caption": "Why is snow white when ice is clear?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is snow white when ice is clear?\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
       "id": "waypoint-005",
@@ -256,7 +268,7 @@
       "account": "waypoint",
       "subject": "The town where it is illegal to be buried",
       "bgm_file": "output006.mp3",
-      "caption": "The town where it is illegal to be buried\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The town where it is illegal to be buried\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "creature-005",
@@ -264,7 +276,7 @@
       "account": "creature",
       "subject": "Dolphins sleep with half their brain awake",
       "bgm_file": "output004.mp3",
-      "caption": "Dolphins sleep with half their brain awake\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Dolphins sleep with half their brain awake\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
       "id": "why-006",
@@ -272,7 +284,7 @@
       "account": "why",
       "subject": "Why do we hiccup?",
       "bgm_file": "output022.mp3",
-      "caption": "Why do we hiccup?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we hiccup?\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
       "id": "waypoint-006",
@@ -280,7 +292,7 @@
       "account": "waypoint",
       "subject": "The deepest lake on the planet",
       "bgm_file": "output021.mp3",
-      "caption": "The deepest lake on the planet\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The deepest lake on the planet\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "creature-006",
@@ -288,7 +300,7 @@
       "account": "creature",
       "subject": "This jellyfish can reverse its own ageing",
       "bgm_file": "output023.mp3",
-      "caption": "This jellyfish can reverse its own ageing\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "This jellyfish can reverse its own ageing\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
       "id": "why-007",
@@ -296,7 +308,7 @@
       "account": "why",
       "subject": "Why is yawning contagious?",
       "bgm_file": "output028.mp3",
-      "caption": "Why is yawning contagious?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is yawning contagious?\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
       "id": "waypoint-007",
@@ -304,7 +316,7 @@
       "account": "waypoint",
       "subject": "The driest place on Earth",
       "bgm_file": "output025.mp3",
-      "caption": "The driest place on Earth\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The driest place on Earth\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "creature-007",
@@ -312,7 +324,7 @@
       "account": "creature",
       "subject": "Tardigrades survived open space",
       "bgm_file": "output012.mp3",
-      "caption": "Tardigrades survived open space\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Tardigrades survived open space\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
       "id": "why-008",
@@ -320,7 +332,7 @@
       "account": "why",
       "subject": "Why do we get goosebumps?",
       "bgm_file": "output018.mp3",
-      "caption": "Why do we get goosebumps?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we get goosebumps?\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
       "id": "waypoint-008",
@@ -328,7 +340,7 @@
       "account": "waypoint",
       "subject": "The largest salt flat in the world",
       "bgm_file": "output010.mp3",
-      "caption": "The largest salt flat in the world\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The largest salt flat in the world\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "creature-008",
@@ -336,7 +348,7 @@
       "account": "creature",
       "subject": "The mantis shrimp punches at bullet speed",
       "bgm_file": "output011.mp3",
-      "caption": "The mantis shrimp punches at bullet speed\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The mantis shrimp punches at bullet speed\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
       "id": "why-009",
@@ -344,7 +356,7 @@
       "account": "why",
       "subject": "Why does coffee wake you up?",
       "bgm_file": "output007.mp3",
-      "caption": "Why does coffee wake you up?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does coffee wake you up?\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
       "id": "waypoint-009",
@@ -352,7 +364,7 @@
       "account": "waypoint",
       "subject": "The country with no rivers",
       "bgm_file": "output029.mp3",
-      "caption": "The country with no rivers\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The country with no rivers\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "creature-009",
@@ -360,7 +372,7 @@
       "account": "creature",
       "subject": "Axolotls regrow entire limbs",
       "bgm_file": "output027.mp3",
-      "caption": "Axolotls regrow entire limbs\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Axolotls regrow entire limbs\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
       "id": "why-010",
@@ -368,7 +380,7 @@
       "account": "why",
       "subject": "Why do onions make you cry?",
       "bgm_file": "output002.mp3",
-      "caption": "Why do onions make you cry?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do onions make you cry?\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
       "id": "waypoint-010",
@@ -376,7 +388,7 @@
       "account": "waypoint",
       "subject": "The wettest place on Earth",
       "bgm_file": "output024.mp3",
-      "caption": "The wettest place on Earth\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The wettest place on Earth\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "creature-010",
@@ -384,7 +396,7 @@
       "account": "creature",
       "subject": "Elephants physically cannot jump",
       "bgm_file": "output001.mp3",
-      "caption": "Elephants physically cannot jump\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Elephants physically cannot jump\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
       "id": "why-011",
@@ -392,7 +404,7 @@
       "account": "why",
       "subject": "Why does ice float on water?",
       "bgm_file": "output020.mp3",
-      "caption": "Why does ice float on water?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does ice float on water?\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
       "id": "waypoint-011",
@@ -400,7 +412,7 @@
       "account": "waypoint",
       "subject": "The town split in half by a border",
       "bgm_file": "output003.mp3",
-      "caption": "The town split in half by a border\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The town split in half by a border\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "creature-011",
@@ -408,7 +420,7 @@
       "account": "creature",
       "subject": "Sharks are older than trees",
       "bgm_file": "output000.mp3",
-      "caption": "Sharks are older than trees\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Sharks are older than trees\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-012",
@@ -416,7 +428,7 @@
       "account": "why",
       "subject": "Why is space black if there are so many stars?",
       "bgm_file": "output016.mp3",
-      "caption": "Why is space black if there are so many stars?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is space black if there are so many stars?\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
       "id": "waypoint-012",
@@ -424,7 +436,7 @@
       "account": "waypoint",
       "subject": "The road that vanishes twice a day",
       "bgm_file": "output014.mp3",
-      "caption": "The road that vanishes twice a day\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The road that vanishes twice a day\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "creature-012",
@@ -432,7 +444,7 @@
       "account": "creature",
       "subject": "Cows have best friends",
       "bgm_file": "output019.mp3",
-      "caption": "Cows have best friends\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Cows have best friends\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
       "id": "why-013",
@@ -440,7 +452,7 @@
       "account": "why",
       "subject": "Why do stars twinkle but planets don't?",
       "bgm_file": "output013.mp3",
-      "caption": "Why do stars twinkle but planets don't?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do stars twinkle but planets don't?\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
       "id": "waypoint-013",
@@ -448,7 +460,7 @@
       "account": "waypoint",
       "subject": "The island that changes country every six months",
       "bgm_file": "output017.mp3",
-      "caption": "The island that changes country every six months\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The island that changes country every six months\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "creature-013",
@@ -456,7 +468,7 @@
       "account": "creature",
       "subject": "Sea otters hold hands while sleeping",
       "bgm_file": "output015.mp3",
-      "caption": "Sea otters hold hands while sleeping\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Sea otters hold hands while sleeping\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
       "id": "why-014",
@@ -464,7 +476,7 @@
       "account": "why",
       "subject": "Why do we always see the same side of the Moon?",
       "bgm_file": "output005.mp3",
-      "caption": "Why do we always see the same side of the Moon?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we always see the same side of the Moon?\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
       "id": "waypoint-014",
@@ -472,7 +484,7 @@
       "account": "waypoint",
       "subject": "The city that is being moved three kilometres",
       "bgm_file": "output006.mp3",
-      "caption": "The city that is being moved three kilometres\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The city that is being moved three kilometres\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "creature-014",
@@ -480,7 +492,7 @@
       "account": "creature",
       "subject": "Crows remember human faces for years",
       "bgm_file": "output008.mp3",
-      "caption": "Crows remember human faces for years\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Crows remember human faces for years\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
       "id": "why-015",
@@ -488,7 +500,7 @@
       "account": "why",
       "subject": "Why is Mars red?",
       "bgm_file": "output009.mp3",
-      "caption": "Why is Mars red?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is Mars red?\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
       "id": "waypoint-015",
@@ -496,7 +508,7 @@
       "account": "waypoint",
       "subject": "The sea that has no coastline",
       "bgm_file": "output021.mp3",
-      "caption": "The sea that has no coastline\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The sea that has no coastline\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "creature-015",
@@ -504,7 +516,7 @@
       "account": "creature",
       "subject": "An octopus tastes with its arms",
       "bgm_file": "output004.mp3",
-      "caption": "An octopus tastes with its arms\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "An octopus tastes with its arms\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
       "id": "why-016",
@@ -512,7 +524,7 @@
       "account": "why",
       "subject": "Why is there no sound in space?",
       "bgm_file": "output022.mp3",
-      "caption": "Why is there no sound in space?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is there no sound in space?\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
       "id": "waypoint-016",
@@ -520,7 +532,7 @@
       "account": "waypoint",
       "subject": "The lake that turns bright pink",
       "bgm_file": "output025.mp3",
-      "caption": "The lake that turns bright pink\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The lake that turns bright pink\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "creature-016",
@@ -528,7 +540,7 @@
       "account": "creature",
       "subject": "Starfish have no brain at all",
       "bgm_file": "output023.mp3",
-      "caption": "Starfish have no brain at all\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Starfish have no brain at all\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
       "id": "why-017",
@@ -536,7 +548,7 @@
       "account": "why",
       "subject": "Why do mirrors flip left and right but not up and down?",
       "bgm_file": "output028.mp3",
-      "caption": "Why do mirrors flip left and right but not up and down?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do mirrors flip left and right but not up and down?\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
       "id": "waypoint-017",
@@ -544,7 +556,7 @@
       "account": "waypoint",
       "subject": "The crater that has been burning for fifty years",
       "bgm_file": "output010.mp3",
-      "caption": "The crater that has been burning for fifty years\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The crater that has been burning for fifty years\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "creature-017",
@@ -552,7 +564,7 @@
       "account": "creature",
       "subject": "A jellyfish is 95 percent water",
       "bgm_file": "output012.mp3",
-      "caption": "A jellyfish is 95 percent water\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "A jellyfish is 95 percent water\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
       "id": "why-018",
@@ -560,7 +572,7 @@
       "account": "why",
       "subject": "Why is glass transparent?",
       "bgm_file": "output018.mp3",
-      "caption": "Why is glass transparent?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is glass transparent?\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
       "id": "waypoint-018",
@@ -568,7 +580,7 @@
       "account": "waypoint",
       "subject": "The town where most people live underground",
       "bgm_file": "output029.mp3",
-      "caption": "The town where most people live underground\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The town where most people live underground\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "creature-018",
@@ -576,7 +588,7 @@
       "account": "creature",
       "subject": "Snails have thousands of teeth",
       "bgm_file": "output011.mp3",
-      "caption": "Snails have thousands of teeth\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Snails have thousands of teeth\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
       "id": "why-019",
@@ -584,7 +596,7 @@
       "account": "why",
       "subject": "Why does helium change your voice?",
       "bgm_file": "output007.mp3",
-      "caption": "Why does helium change your voice?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does helium change your voice?\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
       "id": "waypoint-019",
@@ -592,7 +604,7 @@
       "account": "waypoint",
       "subject": "The shortest scheduled flight in the world",
       "bgm_file": "output024.mp3",
-      "caption": "The shortest scheduled flight in the world\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The shortest scheduled flight in the world\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "creature-019",
@@ -600,7 +612,7 @@
       "account": "creature",
       "subject": "The platypus sweats milk",
       "bgm_file": "output027.mp3",
-      "caption": "The platypus sweats milk\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The platypus sweats milk\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
       "id": "why-020",
@@ -608,7 +620,7 @@
       "account": "why",
       "subject": "Why does metal feel colder than wood at the same temperature?",
       "bgm_file": "output002.mp3",
-      "caption": "Why does metal feel colder than wood at the same temperature?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does metal feel colder than wood at the same temperature?\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
       "id": "waypoint-020",
@@ -616,7 +628,7 @@
       "account": "waypoint",
       "subject": "The cave large enough to hold a skyscraper",
       "bgm_file": "output003.mp3",
-      "caption": "The cave large enough to hold a skyscraper\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The cave large enough to hold a skyscraper\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "creature-020",
@@ -624,7 +636,7 @@
       "account": "creature",
       "subject": "Wombats produce cube-shaped droppings",
       "bgm_file": "output001.mp3",
-      "caption": "Wombats produce cube-shaped droppings\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Wombats produce cube-shaped droppings\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
       "id": "why-021",
@@ -632,7 +644,7 @@
       "account": "why",
       "subject": "Why do plants look green?",
       "bgm_file": "output020.mp3",
-      "caption": "Why do plants look green?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do plants look green?\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
       "id": "waypoint-021",
@@ -640,7 +652,7 @@
       "account": "waypoint",
       "subject": "The desert that floods into thousands of lagoons",
       "bgm_file": "output014.mp3",
-      "caption": "The desert that floods into thousands of lagoons\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The desert that floods into thousands of lagoons\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "creature-021",
@@ -648,7 +660,7 @@
       "account": "creature",
       "subject": "Koalas have fingerprints like ours",
       "bgm_file": "output000.mp3",
-      "caption": "Koalas have fingerprints like ours\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Koalas have fingerprints like ours\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-022",
@@ -656,7 +668,7 @@
       "account": "why",
       "subject": "Why do leaves change colour in autumn?",
       "bgm_file": "output016.mp3",
-      "caption": "Why do leaves change colour in autumn?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do leaves change colour in autumn?\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
       "id": "waypoint-022",
@@ -664,7 +676,7 @@
       "account": "waypoint",
       "subject": "The oldest continuously inhabited city",
       "bgm_file": "output017.mp3",
-      "caption": "The oldest continuously inhabited city\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The oldest continuously inhabited city\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "creature-022",
@@ -672,7 +684,7 @@
       "account": "creature",
       "subject": "Penguins propose with a pebble",
       "bgm_file": "output019.mp3",
-      "caption": "Penguins propose with a pebble\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Penguins propose with a pebble\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
       "id": "why-023",
@@ -680,7 +692,7 @@
       "account": "why",
       "subject": "Why do trees have rings?",
       "bgm_file": "output013.mp3",
-      "caption": "Why do trees have rings?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do trees have rings?\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
       "id": "waypoint-023",
@@ -688,7 +700,7 @@
       "account": "waypoint",
       "subject": "The island where cats outnumber people",
       "bgm_file": "output006.mp3",
-      "caption": "The island where cats outnumber people\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The island where cats outnumber people\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "creature-023",
@@ -696,7 +708,7 @@
       "account": "creature",
       "subject": "Male seahorses give birth",
       "bgm_file": "output015.mp3",
-      "caption": "Male seahorses give birth\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Male seahorses give birth\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
       "id": "why-024",
@@ -704,7 +716,7 @@
       "account": "why",
       "subject": "Why do bananas ripen faster in a bag?",
       "bgm_file": "output005.mp3",
-      "caption": "Why do bananas ripen faster in a bag?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do bananas ripen faster in a bag?\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
       "id": "waypoint-024",
@@ -712,7 +724,7 @@
       "account": "waypoint",
       "subject": "The highest capital city in the world",
       "bgm_file": "output021.mp3",
-      "caption": "The highest capital city in the world\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The highest capital city in the world\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "creature-024",
@@ -720,7 +732,7 @@
       "account": "creature",
       "subject": "A hummingbird's heart beats 1,200 times a minute",
       "bgm_file": "output008.mp3",
-      "caption": "A hummingbird's heart beats 1,200 times a minute\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "A hummingbird's heart beats 1,200 times a minute\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
       "id": "why-025",
@@ -728,7 +740,7 @@
       "account": "why",
       "subject": "Why does bread go stale?",
       "bgm_file": "output009.mp3",
-      "caption": "Why does bread go stale?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does bread go stale?\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
       "id": "waypoint-025",
@@ -736,7 +748,7 @@
       "account": "waypoint",
       "subject": "The town with canals instead of roads",
       "bgm_file": "output025.mp3",
-      "caption": "The town with canals instead of roads\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The town with canals instead of roads\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "creature-025",
@@ -744,7 +756,7 @@
       "account": "creature",
       "subject": "A blue whale's heart is the size of a car",
       "bgm_file": "output004.mp3",
-      "caption": "A blue whale's heart is the size of a car\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "A blue whale's heart is the size of a car\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
       "id": "why-026",
@@ -752,7 +764,7 @@
       "account": "why",
       "subject": "Why does spicy food burn?",
       "bgm_file": "output022.mp3",
-      "caption": "Why does spicy food burn?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does spicy food burn?\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
       "id": "waypoint-026",
@@ -760,7 +772,7 @@
       "account": "waypoint",
       "subject": "The mountains striped in seven colours",
       "bgm_file": "output010.mp3",
-      "caption": "The mountains striped in seven colours\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The mountains striped in seven colours\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "creature-026",
@@ -768,7 +780,7 @@
       "account": "creature",
       "subject": "Giraffes need enormous blood pressure",
       "bgm_file": "output023.mp3",
-      "caption": "Giraffes need enormous blood pressure\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Giraffes need enormous blood pressure\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
       "id": "why-027",
@@ -776,7 +788,7 @@
       "account": "why",
       "subject": "Why does mint feel cold in your mouth?",
       "bgm_file": "output028.mp3",
-      "caption": "Why does mint feel cold in your mouth?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does mint feel cold in your mouth?\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
       "id": "waypoint-027",
@@ -784,7 +796,7 @@
       "account": "waypoint",
       "subject": "The largest desert on Earth is frozen",
       "bgm_file": "output029.mp3",
-      "caption": "The largest desert on Earth is frozen\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The largest desert on Earth is frozen\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "creature-027",
@@ -792,7 +804,7 @@
       "account": "creature",
       "subject": "Camel humps store fat, not water",
       "bgm_file": "output012.mp3",
-      "caption": "Camel humps store fat, not water\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Camel humps store fat, not water\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
       "id": "why-028",
@@ -800,7 +812,7 @@
       "account": "why",
       "subject": "Why does chocolate kill dogs?",
       "bgm_file": "output018.mp3",
-      "caption": "Why does chocolate kill dogs?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does chocolate kill dogs?\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
       "id": "waypoint-028",
@@ -808,7 +820,7 @@
       "account": "waypoint",
       "subject": "The saltiest water you can float on",
       "bgm_file": "output024.mp3",
-      "caption": "The saltiest water you can float on\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The saltiest water you can float on\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "creature-028",
@@ -816,7 +828,7 @@
       "account": "creature",
       "subject": "Chameleons do not change colour to hide",
       "bgm_file": "output011.mp3",
-      "caption": "Chameleons do not change colour to hide\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Chameleons do not change colour to hide\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
       "id": "why-029",
@@ -824,7 +836,7 @@
       "account": "why",
       "subject": "Why do we dream?",
       "bgm_file": "output007.mp3",
-      "caption": "Why do we dream?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we dream?\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
       "id": "waypoint-029",
@@ -832,7 +844,7 @@
       "account": "waypoint",
       "subject": "The dunes that sing",
       "bgm_file": "output003.mp3",
-      "caption": "The dunes that sing\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The dunes that sing\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "creature-029",
@@ -840,7 +852,7 @@
       "account": "creature",
       "subject": "Geckos climb glass using molecular forces",
       "bgm_file": "output027.mp3",
-      "caption": "Geckos climb glass using molecular forces\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Geckos climb glass using molecular forces\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
       "id": "why-030",
@@ -848,7 +860,7 @@
       "account": "why",
       "subject": "Why do we forget most of our dreams?",
       "bgm_file": "output002.mp3",
-      "caption": "Why do we forget most of our dreams?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we forget most of our dreams?\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
       "id": "waypoint-030",
@@ -856,7 +868,7 @@
       "account": "waypoint",
       "subject": "The longest train journey in the world",
       "bgm_file": "output014.mp3",
-      "caption": "The longest train journey in the world\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The longest train journey in the world\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "creature-030",
@@ -864,7 +876,7 @@
       "account": "creature",
       "subject": "Spider silk is stronger than steel by weight",
       "bgm_file": "output001.mp3",
-      "caption": "Spider silk is stronger than steel by weight\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Spider silk is stronger than steel by weight\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
       "id": "why-031",
@@ -872,7 +884,7 @@
       "account": "why",
       "subject": "Why does time feel faster as you get older?",
       "bgm_file": "output020.mp3",
-      "caption": "Why does time feel faster as you get older?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does time feel faster as you get older?\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
       "id": "waypoint-031",
@@ -880,7 +892,7 @@
       "account": "waypoint",
       "subject": "The library that sits in two countries",
       "bgm_file": "output017.mp3",
-      "caption": "The library that sits in two countries\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The library that sits in two countries\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "creature-031",
@@ -888,7 +900,7 @@
       "account": "creature",
       "subject": "Ants farm other insects for food",
       "bgm_file": "output000.mp3",
-      "caption": "Ants farm other insects for food\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Ants farm other insects for food\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-032",
@@ -896,7 +908,7 @@
       "account": "why",
       "subject": "Why does your recorded voice sound wrong?",
       "bgm_file": "output016.mp3",
-      "caption": "Why does your recorded voice sound wrong?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does your recorded voice sound wrong?\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
       "id": "waypoint-032",
@@ -904,7 +916,7 @@
       "account": "waypoint",
       "subject": "The town that is one single building",
       "bgm_file": "output006.mp3",
-      "caption": "The town that is one single building\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The town that is one single building\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "creature-032",
@@ -912,7 +924,7 @@
       "account": "creature",
       "subject": "Bees give directions by dancing",
       "bgm_file": "output019.mp3",
-      "caption": "Bees give directions by dancing\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Bees give directions by dancing\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
       "id": "why-033",
@@ -920,7 +932,7 @@
       "account": "why",
       "subject": "Why do fingers wrinkle in the bath?",
       "bgm_file": "output013.mp3",
-      "caption": "Why do fingers wrinkle in the bath?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do fingers wrinkle in the bath?\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
       "id": "waypoint-033",
@@ -928,7 +940,7 @@
       "account": "waypoint",
       "subject": "The cave of giant crystals",
       "bgm_file": "output021.mp3",
-      "caption": "The cave of giant crystals\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The cave of giant crystals\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "creature-033",
@@ -936,7 +948,7 @@
       "account": "creature",
       "subject": "Butterflies taste with their feet",
       "bgm_file": "output015.mp3",
-      "caption": "Butterflies taste with their feet\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Butterflies taste with their feet\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
       "id": "why-034",
@@ -944,7 +956,7 @@
       "account": "why",
       "subject": "Why do we blush?",
       "bgm_file": "output005.mp3",
-      "caption": "Why do we blush?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we blush?\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
       "id": "waypoint-034",
@@ -952,7 +964,7 @@
       "account": "waypoint",
       "subject": "The river that boils",
       "bgm_file": "output025.mp3",
-      "caption": "The river that boils\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The river that boils\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "creature-034",
@@ -960,7 +972,7 @@
       "account": "creature",
       "subject": "Cicadas stay underground for 17 years",
       "bgm_file": "output008.mp3",
-      "caption": "Cicadas stay underground for 17 years\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Cicadas stay underground for 17 years\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
       "id": "why-035",
@@ -968,7 +980,7 @@
       "account": "why",
       "subject": "Why do some people sneeze at bright light?",
       "bgm_file": "output009.mp3",
-      "caption": "Why do some people sneeze at bright light?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do some people sneeze at bright light?\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
       "id": "waypoint-035",
@@ -976,7 +988,7 @@
       "account": "waypoint",
       "subject": "The forest where every tree bends",
       "bgm_file": "output010.mp3",
-      "caption": "The forest where every tree bends\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The forest where every tree bends\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "creature-035",
@@ -984,7 +996,7 @@
       "account": "creature",
       "subject": "A dragonfly catches 95 percent of its targets",
       "bgm_file": "output004.mp3",
-      "caption": "A dragonfly catches 95 percent of its targets\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "A dragonfly catches 95 percent of its targets\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
       "id": "why-036",
@@ -992,7 +1004,7 @@
       "account": "why",
       "subject": "Why does brain freeze happen?",
       "bgm_file": "output022.mp3",
-      "caption": "Why does brain freeze happen?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does brain freeze happen?\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
       "id": "waypoint-036",
@@ -1000,7 +1012,7 @@
       "account": "waypoint",
       "subject": "The city abandoned overnight",
       "bgm_file": "output029.mp3",
-      "caption": "The city abandoned overnight\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The city abandoned overnight\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "creature-036",
@@ -1008,7 +1020,7 @@
       "account": "creature",
       "subject": "A cockroach can live a week without its head",
       "bgm_file": "output023.mp3",
-      "caption": "A cockroach can live a week without its head\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "A cockroach can live a week without its head\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
       "id": "why-037",
@@ -1016,7 +1028,7 @@
       "account": "why",
       "subject": "Why does music give you chills?",
       "bgm_file": "output028.mp3",
-      "caption": "Why does music give you chills?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does music give you chills?\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
       "id": "waypoint-037",
@@ -1024,7 +1036,7 @@
       "account": "waypoint",
       "subject": "The steepest street in the world",
       "bgm_file": "output024.mp3",
-      "caption": "The steepest street in the world\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The steepest street in the world\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "creature-037",
@@ -1032,7 +1044,7 @@
       "account": "creature",
       "subject": "Only female mosquitoes bite",
       "bgm_file": "output012.mp3",
-      "caption": "Only female mosquitoes bite\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Only female mosquitoes bite\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
       "id": "why-038",
@@ -1040,7 +1052,7 @@
       "account": "why",
       "subject": "Why do we blink so often?",
       "bgm_file": "output018.mp3",
-      "caption": "Why do we blink so often?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we blink so often?\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
       "id": "waypoint-038",
@@ -1048,7 +1060,7 @@
       "account": "waypoint",
       "subject": "The beach that glows at night",
       "bgm_file": "output003.mp3",
-      "caption": "The beach that glows at night\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The beach that glows at night\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "creature-038",
@@ -1056,7 +1068,7 @@
       "account": "creature",
       "subject": "Fireflies make light with almost no heat",
       "bgm_file": "output011.mp3",
-      "caption": "Fireflies make light with almost no heat\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Fireflies make light with almost no heat\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
       "id": "why-039",
@@ -1064,7 +1076,7 @@
       "account": "why",
       "subject": "Why do we cry when we are sad?",
       "bgm_file": "output007.mp3",
-      "caption": "Why do we cry when we are sad?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we cry when we are sad?\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
       "id": "waypoint-039",
@@ -1072,7 +1084,7 @@
       "account": "waypoint",
       "subject": "The waterfall that freezes solid",
       "bgm_file": "output014.mp3",
-      "caption": "The waterfall that freezes solid\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The waterfall that freezes solid\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "creature-039",
@@ -1080,7 +1092,7 @@
       "account": "creature",
       "subject": "The anglerfish male fuses to the female",
       "bgm_file": "output027.mp3",
-      "caption": "The anglerfish male fuses to the female\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The anglerfish male fuses to the female\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
       "id": "why-040",
@@ -1088,7 +1100,7 @@
       "account": "why",
       "subject": "Why does thunder follow lightning?",
       "bgm_file": "output002.mp3",
-      "caption": "Why does thunder follow lightning?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does thunder follow lightning?\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
       "id": "waypoint-040",
@@ -1096,7 +1108,7 @@
       "account": "waypoint",
       "subject": "The village built inside a cave",
       "bgm_file": "output017.mp3",
-      "caption": "The village built inside a cave\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The village built inside a cave\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "creature-040",
@@ -1104,7 +1116,7 @@
       "account": "creature",
       "subject": "The pistol shrimp shoots a bubble hotter than the sun",
       "bgm_file": "output001.mp3",
-      "caption": "The pistol shrimp shoots a bubble hotter than the sun\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The pistol shrimp shoots a bubble hotter than the sun\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
       "id": "why-041",
@@ -1112,7 +1124,7 @@
       "account": "why",
       "subject": "Why do clouds float if water is heavy?",
       "bgm_file": "output020.mp3",
-      "caption": "Why do clouds float if water is heavy?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do clouds float if water is heavy?\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
       "id": "waypoint-041",
@@ -1120,7 +1132,7 @@
       "account": "waypoint",
       "subject": "The northernmost town on Earth",
       "bgm_file": "output006.mp3",
-      "caption": "The northernmost town on Earth\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The northernmost town on Earth\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "creature-041",
@@ -1128,7 +1140,7 @@
       "account": "creature",
       "subject": "Electric eels can stun a horse",
       "bgm_file": "output000.mp3",
-      "caption": "Electric eels can stun a horse\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Electric eels can stun a horse\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-042",
@@ -1136,7 +1148,7 @@
       "account": "why",
       "subject": "Why is fog low and clouds high?",
       "bgm_file": "output016.mp3",
-      "caption": "Why is fog low and clouds high?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is fog low and clouds high?\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
       "id": "waypoint-042",
@@ -1144,7 +1156,7 @@
       "account": "waypoint",
       "subject": "The island made entirely of shells",
       "bgm_file": "output021.mp3",
-      "caption": "The island made entirely of shells\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The island made entirely of shells\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "creature-042",
@@ -1152,7 +1164,7 @@
       "account": "creature",
       "subject": "The archerfish shoots down insects with water",
       "bgm_file": "output019.mp3",
-      "caption": "The archerfish shoots down insects with water\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The archerfish shoots down insects with water\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
       "id": "why-043",
@@ -1160,7 +1172,7 @@
       "account": "why",
       "subject": "Why does a rainbow curve?",
       "bgm_file": "output013.mp3",
-      "caption": "Why does a rainbow curve?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does a rainbow curve?\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
       "id": "waypoint-043",
@@ -1168,7 +1180,7 @@
       "account": "waypoint",
       "subject": "The hotel made of ice, rebuilt every year",
       "bgm_file": "output025.mp3",
-      "caption": "The hotel made of ice, rebuilt every year\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The hotel made of ice, rebuilt every year\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "creature-043",
@@ -1176,7 +1188,7 @@
       "account": "creature",
       "subject": "Some fish walk on land",
       "bgm_file": "output015.mp3",
-      "caption": "Some fish walk on land\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Some fish walk on land\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
       "id": "why-044",
@@ -1184,7 +1196,7 @@
       "account": "why",
       "subject": "Why is the ocean blue from above but clear in your hand?",
       "bgm_file": "output005.mp3",
-      "caption": "Why is the ocean blue from above but clear in your hand?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is the ocean blue from above but clear in your hand?\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
       "id": "waypoint-044",
@@ -1192,7 +1204,7 @@
       "account": "waypoint",
       "subject": "The place where two oceans appear not to mix",
       "bgm_file": "output010.mp3",
-      "caption": "The place where two oceans appear not to mix\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The place where two oceans appear not to mix\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "creature-044",
@@ -1200,7 +1212,7 @@
       "account": "creature",
       "subject": "The lungfish can survive years without water",
       "bgm_file": "output008.mp3",
-      "caption": "The lungfish can survive years without water\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The lungfish can survive years without water\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
       "id": "why-045",
@@ -1208,7 +1220,7 @@
       "account": "why",
       "subject": "Why does wind exist?",
       "bgm_file": "output009.mp3",
-      "caption": "Why does wind exist?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does wind exist?\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
       "id": "waypoint-045",
@@ -1216,7 +1228,7 @@
       "account": "waypoint",
       "subject": "The lake that turns animals to stone",
       "bgm_file": "output029.mp3",
-      "caption": "The lake that turns animals to stone\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The lake that turns animals to stone\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "creature-045",
@@ -1224,7 +1236,7 @@
       "account": "creature",
       "subject": "Some frogs freeze solid and thaw alive",
       "bgm_file": "output004.mp3",
-      "caption": "Some frogs freeze solid and thaw alive\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Some frogs freeze solid and thaw alive\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
       "id": "why-046",
@@ -1232,7 +1244,7 @@
       "account": "why",
       "subject": "Why do hurricanes spin?",
       "bgm_file": "output022.mp3",
-      "caption": "Why do hurricanes spin?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do hurricanes spin?\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
       "id": "waypoint-046",
@@ -1240,7 +1252,7 @@
       "account": "waypoint",
       "subject": "The tree that stood alone for centuries",
       "bgm_file": "output024.mp3",
-      "caption": "The tree that stood alone for centuries\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The tree that stood alone for centuries\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "creature-046",
@@ -1248,7 +1260,7 @@
       "account": "creature",
       "subject": "Poison dart frogs lose their poison in captivity",
       "bgm_file": "output023.mp3",
-      "caption": "Poison dart frogs lose their poison in captivity\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Poison dart frogs lose their poison in captivity\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
       "id": "why-047",
@@ -1256,7 +1268,7 @@
       "account": "why",
       "subject": "Why is the deep ocean pitch black?",
       "bgm_file": "output028.mp3",
-      "caption": "Why is the deep ocean pitch black?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is the deep ocean pitch black?\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
       "id": "waypoint-047",
@@ -1264,7 +1276,7 @@
       "account": "waypoint",
       "subject": "The country you can cross in fifteen minutes",
       "bgm_file": "output003.mp3",
-      "caption": "The country you can cross in fifteen minutes\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The country you can cross in fifteen minutes\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "creature-047",
@@ -1272,7 +1284,7 @@
       "account": "creature",
       "subject": "Crocodile tears are real",
       "bgm_file": "output012.mp3",
-      "caption": "Crocodile tears are real\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Crocodile tears are real\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
       "id": "why-048",
@@ -1280,7 +1292,7 @@
       "account": "why",
       "subject": "Why do bubbles pop?",
       "bgm_file": "output018.mp3",
-      "caption": "Why do bubbles pop?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do bubbles pop?\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
       "id": "waypoint-048",
@@ -1288,7 +1300,7 @@
       "account": "waypoint",
       "subject": "The underwater museum you can dive through",
       "bgm_file": "output014.mp3",
-      "caption": "The underwater museum you can dive through\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The underwater museum you can dive through\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "creature-048",
@@ -1296,7 +1308,7 @@
       "account": "creature",
       "subject": "Some turtles breathe through their rear",
       "bgm_file": "output011.mp3",
-      "caption": "Some turtles breathe through their rear\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Some turtles breathe through their rear\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
       "id": "why-049",
@@ -1304,7 +1316,7 @@
       "account": "why",
       "subject": "Why does a spinning top stay upright?",
       "bgm_file": "output007.mp3",
-      "caption": "Why does a spinning top stay upright?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does a spinning top stay upright?\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
       "id": "waypoint-049",
@@ -1312,7 +1324,7 @@
       "account": "waypoint",
       "subject": "The volcano you can walk inside",
       "bgm_file": "output017.mp3",
-      "caption": "The volcano you can walk inside\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The volcano you can walk inside\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "creature-049",
@@ -1320,7 +1332,7 @@
       "account": "creature",
       "subject": "Snakes see body heat as an image",
       "bgm_file": "output027.mp3",
-      "caption": "Snakes see body heat as an image\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Snakes see body heat as an image\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
       "id": "why-050",
@@ -1328,7 +1340,7 @@
       "account": "why",
       "subject": "Why do magnets stick to some metals only?",
       "bgm_file": "output002.mp3",
-      "caption": "Why do magnets stick to some metals only?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do magnets stick to some metals only?\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
       "id": "waypoint-050",
@@ -1336,7 +1348,7 @@
       "account": "waypoint",
       "subject": "The deepest hole humans ever dug",
       "bgm_file": "output006.mp3",
-      "caption": "The deepest hole humans ever dug\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The deepest hole humans ever dug\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "creature-050",
@@ -1344,7 +1356,7 @@
       "account": "creature",
       "subject": "The chameleon's tongue accelerates faster than a rocket",
       "bgm_file": "output001.mp3",
-      "caption": "The chameleon's tongue accelerates faster than a rocket\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The chameleon's tongue accelerates faster than a rocket\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
       "id": "why-051",
@@ -1352,7 +1364,7 @@
       "account": "why",
       "subject": "Why do phone batteries get worse over time?",
       "bgm_file": "output020.mp3",
-      "caption": "Why do phone batteries get worse over time?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do phone batteries get worse over time?\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
       "id": "waypoint-051",
@@ -1360,7 +1372,7 @@
       "account": "waypoint",
       "subject": "The fjord so narrow ships barely pass",
       "bgm_file": "output021.mp3",
-      "caption": "The fjord so narrow ships barely pass\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The fjord so narrow ships barely pass\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "creature-051",
@@ -1368,7 +1380,7 @@
       "account": "creature",
       "subject": "Sloths move so slowly that algae grows on them",
       "bgm_file": "output000.mp3",
-      "caption": "Sloths move so slowly that algae grows on them\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Sloths move so slowly that algae grows on them\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-052",
@@ -1376,7 +1388,7 @@
       "account": "why",
       "subject": "Why are aeroplane windows round?",
       "bgm_file": "output016.mp3",
-      "caption": "Why are aeroplane windows round?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why are aeroplane windows round?\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
       "id": "waypoint-052",
@@ -1384,7 +1396,7 @@
       "account": "waypoint",
       "subject": "The field of geysers that never sleeps",
       "bgm_file": "output025.mp3",
-      "caption": "The field of geysers that never sleeps\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The field of geysers that never sleeps\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "creature-052",
@@ -1392,7 +1404,7 @@
       "account": "creature",
       "subject": "The pangolin is the most trafficked mammal on Earth",
       "bgm_file": "output019.mp3",
-      "caption": "The pangolin is the most trafficked mammal on Earth\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The pangolin is the most trafficked mammal on Earth\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
       "id": "why-053",
@@ -1400,7 +1412,7 @@
       "account": "why",
       "subject": "Why do screens look strange on camera?",
       "bgm_file": "output013.mp3",
-      "caption": "Why do screens look strange on camera?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do screens look strange on camera?\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
       "id": "waypoint-053",
@@ -1408,7 +1420,7 @@
       "account": "waypoint",
       "subject": "The town cut off by tides twice a day",
       "bgm_file": "output010.mp3",
-      "caption": "The town cut off by tides twice a day\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The town cut off by tides twice a day\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "creature-053",
@@ -1416,7 +1428,7 @@
       "account": "creature",
       "subject": "Naked mole rats barely feel pain and rarely get cancer",
       "bgm_file": "output015.mp3",
-      "caption": "Naked mole rats barely feel pain and rarely get cancer\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Naked mole rats barely feel pain and rarely get cancer\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
       "id": "why-054",
@@ -1424,7 +1436,7 @@
       "account": "why",
       "subject": "Why is the keyboard laid out QWERTY?",
       "bgm_file": "output005.mp3",
-      "caption": "Why is the keyboard laid out QWERTY?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is the keyboard laid out QWERTY?\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
       "id": "waypoint-054",
@@ -1432,7 +1444,7 @@
       "account": "waypoint",
       "subject": "The stone forest that shreds boots",
       "bgm_file": "output029.mp3",
-      "caption": "The stone forest that shreds boots\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The stone forest that shreds boots\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "creature-054",
@@ -1440,7 +1452,7 @@
       "account": "creature",
       "subject": "Bats are not blind at all",
       "bgm_file": "output008.mp3",
-      "caption": "Bats are not blind at all\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Bats are not blind at all\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
       "id": "why-055",
@@ -1448,7 +1460,7 @@
       "account": "why",
       "subject": "Why do some countries drive on the left?",
       "bgm_file": "output009.mp3",
-      "caption": "Why do some countries drive on the left?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do some countries drive on the left?\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
       "id": "waypoint-055",
@@ -1456,7 +1468,7 @@
       "account": "waypoint",
       "subject": "The lake that explodes",
       "bgm_file": "output024.mp3",
-      "caption": "The lake that explodes\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The lake that explodes\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "creature-055",
@@ -1464,7 +1476,7 @@
       "account": "creature",
       "subject": "The honey badger shrugs off cobra venom",
       "bgm_file": "output004.mp3",
-      "caption": "The honey badger shrugs off cobra venom\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The honey badger shrugs off cobra venom\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
       "id": "why-056",
@@ -1472,7 +1484,7 @@
       "account": "why",
       "subject": "Why are stop signs red?",
       "bgm_file": "output022.mp3",
-      "caption": "Why are stop signs red?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why are stop signs red?\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
       "id": "waypoint-056",
@@ -1480,7 +1492,7 @@
       "account": "waypoint",
       "subject": "The city with no cars at all",
       "bgm_file": "output003.mp3",
-      "caption": "The city with no cars at all\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The city with no cars at all\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "creature-056",
@@ -1488,7 +1500,7 @@
       "account": "creature",
       "subject": "Hyena clans are ruled by females",
       "bgm_file": "output023.mp3",
-      "caption": "Hyena clans are ruled by females\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Hyena clans are ruled by females\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
       "id": "why-057",
@@ -1496,7 +1508,7 @@
       "account": "why",
       "subject": "Why do we have leap years?",
       "bgm_file": "output028.mp3",
-      "caption": "Why do we have leap years?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we have leap years?\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
       "id": "waypoint-057",
@@ -1504,7 +1516,7 @@
       "account": "waypoint",
       "subject": "The glacier you can walk under",
       "bgm_file": "output014.mp3",
-      "caption": "The glacier you can walk under\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The glacier you can walk under\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "creature-057",
@@ -1512,7 +1524,7 @@
       "account": "creature",
       "subject": "Meerkats take turns on guard duty",
       "bgm_file": "output012.mp3",
-      "caption": "Meerkats take turns on guard duty\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Meerkats take turns on guard duty\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
       "id": "why-058",
@@ -1520,7 +1532,7 @@
       "account": "why",
       "subject": "Why does paper give such painful cuts?",
       "bgm_file": "output018.mp3",
-      "caption": "Why does paper give such painful cuts?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does paper give such painful cuts?\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
       "id": "waypoint-058",
@@ -1528,7 +1540,7 @@
       "account": "waypoint",
       "subject": "The island where horses arrived by shipwreck",
       "bgm_file": "output017.mp3",
-      "caption": "The island where horses arrived by shipwreck\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The island where horses arrived by shipwreck\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "creature-058",
@@ -1536,7 +1548,7 @@
       "account": "creature",
       "subject": "Prairie dogs have words for specific predators",
       "bgm_file": "output011.mp3",
-      "caption": "Prairie dogs have words for specific predators\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Prairie dogs have words for specific predators\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
       "id": "why-059",
@@ -1544,7 +1556,7 @@
       "account": "why",
       "subject": "Why do zips work?",
       "bgm_file": "output007.mp3",
-      "caption": "Why do zips work?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do zips work?\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
       "id": "waypoint-059",
@@ -1552,7 +1564,7 @@
       "account": "waypoint",
       "subject": "The desert that was once an ocean",
       "bgm_file": "output006.mp3",
-      "caption": "The desert that was once an ocean\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The desert that was once an ocean\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "creature-059",
@@ -1560,7 +1572,7 @@
       "account": "creature",
       "subject": "Beaver dams can be seen from orbit",
       "bgm_file": "output027.mp3",
-      "caption": "Beaver dams can be seen from orbit\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Beaver dams can be seen from orbit\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
       "id": "why-060",
@@ -1568,7 +1580,7 @@
       "account": "why",
       "subject": "Why is the Moon visible during the day?",
       "bgm_file": "output002.mp3",
-      "caption": "Why is the Moon visible during the day?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is the Moon visible during the day?\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
       "id": "waypoint-060",
@@ -1576,7 +1588,7 @@
       "account": "waypoint",
       "subject": "The waterfall that flows upward in high wind",
       "bgm_file": "output021.mp3",
-      "caption": "The waterfall that flows upward in high wind\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The waterfall that flows upward in high wind\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "creature-060",
@@ -1584,7 +1596,7 @@
       "account": "creature",
       "subject": "Forgetful squirrels plant thousands of trees",
       "bgm_file": "output001.mp3",
-      "caption": "Forgetful squirrels plant thousands of trees\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Forgetful squirrels plant thousands of trees\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
       "id": "why-061",
@@ -1592,7 +1604,7 @@
       "account": "why",
       "subject": "Why doesn't the Moon fall to Earth?",
       "bgm_file": "output020.mp3",
-      "caption": "Why doesn't the Moon fall to Earth?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why doesn't the Moon fall to Earth?\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
       "id": "waypoint-061",
@@ -1600,7 +1612,7 @@
       "account": "waypoint",
       "subject": "The mountain that is taller than Everest from its base",
       "bgm_file": "output025.mp3",
-      "caption": "The mountain that is taller than Everest from its base\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The mountain that is taller than Everest from its base\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "creature-061",
@@ -1608,7 +1620,7 @@
       "account": "creature",
       "subject": "Ravens use tools and hold grudges",
       "bgm_file": "output000.mp3",
-      "caption": "Ravens use tools and hold grudges\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Ravens use tools and hold grudges\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-062",
@@ -1616,7 +1628,7 @@
       "account": "why",
       "subject": "Why is honey the only food that never spoils?",
       "bgm_file": "output016.mp3",
-      "caption": "Why is honey the only food that never spoils?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is honey the only food that never spoils?\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
       "id": "waypoint-062",
@@ -1624,7 +1636,7 @@
       "account": "waypoint",
       "subject": "The place with the largest tide on Earth",
       "bgm_file": "output010.mp3",
-      "caption": "The place with the largest tide on Earth\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The place with the largest tide on Earth\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "creature-062",
@@ -1632,7 +1644,7 @@
       "account": "creature",
       "subject": "Parrots understand what words mean",
       "bgm_file": "output019.mp3",
-      "caption": "Parrots understand what words mean\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Parrots understand what words mean\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
       "id": "why-063",
@@ -1640,7 +1652,7 @@
       "account": "why",
       "subject": "Why does hot water sometimes freeze faster than cold?",
       "bgm_file": "output013.mp3",
-      "caption": "Why does hot water sometimes freeze faster than cold?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does hot water sometimes freeze faster than cold?\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
       "id": "waypoint-063",
@@ -1648,7 +1660,7 @@
       "account": "waypoint",
       "subject": "The town buried by a volcano and dug back out",
       "bgm_file": "output029.mp3",
-      "caption": "The town buried by a volcano and dug back out\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The town buried by a volcano and dug back out\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "creature-063",
@@ -1656,7 +1668,7 @@
       "account": "creature",
       "subject": "Pigeons navigate using Earth's magnetic field",
       "bgm_file": "output015.mp3",
-      "caption": "Pigeons navigate using Earth's magnetic field\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Pigeons navigate using Earth's magnetic field\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
       "id": "why-064",
@@ -1664,7 +1676,7 @@
       "account": "why",
       "subject": "Why do we get motion sickness?",
       "bgm_file": "output005.mp3",
-      "caption": "Why do we get motion sickness?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we get motion sickness?\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
       "id": "waypoint-064",
@@ -1672,7 +1684,7 @@
       "account": "waypoint",
       "subject": "The staircase carved into a cliff",
       "bgm_file": "output024.mp3",
-      "caption": "The staircase carved into a cliff\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The staircase carved into a cliff\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "creature-064",
@@ -1680,7 +1692,7 @@
       "account": "creature",
       "subject": "Owls fly in complete silence",
       "bgm_file": "output008.mp3",
-      "caption": "Owls fly in complete silence\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Owls fly in complete silence\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
       "id": "why-065",
@@ -1688,7 +1700,7 @@
       "account": "why",
       "subject": "Why does the ocean have tides?",
       "bgm_file": "output009.mp3",
-      "caption": "Why does the ocean have tides?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does the ocean have tides?\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
       "id": "waypoint-065",
@@ -1696,7 +1708,7 @@
       "account": "waypoint",
       "subject": "The lake suspended above a valley",
       "bgm_file": "output003.mp3",
-      "caption": "The lake suspended above a valley\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The lake suspended above a valley\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "creature-065",
@@ -1704,7 +1716,7 @@
       "account": "creature",
       "subject": "The peregrine falcon dives at 380 km/h",
       "bgm_file": "output004.mp3",
-      "caption": "The peregrine falcon dives at 380 km/h\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "The peregrine falcon dives at 380 km/h\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
       "id": "why-066",
@@ -1712,7 +1724,7 @@
       "account": "why",
       "subject": "Why is fire hot and what is a flame made of?",
       "bgm_file": "output022.mp3",
-      "caption": "Why is fire hot and what is a flame made of?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is fire hot and what is a flame made of?\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
       "id": "waypoint-066",
@@ -1720,7 +1732,7 @@
       "account": "waypoint",
       "subject": "The village that moves with the seasons",
       "bgm_file": "output014.mp3",
-      "caption": "The village that moves with the seasons\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The village that moves with the seasons\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "creature-066",
@@ -1728,7 +1740,7 @@
       "account": "creature",
       "subject": "Hummingbirds can fly backwards",
       "bgm_file": "output023.mp3",
-      "caption": "Hummingbirds can fly backwards\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Hummingbirds can fly backwards\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
       "id": "why-067",
@@ -1736,7 +1748,7 @@
       "account": "why",
       "subject": "Why does static electricity shock you?",
       "bgm_file": "output028.mp3",
-      "caption": "Why does static electricity shock you?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does static electricity shock you?\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
       "id": "waypoint-067",
@@ -1744,7 +1756,7 @@
       "account": "waypoint",
       "subject": "The island nation running out of land",
       "bgm_file": "output017.mp3",
-      "caption": "The island nation running out of land\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The island nation running out of land\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "creature-067",
@@ -1752,7 +1764,7 @@
       "account": "creature",
       "subject": "Emperor penguins dive deeper than submarines go",
       "bgm_file": "output012.mp3",
-      "caption": "Emperor penguins dive deeper than submarines go\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Emperor penguins dive deeper than submarines go\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
       "id": "why-068",
@@ -1760,7 +1772,7 @@
       "account": "why",
       "subject": "Why do birds sit on power lines without dying?",
       "bgm_file": "output018.mp3",
-      "caption": "Why do birds sit on power lines without dying?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do birds sit on power lines without dying?\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
       "id": "waypoint-068",
@@ -1768,7 +1780,7 @@
       "account": "waypoint",
       "subject": "The bridge that disappears in fog every morning",
       "bgm_file": "output006.mp3",
-      "caption": "The bridge that disappears in fog every morning\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The bridge that disappears in fog every morning\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "creature-068",
@@ -1776,7 +1788,7 @@
       "account": "creature",
       "subject": "A woodpecker's tongue wraps around its skull",
       "bgm_file": "output011.mp3",
-      "caption": "A woodpecker's tongue wraps around its skull\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "A woodpecker's tongue wraps around its skull\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
       "id": "why-069",
@@ -1784,7 +1796,7 @@
       "account": "why",
       "subject": "Why does soap actually clean things?",
       "bgm_file": "output007.mp3",
-      "caption": "Why does soap actually clean things?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why does soap actually clean things?\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
       "id": "waypoint-069",
@@ -1792,7 +1804,7 @@
       "account": "waypoint",
       "subject": "The last place on Earth without internet",
       "bgm_file": "output021.mp3",
-      "caption": "The last place on Earth without internet\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The last place on Earth without internet\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "creature-069",
@@ -1800,7 +1812,7 @@
       "account": "creature",
       "subject": "Narwhal tusks are actually teeth",
       "bgm_file": "output027.mp3",
-      "caption": "Narwhal tusks are actually teeth\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Narwhal tusks are actually teeth\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
       "id": "why-070",
@@ -1808,7 +1820,7 @@
       "account": "why",
       "subject": "Why do we yawn when we are tired?",
       "bgm_file": "output002.mp3",
-      "caption": "Why do we yawn when we are tired?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do we yawn when we are tired?\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
       "id": "waypoint-070",
@@ -1816,7 +1828,7 @@
       "account": "waypoint",
       "subject": "The forest older than the last ice age",
       "bgm_file": "output025.mp3",
-      "caption": "The forest older than the last ice age\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The forest older than the last ice age\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "creature-070",
@@ -1824,7 +1836,7 @@
       "account": "creature",
       "subject": "Orcas have regional dialects",
       "bgm_file": "output001.mp3",
-      "caption": "Orcas have regional dialects\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Orcas have regional dialects\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
       "id": "why-071",
@@ -1832,7 +1844,7 @@
       "account": "why",
       "subject": "Why is the human eye fooled by optical illusions?",
       "bgm_file": "output020.mp3",
-      "caption": "Why is the human eye fooled by optical illusions?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why is the human eye fooled by optical illusions?\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
       "id": "waypoint-071",
@@ -1840,7 +1852,7 @@
       "account": "waypoint",
       "subject": "The salt mine with a cathedral inside",
       "bgm_file": "output010.mp3",
-      "caption": "The salt mine with a cathedral inside\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The salt mine with a cathedral inside\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "creature-071",
@@ -1848,7 +1860,7 @@
       "account": "creature",
       "subject": "Sperm whales sleep standing up",
       "bgm_file": "output000.mp3",
-      "caption": "Sperm whales sleep standing up\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Sperm whales sleep standing up\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-072",
@@ -1856,7 +1868,7 @@
       "account": "why",
       "subject": "Why do cut apples turn brown?",
       "bgm_file": "output016.mp3",
-      "caption": "Why do cut apples turn brown?\n\n#didyouknow #science #curiosity #explained #sciencefacts #learnsomethingnew #facts #education #mindblown #whytho"
+      "caption": "Why do cut apples turn brown?\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
       "id": "waypoint-072",
@@ -1864,7 +1876,7 @@
       "account": "waypoint",
       "subject": "The archipelago with more islands than people",
       "bgm_file": "output029.mp3",
-      "caption": "The archipelago with more islands than people\n\n#travel #geography #hiddenplaces #travelfacts #explore #earth #wanderlust #destination #offthebeatenpath #planetearth"
+      "caption": "The archipelago with more islands than people\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "creature-072",
@@ -1872,7 +1884,7 @@
       "account": "creature",
       "subject": "Sea turtles return to the beach they were born on",
       "bgm_file": "output019.mp3",
-      "caption": "Sea turtles return to the beach they were born on\n\n#animals #wildlife #animalfacts #nature #didyouknow #creatures #wildlifefacts #animalkingdom #naturefacts #strangebutrue"
+      "caption": "Sea turtles return to the beach they were born on\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     }
   ]
 }
