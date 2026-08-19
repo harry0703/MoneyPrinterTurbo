@@ -16,6 +16,7 @@
 
     uv run python scripts/fetch_videos.py
     uv run python scripts/fetch_videos.py --account why
+    uv run python scripts/fetch_videos.py --id why-004
 """
 
 from __future__ import annotations
@@ -101,6 +102,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--remote-dir", default=DEFAULT_REMOTE_DIR, help="project path on the server")
     parser.add_argument("--dest", default=DEFAULT_DEST, help="local folder to fill")
     parser.add_argument("--account", default="", help="only fetch this account")
+    parser.add_argument("--id", default="", help="only fetch this plan entry, e.g. why-004")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="download again even if the local file already exists",
+    )
     return parser
 
 
@@ -129,10 +136,13 @@ def main(argv=None) -> int:
         if args.account and entry["account"] != args.account:
             continue
 
+        if args.id and entry_id != args.id:
+            continue
+
         filename = f"{entry_id}-{slugify(entry['subject'])}.mp4"
         local_file = os.path.join(dest_root, entry["account"], filename)
 
-        if os.path.isfile(local_file):
+        if os.path.isfile(local_file) and not args.force:
             skipped += 1
             continue
 
