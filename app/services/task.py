@@ -675,6 +675,8 @@ def get_video_materials(
             audio_duration=audio_duration * params.video_count,
             max_clip_duration=params.video_clip_duration,
             match_script_order=params.match_materials_to_script,
+            material_provider_mode=params.material_provider_mode,
+            material_providers=params.material_providers,
         )
         if not downloaded_videos:
             _mark_task_failed(
@@ -1171,6 +1173,19 @@ def _run_pipeline(
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+
+    # A stock-backed task that reaches the materials stage must validate every
+    # selected key before script generation, audio, or subtitles.  Script/terms/
+    # audio/subtitle-only calls intentionally remain exempt for API compatibility
+    # because they never contact a stock provider.
+    if (
+        params.video_source not in {"local", "loomloom"}
+        and stop_at in {"materials", "video"}
+    ):
+        try:
+            material.validate_material_provider_keys(params.material_providers or [])
+        except ValueError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
 
     # 只有完整成片流程需要视频配乐供应商。尽早阻止缺少 Key 的完整任务，避免
     # 先消耗 LLM、TTS 和素材服务额度；中间产物接口仍可独立使用。
