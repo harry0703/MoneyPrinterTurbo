@@ -68,6 +68,33 @@ class TestVoiceService(unittest.TestCase):
             all(v.startswith(("zh-CN", "en-US")) for v in filtered)
         )
 
+    def test_get_gemini_voices_matches_documented_catalog(self):
+        voices = vs.get_gemini_voices()
+
+        self.assertEqual(len(voices), 30)
+        self.assertEqual(
+            [name for name, _style in vs.GEMINI_TTS_VOICES],
+            [
+                "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda",
+                "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus",
+                "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome",
+                "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam",
+                "Schedar", "Gacrux", "Pulcherrima", "Achird",
+                "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager",
+                "Sulafat",
+            ],
+        )
+        self.assertIn("gemini:Achernar-Soft", voices)
+        self.assertIn("gemini:Sulafat-Warm", voices)
+        self.assertFalse(any("Atlas" in voice for voice in voices))
+
+    def test_parse_gemini_voice_name_supports_new_and_legacy_labels(self):
+        self.assertEqual(
+            vs.parse_gemini_voice_name("gemini:Achernar-Soft"), "Achernar"
+        )
+        self.assertEqual(vs.parse_gemini_voice_name("gemini:Charon-Male"), "Charon")
+        self.assertEqual(vs.parse_gemini_voice_name("Charon-Male"), "")
+
     def test_no_voice_tts_generates_silent_audio_and_subtitle_timeline(self):
         """
         无配音模式不调用任何外部 TTS provider，只生成静音音频作为时间轴占位。
@@ -396,6 +423,28 @@ class TestVoiceService(unittest.TestCase):
             voice_name,
             "/tmp/azure-v2-rate.mp3",
             voice_rate=1.8,
+        )
+
+    def test_tts_strips_gemini_style_metadata_before_dispatch(self):
+        """Gemini 下拉框的官方风格描述不能成为 API voice_name 的一部分。"""
+        sentinel = object()
+
+        with patch.object(vs, "gemini_tts", return_value=sentinel) as gemini_tts:
+            result = vs.tts(
+                text="Test the updated voice catalog.",
+                voice_name="gemini:Achernar-Soft",
+                voice_rate=1.0,
+                voice_file="/tmp/gemini-achernar.mp3",
+                voice_volume=1.0,
+            )
+
+        self.assertIs(result, sentinel)
+        gemini_tts.assert_called_once_with(
+            "Test the updated voice catalog.",
+            "Achernar",
+            1.0,
+            "/tmp/gemini-achernar.mp3",
+            1.0,
         )
 
     def test_gemini_tts_uses_google_genai_and_compatible_submaker_fields(self):
