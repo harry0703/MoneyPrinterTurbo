@@ -39,38 +39,6 @@ MINIMAX_TTS_MODELS = (
     "speech-2.8-hd", "speech-2.8-turbo", "speech-2.6-hd", "speech-2.6-turbo",
     "speech-02-hd", "speech-02-turbo", "speech-01-hd", "speech-01-turbo",
 )
-GEMINI_TTS_VOICES = (
-    ("Zephyr", "Bright"),
-    ("Puck", "Upbeat"),
-    ("Charon", "Informative"),
-    ("Kore", "Firm"),
-    ("Fenrir", "Excitable"),
-    ("Leda", "Youthful"),
-    ("Orus", "Firm"),
-    ("Aoede", "Breezy"),
-    ("Callirrhoe", "Easy-going"),
-    ("Autonoe", "Bright"),
-    ("Enceladus", "Breathy"),
-    ("Iapetus", "Clear"),
-    ("Umbriel", "Easy-going"),
-    ("Algieba", "Smooth"),
-    ("Despina", "Smooth"),
-    ("Erinome", "Clear"),
-    ("Algenib", "Gravelly"),
-    ("Rasalgethi", "Informative"),
-    ("Laomedeia", "Upbeat"),
-    ("Achernar", "Soft"),
-    ("Alnilam", "Firm"),
-    ("Schedar", "Even"),
-    ("Gacrux", "Mature"),
-    ("Pulcherrima", "Forward"),
-    ("Achird", "Friendly"),
-    ("Zubenelgenubi", "Casual"),
-    ("Vindemiatrix", "Gentle"),
-    ("Sadachbia", "Lively"),
-    ("Sadaltager", "Knowledgeable"),
-    ("Sulafat", "Warm"),
-)
 _MINIMAX_TTS_MAX_AUDIO_HEX_CHARS = 100 * 1024 * 1024
 NO_VOICE_NAME = "no-voice"
 # `none` 是 PR #981 里曾使用过的无配音标识。这里短期兼容这个值，避免
@@ -127,16 +95,35 @@ def get_siliconflow_voices() -> list[str]:
 
 def get_gemini_voices() -> list[str]:
     """
-    获取 Gemini TTS 官方预置音色列表。
-
-    Google 没有为这些音色发布性别元数据，因此下拉框使用官方风格描述，
-    避免把推测的性别写进持久化 voice id。音色目录来源：
-    https://ai.google.dev/gemini-api/docs/speech-generation#voice-options
-
+    获取Gemini TTS的声音列表
+    
     Returns:
-        声音列表，格式为 ["gemini:Zephyr-Bright", "gemini:Puck-Upbeat", ...]
+        声音列表，格式为 ["gemini:Zephyr-Female", "gemini:Puck-Male", ...]
     """
-    return [f"gemini:{voice}-{style}" for voice, style in GEMINI_TTS_VOICES]
+    # Gemini TTS支持的语音列表
+    voices_with_gender = [
+        ("Zephyr", "Female"),
+        ("Puck", "Male"), 
+        ("Charon", "Male"),
+        ("Kore", "Female"),
+        ("Fenrir", "Male"),
+        ("Aoede", "Female"),
+        ("Thalia", "Female"),
+        ("Sage", "Male"),
+        ("Echo", "Female"),
+        ("Harmony", "Female"),
+        ("Lux", "Female"),
+        ("Nova", "Female"),
+        ("Vale", "Male"),
+        ("Orion", "Male"),
+        ("Atlas", "Male"),
+    ]
+    
+    # 添加gemini:前缀，并格式化为显示名称
+    return [
+        f"gemini:{voice}-{gender}"
+        for voice, gender in voices_with_gender
+    ]
 
 
 def get_mimo_voices() -> list[str]:
@@ -277,13 +264,6 @@ def is_gemini_voice(voice_name: str):
     return voice_name.startswith("gemini:")
 
 
-def parse_gemini_voice_name(voice_name: str | None) -> str:
-    """从新旧 Gemini 下拉框值中提取 Google API 使用的预置音色名称。"""
-    if not is_gemini_voice(voice_name or ""):
-        return ""
-    return (voice_name or "").split(":", 1)[1].split("-", 1)[0].strip()
-
-
 def is_mimo_voice(voice_name: str):
     """检查是否是 Xiaomi MiMo TTS 的声音"""
     return voice_name.startswith("mimo:")
@@ -311,6 +291,29 @@ def get_elevenlabs_api_key() -> str:
 
 def is_chatterbox_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("chatterbox:")
+
+
+def is_volcengine_voice(voice_name: str) -> bool:
+    return (voice_name or "").startswith("volcengine:")
+
+
+def get_volcengine_voices() -> list[str]:
+    """Return the available VolcEngine Ark TTS voices."""
+    _VOLCENGINE_VOICES = [
+        ("zh_female_qingxin", "Female"),
+        ("zh_male_qingse", "Male"),
+        ("zh_female_tianmei", "Female"),
+        ("zh_male_zhazha", "Male"),
+        ("zh_female_vivacious", "Female"),
+        ("zh_male_qinglang", "Male"),
+        ("zh_female_shuanggui", "Female"),
+        ("zh_male_shenxing", "Male"),
+        ("en_female_amanda", "Female"),
+        ("en_male_ryan", "Male"),
+        ("en_female_vanessa", "Female"),
+        ("en_male_david", "Male"),
+    ]
+    return [f"volcengine:{voice}-{gender}" for voice, gender in _VOLCENGINE_VOICES]
 
 
 def is_no_voice(voice_name: str | None) -> bool:
@@ -456,9 +459,12 @@ def tts(
             return None
     elif is_gemini_voice(voice_name):
         # 从voice_name中提取声音名称
-        # 格式: gemini:voice-Style；也继续兼容旧的 gemini:voice-Gender。
-        voice = parse_gemini_voice_name(voice_name)
-        if voice:
+        # 格式: gemini:voice-Gender
+        parts = voice_name.split(":")
+        if len(parts) >= 2:
+            # 移除性别后缀，例如 "Zephyr-Female" -> "Zephyr"
+            voice_with_gender = parts[1]
+            voice = voice_with_gender.split("-")[0]
             return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
@@ -502,6 +508,18 @@ def tts(
             )
         else:
             logger.error(f"Invalid chatterbox voice name format: {voice_name}")
+            return None
+    elif is_volcengine_voice(voice_name):
+        # 格式: volcengine:voice-Gender
+        parts = voice_name.split(":")
+        if len(parts) >= 2:
+            voice_with_gender = parts[1]
+            voice = voice_with_gender.split("-")[0]
+            return volcengine_tts(
+                text, voice, voice_rate, voice_file, voice_volume
+            )
+        else:
+            logger.error(f"Invalid volcengine voice name format: {voice_name}")
             return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
@@ -1738,6 +1756,117 @@ def chatterbox_tts(
             )
         except Exception as e:
             logger.error(f"chatterbox tts failed: {str(e)}")
+
+    return None
+
+
+def volcengine_tts(
+    text: str,
+    voice: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """
+    Use ByteDance VolcEngine Ark TTS (豆包语音合成) to generate speech.
+
+    The Ark TTS API is OpenAI-compatible, using the same /audio/speech
+    endpoint. When no dedicated TTS key is configured, the volcengine LLM
+    key and base URL are reused automatically.
+
+    Args:
+        text: Text to synthesize.
+        voice: Voice name (e.g. "zh_female_qingxin").
+        voice_rate: Speech speed multiplier (0.25-4.0).
+        voice_file: Output audio file path.
+        voice_volume: Audio volume multiplier (1.0 = default).
+
+    Returns:
+        SubMaker object or None on failure.
+    """
+    text = (text or "").strip()
+    if not text:
+        logger.error("VolcEngine TTS text is empty")
+        return None
+
+    settings = config.volcengine_tts
+    api_key = str(settings.get("api_key", "") or "").strip()
+    if not api_key:
+        # Fall back to the volcengine LLM API key.
+        api_key = str(config.app.get("volcengine_api_key", "") or "").strip()
+    if not api_key:
+        logger.error("VolcEngine TTS API key is not set")
+        return None
+
+    base_url = str(settings.get("base_url", "") or "").strip().rstrip("/")
+    if not base_url:
+        base_url = str(config.app.get("volcengine_base_url", "") or "").strip().rstrip("/")
+    if not base_url:
+        base_url = "https://ark.cn-beijing.volces.com/api/v3"
+
+    model_id = str(settings.get("model_id", "doubao-tts") or "doubao-tts").strip()
+    audio_format = str(settings.get("audio_format", "mp3") or "mp3").strip()
+    sample_rate = int(settings.get("sample_rate", 32000) or 32000)
+
+    try:
+        speed = max(0.25, min(4.0, float(voice_rate or 1.0)))
+    except (TypeError, ValueError):
+        speed = 1.0
+    try:
+        volume = max(0.0, min(2.0, float(voice_volume or 1.0)))
+    except (TypeError, ValueError):
+        volume = 1.0
+
+    url = f"{base_url}/audio/speech"
+    payload = {
+        "model": model_id,
+        "input": text,
+        "voice": voice,
+        "response_format": audio_format,
+        "speed": speed,
+        "sample_rate": sample_rate,
+        "volume": volume,
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    for i in range(3):
+        try:
+            logger.info(
+                f"start volcengine tts, model: {model_id}, voice: {voice}, try: {i + 1}"
+            )
+            ensure_file_path_exists(voice_file)
+
+            response = requests.post(url, json=payload, headers=headers, timeout=120)
+            if response.status_code != 200:
+                logger.error(
+                    f"volcengine tts failed with status {response.status_code}: "
+                    f"{response.text[:200]}"
+                )
+                continue
+
+            with open(voice_file, "wb") as f:
+                f.write(response.content)
+
+            audio_clip = AudioFileClip(voice_file)
+            audio_duration = audio_clip.duration
+            audio_clip.close()
+
+            if not math.isfinite(audio_duration) or audio_duration <= 0:
+                logger.error("VolcEngine TTS returned audio with an invalid duration")
+                continue
+
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            logger.success(f"volcengine tts succeeded: {voice_file}")
+            return populate_legacy_submaker_with_full_text(
+                sub_maker=sub_maker,
+                text=text,
+                audio_duration_seconds=audio_duration,
+            )
+        except (OSError, ValueError) as exc:
+            logger.error(f"volcengine tts failed: {str(exc)}")
 
     return None
 
