@@ -93,6 +93,7 @@ DEFAULT_CHATTERBOX_BASE_URL = "http://127.0.0.1:4123/v1"
 DEFAULT_CHATTERBOX_MODEL = "chatterbox"
 DEFAULT_CHATTERBOX_VOICES = ["default-Female"]
 ONBOARDING_TOUR_KEY = "mpt-onboarding-v1"
+CUSTOM_LLM_ENDPOINT_ID = "custom"
 VOICE_MODE_TTS = "tts"
 VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
@@ -1727,14 +1728,23 @@ def get_llm_provider_tips(provider_id, **kwargs):
     if not tips:
         return tips
 
+    service_endpoint = provider.preferred_service_endpoint(
+        prefer_international=tips_language == "en"
+    )
+    api_key_url = (
+        service_endpoint.api_key_url
+        if service_endpoint
+        else provider.effective_api_key_url()
+    )
     format_context = {
-        "api_key_url": (
-            provider.international_api_key_url
-            if tips_language == "en" and provider.international_api_key_url
-            else provider.api_key_url
-        ),
+        "api_key_url": api_key_url,
         "default_model": provider.default_model,
-        "default_base_url": provider.default_base_url,
+        "default_base_url": (
+            service_endpoint.base_url
+            if service_endpoint
+            else provider.effective_default_base_url
+        ),
+        "model_docs_url": service_endpoint.model_docs_url if service_endpoint else "",
         **{
             f"default_{field.config_suffix}": field.default_value
             for field in provider.extra_fields
@@ -1746,6 +1756,32 @@ def get_llm_provider_tips(provider_id, **kwargs):
     except Exception as e:
         logger.warning(f"format llm provider tips failed: {provider_id}, {e}")
         return tips
+
+
+def format_llm_connection_error(provider_id, base_url, error):
+    """为可明确定位的鉴权错误补充配置检查建议，同时保留原始响应。"""
+    error_text = str(error or "").strip()
+    normalized_error = error_text.lower()
+    authentication_markers = (
+        "401",
+        "authentication",
+        "invalid api key",
+        "invalid_api_key",
+        "unauthorized",
+    )
+    provider = get_llm_provider(provider_id)
+    if provider is None or not provider.service_endpoints or not any(
+        marker in normalized_error for marker in authentication_markers
+    ):
+        return error_text
+
+    message = tr_optional(
+        provider.authentication_error_key,
+        fallback_language="en",
+    )
+    if not message:
+        return error_text
+    return message.format(base_url=base_url or "-", error=error_text)
 
 
 def get_llm_provider_label(provider):
@@ -2169,16 +2205,95 @@ def _render_settings_dialog():
                 raise RuntimeError(f"unsupported llm provider: {llm_provider}")
 
             llm_api_key = config.app.get(llm_provider_spec.config_key("api_key"), "")
-            llm_base_url = (
-                config.app.get(llm_provider_spec.config_key("base_url"), "")
-                or llm_provider_spec.default_base_url
+            configured_llm_base_url = config.app.get(
+                llm_provider_spec.config_key("base_url"), ""
             )
-            llm_default_base_url = llm_provider_spec.default_base_url
+            llm_default_base_url = llm_provider_spec.effective_default_base_url
+            llm_base_url = configured_llm_base_url or llm_default_base_url
             llm_model_name = llm_provider_spec.resolve_model_name(
                 config.app.get(llm_provider_spec.config_key("model_name"), "")
             )
 
             provider_tip_context = {}
+            selected_service_endpoint = None
+            if llm_provider_spec.service_endpoints:
+                # Kimi 等 Provider 的中国站和国际站使用不同账号体系。只让用户
+                # 选择服务区域，再由 Registry 同步 API 申请入口和 Base URL，
+                # 避免手工组合错误。已有空 Base URL 配置继续沿用中国站，只有
+                # 尚未填写 Key 的全新配置才根据界面语言推荐对应入口。
+                selected_service_endpoint = (
+                    llm_provider_spec.select_service_endpoint(
+                        configured_llm_base_url,
+                        has_api_key=bool(str(llm_api_key).strip()),
+                        prefer_international=(
+                            st.session_state.get("ui_language", "en") != "zh"
+                        ),
+                    )
+                )
+                endpoint_options = [
+                    endpoint.endpoint_id
+                    for endpoint in llm_provider_spec.service_endpoints
+                ] + [CUSTOM_LLM_ENDPOINT_ID]
+                default_endpoint_id = (
+                    selected_service_endpoint.endpoint_id
+                    if selected_service_endpoint
+                    else CUSTOM_LLM_ENDPOINT_ID
+                )
+                endpoint_labels = {
+                    endpoint.endpoint_id: (
+                        tr_optional(
+                            llm_provider_spec.endpoint_label_key(endpoint.endpoint_id),
+                            fallback_language="en",
+                        )
+                        or endpoint.default_label
+                    )
+                    for endpoint in llm_provider_spec.service_endpoints
+                }
+                endpoint_labels[CUSTOM_LLM_ENDPOINT_ID] = (
+                    tr_optional("Custom API Endpoint", fallback_language="en")
+                    or "Custom API Endpoint"
+                )
+                with llm_form_panel:
+                    selected_endpoint_id = stable_selectbox(
+                        tr_optional(
+                            llm_provider_spec.endpoint_selector_label_key,
+                            fallback_language="en",
+                        )
+                        or tr("API Platform"),
+                        options=endpoint_options,
+                        default_value=default_endpoint_id,
+                        key=f"{llm_provider}_service_endpoint_select",
+                        format_func=lambda endpoint_id: endpoint_labels[endpoint_id],
+                        help=(
+                            tr_optional(
+                                llm_provider_spec.endpoint_selector_help_key,
+                                fallback_language="en",
+                            )
+                            or None
+                        ),
+                    )
+                selected_service_endpoint = next(
+                    (
+                        endpoint
+                        for endpoint in llm_provider_spec.service_endpoints
+                        if endpoint.endpoint_id == selected_endpoint_id
+                    ),
+                    None,
+                )
+                if selected_service_endpoint:
+                    llm_base_url = selected_service_endpoint.base_url
+                    provider_tip_context.update(
+                        {
+                            "api_key_url": selected_service_endpoint.api_key_url,
+                            "default_base_url": selected_service_endpoint.base_url,
+                            "model_docs_url": selected_service_endpoint.model_docs_url,
+                        }
+                    )
+                else:
+                    # 自定义模式只保留用户明确保存的地址，不将某个标准区域伪装
+                    # 成自定义值。输入为空时配置不会持久化，下一次仍回到兼容默认。
+                    llm_base_url = str(configured_llm_base_url or "").strip()
+
             if llm_provider == "ollama":
                 llm_default_base_url = config.get_default_ollama_base_url()
                 if not llm_base_url:
@@ -2210,7 +2325,13 @@ def _render_settings_dialog():
                 st_llm_base_url = llm_form_panel.text_input(
                     tr("Base Url"),
                     value=llm_base_url,
-                    key=f"{llm_provider}_base_url_input",
+                    key=(
+                        f"{llm_provider}_base_url_"
+                        f"{selected_service_endpoint.endpoint_id}_input"
+                        if selected_service_endpoint
+                        else f"{llm_provider}_base_url_custom_input"
+                    ),
+                    disabled=selected_service_endpoint is not None,
                 )
             st_llm_model_name = ""
             if llm_provider == "groq":
@@ -2320,6 +2441,11 @@ def _render_settings_dialog():
                         )
                     )
                 else:
+                    connection_error = format_llm_connection_error(
+                        llm_provider,
+                        st_llm_base_url,
+                        connection_error,
+                    )
                     llm_form_panel.error(
                         tr("LLM Connection Test Failed").format(error=connection_error)
                     )

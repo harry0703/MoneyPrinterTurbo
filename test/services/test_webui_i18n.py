@@ -30,6 +30,13 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Confirm AI Video Charge",
         "Confirm AI Video Charge Help",
         "Confirm AI Video Charge Required",
+        "Custom API Endpoint",
+        "API Platform",
+        "llm_provider_endpoint_selector.moonshot",
+        "llm_provider_endpoint_selector_help.moonshot",
+        "llm_provider_endpoint.moonshot.china",
+        "llm_provider_endpoint.moonshot.global",
+        "llm_provider_authentication_error.moonshot",
         "Local LLM Script Generation",
         "llm_provider_label.shengsuanyun",
         "LoomLoom Poll Retry Pending",
@@ -146,8 +153,8 @@ class TestWebuiI18n(unittest.TestCase):
                 tips = _load_translation(locale)["llm_provider_tips.shengsuanyun"]
                 provider = get_llm_provider("shengsuanyun")
                 rendered = tips.format(
-                    api_key_url=provider.api_key_url,
-                    default_base_url=provider.default_base_url,
+                    api_key_url=provider.effective_api_key_url(),
+                    default_base_url=provider.effective_default_base_url,
                     default_model=provider.default_model,
                 )
                 self.assertEqual(_markdown_urls(rendered), expected_urls)

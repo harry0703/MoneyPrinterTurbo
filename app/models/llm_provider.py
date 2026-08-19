@@ -16,6 +16,17 @@ class LLMProviderField:
 
 
 @dataclass(frozen=True, slots=True)
+class LLMProviderEndpoint:
+    """描述同一 Provider 在不同服务区域使用的配套入口和 API 地址。"""
+
+    endpoint_id: str
+    default_label: str
+    base_url: str
+    api_key_url: str
+    model_docs_url: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class LLMProviderSpec:
     """
     LLM Provider 的集中声明。
@@ -29,7 +40,6 @@ class LLMProviderSpec:
     default_label: str
     adapter: str = "openai_compatible"
     api_key_url: str = ""
-    international_api_key_url: str = ""
     default_model: str = ""
     default_base_url: str = ""
     requires_api_key: bool = True
@@ -40,6 +50,9 @@ class LLMProviderSpec:
     deprecated_models: tuple[str, ...] = ()
     deprecated_base_urls: tuple[str, ...] = ()
     extra_fields: tuple[LLMProviderField, ...] = ()
+    service_endpoints: tuple[LLMProviderEndpoint, ...] = ()
+    default_service_endpoint_id: str = ""
+    international_service_endpoint_id: str = ""
 
     @property
     def label_key(self) -> str:
@@ -48,6 +61,21 @@ class LLMProviderSpec:
     @property
     def tips_key(self) -> str:
         return f"llm_provider_tips.{self.provider_id}"
+
+    @property
+    def endpoint_selector_label_key(self) -> str:
+        return f"llm_provider_endpoint_selector.{self.provider_id}"
+
+    @property
+    def endpoint_selector_help_key(self) -> str:
+        return f"llm_provider_endpoint_selector_help.{self.provider_id}"
+
+    @property
+    def authentication_error_key(self) -> str:
+        return f"llm_provider_authentication_error.{self.provider_id}"
+
+    def endpoint_label_key(self, endpoint_id: str) -> str:
+        return f"llm_provider_endpoint.{self.provider_id}.{endpoint_id}"
 
     def config_key(self, suffix: str) -> str:
         return f"{self.provider_id}_{suffix}"
@@ -64,8 +92,93 @@ class LLMProviderSpec:
         base_url = (configured_base_url or "").strip()
         deprecated_urls = {url.rstrip("/") for url in self.deprecated_base_urls}
         if not base_url or base_url.rstrip("/") in deprecated_urls:
-            return self.default_base_url
+            return self.effective_default_base_url
         return base_url
+
+    def get_service_endpoint(self, endpoint_id: str) -> LLMProviderEndpoint | None:
+        """按稳定 ID 获取服务区域，避免业务逻辑依赖可变化的推广链接。"""
+        return next(
+            (
+                endpoint
+                for endpoint in self.service_endpoints
+                if endpoint.endpoint_id == endpoint_id
+            ),
+            None,
+        )
+
+    @property
+    def default_service_endpoint(self) -> LLMProviderEndpoint | None:
+        """返回 Provider 声明的默认服务区域。"""
+        return self.get_service_endpoint(self.default_service_endpoint_id)
+
+    @property
+    def international_service_endpoint(self) -> LLMProviderEndpoint | None:
+        """返回 Provider 声明的国际服务区域。"""
+        return self.get_service_endpoint(self.international_service_endpoint_id)
+
+    @property
+    def effective_default_base_url(self) -> str:
+        """优先从默认服务区域读取 Base URL，普通 Provider 仍使用原字段。"""
+        endpoint = self.default_service_endpoint
+        return endpoint.base_url if endpoint else self.default_base_url
+
+    def preferred_service_endpoint(
+        self, *, prefer_international: bool
+    ) -> LLMProviderEndpoint | None:
+        """根据界面区域返回首选入口，缺少国际入口时安全回退默认入口。"""
+        if prefer_international and self.international_service_endpoint:
+            return self.international_service_endpoint
+        return self.default_service_endpoint
+
+    def effective_api_key_url(self, *, prefer_international: bool = False) -> str:
+        """统一解析 API Key 申请入口，避免 Endpoint Provider 重复维护链接。"""
+        endpoint = self.preferred_service_endpoint(
+            prefer_international=prefer_international
+        )
+        return endpoint.api_key_url if endpoint else self.api_key_url
+
+    def find_service_endpoint(
+        self, configured_base_url: str | None
+    ) -> LLMProviderEndpoint | None:
+        """根据已保存的 Base URL 识别 Provider 的标准服务区域。"""
+        normalized_url = (configured_base_url or "").strip().rstrip("/")
+        if not normalized_url:
+            return None
+        return next(
+            (
+                endpoint
+                for endpoint in self.service_endpoints
+                if endpoint.base_url.rstrip("/") == normalized_url
+            ),
+            None,
+        )
+
+    def select_service_endpoint(
+        self,
+        configured_base_url: str | None,
+        *,
+        has_api_key: bool,
+        prefer_international: bool,
+    ) -> LLMProviderEndpoint | None:
+        """
+        选择 WebUI 应展示的标准服务区域。
+
+        已明确保存的标准地址优先；未知地址保留为自定义。历史配置可能只有
+        API Key 而没有 Base URL，这类用户继续使用 Registry 默认区域，避免
+        升级后因界面语言不同而切换服务。只有全新配置才根据界面语言选择
+        国际入口。
+        """
+        configured_url = (configured_base_url or "").strip()
+        if configured_url:
+            return self.find_service_endpoint(configured_url)
+
+        default_endpoint = self.default_service_endpoint
+        if has_api_key or not prefer_international:
+            return default_endpoint
+
+        return self.preferred_service_endpoint(
+            prefer_international=prefer_international
+        )
 
 
 # 元组顺序就是 WebUI 下拉框顺序。新增普通 OpenAI-compatible Provider 时，
@@ -76,18 +189,41 @@ LLM_PROVIDER_REGISTRY = (
     LLMProviderSpec(
         "moonshot",
         "Kimi / Moonshot AI",
-        api_key_url=(
-            "https://platform.kimi.com?"
-            "track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&"
-            "aff=moneyprinterturbo"
-        ),
-        international_api_key_url=(
-            "https://platform.kimi.ai?"
-            "track_id=track-f6b0a640d35c41deb03b247242a1058c&"
-            "aff=moneyprinterturbo"
-        ),
         default_model="kimi-k3",
-        default_base_url="https://api.moonshot.cn/v1",
+        service_endpoints=(
+            LLMProviderEndpoint(
+                endpoint_id="china",
+                default_label="China",
+                base_url="https://api.moonshot.cn/v1",
+                api_key_url=(
+                    "https://platform.kimi.com?"
+                    "track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&"
+                    "aff=moneyprinterturbo"
+                ),
+                model_docs_url=(
+                    "https://platform.kimi.com/docs/models?"
+                    "track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&"
+                    "aff=moneyprinterturbo"
+                ),
+            ),
+            LLMProviderEndpoint(
+                endpoint_id="global",
+                default_label="Global",
+                base_url="https://api.moonshot.ai/v1",
+                api_key_url=(
+                    "https://platform.kimi.ai?"
+                    "track_id=track-f6b0a640d35c41deb03b247242a1058c&"
+                    "aff=moneyprinterturbo"
+                ),
+                model_docs_url=(
+                    "https://platform.kimi.ai/docs/models?"
+                    "track_id=track-f6b0a640d35c41deb03b247242a1058c&"
+                    "aff=moneyprinterturbo"
+                ),
+            ),
+        ),
+        default_service_endpoint_id="china",
+        international_service_endpoint_id="global",
     ),
     # 主流模型原厂与云厂商
     LLMProviderSpec(
