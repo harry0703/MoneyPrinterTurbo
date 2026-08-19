@@ -2479,6 +2479,15 @@ def _render_settings_dialog():
             )
             _save_material_api_keys("coverr_api_keys", coverr_api_key)
 
+            wavespeed_api_key = _get_material_api_keys("wavespeed_api_keys")
+            wavespeed_api_key = st.text_input(
+                tr("WaveSpeed API Key"),
+                value=wavespeed_api_key,
+                type="password",
+                key="wavespeed_api_keys_input",
+            )
+            _save_material_api_keys("wavespeed_api_keys", wavespeed_api_key)
+
     _save_runtime_config()
 
 
@@ -3240,6 +3249,7 @@ def _render_video_settings(panel, params):
                 (tr("Pexels"), "pexels"),
                 (tr("Pixabay"), "pixabay"),
                 (tr("Coverr"), "coverr"),
+                (tr("WaveSpeed AI Video"), "wavespeed"),
                 (tr("Shengsuan Cloud AI Video"), "loomloom"),
                 (tr("Local file"), "local"),
             ]
@@ -3256,6 +3266,9 @@ def _render_video_settings(panel, params):
                 )[value],
             )
             _set_runtime_config("app", "video_source", params.video_source)
+
+            if params.video_source == "wavespeed":
+                st.caption(tr("WaveSpeed AI Video Help"))
 
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
@@ -5073,6 +5086,7 @@ def _render_generation_controls(
             "pexels",
             "pixabay",
             "coverr",
+            "wavespeed",
             "loomloom",
             "local",
         ]:
@@ -5099,6 +5113,13 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Please Enter the Coverr API Key"))
+            st.stop()
+
+        if params.video_source == "wavespeed" and not config.app.get(
+            "wavespeed_api_keys", ""
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the WaveSpeed API Key"))
             st.stop()
 
         loomloom_video_request = None

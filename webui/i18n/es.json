@@ -294,6 +294,10 @@
     "Coverr": "Coverr",
     "Coverr API Key": "Coverr API Key ([Obtener API Key](https://coverr.co/developers?ctx=header_navigation))",
     "Please Enter the Coverr API Key": "Introduce la **API Key de Coverr**",
+    "WaveSpeed AI Video": "Vídeo IA de WaveSpeed",
+    "WaveSpeed AI Video Help": "Genera clips completamente nuevos a partir de las palabras clave del guion con los modelos de texto a vídeo de WaveSpeed AI, en lugar de buscar material de archivo. La generación se factura por clip en WaveSpeed.",
+    "WaveSpeed API Key": "Clave de API de WaveSpeed ([Obtener Clave de API](https://wavespeed.ai))",
+    "Please Enter the WaveSpeed API Key": "Por favor, introduce la **Clave de API de WaveSpeed**",
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Predeterminado (recomendado)",
     "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264."

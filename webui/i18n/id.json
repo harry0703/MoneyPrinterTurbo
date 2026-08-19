@@ -294,6 +294,10 @@
     "Coverr": "Coverr",
     "Coverr API Key": "Kunci API Coverr ([Dapatkan Kunci API](https://coverr.co/developers?ctx=header_navigation))",
     "Please Enter the Coverr API Key": "Silakan Masukkan **Kunci API Coverr**",
+    "WaveSpeed AI Video": "Video AI WaveSpeed",
+    "WaveSpeed AI Video Help": "Hasilkan klip baru dari kata kunci naskah Anda dengan model text-to-video WaveSpeed AI, bukan mencari stok video. Pembuatan ditagih per klip oleh WaveSpeed.",
+    "WaveSpeed API Key": "Kunci API WaveSpeed ([Dapatkan Kunci API](https://wavespeed.ai))",
+    "Please Enter the WaveSpeed API Key": "Silakan masukkan **Kunci API WaveSpeed**",
     "Video Encoder": "Encoder Video",
     "Default Video Encoder": "Default (Direkomendasikan)",
     "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264."

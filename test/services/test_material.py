@@ -1069,5 +1069,216 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertEqual(result, ["/tmp/coverr-saved.mp4"])
 
 
+class TestWaveSpeedProvider(unittest.TestCase):
+    """
+    WaveSpeed AI 文生视频素材源。与其它素材源测试一致,全部用 unittest.mock
+    替换 requests 和 time.sleep,CI 不依赖真实网络、真实 API key 和真实计费。
+    """
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        self.original_proxy_config = dict(config.proxy)
+        config.app["wavespeed_api_keys"] = ["wavespeed-key"]
+        config.app.pop("tls_verify", None)
+        config.proxy.clear()
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        config.proxy.clear()
+        config.proxy.update(self.original_proxy_config)
+
+    @staticmethod
+    def _json_response(payload):
+        return SimpleNamespace(json=lambda: payload)
+
+    def test_generate_wavespeed_submits_and_polls_to_completion(self):
+        """
+        提交请求必须携带 Bearer 鉴权、模型 ID 路径和 prompt/aspect_ratio/duration
+        三个生成参数;轮询到 completed 后把 outputs 转成 MaterialInfo。
+        """
+        submit_response = self._json_response(
+            {"code": 200, "message": "success", "data": {"id": "pred-123"}}
+        )
+        poll_responses = [
+            self._json_response(
+                {"code": 200, "data": {"id": "pred-123", "status": "processing"}}
+            ),
+            self._json_response(
+                {
+                    "code": 200,
+                    "data": {
+                        "id": "pred-123",
+                        "status": "completed",
+                        "outputs": ["https://cdn.example.com/out.mp4?sig=abc"],
+                    },
+                }
+            ),
+        ]
+
+        with (
+            patch(
+                "app.services.material.requests.post", return_value=submit_response
+            ) as post,
+            patch(
+                "app.services.material.requests.get", side_effect=poll_responses
+            ) as get,
+            patch("app.services.material.time.sleep") as sleep,
+        ):
+            results = material.generate_videos_wavespeed(
+                "sunrise over mountains",
+                minimum_duration=5,
+                video_aspect=material.VideoAspect.portrait,
+            )
+
+        self.assertEqual(len(results), 1)
+        item = results[0]
+        self.assertEqual(item.provider, "wavespeed")
+        # 签名 URL 必须原样保留,查询参数不能被剥离,否则下载会 403
+        self.assertEqual(item.url, "https://cdn.example.com/out.mp4?sig=abc")
+        self.assertEqual(item.duration, 5)
+        self.assertEqual(item.source_info["asset_id"], "pred-123")
+        self.assertEqual(item.source_info["search_term"], "sunrise over mountains")
+        # 生成产物地址是临时签名 URL,不允许写入来源记录
+        self.assertNotIn("source_page", item.source_info)
+
+        self.assertIn(
+            "/api/v3/bytedance/seedance-2.0-fast/text-to-video",
+            post.call_args.args[0],
+        )
+        self.assertEqual(
+            post.call_args.kwargs["headers"]["Authorization"],
+            "Bearer wavespeed-key",
+        )
+        self.assertEqual(
+            post.call_args.kwargs["json"],
+            {
+                "prompt": "sunrise over mountains",
+                "aspect_ratio": "9:16",
+                "duration": 5,
+            },
+        )
+        self.assertTrue(post.call_args.kwargs["verify"])
+        self.assertIn("/api/v3/predictions/pred-123/result", get.call_args.args[0])
+        # processing 状态下必须等待轮询间隔,不能空转打满远端接口
+        self.assertEqual(sleep.call_count, 1)
+
+    def test_generate_wavespeed_uses_configured_model_id(self):
+        """用户可以在配置中切换任意 WaveSpeed 文生视频模型。"""
+        config.app["wavespeed_text_to_video_model"] = "wavespeed-ai/custom-t2v"
+        submit_response = self._json_response({"code": 200, "data": {"id": "pred-9"}})
+        poll_response = self._json_response(
+            {
+                "code": 200,
+                "data": {
+                    "id": "pred-9",
+                    "status": "completed",
+                    "outputs": ["https://cdn.example.com/a.mp4"],
+                },
+            }
+        )
+
+        with (
+            patch(
+                "app.services.material.requests.post", return_value=submit_response
+            ) as post,
+            patch("app.services.material.requests.get", return_value=poll_response),
+        ):
+            results = material.generate_videos_wavespeed(
+                "city timelapse",
+                minimum_duration=3,
+                video_aspect=material.VideoAspect.landscape,
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertIn("/api/v3/wavespeed-ai/custom-t2v", post.call_args.args[0])
+        self.assertEqual(post.call_args.kwargs["json"]["aspect_ratio"], "16:9")
+
+    def test_generate_wavespeed_returns_empty_on_failed_prediction(self):
+        """failed/cancelled/timeout 都按空结果返回,让上层跳过该关键词继续。"""
+        submit_response = self._json_response({"code": 200, "data": {"id": "pred-fail"}})
+        poll_response = self._json_response(
+            {
+                "code": 200,
+                "data": {
+                    "id": "pred-fail",
+                    "status": "failed",
+                    "error": "content policy",
+                },
+            }
+        )
+
+        with (
+            patch("app.services.material.requests.post", return_value=submit_response),
+            patch("app.services.material.requests.get", return_value=poll_response),
+        ):
+            results = material.generate_videos_wavespeed("sunrise", minimum_duration=5)
+
+        self.assertEqual(results, [])
+
+    def test_generate_wavespeed_returns_empty_on_rejected_submission(self):
+        """非 200 envelope(如 key 无效)不能进入轮询,直接返回空结果。"""
+        submit_response = self._json_response({"code": 401, "message": "invalid api key"})
+
+        with (
+            patch("app.services.material.requests.post", return_value=submit_response),
+            patch("app.services.material.requests.get") as get,
+        ):
+            results = material.generate_videos_wavespeed("sunrise", minimum_duration=5)
+
+        self.assertEqual(results, [])
+        get.assert_not_called()
+
+    def test_generate_wavespeed_returns_empty_on_network_error(self):
+        """网络异常按现有素材源约定记日志并返回空列表,不向上抛出。"""
+        with patch(
+            "app.services.material.requests.post",
+            side_effect=requests.exceptions.ConnectionError("boom"),
+        ):
+            results = material.generate_videos_wavespeed("sunrise", minimum_duration=5)
+
+        self.assertEqual(results, [])
+
+    def test_download_videos_wavespeed_bypasses_search_cache(self):
+        """
+        生成源不参与 24 小时搜索缓存:签名 URL 会过期,复用缓存还会让不同
+        任务反复拿到同一段生成视频。download_videos 必须直接调用生成函数。
+        """
+        generated_item = material.MaterialInfo()
+        generated_item.provider = "wavespeed"
+        generated_item.url = "https://cdn.example.com/out.mp4?sig=abc"
+        generated_item.duration = 5
+        generated_item.source_info = {
+            "provider": "wavespeed",
+            "search_term": "sunrise",
+            "asset_id": "pred-123",
+        }
+
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                return_value=[generated_item],
+            ) as generate,
+            patch("app.services.material._search_videos_with_cache") as cached_search,
+            patch(
+                "app.services.material.save_video",
+                return_value="/tmp/wavespeed-saved.mp4",
+            ) as save,
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed",
+                search_terms=["sunrise"],
+                source="wavespeed",
+                audio_duration=5,
+                max_clip_duration=5,
+            )
+
+        self.assertEqual(generate.call_count, 1)
+        cached_search.assert_not_called()
+        save_url = save.call_args.kwargs.get("video_url") or save.call_args.args[0]
+        self.assertEqual(save_url, "https://cdn.example.com/out.mp4?sig=abc")
+        self.assertEqual(result, ["/tmp/wavespeed-saved.mp4"])
+
+
 if __name__ == "__main__":
     unittest.main()

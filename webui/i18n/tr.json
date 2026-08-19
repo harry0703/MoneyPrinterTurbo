@@ -294,6 +294,10 @@
     "Coverr": "Coverr",
     "Coverr API Key": "Coverr API Anahtarı ([API Anahtarı Al](https://coverr.co/developers?ctx=header_navigation))",
     "Please Enter the Coverr API Key": "Lütfen **Coverr API Anahtarını** girin",
+    "WaveSpeed AI Video": "WaveSpeed Yapay Zeka Videosu",
+    "WaveSpeed AI Video Help": "Stok görüntü aramak yerine, WaveSpeed AI metinden videoya modelleriyle senaryo anahtar kelimelerinizden yepyeni klipler üretin. Üretim, WaveSpeed tarafından klip başına ücretlendirilir.",
+    "WaveSpeed API Key": "WaveSpeed API Anahtarı ([API Anahtarı Al](https://wavespeed.ai))",
+    "Please Enter the WaveSpeed API Key": "Lütfen **WaveSpeed API Anahtarını** girin",
     "Video Encoder": "Video Kodlayıcı",
     "Default Video Encoder": "Varsayılan (Önerilen)",
     "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner."

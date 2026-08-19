@@ -294,6 +294,10 @@
     "Coverr": "Coverr",
     "Coverr API Key": "API Key Coverr ([Lấy API Key](https://coverr.co/developers?ctx=header_navigation))",
     "Please Enter the Coverr API Key": "Vui lòng nhập **API Key Coverr**",
+    "WaveSpeed AI Video": "Video AI WaveSpeed",
+    "WaveSpeed AI Video Help": "Tạo các đoạn video hoàn toàn mới từ từ khóa kịch bản bằng các mô hình chuyển văn bản thành video của WaveSpeed AI, thay vì tìm kiếm video có sẵn. Việc tạo video được WaveSpeed tính phí theo từng đoạn.",
+    "WaveSpeed API Key": "Khóa API WaveSpeed ([Lấy Khóa API](https://wavespeed.ai))",
+    "Please Enter the WaveSpeed API Key": "Vui lòng nhập **Khóa API WaveSpeed**",
     "Video Encoder": "Bộ Mã Hóa Video",
     "Default Video Encoder": "Mặc định (Khuyên dùng)",
     "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264."

@@ -1,6 +1,7 @@
 import os
 import random
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable, List
 from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
@@ -603,6 +604,154 @@ def search_videos_coverr(
     return []
 
 
+# WaveSpeed AI (https://wavespeed.ai) 通过文生视频模型按脚本关键词直接生成素材，
+# 与三个库存素材源共用 MaterialInfo 结果结构和后续下载、剪辑流程。
+WAVESPEED_API_BASE_URL = "https://api.wavespeed.ai/api/v3"
+WAVESPEED_DEFAULT_T2V_MODEL = "bytedance/seedance-2.0-fast/text-to-video"
+WAVESPEED_POLL_INTERVAL_SECONDS = 2.0
+WAVESPEED_RUN_TIMEOUT_SECONDS = 600.0
+# 三个失败态语义不同（模型报错 / 用户取消 / 平台超时），但对素材流程都意味着
+# 本关键词没有产物，统一按空结果处理，交给上层跳过该片段继续生成。
+WAVESPEED_FAILURE_STATUSES = frozenset({"failed", "cancelled", "timeout"})
+
+
+def generate_videos_wavespeed(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
+    """
+    用 WaveSpeed 文生视频模型为一个脚本关键词生成一段素材。
+
+    与库存素材源的 search_videos_* 保持同一签名和空列表失败约定，
+    使其可以直接接入 ``download_videos`` 的通用下载与时长核算流程。
+    ``minimum_duration`` 在生成语境下就是目标片段时长（秒）。
+    """
+    aspect = VideoAspect(video_aspect)
+    video_width, video_height = aspect.to_resolution()
+    api_key = get_api_key("wavespeed_api_keys")
+    model_id = (
+        str(
+            config.app.get("wavespeed_text_to_video_model", "")
+            or WAVESPEED_DEFAULT_T2V_MODEL
+        )
+        .strip()
+        .strip("/")
+    )
+    headers = {"Authorization": f"Bearer {api_key}"}
+    duration = max(int(minimum_duration), 1)
+    payload = {
+        "prompt": search_term,
+        "aspect_ratio": aspect.value,
+        "duration": duration,
+    }
+    logger.info(
+        f"generating video on wavespeed: model={model_id}, "
+        f"term={search_term!r}, duration={duration}s"
+    )
+
+    try:
+        submit_response = requests.post(
+            f"{WAVESPEED_API_BASE_URL}/{model_id}",
+            json=payload,
+            headers=headers,
+            proxies=config.proxy,
+            verify=_get_tls_verify(),
+            timeout=(30, 60),
+        )
+        submit_body = submit_response.json()
+        submit_data = submit_body.get("data")
+        if submit_body.get("code") != 200 or not isinstance(submit_data, dict):
+            logger.error(
+                "wavespeed video generation request rejected: "
+                f"code={submit_body.get('code')}, "
+                f"detail={_redact_secret(str(submit_body.get('message') or ''), api_key)}"
+            )
+            return []
+        prediction_id = str(submit_data.get("id") or "")
+        if not prediction_id:
+            logger.error("wavespeed response did not contain a prediction id")
+            return []
+        # 生成任务提交成功即产生远端计费副作用，先落日志记录任务 ID，
+        # 即使后续轮询失败，用户仍能凭 ID 在 WaveSpeed 控制台找回产物。
+        logger.info(f"wavespeed prediction created: id={prediction_id}")
+
+        deadline = time.monotonic() + WAVESPEED_RUN_TIMEOUT_SECONDS
+        while True:
+            result_body = requests.get(
+                f"{WAVESPEED_API_BASE_URL}/predictions/{prediction_id}/result",
+                headers=headers,
+                proxies=config.proxy,
+                verify=_get_tls_verify(),
+                timeout=(30, 60),
+            ).json()
+            result_data = result_body.get("data")
+            if result_body.get("code") != 200 or not isinstance(result_data, dict):
+                logger.error(
+                    "wavespeed prediction polling failed: "
+                    f"id={prediction_id}, code={result_body.get('code')}, "
+                    f"detail={_redact_secret(str(result_body.get('message') or ''), api_key)}"
+                )
+                return []
+            status = str(result_data.get("status") or "")
+            if status == "completed":
+                break
+            if status in WAVESPEED_FAILURE_STATUSES:
+                logger.error(
+                    "wavespeed prediction did not produce a video: "
+                    f"id={prediction_id}, status={status}, "
+                    f"detail={_redact_secret(str(result_data.get('error') or ''), api_key)}"
+                )
+                return []
+            if time.monotonic() > deadline:
+                # 远端任务仍在执行，只是本地不再等待；保留 ID 供用户自行找回。
+                logger.error(
+                    "wavespeed prediction still "
+                    f"{status or 'pending'} after {WAVESPEED_RUN_TIMEOUT_SECONDS:.0f}s, "
+                    f"give up waiting: id={prediction_id}"
+                )
+                return []
+            time.sleep(WAVESPEED_POLL_INTERVAL_SECONDS)
+
+        video_items = []
+        outputs = result_data.get("outputs")
+        for output in outputs if isinstance(outputs, list) else []:
+            # 产物 URL 是带签名的临时下载地址，必须整体保留（不能剥离查询参
+            # 数），因此不写入 source_info，只用于随后的立即下载。
+            if not isinstance(output, str) or not output.startswith(
+                ("http://", "https://")
+            ):
+                continue
+            item = MaterialInfo()
+            item.provider = "wavespeed"
+            item.url = output
+            item.duration = duration
+            item.source_info = {
+                "provider": "wavespeed",
+                "search_term": search_term,
+                "asset_id": prediction_id,
+                "rendition": {
+                    "id": None,
+                    "width": video_width,
+                    "height": video_height,
+                },
+            }
+            video_items.append(item)
+        if not video_items:
+            logger.error(
+                "wavespeed prediction completed without downloadable outputs: "
+                f"id={prediction_id}"
+            )
+        return video_items
+    except Exception as e:
+        logger.error(
+            "wavespeed video generation failed: "
+            f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+        )
+
+    return []
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -774,12 +923,24 @@ def download_videos(
     elif source == "coverr":
         provider = "coverr"
         remote_search_videos = search_videos_coverr
+    elif source == "wavespeed":
+        provider = "wavespeed"
+        remote_search_videos = generate_videos_wavespeed
 
     def search_videos(
         search_term: str,
         minimum_duration: int,
         video_aspect: VideoAspect,
     ) -> List[MaterialInfo]:
+        if provider == "wavespeed":
+            # AI 生成不参与 24 小时搜索缓存：产物 URL 是会过期的签名地址，
+            # 且复用缓存会让不同任务反复得到同一段生成视频。每个关键词都
+            # 直接触发一次新的生成请求。
+            return remote_search_videos(
+                search_term=search_term,
+                minimum_duration=minimum_duration,
+                video_aspect=video_aspect,
+            )
         return _search_videos_with_cache(
             provider=provider,
             search_videos=remote_search_videos,

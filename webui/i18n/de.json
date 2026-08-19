@@ -296,6 +296,10 @@
     "Video Source Settings": "**Videoquellen-Einstellungen**",
     "Coverr": "Coverr",
     "Coverr API Key": "Coverr API-Schlüssel ([API-Schlüssel holen](https://coverr.co/developers?ctx=header_navigation))",
-    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein"
+    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein",
+    "WaveSpeed AI Video": "WaveSpeed-KI-Video",
+    "WaveSpeed AI Video Help": "Erzeugt mit WaveSpeed-KI-Text-zu-Video-Modellen neue Clips aus Ihren Skript-Stichwörtern, statt Stock-Material zu durchsuchen. Die Generierung wird von WaveSpeed pro Clip berechnet.",
+    "WaveSpeed API Key": "WaveSpeed-API-Schlüssel ([API-Schlüssel erhalten](https://wavespeed.ai))",
+    "Please Enter the WaveSpeed API Key": "Bitte geben Sie den **WaveSpeed-API-Schlüssel** ein"
   }
 }
