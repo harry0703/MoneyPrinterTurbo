@@ -1948,16 +1948,106 @@ def _build_subtitle_items_from_legacy_submaker(
     return sub_items
 
 
-def create_subtitle(sub_maker: SubMaker, text: str, subtitle_file: str):
+def _build_subtitle_items_by_word_count(
+    sub_maker: SubMaker, max_words: int
+) -> list[str]:
+    """
+    把 edge_tts 的逐词 cues 按固定词数重新分组，用于短视频的"逐句高亮"字幕。
+
+    与按标点断句的路径相比有两点不同：
+    1. 时间轴直接取自每组第一条和最后一条 cue，因此完全精确，不需要按
+       字符数估算分配；
+    2. 不依赖脚本原文匹配，因此不会出现"匹配不上就整段没有字幕"的情况。
+
+    仅对以空格分词的语言有意义。中文等语言按词数切分会破坏阅读节奏，
+    因此该模式默认关闭，由调用方显式开启。
+    """
+    formatter = _build_subtitle_formatter()
+    sub_items = []
+    sub_index = 0
+    group_words = []
+    group_start = None
+    group_end = None
+
+    def flush():
+        nonlocal sub_index, group_words, group_start, group_end
+        if not group_words:
+            return
+        sub_index += 1
+        sub_items.append(
+            formatter(
+                idx=sub_index,
+                start_time=group_start,
+                end_time=group_end,
+                sub_text=" ".join(group_words),
+            )
+        )
+        group_words = []
+        group_start = None
+        group_end = None
+
+    for cue in sub_maker.cues:
+        text = unescape(cue.content).strip()
+        if not text:
+            continue
+
+        cue_start = int(cue.start.total_seconds() * 10000000)
+        cue_end = int(cue.end.total_seconds() * 10000000)
+        words = text.split()
+
+        # 请求 WordBoundary 时每条 cue 只含一个词，时间轴可以直接使用。
+        # 但部分语音或旧版依赖只返回整句边界，此时必须在句内按字符数插值，
+        # 否则同一句里的所有分组会共用起止时间，字幕会全程静止不动。
+        weights = [len(word) or 1 for word in words]
+        total_weight = sum(weights)
+        span = max(0, cue_end - cue_start)
+        cursor = cue_start
+
+        for word, weight in zip(words, weights):
+            word_start = cursor
+            word_end = (
+                cue_end
+                if len(words) == 1
+                else word_start + int(span * (weight / total_weight))
+            )
+            cursor = word_end
+
+            if group_start is None:
+                group_start = word_start
+            group_words.append(word)
+            group_end = word_end
+            if len(group_words) >= max_words:
+                flush()
+
+    flush()
+    return sub_items
+
+
+def create_subtitle(
+    sub_maker: SubMaker, text: str, subtitle_file: str, max_words: int = 0
+):
     """
     优化字幕文件
     1. 将字幕文件按照标点符号分割成多行
     2. 逐行匹配字幕文件中的文本
     3. 生成新的字幕文件
+
+    `max_words` 大于 0 时改用固定词数分组，适合竖屏短视频常见的
+    每屏只显示两三个词的字幕风格。
     """
     text = _format_text(text)
     script_lines = utils.split_string_by_punctuations(text)
     try:
+        if max_words > 0 and hasattr(sub_maker, "cues") and sub_maker.cues:
+            sub_items = _build_subtitle_items_by_word_count(sub_maker, max_words)
+            if sub_items:
+                _write_subtitle_items(sub_items, subtitle_file)
+                return
+            logger.warning(
+                "word-limited subtitles produced nothing, "
+                "falling back to punctuation splitting"
+            )
+
         if hasattr(sub_maker, "cues") and sub_maker.cues:
             sub_items = _build_subtitle_items_from_edge_cues(sub_maker, script_lines)
         else:

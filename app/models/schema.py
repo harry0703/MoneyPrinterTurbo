@@ -107,6 +107,9 @@ class VideoParams(BaseModel):
     sonilo_bgm_prompt: str = Field(default="", max_length=2000)
 
     subtitle_enabled: Optional[bool] = True
+    # 每屏最多显示的词数。0 表示按标点断句（原有行为）；短视频常用 2-4 词，
+    # 仅对以空格分词的语言有意义。
+    max_subtitle_words: int = Field(default=0, ge=0, le=12)
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")  # top, bottom, center, custom
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
@@ -142,6 +145,7 @@ class SubtitleRequest(BaseModel):
     stroke_width: float = 1.5
     video_source: Optional[str] = "local"
     subtitle_enabled: Optional[str] = "true"
+    max_subtitle_words: int = Field(default=0, ge=0, le=12)
 
 
 class AudioRequest(BaseModel):

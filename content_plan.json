@@ -27,7 +27,8 @@
         "bgm_type": "song",
         "bgm_volume": 0.18,
         "subtitle_enabled": true,
-        "font_size": 68,
+        "max_subtitle_words": 3,
+        "font_size": 96,
         "subtitle_position": "center",
         "video_language": "en-US"
       },
@@ -60,7 +61,8 @@
         "bgm_type": "song",
         "bgm_volume": 0.2,
         "subtitle_enabled": true,
-        "font_size": 64,
+        "max_subtitle_words": 3,
+        "font_size": 90,
         "subtitle_position": "bottom",
         "video_language": "en-GB"
       },
@@ -93,7 +95,8 @@
         "bgm_type": "song",
         "bgm_volume": 0.18,
         "subtitle_enabled": true,
-        "font_size": 70,
+        "max_subtitle_words": 3,
+        "font_size": 100,
         "subtitle_position": "center",
         "video_language": "en-US"
       },

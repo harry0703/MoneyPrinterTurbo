@@ -533,6 +533,9 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         return ""
 
     subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
+    # /subtitle 与 /audio 接口传入的是各自的请求模型，而不是 VideoParams。
+    # 直接取属性会让这些接口在缺少新字段时抛 AttributeError，因此这里按缺省值读取。
+    max_subtitle_words = int(getattr(params, "max_subtitle_words", 0) or 0)
     subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
 
@@ -552,7 +555,10 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
     if subtitle_provider == "edge":
         voice.create_subtitle(
-            text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path
+            text=video_script,
+            sub_maker=sub_maker,
+            subtitle_file=subtitle_path,
+            max_words=max_subtitle_words,
         )
         if not os.path.exists(subtitle_path):
             # Edge 字幕偶尔会因为时间轴与文案无法匹配而没有产出文件。这里不能
@@ -569,6 +575,10 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
         logger.info("\n\n## correcting subtitle")
         subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
+        # Whisper 的分段来自转写结果而不是 TTS 时间轴，因此在成品字幕上
+        # 再做一次按词数切分，让两种provider 得到一致的观感。
+        if max_subtitle_words > 0:
+            subtitle.limit_words_per_cue(subtitle_path, max_subtitle_words)
 
     subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
     if not subtitle_lines:

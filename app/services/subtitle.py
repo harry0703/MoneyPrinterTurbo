@@ -313,3 +313,67 @@ if __name__ == "__main__":
 
     subtitle_file = f"{task_dir}/subtitle-test.srt"
     create(audio_file, subtitle_file)
+
+
+def limit_words_per_cue(subtitle_file: str, max_words: int) -> bool:
+    """
+    把已生成的 SRT 重新切分为每条最多 ``max_words`` 个词。
+
+    用于 Whisper 路径：它的分段长度来自转写结果，无法像 TTS 那样直接
+    按词取时间轴，因此在每段内部按字符数比例分配时间。误差在几十毫秒
+    量级，对两三个词一屏的字幕不影响观感。
+    """
+    if max_words <= 0:
+        return False
+
+    subtitles = file_to_subtitles(subtitle_file)
+    if not subtitles:
+        return False
+
+    def to_seconds(stamp: str) -> float:
+        hours, minutes, rest = stamp.split(":")
+        seconds, millis = rest.split(",")
+        return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000
+
+    def to_stamp(value: float) -> str:
+        millis = int(round(value * 1000))
+        hours, millis = divmod(millis, 3600000)
+        minutes, millis = divmod(millis, 60000)
+        seconds, millis = divmod(millis, 1000)
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+
+    lines = []
+    index = 0
+    for _, time_range, text in subtitles:
+        start_stamp, end_stamp = [part.strip() for part in time_range.split("-->")]
+        start, end = to_seconds(start_stamp), to_seconds(end_stamp)
+        words = text.split()
+        if not words:
+            continue
+
+        groups = [
+            words[position : position + max_words]
+            for position in range(0, len(words), max_words)
+        ]
+        # 按字符数分配时间，比按组数平均分配更接近真实语速。
+        weights = [sum(len(word) for word in group) or 1 for group in groups]
+        total_weight = sum(weights)
+        cursor = start
+        span = max(0.0, end - start)
+
+        for group, weight in zip(groups, weights):
+            group_end = cursor + span * (weight / total_weight)
+            index += 1
+            lines.append(
+                f"{index}\n{to_stamp(cursor)} --> {to_stamp(group_end)}\n"
+                f"{' '.join(group)}\n"
+            )
+            cursor = group_end
+
+    if not lines:
+        return False
+
+    with open(subtitle_file, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+    logger.info(f"subtitles re-chunked to {max_words} words per cue")
+    return True
