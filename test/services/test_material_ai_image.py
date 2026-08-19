@@ -11,7 +11,7 @@ from PIL import Image as PILImage
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
-from app.models.schema import VideoParams, VideoAspect
+from app.models.schema import VideoAspect, VideoConcatMode, VideoParams
 from app.services import material
 from app.services import state as sm
 from app.services import task as task_service
@@ -32,29 +32,29 @@ class TestImageProviderSetting(unittest.TestCase):
             "openai_api_key": "llm-key",
         }
         self.assertEqual(
-            material._image_provider_setting("openai", "api_key"), "img-key"
+            material.image_provider_setting("openai", "api_key"), "img-key"
         )
 
     def test_falls_back_to_shared_llm_key_for_reading(self):
         config.app = {"openai_api_key": "llm-key"}
         self.assertEqual(
-            material._image_provider_setting("openai", "api_key"), "llm-key"
+            material.image_provider_setting("openai", "api_key"), "llm-key"
         )
 
     def test_legacy_spaced_key_fallback(self):
         config.app = {"stability ai_api_key": "legacy"}
         self.assertEqual(
-            material._image_provider_setting("stability_ai", "api_key"), "legacy"
+            material.image_provider_setting("stability_ai", "api_key"), "legacy"
         )
 
     def test_model_name_never_falls_back_to_llm_chat_model(self):
         config.app = {"openai_model_name": "gpt-4o-mini"}
-        self.assertEqual(material._image_provider_setting("openai", "model_name"), "")
+        self.assertEqual(material.image_provider_setting("openai", "model_name"), "")
 
     def test_pollinations_base_url_never_falls_back_to_text_endpoint(self):
         config.app = {"pollinations_base_url": "https://text.pollinations.ai/openai"}
         self.assertEqual(
-            material._image_provider_setting("pollinations", "base_url"), ""
+            material.image_provider_setting("pollinations", "base_url"), ""
         )
 
 
@@ -262,6 +262,60 @@ class TestGetVideoMaterialsAiImage(unittest.TestCase):
         self.assertEqual(failed["failed_stage"], "materials")
         self.assertIn("failed to generate AI images", failed["error"])
         self.assertEqual(failed["progress"], 50)
+
+    def test_generated_script_reaches_prompt_enhancement(self):
+        params = self._params()
+        params.video_script = ""
+        with mock.patch.object(
+            task_service.material, "generate_ai_images", return_value=["/tmp/clip.mp4"]
+        ) as generate:
+            task_service.get_video_materials(
+                "task-ai-script",
+                params,
+                ["term"],
+                audio_duration=10,
+                video_script="script written by the LLM",
+            )
+        self.assertEqual(
+            generate.call_args.kwargs["video_script"], "script written by the LLM"
+        )
+
+    def test_match_materials_to_script_forces_sequential_order(self):
+        params = self._params()
+        params.match_materials_to_script = True
+        params.video_concat_mode = VideoConcatMode.random
+        with mock.patch.object(
+            task_service.material, "generate_ai_images", return_value=["/tmp/clip.mp4"]
+        ) as generate:
+            task_service.get_video_materials(
+                "task-ai-order", params, ["term"], audio_duration=10
+            )
+        self.assertEqual(
+            generate.call_args.kwargs["video_concat_mode"], VideoConcatMode.sequential
+        )
+
+
+class TestImageProviderRegistry(unittest.TestCase):
+    def test_requirements_match_the_registry(self):
+        self.assertIn("api_key", material.image_provider_requirements("openai"))
+        self.assertIn("api_key", material.image_provider_requirements("stability_ai"))
+        self.assertEqual(material.image_provider_requirements("pollinations"), ())
+        self.assertIn("base_url", material.image_provider_requirements("midjourney"))
+        self.assertIn("base_url", material.image_provider_requirements("other"))
+
+    def test_unknown_provider_has_no_requirements(self):
+        self.assertEqual(material.image_provider_requirements("stability-ai"), ())
+
+    def test_provider_ids_are_normalized(self):
+        self.assertEqual(material.normalize_image_provider(" Stability AI "), "stability_ai")
+        self.assertIn(
+            "api_key", material.image_provider_requirements("Stability AI")
+        )
+
+    def test_default_model_comes_from_the_registry(self):
+        self.assertEqual(material.image_provider_default_model("openai"), "dall-e-3")
+        self.assertEqual(material.image_provider_default_model("midjourney"), "")
+        self.assertEqual(material.image_provider_default_model("unknown"), "")
 
 
 if __name__ == "__main__":

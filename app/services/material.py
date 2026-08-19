@@ -741,7 +741,54 @@ def enhance_prompt_with_llm(prompt: str, video_script: str = "") -> str:
         return prompt  # Return original prompt if enhancement fails
 
 
-def _image_provider_setting(provider: str, suffix: str) -> str:
+# Single source of truth for the AI-image providers: the WebUI selectbox,
+# the start-gate validation and generate_ai_images all read this mapping, so a
+# new provider only has to be added here.
+IMAGE_PROVIDERS: dict[str, dict[str, Any]] = {
+    "openai": {
+        "label": "OpenAI",
+        "default_model": "dall-e-3",
+        "requires": ("api_key",),
+    },
+    "stability_ai": {
+        "label": "Stability AI",
+        "default_model": "stable-diffusion-xl-1024-v1-0",
+        "requires": ("api_key",),
+    },
+    "pollinations": {
+        "label": "Pollinations",
+        "default_model": "default",
+        "requires": (),
+    },
+    "midjourney": {
+        "label": "Midjourney",
+        "default_model": "",
+        "requires": ("base_url",),
+    },
+    "other": {
+        "label": "Other",
+        "default_model": "",
+        "requires": ("base_url",),
+    },
+}
+
+
+def normalize_image_provider(provider: Any) -> str:
+    return str(provider or "").strip().lower().replace(" ", "_")
+
+
+def image_provider_requirements(provider: str) -> tuple[str, ...]:
+    """Settings the provider cannot generate images without."""
+    spec = IMAGE_PROVIDERS.get(normalize_image_provider(provider))
+    return tuple(spec["requires"]) if spec else ()
+
+
+def image_provider_default_model(provider: str) -> str:
+    spec = IMAGE_PROVIDERS.get(normalize_image_provider(provider))
+    return str(spec["default_model"]) if spec else ""
+
+
+def image_provider_setting(provider: str, suffix: str) -> str:
     # Image settings live under "{provider}_image_{suffix}". Reading falls
     # back to the legacy un-namespaced keys, except where those belong to
     # the LLM config: "*_model_name" is the chat model everywhere, and
@@ -884,16 +931,16 @@ def generate_ai_images(
     # Create directory if it doesn't exist
     os.makedirs(material_directory, exist_ok=True)
     
-    provider = str(config.app.get("image_provider", "openai")).strip().lower().replace(" ", "_")
-    known_providers = ("openai", "stability_ai", "pollinations", "midjourney", "other")
-    if provider not in known_providers:
+    provider = normalize_image_provider(config.app.get("image_provider", "openai"))
+    if provider not in IMAGE_PROVIDERS:
         logger.error(
-            f"unknown image provider '{provider}', expected one of: {', '.join(known_providers)}"
+            f"unknown image provider '{provider}', expected one of: "
+            f"{', '.join(IMAGE_PROVIDERS)}"
         )
         return []
-    api_key = _image_provider_setting(provider, "api_key")
-    base_url = _image_provider_setting(provider, "base_url")
-    model = _image_provider_setting(provider, "model_name")
+    api_key = image_provider_setting(provider, "api_key")
+    base_url = image_provider_setting(provider, "base_url")
+    model = image_provider_setting(provider, "model_name")
 
     if provider == "openai" and not api_key:
         try:
@@ -901,10 +948,11 @@ def generate_ai_images(
         except ValueError:
             pass
 
-    if provider in ("openai", "stability_ai") and not api_key:
+    requirements = image_provider_requirements(provider)
+    if "api_key" in requirements and not api_key:
         logger.error(f"API key for image provider '{provider}' is not set in config")
         return []
-    if provider in ("midjourney", "other") and not base_url:
+    if "base_url" in requirements and not base_url:
         logger.error(
             f"Image provider '{provider}' requires a base URL pointing to an OpenAI-compatible images endpoint"
         )
@@ -920,8 +968,8 @@ def generate_ai_images(
     elif provider == "pollinations":
         width, height = aspect.to_resolution()
     else:
-        if provider == "openai" and not model:
-            model = "dall-e-3"
+        if not model:
+            model = image_provider_default_model(provider)
         width, height = _openai_image_size(model, aspect)
     size = f"{width}x{height}"
 

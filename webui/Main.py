@@ -142,6 +142,13 @@ _RUNTIME_CONFIG_SECTIONS = {
     "ui": config.ui,
 }
 
+# Provider-specific wording for the missing-key error; which providers need a
+# key at all comes from material_service.image_provider_requirements.
+_IMAGE_PROVIDER_API_KEY_ERRORS = {
+    "openai": "Please Enter the OpenAI API Key",
+    "stability_ai": "Please Enter the Stability AI API Key",
+}
+
 
 # -----------------------------------------------------------------------------
 # 启动配置、会话状态与本地化
@@ -3276,43 +3283,32 @@ def _render_video_settings(panel, params):
             if params.video_source == "ai_image":
                 st.write(tr("Image Generation Settings"))
 
-                image_providers = [
-                    ("OpenAI", "openai"),
-                    ("Stability AI", "stability_ai"),
-                    ("Pollinations", "pollinations"),
-                    ("Midjourney", "midjourney"),
-                    ("Other", "other"),
-                ]
-                saved_image_provider = (
-                    str(config.app.get("image_provider", "openai"))
-                    .lower()
-                    .replace(" ", "_")
+                saved_image_provider = material_service.normalize_image_provider(
+                    config.app.get("image_provider", "openai")
                 )
                 image_provider = stable_selectbox(
                     tr("Image Provider"),
-                    options=[value for _, value in image_providers],
+                    options=list(material_service.IMAGE_PROVIDERS),
                     default_value=saved_image_provider,
                     key="image_provider_select",
-                    format_func=lambda value: dict(
-                        (v, label) for label, v in image_providers
-                    )[value],
+                    format_func=lambda value: material_service.IMAGE_PROVIDERS[value][
+                        "label"
+                    ],
                 )
                 _set_runtime_config("app", "image_provider", image_provider)
 
-                image_api_key = material_service._image_provider_setting(
+                image_api_key = material_service.image_provider_setting(
                     image_provider, "api_key"
                 )
-                image_base_url = material_service._image_provider_setting(
+                image_base_url = material_service.image_provider_setting(
                     image_provider, "base_url"
                 )
-                image_model_name = material_service._image_provider_setting(
+                image_model_name = material_service.image_provider_setting(
                     image_provider, "model_name"
-                )
+                ) or material_service.image_provider_default_model(image_provider)
 
                 tips = ""
                 if image_provider == "openai":
-                    if not image_model_name:
-                        image_model_name = "dall-e-3"
                     tips = """
                             ##### OpenAI DALL·E Configuration
                             - **API Key**: Same as your OpenAI API key
@@ -3320,8 +3316,6 @@ def _render_video_settings(panel, params):
                             - **Model Name**: dall-e-3 or dall-e-2
                             """
                 if image_provider == "stability_ai":
-                    if not image_model_name:
-                        image_model_name = "stable-diffusion-xl-1024-v1-0"
                     tips = """
                             ##### Stability AI Configuration
                             - **API Key**: [Get from Stability AI](https://platform.stability.ai/account/keys)
@@ -3329,8 +3323,6 @@ def _render_video_settings(panel, params):
                             - **Model Name**: stable-diffusion-xl-1024-v1-0
                             """
                 if image_provider == "pollinations":
-                    if not image_model_name:
-                        image_model_name = "default"
                     tips = """
                             ##### Pollinations AI Configuration
                             - **API Key**: Optional - Leave empty for public access
@@ -5244,24 +5236,30 @@ def _render_generation_controls(
             st.stop()
 
         if params.video_source == "ai_image":
-            image_provider = (
-                str(config.app.get("image_provider", "openai")).lower().replace(" ", "_")
+            image_provider = material_service.normalize_image_provider(
+                config.app.get("image_provider", "openai")
             )
-            image_api_key = material_service._image_provider_setting(image_provider, "api_key")
-            if image_provider == "openai" and not (
-                image_api_key or config.app.get("openai_api_keys")
+            requirements = material_service.image_provider_requirements(image_provider)
+            if "api_key" in requirements:
+                image_api_key = material_service.image_provider_setting(
+                    image_provider, "api_key"
+                )
+                if image_provider == "openai":
+                    # The image panel intentionally falls back to the LLM panel key.
+                    image_api_key = image_api_key or config.app.get("openai_api_keys")
+                if not image_api_key:
+                    _remove_active_generation_task(task_id)
+                    st.error(
+                        tr(
+                            _IMAGE_PROVIDER_API_KEY_ERRORS.get(
+                                image_provider, "Image API Key"
+                            )
+                        )
+                    )
+                    st.stop()
+            if "base_url" in requirements and not material_service.image_provider_setting(
+                image_provider, "base_url"
             ):
-                _remove_active_generation_task(task_id)
-                st.error(tr("Please Enter the OpenAI API Key"))
-                st.stop()
-            if image_provider == "stability_ai" and not image_api_key:
-                _remove_active_generation_task(task_id)
-                st.error(tr("Please Enter the Stability AI API Key"))
-                st.stop()
-            if image_provider in (
-                "midjourney",
-                "other",
-            ) and not material_service._image_provider_setting(image_provider, "base_url"):
                 _remove_active_generation_task(task_id)
                 st.error(tr("Please Enter the Image Base URL for the selected provider"))
                 st.stop()

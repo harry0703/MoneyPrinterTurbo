@@ -303,6 +303,35 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(warnings, [{"code": "sonilo_bgm_failed", "video_index": 1}])
         self.assertTrue(generate.call_args.kwargs["bgm_file_override"].endswith(".m4a"))
 
+    def test_start_passes_the_generated_script_to_get_video_materials(self):
+        """脚本由大模型生成时，素材阶段必须拿到真正的脚本文本。"""
+        params = VideoParams(video_subject="coffee")
+        params.video_script = ""
+        state = MemoryState()
+        with (
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]),
+            patch.object(tm, "save_script_data"),
+            patch.object(
+                tm, "generate_audio", return_value=("audio.mp3", 5, object())
+            ),
+            patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+            patch.object(
+                tm, "get_video_materials", return_value=["clip.mp4"]
+            ) as get_materials,
+            patch.object(
+                tm,
+                "generate_final_videos",
+                return_value=(["final.mp4"], ["combined.mp4"], []),
+            ),
+            patch.object(tm.sm, "state", state),
+        ):
+            tm.start("script-to-materials", params)
+
+        self.assertEqual(
+            get_materials.call_args.kwargs["video_script"], "generated script"
+        )
+
     def test_start_rejects_missing_sonilo_key_before_costly_pipeline_steps(self):
         """完整任务缺少 Sonilo Key 时不能先调用 LLM、TTS 或素材服务。"""
         params = VideoParams(video_subject="test", bgm_type="sonilo")

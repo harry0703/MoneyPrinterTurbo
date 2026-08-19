@@ -583,6 +583,7 @@ def get_video_materials(
     video_terms,
     audio_duration,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+    video_script: str = "",
 ):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
@@ -604,11 +605,15 @@ def get_video_materials(
             prompt=video_terms,
             count_per_prompt=1,  # we will make this configurable in the future
             video_aspect=params.video_aspect,
-            video_concat_mode=params.video_concat_mode,
+            video_concat_mode=(
+                VideoConcatMode.sequential
+                if params.match_materials_to_script
+                else params.video_concat_mode
+            ),
             max_clip_duration=params.video_clip_duration,
             audio_duration=audio_duration * params.video_count,
             enhance_prompt=params.enhance_prompt or False,
-            video_script=params.video_script
+            video_script=video_script or params.video_script,
         )
         if not generated_videos:
             image_provider = config.app.get("image_provider", "openai")
@@ -1321,6 +1326,7 @@ def _run_pipeline(
         video_terms,
         audio_duration,
         loomloom_video_request=loomloom_video_request,
+        video_script=video_script,
     )
     if not downloaded_videos:
         return _mark_task_failed(
