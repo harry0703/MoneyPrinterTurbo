@@ -256,7 +256,7 @@
     "Chatterbox Voices Placeholder": "default-Female, narrator-Male",
     "tts_provider_tips.azure-tts-v2": "需要 Azure Speech 的 **区域**和 **API Key**。可在 [Azure Portal](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices) 创建和查看。",
     "tts_provider_tips.siliconflow": "需要硅基流动 API Key，可在[控制台](https://cloud.siliconflow.cn/account/ak)创建；支持数值语速和音量增益。",
-    "tts_provider_tips.gemini-tts": "需要 Gemini API Key，可在 [Google AI Studio](https://aistudio.google.com/app/apikey) 创建；语速和风格由模型根据自然语言提示控制。",
+    "tts_provider_tips.gemini-tts": "需要 Gemini API Key，可在 [Google AI Studio](https://aistudio.google.com/app/apikey) 创建；可在 Google 的[音色库](https://aistudio.google.com/generate-speech)试听全部支持的音色；语速和风格由模型根据自然语言提示控制。",
     "tts_provider_tips.mimo-tts": "需要小米 MiMo API Key，参考[首次调用](https://mimo.mi.com/docs/zh-CN/quick-start/first-api-call)；V2.5 TTS 通过自然语言指令控制语速和风格。",
     "tts_provider_tips.minimax-tts": "使用 [MiniMax 中国站](https://platform.minimaxi.com/user-center/basic-information/interface-key)或[国际站](https://platform.minimax.io/user-center/basic-information/interface-key)的 TTS API Key，Key 与服务地址必须属于同一站点。留空时会复用 MiniMax 大模型 Key，并自动匹配对应站点。",
     "tts_provider_tips.elevenlabs": "需要 [API Key](https://elevenlabs.io/app/settings/api-keys)；请先在 [Voice Library](https://elevenlabs.io/app/voice-library) 将音色加入收藏。",

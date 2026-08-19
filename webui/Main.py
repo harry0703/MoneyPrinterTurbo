@@ -4323,6 +4323,23 @@ def _render_audio_settings(panel, params):
 
             friendly_names = {v: _friendly(v) for v in filtered_voices}
 
+            # Gemini 旧目录把推测的性别放在值里（例如 Charon-Male）。按基础
+            # voice name 映射到新的官方风格值，升级后继续保留用户原来的音色。
+            if (
+                selected_tts_server == "gemini-tts"
+                and saved_voice_name not in friendly_names
+            ):
+                saved_gemini_voice = voice.parse_gemini_voice_name(saved_voice_name)
+                saved_voice_name = next(
+                    (
+                        candidate
+                        for candidate in filtered_voices
+                        if voice.parse_gemini_voice_name(candidate)
+                        == saved_gemini_voice
+                    ),
+                    saved_voice_name,
+                )
+
             saved_voice_name_index = 0
 
             # 检查保存的声音是否在当前筛选的声音列表中

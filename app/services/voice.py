@@ -39,6 +39,38 @@ MINIMAX_TTS_MODELS = (
     "speech-2.8-hd", "speech-2.8-turbo", "speech-2.6-hd", "speech-2.6-turbo",
     "speech-02-hd", "speech-02-turbo", "speech-01-hd", "speech-01-turbo",
 )
+GEMINI_TTS_VOICES = (
+    ("Zephyr", "Bright"),
+    ("Puck", "Upbeat"),
+    ("Charon", "Informative"),
+    ("Kore", "Firm"),
+    ("Fenrir", "Excitable"),
+    ("Leda", "Youthful"),
+    ("Orus", "Firm"),
+    ("Aoede", "Breezy"),
+    ("Callirrhoe", "Easy-going"),
+    ("Autonoe", "Bright"),
+    ("Enceladus", "Breathy"),
+    ("Iapetus", "Clear"),
+    ("Umbriel", "Easy-going"),
+    ("Algieba", "Smooth"),
+    ("Despina", "Smooth"),
+    ("Erinome", "Clear"),
+    ("Algenib", "Gravelly"),
+    ("Rasalgethi", "Informative"),
+    ("Laomedeia", "Upbeat"),
+    ("Achernar", "Soft"),
+    ("Alnilam", "Firm"),
+    ("Schedar", "Even"),
+    ("Gacrux", "Mature"),
+    ("Pulcherrima", "Forward"),
+    ("Achird", "Friendly"),
+    ("Zubenelgenubi", "Casual"),
+    ("Vindemiatrix", "Gentle"),
+    ("Sadachbia", "Lively"),
+    ("Sadaltager", "Knowledgeable"),
+    ("Sulafat", "Warm"),
+)
 _MINIMAX_TTS_MAX_AUDIO_HEX_CHARS = 100 * 1024 * 1024
 NO_VOICE_NAME = "no-voice"
 # `none` 是 PR #981 里曾使用过的无配音标识。这里短期兼容这个值，避免
@@ -95,35 +127,16 @@ def get_siliconflow_voices() -> list[str]:
 
 def get_gemini_voices() -> list[str]:
     """
-    获取Gemini TTS的声音列表
-    
+    获取 Gemini TTS 官方预置音色列表。
+
+    Google 没有为这些音色发布性别元数据，因此下拉框使用官方风格描述，
+    避免把推测的性别写进持久化 voice id。音色目录来源：
+    https://ai.google.dev/gemini-api/docs/speech-generation#voice-options
+
     Returns:
-        声音列表，格式为 ["gemini:Zephyr-Female", "gemini:Puck-Male", ...]
+        声音列表，格式为 ["gemini:Zephyr-Bright", "gemini:Puck-Upbeat", ...]
     """
-    # Gemini TTS支持的语音列表
-    voices_with_gender = [
-        ("Zephyr", "Female"),
-        ("Puck", "Male"), 
-        ("Charon", "Male"),
-        ("Kore", "Female"),
-        ("Fenrir", "Male"),
-        ("Aoede", "Female"),
-        ("Thalia", "Female"),
-        ("Sage", "Male"),
-        ("Echo", "Female"),
-        ("Harmony", "Female"),
-        ("Lux", "Female"),
-        ("Nova", "Female"),
-        ("Vale", "Male"),
-        ("Orion", "Male"),
-        ("Atlas", "Male"),
-    ]
-    
-    # 添加gemini:前缀，并格式化为显示名称
-    return [
-        f"gemini:{voice}-{gender}"
-        for voice, gender in voices_with_gender
-    ]
+    return [f"gemini:{voice}-{style}" for voice, style in GEMINI_TTS_VOICES]
 
 
 def get_mimo_voices() -> list[str]:
@@ -262,6 +275,13 @@ def is_siliconflow_voice(voice_name: str):
 def is_gemini_voice(voice_name: str):
     """检查是否是Gemini TTS的声音"""
     return voice_name.startswith("gemini:")
+
+
+def parse_gemini_voice_name(voice_name: str | None) -> str:
+    """从新旧 Gemini 下拉框值中提取 Google API 使用的预置音色名称。"""
+    if not is_gemini_voice(voice_name or ""):
+        return ""
+    return (voice_name or "").split(":", 1)[1].split("-", 1)[0].strip()
 
 
 def is_mimo_voice(voice_name: str):
@@ -436,12 +456,9 @@ def tts(
             return None
     elif is_gemini_voice(voice_name):
         # 从voice_name中提取声音名称
-        # 格式: gemini:voice-Gender
-        parts = voice_name.split(":")
-        if len(parts) >= 2:
-            # 移除性别后缀，例如 "Zephyr-Female" -> "Zephyr"
-            voice_with_gender = parts[1]
-            voice = voice_with_gender.split("-")[0]
+        # 格式: gemini:voice-Style；也继续兼容旧的 gemini:voice-Gender。
+        voice = parse_gemini_voice_name(voice_name)
+        if voice:
             return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
