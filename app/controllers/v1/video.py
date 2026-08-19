@@ -206,11 +206,19 @@ def create_task(
             "params": body.model_dump(),
         }
         sm.state.update_task(task_id)
-        task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
+        try:
+            task_manager.add_task(
+                tm.start, task_id=task_id, params=body, stop_at=stop_at
+            )
+        except Exception:
+            # 状态记录在调度前创建，默认标记为 processing。如果调度器没能
+            # 接管任务（例如线程启动失败或 Redis 队列不可用），必须回滚该
+            # 记录，否则 API 和 WebUI 会永久展示一个实际从未运行的任务。
+            sm.state.delete_task(task_id)
+            raise
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
     except TaskQueueFullError as e:
-        sm.state.delete_task(task_id)
         logger.warning(
             f"reject task because queue is full, request_id: {request_id}, task_id: {task_id}"
         )
