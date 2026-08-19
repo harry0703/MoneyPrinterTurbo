@@ -51,7 +51,7 @@
         "#whytho"
       ],
       "outro": {
-        "logo": "resource/branding/why.png",
+        "logo": "resource/branding/whyThough.jpg",
         "handle": "@why.though101",
         "duration": 1.2
       }
@@ -95,7 +95,7 @@
         "#planetearth"
       ],
       "outro": {
-        "logo": "resource/branding/waypoint.png",
+        "logo": "resource/branding/Waypoint.jpg",
         "handle": "@waypoint.60",
         "duration": 1.2
       }
@@ -139,7 +139,7 @@
         "#strangebutrue"
       ],
       "outro": {
-        "logo": "resource/branding/creature.png",
+        "logo": "resource/branding/CreatureFeature.jpg",
         "handle": "@creature.feature60",
         "duration": 1.2
       }

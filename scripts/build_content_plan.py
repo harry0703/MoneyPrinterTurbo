@@ -28,7 +28,7 @@ ACCOUNTS = {
         "instagram_username": "why.though101",
         # 片尾角标叠在正片最后一秒多，不额外增加时长。
         "outro": {
-            "logo": "resource/branding/why.png",
+            "logo": "resource/branding/whyThough.jpg",
             "handle": "@why.though101",
             "duration": 1.2,
         },
@@ -74,7 +74,7 @@ ACCOUNTS = {
         "instagram_username": "waypoint.60",
         # 片尾角标叠在正片最后一秒多，不额外增加时长。
         "outro": {
-            "logo": "resource/branding/waypoint.png",
+            "logo": "resource/branding/Waypoint.jpg",
             "handle": "@waypoint.60",
             "duration": 1.2,
         },
@@ -118,7 +118,7 @@ ACCOUNTS = {
         "instagram_username": "creature.feature60",
         # 片尾角标叠在正片最后一秒多，不额外增加时长。
         "outro": {
-            "logo": "resource/branding/creature.png",
+            "logo": "resource/branding/CreatureFeature.jpg",
             "handle": "@creature.feature60",
             "duration": 1.2,
         },
