@@ -29,6 +29,10 @@ PLAN_FILENAME = "content_plan.json"
 LOG_DIRNAME = "logs"
 STATE_FILENAME = "content_plan_state.json"
 
+class GenerationBusy(RuntimeError):
+    """另一条生成正在进行。属于稍后重试，不是本条目失败。"""
+
+
 STATUS_DONE = "published"
 STATUS_GENERATED = "generated"
 STATUS_FAILED = "failed"
@@ -86,9 +90,17 @@ def load_state() -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
-def save_state(state: dict) -> None:
+def save_entry(entry_id: str, record: dict) -> None:
+    """
+    只更新一个条目，写入前重新读取磁盘上的状态。
+
+    一次生成要十几分钟，期间进程一直持有开始时读到的状态副本。如果直接把
+    这份副本整体写回，另一个进程在这段时间里写下的记录就会被悄悄抹掉——
+    实际发生过：一条被拒绝的条目在长任务结束时从文件里消失了。
+    """
     path = _state_path()
-    # 先写临时文件再替换，避免任务中途被打断时留下半个 JSON。
+    state = load_state()
+    state[entry_id] = record
     temp_path = f"{path}.tmp"
     with open(temp_path, "w", encoding="utf-8") as handle:
         json.dump(state, handle, ensure_ascii=False, indent=2)
@@ -169,6 +181,8 @@ def generate_video(plan: dict, entry: dict) -> str:
     result = task_service.start(task_id=task_id, params=params, stop_at="video")
     if not result or result.get("state") == const.TASK_STATE_FAILED:
         error = (result or {}).get("error", "unknown generation failure")
+        if (result or {}).get("error_code") == "busy":
+            raise GenerationBusy(error)
         raise RuntimeError(f"generation failed: {error}")
 
     videos = result.get("videos") or []
@@ -189,6 +203,36 @@ def publish_video(plan: dict, entry: dict, video_path: str) -> dict:
     )
 
 
+def _running_generation() -> str:
+    """
+    读取生成锁的持有者信息。
+
+    "另一条生成正在进行"是最容易让人困惑的状态：命令看上去无缘无故失败，
+    而使用者并不知道机器上还有别的任务。把它直接显示在状态里。
+    """
+    from app.services import generation_lock
+
+    path = generation_lock.lock_path()
+    if not os.path.isfile(path):
+        return ""
+
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            owner = handle.read().strip()
+    except OSError:
+        return ""
+
+    if not owner:
+        return ""
+
+    # 锁文件在任务结束后仍然存在，必须通过实际加锁来判断是否真的被占用。
+    try:
+        with generation_lock.acquire():
+            return ""
+    except generation_lock.GenerationBusyError:
+        return owner
+
+
 def show_status(plan: dict, state: dict) -> int:
     today = date.today().isoformat()
     per_account: dict[str, dict[str, int]] = {}
@@ -205,6 +249,10 @@ def show_status(plan: dict, state: dict) -> int:
             bucket["failed"] += 1
         elif entry["date"] <= today:
             bucket["due"] += 1
+
+    running = _running_generation()
+    if running:
+        print(f"generation in progress — {running}\n")
 
     print(f"{'account':12} {'published':>10} {'failed':>7} {'due now':>8} {'total':>6}")
     for account, counts in per_account.items():
@@ -288,7 +336,7 @@ def main(argv=None) -> int:
         if not (video_path and os.path.isfile(video_path)):
             video_path = generate_video(plan, entry)
             record.update({"status": STATUS_GENERATED, "video_path": video_path})
-            save_state(state)
+            save_entry(entry["id"], record)
 
         if args.no_publish:
             logger.info(f"[{entry['id']}] generated, publishing skipped")
@@ -296,10 +344,16 @@ def main(argv=None) -> int:
             return 0
 
         result = publish_video(plan, entry, video_path)
+    except GenerationBusy as exc:
+        # 不写入任何状态：本条目还没开始做，下次运行会照常选中它。
+        logger.warning(f"[{entry['id']}] postponed: {exc}")
+        print(json.dumps({"id": entry["id"], "ok": False, "error_code": "busy",
+                          "error": str(exc)}, ensure_ascii=False))
+        return 75
     except Exception as exc:
         record["status"] = STATUS_FAILED
         record["error"] = f"{type(exc).__name__}: {exc}"
-        save_state(state)
+        save_entry(entry["id"], record)
         logger.error(f"[{entry['id']}] failed: {exc}")
         print(json.dumps({"id": entry["id"], "ok": False, "error": str(exc)}))
         return 1
@@ -313,7 +367,7 @@ def main(argv=None) -> int:
         }
     )
     record.pop("error", None)
-    save_state(state)
+    save_entry(entry["id"], record)
 
     logger.success(f"[{entry['id']}] published: {result.get('url')}")
     print(json.dumps({"id": entry["id"], "ok": True, "url": result.get("url")}))

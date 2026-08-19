@@ -240,6 +240,50 @@ class ResumeTest(unittest.TestCase):
 
         generate.assert_not_called()
 
+    def test_busy_lock_is_not_recorded_as_a_failure(self):
+        """
+        另一条生成占用主机时本条目根本没开始做，不能标记成失败：
+        否则界面上会出现一条并不存在问题的"失败"视频。
+        """
+        with patch.object(
+            run_plan, "generate_video", side_effect=run_plan.GenerationBusy("busy")
+        ):
+            code = run_plan.main(["--id", "why-001"])
+
+        self.assertEqual(code, 75)
+        # 完全不写状态，连文件都不该被创建。
+        self.assertNotIn("why-001", run_plan.load_state())
+
+    def test_busy_entry_is_picked_again_next_run(self):
+        with patch.object(
+            run_plan, "generate_video", side_effect=run_plan.GenerationBusy("busy")
+        ):
+            run_plan.main(["--account", "why", "--date", "2026-08-24"])
+
+        state = run_plan.load_state()
+        entry = run_plan.select_entry(
+            self.plan, state, _Args(account="why", date="2026-08-24")
+        )
+        self.assertEqual(entry["id"], "why-001")
+
+    def test_concurrent_writer_does_not_lose_another_entry(self):
+        """
+        长任务持有开始时的状态副本，结束时整体写回会抹掉期间其它进程写入的
+        记录。实际发生过一次，这里锁定按条目合并写入的行为。
+        """
+        run_plan.save_entry("creature-001", {"status": run_plan.STATUS_DONE})
+
+        # 模拟一个更早读取、更晚写入的长任务。
+        stale = run_plan.load_state()
+        stale.pop("creature-001", None)
+        with patch.object(run_plan, "load_state", return_value=stale):
+            pass
+        run_plan.save_entry("why-001", {"status": run_plan.STATUS_GENERATED})
+
+        state = run_plan.load_state()
+        self.assertIn("creature-001", state)
+        self.assertIn("why-001", state)
+
     def test_nothing_due_exits_cleanly(self):
         """没有待办时必须正常退出，否则 cron 每次都会报警。"""
         code = run_plan.main(["--account", "why", "--date", "2026-08-01"])

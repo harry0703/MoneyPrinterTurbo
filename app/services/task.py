@@ -1433,9 +1433,12 @@ def start(
                 loomloom_video_request=loomloom_video_request,
             )
     except generation_lock.GenerationBusyError as exc:
-        # 并发被拒绝属于可预期结果，不需要记录异常堆栈。
+        # 并发被拒绝属于可预期结果，不需要记录异常堆栈。调用方需要把它与
+        # 真正的生成失败区分开，因此附带机器可读的标识，避免靠匹配文案判断。
         logger.warning(f"task rejected, task_id: {task_id}, reason: {exc}")
-        return _mark_task_failed(task_id, "preflight", str(exc))
+        return _mark_task_failed(
+            task_id, "preflight", str(exc), details={"error_code": "busy"}
+        )
     except Exception as exc:
         logger.exception(
             f"unexpected task pipeline failure, task_id: {task_id}, error: {exc}"
