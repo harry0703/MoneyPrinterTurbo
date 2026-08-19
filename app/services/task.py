@@ -15,7 +15,18 @@ from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
-from app.services import llm, material, sonilo, subtitle, twelvelabs, video, voice
+from app.services import (
+    elevenlabs_music,
+    llm,
+    loomloom,
+    material,
+    sonilo,
+    subtitle,
+    task_artifacts,
+    twelvelabs,
+    video,
+    voice,
+)
 from app.services import upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
@@ -42,9 +53,43 @@ _ACTIVE_CROSS_POST_STATES = {
 }
 _CROSS_POST_STATE_WRITE_ATTEMPTS = 3
 _CROSS_POST_STATE_RETRY_DELAY_SECONDS = 0.1
+_LOOMLOOM_STATE_WRITE_ATTEMPTS = 3
+_LOOMLOOM_STATE_RETRY_DELAY_SECONDS = 0.1
 _INTERRUPTED_CROSS_POST_ERROR = (
     "cross-posting was interrupted before the process completed"
 )
+# 视频配乐服务只需实现 ``is_enabled`` 和 ``generate_bgm``。供应商差异集中在
+# 文件扩展名、领域异常和 WebUI 警告代码；任务编排、0 音量短路及失败降级
+# 全部复用同一路径，避免后续新增供应商时维护多份相似流程。
+_VIDEO_MUSIC_PROVIDERS = {
+    "sonilo": {
+        "service": sonilo,
+        "error_type": sonilo.SoniloError,
+        "suffix": ".m4a",
+        "warning_code": "sonilo_bgm_failed",
+        "display_name": "Sonilo",
+    },
+    "elevenlabs": {
+        "service": elevenlabs_music,
+        "error_type": elevenlabs_music.ElevenLabsMusicError,
+        "suffix": ".mp3",
+        "warning_code": "elevenlabs_bgm_failed",
+        "display_name": "ElevenLabs",
+    },
+}
+
+
+def _get_video_music_prompt(params: VideoParams) -> str:
+    """
+    读取当前视频配乐供应商实际使用的提示词。
+
+    新任务统一使用供应商无关字段；旧 Sonilo CLI 参数和历史任务仍可能只有
+    ``sonilo_bgm_prompt``，因此仅在 Sonilo 通用字段为空时读取旧字段。
+    """
+    prompt = str(params.video_music_prompt or "").strip()
+    if params.bgm_type == "sonilo" and not prompt:
+        prompt = str(params.sonilo_bgm_prompt or "").strip()
+    return prompt
 
 
 def is_task_busy(task: dict | None) -> bool:
@@ -184,7 +229,12 @@ def _is_cross_post_owner_alive(owner: str | None) -> bool:
     return True
 
 
-def _mark_task_failed(task_id: str, stage: str, error: str) -> dict:
+def _mark_task_failed(
+    task_id: str,
+    stage: str,
+    error: str,
+    details: dict | None = None,
+) -> dict:
     """记录结构化失败信息，并保留任务失败前已经到达的进度。"""
     existing_task = None
     try:
@@ -203,9 +253,7 @@ def _mark_task_failed(task_id: str, stage: str, error: str) -> dict:
 
     message = str(error or "unknown task error").strip()
     progress = int((existing_task or {}).get("progress", 0) or 0)
-    logger.error(
-        f"task failed, task_id: {task_id}, stage: {stage}, error: {message}"
-    )
+    logger.error(f"task failed, task_id: {task_id}, stage: {stage}, error: {message}")
     failure = {
         "task_id": task_id,
         "state": const.TASK_STATE_FAILED,
@@ -213,12 +261,19 @@ def _mark_task_failed(task_id: str, stage: str, error: str) -> dict:
         "failed_stage": stage,
         "error": message,
     }
+    # 某些外部任务已经创建了可用于恢复或排障的远端 ID。失败状态需要保留
+    # 这些非敏感字段，但不能允许调用方覆盖统一的状态、进度和错误结构。
+    failure_details = {
+        key: value for key, value in dict(details or {}).items() if key not in failure
+    }
+    failure.update(failure_details)
     sm.state.update_task(
         task_id,
         state=failure["state"],
         progress=failure["progress"],
         failed_stage=failure["failed_stage"],
         error=failure["error"],
+        **failure_details,
     )
     return failure
 
@@ -287,15 +342,12 @@ def generate_terms(task_id, params, video_script):
 
 
 def save_script_data(task_id, video_script, video_terms, params):
-    script_file = path.join(utils.task_dir(task_id), "script.json")
     script_data = {
         "script": video_script,
         "search_terms": video_terms,
         "params": params,
     }
-
-    with open(script_file, "w", encoding="utf-8") as f:
-        f.write(utils.to_json(script_data))
+    task_artifacts.write_script_data(task_id, script_data)
 
 
 def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> str:
@@ -337,8 +389,68 @@ def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> st
     return server_audio_file
 
 
-def generate_audio(task_id, params, video_script):
-    '''
+def _resolve_reusable_voice_preview(
+    task_id: str,
+    params,
+    video_script: str,
+    voice_preview: dict | None,
+) -> tuple[str, float, object] | None:
+    """
+    校验并解析 WebUI 提交的完整试听缓存。
+
+    该载荷不是公开 API 参数，只能来自当前进程的 WebUI。即便如此，后台任务
+    仍重新核对文案和全部配音参数，并限制音频位于当前任务目录；任何不一致都
+    回退普通 TTS，不让过期试听污染正式成片。
+    """
+    if not voice_preview:
+        return None
+
+    expected_values = {
+        "script": str(video_script or "").strip(),
+        "voice_name": params.voice_name,
+        "voice_rate": float(params.voice_rate),
+        "voice_volume": float(params.voice_volume),
+    }
+    if not math.isclose(float(params.voice_volume), 1.0) or any(
+        voice_preview.get(key) != value for key, value in expected_values.items()
+    ):
+        logger.info(
+            f"skip stale voice preview cache, task_id: {task_id}, "
+            "reason: voice parameters changed"
+        )
+        return None
+
+    preview_file = path.realpath(str(voice_preview.get("audio_file") or ""))
+    task_root = path.realpath(utils.task_dir(task_id))
+    try:
+        preview_is_task_local = path.commonpath([task_root, preview_file]) == task_root
+    except ValueError:
+        preview_is_task_local = False
+
+    duration = voice_preview.get("duration")
+    sub_maker = voice_preview.get("sub_maker")
+    if (
+        not preview_is_task_local
+        or not path.isfile(preview_file)
+        or not isinstance(duration, (int, float))
+        or not math.isfinite(duration)
+        or duration <= 0
+        or sub_maker is None
+    ):
+        logger.warning(
+            f"skip invalid voice preview cache, task_id: {task_id}, "
+            f"audio_file: {preview_file or '<empty>'}"
+        )
+        return None
+
+    logger.info(
+        f"using full voice preview audio, task_id: {task_id}, duration: {duration:.2f}s"
+    )
+    return preview_file, math.ceil(duration), sub_maker
+
+
+def generate_audio(task_id, params, video_script, voice_preview=None):
+    """
     Generate audio for the video script.
     If a custom audio file is provided, it will be used directly.
     There will be no subtitle maker object returned in this case.
@@ -347,7 +459,7 @@ def generate_audio(task_id, params, video_script):
         - audio_file: path to the generated or provided audio file
         - audio_duration: duration of the audio in seconds
         - sub_maker: subtitle maker object if TTS is used, None otherwise
-    '''
+    """
     logger.info("\n\n## generating audio")
     # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
     # 这里统一做兼容读取，避免直调接口时抛属性错误。
@@ -365,6 +477,15 @@ def generate_audio(task_id, params, video_script):
         return None, None, None
 
     if not custom_audio_file:
+        reusable_preview = _resolve_reusable_voice_preview(
+            task_id,
+            params,
+            video_script,
+            voice_preview,
+        )
+        if reusable_preview:
+            return reusable_preview
+
         logger.info("no custom audio file provided, using TTS to generate audio.")
         audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
         sub_maker = voice.tts(
@@ -397,14 +518,15 @@ def generate_audio(task_id, params, video_script):
             return None, None, None
         return custom_audio_file, audio_duration, None
 
+
 def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
-    '''
+    """
     Generate subtitle for the video script.
     If subtitle generation is disabled or no subtitle maker is provided, it will return an empty string.
     Otherwise, it will generate the subtitle using the specified provider.
     Returns:
         - subtitle_path: path to the generated subtitle file
-    '''
+    """
     logger.info("\n\n## generating subtitle")
     if not params.subtitle_enabled:
         return ""
@@ -455,7 +577,13 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     return subtitle_path
 
 
-def get_video_materials(task_id, params, video_terms, audio_duration):
+def get_video_materials(
+    task_id,
+    params,
+    video_terms,
+    audio_duration,
+    loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
@@ -492,6 +620,67 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             )
             return None
         return generated_videos
+    elif params.video_source == "loomloom":
+        if not isinstance(
+            loomloom_video_request, loomloom.LoomLoomConfirmedVideoRequest
+        ):
+            _mark_task_failed(
+                task_id,
+                "materials",
+                "LoomLoom video generation requires a confirmed quote",
+            )
+            return None
+
+        request = loomloom_video_request
+        logger.info(
+            "\n\n## generating "
+            f"{len(request.batch.input_rows)} video materials with LoomLoom"
+        )
+        run_id = ""
+        try:
+            request.validate()
+            backend = loomloom.LoomLoomVideoBackend(request.settings)
+            execution = backend.execute(
+                request.batch,
+                client_request_id=request.client_request_id,
+                listing_version_id=request.listing_version_id,
+                confirm=True,
+            )
+            run_id = execution.run_id
+            # execute 返回即表示付费任务已经由远端接受。必须先把 run ID 写入
+            # 进程日志，即使 Redis 等状态后端随后不可用，运维人员仍能凭日志
+            # 在胜算云侧定位任务，不能让唯一标识只存在于局部变量中。
+            logger.info(
+                "LoomLoom paid video run created: "
+                f"task_id={task_id}, run_id={run_id}, "
+                f"listing_version_id={request.listing_version_id}"
+            )
+            # 付费任务一旦创建就立即记录远端 ID。即使后续轮询超时，日志和任务
+            # 状态仍能帮助用户或平台支持人员定位并找回已经生成的产物。状态后端
+            # 故障只能降低可观测性，不能中断已经开始计费的远端任务和产物下载。
+            _record_loomloom_run_reference(
+                task_id=task_id,
+                run_id=run_id,
+                listing_version_id=request.listing_version_id,
+            )
+            backend.wait_for_run(run_id)
+            return list(
+                backend.download_video_results(
+                    run_id,
+                    utils.task_dir(task_id),
+                )
+            )
+        except (loomloom.LoomLoomError, ValueError) as exc:
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details={
+                    "loomloom_run_id": run_id,
+                    "loomloom_listing_version_id": request.listing_version_id,
+                },
+            )
+            return None
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
@@ -520,14 +709,58 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         return downloaded_videos
 
 
+def _record_loomloom_run_reference(
+    *, task_id: str, run_id: str, listing_version_id: str
+) -> bool | None:
+    """
+    尽最大努力保存已创建的付费 LoomLoom Run，不让状态故障中断远端任务。
+
+    返回 True 表示保存成功，False 表示任务记录已经不存在，None 表示状态后端
+    在有限重试后仍不可用。调用方无论得到哪种结果都应继续轮询和下载，因为
+    execute 已经产生外部付费副作用，停止本地流程只会让产物更难找回。
+    """
+    fields = {
+        "loomloom_run_id": run_id,
+        "loomloom_listing_version_id": listing_version_id,
+    }
+    for attempt in range(1, _LOOMLOOM_STATE_WRITE_ATTEMPTS + 1):
+        try:
+            updated = sm.state.patch_task(task_id, **fields)
+        except Exception as exc:
+            if attempt >= _LOOMLOOM_STATE_WRITE_ATTEMPTS:
+                logger.exception(
+                    "failed to persist LoomLoom paid run after retries: "
+                    f"task_id={task_id}, run_id={run_id}, attempts={attempt}, "
+                    f"error={exc}"
+                )
+                return None
+            logger.warning(
+                "retry LoomLoom paid run state update: "
+                f"task_id={task_id}, run_id={run_id}, attempt={attempt}, "
+                f"error={exc}"
+            )
+            time.sleep(_LOOMLOOM_STATE_RETRY_DELAY_SECONDS)
+            continue
+
+        if updated is False:
+            logger.warning(
+                "could not persist LoomLoom paid run because task is missing: "
+                f"task_id={task_id}, run_id={run_id}"
+            )
+        return updated
+
+    return None
+
+
 def generate_final_videos(
     task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
 ):
     final_video_paths = []
     combined_video_paths = []
     warnings = []
-    sonilo_bgm_requested = (
-        params.bgm_type == "sonilo"
+    video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
+    video_music_requested = (
+        video_music_provider is not None
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
     )
     # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
@@ -564,33 +797,34 @@ def generate_final_videos(
 
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
-        # Sonilo 模式下先明确禁用默认 BGM 解析，避免恢复旧任务时残留的
-        # bgm_file 被误当成当前配乐。只有音量大于 0 才生成代理并调用付费 API；
-        # 0 音量表示完整禁用背景音乐，不产生生成、下载或混音开销。
-        bgm_file_override = "" if params.bgm_type == "sonilo" else None
-        if sonilo_bgm_requested:
-            sonilo_bgm_path = path.join(
-                utils.task_dir(task_id), f"sonilo-bgm-{index}.m4a"
+        # 视频配乐模式先明确禁用默认 BGM 解析，避免旧任务残留的 bgm_file 被
+        # 误用。只有音量大于 0 才生成代理并调用付费 API；0 音量统一跳过。
+        bgm_file_override = "" if video_music_provider else None
+        if video_music_requested:
+            service = video_music_provider["service"]
+            display_name = video_music_provider["display_name"]
+            warning_code = video_music_provider["warning_code"]
+            generated_bgm_path = path.join(
+                utils.task_dir(task_id),
+                (f"{params.bgm_type}-bgm-{index}{video_music_provider['suffix']}"),
             )
             try:
-                sonilo.generate_bgm(
+                service.generate_bgm(
                     video_path=combined_video_path,
-                    output_path=sonilo_bgm_path,
+                    output_path=generated_bgm_path,
                     video_duration=audio_duration,
-                    prompt=params.sonilo_bgm_prompt,
+                    prompt=_get_video_music_prompt(params),
                 )
-                bgm_file_override = sonilo_bgm_path
-            except sonilo.SoniloError as exc:
+                bgm_file_override = generated_bgm_path
+            except video_music_provider["error_type"] as exc:
                 # 视频、旁白和字幕都已生成时，第三方配乐临时失败不应浪费整条
                 # 任务。当前视频明确禁用 BGM，并把降级结果返回 WebUI 提醒用户。
                 logger.warning(
-                    f"Sonilo BGM generation failed: task_id={task_id}, "
+                    f"{display_name} BGM generation failed: task_id={task_id}, "
                     f"video_index={index}, error={exc}"
                 )
                 bgm_file_override = ""
-                warnings.append(
-                    {"code": "sonilo_bgm_failed", "video_index": index}
-                )
+                warnings.append({"code": warning_code, "video_index": index})
 
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
         bgm_mix_succeeded = video.generate_video(
@@ -602,14 +836,19 @@ def generate_final_videos(
             bgm_file_override=bgm_file_override,
         )
         if (
-            params.bgm_type == "sonilo"
+            video_music_provider is not None
             and bgm_file_override
             and not bgm_mix_succeeded
         ):
-            # Sonilo 已成功返回并通过 FFmpeg 校验，但 MoviePy 最终混音仍可能
-            # 因运行环境失败。视频服务会保留无 BGM 成片，任务层复用同一结构化
-            # 警告通知 WebUI；API 生成失败时 override 为空，不会重复追加警告。
-            warnings.append({"code": "sonilo_bgm_failed", "video_index": index})
+            # 第三方已成功返回并通过 FFmpeg 校验，但 MoviePy 最终混音仍可能
+            # 因运行环境失败。视频服务会保留无 BGM 成片；API 生成失败时
+            # override 为空，因此不会重复追加警告。
+            warnings.append(
+                {
+                    "code": video_music_provider["warning_code"],
+                    "video_index": index,
+                }
+            )
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
@@ -854,9 +1093,7 @@ def _run_cross_post_with_slot(*args) -> None:
         # _run_cross_post 已处理预期异常；这里是最后一道保护，避免未来新增
         # 逻辑抛出的异常只保存在无人读取的 Future 中。
         task_id = str(args[0]) if args else "unknown"
-        logger.exception(
-            f"cross-post worker crashed, task_id: {task_id}, error: {exc}"
-        )
+        logger.exception(f"cross-post worker crashed, task_id: {task_id}, error: {exc}")
         if args:
             _record_cross_post_failure(task_id, exc)
     finally:
@@ -948,23 +1185,54 @@ def _schedule_cross_post(
     return None
 
 
-def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
+def _run_pipeline(
+    task_id,
+    params: VideoParams,
+    stop_at: str = "video",
+    voice_preview: dict | None = None,
+    loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
-    # 只有完整成片流程需要 Sonilo。尽早阻止缺少 Key 的完整任务，避免先消耗
-    # LLM、TTS 和素材服务额度；各个中间产物接口仍可独立使用，不受配乐配置影响。
-    if (
+    # 只有完整成片流程需要视频配乐供应商。尽早阻止缺少 Key 的完整任务，避免
+    # 先消耗 LLM、TTS 和素材服务额度；中间产物接口仍可独立使用。
+    video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
+    video_music_enabled = (
         stop_at == "video"
-        and params.bgm_type == "sonilo"
+        and video_music_provider is not None
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
-        and not sonilo.is_enabled()
-    ):
-        return _mark_task_failed(
-            task_id,
-            "preflight",
-            "Sonilo background music requires an API key",
-        )
+    )
+    if video_music_enabled:
+        service = video_music_provider["service"]
+        display_name = video_music_provider["display_name"]
+        if not service.is_enabled():
+            return _mark_task_failed(
+                task_id,
+                "preflight",
+                f"{display_name} background music requires an API key",
+            )
+
+        # WebUI 会限制输入长度，但 API、CLI 和历史任务可以绕过前端控件。
+        # 在生成脚本、配音和素材之前按供应商上限再次校验，避免完整视频合成后
+        # 才由第三方请求拒绝。服务层仍保留同一校验，作为直接调用时的最后防线。
+        music_prompt = _get_video_music_prompt(params)
+        max_prompt_length = int(getattr(service, "MAX_PROMPT_LENGTH", 0) or 0)
+        if max_prompt_length and len(music_prompt) > max_prompt_length:
+            return _mark_task_failed(
+                task_id,
+                "preflight",
+                (f"{display_name} music prompt exceeds {max_prompt_length} characters"),
+            )
+
+        # 供应商可以选择提供不计费的账号前置检查。检查函数只应抛出确定性
+        # 错误；网络波动或权限范围无法确认时由服务层记录警告并继续实际生成。
+        validate_access = getattr(service, "validate_generation_access", None)
+        if callable(validate_access):
+            try:
+                validate_access()
+            except video_music_provider["error_type"] as exc:
+                return _mark_task_failed(task_id, "preflight", str(exc))
 
     # 1. Generate script
     video_script = generate_script(task_id, params)
@@ -1007,7 +1275,10 @@ def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 3. Generate audio
     audio_file, audio_duration, sub_maker = generate_audio(
-        task_id, params, video_script
+        task_id,
+        params,
+        video_script,
+        voice_preview=voice_preview,
     )
     if not audio_file:
         return _mark_task_failed(
@@ -1045,7 +1316,11 @@ def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 5. Get video materials
     downloaded_videos = get_video_materials(
-        task_id, params, video_terms, audio_duration
+        task_id,
+        params,
+        video_terms,
+        audio_duration,
+        loomloom_video_request=loomloom_video_request,
     )
     if not downloaded_videos:
         return _mark_task_failed(
@@ -1071,13 +1346,15 @@ def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
     # 6. Generate final videos
-    final_video_paths, combined_video_paths, generation_warnings = generate_final_videos(
-        task_id,
-        params,
-        downloaded_videos,
-        audio_file,
-        subtitle_path,
-        audio_duration,
+    final_video_paths, combined_video_paths, generation_warnings = (
+        generate_final_videos(
+            task_id,
+            params,
+            downloaded_videos,
+            audio_file,
+            subtitle_path,
+            audio_duration,
+        )
     )
 
     if not final_video_paths:
@@ -1098,9 +1375,7 @@ def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
         and upload_post.upload_post_service.auto_upload
     )
     platforms = (
-        list(upload_post.upload_post_service.platforms)
-        if cross_post_enabled
-        else []
+        list(upload_post.upload_post_service.platforms) if cross_post_enabled else []
     )
     should_cross_post = cross_post_enabled and bool(platforms)
     if cross_post_enabled and not platforms:
@@ -1149,10 +1424,22 @@ def _run_pipeline(task_id, params: VideoParams, stop_at: str = "video"):
     return kwargs
 
 
-def start(task_id, params: VideoParams, stop_at: str = "video"):
+def start(
+    task_id,
+    params: VideoParams,
+    stop_at: str = "video",
+    voice_preview: dict | None = None,
+    loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+):
     """执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。"""
     try:
-        return _run_pipeline(task_id, params, stop_at=stop_at)
+        return _run_pipeline(
+            task_id,
+            params,
+            stop_at=stop_at,
+            voice_preview=voice_preview,
+            loomloom_video_request=loomloom_video_request,
+        )
     except Exception as exc:
         logger.exception(
             f"unexpected task pipeline failure, task_id: {task_id}, error: {exc}"

@@ -491,11 +491,21 @@ def delete_files(files: List[str] | str):
     if isinstance(files, str):
         files = [files]
 
-    for file in files:
+    # 循环补足视频时，同一个临时片段路径会在 FFmpeg 拼接列表中出现多次。
+    # 拼接必须保留重复项，但清理只能删除一次；这里按原顺序统一去重，让所有
+    # 调用方都获得幂等行为，也避免首次删除成功后连续输出 FileNotFoundError。
+    unique_files = dict.fromkeys(file for file in files if file)
+    for file in unique_files:
         try:
             os.remove(file)
-        except Exception as e:
-            logger.debug(f"failed to delete file {file}: {str(e)}")
+        except FileNotFoundError:
+            # 清理动作允许文件已经不存在，例如 FFmpeg 失败路径或并发清理已经
+            # 回收文件；这不是需要用户处理的问题，不应污染生成日志。
+            continue
+        except OSError as e:
+            # 权限、只读文件系统或磁盘异常会留下真实临时文件，保留 warning
+            # 便于根据具体路径和系统错误定位环境问题。
+            logger.warning(f"failed to delete temporary file {file}: {str(e)}")
 
 
 def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):

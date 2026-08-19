@@ -39,6 +39,7 @@ class TestBackgroundMusicService(unittest.TestCase):
             ("random", 0.2, True),
             ("custom", 0.2, True),
             ("sonilo", 0.2, True),
+            ("elevenlabs", 0.2, True),
             ("future_provider", 0.2, True),
             ("random", 0.0, False),
             ("custom", -0.1, False),

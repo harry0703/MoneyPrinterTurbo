@@ -55,6 +55,10 @@ class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
+    # 在线素材搜索会附带经过筛选的公开来源信息，供搜索缓存和任务记录复用。
+    # 本地上传素材不需要填写；写入任务文件前仍会按字段白名单重新构造，
+    # 避免外部请求传入的签名 URL、凭据或无关字段进入持久化数据。
+    source_info: Optional[dict[str, Any]] = None
 
 
 class VideoParams(BaseModel):
@@ -78,10 +82,10 @@ class VideoParams(BaseModel):
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
-    video_clip_duration: Optional[int] = 5
+    video_clip_duration: int = Field(default=5, ge=1)
     video_clip_speed: Optional[float] = 1.0
     match_materials_to_script: bool = False
-    video_count: Optional[int] = 1
+    video_count: int = Field(default=1, ge=1)
 
     video_source: Optional[str] = "pexels"
     video_materials: Optional[List[MaterialInfo]] = (
@@ -98,6 +102,9 @@ class VideoParams(BaseModel):
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
+    # 视频配乐供应商共用提示词，WebUI 新任务统一写入该字段。保留下面的
+    # Sonilo 专用字段以兼容旧任务记录和现有 CLI 参数。
+    video_music_prompt: str = Field(default="", max_length=2000)
     sonilo_bgm_prompt: str = Field(default="", max_length=2000)
 
     subtitle_enabled: Optional[bool] = True

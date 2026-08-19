@@ -137,25 +137,31 @@ def _extract_qwen_generation_text(response) -> str:
     return _normalize_text_response(text, "qwen")
 
 
-def _generate_response(prompt: str) -> str:
+def _generate_response(prompt: str, app_config=None) -> str:
     try:
+        # WebUI 在视频生成期间允许用户准备下一条文案。调用方可以传入提交瞬间
+        # 的配置快照，确保模型请求重试期间不会因为后台任务结束并应用新配置，
+        # 而切换到另一个 Provider、Base URL 或模型。
+        runtime_app_config = app_config if app_config is not None else config.app
         llm_provider = str(
-            config.app.get("llm_provider", DEFAULT_LLM_PROVIDER_ID)
+            runtime_app_config.get("llm_provider", DEFAULT_LLM_PROVIDER_ID)
         ).lower()
         provider = get_llm_provider(llm_provider)
         if provider is None:
             raise ValueError(f"{llm_provider}: unsupported llm provider")
 
         logger.info(f"llm provider: {llm_provider}")
-        api_key = config.app.get(provider.config_key("api_key"), "")
-        configured_model = config.app.get(provider.config_key("model_name"), "")
+        api_key = runtime_app_config.get(provider.config_key("api_key"), "")
+        configured_model = runtime_app_config.get(provider.config_key("model_name"), "")
         model_name = provider.resolve_model_name(configured_model)
         if configured_model and model_name != configured_model:
             logger.warning(
                 f"{llm_provider} model '{configured_model}' is deprecated, "
                 f"fallback to '{model_name}'"
             )
-        configured_base_url = config.app.get(provider.config_key("base_url"), "")
+        configured_base_url = runtime_app_config.get(
+            provider.config_key("base_url"), ""
+        )
         base_url = provider.resolve_base_url(configured_base_url)
         if configured_base_url and configured_base_url.strip().rstrip("/") in {
             url.rstrip("/") for url in provider.deprecated_base_urls
@@ -175,13 +181,13 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.get_default_ollama_base_url()
 
         if adapter == "azure":
-            api_version = config.app.get(
+            api_version = runtime_app_config.get(
                 provider.config_key("api_version"), "2024-02-15-preview"
             )
 
         extra_values = {
             field.config_suffix: (
-                config.app.get(provider.config_key(field.config_suffix), "")
+                runtime_app_config.get(provider.config_key(field.config_suffix), "")
                 or field.default_value
             )
             for field in provider.extra_fields
@@ -498,6 +504,7 @@ def generate_script(
     paragraph_number: int = 1,
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
+    app_config=None,
 ) -> str:
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
@@ -542,7 +549,10 @@ def generate_script(
 
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt=prompt)
+            if app_config is None:
+                response = _generate_response(prompt=prompt)
+            else:
+                response = _generate_response(prompt=prompt, app_config=app_config)
             if response:
                 final_script = format_response(response)
             else:
@@ -587,6 +597,7 @@ def generate_terms(
     video_script: str,
     amount: int = 5,
     match_script_order: bool = False,
+    app_config=None,
 ) -> List[str]:
     if match_script_order:
         goal = (
@@ -649,7 +660,10 @@ Please note that you must use English for generating video search terms; Chinese
     response = ""
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt)
+            if app_config is None:
+                response = _generate_response(prompt)
+            else:
+                response = _generate_response(prompt, app_config=app_config)
             if response.startswith("Error: "):
                 # generate_terms 的公开返回类型是 List[str]。如果把 Provider 的
                 # 错误文案原样返回，下游只做空值判断时会把非空字符串误认为成功，

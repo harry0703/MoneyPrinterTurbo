@@ -28,15 +28,17 @@ English | [简体中文](README.md) | [Releases](https://github.com/harry0703/Mo
 
 ![](docs/api.jpg)
 
+---
+
 ## Special Thanks ❤️
 
 <div align="center">
-  <a href="https://platform.kimi.ai?aff=MoneyPrinterTurbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
+  <a href="https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
 </div>
 
-Thanks to [Kimi](https://platform.kimi.ai?aff=MoneyPrinterTurbo) for sponsoring this project! [Kimi K2.7 Code](https://platform.kimi.ai/docs/guide/kimi-k2-7-code-quickstart) is an open-source, coding-focused agentic model developed by Moonshot AI, with substantial gains on real-world long-horizon coding tasks and higher end-to-end success across complex software engineering workflows. It also cuts thinking-token usage by approximately 30% compared with K2.6. Within MoneyPrinterTurbo, Kimi's LLM powers video creation: it writes the video script and extracts the search keywords that decide the final footage, so the sharper its understanding, the more on-topic the results.
+Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo) for sponsoring this project! [Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) is Moonshot AI's most capable model and the world's first open 3T-class model. With native vision and a 1-million-token context window, K3 delivers frontier performance across knowledge work, reasoning, and long-horizon tasks. Within MoneyPrinterTurbo, K3 powers video creation by writing scripts and extracting the search keywords that determine the final footage—the better it understands the content, the more relevant the results.
 
-**MoneyPrinterTurbo already supports Kimi. Visit the [Kimi Open Platform](https://platform.kimi.ai?aff=MoneyPrinterTurbo) ([中文站](https://platform.kimi.com?aff=MoneyPrinterTurbo) | [Global](https://platform.kimi.ai?aff=MoneyPrinterTurbo)) to try the API, or explore the cost-effective [Coding Plan](https://www.kimi.com/code?aff=MoneyPrinterTurbo).**
+**Exclusive offer for MoneyPrinterTurbo users: new users who register through the dedicated link receive bonus API credit equal to 10% of their first successful top-up, up to CNY 1,000. The offer ends September 30, 2026. Visit the Kimi Open Platform ([中文站](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo) | [Global](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo)) to try the API.**
 
 <br>
 <table align="center">
@@ -60,20 +62,15 @@ Thanks to [Kimi](https://platform.kimi.ai?aff=MoneyPrinterTurbo) for sponsoring 
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><img src="docs/sponsors/compshare-logo.png" alt="Compshare" height="34"></a><br>
-      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><strong>Compshare</strong></a>
+      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai" height="56"></a><br>
+      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai</strong></a>
     </td>
     <td align="left">
-      Thanks to <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">Compshare</a> for sponsoring this project! Compshare is an AI cloud platform under UCloud that provides one-stop API access to mainstream Chinese and international models with a single key. Its CodingPlan package focuses on cost-effective Chinese models such as GLM5.2 and Deepseek-v4, while also offering stable official relay channels for overseas models across different development scenarios. It is compatible with Claude Code, Codex, and other mainstream AI coding tools and general API calls, with enterprise-grade high concurrency, 24/7 technical support, and self-service invoicing. <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">Register now</a> to receive up to ¥10 in free trial credits.
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
-      <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><img src="docs/sponsors/cubence-logo.png" alt="Cubence" height="40"></a><br>
-      <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><strong>Cubence</strong></a>
-    </td>
-    <td align="left">
-      Thanks to <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt">Cubence</a> for supporting this project. Cubence is a platform focused on AI model API access, helping developers and teams call models in a stable and convenient way. Since its launch in September 2025, Cubence has supported API access scenarios for Claude Code, Codex, Gemini, and other AI models and developer tools, making it suitable for users who need unified management and access to multiple model capabilities. Cubence offers MoneyPrinterTurbo users an exclusive discount code: <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><code>MPT</code></a>. Use it on your first purchase to get <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt">10% off</a>.
+      Thanks to <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai</a> for sponsoring this project!<br>
+      ⚡ Low-cost, reliable access: pricing starts at just 10% of official rates, with transparent model multipliers and detailed usage records. Dynamic routing across multiple providers helps avoid rate limits and unexpected service interruptions.<br>
+      🧠 Leading LLMs for script creation: access OpenAI, Claude, Google Gemini, DeepSeek, Qwen, and other leading models through an OpenAI-compatible API. Infistar.ai provides low-latency, high-concurrency support for MoneyPrinterTurbo's script generation and media keyword extraction workflows.<br>
+      🎨 A cutting-edge multimodal ecosystem: access leading image and video generation models including FLUX, Midjourney, Seedance, Kling, Sora, and Luma, all ready for the next generation of AI video creation.<br>
+      🎁 Exclusive benefits for MoneyPrinterTurbo users: sign up through the <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">dedicated referral link</a> to receive [exclusive bonus credits / a first top-up offer] and start creating right away!
     </td>
   </tr>
   <tr>
@@ -95,6 +92,29 @@ Thanks to [Kimi](https://platform.kimi.ai?aff=MoneyPrinterTurbo) for sponsoring 
     </td>
   </tr>
 </table>
+
+## Another Open-Source Project from the Creator: MangoDisk ⭐
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/readme/en-dark.jpg">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/readme/en-light.jpg">
+      <img src="https://assets.mangodisk.app/images/readme/en-light.jpg" width="900" alt="MangoDisk open-source disk cleaner and disk space analyzer">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <strong>A safety-first, open-source disk cleaner and disk space analyzer for macOS and Windows</strong><br>
+  Find large and duplicate files, clean caches and app leftovers, and reclaim disk space safely.
+</p>
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">View the Open-Source Project</a>
+</p>
+
+---
 
 ## Features 🎯
 

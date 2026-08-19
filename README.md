@@ -28,15 +28,17 @@
 
 ![](docs/api.jpg)
 
+---
+
 ## 特别感谢 ❤️
 
 <div align="center">
-  <a href="https://platform.kimi.com?aff=MoneyPrinterTurbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-zh.png" alt="Kimi 赞助 MoneyPrinterTurbo" width="100%"></a>
+  <a href="https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-zh.png" alt="Kimi 赞助 MoneyPrinterTurbo" width="100%"></a>
 </div>
 
-感谢 [Kimi](https://platform.kimi.com?aff=MoneyPrinterTurbo) 赞助本项目！[Kimi K2.7 Code](https://platform.kimi.com/docs/guide/kimi-k2-7-code-quickstart) 是 Moonshot AI 推出的编程专用开源智能体模型，在真实长程编程与复杂软件工程工作流中显著提升端到端任务成功率，同时优化推理效率，相比 K2.6 平均减少约 30% 的推理 token 消耗。而在本项目中，Kimi 大模型能直接驱动视频创作，不仅撰写视频文案，还会提炼素材搜索关键词、决定成片画面，文案理解越精准，匹配到的素材就越贴题。
+感谢 [Kimi](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo) 赞助本项目！[Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) 是 Moonshot AI 迄今能力最强的模型，也是全球首个开源 3T 级模型，拥有原生视觉能力与 100 万 Token 上下文，在知识工作、推理和长周期任务中展现前沿性能。在 MoneyPrinterTurbo 中，K3 能直接驱动视频创作，不仅撰写视频文案，还会提炼素材搜索关键词、决定成片画面；对内容理解越准确，匹配到的素材就越贴题。
 
-**本项目已接入 Kimi 大模型。前往 [Kimi 开放平台](https://platform.kimi.com?aff=MoneyPrinterTurbo)（[中文站](https://platform.kimi.com?aff=MoneyPrinterTurbo)｜[Global](https://platform.kimi.ai?aff=MoneyPrinterTurbo)）体验 API，或了解高性价比 [Coding Plan 套餐](https://www.kimi.com/code?aff=MoneyPrinterTurbo)。**
+**MoneyPrinterTurbo 用户专属优惠：新用户通过专属链接注册，首次成功充值可获充值金额 10% 的 API 额度，最高赠送 ¥1000。活动截至 2026 年 9 月 30 日。前往 Kimi 开放平台（[中文站](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo)｜[Global](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo)）体验 API。**
 <br>
 
 <table align="center">
@@ -55,25 +57,31 @@
       <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><strong>CCSub</strong></a>
     </td>
     <td align="left">
-      感谢 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> 赞助本项目！CCSub 是稳定、实惠的 AI API 中转平台，是 Claude Code 官方订阅的超强平替。一个 API Key 即可调用 Claude Opus 4.8、Sonnet 4.6、Haiku 4.5、GPT-5、Gemini 等模型，价格约为官方直连的 1/3，全球直连无需梯子。兼容 Claude Code、Codex、Cursor、Cline、Continue、Windsurf 等所有主流 AI 编程工具。前往 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> 注册即送 $5 体验额度。
+      感谢 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> 赞助本项目！<strong>CCSub 是稳定、实惠的 AI API 中转平台，是 Claude Code 官方订阅的超强平替。</strong>一个 API Key 即可调用 Claude Opus 4.8、Sonnet 4.6、Haiku 4.5、GPT-5、Gemini 等模型，价格约为官方直连的 1/3，全球直连无需梯子。兼容 Claude Code、Codex、Cursor、Cline、Continue、Windsurf 等所有主流 AI 编程工具。前往 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> 注册即送 $5 体验额度。
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><img src="docs/sponsors/compshare-logo.png" alt="优云智算" height="34"></a><br>
-      <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu"><strong>优云智算</strong></a>
+      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai 无限星河" height="56"></a><br>
+      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai 无限星河</strong></a>
     </td>
     <td align="left">
-      感谢 <a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">优云智算</a> 赞助本项目！优云智算是 UCloud 旗下 AI 云平台，一站式提供国内外主流模型的 API 服务，一个 Key 即可调用所有模型。主打高性价比国产模型 CodingPlan 套餐（GLM5.2、Deepseek-v4等），同时提供官方转发的稳定海外模型通道，满足多场景开发需求。已兼容 Claude Code、Codex 等主流 AI 编程工具及通用 API 调用，支持企业级高并发、7×24 技术支持和自助开票。<a href="https://www.compshare.cn/coding-plan?ytag=GPU_YY-git_MoneyPrinterTu">点击注册</a>，最高可获得 ¥10 免费体验金。
+      感谢 <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai 无限星河</a> 赞助本项目！<br>
+      ⚡ 超低成本与稳定调度：价格低至官方 1 折，模型倍率与调用明细全程透明；多路供应动态调度，告别限流与断连困扰。<br>
+      🧠 全系大模型完美驱动脚本：全面覆盖 OpenAI、Claude、Google Gemini、DeepSeek、通义千问（Qwen）等主流 LLM，兼容 OpenAI 标准接口，为 MoneyPrinterTurbo 的文案生成与素材关键词提炼提供低延迟、高并发支持。<br>
+      🎨 前沿多模态生态：全面接入 FLUX、Midjourney、Seedance、可灵（Kling）、Sora、Luma 等顶级生图与视频模型，满足下一代 AI 视频生成需求。<br>
+      🎁 MoneyPrinterTurbo 用户专属福利：通过 <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">专属推广链接</a> 注册即享 [专属赠送额度 / 首充特惠]，开箱即用！
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><img src="docs/sponsors/cubence-logo.png" alt="Cubence" height="40"></a><br>
-      <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><strong>Cubence</strong></a>
+      <a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK"><img src="docs/sponsors/shengsuanyun-logo.jpg" alt="胜算云" height="56"></a><br>
+      <a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK"><strong>胜算云</strong></a>
     </td>
     <td align="left">
-      感谢 <a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt">Cubence</a> 对本项目的支持。Cubence 是一家专注于 AI 模型 API 接入服务的平台，致力于为开发者和团队提供稳定、便捷的模型调用体验。自 2025 年 9 月上线以来，Cubence 已支持 Claude Code、Codex、Gemini 等多种 AI 模型与开发工具相关的 API 接入场景，适合需要统一管理和调用多模型能力的用户使用。Cubence 为本开源项目用户提供了专属优惠码：<a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt"><code>MPT</code></a>。首次购买时使用该优惠码，<a href="https://cubence.com/signup?code=SCE1CJPE&source=mpt">可享受 9 折优惠</a>。
+      感谢<a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK">胜算云</a>对本项目的赞助！胜算云是面向 AI 原生团队的模型 API 聚合平台，汇集 Claude、ChatGPT、Gemini 等海内外大语言模型及多媒体模型，支持统一接入与按量调用。<br>
+      平台坚持合规 API 服务，杜绝逆向工程和资源稀释。此外平台提供企业级定制网关，包括团队成本与权限管理、智能路由、安全防护及 BYOK 密钥托管，并提供发票服务。<br>
+      🎁新用户通过<a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK">此链接</a>注册，即可领取 10 元 Token 体验额度。
     </td>
   </tr>
   <tr>
@@ -95,6 +103,29 @@
     </td>
   </tr>
 </table>
+
+## 作者的另一个开源项目：MangoDisk ⭐
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/readme/zh-dark.jpg">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/readme/zh-light.jpg">
+      <img src="https://assets.mangodisk.app/images/readme/zh-light.jpg" width="900" alt="MangoDisk 开源磁盘清理与空间分析工具">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <strong>适用于 macOS 和 Windows 的安全优先开源磁盘清理与空间分析工具</strong><br>
+  查找大文件和重复文件，清理缓存与应用残留，安全释放磁盘空间。
+</p>
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">查看 GitHub 开源项目</a>
+</p>
+
+---
 
 ## 功能特性 🎯
 

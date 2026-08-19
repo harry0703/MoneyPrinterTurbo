@@ -5,6 +5,7 @@ import tempfile
 import tomllib
 import types
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -115,6 +116,32 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertEqual(result, "第一段。\n\n第二段。")
         self.assertIn("- number of paragraphs: 2", captured["prompt"])
         self.assertIn("开头更有悬念", captured["prompt"])
+
+    def test_generate_script_reuses_submitted_config_snapshot(self):
+        """WebUI 后台任务结束后应用新配置，不能改变正在重试的模型请求。"""
+        captured = {}
+        app_config = {
+            "llm_provider": "openai",
+            "openai_api_key": "snapshot-key",
+            "openai_model_name": "snapshot-model",
+        }
+
+        def fake_generate_response(prompt, app_config=None):
+            captured["prompt"] = prompt
+            captured["app_config"] = app_config
+            return "Snapshot response"
+
+        with patch.object(
+            llm, "_generate_response", side_effect=fake_generate_response
+        ):
+            result = llm.generate_script(
+                video_subject="Snapshot test",
+                app_config=app_config,
+            )
+
+        self.assertEqual(result, "Snapshot response")
+        self.assertIs(captured["app_config"], app_config)
+        self.assertEqual(captured["app_config"]["openai_api_key"], "snapshot-key")
 
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
@@ -280,6 +307,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "grok",
                 "minimax",
                 "mimo",
+                "shengsuanyun",
                 "cloudflare",
                 "modelscope",
                 "aihubmix",
@@ -299,6 +327,15 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             get_llm_provider("azure").default_label,
             "Microsoft Azure OpenAI",
+        )
+        shengsuanyun = get_llm_provider("shengsuanyun")
+        self.assertEqual(
+            shengsuanyun.api_key_url,
+            "https://www.shengsuanyun.com/?from=CH_XUQ4OTSK",
+        )
+        self.assertEqual(
+            shengsuanyun.default_model,
+            "deepseek/deepseek-v4-flash",
         )
 
     def test_provider_registry_uses_conventional_locale_and_config_keys(self):
@@ -360,10 +397,16 @@ class TestLiteLLMProvider(unittest.TestCase):
                 tips = translations.get(provider.tips_key, "")
                 if not tips:
                     continue
+                default_endpoint = provider.default_service_endpoint
                 rendered = tips.format(
-                    api_key_url=provider.api_key_url,
+                    api_key_url=provider.effective_api_key_url(),
                     default_model=provider.default_model,
-                    default_base_url=provider.default_base_url,
+                    default_base_url=provider.effective_default_base_url,
+                    model_docs_url=(
+                        default_endpoint.model_docs_url
+                        if default_endpoint
+                        else ""
+                    ),
                     docker_hint="",
                     **{
                         f"default_{field.config_suffix}": field.default_value
@@ -405,19 +448,26 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         for provider in LLM_PROVIDER_REGISTRY:
             if provider.requires_api_key:
-                self.assertTrue(provider.api_key_url, provider.provider_id)
+                api_key_url = provider.effective_api_key_url()
+                self.assertTrue(api_key_url, provider.provider_id)
                 self.assertTrue(
-                    provider.api_key_url.startswith("https://"),
+                    api_key_url.startswith("https://"),
                     provider.provider_id,
                 )
                 for language, translations in locale_translations.items():
                     tips_template = translations.get(provider.tips_key, "")
                     if not tips_template:
                         continue
+                    default_endpoint = provider.default_service_endpoint
                     tips = tips_template.format(
-                        api_key_url=provider.api_key_url,
+                        api_key_url=api_key_url,
                         default_model=provider.default_model,
-                        default_base_url=provider.default_base_url,
+                        default_base_url=provider.effective_default_base_url,
+                        model_docs_url=(
+                            default_endpoint.model_docs_url
+                            if default_endpoint
+                            else ""
+                        ),
                         docker_hint="",
                         **{
                             f"default_{field.config_suffix}": field.default_value
@@ -429,10 +479,98 @@ class TestLiteLLMProvider(unittest.TestCase):
                     )
                     self.assertIn("](", api_key_line, provider.provider_id)
                     self.assertIn(
-                        f"]({provider.api_key_url})",
+                        f"]({api_key_url})",
                         api_key_line,
                         f"{language}: {provider.provider_id}",
                     )
+
+    def test_service_endpoint_registry_references_valid_stable_ids(self):
+        """服务区域必须通过唯一稳定 ID 关联，不能依赖链接或展示文案。"""
+        for provider in LLM_PROVIDER_REGISTRY:
+            endpoint_ids = [
+                endpoint.endpoint_id for endpoint in provider.service_endpoints
+            ]
+            self.assertEqual(
+                len(endpoint_ids),
+                len(set(endpoint_ids)),
+                provider.provider_id,
+            )
+            if not endpoint_ids:
+                self.assertFalse(provider.default_service_endpoint_id)
+                self.assertFalse(provider.international_service_endpoint_id)
+                continue
+
+            self.assertIn(provider.default_service_endpoint_id, endpoint_ids)
+            if provider.international_service_endpoint_id:
+                self.assertIn(provider.international_service_endpoint_id, endpoint_ids)
+
+    def test_kimi_service_endpoint_selection_preserves_existing_configs(self):
+        """已有 Kimi 配置不能因界面语言变化而被静默切换到另一套账号体系。"""
+        provider = get_llm_provider("moonshot")
+
+        china = provider.select_service_endpoint(
+            "",
+            has_api_key=True,
+            prefer_international=True,
+        )
+        global_endpoint = provider.select_service_endpoint(
+            "https://api.moonshot.ai/v1/",
+            has_api_key=True,
+            prefer_international=False,
+        )
+
+        self.assertEqual(china.endpoint_id, "china")
+        self.assertEqual(global_endpoint.endpoint_id, "global")
+        self.assertIsNone(
+            provider.select_service_endpoint(
+                "https://gateway.example.com/v1",
+                has_api_key=True,
+                prefer_international=True,
+            )
+        )
+
+    def test_kimi_fresh_config_uses_interface_region(self):
+        """新配置按界面语言推荐站点，但仍由用户在 WebUI 中明确选择。"""
+        provider = get_llm_provider("moonshot")
+
+        china = provider.select_service_endpoint(
+            "",
+            has_api_key=False,
+            prefer_international=False,
+        )
+        global_endpoint = provider.select_service_endpoint(
+            "",
+            has_api_key=False,
+            prefer_international=True,
+        )
+
+        self.assertEqual(china.base_url, "https://api.moonshot.cn/v1")
+        self.assertEqual(global_endpoint.base_url, "https://api.moonshot.ai/v1")
+        self.assertIn("platform.kimi.ai", global_endpoint.api_key_url)
+
+    def test_kimi_endpoint_selection_does_not_depend_on_marketing_url(self):
+        """更新推广参数不能改变国际站的业务选择结果。"""
+        provider = get_llm_provider("moonshot")
+        global_endpoint = replace(
+            provider.international_service_endpoint,
+            api_key_url="https://platform.kimi.ai/?new-tracking=1",
+        )
+        updated_provider = replace(
+            provider,
+            service_endpoints=tuple(
+                global_endpoint if endpoint.endpoint_id == "global" else endpoint
+                for endpoint in provider.service_endpoints
+            ),
+        )
+
+        selected = updated_provider.select_service_endpoint(
+            "",
+            has_api_key=False,
+            prefer_international=True,
+        )
+
+        self.assertEqual(selected.endpoint_id, "global")
+        self.assertEqual(selected.api_key_url, global_endpoint.api_key_url)
 
     def test_example_config_does_not_duplicate_registry_defaults(self):
         """示例配置只保存用户覆盖值，默认模型和地址由 Registry 唯一维护。"""
@@ -446,7 +584,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                     "",
                     provider.provider_id,
                 )
-            if provider.default_base_url:
+            if provider.effective_default_base_url:
                 self.assertEqual(
                     app_config.get(provider.config_key("base_url"), ""),
                     "",

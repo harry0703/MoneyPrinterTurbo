@@ -68,6 +68,33 @@ class TestVoiceService(unittest.TestCase):
             all(v.startswith(("zh-CN", "en-US")) for v in filtered)
         )
 
+    def test_get_gemini_voices_matches_documented_catalog(self):
+        voices = vs.get_gemini_voices()
+
+        self.assertEqual(len(voices), 30)
+        self.assertEqual(
+            [name for name, _style in vs.GEMINI_TTS_VOICES],
+            [
+                "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda",
+                "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus",
+                "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome",
+                "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam",
+                "Schedar", "Gacrux", "Pulcherrima", "Achird",
+                "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager",
+                "Sulafat",
+            ],
+        )
+        self.assertIn("gemini:Achernar-Soft", voices)
+        self.assertIn("gemini:Sulafat-Warm", voices)
+        self.assertFalse(any("Atlas" in voice for voice in voices))
+
+    def test_parse_gemini_voice_name_supports_new_and_legacy_labels(self):
+        self.assertEqual(
+            vs.parse_gemini_voice_name("gemini:Achernar-Soft"), "Achernar"
+        )
+        self.assertEqual(vs.parse_gemini_voice_name("gemini:Charon-Male"), "Charon")
+        self.assertEqual(vs.parse_gemini_voice_name("Charon-Male"), "")
+
     def test_no_voice_tts_generates_silent_audio_and_subtitle_timeline(self):
         """
         无配音模式不调用任何外部 TTS provider，只生成静音音频作为时间轴占位。
@@ -398,6 +425,28 @@ class TestVoiceService(unittest.TestCase):
             voice_rate=1.8,
         )
 
+    def test_tts_strips_gemini_style_metadata_before_dispatch(self):
+        """Gemini 下拉框的官方风格描述不能成为 API voice_name 的一部分。"""
+        sentinel = object()
+
+        with patch.object(vs, "gemini_tts", return_value=sentinel) as gemini_tts:
+            result = vs.tts(
+                text="Test the updated voice catalog.",
+                voice_name="gemini:Achernar-Soft",
+                voice_rate=1.0,
+                voice_file="/tmp/gemini-achernar.mp3",
+                voice_volume=1.0,
+            )
+
+        self.assertIs(result, sentinel)
+        gemini_tts.assert_called_once_with(
+            "Test the updated voice catalog.",
+            "Achernar",
+            1.0,
+            "/tmp/gemini-achernar.mp3",
+            1.0,
+        )
+
     def test_gemini_tts_uses_google_genai_and_compatible_submaker_fields(self):
         """
         验证 Gemini TTS 在 edge_tts 7.x 环境下仍会返回项目兼容的字幕结构，
@@ -586,6 +635,202 @@ class TestVoiceService(unittest.TestCase):
         self.assertIsNotNone(sub_maker)
         self.assertEqual(getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"])
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
+
+    def test_minimax_tts_uses_regional_endpoint_and_hex_audio(self):
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {"data": {"audio": b"audio".hex(), "status": 2}, "base_resp": {"status_code": 0}}
+
+        class _Clip:
+            duration = 2.5
+
+            def close(self):
+                pass
+
+        captured = {}
+
+        def _post(url, json=None, headers=None, timeout=None):
+            captured.update(url=url, json=json, headers=headers, timeout=timeout)
+            return _Response()
+
+        settings = {
+            "api_key": "test-key", "base_url": vs.MINIMAX_TTS_CN_URL,
+            "model_id": "speech-2.8-turbo", "voice_id": "male-qn-qingse",
+            "sample_rate": 32000, "bitrate": 128000, "audio_format": "mp3", "channel": 1,
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.config, "minimax_tts", settings
+        ), patch.object(vs.requests, "post", side_effect=_post), patch.object(
+            vs, "AudioFileClip", return_value=_Clip()
+        ):
+            voice_file = str(Path(tmp_dir) / "minimax.mp3")
+            result = vs.minimax_tts("Speech test.", "male-qn-qingse", 1.2, voice_file, 1.5)
+            self.assertEqual(Path(voice_file).read_bytes(), b"audio")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(captured["url"], "https://api.minimaxi.com/v1/t2a_v2")
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer test-key")
+        self.assertEqual(captured["json"]["model"], "speech-2.8-turbo")
+        self.assertEqual(captured["json"]["text"], "Speech test.")
+        self.assertEqual(captured["json"]["voice_setting"]["voice_id"], "male-qn-qingse")
+        self.assertEqual(captured["json"]["audio_setting"]["format"], "mp3")
+
+    def test_minimax_tts_reuses_cn_llm_key_and_endpoint(self):
+        """TTS 未单独配置时，应复用同区域的 MiniMax LLM 凭证和地址。"""
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {"data": {"audio": b"audio".hex(), "status": 2}, "base_resp": {"status_code": 0}}
+
+        class _Clip:
+            duration = 1.25
+
+            def close(self):
+                pass
+
+        captured = {}
+
+        def _post(url, json=None, headers=None, timeout=None):
+            captured.update(url=url, headers=headers)
+            return _Response()
+
+        settings = {
+            "api_key": "", "base_url": vs.MINIMAX_TTS_GLOBAL_URL,
+            "model_id": vs.MINIMAX_TTS_DEFAULT_MODEL, "audio_format": "mp3",
+        }
+        app_settings = {
+            "minimax_api_key": "shared-cn-key",
+            "minimax_base_url": "https://api.minimaxi.com/v1",
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.config, "minimax_tts", settings
+        ), patch.object(vs.config, "app", app_settings), patch.object(
+            vs.requests, "post", side_effect=_post
+        ), patch.object(vs, "AudioFileClip", return_value=_Clip()):
+            voice_file = str(Path(tmp_dir) / "minimax.mp3")
+            result = vs.minimax_tts("测试。", "male-qn-qingse", 1.0, voice_file)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(captured["url"], vs.MINIMAX_TTS_CN_URL)
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer shared-cn-key")
+
+    def test_get_minimax_voice_catalog_normalizes_all_voice_types(self):
+        """音色查询应统一不同来源的响应结构，并忽略重复或空 Voice ID。"""
+
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {
+                    "system_voice": [
+                        {"voice_id": "system-1", "voice_name": "系统音色"},
+                        {"voice_id": "", "voice_name": "无效音色"},
+                    ],
+                    "voice_cloning": [
+                        {"voice_id": "clone-1", "voice_name": "我的克隆音色"},
+                        {"voice_id": "system-1", "voice_name": "重复音色"},
+                    ],
+                    "voice_generation": [{"voice_id": "generated-1"}],
+                    "base_resp": {"status_code": "0"},
+                }
+
+        with patch.object(vs.requests, "post", return_value=_Response()) as post:
+            catalog = vs.get_minimax_voice_catalog(
+                api_key="test-key",
+                endpoint=vs.MINIMAX_TTS_CN_URL,
+            )
+
+        post.assert_called_once_with(
+            "https://api.minimaxi.com/v1/get_voice",
+            json={"voice_type": "all"},
+            headers={
+                "Authorization": "Bearer test-key",
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        )
+        self.assertEqual(
+            catalog,
+            [
+                {
+                    "voice_id": "system-1",
+                    "voice_name": "系统音色",
+                    "voice_type": "system",
+                },
+                {
+                    "voice_id": "clone-1",
+                    "voice_name": "我的克隆音色",
+                    "voice_type": "voice_cloning",
+                },
+                {
+                    "voice_id": "generated-1",
+                    "voice_name": "generated-1",
+                    "voice_type": "voice_generation",
+                },
+            ],
+        )
+
+    def test_get_minimax_voice_catalog_exposes_provider_error(self):
+        """远端业务错误应明确抛出，不能被伪装成账号没有可用音色。"""
+
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {
+                    "base_resp": {
+                        "status_code": 1004,
+                        "status_msg": "invalid api key",
+                    }
+                }
+
+        with patch.object(vs.requests, "post", return_value=_Response()):
+            with self.assertRaisesRegex(RuntimeError, "invalid api key"):
+                vs.get_minimax_voice_catalog(api_key="invalid-key")
+
+    def test_minimax_tts_does_not_leave_invalid_audio_output(self):
+        """响应音频无法解析时，不应覆盖已有文件或留下临时文件。"""
+        class _Response:
+            status_code, text = 200, ""
+
+            @staticmethod
+            def json():
+                return {"data": {"audio": b"invalid-audio".hex(), "status": 2}, "base_resp": {"status_code": 0}}
+
+        settings = {
+            "api_key": "test-key", "base_url": vs.MINIMAX_TTS_GLOBAL_URL,
+            "model_id": vs.MINIMAX_TTS_DEFAULT_MODEL, "audio_format": "mp3",
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.config, "minimax_tts", settings
+        ), patch.object(vs.requests, "post", return_value=_Response()), patch.object(
+            vs, "AudioFileClip", side_effect=OSError("invalid audio")
+        ):
+            voice_path = Path(tmp_dir) / "minimax.mp3"
+            voice_path.write_bytes(b"existing-audio")
+            result = vs.minimax_tts("Speech test.", "English_expressive_narrator", 1.0, str(voice_path))
+
+            self.assertIsNone(result)
+            self.assertEqual(voice_path.read_bytes(), b"existing-audio")
+            self.assertEqual([path.name for path in Path(tmp_dir).iterdir()], ["minimax.mp3"])
+
+    def test_minimax_voice_helpers_and_dispatch(self):
+        with patch.object(vs.config, "minimax_tts", {"voice_id": "narrator"}):
+            self.assertEqual(vs.get_minimax_voices(), ["minimax:narrator"])
+        self.assertEqual(vs.get_minimax_voices("custom-voice"), ["minimax:custom-voice"])
+        self.assertTrue(vs.is_minimax_voice("minimax:narrator"))
+        sentinel = object()
+        with patch.object(vs, "minimax_tts", return_value=sentinel) as implementation:
+            result = vs.tts("test", "minimax:narrator", 1.0, "voice.mp3", 1.0)
+        self.assertIs(result, sentinel)
+        implementation.assert_called_once_with("test", "narrator", 1.0, "voice.mp3", 1.0)
 
     def test_chatterbox_voice_helpers(self):
         """is_chatterbox_voice / get_chatterbox_voices basics and normalisation."""
@@ -1024,7 +1269,10 @@ class TestElevenLabsVoice(unittest.TestCase):
     @patch("app.services.voice.config")
     def test_elevenlabs_tts_no_api_key(self, mock_config):
         mock_config.elevenlabs.get.return_value = ""
-        result = vs.elevenlabs_tts("Hello", "abc123", "/tmp/test.mp3")
+        # Key 解析包含环境变量回退，测试必须显式清空宿主环境，避免开发机或 CI
+        # 恰好设置 ELEVENLABS_API_KEY 后改变“未配置”的测试前提。
+        with patch.dict(os.environ, {}, clear=True):
+            result = vs.elevenlabs_tts("Hello", "abc123", "/tmp/test.mp3")
         self.assertIsNone(result)
 
     @patch("app.services.voice.config")
@@ -1032,6 +1280,42 @@ class TestElevenLabsVoice(unittest.TestCase):
         mock_config.elevenlabs.get.return_value = "fake-key"
         result = vs.elevenlabs_tts("  ", "abc123", "/tmp/test.mp3")
         self.assertIsNone(result)
+
+    def test_elevenlabs_api_key_prefers_config(self):
+        with (
+            patch.object(vs.config, "elevenlabs", {"api_key": "config-key"}),
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": "env-key"}),
+        ):
+            self.assertEqual(vs.get_elevenlabs_api_key(), "config-key")
+
+    def test_elevenlabs_api_key_falls_back_to_environment(self):
+        with (
+            patch.object(vs.config, "elevenlabs", {"api_key": ""}),
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": " env-key "}),
+        ):
+            self.assertEqual(vs.get_elevenlabs_api_key(), "env-key")
+
+    def test_elevenlabs_api_key_matches_music_service(self):
+        """TTS 和配乐共用同一账号配置，两条生成链路必须解析出相同 Key。"""
+        from app.services import elevenlabs_music
+
+        for configured_key, env_key in (("config-key", "env-key"), ("", "env-key")):
+            with self.subTest(configured_key=configured_key):
+                with (
+                    patch.object(
+                        vs.config, "elevenlabs", {"api_key": configured_key}
+                    ),
+                    patch.object(
+                        elevenlabs_music.config,
+                        "elevenlabs",
+                        {"api_key": configured_key},
+                    ),
+                    patch.dict(os.environ, {"ELEVENLABS_API_KEY": env_key}),
+                ):
+                    self.assertEqual(
+                        vs.get_elevenlabs_api_key(),
+                        elevenlabs_music.get_api_key(),
+                    )
 
 
 if __name__ == "__main__":
