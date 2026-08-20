@@ -1,5 +1,28 @@
 {
   "comment": "Texte de la carte, consommé dans l'ordre par --next. Une ligne = une vidéo. Ajoute-en à la fin quand le stock baisse.",
+  "caption": {
+    "comment": "Legende du reel : la ligne de la carte, puis les deux lignes du compte, puis les 2 hashtags fixes + 3 tires a tour de role dans le pool (5 au total).",
+    "tagline": [
+      "Nothing here means anything.",
+      "New one every four hours."
+    ],
+    "hashtag_core": [
+      "#spiderman",
+      "#edit"
+    ],
+    "hashtag_pool": [
+      "#fyp",
+      "#viral",
+      "#brainrot",
+      "#foryou",
+      "#memes",
+      "#relatable",
+      "#trending",
+      "#marvel",
+      "#reels",
+      "#edits"
+    ]
+  },
   "texts": [
     "how it feels to check the mail on a saturday",
     "me explaining the plot to someone who never asked",
