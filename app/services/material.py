@@ -610,9 +610,35 @@ WAVESPEED_API_BASE_URL = "https://api.wavespeed.ai/api/v3"
 WAVESPEED_DEFAULT_T2V_MODEL = "bytedance/seedance-2.0-fast/text-to-video"
 WAVESPEED_POLL_INTERVAL_SECONDS = 2.0
 WAVESPEED_RUN_TIMEOUT_SECONDS = 600.0
+# 默认模型 bytedance/seedance-2.0-fast/text-to-video 只接受 4-15 秒；超出
+# 范围的请求会被 API 直接拒绝。WebUI 默认片段时长是 3 秒，因此必须在提交
+# 前收敛到模型支持区间，多出的时长由现有剪辑流程按片段时长裁掉。
+WAVESPEED_MIN_DURATION_SECONDS = 4
+WAVESPEED_MAX_DURATION_SECONDS = 15
 # 三个失败态语义不同（模型报错 / 用户取消 / 平台超时），但对素材流程都意味着
 # 本关键词没有产物，统一按空结果处理，交给上层跳过该片段继续生成。
 WAVESPEED_FAILURE_STATUSES = frozenset({"failed", "cancelled", "timeout"})
+
+
+def _wavespeed_duration_bounds() -> tuple[int, int]:
+    """
+    返回当前模型支持的生成时长区间（秒）。
+
+    默认区间对应默认 Seedance 模型；用户切换到其它文生视频模型时，可以在
+    配置中同步调整区间。任何异常配置都退回默认值，并保证 min <= max，
+    避免把用户输入变成必然失败的远端请求。
+    """
+
+    def read_bound(key: str, fallback: int) -> int:
+        try:
+            value = int(config.app.get(key, fallback))
+        except (TypeError, ValueError):
+            return fallback
+        return value if value >= 1 else fallback
+
+    min_duration = read_bound("wavespeed_min_duration", WAVESPEED_MIN_DURATION_SECONDS)
+    max_duration = read_bound("wavespeed_max_duration", WAVESPEED_MAX_DURATION_SECONDS)
+    return min_duration, max(max_duration, min_duration)
 
 
 def generate_videos_wavespeed(
@@ -639,7 +665,17 @@ def generate_videos_wavespeed(
         .strip("/")
     )
     headers = {"Authorization": f"Bearer {api_key}"}
-    duration = max(int(minimum_duration), 1)
+    requested_duration = max(int(minimum_duration), 1)
+    min_duration, max_duration = _wavespeed_duration_bounds()
+    duration = min(max(requested_duration, min_duration), max_duration)
+    if duration != requested_duration:
+        # 生成比请求更长不会影响成片：剪辑流程仍按片段时长裁剪；生成比请求
+        # 更短的情况只发生在请求超过模型上限时，此时也只能收敛到上限。
+        logger.info(
+            f"wavespeed clip duration clamped to model-supported range: "
+            f"requested={requested_duration}s, using={duration}s "
+            f"(supported {min_duration}-{max_duration}s)"
+        )
     payload = {
         "prompt": search_term,
         "aspect_ratio": aspect.value,
@@ -923,24 +959,12 @@ def download_videos(
     elif source == "coverr":
         provider = "coverr"
         remote_search_videos = search_videos_coverr
-    elif source == "wavespeed":
-        provider = "wavespeed"
-        remote_search_videos = generate_videos_wavespeed
 
     def search_videos(
         search_term: str,
         minimum_duration: int,
         video_aspect: VideoAspect,
     ) -> List[MaterialInfo]:
-        if provider == "wavespeed":
-            # AI 生成不参与 24 小时搜索缓存：产物 URL 是会过期的签名地址，
-            # 且复用缓存会让不同任务反复得到同一段生成视频。每个关键词都
-            # 直接触发一次新的生成请求。
-            return remote_search_videos(
-                search_term=search_term,
-                minimum_duration=minimum_duration,
-                video_aspect=video_aspect,
-            )
         return _search_videos_with_cache(
             provider=provider,
             search_videos=remote_search_videos,
@@ -954,6 +978,20 @@ def download_videos(
         material_directory = utils.task_dir(task_id)
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
+
+    if source == "wavespeed":
+        # AI 生成按条计费，不能沿用库存源"先为全部关键词取回候选、再挑选"
+        # 的流程，否则会为用不到的片段付费。生成源改为逐段按需生成，凑够
+        # 所需时长立即停止；也不参与 24 小时搜索缓存——产物 URL 是会过期
+        # 的签名地址，且复用缓存会让不同任务反复得到同一段生成视频。
+        return _download_videos_wavespeed_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
 
     if match_script_order:
         return _download_videos_by_script_order(
@@ -1033,6 +1071,75 @@ def download_videos(
                 f"detail={_redact_request_error(e, item.url)}"
             )
     logger.success(f"downloaded {len(video_paths)} videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_wavespeed_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """
+    按脚本片段顺序逐段生成 WaveSpeed 素材，凑够所需总时长立即停止。
+
+    每个关键词天然对应一个脚本片段，生成即付费：先全量生成再挑选会为
+    用不到的片段付费。这里每生成一段就立刻下载并累计有效时长（与库存
+    流程一致，按片段时长封顶），累计超过所需配音时长后不再触发新的生成
+    请求。单段失败按现有素材源约定跳过并继续下一段。
+    """
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+    total_duration = 0.0
+    for search_term in search_terms:
+        video_items = generate_videos_wavespeed(
+            search_term=search_term,
+            minimum_duration=max_clip_duration,
+            video_aspect=video_aspect,
+        )
+        for item in video_items:
+            try:
+                saved_video_path = save_video(
+                    video_url=item.url, save_dir=material_directory
+                )
+            except Exception as e:
+                logger.error(
+                    "failed to download generated video: "
+                    f"provider={item.provider}, error={type(e).__name__}, "
+                    f"detail={_redact_request_error(e, item.url)}"
+                )
+                continue
+            if not saved_video_path:
+                continue
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(
+                    _material_source_record(item, saved_video_path)
+                )
+            except Exception as source_error:
+                # 与库存源一致：来源记录异常不能把已经付费生成并成功下载的
+                # 素材当作失败，更不能阻断视频生成。
+                logger.warning(
+                    "failed to prepare material source record: "
+                    f"provider={item.provider}, "
+                    f"error={type(source_error).__name__}, detail={source_error}"
+                )
+            total_duration += min(max_clip_duration, item.duration)
+            if total_duration > audio_duration:
+                break
+        if total_duration > audio_duration:
+            logger.info(
+                "generated materials cover the required duration, stop "
+                f"generating more clips: generated={total_duration:.1f}s, "
+                f"required={audio_duration:.1f}s"
+            )
+            break
+    logger.success(f"generated and downloaded {len(video_paths)} videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
 

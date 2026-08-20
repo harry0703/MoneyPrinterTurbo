@@ -298,6 +298,11 @@
     "WaveSpeed AI Video Help": "Genera clips completamente nuevos a partir de las palabras clave del guion con los modelos de texto a vídeo de WaveSpeed AI, en lugar de buscar material de archivo. La generación se factura por clip en WaveSpeed.",
     "WaveSpeed API Key": "Clave de API de WaveSpeed ([Obtener Clave de API](https://wavespeed.ai))",
     "Please Enter the WaveSpeed API Key": "Por favor, introduce la **Clave de API de WaveSpeed**",
+    "WaveSpeed Billing Notice": "Cada clip generado se factura por WaveSpeed. Según la duración estimada de la locución y la duración del clip, se generarán aproximadamente {min}-{max} clip(s). La generación avanza segmento a segmento y se detiene en cuanto hay material suficiente.",
+    "WaveSpeed Billing Notice Without Script": "Cada clip generado se factura por WaveSpeed. Introduce o genera el guion del vídeo para ver una estimación del número de clips. La generación avanza segmento a segmento y se detiene en cuanto hay material suficiente.",
+    "Confirm WaveSpeed Charge": "Entiendo que la generación de vídeo de WaveSpeed es un servicio de pago",
+    "Confirm WaveSpeed Charge Help": "Los clips se generan bajo demanda, segmento a segmento, y la generación se detiene cuando el material cubre la duración de la locución. WaveSpeed cobra por cada clip generado.",
+    "Confirm WaveSpeed Charge Required": "Por favor, confirma el coste de generación de WaveSpeed antes de generar el vídeo.",
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Predeterminado (recomendado)",
     "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264."

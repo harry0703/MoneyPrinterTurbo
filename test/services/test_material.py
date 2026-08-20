@@ -1279,6 +1279,171 @@ class TestWaveSpeedProvider(unittest.TestCase):
         self.assertEqual(save_url, "https://cdn.example.com/out.mp4?sig=abc")
         self.assertEqual(result, ["/tmp/wavespeed-saved.mp4"])
 
+    def test_generate_wavespeed_clamps_duration_to_model_minimum(self):
+        """
+        WebUI 默认片段时长 3 秒,而默认模型只接受 4-15 秒;直接透传会被 API
+        拒绝。请求必须收敛到模型下限,多出的时长由现有剪辑流程按片段时长裁掉。
+        """
+        submit_response = self._json_response({"code": 200, "data": {"id": "pred-c1"}})
+        poll_response = self._json_response(
+            {
+                "code": 200,
+                "data": {
+                    "id": "pred-c1",
+                    "status": "completed",
+                    "outputs": ["https://cdn.example.com/c1.mp4"],
+                },
+            }
+        )
+
+        with (
+            patch(
+                "app.services.material.requests.post", return_value=submit_response
+            ) as post,
+            patch("app.services.material.requests.get", return_value=poll_response),
+        ):
+            results = material.generate_videos_wavespeed("sunrise", minimum_duration=3)
+
+        self.assertEqual(post.call_args.kwargs["json"]["duration"], 4)
+        # MaterialInfo 记录实际生成时长,时长核算和剪辑按真实素材长度进行
+        self.assertEqual(results[0].duration, 4)
+
+    def test_generate_wavespeed_clamps_duration_to_model_maximum(self):
+        """超过模型上限的请求收敛到上限,不能提交必然失败的远端请求。"""
+        submit_response = self._json_response({"code": 200, "data": {"id": "pred-c2"}})
+        poll_response = self._json_response(
+            {
+                "code": 200,
+                "data": {
+                    "id": "pred-c2",
+                    "status": "completed",
+                    "outputs": ["https://cdn.example.com/c2.mp4"],
+                },
+            }
+        )
+
+        with (
+            patch(
+                "app.services.material.requests.post", return_value=submit_response
+            ) as post,
+            patch("app.services.material.requests.get", return_value=poll_response),
+        ):
+            results = material.generate_videos_wavespeed("sunrise", minimum_duration=20)
+
+        self.assertEqual(post.call_args.kwargs["json"]["duration"], 15)
+        self.assertEqual(results[0].duration, 15)
+
+    def test_generate_wavespeed_duration_bounds_are_configurable(self):
+        """切换到其它模型时,用户可以在配置中同步调整支持的时长区间。"""
+        config.app["wavespeed_min_duration"] = 2
+        config.app["wavespeed_max_duration"] = 8
+        submit_response = self._json_response({"code": 200, "data": {"id": "pred-c3"}})
+        poll_response = self._json_response(
+            {
+                "code": 200,
+                "data": {
+                    "id": "pred-c3",
+                    "status": "completed",
+                    "outputs": ["https://cdn.example.com/c3.mp4"],
+                },
+            }
+        )
+
+        with (
+            patch(
+                "app.services.material.requests.post", return_value=submit_response
+            ) as post,
+            patch("app.services.material.requests.get", return_value=poll_response),
+        ):
+            material.generate_videos_wavespeed("sunrise", minimum_duration=3)
+
+        self.assertEqual(post.call_args.kwargs["json"]["duration"], 3)
+
+    @staticmethod
+    def _generated_item(term, url, duration=5):
+        item = material.MaterialInfo()
+        item.provider = "wavespeed"
+        item.url = url
+        item.duration = duration
+        item.source_info = {
+            "provider": "wavespeed",
+            "search_term": term,
+            "asset_id": f"pred-{term}",
+        }
+        return item
+
+    def test_download_videos_wavespeed_generates_on_demand_and_stops(self):
+        """
+        生成按条计费,不能先为全部关键词生成再挑选。素材必须逐段按需生成,
+        累计有效时长(按片段时长封顶)超过所需配音时长后,后续关键词不再
+        触发任何生成请求。
+        """
+        generated = {
+            "term-1": [self._generated_item("term-1", "https://cdn.example.com/1.mp4")],
+            "term-2": [self._generated_item("term-2", "https://cdn.example.com/2.mp4")],
+            "term-3": [self._generated_item("term-3", "https://cdn.example.com/3.mp4")],
+        }
+
+        def fake_generate(search_term, minimum_duration, video_aspect):
+            return generated[search_term]
+
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                side_effect=fake_generate,
+            ) as generate,
+            patch(
+                "app.services.material.save_video",
+                side_effect=lambda video_url, save_dir="": f"/tmp/{video_url.rsplit('/', 1)[-1]}",
+            ),
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed-lazy",
+                search_terms=["term-1", "term-2", "term-3"],
+                source="wavespeed",
+                audio_duration=8,
+                max_clip_duration=5,
+            )
+
+        # 5s + 5s > 8s,第三个关键词不能再产生付费生成请求
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(
+            [call.kwargs["search_term"] for call in generate.call_args_list],
+            ["term-1", "term-2"],
+        )
+        self.assertEqual(result, ["/tmp/1.mp4", "/tmp/2.mp4"])
+
+    def test_download_videos_wavespeed_skips_failed_segment_and_continues(self):
+        """单个片段生成失败(空结果)时跳过该关键词,继续为后续片段生成。"""
+        generated = {
+            "term-1": [],
+            "term-2": [self._generated_item("term-2", "https://cdn.example.com/2.mp4")],
+        }
+
+        def fake_generate(search_term, minimum_duration, video_aspect):
+            return generated[search_term]
+
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                side_effect=fake_generate,
+            ) as generate,
+            patch(
+                "app.services.material.save_video",
+                return_value="/tmp/wavespeed-2.mp4",
+            ),
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed-skip",
+                search_terms=["term-1", "term-2"],
+                source="wavespeed",
+                audio_duration=4,
+                max_clip_duration=5,
+            )
+
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(result, ["/tmp/wavespeed-2.mp4"])
+
 
 if __name__ == "__main__":
     unittest.main()

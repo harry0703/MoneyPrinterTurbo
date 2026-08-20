@@ -298,6 +298,11 @@
     "WaveSpeed AI Video Help": "Tạo các đoạn video hoàn toàn mới từ từ khóa kịch bản bằng các mô hình chuyển văn bản thành video của WaveSpeed AI, thay vì tìm kiếm video có sẵn. Việc tạo video được WaveSpeed tính phí theo từng đoạn.",
     "WaveSpeed API Key": "Khóa API WaveSpeed ([Lấy Khóa API](https://wavespeed.ai))",
     "Please Enter the WaveSpeed API Key": "Vui lòng nhập **Khóa API WaveSpeed**",
+    "WaveSpeed Billing Notice": "Mỗi đoạn video được tạo sẽ được WaveSpeed tính phí riêng. Dựa trên thời lượng thuyết minh ước tính và thời lượng mỗi đoạn, dự kiến sẽ tạo khoảng {min}-{max} đoạn. Việc tạo diễn ra theo từng phân đoạn và dừng ngay khi đủ tư liệu.",
+    "WaveSpeed Billing Notice Without Script": "Mỗi đoạn video được tạo sẽ được WaveSpeed tính phí riêng. Nhập hoặc tạo kịch bản video để xem số đoạn ước tính. Việc tạo diễn ra theo từng phân đoạn và dừng ngay khi đủ tư liệu.",
+    "Confirm WaveSpeed Charge": "Tôi hiểu rằng tạo video bằng WaveSpeed là dịch vụ trả phí",
+    "Confirm WaveSpeed Charge Help": "Các đoạn video được tạo theo nhu cầu, từng phân đoạn một; việc tạo dừng khi tư liệu đã đủ cho thời lượng thuyết minh. WaveSpeed tính phí theo từng đoạn được tạo.",
+    "Confirm WaveSpeed Charge Required": "Vui lòng xác nhận chi phí tạo video WaveSpeed trước khi tạo video.",
     "Video Encoder": "Bộ Mã Hóa Video",
     "Default Video Encoder": "Mặc định (Khuyên dùng)",
     "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264."

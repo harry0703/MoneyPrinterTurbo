@@ -300,6 +300,11 @@
     "WaveSpeed AI Video": "WaveSpeed-KI-Video",
     "WaveSpeed AI Video Help": "Erzeugt mit WaveSpeed-KI-Text-zu-Video-Modellen neue Clips aus Ihren Skript-Stichwörtern, statt Stock-Material zu durchsuchen. Die Generierung wird von WaveSpeed pro Clip berechnet.",
     "WaveSpeed API Key": "WaveSpeed-API-Schlüssel ([API-Schlüssel erhalten](https://wavespeed.ai))",
-    "Please Enter the WaveSpeed API Key": "Bitte geben Sie den **WaveSpeed-API-Schlüssel** ein"
+    "Please Enter the WaveSpeed API Key": "Bitte geben Sie den **WaveSpeed-API-Schlüssel** ein",
+    "WaveSpeed Billing Notice": "Jeder generierte Clip wird von WaveSpeed einzeln berechnet. Basierend auf der geschätzten Sprecherdauer und der Clip-Länge werden voraussichtlich etwa {min}-{max} Clip(s) generiert. Die Generierung erfolgt Segment für Segment und stoppt, sobald genügend Material vorliegt.",
+    "WaveSpeed Billing Notice Without Script": "Jeder generierte Clip wird von WaveSpeed einzeln berechnet. Geben Sie das Videoskript ein oder generieren Sie es, um eine geschätzte Clip-Anzahl zu sehen. Die Generierung erfolgt Segment für Segment und stoppt, sobald genügend Material vorliegt.",
+    "Confirm WaveSpeed Charge": "Ich verstehe, dass die WaveSpeed-Videogenerierung ein kostenpflichtiger Dienst ist",
+    "Confirm WaveSpeed Charge Help": "Clips werden bedarfsgesteuert Segment für Segment generiert; die Generierung stoppt, sobald das Material die Sprecherdauer abdeckt. Die Gebühren berechnet WaveSpeed pro generiertem Clip.",
+    "Confirm WaveSpeed Charge Required": "Bitte bestätigen Sie die WaveSpeed-Generierungskosten, bevor Sie das Video erstellen."
   }
 }

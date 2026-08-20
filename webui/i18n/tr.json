@@ -298,6 +298,11 @@
     "WaveSpeed AI Video Help": "Stok görüntü aramak yerine, WaveSpeed AI metinden videoya modelleriyle senaryo anahtar kelimelerinizden yepyeni klipler üretin. Üretim, WaveSpeed tarafından klip başına ücretlendirilir.",
     "WaveSpeed API Key": "WaveSpeed API Anahtarı ([API Anahtarı Al](https://wavespeed.ai))",
     "Please Enter the WaveSpeed API Key": "Lütfen **WaveSpeed API Anahtarını** girin",
+    "WaveSpeed Billing Notice": "Üretilen her klip WaveSpeed tarafından ayrı ücretlendirilir. Tahmini seslendirme süresi ve klip süresine göre yaklaşık {min}-{max} klip üretilecektir. Üretim bölüm bölüm ilerler ve yeterli görüntü toplanır toplanmaz durur.",
+    "WaveSpeed Billing Notice Without Script": "Üretilen her klip WaveSpeed tarafından ayrı ücretlendirilir. Tahmini klip sayısını görmek için video senaryosunu girin veya oluşturun. Üretim bölüm bölüm ilerler ve yeterli görüntü toplanır toplanmaz durur.",
+    "Confirm WaveSpeed Charge": "WaveSpeed video üretiminin ücretli bir hizmet olduğunu anlıyorum",
+    "Confirm WaveSpeed Charge Help": "Klipler ihtiyaç oldukça, senaryo bölümü bölümü üretilir; görüntüler seslendirme süresini karşıladığında üretim durur. Ücretler, üretilen klip başına WaveSpeed tarafından alınır.",
+    "Confirm WaveSpeed Charge Required": "Lütfen videoyu oluşturmadan önce WaveSpeed üretim ücretini onaylayın.",
     "Video Encoder": "Video Kodlayıcı",
     "Default Video Encoder": "Varsayılan (Önerilen)",
     "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner."

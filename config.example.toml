@@ -77,6 +77,12 @@ wavespeed_api_keys = []
 # Optional. Any WaveSpeed text-to-video model id that accepts
 # prompt / aspect_ratio / duration works here.
 # wavespeed_text_to_video_model = "bytedance/seedance-2.0-fast/text-to-video"
+# The default model only accepts durations of 4-15 seconds. Requested clip
+# durations outside the range are clamped automatically before submission
+# (extra footage is trimmed by the editing pipeline). Override only if your
+# chosen model supports a different range.
+# wavespeed_min_duration = 4
+# wavespeed_max_duration = 15
 
 # Optional TwelveLabs integration for semantic material ranking and video QA.
 # Install the optional dependency with: uv sync --extra twelvelabs
