@@ -510,3 +510,58 @@ class MultiAccountTest(unittest.TestCase):
             label="x", username="Weird/Name:1", password="p"
         )
         self.assertEqual(account.slug, "weird_name_1")
+
+
+class FetchStatsTest(unittest.TestCase):
+    """
+    读数据这条路存在的意义是让使用者不必登录浏览器：每次登录平台都会看到
+    一台新设备，一次安全验证就可能作废定时任务正在用的会话。
+    """
+
+    def test_it_asks_the_worker_for_stats(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker",
+                              return_value={"ok": True, "media": []}) as worker:
+                instagram.fetch_stats(amount=5)
+        request = worker.call_args[0][0]
+        self.assertEqual(request["action"], "stats")
+        self.assertEqual(request["amount"], 5)
+
+    def test_it_never_publishes_anything(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker",
+                              return_value={"ok": True, "media": []}) as worker:
+                instagram.fetch_stats()
+        self.assertNotIn("video_path", worker.call_args[0][0])
+
+    def test_reading_stats_does_not_consume_the_upload_quota(self):
+        """看数据不是发布，不该占用当天的发布额度。"""
+        account = instagram.InstagramAccount(
+            label="creator", username="creator", password="x"
+        )
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker",
+                              return_value={"ok": True, "media": []}):
+                instagram.fetch_stats()
+            self.assertEqual(len(instagram._read_history(account)), 0)
+
+    def test_a_dead_session_surfaces_as_an_auth_error(self):
+        payload = {"ok": False, "error_type": "session_expired", "error": "gone"}
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker", return_value=payload):
+                with self.assertRaises(instagram.InstagramAuthError):
+                    instagram.fetch_stats()
+
+    def test_a_rate_limit_keeps_its_own_type(self):
+        payload = {"ok": False, "error_type": "rate_limit", "error": "429"}
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker", return_value=payload):
+                with self.assertRaises(instagram.InstagramRateLimitError):
+                    instagram.fetch_stats()
+
+    def test_a_disabled_service_makes_no_request(self):
+        with _ConfigPatch(enabled=False):
+            with patch.object(instagram, "_run_worker") as worker:
+                with self.assertRaises(instagram.InstagramNotConfiguredError):
+                    instagram.fetch_stats()
+        worker.assert_not_called()

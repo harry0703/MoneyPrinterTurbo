@@ -142,3 +142,87 @@ class SessionExpiryTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StatsTest(unittest.TestCase):
+    """
+    看一次数据面板应当只花一次调用。逐条去查每个链接的计数，会把一次浏览
+    变成十几个请求，那正是最该避免的访问模式。
+    """
+
+    class Clip:
+        def __init__(self, code, plays=None, views=None, likes=3, comments=1,
+                     caption="x", taken_at=None):
+            import datetime
+            self.code = code
+            self.play_count = plays
+            self.view_count = views
+            self.like_count = likes
+            self.comment_count = comments
+            self.caption_text = caption
+            self.taken_at = taken_at or datetime.datetime(2026, 8, 20, 21, 31)
+
+    class Info:
+        username = "triple.t.polyester"
+        follower_count = 42
+        following_count = 7
+        media_count = 3
+
+    class Client:
+        user_id = "1"
+
+        def __init__(self, clips):
+            self.clips = clips
+            self.clip_calls = []
+
+        def user_info(self, user_id):
+            return StatsTest.Info()
+
+        def user_clips(self, user_id, amount):
+            self.clip_calls.append(amount)
+            return self.clips[:amount]
+
+    def test_one_call_returns_the_whole_batch(self):
+        client = self.Client([self.Clip(f"c{i}") for i in range(5)])
+        worker._stats(client, {"amount": 5})
+        self.assertEqual(len(client.clip_calls), 1)
+
+    def test_the_account_totals_are_reported(self):
+        result = worker._stats(self.Client([]), {})
+        self.assertEqual(result["followers"], 42)
+        self.assertEqual(result["username"], "triple.t.polyester")
+
+    def test_play_count_falls_back_to_view_count(self):
+        """播放数按接口版本落在两个字段中的一个，缺哪个都不该显示成 0。"""
+        client = self.Client([self.Clip("a", plays=None, views=120)])
+        self.assertEqual(worker._stats(client, {})["media"][0]["plays"], 120)
+
+    def test_play_count_is_preferred_when_both_are_present(self):
+        client = self.Client([self.Clip("a", plays=99, views=120)])
+        self.assertEqual(worker._stats(client, {})["media"][0]["plays"], 99)
+
+    def test_a_missing_count_reads_as_zero_not_none(self):
+        client = self.Client([self.Clip("a")])
+        self.assertEqual(worker._stats(client, {})["media"][0]["plays"], 0)
+
+    def test_the_timestamp_survives_as_text(self):
+        """结果要经过 JSON 送回主进程，datetime 到那里会直接炸掉。"""
+        client = self.Client([self.Clip("a")])
+        import json
+        json.dumps(worker._stats(client, {}))
+
+    def test_the_amount_is_clamped(self):
+        client = self.Client([self.Clip(f"c{i}") for i in range(60)])
+        worker._stats(client, {"amount": 500})
+        self.assertLessEqual(client.clip_calls[0], 50)
+
+    def test_a_missing_amount_uses_a_sane_default(self):
+        client = self.Client([])
+        worker._stats(client, {})
+        self.assertEqual(client.clip_calls[0], 12)
+
+    def test_long_captions_are_truncated(self):
+        client = self.Client([self.Clip("a", caption="x" * 500)])
+        self.assertLessEqual(
+            len(worker._stats(client, {})["media"][0]["caption"]), 120
+        )
