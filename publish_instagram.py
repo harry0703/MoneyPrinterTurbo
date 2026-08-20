@@ -95,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
              "for when password login is refused",
     )
     parser.add_argument(
+        "--check-all",
+        action="store_true",
+        help="verify every configured account's session in one go",
+    )
+    parser.add_argument(
         "--list-accounts",
         action="store_true",
         help="print the configured accounts and exit",
@@ -126,6 +131,19 @@ def main(argv=None) -> int:
             return 1
         print(json.dumps(result, ensure_ascii=False))
         return 0
+
+    if args.check_all:
+        # 会话会被平台单方面吊销，而失效只有在发布那一刻才会显现。逐个账号
+        # 报告，就能在当天的定时任务跑起来之前先看一眼。
+        failures = 0
+        for account in instagram.list_accounts():
+            try:
+                instagram.verify_session(account=account.label)
+                print(f"{account.label:12} ok       {account.username}")
+            except instagram.InstagramError as exc:
+                failures += 1
+                print(f"{account.label:12} FAILED   {exc}")
+        return 1 if failures else 0
 
     if args.check:
         try:
