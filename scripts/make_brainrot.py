@@ -103,7 +103,10 @@ def build_video(
 
     invasion_start = bait_seconds
     invasion_end = bait_seconds + invasion_seconds
-    total = invasion_end + template.duration
+    # 入侵期间第一个实例已经把剪辑放了 invasion_seconds，正片从那里接着走。
+    # 从头重放会让刚看过的几秒再来一遍，衔接处像卡住了。
+    resume_at = min(invasion_seconds, max(0.0, template.duration - 1e-3))
+    total = invasion_end + (template.duration - resume_at)
 
     card = render.render_text_card(
         text=text,
@@ -130,8 +133,8 @@ def build_video(
 
     def make_frame(t: float) -> np.ndarray:
         if t >= invasion_end:
-            # 正式剪辑保持 16:9 原比例，上下留黑边。
-            offset = min(t - invasion_end, template.duration - 1e-3)
+            # 正式剪辑保持 16:9 原比例，上下留黑边；进度接着第一个实例继续。
+            offset = min(resume_at + (t - invasion_end), template.duration - 1e-3)
             return render.letterbox(template.get_frame(offset), width, height)
 
         base = Image.fromarray(bait_frame(t))
@@ -173,7 +176,10 @@ def build_video(
                 .with_start(invasion_start + start)
                 .with_effects([afx.MultiplyVolume(stutter_volume)])
             )
-        audio_parts.append(template.audio.with_start(invasion_end))
+        # 声音同样接着走：第一个实例正好放到 resume_at，两段无缝相接。
+        audio_parts.append(
+            template.audio.subclipped(resume_at).with_start(invasion_end)
+        )
     if audio_parts:
         clip = clip.with_audio(CompositeAudioClip(audio_parts))
 
