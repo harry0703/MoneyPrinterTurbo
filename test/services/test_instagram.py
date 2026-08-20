@@ -305,6 +305,94 @@ class ImportSessionTest(unittest.TestCase):
         self.assertIn("account", result)
 
 
+class ThumbnailTest(unittest.TestCase):
+    """
+    instagrapi 自己抽封面要靠 MoviePy，而它和 instagrapi 对 Pillow 的版本要求
+    互相冲突——隔离工作进程正是为了避开这一点。封面因此必须由主进程备好。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.temp_dir = tempfile.mkdtemp()
+        cls.video_path = os.path.join(cls.temp_dir, "clip.mp4")
+        subprocess.run(
+            [
+                instagram.utils.get_ffmpeg_binary(),
+                "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "testsrc=size=180x320:rate=10:duration=1",
+                "-pix_fmt", "yuv420p", cls.video_path,
+            ],
+            capture_output=True, timeout=120, check=True,
+        )
+
+    def test_a_real_video_yields_a_jpeg(self):
+        path = instagram._extract_thumbnail(self.video_path)
+        self.addCleanup(instagram._remove_quietly, path)
+        self.assertTrue(path.endswith(".jpg"))
+        self.assertGreater(os.path.getsize(path), 0)
+
+    def test_a_broken_video_returns_nothing_instead_of_raising(self):
+        """封面抽不出来不该拖垮整条发布：没有封面也好过不发。"""
+        broken = os.path.join(self.temp_dir, "broken.mp4")
+        with open(broken, "wb") as handle:
+            handle.write(b"not a video")
+        self.assertEqual(instagram._extract_thumbnail(broken), "")
+
+    def test_no_temporary_file_is_left_behind_on_failure(self):
+        broken = os.path.join(self.temp_dir, "broken2.mp4")
+        with open(broken, "wb") as handle:
+            handle.write(b"nope")
+        before = len(os.listdir(tempfile.gettempdir()))
+        instagram._extract_thumbnail(broken)
+        self.assertLessEqual(len(os.listdir(tempfile.gettempdir())), before)
+
+    def test_remove_quietly_tolerates_a_missing_file(self):
+        instagram._remove_quietly(os.path.join(self.temp_dir, "never-existed"))
+
+    def test_the_thumbnail_path_reaches_the_worker(self):
+        with _ConfigPatch():
+            with patch.object(instagram.utils, "storage_dir",
+                              return_value=self.temp_dir):
+                with patch.object(
+                    instagram, "_run_worker",
+                    return_value={"ok": True, "url": "https://x"},
+                ) as worker:
+                    instagram.publish_reel(video_path=self.video_path)
+        self.assertTrue(worker.call_args[0][0]["thumbnail"])
+
+    def test_the_temporary_cover_is_removed_after_publishing(self):
+        captured = {}
+
+        def capture(request):
+            captured["thumbnail"] = request["thumbnail"]
+            return {"ok": True, "url": "https://x"}
+
+        with _ConfigPatch():
+            with patch.object(instagram.utils, "storage_dir",
+                              return_value=self.temp_dir):
+                with patch.object(instagram, "_run_worker", side_effect=capture):
+                    instagram.publish_reel(video_path=self.video_path)
+
+        self.assertFalse(os.path.exists(captured["thumbnail"]))
+
+    def test_the_cover_is_removed_even_when_publishing_fails(self):
+        """失败路径也要清理，否则每次失败都在 /tmp 留下一张图。"""
+        captured = {}
+
+        def capture(request):
+            captured["thumbnail"] = request["thumbnail"]
+            return {"ok": False, "error_type": "upload", "error": "nope"}
+
+        with _ConfigPatch():
+            with patch.object(instagram.utils, "storage_dir",
+                              return_value=self.temp_dir):
+                with patch.object(instagram, "_run_worker", side_effect=capture):
+                    with self.assertRaises(instagram.InstagramError):
+                        instagram.publish_reel(video_path=self.video_path)
+
+        self.assertFalse(os.path.exists(captured["thumbnail"]))
+
+
 if __name__ == "__main__":
     unittest.main()
 

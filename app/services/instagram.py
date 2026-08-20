@@ -16,6 +16,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 
@@ -368,6 +369,50 @@ def import_session(sessionid: str, account: str = "") -> dict:
     return result
 
 
+def _extract_thumbnail(video_path: str, at_seconds: float = 0.0) -> str:
+    """
+    抽一帧作为封面，返回临时 JPEG 路径；失败时返回空字符串。
+
+    instagrapi 自己抽帧要靠 MoviePy，而工作进程刻意不装它——两者对 Pillow 的
+    版本要求互相冲突，隔离正是为此。主进程本来就有 ffmpeg，由它抽帧再把文件
+    交过去，既绕开冲突，也让封面变成我们能决定的东西而不是碰运气。
+
+    取第 0 帧：brainrot 的成片把封面画在了那里，普通成片的首帧也够用。
+    """
+    handle, thumbnail_path = tempfile.mkstemp(prefix="ig-cover-", suffix=".jpg")
+    os.close(handle)
+
+    try:
+        subprocess.run(
+            [
+                utils.get_ffmpeg_binary(),
+                "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", str(max(0.0, at_seconds)),
+                "-i", video_path,
+                "-frames:v", "1",
+                "-q:v", "2",
+                thumbnail_path,
+            ],
+            capture_output=True, timeout=120, check=True,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning(f"could not extract a cover frame: {exc}")
+        _remove_quietly(thumbnail_path)
+        return ""
+
+    if os.path.getsize(thumbnail_path) == 0:
+        _remove_quietly(thumbnail_path)
+        return ""
+    return thumbnail_path
+
+
+def _remove_quietly(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 def publish_reel(
     video_path: str,
     caption: str = "",
@@ -392,6 +437,7 @@ def publish_reel(
 
     check_rate_limit(target, settings)
 
+    thumbnail_path = _extract_thumbnail(video_path)
     request = _build_request(
         target,
         action="publish",
@@ -399,12 +445,17 @@ def publish_reel(
         caption=(caption or "")[:_MAX_CAPTION_LENGTH],
         music_query=music_query or "",
         video_duration_ms=int(video_duration_ms or 0),
+        thumbnail=thumbnail_path,
     )
 
     logger.info(
         f"publishing Instagram reel as {target.label}: {os.path.basename(video_path)}"
     )
-    result = _run_worker(request)
+    try:
+        result = _run_worker(request)
+    finally:
+        if thumbnail_path:
+            _remove_quietly(thumbnail_path)
 
     if not result.get("ok"):
         _raise_for_result(result)

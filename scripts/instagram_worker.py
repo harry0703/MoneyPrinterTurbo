@@ -269,7 +269,15 @@ def _publish(client, request: dict) -> dict:
     for attempt in range(1, _TRANSIENT_RETRIES + 1):
         started_at = time.time()
         try:
-            media = client.clip_upload(video_path, caption=caption, extra_data=extra_data)
+            # 封面由主进程用 ffmpeg 抽好后传进来。instagrapi 自己抽帧要 MoviePy，
+            # 而它和 instagrapi 对 Pillow 的版本要求互相冲突——隔离这个进程正是
+            # 为了避开那场冲突，不能又把它请回来。
+            thumbnail = request.get("thumbnail") or ""
+            upload_kwargs = {"caption": caption, "extra_data": extra_data}
+            if thumbnail and Path(thumbnail).is_file():
+                upload_kwargs["thumbnail"] = Path(thumbnail)
+
+            media = client.clip_upload(video_path, **upload_kwargs)
             return {
                 "ok": True,
                 "media_pk": str(media.pk),
