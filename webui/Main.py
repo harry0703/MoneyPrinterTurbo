@@ -1402,6 +1402,8 @@ def _render_top_bar():
 
 
 support_locales = [
+    "ar-SA",
+    "ar-EG",
     "zh-CN",
     "zh-HK",
     "zh-TW",
@@ -4441,6 +4443,11 @@ def _render_audio_settings(panel, params):
                     return name.replace("-Female", "").replace("-Male", "")
                 if voice.is_minimax_voice(v):
                     return minimax_voice_labels.get(v, v.split(":", 1)[1])
+                if voice.is_gemini_voice(v):
+                    gemini_raw = v.split(":", 1)[1]
+                    if gemini_raw.endswith("-ar"):
+                        return gemini_raw[:-3].replace("-", " · ") + " (العربية)"
+                    return gemini_raw.replace("-", " · ")
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))

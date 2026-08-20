@@ -135,8 +135,13 @@ def get_gemini_voices() -> list[str]:
 
     Returns:
         声音列表，格式为 ["gemini:Zephyr-Bright", "gemini:Puck-Upbeat", ...]
+        阿拉伯语变体以 "-ar" 结尾，例如 "gemini:Zephyr-Bright-ar"，并排在列表最前面。
     """
-    return [f"gemini:{voice}-{style}" for voice, style in GEMINI_TTS_VOICES]
+    arabic_voices = [
+        f"gemini:{voice}-{style}-ar" for voice, style in GEMINI_TTS_VOICES
+    ]
+    voices = [f"gemini:{voice}-{style}" for voice, style in GEMINI_TTS_VOICES]
+    return arabic_voices + voices
 
 
 def get_mimo_voices() -> list[str]:
@@ -248,7 +253,8 @@ def get_all_azure_voices(filter_locals=None) -> list[str]:
         elif not filter_locals:
             voices.append(f"{name}-{gender}")
 
-    voices.sort()
+    # 阿拉伯语音色优先排在列表最前面，便于阿拉伯语用户快速选择。
+    voices.sort(key=lambda v: (not v.lower().startswith("ar-"), v))
     return voices
 
 
@@ -459,7 +465,15 @@ def tts(
         # 格式: gemini:voice-Style；也继续兼容旧的 gemini:voice-Gender。
         voice = parse_gemini_voice_name(voice_name)
         if voice:
-            return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
+            language_code = "ar" if (voice_name or "").endswith("-ar") else ""
+            return gemini_tts(
+                text,
+                voice,
+                voice_rate,
+                voice_file,
+                voice_volume,
+                language_code=language_code,
+            )
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
             return None
@@ -1115,6 +1129,7 @@ def gemini_tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    language_code: str = "",
 ) -> Union[SubMaker, None]:
     """
     使用Google Gemini TTS生成语音
@@ -1125,6 +1140,7 @@ def gemini_tts(
         voice_rate: 语音速率（当前未使用）
         voice_file: 输出音频文件路径
         voice_volume: 音频音量（当前未使用）
+        language_code: 语言代码（如 "ar" 用于阿拉伯语），空字符串表示自动检测
         
     Returns:
         SubMaker对象或None
@@ -1151,7 +1167,8 @@ def gemini_tts(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
                         voice_name=voice_name
                     )
-                )
+                ),
+                **({"language_code": language_code} if language_code else {}),
             ),
         )
 
