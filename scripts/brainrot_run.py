@@ -68,13 +68,20 @@ def build_caption(text: str, index: int) -> str:
     """
     import importlib.util
 
+    profile = load_caption_profile()
+    # 固定文案优先。这个账号现在挂的是一段与画面无关的日文通告，每条都一样，
+    # 是使用者选定的做法，不是缺省行为。
+    fixed = profile.get("fixed", "").strip()
+    if fixed:
+        return fixed
+
     spec = importlib.util.spec_from_file_location(
         "build_content_plan",
         os.path.join(project_root(), "scripts", "build_content_plan.py"),
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.build_caption(load_caption_profile(), text, index)
+    return module.build_caption(profile, text, index)
 
 
 def next_text(index: int) -> str:

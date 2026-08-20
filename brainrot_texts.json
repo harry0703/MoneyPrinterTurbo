@@ -1,7 +1,8 @@
 {
   "comment": "Texte de la carte, consommé dans l'ordre par --next. Une ligne = une vidéo. Ajoute-en à la fin quand le stock baisse.",
   "caption": {
-    "comment": "Legende du reel : la ligne de la carte, puis les deux lignes du compte, puis les 2 hashtags fixes + 3 tires a tour de role dans le pool (5 au total).",
+    "comment": "Legende fixe, identique sur toutes les videos brainrot. Tant que \"fixed\" est renseigne, tagline et hashtags ne servent pas.",
+    "fixed": "#TVアニメ『ONE PIECE』 エルバフ編 最新情報を発表 &最新PV公開オープニング主題歌&エンディング主題歌 さらに重要キャラクター「ロキ」のキャスト決定!! ◆\n\n公式最新情報",
     "tagline": [
       "Nothing here means anything.",
       "New one every four hours."

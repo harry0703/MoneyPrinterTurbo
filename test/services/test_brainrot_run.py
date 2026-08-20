@@ -16,31 +16,37 @@ _spec.loader.exec_module(runner)
 
 
 class CaptionTest(unittest.TestCase):
-    def test_the_card_line_opens_the_caption(self):
-        """卡片上写的那句就是标题，读者先看到的必须是它。"""
-        caption = runner.build_caption("some line", 0)
+    """
+    这个账号现在挂一段与画面无关的固定日文通告，每条都一样。是使用者选定的
+    做法，所以固定文案一旦填了就压过按条组装的那套格式。
+    """
+
+    def test_the_fixed_caption_is_used_verbatim(self):
+        fixed = runner.load_caption_profile()["fixed"]
+        self.assertEqual(runner.build_caption("any line", 0), fixed)
+
+    def test_the_card_line_does_not_leak_into_it(self):
+        self.assertNotIn("any line", runner.build_caption("any line", 0))
+
+    def test_the_index_no_longer_changes_anything(self):
+        self.assertEqual(
+            runner.build_caption("x", 0), runner.build_caption("x", 7)
+        )
+
+    def test_it_is_not_mangled_by_json_round_tripping(self):
+        """日文和全角符号经过一次编码出错就会变成乱码，而且没人会去读日志。"""
+        fixed = runner.load_caption_profile()["fixed"]
+        self.assertIn("ONE PIECE", fixed)
+        self.assertIn("公式最新情報", fixed)
+        self.assertIn("\n\n", fixed)
+
+    def test_clearing_it_falls_back_to_the_composed_format(self):
+        profile = dict(runner.load_caption_profile())
+        profile["fixed"] = ""
+        with patch.object(runner, "load_caption_profile", return_value=profile):
+            caption = runner.build_caption("some line", 0)
         self.assertTrue(caption.startswith("some line"))
-
-    def test_the_account_lines_are_present(self):
-        caption = runner.build_caption("x", 0)
-        for line in runner.load_caption_profile()["tagline"]:
-            self.assertIn(line, caption)
-
-    def test_five_hashtags_two_of_them_fixed(self):
-        tags = runner.build_caption("x", 0).split("\n")[-1].split()
-        self.assertEqual(len(tags), 5)
-        self.assertEqual(tags[:2], runner.load_caption_profile()["hashtag_core"])
-
-    def test_the_rotating_tags_move_with_the_index(self):
-        """每条都挂同一串标签，正是平台判定模板化生产的依据。"""
-        first = runner.build_caption("x", 0).split("\n")[-1]
-        second = runner.build_caption("x", 1).split("\n")[-1]
-        self.assertNotEqual(first, second)
-
-    def test_every_hashtag_starts_with_a_hash(self):
-        profile = runner.load_caption_profile()
-        for tag in profile["hashtag_core"] + profile["hashtag_pool"]:
-            self.assertTrue(tag.startswith("#"), tag)
+        self.assertEqual(len(caption.split("\n")[-1].split()), 5)
 
 
 class NextTextTest(unittest.TestCase):
