@@ -247,8 +247,10 @@ subtitle_provider = "edge"
 # Leave unset to follow the app default (libx264). Hardware encoders are optional;
 # unsupported encoders automatically fall back to libx264.
 # Available values: "libx264", "h264_nvenc", "h264_amf", "h264_qsv",
-# "h264_mf", "h264_videotoolbox".
+# "h264_vaapi", "h264_mf", "h264_videotoolbox".
 # video_codec = "libx264"
+# Linux VA-API render node. Can also be overridden with VAAPI_DEVICE.
+# vaapi_device = "/dev/dri/renderD128"
 
 # -----------------------------------------------------------------------------
 # Storage and Task Runtime / 存储与任务运行
