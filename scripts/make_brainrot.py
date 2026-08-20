@@ -37,6 +37,11 @@ VIDEO_EXTENSIONS = (".mp4", ".mov", ".mkv", ".webm", ".m4v")
 DEFAULT_BAIT_SECONDS = 10.0
 # 入侵持续多久。样片约 3~4 秒，短了像掉帧，长了会让人以为视频坏了。
 DEFAULT_INVASION_SECONDS = 2.5
+# 每隔这么久叠一个新的播放实例。
+DEFAULT_PANEL_INTERVAL = 0.42
+# 每个实例自带的那记重音。刻意压过正片音轨——这一段要的就是吵。
+DEFAULT_STUTTER_VOLUME = 1.2
+DEFAULT_STUTTER_TAIL = 0.6
 
 DEFAULT_WIDTH = 720
 DEFAULT_HEIGHT = 1280
@@ -84,9 +89,9 @@ def build_video(
     invasion_seconds: float,
     font_path: str,
     seed: int,
-    panel_interval: float = 0.35,
-    stutter_volume: float = 0.30,
-    stutter_tail: float = 0.6,
+    panel_interval: float = DEFAULT_PANEL_INTERVAL,
+    stutter_volume: float = DEFAULT_STUTTER_VOLUME,
+    stutter_tail: float = DEFAULT_STUTTER_TAIL,
 ):
     import numpy as np
     from moviepy import AudioFileClip, CompositeAudioClip, VideoClip, VideoFileClip, afx
@@ -198,11 +203,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fps", type=int, default=DEFAULT_FPS)
     parser.add_argument("--bait-seconds", type=float, default=DEFAULT_BAIT_SECONDS)
     parser.add_argument("--invasion-seconds", type=float, default=DEFAULT_INVASION_SECONDS)
-    parser.add_argument("--panel-interval", type=float, default=0.2,
+    parser.add_argument("--panel-interval", type=float, default=DEFAULT_PANEL_INTERVAL,
                         help="seconds between two stacked copies of the edit")
-    parser.add_argument("--stutter-volume", type=float, default=0.30,
+    parser.add_argument("--stutter-volume", type=float, default=DEFAULT_STUTTER_VOLUME,
                         help="volume of each stacked copy's audio")
-    parser.add_argument("--stutter-tail", type=float, default=0.6,
+    parser.add_argument("--stutter-tail", type=float, default=DEFAULT_STUTTER_TAIL,
                         help="how long each stacked copy's audio is kept")
     parser.add_argument("--seed", type=int, default=0, help="0 picks a random one")
     parser.add_argument("--list", action="store_true", help="list available bait clips and exit")
