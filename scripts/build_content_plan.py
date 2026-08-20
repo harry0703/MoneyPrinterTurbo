@@ -18,7 +18,7 @@ PLAN_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "content_plan.json"
 )
 
-START_DATE = date(2026, 8, 24)  # 周一开始，给新账号留出人工预热时间
+START_DATE = date(2026, 8, 21)  # vendredi
 TOTAL_DAYS = 100
 POSTING_WEEKDAYS = {0, 1, 2, 3, 4}  # 周一至周五，每周 5 条
 

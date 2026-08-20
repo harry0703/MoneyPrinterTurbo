@@ -172,1731 +172,1731 @@
   "schedule": [
     {
       "id": "why-001",
-      "date": "2026-08-24",
+      "date": "2026-08-13",
       "account": "why",
       "subject": "Why is the sky blue?",
       "bgm_file": "output020.mp3",
       "caption": "Why is the sky blue?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
-      "id": "waypoint-001",
-      "date": "2026-08-24",
-      "account": "waypoint",
-      "subject": "The city that is sinking two millimetres a year",
-      "bgm_file": "output024.mp3",
-      "caption": "The city that is sinking two millimetres a year\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
-    },
-    {
-      "id": "creature-001",
-      "date": "2026-08-24",
-      "account": "creature",
-      "subject": "An octopus has three hearts",
-      "bgm_file": "output000.mp3",
-      "caption": "An octopus has three hearts\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
-    },
-    {
       "id": "why-002",
-      "date": "2026-08-25",
+      "date": "2026-08-14",
       "account": "why",
       "subject": "Why are sunsets red?",
       "bgm_file": "output016.mp3",
       "caption": "Why are sunsets red?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
-      "id": "waypoint-002",
-      "date": "2026-08-25",
-      "account": "waypoint",
-      "subject": "The town where the sun does not set for months",
-      "bgm_file": "output003.mp3",
-      "caption": "The town where the sun does not set for months\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
-    },
-    {
-      "id": "creature-002",
-      "date": "2026-08-25",
-      "account": "creature",
-      "subject": "Why cats purr",
-      "bgm_file": "output019.mp3",
-      "caption": "Why cats purr\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
-    },
-    {
       "id": "why-003",
-      "date": "2026-08-26",
+      "date": "2026-08-17",
       "account": "why",
       "subject": "Why does it smell like that before it rains?",
       "bgm_file": "output013.mp3",
       "caption": "Why does it smell like that before it rains?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
-      "id": "waypoint-003",
-      "date": "2026-08-26",
-      "account": "waypoint",
-      "subject": "The most isolated inhabited island on Earth",
-      "bgm_file": "output014.mp3",
-      "caption": "The most isolated inhabited island on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
-    },
-    {
-      "id": "creature-003",
-      "date": "2026-08-26",
+      "id": "creature-001",
+      "date": "2026-08-18",
       "account": "creature",
-      "subject": "This bird flies 11,000 km without landing",
-      "bgm_file": "output015.mp3",
-      "caption": "This bird flies 11,000 km without landing\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
+      "subject": "An octopus has three hearts",
+      "bgm_file": "output000.mp3",
+      "caption": "An octopus has three hearts\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
       "id": "why-004",
-      "date": "2026-08-27",
+      "date": "2026-08-18",
       "account": "why",
       "subject": "Why is the sea salty?",
       "bgm_file": "output005.mp3",
       "caption": "Why is the sea salty?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
-      "id": "waypoint-004",
-      "date": "2026-08-27",
-      "account": "waypoint",
-      "subject": "The most dangerous road in the world",
-      "bgm_file": "output017.mp3",
-      "caption": "The most dangerous road in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
+      "id": "creature-002",
+      "date": "2026-08-19",
+      "account": "creature",
+      "subject": "Why cats purr",
+      "bgm_file": "output019.mp3",
+      "caption": "Why cats purr\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
-      "id": "creature-004",
-      "date": "2026-08-27",
-      "account": "creature",
-      "subject": "Flamingos are not born pink",
-      "bgm_file": "output008.mp3",
-      "caption": "Flamingos are not born pink\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
+      "id": "waypoint-001",
+      "date": "2026-08-19",
+      "account": "waypoint",
+      "subject": "The city that is sinking two millimetres a year",
+      "bgm_file": "output024.mp3",
+      "caption": "The city that is sinking two millimetres a year\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "why-005",
-      "date": "2026-08-28",
+      "date": "2026-08-19",
       "account": "why",
       "subject": "Why is snow white when ice is clear?",
       "bgm_file": "output009.mp3",
       "caption": "Why is snow white when ice is clear?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
-      "id": "waypoint-005",
-      "date": "2026-08-28",
-      "account": "waypoint",
-      "subject": "The town where it is illegal to be buried",
-      "bgm_file": "output006.mp3",
-      "caption": "The town where it is illegal to be buried\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
+      "id": "creature-003",
+      "date": "2026-08-20",
+      "account": "creature",
+      "subject": "This bird flies 11,000 km without landing",
+      "bgm_file": "output015.mp3",
+      "caption": "This bird flies 11,000 km without landing\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
-      "id": "creature-005",
-      "date": "2026-08-28",
-      "account": "creature",
-      "subject": "Dolphins sleep with half their brain awake",
-      "bgm_file": "output004.mp3",
-      "caption": "Dolphins sleep with half their brain awake\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
+      "id": "waypoint-002",
+      "date": "2026-08-20",
+      "account": "waypoint",
+      "subject": "The town where the sun does not set for months",
+      "bgm_file": "output003.mp3",
+      "caption": "The town where the sun does not set for months\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "why-006",
-      "date": "2026-08-31",
+      "date": "2026-08-20",
       "account": "why",
       "subject": "Why do we hiccup?",
       "bgm_file": "output022.mp3",
       "caption": "Why do we hiccup?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
-      "id": "waypoint-006",
-      "date": "2026-08-31",
-      "account": "waypoint",
-      "subject": "The deepest lake on the planet",
-      "bgm_file": "output021.mp3",
-      "caption": "The deepest lake on the planet\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
+      "id": "creature-004",
+      "date": "2026-08-21",
+      "account": "creature",
+      "subject": "Flamingos are not born pink",
+      "bgm_file": "output008.mp3",
+      "caption": "Flamingos are not born pink\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
-      "id": "creature-006",
-      "date": "2026-08-31",
-      "account": "creature",
-      "subject": "This jellyfish can reverse its own ageing",
-      "bgm_file": "output023.mp3",
-      "caption": "This jellyfish can reverse its own ageing\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
+      "id": "waypoint-003",
+      "date": "2026-08-21",
+      "account": "waypoint",
+      "subject": "The most isolated inhabited island on Earth",
+      "bgm_file": "output014.mp3",
+      "caption": "The most isolated inhabited island on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "why-007",
-      "date": "2026-09-01",
+      "date": "2026-08-21",
       "account": "why",
       "subject": "Why is yawning contagious?",
       "bgm_file": "output028.mp3",
       "caption": "Why is yawning contagious?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
-      "id": "waypoint-007",
-      "date": "2026-09-01",
-      "account": "waypoint",
-      "subject": "The driest place on Earth",
-      "bgm_file": "output025.mp3",
-      "caption": "The driest place on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
+      "id": "creature-005",
+      "date": "2026-08-24",
+      "account": "creature",
+      "subject": "Dolphins sleep with half their brain awake",
+      "bgm_file": "output004.mp3",
+      "caption": "Dolphins sleep with half their brain awake\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
-      "id": "creature-007",
-      "date": "2026-09-01",
-      "account": "creature",
-      "subject": "Tardigrades survived open space",
-      "bgm_file": "output012.mp3",
-      "caption": "Tardigrades survived open space\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
+      "id": "waypoint-004",
+      "date": "2026-08-24",
+      "account": "waypoint",
+      "subject": "The most dangerous road in the world",
+      "bgm_file": "output017.mp3",
+      "caption": "The most dangerous road in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "why-008",
-      "date": "2026-09-02",
+      "date": "2026-08-24",
       "account": "why",
       "subject": "Why do we get goosebumps?",
       "bgm_file": "output018.mp3",
       "caption": "Why do we get goosebumps?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
-      "id": "waypoint-008",
-      "date": "2026-09-02",
-      "account": "waypoint",
-      "subject": "The largest salt flat in the world",
-      "bgm_file": "output010.mp3",
-      "caption": "The largest salt flat in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
+      "id": "creature-006",
+      "date": "2026-08-25",
+      "account": "creature",
+      "subject": "This jellyfish can reverse its own ageing",
+      "bgm_file": "output023.mp3",
+      "caption": "This jellyfish can reverse its own ageing\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
-      "id": "creature-008",
-      "date": "2026-09-02",
-      "account": "creature",
-      "subject": "The mantis shrimp punches at bullet speed",
-      "bgm_file": "output011.mp3",
-      "caption": "The mantis shrimp punches at bullet speed\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
+      "id": "waypoint-005",
+      "date": "2026-08-25",
+      "account": "waypoint",
+      "subject": "The town where it is illegal to be buried",
+      "bgm_file": "output006.mp3",
+      "caption": "The town where it is illegal to be buried\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "why-009",
-      "date": "2026-09-03",
+      "date": "2026-08-25",
       "account": "why",
       "subject": "Why does coffee wake you up?",
       "bgm_file": "output007.mp3",
       "caption": "Why does coffee wake you up?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
-      "id": "waypoint-009",
-      "date": "2026-09-03",
-      "account": "waypoint",
-      "subject": "The country with no rivers",
-      "bgm_file": "output029.mp3",
-      "caption": "The country with no rivers\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
+      "id": "creature-007",
+      "date": "2026-08-26",
+      "account": "creature",
+      "subject": "Tardigrades survived open space",
+      "bgm_file": "output012.mp3",
+      "caption": "Tardigrades survived open space\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
-      "id": "creature-009",
-      "date": "2026-09-03",
-      "account": "creature",
-      "subject": "Axolotls regrow entire limbs",
-      "bgm_file": "output027.mp3",
-      "caption": "Axolotls regrow entire limbs\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
+      "id": "waypoint-006",
+      "date": "2026-08-26",
+      "account": "waypoint",
+      "subject": "The deepest lake on the planet",
+      "bgm_file": "output021.mp3",
+      "caption": "The deepest lake on the planet\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "why-010",
-      "date": "2026-09-04",
+      "date": "2026-08-26",
       "account": "why",
       "subject": "Why do onions make you cry?",
       "bgm_file": "output002.mp3",
       "caption": "Why do onions make you cry?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
-      "id": "waypoint-010",
-      "date": "2026-09-04",
-      "account": "waypoint",
-      "subject": "The wettest place on Earth",
-      "bgm_file": "output024.mp3",
-      "caption": "The wettest place on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
+      "id": "creature-008",
+      "date": "2026-08-27",
+      "account": "creature",
+      "subject": "The mantis shrimp punches at bullet speed",
+      "bgm_file": "output011.mp3",
+      "caption": "The mantis shrimp punches at bullet speed\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
-      "id": "creature-010",
-      "date": "2026-09-04",
-      "account": "creature",
-      "subject": "Elephants physically cannot jump",
-      "bgm_file": "output001.mp3",
-      "caption": "Elephants physically cannot jump\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
+      "id": "waypoint-007",
+      "date": "2026-08-27",
+      "account": "waypoint",
+      "subject": "The driest place on Earth",
+      "bgm_file": "output025.mp3",
+      "caption": "The driest place on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "why-011",
-      "date": "2026-09-07",
+      "date": "2026-08-27",
       "account": "why",
       "subject": "Why does ice float on water?",
       "bgm_file": "output020.mp3",
       "caption": "Why does ice float on water?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
-      "id": "waypoint-011",
-      "date": "2026-09-07",
-      "account": "waypoint",
-      "subject": "The town split in half by a border",
-      "bgm_file": "output003.mp3",
-      "caption": "The town split in half by a border\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
+      "id": "creature-009",
+      "date": "2026-08-28",
+      "account": "creature",
+      "subject": "Axolotls regrow entire limbs",
+      "bgm_file": "output027.mp3",
+      "caption": "Axolotls regrow entire limbs\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
-      "id": "creature-011",
-      "date": "2026-09-07",
-      "account": "creature",
-      "subject": "Sharks are older than trees",
-      "bgm_file": "output000.mp3",
-      "caption": "Sharks are older than trees\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
+      "id": "waypoint-008",
+      "date": "2026-08-28",
+      "account": "waypoint",
+      "subject": "The largest salt flat in the world",
+      "bgm_file": "output010.mp3",
+      "caption": "The largest salt flat in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "why-012",
-      "date": "2026-09-08",
+      "date": "2026-08-28",
       "account": "why",
       "subject": "Why is space black if there are so many stars?",
       "bgm_file": "output016.mp3",
       "caption": "Why is space black if there are so many stars?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
-      "id": "waypoint-012",
-      "date": "2026-09-08",
-      "account": "waypoint",
-      "subject": "The road that vanishes twice a day",
-      "bgm_file": "output014.mp3",
-      "caption": "The road that vanishes twice a day\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
+      "id": "creature-010",
+      "date": "2026-08-31",
+      "account": "creature",
+      "subject": "Elephants physically cannot jump",
+      "bgm_file": "output001.mp3",
+      "caption": "Elephants physically cannot jump\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
-      "id": "creature-012",
-      "date": "2026-09-08",
-      "account": "creature",
-      "subject": "Cows have best friends",
-      "bgm_file": "output019.mp3",
-      "caption": "Cows have best friends\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
+      "id": "waypoint-009",
+      "date": "2026-08-31",
+      "account": "waypoint",
+      "subject": "The country with no rivers",
+      "bgm_file": "output029.mp3",
+      "caption": "The country with no rivers\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "why-013",
-      "date": "2026-09-09",
+      "date": "2026-08-31",
       "account": "why",
       "subject": "Why do stars twinkle but planets don't?",
       "bgm_file": "output013.mp3",
       "caption": "Why do stars twinkle but planets don't?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
-      "id": "waypoint-013",
-      "date": "2026-09-09",
-      "account": "waypoint",
-      "subject": "The island that changes country every six months",
-      "bgm_file": "output017.mp3",
-      "caption": "The island that changes country every six months\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
+      "id": "creature-011",
+      "date": "2026-09-01",
+      "account": "creature",
+      "subject": "Sharks are older than trees",
+      "bgm_file": "output000.mp3",
+      "caption": "Sharks are older than trees\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
-      "id": "creature-013",
-      "date": "2026-09-09",
-      "account": "creature",
-      "subject": "Sea otters hold hands while sleeping",
-      "bgm_file": "output015.mp3",
-      "caption": "Sea otters hold hands while sleeping\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
+      "id": "waypoint-010",
+      "date": "2026-09-01",
+      "account": "waypoint",
+      "subject": "The wettest place on Earth",
+      "bgm_file": "output024.mp3",
+      "caption": "The wettest place on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "why-014",
-      "date": "2026-09-10",
+      "date": "2026-09-01",
       "account": "why",
       "subject": "Why do we always see the same side of the Moon?",
       "bgm_file": "output005.mp3",
       "caption": "Why do we always see the same side of the Moon?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
-      "id": "waypoint-014",
-      "date": "2026-09-10",
-      "account": "waypoint",
-      "subject": "The city that is being moved three kilometres",
-      "bgm_file": "output006.mp3",
-      "caption": "The city that is being moved three kilometres\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
+      "id": "creature-012",
+      "date": "2026-09-02",
+      "account": "creature",
+      "subject": "Cows have best friends",
+      "bgm_file": "output019.mp3",
+      "caption": "Cows have best friends\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
-      "id": "creature-014",
-      "date": "2026-09-10",
-      "account": "creature",
-      "subject": "Crows remember human faces for years",
-      "bgm_file": "output008.mp3",
-      "caption": "Crows remember human faces for years\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
+      "id": "waypoint-011",
+      "date": "2026-09-02",
+      "account": "waypoint",
+      "subject": "The town split in half by a border",
+      "bgm_file": "output003.mp3",
+      "caption": "The town split in half by a border\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "why-015",
-      "date": "2026-09-11",
+      "date": "2026-09-02",
       "account": "why",
       "subject": "Why is Mars red?",
       "bgm_file": "output009.mp3",
       "caption": "Why is Mars red?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
-      "id": "waypoint-015",
-      "date": "2026-09-11",
-      "account": "waypoint",
-      "subject": "The sea that has no coastline",
-      "bgm_file": "output021.mp3",
-      "caption": "The sea that has no coastline\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
+      "id": "creature-013",
+      "date": "2026-09-03",
+      "account": "creature",
+      "subject": "Sea otters hold hands while sleeping",
+      "bgm_file": "output015.mp3",
+      "caption": "Sea otters hold hands while sleeping\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
-      "id": "creature-015",
-      "date": "2026-09-11",
-      "account": "creature",
-      "subject": "An octopus tastes with its arms",
-      "bgm_file": "output004.mp3",
-      "caption": "An octopus tastes with its arms\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
+      "id": "waypoint-012",
+      "date": "2026-09-03",
+      "account": "waypoint",
+      "subject": "The road that vanishes twice a day",
+      "bgm_file": "output014.mp3",
+      "caption": "The road that vanishes twice a day\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "why-016",
-      "date": "2026-09-14",
+      "date": "2026-09-03",
       "account": "why",
       "subject": "Why is there no sound in space?",
       "bgm_file": "output022.mp3",
       "caption": "Why is there no sound in space?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
-      "id": "waypoint-016",
-      "date": "2026-09-14",
-      "account": "waypoint",
-      "subject": "The lake that turns bright pink",
-      "bgm_file": "output025.mp3",
-      "caption": "The lake that turns bright pink\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
+      "id": "creature-014",
+      "date": "2026-09-04",
+      "account": "creature",
+      "subject": "Crows remember human faces for years",
+      "bgm_file": "output008.mp3",
+      "caption": "Crows remember human faces for years\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
-      "id": "creature-016",
-      "date": "2026-09-14",
-      "account": "creature",
-      "subject": "Starfish have no brain at all",
-      "bgm_file": "output023.mp3",
-      "caption": "Starfish have no brain at all\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
+      "id": "waypoint-013",
+      "date": "2026-09-04",
+      "account": "waypoint",
+      "subject": "The island that changes country every six months",
+      "bgm_file": "output017.mp3",
+      "caption": "The island that changes country every six months\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "why-017",
-      "date": "2026-09-15",
+      "date": "2026-09-04",
       "account": "why",
       "subject": "Why do mirrors flip left and right but not up and down?",
       "bgm_file": "output028.mp3",
       "caption": "Why do mirrors flip left and right but not up and down?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
-      "id": "waypoint-017",
-      "date": "2026-09-15",
-      "account": "waypoint",
-      "subject": "The crater that has been burning for fifty years",
-      "bgm_file": "output010.mp3",
-      "caption": "The crater that has been burning for fifty years\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
+      "id": "creature-015",
+      "date": "2026-09-07",
+      "account": "creature",
+      "subject": "An octopus tastes with its arms",
+      "bgm_file": "output004.mp3",
+      "caption": "An octopus tastes with its arms\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
-      "id": "creature-017",
-      "date": "2026-09-15",
-      "account": "creature",
-      "subject": "A jellyfish is 95 percent water",
-      "bgm_file": "output012.mp3",
-      "caption": "A jellyfish is 95 percent water\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
+      "id": "waypoint-014",
+      "date": "2026-09-07",
+      "account": "waypoint",
+      "subject": "The city that is being moved three kilometres",
+      "bgm_file": "output006.mp3",
+      "caption": "The city that is being moved three kilometres\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "why-018",
-      "date": "2026-09-16",
+      "date": "2026-09-07",
       "account": "why",
       "subject": "Why is glass transparent?",
       "bgm_file": "output018.mp3",
       "caption": "Why is glass transparent?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
-      "id": "waypoint-018",
-      "date": "2026-09-16",
-      "account": "waypoint",
-      "subject": "The town where most people live underground",
-      "bgm_file": "output029.mp3",
-      "caption": "The town where most people live underground\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
+      "id": "creature-016",
+      "date": "2026-09-08",
+      "account": "creature",
+      "subject": "Starfish have no brain at all",
+      "bgm_file": "output023.mp3",
+      "caption": "Starfish have no brain at all\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
-      "id": "creature-018",
-      "date": "2026-09-16",
-      "account": "creature",
-      "subject": "Snails have thousands of teeth",
-      "bgm_file": "output011.mp3",
-      "caption": "Snails have thousands of teeth\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
+      "id": "waypoint-015",
+      "date": "2026-09-08",
+      "account": "waypoint",
+      "subject": "The sea that has no coastline",
+      "bgm_file": "output021.mp3",
+      "caption": "The sea that has no coastline\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "why-019",
-      "date": "2026-09-17",
+      "date": "2026-09-08",
       "account": "why",
       "subject": "Why does helium change your voice?",
       "bgm_file": "output007.mp3",
       "caption": "Why does helium change your voice?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
-      "id": "waypoint-019",
-      "date": "2026-09-17",
-      "account": "waypoint",
-      "subject": "The shortest scheduled flight in the world",
-      "bgm_file": "output024.mp3",
-      "caption": "The shortest scheduled flight in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
+      "id": "creature-017",
+      "date": "2026-09-09",
+      "account": "creature",
+      "subject": "A jellyfish is 95 percent water",
+      "bgm_file": "output012.mp3",
+      "caption": "A jellyfish is 95 percent water\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
-      "id": "creature-019",
-      "date": "2026-09-17",
-      "account": "creature",
-      "subject": "The platypus sweats milk",
-      "bgm_file": "output027.mp3",
-      "caption": "The platypus sweats milk\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
+      "id": "waypoint-016",
+      "date": "2026-09-09",
+      "account": "waypoint",
+      "subject": "The lake that turns bright pink",
+      "bgm_file": "output025.mp3",
+      "caption": "The lake that turns bright pink\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "why-020",
-      "date": "2026-09-18",
+      "date": "2026-09-09",
       "account": "why",
       "subject": "Why does metal feel colder than wood at the same temperature?",
       "bgm_file": "output002.mp3",
       "caption": "Why does metal feel colder than wood at the same temperature?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
-      "id": "waypoint-020",
-      "date": "2026-09-18",
-      "account": "waypoint",
-      "subject": "The cave large enough to hold a skyscraper",
-      "bgm_file": "output003.mp3",
-      "caption": "The cave large enough to hold a skyscraper\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
+      "id": "creature-018",
+      "date": "2026-09-10",
+      "account": "creature",
+      "subject": "Snails have thousands of teeth",
+      "bgm_file": "output011.mp3",
+      "caption": "Snails have thousands of teeth\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
-      "id": "creature-020",
-      "date": "2026-09-18",
-      "account": "creature",
-      "subject": "Wombats produce cube-shaped droppings",
-      "bgm_file": "output001.mp3",
-      "caption": "Wombats produce cube-shaped droppings\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
+      "id": "waypoint-017",
+      "date": "2026-09-10",
+      "account": "waypoint",
+      "subject": "The crater that has been burning for fifty years",
+      "bgm_file": "output010.mp3",
+      "caption": "The crater that has been burning for fifty years\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "why-021",
-      "date": "2026-09-21",
+      "date": "2026-09-10",
       "account": "why",
       "subject": "Why do plants look green?",
       "bgm_file": "output020.mp3",
       "caption": "Why do plants look green?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
-      "id": "waypoint-021",
-      "date": "2026-09-21",
-      "account": "waypoint",
-      "subject": "The desert that floods into thousands of lagoons",
-      "bgm_file": "output014.mp3",
-      "caption": "The desert that floods into thousands of lagoons\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
+      "id": "creature-019",
+      "date": "2026-09-11",
+      "account": "creature",
+      "subject": "The platypus sweats milk",
+      "bgm_file": "output027.mp3",
+      "caption": "The platypus sweats milk\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
-      "id": "creature-021",
-      "date": "2026-09-21",
-      "account": "creature",
-      "subject": "Koalas have fingerprints like ours",
-      "bgm_file": "output000.mp3",
-      "caption": "Koalas have fingerprints like ours\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
+      "id": "waypoint-018",
+      "date": "2026-09-11",
+      "account": "waypoint",
+      "subject": "The town where most people live underground",
+      "bgm_file": "output029.mp3",
+      "caption": "The town where most people live underground\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "why-022",
-      "date": "2026-09-22",
+      "date": "2026-09-11",
       "account": "why",
       "subject": "Why do leaves change colour in autumn?",
       "bgm_file": "output016.mp3",
       "caption": "Why do leaves change colour in autumn?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
-      "id": "waypoint-022",
-      "date": "2026-09-22",
-      "account": "waypoint",
-      "subject": "The oldest continuously inhabited city",
-      "bgm_file": "output017.mp3",
-      "caption": "The oldest continuously inhabited city\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
+      "id": "creature-020",
+      "date": "2026-09-14",
+      "account": "creature",
+      "subject": "Wombats produce cube-shaped droppings",
+      "bgm_file": "output001.mp3",
+      "caption": "Wombats produce cube-shaped droppings\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
-      "id": "creature-022",
-      "date": "2026-09-22",
-      "account": "creature",
-      "subject": "Penguins propose with a pebble",
-      "bgm_file": "output019.mp3",
-      "caption": "Penguins propose with a pebble\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
+      "id": "waypoint-019",
+      "date": "2026-09-14",
+      "account": "waypoint",
+      "subject": "The shortest scheduled flight in the world",
+      "bgm_file": "output024.mp3",
+      "caption": "The shortest scheduled flight in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "why-023",
-      "date": "2026-09-23",
+      "date": "2026-09-14",
       "account": "why",
       "subject": "Why do trees have rings?",
       "bgm_file": "output013.mp3",
       "caption": "Why do trees have rings?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
-      "id": "waypoint-023",
-      "date": "2026-09-23",
-      "account": "waypoint",
-      "subject": "The island where cats outnumber people",
-      "bgm_file": "output006.mp3",
-      "caption": "The island where cats outnumber people\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
+      "id": "creature-021",
+      "date": "2026-09-15",
+      "account": "creature",
+      "subject": "Koalas have fingerprints like ours",
+      "bgm_file": "output000.mp3",
+      "caption": "Koalas have fingerprints like ours\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
-      "id": "creature-023",
-      "date": "2026-09-23",
-      "account": "creature",
-      "subject": "Male seahorses give birth",
-      "bgm_file": "output015.mp3",
-      "caption": "Male seahorses give birth\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
+      "id": "waypoint-020",
+      "date": "2026-09-15",
+      "account": "waypoint",
+      "subject": "The cave large enough to hold a skyscraper",
+      "bgm_file": "output003.mp3",
+      "caption": "The cave large enough to hold a skyscraper\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "why-024",
-      "date": "2026-09-24",
+      "date": "2026-09-15",
       "account": "why",
       "subject": "Why do bananas ripen faster in a bag?",
       "bgm_file": "output005.mp3",
       "caption": "Why do bananas ripen faster in a bag?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
-      "id": "waypoint-024",
-      "date": "2026-09-24",
-      "account": "waypoint",
-      "subject": "The highest capital city in the world",
-      "bgm_file": "output021.mp3",
-      "caption": "The highest capital city in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
+      "id": "creature-022",
+      "date": "2026-09-16",
+      "account": "creature",
+      "subject": "Penguins propose with a pebble",
+      "bgm_file": "output019.mp3",
+      "caption": "Penguins propose with a pebble\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
-      "id": "creature-024",
-      "date": "2026-09-24",
-      "account": "creature",
-      "subject": "A hummingbird's heart beats 1,200 times a minute",
-      "bgm_file": "output008.mp3",
-      "caption": "A hummingbird's heart beats 1,200 times a minute\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
+      "id": "waypoint-021",
+      "date": "2026-09-16",
+      "account": "waypoint",
+      "subject": "The desert that floods into thousands of lagoons",
+      "bgm_file": "output014.mp3",
+      "caption": "The desert that floods into thousands of lagoons\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "why-025",
-      "date": "2026-09-25",
+      "date": "2026-09-16",
       "account": "why",
       "subject": "Why does bread go stale?",
       "bgm_file": "output009.mp3",
       "caption": "Why does bread go stale?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
-      "id": "waypoint-025",
-      "date": "2026-09-25",
-      "account": "waypoint",
-      "subject": "The town with canals instead of roads",
-      "bgm_file": "output025.mp3",
-      "caption": "The town with canals instead of roads\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
+      "id": "creature-023",
+      "date": "2026-09-17",
+      "account": "creature",
+      "subject": "Male seahorses give birth",
+      "bgm_file": "output015.mp3",
+      "caption": "Male seahorses give birth\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
-      "id": "creature-025",
-      "date": "2026-09-25",
-      "account": "creature",
-      "subject": "A blue whale's heart is the size of a car",
-      "bgm_file": "output004.mp3",
-      "caption": "A blue whale's heart is the size of a car\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
+      "id": "waypoint-022",
+      "date": "2026-09-17",
+      "account": "waypoint",
+      "subject": "The oldest continuously inhabited city",
+      "bgm_file": "output017.mp3",
+      "caption": "The oldest continuously inhabited city\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "why-026",
-      "date": "2026-09-28",
+      "date": "2026-09-17",
       "account": "why",
       "subject": "Why does spicy food burn?",
       "bgm_file": "output022.mp3",
       "caption": "Why does spicy food burn?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
-      "id": "waypoint-026",
-      "date": "2026-09-28",
-      "account": "waypoint",
-      "subject": "The mountains striped in seven colours",
-      "bgm_file": "output010.mp3",
-      "caption": "The mountains striped in seven colours\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
+      "id": "creature-024",
+      "date": "2026-09-18",
+      "account": "creature",
+      "subject": "A hummingbird's heart beats 1,200 times a minute",
+      "bgm_file": "output008.mp3",
+      "caption": "A hummingbird's heart beats 1,200 times a minute\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
-      "id": "creature-026",
-      "date": "2026-09-28",
-      "account": "creature",
-      "subject": "Giraffes need enormous blood pressure",
-      "bgm_file": "output023.mp3",
-      "caption": "Giraffes need enormous blood pressure\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
+      "id": "waypoint-023",
+      "date": "2026-09-18",
+      "account": "waypoint",
+      "subject": "The island where cats outnumber people",
+      "bgm_file": "output006.mp3",
+      "caption": "The island where cats outnumber people\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "why-027",
-      "date": "2026-09-29",
+      "date": "2026-09-18",
       "account": "why",
       "subject": "Why does mint feel cold in your mouth?",
       "bgm_file": "output028.mp3",
       "caption": "Why does mint feel cold in your mouth?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
-      "id": "waypoint-027",
-      "date": "2026-09-29",
-      "account": "waypoint",
-      "subject": "The largest desert on Earth is frozen",
-      "bgm_file": "output029.mp3",
-      "caption": "The largest desert on Earth is frozen\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
+      "id": "creature-025",
+      "date": "2026-09-21",
+      "account": "creature",
+      "subject": "A blue whale's heart is the size of a car",
+      "bgm_file": "output004.mp3",
+      "caption": "A blue whale's heart is the size of a car\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
-      "id": "creature-027",
-      "date": "2026-09-29",
-      "account": "creature",
-      "subject": "Camel humps store fat, not water",
-      "bgm_file": "output012.mp3",
-      "caption": "Camel humps store fat, not water\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
+      "id": "waypoint-024",
+      "date": "2026-09-21",
+      "account": "waypoint",
+      "subject": "The highest capital city in the world",
+      "bgm_file": "output021.mp3",
+      "caption": "The highest capital city in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "why-028",
-      "date": "2026-09-30",
+      "date": "2026-09-21",
       "account": "why",
       "subject": "Why does chocolate kill dogs?",
       "bgm_file": "output018.mp3",
       "caption": "Why does chocolate kill dogs?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
-      "id": "waypoint-028",
-      "date": "2026-09-30",
-      "account": "waypoint",
-      "subject": "The saltiest water you can float on",
-      "bgm_file": "output024.mp3",
-      "caption": "The saltiest water you can float on\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
+      "id": "creature-026",
+      "date": "2026-09-22",
+      "account": "creature",
+      "subject": "Giraffes need enormous blood pressure",
+      "bgm_file": "output023.mp3",
+      "caption": "Giraffes need enormous blood pressure\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
-      "id": "creature-028",
-      "date": "2026-09-30",
-      "account": "creature",
-      "subject": "Chameleons do not change colour to hide",
-      "bgm_file": "output011.mp3",
-      "caption": "Chameleons do not change colour to hide\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
+      "id": "waypoint-025",
+      "date": "2026-09-22",
+      "account": "waypoint",
+      "subject": "The town with canals instead of roads",
+      "bgm_file": "output025.mp3",
+      "caption": "The town with canals instead of roads\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "why-029",
-      "date": "2026-10-01",
+      "date": "2026-09-22",
       "account": "why",
       "subject": "Why do we dream?",
       "bgm_file": "output007.mp3",
       "caption": "Why do we dream?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
-      "id": "waypoint-029",
-      "date": "2026-10-01",
-      "account": "waypoint",
-      "subject": "The dunes that sing",
-      "bgm_file": "output003.mp3",
-      "caption": "The dunes that sing\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
+      "id": "creature-027",
+      "date": "2026-09-23",
+      "account": "creature",
+      "subject": "Camel humps store fat, not water",
+      "bgm_file": "output012.mp3",
+      "caption": "Camel humps store fat, not water\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
-      "id": "creature-029",
-      "date": "2026-10-01",
-      "account": "creature",
-      "subject": "Geckos climb glass using molecular forces",
-      "bgm_file": "output027.mp3",
-      "caption": "Geckos climb glass using molecular forces\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
+      "id": "waypoint-026",
+      "date": "2026-09-23",
+      "account": "waypoint",
+      "subject": "The mountains striped in seven colours",
+      "bgm_file": "output010.mp3",
+      "caption": "The mountains striped in seven colours\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "why-030",
-      "date": "2026-10-02",
+      "date": "2026-09-23",
       "account": "why",
       "subject": "Why do we forget most of our dreams?",
       "bgm_file": "output002.mp3",
       "caption": "Why do we forget most of our dreams?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
-      "id": "waypoint-030",
-      "date": "2026-10-02",
-      "account": "waypoint",
-      "subject": "The longest train journey in the world",
-      "bgm_file": "output014.mp3",
-      "caption": "The longest train journey in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
+      "id": "creature-028",
+      "date": "2026-09-24",
+      "account": "creature",
+      "subject": "Chameleons do not change colour to hide",
+      "bgm_file": "output011.mp3",
+      "caption": "Chameleons do not change colour to hide\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
-      "id": "creature-030",
-      "date": "2026-10-02",
-      "account": "creature",
-      "subject": "Spider silk is stronger than steel by weight",
-      "bgm_file": "output001.mp3",
-      "caption": "Spider silk is stronger than steel by weight\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
+      "id": "waypoint-027",
+      "date": "2026-09-24",
+      "account": "waypoint",
+      "subject": "The largest desert on Earth is frozen",
+      "bgm_file": "output029.mp3",
+      "caption": "The largest desert on Earth is frozen\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "why-031",
-      "date": "2026-10-05",
+      "date": "2026-09-24",
       "account": "why",
       "subject": "Why does time feel faster as you get older?",
       "bgm_file": "output020.mp3",
       "caption": "Why does time feel faster as you get older?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
-      "id": "waypoint-031",
-      "date": "2026-10-05",
-      "account": "waypoint",
-      "subject": "The library that sits in two countries",
-      "bgm_file": "output017.mp3",
-      "caption": "The library that sits in two countries\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
+      "id": "creature-029",
+      "date": "2026-09-25",
+      "account": "creature",
+      "subject": "Geckos climb glass using molecular forces",
+      "bgm_file": "output027.mp3",
+      "caption": "Geckos climb glass using molecular forces\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
-      "id": "creature-031",
-      "date": "2026-10-05",
-      "account": "creature",
-      "subject": "Ants farm other insects for food",
-      "bgm_file": "output000.mp3",
-      "caption": "Ants farm other insects for food\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
+      "id": "waypoint-028",
+      "date": "2026-09-25",
+      "account": "waypoint",
+      "subject": "The saltiest water you can float on",
+      "bgm_file": "output024.mp3",
+      "caption": "The saltiest water you can float on\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "why-032",
-      "date": "2026-10-06",
+      "date": "2026-09-25",
       "account": "why",
       "subject": "Why does your recorded voice sound wrong?",
       "bgm_file": "output016.mp3",
       "caption": "Why does your recorded voice sound wrong?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
-      "id": "waypoint-032",
-      "date": "2026-10-06",
-      "account": "waypoint",
-      "subject": "The town that is one single building",
-      "bgm_file": "output006.mp3",
-      "caption": "The town that is one single building\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
+      "id": "creature-030",
+      "date": "2026-09-28",
+      "account": "creature",
+      "subject": "Spider silk is stronger than steel by weight",
+      "bgm_file": "output001.mp3",
+      "caption": "Spider silk is stronger than steel by weight\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
-      "id": "creature-032",
-      "date": "2026-10-06",
-      "account": "creature",
-      "subject": "Bees give directions by dancing",
-      "bgm_file": "output019.mp3",
-      "caption": "Bees give directions by dancing\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
+      "id": "waypoint-029",
+      "date": "2026-09-28",
+      "account": "waypoint",
+      "subject": "The dunes that sing",
+      "bgm_file": "output003.mp3",
+      "caption": "The dunes that sing\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "why-033",
-      "date": "2026-10-07",
+      "date": "2026-09-28",
       "account": "why",
       "subject": "Why do fingers wrinkle in the bath?",
       "bgm_file": "output013.mp3",
       "caption": "Why do fingers wrinkle in the bath?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
-      "id": "waypoint-033",
-      "date": "2026-10-07",
-      "account": "waypoint",
-      "subject": "The cave of giant crystals",
-      "bgm_file": "output021.mp3",
-      "caption": "The cave of giant crystals\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
+      "id": "creature-031",
+      "date": "2026-09-29",
+      "account": "creature",
+      "subject": "Ants farm other insects for food",
+      "bgm_file": "output000.mp3",
+      "caption": "Ants farm other insects for food\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
-      "id": "creature-033",
-      "date": "2026-10-07",
-      "account": "creature",
-      "subject": "Butterflies taste with their feet",
-      "bgm_file": "output015.mp3",
-      "caption": "Butterflies taste with their feet\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
+      "id": "waypoint-030",
+      "date": "2026-09-29",
+      "account": "waypoint",
+      "subject": "The longest train journey in the world",
+      "bgm_file": "output014.mp3",
+      "caption": "The longest train journey in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "why-034",
-      "date": "2026-10-08",
+      "date": "2026-09-29",
       "account": "why",
       "subject": "Why do we blush?",
       "bgm_file": "output005.mp3",
       "caption": "Why do we blush?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
-      "id": "waypoint-034",
-      "date": "2026-10-08",
-      "account": "waypoint",
-      "subject": "The river that boils",
-      "bgm_file": "output025.mp3",
-      "caption": "The river that boils\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
+      "id": "creature-032",
+      "date": "2026-09-30",
+      "account": "creature",
+      "subject": "Bees give directions by dancing",
+      "bgm_file": "output019.mp3",
+      "caption": "Bees give directions by dancing\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
-      "id": "creature-034",
-      "date": "2026-10-08",
-      "account": "creature",
-      "subject": "Cicadas stay underground for 17 years",
-      "bgm_file": "output008.mp3",
-      "caption": "Cicadas stay underground for 17 years\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
+      "id": "waypoint-031",
+      "date": "2026-09-30",
+      "account": "waypoint",
+      "subject": "The library that sits in two countries",
+      "bgm_file": "output017.mp3",
+      "caption": "The library that sits in two countries\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "why-035",
-      "date": "2026-10-09",
+      "date": "2026-09-30",
       "account": "why",
       "subject": "Why do some people sneeze at bright light?",
       "bgm_file": "output009.mp3",
       "caption": "Why do some people sneeze at bright light?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
-      "id": "waypoint-035",
-      "date": "2026-10-09",
-      "account": "waypoint",
-      "subject": "The forest where every tree bends",
-      "bgm_file": "output010.mp3",
-      "caption": "The forest where every tree bends\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
+      "id": "creature-033",
+      "date": "2026-10-01",
+      "account": "creature",
+      "subject": "Butterflies taste with their feet",
+      "bgm_file": "output015.mp3",
+      "caption": "Butterflies taste with their feet\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
-      "id": "creature-035",
-      "date": "2026-10-09",
-      "account": "creature",
-      "subject": "A dragonfly catches 95 percent of its targets",
-      "bgm_file": "output004.mp3",
-      "caption": "A dragonfly catches 95 percent of its targets\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
+      "id": "waypoint-032",
+      "date": "2026-10-01",
+      "account": "waypoint",
+      "subject": "The town that is one single building",
+      "bgm_file": "output006.mp3",
+      "caption": "The town that is one single building\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "why-036",
-      "date": "2026-10-12",
+      "date": "2026-10-01",
       "account": "why",
       "subject": "Why does brain freeze happen?",
       "bgm_file": "output022.mp3",
       "caption": "Why does brain freeze happen?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
-      "id": "waypoint-036",
-      "date": "2026-10-12",
-      "account": "waypoint",
-      "subject": "The city abandoned overnight",
-      "bgm_file": "output029.mp3",
-      "caption": "The city abandoned overnight\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
+      "id": "creature-034",
+      "date": "2026-10-02",
+      "account": "creature",
+      "subject": "Cicadas stay underground for 17 years",
+      "bgm_file": "output008.mp3",
+      "caption": "Cicadas stay underground for 17 years\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
-      "id": "creature-036",
-      "date": "2026-10-12",
-      "account": "creature",
-      "subject": "A cockroach can live a week without its head",
-      "bgm_file": "output023.mp3",
-      "caption": "A cockroach can live a week without its head\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
+      "id": "waypoint-033",
+      "date": "2026-10-02",
+      "account": "waypoint",
+      "subject": "The cave of giant crystals",
+      "bgm_file": "output021.mp3",
+      "caption": "The cave of giant crystals\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "why-037",
-      "date": "2026-10-13",
+      "date": "2026-10-02",
       "account": "why",
       "subject": "Why does music give you chills?",
       "bgm_file": "output028.mp3",
       "caption": "Why does music give you chills?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
-      "id": "waypoint-037",
-      "date": "2026-10-13",
-      "account": "waypoint",
-      "subject": "The steepest street in the world",
-      "bgm_file": "output024.mp3",
-      "caption": "The steepest street in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
+      "id": "creature-035",
+      "date": "2026-10-05",
+      "account": "creature",
+      "subject": "A dragonfly catches 95 percent of its targets",
+      "bgm_file": "output004.mp3",
+      "caption": "A dragonfly catches 95 percent of its targets\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
-      "id": "creature-037",
-      "date": "2026-10-13",
-      "account": "creature",
-      "subject": "Only female mosquitoes bite",
-      "bgm_file": "output012.mp3",
-      "caption": "Only female mosquitoes bite\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
+      "id": "waypoint-034",
+      "date": "2026-10-05",
+      "account": "waypoint",
+      "subject": "The river that boils",
+      "bgm_file": "output025.mp3",
+      "caption": "The river that boils\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "why-038",
-      "date": "2026-10-14",
+      "date": "2026-10-05",
       "account": "why",
       "subject": "Why do we blink so often?",
       "bgm_file": "output018.mp3",
       "caption": "Why do we blink so often?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
-      "id": "waypoint-038",
-      "date": "2026-10-14",
-      "account": "waypoint",
-      "subject": "The beach that glows at night",
-      "bgm_file": "output003.mp3",
-      "caption": "The beach that glows at night\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
+      "id": "creature-036",
+      "date": "2026-10-06",
+      "account": "creature",
+      "subject": "A cockroach can live a week without its head",
+      "bgm_file": "output023.mp3",
+      "caption": "A cockroach can live a week without its head\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
-      "id": "creature-038",
-      "date": "2026-10-14",
-      "account": "creature",
-      "subject": "Fireflies make light with almost no heat",
-      "bgm_file": "output011.mp3",
-      "caption": "Fireflies make light with almost no heat\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
+      "id": "waypoint-035",
+      "date": "2026-10-06",
+      "account": "waypoint",
+      "subject": "The forest where every tree bends",
+      "bgm_file": "output010.mp3",
+      "caption": "The forest where every tree bends\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "why-039",
-      "date": "2026-10-15",
+      "date": "2026-10-06",
       "account": "why",
       "subject": "Why do we cry when we are sad?",
       "bgm_file": "output007.mp3",
       "caption": "Why do we cry when we are sad?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
-      "id": "waypoint-039",
-      "date": "2026-10-15",
-      "account": "waypoint",
-      "subject": "The waterfall that freezes solid",
-      "bgm_file": "output014.mp3",
-      "caption": "The waterfall that freezes solid\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
+      "id": "creature-037",
+      "date": "2026-10-07",
+      "account": "creature",
+      "subject": "Only female mosquitoes bite",
+      "bgm_file": "output012.mp3",
+      "caption": "Only female mosquitoes bite\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
-      "id": "creature-039",
-      "date": "2026-10-15",
-      "account": "creature",
-      "subject": "The anglerfish male fuses to the female",
-      "bgm_file": "output027.mp3",
-      "caption": "The anglerfish male fuses to the female\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
+      "id": "waypoint-036",
+      "date": "2026-10-07",
+      "account": "waypoint",
+      "subject": "The city abandoned overnight",
+      "bgm_file": "output029.mp3",
+      "caption": "The city abandoned overnight\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "why-040",
-      "date": "2026-10-16",
+      "date": "2026-10-07",
       "account": "why",
       "subject": "Why does thunder follow lightning?",
       "bgm_file": "output002.mp3",
       "caption": "Why does thunder follow lightning?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
-      "id": "waypoint-040",
-      "date": "2026-10-16",
-      "account": "waypoint",
-      "subject": "The village built inside a cave",
-      "bgm_file": "output017.mp3",
-      "caption": "The village built inside a cave\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
+      "id": "creature-038",
+      "date": "2026-10-08",
+      "account": "creature",
+      "subject": "Fireflies make light with almost no heat",
+      "bgm_file": "output011.mp3",
+      "caption": "Fireflies make light with almost no heat\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
-      "id": "creature-040",
-      "date": "2026-10-16",
-      "account": "creature",
-      "subject": "The pistol shrimp shoots a bubble hotter than the sun",
-      "bgm_file": "output001.mp3",
-      "caption": "The pistol shrimp shoots a bubble hotter than the sun\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
+      "id": "waypoint-037",
+      "date": "2026-10-08",
+      "account": "waypoint",
+      "subject": "The steepest street in the world",
+      "bgm_file": "output024.mp3",
+      "caption": "The steepest street in the world\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "why-041",
-      "date": "2026-10-19",
+      "date": "2026-10-08",
       "account": "why",
       "subject": "Why do clouds float if water is heavy?",
       "bgm_file": "output020.mp3",
       "caption": "Why do clouds float if water is heavy?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
-      "id": "waypoint-041",
-      "date": "2026-10-19",
-      "account": "waypoint",
-      "subject": "The northernmost town on Earth",
-      "bgm_file": "output006.mp3",
-      "caption": "The northernmost town on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
+      "id": "creature-039",
+      "date": "2026-10-09",
+      "account": "creature",
+      "subject": "The anglerfish male fuses to the female",
+      "bgm_file": "output027.mp3",
+      "caption": "The anglerfish male fuses to the female\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
-      "id": "creature-041",
-      "date": "2026-10-19",
-      "account": "creature",
-      "subject": "Electric eels can stun a horse",
-      "bgm_file": "output000.mp3",
-      "caption": "Electric eels can stun a horse\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
+      "id": "waypoint-038",
+      "date": "2026-10-09",
+      "account": "waypoint",
+      "subject": "The beach that glows at night",
+      "bgm_file": "output003.mp3",
+      "caption": "The beach that glows at night\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "why-042",
-      "date": "2026-10-20",
+      "date": "2026-10-09",
       "account": "why",
       "subject": "Why is fog low and clouds high?",
       "bgm_file": "output016.mp3",
       "caption": "Why is fog low and clouds high?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
-      "id": "waypoint-042",
-      "date": "2026-10-20",
-      "account": "waypoint",
-      "subject": "The island made entirely of shells",
-      "bgm_file": "output021.mp3",
-      "caption": "The island made entirely of shells\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
+      "id": "creature-040",
+      "date": "2026-10-12",
+      "account": "creature",
+      "subject": "The pistol shrimp shoots a bubble hotter than the sun",
+      "bgm_file": "output001.mp3",
+      "caption": "The pistol shrimp shoots a bubble hotter than the sun\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
-      "id": "creature-042",
-      "date": "2026-10-20",
-      "account": "creature",
-      "subject": "The archerfish shoots down insects with water",
-      "bgm_file": "output019.mp3",
-      "caption": "The archerfish shoots down insects with water\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
+      "id": "waypoint-039",
+      "date": "2026-10-12",
+      "account": "waypoint",
+      "subject": "The waterfall that freezes solid",
+      "bgm_file": "output014.mp3",
+      "caption": "The waterfall that freezes solid\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "why-043",
-      "date": "2026-10-21",
+      "date": "2026-10-12",
       "account": "why",
       "subject": "Why does a rainbow curve?",
       "bgm_file": "output013.mp3",
       "caption": "Why does a rainbow curve?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
-      "id": "waypoint-043",
-      "date": "2026-10-21",
-      "account": "waypoint",
-      "subject": "The hotel made of ice, rebuilt every year",
-      "bgm_file": "output025.mp3",
-      "caption": "The hotel made of ice, rebuilt every year\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
+      "id": "creature-041",
+      "date": "2026-10-13",
+      "account": "creature",
+      "subject": "Electric eels can stun a horse",
+      "bgm_file": "output000.mp3",
+      "caption": "Electric eels can stun a horse\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
-      "id": "creature-043",
-      "date": "2026-10-21",
-      "account": "creature",
-      "subject": "Some fish walk on land",
-      "bgm_file": "output015.mp3",
-      "caption": "Some fish walk on land\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
+      "id": "waypoint-040",
+      "date": "2026-10-13",
+      "account": "waypoint",
+      "subject": "The village built inside a cave",
+      "bgm_file": "output017.mp3",
+      "caption": "The village built inside a cave\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "why-044",
-      "date": "2026-10-22",
+      "date": "2026-10-13",
       "account": "why",
       "subject": "Why is the ocean blue from above but clear in your hand?",
       "bgm_file": "output005.mp3",
       "caption": "Why is the ocean blue from above but clear in your hand?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
-      "id": "waypoint-044",
-      "date": "2026-10-22",
-      "account": "waypoint",
-      "subject": "The place where two oceans appear not to mix",
-      "bgm_file": "output010.mp3",
-      "caption": "The place where two oceans appear not to mix\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
+      "id": "creature-042",
+      "date": "2026-10-14",
+      "account": "creature",
+      "subject": "The archerfish shoots down insects with water",
+      "bgm_file": "output019.mp3",
+      "caption": "The archerfish shoots down insects with water\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
-      "id": "creature-044",
-      "date": "2026-10-22",
-      "account": "creature",
-      "subject": "The lungfish can survive years without water",
-      "bgm_file": "output008.mp3",
-      "caption": "The lungfish can survive years without water\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
+      "id": "waypoint-041",
+      "date": "2026-10-14",
+      "account": "waypoint",
+      "subject": "The northernmost town on Earth",
+      "bgm_file": "output006.mp3",
+      "caption": "The northernmost town on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "why-045",
-      "date": "2026-10-23",
+      "date": "2026-10-14",
       "account": "why",
       "subject": "Why does wind exist?",
       "bgm_file": "output009.mp3",
       "caption": "Why does wind exist?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
-      "id": "waypoint-045",
-      "date": "2026-10-23",
-      "account": "waypoint",
-      "subject": "The lake that turns animals to stone",
-      "bgm_file": "output029.mp3",
-      "caption": "The lake that turns animals to stone\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
+      "id": "creature-043",
+      "date": "2026-10-15",
+      "account": "creature",
+      "subject": "Some fish walk on land",
+      "bgm_file": "output015.mp3",
+      "caption": "Some fish walk on land\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
-      "id": "creature-045",
-      "date": "2026-10-23",
-      "account": "creature",
-      "subject": "Some frogs freeze solid and thaw alive",
-      "bgm_file": "output004.mp3",
-      "caption": "Some frogs freeze solid and thaw alive\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
+      "id": "waypoint-042",
+      "date": "2026-10-15",
+      "account": "waypoint",
+      "subject": "The island made entirely of shells",
+      "bgm_file": "output021.mp3",
+      "caption": "The island made entirely of shells\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "why-046",
-      "date": "2026-10-26",
+      "date": "2026-10-15",
       "account": "why",
       "subject": "Why do hurricanes spin?",
       "bgm_file": "output022.mp3",
       "caption": "Why do hurricanes spin?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
-      "id": "waypoint-046",
-      "date": "2026-10-26",
-      "account": "waypoint",
-      "subject": "The tree that stood alone for centuries",
-      "bgm_file": "output024.mp3",
-      "caption": "The tree that stood alone for centuries\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
+      "id": "creature-044",
+      "date": "2026-10-16",
+      "account": "creature",
+      "subject": "The lungfish can survive years without water",
+      "bgm_file": "output008.mp3",
+      "caption": "The lungfish can survive years without water\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
-      "id": "creature-046",
-      "date": "2026-10-26",
-      "account": "creature",
-      "subject": "Poison dart frogs lose their poison in captivity",
-      "bgm_file": "output023.mp3",
-      "caption": "Poison dart frogs lose their poison in captivity\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
+      "id": "waypoint-043",
+      "date": "2026-10-16",
+      "account": "waypoint",
+      "subject": "The hotel made of ice, rebuilt every year",
+      "bgm_file": "output025.mp3",
+      "caption": "The hotel made of ice, rebuilt every year\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "why-047",
-      "date": "2026-10-27",
+      "date": "2026-10-16",
       "account": "why",
       "subject": "Why is the deep ocean pitch black?",
       "bgm_file": "output028.mp3",
       "caption": "Why is the deep ocean pitch black?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
-      "id": "waypoint-047",
-      "date": "2026-10-27",
-      "account": "waypoint",
-      "subject": "The country you can cross in fifteen minutes",
-      "bgm_file": "output003.mp3",
-      "caption": "The country you can cross in fifteen minutes\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
+      "id": "creature-045",
+      "date": "2026-10-19",
+      "account": "creature",
+      "subject": "Some frogs freeze solid and thaw alive",
+      "bgm_file": "output004.mp3",
+      "caption": "Some frogs freeze solid and thaw alive\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
-      "id": "creature-047",
-      "date": "2026-10-27",
-      "account": "creature",
-      "subject": "Crocodile tears are real",
-      "bgm_file": "output012.mp3",
-      "caption": "Crocodile tears are real\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
+      "id": "waypoint-044",
+      "date": "2026-10-19",
+      "account": "waypoint",
+      "subject": "The place where two oceans appear not to mix",
+      "bgm_file": "output010.mp3",
+      "caption": "The place where two oceans appear not to mix\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "why-048",
-      "date": "2026-10-28",
+      "date": "2026-10-19",
       "account": "why",
       "subject": "Why do bubbles pop?",
       "bgm_file": "output018.mp3",
       "caption": "Why do bubbles pop?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
-      "id": "waypoint-048",
-      "date": "2026-10-28",
-      "account": "waypoint",
-      "subject": "The underwater museum you can dive through",
-      "bgm_file": "output014.mp3",
-      "caption": "The underwater museum you can dive through\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
+      "id": "creature-046",
+      "date": "2026-10-20",
+      "account": "creature",
+      "subject": "Poison dart frogs lose their poison in captivity",
+      "bgm_file": "output023.mp3",
+      "caption": "Poison dart frogs lose their poison in captivity\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
-      "id": "creature-048",
-      "date": "2026-10-28",
-      "account": "creature",
-      "subject": "Some turtles breathe through their rear",
-      "bgm_file": "output011.mp3",
-      "caption": "Some turtles breathe through their rear\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
+      "id": "waypoint-045",
+      "date": "2026-10-20",
+      "account": "waypoint",
+      "subject": "The lake that turns animals to stone",
+      "bgm_file": "output029.mp3",
+      "caption": "The lake that turns animals to stone\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "why-049",
-      "date": "2026-10-29",
+      "date": "2026-10-20",
       "account": "why",
       "subject": "Why does a spinning top stay upright?",
       "bgm_file": "output007.mp3",
       "caption": "Why does a spinning top stay upright?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
-      "id": "waypoint-049",
-      "date": "2026-10-29",
-      "account": "waypoint",
-      "subject": "The volcano you can walk inside",
-      "bgm_file": "output017.mp3",
-      "caption": "The volcano you can walk inside\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
+      "id": "creature-047",
+      "date": "2026-10-21",
+      "account": "creature",
+      "subject": "Crocodile tears are real",
+      "bgm_file": "output012.mp3",
+      "caption": "Crocodile tears are real\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
-      "id": "creature-049",
-      "date": "2026-10-29",
-      "account": "creature",
-      "subject": "Snakes see body heat as an image",
-      "bgm_file": "output027.mp3",
-      "caption": "Snakes see body heat as an image\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
+      "id": "waypoint-046",
+      "date": "2026-10-21",
+      "account": "waypoint",
+      "subject": "The tree that stood alone for centuries",
+      "bgm_file": "output024.mp3",
+      "caption": "The tree that stood alone for centuries\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "why-050",
-      "date": "2026-10-30",
+      "date": "2026-10-21",
       "account": "why",
       "subject": "Why do magnets stick to some metals only?",
       "bgm_file": "output002.mp3",
       "caption": "Why do magnets stick to some metals only?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
-      "id": "waypoint-050",
-      "date": "2026-10-30",
-      "account": "waypoint",
-      "subject": "The deepest hole humans ever dug",
-      "bgm_file": "output006.mp3",
-      "caption": "The deepest hole humans ever dug\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
+      "id": "creature-048",
+      "date": "2026-10-22",
+      "account": "creature",
+      "subject": "Some turtles breathe through their rear",
+      "bgm_file": "output011.mp3",
+      "caption": "Some turtles breathe through their rear\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
-      "id": "creature-050",
-      "date": "2026-10-30",
-      "account": "creature",
-      "subject": "The chameleon's tongue accelerates faster than a rocket",
-      "bgm_file": "output001.mp3",
-      "caption": "The chameleon's tongue accelerates faster than a rocket\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
+      "id": "waypoint-047",
+      "date": "2026-10-22",
+      "account": "waypoint",
+      "subject": "The country you can cross in fifteen minutes",
+      "bgm_file": "output003.mp3",
+      "caption": "The country you can cross in fifteen minutes\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "why-051",
-      "date": "2026-11-02",
+      "date": "2026-10-22",
       "account": "why",
       "subject": "Why do phone batteries get worse over time?",
       "bgm_file": "output020.mp3",
       "caption": "Why do phone batteries get worse over time?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
-      "id": "waypoint-051",
-      "date": "2026-11-02",
-      "account": "waypoint",
-      "subject": "The fjord so narrow ships barely pass",
-      "bgm_file": "output021.mp3",
-      "caption": "The fjord so narrow ships barely pass\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
+      "id": "creature-049",
+      "date": "2026-10-23",
+      "account": "creature",
+      "subject": "Snakes see body heat as an image",
+      "bgm_file": "output027.mp3",
+      "caption": "Snakes see body heat as an image\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
-      "id": "creature-051",
-      "date": "2026-11-02",
-      "account": "creature",
-      "subject": "Sloths move so slowly that algae grows on them",
-      "bgm_file": "output000.mp3",
-      "caption": "Sloths move so slowly that algae grows on them\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
+      "id": "waypoint-048",
+      "date": "2026-10-23",
+      "account": "waypoint",
+      "subject": "The underwater museum you can dive through",
+      "bgm_file": "output014.mp3",
+      "caption": "The underwater museum you can dive through\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "why-052",
-      "date": "2026-11-03",
+      "date": "2026-10-23",
       "account": "why",
       "subject": "Why are aeroplane windows round?",
       "bgm_file": "output016.mp3",
       "caption": "Why are aeroplane windows round?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
-      "id": "waypoint-052",
-      "date": "2026-11-03",
-      "account": "waypoint",
-      "subject": "The field of geysers that never sleeps",
-      "bgm_file": "output025.mp3",
-      "caption": "The field of geysers that never sleeps\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
+      "id": "creature-050",
+      "date": "2026-10-26",
+      "account": "creature",
+      "subject": "The chameleon's tongue accelerates faster than a rocket",
+      "bgm_file": "output001.mp3",
+      "caption": "The chameleon's tongue accelerates faster than a rocket\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
-      "id": "creature-052",
-      "date": "2026-11-03",
-      "account": "creature",
-      "subject": "The pangolin is the most trafficked mammal on Earth",
-      "bgm_file": "output019.mp3",
-      "caption": "The pangolin is the most trafficked mammal on Earth\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
+      "id": "waypoint-049",
+      "date": "2026-10-26",
+      "account": "waypoint",
+      "subject": "The volcano you can walk inside",
+      "bgm_file": "output017.mp3",
+      "caption": "The volcano you can walk inside\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "why-053",
-      "date": "2026-11-04",
+      "date": "2026-10-26",
       "account": "why",
       "subject": "Why do screens look strange on camera?",
       "bgm_file": "output013.mp3",
       "caption": "Why do screens look strange on camera?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
-      "id": "waypoint-053",
-      "date": "2026-11-04",
-      "account": "waypoint",
-      "subject": "The town cut off by tides twice a day",
-      "bgm_file": "output010.mp3",
-      "caption": "The town cut off by tides twice a day\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
+      "id": "creature-051",
+      "date": "2026-10-27",
+      "account": "creature",
+      "subject": "Sloths move so slowly that algae grows on them",
+      "bgm_file": "output000.mp3",
+      "caption": "Sloths move so slowly that algae grows on them\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
-      "id": "creature-053",
-      "date": "2026-11-04",
-      "account": "creature",
-      "subject": "Naked mole rats barely feel pain and rarely get cancer",
-      "bgm_file": "output015.mp3",
-      "caption": "Naked mole rats barely feel pain and rarely get cancer\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
+      "id": "waypoint-050",
+      "date": "2026-10-27",
+      "account": "waypoint",
+      "subject": "The deepest hole humans ever dug",
+      "bgm_file": "output006.mp3",
+      "caption": "The deepest hole humans ever dug\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "why-054",
-      "date": "2026-11-05",
+      "date": "2026-10-27",
       "account": "why",
       "subject": "Why is the keyboard laid out QWERTY?",
       "bgm_file": "output005.mp3",
       "caption": "Why is the keyboard laid out QWERTY?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
-      "id": "waypoint-054",
-      "date": "2026-11-05",
-      "account": "waypoint",
-      "subject": "The stone forest that shreds boots",
-      "bgm_file": "output029.mp3",
-      "caption": "The stone forest that shreds boots\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
+      "id": "creature-052",
+      "date": "2026-10-28",
+      "account": "creature",
+      "subject": "The pangolin is the most trafficked mammal on Earth",
+      "bgm_file": "output019.mp3",
+      "caption": "The pangolin is the most trafficked mammal on Earth\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
-      "id": "creature-054",
-      "date": "2026-11-05",
-      "account": "creature",
-      "subject": "Bats are not blind at all",
-      "bgm_file": "output008.mp3",
-      "caption": "Bats are not blind at all\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
+      "id": "waypoint-051",
+      "date": "2026-10-28",
+      "account": "waypoint",
+      "subject": "The fjord so narrow ships barely pass",
+      "bgm_file": "output021.mp3",
+      "caption": "The fjord so narrow ships barely pass\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "why-055",
-      "date": "2026-11-06",
+      "date": "2026-10-28",
       "account": "why",
       "subject": "Why do some countries drive on the left?",
       "bgm_file": "output009.mp3",
       "caption": "Why do some countries drive on the left?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
-      "id": "waypoint-055",
-      "date": "2026-11-06",
-      "account": "waypoint",
-      "subject": "The lake that explodes",
-      "bgm_file": "output024.mp3",
-      "caption": "The lake that explodes\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
+      "id": "creature-053",
+      "date": "2026-10-29",
+      "account": "creature",
+      "subject": "Naked mole rats barely feel pain and rarely get cancer",
+      "bgm_file": "output015.mp3",
+      "caption": "Naked mole rats barely feel pain and rarely get cancer\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
-      "id": "creature-055",
-      "date": "2026-11-06",
-      "account": "creature",
-      "subject": "The honey badger shrugs off cobra venom",
-      "bgm_file": "output004.mp3",
-      "caption": "The honey badger shrugs off cobra venom\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
+      "id": "waypoint-052",
+      "date": "2026-10-29",
+      "account": "waypoint",
+      "subject": "The field of geysers that never sleeps",
+      "bgm_file": "output025.mp3",
+      "caption": "The field of geysers that never sleeps\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "why-056",
-      "date": "2026-11-09",
+      "date": "2026-10-29",
       "account": "why",
       "subject": "Why are stop signs red?",
       "bgm_file": "output022.mp3",
       "caption": "Why are stop signs red?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
-      "id": "waypoint-056",
-      "date": "2026-11-09",
-      "account": "waypoint",
-      "subject": "The city with no cars at all",
-      "bgm_file": "output003.mp3",
-      "caption": "The city with no cars at all\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
+      "id": "creature-054",
+      "date": "2026-10-30",
+      "account": "creature",
+      "subject": "Bats are not blind at all",
+      "bgm_file": "output008.mp3",
+      "caption": "Bats are not blind at all\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
-      "id": "creature-056",
-      "date": "2026-11-09",
-      "account": "creature",
-      "subject": "Hyena clans are ruled by females",
-      "bgm_file": "output023.mp3",
-      "caption": "Hyena clans are ruled by females\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
+      "id": "waypoint-053",
+      "date": "2026-10-30",
+      "account": "waypoint",
+      "subject": "The town cut off by tides twice a day",
+      "bgm_file": "output010.mp3",
+      "caption": "The town cut off by tides twice a day\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "why-057",
-      "date": "2026-11-10",
+      "date": "2026-10-30",
       "account": "why",
       "subject": "Why do we have leap years?",
       "bgm_file": "output028.mp3",
       "caption": "Why do we have leap years?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
-      "id": "waypoint-057",
-      "date": "2026-11-10",
-      "account": "waypoint",
-      "subject": "The glacier you can walk under",
-      "bgm_file": "output014.mp3",
-      "caption": "The glacier you can walk under\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
+      "id": "creature-055",
+      "date": "2026-11-02",
+      "account": "creature",
+      "subject": "The honey badger shrugs off cobra venom",
+      "bgm_file": "output004.mp3",
+      "caption": "The honey badger shrugs off cobra venom\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
-      "id": "creature-057",
-      "date": "2026-11-10",
-      "account": "creature",
-      "subject": "Meerkats take turns on guard duty",
-      "bgm_file": "output012.mp3",
-      "caption": "Meerkats take turns on guard duty\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
+      "id": "waypoint-054",
+      "date": "2026-11-02",
+      "account": "waypoint",
+      "subject": "The stone forest that shreds boots",
+      "bgm_file": "output029.mp3",
+      "caption": "The stone forest that shreds boots\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "why-058",
-      "date": "2026-11-11",
+      "date": "2026-11-02",
       "account": "why",
       "subject": "Why does paper give such painful cuts?",
       "bgm_file": "output018.mp3",
       "caption": "Why does paper give such painful cuts?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
-      "id": "waypoint-058",
-      "date": "2026-11-11",
-      "account": "waypoint",
-      "subject": "The island where horses arrived by shipwreck",
-      "bgm_file": "output017.mp3",
-      "caption": "The island where horses arrived by shipwreck\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
+      "id": "creature-056",
+      "date": "2026-11-03",
+      "account": "creature",
+      "subject": "Hyena clans are ruled by females",
+      "bgm_file": "output023.mp3",
+      "caption": "Hyena clans are ruled by females\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
-      "id": "creature-058",
-      "date": "2026-11-11",
-      "account": "creature",
-      "subject": "Prairie dogs have words for specific predators",
-      "bgm_file": "output011.mp3",
-      "caption": "Prairie dogs have words for specific predators\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
+      "id": "waypoint-055",
+      "date": "2026-11-03",
+      "account": "waypoint",
+      "subject": "The lake that explodes",
+      "bgm_file": "output024.mp3",
+      "caption": "The lake that explodes\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "why-059",
-      "date": "2026-11-12",
+      "date": "2026-11-03",
       "account": "why",
       "subject": "Why do zips work?",
       "bgm_file": "output007.mp3",
       "caption": "Why do zips work?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
-      "id": "waypoint-059",
-      "date": "2026-11-12",
-      "account": "waypoint",
-      "subject": "The desert that was once an ocean",
-      "bgm_file": "output006.mp3",
-      "caption": "The desert that was once an ocean\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
+      "id": "creature-057",
+      "date": "2026-11-04",
+      "account": "creature",
+      "subject": "Meerkats take turns on guard duty",
+      "bgm_file": "output012.mp3",
+      "caption": "Meerkats take turns on guard duty\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
-      "id": "creature-059",
-      "date": "2026-11-12",
-      "account": "creature",
-      "subject": "Beaver dams can be seen from orbit",
-      "bgm_file": "output027.mp3",
-      "caption": "Beaver dams can be seen from orbit\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
+      "id": "waypoint-056",
+      "date": "2026-11-04",
+      "account": "waypoint",
+      "subject": "The city with no cars at all",
+      "bgm_file": "output003.mp3",
+      "caption": "The city with no cars at all\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "why-060",
-      "date": "2026-11-13",
+      "date": "2026-11-04",
       "account": "why",
       "subject": "Why is the Moon visible during the day?",
       "bgm_file": "output002.mp3",
       "caption": "Why is the Moon visible during the day?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
-      "id": "waypoint-060",
-      "date": "2026-11-13",
-      "account": "waypoint",
-      "subject": "The waterfall that flows upward in high wind",
-      "bgm_file": "output021.mp3",
-      "caption": "The waterfall that flows upward in high wind\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
+      "id": "creature-058",
+      "date": "2026-11-05",
+      "account": "creature",
+      "subject": "Prairie dogs have words for specific predators",
+      "bgm_file": "output011.mp3",
+      "caption": "Prairie dogs have words for specific predators\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
-      "id": "creature-060",
-      "date": "2026-11-13",
-      "account": "creature",
-      "subject": "Forgetful squirrels plant thousands of trees",
-      "bgm_file": "output001.mp3",
-      "caption": "Forgetful squirrels plant thousands of trees\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
+      "id": "waypoint-057",
+      "date": "2026-11-05",
+      "account": "waypoint",
+      "subject": "The glacier you can walk under",
+      "bgm_file": "output014.mp3",
+      "caption": "The glacier you can walk under\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "why-061",
-      "date": "2026-11-16",
+      "date": "2026-11-05",
       "account": "why",
       "subject": "Why doesn't the Moon fall to Earth?",
       "bgm_file": "output020.mp3",
       "caption": "Why doesn't the Moon fall to Earth?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
-      "id": "waypoint-061",
-      "date": "2026-11-16",
-      "account": "waypoint",
-      "subject": "The mountain that is taller than Everest from its base",
-      "bgm_file": "output025.mp3",
-      "caption": "The mountain that is taller than Everest from its base\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
+      "id": "creature-059",
+      "date": "2026-11-06",
+      "account": "creature",
+      "subject": "Beaver dams can be seen from orbit",
+      "bgm_file": "output027.mp3",
+      "caption": "Beaver dams can be seen from orbit\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
-      "id": "creature-061",
-      "date": "2026-11-16",
-      "account": "creature",
-      "subject": "Ravens use tools and hold grudges",
-      "bgm_file": "output000.mp3",
-      "caption": "Ravens use tools and hold grudges\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
+      "id": "waypoint-058",
+      "date": "2026-11-06",
+      "account": "waypoint",
+      "subject": "The island where horses arrived by shipwreck",
+      "bgm_file": "output017.mp3",
+      "caption": "The island where horses arrived by shipwreck\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "why-062",
-      "date": "2026-11-17",
+      "date": "2026-11-06",
       "account": "why",
       "subject": "Why is honey the only food that never spoils?",
       "bgm_file": "output016.mp3",
       "caption": "Why is honey the only food that never spoils?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
-      "id": "waypoint-062",
-      "date": "2026-11-17",
-      "account": "waypoint",
-      "subject": "The place with the largest tide on Earth",
-      "bgm_file": "output010.mp3",
-      "caption": "The place with the largest tide on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
+      "id": "creature-060",
+      "date": "2026-11-09",
+      "account": "creature",
+      "subject": "Forgetful squirrels plant thousands of trees",
+      "bgm_file": "output001.mp3",
+      "caption": "Forgetful squirrels plant thousands of trees\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
     },
     {
-      "id": "creature-062",
-      "date": "2026-11-17",
-      "account": "creature",
-      "subject": "Parrots understand what words mean",
-      "bgm_file": "output019.mp3",
-      "caption": "Parrots understand what words mean\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
+      "id": "waypoint-059",
+      "date": "2026-11-09",
+      "account": "waypoint",
+      "subject": "The desert that was once an ocean",
+      "bgm_file": "output006.mp3",
+      "caption": "The desert that was once an ocean\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
     },
     {
       "id": "why-063",
-      "date": "2026-11-18",
+      "date": "2026-11-09",
       "account": "why",
       "subject": "Why does hot water sometimes freeze faster than cold?",
       "bgm_file": "output013.mp3",
       "caption": "Why does hot water sometimes freeze faster than cold?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #howitworks #everydayscience #physics"
     },
     {
-      "id": "waypoint-063",
-      "date": "2026-11-18",
-      "account": "waypoint",
-      "subject": "The town buried by a volcano and dug back out",
-      "bgm_file": "output029.mp3",
-      "caption": "The town buried by a volcano and dug back out\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
+      "id": "creature-061",
+      "date": "2026-11-10",
+      "account": "creature",
+      "subject": "Ravens use tools and hold grudges",
+      "bgm_file": "output000.mp3",
+      "caption": "Ravens use tools and hold grudges\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
     },
     {
-      "id": "creature-063",
-      "date": "2026-11-18",
-      "account": "creature",
-      "subject": "Pigeons navigate using Earth's magnetic field",
-      "bgm_file": "output015.mp3",
-      "caption": "Pigeons navigate using Earth's magnetic field\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
+      "id": "waypoint-060",
+      "date": "2026-11-10",
+      "account": "waypoint",
+      "subject": "The waterfall that flows upward in high wind",
+      "bgm_file": "output021.mp3",
+      "caption": "The waterfall that flows upward in high wind\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "why-064",
-      "date": "2026-11-19",
+      "date": "2026-11-10",
       "account": "why",
       "subject": "Why do we get motion sickness?",
       "bgm_file": "output005.mp3",
       "caption": "Why do we get motion sickness?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #whytho #curiosity #explained"
     },
     {
-      "id": "waypoint-064",
-      "date": "2026-11-19",
-      "account": "waypoint",
-      "subject": "The staircase carved into a cliff",
-      "bgm_file": "output024.mp3",
-      "caption": "The staircase carved into a cliff\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
+      "id": "creature-062",
+      "date": "2026-11-11",
+      "account": "creature",
+      "subject": "Parrots understand what words mean",
+      "bgm_file": "output019.mp3",
+      "caption": "Parrots understand what words mean\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
     },
     {
-      "id": "creature-064",
-      "date": "2026-11-19",
-      "account": "creature",
-      "subject": "Owls fly in complete silence",
-      "bgm_file": "output008.mp3",
-      "caption": "Owls fly in complete silence\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
+      "id": "waypoint-061",
+      "date": "2026-11-11",
+      "account": "waypoint",
+      "subject": "The mountain that is taller than Everest from its base",
+      "bgm_file": "output025.mp3",
+      "caption": "The mountain that is taller than Everest from its base\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
     },
     {
       "id": "why-065",
-      "date": "2026-11-20",
+      "date": "2026-11-11",
       "account": "why",
       "subject": "Why does the ocean have tides?",
       "bgm_file": "output009.mp3",
       "caption": "Why does the ocean have tides?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #sciencefacts #learnsomethingnew #education"
     },
     {
-      "id": "waypoint-065",
-      "date": "2026-11-20",
-      "account": "waypoint",
-      "subject": "The lake suspended above a valley",
-      "bgm_file": "output003.mp3",
-      "caption": "The lake suspended above a valley\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
+      "id": "creature-063",
+      "date": "2026-11-12",
+      "account": "creature",
+      "subject": "Pigeons navigate using Earth's magnetic field",
+      "bgm_file": "output015.mp3",
+      "caption": "Pigeons navigate using Earth's magnetic field\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #strangebutrue #ocean #birds"
     },
     {
-      "id": "creature-065",
-      "date": "2026-11-20",
-      "account": "creature",
-      "subject": "The peregrine falcon dives at 380 km/h",
-      "bgm_file": "output004.mp3",
-      "caption": "The peregrine falcon dives at 380 km/h\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
+      "id": "waypoint-062",
+      "date": "2026-11-12",
+      "account": "waypoint",
+      "subject": "The place with the largest tide on Earth",
+      "bgm_file": "output010.mp3",
+      "caption": "The place with the largest tide on Earth\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     },
     {
       "id": "why-066",
-      "date": "2026-11-23",
+      "date": "2026-11-12",
       "account": "why",
       "subject": "Why is fire hot and what is a flame made of?",
       "bgm_file": "output022.mp3",
       "caption": "Why is fire hot and what is a flame made of?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #mindblown #howitworks #everydayscience"
     },
     {
-      "id": "waypoint-066",
-      "date": "2026-11-23",
-      "account": "waypoint",
-      "subject": "The village that moves with the seasons",
-      "bgm_file": "output014.mp3",
-      "caption": "The village that moves with the seasons\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
+      "id": "creature-064",
+      "date": "2026-11-13",
+      "account": "creature",
+      "subject": "Owls fly in complete silence",
+      "bgm_file": "output008.mp3",
+      "caption": "Owls fly in complete silence\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #zoology #animalfacts #nature"
     },
     {
-      "id": "creature-066",
-      "date": "2026-11-23",
-      "account": "creature",
-      "subject": "Hummingbirds can fly backwards",
-      "bgm_file": "output023.mp3",
-      "caption": "Hummingbirds can fly backwards\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
+      "id": "waypoint-063",
+      "date": "2026-11-13",
+      "account": "waypoint",
+      "subject": "The town buried by a volcano and dug back out",
+      "bgm_file": "output029.mp3",
+      "caption": "The town buried by a volcano and dug back out\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #planetearth #islands #maps"
     },
     {
       "id": "why-067",
-      "date": "2026-11-24",
+      "date": "2026-11-13",
       "account": "why",
       "subject": "Why does static electricity shock you?",
       "bgm_file": "output028.mp3",
       "caption": "Why does static electricity shock you?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #physics #whytho #curiosity"
     },
     {
-      "id": "waypoint-067",
-      "date": "2026-11-24",
-      "account": "waypoint",
-      "subject": "The island nation running out of land",
-      "bgm_file": "output017.mp3",
-      "caption": "The island nation running out of land\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
+      "id": "creature-065",
+      "date": "2026-11-16",
+      "account": "creature",
+      "subject": "The peregrine falcon dives at 380 km/h",
+      "bgm_file": "output004.mp3",
+      "caption": "The peregrine falcon dives at 380 km/h\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #creatures #wildlifefacts #animalkingdom"
     },
     {
-      "id": "creature-067",
-      "date": "2026-11-24",
-      "account": "creature",
-      "subject": "Emperor penguins dive deeper than submarines go",
-      "bgm_file": "output012.mp3",
-      "caption": "Emperor penguins dive deeper than submarines go\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
+      "id": "waypoint-064",
+      "date": "2026-11-16",
+      "account": "waypoint",
+      "subject": "The staircase carved into a cliff",
+      "bgm_file": "output024.mp3",
+      "caption": "The staircase carved into a cliff\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #wanderlust #hiddenplaces #remoteplaces"
     },
     {
       "id": "why-068",
-      "date": "2026-11-25",
+      "date": "2026-11-16",
       "account": "why",
       "subject": "Why do birds sit on power lines without dying?",
       "bgm_file": "output018.mp3",
       "caption": "Why do birds sit on power lines without dying?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #explained #sciencefacts #learnsomethingnew"
     },
     {
-      "id": "waypoint-068",
-      "date": "2026-11-25",
-      "account": "waypoint",
-      "subject": "The bridge that disappears in fog every morning",
-      "bgm_file": "output006.mp3",
-      "caption": "The bridge that disappears in fog every morning\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
+      "id": "creature-066",
+      "date": "2026-11-17",
+      "account": "creature",
+      "subject": "Hummingbirds can fly backwards",
+      "bgm_file": "output023.mp3",
+      "caption": "Hummingbirds can fly backwards\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #naturefacts #strangebutrue #ocean"
     },
     {
-      "id": "creature-068",
-      "date": "2026-11-25",
-      "account": "creature",
-      "subject": "A woodpecker's tongue wraps around its skull",
-      "bgm_file": "output011.mp3",
-      "caption": "A woodpecker's tongue wraps around its skull\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
+      "id": "waypoint-065",
+      "date": "2026-11-17",
+      "account": "waypoint",
+      "subject": "The lake suspended above a valley",
+      "bgm_file": "output003.mp3",
+      "caption": "The lake suspended above a valley\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #earth #explore #travelfacts"
     },
     {
       "id": "why-069",
-      "date": "2026-11-26",
+      "date": "2026-11-17",
       "account": "why",
       "subject": "Why does soap actually clean things?",
       "bgm_file": "output007.mp3",
       "caption": "Why does soap actually clean things?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #education #mindblown #howitworks"
     },
     {
-      "id": "waypoint-069",
-      "date": "2026-11-26",
-      "account": "waypoint",
-      "subject": "The last place on Earth without internet",
-      "bgm_file": "output021.mp3",
-      "caption": "The last place on Earth without internet\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
+      "id": "creature-067",
+      "date": "2026-11-18",
+      "account": "creature",
+      "subject": "Emperor penguins dive deeper than submarines go",
+      "bgm_file": "output012.mp3",
+      "caption": "Emperor penguins dive deeper than submarines go\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #birds #zoology #animalfacts"
     },
     {
-      "id": "creature-069",
-      "date": "2026-11-26",
-      "account": "creature",
-      "subject": "Narwhal tusks are actually teeth",
-      "bgm_file": "output027.mp3",
-      "caption": "Narwhal tusks are actually teeth\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
+      "id": "waypoint-066",
+      "date": "2026-11-18",
+      "account": "waypoint",
+      "subject": "The village that moves with the seasons",
+      "bgm_file": "output014.mp3",
+      "caption": "The village that moves with the seasons\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #offthebeatenpath #planetearth #islands"
     },
     {
       "id": "why-070",
-      "date": "2026-11-27",
+      "date": "2026-11-18",
       "account": "why",
       "subject": "Why do we yawn when we are tired?",
       "bgm_file": "output002.mp3",
       "caption": "Why do we yawn when we are tired?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #everydayscience #physics #whytho"
     },
     {
-      "id": "waypoint-070",
-      "date": "2026-11-27",
-      "account": "waypoint",
-      "subject": "The forest older than the last ice age",
-      "bgm_file": "output025.mp3",
-      "caption": "The forest older than the last ice age\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
+      "id": "creature-068",
+      "date": "2026-11-19",
+      "account": "creature",
+      "subject": "A woodpecker's tongue wraps around its skull",
+      "bgm_file": "output011.mp3",
+      "caption": "A woodpecker's tongue wraps around its skull\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #nature #creatures #wildlifefacts"
     },
     {
-      "id": "creature-070",
-      "date": "2026-11-27",
-      "account": "creature",
-      "subject": "Orcas have regional dialects",
-      "bgm_file": "output001.mp3",
-      "caption": "Orcas have regional dialects\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
+      "id": "waypoint-067",
+      "date": "2026-11-19",
+      "account": "waypoint",
+      "subject": "The island nation running out of land",
+      "bgm_file": "output017.mp3",
+      "caption": "The island nation running out of land\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #maps #wanderlust #hiddenplaces"
     },
     {
       "id": "why-071",
-      "date": "2026-11-30",
+      "date": "2026-11-19",
       "account": "why",
       "subject": "Why is the human eye fooled by optical illusions?",
       "bgm_file": "output020.mp3",
       "caption": "Why is the human eye fooled by optical illusions?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #curiosity #explained #sciencefacts"
     },
     {
-      "id": "waypoint-071",
-      "date": "2026-11-30",
-      "account": "waypoint",
-      "subject": "The salt mine with a cathedral inside",
-      "bgm_file": "output010.mp3",
-      "caption": "The salt mine with a cathedral inside\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
+      "id": "creature-069",
+      "date": "2026-11-20",
+      "account": "creature",
+      "subject": "Narwhal tusks are actually teeth",
+      "bgm_file": "output027.mp3",
+      "caption": "Narwhal tusks are actually teeth\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalkingdom #naturefacts #strangebutrue"
     },
     {
-      "id": "creature-071",
-      "date": "2026-11-30",
-      "account": "creature",
-      "subject": "Sperm whales sleep standing up",
-      "bgm_file": "output000.mp3",
-      "caption": "Sperm whales sleep standing up\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
+      "id": "waypoint-068",
+      "date": "2026-11-20",
+      "account": "waypoint",
+      "subject": "The bridge that disappears in fog every morning",
+      "bgm_file": "output006.mp3",
+      "caption": "The bridge that disappears in fog every morning\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #remoteplaces #earth #explore"
     },
     {
       "id": "why-072",
-      "date": "2026-12-01",
+      "date": "2026-11-20",
       "account": "why",
       "subject": "Why do cut apples turn brown?",
       "bgm_file": "output016.mp3",
       "caption": "Why do cut apples turn brown?\n\nThe questions you stopped asking as a kid.\nOne answer a day, in 40 seconds.\n\n#science #didyouknow #learnsomethingnew #education #mindblown"
     },
     {
-      "id": "waypoint-072",
-      "date": "2026-12-01",
+      "id": "creature-070",
+      "date": "2026-11-23",
+      "account": "creature",
+      "subject": "Orcas have regional dialects",
+      "bgm_file": "output001.mp3",
+      "caption": "Orcas have regional dialects\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #ocean #birds #zoology"
+    },
+    {
+      "id": "waypoint-069",
+      "date": "2026-11-23",
       "account": "waypoint",
-      "subject": "The archipelago with more islands than people",
-      "bgm_file": "output029.mp3",
-      "caption": "The archipelago with more islands than people\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
+      "subject": "The last place on Earth without internet",
+      "bgm_file": "output021.mp3",
+      "caption": "The last place on Earth without internet\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #travelfacts #offthebeatenpath #planetearth"
+    },
+    {
+      "id": "creature-071",
+      "date": "2026-11-24",
+      "account": "creature",
+      "subject": "Sperm whales sleep standing up",
+      "bgm_file": "output000.mp3",
+      "caption": "Sperm whales sleep standing up\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #animalfacts #nature #creatures"
+    },
+    {
+      "id": "waypoint-070",
+      "date": "2026-11-24",
+      "account": "waypoint",
+      "subject": "The forest older than the last ice age",
+      "bgm_file": "output025.mp3",
+      "caption": "The forest older than the last ice age\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #islands #maps #wanderlust"
     },
     {
       "id": "creature-072",
-      "date": "2026-12-01",
+      "date": "2026-11-25",
       "account": "creature",
       "subject": "Sea turtles return to the beach they were born on",
       "bgm_file": "output019.mp3",
       "caption": "Sea turtles return to the beach they were born on\n\nAnimals are stranger than you think.\nOne wild fact a day, 40 seconds each.\n\n#animals #wildlife #wildlifefacts #animalkingdom #naturefacts"
+    },
+    {
+      "id": "waypoint-071",
+      "date": "2026-11-25",
+      "account": "waypoint",
+      "subject": "The salt mine with a cathedral inside",
+      "bgm_file": "output010.mp3",
+      "caption": "The salt mine with a cathedral inside\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #hiddenplaces #remoteplaces #earth"
+    },
+    {
+      "id": "waypoint-072",
+      "date": "2026-11-26",
+      "account": "waypoint",
+      "subject": "The archipelago with more islands than people",
+      "bgm_file": "output029.mp3",
+      "caption": "The archipelago with more islands than people\n\nPlaces that shouldn't exist — and do.\nOne place a day, in 40 seconds.\n\n#geography #travel #explore #travelfacts #offthebeatenpath"
     }
   ]
 }

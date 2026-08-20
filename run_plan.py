@@ -36,6 +36,12 @@ class GenerationBusy(RuntimeError):
 STATUS_DONE = "published"
 STATUS_GENERATED = "generated"
 STATUS_FAILED = "failed"
+# 明确"这条不发"，区别于"发过了"。把不打算发的条目标成 published 会让统计
+# 说谎，而留着不管则会被排期逻辑当成积压，第二天补发出去。
+STATUS_SKIPPED = "skipped"
+
+# 选取条目时要跳过的状态。
+_SETTLED_STATUSES = {STATUS_DONE, STATUS_SKIPPED}
 
 
 def setup_logging() -> str:
@@ -140,7 +146,7 @@ def select_entry(plan: dict, state: dict, args) -> dict | None:
         pending = [
             entry
             for entry in candidates
-            if state.get(entry["id"], {}).get("status") != STATUS_DONE
+            if state.get(entry["id"], {}).get("status") not in _SETTLED_STATUSES
             and not _has_video(state.get(entry["id"], {}))
         ]
         return pending[0] if pending else None
@@ -150,7 +156,7 @@ def select_entry(plan: dict, state: dict, args) -> dict | None:
         entry
         for entry in candidates
         if entry["date"] <= today
-        and state.get(entry["id"], {}).get("status") != STATUS_DONE
+        and state.get(entry["id"], {}).get("status") not in _SETTLED_STATUSES
     ]
     return pending[0] if pending else None
 
@@ -261,18 +267,55 @@ def _running_generation() -> str:
         return owner
 
 
+def entries_before(plan: dict, entry_id: str) -> list[str]:
+    """
+    返回同一账号中排在 ``entry_id`` 之前的所有条目 id。
+
+    按计划里的实际顺序取，而不是解析 id 里的数字：编号只是命名，顺序才是
+    排期的依据，两者一旦不一致，以文件为准才不会跳过或重发。
+    """
+    schedule = plan["schedule"]
+    target = next((e for e in schedule if e["id"] == entry_id), None)
+    if target is None:
+        raise SystemExit(f"unknown plan entry: {entry_id}")
+
+    same_account = [e for e in schedule if e["account"] == target["account"]]
+    position = next(i for i, e in enumerate(same_account) if e["id"] == entry_id)
+    return [e["id"] for e in same_account[:position]]
+
+
+def skip_before(plan: dict, state: dict, entry_id: str) -> int:
+    """把起点之前的条目标记为"不发"，已发布的条目保持原样。"""
+    marked = []
+    for candidate in entries_before(plan, entry_id):
+        if state.get(candidate, {}).get("status") == STATUS_DONE:
+            continue
+        record = dict(state.get(candidate, {}))
+        record["status"] = STATUS_SKIPPED
+        save_entry(candidate, record)
+        marked.append(candidate)
+
+    print(f"{len(marked)} entry(ies) marked as skipped before {entry_id}")
+    if marked:
+        print("  " + ", ".join(marked))
+    return 0
+
+
 def show_status(plan: dict, state: dict) -> int:
     today = date.today().isoformat()
     per_account: dict[str, dict[str, int]] = {}
 
     for entry in plan["schedule"]:
         bucket = per_account.setdefault(
-            entry["account"], {"total": 0, "published": 0, "failed": 0, "due": 0}
+            entry["account"],
+            {"total": 0, "published": 0, "skipped": 0, "failed": 0, "due": 0},
         )
         bucket["total"] += 1
         status = state.get(entry["id"], {}).get("status")
         if status == STATUS_DONE:
             bucket["published"] += 1
+        elif status == STATUS_SKIPPED:
+            bucket["skipped"] += 1
         elif status == STATUS_FAILED:
             bucket["failed"] += 1
         elif entry["date"] <= today:
@@ -282,11 +325,14 @@ def show_status(plan: dict, state: dict) -> int:
     if running:
         print(f"generation in progress — {running}\n")
 
-    print(f"{'account':12} {'published':>10} {'failed':>7} {'due now':>8} {'total':>6}")
+    print(
+        f"{'account':12} {'published':>10} {'skipped':>8} {'failed':>7} "
+        f"{'due now':>8} {'total':>6}"
+    )
     for account, counts in per_account.items():
         print(
-            f"{account:12} {counts['published']:>10} {counts['failed']:>7} "
-            f"{counts['due']:>8} {counts['total']:>6}"
+            f"{account:12} {counts['published']:>10} {counts['skipped']:>8} "
+            f"{counts['failed']:>7} {counts['due']:>8} {counts['total']:>6}"
         )
     return 0
 
@@ -314,6 +360,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-publish", action="store_true", help="generate the video but do not publish"
     )
+    parser.add_argument(
+        "--skip-before",
+        default="",
+        metavar="ID",
+        help="mark every earlier entry of that account as skipped, so the "
+             "schedule resumes at ID (e.g. why-007)",
+    )
     parser.add_argument("--status", action="store_true", help="print progress and exit")
     return parser
 
@@ -326,6 +379,9 @@ def main(argv=None) -> int:
 
     if args.status:
         return show_status(plan, state)
+
+    if args.skip_before:
+        return skip_before(plan, state, args.skip_before)
 
     # 只读操作不必留下日志文件，真正会改变状态的运行才记录。
     if not args.dry_run:

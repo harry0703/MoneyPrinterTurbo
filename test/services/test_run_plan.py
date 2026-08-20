@@ -343,5 +343,74 @@ class RealPlanTest(unittest.TestCase):
         self.assertEqual(dates, sorted(dates))
 
 
+class SkipBeforeTest(unittest.TestCase):
+    """
+    计划里前几条已经手工处理过，自动化要从中途接手。把它们标成 published 会
+    让统计说谎，留着不管则会被当成积压，第二天连着补发出去。
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        state_patcher = patch.object(
+            run_plan, "_state_path",
+            return_value=os.path.join(self.temp_dir, "state.json"),
+        )
+        state_patcher.start()
+        self.addCleanup(state_patcher.stop)
+
+    def test_entries_before_follows_plan_order(self):
+        self.assertEqual(
+            run_plan.entries_before(_plan(), "why-002"), ["why-001"]
+        )
+
+    def test_the_first_entry_has_nothing_before_it(self):
+        self.assertEqual(run_plan.entries_before(_plan(), "why-001"), [])
+
+    def test_other_accounts_are_never_touched(self):
+        """按账号切分，否则跳过 why 的开头会连带跳过 creature 的。"""
+        self.assertNotIn("creature-001", run_plan.entries_before(_plan(), "why-002"))
+
+    def test_an_unknown_id_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            run_plan.entries_before(_plan(), "why-999")
+
+    def test_skipped_entries_are_never_selected(self):
+        state = {"why-001": {"status": run_plan.STATUS_SKIPPED}}
+        entry = run_plan.select_entry(
+            _plan(), state, _Args(date="2026-08-25", account="why")
+        )
+        self.assertEqual(entry["id"], "why-002")
+
+    def test_next_mode_also_honours_skipped(self):
+        state = {"why-001": {"status": run_plan.STATUS_SKIPPED}}
+        entry = run_plan.select_entry(
+            _plan(), state, _Args(next=True, account="why")
+        )
+        self.assertEqual(entry["id"], "why-002")
+
+    def test_skip_before_marks_earlier_entries(self):
+        run_plan.skip_before(_plan(), {}, "why-002")
+        self.assertEqual(
+            run_plan.load_state()["why-001"]["status"], run_plan.STATUS_SKIPPED
+        )
+
+    def test_already_published_entries_keep_their_status(self):
+        """真的发过的条目不能被改写成"没发"，那会抹掉一条真实记录。"""
+        state = {"why-001": {"status": run_plan.STATUS_DONE, "url": "https://x"}}
+        run_plan.save_entry("why-001", state["why-001"])
+        run_plan.skip_before(_plan(), state, "why-002")
+        self.assertEqual(
+            run_plan.load_state()["why-001"]["status"], run_plan.STATUS_DONE
+        )
+
+    def test_an_existing_video_path_is_preserved(self):
+        run_plan.save_entry("why-001", {"status": run_plan.STATUS_GENERATED,
+                                        "video_path": "/tmp/a.mp4"})
+        run_plan.skip_before(_plan(), run_plan.load_state(), "why-002")
+        record = run_plan.load_state()["why-001"]
+        self.assertEqual(record["status"], run_plan.STATUS_SKIPPED)
+        self.assertEqual(record["video_path"], "/tmp/a.mp4")
+
+
 if __name__ == "__main__":
     unittest.main()
