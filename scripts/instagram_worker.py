@@ -128,7 +128,11 @@ def _client_with_session(request: dict):
             client.load_settings(session_file)
             previous_uuids = client.get_settings().get("uuids")
             # 廉价的鉴权请求：能返回账号信息说明会话仍然有效。
-            client.account_info()
+            info = client.account_info()
+            # 从文件恢复会话时 instagrapi 不会填回用户名，--check 便只能报 null——
+            # 而这条命令存在的意义正是告诉你回应的是哪个账号。
+            if not client.username:
+                client.username = getattr(info, "username", "") or ""
             reused = True
             log("session reused")
         except Exception as exc:
@@ -301,8 +305,12 @@ def main() -> int:
         respond({"ok": False, "error_type": "config", "error": str(exc)})
         return 1
     except Exception as exc:
-        text = str(exc).lower()
-        error_type = "challenge" if ("challenge" in text or "checkpoint" in text) else "auth"
+        # 登录失败沿用同一套分类。此前这里另写了一遍，只认 challenge，于是
+        # 登录阶段的 429 被报成 auth——看上去像密码错了，实际是被限流，
+        # 而这两者该做的事正好相反：一个要改配置，一个要停手等待。
+        error_type = classify_error(str(exc))
+        if error_type == "upload":
+            error_type = "auth"
         respond({"ok": False, "error_type": error_type, "error": str(exc)})
         return 1
 

@@ -99,5 +99,29 @@ class CalmRetriesTest(unittest.TestCase):
         worker._calm_retries(Bare())  # 不应抛出
 
 
+class LoginFailureClassificationTest(unittest.TestCase):
+    """登录阶段和发布阶段必须用同一套分类，否则同一个 429 会得到两种说法。"""
+
+    def test_a_throttled_login_is_a_rate_limit(self):
+        self.assertEqual(
+            worker.classify_error(
+                "429 Client Error: Too Many Requests for url: "
+                "https://b.i.instagram.com/api/v1/bloks/async_action/"
+                "com.bloks.www.bloks.caa.login.async.send_login_request/"
+            ),
+            "rate_limit",
+        )
+
+    def test_an_outdated_client_is_its_own_category(self):
+        self.assertEqual(
+            worker.classify_error("Your version of Instagram is out of date."),
+            "app_version",
+        )
+        self.assertEqual(
+            worker.classify_error("Please upgrade your app to log in"),
+            "app_version",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
