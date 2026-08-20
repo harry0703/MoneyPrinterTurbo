@@ -132,7 +132,9 @@ uv run --project $Integration python $BoundaryVerifier `
   --external-manifest-sha256 $ExternalManifestSha256
 ```
 
-该命令会实际检查固定 BASE 到 HEAD 的五文件提交边界、明确的依赖/配置 pathspec 以及仓库内 Raw 的 tracked/untracked/落盘状态；同时递归枚举 Raw、Curated、Approved 和 Imported 的每个普通文件。JSON/JSONL 使用 UTF-8、NFC 键和唯一键严格解析，递归拒绝 cookie/session/token/api_key/secret/password/proxy/credential 等敏感键；所有扩展名都读取文件头识别常见媒体魔数。合成手机号/邮箱形状值不被当成真实凭据，但敏感键本身仍禁止。
+该命令会实际检查固定 BASE 到 HEAD 的五文件提交边界，并对全仓 Git index、porcelain `-z` 与受控磁盘树三路核对 Raw：任一目录组件经 NFKC/casefold 后精确为 `raw`（或项目已知 `raw-data`/`raw_data` 标记）且其下含普通文件就失败。`.git`、受控测试 cache/venv 不当作数据目录；240 个已删 manual-pack 所在的精确保护根不递归访问。配置/依赖检查递归覆盖根 `config*.toml/yaml/yml/json`、`app/config/**`、明确 config 目录、`pyproject.toml`/`uv.lock`/`requirements*.txt` 和 package lock；普通业务 JSON 不因扩展名单独被当作配置。本机 Task 8 前已有的 ignored 根 `config.toml` 只在相对路径不变、为 3114 bytes 且 SHA-256 精确为 `f60060a50740bb7f1c6b09caaba6022fc3e9187700eb6de23e55fa02f66eb997` 时允许；内容不输出，任何变化都失败。
+
+JSON/JSONL 使用 UTF-8、NFC 唯一键严格解析，凭据判定再对键名做 NFKC/casefold/分隔符归一，在原有 cookie/session/token/api_key/secret/password/proxy/credential 外精确覆盖 HMAC、hash key、signing/private/encryption/decryption/access/auth key 及 client secret。普通 `hash`/`sha256`/manifest digest 元数据不误杀；合成手机号/邮箱形状值不被当成真实凭据。同时递归枚举 Raw、Curated、Approved 和 Imported 的每个普通文件，按扩展名和常见文件头拒绝媒体。
 
 只有所有必检项都能核验时，命令才输出一行 canonical UTF-8/LF JSON 并以 0 退出。缺路径、原始路径链中的 symlink/junction/reparse、越界、非普通文件、不能扫描、MediaCrawler 改动、外部锚不匹配或固定删除集改变都会非零失败。不存在把 skip 记为 true 的通过路径，失败输出不包含合成载荷或给定绝对路径。
 

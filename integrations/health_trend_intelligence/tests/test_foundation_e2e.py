@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import subprocess
 import sys
@@ -8,6 +9,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -177,6 +179,15 @@ def _load_task7_api() -> tuple[object, object]:
     finally:
         sys.path.pop(0)
     return verify_trend_exchange, import_trend_exchange
+
+
+def _load_boundary_module() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("_hti_task8_boundary", BOUNDARY_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _run_synthetic_pipeline(path: Path) -> SyntheticRun:
@@ -374,6 +385,54 @@ def boundary_run(tmp_path_factory: pytest.TempPathFactory) -> SyntheticRun:
     return _run_synthetic_pipeline(tmp_path_factory.mktemp("task8-boundary-attacks"))
 
 
+@pytest.fixture(scope="module")
+def boundary_module() -> ModuleType:
+    return _load_boundary_module()
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "hmac_key",
+        "HMAC-Key",
+        "ＨＭＡＣ＿ＫＥＹ",
+        "hmac_secret",
+        "hash_key",
+        "signing_key",
+        "private_key",
+        "secret_key",
+        "encryption_key",
+        "decryption_key",
+        "access_key",
+        "client_secret",
+        "auth_key",
+    ],
+)
+def test_boundary_credential_key_strategy_covers_keys_and_signing_material(
+    boundary_module: ModuleType,
+    key: str,
+) -> None:
+    assert boundary_module._credential_key(key)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "hash",
+        "sha256",
+        "manifest_hash",
+        "manifest_sha256",
+        "content_hash",
+        "file_sha256",
+    ],
+)
+def test_boundary_credential_key_strategy_allows_digest_metadata(
+    boundary_module: ModuleType,
+    key: str,
+) -> None:
+    assert not boundary_module._credential_key(key)
+
+
 @pytest.mark.parametrize(
     ("name", "payload"),
     [
@@ -425,6 +484,49 @@ def test_boundary_cli_rejects_structured_secrets_and_disguised_media(
     assert str(probe).encode("utf-8") not in completed.stderr
 
 
+def test_boundary_cli_rejects_hmac_key_without_leaking_probe(
+    boundary_run: SyntheticRun,
+) -> None:
+    probe = boundary_run.layout.raw / "hmac-probe.json"
+    probe.write_bytes(b'{"hmac_key":"synthetic-test-only-value"}\n')
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert b"synthetic-test-only-value" not in completed.stderr
+    assert str(probe).encode("utf-8") not in completed.stderr
+
+
+def test_boundary_cli_allows_hash_and_manifest_digest_metadata(
+    boundary_run: SyntheticRun,
+) -> None:
+    probe = boundary_run.layout.raw / "synthetic-digest-metadata.json"
+    probe.write_bytes(
+        b'{"hash":"synthetic","sha256":"synthetic",'
+        b'"manifest_hash":"synthetic","manifest_sha256":"synthetic",'
+        b'"content_hash":"synthetic","file_sha256":"synthetic"}\n'
+    )
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+
+    assert completed.returncode == 0, completed.stderr.decode("utf-8", errors="replace")
+
+
 def test_boundary_cli_allows_synthetic_phone_and_email_shapes(
     boundary_run: SyntheticRun,
 ) -> None:
@@ -466,6 +568,68 @@ def test_boundary_cli_rejects_untracked_protected_config(
     assert str(probe).encode("utf-8") not in completed.stderr
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        Path("app/config/config.task8-r2-probe.json"),
+        Path("task8-r2-probe/dependencies/pyproject.toml"),
+        Path("task8-r2-probe/dependencies/requirements-task8.txt"),
+        Path("task8-r2-probe/dependencies/package-lock.json"),
+    ],
+)
+def test_boundary_cli_rejects_recursive_untracked_protected_config(
+    boundary_run: SyntheticRun,
+    relative_path: Path,
+) -> None:
+    probe = PROJECT_ROOT / relative_path
+    created_parents: list[Path] = []
+    parent = probe.parent
+    while parent != PROJECT_ROOT and not parent.exists():
+        created_parents.append(parent)
+        parent = parent.parent
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    assert not probe.exists()
+    probe.write_bytes(b'{"synthetic":true}\n')
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+        for directory in created_parents:
+            directory.rmdir()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert str(probe).encode("utf-8") not in completed.stderr
+
+
+def test_boundary_cli_allows_untracked_business_json_outside_config_paths(
+    boundary_run: SyntheticRun,
+) -> None:
+    probe_directory = PROJECT_ROOT / "task8-r2-probe" / "business"
+    probe = probe_directory / "record.json"
+    assert not probe_directory.parent.exists()
+    probe_directory.mkdir(parents=True)
+    probe.write_bytes(b'{"synthetic":true}\n')
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+        probe_directory.rmdir()
+        probe_directory.parent.rmdir()
+
+    assert completed.returncode == 0, completed.stderr.decode("utf-8", errors="replace")
+
+
 def test_boundary_cli_rejects_repository_raw_even_when_untracked(
     boundary_run: SyntheticRun,
 ) -> None:
@@ -484,6 +648,34 @@ def test_boundary_cli_rejects_repository_raw_even_when_untracked(
     finally:
         probe.unlink()
         raw_directory.rmdir()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert str(probe).encode("utf-8") not in completed.stderr
+
+
+@pytest.mark.parametrize("raw_component", ["raw", "Raw", "ＲＡＷ"])
+def test_boundary_cli_rejects_repository_raw_at_arbitrary_depth(
+    boundary_run: SyntheticRun,
+    raw_component: str,
+) -> None:
+    probe_root = PROJECT_ROOT / "task8-r2-probe"
+    raw_directory = probe_root / raw_component
+    probe = raw_directory / "synthetic.json"
+    assert not probe_root.exists()
+    raw_directory.mkdir(parents=True)
+    probe.write_bytes(b'{"synthetic":true}\n')
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+        raw_directory.rmdir()
+        probe_root.rmdir()
 
     assert completed.returncode != 0
     assert completed.stdout == b""

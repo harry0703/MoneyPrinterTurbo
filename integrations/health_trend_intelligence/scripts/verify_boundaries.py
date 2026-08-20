@@ -35,6 +35,11 @@ PINNED_MANUAL_DELETION_COUNT = 240
 PINNED_MANUAL_DELETION_SHA256 = (
     "391aa69f5238ab573788c248ced49824a51a5fa08b4c3c9477d9bbf2eda26db6"
 )
+PINNED_LOCAL_CONFIG_PATH = b"config.toml"
+PINNED_LOCAL_CONFIG_BYTES = 3114
+PINNED_LOCAL_CONFIG_SHA256 = (
+    "f60060a50740bb7f1c6b09caaba6022fc3e9187700eb6de23e55fa02f66eb997"
+)
 SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 MANUAL_PACK_PATHSPEC = (
     "09_泛健康日更/work/HC20260810-*/production/v01/04_grok_batch/"
@@ -49,41 +54,41 @@ TASK8_ALLOWED_PATHS = frozenset(
         "09_泛健康日更/data/trend-intelligence/README.md".encode(),
     }
 )
-PROTECTED_PATHSPECS = (
-    ".python-version",
-    "pyproject.toml",
-    "uv.lock",
-    ":(top,glob)requirements*.txt",
-    "package.json",
-    "package-lock.json",
-    "pnpm-lock.yaml",
-    "yarn.lock",
-    ":(top,glob)config*.toml",
-    ":(top,glob)config*.yaml",
-    ":(top,glob)config*.yml",
-    ":(top,glob)config*.json",
-    ".github/ISSUE_TEMPLATE/config.yml",
-    "app/config/__init__.py",
-    "app/config/config.py",
-    "integrations/health_trend_intelligence/.python-version",
-    "integrations/health_trend_intelligence/pyproject.toml",
-    "integrations/health_trend_intelligence/uv.lock",
-    "webui/.streamlit/config.toml",
+ROOT_CONFIG_SUFFIXES = frozenset({".json", ".toml", ".yaml", ".yml"})
+CONFIG_DIRECTORY_SUFFIXES = frozenset(
+    {".cfg", ".conf", ".env", ".ini", ".json", ".py", ".toml", ".yaml", ".yml"}
 )
-RAW_REPOSITORY_PATHSPECS = (
-    "raw/**",
-    "health-trend-intelligence/raw/**",
-    "integrations/health_trend_intelligence/raw/**",
-    "integrations/health_trend_intelligence/data/raw/**",
-    "09_泛健康日更/data/trend-intelligence/raw/**",
+CONFIG_DIRECTORY_NAMES = frozenset({".config", ".streamlit", "config", "configs"})
+DEPENDENCY_FILENAMES = frozenset(
+    {
+        ".python-version",
+        "bun.lock",
+        "bun.lockb",
+        "npm-shrinkwrap.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "poetry.lock",
+        "pyproject.toml",
+        "uv.lock",
+        "yarn.lock",
+    }
 )
-RAW_REPOSITORY_DIRECTORIES = (
-    "raw",
-    "health-trend-intelligence/raw",
-    "integrations/health_trend_intelligence/raw",
-    "integrations/health_trend_intelligence/data/raw",
-    "09_泛健康日更/data/trend-intelligence/raw",
+CONTROLLED_NON_DATA_DIRECTORIES = frozenset(
+    {
+        ".cache",
+        ".git",
+        ".mypy_cache",
+        ".nox",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "node_modules",
+        "venv",
+    }
 )
+KNOWN_RAW_DATA_DIRECTORY_NAMES = frozenset({"raw-data", "raw_data"})
 MEDIA_SUFFIXES = frozenset(
     {
         ".aac",
@@ -124,6 +129,21 @@ CREDENTIAL_KEY_TERMS = (
     "password",
     "passwd",
     "proxy",
+)
+CREDENTIAL_COMPACT_KEYS = frozenset(
+    {
+        "accesskey",
+        "authkey",
+        "clientsecret",
+        "decryptionkey",
+        "encryptionkey",
+        "hashkey",
+        "hmackey",
+        "hmacsecret",
+        "privatekey",
+        "secretkey",
+        "signingkey",
+    }
 )
 CREDENTIAL_TEXT_RE = re.compile(
     rb"(?i)[\"']?(?:authorization|cookie|credential|session|token|"
@@ -279,7 +299,7 @@ def _assert_external(
                 raise BoundaryFailure
 
 
-def _manual_deletion_digest(repo_root: Path) -> tuple[int, str]:
+def _manual_deletion_paths(repo_root: Path) -> tuple[bytes, ...]:
     payload = _run_git(
         repo_root,
         "diff",
@@ -290,9 +310,195 @@ def _manual_deletion_digest(repo_root: Path) -> tuple[int, str]:
         "--",
         MANUAL_PACK_PATHSPEC,
     )
-    paths = sorted(item for item in payload.split(b"\0") if item)
+    return tuple(sorted(item for item in payload.split(b"\0") if item))
+
+
+def _manual_deletion_digest(repo_root: Path) -> tuple[int, str]:
+    paths = _manual_deletion_paths(repo_root)
     digest_payload = b"\n".join(paths) + (b"\n" if paths else b"")
     return len(paths), hashlib.sha256(digest_payload).hexdigest()
+
+
+def _repository_path_parts(path: bytes) -> tuple[str, ...]:
+    try:
+        text = path.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise BoundaryFailure from error
+    parts = tuple(text.split("/"))
+    if not parts or any(not part or part in {".", ".."} for part in parts):
+        raise BoundaryFailure
+    return parts
+
+
+def _normalized_component(value: str) -> str:
+    return unicodedata.normalize("NFKC", value).casefold()
+
+
+def _is_controlled_non_data_component(value: str) -> bool:
+    normalized = _normalized_component(value)
+    return (
+        normalized in CONTROLLED_NON_DATA_DIRECTORIES
+        or normalized.startswith((".test-tmp-", ".uv-cache"))
+        or ".uv-cache" in normalized
+    )
+
+
+def _is_controlled_non_data_path(parts: tuple[str, ...]) -> bool:
+    return any(_is_controlled_non_data_component(part) for part in parts)
+
+
+def _is_raw_directory_name(value: str) -> bool:
+    normalized = _normalized_component(value)
+    return normalized == "raw" or normalized in KNOWN_RAW_DATA_DIRECTORY_NAMES
+
+
+def _is_raw_repository_file(path: bytes) -> bool:
+    parts = _repository_path_parts(path)
+    directories = parts[:-1]
+    return not _is_controlled_non_data_path(directories) and any(
+        _is_raw_directory_name(part) for part in directories
+    )
+
+
+def _is_protected_repository_file(path: bytes) -> bool:
+    parts = _repository_path_parts(path)
+    directories = tuple(_normalized_component(part) for part in parts[:-1])
+    if _is_controlled_non_data_path(parts[:-1]):
+        return False
+    name = _normalized_component(parts[-1])
+    suffix = Path(name).suffix
+    if name in DEPENDENCY_FILENAMES:
+        return True
+    if name.startswith("requirements") and name.endswith(".txt"):
+        return True
+    if len(parts) == 1 and name == "package.json":
+        return True
+    if len(parts) == 1 and name.startswith("config") and suffix in ROOT_CONFIG_SUFFIXES:
+        return True
+    if any(component in CONFIG_DIRECTORY_NAMES for component in directories):
+        return suffix in CONFIG_DIRECTORY_SUFFIXES
+    return (
+        directories == (".github", "issue_template")
+        and name == "config.yml"
+    )
+
+
+def _porcelain_paths(payload: bytes) -> tuple[bytes, ...]:
+    fields = payload.split(b"\0")
+    paths: list[bytes] = []
+    index = 0
+    while index < len(fields):
+        field = fields[index]
+        index += 1
+        if not field:
+            continue
+        if len(field) < 4 or field[2:3] != b" ":
+            raise BoundaryFailure
+        status = field[:2]
+        path = field[3:]
+        if not path:
+            raise BoundaryFailure
+        paths.append(path)
+        if b"R" in status or b"C" in status:
+            if index >= len(fields) or not fields[index]:
+                raise BoundaryFailure
+            paths.append(fields[index])
+            index += 1
+    return tuple(paths)
+
+
+def _manual_pack_roots(repo_root: Path) -> frozenset[tuple[str, ...]]:
+    roots: set[tuple[str, ...]] = set()
+    for path in _manual_deletion_paths(repo_root):
+        parts = _repository_path_parts(path)
+        normalized = tuple(_normalized_component(part) for part in parts)
+        try:
+            marker = normalized.index("manual_pack")
+        except ValueError as error:
+            raise BoundaryFailure from error
+        roots.add(normalized[: marker + 1])
+    return frozenset(roots)
+
+
+def _matches_pinned_local_config(
+    path: Path,
+    relative_path: bytes,
+    initial_status: os.stat_result,
+) -> bool:
+    if relative_path != PINNED_LOCAL_CONFIG_PATH:
+        return False
+    if initial_status.st_size != PINNED_LOCAL_CONFIG_BYTES:
+        return False
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            opened_status = os.fstat(handle.fileno())
+            if (
+                _is_reparse(opened_status)
+                or not stat.S_ISREG(opened_status.st_mode)
+            ):
+                raise BoundaryFailure
+            while chunk := handle.read(1024 * 1024):
+                digest.update(chunk)
+            if os.fstat(handle.fileno()).st_size != PINNED_LOCAL_CONFIG_BYTES:
+                raise BoundaryFailure
+    except OSError as error:
+        raise BoundaryFailure from error
+    return digest.hexdigest() == PINNED_LOCAL_CONFIG_SHA256
+
+
+def _scan_repository_disk(
+    repo_root: Path,
+    tracked_paths: frozenset[tuple[str, ...]],
+    manual_pack_roots: frozenset[tuple[str, ...]],
+) -> tuple[bool, bool]:
+    raw_found = False
+    protected_untracked = False
+    pending: list[tuple[Path, tuple[str, ...], bool]] = [(repo_root, (), False)]
+    while pending:
+        directory, relative_parts, inside_raw = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                ordered = sorted(entries, key=lambda entry: entry.name)
+        except OSError as error:
+            raise BoundaryFailure from error
+        for entry in ordered:
+            child_parts = (*relative_parts, entry.name)
+            normalized_parts = tuple(
+                _normalized_component(part) for part in child_parts
+            )
+            if not inside_raw and (
+                normalized_parts in manual_pack_roots
+                or _is_controlled_non_data_component(entry.name)
+            ):
+                continue
+            try:
+                status = entry.stat(follow_symlinks=False)
+            except OSError as error:
+                raise BoundaryFailure from error
+            if _is_reparse(status):
+                raise BoundaryFailure
+            if stat.S_ISDIR(status.st_mode):
+                pending.append(
+                    (
+                        Path(entry.path),
+                        child_parts,
+                        inside_raw or _is_raw_directory_name(entry.name),
+                    )
+                )
+            elif stat.S_ISREG(status.st_mode):
+                raw_found = raw_found or inside_raw
+                encoded = "/".join(child_parts).encode("utf-8")
+                protected_untracked = protected_untracked or (
+                    _is_protected_repository_file(encoded)
+                    and normalized_parts not in tracked_paths
+                    and not _matches_pinned_local_config(
+                        Path(entry.path), encoded, status
+                    )
+                )
+            else:
+                raise BoundaryFailure
+    return raw_found, protected_untracked
 
 
 def _assert_task8_repository_boundary(repo_root: Path) -> bool:
@@ -311,7 +517,7 @@ def _assert_task8_repository_boundary(repo_root: Path) -> bool:
     ):
         raise BoundaryFailure
 
-    changed = {
+    changed_payload = tuple(
         path
         for path in _run_git(
             repo_root,
@@ -322,64 +528,48 @@ def _assert_task8_repository_boundary(repo_root: Path) -> bool:
             "--",
         ).split(b"\0")
         if path
-    }
-    if changed != TASK8_ALLOWED_PATHS:
+    )
+    if set(changed_payload) != TASK8_ALLOWED_PATHS:
         raise BoundaryFailure
 
-    protected_committed = _run_git(
-        repo_root,
-        "diff",
-        "--name-only",
-        "-z",
-        f"{PINNED_TASK8_BASE}..HEAD",
-        "--",
-        *PROTECTED_PATHSPECS,
+    if any(_is_protected_repository_file(path) for path in changed_payload):
+        raise BoundaryFailure
+
+    tracked_payload = tuple(
+        path
+        for path in _run_git(repo_root, "ls-files", "-z", "--").split(b"\0")
+        if path
     )
-    protected_dirty = _run_git(
+    status_payload = _run_git(
         repo_root,
         "status",
         "--porcelain=v1",
         "-z",
         "--untracked-files=all",
         "--",
-        *PROTECTED_PATHSPECS,
     )
-    if protected_committed or protected_dirty:
+    status_paths = _porcelain_paths(status_payload)
+    if any(_is_protected_repository_file(path) for path in status_paths):
         raise BoundaryFailure
 
-    raw_tracked = _run_git(
+    raw_tracked = any(_is_raw_repository_file(path) for path in tracked_payload)
+    raw_status = any(_is_raw_repository_file(path) for path in status_paths)
+    tracked_paths = frozenset(
+        tuple(_normalized_component(part) for part in _repository_path_parts(path))
+        for path in tracked_payload
+    )
+    raw_on_disk, protected_untracked_on_disk = _scan_repository_disk(
         repo_root,
-        "ls-files",
-        "-z",
-        "--",
-        *RAW_REPOSITORY_PATHSPECS,
+        tracked_paths,
+        _manual_pack_roots(repo_root),
     )
-    raw_status = _run_git(
-        repo_root,
-        "status",
-        "--porcelain=v1",
-        "-z",
-        "--untracked-files=all",
-        "--",
-        *RAW_REPOSITORY_PATHSPECS,
-    )
-    raw_on_disk = any(
-        _path_entry_exists(repo_root / item) for item in RAW_REPOSITORY_DIRECTORIES
-    )
+    if protected_untracked_on_disk:
+        raise BoundaryFailure
+
     raw_in_git = bool(raw_tracked or raw_status or raw_on_disk)
     if raw_in_git:
         raise BoundaryFailure
     return raw_in_git
-
-
-def _path_entry_exists(path: Path) -> bool:
-    try:
-        path.lstat()
-    except FileNotFoundError:
-        return False
-    except OSError as error:
-        raise BoundaryFailure from error
-    return True
 
 
 def _compact_key(value: str) -> str:
@@ -389,7 +579,9 @@ def _compact_key(value: str) -> str:
 
 def _credential_key(value: str) -> bool:
     compact = _compact_key(value)
-    return any(term in compact for term in CREDENTIAL_KEY_TERMS)
+    return compact in CREDENTIAL_COMPACT_KEYS or any(
+        term in compact for term in CREDENTIAL_KEY_TERMS
+    )
 
 
 def _unique_nfc_object(pairs: list[tuple[str, object]]) -> dict[str, object]:

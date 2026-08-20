@@ -18,10 +18,15 @@ nothing is automatically published. Raw retention is report-only.
 
 The read-only boundary CLI pins the reviewed Task 8 base, exact 240-path
 deletion digest, and MediaCrawler commit inside the script. It verifies the
-five-file commit allowlist, explicit dependency/config pathspecs, actual Git
-Raw state, lexical and resolved path chains, and every regular artifact file.
-JSON/JSONL keys are parsed as unique NFC keys and checked recursively for
-credential fields; media extensions and common file signatures are rejected.
+five-file commit allowlist, repository-wide Git index/porcelain plus on-disk
+Raw state, recursive protected config/dependency paths, lexical and resolved
+path chains, and every regular artifact file. A directory component whose
+NFKC/casefold form is exactly `raw` cannot contain ordinary files outside
+explicit test-cache/venv exclusions. JSON/JSONL keys are parsed as unique NFC
+keys, then NFKC/casefold/separator-normalized for a bounded credential-key
+policy covering HMAC, signing, private, encryption and access keys without
+treating ordinary hash/SHA-256/manifest-digest metadata as credentials. Media
+extensions and common file signatures are rejected.
 Missing or unverifiable checks fail closed with no payload or supplied path in
 the error output. Synthetic phone/email-shaped values alone are not claimed to
 be real credentials.
