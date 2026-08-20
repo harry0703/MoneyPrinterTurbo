@@ -43,6 +43,22 @@ CANDIDATE_FIELDS = {
     "user_needs",
     "user_questions",
 }
+EXECUTABLE_EXTENSION_CASES = (
+    "请勿上传 .bat 文件",
+    "请勿上传 .cmd 文件",
+    "请勿上传 .com 文件",
+    "请勿上传 .dll 文件",
+    "请勿上传 .exe 文件",
+    "请勿上传 .js 文件",
+    "请勿上传 .msi 文件",
+    "请勿上传 .ps1 文件",
+    "请勿上传 .py 文件",
+    "请勿上传 .scr 文件",
+    "请勿上传 .vbs 文件",
+    "请勿上传 .EXE 文件",
+    "请勿上传 ．ＰＹ 文件",
+    "请勿上传 ．Ｐ\u200bＳ１ 文件",
+)
 
 
 def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
@@ -266,6 +282,24 @@ def test_builder_rejects_recursive_restricted_values_without_echo(
 
     with pytest.raises(ExchangeError) as captured:
         build_approved_exchange(layout, BATCH_ID, selection)
+
+    assert unsafe not in str(captured.value)
+    assert not (layout.approved / BATCH_ID).exists()
+
+
+@pytest.mark.parametrize("unsafe", EXECUTABLE_EXTENSION_CASES)
+def test_builder_rejects_executable_or_script_extensions_without_echo(
+    tmp_path: Path, unsafe: str
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    candidates[0]["growth_evidence"] = [unsafe]
+
+    with pytest.raises(ExchangeError) as captured:
+        build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
 
     assert unsafe not in str(captured.value)
     assert not (layout.approved / BATCH_ID).exists()
@@ -504,6 +538,24 @@ def test_verifier_rejects_semantic_leak_even_when_hashes_are_rebound(tmp_path: P
     ],
 )
 def test_verifier_rejects_review_leaks_after_semantically_rebound_hashes(
+    tmp_path: Path, unsafe: str
+) -> None:
+    result = _build_valid_exchange(tmp_path / "root")
+    top10 = load_unique_json((result.path / "top10.json").read_bytes())
+    top10[0]["growth_evidence"] = [unsafe]
+    _rebind_payload(result, "top10.json", top10)
+    rebound_anchor = hashlib.sha256(
+        (result.path / "bundle-manifest.json").read_bytes()
+    ).hexdigest()
+
+    with pytest.raises(ExchangeError) as captured:
+        verify_approved_exchange(result.path, rebound_anchor)
+
+    assert unsafe not in str(captured.value)
+
+
+@pytest.mark.parametrize("unsafe", EXECUTABLE_EXTENSION_CASES)
+def test_verifier_rejects_rebound_executable_or_script_extensions_without_echo(
     tmp_path: Path, unsafe: str
 ) -> None:
     result = _build_valid_exchange(tmp_path / "root")
@@ -782,6 +834,8 @@ def test_anchored_verifier_rejects_medical_statement_after_flag_is_removed(
     [
         ("growth_evidence", "Research question: compare public, aggregated trend signals"),
         ("growth_evidence", "研究问题：比较公开且聚合的趋势信号"),
+        ("growth_evidence", "请使用 .pythonic 和 .cmdlet 示例，版本号 1.2.3。"),
+        ("growth_evidence", "说明文字包含 exe 但没有扩展点；下一句保持普通标点！"),
         ("narrative_gap", "项目延期会导致交付计划调整"),
     ],
 )

@@ -334,6 +334,24 @@ def _contract_summary(candidates: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+EXECUTABLE_CONFORMANCE_TEXT = {
+    "executable_bat": "请勿上传 .bat 文件",
+    "executable_cmd": "请勿上传 .cmd 文件",
+    "executable_com": "请勿上传 .com 文件",
+    "executable_dll": "请勿上传 .dll 文件",
+    "executable_exe": "请勿上传 .exe 文件",
+    "executable_js": "请勿上传 .js 文件",
+    "executable_msi": "请勿上传 .msi 文件",
+    "executable_ps1": "请勿上传 .ps1 文件",
+    "executable_py": "请勿上传 .py 文件",
+    "executable_scr": "请勿上传 .scr 文件",
+    "executable_vbs": "请勿上传 .vbs 文件",
+    "executable_uppercase": "请勿上传 .EXE 文件",
+    "executable_fullwidth": "请勿上传 ．ＰＹ 文件",
+    "executable_format_control": "请勿上传 ．Ｐ\u200bＳ１ 文件",
+}
+
+
 def _mutate_contract(value: dict[str, object], vector: str) -> None:
     candidates = value["candidates"]
     assert isinstance(candidates, list)
@@ -373,6 +391,8 @@ def _mutate_contract(value: dict[str, object], vector: str) -> None:
         candidates[0]["growth_evidence"] = ["secret=synthetic-secret"]
     elif vector == "secret_token":
         candidates[0]["growth_evidence"] = ["sk_abcdefghijkl"]
+    elif vector in EXECUTABLE_CONFORMANCE_TEXT:
+        candidates[0]["growth_evidence"] = [EXECUTABLE_CONFORMANCE_TEXT[vector]]
     else:
         raise AssertionError(f"unknown conformance vector: {vector}")
 
@@ -463,6 +483,22 @@ def test_approved_contract_is_bidirectionally_conformant_across_runtimes(
     baseline = tmp_path / "producer-valid" / BATCH_ID
     shutil.copytree(run.approved.path, baseline)
     shutil.rmtree(run.approved.path)
+    safe_selection = _selection(run.curated.manifest_sha256)
+    safe_candidates = safe_selection["candidates"]
+    assert isinstance(safe_candidates, list)
+    safe_candidates[0]["growth_evidence"] = [
+        "请使用 .pythonic 和 .cmdlet 示例，版本号 1.2.3。"
+    ]
+    safe_selection_path = tmp_path / "selection-safe-extension-like-prose.json"
+    safe_selection_path.write_bytes(canonical_json_bytes(safe_selection))
+    safe_result = build_approved_exchange(run.layout, BATCH_ID, safe_selection_path)
+    assert verify_approved_exchange(
+        safe_result.path, safe_result.manifest_sha256
+    ).candidate_count == 10
+    assert verify_trend_exchange(
+        safe_result.path, safe_result.manifest_sha256
+    ).candidate_count == 10
+    shutil.rmtree(safe_result.path)
     vectors = (
         "duplicate_risk_flag",
         "conflicting_risk_flag",
@@ -480,6 +516,7 @@ def test_approved_contract_is_bidirectionally_conformant_across_runtimes(
         "raw_record",
         "secret_assignment",
         "secret_token",
+        *EXECUTABLE_CONFORMANCE_TEXT,
     )
 
     for vector in vectors:

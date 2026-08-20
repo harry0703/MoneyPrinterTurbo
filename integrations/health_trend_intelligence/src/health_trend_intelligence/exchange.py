@@ -187,8 +187,8 @@ _IDENTITY_OR_MEDIA = re.compile(
     r"\b(?:avatar|bearer|cookie|credential|identifier|media|nickname|source[_ -]?url|token|url|user[_ -]?id|video|audio|image|id)\b",
     re.IGNORECASE,
 )
-_MEDIA_EXTENSION = re.compile(
-    r"\.(?:aac|avi|gif|jpeg|jpg|m4a|mkv|mov|mp3|mp4|mpeg|png|svg|wav|webm)\b",
+_MEDIA_OR_EXECUTABLE = re.compile(
+    r"\.(?:aac|avi|bat|cmd|com|dll|exe|gif|jpeg|jpg|js|m4a|mkv|mov|mp3|mp4|mpeg|msi|png|ps1|py|scr|svg|vbs|wav|webm)(?:\b|$)",
     re.IGNORECASE,
 )
 _RAW_EXCERPT = re.compile(r"raw\s*excerpt|原文|原句|摘录|全文", re.IGNORECASE)
@@ -514,7 +514,7 @@ def _assert_safe_text(value: str) -> None:
         or _RAW_PATH.search(decoded)
         or _RAW_OR_CURATED_RECORD.search(decoded)
         or _IDENTITY_OR_MEDIA.search(decoded)
-        or _MEDIA_EXTENSION.search(decoded)
+        or _MEDIA_OR_EXECUTABLE.search(decoded)
         or _SECRET_ASSIGNMENT.search(decoded)
         or _SECRET_TOKEN.search(decoded)
         or _RAW_EXCERPT.search(decoded)
