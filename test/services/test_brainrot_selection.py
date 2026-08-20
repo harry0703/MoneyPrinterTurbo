@@ -113,5 +113,85 @@ class TextsTest(unittest.TestCase):
         return directory
 
 
+class NextRunTest(unittest.TestCase):
+    """
+    --next 解析出来的文案必须真的传到渲染里。曾经有一版只更新了局部变量，
+    渲染仍在读命令行参数，于是产出一批空白卡片的成片——日志看不出异常，
+    只有打开视频才知道。
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.bait_dir = os.path.join(self.temp_dir, "bait")
+        os.makedirs(self.bait_dir)
+        for name in ("01.mp4", "02.mp4"):
+            open(os.path.join(self.bait_dir, name), "wb").close()
+
+        with open(os.path.join(self.temp_dir, brainrot.TEXTS_FILENAME), "w",
+                  encoding="utf-8") as handle:
+            json.dump({"texts": ["first line", "second line"]}, handle)
+
+        from app.utils import utils
+        storage = patch.object(utils, "storage_dir", return_value=self.temp_dir)
+        storage.start()
+        self.addCleanup(storage.stop)
+
+        root = patch.object(brainrot, "project_root", return_value=self.temp_dir)
+        root.start()
+        self.addCleanup(root.stop)
+
+        self.calls = []
+
+        def fake_build(**kwargs):
+            self.calls.append(kwargs)
+            return 26.4
+
+        build = patch.object(brainrot, "build_video", side_effect=fake_build)
+        build.start()
+        self.addCleanup(build.stop)
+
+    def _run(self, *extra):
+        return brainrot.main([
+            "--next",
+            "--bait-dir", self.bait_dir,
+            "--out", os.path.join(self.temp_dir, "out.mp4"),
+            *extra,
+        ])
+
+    def test_the_pooled_text_reaches_the_renderer(self):
+        self._run()
+        self.assertEqual(self.calls[0]["text"], "first line")
+
+    def test_consecutive_runs_advance_both_indexes(self):
+        self._run()
+        self._run()
+        self.assertEqual(self.calls[1]["text"], "second line")
+        self.assertEqual(
+            os.path.basename(self.calls[1]["bait_path"]), "02.mp4"
+        )
+
+    def test_an_explicit_text_still_wins(self):
+        self._run("--text", "mine")
+        self.assertEqual(self.calls[0]["text"], "mine")
+
+    def test_an_explicit_style_still_wins(self):
+        self._run("--style", "classic")
+        self.assertEqual(self.calls[0]["cameos"], brainrot.STYLES["classic"].cameos)
+
+    def test_an_exhausted_bait_folder_stops_instead_of_repeating(self):
+        self._run()
+        self._run()
+        with self.assertRaises(SystemExit):
+            self._run()
+
+    def test_a_failed_render_does_not_consume_the_clip(self):
+        """失败后重跑应当拿到同一条素材，而不是把它悄悄跳过。"""
+        with patch.object(brainrot, "build_video", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                self._run()
+        self._run()
+        self.assertEqual(self.calls[0]["text"], "first line")
+
+
 if __name__ == "__main__":
     unittest.main()

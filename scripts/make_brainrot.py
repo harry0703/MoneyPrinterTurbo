@@ -26,10 +26,21 @@ from dataclasses import dataclass, field
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-BAIT_DIR = "resource/brainrotVideo/bait"
-TEMPLATE_DEFAULT = "resource/brainrotVideo/template/Polyester Spiderman Edit Template.mp4"
-FONT_DEFAULT = "resource/fonts/BeVietnamPro-Bold.ttf"
-OUTPUT_DIR = "storage/brainrot"
+def project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+# Chemins absolus : ces valeurs partent en défaut d'arguments et servaient de
+# chemins relatifs, donc dépendants du répertoire courant. Depuis cron ou depuis
+# un autre dossier, on lisait le mauvais dossier d'appâts sans le voir.
+BAIT_DIR = os.path.join(project_root(), "resource", "brainrotVideo", "bait")
+TEMPLATE_DEFAULT = os.path.join(
+    project_root(), "resource", "brainrotVideo", "template",
+    "Polyester Spiderman Edit Template.mp4",
+)
+FONT_DEFAULT = os.path.join(project_root(), "resource", "fonts",
+                            "BeVietnamPro-Bold.ttf")
+OUTPUT_DIR = os.path.join(project_root(), "storage", "brainrot")
 
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".mkv", ".webm", ".m4v")
 
@@ -182,10 +193,6 @@ def load_texts() -> list[str]:
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"cannot read {TEXTS_FILENAME}: {exc}")
     return [line for line in payload.get("texts", []) if line.strip()]
-
-
-def project_root() -> str:
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 DEFAULT_WIDTH = 720
@@ -514,11 +521,11 @@ def main(argv=None) -> int:
     print(f"style    {args.style}")
     print(f"cover    {os.path.basename(thumbnail_path) or '—'}")
     print(f"bait     {os.path.basename(bait_path)}")
-    print(f"text     {args.text}")
+    print(f"text     {text}")
     print(f"seed     {seed}")
 
     metadata = {
-        "text": args.text,
+        "text": text,
         "style": args.style,
         "bait": os.path.basename(bait_path),
         "cover": os.path.basename(thumbnail_path),
@@ -529,7 +536,7 @@ def main(argv=None) -> int:
     duration = build_video(
         bait_path=bait_path,
         template_path=args.template,
-        text=args.text,
+        text=text,
         output_path=output_path,
         width=args.width,
         height=args.height,
