@@ -9,9 +9,11 @@
 诱饵素材必须由使用者提供：这个格式成立的前提是画面粗糙、随手、不合逻辑，
 而素材库提供的是打光考究的专业空镜，恰好是反面。
 
+    uv run python scripts/make_brainrot.py --next
     uv run python scripts/make_brainrot.py --list
     uv run python scripts/make_brainrot.py --text "how it feels to check the mail"
-    uv run python scripts/make_brainrot.py --bait-file clip.mp4 --seed 7
+
+文字卡不必每次自己想：省略 --text 就从 brainrot_texts.json 里取一条。
 """
 
 from __future__ import annotations
@@ -193,6 +195,16 @@ def load_texts() -> list[str]:
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"cannot read {TEXTS_FILENAME}: {exc}")
     return [line for line in payload.get("texts", []) if line.strip()]
+
+
+def random_text(rng: random.Random) -> str:
+    """从文案池里随便抽一条，不动索引。"""
+    texts = load_texts()
+    if not texts:
+        raise SystemExit(
+            f"{TEXTS_FILENAME} has no usable line; add one or pass --text"
+        )
+    return rng.choice(texts)
 
 
 DEFAULT_WIDTH = 720
@@ -416,7 +428,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Render one bait-plus-edit video.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--text", default="", help="the line shown on the text card")
+    parser.add_argument("--text", default="",
+                        help="the line shown on the text card "
+                             f"(default: one from {TEXTS_FILENAME})")
     parser.add_argument("--bait-dir", default=BAIT_DIR, help="folder of bait clips")
     parser.add_argument("--bait-file", default="", help="use this exact bait clip")
     parser.add_argument("--template", default=TEMPLATE_DEFAULT, help="the edit to splice in")
@@ -465,7 +479,6 @@ def main(argv=None) -> int:
     rng = random.Random(seed)
 
     state = load_state() if args.next else {}
-    text = args.text
     style_name = args.style or "classic"
 
     if args.next:
@@ -492,9 +505,9 @@ def main(argv=None) -> int:
         style_name = args.style or weighted_style(rng)
     else:
         bait_path = pick_bait(args.bait_dir, args.bait_file, rng)
-
-    if not text:
-        raise SystemExit("--text is required: the card is the whole hook")
+        # 手动跑一条时同样从文案池里取，不必先自己想一句词。这里抽的是随机一条
+        # 而不是"下一条"：推进索引是 --next 的职责，一次试渲染不该消耗排期。
+        text = args.text or random_text(rng)
 
     args.style = style_name
     style = STYLES[style_name]

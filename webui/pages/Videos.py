@@ -193,7 +193,7 @@ if not videos:
         "No video yet. Render one with "
         "`uv run python run_plan.py --account why --next --no-publish`, "
         "or a brainrot one with "
-        "`uv run python scripts/make_brainrot.py --text \"...\"`."
+        "`uv run python scripts/make_brainrot.py --next`."
     )
     st.stop()
 

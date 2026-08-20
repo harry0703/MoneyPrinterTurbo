@@ -184,6 +184,36 @@ class NextRunTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self._run()
 
+    def test_a_plain_run_still_gets_a_text(self):
+        """不带 --next 时也不该被迫先想一句词。"""
+        brainrot.main([
+            "--bait-dir", self.bait_dir,
+            "--bait-file", os.path.join(self.bait_dir, "01.mp4"),
+            "--out", os.path.join(self.temp_dir, "out.mp4"),
+        ])
+        self.assertIn(self.calls[0]["text"], ["first line", "second line"])
+
+    def test_a_plain_run_does_not_advance_the_index(self):
+        """试渲染一条不该占用排期里的下一句。"""
+        brainrot.main([
+            "--bait-dir", self.bait_dir,
+            "--bait-file", os.path.join(self.bait_dir, "01.mp4"),
+            "--out", os.path.join(self.temp_dir, "out.mp4"),
+        ])
+        self._run()
+        self.assertEqual(self.calls[1]["text"], "first line")
+
+    def test_an_empty_pool_says_so_instead_of_rendering_a_blank_card(self):
+        with open(os.path.join(self.temp_dir, brainrot.TEXTS_FILENAME), "w",
+                  encoding="utf-8") as handle:
+            json.dump({"texts": []}, handle)
+        with self.assertRaises(SystemExit):
+            brainrot.main([
+                "--bait-dir", self.bait_dir,
+                "--bait-file", os.path.join(self.bait_dir, "01.mp4"),
+                "--out", os.path.join(self.temp_dir, "out.mp4"),
+            ])
+
     def test_a_failed_render_does_not_consume_the_clip(self):
         """失败后重跑应当拿到同一条素材，而不是把它悄悄跳过。"""
         with patch.object(brainrot, "build_video", side_effect=RuntimeError("boom")):
