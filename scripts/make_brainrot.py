@@ -119,6 +119,75 @@ def resolve_thumbnail(template_path: str, explicit: str, disabled: bool) -> str:
     return THUMBNAILS.get(os.path.basename(template_path), "")
 
 
+TEXTS_FILENAME = "brainrot_texts.json"
+STATE_FILENAME = "brainrot_state.json"
+
+# 变体的抽取权重。数值直接是百分比，四项相加为 100。
+STYLE_WEIGHTS = {
+    "classic": 15,
+    "sweep": 25,
+    "flash": 30,
+    "rush": 30,
+}
+
+
+def weighted_style(rng: random.Random, weights: dict | None = None) -> str:
+    """按权重抽一个变体。"""
+    weights = weights or STYLE_WEIGHTS
+    names = sorted(weights)
+    return rng.choices(names, weights=[weights[name] for name in names], k=1)[0]
+
+
+def next_bait(clips: list[str], used: list[str]) -> str:
+    """
+    取第一个还没用过的诱饵，按文件名排序。
+
+    按顺序而不是随机：随机会在素材还剩很多时就重复，而重复的诱饵正是平台
+    判定"模板化生产"的依据。用完为止，不回头再用。
+    """
+    consumed = set(used)
+    for clip in clips:
+        if os.path.basename(clip) not in consumed:
+            return clip
+    return ""
+
+
+def load_state() -> dict:
+    from app.utils import utils
+
+    path = os.path.join(utils.storage_dir(create=True), STATE_FILENAME)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def save_state(state: dict) -> None:
+    from app.utils import utils
+
+    path = os.path.join(utils.storage_dir(create=True), STATE_FILENAME)
+    temp_path = f"{path}.tmp"
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(state, handle, ensure_ascii=False, indent=2)
+    os.replace(temp_path, path)
+
+
+def load_texts() -> list[str]:
+    path = os.path.join(project_root(), TEXTS_FILENAME)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"cannot read {TEXTS_FILENAME}: {exc}")
+    return [line for line in payload.get("texts", []) if line.strip()]
+
+
+def project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 DEFAULT_WIDTH = 720
 DEFAULT_HEIGHT = 1280
 DEFAULT_FPS = 30
@@ -349,8 +418,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
     parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
     parser.add_argument("--fps", type=int, default=DEFAULT_FPS)
-    parser.add_argument("--style", default="classic", choices=sorted(STYLES),
-                        help="which variant to render")
+    # Défaut à None pour distinguer "non précisé" de "classic demandé" :
+    # avec --next, non précisé veut dire "tire selon les pondérations".
+    parser.add_argument("--style", default=None, choices=sorted(STYLES),
+                        help="which variant to render (default: classic, "
+                             "or weighted random with --next)")
+    parser.add_argument("--next", action="store_true",
+                        help="take the next unused bait clip and the next text, "
+                             "and pick a style at random by weight")
     # 这三项默认留空，用于区分"用户没给"和"用户给了默认值"：
     # 只有真正给出时才压过 style 的设定。
     parser.add_argument("--bait-seconds", type=float, default=None)
@@ -379,14 +454,43 @@ def main(argv=None) -> int:
             print(f"  {os.path.basename(path)}")
         return 0
 
-    if not args.text:
-        raise SystemExit("--text is required: the card is the whole hook")
-
     seed = args.seed or random.randrange(1, 10**6)
     rng = random.Random(seed)
-    bait_path = pick_bait(args.bait_dir, args.bait_file, rng)
 
-    style = STYLES[args.style]
+    state = load_state() if args.next else {}
+    text = args.text
+    style_name = args.style or "classic"
+
+    if args.next:
+        clips = list_bait(args.bait_dir)
+        if not clips:
+            raise SystemExit(f"no bait clips in {args.bait_dir}")
+
+        used = state.get("used_bait", [])
+        bait_path = next_bait(clips, used)
+        if not bait_path:
+            raise SystemExit(
+                f"every bait clip in {args.bait_dir} has been used "
+                f"({len(used)} of them); add more before the next run"
+            )
+
+        texts = load_texts()
+        text_index = int(state.get("text_index", 0))
+        if text_index >= len(texts):
+            raise SystemExit(
+                f"the text pool is exhausted ({len(texts)} lines used); "
+                f"add more to {TEXTS_FILENAME}"
+            )
+        text = args.text or texts[text_index]
+        style_name = args.style or weighted_style(rng)
+    else:
+        bait_path = pick_bait(args.bait_dir, args.bait_file, rng)
+
+    if not text:
+        raise SystemExit("--text is required: the card is the whole hook")
+
+    args.style = style_name
+    style = STYLES[style_name]
     def resolve(explicit, from_style, fallback):
         if explicit is not None:
             return explicit
@@ -445,6 +549,13 @@ def main(argv=None) -> int:
     metadata["duration"] = round(duration, 2)
     with open(os.path.splitext(output_path)[0] + ".json", "w", encoding="utf-8") as handle:
         json.dump(metadata, handle, ensure_ascii=False, indent=2)
+
+    if args.next:
+        # 只有真的产出了成片才推进索引：失败后重跑应当拿到同一条素材，
+        # 而不是把它悄悄跳过。
+        state.setdefault("used_bait", []).append(os.path.basename(bait_path))
+        state["text_index"] = int(state.get("text_index", 0)) + 1
+        save_state(state)
 
     print(f"\n{output_path}  ({duration:.1f}s)")
     return 0
