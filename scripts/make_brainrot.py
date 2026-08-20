@@ -78,11 +78,11 @@ class Style:
 STYLES = {
     # 基准版：诱饵、入侵、剪辑，没有任何前置提示。
     "classic": Style(),
-    # 剪辑先闪两下，各 0.1 秒，快到看不清是什么——正因为看不清才会想再看。
+    # 剪辑先闪两下，各 0.3 秒：够看清是什么，又短到留不下完整印象。
     "flash": Style(
         cameos=(
-            Cameo(start=2.0, duration=0.1),
-            Cameo(start=4.5, duration=0.1),
+            Cameo(start=2.0, duration=0.3),
+            Cameo(start=4.5, duration=0.3),
         )
     ),
     # 剪辑横穿画面两次，回程加速一倍因而音调更高，第二次比第一次更急。
@@ -92,9 +92,10 @@ STYLES = {
             Cameo(start=5.0, duration=1.0, kind="sweep", direction=-1, speed=2.0),
         )
     ),
-    # 整段加速：入侵更密更短，剪辑本身也快放，音调随之抬高。
+    # 整段加速：入侵更密，剪辑本身也快放，音调随之抬高。入侵不能太短——
+    # 第一个实例要正好放到剪辑自己的重拍上，接手的瞬间才不会踩空。
     "rush": Style(
-        invasion_seconds=1.5,
+        invasion_seconds=3.5,
         panel_interval=0.12,
         edit_speed=1.5,
     ),
