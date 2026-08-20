@@ -123,5 +123,22 @@ class LoginFailureClassificationTest(unittest.TestCase):
         )
 
 
+class SessionExpiryTest(unittest.TestCase):
+    """
+    会话失效后自动改用账密登录，会撞上一个必然失败的接口，并把出口 IP 一起
+    拖进限流。这条路径必须停在人的面前。
+    """
+
+    def test_session_expired_is_a_permission_error(self):
+        self.assertTrue(issubclass(worker.SessionExpired, PermissionError))
+
+    def test_the_message_says_how_to_recover(self):
+        error = worker.SessionExpired(
+            "stored session was rejected; re-import it with "
+            "publish_instagram.py --import-session <sessionid>"
+        )
+        self.assertIn("--import-session", str(error))
+
+
 if __name__ == "__main__":
     unittest.main()

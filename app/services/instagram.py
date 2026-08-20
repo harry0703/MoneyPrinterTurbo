@@ -303,7 +303,7 @@ def _run_worker(request: dict) -> dict:
 def _raise_for_result(result: dict) -> None:
     error_type = result.get("error_type", "upload")
     message = result.get("error", "unknown Instagram error")
-    if error_type in {"auth", "challenge", "app_version"}:
+    if error_type in {"auth", "challenge", "app_version", "session_expired"}:
         raise InstagramAuthError(message)
     if error_type == "rate_limit":
         raise InstagramRateLimitError(message)

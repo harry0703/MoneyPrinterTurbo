@@ -51,6 +51,10 @@ def classify_error(text: str) -> str:
     return "upload"
 
 
+class SessionExpired(PermissionError):
+    """会话曾经可用但已被拒绝。只能由人重新导入，机器重试没有意义。"""
+
+
 def log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
@@ -122,6 +126,7 @@ def _client_with_session(request: dict):
 
     reused = False
     previous_uuids = None
+    session_existed = session_file.exists()
 
     if session_file.exists():
         try:
@@ -142,6 +147,16 @@ def _client_with_session(request: dict):
         sessionid = (request.get("sessionid") or "").strip()
         username = request.get("username") or ""
         password = request.get("password") or ""
+        if not sessionid and session_existed:
+            # 会话曾经有效、现在失效，说明它被吊销或过期了。此时改用账密登录
+            # 毫无胜算——私有 API 会校验客户端版本号，而那串版本号一旦被判过期
+            # 就无法登录——却会实打实地撞上限流，把出口 IP 也拖下水。
+            # 这种情况只能由人重新导入会话，机器再试没有意义。
+            raise SessionExpired(
+                "stored session was rejected; re-import it with "
+                "publish_instagram.py --import-session <sessionid>"
+            )
+
         if not sessionid and not (username and password):
             raise PermissionError(
                 "stored session is invalid and no credentials were provided"
@@ -301,6 +316,10 @@ def main() -> int:
 
     try:
         client, reused = _client_with_session(request)
+    except SessionExpired as exc:
+        # 与 config 区分开：配置没有问题，是那份会话需要重新导入。
+        respond({"ok": False, "error_type": "session_expired", "error": str(exc)})
+        return 1
     except PermissionError as exc:
         respond({"ok": False, "error_type": "config", "error": str(exc)})
         return 1
