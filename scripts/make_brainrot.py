@@ -36,7 +36,7 @@ VIDEO_EXTENSIONS = (".mp4", ".mov", ".mkv", ".webm", ".m4v")
 # 长于 15 秒则在剪辑开始前就流失。
 DEFAULT_BAIT_SECONDS = 10.0
 # 入侵持续多久。样片约 3~4 秒，短了像掉帧，长了会让人以为视频坏了。
-DEFAULT_INVASION_SECONDS = 3.5
+DEFAULT_INVASION_SECONDS = 2.5
 
 DEFAULT_WIDTH = 720
 DEFAULT_HEIGHT = 1280
@@ -84,7 +84,7 @@ def build_video(
     invasion_seconds: float,
     font_path: str,
     seed: int,
-    panel_interval: float = 0.2,
+    panel_interval: float = 0.35,
     stutter_volume: float = 0.30,
     stutter_tail: float = 0.6,
 ):
