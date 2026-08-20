@@ -38,7 +38,7 @@ DEFAULT_BAIT_SECONDS = 10.0
 # 入侵持续多久。样片约 3~4 秒，短了像掉帧，长了会让人以为视频坏了。
 DEFAULT_INVASION_SECONDS = 2.5
 # 每隔这么久叠一个新的播放实例。
-DEFAULT_PANEL_INTERVAL = 0.42
+DEFAULT_PANEL_INTERVAL = 0.3
 # 每个实例自带的那份声音。六份错开叠加后整体电平与单份 1.2 相当，
 # 但六份都听得见；再往上主要换来削波失真，而不是响度。
 DEFAULT_STUTTER_VOLUME = 0.8
