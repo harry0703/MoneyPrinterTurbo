@@ -104,7 +104,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
             }
         )
 
-        with patch("app.services.material.requests.get", return_value=fake_response) as get:
+        with patch(
+            "app.services.material.cf_requests.get", return_value=fake_response
+        ) as get:
             results = material.search_videos_pixabay(
                 "cat",
                 minimum_duration=1,
@@ -227,7 +229,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
             )
             pexels_url = get.call_args.args[0]
         with patch(
-            "app.services.material.requests.get",
+            "app.services.material.cf_requests.get",
             return_value=pixabay_response,
         ):
             pixabay_results = material.search_videos_pixabay(
@@ -376,7 +378,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.requests.get",
+            "app.services.material.cf_requests.get",
             return_value=pixabay_response,
         ):
             pixabay_results = material.search_videos_pixabay(
@@ -415,7 +417,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.requests.get", return_value=fake_response
+            "app.services.material.cf_requests.get", return_value=fake_response
         ), patch("app.services.material.logger.info") as log:
             material.search_videos_pixabay("cat", minimum_duration=1)
 
@@ -441,7 +443,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.requests.get", return_value=fake_response
+            "app.services.material.cf_requests.get", return_value=fake_response
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
@@ -470,7 +472,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.requests.get", return_value=fake_response
+            "app.services.material.cf_requests.get", return_value=fake_response
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
@@ -498,7 +500,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.requests.get", return_value=fake_response
+            "app.services.material.cf_requests.get", return_value=fake_response
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
@@ -521,7 +523,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.requests.get", side_effect=error
+            "app.services.material.cf_requests.get", side_effect=error
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
@@ -545,7 +547,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.requests.get", side_effect=error
+            "app.services.material.cf_requests.get", side_effect=error
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 

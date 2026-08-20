@@ -6,6 +6,7 @@ from typing import Any, Callable, List
 from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
 
 import requests
+from curl_cffi import requests as cf_requests
 from loguru import logger
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
@@ -206,7 +207,7 @@ def _redact_request_error(error: Exception, *secrets: str) -> str:
     return safe_message
 
 
-def _is_cloudflare_challenge(response: requests.Response) -> bool:
+def _is_cloudflare_challenge(response: Any) -> bool:
     """
     识别 Cloudflare 返回的 HTML Challenge，而不是把它当成 Pixabay JSON。
 
@@ -397,8 +398,16 @@ def search_videos_pixabay(
     )
 
     try:
-        r = requests.get(
-            query_url, proxies=config.proxy, verify=_get_tls_verify(), timeout=(30, 60)
+        # Pixabay sits behind Cloudflare, which fingerprints the TLS/HTTP client
+        # itself and blocks plain `requests` traffic with a 429 challenge page
+        # regardless of headers set. curl_cffi impersonates a real browser's TLS
+        # handshake to get a normal API response instead.
+        r = cf_requests.get(
+            query_url,
+            proxies=config.proxy,
+            verify=_get_tls_verify(),
+            timeout=(30, 60),
+            impersonate="chrome",
         )
         status_code = int(getattr(r, "status_code", 200))
         headers = getattr(r, "headers", {}) or {}
