@@ -2522,6 +2522,7 @@ def _render_settings_dialog():
             right_config_panel,
             key_backup_panel,
             cache_config_panel,
+            publish_config_panel,
             left_config_panel,
         ) = st.tabs(
             [
@@ -2529,9 +2530,61 @@ def _render_settings_dialog():
                 tr("Material API Tab"),
                 tr("Key Backup Tab"),
                 tr("Cache Management Tab"),
+                tr("Auto-Publish Settings"),
                 tr("Interface Settings Tab"),
             ]
         )
+
+        with publish_config_panel:
+            st.write(tr("Automatically publish generated videos to social media using upload-post.com"))
+            
+            upload_post_enabled = st.checkbox(
+                tr("Enable Auto-Publish"),
+                value=config.app.get("upload_post_enabled", False),
+                key="upload_post_enabled_checkbox"
+            )
+            if upload_post_enabled != config.app.get("upload_post_enabled", False):
+                _set_runtime_config("app", "upload_post_enabled", upload_post_enabled)
+                _set_runtime_config("app", "upload_post_auto_upload", upload_post_enabled)
+
+            upload_post_api_key = st.text_input(
+                tr("Upload-Post API Key"),
+                value=config.app.get("upload_post_api_key", ""),
+                type="password",
+                help="Get your API key from upload-post.com",
+                key="upload_post_api_key_input"
+            )
+            if upload_post_api_key != config.app.get("upload_post_api_key", ""):
+                _set_runtime_config("app", "upload_post_api_key", upload_post_api_key)
+
+            upload_post_username = st.text_input(
+                tr("Upload-Post Username (Email)"),
+                value=config.app.get("upload_post_username", ""),
+                help="Your upload-post.com registered email",
+                key="upload_post_username_input"
+            )
+            if upload_post_username != config.app.get("upload_post_username", ""):
+                _set_runtime_config("app", "upload_post_username", upload_post_username)
+
+            upload_post_platforms = st.multiselect(
+                tr("Platforms"),
+                options=["tiktok", "instagram", "youtube"],
+                default=config.app.get("upload_post_platforms", ["tiktok", "instagram"]),
+                help="Select platforms to publish to",
+                key="upload_post_platforms_multiselect"
+            )
+            if upload_post_platforms != config.app.get("upload_post_platforms", ["tiktok", "instagram"]):
+                _set_runtime_config("app", "upload_post_platforms", upload_post_platforms)
+
+            if "youtube" in upload_post_platforms:
+                upload_post_youtube_privacy_status = st.selectbox(
+                    tr("YouTube Privacy Status"),
+                    options=["public", "private", "unlisted"],
+                    index=["public", "private", "unlisted"].index(config.app.get("upload_post_youtube_privacy_status", "public")),
+                    key="upload_post_youtube_privacy_status_selectbox"
+                )
+                if upload_post_youtube_privacy_status != config.app.get("upload_post_youtube_privacy_status", "public"):
+                    _set_runtime_config("app", "upload_post_youtube_privacy_status", upload_post_youtube_privacy_status)
 
         # 左侧面板 - 日志设置
         with left_config_panel:
