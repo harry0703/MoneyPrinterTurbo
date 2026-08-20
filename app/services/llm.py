@@ -64,7 +64,9 @@ def _normalize_text_response(content, llm_provider: str) -> str:
     if not content:
         raise ValueError(f"[{llm_provider}] returned empty text content")
 
-    return content.replace("\n", "")
+    # 前面的 ``strip()`` 已经清理首尾空白。这里必须保留正文中的单换行和
+    # 双换行：脚本生成依赖双换行区分段落，字幕处理也会按行读取用户文案。
+    return content
 
 
 def _sanitize_error_message(error: object) -> str:

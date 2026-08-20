@@ -32,6 +32,18 @@ RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() 
 
 
 class TestScriptPromptOptions(unittest.TestCase):
+    def test_normalize_text_response_preserves_internal_newlines(self):
+        """
+        归一化只清理首尾空白，不能删除正文内部的换行。双换行用于区分脚本
+        段落，单换行也可能是模型按语义返回的字幕行。
+        """
+        result = llm._normalize_text_response(
+            "\n  第一行\n第二行\n\n第三段  \n",
+            "openai",
+        )
+
+        self.assertEqual(result, "第一行\n第二行\n\n第三段")
+
     def test_normalize_text_response_removes_think_blocks(self):
         """
         reasoning 模型可能返回 `<think>...</think>`。脚本生成链路必须只保留
@@ -665,7 +677,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "hellopollinations")
+        self.assertEqual(result, "hello\npollinations")
 
     def test_gemini_uses_google_genai_client(self):
         """Gemini 适配器应通过新版 SDK 的统一 Client 发起内容生成请求。"""
@@ -698,7 +710,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         with patch("google.genai.Client", FakeClient):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "hellogemini")
+        self.assertEqual(result, "hello\ngemini")
         self.assertEqual(
             captured["client_kwargs"],
             {"api_key": "gemini-test-key", "http_options": None},
@@ -775,7 +787,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "gatewayresponse")
+        self.assertEqual(result, "gateway\nresponse")
 
     def _use_litellm_provider(self, model_name="openai/gpt-4o-mini"):
         config.app["llm_provider"] = "litellm"
@@ -808,7 +820,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         with patch.dict(sys.modules, {"litellm": fake_litellm}):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "helloworld")
+        self.assertEqual(result, "hello\nworld")
 
     def test_litellm_provider_uses_registry_default_model(self):
         self._use_litellm_provider(model_name="")
@@ -971,7 +983,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         with self._patch_dashscope_generation(response):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "你好世界")
+        self.assertEqual(result, "你好\n世界")
 
     def test_qwen_provider_falls_back_to_output_text(self):
         """保留旧 DashScope completion 响应结构的兼容路径。"""
@@ -981,7 +993,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         with self._patch_dashscope_generation(response):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "旧格式响应")
+        self.assertEqual(result, "旧格式\n响应")
 
     def test_qwen_provider_reports_empty_text(self):
         """Qwen 空响应应返回可诊断错误，而不是底层 AttributeError。"""
@@ -1049,7 +1061,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloaihubmix")
+        self.assertEqual(result, "hello\naihubmix")
 
     def test_aimlapi_provider_uses_openai_compatible_client(self):
         config.app["llm_provider"] = "aimlapi"
@@ -1086,7 +1098,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloaimlapi")
+        self.assertEqual(result, "hello\naimlapi")
 
     def test_evolink_provider_uses_openai_compatible_client(self):
         """
@@ -1128,7 +1140,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloevolink")
+        self.assertEqual(result, "hello\nevolink")
 
     def test_volcengine_provider_uses_openai_compatible_client(self):
         """
@@ -1170,7 +1182,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "hellovolcengine")
+        self.assertEqual(result, "hello\nvolcengine")
 
     def test_grok_provider_still_uses_existing_path(self):
         config.app["llm_provider"] = "grok"
@@ -1225,7 +1237,7 @@ class TestLiteLLMProvider(unittest.TestCase):
             api_key="groq-test-key",
             base_url="https://api.groq.com/openai/v1",
         )
-        self.assertEqual(result, "hellogroq")
+        self.assertEqual(result, "hello\ngroq")
 
     def _use_ollama_provider(self, base_url=""):
         config.app["llm_provider"] = "ollama"
@@ -1263,7 +1275,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloollama")
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_default_base_url_uses_localhost_outside_container(self):
         """
@@ -1352,7 +1364,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "hellomimo")
+        self.assertEqual(result, "hello\nmimo")
 
     def test_azure_provider_uses_azure_client_directly(self):
         """
@@ -1398,7 +1410,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloazure")
+        self.assertEqual(result, "hello\nazure")
 
     def test_unsupported_provider_returns_clear_error(self):
         config.app["llm_provider"] = "g" + "4f"
