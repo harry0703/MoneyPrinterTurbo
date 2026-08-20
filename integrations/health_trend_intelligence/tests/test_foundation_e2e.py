@@ -665,12 +665,55 @@ def test_raw_classifier_cannot_be_disabled_by_skip_like_names(
 def test_exact_cache_root_does_not_expand_to_nested_same_name(
     boundary_module: ModuleType,
 ) -> None:
+    assert boundary_module._is_exact_controlled_non_data_root((".cache",))
+    assert boundary_module._is_exact_controlled_non_data_root((".CACHE",)) is (
+        os.name == "nt"
+    )
     assert boundary_module._is_under_exact_controlled_non_data_root(
         (".cache", "existing-synthetic-fixture")
     )
-    assert not boundary_module._is_under_exact_controlled_non_data_root(
-        ("task8", ".cache", "synthetic-probe")
-    )
+    for untrusted_parts in (
+        ("task8", ".cache", "synthetic-probe"),
+        (".cache-prefix",),
+        ("opaque.cache",),
+        (".ＣＡＣＨＥ",),
+        (".uv-cachｅ-r3",),
+    ):
+        assert not boundary_module._is_exact_controlled_non_data_root(
+            untrusted_parts
+        )
+        assert not boundary_module._is_under_exact_controlled_non_data_root(
+            untrusted_parts
+        )
+        assert not boundary_module._is_under_exact_controlled_non_data_root(
+            (*untrusted_parts, "synthetic-probe")
+        )
+
+
+def test_boundary_cli_rejects_compatibility_cache_root_raw(
+    boundary_run: SyntheticRun,
+) -> None:
+    probe_root = PROJECT_ROOT / ".ＣＡＣＨＥ"
+    raw_directory = probe_root / "raw"
+    probe = raw_directory / "synthetic.json"
+    assert not probe_root.exists()
+    raw_directory.mkdir(parents=True)
+    probe.write_bytes(b'{"synthetic":true}\n')
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+        raw_directory.rmdir()
+        probe_root.rmdir()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert str(probe).encode("utf-8") not in completed.stderr
 
 
 @pytest.mark.parametrize(

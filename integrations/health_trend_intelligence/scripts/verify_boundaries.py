@@ -175,6 +175,10 @@ EXACT_CONTROLLED_NON_DATA_ROOTS = (
     | EXACT_LEGACY_TEST_CACHE_ROOTS
     | EXACT_LEGACY_ROOT_CACHE_ROOTS
 )
+ASCII_WINDOWS_CASE_TRANSLATION = str.maketrans(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "abcdefghijklmnopqrstuvwxyz",
+)
 KNOWN_RAW_DATA_DIRECTORY_NAMES = frozenset({"raw-data", "raw_data"})
 MEDIA_SUFFIXES = frozenset(
     {
@@ -421,14 +425,20 @@ def _normalized_component(value: str) -> str:
     return unicodedata.normalize("NFKC", value).casefold()
 
 
+def _controlled_root_key(parts: tuple[str, ...]) -> tuple[str, ...]:
+    if os.name != "nt":
+        return parts
+    return tuple(part.translate(ASCII_WINDOWS_CASE_TRANSLATION) for part in parts)
+
+
 def _is_exact_controlled_non_data_root(parts: tuple[str, ...]) -> bool:
-    normalized = tuple(_normalized_component(part) for part in parts)
-    return normalized in EXACT_CONTROLLED_NON_DATA_ROOTS
+    key = _controlled_root_key(parts)
+    return key in EXACT_CONTROLLED_NON_DATA_ROOTS
 
 
 def _is_under_exact_controlled_non_data_root(parts: tuple[str, ...]) -> bool:
-    normalized = tuple(_normalized_component(part) for part in parts)
-    return any(normalized[: len(root)] == root for root in EXACT_CONTROLLED_NON_DATA_ROOTS)
+    key = _controlled_root_key(parts)
+    return any(key[: len(root)] == root for root in EXACT_CONTROLLED_NON_DATA_ROOTS)
 
 
 def _is_raw_directory_name(value: str) -> bool:
