@@ -43,6 +43,8 @@ def classify_error(text: str) -> str:
         return "challenge"
     if "login_required" in text or "not logged" in text:
         return "auth"
+    if "out of date" in text or "upgrade your app" in text:
+        return "app_version"
     if any(marker in text for marker in ("500", "502", "503", "504",
                                          "timed out", "connection reset")):
         return "transient"
@@ -133,9 +135,10 @@ def _client_with_session(request: dict):
             log(f"stored session unusable, re-login required: {type(exc).__name__}")
 
     if not reused:
+        sessionid = (request.get("sessionid") or "").strip()
         username = request.get("username") or ""
         password = request.get("password") or ""
-        if not username or not password:
+        if not sessionid and not (username and password):
             raise PermissionError(
                 "stored session is invalid and no credentials were provided"
             )
@@ -145,9 +148,16 @@ def _client_with_session(request: dict):
             client.set_settings({})
             client.set_uuids(previous_uuids)
 
-        verification_code = (request.get("verification_code") or "").strip()
-        client.login(username, password, verification_code=verification_code)
-        log("logged in with credentials")
+        if sessionid:
+            # 用浏览器里已经登录好的会话换取客户端会话。私有 API 的账密登录
+            # 会校验客户端版本号，而 instagrapi 内置的版本一旦过期就会被拒，
+            # 那串版本号又必须与真实应用一致，改不出来。已有的会话绕开这一步。
+            client.login_by_sessionid(sessionid)
+            log("logged in from a browser session id")
+        else:
+            verification_code = (request.get("verification_code") or "").strip()
+            client.login(username, password, verification_code=verification_code)
+            log("logged in with credentials")
 
     session_file.parent.mkdir(parents=True, exist_ok=True)
     client.dump_settings(session_file)

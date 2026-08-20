@@ -88,6 +88,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="verify credentials and stored session, publish nothing",
     )
     parser.add_argument(
+        "--import-session",
+        default="",
+        metavar="SESSIONID",
+        help="build the stored session from a browser sessionid cookie, "
+             "for when password login is refused",
+    )
+    parser.add_argument(
         "--list-accounts",
         action="store_true",
         help="print the configured accounts and exit",
@@ -109,6 +116,17 @@ def main(argv=None) -> int:
         print(json.dumps(accounts, ensure_ascii=False))
         return 0
 
+    if args.import_session:
+        try:
+            result = instagram.import_session(
+                args.import_session, account=args.account
+            )
+        except instagram.InstagramError as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+            return 1
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+
     if args.check:
         try:
             result = instagram.verify_session(account=args.account)
@@ -119,7 +137,10 @@ def main(argv=None) -> int:
         return 0
 
     if not args.task and not args.video:
-        raise SystemExit("one of --task, --video, --check or --list-accounts is required")
+        raise SystemExit(
+            "one of --task, --video, --check, --import-session "
+            "or --list-accounts is required"
+        )
 
     video_path = args.video or _video_from_task(args.task)
     if not os.path.isfile(video_path):

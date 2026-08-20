@@ -303,7 +303,7 @@ def _run_worker(request: dict) -> dict:
 def _raise_for_result(result: dict) -> None:
     error_type = result.get("error_type", "upload")
     message = result.get("error", "unknown Instagram error")
-    if error_type in {"auth", "challenge"}:
+    if error_type in {"auth", "challenge", "app_version"}:
         raise InstagramAuthError(message)
     if error_type == "rate_limit":
         raise InstagramRateLimitError(message)
@@ -339,6 +339,29 @@ def verify_session(account: str = "") -> dict:
 
     target = resolve_account(account, settings)
     result = _run_worker(_build_request(target, action="check"))
+    if not result.get("ok"):
+        _raise_for_result(result)
+    result["account"] = target.label
+    return result
+
+
+def import_session(sessionid: str, account: str = "") -> dict:
+    """
+    用浏览器会话建立客户端会话，绕开账密登录。
+
+    私有 API 的账密登录会校验客户端版本号；instagrapi 内置的那串一旦被判过期
+    就无法登录，而它必须与真实应用一致，本地改不出来。浏览器里已经登录好的
+    会话不经过这道校验。成功后写入会话文件，之后的发布照常复用，不必再提供。
+    """
+    sessionid = (sessionid or "").strip()
+    if not sessionid:
+        raise InstagramNotConfiguredError("a session id is required")
+
+    settings = InstagramSettings.from_config()
+    target = resolve_account(account, settings)
+    result = _run_worker(
+        _build_request(target, action="check", sessionid=sessionid)
+    )
     if not result.get("ok"):
         _raise_for_result(result)
     result["account"] = target.label

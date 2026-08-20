@@ -234,6 +234,77 @@ class WorkerProtocolTest(unittest.TestCase):
         self.assertIn("uv", str(ctx.exception))
 
 
+class ImportSessionTest(unittest.TestCase):
+    """
+    账密登录会校验客户端版本号，instagrapi 内置的那串被判过期后就登不进去，
+    而它必须与真实应用一致，本地改不出来。这条路径是当时唯一的出口。
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        patcher = patch.object(instagram.utils, "storage_dir", return_value=self.temp_dir)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_session_id_reaches_the_worker(self):
+        with _ConfigPatch():
+            with patch.object(
+                instagram, "_run_worker", return_value={"ok": True}
+            ) as worker:
+                instagram.import_session("SESSION-123")
+        self.assertEqual(worker.call_args[0][0]["sessionid"], "SESSION-123")
+
+    def test_it_asks_the_worker_only_to_check(self):
+        """导入不应该顺手发布任何东西。"""
+        with _ConfigPatch():
+            with patch.object(
+                instagram, "_run_worker", return_value={"ok": True}
+            ) as worker:
+                instagram.import_session("SESSION-123")
+        self.assertEqual(worker.call_args[0][0]["action"], "check")
+
+    def test_an_empty_session_id_never_reaches_the_worker(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker") as worker:
+                with self.assertRaises(instagram.InstagramNotConfiguredError):
+                    instagram.import_session("   ")
+        worker.assert_not_called()
+
+    def test_surrounding_whitespace_is_stripped(self):
+        """从浏览器复制 cookie 很容易带上空白，原样送出会得到一个无效会话。"""
+        with _ConfigPatch():
+            with patch.object(
+                instagram, "_run_worker", return_value={"ok": True}
+            ) as worker:
+                instagram.import_session("  SESSION-123\n")
+        self.assertEqual(worker.call_args[0][0]["sessionid"], "SESSION-123")
+
+    def test_a_rejected_session_raises(self):
+        payload = {"ok": False, "error_type": "auth", "error": "login_required"}
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker", return_value=payload):
+                with self.assertRaises(instagram.InstagramAuthError):
+                    instagram.import_session("SESSION-123")
+
+    def test_an_outdated_client_is_reported_as_an_auth_problem(self):
+        """"版本过期"不是上传失败，把它归到上传类会让人去查视频文件。"""
+        payload = {
+            "ok": False,
+            "error_type": "app_version",
+            "error": "Your version of Instagram is out of date.",
+        }
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker", return_value=payload):
+                with self.assertRaises(instagram.InstagramAuthError):
+                    instagram.import_session("SESSION-123")
+
+    def test_the_result_names_the_account(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker", return_value={"ok": True}):
+                result = instagram.import_session("SESSION-123")
+        self.assertIn("account", result)
+
+
 if __name__ == "__main__":
     unittest.main()
 
