@@ -228,6 +228,12 @@ _MISSING_TEXT_SENTINELS = frozenset(
 )
 
 
+def _is_missing_text_sentinel(value: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", value).strip().casefold()
+    compact = "".join(character for character in normalized if character.isalnum())
+    return compact in _MISSING_TEXT_SENTINELS
+
+
 class ApprovedCandidate(StrictModel):
     """One human-ranked topic containing only the Approved interchange allowlist."""
 
@@ -270,9 +276,7 @@ class ApprovedCandidate(StrictModel):
         for value in values:
             if not value.strip() or unicodedata.normalize("NFC", value) != value:
                 raise ValueError("items must be non-empty NFC-normalized text")
-            normalized = unicodedata.normalize("NFKC", value).strip().casefold()
-            sentinel = "".join(character for character in normalized if character.isalnum())
-            if sentinel in _MISSING_TEXT_SENTINELS:
+            if _is_missing_text_sentinel(value):
                 raise ValueError("missing sentinel is not evidence")
         return values
 
@@ -281,8 +285,8 @@ class ApprovedCandidate(StrictModel):
     def validate_batch_wide_medical_risk_flag(
         cls, values: tuple[str, ...]
     ) -> tuple[str, ...]:
-        if APPROVED_MEDICAL_RISK_FLAG not in values:
-            raise ValueError("unverified medical risk flag is required")
+        if values.count(APPROVED_MEDICAL_RISK_FLAG) != 1:
+            raise ValueError("exactly one unverified medical risk flag is required")
         return values
 
     @field_validator("platform_rank_evidence")
@@ -295,6 +299,8 @@ class ApprovedCandidate(StrictModel):
             for item in value.values()
         ):
             raise ValueError("platform evidence must be non-empty NFC-normalized text")
+        if any(_is_missing_text_sentinel(item) for item in value.values()):
+            raise ValueError("missing sentinel is not platform evidence")
         return value
 
 

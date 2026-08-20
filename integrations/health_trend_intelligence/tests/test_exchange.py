@@ -320,6 +320,22 @@ def test_required_evidence_rejects_empty_or_missing_sentinels_before_publication
     assert not (layout.approved / BATCH_ID).exists()
 
 
+def test_platform_rank_evidence_rejects_missing_sentinel_before_publication(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    value = _selection_value(manifest_sha256)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    candidates[0]["platform_rank_evidence"] = {"dy": "unknown"}
+
+    with pytest.raises(ExchangeError):
+        build_approved_exchange(layout, BATCH_ID, _write_selection(root, value))
+
+    assert not (layout.approved / BATCH_ID).exists()
+
+
 def test_payloads_are_canonical_allowlisted_and_summary_is_aggregate_only(tmp_path: Path) -> None:
     result = _build_valid_exchange(tmp_path / "root")
     top10_payload = (result.path / "top10.json").read_bytes()
@@ -552,6 +568,87 @@ def test_candidate_model_requires_batch_wide_unverified_medical_flag() -> None:
         ApprovedSelection.model_validate_json(canonical_json_bytes(value))
 
 
+def test_candidate_model_requires_exactly_one_unverified_medical_status() -> None:
+    value = _selection_value("a" * 64)
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    candidates[0]["risk_flags"] = [
+        "medical_claim_unverified",
+        "medical_claim_unverified",
+    ]
+
+    with pytest.raises(ValidationError):
+        ApprovedSelection.model_validate_json(canonical_json_bytes(value))
+
+
+def test_builder_rejects_affirmative_medical_verification_but_allows_pending_forms(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    layout, manifest_sha256 = _curated_layout(root)
+    affirmative = (
+        "医学结论核验已完成",
+        "医学核验顺利通过",
+        "Clinical review is complete",
+        "Medical claim verification passed",
+        "The claim was medically verified",
+    )
+    incomplete = (
+        "医学声明尚未通过验证",
+        "医学声明待核验",
+        "Medical claim verification is incomplete",
+        "Medical claim verification has not yet passed",
+        "Clinical review is pending",
+    )
+    conflicting_flags = (
+        "medical_claim_verified",
+        "clinical_review_approved",
+        "health_claim_verification_passed",
+        "medicine_claim_validated",
+    )
+
+    for index, flag in enumerate(conflicting_flags):
+        value = _selection_value(manifest_sha256)
+        candidates = value["candidates"]
+        assert isinstance(candidates, list)
+        candidates[0]["risk_flags"] = ["medical_claim_unverified", flag]
+        with pytest.raises(ExchangeError, match="medical_verification_contradiction"):
+            build_approved_exchange(
+                layout,
+                BATCH_ID,
+                _write_selection(root, value, f"structured-{index}.json"),
+            )
+        assert not (layout.approved / BATCH_ID).exists()
+
+    for index, statement in enumerate(affirmative):
+        value = _selection_value(manifest_sha256)
+        candidates = value["candidates"]
+        assert isinstance(candidates, list)
+        candidates[0]["growth_evidence"] = [statement]
+        with pytest.raises(ExchangeError, match="medical_verification_contradiction"):
+            build_approved_exchange(
+                layout,
+                BATCH_ID,
+                _write_selection(root, value, f"affirmative-{index}.json"),
+            )
+        assert not (layout.approved / BATCH_ID).exists()
+
+    for index, statement in enumerate(incomplete):
+        value = _selection_value(manifest_sha256)
+        candidates = value["candidates"]
+        assert isinstance(candidates, list)
+        candidates[0]["growth_evidence"] = [statement]
+        result = build_approved_exchange(
+            layout,
+            BATCH_ID,
+            _write_selection(root, value, f"incomplete-{index}.json"),
+        )
+        assert verify_approved_exchange(result.path, result.manifest_sha256).candidate_count == 10
+        for child in result.path.iterdir():
+            child.unlink()
+        result.path.rmdir()
+
+
 def test_builder_rejects_any_candidate_missing_batch_wide_risk_flag(
     tmp_path: Path,
 ) -> None:
@@ -717,7 +814,7 @@ def test_existing_destination_is_never_overwritten(tmp_path: Path) -> None:
 def test_selection_change_during_build_never_publishes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import health_trend_intelligence.exchange as exchange
+    from health_trend_intelligence import exchange
 
     root = tmp_path / "root"
     layout, curated_sha256 = _curated_layout(root)
@@ -744,7 +841,7 @@ def test_selection_change_during_build_never_publishes(
 def test_change_after_manifest_write_leaves_no_consumable_work_package(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import health_trend_intelligence.exchange as exchange
+    from health_trend_intelligence import exchange
 
     root = tmp_path / "root"
     layout, curated_sha256 = _curated_layout(root)
@@ -775,7 +872,7 @@ def test_change_after_manifest_write_leaves_no_consumable_work_package(
 def test_verifier_rechecks_payload_bytes_after_semantic_validation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import health_trend_intelligence.exchange as exchange
+    from health_trend_intelligence import exchange
 
     result = _build_valid_exchange(tmp_path / "root")
     original_read = exchange._read_stable_bytes
@@ -797,7 +894,7 @@ def test_verifier_rechecks_payload_bytes_after_semantic_validation(
 def test_selection_replacement_during_open_handle_read_fails_before_work_creation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import health_trend_intelligence.exchange as exchange
+    from health_trend_intelligence import exchange
 
     root = tmp_path / "root"
     layout, curated_sha256 = _curated_layout(root)
@@ -825,7 +922,7 @@ def test_selection_replacement_during_open_handle_read_fails_before_work_creatio
 def test_work_reparse_after_validation_receives_no_payload_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import health_trend_intelligence.exchange as exchange
+    from health_trend_intelligence import exchange
 
     root = tmp_path / "root"
     layout, curated_sha256 = _curated_layout(root)
@@ -861,7 +958,7 @@ def test_work_reparse_after_validation_receives_no_payload_bytes(
 def test_work_directory_identity_replacement_receives_no_payload_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import health_trend_intelligence.exchange as exchange
+    from health_trend_intelligence import exchange
 
     root = tmp_path / "root"
     layout, curated_sha256 = _curated_layout(root)

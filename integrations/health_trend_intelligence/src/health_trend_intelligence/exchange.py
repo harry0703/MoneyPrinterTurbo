@@ -128,6 +128,11 @@ _CONFUSABLE_ASCII = str.maketrans(
         "х": "x",
     }
 )
+_MEDICAL_CONFUSABLE_ASCII = {
+    codepoint: replacement
+    for codepoint, replacement in _CONFUSABLE_ASCII.items()
+    if codepoint not in {ord("Υ"), ord("υ"), ord("у")}
+}
 _URI_WITH_AUTHORITY = re.compile(r"(?<![\w])(?:[a-z][a-z0-9+.-]{0,31}):[\\/]{2}")
 _URI_WITHOUT_AUTHORITY = re.compile(
     r"(?<![\w])(?:about|blob|chrome|chrome-extension|custom-scheme|data|file|intent|"
@@ -188,6 +193,57 @@ _MEDIA_EXTENSION = re.compile(
 )
 _RAW_EXCERPT = re.compile(r"raw\s*excerpt|原文|原句|摘录|全文", re.IGNORECASE)
 _CHINESE_RESTRICTED = re.compile(r"昵称|头像|凭据|令牌|媒体|身份")
+_MEDICAL_QUALIFIERS = frozenset(
+    {"clinical", "clinically", "health", "medical", "medically", "medicine"}
+)
+_VERIFICATION_SCOPES = frozenset(
+    {
+        "claim",
+        "claims",
+        "conclusion",
+        "review",
+        "reviews",
+        "validate",
+        "validation",
+        "verification",
+    }
+)
+_AFFIRMATIVE_VERIFICATION_STATES = frozenset(
+    {"approved", "complete", "completed", "passed", "validated", "verified"}
+)
+_ENGLISH_NEGATED_VERIFICATION = re.compile(
+    r"\b(?:(?:has|have|had|is|was|were)\s+)?(?:not|never)\s+"
+    r"(?:(?:been|clinically|medically|successfully|yet)\s+){0,3}"
+    r"(?:approved|complete|completed|passed|validated|verified)\b"
+)
+_ENGLISH_INCOMPLETE_STATE = re.compile(r"\b(?:incomplete|pending|unverified)\b")
+_CHINESE_MEDICAL_CONTEXT = re.compile(r"(?:医学|医疗|临床|健康)")
+_CHINESE_VERIFICATION_CONTEXT = re.compile(r"(?:声明|结论|核验|验证|审查|确认)")
+_CHINESE_NEGATED_VERIFICATION = (
+    re.compile(
+        r"(?:尚未|还未|并未|未曾|没有|未)(?:顺利|成功)?"
+        r"(?:完成|通过)?(?:医学|医疗|临床)?(?:声明|结论)?"
+        r"(?:核验|验证|审查|确认)"
+    ),
+    re.compile(
+        r"(?:核验|验证|审查|确认)(?:尚未|还未|并未|未曾|没有|未)"
+        r"(?:顺利|成功)?(?:完成|通过|成功)"
+    ),
+    re.compile(r"待(?:医学|医疗|临床)?(?:核验|验证|审查|确认)"),
+)
+_CHINESE_AFFIRMATIVE_VERIFICATION = (
+    re.compile(
+        r"(?:已|已经)(?:顺利|成功|正式)?(?:完成|通过)?"
+        r"(?:医学|医疗|临床)?(?:声明|结论)?"
+        r"(?:核验|验证|审查|确认)"
+    ),
+    re.compile(
+        r"(?:核验|验证|审查|确认)(?:已|已经)?"
+        r"(?:顺利|成功|正式)?(?:完成|通过|成功)"
+    ),
+)
+
+
 class ExchangeError(ValueError):
     """A privacy-safe exchange failure carrying only a stable reason code."""
 
@@ -358,9 +414,78 @@ def _security_compact(value: str) -> str:
     return "".join(character for character in value if character.isalnum())
 
 
+def _normalized_medical_text(value: str) -> str:
+    normalized = value
+    for _ in range(3):
+        decoded = unquote(html.unescape(normalized))
+        if decoded == normalized:
+            break
+        normalized = decoded
+    normalized = unicodedata.normalize("NFKC", normalized).translate(
+        _MEDICAL_CONFUSABLE_ASCII
+    )
+    return "".join(
+        character for character in normalized if unicodedata.category(character) != "Cf"
+    ).casefold()
+
+
+def _normalized_statement_words(value: str) -> str:
+    normalized = _normalized_medical_text(value)
+    return " ".join(
+        "".join(character if character.isalnum() else " " for character in normalized).split()
+    )
+
+
+def _classify_medical_verification_statement(value: str) -> str | None:
+    """Mirror the standard-library consumer's bounded status grammar."""
+
+    saw_incomplete = False
+    normalized = _normalized_medical_text(value)
+    for statement in re.split(r"[.!?;\r\n。！？；]+", normalized):
+        words = _normalized_statement_words(statement)
+        if not words:
+            continue
+        tokens = frozenset(words.split())
+        english_context = bool(
+            (tokens & _MEDICAL_QUALIFIERS and tokens & _VERIFICATION_SCOPES)
+            or (
+                tokens & {"clinically", "medically"}
+                and tokens & {"validated", "verified"}
+            )
+            or ("medical" in tokens and "verified" in tokens)
+        )
+        if english_context:
+            masked = _ENGLISH_NEGATED_VERIFICATION.sub(" ", words)
+            masked = _ENGLISH_INCOMPLETE_STATE.sub(" ", masked)
+            if masked != words:
+                saw_incomplete = True
+            if frozenset(masked.split()) & _AFFIRMATIVE_VERIFICATION_STATES:
+                return "complete"
+
+        compact = words.replace(" ", "")
+        chinese_context = bool(
+            _CHINESE_MEDICAL_CONTEXT.search(compact)
+            and _CHINESE_VERIFICATION_CONTEXT.search(compact)
+        )
+        if chinese_context:
+            masked_compact = compact
+            for pattern in _CHINESE_NEGATED_VERIFICATION:
+                masked_compact = pattern.sub("", masked_compact)
+            if masked_compact != compact:
+                saw_incomplete = True
+            if any(
+                pattern.search(masked_compact)
+                for pattern in _CHINESE_AFFIRMATIVE_VERIFICATION
+            ):
+                return "complete"
+    return "incomplete" if saw_incomplete else None
+
+
 def _assert_safe_text(value: str) -> None:
     if value == APPROVED_DISCLAIMER or value in _DECLARED_SAFE_TEXT_VALUES:
         return
+    if _classify_medical_verification_statement(value) == "complete":
+        raise ExchangeError("medical_verification_contradiction")
     decoded = _normalize_approved_text_v2(value)
     compact_uri = re.sub(r"[\s\[\](){}<>:'\"`]+", "", decoded)
     compact_security = _security_compact(decoded)
@@ -383,8 +508,18 @@ def _assert_safe_text(value: str) -> None:
 
 def _assert_medical_risk_marking(candidates: tuple[ApprovedCandidate, ...]) -> None:
     for candidate in candidates:
-        if APPROVED_MEDICAL_RISK_FLAG not in candidate.risk_flags:
+        if candidate.risk_flags.count(APPROVED_MEDICAL_RISK_FLAG) != 1:
             raise ExchangeError("medical_claim_unverified")
+        for risk_flag in candidate.risk_flags:
+            if risk_flag == APPROVED_MEDICAL_RISK_FLAG:
+                continue
+            risk_tokens = frozenset(_normalized_statement_words(risk_flag).split())
+            if (
+                risk_tokens & _MEDICAL_QUALIFIERS
+                and risk_tokens & _VERIFICATION_SCOPES
+                and risk_tokens & _AFFIRMATIVE_VERIFICATION_STATES
+            ):
+                raise ExchangeError("medical_verification_contradiction")
 
 
 def _assert_approved_content(payload: object) -> None:

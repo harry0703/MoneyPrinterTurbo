@@ -84,6 +84,24 @@ _TEXT_LIST_FIELDS = (
     "objections",
 )
 _ALL_TEXT_LIST_FIELDS = (*_TEXT_LIST_FIELDS, "risk_flags", "missing_data")
+_MISSING_TEXT_SENTINELS = frozenset(
+    {
+        "missing",
+        "na",
+        "nan",
+        "none",
+        "notapplicable",
+        "notavailable",
+        "null",
+        "tbd",
+        "unknown",
+        "不详",
+        "暂无",
+        "无",
+        "未知",
+        "缺失",
+    }
+)
 _DECLARED_FILE_NAMES = frozenset(_EXPECTED_FILES)
 _REPARSE_ATTRIBUTE = 0x400
 _CONFUSABLE_ASCII = str.maketrans(
@@ -411,9 +429,19 @@ def _require_sha(value: object, reason: str) -> str:
 
 
 def _require_nonempty_text(value: object, reason: str) -> str:
-    if not isinstance(value, str) or not value.strip():
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or unicodedata.normalize("NFC", value) != value
+    ):
         raise TrendExchangeError(reason)
     return value
+
+
+def _is_missing_text_sentinel(value: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", value).strip().casefold()
+    compact = "".join(character for character in normalized if character.isalnum())
+    return compact in _MISSING_TEXT_SENTINELS
 
 
 def _require_count(value: object, reason: str, maximum: int | None = None) -> int:
@@ -462,7 +490,9 @@ def _validate_text_list(value: object, *, allow_empty: bool, reason: str) -> lis
     if not isinstance(value, list) or (not allow_empty and not value):
         raise TrendExchangeError(reason)
     for item in value:
-        _require_nonempty_text(item, reason)
+        text = _require_nonempty_text(item, reason)
+        if _is_missing_text_sentinel(text):
+            raise TrendExchangeError(reason)
     return value
 
 
@@ -507,12 +537,21 @@ def _validate_candidates(value: object) -> list[dict[str, Any]]:
         ):
             raise TrendExchangeError("candidate_platform_invalid")
         for evidence in platform.values():
-            _require_nonempty_text(evidence, "candidate_platform_invalid")
+            text = _require_nonempty_text(evidence, "candidate_platform_invalid")
+            if _is_missing_text_sentinel(text):
+                raise TrendExchangeError("candidate_platform_invalid")
         topic_key = unicodedata.normalize("NFKC", " ".join(candidate["topic"].split())).casefold()
         if not topic_key or topic_key in topics:
             raise TrendExchangeError("candidate_topic_invalid")
         topics.add(topic_key)
         candidates.append(candidate)
+    covered_platforms = {
+        platform
+        for candidate in candidates
+        for platform in candidate["platform_rank_evidence"]
+    }
+    if covered_platforms != {"dy", "xhs"}:
+        raise TrendExchangeError("candidate_platform_invalid")
     return candidates
 
 

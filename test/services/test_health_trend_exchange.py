@@ -72,19 +72,32 @@ def _summary(batch_id: str, candidates: list[dict[str, object]]) -> dict[str, ob
         "schema": "health_trend_evidence_summary.v1",
         "batch_id": batch_id,
         "candidate_count": 10,
-        "platform_coverage": {"dy": 6, "xhs": 7, "both": 3},
-        "confidence_counts": {"low": 4, "medium": 3, "high": 3},
+        "platform_coverage": {
+            "dy": sum("dy" in candidate["platform_rank_evidence"] for candidate in candidates),
+            "xhs": sum("xhs" in candidate["platform_rank_evidence"] for candidate in candidates),
+            "both": sum(
+                set(candidate["platform_rank_evidence"]) == {"dy", "xhs"}
+                for candidate in candidates
+            ),
+        },
+        "confidence_counts": {
+            level: sum(candidate["confidence"] == level for candidate in candidates)
+            for level in ("low", "medium", "high")
+        },
         "evidence_item_counts": {
-            "growth_evidence": 10,
-            "user_questions": 10,
-            "user_needs": 10,
-            "misunderstandings": 10,
-            "objections": 10,
+            field: sum(len(candidate[field]) for candidate in candidates)
+            for field in (
+                "growth_evidence",
+                "user_questions",
+                "user_needs",
+                "misunderstandings",
+                "objections",
+            )
         },
         "risk_flagged_candidate_count": sum(bool(c["risk_flags"]) for c in candidates),
         "risk_flag_item_count": sum(len(c["risk_flags"]) for c in candidates),
-        "missing_data_candidate_count": 0,
-        "missing_data_item_count": 0,
+        "missing_data_candidate_count": sum(bool(c["missing_data"]) for c in candidates),
+        "missing_data_item_count": sum(len(c["missing_data"]) for c in candidates),
     }
 
 
@@ -369,6 +382,78 @@ def test_verify_requires_exactly_one_unverified_medical_marker(tmp_path: Path) -
     source, anchor = _write_bundle(tmp_path, mutate=mutate)
 
     with pytest.raises(TrendExchangeError, match="medical_claim_unverified"):
+        verify_trend_exchange(source, anchor)
+
+
+def test_verify_rejects_single_platform_batch_after_summary_is_recomputed(
+    tmp_path: Path,
+) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        del summary
+        for rank, candidate in enumerate(candidates, start=1):
+            candidate["platform_rank_evidence"] = {"dy": f"合成排名区间 {rank:02d}"}
+        return candidates, _summary("HTI-20260818-01", candidates), {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    with pytest.raises(TrendExchangeError, match="candidate_platform_invalid"):
+        verify_trend_exchange(source, anchor)
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("growth_evidence", ["unknown"]),
+        ("missing_data", ["暂无"]),
+        ("risk_flags", ["medical_claim_unverified", "missing"]),
+        ("platform_rank_evidence", {"dy": "unknown"}),
+    ],
+)
+def test_verify_rejects_missing_sentinels_after_summary_is_recomputed(
+    tmp_path: Path, field: str, invalid: object
+) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        del summary
+        candidates[0][field] = invalid
+        return candidates, _summary("HTI-20260818-01", candidates), {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    with pytest.raises(TrendExchangeError, match="candidate_(?:list|platform)_invalid"):
+        verify_trend_exchange(source, anchor)
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("topic", "e\u0301"),
+        ("growth_evidence", ["e\u0301"]),
+        ("platform_rank_evidence", {"dy": "e\u0301"}),
+        ("growth_evidence", "not-a-list"),
+        ("growth_evidence", [1]),
+    ],
+)
+def test_verify_rejects_non_nfc_or_non_strict_candidate_values(
+    tmp_path: Path, field: str, invalid: object
+) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        candidates[0][field] = invalid
+        return candidates, summary, {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    with pytest.raises(TrendExchangeError):
+        verify_trend_exchange(source, anchor)
+
+
+def test_verify_rejects_duplicate_normalized_topics(tmp_path: Path) -> None:
+    def mutate(candidates: list[dict[str, object]], summary: object):
+        candidates[1]["topic"] = candidates[0]["topic"]
+        return candidates, summary, {}
+
+    source, anchor = _write_bundle(tmp_path, mutate=mutate)
+
+    with pytest.raises(TrendExchangeError, match="candidate_topic_invalid"):
         verify_trend_exchange(source, anchor)
 
 

@@ -18,7 +18,9 @@ SHA-256 必须由操作者从独立审批/交接渠道提供，不得从待导�
 
 该入口不读取 Raw/Curated，不启动 MediaCrawler，不下载媒体，不自动生成或发布内容。交换包只是选题情报，不是医学事实来源或可直接发布的脚本。
 
-Task 8 的独立边界脚本只在完全合成的临时根上演练：它内置受审 BASE、精确 240 删除集摘要和 MediaCrawler commit，并从全仓 Git index、porcelain `-z` 和受控磁盘树核对任意深度 Raw，递归保护配置/依赖路径，再检查路径链、敏感 JSON 键与媒体文件头。扫描仅跳过脚本内版本化的精确 repo-relative 元数据/venv/历史合成测试根，不按 basename、前缀或 substring 扩张；新 `.cache`、`.test-tmp-*` 或含 `.uv-cache` 的目录仍必须枚举。`app/config/**` 中除精确 `__pycache__` 外的每个普通文件均受保护，包括无扩展名文件；固定根 `config.toml` 还必须是非 reparse、单硬链的普通文件并匹配大小与 SHA-256。敏感键策略覆盖 HMAC/签名/私钥/加解密/访问密钥，但不把普通 hash、SHA-256 或 manifest digest 元数据误判为凭据。任一项缺失或不可验都非零失败。这一合成验证不声称现实热度、医学有效性或真实人工审批。
+Approved 合同在 producer 和本导入器两端等价执行：每条候选必须恰好有一个 `medical_claim_unverified`，任何结构化 flag 或自然语言中的肯定医学/临床核验状态都会拒绝；明确“未核验、待核验、核验未完成”仍允许。两端同时要求 batch-wide dy+xhs 覆盖、严格字段/类型、1–10 唯一 rank、规范化唯一 topic、非空证据 list、missing sentinel 规则和精确免责声明。
+
+Task 8 的独立边界脚本只在完全合成的仓库外根上演练，并强制显式 profile。`current-worktree-audit` 固定核验当前本机 240 删除集、受审 config identity 和披露的历史 cache 例外，只证明当前 dirty baseline；`clean-checkout-validation` 要求 clean committed checkout 与 0 个 manual-pack 工作树删除，不读取/哈希 ignored 本机 `config.toml`，也不沿用 current 的 legacy cache 例外。成功 JSON 明示 `audit_profile`，两个 PASS 不可混用。两种模式都内置受审 BASE、最终修复提交范围和 MediaCrawler commit，不接受 caller 自报 counts/hash，并核对全仓 Git/磁盘 Raw、配置/依赖、路径链、敏感 JSON 键和媒体文件头。任一项缺失或不可验都非零失败；该合成验证不声称现实热度、医学有效性或真实人工审批。
 
 ## 导入事务与恢复边界
 

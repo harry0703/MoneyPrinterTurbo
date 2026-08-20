@@ -29,6 +29,9 @@ except ImportError:
     raise SystemExit(2) from None
 
 SCHEMA = "health_trend_foundation_qa.v1"
+CURRENT_WORKTREE_AUDIT = "current-worktree-audit"
+CLEAN_CHECKOUT_VALIDATION = "clean-checkout-validation"
+AUDIT_PROFILES = (CURRENT_WORKTREE_AUDIT, CLEAN_CHECKOUT_VALIDATION)
 PINNED_TASK8_BASE = "f5f6d900b78cc583272d3f29bb1c6e3976b1109e"
 PINNED_MEDIA_CRAWLER_COMMIT = "d6f7c5bb906b6dac40ddf343ef9e26438a3de092"
 PINNED_MANUAL_DELETION_COUNT = 240
@@ -45,13 +48,22 @@ MANUAL_PACK_PATHSPEC = (
     "09_泛健康日更/work/HC20260810-*/production/v01/04_grok_batch/"
     "manual_pack/**"
 )
-TASK8_ALLOWED_PATHS = frozenset(
+TASK8_REQUIRED_PATHS = frozenset(
     {
         b"integrations/health_trend_intelligence/tests/test_foundation_e2e.py",
         b"integrations/health_trend_intelligence/RUNBOOK.md",
         b"integrations/health_trend_intelligence/scripts/verify_boundaries.py",
         b"integrations/health_trend_intelligence/README.md",
         "09_泛健康日更/data/trend-intelligence/README.md".encode(),
+    }
+)
+FINAL_FIX_ALLOWED_PATHS = TASK8_REQUIRED_PATHS | frozenset(
+    {
+        b"integrations/health_trend_intelligence/src/health_trend_intelligence/models.py",
+        b"integrations/health_trend_intelligence/src/health_trend_intelligence/exchange.py",
+        b"integrations/health_trend_intelligence/tests/test_exchange.py",
+        b"app/services/health_trend_exchange.py",
+        b"test/services/test_health_trend_exchange.py",
     }
 )
 ROOT_CONFIG_SUFFIXES = frozenset({".json", ".toml", ".yaml", ".yml"})
@@ -262,6 +274,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = _SafeArgumentParser(
         description="Verify synthetic health-trend boundaries without mutating inputs"
     )
+    parser.add_argument("--audit-profile", choices=AUDIT_PROFILES, required=True)
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--media-crawler-root", type=Path, required=True)
     parser.add_argument("--raw-path", type=Path, required=True)
@@ -390,24 +403,52 @@ def _assert_external(
                 raise BoundaryFailure
 
 
-def _manual_deletion_paths(repo_root: Path) -> tuple[bytes, ...]:
+def _manual_deletion_paths(
+    repo_root: Path,
+    audit_profile: str = CURRENT_WORKTREE_AUDIT,
+) -> tuple[bytes, ...]:
+    if audit_profile == CURRENT_WORKTREE_AUDIT:
+        comparison = PINNED_TASK8_BASE
+    elif audit_profile == CLEAN_CHECKOUT_VALIDATION:
+        comparison = "HEAD"
+    else:
+        raise BoundaryFailure
     payload = _run_git(
         repo_root,
         "diff",
         "--name-only",
         "--diff-filter=D",
         "-z",
-        PINNED_TASK8_BASE,
+        comparison,
         "--",
         MANUAL_PACK_PATHSPEC,
     )
     return tuple(sorted(item for item in payload.split(b"\0") if item))
 
 
-def _manual_deletion_digest(repo_root: Path) -> tuple[int, str]:
-    paths = _manual_deletion_paths(repo_root)
+def _manual_deletion_digest(
+    repo_root: Path,
+    audit_profile: str = CURRENT_WORKTREE_AUDIT,
+) -> tuple[int, str]:
+    paths = _manual_deletion_paths(repo_root, audit_profile)
     digest_payload = b"\n".join(paths) + (b"\n" if paths else b"")
     return len(paths), hashlib.sha256(digest_payload).hexdigest()
+
+
+def _assert_manual_deletion_contract(
+    audit_profile: str,
+    deletion_count: int,
+    deletion_sha256: str,
+) -> bool:
+    if audit_profile == CURRENT_WORKTREE_AUDIT:
+        expected = (PINNED_MANUAL_DELETION_COUNT, PINNED_MANUAL_DELETION_SHA256)
+    elif audit_profile == CLEAN_CHECKOUT_VALIDATION:
+        expected = (0, hashlib.sha256(b"").hexdigest())
+    else:
+        raise BoundaryFailure
+    if (deletion_count, deletion_sha256) != expected:
+        raise BoundaryFailure
+    return True
 
 
 def _repository_path_parts(path: bytes) -> tuple[str, ...]:
@@ -431,14 +472,32 @@ def _controlled_root_key(parts: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(part.translate(ASCII_WINDOWS_CASE_TRANSLATION) for part in parts)
 
 
-def _is_exact_controlled_non_data_root(parts: tuple[str, ...]) -> bool:
-    key = _controlled_root_key(parts)
-    return key in EXACT_CONTROLLED_NON_DATA_ROOTS
+def _controlled_non_data_roots(
+    audit_profile: str,
+) -> frozenset[tuple[str, ...]]:
+    if audit_profile == CURRENT_WORKTREE_AUDIT:
+        return EXACT_CONTROLLED_NON_DATA_ROOTS
+    if audit_profile == CLEAN_CHECKOUT_VALIDATION:
+        return frozenset({(".git",)})
+    raise BoundaryFailure
 
 
-def _is_under_exact_controlled_non_data_root(parts: tuple[str, ...]) -> bool:
+def _is_exact_controlled_non_data_root(
+    parts: tuple[str, ...],
+    audit_profile: str = CURRENT_WORKTREE_AUDIT,
+) -> bool:
     key = _controlled_root_key(parts)
-    return any(key[: len(root)] == root for root in EXACT_CONTROLLED_NON_DATA_ROOTS)
+    return key in _controlled_non_data_roots(audit_profile)
+
+
+def _is_under_exact_controlled_non_data_root(
+    parts: tuple[str, ...],
+    audit_profile: str = CURRENT_WORKTREE_AUDIT,
+) -> bool:
+    key = _controlled_root_key(parts)
+    return any(
+        key[: len(root)] == root for root in _controlled_non_data_roots(audit_profile)
+    )
 
 
 def _is_raw_directory_name(value: str) -> bool:
@@ -501,9 +560,12 @@ def _porcelain_paths(payload: bytes) -> tuple[bytes, ...]:
     return tuple(paths)
 
 
-def _manual_pack_roots(repo_root: Path) -> frozenset[tuple[str, ...]]:
+def _manual_pack_roots(
+    repo_root: Path,
+    audit_profile: str = CURRENT_WORKTREE_AUDIT,
+) -> frozenset[tuple[str, ...]]:
     roots: set[tuple[str, ...]] = set()
-    for path in _manual_deletion_paths(repo_root):
+    for path in _manual_deletion_paths(repo_root, audit_profile):
         parts = _repository_path_parts(path)
         normalized = tuple(_normalized_component(part) for part in parts)
         try:
@@ -555,10 +617,36 @@ def _matches_pinned_local_config(
     return digest.hexdigest() == PINNED_LOCAL_CONFIG_SHA256
 
 
+def _matches_clean_local_config(
+    relative_path: bytes,
+    initial_status: os.stat_result,
+) -> bool:
+    return bool(
+        relative_path == PINNED_LOCAL_CONFIG_PATH
+        and not _is_reparse(initial_status)
+        and stat.S_ISREG(initial_status.st_mode)
+        and initial_status.st_nlink == 1
+    )
+
+
+def _matches_profile_local_config(
+    path: Path,
+    relative_path: bytes,
+    initial_status: os.stat_result,
+    audit_profile: str,
+) -> bool:
+    if audit_profile == CURRENT_WORKTREE_AUDIT:
+        return _matches_pinned_local_config(path, relative_path, initial_status)
+    if audit_profile == CLEAN_CHECKOUT_VALIDATION:
+        return _matches_clean_local_config(relative_path, initial_status)
+    raise BoundaryFailure
+
+
 def _scan_repository_disk(
     repo_root: Path,
     tracked_paths: frozenset[tuple[str, ...]],
     manual_pack_roots: frozenset[tuple[str, ...]],
+    audit_profile: str = CURRENT_WORKTREE_AUDIT,
 ) -> tuple[bool, bool]:
     raw_found = False
     protected_untracked = False
@@ -580,7 +668,7 @@ def _scan_repository_disk(
             )
             if not child_inside_raw and (
                 normalized_parts in manual_pack_roots
-                or _is_exact_controlled_non_data_root(child_parts)
+                or _is_exact_controlled_non_data_root(child_parts, audit_profile)
             ):
                 continue
             try:
@@ -603,8 +691,8 @@ def _scan_repository_disk(
                 protected_untracked = protected_untracked or (
                     _is_protected_repository_file(encoded)
                     and normalized_parts not in tracked_paths
-                    and not _matches_pinned_local_config(
-                        Path(entry.path), encoded, status
+                    and not _matches_profile_local_config(
+                        Path(entry.path), encoded, status, audit_profile
                     )
                 )
             else:
@@ -612,7 +700,7 @@ def _scan_repository_disk(
     return raw_found, protected_untracked
 
 
-def _assert_task8_repository_boundary(repo_root: Path) -> bool:
+def _assert_task8_repository_boundary(repo_root: Path, audit_profile: str) -> bool:
     if _git_text(repo_root, "rev-parse", "--show-prefix"):
         raise BoundaryFailure
     _run_git(repo_root, "cat-file", "-e", f"{PINNED_TASK8_BASE}^{{commit}}")
@@ -640,7 +728,11 @@ def _assert_task8_repository_boundary(repo_root: Path) -> bool:
         ).split(b"\0")
         if path
     )
-    if set(changed_payload) != TASK8_ALLOWED_PATHS:
+    changed_paths = set(changed_payload)
+    if (
+        not TASK8_REQUIRED_PATHS <= changed_paths
+        or not changed_paths <= FINAL_FIX_ALLOWED_PATHS
+    ):
         raise BoundaryFailure
 
     if any(_is_protected_repository_file(path) for path in changed_payload):
@@ -659,12 +751,14 @@ def _assert_task8_repository_boundary(repo_root: Path) -> bool:
         "--untracked-files=all",
         "--",
     )
+    if audit_profile == CLEAN_CHECKOUT_VALIDATION and status_payload:
+        raise BoundaryFailure
     status_paths = _porcelain_paths(status_payload)
     audited_status_paths = tuple(
         path
         for path in status_paths
         if not _is_under_exact_controlled_non_data_root(
-            _repository_path_parts(path)[:-1]
+            _repository_path_parts(path)[:-1], audit_profile
         )
     )
     if any(_is_protected_repository_file(path) for path in audited_status_paths):
@@ -676,10 +770,18 @@ def _assert_task8_repository_boundary(repo_root: Path) -> bool:
         tuple(_normalized_component(part) for part in _repository_path_parts(path))
         for path in tracked_payload
     )
+    pinned_config_parts = _repository_path_parts(PINNED_LOCAL_CONFIG_PATH)
+    if (
+        audit_profile == CLEAN_CHECKOUT_VALIDATION
+        and tuple(_normalized_component(part) for part in pinned_config_parts)
+        in tracked_paths
+    ):
+        raise BoundaryFailure
     raw_on_disk, protected_untracked_on_disk = _scan_repository_disk(
         repo_root,
         tracked_paths,
-        _manual_pack_roots(repo_root),
+        _manual_pack_roots(repo_root, audit_profile),
+        audit_profile,
     )
     if protected_untracked_on_disk:
         raise BoundaryFailure
@@ -882,11 +984,15 @@ def _tree_snapshot(path: Path) -> dict[str, tuple[int, str]]:
 def _assert_media_crawler_boundary(
     repo_root: CheckedDirectory,
     media_root: CheckedDirectory,
+    audit_profile: str,
 ) -> tuple[str, bool]:
-    expected = Path(
-        os.path.abspath(os.fspath(repo_root.lexical.parents[2] / "MediaCrawler"))
-    )
-    if _normalized_path(media_root.lexical) != _normalized_path(expected):
+    if audit_profile == CURRENT_WORKTREE_AUDIT:
+        expected = Path(
+            os.path.abspath(os.fspath(repo_root.lexical.parents[2] / "MediaCrawler"))
+        )
+        if _normalized_path(media_root.lexical) != _normalized_path(expected):
+            raise BoundaryFailure
+    elif audit_profile != CLEAN_CHECKOUT_VALIDATION:
         raise BoundaryFailure
     if _git_text(media_root.resolved, "rev-parse", "--show-prefix"):
         raise BoundaryFailure
@@ -908,6 +1014,9 @@ def _assert_media_crawler_boundary(
 
 
 def _verify(args: argparse.Namespace) -> dict[str, object]:
+    audit_profile = args.audit_profile
+    if audit_profile not in AUDIT_PROFILES:
+        raise BoundaryFailure
     repo_root = _existing_absolute_directory(args.repo_root)
     media_root = _existing_absolute_directory(args.media_crawler_root)
     raw = _existing_absolute_directory(args.raw_path)
@@ -917,9 +1026,9 @@ def _verify(args: argparse.Namespace) -> dict[str, object]:
 
     if SHA256_RE.fullmatch(args.external_manifest_sha256) is None:
         raise BoundaryFailure
-    raw_in_git = _assert_task8_repository_boundary(repo_root.resolved)
+    raw_in_git = _assert_task8_repository_boundary(repo_root.resolved, audit_profile)
     media_commit, media_modified = _assert_media_crawler_boundary(
-        repo_root, media_root
+        repo_root, media_root, audit_profile
     )
 
     for path in (raw, curated, approved, imported):
@@ -984,16 +1093,18 @@ def _verify(args: argparse.Namespace) -> dict[str, object]:
     ):
         raise BoundaryFailure
 
-    deletion_count, deletion_sha256 = _manual_deletion_digest(repo_root.resolved)
-    deletion_unchanged = (
-        deletion_count == PINNED_MANUAL_DELETION_COUNT
-        and deletion_sha256 == PINNED_MANUAL_DELETION_SHA256
+    deletion_count, deletion_sha256 = _manual_deletion_digest(
+        repo_root.resolved, audit_profile
     )
-    if not deletion_unchanged:
-        raise BoundaryFailure
+    deletion_unchanged = _assert_manual_deletion_contract(
+        audit_profile,
+        deletion_count,
+        deletion_sha256,
+    )
 
     return {
         "schema": SCHEMA,
+        "audit_profile": audit_profile,
         "media_crawler_commit": media_commit,
         "media_crawler_modified": media_modified,
         "raw_in_git": raw_in_git,

@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from copy import deepcopy
@@ -270,12 +271,19 @@ def _jsonl(path: Path) -> list[dict[str, object]]:
     return [load_unique_json(line) for line in path.read_bytes().splitlines(keepends=True)]
 
 
-def _boundary_command(run: SyntheticRun) -> list[str]:
+def _boundary_command(
+    run: SyntheticRun,
+    *,
+    audit_profile: str = "current-worktree-audit",
+    repo_root: Path = PROJECT_ROOT,
+) -> list[str]:
     return [
         sys.executable,
         str(BOUNDARY_SCRIPT),
+        "--audit-profile",
+        audit_profile,
         "--repo-root",
-        str(PROJECT_ROOT),
+        str(repo_root),
         "--media-crawler-root",
         str(MEDIA_CRAWLER_ROOT),
         "--raw-path",
@@ -289,6 +297,108 @@ def _boundary_command(run: SyntheticRun) -> list[str]:
         "--external-manifest-sha256",
         run.approved_manifest_sha256,
     ]
+
+
+def _contract_summary(candidates: list[dict[str, object]]) -> dict[str, object]:
+    evidence_fields = (
+        "growth_evidence",
+        "misunderstandings",
+        "objections",
+        "user_needs",
+        "user_questions",
+    )
+    return {
+        "schema": "health_trend_evidence_summary.v1",
+        "batch_id": BATCH_ID,
+        "candidate_count": 10,
+        "platform_coverage": {
+            "dy": sum("dy" in candidate["platform_rank_evidence"] for candidate in candidates),
+            "xhs": sum("xhs" in candidate["platform_rank_evidence"] for candidate in candidates),
+            "both": sum(
+                set(candidate["platform_rank_evidence"]) == {"dy", "xhs"}
+                for candidate in candidates
+            ),
+        },
+        "confidence_counts": {
+            level: sum(candidate["confidence"] == level for candidate in candidates)
+            for level in ("low", "medium", "high")
+        },
+        "evidence_item_counts": {
+            field: sum(len(candidate[field]) for candidate in candidates)
+            for field in evidence_fields
+        },
+        "risk_flagged_candidate_count": sum(bool(candidate["risk_flags"]) for candidate in candidates),
+        "risk_flag_item_count": sum(len(candidate["risk_flags"]) for candidate in candidates),
+        "missing_data_candidate_count": sum(bool(candidate["missing_data"]) for candidate in candidates),
+        "missing_data_item_count": sum(len(candidate["missing_data"]) for candidate in candidates),
+    }
+
+
+def _mutate_contract(value: dict[str, object], vector: str) -> None:
+    candidates = value["candidates"]
+    assert isinstance(candidates, list)
+    if vector == "duplicate_risk_flag":
+        candidates[0]["risk_flags"] = [EXPECTED_MEDICAL_RISK_FLAG] * 2
+    elif vector == "conflicting_risk_flag":
+        candidates[0]["risk_flags"] = [
+            EXPECTED_MEDICAL_RISK_FLAG,
+            "clinical_review_approved",
+        ]
+    elif vector == "affirmative_medical_text":
+        candidates[0]["growth_evidence"] = ["Medical claim verification passed"]
+    elif vector == "single_platform":
+        for rank, candidate in enumerate(candidates, start=1):
+            candidate["platform_rank_evidence"] = {"dy": f"完全合成排名证据 {rank:02d}"}
+    elif vector == "missing_sentinel":
+        candidates[0]["growth_evidence"] = ["unknown"]
+    elif vector == "strict_numeric_type":
+        candidates[0]["rank"] = True
+    elif vector == "strict_list_type":
+        candidates[0]["growth_evidence"] = "not-a-list"
+    elif vector == "disclaimer":
+        candidates[0]["disclaimer"] = "已完成医学核验。"
+    elif vector == "extra_field":
+        candidates[0]["unexpected"] = "synthetic"
+    elif vector == "duplicate_topic":
+        candidates[1]["topic"] = candidates[0]["topic"]
+    elif vector == "schema":
+        value["schema"] = "health_trend_selection.v2"
+    else:
+        raise AssertionError(f"unknown conformance vector: {vector}")
+
+
+def _rebound_contract_bundle(
+    source: Path,
+    root: Path,
+    vector: str,
+) -> tuple[Path, str]:
+    destination = root / vector / BATCH_ID
+    shutil.copytree(source, destination)
+    top10_path = destination / "top10.json"
+    manifest_path = destination / "bundle-manifest.json"
+    top10 = load_unique_json(top10_path.read_bytes())
+    assert isinstance(top10, list)
+    wrapper: dict[str, object] = {"candidates": top10}
+    _mutate_contract(wrapper, vector)
+    manifest = load_unique_json(manifest_path.read_bytes())
+    if vector == "schema":
+        manifest["schema"] = "health_trend_exchange.v2"
+    else:
+        top10_payload = canonical_json_bytes(top10)
+        summary_payload = canonical_json_bytes(_contract_summary(top10))
+        top10_path.write_bytes(top10_payload)
+        (destination / "evidence-summary.json").write_bytes(summary_payload)
+        payloads = {
+            "evidence-summary.json": summary_payload,
+            "top10.json": top10_payload,
+        }
+        for binding in manifest["files"]:
+            payload = payloads[binding["relative_path"]]
+            binding["bytes"] = len(payload)
+            binding["sha256"] = hashlib.sha256(payload).hexdigest()
+    manifest_payload = canonical_json_bytes(manifest)
+    manifest_path.write_bytes(manifest_payload)
+    return destination, hashlib.sha256(manifest_payload).hexdigest()
 
 
 def test_foundation_pipeline_is_reproducible_private_and_one_way(tmp_path: Path) -> None:
@@ -329,6 +439,57 @@ def test_foundation_pipeline_is_reproducible_private_and_one_way(tmp_path: Path)
     assert all(candidate["disclaimer"] == EXPECTED_DISCLAIMER for candidate in approved)
 
 
+def test_approved_contract_is_bidirectionally_conformant_across_runtimes(
+    tmp_path: Path,
+) -> None:
+    run = _run_synthetic_pipeline(tmp_path / "contract")
+    verify_trend_exchange, _ = _load_task7_api()
+    assert verify_approved_exchange(
+        run.approved.path, run.approved_manifest_sha256
+    ).candidate_count == 10
+    assert verify_trend_exchange(
+        run.approved.path, run.approved_manifest_sha256
+    ).candidate_count == 10
+    baseline = tmp_path / "producer-valid" / BATCH_ID
+    shutil.copytree(run.approved.path, baseline)
+    shutil.rmtree(run.approved.path)
+    vectors = (
+        "duplicate_risk_flag",
+        "conflicting_risk_flag",
+        "affirmative_medical_text",
+        "single_platform",
+        "missing_sentinel",
+        "strict_numeric_type",
+        "strict_list_type",
+        "disclaimer",
+        "extra_field",
+        "duplicate_topic",
+        "schema",
+    )
+
+    for vector in vectors:
+        selection = _selection(run.curated.manifest_sha256)
+        _mutate_contract(selection, vector)
+        selection_path = tmp_path / f"selection-{vector}.json"
+        selection_path.write_bytes(canonical_json_bytes(selection))
+        try:
+            with pytest.raises(ValueError):
+                build_approved_exchange(run.layout, BATCH_ID, selection_path)
+        finally:
+            if run.approved.path.exists():
+                shutil.rmtree(run.approved.path)
+
+        mutated_path, anchor = _rebound_contract_bundle(
+            baseline,
+            tmp_path / "consumer-vectors",
+            vector,
+        )
+        with pytest.raises(ValueError):
+            verify_approved_exchange(mutated_path, anchor)
+        with pytest.raises(ValueError):
+            verify_trend_exchange(mutated_path, anchor)
+
+
 def test_boundary_cli_is_canonical_fail_closed_and_payload_safe(tmp_path: Path) -> None:
     run = _run_synthetic_pipeline(tmp_path / "boundary")
     completed = subprocess.run(
@@ -342,6 +503,7 @@ def test_boundary_cli_is_canonical_fail_closed_and_payload_safe(tmp_path: Path) 
     report = load_unique_json(completed.stdout)
     assert completed.stdout == canonical_json_bytes(report)
     assert report == {
+        "audit_profile": "current-worktree-audit",
         "approved_verified": True,
         "credentials_detected": False,
         "curated_verified": True,
@@ -366,6 +528,173 @@ def test_boundary_cli_is_canonical_fail_closed_and_payload_safe(tmp_path: Path) 
     )
     assert rejected.returncode != 0
     assert str(tmp_path).encode("utf-8") not in rejected.stdout + rejected.stderr
+
+
+def test_boundary_cli_requires_explicit_audit_profile(tmp_path: Path) -> None:
+    run = _run_synthetic_pipeline(tmp_path / "profile-required")
+    command = _boundary_command(run)
+    index = command.index("--audit-profile")
+    del command[index : index + 2]
+
+    completed = subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert b"boundary_verification_failed" in completed.stderr
+
+
+def test_clean_checkout_profile_passes_fresh_local_clone_without_git_config_mutation(
+    tmp_path: Path,
+) -> None:
+    run = _run_synthetic_pipeline(tmp_path / "clean-profile-data")
+    fresh_repo = tmp_path / "r"
+    config_path = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={PROJECT_ROOT.as_posix()}",
+            "-C",
+            str(PROJECT_ROOT),
+            "rev-parse",
+            "--git-path",
+            "config",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout.decode("utf-8").strip()
+    main_config = Path(config_path)
+    if not main_config.is_absolute():
+        main_config = PROJECT_ROOT / main_config
+    config_before = main_config.read_bytes()
+    source_git_dir = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={PROJECT_ROOT.as_posix()}",
+            "-C",
+            str(PROJECT_ROOT),
+            "rev-parse",
+            "--absolute-git-dir",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout.decode("utf-8").strip()
+    cloned = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={PROJECT_ROOT.as_posix()}",
+            "-c",
+            f"safe.directory={Path(source_git_dir).as_posix()}",
+            "-c",
+            "core.longpaths=true",
+            "clone",
+            "--no-hardlinks",
+            "--quiet",
+            str(PROJECT_ROOT),
+            str(fresh_repo),
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert cloned.returncode == 0, cloned.stderr.decode("utf-8", errors="replace")
+    local_config = fresh_repo / "config.toml"
+    local_config.write_text("synthetic-clean-profile-local-config=true\n", encoding="utf-8")
+    clean_status = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={fresh_repo.as_posix()}",
+            "-C",
+            str(fresh_repo),
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+        ],
+        capture_output=True,
+        check=True,
+    )
+    assert clean_status.stdout == b""
+
+    completed = subprocess.run(
+        _boundary_command(
+            run,
+            audit_profile="clean-checkout-validation",
+            repo_root=fresh_repo,
+        ),
+        cwd=fresh_repo,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr.decode("utf-8", errors="replace")
+    report = load_unique_json(completed.stdout)
+    assert completed.stdout == canonical_json_bytes(report)
+    assert report["audit_profile"] == "clean-checkout-validation"
+    assert report["manual_pack_deletion_status_unchanged"] is True
+    assert b"synthetic-clean-profile-local-config" not in completed.stdout + completed.stderr
+    assert main_config.read_bytes() == config_before
+
+
+def test_profile_manual_deletion_contracts_fail_closed(
+    boundary_module: ModuleType,
+) -> None:
+    boundary_module._assert_manual_deletion_contract(
+        "current-worktree-audit",
+        MANUAL_DELETION_COUNT,
+        MANUAL_DELETION_SHA256,
+    )
+    boundary_module._assert_manual_deletion_contract(
+        "clean-checkout-validation",
+        0,
+        hashlib.sha256(b"").hexdigest(),
+    )
+    with pytest.raises(boundary_module.BoundaryFailure):
+        boundary_module._assert_manual_deletion_contract(
+            "current-worktree-audit",
+            MANUAL_DELETION_COUNT - 1,
+            MANUAL_DELETION_SHA256,
+        )
+    with pytest.raises(boundary_module.BoundaryFailure):
+        boundary_module._assert_manual_deletion_contract(
+            "clean-checkout-validation",
+            1,
+            hashlib.sha256(b"synthetic\n").hexdigest(),
+        )
+
+
+def test_clean_profile_does_not_read_local_config_or_trust_legacy_cache_roots(
+    boundary_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "config.toml"
+    legacy_raw = tmp_path / "integrations" / "health_trend_intelligence" / ".test-tmp-task5" / "raw"
+    config.write_text("synthetic-local-config=true\n", encoding="utf-8")
+    legacy_raw.mkdir(parents=True)
+    (legacy_raw / "synthetic.json").write_text("{}\n", encoding="utf-8")
+    original_open = Path.open
+
+    def guarded_open(path: Path, *args: object, **kwargs: object):
+        if path == config:
+            raise AssertionError("clean profile read local config content")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    raw_found, protected = boundary_module._scan_repository_disk(
+        tmp_path,
+        frozenset(),
+        frozenset(),
+        "clean-checkout-validation",
+    )
+
+    assert raw_found
+    assert not protected
 
 
 def test_boundary_cli_hides_paths_when_runtime_dependencies_are_unavailable() -> None:

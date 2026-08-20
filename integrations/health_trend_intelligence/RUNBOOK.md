@@ -116,13 +116,18 @@ $Importer = Join-Path $RepoRoot '09_泛健康日更\scripts\import_trend_intelli
 $ImportedPath = Join-Path $FakeRepo "09_泛健康日更\data\trend-intelligence\$BatchId\v01"
 ```
 
-## 7. 生成只读边界报告
+## 7. 生成只读边界报告：必须显式选择审计 profile
 
-Task 8 基线 `f5f6d900b78cc583272d3f29bb1c6e3976b1109e`、240 个删除路径及路径摘要 `391aa69f5238ab573788c248ced49824a51a5fa08b4c3c9477d9bbf2eda26db6`，以及 MediaCrawler commit `d6f7c5bb906b6dac40ddf343ef9e26438a3de092` 都固定在受审脚本内，操作者不能用 CLI 参数改写。删除路径摘要算法是：Git `-z` 原始路径字节排序后，以 LF 连接并保留末尾 LF，再计算 SHA-256。
+`verify_boundaries.py` 不接受默认 profile，必须在以下两种模式中显式选择一个。两种模式都把 Task 8 基线 `f5f6d900b78cc583272d3f29bb1c6e3976b1109e`、最终修复文件范围和 MediaCrawler commit `d6f7c5bb906b6dac40ddf343ef9e26438a3de092` 固定在代码中；操作者不能用 CLI 参数自报提交范围、删除数或摘要。成功 JSON 必含 `audit_profile`，两种 PASS 不能互相替代。
+
+### 7.1 当前受审工作树：`current-worktree-audit`
+
+前置条件：必须在本机当前受审工作树运行；该工作树保留精确 240 个 manual-pack 删除、固定路径摘要 `391aa69f5238ab573788c248ced49824a51a5fa08b4c3c9477d9bbf2eda26db6`、受审的 ignored `config.toml` identity，以及披露的精确历史 cache 例外。该 PASS 只说明当前工作树仍等于受审 dirty baseline，不能解释为 clean checkout 或跨机器 PASS。
 
 ```powershell
 $BoundaryVerifier = Join-Path $Integration 'scripts\verify_boundaries.py'
 uv run --project $Integration python $BoundaryVerifier `
+  --audit-profile current-worktree-audit `
   --repo-root $RepoRoot `
   --media-crawler-root 'E:\MoneyPrinterTurbo-3期\MediaCrawler' `
   --raw-path (Join-Path $DataRoot 'raw') `
@@ -132,9 +137,51 @@ uv run --project $Integration python $BoundaryVerifier `
   --external-manifest-sha256 $ExternalManifestSha256
 ```
 
-该命令会实际检查固定 BASE 到 HEAD 的五文件提交边界，并对全仓 Git index、porcelain `-z` 与受控磁盘树三路核对 Raw：任一目录组件经 NFKC/casefold 后精确为 `raw`（或项目已知 `raw-data`/`raw_data` 标记）且其下含普通文件就失败。仅脚本内审计过的完整 repo-relative 根（例如根 `.git`、作为既有合成 pytest 产物根的精确 repo 根 `.cache`、固定 venv 和保留的 Task 5/6 合成测试 basetemp）可跳过，每个都是精确路径，不按 basename、前缀或 substring 扩张。因此任意新 `.cache`、`.test-tmp-*` 或名称含 `.uv-cache` 的目录仍会枚举，不可读时失败关闭；240 个已删 manual-pack 所在的精确保护根不递归访问。配置/依赖检查递归覆盖根 `config*.toml/yaml/yml/json`、`app/config/**` 的每个普通文件（包括无扩展名文件，仅精确 `app/config/__pycache__` 例外）、明确 config 目录、`pyproject.toml`/`uv.lock`/`requirements*.txt` 和 package lock；普通业务 JSON 不因扩展名单独被当作配置。本机 Task 8 前已有的 ignored 根 `config.toml` 只在相对路径不变、`lstat` 为非 reparse 单硬链普通文件、为 3114 bytes 且 SHA-256 精确为 `f60060a50740bb7f1c6b09caaba6022fc3e9187700eb6de23e55fa02f66eb997` 时允许；内容不输出，字节、大小、身份或链接数任一变化都失败。
+当前模式会对全仓 Git index、porcelain `-z` 与受控磁盘树三路核对 Raw。仅脚本内审计过的完整 repo-relative 元数据/venv/历史合成 cache 根可跳过，不按 basename、前缀或 substring 扩张；240 个已删 manual-pack 所在精确保护根不递归。本机 ignored 根 `config.toml` 仅在相对路径、非 reparse 单硬链 identity、3114 bytes 和固定 SHA-256 全部匹配时允许，内容不输出，任一变化都失败。
 
-JSON/JSONL 使用 UTF-8、NFC 唯一键严格解析，凭据判定再对键名做 NFKC/casefold/分隔符归一，在原有 cookie/session/token/api_key/secret/password/proxy/credential 外精确覆盖 HMAC、hash key、signing/private/encryption/decryption/access/auth key 及 client secret。普通 `hash`/`sha256`/manifest digest 元数据不误杀；合成手机号/邮箱形状值不被当成真实凭据。同时递归枚举 Raw、Curated、Approved 和 Imported 的每个普通文件，按扩展名和常见文件头拒绝媒体。
+### 7.2 干净检出：`clean-checkout-validation`
+
+前置条件：从本地仓库 HEAD 建立一个新的 clean clone/checkout；`git status --porcelain=v1 --untracked-files=all` 必须为空，manual-pack 工作树删除必须为 0，固定 BASE 到 HEAD 的提交路径只能落在代码内 final-fix allowlist。Raw、Curated、Approved、Imported 继续使用仓库外合成根；MediaCrawler 路径可由操作者显式传入，但其 commit 和 clean 状态仍固定核验。
+
+clean 模式不使用当前机器的 `config.toml` bytes/SHA，也不继承 current 模式的历史 cache 例外。如果 fresh root 存在 ignored `config.toml`，脚本只以 `lstat` 确认它是未跟踪、非 reparse、单硬链普通文件；不会打开、哈希、输出或修改其内容。除 `.git` 外，clean 模式不会因 legacy cache 名称跳过磁盘枚举。
+
+以下 clone 只读本地对象，不联网；所有 Git 信任设置均为 command-scoped，不写主仓库或全局 Git config：
+
+```powershell
+$FreshParent = Join-Path $env:TEMP 'hti-clean-checkout-validation-20260820'
+$FreshRepo = Join-Path $FreshParent 'repo'
+if (Test-Path -LiteralPath $FreshParent) { throw 'fresh validation root already exists' }
+New-Item -ItemType Directory -Path $FreshParent | Out-Null
+$SourceGitDir = git -c "safe.directory=$RepoRoot" -C $RepoRoot rev-parse --absolute-git-dir
+git -c "safe.directory=$RepoRoot" -c "safe.directory=$SourceGitDir" -c core.longpaths=true clone --no-hardlinks --quiet $RepoRoot $FreshRepo
+$FreshStatus = git -c "safe.directory=$FreshRepo" -C $FreshRepo status --porcelain=v1 --untracked-files=all
+if ($FreshStatus) { throw 'fresh checkout is not clean' }
+
+$FreshIntegration = Join-Path $FreshRepo 'integrations\health_trend_intelligence'
+$FreshBoundaryVerifier = Join-Path $FreshIntegration 'scripts\verify_boundaries.py'
+$Python = Join-Path $Integration '.venv\Scripts\python.exe'
+$PreviousPythonPath = $env:PYTHONPATH
+$env:PYTHONPATH = Join-Path $FreshIntegration 'src'
+try {
+  & $Python $FreshBoundaryVerifier `
+    --audit-profile clean-checkout-validation `
+    --repo-root $FreshRepo `
+    --media-crawler-root 'E:\MoneyPrinterTurbo-3期\MediaCrawler' `
+    --raw-path (Join-Path $DataRoot 'raw') `
+    --curated-path (Join-Path $DataRoot "curated\$BatchId") `
+    --approved-path $ApprovedPath `
+    --imported-path $ImportedPath `
+    --external-manifest-sha256 $ExternalManifestSha256
+} finally {
+  $env:PYTHONPATH = $PreviousPythonPath
+}
+```
+
+只有输出中 `"audit_profile":"clean-checkout-validation"` 且进程为 0，才能声明分支的 clean-checkout 边界通过。`current-worktree-audit` 的 PASS 不能满足此条件。
+
+### 7.3 两种模式共有的失败关闭检查
+
+配置/依赖检查递归覆盖根 `config*.toml/yaml/yml/json`、`app/config/**` 普通文件、明确 config 目录、`pyproject.toml`/`uv.lock`/`requirements*.txt` 和 package lock。JSON/JSONL 使用 UTF-8、NFC 唯一键严格解析，凭据键再做 NFKC/casefold/分隔符归一；普通 hash/SHA-256/manifest digest 元数据不误杀。Raw、Curated、Approved、Imported 每个普通文件均按扩展名和常见文件头拒绝媒体。
 
 只有所有必检项都能核验时，命令才输出一行 canonical UTF-8/LF JSON 并以 0 退出。缺路径、原始路径链中的 symlink/junction/reparse、多硬链边界文件、越界、非普通文件、不能扫描、MediaCrawler 改动、外部锚不匹配或固定删除集改变都会非零失败。跳过范围只能来自版本化精确根集合，不能由新目录名自动扩张；失败输出不包含合成载荷或给定绝对路径。
 
@@ -161,8 +208,16 @@ uv run --project $Integration hti verify-curated --root $DataRoot --batch-id $Ba
 ```powershell
 $ExpectedSyntheticRoot = [IO.Path]::GetFullPath((Join-Path $env:TEMP 'hti-foundation-synthetic-20260818'))
 if ([IO.Path]::GetFullPath($RunRoot) -ne $ExpectedSyntheticRoot) { throw 'refusing cleanup outside the exact synthetic root' }
-Remove-Item -LiteralPath $ExpectedSyntheticRoot -Recurse -Force
+Remove-Item -LiteralPath $ExpectedSyntheticRoot -Recurse
 Remove-Item Env:HTI_HASH_KEY -ErrorAction SilentlyContinue
+```
+
+若执行了 7.2 的 fresh clone，另行核对并精确清理该临时根；不得对计算结果或上级目录递归删除，也不得使用 `-Force`：
+
+```powershell
+$ExpectedFreshParent = [IO.Path]::GetFullPath((Join-Path $env:TEMP 'hti-clean-checkout-validation-20260820'))
+if ([IO.Path]::GetFullPath($FreshParent) -ne $ExpectedFreshParent) { throw 'refusing cleanup outside the exact fresh validation root' }
+Remove-Item -LiteralPath $ExpectedFreshParent -Recurse
 ```
 
 真实数据根、不明 staging、Raw 或已发布 `v01` 不在此清理授权内。
