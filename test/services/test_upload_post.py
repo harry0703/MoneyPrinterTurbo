@@ -189,3 +189,36 @@ class TestUploadPostYouTubePayload(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUploadPostServiceDynamicConfig(unittest.TestCase):
+    def test_upload_post_service_dynamically_reads_config(self):
+        test_app_config = {
+            "upload_post_api_key": "",
+            "upload_post_username": "",
+            "upload_post_enabled": False,
+            "upload_post_auto_upload": False,
+            "upload_post_platforms": ["tiktok"],
+        }
+        
+        with patch("app.services.upload_post.config.app", test_app_config):
+            service = UploadPostService()
+            self.assertFalse(service.is_configured())
+            self.assertFalse(service.enabled)
+            self.assertFalse(service.auto_upload)
+            
+            test_app_config["upload_post_enabled"] = True
+            test_app_config["upload_post_auto_upload"] = True
+            test_app_config["upload_post_api_key"] = "test-key"
+            test_app_config["upload_post_username"] = "test-user"
+            test_app_config["upload_post_platforms"] = ["tiktok", "instagram"]
+            
+            self.assertTrue(service.enabled)
+            self.assertTrue(service.auto_upload)
+            self.assertEqual(service.api_key, "test-key")
+            self.assertTrue(service.is_configured())
+            self.assertIn("instagram", service.platforms)
+            
+            test_app_config["upload_post_enabled"] = False
+            self.assertFalse(service.enabled)
+            self.assertFalse(service.is_configured())
