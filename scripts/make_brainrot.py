@@ -17,6 +17,8 @@
 from __future__ import annotations
 
 import argparse
+import datetime
+import json
 import os
 import random
 import sys
@@ -205,6 +207,13 @@ def main(argv=None) -> int:
     print(f"text     {args.text}")
     print(f"seed     {seed}")
 
+    metadata = {
+        "text": args.text,
+        "bait": os.path.basename(bait_path),
+        "seed": seed,
+        "created": datetime.date.today().isoformat(),
+    }
+
     duration = build_video(
         bait_path=bait_path,
         template_path=args.template,
@@ -218,6 +227,12 @@ def main(argv=None) -> int:
         font_path=args.font,
         seed=seed,
     )
+    # 同名 JSON 让画廊页面能显示文字卡和诱饵来源：文件名里只有一个随机数，
+    # 光看列表分不出哪条是哪条。
+    metadata["duration"] = round(duration, 2)
+    with open(os.path.splitext(output_path)[0] + ".json", "w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, ensure_ascii=False, indent=2)
+
     print(f"\n{output_path}  ({duration:.1f}s)")
     return 0
 

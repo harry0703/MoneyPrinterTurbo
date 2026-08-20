@@ -23,7 +23,7 @@ sys.path.append(
 
 from app.utils import utils  # noqa: E402
 
-PREVIEW_FILENAME = "preview.mp4"
+PREVIEW_SUFFIX = ".preview.mp4"
 PREVIEW_HEIGHT = 854
 PREVIEW_VIDEO_BITRATE = "400k"
 PREVIEW_AUDIO_BITRATE = "48k"
@@ -92,7 +92,9 @@ def build_preview(source: str) -> str | None:
     预览只用于确认画面节奏、字幕大小和配乐是否合适，不需要原始码率。
     体积约为成片的六分之一，对流量有限的连接差别很大。
     """
-    preview_path = os.path.join(os.path.dirname(source), PREVIEW_FILENAME)
+    # 预览文件名必须由源文件派生：计划视频各自独占一个任务目录，而 brainrot
+    # 视频全部堆在同一个目录里，固定文件名会让它们互相覆盖。
+    preview_path = os.path.splitext(source)[0] + PREVIEW_SUFFIX
     if os.path.isfile(preview_path) and os.path.getmtime(preview_path) >= os.path.getmtime(source):
         return preview_path
 
@@ -141,14 +143,55 @@ def collect_videos() -> list[dict]:
     return sorted(videos, key=lambda item: (item["account"], item["id"]))
 
 
-videos = collect_videos()
+def collect_brainrot() -> list[dict]:
+    """
+    收集 brainrot 视频。
+
+    它们不属于内容计划，因此没有条目可查，只能直接扫描输出目录。生成时留下的
+    同名 JSON 提供文字卡与诱饵素材；早于该机制的文件回退到文件名。
+    """
+    directory = os.path.join(utils.storage_dir(create=True), "brainrot")
+    if not os.path.isdir(directory):
+        return []
+
+    videos = []
+    for name in sorted(os.listdir(directory)):
+        if not name.endswith(".mp4") or name.endswith(PREVIEW_SUFFIX):
+            continue
+        path = os.path.join(directory, name)
+        stem = os.path.splitext(path)[0]
+
+        meta = {}
+        try:
+            with open(f"{stem}.json", "r", encoding="utf-8") as handle:
+                meta = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            pass
+
+        videos.append(
+            {
+                "id": os.path.splitext(name)[0],
+                "account": "brainrot",
+                "subject": meta.get("text") or os.path.splitext(name)[0],
+                "date": meta.get("created", ""),
+                "status": meta.get("bait", ""),
+                "url": None,
+                "path": path,
+            }
+        )
+    return videos
+
+
+videos = collect_videos() + collect_brainrot()
 
 st.title("🎬 Generated videos")
 
 if not videos:
     st.info(
         "No video yet. Render one with "
-        "`uv run python run_plan.py --account why --next --no-publish`."
+        "`uv run python run_plan.py --account why --next --no-publish`, "
+        "or a brainrot one with "
+        "`uv run python scripts/make_brainrot.py --text \"...\"`."
     )
     st.stop()
 
@@ -194,8 +237,12 @@ for account in selected_accounts:
                 st.video(playable)
 
             with columns[1]:
-                st.write(f"**Scheduled** {video['date'] or '—'}")
-                st.write(f"**Status** {video['status'] or '—'}")
+                if video["account"] == "brainrot":
+                    st.write(f"**Rendered** {video['date'] or '—'}")
+                    st.write(f"**Bait** {video['status'] or '—'}")
+                else:
+                    st.write(f"**Scheduled** {video['date'] or '—'}")
+                    st.write(f"**Status** {video['status'] or '—'}")
                 if video["url"]:
                     st.write(f"**Published** {video['url']}")
                 st.code(video["path"], language=None)
