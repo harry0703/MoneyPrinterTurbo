@@ -103,7 +103,18 @@ _MISSING_TEXT_SENTINELS = frozenset(
     }
 )
 _DECLARED_FILE_NAMES = frozenset(_EXPECTED_FILES)
+_DECLARED_SAFE_TEXT_VALUES = frozenset(
+    {
+        "approved",
+        "health_trend_evidence_summary.v1",
+        "health_trend_exchange.v1",
+        "health_trend_selection.v1",
+        "v01",
+        *_EXPECTED_FILES,
+    }
+)
 _REPARSE_ATTRIBUTE = 0x400
+_UNICODE_DOMAIN_DOTS = str.maketrans({"。": ".", "．": ".", "｡": "."})
 _CONFUSABLE_ASCII = str.maketrans(
     {
         "Α": "a",
@@ -114,6 +125,7 @@ _CONFUSABLE_ASCII = str.maketrans(
         "Ο": "o",
         "Ρ": "p",
         "Τ": "t",
+        "Υ": "y",
         "Χ": "x",
         "α": "a",
         "β": "b",
@@ -123,6 +135,7 @@ _CONFUSABLE_ASCII = str.maketrans(
         "ο": "o",
         "ρ": "p",
         "τ": "t",
+        "υ": "y",
         "χ": "x",
         "А": "a",
         "В": "b",
@@ -147,14 +160,25 @@ _CONFUSABLE_ASCII = str.maketrans(
         "р": "p",
         "с": "c",
         "т": "t",
+        "у": "y",
         "х": "x",
     }
 )
-_URL_SCHEME = re.compile(
-    r"(?<![a-z0-9])(?:https?|ftp|file|data|javascript|vbscript|blob):\s*[\\/]{0,2}",
-    re.IGNORECASE,
+_MEDICAL_CONFUSABLE_ASCII = {
+    codepoint: replacement
+    for codepoint, replacement in _CONFUSABLE_ASCII.items()
+    if codepoint not in {ord("Υ"), ord("υ"), ord("у")}
+}
+_URI_WITH_AUTHORITY = re.compile(
+    r"(?<![\w])(?:[a-z][a-z0-9+.-]{0,31}):[\\/]{2}"
 )
-_DOMAIN = re.compile(r"(?<![\w-])(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}(?![\w-])", re.I)
+_URI_WITHOUT_AUTHORITY = re.compile(
+    r"(?<![\w])(?:about|blob|chrome|chrome-extension|custom-scheme|data|file|intent|"
+    r"javascript|magnet|mailto|market|ms-appdata|ms-appx|resource|sms|tel|urn|"
+    r"vbscript|view-source):"
+)
+_COMPACT_URI = re.compile(r"(?:[a-z][a-z0-9+.-]{0,31})[\\/]{2}")
+_DOMAIN_CANDIDATE = re.compile(r"(?<![\w-])(?:[\w-]{1,63}\.)+[\w-]{2,63}(?![\w-])")
 _IP = re.compile(
     r"(?<![\w])(?:\[[0-9a-f:.%]+\]|(?:\d{1,3}\.){3}\d{1,3}|[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,})(?![\w])",
     re.I,
@@ -164,10 +188,57 @@ _RAW_OR_CURATED_RECORD = re.compile(
     r"(?<![a-z0-9])(?:raw|curated)[_ -]?(?:data|record|excerpt|payload)(?![a-z0-9])",
     re.I,
 )
+_SENSITIVE_COMPACT_LABELS = (
+    "accesstoken",
+    "apikey",
+    "authorization",
+    "audio",
+    "avatar",
+    "bearer",
+    "cookie",
+    "credential",
+    "identity",
+    "image",
+    "media",
+    "nickname",
+    "openid",
+    "password",
+    "rawuserid",
+    "refreshtoken",
+    "secuid",
+    "session",
+    "sourceurl",
+    "token",
+    "userid",
+    "video",
+    "xsectoken",
+)
+_IDENTITY_OR_MEDIA = re.compile(
+    r"\b(?:avatar|bearer|cookie|credential|identifier|media|nickname|source[_ -]?url|"
+    r"token|url|user[_ -]?id|video|audio|image|id)\b",
+    re.IGNORECASE,
+)
 _MEDIA_OR_EXECUTABLE = re.compile(
     r"\.(?:aac|avi|bat|cmd|com|dll|exe|gif|jpeg|jpg|js|m4a|mkv|mov|mp3|mp4|mpeg|msi|png|ps1|py|scr|svg|vbs|wav|webm)(?:\b|$)",
     re.I,
 )
+_RAW_EXCERPT = re.compile(r"raw\s*excerpt|原文|原句|摘录|全文", re.IGNORECASE)
+_CHINESE_RESTRICTED = re.compile(r"昵称|头像|凭据|令牌|媒体|身份")
+_EMAIL = re.compile(
+    r"(?<![\w.+-])[A-Z0-9_%+-]+(?:[^\S\r\n]*\.[^\S\r\n]*[A-Z0-9_%+-]+)*"
+    r"[^\S\r\n]*@[^\S\r\n]*[A-Z0-9-]+"
+    r"(?:[^\S\r\n]*\.[^\S\r\n]*[A-Z0-9-]+)+(?![\w.-])",
+    re.IGNORECASE,
+)
+_WECHAT = re.compile(
+    r"(?:微\s*信|[vV]\s*信|薇\s*信)\s*(?:号|id)?\s*[:：]?\s*"
+    r"[A-Za-z][A-Za-z0-9_-]{5,31}",
+    re.IGNORECASE,
+)
+_HANDLE = re.compile(r"(?<!@)@[\w](?:[\w.-]{0,29}[\w])(?![\w.-])")
+_BEARER = re.compile(r"\bbearer\s+[A-Za-z0-9._~+/-]{12,}\b", re.IGNORECASE)
+_JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b")
+_API_KEY = re.compile(r"\b(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{12,}\b", re.IGNORECASE)
 _SECRET_ASSIGNMENT = re.compile(
     r"(?:api[_ -]?key|authorization|bearer|cookie|credential|password|proxy[_ -]?(?:key|password)|secret|session|token|xsec[_ -]?token)\s*(?:=|:|\s)\s*\S+",
     re.I,
@@ -176,7 +247,7 @@ _SECRET_TOKEN = re.compile(
     r"(?<![a-z0-9])(?:(?:sk|pk)_[a-z0-9_-]{12,}|(?:sk|pk)-[a-z0-9_-]{12,})",
     re.I,
 )
-_PHONE_NUMBER = re.compile(r"(?<!\d)(?:\+?86[ -]?)?1[3-9]\d{9}(?!\d)")
+_PHONE_NUMBER = re.compile(r"(?<!\d)(?:\+?86[\s-]*)?1[3-9](?:[\s-]*\d){9}(?!\d)")
 _MEDICAL_QUALIFIERS = frozenset(
     {"clinical", "clinically", "health", "medical", "medically", "medicine"}
 )
@@ -416,6 +487,27 @@ def _load_json(payload: bytes) -> object:
     return value
 
 
+def _canonical_json_bytes(value: object) -> bytes:
+    try:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as error:
+        raise TrendExchangeError("json_invalid") from error
+    return encoded.encode("utf-8") + b"\n"
+
+
+def _load_canonical_json(payload: bytes, reason: str) -> object:
+    value = _load_json(payload)
+    if _canonical_json_bytes(value) != payload:
+        raise TrendExchangeError(reason)
+    return value
+
+
 def _require_object(value: object, fields: frozenset[str], reason: str) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != fields:
         raise TrendExchangeError(reason)
@@ -618,20 +710,40 @@ def _validate_summary(
 
 
 def _normalized_security_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", html.unescape(value)).casefold()
+    for _ in range(3):
+        decoded = unquote(normalized)
+        if decoded == normalized:
+            break
+        normalized = decoded
+    normalized = normalized.translate(_UNICODE_DOMAIN_DOTS).translate(_CONFUSABLE_ASCII)
+    return "".join(
+        character
+        for character in normalized
+        if not unicodedata.category(character).startswith("C")
+    ).casefold()
+
+
+def _normalized_medical_text(value: str) -> str:
     normalized = value
     for _ in range(3):
         decoded = unquote(html.unescape(normalized))
         if decoded == normalized:
             break
         normalized = decoded
-    normalized = unicodedata.normalize("NFKC", normalized).translate(_CONFUSABLE_ASCII)
-    return "".join(
-        character for character in normalized if unicodedata.category(character) != "Cf"
+    normalized = unicodedata.normalize("NFKC", normalized).translate(
+        _MEDICAL_CONFUSABLE_ASCII
+    )
+    normalized = "".join(
+        character
+        for character in normalized
+        if unicodedata.category(character) != "Cf"
     ).casefold()
+    return normalized
 
 
 def _normalized_statement_words(value: str) -> str:
-    normalized = _normalized_security_text(value)
+    normalized = _normalized_medical_text(value)
     return " ".join(
         "".join(
             character if character.isalnum() else " " for character in normalized
@@ -645,7 +757,7 @@ def _classify_medical_verification_statement(
     """Mask bounded negative clauses, then find affirmative medical status."""
 
     saw_incomplete = False
-    normalized = _normalized_security_text(value)
+    normalized = _normalized_medical_text(value)
     for statement in re.split(r"[.!?;\r\n。！？；]+", normalized):
         words = _normalized_statement_words(statement)
         if not words:
@@ -697,30 +809,56 @@ def _contains_ip(value: str) -> bool:
     return False
 
 
+def _contains_domain(value: str) -> bool:
+    dotted = re.sub(r"\s*(?:\[\s*dot\s*\]|\(\s*dot\s*\)|\bdot\b)\s*", ".", value)
+    for match in _DOMAIN_CANDIDATE.finditer(dotted):
+        labels = match.group(0).split(".")
+        if labels[-1].isdigit() or not any(character.isalpha() for character in labels[-1]):
+            continue
+        try:
+            encoded = [label.encode("idna").decode("ascii") for label in labels]
+        except UnicodeError:
+            continue
+        if all(label and len(label) <= 63 for label in encoded):
+            return True
+    return False
+
+
+def _security_compact(value: str) -> str:
+    return "".join(character for character in value if character.isalnum())
+
+
 def _assert_safe_text(value: str) -> None:
-    if value == _DISCLAIMER or value in _DECLARED_FILE_NAMES:
+    if value == _DISCLAIMER or value in _DECLARED_SAFE_TEXT_VALUES:
         return
     normalized = _normalized_security_text(value)
     if _classify_medical_verification_statement(value) == "complete":
         raise TrendExchangeError("medical_verification_contradiction")
-    defanged = re.sub(
-        r"\s*(?:\[\s*dot\s*\]|\(\s*dot\s*\)|\bdot\b)\s*",
-        ".",
-        normalized,
-    )
-    compact = re.sub(r"[\s\[\](){}<>:'\"`]+", "", normalized)
+    compact_uri = re.sub(r"[\s\[\](){}<>:'\"`]+", "", normalized)
+    compact_security = _security_compact(normalized)
     if (
-        _URL_SCHEME.search(normalized)
-        or re.search(r"(?:https?|ftp)\s*:\s*[\\/]\s*[\\/]", normalized)
-        or re.search(r"(?:https?|ftp):[\\/]{2}", compact)
-        or _DOMAIN.search(defanged)
+        _URI_WITH_AUTHORITY.search(normalized)
+        or re.search(r":\s*[\\/]\s*[\\/]", normalized)
+        or _URI_WITHOUT_AUTHORITY.search(normalized)
+        or _COMPACT_URI.search(compact_uri)
+        or _contains_domain(normalized)
         or _contains_ip(normalized)
         or "localhost" in normalized
+        or any(label in compact_security for label in _SENSITIVE_COMPACT_LABELS)
         or _RAW_OR_CURATED_PATH.search(normalized)
         or _RAW_OR_CURATED_RECORD.search(normalized)
+        or _IDENTITY_OR_MEDIA.search(normalized)
         or _MEDIA_OR_EXECUTABLE.search(normalized)
         or _SECRET_ASSIGNMENT.search(normalized)
         or _SECRET_TOKEN.search(normalized)
+        or _RAW_EXCERPT.search(normalized)
+        or _CHINESE_RESTRICTED.search(normalized)
+        or _EMAIL.search(normalized)
+        or _WECHAT.search(normalized)
+        or _HANDLE.search(normalized)
+        or _BEARER.search(normalized)
+        or _JWT.search(normalized)
+        or _API_KEY.search(normalized)
         or _PHONE_NUMBER.search(normalized)
     ):
         raise TrendExchangeError("restricted_exchange_content")
@@ -749,7 +887,24 @@ def _directory_names(path: Path) -> frozenset[str]:
         raise TrendExchangeError("source_directory_invalid") from error
 
 
-def _verify_snapshot(source: Path, expected_manifest_sha256: str) -> _VerifiedSnapshot:
+def _matches_exchange_directory_contract(source: Path, batch_id: str) -> bool:
+    if source.name == batch_id:
+        return True
+    return (
+        source.name == "v01"
+        and source.parent.name == batch_id
+        and source.parent.parent.name == "trend-intelligence"
+        and source.parent.parent.parent.name == "data"
+        and source.parent.parent.parent.parent.name == "09_泛健康日更"
+    )
+
+
+def _verify_snapshot(
+    source: Path,
+    expected_manifest_sha256: str,
+    *,
+    require_approved_directory_name: bool = True,
+) -> _VerifiedSnapshot:
     if not isinstance(expected_manifest_sha256, str) or _SHA256.fullmatch(
         expected_manifest_sha256
     ) is None:
@@ -763,15 +918,27 @@ def _verify_snapshot(source: Path, expected_manifest_sha256: str) -> _VerifiedSn
     manifest_sha256 = hashlib.sha256(manifest_snapshot.payload).hexdigest()
     if manifest_sha256 != expected_manifest_sha256:
         raise TrendExchangeError("manifest_anchor_mismatch")
-    manifest = _validate_manifest(_load_json(manifest_snapshot.payload))
+    manifest = _validate_manifest(
+        _load_canonical_json(manifest_snapshot.payload, "manifest_noncanonical")
+    )
+    if require_approved_directory_name and not _matches_exchange_directory_contract(
+        source, manifest["batch_id"]
+    ):
+        raise TrendExchangeError("source_path_batch_mismatch")
     for binding in manifest["files"]:
         name = binding["relative_path"]
         payload = files[name].payload
         if len(payload) != binding["bytes"] or hashlib.sha256(payload).hexdigest() != binding["sha256"]:
             raise TrendExchangeError("payload_binding_mismatch")
-    candidates = _validate_candidates(_load_json(files["top10.json"].payload))
+    candidates = _validate_candidates(
+        _load_canonical_json(files["top10.json"].payload, "top10_noncanonical")
+    )
     summary = _validate_summary(
-        _load_json(files["evidence-summary.json"].payload), manifest["batch_id"], candidates
+        _load_canonical_json(
+            files["evidence-summary.json"].payload, "summary_noncanonical"
+        ),
+        manifest["batch_id"],
+        candidates,
     )
     _assert_safe_content(manifest)
     _assert_safe_content(candidates)
@@ -966,7 +1133,11 @@ def import_trend_exchange(
             != staging_identity
         ):
             raise TrendExchangeError("destination_boundary_changed")
-        staging_snapshot = _verify_snapshot(staging, expected_manifest_sha256)
+        staging_snapshot = _verify_snapshot(
+            staging,
+            expected_manifest_sha256,
+            require_approved_directory_name=False,
+        )
         if any(
             staging_snapshot.files[name].payload
             != source_snapshot.files[name].payload
@@ -1000,7 +1171,11 @@ def import_trend_exchange(
         _assert_same_source_snapshot(
             source_snapshot.result.source, expected_manifest_sha256, source_snapshot
         )
-        target_snapshot = _verify_snapshot(target, expected_manifest_sha256)
+        target_snapshot = _verify_snapshot(
+            target,
+            expected_manifest_sha256,
+            require_approved_directory_name=False,
+        )
         if any(
             target_snapshot.files[name].payload != source_snapshot.files[name].payload
             for name in _EXPECTED_FILES

@@ -517,6 +517,40 @@ def test_verify_rejects_duplicate_and_nfc_colliding_json_keys(tmp_path: Path) ->
     assert original
 
 
+def test_verify_rejects_noncanonical_top10_bytes_after_complete_rebinding(
+    tmp_path: Path,
+) -> None:
+    source, _ = _write_bundle(tmp_path)
+    top10_path = source / "top10.json"
+    top10_value = json.loads(top10_path.read_text("utf-8"))
+    top10_payload = (
+        json.dumps(top10_value, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    )
+    top10_path.write_bytes(top10_payload)
+    manifest_path = source / "bundle-manifest.json"
+    manifest = json.loads(manifest_path.read_text("utf-8"))
+    manifest["files"][1]["bytes"] = len(top10_payload)
+    manifest["files"][1]["sha256"] = hashlib.sha256(top10_payload).hexdigest()
+    manifest_payload = _json_bytes(manifest)
+    manifest_path.write_bytes(manifest_payload)
+
+    with pytest.raises(TrendExchangeError, match="top10_noncanonical"):
+        verify_trend_exchange(source, hashlib.sha256(manifest_payload).hexdigest())
+
+
+def test_verify_rejects_approved_bundle_under_wrong_batch_directory_name(
+    tmp_path: Path,
+) -> None:
+    source, anchor = _write_bundle(tmp_path / "source")
+    wrong_name = tmp_path / "wrong-approved-directory"
+    wrong_name.mkdir()
+    for item in source.iterdir():
+        (wrong_name / item.name).write_bytes(item.read_bytes())
+
+    with pytest.raises(TrendExchangeError, match="source_path_batch_mismatch"):
+        verify_trend_exchange(wrong_name, anchor)
+
+
 @pytest.mark.parametrize(
     "injected",
     [
@@ -531,6 +565,7 @@ def test_verify_rejects_duplicate_and_nfc_colliding_json_keys(tmp_path: Path) ->
         "Bearer synthetic-token",
         "download/clip.mp4",
         "payload.exe",
+        "ssh://host",
     ],
 )
 def test_verify_recursively_rejects_urls_secrets_layers_media_and_executables(
@@ -586,6 +621,7 @@ def test_import_is_exact_versioned_byte_identical_and_no_overwrite(tmp_path: Pat
     }
     for name in ("top10.json", "evidence-summary.json", "bundle-manifest.json"):
         assert (target / name).read_bytes() == (source / name).read_bytes()
+    assert verify_trend_exchange(target, anchor).batch_id == "HTI-20260818-01"
     with pytest.raises(FileExistsError):
         import_trend_exchange(source, repo, anchor)
 
@@ -1046,10 +1082,19 @@ def test_post_manifest_verification_failure_removes_completion_marker(
     repo = _fake_repo(tmp_path)
     original_verify = exchange._verify_snapshot
 
-    def fail_target_verification(path: Path, expected: str):
+    def fail_target_verification(
+        path: Path,
+        expected: str,
+        *,
+        require_approved_directory_name: bool = True,
+    ):
         if Path(path).name == "v01":
             raise TrendExchangeError("synthetic_post_manifest_failure")
-        return original_verify(path, expected)
+        return original_verify(
+            path,
+            expected,
+            require_approved_directory_name=require_approved_directory_name,
+        )
 
     monkeypatch.setattr(exchange, "_verify_snapshot", fail_target_verification)
     with pytest.raises(TrendExchangeError, match="synthetic_post_manifest_failure"):

@@ -363,6 +363,16 @@ def _mutate_contract(value: dict[str, object], vector: str) -> None:
         candidates[1]["topic"] = candidates[0]["topic"]
     elif vector == "schema":
         value["schema"] = "health_trend_selection.v2"
+    elif vector == "localhost":
+        candidates[0]["growth_evidence"] = ["localhost"]
+    elif vector == "ssh_uri":
+        candidates[0]["growth_evidence"] = ["ssh://host"]
+    elif vector == "raw_record":
+        candidates[0]["growth_evidence"] = ["raw_record synthetic excerpt"]
+    elif vector == "secret_assignment":
+        candidates[0]["growth_evidence"] = ["secret=synthetic-secret"]
+    elif vector == "secret_token":
+        candidates[0]["growth_evidence"] = ["sk_abcdefghijkl"]
     else:
         raise AssertionError(f"unknown conformance vector: {vector}")
 
@@ -465,6 +475,11 @@ def test_approved_contract_is_bidirectionally_conformant_across_runtimes(
         "extra_field",
         "duplicate_topic",
         "schema",
+        "localhost",
+        "ssh_uri",
+        "raw_record",
+        "secret_assignment",
+        "secret_token",
     )
 
     for vector in vectors:
@@ -488,6 +503,32 @@ def test_approved_contract_is_bidirectionally_conformant_across_runtimes(
             verify_approved_exchange(mutated_path, anchor)
         with pytest.raises(ValueError):
             verify_trend_exchange(mutated_path, anchor)
+
+    noncanonical_path = tmp_path / "consumer-vectors" / "noncanonical" / BATCH_ID
+    shutil.copytree(baseline, noncanonical_path)
+    top10_path = noncanonical_path / "top10.json"
+    top10 = load_unique_json(top10_path.read_bytes())
+    top10_payload = json.dumps(top10, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    top10_path.write_bytes(top10_payload)
+    manifest_path = noncanonical_path / "bundle-manifest.json"
+    manifest = load_unique_json(manifest_path.read_bytes())
+    manifest["files"][1]["bytes"] = len(top10_payload)
+    manifest["files"][1]["sha256"] = hashlib.sha256(top10_payload).hexdigest()
+    manifest_payload = canonical_json_bytes(manifest)
+    manifest_path.write_bytes(manifest_payload)
+    noncanonical_anchor = hashlib.sha256(manifest_payload).hexdigest()
+    with pytest.raises(ValueError):
+        verify_approved_exchange(noncanonical_path, noncanonical_anchor)
+    with pytest.raises(ValueError):
+        verify_trend_exchange(noncanonical_path, noncanonical_anchor)
+
+    wrong_name = tmp_path / "consumer-vectors" / "wrong-approved-directory"
+    shutil.copytree(baseline, wrong_name)
+    anchor = hashlib.sha256((wrong_name / "bundle-manifest.json").read_bytes()).hexdigest()
+    with pytest.raises(ValueError):
+        verify_approved_exchange(wrong_name, anchor)
+    with pytest.raises(ValueError):
+        verify_trend_exchange(wrong_name, anchor)
 
 
 def test_boundary_cli_is_canonical_fail_closed_and_payload_safe(tmp_path: Path) -> None:

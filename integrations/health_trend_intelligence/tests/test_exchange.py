@@ -241,6 +241,11 @@ def test_selection_rejects_duplicate_or_incomplete_coverage(mutation: str) -> No
         ("growth_evidence", "tel:+15551234567"),
         ("growth_evidence", "custom+hti://synthetic-host/source"),
         ("growth_evidence", "custom+hti://[2001:db8::1]/source"),
+        ("growth_evidence", "localhost"),
+        ("growth_evidence", "raw_record synthetic excerpt"),
+        ("growth_evidence", "payload.exe"),
+        ("growth_evidence", "secret=synthetic-secret"),
+        ("growth_evidence", "sk_abcdefghijkl"),
         ("growth_evidence", "例子.健康/source"),
         ("growth_evidence", "avatar value"),
         ("user_questions", r"raw\HTI-20260818-01\posts.jsonl"),

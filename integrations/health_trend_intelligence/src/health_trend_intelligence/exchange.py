@@ -192,6 +192,19 @@ _MEDIA_EXTENSION = re.compile(
     re.IGNORECASE,
 )
 _RAW_EXCERPT = re.compile(r"raw\s*excerpt|原文|原句|摘录|全文", re.IGNORECASE)
+_RAW_OR_CURATED_RECORD = re.compile(
+    r"(?<![a-z0-9])(?:raw|curated)[_ -]?(?:data|record|excerpt|payload)(?![a-z0-9])",
+    re.IGNORECASE,
+)
+_SECRET_ASSIGNMENT = re.compile(
+    r"(?:api[_ -]?key|authorization|bearer|cookie|credential|password|proxy[_ -]?"
+    r"(?:key|password)|secret|session|token|xsec[_ -]?token)\s*(?:=|:|\s)\s*\S+",
+    re.IGNORECASE,
+)
+_SECRET_TOKEN = re.compile(
+    r"(?<![a-z0-9])(?:(?:sk|pk)_[a-z0-9_-]{12,}|(?:sk|pk)-[a-z0-9_-]{12,})",
+    re.IGNORECASE,
+)
 _CHINESE_RESTRICTED = re.compile(r"昵称|头像|凭据|令牌|媒体|身份")
 _MEDICAL_QUALIFIERS = frozenset(
     {"clinical", "clinically", "health", "medical", "medically", "medicine"}
@@ -496,10 +509,14 @@ def _assert_safe_text(value: str) -> None:
         or _COMPACT_URI.search(compact_uri)
         or _contains_ip_address(decoded)
         or _contains_domain(decoded)
+        or "localhost" in decoded
         or any(label in compact_security for label in _SENSITIVE_COMPACT_LABELS)
         or _RAW_PATH.search(decoded)
+        or _RAW_OR_CURATED_RECORD.search(decoded)
         or _IDENTITY_OR_MEDIA.search(decoded)
         or _MEDIA_EXTENSION.search(decoded)
+        or _SECRET_ASSIGNMENT.search(decoded)
+        or _SECRET_TOKEN.search(decoded)
         or _RAW_EXCERPT.search(decoded)
         or _CHINESE_RESTRICTED.search(decoded)
     ):
