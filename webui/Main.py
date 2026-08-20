@@ -140,6 +140,40 @@ _RUNTIME_CONFIG_SECTIONS = {
     "siliconflow": config.siliconflow,
     "ui": config.ui,
 }
+# 设置预设与密钥备份使用各自的文件标识。导入时先校验 schema 和版本，
+# 避免把任务记录、config.toml 或其它 JSON 误当成本功能的导出文件。
+SETTINGS_PRESET_SCHEMA = "moneyprinterturbo.settings-preset"
+SETTINGS_PRESET_VERSION = 1
+SETTINGS_PRESET_FILE_NAME = "moneyprinterturbo-settings.json"
+KEY_BACKUP_SCHEMA = "moneyprinterturbo.key-backup"
+KEY_BACKUP_VERSION = 1
+KEY_BACKUP_FILE_NAME = "moneyprinterturbo-keys.json"
+# 预设只描述生成参数。素材、配音和配乐都是本机文件路径，预设通常要在另一台
+# 机器或另一个容器里导入，带上这些路径只会指向不存在的文件。
+PRESET_EXCLUDED_PARAM_KEYS = frozenset(
+    {
+        "video_materials",
+        "custom_audio_file",
+        "bgm_file",
+    }
+)
+# 密钥按配置项名称后缀识别。新增 Provider 只要沿用现有命名，就会自动进入
+# 备份，不需要再维护第二份密钥清单。
+CREDENTIAL_KEY_SUFFIXES = (
+    "api_key",
+    "api_keys",
+    "api_token",
+    "access_key",
+    "secret_key",
+    "speech_key",
+)
+# 只恢复密钥而不恢复配套配置项时，凭据仍然不可用：Azure 语音必须同时知道
+# 区域。这些配套项与密钥一起备份。
+CREDENTIAL_COMPANION_KEYS = {
+    "azure": ("speech_region",),
+}
+# ui 分区只保存界面偏好，不含任何凭据，备份时整体跳过。
+KEY_BACKUP_EXCLUDED_SECTIONS = frozenset({"ui"})
 
 
 # -----------------------------------------------------------------------------
@@ -1127,7 +1161,20 @@ def _apply_pending_task_restore():
     if not payload:
         return False
 
-    params = payload["params"]
+    _apply_restored_params(payload["params"])
+    st.session_state["task_restore_succeeded"] = True
+    logger.info(f"restored task configuration: {payload['task_id']}")
+    return True
+
+
+def _apply_restored_params(params):
+    """
+    把一份完整的生成参数写回页面控件状态。
+
+    历史任务恢复和设置预设导入使用同一份参数模型，因此共用同一个实现，避免
+    新增字段时只更新其中一条路径。调用方必须在渲染任何控件之前执行，否则
+    Streamlit 会拒绝修改已经实例化的控件状态。
+    """
     video_terms = params.get("video_terms") or ""
     if isinstance(video_terms, list):
         video_terms = ", ".join(str(term) for term in video_terms)
@@ -1238,8 +1285,6 @@ def _apply_pending_task_restore():
         _build_restore_upload_requirements(params)
     )
 
-    st.session_state["task_restore_succeeded"] = True
-    logger.info(f"restored task configuration: {payload['task_id']}")
     return True
 
 
@@ -2121,6 +2166,310 @@ def _render_cache_management_settings(panel):
 
 
 # -----------------------------------------------------------------------------
+# 设置预设导出导入与密钥备份
+# -----------------------------------------------------------------------------
+
+
+def _is_credential_config_key(key):
+    """判断一个配置项名称是否表示凭据。"""
+    return str(key).endswith(CREDENTIAL_KEY_SUFFIXES)
+
+
+def _is_backup_config_key(section_name, key):
+    """凭据本身及其配套配置项都属于密钥备份范围。"""
+    if _is_credential_config_key(key):
+        return True
+    return key in CREDENTIAL_COMPANION_KEYS.get(section_name, ())
+
+
+def _credential_widget_state_key(section_name, key):
+    """
+    返回某个凭据配置项对应的 Streamlit 控件 key。
+
+    密码输入框都带 key，Streamlit 中 session_state 的值优先于控件的 value
+    参数。恢复备份后必须清除这些残留控件状态，否则页面会继续显示旧密钥，
+    并在下一次 rerun 把旧值重新写回配置，让恢复看起来没有生效。
+    """
+    if section_name == "app":
+        return f"{key}_input"
+    return f"{section_name}_{key}_input"
+
+
+def _normalize_backup_value(value):
+    """归一化备份值，丢弃空字符串和空列表，避免恢复时覆盖成空配置。"""
+    if isinstance(value, list):
+        items = [
+            str(item).strip()
+            for item in value
+            if isinstance(item, (str, int, float)) and str(item).strip()
+        ]
+        return items or None
+    if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+        text = str(value).strip()
+        return text or None
+    return None
+
+
+def _collect_key_backup(config_sections):
+    """从运行期配置分区中收集所有已填写的密钥及其配套配置项。"""
+    backup = {}
+    for section_name, section in config_sections.items():
+        if section_name in KEY_BACKUP_EXCLUDED_SECTIONS:
+            continue
+        entries = {}
+        for key, value in section.items():
+            if not _is_backup_config_key(section_name, key):
+                continue
+            normalized_value = _normalize_backup_value(value)
+            if normalized_value is not None:
+                entries[key] = normalized_value
+        if entries:
+            backup[section_name] = entries
+    return backup
+
+
+def _count_backup_keys(backup):
+    """统计备份中的配置项数量，用于界面提示和禁用空导出。"""
+    return sum(len(entries) for entries in backup.values())
+
+
+def _build_key_backup_payload(config_sections, app_version):
+    """构造密钥备份文件内容。"""
+    return {
+        "schema": KEY_BACKUP_SCHEMA,
+        "version": KEY_BACKUP_VERSION,
+        "app_version": str(app_version),
+        "keys": _collect_key_backup(config_sections),
+    }
+
+
+def _load_transfer_payload(raw_bytes, schema, version):
+    """
+    解析导出文件，并校验它确实来自本功能的同一版本。
+
+    用户可能上传任意 JSON。这里只接受声明了正确 schema 和版本的文件，让错误
+    提示停留在导入入口，而不是把无法识别的内容写进配置或控件状态。
+    Windows 编辑器可能保存带 BOM 的 JSON，因此按 utf-8-sig 解码。
+    """
+    payload = json.loads(raw_bytes.decode("utf-8-sig"))
+    if not isinstance(payload, dict):
+        raise ValueError("exported file must contain a JSON object")
+    if payload.get("schema") != schema:
+        raise ValueError(f"unexpected schema: {payload.get('schema')!r}")
+    if payload.get("version") != version:
+        raise ValueError(f"unsupported version: {payload.get('version')!r}")
+    return payload
+
+
+def _parse_key_backup(raw_bytes, config_sections):
+    """
+    解析密钥备份文件，只保留当前版本认识的分区和配置项。
+
+    备份文件可以手工编辑，也可能来自更新的版本。未知分区或非密钥配置项一律
+    忽略，避免通过导入功能改写与凭据无关的配置。
+    """
+    payload = _load_transfer_payload(raw_bytes, KEY_BACKUP_SCHEMA, KEY_BACKUP_VERSION)
+    keys = payload.get("keys")
+    if not isinstance(keys, dict):
+        raise ValueError("key backup file has no keys object")
+
+    restored = {}
+    for section_name, entries in keys.items():
+        if section_name not in config_sections:
+            continue
+        if section_name in KEY_BACKUP_EXCLUDED_SECTIONS:
+            continue
+        if not isinstance(entries, dict):
+            continue
+        section_entries = {}
+        for key, value in entries.items():
+            if not _is_backup_config_key(section_name, key):
+                continue
+            normalized_value = _normalize_backup_value(value)
+            if normalized_value is not None:
+                section_entries[key] = normalized_value
+        if section_entries:
+            restored[section_name] = section_entries
+
+    if not restored:
+        raise ValueError("key backup file contains no restorable keys")
+    return restored
+
+
+def _build_settings_preset_payload(params, app_version):
+    """构造生成参数预设文件内容。"""
+    preset_params = {
+        key: value
+        for key, value in params.items()
+        if key not in PRESET_EXCLUDED_PARAM_KEYS
+    }
+    return {
+        "schema": SETTINGS_PRESET_SCHEMA,
+        "version": SETTINGS_PRESET_VERSION,
+        "app_version": str(app_version),
+        "params": preset_params,
+    }
+
+
+def _parse_settings_preset(raw_bytes):
+    """
+    解析预设文件并交给 VideoParams 校验。
+
+    预设可以在其它机器上生成，也可能被手工编辑。统一走模型校验可以复用既有
+    的取值范围约束，非法预设在导入时就被拒绝，而不是在生成任务时才失败。
+    """
+    payload = _load_transfer_payload(
+        raw_bytes, SETTINGS_PRESET_SCHEMA, SETTINGS_PRESET_VERSION
+    )
+    preset_params = payload.get("params")
+    if not isinstance(preset_params, dict):
+        raise ValueError("settings preset file has no params object")
+
+    params_input = {
+        key: value
+        for key, value in preset_params.items()
+        if key not in PRESET_EXCLUDED_PARAM_KEYS
+    }
+    # video_subject 是 VideoParams 的必填字段，但预设允许只保存风格设置。
+    params_input.setdefault("video_subject", "")
+    return VideoParams.model_validate(params_input).model_dump(mode="json")
+
+
+def _apply_key_backup(restored_keys):
+    """把解析后的密钥写回运行期配置，并清除对应控件的残留状态。"""
+    restored_count = 0
+    for section_name, entries in restored_keys.items():
+        for key, value in entries.items():
+            _set_runtime_config(section_name, key, value)
+            st.session_state.pop(_credential_widget_state_key(section_name, key), None)
+            restored_count += 1
+    # ElevenLabs 音色列表按密钥缓存，换用另一份备份后必须重新拉取。
+    for cache_key in list(st.session_state.keys()):
+        if str(cache_key).startswith("elevenlabs_voices_"):
+            del st.session_state[cache_key]
+    return restored_count
+
+
+def _apply_pending_settings_preset():
+    """在渲染任何控件之前应用已导入的预设。"""
+    preset_params = st.session_state.pop("settings_preset_payload", None)
+    if not preset_params:
+        return False
+
+    _apply_restored_params(preset_params)
+    logger.info("applied imported settings preset")
+    return True
+
+
+def _render_settings_transfer(params):
+    """渲染生成参数预设的导出与导入入口。"""
+    with st.expander(tr("Settings Preset"), expanded=False):
+        st.caption(tr("Settings Preset Help"))
+        preset_payload = _build_settings_preset_payload(
+            params.model_dump(mode="json"), config.project_version
+        )
+        st.download_button(
+            tr("Export Settings"),
+            data=json.dumps(preset_payload, ensure_ascii=False, indent=2).encode(
+                "utf-8"
+            ),
+            file_name=SETTINGS_PRESET_FILE_NAME,
+            mime="application/json",
+            use_container_width=True,
+            key="export_settings_preset_button",
+            icon=":material/download:",
+        )
+        uploaded_preset = st.file_uploader(
+            tr("Import Settings"),
+            type=["json"],
+            key="settings_preset_uploader",
+        )
+        if uploaded_preset is None:
+            return
+        # 上传的文件在之后每次 rerun 都会重新出现。记录已处理的文件标识，
+        # 避免用户改完控件后被同一个预设反复覆盖。
+        if st.session_state.get("settings_preset_file_id") == uploaded_preset.file_id:
+            return
+
+        st.session_state["settings_preset_file_id"] = uploaded_preset.file_id
+        try:
+            preset_params = _parse_settings_preset(uploaded_preset.getvalue())
+        except Exception as e:
+            logger.warning(f"failed to import settings preset: {e}")
+            st.error(tr("Settings Preset Import Failed"))
+            return
+
+        st.session_state["settings_preset_payload"] = preset_params
+        st.rerun()
+
+
+def _render_key_backup_settings(panel):
+    """渲染密钥备份的导出与恢复入口。"""
+    with panel:
+        backup_message = st.session_state.pop("key_backup_message", None)
+        if backup_message:
+            message_type, message = backup_message
+            if message_type == "success":
+                st.success(message)
+            else:
+                st.error(message)
+
+        st.caption(tr("Key Backup Help"))
+        st.warning(tr("Key Backup Warning"))
+
+        backup_payload = _build_key_backup_payload(
+            _RUNTIME_CONFIG_SECTIONS, config.project_version
+        )
+        backup_key_count = _count_backup_keys(backup_payload["keys"])
+        st.caption(tr("Key Backup Summary").format(count=backup_key_count))
+        st.download_button(
+            tr("Export Keys"),
+            data=json.dumps(backup_payload, ensure_ascii=False, indent=2).encode(
+                "utf-8"
+            ),
+            file_name=KEY_BACKUP_FILE_NAME,
+            mime="application/json",
+            disabled=backup_key_count == 0,
+            use_container_width=True,
+            key="export_key_backup_button",
+            icon=":material/download:",
+        )
+
+        uploaded_backup = st.file_uploader(
+            tr("Import Keys"),
+            type=["json"],
+            key="key_backup_uploader",
+        )
+        if uploaded_backup is None:
+            return
+        if st.session_state.get("key_backup_file_id") == uploaded_backup.file_id:
+            return
+
+        st.session_state["key_backup_file_id"] = uploaded_backup.file_id
+        try:
+            restored_keys = _parse_key_backup(
+                uploaded_backup.getvalue(), _RUNTIME_CONFIG_SECTIONS
+            )
+        except Exception as e:
+            logger.warning(f"failed to import key backup: {e}")
+            st.session_state["key_backup_message"] = (
+                "error",
+                tr("Key Restore Failed"),
+            )
+        else:
+            restored_count = _apply_key_backup(restored_keys)
+            _save_runtime_config()
+            logger.info(f"restored keys from backup file: count={restored_count}")
+            st.session_state["key_backup_message"] = (
+                "success",
+                tr("Keys Restored").format(count=restored_count),
+            )
+        # 主页面上的 TTS 密钥输入框也需要读取恢复后的配置，因此整页刷新。
+        # 设置弹窗的打开状态保存在 session_state 中，刷新后会重新展开。
+        st.rerun(scope="app")
+
+
+# -----------------------------------------------------------------------------
 # 设置与提示词弹窗
 # -----------------------------------------------------------------------------
 
@@ -2142,12 +2491,14 @@ def _render_settings_dialog():
         (
             middle_config_panel,
             right_config_panel,
+            key_backup_panel,
             cache_config_panel,
             left_config_panel,
         ) = st.tabs(
             [
                 tr("LLM Settings Tab"),
                 tr("Material API Tab"),
+                tr("Key Backup Tab"),
                 tr("Cache Management Tab"),
                 tr("Interface Settings Tab"),
             ]
@@ -2163,6 +2514,8 @@ def _render_settings_dialog():
             _set_runtime_config("ui", "hide_log", hide_log)
 
         _render_cache_management_settings(cache_config_panel)
+        # 密钥恢复会写回配置并清除密码控件状态，必须在下面渲染这些控件之前执行。
+        _render_key_backup_settings(key_backup_panel)
 
         # 中间面板 - LLM 设置
 
@@ -5049,6 +5402,8 @@ def _render_generation_controls(
         # 已经得到明确处理，清除标记，避免后续普通生成继续显示旧提示。
         st.session_state.pop("task_restore_upload_requirements", None)
 
+    _render_settings_transfer(params)
+
     start_button = st.button(
         tr("Generate Video"),
         use_container_width=True,
@@ -5321,6 +5676,9 @@ def _render_application():
 
     if st.session_state.get("settings_dialog_open", False):
         _render_settings_dialog()
+
+    if _apply_pending_settings_preset():
+        st.success(tr("Settings Preset Imported"))
 
     restore_applied = _apply_pending_task_restore()
     restore_candidate_id = st.session_state.get("task_restore_candidate_id")
