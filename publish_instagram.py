@@ -100,12 +100,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="verify every configured account's session in one go",
     )
     parser.add_argument(
-        "--stats",
-        action="store_true",
-        help="print follower counts and recent reel numbers for every account, "
-             "so the browser never has to be opened",
-    )
-    parser.add_argument(
         "--list-accounts",
         action="store_true",
         help="print the configured accounts and exit",
@@ -137,25 +131,6 @@ def main(argv=None) -> int:
             return 1
         print(json.dumps(result, ensure_ascii=False))
         return 0
-
-    if args.stats:
-        failures = 0
-        for account in instagram.list_accounts():
-            if args.account and account.label != args.account:
-                continue
-            try:
-                data = instagram.fetch_stats(account=account.label)
-            except instagram.InstagramError as exc:
-                failures += 1
-                print(f"{account.label:12} FAILED   {exc}")
-                continue
-            print(f"{account.label:12} @{data['username']}  "
-                  f"{data['followers']} followers  {data['media_count']} posts")
-            for item in data["media"]:
-                print(f"  {item['taken_at'][:16]}  {item['plays']:>7} plays  "
-                      f"{item['likes']:>5} likes  {item['comments']:>4} comments  "
-                      f"{item['code']}")
-        return 1 if failures else 0
 
     if args.check_all:
         # 会话会被平台单方面吊销，而失效只有在发布那一刻才会显现。逐个账号

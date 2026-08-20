@@ -346,25 +346,6 @@ def verify_session(account: str = "") -> dict:
     return result
 
 
-def fetch_stats(account: str = "", amount: int = 12) -> dict:
-    """
-    读取一个账号的关注数与最近若干条 Reels 的计数。
-
-    存在的理由是让使用者不必登录 Instagram 就能看数据：每次在浏览器里登录，
-    平台都会看到一台"新设备"，而触发一次安全验证就可能连带作废正在用的会话。
-    """
-    settings = InstagramSettings.from_config()
-    if not settings.enabled:
-        raise InstagramNotConfiguredError("Instagram publishing is disabled")
-
-    target = resolve_account(account, settings)
-    result = _run_worker(_build_request(target, action="stats", amount=amount))
-    if not result.get("ok"):
-        _raise_for_result(result)
-    result["account"] = target.label
-    return result
-
-
 def import_session(sessionid: str, account: str = "") -> dict:
     """
     用浏览器会话建立客户端会话，绕开账密登录。
