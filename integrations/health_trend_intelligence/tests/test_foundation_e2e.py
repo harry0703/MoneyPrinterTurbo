@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from copy import deepcopy
@@ -605,6 +606,137 @@ def test_boundary_cli_rejects_recursive_untracked_protected_config(
     assert completed.returncode != 0
     assert completed.stdout == b""
     assert str(probe).encode("utf-8") not in completed.stderr
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        Path("task8-r3-probe/opaque.uv-cache-hide/raw/synthetic.json"),
+        Path("task8-r3-probe/.cache/raw/synthetic.json"),
+        Path("app/config/.test-tmp-task8-r3/settings"),
+        Path("app/config/task8-r3-nonskip/nested/settings"),
+    ],
+)
+def test_boundary_cli_rejects_unknown_skip_like_raw_and_config_paths(
+    boundary_run: SyntheticRun,
+    relative_path: Path,
+) -> None:
+    probe = PROJECT_ROOT / relative_path
+    created_parents: list[Path] = []
+    parent = probe.parent
+    while parent != PROJECT_ROOT and not parent.exists():
+        created_parents.append(parent)
+        parent = parent.parent
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    assert not probe.exists()
+    probe.write_bytes(b'{"synthetic":true}\n')
+    try:
+        completed = subprocess.run(
+            _boundary_command(boundary_run),
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        probe.unlink()
+        for directory in created_parents:
+            directory.rmdir()
+
+    assert completed.returncode != 0
+    assert completed.stdout == b""
+    assert str(probe).encode("utf-8") not in completed.stderr
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        b"task8/.cache/raw/x.json",
+        b"task8/.test-tmp-probe/Raw/x.json",
+        b"task8/opaque.uv-cache-hide/\xef\xbc\xb2\xef\xbc\xa1\xef\xbc\xb7/x.json",
+    ],
+)
+def test_raw_classifier_cannot_be_disabled_by_skip_like_names(
+    boundary_module: ModuleType,
+    relative_path: bytes,
+) -> None:
+    assert boundary_module._is_raw_repository_file(relative_path)
+
+
+def test_exact_cache_root_does_not_expand_to_nested_same_name(
+    boundary_module: ModuleType,
+) -> None:
+    assert boundary_module._is_under_exact_controlled_non_data_root(
+        (".cache", "existing-synthetic-fixture")
+    )
+    assert not boundary_module._is_under_exact_controlled_non_data_root(
+        ("task8", ".cache", "synthetic-probe")
+    )
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        b"app/config/.cache/settings",
+        b"app/config/.test-tmp-probe/settings",
+        b"app/config/opaque.uv-cache-hide/settings",
+    ],
+)
+def test_app_config_classifier_protects_extensionless_files_under_skip_like_names(
+    boundary_module: ModuleType,
+    relative_path: bytes,
+) -> None:
+    assert boundary_module._is_protected_repository_file(relative_path)
+
+
+def test_repository_disk_scan_enumerates_unknown_skip_like_directories(
+    boundary_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    raw_probe = tmp_path / "opaque.uv-cache-hide" / "raw" / "synthetic.json"
+    config_probe = tmp_path / "app" / "config" / ".test-tmp-probe" / "settings"
+    raw_probe.parent.mkdir(parents=True)
+    config_probe.parent.mkdir(parents=True)
+    raw_probe.write_bytes(b'{"synthetic":true}\n')
+    config_probe.write_bytes(b"synthetic=true\n")
+
+    raw_found, protected_untracked = boundary_module._scan_repository_disk(
+        tmp_path,
+        frozenset(),
+        frozenset(),
+    )
+
+    assert raw_found
+    assert protected_untracked
+
+
+def test_pinned_config_anchor_rejects_hard_link(
+    boundary_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    payload = b"synthetic-local-config\n"
+    config = tmp_path / "config.toml"
+    alias = tmp_path / "outside-alias.toml"
+    config.write_bytes(payload)
+    monkeypatch.setattr(boundary_module, "PINNED_LOCAL_CONFIG_BYTES", len(payload))
+    monkeypatch.setattr(
+        boundary_module,
+        "PINNED_LOCAL_CONFIG_SHA256",
+        hashlib.sha256(payload).hexdigest(),
+    )
+    assert boundary_module._matches_pinned_local_config(
+        config,
+        b"config.toml",
+        config.lstat(),
+    )
+
+    os.link(config, alias)
+    assert config.lstat().st_nlink == 2
+    assert not boundary_module._matches_pinned_local_config(
+        config,
+        b"config.toml",
+        config.lstat(),
+    )
 
 
 def test_boundary_cli_allows_untracked_business_json_outside_config_paths(

@@ -18,7 +18,7 @@ SHA-256 必须由操作者从独立审批/交接渠道提供，不得从待导�
 
 该入口不读取 Raw/Curated，不启动 MediaCrawler，不下载媒体，不自动生成或发布内容。交换包只是选题情报，不是医学事实来源或可直接发布的脚本。
 
-Task 8 的独立边界脚本只在完全合成的临时根上演练：它内置受审 BASE、精确 240 删除集摘要和 MediaCrawler commit，并从全仓 Git index、porcelain `-z` 和受控磁盘树核对任意深度 Raw，递归保护配置/依赖路径，再检查路径链、敏感 JSON 键与媒体文件头。敏感键策略覆盖 HMAC/签名/私钥/加解密/访问密钥，但不把普通 hash、SHA-256 或 manifest digest 元数据误判为凭据。任一项缺失或不可验都非零失败，不会用 skip 代替通过。这一合成验证不声称现实热度、医学有效性或真实人工审批。
+Task 8 的独立边界脚本只在完全合成的临时根上演练：它内置受审 BASE、精确 240 删除集摘要和 MediaCrawler commit，并从全仓 Git index、porcelain `-z` 和受控磁盘树核对任意深度 Raw，递归保护配置/依赖路径，再检查路径链、敏感 JSON 键与媒体文件头。扫描仅跳过脚本内版本化的精确 repo-relative 元数据/venv/历史合成测试根，不按 basename、前缀或 substring 扩张；新 `.cache`、`.test-tmp-*` 或含 `.uv-cache` 的目录仍必须枚举。`app/config/**` 中除精确 `__pycache__` 外的每个普通文件均受保护，包括无扩展名文件；固定根 `config.toml` 还必须是非 reparse、单硬链的普通文件并匹配大小与 SHA-256。敏感键策略覆盖 HMAC/签名/私钥/加解密/访问密钥，但不把普通 hash、SHA-256 或 manifest digest 元数据误判为凭据。任一项缺失或不可验都非零失败。这一合成验证不声称现实热度、医学有效性或真实人工审批。
 
 ## 导入事务与恢复边界
 

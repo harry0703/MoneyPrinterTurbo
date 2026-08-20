@@ -132,11 +132,11 @@ uv run --project $Integration python $BoundaryVerifier `
   --external-manifest-sha256 $ExternalManifestSha256
 ```
 
-该命令会实际检查固定 BASE 到 HEAD 的五文件提交边界，并对全仓 Git index、porcelain `-z` 与受控磁盘树三路核对 Raw：任一目录组件经 NFKC/casefold 后精确为 `raw`（或项目已知 `raw-data`/`raw_data` 标记）且其下含普通文件就失败。`.git`、受控测试 cache/venv 不当作数据目录；240 个已删 manual-pack 所在的精确保护根不递归访问。配置/依赖检查递归覆盖根 `config*.toml/yaml/yml/json`、`app/config/**`、明确 config 目录、`pyproject.toml`/`uv.lock`/`requirements*.txt` 和 package lock；普通业务 JSON 不因扩展名单独被当作配置。本机 Task 8 前已有的 ignored 根 `config.toml` 只在相对路径不变、为 3114 bytes 且 SHA-256 精确为 `f60060a50740bb7f1c6b09caaba6022fc3e9187700eb6de23e55fa02f66eb997` 时允许；内容不输出，任何变化都失败。
+该命令会实际检查固定 BASE 到 HEAD 的五文件提交边界，并对全仓 Git index、porcelain `-z` 与受控磁盘树三路核对 Raw：任一目录组件经 NFKC/casefold 后精确为 `raw`（或项目已知 `raw-data`/`raw_data` 标记）且其下含普通文件就失败。仅脚本内审计过的完整 repo-relative 根（例如根 `.git`、作为既有合成 pytest 产物根的精确 repo 根 `.cache`、固定 venv 和保留的 Task 5/6 合成测试 basetemp）可跳过，每个都是精确路径，不按 basename、前缀或 substring 扩张。因此任意新 `.cache`、`.test-tmp-*` 或名称含 `.uv-cache` 的目录仍会枚举，不可读时失败关闭；240 个已删 manual-pack 所在的精确保护根不递归访问。配置/依赖检查递归覆盖根 `config*.toml/yaml/yml/json`、`app/config/**` 的每个普通文件（包括无扩展名文件，仅精确 `app/config/__pycache__` 例外）、明确 config 目录、`pyproject.toml`/`uv.lock`/`requirements*.txt` 和 package lock；普通业务 JSON 不因扩展名单独被当作配置。本机 Task 8 前已有的 ignored 根 `config.toml` 只在相对路径不变、`lstat` 为非 reparse 单硬链普通文件、为 3114 bytes 且 SHA-256 精确为 `f60060a50740bb7f1c6b09caaba6022fc3e9187700eb6de23e55fa02f66eb997` 时允许；内容不输出，字节、大小、身份或链接数任一变化都失败。
 
 JSON/JSONL 使用 UTF-8、NFC 唯一键严格解析，凭据判定再对键名做 NFKC/casefold/分隔符归一，在原有 cookie/session/token/api_key/secret/password/proxy/credential 外精确覆盖 HMAC、hash key、signing/private/encryption/decryption/access/auth key 及 client secret。普通 `hash`/`sha256`/manifest digest 元数据不误杀；合成手机号/邮箱形状值不被当成真实凭据。同时递归枚举 Raw、Curated、Approved 和 Imported 的每个普通文件，按扩展名和常见文件头拒绝媒体。
 
-只有所有必检项都能核验时，命令才输出一行 canonical UTF-8/LF JSON 并以 0 退出。缺路径、原始路径链中的 symlink/junction/reparse、越界、非普通文件、不能扫描、MediaCrawler 改动、外部锚不匹配或固定删除集改变都会非零失败。不存在把 skip 记为 true 的通过路径，失败输出不包含合成载荷或给定绝对路径。
+只有所有必检项都能核验时，命令才输出一行 canonical UTF-8/LF JSON 并以 0 退出。缺路径、原始路径链中的 symlink/junction/reparse、多硬链边界文件、越界、非普通文件、不能扫描、MediaCrawler 改动、外部锚不匹配或固定删除集改变都会非零失败。跳过范围只能来自版本化精确根集合，不能由新目录名自动扩张；失败输出不包含合成载荷或给定绝对路径。
 
 ## 8. Raw 30 天到期报告
 

@@ -20,9 +20,15 @@ The read-only boundary CLI pins the reviewed Task 8 base, exact 240-path
 deletion digest, and MediaCrawler commit inside the script. It verifies the
 five-file commit allowlist, repository-wide Git index/porcelain plus on-disk
 Raw state, recursive protected config/dependency paths, lexical and resolved
-path chains, and every regular artifact file. A directory component whose
-NFKC/casefold form is exactly `raw` cannot contain ordinary files outside
-explicit test-cache/venv exclusions. JSON/JSONL keys are parsed as unique NFC
+path chains, and every regular artifact file. Scan exclusions are a versioned
+set of exact repository-relative metadata/venv/legacy-test-cache roots (the
+repository-root `.cache` is a pinned pre-existing synthetic pytest cache); no
+basename, prefix, or substring can create a new exclusion. Unknown `.cache`,
+`.test-tmp-*`, and names containing `.uv-cache` are enumerated fail-closed.
+Every ordinary file below `app/config/` is protected regardless of extension,
+apart from the exact `app/config/__pycache__` root. The pinned local
+`config.toml` must be one non-reparse regular link with the pinned size and
+SHA-256. JSON/JSONL keys are parsed as unique NFC
 keys, then NFKC/casefold/separator-normalized for a bounded credential-key
 policy covering HMAC, signing, private, encryption and access keys without
 treating ordinary hash/SHA-256/manifest-digest metadata as credentials. Media

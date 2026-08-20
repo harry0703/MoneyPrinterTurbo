@@ -73,20 +73,107 @@ DEPENDENCY_FILENAMES = frozenset(
         "yarn.lock",
     }
 )
-CONTROLLED_NON_DATA_DIRECTORIES = frozenset(
+# These are audited repository-relative roots, not basename/prefix patterns.
+# The first group contains only local runtime metadata that is not project data.
+EXACT_RUNTIME_METADATA_ROOTS = frozenset(
     {
-        ".cache",
-        ".git",
-        ".mypy_cache",
-        ".nox",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".tox",
-        ".venv",
-        "__pycache__",
-        "node_modules",
-        "venv",
+        (".cache",),
+        (".git",),
+        (".pytest_cache",),
+        (".ruff_cache",),
+        (".uv-cache",),
+        (".uv-cache-cycle2",),
+        (".uv-cache-r3",),
+        (".uv-cache-review-task2",),
+        (".venv",),
+        ("__pycache__",),
+        ("app", "config", "__pycache__"),
+        ("integrations", "health_trend_intelligence", ".pytest_cache"),
+        ("integrations", "health_trend_intelligence", ".ruff_cache"),
+        ("integrations", "health_trend_intelligence", ".uv-cache"),
+        ("integrations", "health_trend_intelligence", ".uv-cache-task5"),
+        ("integrations", "health_trend_intelligence", ".uv-cache-task5-fix1"),
+        ("integrations", "health_trend_intelligence", ".uv-cache-task6"),
+        ("integrations", "health_trend_intelligence", ".uv-cache-task6-fix1"),
+        ("integrations", "health_trend_intelligence", ".venv"),
+        (
+            "integrations",
+            "health_trend_intelligence",
+            "moneyprinterturbo-3期.review-pytest-cache",
+        ),
     }
+)
+# These exact roots are retained test basetemps from Tasks 5/6. They contain
+# synthetic Raw fixtures and are excluded only by their complete relative path.
+EXACT_LEGACY_TEST_CACHE_ROOTS = frozenset(
+    ("integrations", "health_trend_intelligence", name)
+    for name in (
+        ".test-tmp-task5",
+        ".test-tmp-task5-fix1",
+        ".test-tmp-task5-fix1-final-all",
+        ".test-tmp-task5-fix1-final-focused",
+        ".test-tmp-task5-fix1-focused",
+        ".test-tmp-task5-fix1-green",
+        ".test-tmp-task5-fix1-matrix",
+        ".test-tmp-task5-fix1-postcommit",
+        ".test-tmp-task5-fix1-red",
+        ".test-tmp-task5-fix1-red-published",
+        ".test-tmp-task5-fix2-all",
+        ".test-tmp-task5-fix2-focused",
+        ".test-tmp-task5-fix2-green-focused",
+        ".test-tmp-task5-fix2-postcommit",
+        ".test-tmp-task5-fix2-red",
+        ".test-tmp-task5-fix2-red-verifier",
+        ".test-tmp-task5-fix2-red-verifier2",
+        ".test-tmp-task6-all",
+        ".test-tmp-task6-final-all",
+        ".test-tmp-task6-final-focused",
+        ".test-tmp-task6-fix1-all",
+        ".test-tmp-task6-fix1-final-focused",
+        ".test-tmp-task6-fix1-focused2",
+        ".test-tmp-task6-fix1-focused3",
+        ".test-tmp-task6-fix1-green-cli",
+        ".test-tmp-task6-fix1-green-counts",
+        ".test-tmp-task6-fix1-green-evidence",
+        ".test-tmp-task6-fix1-green-focused",
+        ".test-tmp-task6-fix1-green-identity",
+        ".test-tmp-task6-fix1-green-identity2",
+        ".test-tmp-task6-fix1-green-matrix",
+        ".test-tmp-task6-fix1-green-medical",
+        ".test-tmp-task6-fix1-green-scan",
+        ".test-tmp-task6-fix1-green-sentinel2",
+        ".test-tmp-task6-fix1-red",
+        ".test-tmp-task6-fix1-red-matrix",
+        ".test-tmp-task6-fix1-red-media",
+        ".test-tmp-task6-fix1-red-sentinel2",
+        ".test-tmp-task6-fix1-repro",
+        ".test-tmp-task6-focused",
+        ".test-tmp-task6-green",
+        ".test-tmp-task6-green2",
+        ".test-tmp-task6-green3",
+        ".test-tmp-task6-green4",
+        ".test-tmp-task6-postcommit",
+        ".test-tmp-task6-red2",
+    )
+)
+# Four malformed legacy pytest basetemp paths exist at the repository root.
+# Their full names are pinned so a new name containing `.uv-cache` is not trusted.
+LEGACY_ROOT_CACHE_PREFIX = (
+    "moneyprinterturbo-3期moneyprinterturbo.worktreeshealth-content-system"
+    "integrationshealth_trend_intelligence.uv-cache"
+)
+EXACT_LEGACY_ROOT_CACHE_ROOTS = frozenset(
+    {
+        (LEGACY_ROOT_CACHE_PREFIX + "fix1-final-focused",),
+        (LEGACY_ROOT_CACHE_PREFIX + "fix1-final-full",),
+        (LEGACY_ROOT_CACHE_PREFIX + "pytest-final-focused",),
+        (LEGACY_ROOT_CACHE_PREFIX + "pytest-final-full",),
+    }
+)
+EXACT_CONTROLLED_NON_DATA_ROOTS = (
+    EXACT_RUNTIME_METADATA_ROOTS
+    | EXACT_LEGACY_TEST_CACHE_ROOTS
+    | EXACT_LEGACY_ROOT_CACHE_ROOTS
 )
 KNOWN_RAW_DATA_DIRECTORY_NAMES = frozenset({"raw-data", "raw_data"})
 MEDIA_SUFFIXES = frozenset(
@@ -334,17 +421,14 @@ def _normalized_component(value: str) -> str:
     return unicodedata.normalize("NFKC", value).casefold()
 
 
-def _is_controlled_non_data_component(value: str) -> bool:
-    normalized = _normalized_component(value)
-    return (
-        normalized in CONTROLLED_NON_DATA_DIRECTORIES
-        or normalized.startswith((".test-tmp-", ".uv-cache"))
-        or ".uv-cache" in normalized
-    )
+def _is_exact_controlled_non_data_root(parts: tuple[str, ...]) -> bool:
+    normalized = tuple(_normalized_component(part) for part in parts)
+    return normalized in EXACT_CONTROLLED_NON_DATA_ROOTS
 
 
-def _is_controlled_non_data_path(parts: tuple[str, ...]) -> bool:
-    return any(_is_controlled_non_data_component(part) for part in parts)
+def _is_under_exact_controlled_non_data_root(parts: tuple[str, ...]) -> bool:
+    normalized = tuple(_normalized_component(part) for part in parts)
+    return any(normalized[: len(root)] == root for root in EXACT_CONTROLLED_NON_DATA_ROOTS)
 
 
 def _is_raw_directory_name(value: str) -> bool:
@@ -355,18 +439,18 @@ def _is_raw_directory_name(value: str) -> bool:
 def _is_raw_repository_file(path: bytes) -> bool:
     parts = _repository_path_parts(path)
     directories = parts[:-1]
-    return not _is_controlled_non_data_path(directories) and any(
-        _is_raw_directory_name(part) for part in directories
-    )
+    return any(_is_raw_directory_name(part) for part in directories)
 
 
 def _is_protected_repository_file(path: bytes) -> bool:
     parts = _repository_path_parts(path)
     directories = tuple(_normalized_component(part) for part in parts[:-1])
-    if _is_controlled_non_data_path(parts[:-1]):
+    if directories[:3] == ("app", "config", "__pycache__"):
         return False
     name = _normalized_component(parts[-1])
     suffix = Path(name).suffix
+    if directories[:2] == ("app", "config"):
+        return True
     if name in DEPENDENCY_FILENAMES:
         return True
     if name.startswith("requirements") and name.endswith(".txt"):
@@ -427,8 +511,14 @@ def _matches_pinned_local_config(
 ) -> bool:
     if relative_path != PINNED_LOCAL_CONFIG_PATH:
         return False
-    if initial_status.st_size != PINNED_LOCAL_CONFIG_BYTES:
+    if (
+        _is_reparse(initial_status)
+        or not stat.S_ISREG(initial_status.st_mode)
+        or initial_status.st_nlink != 1
+        or initial_status.st_size != PINNED_LOCAL_CONFIG_BYTES
+    ):
         return False
+    initial_identity = (initial_status.st_dev, initial_status.st_ino)
     digest = hashlib.sha256()
     try:
         with path.open("rb") as handle:
@@ -436,11 +526,19 @@ def _matches_pinned_local_config(
             if (
                 _is_reparse(opened_status)
                 or not stat.S_ISREG(opened_status.st_mode)
+                or opened_status.st_nlink != 1
+                or (opened_status.st_dev, opened_status.st_ino) != initial_identity
+                or opened_status.st_size != PINNED_LOCAL_CONFIG_BYTES
             ):
                 raise BoundaryFailure
             while chunk := handle.read(1024 * 1024):
                 digest.update(chunk)
-            if os.fstat(handle.fileno()).st_size != PINNED_LOCAL_CONFIG_BYTES:
+            final_status = os.fstat(handle.fileno())
+            if (
+                final_status.st_nlink != 1
+                or (final_status.st_dev, final_status.st_ino) != initial_identity
+                or final_status.st_size != PINNED_LOCAL_CONFIG_BYTES
+            ):
                 raise BoundaryFailure
     except OSError as error:
         raise BoundaryFailure from error
@@ -467,13 +565,16 @@ def _scan_repository_disk(
             normalized_parts = tuple(
                 _normalized_component(part) for part in child_parts
             )
-            if not inside_raw and (
+            child_inside_raw = inside_raw or any(
+                _is_raw_directory_name(part) for part in child_parts
+            )
+            if not child_inside_raw and (
                 normalized_parts in manual_pack_roots
-                or _is_controlled_non_data_component(entry.name)
+                or _is_exact_controlled_non_data_root(child_parts)
             ):
                 continue
             try:
-                status = entry.stat(follow_symlinks=False)
+                status = Path(entry.path).lstat()
             except OSError as error:
                 raise BoundaryFailure from error
             if _is_reparse(status):
@@ -483,7 +584,7 @@ def _scan_repository_disk(
                     (
                         Path(entry.path),
                         child_parts,
-                        inside_raw or _is_raw_directory_name(entry.name),
+                        child_inside_raw,
                     )
                 )
             elif stat.S_ISREG(status.st_mode):
@@ -549,11 +650,18 @@ def _assert_task8_repository_boundary(repo_root: Path) -> bool:
         "--",
     )
     status_paths = _porcelain_paths(status_payload)
-    if any(_is_protected_repository_file(path) for path in status_paths):
+    audited_status_paths = tuple(
+        path
+        for path in status_paths
+        if not _is_under_exact_controlled_non_data_root(
+            _repository_path_parts(path)[:-1]
+        )
+    )
+    if any(_is_protected_repository_file(path) for path in audited_status_paths):
         raise BoundaryFailure
 
     raw_tracked = any(_is_raw_repository_file(path) for path in tracked_payload)
-    raw_status = any(_is_raw_repository_file(path) for path in status_paths)
+    raw_status = any(_is_raw_repository_file(path) for path in audited_status_paths)
     tracked_paths = frozenset(
         tuple(_normalized_component(part) for part in _repository_path_parts(path))
         for path in tracked_payload
@@ -631,7 +739,7 @@ def _iter_regular_files(root: Path) -> Iterator[Path]:
             raise BoundaryFailure from error
         for entry in ordered:
             try:
-                status = entry.stat(follow_symlinks=False)
+                status = Path(entry.path).lstat()
             except OSError as error:
                 raise BoundaryFailure from error
             if _is_reparse(status):
@@ -639,6 +747,8 @@ def _iter_regular_files(root: Path) -> Iterator[Path]:
             if stat.S_ISDIR(status.st_mode):
                 pending.append(Path(entry.path))
             elif stat.S_ISREG(status.st_mode):
+                if status.st_nlink != 1:
+                    raise BoundaryFailure
                 yield Path(entry.path)
             else:
                 raise BoundaryFailure
@@ -655,7 +765,11 @@ def _read_regular_file(path: Path) -> bytes:
 
 def _assert_open_regular(handle: BinaryIO) -> None:
     status = os.fstat(handle.fileno())
-    if _is_reparse(status) or not stat.S_ISREG(status.st_mode):
+    if (
+        _is_reparse(status)
+        or not stat.S_ISREG(status.st_mode)
+        or status.st_nlink != 1
+    ):
         raise BoundaryFailure
 
 
@@ -724,7 +838,11 @@ def _load_task7_module(repo_root: Path) -> ModuleType:
         status = module_path.lstat()
     except OSError as error:
         raise BoundaryFailure from error
-    if _is_reparse(status) or not stat.S_ISREG(status.st_mode):
+    if (
+        _is_reparse(status)
+        or not stat.S_ISREG(status.st_mode)
+        or status.st_nlink != 1
+    ):
         raise BoundaryFailure
     spec = importlib.util.spec_from_file_location("_hti_task8_task7_verifier", module_path)
     if spec is None or spec.loader is None:
