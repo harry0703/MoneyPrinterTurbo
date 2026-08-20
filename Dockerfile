@@ -26,6 +26,7 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
             echo "Attempt $i: installing system dependencies"; \
             apt-get update && apt-get install -y --no-install-recommends \
                 git \
+                libraqm0 \
                 ffmpeg && break || \
             echo "Attempt $i failed, retrying..."; \
             if [ "$DOCKER_BUILD_MIRROR" = "china" ] && [ $i -eq 3 ]; then \
@@ -35,6 +36,7 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
                 ( \
                     apt-get update && apt-get install -y --no-install-recommends \
                         git \
+                        libraqm0 \
                         ffmpeg || \
                     ( \
                         echo "Tsinghua mirror failed, switching to default Debian mirror"; \
@@ -42,6 +44,7 @@ RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
                         sed -i 's/mirrors.tuna.tsinghua.edu.cn\/debian-security/security.debian.org/g' /etc/apt/sources.list; \
                         apt-get update && apt-get install -y --no-install-recommends \
                             git \
+                            libraqm0 \
                             ffmpeg; \
                     ); \
                 ); \

@@ -237,6 +237,7 @@
 
 - 本地部署需要 Python 3.11 或更高版本
 - Windows 用户建议避免使用包含中文、特殊字符或空格的项目路径
+- 阿拉伯语等从右到左的字幕需要系统安装 libraqm（Debian/Ubuntu：`apt install libraqm0`，macOS：`brew install libraqm`）。缺少它时字母不会连写且顺序会颠倒，Docker 镜像已内置
 
 #### ① 克隆代码
 

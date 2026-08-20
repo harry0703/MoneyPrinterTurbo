@@ -231,6 +231,7 @@ Use the local setup or Docker instructions below.
 
 - Local deployment requires Python 3.11 or later
 - On Windows, avoid project paths containing non-ASCII characters, special characters, or spaces
+- Right-to-left subtitles such as Arabic need libraqm installed on the system (Debian/Ubuntu: `apt install libraqm0`, macOS: `brew install libraqm`). Without it letters are not joined and word order is reversed; the Docker images already include it
 
 #### ① Clone the Project
 

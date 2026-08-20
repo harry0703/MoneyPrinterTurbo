@@ -230,6 +230,7 @@ GitHub Releases から最新の Windows 用ワンクリックパッケージを�
 
 - ローカル環境へのデプロイには Python 3.11 以降が必要です
 - Windows では、プロジェクトのパスに非 ASCII 文字、特殊文字、スペースを含めないでください
+- アラビア語など右から左に書く字幕には、システムへの libraqm のインストールが必要です（Debian/Ubuntu: `apt install libraqm0`、macOS: `brew install libraqm`）。無い場合は文字が連結されず語順も逆になります。Docker イメージには同梱済みです
 
 #### ① プロジェクトをクローンする
 
