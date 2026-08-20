@@ -102,6 +102,23 @@ STYLES = {
 }
 
 
+# 每个剪辑模板配一张封面图，写成成片的第一帧。Instagram 取封面时会落在开头，
+# 用文件名作键而不是按目录约定，是因为封面和模板本来就未必同名。
+THUMBNAILS = {
+    "Polyester Spiderman Edit Template.mp4":
+        "resource/brainrotVideo/Miniature/miniature_spiderman.png",
+}
+
+
+def resolve_thumbnail(template_path: str, explicit: str, disabled: bool) -> str:
+    """按模板挑封面。显式给出的优先，找不到就不放封面，而不是报错。"""
+    if disabled:
+        return ""
+    if explicit:
+        return explicit
+    return THUMBNAILS.get(os.path.basename(template_path), "")
+
+
 DEFAULT_WIDTH = 720
 DEFAULT_HEIGHT = 1280
 DEFAULT_FPS = 30
@@ -148,6 +165,7 @@ def build_video(
     invasion_seconds: float,
     font_path: str,
     seed: int,
+    thumbnail_path: str = "",
     panel_interval: float = DEFAULT_PANEL_INTERVAL,
     stutter_volume: float = DEFAULT_STUTTER_VOLUME,
     cameos: tuple = (),
@@ -203,6 +221,17 @@ def build_video(
         index = min(int(source_seconds * fps), len(instance_frames) - 1)
         return instance_frames[max(0, index)]
 
+    # 只占第一帧。Instagram 取封面时会落在视频开头，而 1/fps 秒的停留短到
+    # 几乎看不出来——不是完全看不见，注意看仍会察觉闪了一下。
+    cover_frame = None
+    if thumbnail_path and os.path.isfile(thumbnail_path):
+        with Image.open(thumbnail_path) as cover:
+            cover_frame = render.crop_to_aspect(
+                np.array(cover.convert("RGB")), width, height
+            )
+    elif thumbnail_path:
+        print(f"thumbnail not found, skipping: {thumbnail_path}")
+
     def bait_frame(t: float) -> np.ndarray:
         # 诱饵短于诱饵段时回绕播放，避免最后一帧定格。
         return render.crop_to_aspect(
@@ -210,6 +239,9 @@ def build_video(
         )
 
     def make_frame(t: float) -> np.ndarray:
+        if cover_frame is not None and t < 0.5 / fps:
+            return cover_frame
+
         if t >= invasion_end:
             # 正式剪辑保持 16:9 原比例，上下留黑边；进度接着第一个实例继续。
             offset = min(
@@ -327,6 +359,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help="seconds between two stacked copies of the edit")
     parser.add_argument("--stutter-volume", type=float, default=DEFAULT_STUTTER_VOLUME,
                         help="volume of each stacked copy's audio")
+    parser.add_argument("--thumbnail", default="",
+                        help="cover image to write as the first frame "
+                             "(defaults to the one mapped to the template)")
+    parser.add_argument("--no-thumbnail", action="store_true",
+                        help="render without a cover frame")
     parser.add_argument("--seed", type=int, default=0, help="0 picks a random one")
     parser.add_argument("--list", action="store_true", help="list available bait clips and exit")
     return parser
@@ -363,10 +400,15 @@ def main(argv=None) -> int:
         args.panel_interval, style.panel_interval, DEFAULT_PANEL_INTERVAL
     )
 
+    thumbnail_path = resolve_thumbnail(
+        args.template, args.thumbnail, args.no_thumbnail
+    )
+
     output_path = args.out or os.path.join(
         OUTPUT_DIR, f"brainrot-{args.style}-{seed}.mp4"
     )
     print(f"style    {args.style}")
+    print(f"cover    {os.path.basename(thumbnail_path) or '—'}")
     print(f"bait     {os.path.basename(bait_path)}")
     print(f"text     {args.text}")
     print(f"seed     {seed}")
@@ -375,6 +417,7 @@ def main(argv=None) -> int:
         "text": args.text,
         "style": args.style,
         "bait": os.path.basename(bait_path),
+        "cover": os.path.basename(thumbnail_path),
         "seed": seed,
         "created": datetime.date.today().isoformat(),
     }
@@ -391,6 +434,7 @@ def main(argv=None) -> int:
         invasion_seconds=invasion_seconds,
         font_path=args.font,
         seed=seed,
+        thumbnail_path=thumbnail_path,
         panel_interval=panel_interval,
         stutter_volume=args.stutter_volume,
         cameos=style.cameos,
