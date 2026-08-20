@@ -21,11 +21,10 @@ _CARD_PAD_Y_RATIO = 0.30
 _CARD_RADIUS_RATIO = 0.28
 _LINE_SPACING_RATIO = 0.22
 
-# 入侵阶段的矩形数量上限。太少不像"故障"，太多会在结束前就盖满画面，
-# 让最后的全屏切换失去冲击。
-MAX_PANELS = 9
-# 每隔这么久重新抽一次矩形。连续移动会显得平滑，而这个格式要的是闪跳。
-PANEL_REFRESH_SECONDS = 0.15
+# 入侵阶段每隔这么久叠加一个新的播放实例。参考样片约每 0.2 秒来一次。
+PANEL_INTERVAL_SECONDS = 0.2
+# 实例数量上限，防止把入侵时长调得过长时无限堆叠。
+MAX_PANELS = 24
 
 
 def _load_font(font_path: str, font_size: int):
@@ -121,37 +120,41 @@ def render_text_card(
     return np.array(image)
 
 
-def panel_rects(
-    progress: float, width: int, height: int, seed: int
-) -> list[tuple[int, int, int, int]]:
+def panel_schedule(
+    elapsed: float,
+    width: int,
+    height: int,
+    seed: int,
+    interval: float = PANEL_INTERVAL_SECONDS,
+    max_panels: int = MAX_PANELS,
+) -> list[tuple[int, int, int, int, float]]:
     """
-    返回入侵阶段某一时刻的矩形列表，每项为 ``(x, y, w, h)``。
+    返回入侵开始 ``elapsed`` 秒后已经出现的全部实例，每项为 ``(x, y, w, h, start)``。
 
-    ``progress`` 从 0 到 1 同时驱动数量和面积，因此剪辑是"越来越多、越来越大"
-    地压过来，而不是突然铺满。用显式的 seed 而不是全局随机，保证同一秒重复
-    渲染得到同一批矩形——否则相邻两帧会各自抖动，看起来是噪点而不是闪跳。
+    实例是累加的而不是每次重新抽取：参考样片里剪辑一次次叠上去，画面越来越满，
+    直到几乎盖住整幅——之前每个刷新槽重抽一批矩形，看起来是同一段画面在乱跳，
+    而不是很多段各自在放。
+
+    ``start`` 是该实例相对入侵开始的时刻，调用方据此决定它该播到第几帧：每个
+    实例都从剪辑的开头放起，这正是那种一拍接一拍的错位感的来源。
     """
-    progress = min(1.0, max(0.0, progress))
-    if progress <= 0.0:
+    if elapsed < 0:
         return []
 
-    rng = random.Random(seed)
-    count = 1 + int(progress * (MAX_PANELS - 1))
+    count = min(max_panels, int(elapsed / max(1e-6, interval)) + 1)
 
-    rects = []
-    for _ in range(count):
-        scale = 0.30 + 0.55 * progress * rng.uniform(0.7, 1.3)
+    panels = []
+    for index in range(count):
+        # 每个实例的位置只由它自己的序号决定，出现之后就不再变动。
+        rng = random.Random(seed + index * 7919)
+        growth = index / max(1, max_panels - 1)
+        scale = (0.30 + 0.45 * growth) * rng.uniform(0.8, 1.25)
         panel_width = max(24, min(width, int(width * scale)))
-        panel_height = max(24, min(height, int(panel_width * rng.uniform(0.8, 1.6))))
+        panel_height = max(24, min(height, int(panel_width * rng.uniform(0.7, 1.5))))
         x = rng.randint(0, max(0, width - panel_width))
         y = rng.randint(0, max(0, height - panel_height))
-        rects.append((x, y, panel_width, panel_height))
-    return rects
-
-
-def panel_seed(elapsed: float, refresh: float = PANEL_REFRESH_SECONDS) -> int:
-    """把时间量化成刷新槽位，同一槽位内的帧共用同一批矩形。"""
-    return int(elapsed / max(1e-6, refresh))
+        panels.append((x, y, panel_width, panel_height, index * interval))
+    return panels
 
 
 def crop_to_aspect(frame: np.ndarray, width: int, height: int) -> np.ndarray:
@@ -175,3 +178,21 @@ def crop_to_aspect(frame: np.ndarray, width: int, height: int) -> np.ndarray:
         source = source.crop((0, top, source.width, top + new_height))
 
     return np.array(source.resize((width, height), Image.LANCZOS))
+
+
+def letterbox(frame: np.ndarray, width: int, height: int) -> np.ndarray:
+    """
+    等比缩放后居中放进目标画幅，多出来的部分留黑边。
+
+    剪辑本身是 16:9 的横屏素材。裁成竖屏会把构图砍掉两侧——而这类剪辑的主体
+    经常并不在正中，裁切会直接切掉重点。竖屏平台上的黑边完全可以接受，观众
+    对搬运来的横屏素材早就习惯了。
+    """
+    source = Image.fromarray(frame)
+    ratio = min(width / source.width, height / source.height)
+    new_size = (max(1, int(source.width * ratio)), max(1, int(source.height * ratio)))
+
+    canvas = Image.new("RGB", (width, height), (0, 0, 0))
+    resized = source.resize(new_size, Image.LANCZOS)
+    canvas.paste(resized, ((width - new_size[0]) // 2, (height - new_size[1]) // 2))
+    return np.array(canvas)

@@ -64,51 +64,75 @@ class WrapLinesTest(unittest.TestCase):
         self.assertEqual(render.wrap_lines("", self.font, self.draw, 300), [])
 
 
-class PanelRectsTest(unittest.TestCase):
-    def test_nothing_before_the_invasion_starts(self):
-        self.assertEqual(render.panel_rects(0.0, 720, 1280, seed=1), [])
+class PanelScheduleTest(unittest.TestCase):
+    def test_one_instance_is_present_from_the_start(self):
+        self.assertEqual(len(render.panel_schedule(0.0, 720, 1280, seed=1)), 1)
 
-    def test_panel_count_grows_with_progress(self):
-        early = len(render.panel_rects(0.15, 720, 1280, seed=1))
-        late = len(render.panel_rects(1.0, 720, 1280, seed=1))
-        self.assertLess(early, late)
-        self.assertEqual(late, render.MAX_PANELS)
+    def test_instances_accumulate_over_time(self):
+        early = render.panel_schedule(0.5, 720, 1280, seed=1)
+        late = render.panel_schedule(3.0, 720, 1280, seed=1)
+        self.assertLess(len(early), len(late))
+
+    def test_earlier_instances_keep_their_place(self):
+        """实例是叠上去的，先出现的不能跟着重排——那样看起来是一段画面在乱跳。"""
+        early = render.panel_schedule(0.5, 720, 1280, seed=1)
+        late = render.panel_schedule(3.0, 720, 1280, seed=1)
+        self.assertEqual(late[: len(early)], early)
+
+    def test_each_instance_starts_one_interval_after_the_previous(self):
+        panels = render.panel_schedule(2.0, 720, 1280, seed=1, interval=0.2)
+        starts = [start for *_, start in panels]
+        for previous, current in zip(starts, starts[1:]):
+            self.assertAlmostEqual(current - previous, 0.2, places=6)
+
+    def test_instance_count_is_capped(self):
+        panels = render.panel_schedule(600.0, 720, 1280, seed=1)
+        self.assertEqual(len(panels), render.MAX_PANELS)
 
     def test_panels_stay_inside_the_frame(self):
         """越界的矩形会被 paste 裁掉，表现为边缘出现半截色块。"""
-        for progress in (0.2, 0.6, 1.0):
-            for x, y, width, height in render.panel_rects(progress, 720, 1280, seed=3):
-                self.assertGreaterEqual(x, 0)
-                self.assertGreaterEqual(y, 0)
-                self.assertLessEqual(x + width, 720)
-                self.assertLessEqual(y + height, 1280)
+        for x, y, width, height, _ in render.panel_schedule(3.4, 720, 1280, seed=3):
+            self.assertGreaterEqual(x, 0)
+            self.assertGreaterEqual(y, 0)
+            self.assertLessEqual(x + width, 720)
+            self.assertLessEqual(y + height, 1280)
 
-    def test_same_seed_gives_the_same_panels(self):
-        """同一刷新槽位内必须完全一致，否则逐帧抖动会变成噪点而不是闪跳。"""
+    def test_same_seed_gives_the_same_layout(self):
         self.assertEqual(
-            render.panel_rects(0.5, 720, 1280, seed=9),
-            render.panel_rects(0.5, 720, 1280, seed=9),
+            render.panel_schedule(2.0, 720, 1280, seed=9),
+            render.panel_schedule(2.0, 720, 1280, seed=9),
         )
 
-    def test_different_seeds_give_different_panels(self):
+    def test_different_seeds_give_different_layouts(self):
         self.assertNotEqual(
-            render.panel_rects(0.5, 720, 1280, seed=1),
-            render.panel_rects(0.5, 720, 1280, seed=2),
+            render.panel_schedule(2.0, 720, 1280, seed=1),
+            render.panel_schedule(2.0, 720, 1280, seed=2),
         )
 
-    def test_progress_is_clamped(self):
-        self.assertEqual(
-            render.panel_rects(4.0, 720, 1280, seed=1),
-            render.panel_rects(1.0, 720, 1280, seed=1),
-        )
+    def test_nothing_before_the_invasion(self):
+        self.assertEqual(render.panel_schedule(-1.0, 720, 1280, seed=1), [])
 
 
-class PanelSeedTest(unittest.TestCase):
-    def test_frames_within_one_refresh_slot_share_a_seed(self):
-        self.assertEqual(render.panel_seed(0.01), render.panel_seed(0.14))
+class LetterboxTest(unittest.TestCase):
+    def test_landscape_source_keeps_its_aspect_and_gains_bars(self):
+        """剪辑是 16:9，裁成竖屏会切掉两侧的构图，所以必须留黑边。"""
+        frame = np.full((360, 640, 3), 255, dtype=np.uint8)
+        result = render.letterbox(frame, 720, 1280)
+        self.assertEqual(result.shape, (1280, 720, 3))
+        self.assertEqual(int(result[0, 360, 0]), 0)      # 顶部黑边
+        self.assertEqual(int(result[640, 360, 0]), 255)  # 中间是画面
 
-    def test_slots_advance_over_time(self):
-        self.assertLess(render.panel_seed(0.1), render.panel_seed(0.9))
+    def test_visible_band_has_the_source_aspect_ratio(self):
+        frame = np.full((360, 640, 3), 255, dtype=np.uint8)
+        result = render.letterbox(frame, 720, 1280)
+        rows = (result[..., 0].max(axis=1) > 0).nonzero()[0]
+        band_height = rows.max() - rows.min() + 1
+        self.assertAlmostEqual(720 / band_height, 640 / 360, delta=0.02)
+
+    def test_matching_aspect_needs_no_bars(self):
+        frame = np.full((1280, 720, 3), 255, dtype=np.uint8)
+        result = render.letterbox(frame, 720, 1280)
+        self.assertEqual(int(result[0, 0, 0]), 255)
 
 
 class CropToAspectTest(unittest.TestCase):

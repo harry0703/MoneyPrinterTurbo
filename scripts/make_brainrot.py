@@ -84,6 +84,9 @@ def build_video(
     invasion_seconds: float,
     font_path: str,
     seed: int,
+    panel_interval: float = 0.2,
+    stutter_volume: float = 0.30,
+    stutter_tail: float = 0.6,
 ):
     import numpy as np
     from moviepy import AudioFileClip, CompositeAudioClip, VideoClip, VideoFileClip, afx
@@ -94,10 +97,9 @@ def build_video(
     bait = VideoFileClip(bait_path)
     template = VideoFileClip(template_path)
 
-    # 诱饵不够长就循环，而不是缩短诱饵段：文字卡需要固定的停留时间。
-    bait_seconds = min(bait_seconds, max(1.0, bait_seconds))
-    total = bait_seconds + template.duration
+    invasion_start = bait_seconds
     invasion_end = bait_seconds + invasion_seconds
+    total = invasion_end + template.duration
 
     card = render.render_text_card(
         text=text,
@@ -109,33 +111,38 @@ def build_video(
     card_x = (width - card_image.width) // 2
     card_y = int(height * CARD_TOP_RATIO)
 
+    # 入侵阶段每个实例都从剪辑开头放起，需要的只是开头这几秒。预先解码成帧表，
+    # 否则每输出一帧就要在文件里随机定位十几次，慢得没法用。
+    instance_frames = [
+        template.get_frame(min(index / fps, template.duration - 1e-3))
+        for index in range(int(invasion_seconds * fps) + 2)
+    ]
+
     def bait_frame(t: float) -> np.ndarray:
         # 诱饵短于诱饵段时回绕播放，避免最后一帧定格。
         return render.crop_to_aspect(
             bait.get_frame(t % bait.duration), width, height
         )
 
-    def template_frame(t: float) -> np.ndarray:
-        offset = min(max(0.0, t - bait_seconds), template.duration - 1e-3)
-        return render.crop_to_aspect(template.get_frame(offset), width, height)
-
     def make_frame(t: float) -> np.ndarray:
         if t >= invasion_end:
-            return template_frame(t)
+            # 正式剪辑保持 16:9 原比例，上下留黑边。
+            offset = min(t - invasion_end, template.duration - 1e-3)
+            return render.letterbox(template.get_frame(offset), width, height)
 
         base = Image.fromarray(bait_frame(t))
 
-        if t >= bait_seconds:
-            progress = (t - bait_seconds) / max(1e-6, invasion_seconds)
-            edit = Image.fromarray(template_frame(t))
-            for x, y, panel_w, panel_h in render.panel_rects(
-                progress, width, height,
-                seed=seed + render.panel_seed(t - bait_seconds),
+        if t >= invasion_start:
+            elapsed = t - invasion_start
+            for x, y, panel_w, panel_h, start in render.panel_schedule(
+                elapsed, width, height, seed=seed, interval=panel_interval
             ):
-                base.paste(edit.resize((panel_w, panel_h), Image.BILINEAR), (x, y))
+                index = min(int((elapsed - start) * fps), len(instance_frames) - 1)
+                panel = render.crop_to_aspect(instance_frames[index], panel_w, panel_h)
+                base.paste(Image.fromarray(panel), (x, y))
 
         # 文字卡在入侵开始时撤走：样片里剪辑一露头，文字就没了。
-        if t < bait_seconds:
+        if t < invasion_start:
             base.paste(card_image, (card_x, card_y), card_image)
 
         return np.array(base.convert("RGB"))
@@ -148,7 +155,18 @@ def build_video(
             bait.audio.subclipped(0, min(bait_seconds, bait.audio.duration))
         )
     if template.audio is not None:
-        audio_parts.append(template.audio.with_start(bait_seconds))
+        # 每个视觉实例配一份自己的声音。参考样片里正是这一串错开的重音把
+        # 画面的堆叠听出了节奏；共用一条音轨只会得到一段平淡的背景音。
+        tail = min(stutter_tail, template.audio.duration)
+        for _, _, _, _, start in render.panel_schedule(
+            invasion_seconds, width, height, seed=seed, interval=panel_interval
+        ):
+            audio_parts.append(
+                template.audio.subclipped(0, tail)
+                .with_start(invasion_start + start)
+                .with_effects([afx.MultiplyVolume(stutter_volume)])
+            )
+        audio_parts.append(template.audio.with_start(invasion_end))
     if audio_parts:
         clip = clip.with_audio(CompositeAudioClip(audio_parts))
 
@@ -180,6 +198,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fps", type=int, default=DEFAULT_FPS)
     parser.add_argument("--bait-seconds", type=float, default=DEFAULT_BAIT_SECONDS)
     parser.add_argument("--invasion-seconds", type=float, default=DEFAULT_INVASION_SECONDS)
+    parser.add_argument("--panel-interval", type=float, default=0.2,
+                        help="seconds between two stacked copies of the edit")
+    parser.add_argument("--stutter-volume", type=float, default=0.30,
+                        help="volume of each stacked copy's audio")
+    parser.add_argument("--stutter-tail", type=float, default=0.6,
+                        help="how long each stacked copy's audio is kept")
     parser.add_argument("--seed", type=int, default=0, help="0 picks a random one")
     parser.add_argument("--list", action="store_true", help="list available bait clips and exit")
     return parser
@@ -226,6 +250,9 @@ def main(argv=None) -> int:
         invasion_seconds=args.invasion_seconds,
         font_path=args.font,
         seed=seed,
+        panel_interval=args.panel_interval,
+        stutter_volume=args.stutter_volume,
+        stutter_tail=args.stutter_tail,
     )
     # 同名 JSON 让画廊页面能显示文字卡和诱饵来源：文件名里只有一个随机数，
     # 光看列表分不出哪条是哪条。
