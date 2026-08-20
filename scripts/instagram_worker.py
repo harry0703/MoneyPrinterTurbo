@@ -24,6 +24,29 @@ _TRANSIENT_RETRIES = 3
 _TRANSIENT_BACKOFF_SECONDS = (5, 15, 40)
 
 
+def classify_error(text: str) -> str:
+    """
+    判断一次失败属于哪一类。
+
+    先判限流再判其它：429 的报文里带着 "Max retries exceeded"，若按"超时/重试"
+    的字样归类，就会把"请你慢一点"当成"网络抖了一下"，然后立刻再撞三次——
+    urllib3 自己已经重试过一轮，叠加之后是几百次请求打在一个明确要求退避的
+    接口上，只会把限制拖得更久。
+    """
+    text = text.lower()
+    if any(marker in text for marker in ("429", "feedback_required", "spam",
+                                         "rate limit", "please wait")):
+        return "rate_limit"
+    if "challenge" in text or "checkpoint" in text:
+        return "challenge"
+    if "login_required" in text or "not logged" in text:
+        return "auth"
+    if any(marker in text for marker in ("500", "502", "503", "504",
+                                         "timed out", "connection reset")):
+        return "transient"
+    return "upload"
+
+
 def log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
@@ -43,6 +66,37 @@ def _looks_like_pydantic_response_bug(error: Exception) -> bool:
     return "validation error" in text.lower()
 
 
+def _calm_retries(client) -> None:
+    """
+    收紧底层 HTTP 重试，尤其是不对 429 重试。
+
+    instagrapi 的会话默认会对 429 反复重试，一次登录因此可能变成几百个请求，
+    最后抛出的还是 "too many 429 error responses"。限流的正确回应是停下来等，
+    继续敲只会延长限制、并在账号上留下一串失败记录。5xx 仍然重试，那才是
+    真的服务端抖动。
+    """
+    try:
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+    except ImportError:  # pragma: no cover - requests 是 instagrapi 的依赖
+        return
+
+    retry = Retry(
+        total=2,
+        status_forcelist=(500, 502, 503, 504),
+        allowed_methods=None,
+        backoff_factor=2,
+        respect_retry_after_header=True,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    for session_attribute in ("private", "public"):
+        session = getattr(client, session_attribute, None)
+        if session is None:
+            continue
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+
+
 def _client_with_session(request: dict):
     """
     建立客户端，优先复用既有会话。
@@ -56,6 +110,7 @@ def _client_with_session(request: dict):
     session_file = Path(request["session_file"])
     client = Client()
     client.delay_range = list(request.get("delay_range") or [2, 5])
+    _calm_retries(client)
 
     proxy = (request.get("proxy") or "").strip()
     if proxy:
@@ -205,29 +260,20 @@ def _publish(client, request: dict) -> dict:
                         "verified_after_error": True,
                     }
 
-            text = str(exc).lower()
-            transient = any(
-                marker in text
-                for marker in ("500", "502", "503", "timed out", "max retries")
-            )
-            if transient and attempt < _TRANSIENT_RETRIES:
+            # 只有真正的服务端抖动值得重试。限流、验证挑战和登录失效再试都
+            # 只会加重问题，而且是在账号上留下记录。
+            if classify_error(str(exc)) == "transient" and attempt < _TRANSIENT_RETRIES:
                 delay = _TRANSIENT_BACKOFF_SECONDS[attempt - 1]
                 log(f"transient failure, retrying in {delay}s (attempt {attempt})")
                 time.sleep(delay)
                 continue
             break
 
-    text = str(last_error).lower()
-    if "challenge" in text or "checkpoint" in text:
-        error_type = "challenge"
-    elif "login_required" in text or "not logged" in text:
-        error_type = "auth"
-    elif any(marker in text for marker in ("feedback_required", "spam", "429")):
-        error_type = "rate_limit"
-    else:
-        error_type = "upload"
-
-    return {"ok": False, "error_type": error_type, "error": str(last_error)}
+    return {
+        "ok": False,
+        "error_type": classify_error(str(last_error)),
+        "error": str(last_error),
+    }
 
 
 def main() -> int:
