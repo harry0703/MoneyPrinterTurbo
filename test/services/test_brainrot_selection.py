@@ -214,6 +214,20 @@ class NextRunTest(unittest.TestCase):
                 "--out", os.path.join(self.temp_dir, "out.mp4"),
             ])
 
+    def test_the_card_is_off_by_default(self):
+        """文案默认只当标题：诱饵本身已经够无厘头，压张白卡反而像个模板。"""
+        self._run()
+        self.assertFalse(self.calls[0]["show_card"])
+
+    def test_the_card_can_be_switched_back_on(self):
+        self._run("--card")
+        self.assertTrue(self.calls[0]["show_card"])
+
+    def test_the_line_still_reaches_the_renderer_without_the_card(self):
+        """卡片关掉了，但这条文案仍要写进旁边的 JSON 供发布时用。"""
+        self._run()
+        self.assertEqual(self.calls[0]["text"], "first line")
+
     def test_a_failed_render_does_not_consume_the_clip(self):
         """失败后重跑应当拿到同一条素材，而不是把它悄悄跳过。"""
         with patch.object(brainrot, "build_video", side_effect=RuntimeError("boom")):

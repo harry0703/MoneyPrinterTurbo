@@ -11,9 +11,10 @@
 
     uv run python scripts/make_brainrot.py --next
     uv run python scripts/make_brainrot.py --list
-    uv run python scripts/make_brainrot.py --text "how it feels to check the mail"
+    uv run python scripts/make_brainrot.py --style rush --card
 
-文字卡不必每次自己想：省略 --text 就从 brainrot_texts.json 里取一条。
+文案不必每次自己想：省略 --text 就从 brainrot_texts.json 里取一条。这条文案
+默认只当发布时的标题，不画到画面上；要压成文字卡，加 --card。
 """
 
 from __future__ import annotations
@@ -254,6 +255,7 @@ def build_video(
     font_path: str,
     seed: int,
     thumbnail_path: str = "",
+    show_card: bool = False,
     panel_interval: float = DEFAULT_PANEL_INTERVAL,
     stutter_volume: float = DEFAULT_STUTTER_VOLUME,
     cameos: tuple = (),
@@ -284,15 +286,20 @@ def build_video(
     resume_at = min(invasion_seconds * edit_speed, max(0.0, template.duration - 1e-3))
     total = invasion_end + (template.duration - resume_at) / edit_speed
 
-    card = render.render_text_card(
-        text=text,
-        font_path=font_path,
-        font_size=int(height * CARD_FONT_RATIO),
-        max_width=int(width * 0.92),
-    )
-    card_image = Image.fromarray(card)
-    card_x = (width - card_image.width) // 2
-    card_y = int(height * CARD_TOP_RATIO)
+    # 文字卡默认不画。诱饵素材本身已经足够无厘头，压一张白卡上去反而像个
+    # 模板；这条线仍然写进旁边的 JSON，用作发布时的标题。
+    card_image = None
+    if show_card and text:
+        card_image = Image.fromarray(
+            render.render_text_card(
+                text=text,
+                font_path=font_path,
+                font_size=int(height * CARD_FONT_RATIO),
+                max_width=int(width * 0.92),
+            )
+        )
+        card_x = (width - card_image.width) // 2
+        card_y = int(height * CARD_TOP_RATIO)
 
     # 入侵阶段每个实例、以及每个客串镜头，都从剪辑开头放起，需要的只是开头
     # 这几秒。预先解码成帧表，否则每输出一帧就要在文件里随机定位十几次。
@@ -362,7 +369,7 @@ def build_video(
                 base.paste(Image.fromarray(panel), (x, y))
 
         # 文字卡在入侵开始时撤走：样片里剪辑一露头，文字就没了。
-        if t < invasion_start:
+        if card_image is not None and t < invasion_start:
             base.paste(card_image, (card_x, card_y), card_image)
 
         return np.array(base.convert("RGB"))
@@ -460,6 +467,9 @@ def build_parser() -> argparse.ArgumentParser:
                              "(defaults to the one mapped to the template)")
     parser.add_argument("--no-thumbnail", action="store_true",
                         help="render without a cover frame")
+    parser.add_argument("--card", action="store_true",
+                        help="burn the line onto the video as a text card; "
+                             "off by default, the line only becomes the caption")
     parser.add_argument("--seed", type=int, default=0, help="0 picks a random one")
     parser.add_argument("--list", action="store_true", help="list available bait clips and exit")
     return parser
@@ -534,7 +544,7 @@ def main(argv=None) -> int:
     print(f"style    {args.style}")
     print(f"cover    {os.path.basename(thumbnail_path) or '—'}")
     print(f"bait     {os.path.basename(bait_path)}")
-    print(f"text     {text}")
+    print(f"text     {text}" + ("" if args.card else "  (caption only)"))
     print(f"seed     {seed}")
 
     metadata = {
@@ -542,6 +552,7 @@ def main(argv=None) -> int:
         "style": args.style,
         "bait": os.path.basename(bait_path),
         "cover": os.path.basename(thumbnail_path),
+        "card": bool(args.card),
         "seed": seed,
         "created": datetime.date.today().isoformat(),
     }
@@ -559,6 +570,7 @@ def main(argv=None) -> int:
         font_path=args.font,
         seed=seed,
         thumbnail_path=thumbnail_path,
+        show_card=args.card,
         panel_interval=panel_interval,
         stutter_volume=args.stutter_volume,
         cameos=style.cameos,
