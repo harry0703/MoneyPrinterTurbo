@@ -618,6 +618,60 @@ WAVESPEED_MAX_DURATION_SECONDS = 15
 # 三个失败态语义不同（模型报错 / 用户取消 / 平台超时），但对素材流程都意味着
 # 本关键词没有产物，统一按空结果处理，交给上层跳过该片段继续生成。
 WAVESPEED_FAILURE_STATUSES = frozenset({"failed", "cancelled", "timeout"})
+# 与 WaveSpeed 官方 Python SDK / n8n 节点保持同一口径：429 与 5xx 属于临时
+# 故障，值得有限次退避重试；4xx 是明确的客户端错误，快速失败。
+WAVESPEED_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+# 单次轮询允许的连续临时失败次数。一次不走运的 GET 不能让已经计费的任务失联。
+WAVESPEED_MAX_POLL_RETRIES = 5
+# 线性退避基数，第 n 次重试等待 base * n 秒。
+WAVESPEED_RETRY_BASE_SECONDS = 1.0
+# 产物下载失败时对同一个签名地址的重试次数。素材已经付费生成，优先重试原
+# 地址，不能因为一次下载抖动就重新提交一次付费生成任务。
+WAVESPEED_MAX_DOWNLOAD_RETRIES = 2
+
+
+class WaveSpeedUnconfirmedTaskError(RuntimeError):
+    """
+    付费生成任务已提交，但最终状态无法在本地确认。
+
+    这类异常绝不等价于“该任务失败、可以重来”：远端任务可能仍在运行或已经
+    完成并计费。素材流程必须就此停止，不再为后续关键词提交新的付费任务，
+    并把已提交的 prediction id 留在日志中供人工找回。
+    """
+
+    def __init__(self, message: str, prediction_id: str = ""):
+        super().__init__(message)
+        self.prediction_id = prediction_id
+
+
+def _wavespeed_status_code(response: Any) -> int:
+    """读取响应状态码；测试替身或异常对象缺少该字段时按 200 处理。"""
+    try:
+        return int(getattr(response, "status_code", 200))
+    except (TypeError, ValueError):
+        return 200
+
+
+def _is_wavespeed_retryable_error(error: Exception) -> bool:
+    """
+    判断轮询异常是否值得重试。
+
+    连接、超时一类网络异常没有状态码，按临时故障处理；带状态码的响应只在
+    429 和 5xx 时重试，与官方 SDK 的重试集合保持一致。
+    """
+    if isinstance(
+        error,
+        (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+        ),
+    ):
+        return True
+    response = getattr(error, "response", None)
+    if response is not None:
+        return _wavespeed_status_code(response) in WAVESPEED_RETRYABLE_STATUS_CODES
+    return False
 
 
 def _wavespeed_duration_bounds() -> tuple[int, int]:
@@ -686,6 +740,8 @@ def generate_videos_wavespeed(
         f"term={search_term!r}, duration={duration}s"
     )
 
+    # 提交 POST 绝不自动重试：请求可能已经在远端创建了付费任务，重发会造成
+    # 重复生成和重复扣费（与官方 SDK 的 submission 策略一致）。
     try:
         submit_response = requests.post(
             f"{WAVESPEED_API_BASE_URL}/{model_id}",
@@ -695,60 +751,62 @@ def generate_videos_wavespeed(
             verify=_get_tls_verify(),
             timeout=(30, 60),
         )
+    except Exception as e:
+        # 没有收到响应并不代表任务没有创建。此时状态不明，必须终止整个生成
+        # 流程，而不是继续为下一个关键词提交新的付费任务。
+        raise WaveSpeedUnconfirmedTaskError(
+            "wavespeed submission did not return a response, the task may "
+            "already exist remotely: "
+            f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+        ) from e
+
+    submit_status = _wavespeed_status_code(submit_response)
+    if submit_status >= 500:
+        # 5xx 可能发生在任务创建之后，无法判断是否已经计费。
+        raise WaveSpeedUnconfirmedTaskError(
+            f"wavespeed submission failed with HTTP {submit_status}, "
+            "the task may already exist remotely"
+        )
+    try:
         submit_body = submit_response.json()
-        submit_data = submit_body.get("data")
-        if submit_body.get("code") != 200 or not isinstance(submit_data, dict):
-            logger.error(
-                "wavespeed video generation request rejected: "
-                f"code={submit_body.get('code')}, "
-                f"detail={_redact_secret(str(submit_body.get('message') or ''), api_key)}"
-            )
-            return []
-        prediction_id = str(submit_data.get("id") or "")
-        if not prediction_id:
-            logger.error("wavespeed response did not contain a prediction id")
-            return []
-        # 生成任务提交成功即产生远端计费副作用，先落日志记录任务 ID，
-        # 即使后续轮询失败，用户仍能凭 ID 在 WaveSpeed 控制台找回产物。
-        logger.info(f"wavespeed prediction created: id={prediction_id}")
+    except Exception as e:
+        raise WaveSpeedUnconfirmedTaskError(
+            "wavespeed submission returned an unreadable response, the task "
+            f"may already exist remotely: error={type(e).__name__}"
+        ) from e
 
-        deadline = time.monotonic() + WAVESPEED_RUN_TIMEOUT_SECONDS
-        while True:
-            result_body = requests.get(
-                f"{WAVESPEED_API_BASE_URL}/predictions/{prediction_id}/result",
-                headers=headers,
-                proxies=config.proxy,
-                verify=_get_tls_verify(),
-                timeout=(30, 60),
-            ).json()
-            result_data = result_body.get("data")
-            if result_body.get("code") != 200 or not isinstance(result_data, dict):
-                logger.error(
-                    "wavespeed prediction polling failed: "
-                    f"id={prediction_id}, code={result_body.get('code')}, "
-                    f"detail={_redact_secret(str(result_body.get('message') or ''), api_key)}"
-                )
-                return []
-            status = str(result_data.get("status") or "")
-            if status == "completed":
-                break
-            if status in WAVESPEED_FAILURE_STATUSES:
-                logger.error(
-                    "wavespeed prediction did not produce a video: "
-                    f"id={prediction_id}, status={status}, "
-                    f"detail={_redact_secret(str(result_data.get('error') or ''), api_key)}"
-                )
-                return []
-            if time.monotonic() > deadline:
-                # 远端任务仍在执行，只是本地不再等待；保留 ID 供用户自行找回。
-                logger.error(
-                    "wavespeed prediction still "
-                    f"{status or 'pending'} after {WAVESPEED_RUN_TIMEOUT_SECONDS:.0f}s, "
-                    f"give up waiting: id={prediction_id}"
-                )
-                return []
-            time.sleep(WAVESPEED_POLL_INTERVAL_SECONDS)
+    submit_data = submit_body.get("data") if isinstance(submit_body, dict) else None
+    if not isinstance(submit_body, dict) or submit_body.get("code") != 200:
+        # 4xx 与业务错误码是明确的拒绝，远端没有创建任务，也就不存在重复
+        # 计费风险，按现有素材源约定返回空结果并继续。
+        logger.error(
+            "wavespeed video generation request rejected: "
+            f"http_status={submit_status}, "
+            f"code={submit_body.get('code') if isinstance(submit_body, dict) else None}, "
+            f"detail={_redact_secret(str((submit_body or {}).get('message') or ''), api_key)}"
+        )
+        return []
+    prediction_id = (
+        str(submit_data.get("id") or "") if isinstance(submit_data, dict) else ""
+    )
+    if not prediction_id:
+        # 提交被接受但没拿到 ID：任务可能已经存在却无法追踪，不能继续下单。
+        raise WaveSpeedUnconfirmedTaskError(
+            "wavespeed accepted the submission without returning a prediction id"
+        )
+    # 生成任务提交成功即产生远端计费副作用，先落日志记录任务 ID，
+    # 即使后续轮询失败，用户仍能凭 ID 在 WaveSpeed 控制台找回产物。
+    logger.info(f"wavespeed prediction created: id={prediction_id}")
 
+    result_data = _wait_for_wavespeed_prediction(
+        prediction_id=prediction_id,
+        headers=headers,
+        api_key=api_key,
+    )
+    if result_data is None:
+        return []
+
+    try:
         video_items = []
         outputs = result_data.get("outputs")
         for output in outputs if isinstance(outputs, list) else []:
@@ -780,12 +838,150 @@ def generate_videos_wavespeed(
             )
         return video_items
     except Exception as e:
+        # 产物已经生成并计费，这里的异常只可能来自本地解析。记录后按空结果
+        # 返回，让上层跳过该片段，但任务状态本身是确定的，可以继续后续片段。
         logger.error(
-            "wavespeed video generation failed: "
-            f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+            "wavespeed output parsing failed: "
+            f"id={prediction_id}, error={type(e).__name__}, "
+            f"detail={_redact_request_error(e, api_key)}"
         )
 
     return []
+
+
+def _wait_for_wavespeed_prediction(
+    *,
+    prediction_id: str,
+    headers: dict,
+    api_key: str,
+) -> dict | None:
+    """
+    轮询同一个 prediction id 直到出现确定结果。
+
+    返回 ``completed`` 的 data；远端明确失败（failed / cancelled / timeout）
+    时返回 None，表示该任务已经结束、可以安全地继续后续片段。临时故障按
+    线性退避重试同一个 ID，绝不重新提交任务；状态始终无法确认时抛出
+    :class:`WaveSpeedUnconfirmedTaskError`，由调用方终止整个生成流程。
+    """
+    deadline = time.monotonic() + WAVESPEED_RUN_TIMEOUT_SECONDS
+    consecutive_failures = 0
+    while True:
+        try:
+            response = requests.get(
+                f"{WAVESPEED_API_BASE_URL}/predictions/{prediction_id}/result",
+                headers=headers,
+                proxies=config.proxy,
+                verify=_get_tls_verify(),
+                timeout=(30, 60),
+            )
+            status_code = _wavespeed_status_code(response)
+            if status_code in WAVESPEED_RETRYABLE_STATUS_CODES:
+                raise requests.exceptions.HTTPError(
+                    f"HTTP {status_code}", response=response
+                )
+            result_body = response.json()
+            result_data = (
+                result_body.get("data") if isinstance(result_body, dict) else None
+            )
+            if not isinstance(result_body, dict) or result_body.get("code") != 200:
+                # 轮询被明确拒绝（如 4xx）时任务状态仍然未知：任务已经提交，
+                # 只是本地查不到结果，同样不能继续提交新的付费任务。
+                raise WaveSpeedUnconfirmedTaskError(
+                    "wavespeed prediction status is unknown: "
+                    f"http_status={status_code}, "
+                    f"code={result_body.get('code') if isinstance(result_body, dict) else None}, "
+                    f"detail={_redact_secret(str((result_body or {}).get('message') or ''), api_key)}",
+                    prediction_id=prediction_id,
+                )
+            if not isinstance(result_data, dict):
+                raise WaveSpeedUnconfirmedTaskError(
+                    "wavespeed prediction result payload is malformed",
+                    prediction_id=prediction_id,
+                )
+        except WaveSpeedUnconfirmedTaskError:
+            raise
+        except Exception as e:
+            if not _is_wavespeed_retryable_error(e):
+                raise WaveSpeedUnconfirmedTaskError(
+                    "wavespeed prediction polling failed and the task state is "
+                    f"unknown: error={type(e).__name__}, "
+                    f"detail={_redact_request_error(e, api_key)}",
+                    prediction_id=prediction_id,
+                ) from e
+            consecutive_failures += 1
+            if consecutive_failures > WAVESPEED_MAX_POLL_RETRIES:
+                raise WaveSpeedUnconfirmedTaskError(
+                    "wavespeed prediction polling failed after "
+                    f"{WAVESPEED_MAX_POLL_RETRIES + 1} attempts, the task may "
+                    "still be running remotely: "
+                    f"error={type(e).__name__}, "
+                    f"detail={_redact_request_error(e, api_key)}",
+                    prediction_id=prediction_id,
+                ) from e
+            delay = WAVESPEED_RETRY_BASE_SECONDS * consecutive_failures
+            logger.warning(
+                "wavespeed prediction polling hit a transient error, retry the "
+                f"same task: id={prediction_id}, "
+                f"attempt={consecutive_failures}/{WAVESPEED_MAX_POLL_RETRIES}, "
+                f"error={type(e).__name__}, retry_in={delay:.1f}s"
+            )
+            time.sleep(delay)
+            continue
+
+        # 拿到一次有效响应就重置计数，只有连续失败才消耗重试额度。
+        consecutive_failures = 0
+        status = str(result_data.get("status") or "")
+        if status == "completed":
+            return result_data
+        if status in WAVESPEED_FAILURE_STATUSES:
+            logger.error(
+                "wavespeed prediction did not produce a video: "
+                f"id={prediction_id}, status={status}, "
+                f"detail={_redact_secret(str(result_data.get('error') or ''), api_key)}"
+            )
+            return None
+        if time.monotonic() > deadline:
+            # 远端任务仍在执行，本地无法确认最终状态，必须停止继续下单。
+            raise WaveSpeedUnconfirmedTaskError(
+                f"wavespeed prediction is still {status or 'pending'} after "
+                f"{WAVESPEED_RUN_TIMEOUT_SECONDS:.0f}s of local waiting",
+                prediction_id=prediction_id,
+            )
+        time.sleep(WAVESPEED_POLL_INTERVAL_SECONDS)
+
+
+def _save_wavespeed_video_with_retry(video_url: str, save_dir: str) -> str:
+    """
+    下载已经付费生成的产物，失败时优先重试同一个地址。
+
+    重新生成一次远端任务的代价是再付一次费，所以下载抖动必须先在原地址上
+    做有限次退避重试，重试耗尽才放弃该片段。
+    """
+    for attempt in range(WAVESPEED_MAX_DOWNLOAD_RETRIES + 1):
+        try:
+            saved_video_path = save_video(video_url=video_url, save_dir=save_dir)
+            if saved_video_path:
+                return saved_video_path
+            failure_detail = "empty result"
+        except Exception as e:
+            failure_detail = (
+                f"error={type(e).__name__}, "
+                f"detail={_redact_request_error(e, video_url)}"
+            )
+        if attempt >= WAVESPEED_MAX_DOWNLOAD_RETRIES:
+            break
+        delay = WAVESPEED_RETRY_BASE_SECONDS * (attempt + 1)
+        logger.warning(
+            "failed to download generated video, retry the same url: "
+            f"attempt={attempt + 1}/{WAVESPEED_MAX_DOWNLOAD_RETRIES}, "
+            f"{failure_detail}, retry_in={delay:.1f}s"
+        )
+        time.sleep(delay)
+    logger.error(
+        "failed to download generated video after "
+        f"{WAVESPEED_MAX_DOWNLOAD_RETRIES + 1} attempts: {failure_detail}"
+    )
+    return ""
 
 
 def save_video(video_url: str, save_dir: str = "") -> str:
@@ -1096,31 +1292,32 @@ def _download_videos_wavespeed_on_demand(
     material_sources: list[dict[str, Any]] = []
     total_duration = 0.0
     for search_term in search_terms:
-        video_items = generate_videos_wavespeed(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-        )
+        try:
+            video_items = generate_videos_wavespeed(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+        except WaveSpeedUnconfirmedTaskError as e:
+            # 已提交的付费任务状态不明：远端可能仍在运行或已经完成并计费。
+            # 继续为后续关键词下单会造成重复生成和重复扣费，因此就地停止，
+            # 并把 prediction id 留在日志里供人工在控制台找回产物。
+            logger.error(
+                "stop submitting new wavespeed tasks, the last submitted task "
+                f"is unconfirmed: prediction_id={e.prediction_id or 'unknown'}, "
+                f"detail={e}"
+            )
+            break
         for item in video_items:
-            try:
-                saved_video_path = save_video(
-                    video_url=item.url, save_dir=material_directory
-                )
-            except Exception as e:
-                logger.error(
-                    "failed to download generated video: "
-                    f"provider={item.provider}, error={type(e).__name__}, "
-                    f"detail={_redact_request_error(e, item.url)}"
-                )
-                continue
+            saved_video_path = _save_wavespeed_video_with_retry(
+                item.url, material_directory
+            )
             if not saved_video_path:
                 continue
             logger.info(f"video saved: {saved_video_path}")
             video_paths.append(saved_video_path)
             try:
-                material_sources.append(
-                    _material_source_record(item, saved_video_path)
-                )
+                material_sources.append(_material_source_record(item, saved_video_path))
             except Exception as source_error:
                 # 与库存源一致：来源记录异常不能把已经付费生成并成功下载的
                 # 素材当作失败，更不能阻断视频生成。

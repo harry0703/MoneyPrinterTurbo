@@ -1229,15 +1229,190 @@ class TestWaveSpeedProvider(unittest.TestCase):
         self.assertEqual(results, [])
         get.assert_not_called()
 
-    def test_generate_wavespeed_returns_empty_on_network_error(self):
-        """网络异常按现有素材源约定记日志并返回空列表,不向上抛出。"""
+    def test_generate_wavespeed_never_retries_submission_on_network_error(self):
+        """
+        提交没有收到响应不代表任务没有创建,重发 POST 会重复生成、重复扣费。
+        因此提交绝不自动重试,并按"状态不明"上抛,让上层停止继续下单。
+        """
         with patch(
             "app.services.material.requests.post",
             side_effect=requests.exceptions.ConnectionError("boom"),
+        ) as post:
+            with self.assertRaises(material.WaveSpeedUnconfirmedTaskError):
+                material.generate_videos_wavespeed("sunrise", minimum_duration=5)
+
+        self.assertEqual(post.call_count, 1)
+
+    def test_generate_wavespeed_treats_server_error_submission_as_unconfirmed(self):
+        """5xx 可能发生在任务创建之后,状态不明,不能当作"没扣费"继续。"""
+        submit_response = SimpleNamespace(
+            status_code=502, json=lambda: {"code": 502, "message": "bad gateway"}
+        )
+
+        with patch("app.services.material.requests.post", return_value=submit_response):
+            with self.assertRaises(material.WaveSpeedUnconfirmedTaskError):
+                material.generate_videos_wavespeed("sunrise", minimum_duration=5)
+
+    def test_generate_wavespeed_retries_transient_poll_failures_on_same_task(self):
+        """
+        轮询遇到 429/5xx 或网络异常时,必须带着原来的 prediction id 退避重试,
+        绝不能重新提交一次付费生成任务。
+        """
+        submit_response = self._json_response({"code": 200, "data": {"id": "pred-r1"}})
+        rate_limited = SimpleNamespace(status_code=429, json=lambda: {"code": 429})
+        completed = self._json_response(
+            {
+                "code": 200,
+                "data": {
+                    "id": "pred-r1",
+                    "status": "completed",
+                    "outputs": ["https://cdn.example.com/r1.mp4"],
+                },
+            }
+        )
+
+        with (
+            patch(
+                "app.services.material.requests.post", return_value=submit_response
+            ) as post,
+            patch(
+                "app.services.material.requests.get",
+                side_effect=[
+                    rate_limited,
+                    requests.exceptions.ConnectionError("boom"),
+                    completed,
+                ],
+            ) as get,
+            patch("app.services.material.time.sleep") as sleep,
         ):
             results = material.generate_videos_wavespeed("sunrise", minimum_duration=5)
 
-        self.assertEqual(results, [])
+        self.assertEqual(len(results), 1)
+        # 只提交一次;三次 GET 全部指向同一个 prediction id
+        self.assertEqual(post.call_count, 1)
+        self.assertEqual(get.call_count, 3)
+        for call in get.call_args_list:
+            self.assertIn("/api/v3/predictions/pred-r1/result", call.args[0])
+        # 线性退避:第 n 次重试等待 base * n
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1.0, 2.0])
+
+    def test_generate_wavespeed_raises_unconfirmed_after_poll_retries_exhausted(self):
+        """
+        连续临时失败超过上限后,任务状态仍然不明:任务可能还在远端运行。
+        必须上抛并带上 prediction id,而不是当作失败让流程继续下单。
+        """
+        submit_response = self._json_response({"code": 200, "data": {"id": "pred-r2"}})
+
+        with (
+            patch("app.services.material.requests.post", return_value=submit_response),
+            patch(
+                "app.services.material.requests.get",
+                side_effect=requests.exceptions.ConnectionError("boom"),
+            ) as get,
+            patch("app.services.material.time.sleep"),
+        ):
+            with self.assertRaises(material.WaveSpeedUnconfirmedTaskError) as ctx:
+                material.generate_videos_wavespeed("sunrise", minimum_duration=5)
+
+        self.assertEqual(ctx.exception.prediction_id, "pred-r2")
+        self.assertEqual(get.call_count, material.WAVESPEED_MAX_POLL_RETRIES + 1)
+
+    def test_generate_wavespeed_raises_unconfirmed_on_local_wait_timeout(self):
+        """本地等待超时,远端任务仍在运行,状态不明,不能继续提交新任务。"""
+        submit_response = self._json_response({"code": 200, "data": {"id": "pred-r3"}})
+        processing = self._json_response(
+            {"code": 200, "data": {"id": "pred-r3", "status": "processing"}}
+        )
+        clock = iter([0.0, 0.0, material.WAVESPEED_RUN_TIMEOUT_SECONDS + 1])
+
+        with (
+            patch("app.services.material.requests.post", return_value=submit_response),
+            patch("app.services.material.requests.get", return_value=processing),
+            patch(
+                "app.services.material.time.monotonic", side_effect=lambda: next(clock)
+            ),
+            patch("app.services.material.time.sleep"),
+        ):
+            with self.assertRaises(material.WaveSpeedUnconfirmedTaskError) as ctx:
+                material.generate_videos_wavespeed("sunrise", minimum_duration=5)
+
+        self.assertEqual(ctx.exception.prediction_id, "pred-r3")
+
+    def test_download_videos_wavespeed_stops_submitting_after_unconfirmed_task(self):
+        """
+        回归:某个片段的任务状态不明时,后续关键词绝不能再触发新的付费生成
+        请求——否则第一个任务可能仍在运行/已完成,造成重复生成和额外扣费。
+        已经下载成功的素材照常返回。
+        """
+        first_item = self._generated_item("term-1", "https://cdn.example.com/1.mp4")
+
+        def fake_generate(search_term, minimum_duration, video_aspect):
+            if search_term == "term-1":
+                return [first_item]
+            raise material.WaveSpeedUnconfirmedTaskError(
+                "state unknown", prediction_id="pred-stuck"
+            )
+
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                side_effect=fake_generate,
+            ) as generate,
+            patch(
+                "app.services.material.save_video",
+                return_value="/tmp/1.mp4",
+            ),
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed-unconfirmed",
+                search_terms=["term-1", "term-2", "term-3"],
+                source="wavespeed",
+                audio_duration=100,
+                max_clip_duration=5,
+            )
+
+        # term-2 抛出状态不明后立即停止,term-3 不能再产生生成请求
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(result, ["/tmp/1.mp4"])
+
+    def test_download_videos_wavespeed_retries_original_download_url(self):
+        """
+        产物已经付费生成,下载抖动必须优先重试同一个签名地址,而不是重新
+        提交一次付费生成任务。
+        """
+        item = self._generated_item("term-1", "https://cdn.example.com/1.mp4")
+
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                return_value=[item],
+            ) as generate,
+            patch(
+                "app.services.material.save_video",
+                side_effect=[
+                    requests.exceptions.ConnectionError("boom"),
+                    "/tmp/1.mp4",
+                ],
+            ) as save,
+            patch("app.services.material.time.sleep"),
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed-download-retry",
+                search_terms=["term-1"],
+                source="wavespeed",
+                audio_duration=5,
+                max_clip_duration=5,
+            )
+
+        self.assertEqual(result, ["/tmp/1.mp4"])
+        # 重试打在同一个地址上,且没有触发第二次付费生成
+        self.assertEqual(save.call_count, 2)
+        self.assertEqual(generate.call_count, 1)
+        for call in save.call_args_list:
+            self.assertEqual(
+                call.kwargs.get("video_url") or call.args[0],
+                "https://cdn.example.com/1.mp4",
+            )
 
     def test_download_videos_wavespeed_bypasses_search_cache(self):
         """
