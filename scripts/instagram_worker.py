@@ -1,6 +1,8 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["instagrapi>=2.16.1"]
+# dependencies = ["instagrapi>=2.16.1", "requests[socks]>=2.32"]
+# # requests[socks] : sans PySocks, un proxy socks5:// lève
+# # "Missing dependencies for SOCKS support" au lieu de fonctionner.
 # ///
 """
 Instagram Reels 发布工作进程。

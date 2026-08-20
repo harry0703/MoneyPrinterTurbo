@@ -46,3 +46,8 @@ htmlcov/
 # Source material for the brainrot account: third-party footage, not ours to
 # redistribute, and heavy. The generator reads it from here at render time.
 /resource/brainrotVideo/
+
+# WireGuard configs carry a private key. Never versioned.
+*.conf
+!config.example.toml
+*Zone.Identifier
