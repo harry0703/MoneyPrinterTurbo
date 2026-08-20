@@ -1413,6 +1413,42 @@ class TestWaveSpeedProvider(unittest.TestCase):
         )
         self.assertEqual(result, ["/tmp/1.mp4", "/tmp/2.mp4"])
 
+    def test_download_videos_wavespeed_stops_when_duration_exactly_covered(self):
+        """
+        边界回归:配音 10 秒、每段 5 秒时,累计恰好等于所需时长即已够用,
+        第 3 个关键词不能再触发付费生成请求(停止判断必须是 >= 而不是 >)。
+        """
+        generated = {
+            "term-1": [self._generated_item("term-1", "https://cdn.example.com/1.mp4")],
+            "term-2": [self._generated_item("term-2", "https://cdn.example.com/2.mp4")],
+            "term-3": [self._generated_item("term-3", "https://cdn.example.com/3.mp4")],
+        }
+
+        def fake_generate(search_term, minimum_duration, video_aspect):
+            return generated[search_term]
+
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                side_effect=fake_generate,
+            ) as generate,
+            patch(
+                "app.services.material.save_video",
+                side_effect=lambda video_url, save_dir="": f"/tmp/{video_url.rsplit('/', 1)[-1]}",
+            ),
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed-exact",
+                search_terms=["term-1", "term-2", "term-3"],
+                source="wavespeed",
+                audio_duration=10,
+                max_clip_duration=5,
+            )
+
+        # 5s + 5s == 10s,恰好覆盖,第 3 段绝不能生成
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(result, ["/tmp/1.mp4", "/tmp/2.mp4"])
+
     def test_download_videos_wavespeed_skips_failed_segment_and_continues(self):
         """单个片段生成失败(空结果)时跳过该关键词,继续为后续片段生成。"""
         generated = {

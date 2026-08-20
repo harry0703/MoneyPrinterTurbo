@@ -1130,9 +1130,11 @@ def _download_videos_wavespeed_on_demand(
                     f"error={type(source_error).__name__}, detail={source_error}"
                 )
             total_duration += min(max_clip_duration, item.duration)
-            if total_duration > audio_duration:
+            # 用 >= 判断:累计时长恰好等于所需时长时已经够用,再生成会
+            # 多付一次费用。内外两处判断必须保持同一语义。
+            if total_duration >= audio_duration:
                 break
-        if total_duration > audio_duration:
+        if total_duration >= audio_duration:
             logger.info(
                 "generated materials cover the required duration, stop "
                 f"generating more clips: generated={total_duration:.1f}s, "
