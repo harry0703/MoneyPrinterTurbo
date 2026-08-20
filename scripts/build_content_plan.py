@@ -66,6 +66,12 @@ ACCOUNTS = {
             "Keep the whole script between 95 and 115 words."
         ),
         # 固定标签定义账号主题，平台据此分类；轮换标签负责触达不同的检索面。
+        # 每条文案都带上这两行：观众看到的是单条视频，不是账号主页，
+        # 所以"这个号是干什么的、多久更新"必须写在视频里。
+        "tagline": [
+            "The questions you stopped asking as a kid.",
+            "One answer a day, in 40 seconds.",
+        ],
         "hashtag_core": ["#science", "#didyouknow"],
         "hashtag_pool": [
             "#curiosity", "#explained", "#sciencefacts", "#learnsomethingnew",
@@ -112,6 +118,12 @@ ACCOUNTS = {
             "Never greet the viewer, never mention the video itself. "
             "Keep the whole script between 110 and 140 words."
         ),
+        # 每条文案都带上这两行：观众看到的是单条视频，不是账号主页，
+        # 所以"这个号是干什么的、多久更新"必须写在视频里。
+        "tagline": [
+            "Places that shouldn't exist — and do.",
+            "One place a day, in 40 seconds.",
+        ],
         "hashtag_core": ["#geography", "#travel"],
         "hashtag_pool": [
             "#hiddenplaces", "#remoteplaces", "#earth", "#explore", "#travelfacts",
@@ -156,6 +168,12 @@ ACCOUNTS = {
             "Never greet the viewer, never mention the video itself. "
             "Keep the whole script between 90 and 110 words."
         ),
+        # 每条文案都带上这两行：观众看到的是单条视频，不是账号主页，
+        # 所以"这个号是干什么的、多久更新"必须写在视频里。
+        "tagline": [
+            "Animals are stranger than you think.",
+            "One wild fact a day, 40 seconds each.",
+        ],
         "hashtag_core": ["#animals", "#wildlife"],
         "hashtag_pool": [
             "#animalfacts", "#nature", "#creatures", "#wildlifefacts",
@@ -446,6 +464,13 @@ def build_hashtags(profile: dict, index: int) -> str:
     return tags
 
 
+def build_caption(profile: dict, subject: str, index: int) -> str:
+    """标题、账号定位两行、标签，中间各空一行。"""
+    tagline = "\n".join(profile.get("tagline", []))
+    blocks = [subject, tagline, build_hashtags(profile, index)]
+    return "\n\n".join(block for block in blocks if block)
+
+
 def build_schedule() -> list[dict]:
     """按工作日排期，并让三个账号错开主题顺序，避免同一天风格雷同。"""
     cursors = {account: 0 for account in ACCOUNTS}
@@ -468,7 +493,7 @@ def build_schedule() -> list[dict]:
             cursors[account] = index + 1
             counters[account] += 1
             subject = pool[index]
-            hashtags = build_hashtags(profile, index)
+            caption = build_caption(profile, subject, index)
             # 在池内轮换而不是随机：同一账号相邻两条不会撞曲，且计划可复现。
             bgm_pool = BGM_POOLS[account]
             bgm_file = bgm_pool[index % len(bgm_pool)]
@@ -479,7 +504,7 @@ def build_schedule() -> list[dict]:
                     "account": account,
                     "subject": subject,
                     "bgm_file": bgm_file,
-                    "caption": f"{subject}\n\n{hashtags}",
+                    "caption": caption,
                 }
             )
 
