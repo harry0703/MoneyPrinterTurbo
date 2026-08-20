@@ -16,6 +16,9 @@ Instagram 这还有个要紧的好处：走的是公开页面而不是登录态�
     uv run --no-project scripts/download_clip.py <url>
     uv run --no-project scripts/download_clip.py <url> --start 12 --end 28
     uv run --no-project scripts/download_clip.py <url> --dest template --name spiderman
+
+在本机下载、再用 ``sync_bait.py`` 推到服务器：YouTube 对数据中心 IP 会弹人机
+验证，而家用宽带不会。
 """
 
 from __future__ import annotations
@@ -83,7 +86,7 @@ def trim(source: str, destination: str, ffmpeg: str, start: float, end: float | 
     subprocess.run(command, check=True)
 
 
-def download(url: str, dest_dir: str, name: str, ffmpeg: str) -> str:
+def download(url: str, dest_dir: str, name: str, ffmpeg: str, cookies: str = "") -> str:
     import yt_dlp
 
     os.makedirs(dest_dir, exist_ok=True)
@@ -100,6 +103,10 @@ def download(url: str, dest_dir: str, name: str, ffmpeg: str) -> str:
         "noprogress": True,
         "restrictfilenames": True,
     }
+    # YouTube 会对数据中心 IP 弹出人机验证，服务器上必然撞上。常规做法是在本机
+    # 下载再同步过去；确实需要在服务器上取时，可以带上导出的 cookies。
+    if cookies:
+        options["cookiefile"] = cookies
 
     with yt_dlp.YoutubeDL(options) as downloader:
         info = downloader.extract_info(url, download=True)
@@ -127,6 +134,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--name", default="", help="output filename without extension")
     parser.add_argument("--start", type=float, default=0.0, help="trim from this second")
     parser.add_argument("--end", type=float, default=None, help="trim up to this second")
+    parser.add_argument("--cookies", default="",
+                        help="Netscape cookies file, for hosts that challenge datacenter IPs")
     return parser
 
 
@@ -138,7 +147,7 @@ def main(argv=None) -> int:
     name = slugify(args.name) if args.name else ""
 
     print(f"downloading into {args.dest}/ ...")
-    path = download(args.url, dest_dir, name, ffmpeg)
+    path = download(args.url, dest_dir, name, ffmpeg, args.cookies)
 
     if args.start or args.end is not None:
         base, extension = os.path.splitext(path)
