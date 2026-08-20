@@ -40,6 +40,34 @@ class WeightedStyleTest(unittest.TestCase):
         )
 
 
+class StyleTimingTest(unittest.TestCase):
+    def bait_seconds(self, name):
+        style = brainrot.STYLES[name]
+        return (brainrot.DEFAULT_BAIT_SECONDS if style.bait_seconds is None
+                else style.bait_seconds)
+
+    def test_the_plain_variants_get_to_the_edit_quickly(self):
+        """文字卡取消后，诱饵段不再需要留出阅读时间。"""
+        for name in ("classic", "rush"):
+            self.assertEqual(self.bait_seconds(name), 3.5, name)
+
+    def test_the_cameo_variants_keep_the_longer_lead_in(self):
+        for name in ("flash", "sweep"):
+            self.assertEqual(self.bait_seconds(name), 7, name)
+
+    def test_every_cameo_lands_before_the_invasion(self):
+        """
+        客串镜头只在 ``t < invasion_start`` 时绘制。排到入侵之后的那一个不会
+        报错，只是永远不出现——缩短诱饵段时最容易悄悄踩到这一点。
+        """
+        for name, style in brainrot.STYLES.items():
+            for cameo in style.cameos:
+                self.assertLessEqual(
+                    cameo.start + cameo.duration, self.bait_seconds(name),
+                    f"{name}: cameo at {cameo.start}s never renders",
+                )
+
+
 class NextBaitTest(unittest.TestCase):
     CLIPS = ["/b/a.mp4", "/b/b.mp4", "/b/c.mp4"]
 

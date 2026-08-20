@@ -47,9 +47,12 @@ OUTPUT_DIR = os.path.join(project_root(), "storage", "brainrot")
 
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".mkv", ".webm", ".m4v")
 
-# 诱饵段的时长。参考样片是 10~14 秒：短于 8 秒观众来不及读完文字卡，
-# 长于 15 秒则在剪辑开始前就流失。
+# 诱饵段的时长。文字卡取消之后，这段不再需要留出阅读时间，只要够看出画面
+# 有多随手就行；classic 和 rush 因此缩到 3.5 秒。flash 和 sweep 仍用这个值，
+# 它们要在入侵之前放进客串镜头，压缩之后那些镜头就没地方待了。
 DEFAULT_BAIT_SECONDS = 7
+# 没有客串镜头的变体，诱饵段可以短得多。
+SHORT_BAIT_SECONDS = 3.5
 # 入侵持续多久。样片约 3~4 秒，短了像掉帧，长了会让人以为视频坏了。
 DEFAULT_INVASION_SECONDS = 4.8
 # 每隔这么久叠一个新的播放实例。
@@ -91,7 +94,7 @@ class Style:
 
 STYLES = {
     # 基准版：诱饵、入侵、剪辑，没有任何前置提示。
-    "classic": Style(),
+    "classic": Style(bait_seconds=SHORT_BAIT_SECONDS),
     # 剪辑先闪两下，各 0.3 秒：够看清是什么，又短到留不下完整印象。
     "flash": Style(
         cameos=(
@@ -109,6 +112,7 @@ STYLES = {
     # 整段加速：入侵更密，剪辑本身也快放，音调随之抬高。入侵不能太短——
     # 第一个实例要正好放到剪辑自己的重拍上，接手的瞬间才不会踩空。
     "rush": Style(
+        bait_seconds=SHORT_BAIT_SECONDS,
         invasion_seconds=3.5,
         panel_interval=0.12,
         edit_speed=1.5,
