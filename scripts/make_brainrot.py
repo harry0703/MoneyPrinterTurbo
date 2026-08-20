@@ -39,9 +39,9 @@ DEFAULT_BAIT_SECONDS = 10.0
 DEFAULT_INVASION_SECONDS = 2.5
 # 每隔这么久叠一个新的播放实例。
 DEFAULT_PANEL_INTERVAL = 0.42
-# 每个实例自带的那记重音。刻意压过正片音轨——这一段要的就是吵。
-DEFAULT_STUTTER_VOLUME = 1.2
-DEFAULT_STUTTER_TAIL = 0.6
+# 每个实例自带的那份声音。六份错开叠加后整体电平与单份 1.2 相当，
+# 但六份都听得见；再往上主要换来削波失真，而不是响度。
+DEFAULT_STUTTER_VOLUME = 0.8
 
 DEFAULT_WIDTH = 720
 DEFAULT_HEIGHT = 1280
@@ -91,7 +91,6 @@ def build_video(
     seed: int,
     panel_interval: float = DEFAULT_PANEL_INTERVAL,
     stutter_volume: float = DEFAULT_STUTTER_VOLUME,
-    stutter_tail: float = DEFAULT_STUTTER_TAIL,
 ):
     import numpy as np
     from moviepy import AudioFileClip, CompositeAudioClip, VideoClip, VideoFileClip, afx
@@ -160,14 +159,17 @@ def build_video(
             bait.audio.subclipped(0, min(bait_seconds, bait.audio.duration))
         )
     if template.audio is not None:
-        # 每个视觉实例配一份自己的声音。参考样片里正是这一串错开的重音把
-        # 画面的堆叠听出了节奏；共用一条音轨只会得到一段平淡的背景音。
-        tail = min(stutter_tail, template.audio.duration)
+        # 每份声音一直放到正片剪辑接手为止，和画面里的实例完全同步：先前把它
+        # 截断成固定的一小段，结果新实例出现时旧的已经静音，六层叠加只剩两层
+        # 在响——看得到堆叠却听不到。
         for _, _, _, _, start in render.panel_schedule(
             invasion_seconds, width, height, seed=seed, interval=panel_interval
         ):
+            length = min(invasion_seconds - start, template.audio.duration)
+            if length <= 0:
+                continue
             audio_parts.append(
-                template.audio.subclipped(0, tail)
+                template.audio.subclipped(0, length)
                 .with_start(invasion_start + start)
                 .with_effects([afx.MultiplyVolume(stutter_volume)])
             )
@@ -207,8 +209,6 @@ def build_parser() -> argparse.ArgumentParser:
                         help="seconds between two stacked copies of the edit")
     parser.add_argument("--stutter-volume", type=float, default=DEFAULT_STUTTER_VOLUME,
                         help="volume of each stacked copy's audio")
-    parser.add_argument("--stutter-tail", type=float, default=DEFAULT_STUTTER_TAIL,
-                        help="how long each stacked copy's audio is kept")
     parser.add_argument("--seed", type=int, default=0, help="0 picks a random one")
     parser.add_argument("--list", action="store_true", help="list available bait clips and exit")
     return parser
@@ -257,7 +257,6 @@ def main(argv=None) -> int:
         seed=seed,
         panel_interval=args.panel_interval,
         stutter_volume=args.stutter_volume,
-        stutter_tail=args.stutter_tail,
     )
     # 同名 JSON 让画廊页面能显示文字卡和诱饵来源：文件名里只有一个随机数，
     # 光看列表分不出哪条是哪条。
