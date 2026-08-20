@@ -196,3 +196,42 @@ def letterbox(frame: np.ndarray, width: int, height: int) -> np.ndarray:
     resized = source.resize(new_size, Image.LANCZOS)
     canvas.paste(resized, ((width - new_size[0]) // 2, (height - new_size[1]) // 2))
     return np.array(canvas)
+
+
+# 客串镜头按 16:9 呈现：它要让人一眼认出"这就是那段剪辑，只是变小了"，
+# 用随机长宽比反而会削弱这种辨识。
+CAMEO_ASPECT = 16 / 9
+
+
+def cameo_rect(
+    width: int,
+    height: int,
+    scale: float,
+    progress: float,
+    kind: str = "flash",
+    direction: int = 1,
+    seed: int = 0,
+) -> tuple[int, int, int, int]:
+    """
+    返回客串镜头在 ``progress``（0~1）时刻的位置与尺寸。
+
+    ``flash`` 停在随机一处，``sweep`` 横向掠过整幅画面——起止都留在画外，
+    这样它是"经过"而不是"出现又消失"。
+    """
+    progress = min(1.0, max(0.0, progress))
+    rng = random.Random(seed)
+
+    panel_width = max(24, int(width * scale))
+    panel_height = max(16, int(panel_width / CAMEO_ASPECT))
+
+    if kind == "sweep":
+        # 纵向落在中段，避开顶部的文字卡。
+        y = rng.randint(int(height * 0.30), int(height * 0.62))
+        travel = width + panel_width
+        offset = progress if direction >= 0 else 1.0 - progress
+        x = int(-panel_width + travel * offset)
+        return x, y, panel_width, panel_height
+
+    x = rng.randint(0, max(0, width - panel_width))
+    y = rng.randint(int(height * 0.25), max(int(height * 0.25), height - panel_height))
+    return x, y, panel_width, panel_height

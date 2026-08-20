@@ -22,6 +22,7 @@ import json
 import os
 import random
 import sys
+from dataclasses import dataclass, field
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -42,6 +43,63 @@ DEFAULT_PANEL_INTERVAL = 0.3
 # 每个实例自带的那份声音。六份错开叠加后整体电平与单份 1.2 相当，
 # 但六份都听得见；再往上主要换来削波失真，而不是响度。
 DEFAULT_STUTTER_VOLUME = 0.8
+
+
+
+@dataclass(frozen=True)
+class Cameo:
+    """
+    诱饵段里剪辑的一次短暂露面。
+
+    正式入侵之前先让剪辑闪一下，观众会下意识等着它回来，诱饵段因此没那么容易
+    被划走。``speed`` 同时作用于画面与声音：加速播放会把音高一起抬上去，
+    这正是那种尖锐感的来源。
+    """
+
+    start: float          # 在成片时间轴上的出现时刻
+    duration: float       # 在画面上停留多久
+    kind: str = "flash"   # flash 定点闪现，sweep 横向掠过
+    speed: float = 1.0    # 播放与音高倍率
+    direction: int = 1    # sweep 专用：1 从左到右，-1 从右到左
+    scale: float = 0.34   # 相对画面宽度的尺寸
+
+
+@dataclass(frozen=True)
+class Style:
+    """一种变体。只覆盖与 classic 不同的部分，其余走默认值。"""
+
+    bait_seconds: float | None = None
+    invasion_seconds: float | None = None
+    panel_interval: float | None = None
+    edit_speed: float = 1.0
+    cameos: tuple[Cameo, ...] = field(default_factory=tuple)
+
+
+STYLES = {
+    # 基准版：诱饵、入侵、剪辑，没有任何前置提示。
+    "classic": Style(),
+    # 剪辑先闪两下，各 0.1 秒，快到看不清是什么——正因为看不清才会想再看。
+    "flash": Style(
+        cameos=(
+            Cameo(start=2.0, duration=0.1),
+            Cameo(start=4.5, duration=0.1),
+        )
+    ),
+    # 剪辑横穿画面两次，回程加速一倍因而音调更高，第二次比第一次更急。
+    "sweep": Style(
+        cameos=(
+            Cameo(start=2.0, duration=2.0, kind="sweep", direction=1),
+            Cameo(start=5.0, duration=1.0, kind="sweep", direction=-1, speed=2.0),
+        )
+    ),
+    # 整段加速：入侵更密更短，剪辑本身也快放，音调随之抬高。
+    "rush": Style(
+        invasion_seconds=1.5,
+        panel_interval=0.12,
+        edit_speed=1.5,
+    ),
+}
+
 
 DEFAULT_WIDTH = 720
 DEFAULT_HEIGHT = 1280
@@ -91,6 +149,8 @@ def build_video(
     seed: int,
     panel_interval: float = DEFAULT_PANEL_INTERVAL,
     stutter_volume: float = DEFAULT_STUTTER_VOLUME,
+    cameos: tuple = (),
+    edit_speed: float = 1.0,
 ):
     import numpy as np
     from moviepy import AudioFileClip, CompositeAudioClip, VideoClip, VideoFileClip, afx
@@ -103,10 +163,19 @@ def build_video(
 
     invasion_start = bait_seconds
     invasion_end = bait_seconds + invasion_seconds
-    # 入侵期间第一个实例已经把剪辑放了 invasion_seconds，正片从那里接着走。
-    # 从头重放会让刚看过的几秒再来一遍，衔接处像卡住了。
-    resume_at = min(invasion_seconds, max(0.0, template.duration - 1e-3))
-    total = invasion_end + (template.duration - resume_at)
+
+    def pitched(audio, speed: float):
+        """加速播放，音高随之抬高。这里没有独立的变调特效，速度就是音高。"""
+        if speed == 1.0:
+            return audio
+        return audio.time_transform(lambda t: speed * t).with_duration(
+            audio.duration / speed
+        )
+
+    # 入侵期间第一个实例已经把剪辑放了这么久，正片从那里接着走。从头重放会让
+    # 刚看过的几秒再来一遍，衔接处像卡住了。
+    resume_at = min(invasion_seconds * edit_speed, max(0.0, template.duration - 1e-3))
+    total = invasion_end + (template.duration - resume_at) / edit_speed
 
     card = render.render_text_card(
         text=text,
@@ -118,12 +187,20 @@ def build_video(
     card_x = (width - card_image.width) // 2
     card_y = int(height * CARD_TOP_RATIO)
 
-    # 入侵阶段每个实例都从剪辑开头放起，需要的只是开头这几秒。预先解码成帧表，
-    # 否则每输出一帧就要在文件里随机定位十几次，慢得没法用。
+    # 入侵阶段每个实例、以及每个客串镜头，都从剪辑开头放起，需要的只是开头
+    # 这几秒。预先解码成帧表，否则每输出一帧就要在文件里随机定位十几次。
+    preload_seconds = max(
+        [invasion_seconds * edit_speed]
+        + [cameo.duration * cameo.speed for cameo in cameos]
+    )
     instance_frames = [
         template.get_frame(min(index / fps, template.duration - 1e-3))
-        for index in range(int(invasion_seconds * fps) + 2)
+        for index in range(int(preload_seconds * fps) + 2)
     ]
+
+    def edit_frame_at(source_seconds: float) -> np.ndarray:
+        index = min(int(source_seconds * fps), len(instance_frames) - 1)
+        return instance_frames[max(0, index)]
 
     def bait_frame(t: float) -> np.ndarray:
         # 诱饵短于诱饵段时回绕播放，避免最后一帧定格。
@@ -134,7 +211,9 @@ def build_video(
     def make_frame(t: float) -> np.ndarray:
         if t >= invasion_end:
             # 正式剪辑保持 16:9 原比例，上下留黑边；进度接着第一个实例继续。
-            offset = min(resume_at + (t - invasion_end), template.duration - 1e-3)
+            offset = min(
+                resume_at + (t - invasion_end) * edit_speed, template.duration - 1e-3
+            )
             return render.letterbox(template.get_frame(offset), width, height)
 
         base = Image.fromarray(bait_frame(t))
@@ -144,8 +223,21 @@ def build_video(
             for x, y, panel_w, panel_h, start in render.panel_schedule(
                 elapsed, width, height, seed=seed, interval=panel_interval
             ):
-                index = min(int((elapsed - start) * fps), len(instance_frames) - 1)
-                panel = render.crop_to_aspect(instance_frames[index], panel_w, panel_h)
+                frame = edit_frame_at((elapsed - start) * edit_speed)
+                panel = render.crop_to_aspect(frame, panel_w, panel_h)
+                base.paste(Image.fromarray(panel), (x, y))
+        else:
+            # 客串镜头只出现在诱饵段；入侵一开始它们就没有意义了。
+            for index, cameo in enumerate(cameos):
+                if not cameo.start <= t < cameo.start + cameo.duration:
+                    continue
+                local = t - cameo.start
+                x, y, panel_w, panel_h = render.cameo_rect(
+                    width, height, cameo.scale, local / cameo.duration,
+                    kind=cameo.kind, direction=cameo.direction, seed=seed + index,
+                )
+                frame = edit_frame_at(local * cameo.speed)
+                panel = render.crop_to_aspect(frame, panel_w, panel_h)
                 base.paste(Image.fromarray(panel), (x, y))
 
         # 文字卡在入侵开始时撤走：样片里剪辑一露头，文字就没了。
@@ -172,13 +264,28 @@ def build_video(
             if length <= 0:
                 continue
             audio_parts.append(
-                template.audio.subclipped(0, length)
+                pitched(
+                    template.audio.subclipped(0, min(length * edit_speed,
+                                                     template.audio.duration)),
+                    edit_speed,
+                )
                 .with_start(invasion_start + start)
                 .with_effects([afx.MultiplyVolume(stutter_volume)])
             )
+
+        # 客串镜头各自带声，画面一闪，声音跟着一记。
+        for cameo in cameos:
+            span = min(cameo.duration * cameo.speed, template.audio.duration)
+            audio_parts.append(
+                pitched(template.audio.subclipped(0, span), cameo.speed)
+                .with_start(cameo.start)
+                .with_effects([afx.MultiplyVolume(stutter_volume)])
+            )
+
         # 声音同样接着走：第一个实例正好放到 resume_at，两段无缝相接。
         audio_parts.append(
-            template.audio.subclipped(resume_at).with_start(invasion_end)
+            pitched(template.audio.subclipped(resume_at), edit_speed)
+            .with_start(invasion_end)
         )
     if audio_parts:
         clip = clip.with_audio(CompositeAudioClip(audio_parts))
@@ -209,9 +316,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
     parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
     parser.add_argument("--fps", type=int, default=DEFAULT_FPS)
-    parser.add_argument("--bait-seconds", type=float, default=DEFAULT_BAIT_SECONDS)
-    parser.add_argument("--invasion-seconds", type=float, default=DEFAULT_INVASION_SECONDS)
-    parser.add_argument("--panel-interval", type=float, default=DEFAULT_PANEL_INTERVAL,
+    parser.add_argument("--style", default="classic", choices=sorted(STYLES),
+                        help="which variant to render")
+    # 这三项默认留空，用于区分"用户没给"和"用户给了默认值"：
+    # 只有真正给出时才压过 style 的设定。
+    parser.add_argument("--bait-seconds", type=float, default=None)
+    parser.add_argument("--invasion-seconds", type=float, default=None)
+    parser.add_argument("--panel-interval", type=float, default=None,
                         help="seconds between two stacked copies of the edit")
     parser.add_argument("--stutter-volume", type=float, default=DEFAULT_STUTTER_VOLUME,
                         help="volume of each stacked copy's audio")
@@ -237,13 +348,31 @@ def main(argv=None) -> int:
     rng = random.Random(seed)
     bait_path = pick_bait(args.bait_dir, args.bait_file, rng)
 
-    output_path = args.out or os.path.join(OUTPUT_DIR, f"brainrot-{seed}.mp4")
+    style = STYLES[args.style]
+    def resolve(explicit, from_style, fallback):
+        if explicit is not None:
+            return explicit
+        return fallback if from_style is None else from_style
+
+    bait_seconds = resolve(args.bait_seconds, style.bait_seconds, DEFAULT_BAIT_SECONDS)
+    invasion_seconds = resolve(
+        args.invasion_seconds, style.invasion_seconds, DEFAULT_INVASION_SECONDS
+    )
+    panel_interval = resolve(
+        args.panel_interval, style.panel_interval, DEFAULT_PANEL_INTERVAL
+    )
+
+    output_path = args.out or os.path.join(
+        OUTPUT_DIR, f"brainrot-{args.style}-{seed}.mp4"
+    )
+    print(f"style    {args.style}")
     print(f"bait     {os.path.basename(bait_path)}")
     print(f"text     {args.text}")
     print(f"seed     {seed}")
 
     metadata = {
         "text": args.text,
+        "style": args.style,
         "bait": os.path.basename(bait_path),
         "seed": seed,
         "created": datetime.date.today().isoformat(),
@@ -257,12 +386,14 @@ def main(argv=None) -> int:
         width=args.width,
         height=args.height,
         fps=args.fps,
-        bait_seconds=args.bait_seconds,
-        invasion_seconds=args.invasion_seconds,
+        bait_seconds=bait_seconds,
+        invasion_seconds=invasion_seconds,
         font_path=args.font,
         seed=seed,
-        panel_interval=args.panel_interval,
+        panel_interval=panel_interval,
         stutter_volume=args.stutter_volume,
+        cameos=style.cameos,
+        edit_speed=style.edit_speed,
     )
     # 同名 JSON 让画廊页面能显示文字卡和诱饵来源：文件名里只有一个随机数，
     # 光看列表分不出哪条是哪条。

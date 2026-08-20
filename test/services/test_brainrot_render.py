@@ -135,6 +135,52 @@ class LetterboxTest(unittest.TestCase):
         self.assertEqual(int(result[0, 0, 0]), 255)
 
 
+class CameoRectTest(unittest.TestCase):
+    def test_flash_keeps_clear_of_the_text_card(self):
+        """客串镜头压住文字卡就等于把钩子遮掉了。"""
+        for seed in range(30):
+            _, y, _, _ = render.cameo_rect(720, 1280, 0.34, 0.5, "flash", seed=seed)
+            self.assertGreaterEqual(y, int(1280 * 0.25))
+
+    def test_flash_stays_inside_the_frame_horizontally(self):
+        for seed in range(30):
+            x, _, width, _ = render.cameo_rect(720, 1280, 0.34, 0.5, "flash", seed=seed)
+            self.assertGreaterEqual(x, 0)
+            self.assertLessEqual(x + width, 720)
+
+    def test_cameo_keeps_the_edit_aspect_ratio(self):
+        """小窗要一眼认出是同一段剪辑，比例不能随机。"""
+        _, _, width, height = render.cameo_rect(720, 1280, 0.34, 0.0, "flash", seed=1)
+        self.assertAlmostEqual(width / height, render.CAMEO_ASPECT, delta=0.05)
+
+    def test_sweep_enters_and_leaves_off_screen(self):
+        """从画外进、画外出才像"经过"，落在画内会变成"出现又消失"。"""
+        start = render.cameo_rect(720, 1280, 0.34, 0.0, "sweep", direction=1, seed=1)
+        end = render.cameo_rect(720, 1280, 0.34, 1.0, "sweep", direction=1, seed=1)
+        self.assertLess(start[0] + start[2], 1)
+        self.assertGreaterEqual(end[0], 720)
+
+    def test_sweep_direction_is_reversed(self):
+        forward = render.cameo_rect(720, 1280, 0.34, 0.0, "sweep", direction=1, seed=1)
+        backward = render.cameo_rect(720, 1280, 0.34, 0.0, "sweep", direction=-1, seed=1)
+        self.assertGreater(backward[0], forward[0])
+
+    def test_sweep_moves_monotonically(self):
+        positions = [
+            render.cameo_rect(720, 1280, 0.34, p / 10, "sweep", direction=1, seed=1)[0]
+            for p in range(11)
+        ]
+        for previous, current in zip(positions, positions[1:]):
+            self.assertLess(previous, current)
+
+    def test_sweep_holds_a_constant_height(self):
+        heights = {
+            render.cameo_rect(720, 1280, 0.34, p / 10, "sweep", direction=1, seed=1)[1]
+            for p in range(11)
+        }
+        self.assertEqual(len(heights), 1)
+
+
 class CropToAspectTest(unittest.TestCase):
     def test_landscape_source_becomes_portrait(self):
         frame = np.zeros((360, 640, 3), dtype=np.uint8)

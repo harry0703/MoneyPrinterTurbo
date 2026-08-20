@@ -174,7 +174,9 @@ def collect_brainrot() -> list[dict]:
                 "account": "brainrot",
                 "subject": meta.get("text") or os.path.splitext(name)[0],
                 "date": meta.get("created", ""),
-                "status": meta.get("bait", ""),
+                # 变体决定观感差异，比诱饵文件名更值得直接看到。
+                "status": meta.get("style", "") or meta.get("bait", ""),
+                "bait": meta.get("bait", ""),
                 "url": None,
                 "path": path,
             }
@@ -239,7 +241,8 @@ for account in selected_accounts:
             with columns[1]:
                 if video["account"] == "brainrot":
                     st.write(f"**Rendered** {video['date'] or '—'}")
-                    st.write(f"**Bait** {video['status'] or '—'}")
+                    st.write(f"**Style** {video['status'] or '—'}")
+                    st.write(f"**Bait** {video.get('bait') or '—'}")
                 else:
                     st.write(f"**Scheduled** {video['date'] or '—'}")
                     st.write(f"**Status** {video['status'] or '—'}")
