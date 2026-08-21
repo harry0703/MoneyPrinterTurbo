@@ -248,13 +248,6 @@ class TaskResponseData(BaseModel):
     task_id: str
 
 
-class TaskDeletionData(BaseModel):
-    state: int
-    progress: int
-    videos: Optional[List[str]]
-    combined_videos: Optional[List[str]]
-
-
 class TaskStatusData(BaseModel):
     """任务查询对外保证的稳定字段；历史和扩展字段继续原样透传。"""
 
@@ -405,23 +398,12 @@ class TaskListResponse(BaseResponse):
 
 
 class TaskDeletionResponse(BaseResponse):
-    data: TaskDeletionData
-
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "status": 200,
                 "message": "success",
-                "data": {
-                    "state": 1,
-                    "progress": 100,
-                    "videos": [
-                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/final-1.mp4"
-                    ],
-                    "combined_videos": [
-                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/combined-1.mp4"
-                    ],
-                },
+                "data": None,
             },
         }
     )
