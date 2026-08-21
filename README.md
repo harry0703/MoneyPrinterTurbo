@@ -18,6 +18,16 @@
 
 </div>
 
+## 视频是如何生成的 🎞️
+
+MoneyPrinterTurbo 是一套自动化视频创作与剪辑流程，而不是单一的文生视频基础模型。画面素材来自哪里，取决于你在 **视频设置 → 视频来源** 中的选择：
+
+- **Pexels（默认）、Pixabay 或 Coverr：** 大模型生成文案和搜索关键词，MoneyPrinterTurbo 再从所选平台检索匹配的库存视频。这些片段是平台上已有的素材，并非根据提示词生成的新画面；使用时请确认并遵守对应平台的许可条款。
+- **本地文件：** MoneyPrinterTurbo 剪辑你上传的视频文件。请只使用自己拥有或已获授权的素材；项目不会自动导入任意创作者或频道链接。
+- **胜算云 AI 生成：** 可选的付费 LoomLoom 集成会在你查看并确认报价后生成新的 AI 视频片段。
+
+无论选择哪种来源，MoneyPrinterTurbo 都会使用同一套后续制作流程，对片段进行编排，并加入配音、字幕、背景音乐和转场，最后渲染成片。库存素材的匹配程度取决于自动生成或手动填写的搜索关键词；AI 生成片段的效果则取决于所选的远程服务。
+
 ## 界面预览 🖥️
 
 <h4 align="center">WebUI</h4>
@@ -141,6 +151,7 @@
 - [x] 支持 **字幕生成**，可调整字体、位置、颜色、大小、描边和背景样式
 - [x] 支持 **背景音乐**，可随机选择或使用指定音乐，并调整音量
 - [x] 支持使用自己的 **本地素材**，也可从 **Pexels**、**Pixabay** 和 **Coverr** 获取可免费使用的高清素材
+- [x] 支持通过 **胜算云 / LoomLoom** 生成可选的付费 **AI 视频片段**，生成前会先展示并要求确认报价
 - [x] 支持 **Kimi / Moonshot AI**、**OpenAI**、**Google Gemini**、**DeepSeek**、**阿里云通义千问**、**Microsoft Azure OpenAI**、**火山引擎方舟**、**xAI Grok**、**MiniMax**、**小米 MiMo** 等主流模型服务，并兼容 **Cloudflare AI Gateway**、**魔搭 ModelScope**、**AIHubMix**、**AIML API**、**EvoLink**、**Ollama**、**OneAPI**、**LiteLLM**、**Groq**、**Pollinations AI** 等统一网关、聚合平台和本地运行环境
 - [x] 支持一键 **跨平台发布**，生成完成后可自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**
 
