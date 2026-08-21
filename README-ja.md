@@ -132,6 +132,7 @@
 - [x] 手持ちの**ローカル素材**に加え、**Pexels**、**Pixabay**、**Coverr** の無料で使える高画質素材に対応
 - [x] **Kimi / Moonshot AI**、**OpenAI**、**Google Gemini**、**DeepSeek**、**Alibaba Cloud Qwen**、**Microsoft Azure OpenAI**、**ByteDance VolcEngine Ark**、**xAI Grok**、**MiniMax**、**Xiaomi MiMo** といった主要なモデルプロバイダーに加え、**Cloudflare AI Gateway**、**Alibaba ModelScope**、**AIHubMix**、**AIML API**、**EvoLink**、**Ollama**、**OneAPI**、**LiteLLM**、**Groq**、**Pollinations AI** などの統合ゲートウェイ、アグリゲーター、ローカルランタイムに対応
 - [x] 動画生成後、**TikTok**、**Instagram**、**YouTube Shorts** へワンクリックで**クロスプラットフォーム投稿**が可能
+- [x] 生成設定をプリセットファイルとして**エクスポート／インポート**でき、設定画面から **API キー**のバックアップと復元も可能
 
 ## ギャラリー 🎬
 
