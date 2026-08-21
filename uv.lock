@@ -1535,7 +1535,6 @@ source = { virtual = "." }
 dependencies = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "azure-cognitiveservices-speech" },
-    { name = "curl-cffi" },
     { name = "dashscope" },
     { name = "edge-tts" },
     { name = "fastapi" },
@@ -1558,6 +1557,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+pixabay-bypass = [
+    { name = "curl-cffi" },
+]
 twelvelabs = [
     { name = "twelvelabs" },
 ]
@@ -1565,6 +1567,7 @@ twelvelabs = [
 [package.dev-dependencies]
 dev = [
     { name = "coverage" },
+    { name = "curl-cffi" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -1573,7 +1576,7 @@ dev = [
 requires-dist = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'", specifier = "==0.2.2" },
     { name = "azure-cognitiveservices-speech", specifier = "==1.41.1" },
-    { name = "curl-cffi", specifier = "==0.16.0" },
+    { name = "curl-cffi", marker = "extra == 'pixabay-bypass'", specifier = "==0.16.0" },
     { name = "dashscope", specifier = "==1.20.14" },
     { name = "edge-tts", specifier = "==7.2.7" },
     { name = "fastapi", specifier = "==0.136.3" },
@@ -1595,11 +1598,12 @@ requires-dist = [
     { name = "twelvelabs", marker = "extra == 'twelvelabs'", specifier = ">=1.2.8" },
     { name = "uvicorn", specifier = "==0.32.1" },
 ]
-provides-extras = ["twelvelabs"]
+provides-extras = ["twelvelabs", "pixabay-bypass"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "coverage", specifier = "==7.15.1" },
+    { name = "curl-cffi", specifier = "==0.16.0" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "ruff", specifier = "==0.15.21" },
 ]

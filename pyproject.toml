@@ -28,7 +28,6 @@ dependencies = [
     "python-multipart==0.0.27",
     "pyyaml==6.0.3",
     "requests==2.33.1",
-    "curl_cffi==0.16.0",
     "packaging==24.2",
     "socksio==1.0.0",
     "pydub==0.25.1",
@@ -44,10 +43,17 @@ dependencies = [
 twelvelabs = [
     "twelvelabs>=1.2.8",
 ]
+# Optional browser TLS impersonation for Pixabay searches. Only needed when
+# `pixabay_bypass_cloudflare = true` is set in config.toml; install with
+# `uv sync --extra pixabay-bypass` (or `pip install curl_cffi`).
+pixabay-bypass = [
+    "curl_cffi==0.16.0",
+]
 
 [dependency-groups]
 dev = [
     "coverage==7.15.1",
+    "curl_cffi==0.16.0",
     "pytest==9.1.1",
     "ruff==0.15.21",
 ]

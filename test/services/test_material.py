@@ -132,7 +132,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
         with patch(
             "app.services.material.requests.get", return_value=fake_response
-        ) as plain_get, patch("app.services.material.cf_requests.get") as impersonated_get:
+        ) as plain_get, patch("curl_cffi.requests.get") as impersonated_get:
             material.search_videos_pixabay("cat", minimum_duration=1)
 
         plain_get.assert_called_once()
@@ -157,13 +157,35 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch("app.services.material.requests.get") as plain_get, patch(
-            "app.services.material.cf_requests.get", return_value=fake_response
+            "curl_cffi.requests.get", return_value=fake_response
         ) as impersonated_get:
             material.search_videos_pixabay("cat", minimum_duration=1)
 
         plain_get.assert_not_called()
         impersonated_get.assert_called_once()
         self.assertEqual(impersonated_get.call_args.kwargs["impersonate"], "chrome")
+
+    def test_search_pixabay_bypass_cloudflare_reports_missing_optional_dependency(self):
+        """
+        curl_cffi 是可选依赖：用户开启 pixabay_bypass_cloudflare 但未安装该
+        依赖时，应给出明确的安装指引，而不是隐晦的 ModuleNotFoundError。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.app["pixabay_bypass_cloudflare"] = True
+        config.proxy.clear()
+
+        with patch(
+            "app.services.material._get_cf_requests",
+            side_effect=ValueError(
+                "pixabay_bypass_cloudflare=true requires the optional 'curl_cffi' "
+                "package, which is not installed. Install it with: "
+                "`uv sync --extra pixabay-bypass` (or `pip install curl_cffi`)."
+            ),
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                material.search_videos_pixabay("cat", minimum_duration=1)
+
+        self.assertIn("pixabay-bypass", str(ctx.exception))
 
     def test_remote_searches_only_return_requested_orientation(self):
         """
