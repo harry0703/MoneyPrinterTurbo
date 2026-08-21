@@ -192,6 +192,7 @@
     "LLM Provider": "Nhà Cung Cấp LLM",
     "Recommended": "Được đề xuất",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (đề xuất)",
+    "llm_provider_label.orcarouter": "OrcaRouter",
     "API Key": "Khóa API (:red[Bắt Buộc])",
     "Base Url": "Url Cơ Bản",
     "Account ID": "ID Tài Khoản (Lấy từ bảng điều khiển Cloudflare)",

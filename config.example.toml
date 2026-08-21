@@ -214,6 +214,13 @@ evolink_api_key = ""
 evolink_base_url = ""
 evolink_model_name = ""
 
+# OrcaRouter, an OpenAI-compatible AI gateway that also runs zero-trust
+# security for AI agents on the same endpoint.
+# API key: https://www.orcarouter.ai
+orcarouter_api_key = ""
+orcarouter_base_url = ""
+orcarouter_model_name = ""
+
 # Ollama. Leave base_url empty to use the environment-aware local default.
 # Set model_name to a model installed by `ollama pull` or shown by `ollama list`.
 ollama_base_url = ""

@@ -358,6 +358,13 @@ LLM_PROVIDER_REGISTRY = (
         default_model="gpt-5.5",
         default_base_url="https://direct.evolink.ai/v1",
     ),
+    LLMProviderSpec(
+        "orcarouter",
+        "OrcaRouter",
+        api_key_url="https://www.orcarouter.ai",
+        default_model="orcarouter/auto",
+        default_base_url="https://api.orcarouter.ai/v1",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

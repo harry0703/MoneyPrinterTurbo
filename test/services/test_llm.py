@@ -325,6 +325,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "aihubmix",
                 "aimlapi",
                 "evolink",
+                "orcarouter",
                 "ollama",
                 "oneapi",
                 "litellm",

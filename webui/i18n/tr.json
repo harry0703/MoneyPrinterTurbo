@@ -190,6 +190,7 @@
     "LLM Provider": "LLM Sağlayıcı",
     "Recommended": "önerilir",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (önerilir)",
+    "llm_provider_label.orcarouter": "OrcaRouter",
     "API Key": "API Anahtarı (:red[Gerekli])",
     "Base Url": "Temel URL",
     "Account ID": "Hesap Kimlik Numarası (Cloudflare panodan alın)",

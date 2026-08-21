@@ -192,6 +192,7 @@
     "LLM Provider": "Penyedia LLM",
     "Recommended": "Direkomendasikan",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (disarankan)",
+    "llm_provider_label.orcarouter": "OrcaRouter",
     "API Key": "Kunci API (:red[Diperlukan])",
     "Base Url": "URL Dasar",
     "Account ID": "ID Akun (Dapatkan dari dasbor Cloudflare)",
