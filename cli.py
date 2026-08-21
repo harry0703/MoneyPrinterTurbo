@@ -285,10 +285,12 @@ Output and exit status:
     audio_group = parser.add_argument_group("voiceover and background music")
     audio_group.add_argument(
         "--voice-name",
-        default=DEFAULT_VOICE_NAME,
+        default=None,
         help=(
-            "TTS voice identifier; use 'no-voice' for silent output. Provider-specific "
-            "identifiers use prefixes such as gemini:, mimo:, elevenlabs:, and chatterbox:"
+            f"TTS voice identifier. Defaults to [ui].voice_name from "
+            f"config.toml, otherwise {DEFAULT_VOICE_NAME}. "
+            "Use 'no-voice' for silent output. Provider-specific identifiers "
+            "use prefixes such as gemini:, mimo:, elevenlabs:, and chatterbox:"
         ),
     )
     audio_group.add_argument(
@@ -366,7 +368,8 @@ Output and exit status:
         default=None,
         help=(
             "subtitle font filename inside resource/fonts "
-            "(default: STHeitiMedium.ttc)"
+            "(default: [ui].font_name from config.toml; "
+            "STHeitiMedium.ttc when unset)"
         ),
     )
     subtitle_group.add_argument(
@@ -394,14 +397,18 @@ Output and exit status:
         default=None,
         help=(
             "subtitle text color in #RRGGBB format; quote the value in shells "
-            "that treat # as a comment (default: #FFFFFF)"
+            "that treat # as a comment (default: [ui].text_fore_color from "
+            "config.toml; #FFFFFF when unset)"
         ),
     )
     subtitle_group.add_argument(
         "--font-size",
         type=_positive_int,
         default=None,
-        help="subtitle font size (default: 60)",
+        help=(
+            "subtitle font size (default: [ui].font_size from config.toml; "
+            "60 when unset)"
+        ),
     )
     subtitle_group.add_argument(
         "--stroke-color",
@@ -423,20 +430,28 @@ Output and exit status:
         action=argparse.BooleanOptionalAction,
         help=(
             "enable subtitle background; use --no-subtitle-background-enabled to "
-            "disable (default: enabled)"
+            "disable (default: [ui].subtitle_background_enabled from "
+            "config.toml; disabled when unset)"
         ),
     )
     subtitle_group.add_argument(
         "--subtitle-background-color",
         type=_hex_color,
         default=None,
-        help="subtitle background color in #RRGGBB format (default: #000000)",
+        help=(
+            "subtitle background color in #RRGGBB format (default: "
+            "[ui].subtitle_background_color from config.toml)"
+        ),
     )
     subtitle_group.add_argument(
         "--rounded-subtitle-background",
         default=None,
         action=argparse.BooleanOptionalAction,
-        help="use a rounded subtitle background (default: disabled)",
+        help=(
+            "use a rounded subtitle background (default: "
+            "[ui].rounded_subtitle_background from config.toml; "
+            "disabled when unset)"
+        ),
     )
 
     execution_group = parser.add_argument_group("execution")
@@ -497,10 +512,36 @@ Output and exit status:
     return args
 
 
+def _ui_config_value(ui_config, key: str, expected_type):
+    """
+    Liest einen in ``[ui]`` gespeicherten WebUI-Wert oder ``None``.
+
+    Die Sektion wird auch von Hand gepflegt, deshalb werden unbrauchbare
+    Eintraege verworfen statt weitergereicht: der Aufrufer faellt dann auf den
+    eingebauten Default zurueck, anstatt einen Traceback oder ein
+    Validierungsfehler in ``VideoParams`` zu erzeugen.
+    """
+    value = ui_config.get(key)
+    if value is None:
+        return None
+    # ``isinstance(True, int)`` ist wahr, deshalb muss bool explizit
+    # ausgeschlossen werden, wenn eine Zahl erwartet wird.
+    if isinstance(value, bool) != (expected_type is bool):
+        return None
+    if not isinstance(value, expected_type):
+        return None
+    if expected_type is str and not value.strip():
+        return None
+    return value
+
+
 def build_video_params(args: argparse.Namespace) -> VideoParams:
     # 参数帮助和校验不需要加载应用配置。仅在真正构建任务参数时导入模型，
     # 避免执行 ``cli.py -h`` 时产生配置初始化日志。
+    from app.config import config
     from app.models.schema import MaterialInfo, VideoParams
+
+    ui_config = config.ui
 
     video_terms = args.video_terms
     if video_terms:
@@ -526,7 +567,11 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_materials": video_materials,
         "video_count": args.video_count,
         "video_aspect": args.video_aspect,
-        "voice_name": args.voice_name,
+        "voice_name": (
+            args.voice_name
+            or _ui_config_value(ui_config, "voice_name", str)
+            or DEFAULT_VOICE_NAME
+        ),
         "subtitle_enabled": args.subtitle_enabled,
     }
 
@@ -561,6 +606,22 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         if value is not None:
             params_kwargs[name] = value
 
+    # Ohne explizites Flag gelten die in der WebUI gespeicherten Werte. Nur
+    # Felder, die oben nicht schon aus der Kommandozeile gesetzt wurden,
+    # werden ergaenzt; fehlt der Eintrag, bleibt der Default aus VideoParams.
+    ui_defaults = (
+        ("font_name", str),
+        ("text_fore_color", str),
+        ("font_size", int),
+        ("rounded_subtitle_background", bool),
+    )
+    for name, expected_type in ui_defaults:
+        if name in params_kwargs:
+            continue
+        value = _ui_config_value(ui_config, name, expected_type)
+        if value is not None:
+            params_kwargs[name] = value
+
     if args.subtitle_background_enabled is False:
         params_kwargs["text_background_color"] = False
         params_kwargs["rounded_subtitle_background"] = False
@@ -568,6 +629,23 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         params_kwargs["text_background_color"] = args.subtitle_background_color
     elif args.subtitle_background_enabled is True:
         params_kwargs["text_background_color"] = True
+    else:
+        # Als Flag-Kombination ist "Hintergrund aus" plus Farbe ein
+        # Argumentfehler. Als gespeicherte Einstellung darf dieselbe
+        # Kombination den Lauf nicht abbrechen, sondern nur den Hintergrund
+        # deaktivieren.
+        ui_enabled = _ui_config_value(
+            ui_config, "subtitle_background_enabled", bool
+        )
+        ui_color = _ui_config_value(ui_config, "subtitle_background_color", str)
+        if ui_enabled is False:
+            params_kwargs["text_background_color"] = False
+            if args.rounded_subtitle_background is None:
+                params_kwargs["rounded_subtitle_background"] = False
+        elif ui_color is not None:
+            params_kwargs["text_background_color"] = ui_color
+        elif ui_enabled is True:
+            params_kwargs["text_background_color"] = True
 
     return VideoParams(**params_kwargs)
 

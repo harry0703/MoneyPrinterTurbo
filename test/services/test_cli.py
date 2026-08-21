@@ -12,9 +12,21 @@ from uuid import uuid4
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import cli
+from app.config import config as app_config
 
 
 class TestCli(unittest.TestCase):
+    def setUp(self):
+        # ``build_video_params`` uebernimmt Defaults aus der [ui]-Sektion der
+        # lokalen config.toml. Ohne Isolation haengen diese Tests am Zustand
+        # der Entwicklermaschine: ein dort gespeicherter, inzwischen
+        # geloeschter Font laesst die Font-Pruefung in ``prepare_cli_files``
+        # anschlagen und bringt thematisch unabhaengige Tests mit
+        # irrefuehrender Meldung zum Fehlschlagen.
+        ui_patch = patch.dict(app_config.ui, {}, clear=True)
+        ui_patch.start()
+        self.addCleanup(ui_patch.stop)
+
     def test_default_voice_is_valid_edge_tts_voice(self):
         args = cli.parse_args(["--video-subject", "测试主题"])
         params = cli.build_video_params(args)
@@ -593,6 +605,118 @@ class TestCli(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("Generate MoneyPrinterTurbo videos", result.stdout)
         self.assertEqual(result.stderr, "")
+
+
+class TestCliUiDefaults(unittest.TestCase):
+    """
+    CLI-Defaults sollen der WebUI folgen: explizites Flag, dann [ui] aus
+    config.toml, dann der eingebaute Default.
+    """
+
+    UI_CONFIG = {
+        "font_name": "MicrosoftYaHeiBold.ttc",
+        "text_fore_color": "#123456",
+        "font_size": 48,
+        "subtitle_background_enabled": True,
+        "subtitle_background_color": "#654321",
+        "rounded_subtitle_background": True,
+        "voice_name": "gemini:Puck-Male",
+    }
+
+    def test_ui_config_supplies_subtitle_defaults(self):
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, self.UI_CONFIG, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_name, "MicrosoftYaHeiBold.ttc")
+        self.assertEqual(params.text_fore_color, "#123456")
+        self.assertEqual(params.font_size, 48)
+        self.assertEqual(params.text_background_color, "#654321")
+        self.assertTrue(params.rounded_subtitle_background)
+
+    def test_ui_config_supplies_voice_name(self):
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, self.UI_CONFIG, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "gemini:Puck-Male")
+
+    def test_cli_flags_take_precedence_over_ui_config(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--font-name",
+                "STHeitiLight.ttc",
+                "--text-fore-color",
+                "#AABBCC",
+                "--font-size",
+                "72",
+                "--voice-name",
+                "no-voice",
+                "--no-rounded-subtitle-background",
+            ]
+        )
+
+        with patch.dict(app_config.ui, self.UI_CONFIG, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_name, "STHeitiLight.ttc")
+        self.assertEqual(params.text_fore_color, "#AABBCC")
+        self.assertEqual(params.font_size, 72)
+        self.assertEqual(params.voice_name, "no-voice")
+        self.assertFalse(params.rounded_subtitle_background)
+
+    def test_builtin_defaults_apply_when_ui_config_is_empty(self):
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, {}, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_name, "STHeitiMedium.ttc")
+        self.assertEqual(params.text_fore_color, "#FFFFFF")
+        self.assertEqual(params.font_size, 60)
+        self.assertFalse(params.text_background_color)
+        self.assertFalse(params.rounded_subtitle_background)
+
+    def test_ui_config_can_disable_subtitle_background(self):
+        """
+        Eine widersprüchliche [ui]-Sektion darf die CLI nicht abbrechen lassen:
+        `--no-subtitle-background-enabled` plus Farbe ist als Flag-Kombination
+        ein Argumentfehler, als gespeicherte Einstellung aber nur ein
+        deaktivierter Hintergrund.
+        """
+        ui_config = dict(self.UI_CONFIG)
+        ui_config["subtitle_background_enabled"] = False
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertFalse(params.text_background_color)
+        self.assertFalse(params.rounded_subtitle_background)
+
+    def test_unusable_ui_config_values_fall_back_to_builtin_defaults(self):
+        """Eine beschädigte config.toml darf keinen Traceback auslösen."""
+        ui_config = {
+            "font_size": "sechzig",
+            "text_fore_color": 42,
+            "font_name": "",
+            "voice_name": None,
+        }
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_size, 60)
+        self.assertEqual(params.text_fore_color, "#FFFFFF")
+        self.assertEqual(params.font_name, "STHeitiMedium.ttc")
+        self.assertEqual(params.voice_name, "zh-CN-XiaoxiaoNeural-Female")
 
 
 if __name__ == "__main__":

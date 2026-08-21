@@ -358,6 +358,9 @@ python main.py
 uv run python cli.py --video-subject "人工智能如何改变日常生活"
 ```
 
+未在命令行显式指定的字幕样式和语音参数，会沿用 WebUI 保存在 `config.toml`
+`[ui]` 中的设置，因此两种方式生成的视频保持一致。
+
 如需查看完整命令、参数说明和使用方法，可以执行：
 
 ```shell
