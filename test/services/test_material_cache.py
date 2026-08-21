@@ -58,8 +58,9 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_cache_round_trip_preserves_material_fields(self):
         """
-        磁盘缓存必须能跨进程恢复 MaterialInfo 所需的全部字段，不能只缓存 URL
-        后丢失 provider 或 duration，导致后续下载与时长计算行为发生变化。
+        The disk cache must restore every field MaterialInfo needs across processes; caching
+        only the URL and losing provider or duration would change later download and duration
+        behavior.
         """
         saved = material_cache.save_material_search_cache(
             provider="pixabay",
@@ -93,8 +94,9 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_expired_cache_is_removed_and_treated_as_miss(self):
         """
-        Pixabay 要求搜索结果最多复用 24 小时。过期文件必须立即失效并删除，
-        防止旧素材 URL 被无限复用，也避免缓存目录持续积累无效 JSON。
+        Pixabay requires search results to be reused for at most 24 hours. Expired files must
+        invalidate and delete immediately so stale footage URLs are never reused indefinitely
+        and the cache directory does not accumulate dead JSON.
         """
         material_cache.save_material_search_cache(
             provider="pixabay",
@@ -120,7 +122,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertFalse(cache_path.exists())
 
     def test_future_dated_cache_is_removed_and_treated_as_miss(self):
-        """系统时间异常时不能让未来时间戳绕过 24 小时有效期。"""
+        """A broken system clock must not let future timestamps bypass the 24-hour validity window."""
         material_cache.save_material_search_cache(
             provider="pixabay",
             search_term="nature",
@@ -146,8 +148,9 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_corrupted_cache_is_removed_without_breaking_search(self):
         """
-        进程异常退出、磁盘故障或用户手动修改都可能留下损坏文件。读取失败应回退
-        到远端搜索并清理坏文件，不能让一个缓存永久阻断素材生成。
+        Crashed processes, disk failures, or manual edits can all leave corrupted files. A read
+        failure should fall back to remote search and clean the bad file; one cache entry must
+        never permanently block footage generation.
         """
         cache_path = self._cache_path()
         cache_path.write_text("{invalid-json", encoding="utf-8")
@@ -166,8 +169,9 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_empty_results_are_not_cached(self):
         """
-        当前 provider 接口用 [] 同时表示没有结果和请求失败。缓存空列表会把
-        Cloudflare 拦截或短暂网络故障固化 24 小时，因此只能缓存非空成功结果。
+        The current provider interface uses [] for both no-results and request-failed. Caching
+        an empty list would freeze a Cloudflare block or transient network error for 24 hours,
+        so only non-empty successful results are cached.
         """
         saved = material_cache.save_material_search_cache(
             provider="pixabay",
@@ -182,8 +186,8 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_cache_file_does_not_contain_search_parameters_or_credentials(self):
         """
-        缓存文件名使用摘要，内容只保存素材字段。即使用户共享 storage 目录，
-        文件中也不应出现关键词、API Key 或其它请求配置。
+        Cache files use digests for names and store only footage fields. Even if users share the
+        storage directory, keywords, API keys, and other request configuration never appear in files.
         """
         item = self._item()
         item.source_info["source_page"] += "?token=drop"
@@ -206,7 +210,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertNotIn("token=drop", raw_payload)
 
     def test_coverr_signed_urls_are_never_cached(self):
-        """Coverr 下载地址包含签名 JWT，不能进入可长期保留的磁盘缓存。"""
+        """Coverr download URLs contain signed JWTs and must not enter the long-lived disk cache."""
         item = self._item(
             "https://storage.coverr.co/video/download?token=signed-jwt"
         )
@@ -225,7 +229,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertEqual(list(Path(self.temp_dir.name).glob("*.json")), [])
 
     def test_coverr_cache_load_removes_legacy_signed_url(self):
-        """访问 Coverr 时应清理旧版本可能留下的签名下载地址缓存。"""
+        """Accessing Coverr should clean up signed download-URL caches left by older versions."""
         cache_path = material_cache._cache_path(
             provider="coverr",
             search_term="nature",
@@ -259,7 +263,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertFalse(cache_path.exists())
 
     def test_version_one_cache_is_invalidated(self):
-        """旧缓存缺少来源信息，升级后必须重新查询而不能生成残缺任务记录。"""
+        """Old caches lack source information; after an upgrade they must be re-queried rather than produce incomplete task records."""
         cache_path = self._cache_path()
         cache_path.write_text(
             json.dumps(
@@ -289,8 +293,9 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_cache_key_separates_provider_duration_and_aspect(self):
         """
-        素材源、最小时长和画幅都会改变远端搜索结果，任何一个参数变化都必须
-        使用独立缓存，避免把不符合当前任务要求的素材返回给视频生成流程。
+        Footage source, minimum duration, and aspect ratio all change remote search results; any
+        parameter change must use an independent cache so footage not meeting the current task's
+        requirements never reaches the video pipeline.
         """
         base_path = material_cache._cache_path(
             provider="pixabay",
@@ -324,8 +329,9 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_search_wrapper_reuses_cache_across_calls(self):
         """
-        第一次调用远端搜索并写缓存，第二次相同参数必须直接复用磁盘结果。
-        这是减少 Pixabay API 调用和 Cloudflare 风控触发概率的核心行为。
+        The first call searches remotely and writes the cache; a second identical call must reuse
+        the disk result directly. That is the core behavior reducing Pixabay API calls and
+        Cloudflare risk-control triggers.
         """
         remote_search = Mock(return_value=[self._item()])
 
@@ -349,8 +355,9 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_search_wrapper_refreshes_mixed_orientation_cache(self):
         """
-        升级前的缓存可能混入其它方向的素材。只返回过滤后的少量条目会降低素材
-        多样性，因此发现任意方向不匹配时应重新请求并替换整个候选集。
+        Pre-upgrade caches may mix in other-orientation footage. Returning only the few filtered
+        entries would reduce variety, so on any orientation mismatch the whole candidate set is
+        re-requested and replaced.
         """
         portrait_item = self._item("https://example.com/old-portrait.mp4")
         landscape_item = self._item("https://example.com/old-landscape.mp4")
@@ -394,7 +401,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         )
 
     def test_square_search_reuses_crop_compatible_cache(self):
-        """方形任务应继续复用可裁剪素材缓存，不能因原始方向不同反复请求远端。"""
+        """Square tasks should keep reusing the croppable-footage cache instead of re-requesting remotely just because raw orientation differs."""
         landscape_item = self._item("https://example.com/landscape.mp4")
         landscape_item.source_info["rendition"] = {
             "id": "large",
@@ -425,7 +432,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         )
 
     def test_search_wrapper_retries_after_empty_result(self):
-        """空结果不缓存，下一次调用仍应访问远端，以便临时故障恢复后自动重试。"""
+        """Empty results are not cached; the next call should still hit the remote so transient failures auto-retry after recovery."""
         remote_search = Mock(return_value=[])
 
         for _ in range(2):
@@ -441,7 +448,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertEqual(remote_search.call_count, 2)
 
     def test_cache_read_failure_falls_back_to_remote_search(self):
-        """缓存读取异常只能降级为未命中，不能阻断远端素材搜索。"""
+        """A cache read failure can only degrade to a miss; it must never block remote footage search."""
         remote_items = [self._item()]
         remote_search = Mock(return_value=remote_items)
 
@@ -463,7 +470,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertTrue(warning.called)
 
     def test_cache_write_failure_keeps_remote_results(self):
-        """远端搜索成功后，即使缓存写入失败也必须继续返回可用素材。"""
+        """After a successful remote search, footage must still be returned even if writing the cache fails."""
         remote_items = [self._item()]
         remote_search = Mock(return_value=remote_items)
 
@@ -489,7 +496,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertTrue(warning.called)
 
     def test_invalid_cache_item_does_not_raise(self):
-        """异常素材对象不能让可选缓存写入破坏调用方主流程。"""
+        """A malformed footage object must not let the optional cache write break the caller's main flow."""
         with patch.object(material_cache.logger, "warning") as warning:
             saved = material_cache.save_material_search_cache(
                 provider="pixabay",
@@ -504,8 +511,9 @@ class TestMaterialSearchCache(unittest.TestCase):
 
     def test_concurrent_identical_searches_share_remote_request(self):
         """
-        API 服务允许多个任务并发。相同条件首次搜索时，后到线程应等待首个线程
-        写入缓存，而不是再次消耗第三方接口额度。
+        The API service allows concurrent tasks. On the first search with identical conditions,
+        later threads should wait for the first thread to populate the cache instead of spending
+        more third-party API quota.
         """
         remote_started = threading.Event()
         allow_remote_finish = threading.Event()
@@ -537,7 +545,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         first_thread.start()
         self.assertTrue(remote_started.wait(timeout=2))
         second_thread.start()
-        # 给第二个线程时间进入缓存锁等待区，确保测试覆盖真实并发未命中。
+        # Give the second thread time to enter the cache-lock waiting area, covering a real concurrent miss.
         time.sleep(0.05)
         allow_remote_finish.set()
         first_thread.join(timeout=2)
@@ -550,7 +558,7 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertEqual(results[0], results[1])
 
     def test_cleanup_removes_expired_entries_only(self):
-        """低频清理只删除过期缓存，不应影响有效缓存或用户的其它文件。"""
+        """The low-frequency cleanup only deletes expired caches and must not touch valid caches or other user files."""
         stale_path = self._cache_path()
         stale_path.write_text(
             json.dumps(

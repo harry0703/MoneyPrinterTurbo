@@ -15,7 +15,7 @@ from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
 class TestConfigPersistence:
     @staticmethod
     def _wait_for_deferred_flush(timeout=1):
-        """等待配置刷新线程退出，避免并发测试之间共享后台状态。"""
+        """Wait for the config refresh thread to exit so background state is not shared between concurrent tests."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             with config._pending_config_lock:
@@ -30,7 +30,7 @@ class TestConfigPersistence:
         return tomllib.loads(config_path.read_text(encoding="utf-8"))
 
     def test_example_config_documents_runtime_settings(self):
-        """示例配置应展示用户需要手工维护的服务、素材和高级运行参数。"""
+        """The example configuration should show the services, footage, and advanced runtime parameters users maintain by hand."""
         example_config = self._load_example_config()
         app_config = example_config["app"]
 
@@ -54,7 +54,7 @@ class TestConfigPersistence:
         assert example_config["whisper"]["device"] == "cpu"
 
     def test_example_config_covers_llm_provider_registry(self):
-        """Registry 中可配置的 Provider 字段必须能在示例文件中被发现。"""
+        """Every Provider field configurable in the Registry must be discoverable in the example file."""
         app_config = self._load_example_config()["app"]
 
         for provider in LLM_PROVIDER_REGISTRY:
@@ -68,7 +68,7 @@ class TestConfigPersistence:
                 assert provider.config_key(field.config_suffix) in app_config
 
     def test_load_config_accepts_repeated_utf8_bom_without_rewriting_file(self):
-        """重复 BOM 不应阻止 Windows 用户启动，也不能改写已有配置。"""
+        """A duplicated BOM must not stop Windows users from starting, and existing configuration must not be rewritten."""
         with TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
             original_content = b"\xef\xbb\xbf\xef\xbb\xbf[app]\nvideo_source = \"pexels\"\n"
@@ -81,7 +81,7 @@ class TestConfigPersistence:
             assert config_path.read_bytes() == original_content
 
     def test_load_config_still_rejects_invalid_toml_after_bom_normalization(self):
-        """BOM 兼容不能掩盖真实语法错误，失败时应保留明确诊断日志。"""
+        """BOM tolerance must not mask real syntax errors; on failure a clear diagnostic log must remain."""
         with TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
             config_path.write_text("[app\nvideo_source = \"pexels\"\n", encoding="utf-8")
@@ -102,14 +102,14 @@ class TestConfigPersistence:
             assert "TomlDecodeError" in error_message
 
     def test_kimi_uses_current_default_model(self):
-        """Kimi 未配置模型覆盖值时，应使用当前发布版本的默认模型。"""
+        """When Kimi has no model override configured, the current release's default model should be used."""
         provider = get_llm_provider("moonshot")
 
         assert provider is not None
         assert provider.resolve_model_name("") == "kimi-k3"
 
     def test_upload_post_settings_belong_to_app_section(self):
-        """发布配置必须位于 app 节点，确保示例文件与运行时读取路径一致。"""
+        """The publish configuration must live under the app node so the example file matches the runtime read path."""
         example_config = self._load_example_config()
         upload_post_keys = {
             "upload_post_enabled",
@@ -126,8 +126,9 @@ class TestConfigPersistence:
 
     def test_save_config_uses_parseable_atomic_output(self):
         """
-        配置保存先写临时文件再原子替换。测试同时确认输出仍是合法 TOML，
-        且成功保存后不会在配置目录遗留临时文件。
+        Configuration saves write a temporary file first and then atomically replace it. The test also
+        confirms the output is still valid TOML and that no temporary file is left in the config directory
+        after a successful save.
         """
         original_cfg = dict(config._cfg)
         original_app = dict(config.app)
@@ -152,8 +153,9 @@ class TestConfigPersistence:
 
     def test_save_config_falls_back_for_bind_mounted_file(self):
         """
-        Docker Desktop 的单文件挂载点不能被 os.replace 替换。遇到 EBUSY 时
-        应在锁内原地覆盖，并确保最终内容完整、可解析且不遗留临时文件。
+        Docker Desktop single-file mount points cannot be replaced by os.replace. On EBUSY the file
+        should be overwritten in place under the lock, ending with complete, parseable content and no
+        leftover temporary files.
         """
         original_cfg = dict(config._cfg)
         original_app = dict(config.app)
@@ -189,7 +191,7 @@ class TestConfigPersistence:
             config._cfg.update(original_cfg)
 
     def test_save_config_does_not_hide_other_replace_errors(self):
-        """非 EBUSY 错误必须继续抛出，不能把权限或磁盘故障伪装成保存成功。"""
+        """Non-EBUSY errors must keep propagating; permission or disk failures must not be disguised as successful saves."""
         original_cfg = dict(config._cfg)
         original_app = dict(config.app)
         try:
@@ -224,7 +226,7 @@ class TestConfigPersistence:
             config._cfg.update(original_cfg)
 
     def test_runtime_config_lock_blocks_concurrent_config_writes(self):
-        """长任务持有运行锁时，其它会话不能在任务中途改写全局配置。"""
+        """While a long task holds the runtime lock, other sessions must not rewrite global configuration mid-task."""
         write_started = threading.Event()
         write_finished = threading.Event()
 
@@ -245,7 +247,7 @@ class TestConfigPersistence:
         config.app.pop("runtime_lock_test", None)
 
     def test_runtime_config_lock_allows_idempotent_page_writes(self):
-        """生成期间刷新页面时，相同控件值的回写不能阻塞整页渲染。"""
+        """Refreshing the page during generation must not block the whole render when writing back unchanged widget values."""
         key = "runtime_lock_idempotent_test"
         config.app[key] = "unchanged"
         write_finished = threading.Event()
@@ -267,7 +269,7 @@ class TestConfigPersistence:
         config.app.pop(key, None)
 
     def test_try_runtime_config_lock_returns_immediately_when_busy(self):
-        """试听锁不能等待长任务释放全局配置，忙碌时应立即让 UI 提示重试。"""
+        """The preview lock must not wait for a long task to release the global configuration; when busy it should immediately let the UI prompt a retry."""
         attempted = threading.Event()
         result = []
 
@@ -288,7 +290,7 @@ class TestConfigPersistence:
             assert acquired is True
 
     def test_nonblocking_update_is_applied_after_runtime_task_finishes(self):
-        """WebUI 改动不能等待长任务，且任务结束后必须应用并保存最新值。"""
+        """WebUI changes must not wait for long tasks, and after the task ends the latest values must be applied and saved."""
         key = "nonblocking_runtime_update_test"
         original_value = config.app.get(key, config._MISSING)
         update_finished = threading.Event()
@@ -319,7 +321,7 @@ class TestConfigPersistence:
                 config.app[key] = original_value
 
     def test_nonblocking_update_keeps_only_latest_value(self):
-        """同一控件在任务期间反复修改时，只应用最后一次选择。"""
+        """When the same widget is changed repeatedly during a task, only the last choice applies."""
         key = "nonblocking_latest_value_test"
         original_value = config.app.get(key, config._MISSING)
         updates_finished = threading.Event()
@@ -345,7 +347,7 @@ class TestConfigPersistence:
                 config.app[key] = original_value
 
     def test_nonblocking_delete_is_applied_after_runtime_task_finishes(self):
-        """切回默认选项时，删除配置同样不能阻塞正在运行的视频任务。"""
+        """Switching back to the default option must not block the running video task either; deleting the config is equally non-blocking."""
         key = "nonblocking_runtime_delete_test"
         config.app[key] = "custom"
         delete_finished = threading.Event()
@@ -371,7 +373,7 @@ class TestConfigPersistence:
             config.app.pop(key, None)
 
     def test_try_save_config_returns_immediately_while_runtime_task_is_active(self):
-        """页面 rerun 请求保存时不能等待视频任务释放配置锁。"""
+        """A page rerun requesting a save must not wait for the video task to release the config lock."""
         save_finished = threading.Event()
         save_result = []
 
@@ -392,7 +394,7 @@ class TestConfigPersistence:
         self._wait_for_deferred_flush()
 
     def test_try_runtime_lock_flushes_updates_queued_during_operation(self):
-        """短操作释放配置锁时，也必须应用并保存期间到达的页面修改。"""
+        """When a short operation releases the config lock, page changes that arrived meanwhile must also be applied and saved."""
         key = "try_runtime_queued_update_test"
         original_value = config.app.get(key, config._MISSING)
         update_finished = threading.Event()
@@ -422,7 +424,7 @@ class TestConfigPersistence:
                 config.app[key] = original_value
 
     def test_update_queued_during_save_is_flushed_after_lock_release(self):
-        """退出保存期间的新修改不能停留在队列中，也不能被较早值覆盖。"""
+        """New changes arriving during the exit save must not stay queued and must not be overwritten by older values."""
         key = "late_runtime_update_test"
         original_value = config.app.get(key, config._MISSING)
         runtime_entered = threading.Event()
@@ -459,8 +461,8 @@ class TestConfigPersistence:
                 release_runtime.set()
                 assert first_save_started.wait(timeout=1)
 
-                # 第一轮保存已经取得配置快照，此时到达的值必须由后台刷新线程
-                # 在锁释放后再次应用和保存，最终结果应以该值为准。
+                # The first save round already took a configuration snapshot; values arriving now must be applied and saved
+                # again by the background refresh thread after the lock is released, and the final result must be that value.
                 assert not config.update_config_nonblocking(config.app, key, "latest")
                 release_first_save.set()
 
@@ -480,7 +482,7 @@ class TestConfigPersistence:
                 config.app[key] = original_value
 
     def test_config_snapshot_includes_pending_updates(self):
-        """视频生成占锁时，新 LLM 请求应看到界面最新选择而非旧配置。"""
+        """While video generation holds the lock, a new LLM request should see the UI's latest selection, not stale configuration."""
         keys = {
             "llm_provider": "pending-provider",
             "pending-provider_api_key": "pending-key",

@@ -24,8 +24,8 @@ class TestControllerAuthentication(unittest.TestCase):
 
     def test_get_task_id_reuses_header_or_generates_uuid(self):
         """
-        客户端提供 request ID 时需要原样保留，缺失时则生成可记录到日志和
-        错误响应中的 UUID，保证两种入口都有可追踪标识。
+        When the client supplies a request ID it must be preserved verbatim; when missing, generate a
+        UUID that can be logged and echoed in error responses so both entry points carry a traceable ID.
         """
         self.assertEqual(
             base.get_task_id(self._request({"x-task-id": "request-123"})),
@@ -37,7 +37,7 @@ class TestControllerAuthentication(unittest.TestCase):
         self.assertEqual(generated.count("-"), 4)
 
     def test_verify_token_accepts_matching_key(self):
-        """配置了 API Key 时，相同请求头必须正常通过鉴权。"""
+        """When an API key is configured, the same request header must pass authentication normally."""
         config.app["api_key"] = "secret"
 
         result = base.verify_token(self._request({"x-api-key": "secret"}))
@@ -46,8 +46,8 @@ class TestControllerAuthentication(unittest.TestCase):
 
     def test_verify_token_rejects_missing_or_wrong_key(self):
         """
-        缺失和错误的 API Key 都必须返回 401，并保留客户端 request ID，
-        避免鉴权失败在日志中无法与调用方请求对应。
+        Both a missing and an incorrect API key must return 401 while preserving the client request ID,
+        so authentication failures can still be correlated with caller requests in logs.
         """
         config.app["api_key"] = "secret"
 
@@ -64,7 +64,7 @@ class TestControllerAuthentication(unittest.TestCase):
                 self.assertIn("invalid token", raised.exception.message)
 
     def test_new_router_preserves_common_prefix_and_dependencies(self):
-        """所有 V1 路由都应复用统一前缀，并仅在传入时设置鉴权依赖。"""
+        """All V1 routes should reuse the unified prefix and only attach the auth dependency when it is provided."""
         dependency = object()
 
         plain_router = new_router()

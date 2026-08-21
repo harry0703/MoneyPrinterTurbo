@@ -24,7 +24,7 @@ class _CliHelpFormatter(
     argparse.ArgumentDefaultsHelpFormatter,
     argparse.RawDescriptionHelpFormatter,
 ):
-    """在保留多行示例排版的同时，自动展示有意义的默认值。"""
+    """Show meaningful default values while preserving the multi-line example layout."""
 
     def _get_help_string(self, action):
         help_text = action.help or ""
@@ -86,7 +86,7 @@ def _hex_color(value: str) -> str:
 
 
 def _task_id(value: str) -> str:
-    """CLI 自定义任务标识只接受 UUID，避免该值被解释为文件系统路径。"""
+    """The CLI custom task identifier only accepts UUIDs, preventing the value from being interpreted as a filesystem path."""
     try:
         return str(UUID(value.strip()))
     except (AttributeError, ValueError) as exc:
@@ -498,8 +498,8 @@ Output and exit status:
 
 
 def build_video_params(args: argparse.Namespace) -> VideoParams:
-    # 参数帮助和校验不需要加载应用配置。仅在真正构建任务参数时导入模型，
-    # 避免执行 ``cli.py -h`` 时产生配置初始化日志。
+    # Argument help and validation must not load the app configuration. Import models only when task
+    # parameters are actually built, so ``cli.py -h`` produces no configuration initialization logs.
     from app.models.schema import MaterialInfo, VideoParams
 
     video_terms = args.video_terms
@@ -579,12 +579,13 @@ def _resolve_cli_file(
     fallback_dir: str | None = None,
 ) -> str:
     """
-    将 CLI 文件参数按当前工作目录解析为绝对路径，
-    并在任务开始前确认存在。
+    Resolve CLI file arguments to absolute paths against the current working directory
+    and confirm they exist before the task starts.
 
-    本地素材旧版本始终相对 ``storage/local_videos`` 解析。为兼容已有脚本，
-    当前目录找不到相对路径时允许回退该目录；绝对路径始终按用户输入
-    直接解析。
+    Legacy local-footage handling always resolved paths relative to ``storage/local_videos``.
+    For compatibility with existing scripts, a relative path not found in the current
+    directory is allowed to fall back to that directory; absolute paths are always
+    resolved exactly as entered by the user.
     """
     expanded_path = os.path.expanduser(raw_path.strip())
     if not expanded_path:
@@ -610,7 +611,7 @@ def _path_is_within_directory(file_path: str, directory: str) -> bool:
             [os.path.realpath(directory), os.path.realpath(file_path)]
         ) == os.path.realpath(directory)
     except ValueError:
-        # Windows 不同盘符无法计算 commonpath，此时文件显然不在目标目录内。
+        # Windows cannot compute commonpath across different drive letters; the file is clearly outside the target directory in that case.
         return False
 
 
@@ -620,7 +621,7 @@ def _resolve_managed_resource_file(
     resource_dir: str,
     description: str,
 ) -> str:
-    """解析项目资源文件，并确保绝对路径仍位于对应资源目录内。"""
+    """Resolve a project resource file and ensure the absolute path stays inside the corresponding resource directory."""
     from app.utils import utils
 
     expanded_path = os.path.expanduser(raw_path.strip())
@@ -645,11 +646,13 @@ def _resolve_managed_resource_file(
 
 def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
     """
-    在调用 LLM/TTS 前准备 CLI 文件，避免长流程运行到后期才报告路径错误。
+    Prepare CLI files before calling LLM/TTS so path errors surface early instead of late in a long pipeline.
 
-    服务层为了保护 API 请求，只允许读取 ``storage/local_videos`` 内的素材。
-    CLI 是本地入口，接受当前目录相对路径和绝对路径。目录外素材会
-    复制到受控目录，再把参数替换为服务层可安全使用的绝对路径。
+    The service layer only reads footage from ``storage/local_videos`` to protect API requests.
+    The CLI is a local entry point and accepts relative paths from the current directory as
+    well as absolute paths. Files outside that directory are copied into the controlled
+    directory, and the parameters are replaced with absolute paths the service layer can
+    use safely.
     """
     from app.models import const
     from app.services import bgm as bgm_service
@@ -677,20 +680,20 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
 
     if params.bgm_type == "custom":
         if not bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume):
-            # 0 音量时下游会统一跳过所有 BGM。这里同时清空文件参数，避免
-            # CLI 为一个不会被读取的文件执行路径解析、存在性检查或格式
-            # 校验。
+            # A volume of 0 makes downstream code skip all BGM. Also clear the file parameter here so the
+            # CLI does not run path resolution, existence checks, or format validation for a file
+            # that will never be read.
             params.bgm_file = ""
         elif not params.bgm_file:
-            # 缺少文件是否构成错误取决于通用 BGM 开关，不能在 argparse 阶段
-            # 无条件拦截，否则 ``custom + 0%`` 会和 WebUI、服务层行为不一致。
+            # Whether a missing file is an error depends on the global BGM switch, so it cannot be
+            # unconditionally rejected at the argparse stage; otherwise ``custom + 0%`` would behave differently from the WebUI and the service layer.
             raise ValueError("--bgm-file is required when --bgm-type is custom")
         else:
             try:
-                # CLI、WebUI 和任务服务必须共用同一个 BGM 文件边界。这里直接
-                # 复用服务层解析，既支持用户上传目录和内置歌曲目录，也
-                # 自动继承新增音频格式及路径安全规则，避免多个入口分别
-                # 维护白名单。
+                # CLI, WebUI, and the task service must share the same BGM file boundary. Reuse the
+                # service-layer resolution directly: it supports both the user upload directory and the
+                # built-in songs directory, and automatically inherits new audio formats and path
+                # safety rules instead of maintaining separate whitelists per entry point.
                 params.bgm_file = bgm_service.resolve_bgm_file(params.bgm_file)
             except ValueError as exc:
                 supported_extensions = ", ".join(
@@ -710,7 +713,7 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
         )
         if not font_path.lower().endswith((".ttf", ".ttc")):
             raise ValueError("subtitle font must use the .ttf or .ttc extension")
-        # 下游根据 resource/fonts 内的文件名拼接路径，因此仍保留纯文件名。
+        # Downstream code joins paths from file names in resource/fonts, so keep plain file names.
         params.font_name = os.path.basename(font_path)
 
     if params.video_source != "local" or stop_at not in {"materials", "video"}:
@@ -733,8 +736,8 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
             )
         resolved_materials.append((material, source_path, extension))
 
-    # 所有输入检查通过后再复制，避免第二个文件无效时留下第一个文件的
-    # 孤儿副本。
+    # Copy files only after all input checks pass, otherwise an invalid second file would
+    # leave an orphaned copy of the first one behind.
     prepared_paths: dict[str, str] = {}
     for material, source_path, extension in resolved_materials:
         prepared_path = prepared_paths.get(source_path)
@@ -765,8 +768,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         logger.error(f"invalid CLI input: {exc}")
         return 2
 
-    # 帮助参数会在 parse_args 中直接退出。把业务服务延迟到这里导入，
-    # 保证 -h/--help 输出干净，同时不改变实际任务的初始化流程。
+    # Help arguments exit directly inside parse_args. Defer importing business services to
+    # this point so -h/--help output stays clean without changing task initialization.
     from app.services import task as tm
     from app.utils import utils
 

@@ -451,7 +451,7 @@ class TestLoomLoomVideoBackend(unittest.TestCase):
         self.backend = LoomLoomVideoBackend(self.settings, session=self.session)
 
     def test_prepares_one_video_row_per_scene(self):
-        """默认 SkillBot 必须按场景逐行报价，并携带固定的视频安全要求。"""
+        """The default SkillBot must quote per scene line by line and carry the fixed video safety requirements."""
         batch = self.backend.prepare_video_batch(
             subject="AI 办公效率",
             scene_prompts=["office worker", "AI assistant"],
@@ -465,7 +465,7 @@ class TestLoomLoomVideoBackend(unittest.TestCase):
         self.assertIn("No text", batch.input_rows[0]["scenePrompt"])
 
     def test_downloads_video_artifact_without_forwarding_api_key(self):
-        """签名产物地址无需 Bearer Key，避免把账户凭证泄漏给对象存储。"""
+        """Signed artifact URLs need no Bearer key, keeping account credentials away from object storage."""
         self.session.request.return_value = _Response(
             200,
             {
@@ -499,7 +499,7 @@ class TestLoomLoomVideoBackend(unittest.TestCase):
         self.assertTrue(response.closed)
 
     def test_closes_download_response_when_artifact_is_too_large(self):
-        """大小预检拒绝下载时也必须立即释放流式 HTTP 连接。"""
+        """When the size precheck rejects a download, the streaming HTTP connection must still be released immediately."""
         self.session.request.return_value = _Response(
             200,
             {

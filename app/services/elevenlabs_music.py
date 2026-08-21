@@ -26,23 +26,24 @@ MAX_ERROR_BODY_BYTES = 500
 
 
 class ElevenLabsMusicError(RuntimeError):
-    """表示 ElevenLabs 配乐请求、代理生成或返回音频校验失败。"""
+    """Indicates a failed ElevenLabs music request, proxy generation, or returned-audio validation."""
 
 
 class ElevenLabsPaidPlanRequiredError(ElevenLabsMusicError):
-    """表示 Key 有效，但当前账号套餐不包含 ElevenLabs Music API。"""
+    """Indicates the key is valid but the current account plan lacks the ElevenLabs Music API."""
 
 
 class ElevenLabsAuthenticationError(ElevenLabsMusicError):
-    """表示 ElevenLabs API Key 缺失或已被服务端拒绝。"""
+    """Indicates a missing ElevenLabs API key or one rejected by the server."""
 
 
 def get_api_key() -> str:
     """
-    读取 ElevenLabs 共用 API Key。
+    Read the ElevenLabs shared API key.
 
-    配乐与现有 ElevenLabs TTS 使用同一个账号配置，避免用户在 WebUI 重复维护
-    两份 Key；环境变量仅作为本机配置未填写时的后备来源。
+    Music reuses the same account configuration as the existing ElevenLabs TTS so users do
+    not maintain two keys in the WebUI; the environment variable is only a fallback when the
+    local configuration is empty.
     """
     configured_key = str(config.elevenlabs.get("api_key", "") or "").strip()
     return configured_key or os.getenv("ELEVENLABS_API_KEY", "").strip()
@@ -60,7 +61,7 @@ def _base_url() -> str:
 
 
 def _model_id() -> str:
-    """只允许官方 Video-to-Music 当前公开的模型，错误配置时安全回退。"""
+    """Allow only the models currently public on the official Video-to-Music; fall back safely on misconfiguration."""
     model_id = str(
         config.elevenlabs.get("music_model_id", DEFAULT_MODEL_ID)
         or DEFAULT_MODEL_ID
@@ -69,7 +70,7 @@ def _model_id() -> str:
 
 
 def _request_timeout() -> tuple[int, int]:
-    """限制配乐读取超时，兼顾长视频生成耗时与错误配置的可恢复性。"""
+    """Bound the music read timeout, balancing long video generation time against recoverability from misconfiguration."""
     raw_timeout = config.elevenlabs.get("music_timeout", 600)
     try:
         read_timeout = float(raw_timeout)
@@ -81,7 +82,7 @@ def _request_timeout() -> tuple[int, int]:
 
 
 def _safe_response_error(response: requests.Response) -> str:
-    """只读取有限的第三方错误正文，避免异常响应耗尽内存或污染任务日志。"""
+    """Read only a bounded amount of the third-party error body so an abnormal response cannot exhaust memory or pollute task logs."""
     try:
         body_bytes = next(
             response.iter_content(chunk_size=MAX_ERROR_BODY_BYTES),
@@ -102,12 +103,13 @@ def _safe_response_error(response: requests.Response) -> str:
 
 def test_connection() -> dict[str, Any]:
     """
-    使用不消耗音乐生成额度的订阅接口检查 API Key 和账号套餐。
+    Check the API key and account plan via the subscription endpoint, which consumes no music quota.
 
-    该接口只能确认 Key 可访问订阅信息以及账号不是免费套餐，不能证明当前 Key
-    一定拥有 Music endpoint 权限。ElevenLabs 允许按 endpoint、额度和 IP 限制
-    Key，因此 UI 成功提示必须保留这一边界，实际权限仍由生成请求最终确认。
-    响应中的账单和用量详情不会写入日志，避免记录账号隐私。
+    This endpoint can only confirm the key can read subscription info and the account is not on
+    the free tier; it cannot prove the key has Music endpoint permission. ElevenLabs allows
+    per-endpoint, per-quota, and per-IP key restrictions, so the UI success hint must keep that
+    caveat — real permission is ultimately decided by the generation request. Billing and usage
+    details in the response are never logged to protect account privacy.
     """
     api_key = get_api_key()
     if not api_key:
@@ -160,12 +162,13 @@ def test_connection() -> dict[str, Any]:
 
 def validate_generation_access() -> None:
     """
-    在昂贵的视频流水线开始前排除确定无法生成配乐的账号。
+    Rule out accounts that definitely cannot generate music before the expensive video pipeline starts.
 
-    免费套餐和无效 Key 都是确定性错误，必须立即终止，避免先消耗 LLM、TTS
-    和素材服务额度。订阅接口也可能因 Music-only endpoint scope、IP 限制或
-    临时网络问题不可访问；这些结果不能证明 Music API 不可用，因此只记录警告，
-    继续让真正的生成请求决定结果，避免把受限但可用的 Key 错误拦截。
+    Free tiers and invalid keys are deterministic errors and must abort immediately instead of
+    consuming LLM, TTS, and footage quota first. The subscription endpoint may also be
+    unreachable due to Music-only endpoint scope, IP restrictions, or transient network issues;
+    those outcomes do not prove the Music API is unavailable, so only warn and let the real
+    generation request decide, avoiding wrongly blocking restricted-but-working keys.
     """
     try:
         test_connection()
@@ -179,7 +182,7 @@ def validate_generation_access() -> None:
 
 
 def _remove_file(file_path: str) -> None:
-    """尽力清理 ElevenLabs 中间文件，不覆盖调用方正在处理的原始异常。"""
+    """Best-effort cleanup of ElevenLabs intermediates without masking the caller's original exception."""
     if not file_path or not os.path.exists(file_path):
         return
     try:
@@ -193,10 +196,11 @@ def _remove_file(file_path: str) -> None:
 
 def _create_video_proxy(video_path: str) -> str:
     """
-    生成无音轨、最长边 1280 像素的 H.264 代理视频。
+    Generate an audio-free H.264 proxy video with a 1280-pixel longest edge.
 
-    Video-to-Music 只分析画面，上传原始高清成片既不会改善配乐，又会增加流量
-    和等待时间。代理严格限制在官方 200 MB 上限内，并在请求结束后删除。
+    Video-to-Music analyzes the picture only; uploading the original HD cut neither improves
+    the music nor does anything but add traffic and wait time. The proxy stays strictly under
+    the official 200 MB cap and is deleted after the request.
     """
     descriptor, proxy_path = tempfile.mkstemp(
         prefix=".elevenlabs-music-proxy-",
@@ -270,7 +274,7 @@ def _create_video_proxy(video_path: str) -> str:
 
 
 def _stream_audio(response: requests.Response, temp_audio_path: str) -> int:
-    """分块保存音频并限制最大体积，防止异常响应耗尽本机磁盘。"""
+    """Save the audio in chunks with a size cap so an abnormal response cannot exhaust local disk."""
     total_bytes = 0
     with open(temp_audio_path, "wb") as output:
         for chunk in response.iter_content(chunk_size=1024 * 1024):
@@ -290,7 +294,7 @@ def _stream_audio(response: requests.Response, temp_audio_path: str) -> int:
 
 
 def _request_bgm(video_path: str, output_path: str, prompt: str) -> str:
-    """请求 ElevenLabs 配乐，完整下载并通过 FFmpeg 校验后再原子发布。"""
+    """Request ElevenLabs music, download fully, validate via FFmpeg, then publish atomically."""
     output_dir = os.path.dirname(os.path.abspath(output_path))
     os.makedirs(output_dir, exist_ok=True)
     descriptor, temp_audio_path = tempfile.mkstemp(
@@ -317,9 +321,9 @@ def _request_bgm(video_path: str, output_path: str, prompt: str) -> str:
                     params={"output_format": "mp3_44100_128"},
                     files=[
                         (
-                            # 官方文档把表单数组展示为 ``videos[]``，但 2026-07-18
-                            # 生产接口会对该字段返回 422，实际 Starlette 参数名为
-                            # ``videos``。重复上传时 requests 可继续添加同名字段。
+                            # The official docs show the form array as ``videos[]``, but as of 2026-07-18
+                            # the production endpoint returns 422 for that field; the actual Starlette parameter name is
+                            # ``videos``. For repeated uploads, requests can keep appending same-named fields.
                             "videos",
                             (Path(video_path).name, video_file, "video/mp4"),
                         )
@@ -337,8 +341,8 @@ def _request_bgm(video_path: str, output_path: str, prompt: str) -> str:
                         )
                     total_bytes = _stream_audio(response, temp_audio_path)
         except requests.RequestException as exc:
-            # 下载阶段断线也属于请求失败，必须进入任务降级逻辑，不能留下半条
-            # 音频或让已经生成的视频因为第三方网络波动整体失败。
+            # A disconnect during the download phase is also a request failure and must enter the task's
+            # degradation logic, never leaving half an audio file or failing the whole generated video over third-party network flakiness.
             raise ElevenLabsMusicError(
                 f"failed to request ElevenLabs music: {exc}"
             ) from exc
@@ -366,7 +370,7 @@ def generate_bgm(
     video_duration: float,
     prompt: str = "",
 ) -> str:
-    """为一条已拼接视频生成时长和画面匹配的 ElevenLabs 背景音乐。"""
+    """Generate ElevenLabs background music matching a concatenated video's duration and visuals."""
     if not get_api_key():
         raise ElevenLabsMusicError("ElevenLabs API key is required")
     if not os.path.isfile(video_path):

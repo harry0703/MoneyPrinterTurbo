@@ -15,13 +15,13 @@ __pycache__
 logs/
 
 node_modules
-# VuePress 默认临时文件目录
+# VuePress default temp directory
 /sites/docs/.vuepress/.temp
-# VuePress 默认缓存目录
+# VuePress default cache directory
 /sites/docs/.vuepress/.cache
-# VuePress 默认构建生成的静态文件目录
+# VuePress default build output directory
 /sites/docs/.vuepress/dist
-# 模型目录
+# Model directory
 /models/
 ./models/*
 

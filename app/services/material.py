@@ -21,11 +21,12 @@ _api_key_lock = threading.Lock()
 
 def _safe_public_url(value: Any) -> str | None:
     """
-    只保留可公开展示的 HTTP(S) 页面地址，并移除查询参数和凭据。
+    Keep only publicly showable HTTP(S) page URLs, stripping query parameters and credentials.
 
-    素材下载地址可能携带 API Key、签名 JWT 或临时 token。任务清单只需要
-    帮助用户回到供应商的公开素材页，不应保存鉴权参数；用户信息形式的 URL
-    同样拒绝，避免 ``https://user:pass@example.com`` 一类内容落盘。
+    Footage download URLs may carry API keys, signed JWTs, or temporary tokens. Task records only
+    need to lead users back to the provider's public footage page and must not persist auth
+    parameters; userinfo-style URLs are likewise rejected so content like
+    ``https://user:pass@example.com`` never reaches disk.
     """
     if not isinstance(value, str) or not value.strip():
         return None
@@ -45,7 +46,7 @@ def _safe_public_url(value: Any) -> str | None:
 
 
 def _creator_info(value: Any) -> dict[str, str] | None:
-    """从不同供应商的作者结构中提取统一的公开字段。"""
+    """Extract unified public fields from different providers' author structures."""
     if isinstance(value, str) and value.strip():
         return {"name": value.strip()}
     if not isinstance(value, dict):
@@ -68,11 +69,12 @@ def _creator_info(value: Any) -> dict[str, str] | None:
 
 def _material_source_record(item: MaterialInfo, local_path: str) -> dict[str, Any]:
     """
-    为成功下载的素材生成轻量来源记录。
+    Build a lightweight source record for successfully downloaded footage.
 
-    ``source_info`` 可能来自缓存，甚至来自外部构造的 ``MaterialInfo``，因此
-    不能原样写入。这里按白名单重新构造，只保留公开页面、业务标识和尺寸，
-    并只记录本地文件名，避免用户目录或 Docker 挂载路径进入任务文件。
+    ``source_info`` may come from cache or even an externally constructed ``MaterialInfo``, so it
+    cannot be written as-is. Rebuild it against a whitelist keeping only the public page, business
+    IDs, and dimensions, and record only the local file name so user directories or Docker mount
+    paths never enter task files.
     """
     source = item.source_info if isinstance(item.source_info, dict) else {}
     record: dict[str, Any] = {
@@ -112,11 +114,11 @@ def _persist_material_sources(
     material_sources: list[dict[str, Any]],
 ) -> None:
     """
-    将当前实际下载成功的素材来源补充到任务清单。
+    Append the sources of footage actually downloaded to the task record.
 
-    任务记录是辅助能力，不能改变视频下载函数的返回值，也不能因为写盘失败
-    中断成片主流程。``patch_script_data`` 会负责原子替换和异常日志；这里仅在
-    成功后记录数量，便于确认任务追溯信息是否已经落盘。
+    Task records are auxiliary: they must not change the footage download return value or abort the
+    main pipeline on write failures. ``patch_script_data`` handles atomic replacement and error
+    logging; this only logs the count on success to confirm traceability data landed on disk.
     """
     try:
         saved = task_artifacts.patch_script_data(
@@ -129,8 +131,8 @@ def _persist_material_sources(
                 f"task_id={task_id}, count={len(material_sources)}"
             )
     except Exception as exc:
-        # task_artifacts 自身已经按失败降级设计，这里仍保留最后一道隔离，
-        # 防止未来实现调整或目录解析异常意外影响素材下载返回值。
+        # task_artifacts is already designed to degrade on failure; keep this last line of isolation anyway so
+        # future implementation changes or directory resolution errors never affect footage download results.
         logger.warning(
             "failed to persist material source records: "
             f"task_id={task_id}, error={type(exc).__name__}, detail={exc}"
@@ -138,9 +140,9 @@ def _persist_material_sources(
 
 
 def _get_tls_verify() -> bool:
-    # 默认开启 TLS 证书校验，防止素材搜索和下载过程被中间人篡改。
-    # 仅在企业代理、自签证书等明确需要的场景下，允许用户通过
-    # `config.toml` 显式设置 `tls_verify = false` 临时关闭。
+    # TLS certificate verification is on by default so footage search and download cannot be tampered with by a man in the middle.
+    # Only allow users to disable it temporarily via an explicit `tls_verify = false` in `config.toml`,
+    # for clear cases such as corporate proxies or self-signed certificates.
     tls_verify = config.app.get("tls_verify", True)
     if isinstance(tls_verify, str):
         tls_verify = tls_verify.strip().lower() not in ("0", "false", "no", "off")
@@ -174,11 +176,11 @@ def get_api_key(cfg_key: str):
 
 def _redact_secret(message: str, secret: str) -> str:
     """
-    对即将写入日志的异常文本做最小范围脱敏。
+    Redact the minimum necessary parts of an exception text before it reaches the log.
 
-    requests 的连接异常可能包含完整请求 URL，而 Pixabay API Key 通过查询
-    参数传递。这里同时替换原始值和 URL 编码值，既保留网络错误信息用于排查，
-    又避免密钥进入日志文件。
+    A requests connection error may embed the full request URL, and the Pixabay API key travels in
+    query parameters. Replace both the raw and URL-encoded values so the network error stays
+    diagnosable without leaking the key into log files.
     """
     safe_message = str(message)
     if not secret:
@@ -193,10 +195,11 @@ def _redact_secret(message: str, secret: str) -> str:
 
 def _redact_request_error(error: Exception, *secrets: str) -> str:
     """
-    保留网络异常的可排查信息，同时移除 API Key 和代理凭据。
+    Keep network exceptions diagnosable while removing API keys and proxy credentials.
 
-    直接只记录异常类型会丢失 DNS、证书、超时等关键上下文；直接记录原始异常
-    又可能回显完整请求 URL。统一入口可以让三个素材供应商使用相同脱敏规则。
+    Logging only the exception type loses vital DNS, certificate, and timeout context; logging the
+    raw exception may echo the full request URL. A single entry point gives all three footage
+    providers the same redaction rules.
     """
     safe_message = str(error)
     for secret in secrets:
@@ -208,11 +211,11 @@ def _redact_request_error(error: Exception, *secrets: str) -> str:
 
 def _is_cloudflare_challenge(response: requests.Response) -> bool:
     """
-    识别 Cloudflare 返回的 HTML Challenge，而不是把它当成 Pixabay JSON。
+    Detect a Cloudflare HTML challenge instead of parsing it as Pixabay JSON.
 
-    Cloudflare 通常会设置 `cf-mitigated: challenge`；部分部署只返回带有
-    "Just a moment" 或 challenge-platform 的 HTML，因此保留内容特征兜底。
-    响应正文仅在内存中判断，不写入日志，避免记录无价值的大段 HTML。
+    Cloudflare usually sets `cf-mitigated: challenge`; some deployments only return HTML containing
+    "Just a moment" or challenge-platform markers, so content-based fallback detection is kept.
+    The response body is inspected in memory only and never logged, avoiding huge useless HTML dumps.
     """
     headers = getattr(response, "headers", {}) or {}
     if str(headers.get("cf-mitigated", "")).lower() == "challenge":
@@ -234,11 +237,13 @@ def _matches_video_aspect(
     is_vertical: Any = None,
 ) -> bool:
     """
-    判断远端素材是否与目标画面方向一致。
+    Determine whether remote footage matches the target orientation.
 
-    Pexels、Pixabay 和 Coverr 的响应字段并不统一，因此先使用宽高做可靠判断；
-    Coverr 部分历史响应缺少尺寸时，再使用明确的 ``is_vertical`` 布尔值兜底。
-    无法确认方向的素材直接跳过，避免竖屏任务混入横屏素材并在成片中产生黑边。
+    Pexels, Pixabay, and Coverr expose different response fields, so decide by width
+    and height first, which is reliable; for some legacy Coverr responses that lack
+    dimensions, fall back to the explicit ``is_vertical`` boolean. Footage whose
+    orientation cannot be confirmed is skipped directly so portrait tasks never mix
+    in landscape clips that would produce black bars in the final video.
     """
     aspect = VideoAspect(video_aspect)
     try:
@@ -265,16 +270,19 @@ def _filter_materials_by_aspect(
     video_aspect: VideoAspect,
 ) -> List[MaterialInfo]:
     """
-    对缓存结果再次校验方向。
+    Re-validate orientation on cached results.
 
-    素材搜索缓存最长保留 24 小时，升级前写入的缓存可能包含方向不匹配的素材。
-    在统一缓存入口过滤可以让修复立即生效，也能防御第三方 Provider 或旧缓存
-    遗漏远端筛选。无法读取 rendition 尺寸的旧条目按未验证处理并跳过。
+    The footage search cache can hold entries for up to 24 hours, and entries written
+    before an upgrade may contain orientation-mismatched footage. Filtering at the
+    unified cache entry point makes the fix effective immediately and also defends
+    against remote filtering missed by third-party Providers or stale cache entries.
+    Legacy entries whose rendition dimensions cannot be read are treated as
+    unverified and skipped.
     """
     aspect = VideoAspect(video_aspect)
     if aspect == VideoAspect.square:
-        # Pixabay 和 Coverr 很少提供原生方形素材。方形输出沿用既有行为，
-        # 接受可用候选并交给视频合成阶段裁剪，避免升级后 1:1 任务无素材。
+        # Pixabay and Coverr rarely provide native square footage. Square output keeps the existing behavior:
+        # accept usable candidates and let the video-composition stage crop them, so 1:1 tasks do not end up with zero footage after an upgrade.
         return list(items)
 
     filtered_items = []
@@ -457,8 +465,8 @@ def search_videos_pixabay(
                     h = int(video["height"])
                 except (KeyError, TypeError, ValueError):
                     continue
-                # Pixabay 很少返回原生方形视频；1:1 输出继续接受满足分辨率的
-                # 候选并由合成阶段裁剪。横竖屏则必须严格匹配目标方向。
+                # Pixabay rarely returns native square videos; 1:1 output keeps accepting candidates that satisfy
+                # the resolution rule and lets composition crop them. Portrait and landscape must strictly match the target orientation.
                 orientation_matches = aspect == VideoAspect.square or (
                     _matches_video_aspect(w, h, aspect)
                 )
@@ -509,18 +517,18 @@ def search_videos_coverr(
     subject to Coverr license terms (https://coverr.co/license).
 
     Coverr API notes (based on official docs at api.coverr.co/docs/):
-      - 鉴权: Authorization: Bearer <api_key>
-      - 搜索端点: GET /videos?query=...,响应结构 {"hits": [...], ...}
-      - 加 ?urls=true 在搜索响应里直接返回 mp4 直链
-      - URL 是 signed JWT(绑定 API key,无过期时间)
-      - Coverr 支持通过 filter=is_vertical:true/false 筛选横竖屏素材；
-        响应返回后仍根据 max_width/max_height 或 is_vertical 做本地校验
-      - duration 字段同时存在 number 和 string 两种形态,本函数都接受
+      - Auth: Authorization: Bearer <api_key>
+      - Search endpoint: GET /videos?query=..., response shape {"hits": [...], ...}
+      - Add ?urls=true to return direct mp4 links in the search response
+      - URLs are signed JWTs (bound to the API key, no expiry)
+      - Coverr supports filter=is_vertical:true/false for orientation filtering;
+        after the response returns, still validate locally via max_width/max_height or is_vertical
+      - The duration field appears as both number and string; this function accepts both
 
-    本函数使用 urls.mp4_download 字段作为下载地址 —— 按 Coverr 官方文档
-    (https://api.coverr.co/docs/videos/#download-a-video) 的说法,
-    GET 这个 URL 本身就被 Coverr 当作一次合法的 download 事件计入统计,
-    无需再调用 PATCH /videos/:id/stats/downloads。
+    This function uses the urls.mp4_download field as the download URL — per Coverr's
+    official docs (https://api.coverr.co/docs/videos/#download-a-video), a GET on
+    this URL is itself counted by Coverr as a legitimate download event, so there is
+    no need to call PATCH /videos/:id/stats/downloads.
     """
     aspect = VideoAspect(video_aspect)
     api_key = get_api_key("coverr_api_keys")
@@ -531,8 +539,8 @@ def search_videos_coverr(
         "urls": "true",
         "sort": "popular",
     }
-    # 服务端方向筛选可以直接从完整搜索结果中返回目标素材，避免先取热门结果再
-    # 本地过滤导致竖屏候选为空。方形素材没有对应布尔条件，继续依赖本地宽高校验。
+    # Server-side orientation filtering can return target footage straight from the full search results, avoiding taking popular results first and then
+    # filtering locally into an empty portrait candidate list. Square footage has no matching boolean condition and still relies on local width/height checks.
     if aspect == VideoAspect.portrait:
         params["filter"] = "is_vertical:true"
     elif aspect == VideoAspect.landscape:
@@ -556,7 +564,7 @@ def search_videos_coverr(
             return video_items
 
         for v in response["hits"]:
-            # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
+            # duration may arrive as a number (11.625) or a string ("10.500000") depending on the response
             try:
                 duration = int(float(v.get("duration") or 0))
             except (TypeError, ValueError):
@@ -671,11 +679,13 @@ def _search_videos_with_cache(
     video_aspect: VideoAspect,
 ) -> List[MaterialInfo]:
     """
-    统一处理三个在线素材源的 24 小时搜索缓存。
+    Handle the 24-hour search cache shared by the three online footage sources.
 
-    缓存只包裹搜索 API，不改变后续视频下载与去重逻辑。远端返回空列表时不写
-    缓存，因为现有 provider 接口使用空列表同时表示“没有结果”和“请求失败”；
-    在两者尚未拆分为明确结果类型前，宁可下次重试，也不能把临时故障缓存一天。
+    The cache wraps only the search API and does not change subsequent video download
+    or deduplication logic. Empty remote results are not cached because the current
+    provider interface uses an empty list for both "no results" and "request failed";
+    until those are split into distinct result types, it is better to retry next time
+    than to cache a transient failure for a day.
     """
     cache_args = {
         "provider": provider,
@@ -688,8 +698,8 @@ def _search_videos_with_cache(
         try:
             return material_cache.load_material_search_cache(**cache_args)
         except Exception as exc:
-            # 缓存是可选优化，任何缓存实现异常都必须按未命中处理，不能阻断
-            # Pexels、Pixabay 或 Coverr 的正常远端搜索。
+            # The cache is an optional optimization; any cache implementation error must be treated as a miss and must never block
+            # normal remote searches against Pexels, Pixabay, or Coverr.
             logger.warning(
                 "material search cache read failed, continue with remote search: "
                 f"provider={provider}, error={type(exc).__name__}, detail={exc}"
@@ -707,8 +717,8 @@ def _search_videos_with_cache(
         )
         ignored_count = len(cached_items) - len(filtered_cached_items)
         if ignored_count:
-            # 旧版本缓存可能混入其它方向的素材。即使仍有少量可用条目，也要刷新
-            # 完整候选集，否则在缓存有效期内会反复使用同一批少量视频。
+            # Old cache versions may contain footage of other orientations. Even if a few usable entries remain, refresh the
+            # full candidate set; otherwise the same handful of videos would be reused for the whole cache lifetime.
             return None, ignored_count
         return filtered_cached_items, 0
 
@@ -724,8 +734,8 @@ def _search_videos_with_cache(
 
     cache_lock = material_cache.get_material_search_cache_lock(**cache_args)
     with cache_lock:
-        # 等待相同搜索条件的线程完成后再次读取，避免多个 API 任务在首次缓存
-        # 未命中时同时请求远端，降低第三方接口限流和风控触发概率。
+        # Threads waiting for the same search condition re-read after the first one finishes, so multiple API tasks
+        # do not all hit the remote on the first cache miss, reducing rate-limit and fraud-control triggers on third-party APIs.
         cached_items, _ = load_matching_cache()
         if cached_items is not None:
             return cached_items
@@ -735,9 +745,9 @@ def _search_videos_with_cache(
             minimum_duration=minimum_duration,
             video_aspect=video_aspect,
         )
-        # Provider 正常会写入当前关键词，但测试替身、第三方扩展或旧实现可能
-        # 遗漏或携带错误值。缓存读取会根据缓存键恢复该字段，因此远端结果也在
-        # 同一入口校正，保证首次搜索与缓存命中的任务来源记录保持一致。
+        # Providers normally write the current keywords, but test doubles, third-party extensions, or older implementations may
+        # omit them or carry wrong values. Cache reads restore the field from the cache key, so remote results are also
+        # corrected at the same entry point, keeping task provenance records consistent between first search and cache hit.
         for item in items:
             if isinstance(item.source_info, dict):
                 item.source_info = dict(item.source_info)
@@ -851,8 +861,8 @@ def download_videos(
                         _material_source_record(item, saved_video_path)
                     )
                 except Exception as source_error:
-                    # 来源记录异常不能把已经成功下载的素材视为下载失败，更不能
-                    # 阻断视频生成；保留供应商和异常类型用于后续定位。
+                    # A source-record failure must not turn successfully downloaded footage into a download failure, nor
+                    # block video generation; keep the provider name and exception type for later diagnosis.
                     logger.warning(
                         "failed to prepare material source record: "
                         f"provider={item.provider}, "
@@ -886,13 +896,15 @@ def _download_videos_by_script_order(
     material_directory: str,
 ) -> List[str]:
     """
-    按脚本文案顺序下载素材。
+    Download footage in script order.
 
-    默认下载逻辑会把所有关键词的候选素材合并成一个大列表；如果第一个
-    关键词返回很多结果，最终下载时可能一直消耗这个关键词的素材，后续
-    脚本主题就排不上时间线。这里按关键词分组后轮询下载：
-    第 1 轮取每个关键词的第 1 个候选，第 2 轮取每个关键词的第 2 个候选。
-    这样在不重写视频合成引擎的前提下，尽量保证素材顺序贴近文案顺序。
+    The default download logic merges candidate footage of all keywords into one big
+    list; if the first keyword returns many results, downloads may keep consuming that
+    keyword's footage and later script topics never make it onto the timeline. This
+    function groups by keyword and downloads round-robin: round 1 takes each keyword's
+    first candidate, round 2 takes each keyword's second candidate. Without rewriting
+    the video composition engine, this keeps footage ordering as close to the script
+    order as possible.
     """
     logger.info("downloading videos with script-order material matching")
     candidate_groups = []

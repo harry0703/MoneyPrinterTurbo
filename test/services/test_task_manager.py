@@ -12,7 +12,7 @@ from app.services import task as task_service
 
 class TestInMemoryTaskManager(unittest.TestCase):
     def test_queue_operations_preserve_task_payload(self):
-        """内存队列应保持函数、位置参数和关键字参数，不得改变任务内容。"""
+        """The in-memory queue must preserve functions, positional args, and keyword args without changing task content."""
         manager = InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=2)
         task = {"func": len, "args": ([1, 2],), "kwargs": {}}
 
@@ -24,7 +24,7 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertTrue(manager.is_queue_empty())
 
     def test_add_task_rejects_only_after_queue_limit(self):
-        """并发名额用尽后允许排队到上限，超过上限才返回明确错误。"""
+        """Once concurrency slots are used up, queue up to the limit; only beyond that return a clear error."""
         manager = InMemoryTaskManager(max_concurrent_tasks=0, max_queued_tasks=1)
 
         manager.add_task(len, [1])
@@ -34,8 +34,9 @@ class TestInMemoryTaskManager(unittest.TestCase):
 
     def test_add_task_reserves_slot_before_background_thread_runs(self):
         """
-        并发名额必须在线程启动前预占；即使 mock 的线程尚未进入 run_task，
-        第二个请求也应进入队列，不能突破 max_concurrent_tasks。
+        The concurrency slot must be reserved before the thread starts; even if the mocked thread
+        has not entered run_task yet, the second request should queue instead of exceeding
+        max_concurrent_tasks.
         """
         manager = InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=1)
 
@@ -48,7 +49,7 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertEqual(manager.queue_size(), 1)
 
     def test_add_task_rolls_back_slot_when_thread_cannot_start(self):
-        """线程启动失败不能永久占用并发名额，异常仍应交给调用方处理。"""
+        """A thread-start failure must not permanently hold a concurrency slot; the exception still reaches the caller."""
         manager = InMemoryTaskManager(max_concurrent_tasks=1)
 
         with patch.object(
@@ -62,7 +63,7 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertEqual(manager.current_tasks, 0)
 
     def test_task_done_starts_next_queued_task(self):
-        """当前任务结束后应释放并发名额，并立即调度队列中的下一个任务。"""
+        """After the current task ends, the concurrency slot is released and the next queued task is scheduled immediately."""
         manager = InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=2)
         manager.current_tasks = 1
         manager.enqueue({"func": len, "args": ([1, 2],), "kwargs": {}})
@@ -75,7 +76,7 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertTrue(manager.is_queue_empty())
 
     def test_task_done_requeues_task_when_thread_cannot_start(self):
-        """出队后若线程启动失败，应回滚名额并把任务放回队列，避免任务丢失。"""
+        """If thread startup fails after dequeue, roll back the slot and put the task back in the queue so it is not lost."""
         manager = InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=1)
         manager.current_tasks = 1
         queued_task = {"func": len, "args": ([1, 2],), "kwargs": {}}
@@ -93,7 +94,7 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertEqual(manager.dequeue(), queued_task)
 
     def test_run_task_releases_slot_after_failure(self):
-        """任务函数抛出异常时 finally 仍必须释放名额，避免队列永久阻塞。"""
+        """When the task function raises, finally must still release the slot so the queue never blocks forever."""
         manager = InMemoryTaskManager(max_concurrent_tasks=1)
         manager.current_tasks = 1
 
@@ -106,9 +107,9 @@ class TestInMemoryTaskManager(unittest.TestCase):
 
     def test_check_queue_handles_dequeue_returning_none(self):
         """
-        dequeue() 可能在内部跳过所有已不满足当前校验的排队任务后返回 None，
-        即使调用 check_queue 之前 is_queue_empty() 曾经是 False。check_queue
-        不能假设 dequeue 一定能拿到可用任务，否则会在 task_info["func"] 上崩溃。
+        dequeue() may internally skip all queued tasks that no longer pass current validation and
+        return None, even if is_queue_empty() was False before check_queue ran. check_queue cannot
+        assume dequeue always yields a usable task, or it crashes on task_info["func"].
         """
         manager = InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=1)
 
@@ -121,7 +122,7 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertEqual(manager.current_tasks, 0)
 
     def test_execute_task_starts_background_thread(self):
-        """任务执行入口必须启动线程，并把函数参数完整传给 run_task。"""
+        """The task execution entry point must start the thread and pass the function arguments to run_task intact."""
         manager = InMemoryTaskManager(max_concurrent_tasks=1)
         fake_thread = MagicMock()
 
@@ -157,8 +158,8 @@ class TestRedisTaskManager(unittest.TestCase):
 
     def test_enqueue_serializes_video_params_without_mutating_task(self):
         """
-        Redis 只能存 JSON；VideoParams 应转换成字典，但原任务仍需保留模型，
-        避免序列化副作用影响日志、重试或调用方后续读取。
+        Redis stores JSON only; VideoParams becomes a dict, but the original task keeps the model
+        so serialization side effects never affect logging, retries, or later reads by the caller.
         """
         params = VideoParams(video_subject="Coffee")
         task = {
@@ -178,7 +179,7 @@ class TestRedisTaskManager(unittest.TestCase):
         self.assertEqual(decoded["kwargs"]["params"]["video_subject"], "Coffee")
 
     def test_dequeue_restores_function_and_video_params(self):
-        """从 Redis 取出的任务应恢复可调用函数和 VideoParams 模型。"""
+        """A task fetched from Redis should restore the callable function and the VideoParams model."""
         payload = {
             "func": "start",
             "args": [],
@@ -199,7 +200,7 @@ class TestRedisTaskManager(unittest.TestCase):
         self.assertEqual(task["kwargs"]["params"].video_subject, "Coffee")
 
     def test_empty_queue_and_size_use_redis_length(self):
-        """队列判空和长度必须直接反映 Redis 当前列表长度。"""
+        """Queue emptiness and length must directly reflect the current Redis list length."""
         self.redis_client.lpop.return_value = None
         self.redis_client.llen.side_effect = [0, 2]
 
@@ -209,11 +210,11 @@ class TestRedisTaskManager(unittest.TestCase):
 
     def test_dequeue_skips_task_that_fails_current_validation(self):
         """
-        一条任务可能是在校验规则收紧前入队的（例如 video_count 曾允许为 0）。
-        lpop 是破坏性操作，重建 VideoParams 失败时这条任务已经从 Redis 里
-        永久移除了，不能再假装它还在；dequeue 不应该把校验异常抛给调用方
-        （那样会让持锁的调用方崩溃且丢失这条任务却不打日志），而应该跳过它，
-        继续尝试队列里的下一条，直到取到一条可用任务或者队列确实空了。
+        A task may have been enqueued before validation rules tightened (video_count once allowed 0).
+        lpop is destructive; if rebuilding VideoParams fails, the task is already permanently removed
+        from Redis and cannot be pretended to still exist. dequeue should not throw at the caller (that
+        would crash the lock holder and lose the task silently); it should skip it and try the next
+        queue entry until it gets one usable task or the queue is truly empty.
         """
         stale_payload = {
             "func": "start",
@@ -248,7 +249,7 @@ class TestRedisTaskManager(unittest.TestCase):
         self.assertEqual(task["kwargs"]["params"].video_subject, "Tea")
 
     def test_dequeue_returns_none_when_every_queued_task_is_stale(self):
-        """全部剩余任务都因当前校验规则被丢弃时，应返回 None 而不是抛出异常。"""
+        """When all remaining tasks are dropped by current validation rules, return None instead of raising."""
         stale_payload = {
             "func": "start",
             "args": [],
@@ -266,10 +267,10 @@ class TestRedisTaskManager(unittest.TestCase):
 
     def test_dequeue_marks_stale_task_failed_instead_of_leaving_it_processing(self):
         """
-        任务状态记录在入队前就已创建，默认是 processing。仅仅在 dequeue 里跳过
-        并丢弃这条队列项而不更新状态记录，会让这个任务在 API/WebUI 里永远显示
-        为运行中。应该用 patch_task（而不是 update_task）把它标记为失败，
-        这样如果任务已经被用户删除，我们不会又把它的状态记录建回来。
+        The task state record is created before enqueueing and defaults to processing. Merely skipping
+        and dropping the queue entry in dequeue without updating the state record leaves the task shown
+        as running forever in the API/WebUI. Mark it failed via patch_task (not update_task) so a task
+        the user already deleted does not get its state record recreated.
         """
         stale_payload = {
             "func": "start",
@@ -296,7 +297,7 @@ class TestRedisTaskManager(unittest.TestCase):
         self.assertIn("video_count", call_args.kwargs["error"])
 
     def test_dequeue_does_not_recreate_state_for_already_deleted_task(self):
-        """patch_task 在任务已被删除时返回 False；dequeue 不应把它当成错误处理。"""
+        """patch_task returns False when the task was already deleted; dequeue must not treat that as an error."""
         stale_payload = {
             "func": "start",
             "args": [],

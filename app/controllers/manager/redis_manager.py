@@ -32,9 +32,9 @@ class RedisTaskManager(TaskManager):
 
     def enqueue(self, task: Dict):
         task_with_serializable_params = task.copy()
-        # task.copy() 只复制最外层字典；如果直接改写嵌套 kwargs，会把调用方
-        # 持有的 VideoParams 同步替换成 dict。后续日志或重试仍可能读取原任务，
-        # 因此这里单独复制 kwargs，确保序列化过程没有意外副作用。
+        # task.copy() only copies the outermost dict; mutating nested kwargs directly would also replace the
+        # caller's VideoParams with a dict. Later logging or retries may still read the original task, so
+        # copy kwargs separately to keep serialization free of side effects.
         task_kwargs = task.get("kwargs", {})
         task_with_serializable_params["kwargs"] = task_kwargs.copy()
 
@@ -43,24 +43,24 @@ class RedisTaskManager(TaskManager):
                 "params"
             ].model_dump(warnings=False)
 
-        # 将函数对象转换为其名称
+        # Convert a function object to its name
         task_with_serializable_params["func"] = task["func"].__name__
         self.redis_client.rpush(self.queue, json.dumps(task_with_serializable_params))
 
     def dequeue(self):
-        # 循环而非单次弹出：某个任务在入队时可能满足当时的 VideoParams 校验规则，
-        # 但校验规则本身在两次部署之间收紧了（例如新增 ge=1 约束）。lpop 是破坏性
-        # 操作，一旦弹出就不能放回原位；如果重建 VideoParams 时才发现校验失败，
-        # 这条任务已经从队列中永久移除了，不能再假装它还在。与其让异常从这里往上
-        # 抛、把这条已经丢失的任务的 lock 持有者带崩，不如原地丢弃并继续尝试队列
-        # 里的下一条，把"拿到一条可用任务或者队列确实空了"这个约定维持住。
+        # Loop instead of popping once: a task may have passed the VideoParams validation rules in force when it was enqueued,
+        # while those rules later tightened between deployments (e.g. a new ge=1 constraint). lpop is destructive:
+        # once popped, an entry cannot be put back. If validation fails only when rebuilding VideoParams,
+        # the task is already permanently gone from the queue. Rather than letting the exception propagate upward
+        # and crash the lock holder of this already-lost task, drop it in place and continue with the next queue entry,
+        # preserving the contract of "hand out one usable task, or confirm the queue is truly empty".
         while True:
             task_json = self.redis_client.lpop(self.queue)
             if not task_json:
                 return None
 
             task_info = json.loads(task_json)
-            # 将函数名称转换回函数对象
+            # Convert a function name back to a function object
             task_info["func"] = FUNC_MAP[task_info["func"]]
 
             if "params" in task_info["kwargs"] and isinstance(
@@ -76,10 +76,10 @@ class RedisTaskManager(TaskManager):
                         f"VideoParams validation (queued under an older, more "
                         f"permissive schema, or corrupted): {e}"
                     )
-                    # 任务状态记录在入队前就已创建，且默认是 processing；如果只是
-                    # 丢弃这条队列项而不动状态记录，API/WebUI 会一直显示任务在
-                    # 运行，永远不会变成失败。用 patch_task 而不是 update_task，
-                    # 这样如果用户已经删除了这个任务，我们不会又把它建回来。
+                    # The task state record is created before enqueueing and defaults to processing; if the queue entry
+                    # is simply dropped without touching the state record, the API/WebUI would keep showing the task
+                    # as running forever. Use patch_task instead of update_task,
+                    # so we do not recreate a task the user has already deleted.
                     task_id = task_info["kwargs"].get("task_id")
                     if task_id:
                         sm.state.patch_task(

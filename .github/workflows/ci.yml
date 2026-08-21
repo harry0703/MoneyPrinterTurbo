@@ -58,8 +58,8 @@ jobs:
         run: uv run --no-sync ruff check app cli.py main.py webui test
 
       - name: Run unit tests with coverage
-        # pytest 兼容现有 unittest.TestCase，同时会收集仓库中的 pytest 风格
-        # 测试，避免测试文件已存在但 CI 没有真正执行。
+        # pytest stays compatible with the existing unittest.TestCase classes and also
+        # collects pytest-style tests, so existing test files are genuinely executed in CI.
         run: uv run --no-sync python -X utf8 -m coverage run -m pytest -q test
 
       - name: Report test coverage

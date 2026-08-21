@@ -9,6 +9,21 @@ rem set HF_ENDPOINT=https://hf-mirror.com
 if not defined MPT_WEBUI_HOST set "MPT_WEBUI_HOST=127.0.0.1"
 if not defined MPT_WEBUI_PORT set "MPT_WEBUI_PORT=8501"
 
+rem First-run bootstrap: if no project Python and no uv exist, run the
+rem one-time installer automatically so a fresh clone can start directly.
+if exist "%CURRENT_DIR%\.venv\Scripts\python.exe" goto :env_ready
+if exist "%CURRENT_DIR%\lib\python\python.exe" goto :env_ready
+where uv >nul 2>nul
+if not errorlevel 1 goto :env_ready
+echo ***** No Python environment found - running first-time setup, please wait... *****
+call "%CURRENT_DIR%\install.bat"
+if errorlevel 1 (
+    echo ***** First-time setup failed. Follow the messages above, then try again. *****
+    pause
+    exit /b 1
+)
+:env_ready
+
 set "STREAMLIT_CMD="
 if exist "%CURRENT_DIR%\.venv\Scripts\python.exe" (
     set "STREAMLIT_CMD="%CURRENT_DIR%\.venv\Scripts\python.exe" -m streamlit"

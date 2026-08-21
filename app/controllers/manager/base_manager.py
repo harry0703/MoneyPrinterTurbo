@@ -25,9 +25,9 @@ class TaskManager:
                 logger.info(
                     f"add task: {func.__name__}, current_tasks: {self.current_tasks}"
                 )
-                # 在线程启动前先预占并发名额。原实现在线程内部递增，连续请求
-                # 可能都在子线程获得锁之前看到 current_tasks=0，从而突破并发
-                # 上限。启动失败时回滚名额，让后续请求仍可正常调度。
+                # Reserve the concurrency slot before starting the thread. The old implementation incremented inside
+                # the thread, so consecutive requests could all observe current_tasks=0 before any child thread took
+                # the lock, exceeding the concurrency cap. Roll the slot back on startup failure so later requests still get scheduled.
                 self.current_tasks += 1
                 try:
                     self.execute_task(func, *args, **kwargs)
@@ -36,8 +36,8 @@ class TaskManager:
                     raise
             else:
                 queue_size = self.queue_size()
-                # 并发数已满时才进入排队。队列必须有上限，否则匿名接口可以持续
-                # 堆积任务对象和请求参数，最终造成内存耗尽或第三方 API 成本失控。
+                # Queue only once the concurrency limit is full. The queue must be bounded; otherwise an anonymous
+                # endpoint could keep piling up task objects and request parameters, eventually exhausting memory or running up third-party API costs.
                 if queue_size >= self.max_queued_tasks:
                     logger.warning(
                         f"reject task: {func.__name__}, queue_size: {queue_size}, "
@@ -79,8 +79,8 @@ class TaskManager:
                 func = task_info["func"]
                 args = task_info.get("args", ())
                 kwargs = task_info.get("kwargs", {})
-                # 与直接创建任务保持同一计数时机，避免刚出队的任务尚未在线程
-                # 内计数时，又有新请求绕过队列占用同一个并发名额。
+                # Use the same counting point as direct task creation, so a task that just left the queue cannot
+                # still be uncounted in its thread while a new request bypasses the queue into the same slot.
                 self.current_tasks += 1
                 try:
                     self.execute_task(func, *args, **kwargs)

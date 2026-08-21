@@ -1,18 +1,18 @@
 {
   "meta": {
-    "name": "MoneyPrinterTurbo 批量文案候选",
-    "description": "根据视频主题批量生成可直接用于 MoneyPrinterTurbo 的文案与素材搜索词。",
+    "name": "MoneyPrinterTurbo Batch Script Candidates",
+    "description": "Batch-generate scripts and footage search terms ready to use with MoneyPrinterTurbo from a video topic.",
     "scenario": "short-video-script",
-    "inputSummary": "视频主题、生成要求和候选编号",
+    "inputSummary": "Video topic, generation requirements, and candidate index",
     "primaryOutputType": "text",
-    "tags": ["MoneyPrinterTurbo", "短视频", "批量文案"]
+    "tags": ["MoneyPrinterTurbo", "short video", "batch scripts"]
   },
   "steps": [
     {
       "stepId": "stp_script01",
-      "displayName": "生成短视频文案与素材词",
+      "displayName": "Generate short-video script and footage terms",
       "executionUnit": "text-generate",
-      "instruction": "你是短视频文案策划。根据输入生成一份适合目标时长的完整口播文案，并给出 5 到 10 个用于搜索视频素材的简短英文关键词。不同候选编号应采用不同的切入角度。只输出一个合法 JSON 对象，不要输出 Markdown、代码围栏、解释或 JSON 以外的文字。JSON 必须严格使用这个结构：{\"script\":\"完整文案\",\"videoTerms\":[\"keyword one\",\"keyword two\"]}。script 和 videoTerms 均不能为空。",
+      "instruction": "You are a short-video script writer. Based on the input, produce a complete voiceover script suitable for the target duration, plus 5 to 10 short English keywords for searching video footage. Different candidate indexes should take different angles. Output only one valid JSON object — no Markdown, no code fences, no explanations, and no text outside the JSON. The JSON must follow this exact structure: {\"script\":\"the full script\",\"videoTerms\":[\"keyword one\",\"keyword two\"]}. Neither script nor videoTerms may be empty.",
       "defaultModelRef": {
         "modelKey": "google/gemini-2.5-flash"
       }
@@ -20,38 +20,38 @@
   ],
   "inputSchema": {
     "instructions": [
-      "每一行生成一个独立文案候选。",
-      "candidateIndex 用于让同一主题的多个候选保持差异。"
+      "Generate one independent script candidate per row.",
+      "candidateIndex keeps multiple candidates of the same topic distinct."
     ],
     "fields": [
       {
         "key": "subject",
-        "label": "视频主题",
-        "description": "视频需要讲述的主题或核心观点",
+        "label": "Video topic",
+        "description": "The topic or core idea the video should cover",
         "valueType": "string",
         "required": true,
         "order": 1,
         "presentation": {
           "widget": "textarea",
-          "placeholder": "例如：普通人如何用 AI 提高工作效率"
+          "placeholder": "e.g. How ordinary people can work more efficiently with AI"
         }
       },
       {
         "key": "requirements",
-        "label": "生成要求",
-        "description": "输出语言、目标时长、风格以及其他附加要求",
+        "label": "Generation requirements",
+        "description": "Output language, target duration, style, and any additional requirements",
         "valueType": "string",
         "required": true,
         "order": 2,
         "presentation": {
           "widget": "textarea",
-          "placeholder": "输出语言：zh-CN\n目标时长（秒）：60\n风格或附加要求：开头制造反差"
+          "placeholder": "Output language: en-US\nTarget duration (seconds): 60\nStyle or extra requirements: open with a contrast hook"
         }
       },
       {
         "key": "candidateIndex",
-        "label": "候选编号",
-        "description": "同一批次中从 1 开始的候选序号",
+        "label": "Candidate index",
+        "description": "The 1-based candidate number within the same batch",
         "valueType": "string",
         "required": true,
         "order": 3
@@ -60,8 +60,8 @@
     "sampleRows": [
       {
         "values": {
-          "subject": "普通人如何用 AI 提高工作效率",
-          "requirements": "输出语言：zh-CN\n目标时长（秒）：60\n风格或附加要求：开头制造反差，结尾给出行动建议",
+          "subject": "How ordinary people can work more efficiently with AI",
+          "requirements": "Output language: en-US\nTarget duration (seconds): 60\nStyle or extra requirements: open with a contrast hook, close with an action tip",
           "candidateIndex": "1"
         }
       }
@@ -74,11 +74,11 @@
       "bindMode": "shared",
       "separator": "\n",
       "sources": [
-        {"kind": "literal", "literal": "视频主题："},
+        {"kind": "literal", "literal": "Video topic: "},
         {"kind": "field_ref", "fieldKey": "subject"},
-        {"kind": "literal", "literal": "生成要求："},
+        {"kind": "literal", "literal": "Generation requirements: "},
         {"kind": "field_ref", "fieldKey": "requirements"},
-        {"kind": "literal", "literal": "候选编号："},
+        {"kind": "literal", "literal": "Candidate index: "},
         {"kind": "field_ref", "fieldKey": "candidateIndex"}
       ]
     }

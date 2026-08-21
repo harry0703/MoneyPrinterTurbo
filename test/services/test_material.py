@@ -27,8 +27,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pexels_uses_tls_verification_by_default(self):
         """
-        默认路径必须开启 TLS 校验，避免素材 API key 和返回的素材 URL
-        在公共网络或不可信代理环境中被中间人攻击截获或篡改。
+        The default path must enable TLS verification so footage API keys and returned footage
+        URLs cannot be intercepted or tampered with on public networks or untrusted proxies.
         """
         config.app["pexels_api_keys"] = ["pexels-key"]
         config.app.pop("tls_verify", None)
@@ -77,8 +77,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_allows_explicit_tls_disable_for_proxy(self):
         """
-        少数企业代理会使用自签证书。该场景必须显式配置关闭 TLS 校验，
-        不能再由代码硬编码默认关闭。
+        A few corporate proxies use self-signed certificates. That scenario must explicitly
+        disable TLS verification in configuration; the code must not default it off.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.app["tls_verify"] = False
@@ -116,9 +116,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_remote_searches_only_return_requested_orientation(self):
         """
-        三个素材源都必须只返回目标方向的素材，避免竖屏任务混入横屏素材后
-        通过 letterbox 产生明显黑边。Pexels 使用远端参数并在本地校验，
-        Pixabay 和 Coverr 使用响应尺寸做本地过滤。
+        All three footage sources must return only target-orientation footage so portrait
+        tasks never mix landscape clips that letterbox into obvious black bars. Pexels filters
+        remotely and validates locally; Pixabay and Coverr filter locally by response dimensions.
         """
         config.app["pexels_api_keys"] = ["pexels-key"]
         config.app["pixabay_api_keys"] = ["pixabay-key"]
@@ -257,7 +257,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
             )
 
     def test_video_aspect_matching_rejects_unknown_dimensions(self):
-        """无法确认方向的素材不能进入严格的横竖屏候选列表。"""
+        """Footage whose orientation cannot be confirmed must not enter the strict portrait/landscape candidate list."""
         self.assertTrue(
             material._matches_video_aspect(
                 1080,
@@ -303,7 +303,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
     def test_coverr_passes_orientation_filter_to_remote_search(self):
-        """Coverr 横竖屏搜索应在服务端筛选，方形素材继续使用本地尺寸校验。"""
+        """Coverr orientation search should filter server-side; square footage keeps local dimension checks."""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.proxy.clear()
         fake_response = SimpleNamespace(json=lambda: {"hits": []})
@@ -333,8 +333,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_square_search_preserves_crop_compatible_materials(self):
         """
-        Pixabay 和 Coverr 很少提供原生方形视频。方形输出必须继续接受可裁剪的
-        横屏素材，否则选择这两个来源时会在搜索阶段直接得到空列表。
+        Pixabay and Coverr rarely provide native square videos. Square output must keep
+        accepting croppable landscape footage, or these two sources would yield an empty
+        list at search time.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.app["coverr_api_keys"] = ["coverr-key"]
@@ -424,8 +425,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_reports_cloudflare_challenge(self):
         """
-        Cloudflare Challenge 返回的是 HTML，不是 Pixabay API 的 JSON。
-        应直接说明服务端拦截原因，避免用户只看到没有上下文的 JSON 解析错误。
+        A Cloudflare Challenge returns HTML, not Pixabay API JSON. State the server-side
+        interception reason directly instead of leaving users with a context-free JSON parse error.
         """
         config.app["pixabay_api_keys"] = ["pixabay-secret-key"]
         config.proxy.clear()
@@ -454,8 +455,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_reports_api_rate_limit(self):
         """
-        Pixabay 自身的 429 限流与 Cloudflare HTML Challenge 是不同问题。
-        保留 Retry-After 可以帮助用户判断何时重试，同时不记录响应正文。
+        Pixabay's own 429 rate limiting and a Cloudflare HTML Challenge are different problems.
+        Keeping Retry-After helps users decide when to retry, and the response body is never logged.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.proxy.clear()
@@ -481,8 +482,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_reports_non_json_response(self):
         """
-        即使状态码为 200，上游代理也可能返回登录页或其他非 JSON 内容。
-        该场景应记录响应类型，而不是向外暴露底层 JSONDecodeError。
+        Even with status 200, an upstream proxy may return a login page or other non-JSON content.
+        Record the response type instead of exposing the underlying JSONDecodeError.
         """
         config.app["pixabay_api_keys"] = ["pixabay-key"]
         config.proxy.clear()
@@ -509,8 +510,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_redacts_api_key_from_network_error(self):
         """
-        requests 的连接异常可能回显完整请求 URL。异常详情仍应保留用于排查，
-        但 URL 查询参数中的 Pixabay API Key 必须在写入日志前脱敏。
+        requests connection exceptions may echo the full request URL. Details should stay
+        diagnosable, but the Pixabay API key in the URL query must be redacted before logging.
         """
         api_key = "pixabay-secret-key"
         config.app["pixabay_api_keys"] = [api_key]
@@ -533,8 +534,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_search_pixabay_redacts_proxy_credentials_from_network_error(self):
         """
-        代理连接异常可能回显含认证信息的完整代理 URL。日志应保留异常类型，
-        但不能把代理用户名和密码持久化到日志文件。
+        Proxy connection exceptions may echo the full authenticated proxy URL. Logs should
+        keep the exception type but must not persist proxy usernames and passwords to log files.
         """
         proxy_url = "http://proxy-user:proxy-password@proxy.example.com:8080"
         config.app["pixabay_api_keys"] = ["pixabay-key"]
@@ -584,9 +585,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_download_videos_accepts_plain_string_concat_mode(self):
         """
-        download_videos 可能被服务层或测试直接传入字符串模式，而不是
-        VideoConcatMode 枚举。这里用空搜索词避免真实网络请求，只验证
-        字符串 "random" 不会再因为访问 `.value` 抛 AttributeError。
+        download_videos may receive a string mode from the service layer or tests instead
+        of a VideoConcatMode enum. Use empty search terms to avoid real network requests and
+        verify the string "random" no longer raises AttributeError on `.value`.
         """
         result = material.download_videos(
             task_id="string-concat-mode",
@@ -598,8 +599,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_material_source_record_uses_public_whitelist(self):
         """
-        任务清单只应包含可追溯的公开字段，不能写入签名参数、下载地址、
-        调用方传入的额外字段或本机绝对路径。
+        Task records should contain only traceable public fields — never signed parameters,
+        download URLs, extra caller-supplied fields, or machine-local absolute paths.
         """
         item = material.MaterialInfo(
             provider="pixabay",
@@ -651,9 +652,10 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
     def test_download_videos_can_round_robin_terms_in_script_order(self):
         """
-        开启按文案顺序匹配素材后，不能让第一个关键词的多个候选先把
-        音频时长填满。这里模拟两个关键词各有多个候选，验证下载顺序是
-        term1-第1个、term2-第1个、term1-第2个，贴近脚本叙事顺序。
+        With footage-to-script-order matching on, the first keyword's many candidates must
+        not fill the whole audio duration. Simulate two keywords with several candidates each
+        and verify the download order is term1-first, term2-first, term1-second — close to
+        script narrative order.
         """
         search_results = {
             "opening city": [
@@ -755,7 +757,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
     def test_material_source_persistence_failure_does_not_break_download(self):
-        """辅助任务记录失败时，已经下载成功的素材仍应正常返回给成片主流程。"""
+        """If writing auxiliary task records fails, footage already downloaded should still return to the main pipeline."""
         item = material.MaterialInfo(
             provider="pexels",
             url="https://v.example/a1.mp4",
@@ -794,8 +796,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
 class TestCoverrProvider(unittest.TestCase):
     """
-    Coverr 视频素材源(spec: 2026-06-09-coverr-video-provider-design.md)。
-    全部用 unittest.mock 替换 requests，确保 CI 不依赖真实网络和真实 API key。
+    Coverr footage source (spec: 2026-06-09-coverr-video-provider-design.md).
+    All requests are replaced with unittest.mock so CI needs no real network or API key.
     """
 
     def setUp(self):
@@ -812,11 +814,11 @@ class TestCoverrProvider(unittest.TestCase):
 
     def test_search_coverr_uses_mp4_download_url(self):
         """
-        search_videos_coverr 应把每个 hit 转成 MaterialInfo，并把 urls.mp4_download
-        直接作为 MaterialInfo.url。
-        按 Coverr 官方文档 (api.coverr.co/docs/videos/#download-a-video),
-        GET mp4_download 本身就被 Coverr 计入下载统计,无需额外 PATCH ping。
-        同时验证 Authorization header 使用 Bearer scheme。
+        search_videos_coverr should turn each hit into a MaterialInfo and use urls.mp4_download
+        directly as MaterialInfo.url.
+        Per Coverr's official docs (api.coverr.co/docs/videos/#download-a-video), a GET on
+        mp4_download is itself counted by Coverr as a download, so no extra PATCH ping is needed.
+        Also verify the Authorization header uses the Bearer scheme.
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -864,7 +866,7 @@ class TestCoverrProvider(unittest.TestCase):
         item = results[0]
         self.assertEqual(item.provider, "coverr")
         self.assertEqual(item.duration, 11)
-        # url 字段就是 mp4_download URL,不再做 coverr://id|url 编码
+        # The url field is the mp4_download URL; no more coverr://id|url encoding
         self.assertEqual(
             item.url, "https://storage.coverr.co/videos/abc/download?token=xyz"
         )
@@ -884,7 +886,7 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertTrue(get.call_args.kwargs["verify"])
 
     def test_search_coverr_uses_tls_verification_by_default(self):
-        """与 pexels/pixabay 一致:未显式配置时 TLS 校验默认开启。"""
+        """Consistent with pexels/pixabay: TLS verification is on by default when not explicitly configured."""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
         config.proxy.clear()
@@ -899,7 +901,7 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertTrue(get.call_args.kwargs["verify"])
 
     def test_search_coverr_allows_explicit_tls_disable_for_proxy(self):
-        """企业自签证书代理场景必须能显式关闭 TLS 校验。"""
+        """Corporate self-signed-certificate proxy scenarios must be able to disable TLS verification explicitly."""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app["tls_verify"] = False
         config.proxy.clear()
@@ -915,8 +917,8 @@ class TestCoverrProvider(unittest.TestCase):
 
     def test_search_coverr_filters_by_min_duration_and_accepts_string(self):
         """
-        Coverr duration 字段在不同响应里可能是 number 或 string,
-        两种格式都要接受;低于 minimum_duration 的应被过滤。
+        Coverr's duration field may be a number or a string depending on the response;
+        both formats are accepted, and entries below minimum_duration are filtered out.
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -951,7 +953,7 @@ class TestCoverrProvider(unittest.TestCase):
         self.assertEqual(results[0].url, "https://example.com/b.mp4")
 
     def test_search_coverr_skips_invalid_items(self):
-        """缺 id 或缺 urls.mp4_download 的条目应被跳过,不应抛异常。"""
+        """Entries missing id or urls.mp4_download are skipped instead of raising."""
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
         config.proxy.clear()
@@ -989,8 +991,8 @@ class TestCoverrProvider(unittest.TestCase):
 
     def test_search_coverr_returns_empty_on_failure(self):
         """
-        响应结构异常 / 网络异常时,函数必须返回 [] 而不是抛异常,
-        与 pexels/pixabay 行为保持一致。
+        On malformed responses / network errors the function must return [] instead of raising,
+        consistent with pexels/pixabay behavior.
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -1020,11 +1022,11 @@ class TestCoverrProvider(unittest.TestCase):
 
     def test_download_videos_passes_mp4_download_url_to_save_video(self):
         """
-        在 source="coverr" 时:
-          1. dispatch 到 search_videos_coverr
-          2. coverr item 走通用下载路径:save_video 收到的就是 mp4_download URL
-             (不再有 coverr://id|url 编码,也不再调用 PATCH ping)
-          3. 返回保存路径
+        With source="coverr":
+          1. dispatch to search_videos_coverr
+          2. coverr items take the generic download path: save_video receives the raw mp4_download URL
+             (no coverr://id|url encoding, no PATCH ping)
+          3. return the saved path
         """
         config.app["coverr_api_keys"] = ["coverr-key"]
         config.app.pop("tls_verify", None)
@@ -1059,13 +1061,13 @@ class TestCoverrProvider(unittest.TestCase):
         # 1. dispatch
         self.assertEqual(search.call_count, 1)
 
-        # 2. save_video 收到的就是 mp4_download URL,原样传入
+        # 2. save_video receives the raw mp4_download URL and passes it through unchanged
         save_url = save.call_args.kwargs.get("video_url") or save.call_args.args[0]
         self.assertEqual(
             save_url, "https://storage.coverr.co/videos/abc/download?token=xyz"
         )
 
-        # 3. 返回值正确
+        # 3. the return value is correct
         self.assertEqual(result, ["/tmp/coverr-saved.mp4"])
 
 

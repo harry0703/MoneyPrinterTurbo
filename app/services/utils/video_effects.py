@@ -17,9 +17,9 @@ def fadeout_transition(clip: Clip, t: float) -> Clip:
 def slidein_transition(clip: Clip, t: float, side: str) -> Clip:
     width, height = clip.size
 
-    # MoviePy 内置 SlideIn 在当前这条处理链里对全屏素材不稳定，
-    # 会出现“逻辑上应用了转场，但画面几乎看不出变化”的情况。
-    # 这里改成显式黑底 + 位移动画，保证转场效果可见且行为可控。
+    # MoviePy's built-in SlideIn is unstable for full-screen footage on this processing chain:
+    # the transition is "logically applied" but the picture barely changes.
+    # Replace it with an explicit black background plus a translate animation so the effect is visible and predictable.
     def position(current_time: float):
         progress = min(max(current_time / max(t, 0.001), 0), 1)
 
@@ -47,7 +47,7 @@ def slideout_transition(clip: Clip, t: float, side: str) -> Clip:
     width, height = clip.size
     transition_start = max(clip.duration - t, 0)
 
-    # SlideOut 同样改成显式位移，保证片段末尾能稳定滑出画面。
+    # SlideOut likewise uses an explicit translate so the segment reliably slides out at its end.
     def position(current_time: float):
         if current_time <= transition_start:
             return (0, 0)
@@ -75,23 +75,25 @@ def slideout_transition(clip: Clip, t: float, side: str) -> Clip:
     )
 
 
-# 保留原始设计的 20% 缩放幅度，让三秒左右的短片也有清晰可见的 Ken Burns 运动感。
-# 缩放稳定性由下方的亚像素中心采样保证，不通过削弱效果幅度来掩盖源视频编码闪烁。
+# Keep the original 20% zoom amplitude so even ~3-second clips show a clearly visible Ken Burns motion.
+# Zoom stability comes from the sub-pixel center sampling below, not from weakening the effect to hide source-video encode flicker.
 _ZOOM_MAX_SCALE = 1.2
 
 
 def _zoom_frame(frame: np.ndarray, scale_factor: float) -> np.ndarray:
-    """使用亚像素中心裁剪实现无黑边且稳定的缩放效果。
+    """Implement stable, border-free zooming via sub-pixel center cropping.
 
-    不能先把裁剪宽高转换为整数：缩放比例连续变化时，整数边界会按不同步长跳动，
-    并在奇偶尺寸切换时改变半像素采样相位，最终表现为画面抖动。Pillow 的 EXTENT
-    变换可以直接接收浮点边界，在固定输出画布上完成亚像素采样；左右、上下边界
-    始终围绕同一个浮点中心对称，因此适用于整段视频持续缓慢缩放的场景。
+    The crop width and height must not be rounded to integers first: as the zoom ratio changes
+    continuously, integer boundaries jump in uneven steps and flip the half-pixel sampling phase
+    between odd and even sizes, showing up as jitter. Pillow's EXTENT transform accepts float
+    bounds directly and completes sub-pixel sampling onto a fixed output canvas; the left/right
+    and top/bottom bounds stay symmetric around the same float center, which suits continuous
+    slow zooming across a whole clip.
     """
     if scale_factor <= 0:
         raise ValueError("scale_factor must be greater than zero")
 
-    # 1 倍缩放直接返回原帧，避免无意义的重采样造成首帧轻微模糊。
+    # A 1x zoom returns the original frame, avoiding a pointless resample that would slightly blur the first frame.
     if abs(scale_factor - 1.0) < 1e-9:
         return frame
 
@@ -108,18 +110,18 @@ def _zoom_frame(frame: np.ndarray, scale_factor: float) -> np.ndarray:
         (width, height),
         Image.Transform.EXTENT,
         (left, top, right, bottom),
-        # 视频连续缩放更关注相邻帧的一致性。BICUBIC/LANCZOS 虽然单帧更锐利，
-        # 但高频纹理跨越采样网格时容易出现振铃和亮度闪烁；BILINEAR 更柔和，
-        # 能以少量锐度损失换取更稳定的动态观感。
+        # Continuous video zooming cares most about frame-to-frame consistency. BICUBIC/LANCZOS are sharper
+        # per frame but tend to ring and flicker in brightness as high-frequency texture crosses the sampling
+        # grid; BILINEAR is softer and trades a little sharpness for steadier motion.
         resample=Image.Resampling.BILINEAR,
     )
     return np.asarray(transformed)
 
 
 def zoomin_transition(clip: Clip, t: float) -> Clip:
-    """在整个片段内从原始画面平滑放大到 1.2 倍。"""
-    # t 暂时保留，用于与其它转场函数保持统一调用签名；缩放需要覆盖完整片段，
-    # 否则短暂缩放结束后画面会突然静止，不适合静态或低运动量素材。
+    """Smoothly zoom in from the original picture to 1.2x across the whole segment."""
+    # t is kept for a uniform call signature with the other transition functions; the zoom must cover
+    # the full segment, otherwise the picture would freeze abruptly after a brief zoom — unsuitable for static or low-motion footage.
     _ = t
     duration = max(clip.duration, 0.001)
 
@@ -132,8 +134,8 @@ def zoomin_transition(clip: Clip, t: float) -> Clip:
 
 
 def zoomout_transition(clip: Clip, t: float) -> Clip:
-    """在整个片段内从 1.2 倍平滑缩小到原始画面。"""
-    # 与 zoomin_transition 一致，t 仅用于兼容统一的转场调用接口。
+    """Smoothly zoom out from 1.2x to the original picture across the whole segment."""
+    # Same as zoomin_transition: t exists only for the unified transition call interface.
     _ = t
     duration = max(clip.duration, 0.001)
 

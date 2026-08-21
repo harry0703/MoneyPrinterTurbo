@@ -2,9 +2,9 @@
 
 # MoneyPrinterTurbo 💸
 
-### 一站式 AI 短视频生成工具
+### An All-in-One AI Short Video Generator
 
-只需提供视频<b>主题</b>或<b>关键词</b>，即可自动生成视频脚本、匹配素材、生成字幕和背景音乐，并合成高清短视频。
+Provide a video <b>topic</b> or <b>keyword</b>, and MoneyPrinterTurbo will generate the script, match footage, create subtitles and background music, and produce an HD short video.
 
 [![Version](https://img.shields.io/github/v/release/harry0703/MoneyPrinterTurbo?color=blue&label=version)](https://github.com/harry0703/MoneyPrinterTurbo/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
@@ -14,15 +14,15 @@
 <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 <a href="https://www.star-history.com/harry0703/moneyprinterturbo"><img src="https://api.star-history.com/badge?repo=harry0703/MoneyPrinterTurbo" alt="Star History Rank" style="height: 55px;" height="55"/></a>
 
-简体中文 | [English](README-en.md) | [版本发布](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [问题反馈](https://github.com/harry0703/MoneyPrinterTurbo/issues)
+English | [简体中文](README-zh.md) | [Releases](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/amine9812/MoneyPrinterTurbo/issues)
 
 </div>
 
-## 界面预览 🖥️
+## Screenshots 🖥️
 
 <h4 align="center">WebUI</h4>
 
-![](docs/webui.jpg)
+![](docs/webui-en.jpg)
 
 <h4 align="center">API</h4>
 
@@ -30,25 +30,25 @@
 
 ---
 
-## 特别感谢 ❤️
+## Special Thanks ❤️
 
 <div align="center">
-  <a href="https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-zh.png" alt="Kimi 赞助 MoneyPrinterTurbo" width="100%"></a>
+  <a href="https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
 </div>
 
-感谢 [Kimi](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo) 赞助本项目！[Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) 是 Moonshot AI 迄今能力最强的模型，也是全球首个开源 3T 级模型，拥有原生视觉能力与 100 万 Token 上下文，在知识工作、推理和长周期任务中展现前沿性能。在 MoneyPrinterTurbo 中，K3 能直接驱动视频创作，不仅撰写视频文案，还会提炼素材搜索关键词、决定成片画面；对内容理解越准确，匹配到的素材就越贴题。
+Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo) for sponsoring this project! [Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) is Moonshot AI's most capable model and the world's first open 3T-class model. With native vision and a 1-million-token context window, K3 delivers frontier performance across knowledge work, reasoning, and long-horizon tasks. Within MoneyPrinterTurbo, K3 powers video creation by writing scripts and extracting the search keywords that determine the final footage—the better it understands the content, the more relevant the results.
 
-**MoneyPrinterTurbo 用户专属优惠：新用户通过专属链接注册，首次成功充值可获充值金额 10% 的 API 额度，最高赠送 ¥1000。活动截至 2026 年 9 月 30 日。前往 Kimi 开放平台（[中文站](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo)｜[Global](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo)）体验 API。**
+**Exclusive offer for MoneyPrinterTurbo users: new users who register through the dedicated link receive bonus API credit equal to 10% of their first successful top-up, up to CNY 1,000. The offer ends September 30, 2026. Visit the Kimi Open Platform ([中文站](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo) | [Global](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo)) to try the API.**
+
 <br>
-
 <table align="center">
   <tr>
     <td align="center" width="120">
-      <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><img src="docs/sponsors/volcengine-logo.svg" alt="火山引擎" height="32"></a><br>
-      <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>火山引擎</strong></a>
+      <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><img src="docs/sponsors/byteplus-logo.svg" alt="BytePlus" height="25"></a><br>
+      <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>BytePlus ModelArk</strong></a>
     </td>
     <td align="left">
-      感谢字节火山引擎赞助本项目！ <strong>【专属活动优惠】</strong>19元Tokens包！享字节自研豆包模型+满血版开源 SOTA模型，覆盖文本、VLM、图像生成，全模态一站配齐：Seed-2.1、Seedream-5.0、GLM-5.2、DeepSeek、Qwen等。不止编程，更能解决 Agent 复杂长程任务 --&gt; <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">注册即领2500万Tokens，立即前往</a>
+      Thanks to Dola Seed for sponsoring this project! <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">Dola Seed 2.0</a> is a full-modal general large model independently developed by ByteDance for the global market. Built on a unified multimodal architecture, it supports joint understanding and generation of text, images, audio, and video. It natively enables agent collaboration, with strong reasoning, long-task execution, tool integration, and coding capabilities. Register via this link to get 500,000 tokens of free inference quota per model.
     </td>
   </tr>
   <tr>
@@ -57,105 +57,95 @@
       <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><strong>CCSub</strong></a>
     </td>
     <td align="left">
-      感谢 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> 赞助本项目！<strong>CCSub 是稳定、实惠的 AI API 中转平台，是 Claude Code 官方订阅的超强平替。</strong>一个 API Key 即可调用 Claude Opus 4.8、Sonnet 4.6、Haiku 4.5、GPT-5、Gemini 等模型，价格约为官方直连的 1/3，全球直连无需梯子。兼容 Claude Code、Codex、Cursor、Cline、Continue、Windsurf 等所有主流 AI 编程工具。前往 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> 注册即送 $5 体验额度。
+      Thanks to <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> for sponsoring this project! CCSub is a stable, affordable AI API relay platform — your drop-in replacement for a Claude.ai subscription. One API key gives you access to Claude Opus 4.8, Sonnet, Haiku, GPT-5, and Gemini at roughly 30% of direct API cost, with no VPN required from anywhere in the world. Compatible with Claude Code, Codex, Cursor, Cline, Continue, Windsurf, and all major AI coding tools. Register at <a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> and get $5 free credit on sign-up.
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai 无限星河" height="56"></a><br>
-      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai 无限星河</strong></a>
+      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai" height="56"></a><br>
+      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai</strong></a>
     </td>
     <td align="left">
-      感谢 <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai 无限星河</a> 赞助本项目！<br>
-      ⚡ 超低成本与稳定调度：价格低至官方 1 折，模型倍率与调用明细全程透明；多路供应动态调度，告别限流与断连困扰。<br>
-      🧠 全系大模型完美驱动脚本：全面覆盖 OpenAI、Claude、Google Gemini、DeepSeek、通义千问（Qwen）等主流 LLM，兼容 OpenAI 标准接口，为 MoneyPrinterTurbo 的文案生成与素材关键词提炼提供低延迟、高并发支持。<br>
-      🎨 前沿多模态生态：全面接入 FLUX、Midjourney、Seedance、可灵（Kling）、Sora、Luma 等顶级生图与视频模型，满足下一代 AI 视频生成需求。<br>
-      🎁 MoneyPrinterTurbo 用户专属福利：通过 <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">专属推广链接</a> 注册即享 [专属赠送额度 / 首充特惠]，开箱即用！
+      Thanks to <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai</a> for sponsoring this project!<br>
+      ⚡ Low-cost, reliable access: pricing starts at just 10% of official rates, with transparent model multipliers and detailed usage records. Dynamic routing across multiple providers helps avoid rate limits and unexpected service interruptions.<br>
+      🧠 Leading LLMs for script creation: access OpenAI, Claude, Google Gemini, DeepSeek, Qwen, and other leading models through an OpenAI-compatible API. Infistar.ai provides low-latency, high-concurrency support for MoneyPrinterTurbo's script generation and media keyword extraction workflows.<br>
+      🎨 A cutting-edge multimodal ecosystem: access leading image and video generation models including FLUX, Midjourney, Seedance, Kling, Sora, and Luma, all ready for the next generation of AI video creation.<br>
+      🎁 Exclusive benefits for MoneyPrinterTurbo users: sign up through the <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">dedicated referral link</a> to receive [exclusive bonus credits / a first top-up offer] and start creating right away!
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK"><img src="docs/sponsors/shengsuanyun-logo.jpg" alt="胜算云" height="56"></a><br>
-      <a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK"><strong>胜算云</strong></a>
+      <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
+      <a href="https://reccloud.com"><strong>RecCloud</strong></a>
     </td>
     <td align="left">
-      感谢<a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK">胜算云</a>对本项目的赞助！胜算云是面向 AI 原生团队的模型 API 聚合平台，汇集 Claude、ChatGPT、Gemini 等海内外大语言模型及多媒体模型，支持统一接入与按量调用。<br>
-      平台坚持合规 API 服务，杜绝逆向工程和资源稀释。此外平台提供企业级定制网关，包括团队成本与权限管理、智能路由、安全防护及 BYOK 密钥托管，并提供发票服务。<br>
-      🎁新用户通过<a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK">此链接</a>注册，即可领取 10 元 Token 体验额度。
+      Due to the <strong>deployment</strong> and <strong>usage</strong> of this project, there is a certain threshold for some beginner users. We would like to express our special thanks to <a href="https://reccloud.com">RecCloud (AI-Powered Multimedia Service Platform)</a> for providing a free <code>AI Video Generator</code> service based on this project. It allows for online use without deployment, which is very convenient.
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
-      <a href="https://reccloud.cn"><strong>录咖 AI</strong></a>
+      <a href="https://picwish.com"><img src="docs/sponsors/picwish-logo.svg" alt="Picwish" height="36"></a><br>
+      <a href="https://picwish.com"><strong>Picwish</strong></a>
     </td>
     <td align="left">
-      由于该项目的 <strong>部署</strong> 和 <strong>使用</strong>，对于一些小白用户来说，还是 <strong>有一定的门槛</strong>，在此特别感谢 <a href="https://reccloud.cn">录咖（AI智能 多媒体服务平台）</a> 网站基于该项目，提供的免费 <code>AI视频生成器</code> 服务，可以不用部署，直接在线使用，非常方便。
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
-      <a href="https://picwish.cn"><img src="docs/sponsors/picwish-logo.svg" alt="佐糖" height="36"></a><br>
-      <a href="https://picwish.cn"><strong>佐糖</strong></a>
-    </td>
-    <td align="left">
-      感谢 <a href="https://picwish.cn">佐糖</a> 对该项目的支持和赞助，使得该项目能够持续的更新和维护。佐糖专注于<strong>图像处理领域</strong>，提供丰富的<strong>图像处理工具</strong>，将复杂操作极致简化，真正实现让图像处理更简单。
+      Thanks to <a href="https://picwish.com">Picwish</a> for supporting and sponsoring this project, enabling continuous updates and maintenance. Picwish focuses on the <strong>image processing field</strong>, providing a rich set of <strong>image processing tools</strong> that extremely simplify complex operations, truly making image processing easier.
     </td>
   </tr>
 </table>
 
-## 作者的另一个开源项目：MangoDisk ⭐
+## Another Open-Source Project from the Creator: MangoDisk ⭐
 
 <p align="center">
   <a href="https://github.com/harry0703/MangoDisk">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/readme/zh-dark.jpg">
-      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/readme/zh-light.jpg">
-      <img src="https://assets.mangodisk.app/images/readme/zh-light.jpg" width="900" alt="MangoDisk 开源磁盘清理与空间分析工具">
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/readme/en-dark.jpg">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/readme/en-light.jpg">
+      <img src="https://assets.mangodisk.app/images/readme/en-light.jpg" width="900" alt="MangoDisk open-source disk cleaner and disk space analyzer">
     </picture>
   </a>
 </p>
 
 <p align="center">
-  <strong>适用于 macOS 和 Windows 的安全优先开源磁盘清理与空间分析工具</strong><br>
-  查找大文件和重复文件，清理缓存与应用残留，安全释放磁盘空间。
+  <strong>A safety-first, open-source disk cleaner and disk space analyzer for macOS and Windows</strong><br>
+  Find large and duplicate files, clean caches and app leftovers, and reclaim disk space safely.
 </p>
 
 <p align="center">
-  <a href="https://github.com/harry0703/MangoDisk">查看 GitHub 开源项目</a>
+  <a href="https://github.com/harry0703/MangoDisk">View the Open-Source Project</a>
 </p>
 
 ---
 
-## 功能特性 🎯
+## Features 🎯
 
-- [x] 提供 **AI Agent**、**WebUI**、**API** 和 **CLI** 四种使用方式，代码按控制器、服务和模型等职责分层
-- [x] 支持 **AI 自动生成视频脚本**，也可以使用自定义脚本
-- [x] 支持多种 **高清视频** 尺寸
-  - [x] 竖屏 9:16，`1080x1920`
-  - [x] 横屏 16:9，`1920x1080`
-- [x] 支持 **批量视频生成**，可以一次生成多个视频，然后选择一个最满意的
-- [x] 支持 **视频片段时长** 设置，方便调节素材切换频率
-- [x] 支持 **多语言视频脚本** 生成
-- [x] 支持 **Edge TTS**、**Azure Speech**、**SiliconFlow**、**Google Gemini**、**小米 MiMo**、**ElevenLabs** 和 **Chatterbox** 语音合成，可实时试听
-- [x] 支持 **字幕生成**，可调整字体、位置、颜色、大小、描边和背景样式
-- [x] 支持 **背景音乐**，可随机选择或使用指定音乐，并调整音量
-- [x] 支持使用自己的 **本地素材**，也可从 **Pexels**、**Pixabay** 和 **Coverr** 获取可免费使用的高清素材
-- [x] 支持 **Kimi / Moonshot AI**、**OpenAI**、**Google Gemini**、**DeepSeek**、**阿里云通义千问**、**Microsoft Azure OpenAI**、**火山引擎方舟**、**xAI Grok**、**MiniMax**、**小米 MiMo** 等主流模型服务，并兼容 **Cloudflare AI Gateway**、**魔搭 ModelScope**、**AIHubMix**、**AIML API**、**EvoLink**、**Ollama**、**OneAPI**、**LiteLLM**、**Groq**、**Pollinations AI** 等统一网关、聚合平台和本地运行环境
-- [x] 支持一键 **跨平台发布**，生成完成后可自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**
+- [x] Provides **AI Agent**, **WebUI**, **API**, and **CLI** workflows, with code organized by controller, service, and model responsibilities
+- [x] Supports **AI-generated video scripts** and custom scripts
+- [x] Supports various **high-definition video** sizes
+  - [x] Portrait 9:16, `1080x1920`
+  - [x] Landscape 16:9, `1920x1080`
+- [x] Supports **batch video generation**, allowing the creation of multiple videos at once, then selecting the most
+      satisfactory one
+- [x] Supports setting the **duration of video clips**, facilitating adjustments to material switching frequency
+- [x] Supports **multilingual video script** generation
+- [x] Supports **Edge TTS**, **Azure Speech**, **SiliconFlow**, **Google Gemini**, **Xiaomi MiMo**, **ElevenLabs**, and **Chatterbox** speech synthesis with real-time previews
+- [x] Supports **subtitle generation** with configurable fonts, position, color, size, outline, and background styles
+- [x] Supports random or custom **background music** with adjustable volume
+- [x] Supports your own **local assets** and free-to-use HD footage from **Pexels**, **Pixabay**, and **Coverr**
+- [x] Supports leading model providers including **Kimi / Moonshot AI**, **OpenAI**, **Google Gemini**, **DeepSeek**, **Alibaba Cloud Qwen**, **Microsoft Azure OpenAI**, **ByteDance VolcEngine Ark**, **xAI Grok**, **MiniMax**, and **Xiaomi MiMo**, plus unified gateways, aggregators, and local runtimes such as **Cloudflare AI Gateway**, **Alibaba ModelScope**, **AIHubMix**, **AIML API**, **EvoLink**, **Ollama**, **OneAPI**, **LiteLLM**, **Groq**, and **Pollinations AI**
+- [x] Supports one-click **cross-platform publishing** to **TikTok**, **Instagram**, and **YouTube Shorts** after video generation
 
-## 作品展示 🎬
+## Gallery 🎬
 
-以下示例均由 MoneyPrinterTurbo 实际生成。
+All examples below were generated with MoneyPrinterTurbo.
 
-### 竖屏 9:16
+### Portrait 9:16
 
 <table width="100%">
 <tr>
-<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=03-zh-portrait-city-morning.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/03-zh-portrait-city-morning.jpg" width="180" alt="城市醒来的时刻"></a><br><strong>城市醒来的时刻</strong><br>中文 · 14 秒</td>
-<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=05-zh-portrait-clean-energy.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/05-zh-portrait-clean-energy.jpg" width="180" alt="清洁能源的未来"></a><br><strong>清洁能源的未来</strong><br>中文 · 24 秒</td>
-<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=07-zh-portrait-space-exploration.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/07-zh-portrait-space-exploration.jpg" width="180" alt="为什么我们仍要探索太空"></a><br><strong>为什么我们仍要探索太空</strong><br>中文 · 27 秒</td>
-<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=17-zh-portrait-seed-journey.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/17-zh-portrait-seed-journey.jpg" width="180" alt="一粒种子的旅程"></a><br><strong>一粒种子的旅程</strong><br>中文 · 44 秒</td>
+<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=03-zh-portrait-city-morning.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/03-zh-portrait-city-morning.jpg" width="180" alt="When the City Wakes"></a><br><strong>When the City Wakes</strong><br>Chinese · 14 sec</td>
+<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=05-zh-portrait-clean-energy.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/05-zh-portrait-clean-energy.jpg" width="180" alt="The Future of Clean Energy"></a><br><strong>The Future of Clean Energy</strong><br>Chinese · 24 sec</td>
+<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=07-zh-portrait-space-exploration.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/07-zh-portrait-space-exploration.jpg" width="180" alt="Why We Still Explore Space"></a><br><strong>Why We Still Explore Space</strong><br>Chinese · 27 sec</td>
+<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=17-zh-portrait-seed-journey.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/17-zh-portrait-seed-journey.jpg" width="180" alt="A Seed's Journey"></a><br><strong>A Seed's Journey</strong><br>Chinese · 44 sec</td>
 </tr>
 <tr>
 <td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=09-en-portrait-future-robotics.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/09-en-portrait-future-robotics.jpg" width="180" alt="The Future of Everyday Robotics"></a><br><strong>The Future of Everyday Robotics</strong><br>English · 21 sec</td>
@@ -165,14 +155,14 @@
 </tr>
 </table>
 
-### 横屏 16:9
+### Landscape 16:9
 
 <table width="100%">
 <tr>
-<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=02-zh-landscape-deep-ocean.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/02-zh-landscape-deep-ocean.jpg" width="280" alt="深海里的微光"></a><br><strong>深海里的微光</strong><br>中文 · 23 秒</td>
-<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=04-zh-landscape-reading-power.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/04-zh-landscape-reading-power.jpg" width="280" alt="阅读如何塑造我们"></a><br><strong>阅读如何塑造我们</strong><br>中文 · 23 秒</td>
-<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=06-zh-landscape-pour-over-coffee.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/06-zh-landscape-pour-over-coffee.jpg" width="280" alt="一杯手冲咖啡的细节"></a><br><strong>一杯手冲咖啡的细节</strong><br>中文 · 23 秒</td>
-<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=08-zh-landscape-spring-journey.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/08-zh-landscape-spring-journey.jpg" width="280" alt="春天适合出发"></a><br><strong>春天适合出发</strong><br>中文 · 14 秒</td>
+<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=02-zh-landscape-deep-ocean.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/02-zh-landscape-deep-ocean.jpg" width="280" alt="Light in the Deep Ocean"></a><br><strong>Light in the Deep Ocean</strong><br>Chinese · 23 sec</td>
+<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=04-zh-landscape-reading-power.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/04-zh-landscape-reading-power.jpg" width="280" alt="How Reading Shapes Us"></a><br><strong>How Reading Shapes Us</strong><br>Chinese · 23 sec</td>
+<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=06-zh-landscape-pour-over-coffee.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/06-zh-landscape-pour-over-coffee.jpg" width="280" alt="The Details of Pour-Over Coffee"></a><br><strong>The Details of Pour-Over Coffee</strong><br>Chinese · 23 sec</td>
+<td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=08-zh-landscape-spring-journey.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/08-zh-landscape-spring-journey.jpg" width="280" alt="Spring Is Made for Travel"></a><br><strong>Spring Is Made for Travel</strong><br>Chinese · 14 sec</td>
 </tr>
 <tr>
 <td align="center" width="25%"><a href="https://harry0703.github.io/mpt-assets/?video=10-en-landscape-ocean-conservation.mp4"><img src="https://github.com/harry0703/mpt-assets/releases/download/assets/10-en-landscape-ocean-conservation.jpg" width="280" alt="Why Ocean Conservation Matters"></a><br><strong>Why Ocean Conservation Matters</strong><br>English · 25 sec</td>
@@ -182,119 +172,150 @@
 </tr>
 </table>
 
-## 配置要求 📦
+## System Requirements 📦
 
-- 建议系统：Windows 10、macOS 11.0 或更高版本，以及主流 Linux 发行版
-- 本地部署需要 Python 3.11 或更高版本，推荐使用 Python 3.11
-- GPU 不是必需项，但如果你希望本地转录、更快的视频处理或更顺畅的批量生成体验，建议使用带显存的独立显卡
+- Recommended platforms: Windows 10+, macOS 11+, or a mainstream Linux distribution
+- Local deployment requires Python 3.11 or later; Python 3.11 is recommended
+- A GPU is not required, but it is recommended if you want faster local transcription, faster video processing, or smoother batch generation
 
-| 项目 | 最低配置 | 推荐配置        | 理想配置        |
-| ---- | -------- | --------------- | --------------- |
-| CPU  | 4 核     | 6 到 8 核       | 8 核及以上      |
-| RAM  | 4 GB     | 8 GB            | 16 GB 及以上    |
-| GPU  | 非必须   | 4 GB 显存及以上 | 8 GB 显存及以上 |
+| Item | Minimum      | Recommended  | Optimal    |
+| ---- | ------------ | ------------ | ---------- |
+| CPU  | 4 cores      | 6 to 8 cores | 8+ cores   |
+| RAM  | 4 GB         | 8 GB         | 16+ GB     |
+| GPU  | Not required | 4+ GB VRAM   | 8+ GB VRAM |
 
-- 如果你主要依赖云端 LLM、云端 TTS 和在线素材源，CPU 与内存比 GPU 更重要
-- 如果你启用 `faster-whisper`、批量生成或更重的本地处理链路，GPU 会明显提升速度
+- If you mainly rely on cloud LLMs, cloud TTS, and online material sources, CPU and RAM matter more than GPU
+- If you use `faster-whisper`, batch generation, or heavier local processing, a GPU will improve throughput noticeably
 
-## 快速开始 🚀
+## Quick Start 🚀
 
-### 推荐使用方式
+### Recommended Paths
 
-- 不想手动安装和配置：直接使用 AI Agent 生成视频
-- Windows 用户：优先使用一键启动包，适合快速体验
-- macOS / Linux 用户：优先使用 `uv` 进行本地部署
-- 想要隔离运行环境：优先使用 Docker 部署
+- Fastest local start: clone the repo and run **one command** — `webui.bat` on Windows, `sh webui.sh` on macOS/Linux. Everything else installs automatically on first run
+- If you do not want to install anything at all: generate videos with an AI Agent or use the Google Colab notebook
+- If you want a fully isolated runtime: use Docker deployment
+- Prefer manual control? See [Manual Deployment](#manual-deployment-) below
 
-### 使用 AI Agent 生成视频
+### One-Command Setup ⚡
 
-如果你的 AI Agent 支持读取 Skill 文档并操作本地终端，可以直接发送下面这段话。Agent 会自动完成安装、配置和视频生成；只有缺少必要的 API Key 时才会向你询问，完成后会返回生成的视频文件路径。目前支持 macOS 和 Windows。
+Clone the repository, then run a single command. On first run it automatically installs [uv](https://docs.astral.sh/uv/), Python 3.11, and all dependencies, creates `config.toml` from the example file, and then launches the WebUI in your browser:
 
-```text
-使用这个 Skill：https://raw.githubusercontent.com/harry0703/MoneyPrinterTurbo/main/docs/skill/SKILL.md
-帮我生成一个主题为“人工智能如何改变普通人的日常生活”的视频。
+###### Windows (CMD or PowerShell)
+
+```powershell
+git clone https://github.com/amine9812/MoneyPrinterTurbo.git
+cd MoneyPrinterTurbo
+.\webui.bat
 ```
 
-### 在 Google Colab 中运行
+You can also just **double-click `webui.bat`** in File Explorer — no terminal needed.
 
-免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
+###### macOS / Linux
+
+```shell
+git clone https://github.com/amine9812/MoneyPrinterTurbo.git
+cd MoneyPrinterTurbo
+sh webui.sh
+```
+
+If you prefer to set up without launching anything yet, run the dedicated installer instead:
+
+```shell
+# Windows
+install.bat
+# macOS / Linux
+sh install.sh
+```
+
+Once the WebUI opens, configure your LLM provider and API keys in the on-screen basic settings — no config file editing required.
+
+### Generate Videos with an AI Agent
+
+If your AI Agent can read Skill documents and operate a local terminal, send it the prompt below. The Agent will install and configure MoneyPrinterTurbo, generate the video, and return the video file path. It will ask only for required API keys that are not already configured. This workflow currently supports macOS and Windows.
+
+```text
+Use this Skill: https://raw.githubusercontent.com/amine9812/MoneyPrinterTurbo/main/docs/skill/SKILL.md
+Create a video with the topic "How AI is changing everyday life."
+```
+
+### Run in Google Colab
+
+Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
 
-### Windows 一键启动包
+### Windows Prebuilt Package (optional)
 
-下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
+Prefer a downloadable bundle with everything included? Get the one-click package maintained by the upstream project (extract to a path without **non-ASCII characters**, **special characters**, or **spaces**):
 
-- GitHub Releases：https://github.com/harry0703/MoneyPrinterTurbo/releases/latest
+- GitHub Release: https://github.com/harry0703/MoneyPrinterTurbo/releases/latest
 
-下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
+After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
 
-启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
+After launching, the browser will open automatically (if it opens blank, it is recommended to use **Chrome** or **Edge**)
 
-## 安装部署 📥
+### macOS / Linux
 
-### 前提条件
+Use the local setup or Docker instructions below.
 
-- 本地部署需要 Python 3.11 或更高版本
-- Windows 用户建议避免使用包含中文、特殊字符或空格的项目路径
+## Installation & Deployment 📥
 
-#### ① 克隆代码
+### Prerequisites
+
+- Local deployment requires Python 3.11 or later
+- On Windows, avoid project paths containing non-ASCII characters, special characters, or spaces
+
+#### ① Clone the Project
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/amine9812/MoneyPrinterTurbo.git
 ```
 
-#### ② 配置项目（可选）
+#### ② Configure the Project (Optional)
 
-首次启动时，项目会根据 `config.example.toml` 自动创建 `config.toml`。大模型 Provider、素材来源和相关 API Key 可以直接在 WebUI 的基础设置中配置。
+On first launch, the project creates `config.toml` from `config.example.toml`. You can configure the LLM provider, footage source, and related API keys directly in the WebUI basic settings.
 
-### Docker 部署 🐳
+### Docker Deployment 🐳
 
-#### ① 启动 Docker
+#### ① Launch the Docker Container
 
-如果未安装 Docker，请先安装 https://www.docker.com/products/docker-desktop/
+If you haven't installed Docker, please install it first https://www.docker.com/products/docker-desktop/
+If you are using a Windows system, please refer to Microsoft's documentation:
 
-Windows 用户可以参考微软的文档：
-
-1. https://learn.microsoft.com/zh-cn/windows/wsl/install
-2. https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers
+1. https://learn.microsoft.com/en-us/windows/wsl/install
+2. https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers
 
 ```shell
 cd MoneyPrinterTurbo
 docker compose -f docker-compose.release.yml up
 ```
 
-> 默认推荐使用 `docker-compose.release.yml`，它会直接拉取 GitHub Container Registry 上的预构建镜像：`ghcr.io/harry0703/moneyprinterturbo:latest`。
-> 如果你需要本地重新构建镜像，可以继续使用 `docker compose up`。
-> 首次启动前，请将 `config.example.toml` 复制为 `config.toml`，供容器挂载使用。
+> The recommended default is `docker-compose.release.yml`, which pulls the prebuilt image from GitHub Container Registry: `ghcr.io/harry0703/moneyprinterturbo:latest`.
+> If you need to build the image locally, you can still run `docker compose up`.
+> Before the first start, copy `config.example.toml` to `config.toml` so it can be mounted into the containers.
 
-#### ② 访问 WebUI
+#### ② Access the WebUI
 
-打开浏览器，访问 http://127.0.0.1:8501
+Open your browser and visit http://127.0.0.1:8501
 
-#### ③ 访问 API 文档
+#### ③ Access the API Documentation
 
-打开浏览器，访问 http://127.0.0.1:8080/docs 或者 http://127.0.0.1:8080/redoc
+Open your browser and visit http://127.0.0.1:8080/docs or http://127.0.0.1:8080/redoc
 
-### 手动部署 📦
+### Manual Deployment 📦
 
-> 视频教程
+#### ① Create a Python Virtual Environment
 
-- 完整的使用演示：https://v.douyin.com/iFhnwsKY/
-- 如何在 Windows 上部署：https://v.douyin.com/iFyjoW3M
-
-#### ① 创建虚拟环境
-
-推荐使用 [uv](https://docs.astral.sh/uv/) 管理 Python 环境和依赖。项目支持 Python 3.11 或更高版本，以下示例使用 Python 3.11。
+Use [uv](https://docs.astral.sh/uv/) to manage the Python environment and dependencies. The project supports Python 3.11 or later; the example below uses Python 3.11.
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/amine9812/MoneyPrinterTurbo.git
 cd MoneyPrinterTurbo
 uv python install 3.11
 uv sync --frozen
 ```
 
-如果你暂时不使用 `uv`，也可以继续使用 `venv + pip`
+If you are not using `uv` yet, you can still use `venv + pip`.
 
 ```shell
 python3.11 -m venv .venv
@@ -302,15 +323,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-说明：
+Notes:
 
-- `pyproject.toml` 是主依赖定义文件
-- `uv.lock` 是锁文件，建议默认执行 `uv sync --frozen`
-- `requirements.txt` 仅保留给旧的 `pip` 安装方式兼容使用
+- `pyproject.toml` is now the primary dependency manifest.
+- `uv.lock` pins the resolved environment, so `uv sync --frozen` is recommended by default.
+- `requirements.txt` is kept only for legacy `pip`-based installation.
 
-#### ② 启动 WebUI 🌐
+#### ② Launch the WebUI 🌐
 
-注意需要到 MoneyPrinterTurbo 项目 `根目录` 下执行以下命令
+Note that you need to execute the following commands in the `root directory` of the MoneyPrinterTurbo project
 
 ###### Windows
 
@@ -318,64 +339,80 @@ pip install -r requirements.txt
 .\webui.bat
 ```
 
-在 CMD 中也可以执行 `webui.bat`。
-`webui.bat` 会优先使用项目 `.venv` 或一键包内置 Python；如果没有找到项目 Python，但已安装 `uv`，会自动切换为 `uv run streamlit`。
-如需允许局域网内其他设备访问 WebUI，可以先执行 `set MPT_WEBUI_HOST=0.0.0.0`，再运行 `webui.bat`。
+You can also run `webui.bat` in CMD.
+`webui.bat` prefers the project `.venv` or bundled Python from the portable package. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`. If neither exists, it runs `install.bat` automatically to perform the first-time setup, then continues.
+To allow other devices on your LAN to access the WebUI, run `set MPT_WEBUI_HOST=0.0.0.0` before running `webui.bat`.
 
-###### macOS 或 Linux
+###### macOS or Linux
 
 ```shell
 sh webui.sh
 ```
 
-脚本会自动使用项目虚拟环境或 `uv`，并选择可用的本地端口。如需允许局域网内其他设备访问，可以执行：
+The script automatically uses the project virtual environment or `uv` and selects an available local port. If no Python environment and no `uv` exist, it runs `install.sh` automatically to perform the first-time setup, then continues. To allow access from other devices on your LAN, run:
 
 ```shell
 MPT_WEBUI_HOST=0.0.0.0 sh webui.sh
 ```
 
-启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
+After launching, the browser will open automatically
 
-#### ③ 启动 API 服务 🚀
+#### ③ Launch the API Service 🚀
+
+###### Windows
+
+```powershell
+api.bat
+```
+
+###### macOS / Linux
+
+```shell
+sh api.sh
+```
+
+Or launch directly with uv:
 
 ```shell
 uv run python main.py
 ```
 
-如果你已经手动激活了虚拟环境，也可以直接执行：
+If you have already activated the virtual environment manually, you can still run:
 
 ```shell
 python main.py
 ```
 
-#### ④ 纯命令行方式（无浏览器）⌨️
+#### ④ Pure CLI Mode (No Browser) ⌨️
 
-如果你无法使用浏览器或端口转发，可以直接在命令行生成视频。最简单的完整视频生成命令如下：
+If you cannot use a browser or port forwarding, generate videos directly from the
+command line. The simplest complete generation command is:
 
 ```shell
-uv run python cli.py --video-subject "人工智能如何改变日常生活"
+uv run python cli.py --video-subject "How AI is changing everyday life"
 ```
 
-如需查看完整命令、参数说明和使用方法，可以执行：
+For the complete command reference, parameter descriptions, and usage instructions,
+run:
 
 ```shell
 uv run python cli.py --help
 ```
 
-## 语音合成 🗣
+## Voice Synthesis 🗣
 
-默认使用免费的 **Edge TTS**，在 WebUI 中显示为 **Azure TTS V1**。项目同时支持 **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**小米 MiMo TTS**、**ElevenLabs TTS**、自托管 **Chatterbox TTS**，以及无配音模式。
+The default provider is the free **Edge TTS**, shown as **Azure TTS V1** in the WebUI. MoneyPrinterTurbo also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, and a no-voice mode.
 
-可直接在 WebUI 中选择 Provider 和音色，并按照界面提示填写所需凭据。Edge TTS 不需要 API Key；[Azure TTS V2](https://portal.azure.com/) 及其他云端服务需要对应平台的凭据。Edge TTS 音色可查看：[音色列表](./docs/voice-list.txt)。
+Select a provider and voice in the WebUI, then follow the on-screen instructions for any required credentials. Edge TTS does not require an API key; [Azure TTS V2](https://portal.azure.com/) and other cloud providers require credentials from their respective platforms. See the available Edge TTS voices in the [voice list](./docs/voice-list.txt).
 
-## 字幕生成 📜
+## Subtitle Generation 📜
 
-当前支持两种字幕生成方式：
+Two subtitle generation modes are available:
 
-- **edge**：使用 TTS 时间戳生成字幕，速度快，不需要 GPU，默认使用该模式。
-- **whisper**：使用本地 `faster-whisper` 转写音频，适用于需要更准确字幕时间轴的场景。首次使用时需要下载模型。
+- **edge**: Uses TTS timestamps, runs quickly without a GPU, and is the default mode.
+- **whisper**: Uses local `faster-whisper` transcription when a more accurate subtitle timeline is needed. The model is downloaded on first use.
 
-在 `config.toml` 中修改 `subtitle_provider` 即可切换模式。Whisper 默认使用约 3 GB 的 `large-v3`；如需更小、更快的模型，可以使用约 1.6 GB 的 `large-v3-turbo`：
+Set `subtitle_provider` in `config.toml` to switch modes. Whisper uses the approximately 3 GB `large-v3` model by default. To use the smaller and faster, approximately 1.6 GB `large-v3-turbo` model:
 
 ```toml
 [app]
@@ -385,9 +422,9 @@ subtitle_provider = "whisper"
 model_size = "large-v3-turbo"
 ```
 
-> 首次使用 Whisper 时，程序会自动从 Hugging Face 下载模型。如果当前网络无法自动下载，可以从 [Hugging Face](https://huggingface.co/Systran/faster-whisper-large-v3) 手动下载 `whisper-large-v3`。
+> On first use, Whisper automatically downloads the model from Hugging Face. If the automatic download fails, download `whisper-large-v3` manually from [Hugging Face](https://huggingface.co/Systran/faster-whisper-large-v3).
 
-下载并解压后，将整个目录放到 `.\MoneyPrinterTurbo\models`，最终路径应为 `.\MoneyPrinterTurbo\models\whisper-large-v3`：
+After extracting the model, place the entire directory in `.\MoneyPrinterTurbo\models`. The final path should be `.\MoneyPrinterTurbo\models\whisper-large-v3`:
 
 ```
 MoneyPrinterTurbo
@@ -400,22 +437,24 @@ MoneyPrinterTurbo
   │          vocabulary.json
 ```
 
-## 背景音乐 🎵
+## Background Music 🎵
 
-用于视频的背景音乐，位于项目的 `resource/songs` 目录下。
+Background music for videos is located in the project's `resource/songs` directory.
 
-> 当前项目里面放了一些默认的音乐，来自于 YouTube 视频，如有侵权，请删除。
+> The current project includes some default music from YouTube videos. If there are copyright issues, please delete
+> them.
 
-## 字幕字体 🅰
+## Subtitle Fonts 🅰
 
-用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
+Fonts for rendering video subtitles are located in the project's `resource/fonts` directory, and you can also add your
+own fonts.
 
-## 常见问题 🤔
+## Common Questions 🤔
 
 <details>
-<summary>如何发布到 TikTok、Instagram 或 YouTube Shorts？</summary>
+<summary>How do I publish to TikTok, Instagram, or YouTube Shorts?</summary>
 
-注册 [Upload-Post](https://upload-post.com/) 账号并获取 API Key，然后在 `config.toml` 的 `[app]` 下添加以下配置：
+Create an [Upload-Post](https://upload-post.com/) account and API key, then add the following settings under `[app]` in `config.toml`:
 
 ```toml
 [app]
@@ -427,26 +466,27 @@ upload_post_auto_upload = true
 upload_post_youtube_privacy_status = "public"
 ```
 
-保存配置并重启项目。视频生成完成后，程序会自动发布到已配置的平台。YouTube 可见性可设置为 `public`、`unlisted` 或 `private`。
+Restart the app after saving. Generated videos will then be published automatically to the configured platforms. YouTube privacy can be set to `public`, `unlisted`, or `private`.
 
 </details>
 
 <details>
 <summary>RuntimeError: No ffmpeg exe could be found</summary>
 
-通常情况下，ffmpeg 会被自动下载，并且会被自动检测到。
-但是如果你的环境有问题，无法自动下载，可能会遇到如下错误：
+Normally, ffmpeg will be automatically downloaded and detected.
+However, if your environment has issues preventing automatic downloads, you may encounter the following error:
 
 ```
 RuntimeError: No ffmpeg exe could be found.
 Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
 ```
 
-此时你可以从 https://www.gyan.dev/ffmpeg/builds/ 下载ffmpeg，解压后，设置 `ffmpeg_path` 为你的实际安装路径即可。
+In this case, you can download ffmpeg from https://www.gyan.dev/ffmpeg/builds/, unzip it, and set `ffmpeg_path` to your
+actual installation path.
 
 ```toml
 [app]
-# 请根据你的实际路径设置，注意 Windows 路径分隔符为 \\
+# Please set according to your actual path, note that Windows path separators are \\
 ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 ```
 
@@ -455,15 +495,15 @@ ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 <details>
 <summary>OSError: [Errno 24] Too many open files</summary>
 
-这个问题是由于系统打开文件数限制导致的，可以通过修改系统的文件打开数限制来解决。
+This issue is caused by the system's limit on the number of open files. You can solve it by modifying the system's file open limit.
 
-查看当前限制
+Check the current limit:
 
 ```shell
 ulimit -n
 ```
 
-如果过低，可以调高一些，比如
+If it's too low, you can increase it, for example:
 
 ```shell
 ulimit -n 10240
@@ -472,7 +512,7 @@ ulimit -n 10240
 </details>
 
 <details>
-<summary>Whisper 模型下载失败</summary>
+<summary>Whisper model download failed</summary>
 
 ```
 LocalEntryNotFoundError: Cannot find an appropriate cached snapshot folder for the specified revision on the local disk and
@@ -480,7 +520,7 @@ outgoing traffic has been disabled.
 To enable repo look-ups and downloads online, pass 'local_files_only=False' as input.
 ```
 
-或者
+or
 
 ```
 An error occurred while synchronizing the model Systran/faster-whisper-large-v3 from the Hugging Face Hub:
@@ -489,17 +529,17 @@ specified revision on the local disk. Please check your internet connection and 
 Trying to load the model directly from the local cache, if it exists.
 ```
 
-解决方法：[查看如何从 Hugging Face 手动下载模型](#%E5%AD%97%E5%B9%95%E7%94%9F%E6%88%90-)
+Solution: [See how to download the model manually from Hugging Face](#subtitle-generation-)
 
 </details>
 
-## 反馈建议 📢
+## Feedback & Suggestions 📢
 
-- 可以提交 [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) 或者 [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls)。
+- You can submit an [issue](https://github.com/amine9812/MoneyPrinterTurbo/issues) or a [pull request](https://github.com/amine9812/MoneyPrinterTurbo/pulls).
 
-## 许可证 📝
+## License 📝
 
-点击查看 [`LICENSE`](LICENSE) 文件
+Click to view the [`LICENSE`](LICENSE) file
 
 ## Star History
 

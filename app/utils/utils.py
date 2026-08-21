@@ -70,15 +70,15 @@ _CLIP_SPEED_MAX = 2.0
 
 
 def normalize_clip_speed(value, default: float = 1.0) -> float:
-    """将片段播放速度归一化到 WebUI 支持的安全范围。"""
+    """Normalize segment playback speed to the safe range supported by the WebUI."""
     try:
         speed = float(value)
     except (TypeError, ValueError):
         return default
 
-    # NaN 会绕过普通的大小比较，并在 MoviePy 计算 duration 时传播；无穷值也不
-    # 是合法用户输入。两者统一回退默认值，保证 API 和内部直接调用都不会生成
-    # 无效时间线。零值和负值同样无法表示正常播放速度。
+    # NaN bypasses ordinary comparisons and propagates through MoviePy duration calculations; infinities are not
+    # legal user input either. Both fall back to the default so the API and direct internal calls never build
+    # invalid timelines. Zero and negative values likewise cannot represent a normal playback speed.
     if not math.isfinite(speed) or speed <= 0:
         return default
 
@@ -144,19 +144,19 @@ def public_dir(sub_dir: str = ""):
 
 def get_ffmpeg_binary() -> str:
     """
-    解析当前进程应该使用的 FFmpeg 可执行文件。
+    Resolve the FFmpeg executable the current process should use.
 
-    增加原因：
-    1. 视频编码、静音音频生成、pydub 音频转码都依赖 FFmpeg；
-    2. Windows 便携包、Docker 和用户自定义安装目录经常出现 PATH 不一致；
-    3. 集中解析可以让所有调用方使用同一套优先级，减少某条链路能跑、
-       另一条链路找不到 FFmpeg 的现场问题。
+    Why this exists:
+    1. Video encoding, silent-audio generation, and pydub transcoding all depend on FFmpeg;
+    2. The Windows portable package, Docker, and custom install directories often disagree on PATH;
+    3. Central resolution gives every caller the same priority, reducing field issues where one
+       pipeline works while another cannot find FFmpeg.
 
-    优先级：
-    1. IMAGEIO_FFMPEG_EXE：MoviePy/imageio 约定的显式配置；
-    2. 系统 PATH 中的 ffmpeg；
-    3. imageio-ffmpeg 依赖提供的内置二进制；
-    4. 字符串 "ffmpeg" 兜底，交给 subprocess 在运行时暴露更具体错误。
+    Priority:
+    1. IMAGEIO_FFMPEG_EXE: explicit configuration agreed on by MoviePy/imageio;
+    2. ffmpeg from the system PATH;
+    3. the bundled binary provided by the imageio-ffmpeg dependency;
+    4. the literal "ffmpeg" as a last resort, letting subprocess surface a more specific error at runtime.
     """
     configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
     if configured_ffmpeg:
@@ -245,10 +245,10 @@ def split_string_by_punctuations(s):
             continue
 
         if char == "," and previous_char.isdigit() and next_char.isdigit():
-            # 英文数字里的千分位逗号不是断句符，例如 "1,000 years"。
-            # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
-            # 如果这里拆成 "1" 和 "000 years"，后续字幕聚合会无法匹配脚本原文，
-            # 进而错误回退到 Whisper。
+            # The thousands separator in English numerals is not a sentence break, e.g. "1,000 years".
+            # Edge TTS word boundaries usually return such numbers as one continuous chunk;
+            # if this were split into "1" and "000 years", later subtitle aggregation could not match the script
+            # and would wrongly fall back to Whisper.
             txt += char
             continue
 
@@ -265,12 +265,12 @@ def split_string_by_punctuations(s):
 
 def normalize_script_for_subtitle_matching(video_script: str) -> str:
     """
-    清理字幕匹配前的脚本文本。
+    Clean the script text before subtitle matching.
 
-    用户可能手动输入 Markdown 分隔符、标题强调或 `_` 这类格式符号。
-    这些字符通常不会出现在 TTS/Whisper 的识别结果里；如果继续参与
-    字幕逐行匹配，脚本行数量会大于真实字幕行数量，最终可能补出
-    `00:00:00,000 --> 00:00:00,000`，导致剪辑软件无法导入 SRT。
+    Users may manually enter Markdown separators, heading emphasis, or format marks like `_`.
+    These characters usually do not appear in TTS/Whisper output; if they stay in the line-by-line
+    matching, the script would have more lines than real subtitle lines and the result could be
+    patched with `00:00:00,000 --> 00:00:00,000`, which editing software cannot import.
     """
     video_script = video_script or ""
     underscore_count = video_script.count("_")
@@ -279,8 +279,8 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
     removed_separator_lines = 0
     for line in video_script.splitlines():
         line = line.strip()
-        # Markdown 分隔符或强调符号单独成行时不会被 TTS 朗读，必须从
-        # 脚本行里移除，避免字幕聚合卡在这类“不可发声”的目标行上。
+        # Markdown separators or emphasis marks on their own line are not spoken by TTS and must be removed
+        # from the script lines, so subtitle aggregation never stalls on such an "unpronounceable" target line.
         if re.fullmatch(r"[-*_]{3,}", line):
             removed_separator_lines += 1
             continue
@@ -309,11 +309,12 @@ def resolve_ui_language(
     default_language: str = "en",
 ) -> str:
     """
-    按“已保存设置、浏览器语言、默认语言”的优先级选择界面语言。
+    Choose the UI language by priority: saved setting, browser language, default language.
 
-    浏览器通常返回带地区的 locale，例如 ``zh-CN``、``pt-BR``。语言文件使用
-    ``zh``、``pt`` 这类基础代码，因此先尝试完整匹配，再回退到连字符前的语言
-    代码。函数保持纯逻辑，避免把浏览器上下文和配置写入耦合到工具层，便于测试。
+    Browsers usually return region-tagged locales such as ``zh-CN`` or ``pt-BR``. Language files use
+    base codes like ``zh`` and ``pt``, so try the full match first, then fall back to the code before
+    the hyphen. The function stays pure, keeping browser context and config writes out of the utility
+    layer for easier testing.
     """
     supported = [str(language).strip() for language in supported_languages]
     supported_by_lower = {
@@ -341,15 +342,15 @@ def resolve_ui_language(
     if default_match:
         return default_match
 
-    # 正常项目始终包含英文；保留空语言集合兜底，避免损坏的语言目录让页面
-    # 初始化直接抛异常，后续翻译函数会继续显示原始 key 以便诊断。
+    # A healthy project always ships English; keep the empty-language-set fallback so a broken language directory
+    # does not crash page initialization, and later translation functions keep showing the raw key for diagnosis.
     return supported[0] if supported else default_language
 
 
 @lru_cache(maxsize=8)
 def load_locales(i18n_dir):
-    # WebUI 每次交互都会触发 Streamlit 重新执行脚本，语言文件运行期不会变化，
-    # 因此缓存解析结果，避免反复读取和解析所有 i18n JSON 文件。
+    # Every WebUI interaction re-executes the Streamlit script and the language files never change at runtime,
+    # so cache the parsed result instead of re-reading and re-parsing all i18n JSON files.
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:
