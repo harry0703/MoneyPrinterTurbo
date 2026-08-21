@@ -264,6 +264,11 @@ class TestLiteLLMProvider(unittest.TestCase):
     def test_current_default_model_names(self):
         """WebUI 与服务层必须共享同一组默认模型，避免展示值和请求值漂移。"""
         self.assertEqual(get_llm_provider("openai").default_model, "gpt-5.5")
+        anthropic = get_llm_provider("anthropic")
+        self.assertEqual(anthropic.default_model, "claude-sonnet-5")
+        self.assertEqual(anthropic.default_base_url, "https://api.anthropic.com/v1/")
+        self.assertEqual(anthropic.adapter, "openai_compatible")
+        self.assertTrue(anthropic.requires_api_key)
         self.assertEqual(get_llm_provider("aimlapi").default_model, "openai/gpt-5-5")
         self.assertEqual(get_llm_provider("deepseek").default_model, "deepseek-v4-pro")
         self.assertEqual(
@@ -311,6 +316,7 @@ class TestLiteLLMProvider(unittest.TestCase):
             [
                 "moonshot",
                 "openai",
+                "anthropic",
                 "gemini",
                 "deepseek",
                 "qwen",
@@ -678,6 +684,48 @@ class TestLiteLLMProvider(unittest.TestCase):
             },
         )
         self.assertEqual(result, "hello\npollinations")
+
+    def test_anthropic_uses_openai_compatible_chat_completions(self):
+        """Claude 走 Anthropic 的 OpenAI 兼容端点，不需要额外适配器分支。"""
+        config.app.update(
+            {
+                "llm_provider": "anthropic",
+                "anthropic_api_key": "anthropic-test-key",
+                "anthropic_base_url": "",
+                "anthropic_model_name": "",
+            }
+        )
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nclaude")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="anthropic-test-key",
+            base_url="https://api.anthropic.com/v1/",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "claude-sonnet-5",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nclaude")
 
     def test_gemini_uses_google_genai_client(self):
         """Gemini 适配器应通过新版 SDK 的统一 Client 发起内容生成请求。"""
