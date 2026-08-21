@@ -655,6 +655,12 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
     from app.services import bgm as bgm_service
     from app.utils import utils
 
+    # 尽早探测 FFmpeg 是否可用：CLI 是一次性运行到底的长流程，如果等到视频合成
+    # 阶段才发现 FFmpeg 缺失，用户已经白白等待了脚本生成、TTS、素材下载等耗时
+    # 步骤。这里只记录警告并不中断流程，因为 imageio-ffmpeg 在真正使用时仍有
+    # 机会自动下载成功。
+    utils.check_ffmpeg_ready()
+
     local_material_extensions = {
         *(f".{extension}" for extension in const.FILE_TYPE_VIDEOS),
         *(f".{extension}" for extension in const.FILE_TYPE_IMAGES),
