@@ -1409,6 +1409,7 @@ support_locales = [
     "en-US",
     "es-ES",
     "fr-FR",
+    "it-IT",
     "ru-RU",
     "vi-VN",
     "th-TH",
