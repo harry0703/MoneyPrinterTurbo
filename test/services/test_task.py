@@ -1,20 +1,15 @@
 import unittest
 import os
-import shutil
 import sys
-import tempfile
-from concurrent.futures import Future
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services import task as tm
-from app.models.schema import MaterialInfo, VideoParams
-from app.services.state import MemoryState, RedisState
-from app.utils import utils
+from app.models.schema import VideoParams
+from app.services.state import MemoryState
 
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
 RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() in {
@@ -599,4 +594,7 @@ class TestTaskService(unittest.TestCase):
 
         validate_access.assert_called_once_with()
         generate_script.assert_not_called()
+        generate_audio.assert_not_called()
+        self.assertEqual(result["state"], tm.const.TASK_STATE_FAILED)
+        self.assertEqual(result["failed_stage"], "preflight")
      
