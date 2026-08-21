@@ -303,6 +303,74 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(warnings, [{"code": "sonilo_bgm_failed", "video_index": 1}])
         self.assertTrue(generate.call_args.kwargs["bgm_file_override"].endswith(".m4a"))
 
+    def test_run_pipeline_fails_fast_when_ffmpeg_is_not_ready(self):
+        """完整视频流水线必须在 LLM/TTS/素材服务之前先确认 FFmpeg 可用。"""
+        params = VideoParams(video_subject="test")
+        state = MemoryState()
+        with (
+            patch.object(tm.utils, "check_ffmpeg_ready", return_value=False),
+            patch.object(tm, "generate_script") as generate_script,
+            patch.object(tm, "generate_audio") as generate_audio,
+            patch.object(tm, "get_video_materials") as get_materials,
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("ffmpeg-missing", params)
+
+        generate_script.assert_not_called()
+        generate_audio.assert_not_called()
+        get_materials.assert_not_called()
+        self.assertEqual(result["state"], tm.const.TASK_STATE_FAILED)
+        self.assertEqual(result["failed_stage"], "preflight")
+        self.assertIn("ffmpeg", result["error"])
+
+    def test_run_pipeline_skips_ffmpeg_check_for_script_stage(self):
+        """脚本阶段不涉及音频/视频合成，不应因为缺少 FFmpeg 而被拒绝。"""
+        params = VideoParams(video_subject="test")
+        state = MemoryState()
+        with (
+            patch.object(tm.utils, "check_ffmpeg_ready", return_value=False) as check,
+            patch.object(tm, "generate_script", return_value="脚本") as generate_script,
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("ffmpeg-missing-script-stage", params, stop_at="script")
+
+        check.assert_not_called()
+        generate_script.assert_called_once()
+        self.assertEqual(result, {"script": "脚本"})
+
+    def test_run_pipeline_skips_ffmpeg_check_for_terms_stage(self):
+        """搜索词阶段同样不需要 FFmpeg，不应触发探测。"""
+        params = VideoParams(video_subject="test")
+        state = MemoryState()
+        with (
+            patch.object(tm.utils, "check_ffmpeg_ready", return_value=False) as check,
+            patch.object(tm, "generate_script", return_value="脚本"),
+            patch.object(tm, "generate_terms", return_value=["term"]),
+            patch.object(tm, "save_script_data"),
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("ffmpeg-missing-terms-stage", params, stop_at="terms")
+
+        check.assert_not_called()
+        self.assertEqual(result, {"script": "脚本", "terms": ["term"]})
+
+    def test_run_pipeline_proceeds_past_ffmpeg_preflight_when_ready(self):
+        """FFmpeg 可用时探测不应阻塞后续脚本生成。"""
+        params = VideoParams(video_subject="test")
+        state = MemoryState()
+        with (
+            patch.object(tm.utils, "check_ffmpeg_ready", return_value=True) as check,
+            patch.object(tm, "generate_script", return_value="脚本") as generate_script,
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("ffmpeg-ready", params, stop_at="script")
+
+        # 即使 script 阶段不强制要求 FFmpeg，这里也验证探测函数被跳过调用，
+        # 与"仅在 script/terms 之外阶段才检查"的约定保持一致。
+        check.assert_not_called()
+        generate_script.assert_called_once()
+        self.assertEqual(result, {"script": "脚本"})
+
     def test_start_rejects_missing_sonilo_key_before_costly_pipeline_steps(self):
         """完整任务缺少 Sonilo Key 时不能先调用 LLM、TTS 或素材服务。"""
         params = VideoParams(video_subject="test", bgm_type="sonilo")

@@ -655,6 +655,11 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
     from app.services import bgm as bgm_service
     from app.utils import utils
 
+    # FFmpeg 探测已经移到 app/services/task.py 的共享任务流水线（task.start）
+    # 里统一做硬性检查：探测失败会让任务以 preflight 阶段失败结束，run_cli()
+    # 会据此返回非零退出码。这里不再重复一次不阻断流程的检查，避免与流水线
+    # 里的判断结果不一致。
+
     local_material_extensions = {
         *(f".{extension}" for extension in const.FILE_TYPE_VIDEOS),
         *(f".{extension}" for extension in const.FILE_TYPE_IMAGES),

@@ -1211,6 +1211,18 @@ def _run_pipeline(
             except video_music_provider["error_type"] as exc:
                 return _mark_task_failed(task_id, "preflight", str(exc))
 
+    # 只有 script/terms 中间产物不需要 FFmpeg（它们不生成音频或视频）。API、
+    # CLI 和 WebUI 都通过这个共享入口执行任务，因此在此统一探测，而不是
+    # 分别在各个入口重复检查，能保证三条路径的行为一致。放在配乐 Key 校验
+    # 之后，是为了不改变那些校验原有的"最先失败"顺序和错误信息。
+    if stop_at not in ("script", "terms") and not utils.check_ffmpeg_ready():
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "ffmpeg is not available; install ffmpeg or set app.ffmpeg_path "
+            "in config.toml to a working ffmpeg executable",
+        )
+
     # 1. Generate script
     video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
