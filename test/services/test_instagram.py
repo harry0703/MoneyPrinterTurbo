@@ -510,3 +510,119 @@ class MultiAccountTest(unittest.TestCase):
             label="x", username="Weird/Name:1", password="p"
         )
         self.assertEqual(account.slug, "weird_name_1")
+
+
+class FetchStatsTest(unittest.TestCase):
+    """
+    读数据这条路存在的意义是让使用者不必登录浏览器：每次登录平台都会看到
+    一台新设备，一次安全验证就可能作废定时任务正在用的会话。
+    """
+
+    def setUp(self):
+        # 名单默认只放测试账号，这一组用例关心的是取数逻辑本身。
+        patcher = patch.object(instagram, "STATS_ACCOUNTS", ("creator",))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_it_asks_the_worker_for_stats(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker",
+                              return_value={"ok": True, "media": []}) as worker:
+                instagram.fetch_stats(amount=5)
+        request = worker.call_args[0][0]
+        self.assertEqual(request["action"], "stats")
+        self.assertEqual(request["amount"], 5)
+
+    def test_it_never_publishes_anything(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker",
+                              return_value={"ok": True, "media": []}) as worker:
+                instagram.fetch_stats()
+        self.assertNotIn("video_path", worker.call_args[0][0])
+
+    def test_reading_stats_does_not_consume_the_upload_quota(self):
+        """看数据不是发布，不该占用当天的发布额度。"""
+        account = instagram.InstagramAccount(
+            label="creator", username="creator", password="x"
+        )
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker",
+                              return_value={"ok": True, "media": []}):
+                instagram.fetch_stats()
+            self.assertEqual(len(instagram._read_history(account)), 0)
+
+    def test_a_dead_session_surfaces_as_an_auth_error(self):
+        payload = {"ok": False, "error_type": "session_expired", "error": "gone"}
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker", return_value=payload):
+                with self.assertRaises(instagram.InstagramAuthError):
+                    instagram.fetch_stats()
+
+    def test_a_rate_limit_keeps_its_own_type(self):
+        payload = {"ok": False, "error_type": "rate_limit", "error": "429"}
+        with _ConfigPatch():
+            with patch.object(instagram, "_run_worker", return_value=payload):
+                with self.assertRaises(instagram.InstagramRateLimitError):
+                    instagram.fetch_stats()
+
+    def test_a_disabled_service_makes_no_request(self):
+        with _ConfigPatch(enabled=False):
+            with patch.object(instagram, "_run_worker") as worker:
+                with self.assertRaises(instagram.InstagramNotConfiguredError):
+                    instagram.fetch_stats()
+        worker.assert_not_called()
+
+
+class StatsAllowlistTest(unittest.TestCase):
+    """
+    上一版对四个账号一起读，其中三个的会话随即失效。名单先只放那个一次性
+    测试账号，观察几天再逐个加回来。
+    """
+
+    def test_an_account_outside_the_list_makes_no_request(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "STATS_ACCOUNTS", ("brainrot",)):
+                with patch.object(instagram, "_run_worker") as worker:
+                    with self.assertRaises(
+                        instagram.InstagramStatsNotAllowedError
+                    ):
+                        instagram.fetch_stats(account="creator")
+        worker.assert_not_called()
+
+    def test_the_message_names_what_is_allowed(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "STATS_ACCOUNTS", ("brainrot",)):
+                with self.assertRaises(
+                    instagram.InstagramStatsNotAllowedError
+                ) as caught:
+                    instagram.fetch_stats(account="creator")
+        self.assertIn("brainrot", str(caught.exception))
+
+    def test_an_allowed_account_goes_through(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "STATS_ACCOUNTS", ("creator",)):
+                with patch.object(instagram, "_run_worker",
+                                  return_value={"ok": True, "media": []}) as worker:
+                    instagram.fetch_stats(account="creator")
+        worker.assert_called_once()
+
+    def test_an_empty_list_means_no_restriction(self):
+        """名单清空是"观察结束、全部放行"的表达方式。"""
+        with _ConfigPatch():
+            with patch.object(instagram, "STATS_ACCOUNTS", ()):
+                with patch.object(instagram, "_run_worker",
+                                  return_value={"ok": True, "media": []}) as worker:
+                    instagram.fetch_stats(account="creator")
+        worker.assert_called_once()
+
+    def test_the_listing_hides_the_accounts_left_out(self):
+        with _ConfigPatch():
+            with patch.object(instagram, "STATS_ACCOUNTS", ("nobody",)):
+                self.assertEqual(instagram.stats_accounts(), ())
+
+    def test_it_is_a_distinct_error_from_a_dead_session(self):
+        """两者的处理完全不同：一个改名单，一个重新导入会话。"""
+        self.assertFalse(
+            issubclass(instagram.InstagramStatsNotAllowedError,
+                       instagram.InstagramAuthError)
+        )

@@ -346,6 +346,53 @@ def verify_session(account: str = "") -> dict:
     return result
 
 
+# 允许读数据的账号。
+#
+# 上一版对四个账号一起读，其中三个的会话在那次调用之后随即失效。证据无法
+# 分辨是这些接口造成的，还是它们本来就快不行了。因此先只对这个一次性测试
+# 账号开放，观察几天；它扛得住再逐个加进来。名单为空表示不限制。
+STATS_ACCOUNTS = ("brainrot",)
+
+
+class InstagramStatsNotAllowedError(InstagramError):
+    """账号不在读数据的名单里时抛出。"""
+
+
+def stats_accounts() -> tuple[str, ...]:
+    """返回当前允许读数据的账号，顺序与配置一致。"""
+    allowed = set(STATS_ACCOUNTS)
+    if not allowed:
+        return tuple(account.label for account in list_accounts())
+    return tuple(
+        account.label for account in list_accounts() if account.label in allowed
+    )
+
+
+def fetch_stats(account: str = "", amount: int = 12) -> dict:
+    """
+    读取一个账号的关注数与最近若干条 Reels 的计数。
+
+    存在的理由是让使用者不必登录 Instagram 就能看数据：每次在浏览器里登录，
+    平台都会看到一台"新设备"，而触发一次安全验证就可能连带作废正在用的会话。
+    """
+    settings = InstagramSettings.from_config()
+    if not settings.enabled:
+        raise InstagramNotConfiguredError("Instagram publishing is disabled")
+
+    target = resolve_account(account, settings)
+    if STATS_ACCOUNTS and target.label not in STATS_ACCOUNTS:
+        raise InstagramStatsNotAllowedError(
+            f"reading stats is not enabled for {target.label}; "
+            f"currently allowed: {', '.join(STATS_ACCOUNTS)}"
+        )
+
+    result = _run_worker(_build_request(target, action="stats", amount=amount))
+    if not result.get("ok"):
+        _raise_for_result(result)
+    result["account"] = target.label
+    return result
+
+
 def import_session(sessionid: str, account: str = "") -> dict:
     """
     用浏览器会话建立客户端会话，绕开账密登录。

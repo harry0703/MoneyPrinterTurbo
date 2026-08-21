@@ -315,6 +315,66 @@ def _publish(client, request: dict) -> dict:
     }
 
 
+def _recent_clips(client, amount: int):
+    """
+    取最近若干条作品，优先走网页版的 GraphQL 接口。
+
+    上一版直接用 ``user_clips``，走的是手机应用那套私有接口。四个账号里有三个
+    在那次调用之后随即失效，虽然无法确证是它造成的，但网页接口更接近浏览器
+    自己会发的请求，风险面更小。取不到时才退回私有接口，并把实际走的路径带
+    回结果里——否则悄悄降级就等于没有做这个选择。
+    """
+    try:
+        media = client.user_medias_gql(client.user_id, amount=amount)
+        if media:
+            return media, "gql"
+    except Exception as exc:
+        log(f"gql media listing unavailable, falling back: {type(exc).__name__}")
+
+    return client.user_clips(client.user_id, amount=amount), "v1"
+
+
+def _stats(client, request: dict) -> dict:
+    """
+    读取账号与最近若干条 Reels 的计数。
+
+    用 ``user_clips`` 一次取回一批，而不是按已发布的链接逐条查 ``media_info``：
+    后者每条一个请求，看一次面板就是十几次调用，正是把账号推向风控的那种
+    访问模式。
+    """
+    amount = max(1, min(int(request.get("amount") or 12), 50))
+    info = client.user_info(client.user_id)
+
+    clips, source = _recent_clips(client, amount)
+
+    media = []
+    for clip in clips:
+        taken_at = getattr(clip, "taken_at", None)
+        media.append(
+            {
+                "code": clip.code,
+                "taken_at": taken_at.isoformat() if taken_at else "",
+                # 不同接口版本把播放数放在两个字段里的其中一个。
+                "plays": getattr(clip, "play_count", None)
+                or getattr(clip, "view_count", None)
+                or 0,
+                "likes": getattr(clip, "like_count", 0) or 0,
+                "comments": getattr(clip, "comment_count", 0) or 0,
+                "caption": (getattr(clip, "caption_text", "") or "")[:120],
+            }
+        )
+
+    return {
+        "ok": True,
+        "source": source,
+        "username": info.username,
+        "followers": getattr(info, "follower_count", 0) or 0,
+        "following": getattr(info, "following_count", 0) or 0,
+        "media_count": getattr(info, "media_count", 0) or 0,
+        "media": media,
+    }
+
+
 def main() -> int:
     try:
         request = json.load(sys.stdin)
@@ -344,6 +404,17 @@ def main() -> int:
     action = request.get("action") or "publish"
     if action == "check":
         respond({"ok": True, "session_reused": reused, "username": client.username})
+        return 0
+
+    if action == "stats":
+        try:
+            result = _stats(client, request)
+        except Exception as exc:
+            respond({"ok": False, "error_type": classify_error(str(exc)),
+                     "error": str(exc)})
+            return 1
+        result["session_reused"] = reused
+        respond(result)
         return 0
 
     result = _publish(client, request)
