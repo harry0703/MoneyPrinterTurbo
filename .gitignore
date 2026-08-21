@@ -29,7 +29,9 @@ venv/
 .venv
 
 # Debug and test files
-CLAUDE.md
+# CLAUDE.md est versionne ici : c'est le seul contexte charge automatiquement
+# au demarrage d'une session, et il porte les regles qui protegent les comptes.
+# Upstream l'ignore parce qu'il n'y garde pas de contexte projet ; nous si.
 debug/
 debug_*.py
 test_*.py
