@@ -16,6 +16,12 @@ if TYPE_CHECKING:
 
 
 DEFAULT_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
+# 对应 webui/Main.py 的 VOICE_MODE_NONE 和 VOICE_MODE_UPLOAD。两端目前没有
+# 共享这些常量，因此在这里保留字面值并注明来源。
+UI_VOICE_MODE_NONE = "none"
+UI_VOICE_MODE_UPLOAD = "upload"
+# 这两种保存的配音方式都表示不要自动配音。
+UI_VOICE_MODES_WITHOUT_TTS = frozenset({UI_VOICE_MODE_NONE, UI_VOICE_MODE_UPLOAD})
 _PIPELINE_STAGES = ("script", "terms", "audio", "subtitle", "materials", "video")
 _CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 
@@ -288,7 +294,9 @@ Output and exit status:
         default=None,
         help=(
             f"TTS voice identifier. Defaults to [ui].voice_name from "
-            f"config.toml, otherwise {DEFAULT_VOICE_NAME}. "
+            f"config.toml, otherwise {DEFAULT_VOICE_NAME}. A saved "
+            "[ui].voice_mode of 'none' or 'upload' resolves to no-voice "
+            "instead, unless this option is given. "
             "Use 'no-voice' for silent output. Provider-specific identifiers "
             "use prefixes such as gemini:, mimo:, elevenlabs:, and chatterbox:"
         ),
@@ -514,18 +522,16 @@ Output and exit status:
 
 def _ui_config_value(ui_config, key: str, expected_type):
     """
-    Liest einen in ``[ui]`` gespeicherten WebUI-Wert oder ``None``.
+    读取 ``[ui]`` 中保存的 WebUI 设置，取不到可用值时返回 ``None``。
 
-    Die Sektion wird auch von Hand gepflegt, deshalb werden unbrauchbare
-    Eintraege verworfen statt weitergereicht: der Aufrufer faellt dann auf den
-    eingebauten Default zurueck, anstatt einen Traceback oder ein
-    Validierungsfehler in ``VideoParams`` zu erzeugen.
+    该配置段也可能被手工编辑，因此这里直接丢弃类型不符的条目，让调用方回退
+    到内置默认值，而不是把脏数据继续传下去，触发 traceback 或 ``VideoParams``
+    的校验错误。
     """
     value = ui_config.get(key)
     if value is None:
         return None
-    # ``isinstance(True, int)`` ist wahr, deshalb muss bool explizit
-    # ausgeschlossen werden, wenn eine Zahl erwartet wird.
+    # ``isinstance(True, int)`` 为真，所以在期望数字时必须显式排除 bool。
     if isinstance(value, bool) != (expected_type is bool):
         return None
     if not isinstance(value, expected_type):
@@ -533,6 +539,26 @@ def _ui_config_value(ui_config, key: str, expected_type):
     if expected_type is str and not value.strip():
         return None
     return value
+
+
+def _resolve_voice_name(args: argparse.Namespace, ui_config) -> str:
+    """
+    按优先级解析音色：命令行 > WebUI 保存的配音方式和音色 > 内置默认值。
+
+    WebUI 把“无配音”保存为独立的 voice_mode，同时保留用户上一次真正选择的
+    音色，以便切回自动配音后恢复。所以这里不能只读 voice_name，否则保存的
+    无配音状态会被忽略，并可能重新触发付费供应商请求。
+    """
+    from app.services.voice import NO_VOICE_NAME
+
+    if args.voice_name:
+        return args.voice_name
+    # 无配音和上传自备音频都表示用户不想要自动配音。上传模式的文件路径不会
+    # 写入 [ui]，CLI 无法复现该上传；此时沿用保存的音色会静默触发付费 TTS
+    # 请求，因此两种模式都映射为 no-voice，需要配音时显式传 --voice-name。
+    if _ui_config_value(ui_config, "voice_mode", str) in UI_VOICE_MODES_WITHOUT_TTS:
+        return NO_VOICE_NAME
+    return _ui_config_value(ui_config, "voice_name", str) or DEFAULT_VOICE_NAME
 
 
 def build_video_params(args: argparse.Namespace) -> VideoParams:
@@ -567,11 +593,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_materials": video_materials,
         "video_count": args.video_count,
         "video_aspect": args.video_aspect,
-        "voice_name": (
-            args.voice_name
-            or _ui_config_value(ui_config, "voice_name", str)
-            or DEFAULT_VOICE_NAME
-        ),
+        "voice_name": _resolve_voice_name(args, ui_config),
         "subtitle_enabled": args.subtitle_enabled,
     }
 
@@ -606,9 +628,8 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         if value is not None:
             params_kwargs[name] = value
 
-    # Ohne explizites Flag gelten die in der WebUI gespeicherten Werte. Nur
-    # Felder, die oben nicht schon aus der Kommandozeile gesetzt wurden,
-    # werden ergaenzt; fehlt der Eintrag, bleibt der Default aus VideoParams.
+    # 没有显式传入命令行参数时，使用 WebUI 保存的值。只补充上面尚未由命令行
+    # 设置的字段；若保存值缺失，则继续沿用 VideoParams 的默认值。
     ui_defaults = (
         ("font_name", str),
         ("text_fore_color", str),
@@ -628,12 +649,14 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
     elif args.subtitle_background_color is not None:
         params_kwargs["text_background_color"] = args.subtitle_background_color
     elif args.subtitle_background_enabled is True:
-        params_kwargs["text_background_color"] = True
+        # 用户只开启了背景而没有覆盖颜色，因此优先沿用 WebUI 保存的颜色，
+        # 只有在没有可用保存值时才回退到默认背景。
+        params_kwargs["text_background_color"] = (
+            _ui_config_value(ui_config, "subtitle_background_color", str) or True
+        )
     else:
-        # Als Flag-Kombination ist "Hintergrund aus" plus Farbe ein
-        # Argumentfehler. Als gespeicherte Einstellung darf dieselbe
-        # Kombination den Lauf nicht abbrechen, sondern nur den Hintergrund
-        # deaktivieren.
+        # “关闭背景”加上颜色作为命令行组合是参数错误；但作为保存的设置，
+        # 同样的组合不应中断运行，只表示禁用背景。
         ui_enabled = _ui_config_value(
             ui_config, "subtitle_background_enabled", bool
         )

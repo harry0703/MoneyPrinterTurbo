@@ -17,12 +17,10 @@ from app.config import config as app_config
 
 class TestCli(unittest.TestCase):
     def setUp(self):
-        # ``build_video_params`` uebernimmt Defaults aus der [ui]-Sektion der
-        # lokalen config.toml. Ohne Isolation haengen diese Tests am Zustand
-        # der Entwicklermaschine: ein dort gespeicherter, inzwischen
-        # geloeschter Font laesst die Font-Pruefung in ``prepare_cli_files``
-        # anschlagen und bringt thematisch unabhaengige Tests mit
-        # irrefuehrender Meldung zum Fehlschlagen.
+        # ``build_video_params`` 会读取本地 config.toml 的 [ui] 段作为默认值。
+        # 不做隔离时，这些测试就依赖开发机的状态：配置里保存的字体一旦已被
+        # 删除，``prepare_cli_files`` 的字体校验就会触发，让与此无关的测试以
+        # 误导性的报错失败。
         ui_patch = patch.dict(app_config.ui, {}, clear=True)
         ui_patch.start()
         self.addCleanup(ui_patch.stop)
@@ -609,8 +607,8 @@ class TestCli(unittest.TestCase):
 
 class TestCliUiDefaults(unittest.TestCase):
     """
-    CLI-Defaults sollen der WebUI folgen: explizites Flag, dann [ui] aus
-    config.toml, dann der eingebaute Default.
+    CLI 默认值应跟随 WebUI：显式命令行参数优先，其次是 config.toml 的 [ui]
+    保存值，最后才是内置默认值。
     """
 
     UI_CONFIG = {
@@ -683,10 +681,9 @@ class TestCliUiDefaults(unittest.TestCase):
 
     def test_ui_config_can_disable_subtitle_background(self):
         """
-        Eine widersprüchliche [ui]-Sektion darf die CLI nicht abbrechen lassen:
-        `--no-subtitle-background-enabled` plus Farbe ist als Flag-Kombination
-        ein Argumentfehler, als gespeicherte Einstellung aber nur ein
-        deaktivierter Hintergrund.
+        自相矛盾的 [ui] 配置不应让 CLI 中断：
+        `--no-subtitle-background-enabled` 加上颜色作为命令行组合是参数错误，
+        但作为保存的设置只表示背景被禁用。
         """
         ui_config = dict(self.UI_CONFIG)
         ui_config["subtitle_background_enabled"] = False
@@ -700,7 +697,7 @@ class TestCliUiDefaults(unittest.TestCase):
         self.assertFalse(params.rounded_subtitle_background)
 
     def test_unusable_ui_config_values_fall_back_to_builtin_defaults(self):
-        """Eine beschädigte config.toml darf keinen Traceback auslösen."""
+        """损坏的 config.toml 不应触发 traceback。"""
         ui_config = {
             "font_size": "sechzig",
             "text_fore_color": 42,
@@ -717,6 +714,133 @@ class TestCliUiDefaults(unittest.TestCase):
         self.assertEqual(params.text_fore_color, "#FFFFFF")
         self.assertEqual(params.font_name, "STHeitiMedium.ttc")
         self.assertEqual(params.voice_name, "zh-CN-XiaoxiaoNeural-Female")
+
+    def test_saved_no_voice_mode_disables_tts(self):
+        """
+        WebUI 把无配音作为独立的 voice_mode 保存，同时保留用户上一次真正选择
+        的音色，以便切回自动配音。CLI 必须遵循该模式，否则会重新启用 TTS 并
+        可能触发付费供应商请求。
+        """
+        ui_config = {"voice_mode": "none", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "no-voice")
+
+    def test_explicit_voice_name_overrides_saved_no_voice_mode(self):
+        """命令行显式指定的音色优先级最高，保存的无配音模式不得覆盖它。"""
+        ui_config = {"voice_mode": "none", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--voice-name", "zh-CN-XiaoxiaoNeural-Female"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "zh-CN-XiaoxiaoNeural-Female")
+
+    def test_saved_tts_mode_keeps_saved_voice(self):
+        """voice_mode 为自动配音时，保存的音色仍然生效。"""
+        ui_config = {"voice_mode": "tts", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "gemini:Puck-Male")
+
+    def test_enabling_background_without_color_keeps_saved_color(self):
+        """
+        只传 --subtitle-background-enabled 时用户并未覆盖颜色，应沿用 WebUI
+        保存的颜色，而不是回退成黑色背景。
+        """
+        ui_config = {"subtitle_background_color": "#654321"}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--subtitle-background-enabled"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.text_background_color, "#654321")
+
+    def test_enabling_background_falls_back_to_default_without_saved_color(self):
+        """没有可用的保存颜色时，仅开启背景应回退为默认背景。"""
+        args = cli.parse_args(
+            ["--video-subject", "test", "--subtitle-background-enabled"]
+        )
+
+        with patch.dict(app_config.ui, {}, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertIs(params.text_background_color, True)
+
+    def test_explicit_background_color_overrides_saved_color(self):
+        """命令行显式指定的背景颜色优先于保存值。"""
+        ui_config = {"subtitle_background_color": "#654321"}
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--subtitle-background-enabled",
+                "--subtitle-background-color",
+                "#ABCDEF",
+            ]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.text_background_color, "#ABCDEF")
+
+    def test_saved_upload_mode_disables_tts(self):
+        """
+        上传自备音频的模式同样表示“不要自动配音”，而 [ui] 不保存文件路径，
+        CLI 无法复现该上传。此时沿用保存的音色会静默触发付费 TTS 请求，
+        因此与无配音一样映射为 no-voice；需要配音时显式传 --voice-name。
+        """
+        ui_config = {"voice_mode": "upload", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "no-voice")
+
+    def test_explicit_voice_name_overrides_saved_upload_mode(self):
+        """命令行显式指定的音色同样优先于保存的上传模式。"""
+        ui_config = {"voice_mode": "upload", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--voice-name", "mimo:Female"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "mimo:Female")
+
+    def test_saved_color_alone_enables_background(self):
+        """
+        WebUI 总是同时写入开关和颜色，只保存颜色属于手工编辑的配置。
+        此时保存的颜色本身就表明用户想要背景，因此按开启处理。
+        """
+        ui_config = {"subtitle_background_color": "#654321"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.text_background_color, "#654321")
 
 
 if __name__ == "__main__":
