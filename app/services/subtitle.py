@@ -19,7 +19,7 @@ initial_prompt = config.whisper.get("initial_prompt", "") or None
 model = None
 
 
-def create(audio_file, subtitle_file: str = ""):
+def create(audio_file, subtitle_file: str = "") -> str:
     global model
     if WhisperModel is None:
         logger.warning("faster_whisper not available, skipping whisper subtitle generation")
@@ -46,7 +46,7 @@ def create(audio_file, subtitle_file: str = ""):
                 f"see [README.md FAQ](https://github.com/harry0703/MoneyPrinterTurbo) for more details.\n"
                 f"********************************************\n\n"
             )
-            return None
+            return ""
 
     logger.info(f"start, output file: {subtitle_file}")
     if not subtitle_file:
@@ -142,6 +142,7 @@ def create(audio_file, subtitle_file: str = ""):
     with open(subtitle_file, "w", encoding="utf-8") as f:
         f.write(sub)
     logger.info(f"subtitle file created: {subtitle_file}")
+    return subtitle_file
 
 
 def file_to_subtitles(filename):
