@@ -296,6 +296,7 @@
     "Video Source Settings": "**Videoquellen-Einstellungen**",
     "Coverr": "Coverr",
     "Coverr API Key": "Coverr API-Schlüssel ([API-Schlüssel holen](https://coverr.co/developers?ctx=header_navigation))",
-    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein"
+    "Please Enter the Coverr API Key": "Bitte geben Sie den **Coverr API-Schlüssel** ein",
+    "Material Provider Mode": "Stock Provider Strategy", "Locked Provider": "Locked (one provider)", "Fallback Providers": "Fallback (in order)", "Fan-out Providers": "Fan-out (all selected)", "Material Provider Mode Help": "Locked uses only the first provider.", "Material Providers": "Stock Providers", "Material Providers Help": "Choose providers and order them by priority.", "Select at Least One Material Provider": "Select at least one stock provider.", "Fan-out Quota Warning": "Fan-out searches every selected provider for every keyword.", "API Key Missing": "API-Schlüssel fehlt", "Material Provider Results": "Materialanbieter-Ergebnisse", "Material Provider Result": "{provider}: {status} · {category} · {count} Ergebnisse · {duration} Sek.", "Material Provider Other": "Sonstige", "Material Provider Unknown": "Unbekannt", "Selected Material Provider Keys Missing": "API-Schlüssel fehlen für: {providers}"
   }
 }

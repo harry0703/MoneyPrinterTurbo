@@ -296,6 +296,7 @@
     "Please Enter the Coverr API Key": "Silakan Masukkan **Kunci API Coverr**",
     "Video Encoder": "Encoder Video",
     "Default Video Encoder": "Default (Direkomendasikan)",
-    "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264."
+    "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264.",
+    "Material Provider Mode": "Stock Provider Strategy", "Locked Provider": "Locked (one provider)", "Fallback Providers": "Fallback (in order)", "Fan-out Providers": "Fan-out (all selected)", "Material Provider Mode Help": "Locked uses only the first provider.", "Material Providers": "Stock Providers", "Material Providers Help": "Choose providers and order them by priority.", "Select at Least One Material Provider": "Select at least one stock provider.", "Fan-out Quota Warning": "Fan-out searches every selected provider for every keyword.", "API Key Missing": "Kunci API tidak ada", "Material Provider Results": "Hasil penyedia materi", "Material Provider Result": "{provider}: {status} · {category} · {count} hasil · {duration} dtk", "Material Provider Other": "Lainnya", "Material Provider Unknown": "Tidak diketahui", "Selected Material Provider Keys Missing": "Kunci API tidak ada untuk: {providers}"
   }
 }

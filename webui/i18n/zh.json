@@ -359,6 +359,7 @@
     "Resume LoomLoom Status Check": "继续查询状态",
     "Stop Tracking LoomLoom Run": "停止跟踪",
     "Stop Tracking LoomLoom Run Help": "只停止本地状态查询，不会取消胜算云中可能仍在执行的付费任务。",
-    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)"
+    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)",
+    "Material Provider Mode": "素材供应商策略", "Locked Provider": "锁定（单一供应商）", "Fallback Providers": "故障转移（按顺序）", "Fan-out Providers": "扇出（全部选中）", "Material Provider Mode Help": "锁定模式只使用第一个供应商。", "Material Providers": "素材供应商", "Material Providers Help": "选择供应商并按优先级排序。", "Select at Least One Material Provider": "至少选择一个素材供应商。", "Fan-out Quota Warning": "扇出模式会针对每个关键词请求所有选中的供应商，可能消耗多方额度。", "API Key Missing": "缺少 API Key", "Material Provider Results": "素材供应商结果", "Material Provider Result": "{provider}：{status} · {category} · {count} 个结果 · {duration} 秒", "Material Provider Other": "其他", "Material Provider Unknown": "未知", "Selected Material Provider Keys Missing": "所选素材供应商缺少 API Key：{providers}"
   }
 }

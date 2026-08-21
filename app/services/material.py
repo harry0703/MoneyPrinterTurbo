@@ -1,8 +1,10 @@
 import os
 import random
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Sequence
 from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
 
 import requests
@@ -12,11 +14,45 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import material_cache, task_artifacts
+from app.services import state as sm
 from app.utils import utils
 
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
+
+
+STOCK_PROVIDERS = ("pexels", "pixabay", "coverr")
+MATERIAL_PROVIDER_MODES = ("locked", "fallback", "fan_out")
+
+
+@dataclass(frozen=True)
+class ProviderSearchError(Exception):
+    """A provider request failed; distinct from a successful empty search."""
+
+    provider: str
+    search_term: str
+    reason: str
+    error_type: str = "provider"
+
+    def __str__(self) -> str:
+        return f"{self.provider} search failed for {self.search_term!r}: {self.reason}"
+
+
+@dataclass(frozen=True)
+class ProviderSearchResult:
+    provider: str
+    search_term: str
+    materials: tuple[MaterialInfo, ...] = ()
+    error: ProviderSearchError | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None
+
+    @property
+    def empty(self) -> bool:
+        return self.ok and not self.materials
 
 
 def _safe_public_url(value: Any) -> str | None:
@@ -295,6 +331,8 @@ def search_videos_pexels(
     search_term: str,
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
+    *,
+    raise_errors: bool = False,
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
     video_orientation = aspect.name
@@ -317,11 +355,35 @@ def search_videos_pexels(
             verify=_get_tls_verify(),
             timeout=(30, 60),
         )
-        response = r.json()
+        try:
+            status_code = int(getattr(r, "status_code", 200) or 200)
+        except (TypeError, ValueError):
+            status_code = 200
+        if status_code in {401, 403}:
+            raise ProviderSearchError(
+                "pexels", search_term, f"HTTP {status_code}", "authentication"
+            )
+        if status_code == 429:
+            raise ProviderSearchError(
+                "pexels", search_term, "rate limit exceeded", "rate_limit"
+            )
+        if status_code >= 400:
+            raise ProviderSearchError(
+                "pexels", search_term, f"HTTP {status_code}", "http"
+            )
+        try:
+            response = r.json()
+        except ValueError as exc:
+            raise ProviderSearchError(
+                "pexels", search_term, "non-JSON response", "malformed_response"
+            ) from exc
         video_items = []
-        if "videos" not in response:
-            logger.error("pexels video search returned an unsupported response")
-            return video_items
+        if not isinstance(response, dict) or not isinstance(
+            response.get("videos"), list
+        ):
+            raise ProviderSearchError(
+                "pexels", search_term, "unsupported response", "malformed_response"
+            )
         videos = response["videos"]
         # loop through each video in the result
         for v in videos:
@@ -364,10 +426,32 @@ def search_videos_pexels(
                     video_items.append(item)
                     break
         return video_items
-    except Exception as e:
+    except ProviderSearchError as e:
+        if raise_errors:
+            raise
         logger.error(
             "pexels video search failed: "
-            f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+            f"error_type={e.error_type}, detail={_redact_request_error(e.reason, api_key)}"
+        )
+    except requests.RequestException as e:
+        safe_error = _redact_request_error(e, api_key)
+        if raise_errors:
+            raise ProviderSearchError(
+                "pexels", search_term, safe_error, "network"
+            ) from e
+        logger.error(
+            "pexels video search failed: "
+            f"error_type=network, error={type(e).__name__}, detail={safe_error}"
+        )
+    except Exception as e:
+        safe_error = _redact_request_error(e, api_key)
+        if raise_errors:
+            raise ProviderSearchError(
+                "pexels", search_term, safe_error, "malformed_response"
+            ) from e
+        logger.error(
+            "pexels video search failed: "
+            f"error_type=malformed_response, detail={safe_error}"
         )
 
     return []
@@ -377,6 +461,8 @@ def search_videos_pixabay(
     search_term: str,
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
+    *,
+    raise_errors: bool = False,
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
 
@@ -407,6 +493,10 @@ def search_videos_pixabay(
         cf_ray = headers.get("cf-ray")
 
         if _is_cloudflare_challenge(r):
+            if raise_errors:
+                raise ProviderSearchError(
+                    "pixabay", search_term, "Cloudflare challenge", "network"
+                )
             logger.error(
                 "pixabay search was blocked by a Cloudflare challenge: "
                 f"status={status_code}, cf_ray={cf_ray or 'unknown'}. "
@@ -415,13 +505,32 @@ def search_videos_pixabay(
             return []
 
         if status_code == 429:
+            if raise_errors:
+                raise ProviderSearchError(
+                    "pixabay", search_term, "rate limit exceeded", "rate_limit"
+                )
             logger.error(
                 "pixabay API rate limit exceeded: "
                 f"status=429, retry_after={retry_after or 'unknown'}"
             )
             return []
 
+        if status_code in {401, 403}:
+            if raise_errors:
+                raise ProviderSearchError(
+                    "pixabay", search_term, f"HTTP {status_code}", "authentication"
+                )
+            logger.error(
+                "pixabay authentication failed: "
+                f"status={status_code}, content_type={content_type or 'unknown'}"
+            )
+            return []
+
         if status_code >= 400:
+            if raise_errors:
+                raise ProviderSearchError(
+                    "pixabay", search_term, f"HTTP {status_code}", "http"
+                )
             logger.error(
                 "pixabay search request failed: "
                 f"status={status_code}, content_type={content_type or 'unknown'}"
@@ -431,6 +540,13 @@ def search_videos_pixabay(
         try:
             response = r.json()
         except ValueError:
+            if raise_errors:
+                raise ProviderSearchError(
+                    "pixabay",
+                    search_term,
+                    "non-JSON response",
+                    "malformed_response",
+                )
             logger.error(
                 "pixabay returned an unexpected non-JSON response: "
                 f"status={status_code}, content_type={content_type or 'unknown'}"
@@ -439,6 +555,13 @@ def search_videos_pixabay(
 
         video_items = []
         if "hits" not in response:
+            if raise_errors:
+                raise ProviderSearchError(
+                    "pixabay",
+                    search_term,
+                    "unsupported response",
+                    "malformed_response",
+                )
             logger.error("pixabay video search returned an unsupported response")
             return video_items
         videos = response["hits"]
@@ -489,11 +612,33 @@ def search_videos_pixabay(
                     video_items.append(item)
                     break
         return video_items
-    except Exception as e:
-        error_message = _redact_request_error(e, api_key)
+    except ProviderSearchError as e:
+        if raise_errors:
+            raise
+        error_message = _redact_request_error(e.reason, api_key)
         logger.error(
             "pixabay search request failed: "
-            f"error={type(e).__name__}, detail={error_message}"
+            f"error_type={e.error_type}, detail={error_message}"
+        )
+    except requests.RequestException as e:
+        error_message = _redact_request_error(e, api_key)
+        if raise_errors:
+            raise ProviderSearchError(
+                "pixabay", search_term, error_message, "network"
+            ) from e
+        logger.error(
+            "pixabay search request failed: "
+            f"error_type=network, error={type(e).__name__}, detail={error_message}"
+        )
+    except Exception as e:
+        error_message = _redact_request_error(e, api_key)
+        if raise_errors:
+            raise ProviderSearchError(
+                "pixabay", search_term, error_message, "malformed_response"
+            ) from e
+        logger.error(
+            "pixabay search request failed: "
+            f"error_type=malformed_response, detail={error_message}"
         )
 
     return []
@@ -503,6 +648,8 @@ def search_videos_coverr(
     search_term: str,
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
+    *,
+    raise_errors: bool = False,
 ) -> List[MaterialInfo]:
     """
     Coverr (https://coverr.co) - free HD/4K stock videos,
@@ -548,12 +695,34 @@ def search_videos_coverr(
             verify=_get_tls_verify(),
             timeout=(30, 60),
         )
-        response = r.json()
+        try:
+            status_code = int(getattr(r, "status_code", 200) or 200)
+        except (TypeError, ValueError):
+            status_code = 200
+        if status_code in {401, 403}:
+            raise ProviderSearchError(
+                "coverr", search_term, f"HTTP {status_code}", "authentication"
+            )
+        if status_code == 429:
+            raise ProviderSearchError(
+                "coverr", search_term, "rate limit exceeded", "rate_limit"
+            )
+        if status_code >= 400:
+            raise ProviderSearchError(
+                "coverr", search_term, f"HTTP {status_code}", "http"
+            )
+        try:
+            response = r.json()
+        except ValueError as exc:
+            raise ProviderSearchError(
+                "coverr", search_term, "non-JSON response", "malformed_response"
+            ) from exc
         video_items: List[MaterialInfo] = []
 
-        if not isinstance(response, dict) or "hits" not in response:
-            logger.error("coverr video search returned an unsupported response")
-            return video_items
+        if not isinstance(response, dict) or not isinstance(response.get("hits"), list):
+            raise ProviderSearchError(
+                "coverr", search_term, "unsupported response", "malformed_response"
+            )
 
         for v in response["hits"]:
             # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
@@ -594,10 +763,32 @@ def search_videos_coverr(
             }
             video_items.append(item)
         return video_items
-    except Exception as e:
+    except ProviderSearchError as e:
+        if raise_errors:
+            raise
         logger.error(
             "coverr video search failed: "
-            f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+            f"error_type={e.error_type}, detail={_redact_request_error(e.reason, api_key)}"
+        )
+    except requests.RequestException as e:
+        safe_error = _redact_request_error(e, api_key)
+        if raise_errors:
+            raise ProviderSearchError(
+                "coverr", search_term, safe_error, "network"
+            ) from e
+        logger.error(
+            "coverr video search failed: "
+            f"error_type=network, error={type(e).__name__}, detail={safe_error}"
+        )
+    except Exception as e:
+        safe_error = _redact_request_error(e, api_key)
+        if raise_errors:
+            raise ProviderSearchError(
+                "coverr", search_term, safe_error, "malformed_response"
+            ) from e
+        logger.error(
+            "coverr video search failed: "
+            f"error_type=malformed_response, detail={safe_error}"
         )
 
     return []
@@ -756,6 +947,327 @@ def _search_videos_with_cache(
         return items
 
 
+_PROVIDER_SEARCHERS = {
+    "pexels": search_videos_pexels,
+    "pixabay": search_videos_pixabay,
+    "coverr": search_videos_coverr,
+}
+
+
+def normalize_material_provider_strategy(
+    source: str,
+    mode: str | None = None,
+    providers: Sequence[str] | None = None,
+) -> tuple[str, list[str]]:
+    """Resolve new strategy fields while retaining legacy ``video_source``."""
+    source = str(source or "pexels").strip().lower()
+    if mode is None:
+        mode = "fan_out" if source == "pexels_pixabay" else "locked"
+    mode = str(mode).strip().lower()
+    if mode not in MATERIAL_PROVIDER_MODES:
+        raise ValueError(f"unsupported material provider mode: {mode}")
+    if providers is None:
+        providers = ["pexels", "pixabay"] if source == "pexels_pixabay" else [source]
+    normalized = list(dict.fromkeys(str(item).strip().lower() for item in providers))
+    if any(item not in STOCK_PROVIDERS for item in normalized):
+        raise ValueError(
+            "material_providers must be limited to pexels, pixabay, coverr"
+        )
+    if not normalized:
+        raise ValueError("material_providers must contain at least one provider")
+    if mode == "locked":
+        normalized = normalized[:1]
+    return mode, normalized
+
+
+def validate_material_provider_keys(providers: Sequence[str]) -> None:
+    """Fail before LLM/TTS when any explicitly selected provider lacks a key."""
+    missing = []
+    for provider in providers:
+        values = config.app.get(f"{provider}_api_keys")
+        if isinstance(values, str):
+            configured = bool(values.strip())
+        else:
+            configured = bool(values and any(str(value).strip() for value in values))
+        if not configured:
+            missing.append(provider)
+    if missing:
+        raise ValueError(
+            "missing API key for selected material provider(s): " + ", ".join(missing)
+        )
+
+
+def _provider_search(
+    provider: str,
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect,
+) -> ProviderSearchResult:
+    # Resolve through module globals so existing tests/extensions that patch the
+    # original ``search_videos_<provider>`` function keep working.
+    searcher = globals().get(f"search_videos_{provider}", _PROVIDER_SEARCHERS[provider])
+
+    def invoke_search(**kwargs):
+        try:
+            return searcher(**kwargs, raise_errors=True)
+        except TypeError as exc:
+            # Third-party extensions written against the original three-argument
+            # provider contract remain valid; they cannot report typed errors but
+            # still participate as successful/empty searchers.
+            if "raise_errors" not in str(exc):
+                raise
+            return searcher(**kwargs)
+
+    try:
+        items = _search_videos_with_cache(
+            provider=provider,
+            search_videos=invoke_search,
+            search_term=search_term,
+            minimum_duration=minimum_duration,
+            video_aspect=video_aspect,
+        )
+        return ProviderSearchResult(provider, search_term, tuple(items or ()))
+    except ProviderSearchError as exc:
+        configured_keys = config.app.get(f"{provider}_api_keys") or []
+        secrets = (
+            configured_keys
+            if isinstance(configured_keys, (list, tuple))
+            else [configured_keys]
+        )
+        safe_reason = _redact_request_error(exc.reason, *[str(key) for key in secrets])
+        return ProviderSearchResult(
+            provider,
+            search_term,
+            error=ProviderSearchError(
+                provider, search_term, safe_reason, exc.error_type
+            ),
+        )
+    except requests.RequestException as exc:
+        configured_keys = config.app.get(f"{provider}_api_keys") or []
+        secrets = (
+            configured_keys
+            if isinstance(configured_keys, (list, tuple))
+            else [configured_keys]
+        )
+        return ProviderSearchResult(
+            provider,
+            search_term,
+            error=ProviderSearchError(
+                provider,
+                search_term,
+                _redact_request_error(exc, *[str(key) for key in secrets]),
+                "network",
+            ),
+        )
+    except Exception as exc:
+        configured_keys = config.app.get(f"{provider}_api_keys") or []
+        secrets = (
+            configured_keys
+            if isinstance(configured_keys, (list, tuple))
+            else [configured_keys]
+        )
+        return ProviderSearchResult(
+            provider,
+            search_term,
+            error=ProviderSearchError(
+                provider,
+                search_term,
+                _redact_request_error(exc, *[str(key) for key in secrets]),
+                "provider",
+            ),
+        )
+
+
+def search_materials_with_strategy(
+    search_terms: Sequence[str],
+    *,
+    mode: str,
+    providers: Sequence[str],
+    minimum_duration: int,
+    video_aspect: VideoAspect,
+    max_workers: int | None = None,
+) -> tuple[list[MaterialInfo], list[dict[str, Any]]]:
+    """Search stock providers with explicit isolation and deterministic merging."""
+    mode, providers = normalize_material_provider_strategy("pexels", mode, providers)
+    terms = [str(term).strip() for term in search_terms if str(term).strip()]
+    records: list[dict[str, Any]] = []
+
+    def add_record(result: ProviderSearchResult) -> None:
+        record: dict[str, Any] = {
+            "provider": result.provider,
+            "search_term": result.search_term,
+            "status": "error"
+            if result.error
+            else "empty"
+            if result.empty
+            else "success",
+            "result_count": len(result.materials),
+        }
+        if result.error:
+            record["error_type"] = result.error.error_type
+            record["error"] = str(result.error.reason)[:500]
+        records.append(record)
+
+    results: dict[tuple[int, int], ProviderSearchResult] = {}
+    if mode == "fan_out":
+        # Fan-out requests are the only concurrent provider strategy. Results
+        # are stored by input indices, never completion order.
+        worker_count = max(
+            1,
+            min(
+                len(providers) * max(1, len(terms)),
+                int(max_workers or config.app.get("material_provider_concurrency", 3)),
+            ),
+        )
+        with ThreadPoolExecutor(
+            max_workers=worker_count, thread_name_prefix="mpt-material"
+        ) as executor:
+            futures = {
+                executor.submit(
+                    _provider_search,
+                    provider,
+                    term,
+                    minimum_duration,
+                    video_aspect,
+                ): (provider_index, term_index)
+                for provider_index, provider in enumerate(providers)
+                for term_index, term in enumerate(terms)
+            }
+            for future in as_completed(futures):
+                results[futures[future]] = future.result()
+        # A failed term is recorded independently. Other terms for the same
+        # provider remain valid and are merged below; this is important for
+        # fan-out where one transient request must not erase successful calls.
+    else:
+        for provider_index, provider in enumerate(providers):
+            for term_index, term in enumerate(terms):
+                result = _provider_search(provider, term, minimum_duration, video_aspect)
+                results[(provider_index, term_index)] = result
+            if mode == "locked":
+                break
+
+    merged: list[MaterialInfo] = []
+    seen_urls: set[str] = set()
+    for provider_index, provider in enumerate(providers):
+        for term_index, _term in enumerate(terms):
+            result = results.get((provider_index, term_index))
+            if result is None:
+                continue
+            add_record(result)
+            if result.error:
+                continue
+            for item in result.materials:
+                if item.url and item.url not in seen_urls:
+                    seen_urls.add(item.url)
+                    merged.append(item)
+    return merged, records
+
+
+def _persist_material_provider_results(
+    task_id: str, records: list[dict[str, Any]]
+) -> None:
+    """Persist only non-secret provider outcome metadata in task state and script."""
+    safe_records = []
+    for record in records:
+        safe_records.append(
+            {
+                key: value
+                for key, value in record.items()
+                if key
+                in {
+                    "provider",
+                    "status",
+                    "result_count",
+                    "downloaded_count",
+                    "downloaded_duration",
+                    "download_error_count",
+                    "error_count",
+                    "error_types",
+                }
+            }
+        )
+    try:
+        sm.state.patch_task(task_id, material_provider_results=safe_records)
+    except Exception as exc:
+        logger.debug(f"failed to persist provider results in task state: {exc}")
+    try:
+        task_artifacts.patch_script_data(
+            task_id, material_provider_results=safe_records
+        )
+    except Exception as exc:
+        logger.debug(f"failed to persist provider results in script data: {exc}")
+
+
+def _summarize_material_provider_results(
+    providers: Sequence[str],
+    search_records: Sequence[dict[str, Any]],
+    download_stats: dict[str, dict[str, float | int]],
+    *,
+    total_duration: float,
+    required_duration: float,
+    fallback_outcomes: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Create ordered, secret-free provider outcomes for task/API/WebUI use."""
+    fallback_outcomes = fallback_outcomes or {}
+    summaries = []
+    for provider in providers:
+        records = [
+            record for record in search_records if record.get("provider") == provider
+        ]
+        stats = download_stats.get(provider, {})
+        result_count = sum(
+            int(record.get("result_count", 0) or 0) for record in records
+        )
+        downloaded_count = int(stats.get("downloaded_count", 0) or 0)
+        downloaded_duration = round(
+            float(stats.get("downloaded_duration", 0.0) or 0.0), 3
+        )
+        download_error_count = int(stats.get("download_error_count", 0) or 0)
+        error_types = list(
+            dict.fromkeys(
+                str(record.get("error_type") or "provider")
+                for record in records
+                if record.get("status") == "error"
+            )
+        )
+        error_count = sum(record.get("status") == "error" for record in records)
+
+        status = fallback_outcomes.get(provider, "")
+        if not status:
+            if not records:
+                status = "not_contacted"
+            elif downloaded_count:
+                status = (
+                    "insufficient"
+                    if required_duration > 0 and total_duration < required_duration
+                    else "success"
+                )
+            elif result_count:
+                status = (
+                    "not_needed"
+                    if required_duration > 0 and total_duration >= required_duration
+                    else "download_failed"
+                )
+            elif error_types:
+                status = error_types[0] if len(error_types) == 1 else "error"
+            else:
+                status = "zero"
+
+        summaries.append(
+            {
+                "provider": provider,
+                "status": status,
+                "result_count": result_count,
+                "downloaded_count": downloaded_count,
+                "downloaded_duration": downloaded_duration,
+                "download_error_count": download_error_count,
+                "error_count": error_count,
+                "error_types": error_types,
+            }
+        )
+    return summaries
+
+
 def download_videos(
     task_id: str,
     search_terms: List[str],
@@ -765,28 +1277,12 @@ def download_videos(
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
     match_script_order: bool = False,
+    material_provider_mode: str | None = None,
+    material_providers: Sequence[str] | None = None,
 ) -> List[str]:
-    provider = "pexels"
-    remote_search_videos = search_videos_pexels
-    if source == "pixabay":
-        provider = "pixabay"
-        remote_search_videos = search_videos_pixabay
-    elif source == "coverr":
-        provider = "coverr"
-        remote_search_videos = search_videos_coverr
-
-    def search_videos(
-        search_term: str,
-        minimum_duration: int,
-        video_aspect: VideoAspect,
-    ) -> List[MaterialInfo]:
-        return _search_videos_with_cache(
-            provider=provider,
-            search_videos=remote_search_videos,
-            search_term=search_term,
-            minimum_duration=minimum_duration,
-            video_aspect=video_aspect,
-        )
+    mode, providers = normalize_material_provider_strategy(
+        source, material_provider_mode, material_providers
+    )
 
     material_directory = config.app.get("material_directory", "").strip()
     if material_directory == "task":
@@ -794,84 +1290,157 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
-    if match_script_order:
-        return _download_videos_by_script_order(
-            task_id=task_id,
-            search_terms=search_terms,
-            search_videos=search_videos,
-            video_aspect=video_aspect,
-            audio_duration=audio_duration,
-            max_clip_duration=max_clip_duration,
-            material_directory=material_directory,
-        )
+    provider_results: list[dict[str, Any]] = []
+    provider_download_stats: dict[str, dict[str, float | int]] = {}
+    fallback_outcomes: dict[str, str] = {}
+    material_sources: list[dict[str, Any]] = []
+    video_paths: list[str] = []
+    seen_urls: set[str] = set()
+    total_duration = 0.0
 
-    valid_video_items = []
-    valid_video_urls = []
-    found_duration = 0.0
-    for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
+    def download_items(items: Sequence[MaterialInfo]) -> None:
+        nonlocal total_duration
+        ordered_items = list(items)
+        if match_script_order:
+            groups: dict[str, list[MaterialInfo]] = {}
+            for item in ordered_items:
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                groups.setdefault(str(source_info.get("search_term", "")), []).append(
+                    item
+                )
+            round_robin: list[MaterialInfo] = []
+            for index in range(
+                max((len(group) for group in groups.values()), default=0)
+            ):
+                for term in search_terms:
+                    group = groups.get(str(term).strip(), [])
+                    if index < len(group):
+                        round_robin.append(group[index])
+            # Providers/extensions without source metadata retain their original
+            # deterministic order after the known term groups.
+            grouped_ids = {id(item) for item in round_robin}
+            round_robin.extend(
+                item for item in ordered_items if id(item) not in grouped_ids
+            )
+            ordered_items = round_robin
+        concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
+        if concat_mode_value == VideoConcatMode.random.value and not match_script_order:
+            random.shuffle(ordered_items)
+        for item in ordered_items:
+            if (audio_duration > 0 and total_duration >= audio_duration) or item.url in seen_urls:
+                continue
+            seen_urls.add(item.url)
+            try:
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                provider_name = str(
+                    item.provider or source_info.get("provider") or "unknown"
+                )
+                logger.info(
+                    f"downloading {item.provider} video: "
+                    f"asset_id={source_info.get('asset_id') or 'unknown'}"
+                )
+                saved_video_path = save_video(item.url, save_dir=material_directory)
+                if not saved_video_path:
+                    continue
+                video_paths.append(saved_video_path)
+                material_sources.append(_material_source_record(item, saved_video_path))
+                total_duration += min(max_clip_duration, item.duration)
+                stats = provider_download_stats.setdefault(provider_name, {})
+                stats["downloaded_count"] = (
+                    int(stats.get("downloaded_count", 0) or 0) + 1
+                )
+                stats["downloaded_duration"] = float(
+                    stats.get("downloaded_duration", 0.0) or 0.0
+                ) + min(max_clip_duration, item.duration)
+            except Exception as exc:
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                provider_name = str(
+                    item.provider or source_info.get("provider") or "unknown"
+                )
+                stats = provider_download_stats.setdefault(provider_name, {})
+                stats["download_error_count"] = (
+                    int(stats.get("download_error_count", 0) or 0) + 1
+                )
+                logger.error(
+                    "failed to download material video: "
+                    f"provider={item.provider}, error={type(exc).__name__}, "
+                    f"detail={_redact_request_error(exc, item.url)}"
+                )
+
+    if mode == "fallback":
+        # Search and download one provider at a time. Empty/error calls are
+        # recorded per term; the next provider is tried whenever downloaded
+        # duration remains below the target.
+        for provider in providers:
+            items, records = search_materials_with_strategy(
+                search_terms,
+                mode="locked",
+                providers=[provider],
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+            provider_results.extend(records)
+            download_items(items)
+            stats = provider_download_stats.get(provider, {})
+            provider_downloaded = int(stats.get("downloaded_count", 0) or 0)
+            provider_result_count = sum(
+                int(record.get("result_count", 0) or 0) for record in records
+            )
+            provider_error_types = list(
+                dict.fromkeys(
+                    str(record.get("error_type") or "provider")
+                    for record in records
+                    if record.get("status") == "error"
+                )
+            )
+            if audio_duration > 0 and total_duration >= audio_duration:
+                fallback_outcomes[provider] = (
+                    "success" if provider_downloaded else "not_needed"
+                )
+            elif provider_downloaded:
+                fallback_outcomes[provider] = "insufficient"
+            elif provider_result_count:
+                fallback_outcomes[provider] = "download_failed"
+            elif provider_error_types:
+                fallback_outcomes[provider] = (
+                    provider_error_types[0]
+                    if len(provider_error_types) == 1
+                    else "error"
+                )
+            else:
+                fallback_outcomes[provider] = "zero"
+            if audio_duration > 0 and total_duration >= audio_duration:
+                break
+    else:
+        items, provider_results = search_materials_with_strategy(
+            search_terms,
+            mode=mode,
+            providers=providers,
             minimum_duration=max_clip_duration,
             video_aspect=video_aspect,
         )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
-
-        for item in video_items:
-            if item.url not in valid_video_urls:
-                valid_video_items.append(item)
-                valid_video_urls.append(item.url)
-                found_duration += item.duration
+        download_items(items)
 
     logger.info(
-        f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
+        f"found/downloaded materials: {len(video_paths)}, required duration: "
+        f"{audio_duration} seconds, downloaded duration: {total_duration} seconds"
     )
-    video_paths = []
-    material_sources: list[dict[str, Any]] = []
-
-    concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
-    if concat_mode_value == VideoConcatMode.random.value:
-        random.shuffle(valid_video_items)
-
-    total_duration = 0.0
-    for item in valid_video_items:
-        try:
-            source_info = item.source_info if isinstance(item.source_info, dict) else {}
-            logger.info(
-                f"downloading {item.provider} video: "
-                f"asset_id={source_info.get('asset_id') or 'unknown'}"
-            )
-            saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
-            )
-            if saved_video_path:
-                logger.info(f"video saved: {saved_video_path}")
-                video_paths.append(saved_video_path)
-                try:
-                    material_sources.append(
-                        _material_source_record(item, saved_video_path)
-                    )
-                except Exception as source_error:
-                    # 来源记录异常不能把已经成功下载的素材视为下载失败，更不能
-                    # 阻断视频生成；保留供应商和异常类型用于后续定位。
-                    logger.warning(
-                        "failed to prepare material source record: "
-                        f"provider={item.provider}, "
-                        f"error={type(source_error).__name__}, detail={source_error}"
-                    )
-                seconds = min(max_clip_duration, item.duration)
-                total_duration += seconds
-                if total_duration > audio_duration:
-                    logger.info(
-                        f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
-                    )
-                    break
-        except Exception as e:
-            logger.error(
-                "failed to download material video: "
-                f"provider={item.provider}, error={type(e).__name__}, "
-                f"detail={_redact_request_error(e, item.url)}"
-            )
     logger.success(f"downloaded {len(video_paths)} videos")
+    provider_summaries = _summarize_material_provider_results(
+        providers,
+        provider_results,
+        provider_download_stats,
+        total_duration=total_duration,
+        required_duration=audio_duration,
+        fallback_outcomes=fallback_outcomes,
+    )
+    _persist_material_provider_results(task_id, provider_summaries)
     _persist_material_sources(task_id, material_sources)
     return video_paths
 

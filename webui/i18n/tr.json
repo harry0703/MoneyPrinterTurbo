@@ -296,6 +296,7 @@
     "Please Enter the Coverr API Key": "Lütfen **Coverr API Anahtarını** girin",
     "Video Encoder": "Video Kodlayıcı",
     "Default Video Encoder": "Varsayılan (Önerilen)",
-    "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner."
+    "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner.",
+    "Material Provider Mode": "Stock Provider Strategy", "Locked Provider": "Locked (one provider)", "Fallback Providers": "Fallback (in order)", "Fan-out Providers": "Fan-out (all selected)", "Material Provider Mode Help": "Locked uses only the first provider.", "Material Providers": "Stock Providers", "Material Providers Help": "Choose providers and order them by priority.", "Select at Least One Material Provider": "Select at least one stock provider.", "Fan-out Quota Warning": "Fan-out searches every selected provider for every keyword.", "API Key Missing": "API anahtarı eksik", "Material Provider Results": "Materyal sağlayıcı sonuçları", "Material Provider Result": "{provider}: {status} · {category} · {count} sonuç · {duration} sn", "Material Provider Other": "Diğer", "Material Provider Unknown": "Bilinmiyor", "Selected Material Provider Keys Missing": "Şu sağlayıcılar için API anahtarı eksik: {providers}"
   }
 }

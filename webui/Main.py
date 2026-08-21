@@ -622,6 +622,153 @@ def _normalize_task_state(state):
         return state
 
 
+_MATERIAL_PROVIDER_NAMES = {
+    "pexels": "Pexels",
+    "pixabay": "Pixabay",
+    "coverr": "Coverr",
+}
+_MATERIAL_PROVIDER_STATUSES = {
+    "success",
+    "zero",
+    "empty",
+    "error",
+    "partial",
+    "skipped",
+    "authentication",
+    "rate_limit",
+    "network",
+    "malformed_response",
+    "http",
+    "provider",
+    "not_contacted",
+    "insufficient",
+    "not_needed",
+    "download_failed",
+}
+_MATERIAL_PROVIDER_CATEGORIES = {
+    "authentication",
+    "api",
+    "video",
+    "image",
+    "stock",
+    "http",
+    "malformed_response",
+    "network",
+    "provider",
+    "rate_limit",
+    "search",
+    "search_result",
+    "download",
+    "downloaded",
+    "fallback",
+    "fan_out",
+    "other",
+}
+
+
+def _copy_task_diagnostics(target, source):
+    """Copy public provider diagnostics into a task summary."""
+    source = source or {}
+    if "material_provider_results" in source:
+        target["material_provider_results"] = source.get(
+            "material_provider_results"
+        ) or []
+    return target
+
+
+def _safe_material_provider_value(value, allowed, default="-"):
+    value = str(value or "").strip().lower().replace(" ", "_")
+    if value in allowed:
+        return value.replace("_", " ")
+    return default
+
+
+def _material_provider_result_values(record):
+    """Return only display-safe status/category/count/duration values."""
+    record = record if isinstance(record, Mapping) else {}
+    provider = str(record.get("provider") or "").strip().lower()
+    provider = _MATERIAL_PROVIDER_NAMES.get(provider, tr("Material Provider Other"))
+    status = _safe_material_provider_value(
+        record.get("status"), _MATERIAL_PROVIDER_STATUSES, tr("Material Provider Unknown")
+    )
+    error_types = record.get("error_types")
+    first_error_type = (
+        error_types[0]
+        if isinstance(error_types, (list, tuple)) and error_types
+        else None
+    )
+    try:
+        downloaded_count = int(record.get("downloaded_count", 0) or 0)
+    except (TypeError, ValueError):
+        downloaded_count = 0
+    default_category = "downloaded" if downloaded_count > 0 else "search"
+    category = _safe_material_provider_value(
+        record.get("category")
+        or record.get("error_type")
+        or first_error_type
+        or default_category,
+        _MATERIAL_PROVIDER_CATEGORIES,
+        tr("Material Provider Other"),
+    )
+
+    count = "-"
+    for key in ("result_count", "count", "material_count"):
+        if record.get(key) is None:
+            continue
+        try:
+            count = str(max(0, int(record[key])))
+        except (TypeError, ValueError):
+            pass
+        break
+
+    duration = "-"
+    for key in (
+        "duration",
+        "duration_seconds",
+        "downloaded_duration",
+        "total_duration",
+    ):
+        if record.get(key) is None:
+            continue
+        try:
+            duration = f"{max(0.0, float(record[key])):.1f}"
+        except (TypeError, ValueError):
+            pass
+        break
+
+    return {
+        "provider": provider,
+        "status": status,
+        "category": category,
+        "count": count,
+        "duration": duration,
+    }
+
+
+def _format_material_provider_results(results):
+    """Format provider outcomes in persisted order without exposing raw payloads."""
+    if not isinstance(results, (list, tuple)):
+        return []
+    lines = []
+    for record in results:
+        values = _material_provider_result_values(record)
+        lines.append(
+            tr("Material Provider Result").format(**values)
+        )
+    return lines
+
+
+def _render_material_provider_results(results, container=None):
+    lines = _format_material_provider_results(results)
+    if not lines:
+        return
+    target = container or st
+    caption = getattr(target, "caption", None)
+    if not callable(caption):
+        return
+    caption(f"{tr('Material Provider Results')}: " + "; ".join(lines))
+
+
 def _active_generation_tasks():
     tasks = st.session_state.setdefault("active_generation_tasks", {})
     if not isinstance(tasks, dict):
@@ -722,16 +869,19 @@ def _scan_history_tasks(limit=30):
             or name
         )
         tasks.append(
-            {
-                "task_id": name,
-                "subject": subject,
-                "state": const.TASK_STATE_COMPLETE if video_file else None,
-                "progress": 100 if video_file else 0,
-                "mtime": mtime,
-                "task_path": task_path,
-                "video_file": video_file,
-                "source": "history",
-            }
+            _copy_task_diagnostics(
+                {
+                    "task_id": name,
+                    "subject": subject,
+                    "state": const.TASK_STATE_COMPLETE if video_file else None,
+                    "progress": 100 if video_file else 0,
+                    "mtime": mtime,
+                    "task_path": task_path,
+                    "video_file": video_file,
+                    "source": "history",
+                },
+                script_data,
+            )
         )
 
     return tasks
@@ -764,21 +914,26 @@ def _collect_task_summaries(limit=20):
             or task_id
         )
 
-        history_tasks[task_id] = {
-            "task_id": task_id,
-            "subject": subject,
-            "state": task.get("state"),
-            "cross_post_state": task.get("cross_post_state"),
-            "progress": int(task.get("progress", 0) or 0),
-            "mtime": os.path.getmtime(task_path)
-            if os.path.isdir(task_path)
-            else history_task.get("mtime", 0),
-            "task_path": task_path,
-            "video_file": video_file,
-            "source": "runtime",
-        }
+        history_tasks[task_id] = _copy_task_diagnostics(
+            {
+                "task_id": task_id,
+                "subject": subject,
+                "state": task.get("state"),
+                "cross_post_state": task.get("cross_post_state"),
+                "progress": int(task.get("progress", 0) or 0),
+                "mtime": os.path.getmtime(task_path)
+                if os.path.isdir(task_path)
+                else history_task.get("mtime", 0),
+                "task_path": task_path,
+                "video_file": video_file,
+                "source": "runtime",
+                "material_provider_results": task.get("material_provider_results")
+                or history_task.get("material_provider_results", []),
+            },
+            task,
+        )
 
-    for task_id, active_task in _active_generation_tasks().items():
+    for task_id, active_task in list(_active_generation_tasks().items()):
         history_task = history_tasks.get(task_id, {})
         if history_task and _task_state_filter_key(history_task) in {
             "complete",
@@ -789,19 +944,25 @@ def _collect_task_summaries(limit=20):
             continue
 
         task_path = os.path.join(utils.task_dir(), task_id)
-        history_tasks[task_id] = {
-            "task_id": task_id,
-            "subject": active_task.get("subject")
-            or history_task.get("subject")
-            or task_id,
-            "state": const.TASK_STATE_PROCESSING,
-            "progress": history_task.get("progress", 0),
-            "mtime": active_task.get("mtime")
-            or history_task.get("mtime", datetime.now().timestamp()),
-            "task_path": task_path,
-            "video_file": history_task.get("video_file", ""),
-            "source": "active",
-        }
+        history_tasks[task_id] = _copy_task_diagnostics(
+            {
+                "task_id": task_id,
+                "subject": active_task.get("subject")
+                or history_task.get("subject")
+                or task_id,
+                "state": const.TASK_STATE_PROCESSING,
+                "progress": history_task.get("progress", 0),
+                "mtime": active_task.get("mtime")
+                or history_task.get("mtime", datetime.now().timestamp()),
+                "task_path": task_path,
+                "video_file": history_task.get("video_file", ""),
+                "source": "active",
+                "material_provider_results": history_task.get(
+                    "material_provider_results", []
+                ),
+            },
+            active_task,
+        )
 
     tasks = list(history_tasks.values())
     return sorted(tasks, key=lambda item: item["mtime"], reverse=True)[:limit]
@@ -949,6 +1110,9 @@ def _render_task_table(filtered_tasks, key_prefix):
                 row_cols[0].write(_task_state_label(task["state"], has_video))
                 row_cols[1].write(_format_task_time(task["mtime"]))
                 row_cols[2].write(_format_task_subject(task["subject"]))
+                _render_material_provider_results(
+                    task.get("material_provider_results"), container=row_cols[2]
+                )
                 row_cols[3].write(f"{task['progress']}%")
 
                 action_cols = row_cols[4].columns(
@@ -1147,6 +1311,45 @@ def _apply_pending_task_restore():
 
     # 视频设置。素材上传控件不能由服务端写入，因此本地素材需要用户重新选择。
     video_source = params.get("video_source") or "pexels"
+    if video_source == "pexels_pixabay":
+        # Migrate the legacy shorthand into the visible stock strategy controls.
+        # The actual source selector remains Pexels; the strategy panel will show
+        # fan-out with Pexels first and Pixabay second.
+        video_source = "pexels"
+        params["material_provider_mode"] = "fan_out"
+        params["material_providers"] = ["pexels", "pixabay"]
+
+    stock_sources = {"pexels", "pixabay", "coverr"}
+    if video_source in stock_sources:
+        # Modern task files persist the strategy independently from the legacy
+        # video_source field. Restore both values before the video settings panel
+        # reads config.app, preserving provider priority for fallback/fan-out.
+        strategy_modes = {"locked", "fallback", "fan_out"}
+        mode = params.get("material_provider_mode")
+        if mode not in strategy_modes:
+            mode = "locked"
+        providers = params.get("material_providers")
+        if isinstance(providers, str):
+            providers = [providers]
+        providers = list(dict.fromkeys(
+            provider
+            for provider in (providers or [video_source])
+            if provider in _MATERIAL_PROVIDER_NAMES
+        ))
+        if not providers:
+            providers = [video_source]
+        if mode == "locked":
+            providers = providers[:1]
+        # ``video_source`` remains the compatibility field consumed by older
+        # code. For modern multi-provider tasks it must mirror the ordered
+        # primary provider instead of contradicting the restored strategy.
+        video_source = providers[0]
+        params["video_source"] = video_source
+        params["material_provider_mode"] = mode
+        params["material_providers"] = providers
+        _set_runtime_config("app", "video_source", video_source)
+        _set_runtime_config("app", "material_provider_mode", mode)
+        _set_runtime_config("app", "material_providers", providers)
     _set_stable_widget_value("video_source_select", video_source)
     _set_stable_widget_value(
         "video_concat_mode_select", params.get("video_concat_mode") or "random"
@@ -1573,6 +1776,9 @@ def _render_generation_task_snapshot(task_id, task):
         return
 
     state = _normalize_task_state(task.get("state"))
+    render_material_results = globals().get("_render_material_provider_results")
+    if callable(render_material_results):
+        render_material_results(task.get("material_provider_results"))
     progress = max(0, min(100, int(task.get("progress", 0) or 0)))
     if state == const.TASK_STATE_PROCESSING:
         st.info(tr("Generating Video"))
@@ -3245,6 +3451,29 @@ def _render_video_settings(panel, params):
             ]
 
             saved_video_source_name = config.app.get("video_source", "pexels")
+            saved_stock_providers = config.app.get("material_providers")
+            if isinstance(saved_stock_providers, str):
+                saved_stock_providers = [saved_stock_providers]
+            saved_stock_providers = [
+                provider
+                for provider in (saved_stock_providers or [])
+                if provider in {"pexels", "pixabay", "coverr"}
+            ]
+            if (
+                saved_video_source_name in {"pexels", "pixabay", "coverr"}
+                and saved_video_source_name != "pexels_pixabay"
+                and saved_stock_providers
+            ):
+                # The explicit ordered provider list is the modern source of
+                # truth. Keep the legacy selector aligned with its first item.
+                saved_video_source_name = saved_stock_providers[0]
+            # ``pexels_pixabay`` was a legacy shorthand, not a separate backend.
+            # Restore it as the visible Pexels source with fan-out and explicit
+            # Pexels -> Pixabay priority so a rerun cannot silently reset to one
+            # provider.
+            legacy_pexels_pixabay = saved_video_source_name == "pexels_pixabay"
+            if legacy_pexels_pixabay:
+                saved_video_source_name = "pexels"
 
             params.video_source = stable_selectbox(
                 tr("Video Source"),
@@ -3256,6 +3485,102 @@ def _render_video_settings(panel, params):
                 )[value],
             )
             _set_runtime_config("app", "video_source", params.video_source)
+
+            stock_sources = {"pexels", "pixabay", "coverr"}
+            if params.video_source in stock_sources:
+                strategy_modes = ["locked", "fallback", "fan_out"]
+                strategy_labels = {
+                    "locked": tr("Locked Provider"),
+                    "fallback": tr("Fallback Providers"),
+                    "fan_out": tr("Fan-out Providers"),
+                }
+                saved_mode = (
+                    "fan_out"
+                    if legacy_pexels_pixabay
+                    else config.app.get(
+                        "material_provider_mode",
+                        params.material_provider_mode or "locked",
+                    )
+                )
+                selected_strategy_label = stable_selectbox(
+                    tr("Material Provider Mode"),
+                    options=[strategy_labels[value] for value in strategy_modes],
+                    default_value=strategy_labels.get(saved_mode, strategy_labels["locked"]),
+                    key="material_provider_mode_select",
+                    help=tr("Material Provider Mode Help"),
+                )
+                params.material_provider_mode = next(
+                    value for value, label in strategy_labels.items()
+                    if label == selected_strategy_label
+                )
+                configured_providers = (
+                    ["pexels", "pixabay"]
+                    if legacy_pexels_pixabay
+                    else config.app.get("material_providers")
+                    or [params.video_source]
+                )
+                if isinstance(configured_providers, str):
+                    configured_providers = [configured_providers]
+                configured_providers = [
+                    provider for provider in configured_providers
+                    if provider in {"pexels", "pixabay", "coverr"}
+                ] or ["pexels"]
+                configured_providers = [params.video_source] + [
+                    provider
+                    for provider in configured_providers
+                    if provider != params.video_source
+                ]
+                provider_names = {
+                    "pexels": tr("Pexels"),
+                    "pixabay": tr("Pixabay"),
+                    "coverr": tr("Coverr"),
+                }
+
+                def provider_has_key(provider):
+                    configured_keys = config.app.get(f"{provider}_api_keys")
+                    if isinstance(configured_keys, str):
+                        return bool(configured_keys.strip())
+                    return bool(
+                        configured_keys
+                        and any(str(key).strip() for key in configured_keys)
+                    )
+
+                provider_labels = {
+                    provider: (
+                        f"{provider_names[provider]} ({tr('API Key Missing')})"
+                        if not provider_has_key(provider)
+                        else provider_names[provider]
+                    )
+                    for provider in ("pexels", "pixabay", "coverr")
+                }
+                selected_provider_labels = st.multiselect(
+                    tr("Material Providers"),
+                    options=[provider_labels[provider] for provider in provider_names],
+                    default=[provider_labels[provider] for provider in configured_providers],
+                    key="material_providers_select",
+                    help=tr("Material Providers Help"),
+                )
+                label_to_provider = {
+                    label: provider for provider, label in provider_labels.items()
+                }
+                params.material_providers = [
+                    label_to_provider[label]
+                    for label in selected_provider_labels
+                    if label in label_to_provider
+                ]
+                params.material_providers = [params.video_source] + [
+                    provider
+                    for provider in params.material_providers
+                    if provider != params.video_source
+                ]
+                if params.material_provider_mode == "locked":
+                    params.material_providers = params.material_providers[:1]
+                if not params.material_providers:
+                    st.error(tr("Select at Least One Material Provider"))
+                _set_runtime_config("app", "material_provider_mode", params.material_provider_mode)
+                _set_runtime_config("app", "material_providers", params.material_providers)
+                if params.material_provider_mode == "fan_out":
+                    st.warning(tr("Fan-out Quota Warning"))
 
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
@@ -5073,6 +5398,7 @@ def _render_generation_controls(
             "pexels",
             "pixabay",
             "coverr",
+            "pexels_pixabay",
             "loomloom",
             "local",
         ]:
@@ -5080,26 +5406,30 @@ def _render_generation_controls(
             st.error(tr("Please Select a Valid Video Source"))
             st.stop()
 
-        if params.video_source == "pexels" and not config.app.get(
-            "pexels_api_keys", ""
-        ):
-            _remove_active_generation_task(task_id)
-            st.error(tr("Please Enter the Pexels API Key"))
-            st.stop()
+        if params.video_source not in {"local", "loomloom"}:
+            selected_providers = params.material_providers or [params.video_source]
 
-        if params.video_source == "pixabay" and not config.app.get(
-            "pixabay_api_keys", ""
-        ):
-            _remove_active_generation_task(task_id)
-            st.error(tr("Please Enter the Pixabay API Key"))
-            st.stop()
+            def provider_has_key(provider):
+                configured_keys = config.app.get(f"{provider}_api_keys")
+                if isinstance(configured_keys, str):
+                    return bool(configured_keys.strip())
+                return bool(
+                    configured_keys
+                    and any(str(key).strip() for key in configured_keys)
+                )
 
-        if params.video_source == "coverr" and not config.app.get(
-            "coverr_api_keys", ""
-        ):
-            _remove_active_generation_task(task_id)
-            st.error(tr("Please Enter the Coverr API Key"))
-            st.stop()
+            missing_providers = [
+                provider for provider in selected_providers
+                if not provider_has_key(provider)
+            ]
+            if missing_providers:
+                _remove_active_generation_task(task_id)
+                st.error(
+                    tr("Selected Material Provider Keys Missing").format(
+                        providers=", ".join(missing_providers)
+                    )
+                )
+                st.stop()
 
         loomloom_video_request = None
         if params.video_source == "loomloom":
