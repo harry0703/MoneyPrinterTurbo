@@ -65,6 +65,20 @@ pexels_api_keys = []
 # Register at https://pixabay.com/api/docs/
 pixabay_api_keys = []
 
+# In some network environments, Pixabay's Cloudflare front end returns a 429
+# challenge page to Python's requests library even with a valid key, while
+# the same request from a browser succeeds. Enabling this makes Pixabay
+# searches impersonate a browser's TLS fingerprint to get through -- this is
+# effectively bypassing Cloudflare's access restriction and may conflict with
+# Pixabay's Terms of Service. Leave this off unless you have confirmed your
+# environment is affected and accept that risk.
+# 部分网络环境下，Pixabay 前置的 Cloudflare 即使收到合法 Key 也会对
+# Python requests 库返回 429 challenge 页面，而浏览器请求可以正常通过。
+# 开启该选项后，Pixabay 搜索会模拟浏览器 TLS 指纹以绕过该拦截——这本质上
+# 是绕过 Cloudflare 的访问限制，可能与 Pixabay 服务条款冲突。仅在确认自身
+# 环境确实受影响、并愿意自行承担该风险时再开启。
+pixabay_bypass_cloudflare = false
+
 # Register at https://coverr.co/developers?ctx=header_navigation
 coverr_api_keys = []
 

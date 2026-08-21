@@ -104,9 +104,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
             }
         )
 
-        with patch(
-            "app.services.material.cf_requests.get", return_value=fake_response
-        ) as get:
+        with patch("app.services.material.requests.get", return_value=fake_response) as get:
             results = material.search_videos_pixabay(
                 "cat",
                 minimum_duration=1,
@@ -115,6 +113,57 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
         self.assertEqual(len(results), 1)
         self.assertFalse(get.call_args.kwargs["verify"])
+
+    def test_search_pixabay_uses_plain_requests_by_default(self):
+        """
+        默认必须使用普通 requests，不做浏览器 TLS 指纹模拟：该行为等同于
+        绕过 Cloudflare 的访问限制，与 Pixabay 服务条款存在冲突，只能由
+        用户显式选择启用（见下一测试）。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {"hits": []},
+        )
+
+        with patch(
+            "app.services.material.requests.get", return_value=fake_response
+        ) as plain_get, patch("app.services.material.cf_requests.get") as impersonated_get:
+            material.search_videos_pixabay("cat", minimum_duration=1)
+
+        plain_get.assert_called_once()
+        impersonated_get.assert_not_called()
+
+    def test_search_pixabay_bypass_cloudflare_uses_browser_impersonation_when_enabled(
+        self,
+    ):
+        """
+        用户在 config.toml 中显式设置 pixabay_bypass_cloudflare = true 后，
+        才允许改用模拟浏览器 TLS 指纹的 curl_cffi 客户端。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.app["pixabay_bypass_cloudflare"] = True
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {"hits": []},
+        )
+
+        with patch("app.services.material.requests.get") as plain_get, patch(
+            "app.services.material.cf_requests.get", return_value=fake_response
+        ) as impersonated_get:
+            material.search_videos_pixabay("cat", minimum_duration=1)
+
+        plain_get.assert_not_called()
+        impersonated_get.assert_called_once()
+        self.assertEqual(impersonated_get.call_args.kwargs["impersonate"], "chrome")
 
     def test_remote_searches_only_return_requested_orientation(self):
         """
@@ -229,7 +278,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
             )
             pexels_url = get.call_args.args[0]
         with patch(
-            "app.services.material.cf_requests.get",
+            "app.services.material.requests.get",
             return_value=pixabay_response,
         ):
             pixabay_results = material.search_videos_pixabay(
@@ -378,7 +427,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.cf_requests.get",
+            "app.services.material.requests.get",
             return_value=pixabay_response,
         ):
             pixabay_results = material.search_videos_pixabay(
@@ -417,7 +466,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.cf_requests.get", return_value=fake_response
+            "app.services.material.requests.get", return_value=fake_response
         ), patch("app.services.material.logger.info") as log:
             material.search_videos_pixabay("cat", minimum_duration=1)
 
@@ -443,7 +492,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.cf_requests.get", return_value=fake_response
+            "app.services.material.requests.get", return_value=fake_response
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
@@ -472,7 +521,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.cf_requests.get", return_value=fake_response
+            "app.services.material.requests.get", return_value=fake_response
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
@@ -500,7 +549,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.cf_requests.get", return_value=fake_response
+            "app.services.material.requests.get", return_value=fake_response
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
@@ -523,7 +572,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.cf_requests.get", side_effect=error
+            "app.services.material.requests.get", side_effect=error
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
@@ -547,7 +596,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
 
         with patch(
-            "app.services.material.cf_requests.get", side_effect=error
+            "app.services.material.requests.get", side_effect=error
         ), patch("app.services.material.logger.error") as log:
             results = material.search_videos_pixabay("nature", minimum_duration=1)
 
