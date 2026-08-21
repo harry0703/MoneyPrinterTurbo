@@ -521,6 +521,7 @@ def _initialize_session_state():
         "loomloom_video_input_signature": "",
         "loomloom_video_client_request_id": "",
         "loomloom_video_confirm_charge": False,
+        "wavespeed_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -2857,6 +2858,15 @@ def _render_settings_dialog():
             )
             _save_material_api_keys("coverr_api_keys", coverr_api_key)
 
+            wavespeed_api_key = _get_material_api_keys("wavespeed_api_keys")
+            wavespeed_api_key = st.text_input(
+                tr("WaveSpeed API Key"),
+                value=wavespeed_api_key,
+                type="password",
+                key="wavespeed_api_keys_input",
+            )
+            _save_material_api_keys("wavespeed_api_keys", wavespeed_api_key)
+
     _save_runtime_config()
 
 
@@ -3618,6 +3628,7 @@ def _render_video_settings(panel, params):
                 (tr("Pexels"), "pexels"),
                 (tr("Pixabay"), "pixabay"),
                 (tr("Coverr"), "coverr"),
+                (tr("WaveSpeed AI Video"), "wavespeed"),
                 (tr("Shengsuan Cloud AI Video"), "loomloom"),
                 (tr("Local file"), "local"),
             ]
@@ -3634,6 +3645,9 @@ def _render_video_settings(panel, params):
                 )[value],
             )
             _set_runtime_config("app", "video_source", params.video_source)
+
+            if params.video_source == "wavespeed":
+                st.caption(tr("WaveSpeed AI Video Help"))
 
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
@@ -3828,7 +3842,42 @@ def _render_video_settings(panel, params):
 
             if params.video_source == "loomloom":
                 _render_loomloom_video_settings(params)
+
+            if params.video_source == "wavespeed":
+                _render_wavespeed_video_settings(params)
     return uploaded_files
+
+
+def _render_wavespeed_video_settings(params):
+    """
+    渲染 WaveSpeed 生成数量估算与计费确认。
+
+    生成按条计费，提交前必须让用户看到大致会生成多少段。估算完全在本地
+    完成：用配音时长估算区间除以片段时长得到需要覆盖的片段数。素材流程
+    本身按需逐段生成、凑够所需时长即停，因此实际生成数以运行时为准，
+    估算只用于量级提示，不参与任务执行。
+    """
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    estimated_range = _estimate_voiceover_duration_range(
+        str(params.video_script or ""),
+        params.voice_rate,
+    )
+    if estimated_range:
+        min_clips = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        max_clips = max(
+            math.ceil(estimated_range[1] * video_count / clip_duration), min_clips
+        )
+        st.warning(
+            tr("WaveSpeed Billing Notice").format(min=min_clips, max=max_clips)
+        )
+    else:
+        st.warning(tr("WaveSpeed Billing Notice Without Script"))
+    st.checkbox(
+        tr("Confirm WaveSpeed Charge"),
+        key="wavespeed_confirm_charge",
+        help=tr("Confirm WaveSpeed Charge Help"),
+    )
 
 
 def _estimate_voiceover_duration_range(
@@ -5453,6 +5502,7 @@ def _render_generation_controls(
             "pexels",
             "pixabay",
             "coverr",
+            "wavespeed",
             "loomloom",
             "local",
         ]:
@@ -5479,6 +5529,20 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Please Enter the Coverr API Key"))
+            st.stop()
+
+        if params.video_source == "wavespeed" and not config.app.get(
+            "wavespeed_api_keys", ""
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the WaveSpeed API Key"))
+            st.stop()
+
+        if params.video_source == "wavespeed" and not st.session_state.get(
+            "wavespeed_confirm_charge", False
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm WaveSpeed Charge Required"))
             st.stop()
 
         loomloom_video_request = None
