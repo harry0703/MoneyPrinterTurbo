@@ -1473,6 +1473,7 @@ support_locales = [
     "es-ES",
     "fr-FR",
     "it-IT",
+    "hi-IN",
     "ru-RU",
     "vi-VN",
     "th-TH",
@@ -3478,8 +3479,22 @@ def _render_script_settings(panel, params):
                     (v, label) for label, v in video_languages
                 )[value],
             )
+            old_video_language = config.ui.get("video_language", "")
             params.video_language = selected_language_code
             _set_runtime_config("ui", "video_language", params.video_language)
+            
+            if old_video_language != params.video_language and params.video_language == "hi-IN":
+                saved_font = config.ui.get("font_name", DEFAULT_SUBTITLE_SETTINGS["font_name"])
+                if saved_font == DEFAULT_SUBTITLE_SETTINGS["font_name"]:
+                    config.ui["font_name"] = "NotoSansDevanagari-Bold.ttf"
+                    _set_stable_widget_value("font_name_select", "NotoSansDevanagari-Bold.ttf")
+                
+                all_v = voice.get_all_azure_voices()
+                hi_voices = [v for v in all_v if v.lower().startswith("hi-in")]
+                if hi_voices:
+                    config.ui["voice_name"] = hi_voices[0]
+                    _set_stable_widget_value("speech_synthesis_select_azure-tts-v1", hi_voices[0])
+                    _set_stable_widget_value("speech_synthesis_select_azure-tts-v2", hi_voices[0])
 
             # 使用带 key 的局部容器限定折叠入口样式，保持 expander 的原生交互，
             # 同时避免样式误伤页面顶部的“基础设置”等其他折叠区域。
