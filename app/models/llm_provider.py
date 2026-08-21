@@ -234,6 +234,13 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.openai.com/v1",
     ),
     LLMProviderSpec(
+        "anthropic",
+        "Anthropic Claude",
+        api_key_url="https://platform.claude.com/settings/keys",
+        default_model="claude-sonnet-5",
+        default_base_url="https://api.anthropic.com/v1/",
+    ),
+    LLMProviderSpec(
         "gemini",
         "Google Gemini",
         adapter="gemini",

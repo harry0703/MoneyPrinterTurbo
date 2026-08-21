@@ -134,6 +134,12 @@ openai_api_key = ""
 openai_base_url = ""
 openai_model_name = ""
 
+# Anthropic Claude, called through the OpenAI-compatible endpoint.
+# API key: https://platform.claude.com/settings/keys
+anthropic_api_key = ""
+anthropic_base_url = ""
+anthropic_model_name = ""
+
 # Google Gemini
 # API key: https://aistudio.google.com/app/apikey
 gemini_api_key = ""
