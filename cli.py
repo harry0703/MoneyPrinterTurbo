@@ -655,11 +655,10 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
     from app.services import bgm as bgm_service
     from app.utils import utils
 
-    # 尽早探测 FFmpeg 是否可用：CLI 是一次性运行到底的长流程，如果等到视频合成
-    # 阶段才发现 FFmpeg 缺失，用户已经白白等待了脚本生成、TTS、素材下载等耗时
-    # 步骤。这里只记录警告并不中断流程，因为 imageio-ffmpeg 在真正使用时仍有
-    # 机会自动下载成功。
-    utils.check_ffmpeg_ready()
+    # FFmpeg 探测已经移到 app/services/task.py 的共享任务流水线（task.start）
+    # 里统一做硬性检查：探测失败会让任务以 preflight 阶段失败结束，run_cli()
+    # 会据此返回非零退出码。这里不再重复一次不阻断流程的检查，避免与流水线
+    # 里的判断结果不一致。
 
     local_material_extensions = {
         *(f".{extension}" for extension in const.FILE_TYPE_VIDEOS),
