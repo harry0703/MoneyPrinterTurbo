@@ -1,0 +1,19 @@
+# Linux VA-API override.
+# Usage: docker compose -f docker-compose.release.yml -f docker-compose.vaapi.yml up -d --build
+services:
+  webui:
+    build:
+      context: .
+      dockerfile: Dockerfile.vaapi
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      VAAPI_DEVICE: ${VAAPI_DEVICE:-/dev/dri/renderD128}
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.vaapi
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      VAAPI_DEVICE: ${VAAPI_DEVICE:-/dev/dri/renderD128}

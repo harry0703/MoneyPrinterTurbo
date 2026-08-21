@@ -1,0 +1,6 @@
+FROM qwen2.5:1.5b
+
+# Short marketing scripts do not need Ollama's larger default context.
+PARAMETER num_ctx 2048
+PARAMETER num_predict 320
+PARAMETER temperature 0.65

@@ -1315,12 +1315,15 @@ class TestLiteLLMProvider(unittest.TestCase):
         openai_client.assert_called_once_with(
             api_key="ollama",
             base_url=expected_base_url,
+            timeout=90.0,
         )
         self.assertEqual(
             fake_completions.kwargs,
             {
                 "model": "llama3",
                 "messages": [{"role": "user", "content": "Say hello"}],
+                "max_tokens": 320,
+                "extra_body": {"options": {"num_ctx": 2048}},
             },
         )
         self.assertEqual(result, "hello\nollama")

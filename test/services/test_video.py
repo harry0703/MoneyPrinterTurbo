@@ -4,6 +4,8 @@ import sys
 import tempfile
 import types
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -53,6 +55,9 @@ class _FakeMoviePyClip:
 class TestVideoService(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
+        # Keep codec-specific tests isolated from the operator's local runtime
+        # selection in config.toml.
+        config.app["video_codec"] = "libx264"
         self.test_img_path = os.path.join(resources_dir, "1.png")
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
@@ -449,6 +454,93 @@ class TestVideoService(unittest.TestCase):
 
         self.assertEqual(vd._get_configured_video_codec(), "libx264")
 
+    def test_get_configured_video_codec_accepts_vaapi(self):
+        config.app["video_codec"] = "h264_vaapi"
+
+        self.assertEqual(vd._get_configured_video_codec(), "h264_vaapi")
+
+    def test_vaapi_device_prefers_environment_override(self):
+        config.app["vaapi_device"] = "/dev/dri/configured"
+
+        with patch.dict(os.environ, {"VAAPI_DEVICE": "/dev/dri/environment"}):
+            self.assertEqual(vd._get_vaapi_device(), "/dev/dri/environment")
+
+    def test_vaapi_moviepy_write_uses_system_ffmpeg_and_gpu_upload(self):
+        class _FakeClip:
+            def __init__(self):
+                self.calls = []
+
+            def write_videofile(self, output_file, codec, **kwargs):
+                self.calls.append((output_file, codec, kwargs))
+
+        fake_clip = _FakeClip()
+        with (
+            patch.object(vd, "_ffmpeg_encoder_exists", return_value=True),
+            patch.object(vd.utils, "get_ffmpeg_binary", return_value="/usr/bin/ffmpeg"),
+            patch.dict(os.environ, {"VAAPI_DEVICE": "/dev/dri/renderD129"}),
+            patch.object(vd.subprocess, "run") as run,
+        ):
+            used_codec = vd._write_videofile_with_codec_fallback(
+                fake_clip,
+                "/tmp/fake.mp4",
+                codec="h264_vaapi",
+                logger=None,
+                fps=30,
+            )
+
+        self.assertEqual(used_codec, "h264_vaapi")
+        self.assertEqual(fake_clip.calls[0][1], "libx264")
+        self.assertNotIn("ffmpeg_params", fake_clip.calls[0][2])
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "/usr/bin/ffmpeg")
+        self.assertEqual(command[command.index("-vaapi_device") + 1], "/dev/dri/renderD129")
+        self.assertEqual(command[command.index("-c:v") + 1], "h264_vaapi")
+
+    def test_vaapi_moviepy_fallback_removes_gpu_specific_parameters(self):
+        class _FakeClip:
+            def __init__(self):
+                self.calls = []
+
+            def write_videofile(self, output_file, codec, **kwargs):
+                self.calls.append((codec, kwargs))
+
+        fake_clip = _FakeClip()
+        with (
+            patch.object(vd, "_ffmpeg_encoder_exists", return_value=True),
+            patch.object(vd.utils, "get_ffmpeg_binary", return_value="/usr/bin/ffmpeg"),
+            patch.object(vd.subprocess, "run", side_effect=RuntimeError("VA-API device failed")),
+        ):
+            used_codec = vd._write_videofile_with_codec_fallback(
+                fake_clip,
+                "/tmp/fake.mp4",
+                codec="h264_vaapi",
+                logger=None,
+                fps=30,
+            )
+
+        self.assertEqual(used_codec, "libx264")
+        self.assertEqual([call[0] for call in fake_clip.calls], ["libx264", "libx264"])
+        self.assertNotIn("ffmpeg_params", fake_clip.calls[1][1])
+        self.assertIn("h264_vaapi", vd._runtime_disabled_video_codecs)
+
+    def test_vaapi_and_software_moviepy_writers_can_run_concurrently(self):
+        barrier = Barrier(2, timeout=2)
+
+        class _ConcurrentClip:
+            def write_videofile(self, output_file, codec, **kwargs):
+                barrier.wait()
+
+        with (
+            patch.object(vd, "_ffmpeg_encoder_exists", return_value=True),
+            patch.object(vd.utils, "get_ffmpeg_binary", return_value="/usr/bin/ffmpeg"),
+            patch.object(vd.subprocess, "run"),
+            ThreadPoolExecutor(max_workers=2) as executor,
+        ):
+            vaapi = executor.submit(vd._write_videofile_with_codec_fallback, _ConcurrentClip(), "/tmp/vaapi.mp4", "h264_vaapi", logger=None)
+            software = executor.submit(vd._write_videofile_with_codec_fallback, _ConcurrentClip(), "/tmp/software.mp4", "libx264", logger=None)
+            self.assertEqual(vaapi.result(timeout=3), "h264_vaapi")
+            self.assertEqual(software.result(timeout=3), "libx264")
+
     def test_ffmpeg_encoder_exists_falls_back_when_probe_fails(self):
         """
         Windows 上用户配置的 ffmpeg 可能因为路径损坏、权限或杀软拦截而无法
@@ -568,6 +660,35 @@ class TestVideoService(unittest.TestCase):
         ]
         self.assertEqual(used_codecs, ["h264_nvenc", "libx264"])
         self.assertIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
+    def test_concat_video_clips_adds_vaapi_device_and_upload_filter(self):
+        config.app["video_codec"] = "h264_vaapi"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with (
+                patch.object(vd, "_ffmpeg_encoder_exists", return_value=True),
+                patch.object(vd.subprocess, "run") as run,
+                patch.dict(os.environ, {"VAAPI_DEVICE": "/dev/dri/renderD129"}),
+            ):
+                run.return_value = types.SimpleNamespace(
+                    returncode=0, stdout="", stderr=""
+                )
+                vd.concat_video_clips_with_ffmpeg(
+                    clip_files=[clip_file],
+                    output_file=output_file,
+                    threads=1,
+                    output_dir=temp_dir,
+                )
+
+        command = run.call_args.args[0]
+        self.assertEqual(command[command.index("-c:v") + 1], "h264_vaapi")
+        self.assertEqual(command[command.index("-vaapi_device") + 1], "/dev/dri/renderD129")
+        self.assertEqual(command[command.index("-vf") + 1], "format=nv12,hwupload")
+        self.assertNotIn("-pix_fmt", command)
 
     def test_concat_video_clips_does_not_disable_codec_when_fallback_also_fails(self):
         """

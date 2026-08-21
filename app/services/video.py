@@ -68,7 +68,7 @@ audio_codec = "aac"
 # Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
 # 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
 audio_bitrate = "192k"
-fps = 30
+fps = 24
 # FFmpeg 按帧率拼接/转码时，最终时长可能比 MoviePy 读到的理论时长短几十毫秒。
 # 这里给视频素材多留一个很小的安全余量，避免音频末尾因为帧舍入出现黑屏、
 # 卡顿或最后一小段旁白没有画面的情况。
@@ -80,11 +80,14 @@ _MIN_MATERIAL_DIMENSION = 480
 # 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
 _MIN_DIMENSION_TOLERANCE = 10
 _DEFAULT_VIDEO_CODEC = "libx264"
+_VAAPI_VIDEO_CODEC = "h264_vaapi"
+_DEFAULT_VAAPI_DEVICE = "/dev/dri/renderD128"
 _SUPPORTED_VIDEO_CODECS = (
     "libx264",
     "h264_nvenc",
     "h264_amf",
     "h264_qsv",
+    _VAAPI_VIDEO_CODEC,
     "h264_mf",
     "h264_videotoolbox",
 )
@@ -248,6 +251,51 @@ def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
     return selected_codec
 
 
+def _get_vaapi_device() -> str:
+    """Return the configured Linux VA-API render node."""
+    return str(
+        os.getenv("VAAPI_DEVICE")
+        or config.app.get("vaapi_device")
+        or _DEFAULT_VAAPI_DEVICE
+    ).strip()
+
+
+def _write_moviepy_clip(clip, output_file: str, codec: str, **kwargs):
+    """Write a clip without changing MoviePy's process-wide FFmpeg state."""
+    if codec != _VAAPI_VIDEO_CODEC:
+        clip.write_videofile(output_file, codec=codec, **kwargs)
+        return
+
+    # MoviePy does not expose an FFmpeg executable per writer. Render a unique
+    # software intermediate, then let the configured system FFmpeg perform the
+    # VA-API transcode. Concurrent writers therefore share no mutable state.
+    output_path = os.path.abspath(output_file)
+    output_dir = os.path.dirname(output_path) or "."
+    os.makedirs(output_dir, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile(
+        prefix="mpt-vaapi-input-", suffix=".mp4", dir=output_dir, delete=False
+    )
+    intermediate = handle.name
+    handle.close()
+    try:
+        software_kwargs = dict(kwargs)
+        software_kwargs.pop("ffmpeg_params", None)
+        clip.write_videofile(intermediate, codec=_DEFAULT_VIDEO_CODEC, **software_kwargs)
+        command = [
+            utils.get_ffmpeg_binary(), "-y", "-hide_banner", "-loglevel", "error",
+            "-vaapi_device", _get_vaapi_device(), "-i", intermediate,
+            "-map", "0:v:0", "-map", "0:a?", "-vf", "format=nv12,hwupload",
+            "-c:v", _VAAPI_VIDEO_CODEC, "-c:a", "copy", "-movflags", "+faststart",
+            output_path,
+        ]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    finally:
+        try:
+            os.unlink(intermediate)
+        except FileNotFoundError:
+            pass
+
+
 def _disable_runtime_video_codec(codec: str, reason: str):
     if codec == _DEFAULT_VIDEO_CODEC:
         return
@@ -284,7 +332,7 @@ def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason:
     文件被占用、目录权限、杀软拦截等通用 IO 问题。只有 libx264 能成功写出时，
     才能判断原始失败大概率来自硬件编码器本身，避免误伤后续任务。
     """
-    clip.write_videofile(output_file, codec=_DEFAULT_VIDEO_CODEC, **kwargs)
+    _write_moviepy_clip(clip, output_file, _DEFAULT_VIDEO_CODEC, **kwargs)
     _disable_runtime_video_codec(failed_codec, reason)
     return _DEFAULT_VIDEO_CODEC
 
@@ -298,7 +346,7 @@ def _write_videofile_with_codec_fallback(clip, output_file: str, codec: str, **k
     """
     effective_codec = _get_effective_video_codec(codec)
     try:
-        clip.write_videofile(output_file, codec=effective_codec, **kwargs)
+        _write_moviepy_clip(clip, output_file, effective_codec, **kwargs)
         return effective_codec
     except Exception as exc:
         if effective_codec == _DEFAULT_VIDEO_CODEC:
@@ -345,6 +393,10 @@ def concat_video_clips_with_ffmpeg(
         command = [
             utils.get_ffmpeg_binary(),
             "-y",
+        ]
+        if codec == _VAAPI_VIDEO_CODEC:
+            command.extend(["-vaapi_device", _get_vaapi_device()])
+        command.extend([
             "-f",
             "concat",
             "-safe",
@@ -355,9 +407,11 @@ def concat_video_clips_with_ffmpeg(
             codec,
             "-threads",
             str(threads or 2),
-            "-pix_fmt",
-            "yuv420p",
-        ]
+        ])
+        if codec == _VAAPI_VIDEO_CODEC:
+            command.extend(["-vf", "format=nv12,hwupload"])
+        else:
+            command.extend(["-pix_fmt", "yuv420p"])
         if max_duration is not None and max_duration > 0:
             command.extend(["-t", f"{max_duration:.3f}"])
         command.append(output_file)
@@ -1352,7 +1406,13 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
 
                 # Output the video to a file.
                 video_file = f"{material_source_path}.mp4"
-                final_clip.write_videofile(video_file, fps=30, logger=None)
+                _write_videofile_with_codec_fallback(
+                    final_clip,
+                    video_file,
+                    codec=_get_configured_video_codec(),
+                    fps=fps,
+                    logger=None,
+                )
                 close_clip(clip)
                 close_clip(final_clip)
                 material.url = video_file
