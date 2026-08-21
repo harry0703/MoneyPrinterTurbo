@@ -215,3 +215,93 @@ Open questions:
   (needs an audit, otherwise posts land in drafts), upload-post.com (already
   wired at `app/services/upload_post.py`, disabled, paid, untested), or browser
   automation. Detection there is harsher than on Instagram.
+
+---
+
+## 7. If something breaks and no help is available
+
+Written to be executed by a person with a terminal and no assistant. Every
+command runs on the server, from `~/MoneyPrinterTurbo`, unless stated.
+
+### First, look
+
+```bash
+tail -50 storage/logs/cron-brainrot.log
+tail -50 storage/logs/cron.log
+ls -la storage/logs/
+crontab -l
+uv run python publish_instagram.py --check-all
+```
+
+`--check-all` answers the most common question. Four `ok` lines means the
+accounts are fine and the problem is elsewhere.
+
+### "An account stopped posting"
+
+Almost always a dead session. The line to look for is `stored session was
+rejected`. Fix it with the import procedure in section 3 — the tunnel matters,
+a session imported from a home browser is the failure being repeated.
+
+Nothing is lost while a session is down. The content plan leaves the entry
+unmarked and picks it up next run; brainrot keeps the rendered file as
+`pending` and publishes it at the next slot.
+
+### "Nothing published at all today"
+
+```bash
+grep CRON /var/log/syslog | tail -20
+```
+
+If cron did not fire, check the clock: `date -u`. **Every cron hour in this
+repo is UTC.** A schedule that looks two hours off in October is the daylight
+saving change described in section 1, not a bug.
+
+To run a pipeline by hand right now:
+
+```bash
+uv run python scripts/daily_run.py --next        # the three plan accounts
+uv run python scripts/brainrot_run.py --no-jitter  # one brainrot video
+```
+
+### "It says the bait pool is exhausted"
+
+Expected, not broken. Drop more clips into
+`resource/brainrotVideo/bait/` on the server; nothing else to run. Check with
+`uv run python scripts/make_brainrot.py --list`.
+
+### "hourly limit reached" / "429"
+
+**Do nothing.** Both are working as intended — the first is our own guard
+(3/hour, 10/day per account), the second is Instagram's. Wait. Retrying a 429
+is the single most damaging thing that can be done here, and the penalty lands
+on the account, not the request.
+
+### "Stop everything now"
+
+```bash
+crontab -l > ~/crontab.backup
+crontab -r
+```
+
+Restore later with `crontab ~/crontab.backup`. Removing the crontab stops all
+publishing without touching any state; the pipelines resume where they left off.
+
+### Publish one specific file by hand
+
+```bash
+uv run python publish_instagram.py \
+  --video storage/brainrot/<file>.mp4 \
+  --caption "$(python3 -c "import json;print(json.load(open('brainrot_texts.json'))['caption']['fixed'])")" \
+  --account brainrot
+```
+
+### Working with a different assistant
+
+An agent with access to this checkout needs nothing beyond `CLAUDE.md`,
+`AGENTS.md` and this file — point it at them and it has the full picture.
+
+A chat-only assistant with no repository access is a different situation. Paste
+`CLAUDE.md` and this runbook, plus the specific file being changed; it can then
+reason usefully but cannot verify anything. Do not let it invent commands for
+the publishing path. Everything that path legitimately needs is already written
+above, and a plausible-looking improvised command is how accounts get lost.
