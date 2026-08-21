@@ -16,6 +16,9 @@ MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10
 MAX_SCRIPT_PROMPT_LENGTH = 2000
 MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
+OLLAMA_REQUEST_TIMEOUT_SECONDS = 90.0
+OLLAMA_MAX_OUTPUT_TOKENS = 320
+OLLAMA_CONTEXT_TOKENS = 2048
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
 _URL_USERINFO_RE = re.compile(
@@ -382,14 +385,21 @@ def _generate_response(prompt: str, app_config=None) -> str:
             else:
                 raise Exception(f"[{llm_provider}] returned an empty response")
 
-        client = OpenAI(
-            api_key=api_key,
-            base_url=base_url,
-        )
+        client_options = {"api_key": api_key, "base_url": base_url}
+        if llm_provider == "ollama":
+            client_options["timeout"] = OLLAMA_REQUEST_TIMEOUT_SECONDS
+        client = OpenAI(**client_options)
 
-        response = client.chat.completions.create(
-            model=model_name, messages=[{"role": "user", "content": prompt}]
-        )
+        completion_options = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if llm_provider == "ollama":
+            completion_options.update({
+                "max_tokens": OLLAMA_MAX_OUTPUT_TOKENS,
+                "extra_body": {"options": {"num_ctx": OLLAMA_CONTEXT_TOKENS}},
+            })
+        response = client.chat.completions.create(**completion_options)
         if response:
             if isinstance(response, ChatCompletion):
                 return _extract_chat_completion_text(response, llm_provider)
@@ -523,6 +533,13 @@ def generate_script(
         custom_system_prompt=custom_system_prompt,
     )
     final_script = ""
+    last_script_error = ""
+    expected_words_match = re.search(
+        r"approximately\s+(\d+)\s+spoken words", video_script_prompt, re.IGNORECASE
+    )
+    expected_words = int(expected_words_match.group(1)) if expected_words_match else 0
+    requested_cta_match = re.search(r"\bend\s+with\s*:\s*(.+)$", video_subject, re.IGNORECASE)
+    requested_cta = requested_cta_match.group(1).strip() if requested_cta_match else ""
     logger.info(
         "generating video script: "
         f"subject={video_subject}, paragraph_number={paragraph_number}, "
@@ -556,9 +573,52 @@ def generate_script(
             else:
                 response = _generate_response(prompt=prompt, app_config=app_config)
             if response:
-                final_script = format_response(response)
+                candidate_script = format_response(response).strip()
             else:
                 logging.error("gpt returned an empty response")
+                candidate_script = ""
+
+            if candidate_script and expected_words:
+                # Small local models sometimes ignore the word budget and hit the
+                # token ceiling. Keep complete sentences within budget and restore
+                # the explicit CTA instead of accepting a mid-sentence fragment.
+                candidate_script = re.sub(
+                    r"^(?:video\s+script[^\n]*|beginner|narration)\s*[:\-]?\s*",
+                    "", candidate_script, flags=re.IGNORECASE,
+                ).strip(' \n\t"')
+                sentences = re.findall(r".+?[.!?](?:[\"'’”)](?=\s|$))?", candidate_script, re.DOTALL)
+                current_words = len(re.findall(r"\b[\w’'-]+\b", candidate_script))
+                if sentences and current_words > round(expected_words * 1.25):
+                    cta_words = len(re.findall(r"\b[\w’'-]+\b", requested_cta))
+                    body_budget = max(round(expected_words * 0.65), expected_words - cta_words)
+                    selected: list[str] = []
+                    selected_words = 0
+                    for sentence in sentences:
+                        count = len(re.findall(r"\b[\w’'-]+\b", sentence))
+                        if selected and selected_words + count > body_budget:
+                            break
+                        selected.append(sentence.strip())
+                        selected_words += count
+                    candidate_script = " ".join(selected).strip()
+                    if requested_cta and requested_cta.casefold().rstrip(".!?") not in candidate_script.casefold():
+                        candidate_script = f"{candidate_script} {requested_cta}".strip()
+                    if candidate_script and not re.search(r"[.!?][\"'’”)]?$", candidate_script):
+                        candidate_script += "."
+
+                word_count = len(re.findall(r"\b[\w’'-]+\b", candidate_script))
+                minimum_words = max(20, round(expected_words * 0.65))
+                complete_ending = bool(re.search(r"[.!?][\"'’”)]?$", candidate_script))
+                forbidden_heading = bool(
+                    re.match(r"^(?:video\s+script|script|beginner|narration)\s*[:\-]", candidate_script, re.IGNORECASE)
+                )
+                if word_count < minimum_words or not complete_ending or forbidden_heading:
+                    raise ValueError(
+                        "incomplete script response: "
+                        f"words={word_count}, required>={minimum_words}, "
+                        f"complete_ending={complete_ending}, heading={forbidden_heading}"
+                    )
+
+            final_script = candidate_script
 
             # Some upstream providers may return quota errors as plain text.
             if final_script and "当日额度已消耗完" in final_script:
@@ -567,10 +627,16 @@ def generate_script(
             if final_script:
                 break
         except Exception as e:
+            last_script_error = str(e)
             logger.error(f"failed to generate script: {e}")
 
         if i < _max_retries:
             logger.warning(f"failed to generate video script, trying again... {i + 1}")
+    if not final_script and last_script_error:
+        final_script = (
+            "Error: Ollama could not produce a complete script within the requested "
+            f"length after {_max_retries} attempts. Last response: {last_script_error}"
+        )
     if "Error: " in final_script:
         logger.error(f"failed to generate video script: {final_script}")
     else:

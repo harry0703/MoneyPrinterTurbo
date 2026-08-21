@@ -70,7 +70,7 @@ audio_codec = "aac"
 # Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
 # 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
 audio_bitrate = "192k"
-fps = 30
+fps = 24
 # FFmpeg 按帧率拼接/转码时，最终时长可能比 MoviePy 读到的理论时长短几十毫秒。
 # 这里给视频素材多留一个很小的安全余量，避免音频末尾因为帧舍入出现黑屏、
 # 卡顿或最后一小段旁白没有画面的情况。
@@ -1410,7 +1410,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                     final_clip,
                     video_file,
                     codec=_get_configured_video_codec(),
-                    fps=30,
+                    fps=fps,
                     logger=None,
                 )
                 close_clip(clip)
