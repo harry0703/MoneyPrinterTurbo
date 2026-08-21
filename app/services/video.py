@@ -992,45 +992,6 @@ def subtitle_text_needs_shaping(text: str) -> bool:
     )
 
 
-def _subtitle_text_block_height(
-    font_path: str,
-    font_size: int,
-    stroke_width: int,
-    line_count: int,
-    ink_height: int,
-) -> int:
-    """
-    计算多行字幕文字实际需要的像素高度。
-
-    MoviePy 2.2.1 依赖 Pillow 的私有方法 `_multiline_spacing` 计算文本高度，
-    该方法在新版 Pillow 中已被移除，于是 MoviePy 退回使用字形墨迹包围盒
-    （`bottom - top`）。墨迹高度会明显小于字体自身的 ascent + descent，
-    而 MoviePy 仍按 ascent 定位基线，导致 ascent/descent 较大的字体（阿拉伯语
-    字体尤为典型，也包括已内置的 Charm、微软雅黑）下方被裁切。
-
-    这里改用 MoviePy 文档中声明的公式 `ascent + descent + 2 * stroke_width`
-    作为单行高度下限，无论 MoviePy 走哪个分支都能留出完整的绘制空间；对
-    ascent/descent 较小的中文字体则维持原有的墨迹高度，不改变既有观感。
-    """
-    try:
-        ascent, descent = ImageFont.truetype(font_path, font_size).getmetrics()
-        metric_height = (ascent + descent) * max(1, line_count) + 2 * stroke_width
-    except Exception as e:
-        logger.warning(f"failed to read subtitle font metrics: {font_path}, {e}")
-        metric_height = 0
-    return int(max(ink_height, metric_height))
-
-
-@lru_cache(maxsize=1)
-def _warn_missing_text_shaping() -> None:
-    """整段任务只提示一次，避免逐条字幕刷屏。"""
-    logger.warning(
-        "subtitle contains right-to-left text but Pillow has no Raqm layout engine; "
-        "letters will not be joined and word order will be reversed. "
-        "install libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm)"
-    )
-
-
 def generate_video(
     video_path: str,
     audio_path: str,
@@ -1070,6 +1031,22 @@ def generate_video(
 
         logger.info(f"  ⑤ font: {font_path}")
 
+    # 缺少 Raqm 是环境级问题，但提示必须按任务给出：整个进程只提示一次会让
+    # 后续任务的日志完全看不到这条关键信息。这里用单次任务内的标志位收敛，
+    # 既不会逐条字幕刷屏，也保证每次合成都留下记录。
+    missing_shaping_warned = False
+
+    def warn_missing_text_shaping_once():
+        nonlocal missing_shaping_warned
+        if missing_shaping_warned:
+            return
+        missing_shaping_warned = True
+        logger.warning(
+            "subtitle contains right-to-left text but Pillow has no Raqm layout "
+            "engine; letters will not be joined and word order will be reversed. "
+            "install libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm)"
+        )
+
     def resolve_subtitle_background_color():
         # 兼容历史参数：API 里 `text_background_color` 既可能是布尔值，
         # 也可能是实际颜色字符串。统一在这里归一化，避免把 True/False
@@ -1083,7 +1060,7 @@ def generate_video(
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
         if subtitle_text_needs_shaping(phrase) and not text_layout_supports_shaping():
-            _warn_missing_text_shaping()
+            warn_missing_text_shaping_once()
         max_width = video_width * 0.9
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
@@ -1115,14 +1092,7 @@ def generate_video(
         # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
         # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
         # 背景框与文字本身都能完整渲染出来。
-        text_block_height = _subtitle_text_block_height(
-            font_path=font_path,
-            font_size=params.font_size,
-            stroke_width=params.stroke_width,
-            line_count=line_count,
-            ink_height=int(txt_height),
-        )
-        clip_h = int(text_block_height + vertical_padding + (interline * line_count))
+        clip_h = int(txt_height + vertical_padding + (interline * line_count))
 
         if rounded_bg_enabled:
             # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
@@ -1203,7 +1173,7 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            text_clip = TextClip(
+            _clip = TextClip(
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1212,27 +1182,8 @@ def generate_video(
                 stroke_color=params.stroke_color,
                 stroke_width=params.stroke_width,
                 interline=interline,
-                size=(int(max_width), None),
-                text_align="center",
-                margin=(0, text_clip_margin_y),
-            )
-            size = (size[0], max(size[1], text_clip.h))
-            # 无背景字幕同样需要按可见像素居中。MoviePy 先按墨迹高度居中、
-            # 再按 ascent 落基线，字形墨迹没有顶到 ascender 时文字就会偏离
-            # 画布中心；带背景的分支早已用透明底板 + 可见居中修正，这里沿用
-            # 同一套做法，只是底板完全透明，避免阿拉伯语等大 ascent/descent
-            # 字体的字幕整体偏上。
-            transparent_canvas = _rounded_subtitle_background_clip(
-                width=size[0],
-                height=size[1],
-                color="#000000",
-                alpha=0,
-                radius=0,
-            )
-            text_position = _get_visible_center_position(text_clip, size[0], size[1])
-            _clip = CompositeVideoClip(
-                [transparent_canvas, text_clip.with_position(text_position)],
                 size=size,
+                text_align="center",
             )
         duration = subtitle_item[0][1] - subtitle_item[0][0]
         _clip = _clip.with_start(subtitle_item[0][0])

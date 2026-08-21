@@ -3,7 +3,6 @@ from pathlib import Path
 import unittest
 
 import numpy as np
-from PIL import ImageFont
 
 from app.models.schema import SubtitleRequest, VideoParams
 from app.services import video
@@ -196,52 +195,3 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
         self.assertFalse(video.subtitle_text_needs_shaping("人工智能改变生活"))
         self.assertFalse(video.subtitle_text_needs_shaping("Artificial intelligence"))
         self.assertFalse(video.subtitle_text_needs_shaping(""))
-
-    def test_text_block_height_reserves_room_for_font_metrics(self):
-        """
-        MoviePy 依赖的 Pillow 私有方法已被移除，导致文本高度退化成墨迹高度，
-        ascent/descent 较大的字体下方会被裁切。字幕高度必须以字体自身的
-        ascent + descent 为下限，同时保留墨迹更高时的原有取值。
-        """
-        fonts_dir = Path(__file__).parent.parent.parent / "resource" / "fonts"
-        arabic_font = str(fonts_dir / "Tajawal-Regular.ttf")
-        ascent, descent = ImageFont.truetype(arabic_font, 60).getmetrics()
-
-        single_line = video._subtitle_text_block_height(
-            font_path=arabic_font,
-            font_size=60,
-            stroke_width=1,
-            line_count=1,
-            ink_height=1,
-        )
-        two_lines = video._subtitle_text_block_height(
-            font_path=arabic_font,
-            font_size=60,
-            stroke_width=1,
-            line_count=2,
-            ink_height=1,
-        )
-        ink_taller_than_metrics = video._subtitle_text_block_height(
-            font_path=arabic_font,
-            font_size=60,
-            stroke_width=1,
-            line_count=1,
-            ink_height=9999,
-        )
-
-        self.assertEqual(single_line, ascent + descent + 2)
-        self.assertEqual(two_lines, (ascent + descent) * 2 + 2)
-        self.assertEqual(ink_taller_than_metrics, 9999)
-
-    def test_text_block_height_falls_back_when_font_is_unreadable(self):
-        """字体探测失败时不能让字幕高度归零，应至少退回墨迹高度。"""
-        self.assertEqual(
-            video._subtitle_text_block_height(
-                font_path="/nonexistent/font.ttf",
-                font_size=60,
-                stroke_width=1,
-                line_count=1,
-                ink_height=88,
-            ),
-            88,
-        )
