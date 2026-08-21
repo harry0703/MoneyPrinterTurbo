@@ -172,6 +172,7 @@
     "Rounded Subtitle Background Help": "По умолчанию выключено. Если включить, фон субтитров будет скругленным и подстроится под ширину текста.",
     "Subtitle Colors Are Indistinguishable": "Текст и фон одного цвета, поэтому субтитры могут быть не видны.",
     "Subtitle Font Does Not Support Text": "Выбранный шрифт не поддерживает некоторые символы сценария, поэтому субтитры могут отсутствовать.",
+    "Subtitle Text Shaping Unavailable": "Субтитры с письмом справа налево, например арабские, требуют движка компоновки текста Raqm, которого здесь нет, поэтому буквы не будут соединяться, а порядок слов окажется обратным. Установите libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm).",
     "Restore Default Subtitle Settings": "Сбросить субтитры",
     "Default Subtitle Settings Restored": "Настройки субтитров восстановлены",
     "Generate Video": "Создать видео",

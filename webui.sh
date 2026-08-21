@@ -16,6 +16,23 @@ export PYTHONPATH="$CURRENT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 MPT_WEBUI_HOST="${MPT_WEBUI_HOST:-127.0.0.1}"
 MPT_WEBUI_PORT="${MPT_WEBUI_PORT:-8501}"
 
+# macOS 上 Pillow 在运行时 dlopen libraqm/libfribidi，但 Homebrew 的动态库目录
+# 不在默认搜索路径里，Pillow 会直接报告 raqm=False，阿拉伯语等从右到左的字幕
+# 就不会连写、词序也会颠倒。这里在检测到 Homebrew 已安装相关动态库时补上
+# DYLD_LIBRARY_PATH，Intel 与 Apple Silicon 的默认前缀都会尝试。
+if [ "$(uname -s)" = "Darwin" ]; then
+  for MPT_BREW_LIB in "$(brew --prefix 2>/dev/null)/lib" /opt/homebrew/lib /usr/local/lib; do
+    if [ -e "$MPT_BREW_LIB/libraqm.dylib" ] || [ -e "$MPT_BREW_LIB/libfribidi.dylib" ]; then
+      case ":${DYLD_LIBRARY_PATH:-}:" in
+        *":$MPT_BREW_LIB:"*) ;;
+        *) export DYLD_LIBRARY_PATH="$MPT_BREW_LIB${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}" ;;
+      esac
+      break
+    fi
+  done
+  unset MPT_BREW_LIB
+fi
+
 if [ -x "$CURRENT_DIR/.venv/bin/python" ]; then
   PORT_CHECK_CMD="$CURRENT_DIR/.venv/bin/python"
   set -- "$CURRENT_DIR/.venv/bin/python" -m streamlit

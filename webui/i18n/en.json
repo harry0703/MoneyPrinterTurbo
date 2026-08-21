@@ -185,6 +185,7 @@
     "Rounded Subtitle Background Help": "Disabled by default. When enabled, subtitle backgrounds use a rounded translucent style that better fits the text width.",
     "Subtitle Colors Are Indistinguishable": "Subtitle text and background use the same color, so subtitles may not be visible.",
     "Subtitle Font Does Not Support Text": "The selected subtitle font does not support some script characters, so subtitles may be missing.",
+    "Subtitle Text Shaping Unavailable": "Right-to-left subtitles such as Arabic need the Raqm text layout engine, which is missing here, so letters will not be joined and word order will be reversed. Install libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm).",
     "Restore Default Subtitle Settings": "Restore Subtitle Defaults",
     "Default Subtitle Settings Restored": "Default subtitle settings restored",
     "Generate Video": "Generate Video",
