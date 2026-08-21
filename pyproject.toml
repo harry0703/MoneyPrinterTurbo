@@ -53,7 +53,6 @@ pixabay-bypass = [
 [dependency-groups]
 dev = [
     "coverage==7.15.1",
-    "curl_cffi==0.16.0",
     "pytest==9.1.1",
     "ruff==0.15.21",
 ]

@@ -1567,7 +1567,6 @@ twelvelabs = [
 [package.dev-dependencies]
 dev = [
     { name = "coverage" },
-    { name = "curl-cffi" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -1603,7 +1602,6 @@ provides-extras = ["twelvelabs", "pixabay-bypass"]
 [package.metadata.requires-dev]
 dev = [
     { name = "coverage", specifier = "==7.15.1" },
-    { name = "curl-cffi", specifier = "==0.16.0" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "ruff", specifier = "==0.15.21" },
 ]

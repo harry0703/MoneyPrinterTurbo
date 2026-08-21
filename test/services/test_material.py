@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import requests
 
@@ -132,11 +132,11 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
         with patch(
             "app.services.material.requests.get", return_value=fake_response
-        ) as plain_get, patch("curl_cffi.requests.get") as impersonated_get:
+        ) as plain_get, patch("app.services.material._get_cf_requests") as get_cf_requests:
             material.search_videos_pixabay("cat", minimum_duration=1)
 
         plain_get.assert_called_once()
-        impersonated_get.assert_not_called()
+        get_cf_requests.assert_not_called()
 
     def test_search_pixabay_bypass_cloudflare_uses_browser_impersonation_when_enabled(
         self,
@@ -156,14 +156,16 @@ class TestMaterialTlsVerification(unittest.TestCase):
             json=lambda: {"hits": []},
         )
 
+        fake_cf_requests = SimpleNamespace(get=MagicMock(return_value=fake_response))
+
         with patch("app.services.material.requests.get") as plain_get, patch(
-            "curl_cffi.requests.get", return_value=fake_response
-        ) as impersonated_get:
+            "app.services.material._get_cf_requests", return_value=fake_cf_requests
+        ):
             material.search_videos_pixabay("cat", minimum_duration=1)
 
         plain_get.assert_not_called()
-        impersonated_get.assert_called_once()
-        self.assertEqual(impersonated_get.call_args.kwargs["impersonate"], "chrome")
+        fake_cf_requests.get.assert_called_once()
+        self.assertEqual(fake_cf_requests.get.call_args.kwargs["impersonate"], "chrome")
 
     def test_search_pixabay_bypass_cloudflare_reports_missing_optional_dependency(self):
         """
