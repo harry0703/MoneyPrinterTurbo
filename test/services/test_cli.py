@@ -842,6 +842,157 @@ class TestCliUiDefaults(unittest.TestCase):
 
         self.assertEqual(params.text_background_color, "#654321")
 
+    def test_ui_config_supplies_voice_and_stroke_defaults(self):
+        """配音音量、语速、描边和字幕开关同样保存在 [ui] 中，需要一并沿用。"""
+        ui_config = {
+            "voice_volume": 0.5,
+            "voice_rate": 1.3,
+            "stroke_color": "#112233",
+            "stroke_width": 2.5,
+            "subtitle_enabled": False,
+        }
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_volume, 0.5)
+        self.assertEqual(params.voice_rate, 1.3)
+        self.assertEqual(params.stroke_color, "#112233")
+        self.assertEqual(params.stroke_width, 2.5)
+        self.assertFalse(params.subtitle_enabled)
+
+    def test_cli_flags_take_precedence_over_saved_voice_and_stroke(self):
+        """命令行显式传入的值优先于这些保存值。"""
+        ui_config = {
+            "voice_volume": 0.5,
+            "voice_rate": 1.3,
+            "stroke_color": "#112233",
+            "stroke_width": 2.5,
+            "subtitle_enabled": False,
+        }
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--voice-volume",
+                "0.9",
+                "--voice-rate",
+                "1.1",
+                "--stroke-color",
+                "#AABBCC",
+                "--stroke-width",
+                "3.5",
+                "--subtitle-enabled",
+            ]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_volume, 0.9)
+        self.assertEqual(params.voice_rate, 1.1)
+        self.assertEqual(params.stroke_color, "#AABBCC")
+        self.assertEqual(params.stroke_width, 3.5)
+        self.assertTrue(params.subtitle_enabled)
+
+    def test_saved_integers_are_accepted_for_float_fields(self):
+        """TOML 中的整数同样是合法音量和语速，应转换后使用而不是丢弃。"""
+        ui_config = {"voice_volume": 1, "voice_rate": 2, "stroke_width": 3}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_volume, 1.0)
+        self.assertEqual(params.voice_rate, 2.0)
+        self.assertEqual(params.stroke_width, 3.0)
+
+    def test_saved_values_out_of_range_fall_back_to_builtin_defaults(self):
+        """
+        保存值按与命令行相同的规则校验：音量不可为负、语速必须为正、
+        颜色必须是 #RRGGBB。不合法的值回退到内置默认值。
+        """
+        ui_config = {
+            "voice_volume": -1.0,
+            "voice_rate": 0,
+            "stroke_color": "notacolor",
+            "stroke_width": -2.0,
+            "font_size": 0,
+        }
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_volume, 1.0)
+        self.assertEqual(params.voice_rate, 1.0)
+        self.assertEqual(params.stroke_color, "#000000")
+        self.assertEqual(params.stroke_width, 1.5)
+        self.assertEqual(params.font_size, 60)
+
+    def test_stop_at_subtitle_overrides_saved_subtitle_disabled(self):
+        """
+        `--stop-at subtitle` 明确要求生成字幕。保存的关闭状态不应让该阶段
+        变成空操作，也不应像显式 --no-subtitle-enabled 那样报参数错误。
+        """
+        ui_config = {"subtitle_enabled": False}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--stop-at", "subtitle"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertTrue(params.subtitle_enabled)
+
+    def test_explicit_no_subtitle_still_rejects_stop_at_subtitle(self):
+        """显式关闭字幕与 `--stop-at subtitle` 组合仍然是参数错误。"""
+        with self.assertRaises(SystemExit) as cm:
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--stop-at",
+                    "subtitle",
+                    "--no-subtitle-enabled",
+                ]
+            )
+
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_saved_subtitle_position_is_validated_and_applied(self):
+        """
+        字幕位置此前只依赖 VideoParams 的字段默认值，该默认值在模块导入时
+        求值一次，既无法校验也无法在测试中替换。现在与其它字段一样显式解析。
+        """
+        ui_config = {"subtitle_position": "custom", "custom_position": 42.5}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.subtitle_position, "custom")
+        self.assertEqual(params.custom_position, 42.5)
+
+    def test_unusable_saved_subtitle_position_falls_back(self):
+        """超出取值范围的保存位置回退到内置默认值。"""
+        ui_config = {"subtitle_position": "diagonal", "custom_position": 150.0}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.subtitle_position, "bottom")
+        self.assertEqual(params.custom_position, 70.0)
+
 
 if __name__ == "__main__":
     unittest.main()
