@@ -396,6 +396,14 @@ model_id = "chatterbox"
 # Voice names exposed by the configured Chatterbox server.
 voices = ["default-Female"]
 
+[fish_audio]
+# Fish Audio TTS service: https://fish.audio
+# API key: https://fish.audio/app/developers
+# You can also set the FISH_API_KEY environment variable.
+api_key = ""
+# Available models: "s2.1-pro-free" (free developer tier), "s2.1-pro", "s2-pro"
+model = "s2.1-pro-free"
+
 # =============================================================================
 # WebUI Preferences / WebUI 偏好
 # =============================================================================

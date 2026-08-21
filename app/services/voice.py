@@ -221,6 +221,15 @@ def get_chatterbox_voices() -> list[str]:
     return result
 
 
+def get_fish_audio_voices() -> list[str]:
+    """获取 Fish Audio 预置声音与模型列表。"""
+    return [
+        "fish_audio:s2.1-pro-free:Free-Developer",
+        "fish_audio:s2.1-pro:Pro-Voice",
+        "fish_audio:s2-pro:Pro-Voice",
+    ]
+
+
 _AZURE_VOICES_DATA_FILE = os.path.join(
     os.path.dirname(__file__), "data", "azure_voices.json"
 )
@@ -311,6 +320,15 @@ def get_elevenlabs_api_key() -> str:
 
 def is_chatterbox_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("chatterbox:")
+
+
+def is_fish_audio_voice(voice_name: str) -> bool:
+    return (voice_name or "").startswith("fish_audio:")
+
+
+def get_fish_audio_api_key() -> str:
+    configured_key = str(config.fish_audio.get("api_key", "") if hasattr(config, "fish_audio") and isinstance(config.fish_audio, dict) else "").strip()
+    return configured_key or os.getenv("FISH_API_KEY", "").strip()
 
 
 def is_no_voice(voice_name: str | None) -> bool:
@@ -503,6 +521,10 @@ def tts(
         else:
             logger.error(f"Invalid chatterbox voice name format: {voice_name}")
             return None
+    elif is_fish_audio_voice(voice_name):
+        parts = voice_name.split(":")
+        model_name = parts[1] if len(parts) >= 2 else "s2.1-pro-free"
+        return fish_audio_tts(text, model_name, voice_file, voice_rate, voice_volume)
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
@@ -1738,6 +1760,75 @@ def chatterbox_tts(
             )
         except Exception as e:
             logger.error(f"chatterbox tts failed: {str(e)}")
+
+    return None
+
+
+def fish_audio_tts(
+    text: str,
+    model_name: str,
+    voice_file: str,
+    voice_rate: float = 1.0,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """Generate speech using Fish Audio TTS API."""
+    text = (text or "").strip()
+    if not text:
+        logger.error("Fish Audio TTS text is empty")
+        return None
+
+    api_key = get_fish_audio_api_key()
+    if not api_key:
+        logger.error(
+            "Fish Audio API key is not set. Please set it in config.toml [fish_audio] or FISH_API_KEY environment variable."
+        )
+        return None
+
+    url = "https://api.fish.audio/v1/tts"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "model": model_name or "s2.1-pro-free",
+    }
+    payload = {
+        "text": text,
+        "format": "mp3",
+    }
+
+    for i in range(3):
+        try:
+            logger.info(f"start fish audio tts, model: {model_name}, try: {i + 1}")
+            ensure_file_path_exists(voice_file)
+
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            if response.status_code != 200:
+                if response.status_code == 402:
+                    logger.error(
+                        "Fish Audio TTS failed: Insufficient API credit (402). "
+                        "Please use model 's2.1-pro-free' or visit https://fish.audio/app/developers to add funds."
+                    )
+                    return None
+                logger.error(
+                    f"fish audio tts failed with status {response.status_code}: {response.text[:200]}"
+                )
+                continue
+
+            with open(voice_file, "wb") as f:
+                f.write(response.content)
+
+            audio_clip = AudioFileClip(voice_file)
+            audio_duration = audio_clip.duration
+            audio_clip.close()
+
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            logger.success(f"fish audio tts succeeded: {voice_file}")
+            return populate_legacy_submaker_with_full_text(
+                sub_maker=sub_maker,
+                text=text,
+                audio_duration_seconds=audio_duration,
+            )
+        except Exception as e:
+            logger.error(f"fish audio tts failed: {str(e)}")
 
     return None
 
