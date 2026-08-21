@@ -398,6 +398,8 @@ class TaskListResponse(BaseResponse):
 
 
 class TaskDeletionResponse(BaseResponse):
+    data: None = None
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
