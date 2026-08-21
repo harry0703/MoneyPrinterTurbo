@@ -167,10 +167,27 @@ CREDENTIAL_KEY_SUFFIXES = (
     "secret_key",
     "speech_key",
 )
-# 只恢复密钥而不恢复配套配置项时，凭据仍然不可用：Azure 语音必须同时知道
-# 区域。这些配套项与密钥一起备份。
+# 只恢复密钥而不恢复配套配置项时，凭据仍然不可用。这些配套项与密钥一起备份。
 CREDENTIAL_COMPANION_KEYS = {
+    # Azure 语音必须同时知道区域。
     "azure": ("speech_region",),
+    # Provider 的额外字段由 Registry 声明，例如 Cloudflare AI Gateway 的
+    # Account ID 和 Gateway ID。只恢复 API Key 而丢掉这些字段时，换到另一台
+    # 机器后该 Provider 仍然无法调用。从 Registry 读取可以让以后新增的
+    # Provider 自动进入备份，不需要在这里维护第二份字段清单。
+    "app": tuple(
+        provider.config_key(field.config_suffix)
+        for provider in LLM_PROVIDER_REGISTRY
+        for field in provider.extra_fields
+    ),
+}
+# 同一个密钥在不同面板可能使用各自的控件 key：音频面板直接编辑 Gemini 和
+# MiMo 的 LLM 密钥，胜算云密钥的控件没有 _input 后缀。恢复备份时必须清除
+# 每一个别名，否则遗留的旧值会在下一次 rerun 覆盖刚刚恢复的密钥。
+CREDENTIAL_WIDGET_STATE_ALIASES = {
+    ("app", "gemini_api_key"): ("gemini_tts_api_key_input",),
+    ("app", "mimo_api_key"): ("mimo_tts_api_key_input",),
+    ("app", "loomloom_api_token"): ("loomloom_user_api_token",),
 }
 # ui 分区只保存界面偏好，不含任何凭据，备份时整体跳过。
 KEY_BACKUP_EXCLUDED_SECTIONS = frozenset({"ui"})
@@ -2182,17 +2199,23 @@ def _is_backup_config_key(section_name, key):
     return key in CREDENTIAL_COMPANION_KEYS.get(section_name, ())
 
 
-def _credential_widget_state_key(section_name, key):
+def _credential_widget_state_keys(section_name, key):
     """
-    返回某个凭据配置项对应的 Streamlit 控件 key。
+    返回某个凭据配置项对应的全部 Streamlit 控件 key。
 
     密码输入框都带 key，Streamlit 中 session_state 的值优先于控件的 value
     参数。恢复备份后必须清除这些残留控件状态，否则页面会继续显示旧密钥，
-    并在下一次 rerun 把旧值重新写回配置，让恢复看起来没有生效。
+    并在下一次 rerun 把旧值重新写回配置，让恢复看起来没有生效。多个面板
+    共用同一个密钥时会各自持有控件状态，因此返回默认 key 和全部别名。
     """
     if section_name == "app":
-        return f"{key}_input"
-    return f"{section_name}_{key}_input"
+        default_widget_key = f"{key}_input"
+    else:
+        default_widget_key = f"{section_name}_{key}_input"
+    return (
+        default_widget_key,
+        *CREDENTIAL_WIDGET_STATE_ALIASES.get((section_name, key), ()),
+    )
 
 
 def _normalize_backup_value(value):
@@ -2341,7 +2364,8 @@ def _apply_key_backup(restored_keys):
     for section_name, entries in restored_keys.items():
         for key, value in entries.items():
             _set_runtime_config(section_name, key, value)
-            st.session_state.pop(_credential_widget_state_key(section_name, key), None)
+            for widget_key in _credential_widget_state_keys(section_name, key):
+                st.session_state.pop(widget_key, None)
             restored_count += 1
     # ElevenLabs 音色列表按密钥缓存，换用另一份备份后必须重新拉取。
     for cache_key in list(st.session_state.keys()):

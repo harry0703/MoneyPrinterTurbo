@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
 from app.models.schema import VideoParams
 
 
@@ -12,7 +13,8 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 SETTINGS_TRANSFER_HELPERS = {
     "_is_credential_config_key",
     "_is_backup_config_key",
-    "_credential_widget_state_key",
+    "_credential_widget_state_keys",
+    "_apply_key_backup",
     "_normalize_backup_value",
     "_collect_key_backup",
     "_count_backup_keys",
@@ -32,8 +34,23 @@ SETTINGS_TRANSFER_CONSTANTS = {
     "PRESET_EXCLUDED_PARAM_KEYS",
     "CREDENTIAL_KEY_SUFFIXES",
     "CREDENTIAL_COMPANION_KEYS",
+    "CREDENTIAL_WIDGET_STATE_ALIASES",
     "KEY_BACKUP_EXCLUDED_SECTIONS",
 }
+
+
+class _FakeStreamlit:
+    """只提供 _apply_key_backup 需要的 session_state 字典。"""
+
+    def __init__(self):
+        self.session_state = {}
+
+
+RUNTIME_CONFIG_UPDATES = []
+
+
+def _record_runtime_config(section_name, key, value):
+    RUNTIME_CONFIG_UPDATES.append((section_name, key, value))
 
 
 def _load_settings_transfer_helpers():
@@ -56,7 +73,15 @@ def _load_settings_transfer_helpers():
         ):
             selected_nodes.append(node)
 
-    namespace = {"json": json, "VideoParams": VideoParams}
+    namespace = {
+        "json": json,
+        "VideoParams": VideoParams,
+        "LLM_PROVIDER_REGISTRY": LLM_PROVIDER_REGISTRY,
+        # _apply_key_backup 写配置并清理控件状态，两者都由测试替身记录，
+        # 这样可以验证真实实现而不需要启动 Streamlit 会话。
+        "st": _FakeStreamlit(),
+        "_set_runtime_config": _record_runtime_config,
+    }
     module = ast.fix_missing_locations(ast.Module(body=selected_nodes, type_ignores=[]))
     exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
     return namespace
@@ -69,7 +94,9 @@ build_key_backup_payload = NAMESPACE["_build_key_backup_payload"]
 collect_key_backup = NAMESPACE["_collect_key_backup"]
 count_backup_keys = NAMESPACE["_count_backup_keys"]
 parse_key_backup = NAMESPACE["_parse_key_backup"]
-credential_widget_state_key = NAMESPACE["_credential_widget_state_key"]
+credential_widget_state_keys = NAMESPACE["_credential_widget_state_keys"]
+apply_key_backup = NAMESPACE["_apply_key_backup"]
+FAKE_STREAMLIT = NAMESPACE["st"]
 is_credential_config_key = NAMESPACE["_is_credential_config_key"]
 SETTINGS_PRESET_SCHEMA = NAMESPACE["SETTINGS_PRESET_SCHEMA"]
 SETTINGS_PRESET_VERSION = NAMESPACE["SETTINGS_PRESET_VERSION"]
@@ -88,6 +115,9 @@ def _sample_config_sections():
             "openai_api_key": " sk-openai ",
             "coverr_api_keys": [],
             "gemini_api_key": "",
+            "cloudflare_api_key": "cf-key",
+            "cloudflare_account_id": "cf-account",
+            "cloudflare_gateway_id": "cf-gateway",
             "video_language": "en-US",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
@@ -183,11 +213,49 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
         "app": {
             "pexels_api_keys": ["pexels-1", "pexels-2"],
             "openai_api_key": "sk-openai",
+            "cloudflare_api_key": "cf-key",
+            "cloudflare_account_id": "cf-account",
+            "cloudflare_gateway_id": "cf-gateway",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key"},
     }
-    assert count_backup_keys(backup) == 5
+    assert count_backup_keys(backup) == 8
+
+
+def test_key_backup_carries_llm_provider_extra_fields_with_the_key():
+    """
+    Cloudflare AI Gateway 的 Key 单独恢复没有意义，必须带上网关标识。
+
+    额外字段从 Provider Registry 读取，因此以后新增的 Provider 字段也会
+    自动进入备份。
+    """
+    cloudflare = get_llm_provider("cloudflare")
+    extra_config_keys = [
+        cloudflare.config_key(field.config_suffix) for field in cloudflare.extra_fields
+    ]
+    assert extra_config_keys == ["cloudflare_account_id", "cloudflare_gateway_id"]
+
+    sections = _sample_config_sections()
+    restored = parse_key_backup(
+        _encode(build_key_backup_payload(sections, "1.3.4")), sections
+    )
+
+    assert restored["app"]["cloudflare_api_key"] == "cf-key"
+    assert restored["app"]["cloudflare_account_id"] == "cf-account"
+    assert restored["app"]["cloudflare_gateway_id"] == "cf-gateway"
+
+
+def test_key_backup_companion_keys_stay_in_sync_with_the_provider_registry():
+    companion_app_keys = set(NAMESPACE["CREDENTIAL_COMPANION_KEYS"]["app"])
+    registry_extra_keys = {
+        provider.config_key(field.config_suffix)
+        for provider in LLM_PROVIDER_REGISTRY
+        for field in provider.extra_fields
+    }
+
+    assert companion_app_keys == registry_extra_keys
+    assert registry_extra_keys
 
 
 def test_key_backup_skips_interface_preferences_section():
@@ -242,19 +310,70 @@ def test_key_backup_import_tolerates_utf8_bom_written_by_windows_editors():
     assert restored["azure"]["speech_key"] == "azure-key"
 
 
-def test_credential_widget_state_key_matches_settings_inputs():
-    assert credential_widget_state_key("app", "pexels_api_keys") == (
-        "pexels_api_keys_input"
+def test_credential_widget_state_keys_match_settings_inputs():
+    assert credential_widget_state_keys("app", "pexels_api_keys") == (
+        "pexels_api_keys_input",
     )
-    assert credential_widget_state_key("app", "openai_api_key") == (
-        "openai_api_key_input"
+    assert credential_widget_state_keys("app", "openai_api_key") == (
+        "openai_api_key_input",
     )
-    assert credential_widget_state_key("azure", "speech_key") == (
-        "azure_speech_key_input"
+    assert credential_widget_state_keys("azure", "speech_key") == (
+        "azure_speech_key_input",
     )
-    assert credential_widget_state_key("minimax_tts", "api_key") == (
-        "minimax_tts_api_key_input"
+    assert credential_widget_state_keys("minimax_tts", "api_key") == (
+        "minimax_tts_api_key_input",
     )
+
+
+def test_credential_widget_state_keys_cover_shared_input_aliases():
+    """音频面板为同一份密钥提供了第二个输入框，别名必须一起返回。"""
+    assert credential_widget_state_keys("app", "gemini_api_key") == (
+        "gemini_api_key_input",
+        "gemini_tts_api_key_input",
+    )
+    assert credential_widget_state_keys("app", "mimo_api_key") == (
+        "mimo_api_key_input",
+        "mimo_tts_api_key_input",
+    )
+    assert credential_widget_state_keys("app", "loomloom_api_token") == (
+        "loomloom_api_token_input",
+        "loomloom_user_api_token",
+    )
+
+
+def test_apply_key_backup_writes_config_and_clears_every_widget_alias():
+    RUNTIME_CONFIG_UPDATES.clear()
+    FAKE_STREAMLIT.session_state.clear()
+    FAKE_STREAMLIT.session_state.update(
+        {
+            "gemini_api_key_input": "stale-gemini",
+            "gemini_tts_api_key_input": "stale-gemini",
+            "loomloom_user_api_token": "stale-loomloom",
+            "azure_speech_key_input": "stale-azure",
+            "elevenlabs_voices_stale-key": ["old voice"],
+            "video_subject": "untouched",
+        }
+    )
+
+    restored_count = apply_key_backup(
+        {
+            "app": {
+                "gemini_api_key": "new-gemini",
+                "loomloom_api_token": "new-loomloom",
+            },
+            "azure": {"speech_key": "new-azure", "speech_region": "westeurope"},
+        }
+    )
+
+    assert restored_count == 4
+    assert sorted(RUNTIME_CONFIG_UPDATES) == [
+        ("app", "gemini_api_key", "new-gemini"),
+        ("app", "loomloom_api_token", "new-loomloom"),
+        ("azure", "speech_key", "new-azure"),
+        ("azure", "speech_region", "westeurope"),
+    ]
+    # 每一个别名控件状态都必须消失，否则旧密钥会在下一次 rerun 写回配置。
+    assert FAKE_STREAMLIT.session_state == {"video_subject": "untouched"}
 
 
 def test_credential_config_key_detection_covers_project_naming():
