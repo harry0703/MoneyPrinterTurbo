@@ -179,10 +179,10 @@ def get_ffmpeg_binary() -> str:
     return "ffmpeg"
 
 
-_FFMPEG_FAQ_HINT = (
-    "请参考 README.md 中的『常见问题』章节（RuntimeError: No ffmpeg exe could be found），"
-    "从 https://www.gyan.dev/ffmpeg/builds/ 下载 FFmpeg，解压后在 config.toml 中设置 "
-    "app.ffmpeg_path 为实际路径。"
+_FFMPEG_INSTALL_HINT = (
+    "Install FFmpeg on your system, or set app.ffmpeg_path in config.toml to "
+    "the full path of an ffmpeg executable (e.g. downloaded from "
+    "https://www.gyan.dev/ffmpeg/builds/)."
 )
 
 
@@ -195,7 +195,7 @@ def check_ffmpeg_ready(timeout: int = 10) -> bool:
     ``RuntimeError: No ffmpeg exe could be found`` 或 subprocess 报错的形式
     出现，用户往往要等到任务跑了大半才第一次看到这个报错，且报错本身
     不会指向任何解决办法。这里在服务/命令行启动时主动做一次探测，
-    尽早给出与 README FAQ 一致的、可操作的中文提示。
+    尽早给出可操作的英文提示（与项目里其他 logger.warning 的用语习惯保持一致）。
 
     仅做一次轻量的 ``-version`` 调用，不下载、不阻塞主流程；
     调用方应把返回值当作"是否已确认可用"的提示，而不是强制退出条件——
@@ -211,24 +211,24 @@ def check_ffmpeg_ready(timeout: int = 10) -> bool:
         )
     except FileNotFoundError:
         logger.warning(
-            f"未能找到可用的 FFmpeg 可执行文件（尝试路径：{ffmpeg_bin}）。\n"
-            f"{_FFMPEG_FAQ_HINT}"
+            f"no usable ffmpeg executable found (tried: {ffmpeg_bin}). "
+            f"{_FFMPEG_INSTALL_HINT}"
         )
         return False
     except Exception as exc:
         logger.warning(
-            f"探测 FFmpeg（{ffmpeg_bin}）是否可用时出错：{exc}\n{_FFMPEG_FAQ_HINT}"
+            f"failed to probe ffmpeg ({ffmpeg_bin}): {exc}. {_FFMPEG_INSTALL_HINT}"
         )
         return False
 
     if completed.returncode != 0:
         logger.warning(
-            f"FFmpeg（{ffmpeg_bin}）探测调用返回非零状态码 {completed.returncode}，"
-            f"后续视频生成可能会失败。\n{_FFMPEG_FAQ_HINT}"
+            f"ffmpeg ({ffmpeg_bin}) probe exited with status {completed.returncode}; "
+            f"video generation may fail later. {_FFMPEG_INSTALL_HINT}"
         )
         return False
 
-    logger.info(f"FFmpeg 检测通过，将使用：{ffmpeg_bin}")
+    logger.info(f"ffmpeg check passed, using: {ffmpeg_bin}")
     return True
 
 
