@@ -6,7 +6,6 @@ import gc
 import subprocess
 import sys
 import tempfile
-import threading
 import unicodedata
 from contextlib import ExitStack, redirect_stdout
 from functools import lru_cache
@@ -24,7 +23,6 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from moviepy.video.io import ffmpeg_writer as moviepy_ffmpeg_writer
 from PIL import Image, ImageDraw, ImageFont
 
 from app.config import config
@@ -94,7 +92,6 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_videotoolbox",
 )
 _runtime_disabled_video_codecs = set()
-_moviepy_writer_lock = threading.RLock()
 
 
 def _get_required_video_duration(audio_duration: float) -> float:
@@ -263,37 +260,40 @@ def _get_vaapi_device() -> str:
     ).strip()
 
 
-def _moviepy_write_kwargs(codec: str, kwargs: dict) -> dict:
-    """Add the pixel conversion and GPU upload required by VA-API."""
-    prepared = dict(kwargs)
-    if codec == _VAAPI_VIDEO_CODEC:
-        prepared["ffmpeg_params"] = [
-            *list(prepared.get("ffmpeg_params") or []),
-            "-vaapi_device",
-            _get_vaapi_device(),
-            "-vf",
-            "format=nv12,hwupload",
-        ]
-    return prepared
-
-
 def _write_moviepy_clip(clip, output_file: str, codec: str, **kwargs):
-    """Write through system FFmpeg for VA-API and MoviePy's default otherwise."""
-    prepared = _moviepy_write_kwargs(codec, kwargs)
+    """Write a clip without changing MoviePy's process-wide FFmpeg state."""
     if codec != _VAAPI_VIDEO_CODEC:
-        clip.write_videofile(output_file, codec=codec, **prepared)
+        clip.write_videofile(output_file, codec=codec, **kwargs)
         return
 
-    # MoviePy's imageio FFmpeg bundle often omits VA-API. Its writer keeps the
-    # executable in a module global, so serialize the temporary system-binary
-    # swap to keep concurrent writers deterministic.
-    with _moviepy_writer_lock:
-        original_ffmpeg = moviepy_ffmpeg_writer.FFMPEG_BINARY
-        moviepy_ffmpeg_writer.FFMPEG_BINARY = utils.get_ffmpeg_binary()
+    # MoviePy does not expose an FFmpeg executable per writer. Render a unique
+    # software intermediate, then let the configured system FFmpeg perform the
+    # VA-API transcode. Concurrent writers therefore share no mutable state.
+    output_path = os.path.abspath(output_file)
+    output_dir = os.path.dirname(output_path) or "."
+    os.makedirs(output_dir, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile(
+        prefix="mpt-vaapi-input-", suffix=".mp4", dir=output_dir, delete=False
+    )
+    intermediate = handle.name
+    handle.close()
+    try:
+        software_kwargs = dict(kwargs)
+        software_kwargs.pop("ffmpeg_params", None)
+        clip.write_videofile(intermediate, codec=_DEFAULT_VIDEO_CODEC, **software_kwargs)
+        command = [
+            utils.get_ffmpeg_binary(), "-y", "-hide_banner", "-loglevel", "error",
+            "-vaapi_device", _get_vaapi_device(), "-i", intermediate,
+            "-map", "0:v:0", "-map", "0:a?", "-vf", "format=nv12,hwupload",
+            "-c:v", _VAAPI_VIDEO_CODEC, "-c:a", "copy", "-movflags", "+faststart",
+            output_path,
+        ]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    finally:
         try:
-            clip.write_videofile(output_file, codec=codec, **prepared)
-        finally:
-            moviepy_ffmpeg_writer.FFMPEG_BINARY = original_ffmpeg
+            os.unlink(intermediate)
+        except FileNotFoundError:
+            pass
 
 
 def _disable_runtime_video_codec(codec: str, reason: str):

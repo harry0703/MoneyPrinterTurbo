@@ -1,0 +1,12 @@
+FROM ghcr.io/harry0703/moneyprinterturbo:latest
+
+USER root
+
+# Debian Bullseye packages for Intel i965/iHD and Mesa VA-API devices.
+RUN sed -i 's/ main$/ main contrib non-free/' /etc/apt/sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
+      vainfo \
+      i965-va-driver \
+      intel-media-va-driver-non-free \
+      mesa-va-drivers && \
+    rm -rf /var/lib/apt/lists/*

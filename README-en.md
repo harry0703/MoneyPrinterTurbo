@@ -261,6 +261,26 @@ docker compose -f docker-compose.release.yml up
 > If you need to build the image locally, you can still run `docker compose up`.
 > Before the first start, copy `config.example.toml` to `config.toml` so it can be mounted into the containers.
 
+#### Linux VA-API H.264 in Docker (optional)
+
+VA-API requires a Linux host with a working `/dev/dri` render node. Confirm the
+host first with `ls -l /dev/dri` and `vainfo`. Then set `video_codec =
+"h264_vaapi"` in `config.toml` and start the supplied override:
+
+```shell
+docker compose -f docker-compose.release.yml -f docker-compose.vaapi.yml up -d --build
+docker compose -f docker-compose.release.yml -f docker-compose.vaapi.yml exec webui vainfo --display drm --device /dev/dri/renderD128
+docker compose -f docker-compose.release.yml -f docker-compose.vaapi.yml exec webui ffmpeg -hide_banner -encoders | grep h264_vaapi
+```
+
+The override exposes `/dev/dri` to both the WebUI and API containers and adds
+the common Intel and Mesa VA-API drivers. Set `VAAPI_DEVICE` if the host uses a
+different render node. If `vainfo` reports a permission error, grant the Docker
+runtime user access to the host's `video`/`render` group or use equivalent
+device permissions. MPT logs a warning and falls back to `libx264` when the
+encoder or device is unavailable; the two verification commands above prevent
+that fallback from being mistaken for hardware encoding.
+
 #### ② Access the WebUI
 
 Open your browser and visit http://127.0.0.1:8501
