@@ -16,7 +16,7 @@ from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.v1 import video as video_controller
 from app.models import const
 from app.models.exception import HttpException
-from app.models.schema import TaskListResponse, TaskQueryResponse
+from app.models.schema import TaskDeletionResponse, TaskListResponse, TaskQueryResponse
 from app.services import state as sm
 from app.utils import utils
 
@@ -280,6 +280,14 @@ class TestVideoControllerTasks(unittest.TestCase):
         list_schema = TaskListResponse.model_json_schema()
         self.assertIn("TaskListData", list_schema["$defs"])
         self.assertIn("TaskStatusData", list_schema["$defs"])
+
+    def test_task_deletion_schema_defines_null_data_contract(self):
+        """TaskDeletionResponse 的 OpenAPI 架构必须将 data 显式声明为 null 类型。"""
+        schema = TaskDeletionResponse.model_json_schema()
+        data_property = schema["properties"]["data"]
+
+        self.assertEqual(data_property.get("type"), "null")
+        self.assertIsNone(data_property.get("default"))
 
     def test_delete_rejects_generation_and_cross_posting_tasks(self):
         """生成中和发布中的任务都在读取目录，删除接口必须返回 409。"""
