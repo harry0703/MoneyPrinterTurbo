@@ -583,6 +583,7 @@ def get_video_materials(
     video_terms,
     audio_duration,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+    video_script: str = "",
 ):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
@@ -597,6 +598,33 @@ def get_video_materials(
             )
             return None
         return [material_info.url for material_info in materials]
+    elif params.video_source == "ai_image":
+        logger.info("\n\n## generating AI images for videos")
+        generated_videos = material.generate_ai_images(
+            task_id=task_id,
+            prompt=video_terms,
+            count_per_prompt=1,  # we will make this configurable in the future
+            video_aspect=params.video_aspect,
+            video_concat_mode=(
+                VideoConcatMode.sequential
+                if params.match_materials_to_script
+                else params.video_concat_mode
+            ),
+            max_clip_duration=params.video_clip_duration,
+            audio_duration=audio_duration * params.video_count,
+            enhance_prompt=params.enhance_prompt or False,
+            video_script=video_script or params.video_script,
+        )
+        if not generated_videos:
+            image_provider = config.app.get("image_provider", "openai")
+            _mark_task_failed(
+                task_id,
+                "materials",
+                f"failed to generate AI images, please check your '{image_provider}' "
+                "image provider settings and network connection.",
+            )
+            return None
+        return generated_videos
     elif params.video_source == "loomloom":
         if not isinstance(
             loomloom_video_request, loomloom.LoomLoomConfirmedVideoRequest
@@ -1298,6 +1326,7 @@ def _run_pipeline(
         video_terms,
         audio_duration,
         loomloom_video_request=loomloom_video_request,
+        video_script=video_script,
     )
     if not downloaded_videos:
         return _mark_task_failed(

@@ -109,3 +109,4 @@ jobs:
           test/services/test_task_manager.py
           test/services/test_upload_post.py
           test/services/test_controller_video.py
+          test/services/test_material_ai_image.py

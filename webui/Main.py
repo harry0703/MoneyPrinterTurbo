@@ -52,6 +52,7 @@ from app.services import (
     webui_task,
 )
 from app.services import elevenlabs_music as elevenlabs_music_service
+from app.services import material as material_service
 from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
@@ -139,6 +140,13 @@ _RUNTIME_CONFIG_SECTIONS = {
     "minimax_tts": config.minimax_tts,
     "siliconflow": config.siliconflow,
     "ui": config.ui,
+}
+
+# Provider-specific wording for the missing-key error; which providers need a
+# key at all comes from material_service.image_provider_requirements.
+_IMAGE_PROVIDER_API_KEY_ERRORS = {
+    "openai": "Please Enter the OpenAI API Key",
+    "stability_ai": "Please Enter the Stability AI API Key",
 }
 
 
@@ -3242,6 +3250,7 @@ def _render_video_settings(panel, params):
                 (tr("Coverr"), "coverr"),
                 (tr("Shengsuan Cloud AI Video"), "loomloom"),
                 (tr("Local file"), "local"),
+                (tr("AI Image"), "ai_image"),
             ]
 
             saved_video_source_name = config.app.get("video_source", "pexels")
@@ -3270,6 +3279,130 @@ def _render_video_settings(panel, params):
                     accept_multiple_files=True,
                     key="local_video_materials_uploader",
                 )
+
+            if params.video_source == "ai_image":
+                st.write(tr("Image Generation Settings"))
+
+                saved_image_provider = material_service.normalize_image_provider(
+                    config.app.get("image_provider", "openai")
+                )
+                image_provider = stable_selectbox(
+                    tr("Image Provider"),
+                    options=list(material_service.IMAGE_PROVIDERS),
+                    default_value=saved_image_provider,
+                    key="image_provider_select",
+                    format_func=lambda value: material_service.IMAGE_PROVIDERS[value][
+                        "label"
+                    ],
+                )
+                _set_runtime_config("app", "image_provider", image_provider)
+
+                image_api_key = material_service.image_provider_setting(
+                    image_provider, "api_key"
+                )
+                image_base_url = material_service.image_provider_setting(
+                    image_provider, "base_url"
+                )
+                image_model_name = material_service.image_provider_setting(
+                    image_provider, "model_name"
+                ) or material_service.image_provider_default_model(image_provider)
+
+                tips = ""
+                if image_provider == "openai":
+                    tips = """
+                            ##### OpenAI DALL·E Configuration
+                            - **API Key**: Same as your OpenAI API key
+                            - **Base Url**: Leave empty
+                            - **Model Name**: dall-e-3 or dall-e-2
+                            """
+                if image_provider == "stability_ai":
+                    tips = """
+                            ##### Stability AI Configuration
+                            - **API Key**: [Get from Stability AI](https://platform.stability.ai/account/keys)
+                            - **Base Url**: Leave empty
+                            - **Model Name**: stable-diffusion-xl-1024-v1-0
+                            """
+                if image_provider == "pollinations":
+                    tips = """
+                            ##### Pollinations AI Configuration
+                            - **API Key**: Optional - Leave empty for public access
+                            - **Base Url**: Default is https://image.pollinations.ai/prompt/
+                            - **Model Name**: Leave as "default" unless you have a specific model
+                            """
+                if image_provider == "midjourney":
+                    tips = """
+                            ##### Midjourney Configuration
+                            Midjourney has no official API - use a proxy service that exposes an OpenAI-compatible images endpoint.
+                            - **API Key**: Key from your proxy service (if required)
+                            - **Base Url**: Required - your proxy's OpenAI-compatible endpoint
+                            - **Model Name**: As required by your proxy
+                            """
+                if image_provider == "other":
+                    tips = """
+                            ##### Custom Provider Configuration
+                            Any OpenAI-compatible images API (e.g. an API gateway).
+                            - **API Key**: If required by the endpoint
+                            - **Base Url**: Required - OpenAI-compatible images endpoint
+                            - **Model Name**: Model supported by the endpoint
+                            """
+                if tips:
+                    st.info(tips)
+
+                st_image_api_key = st.text_input(
+                    tr("Image API Key"), value=image_api_key, type="password"
+                )
+                st_image_base_url = st.text_input(
+                    tr("Image Base URL"), value=image_base_url
+                )
+                st_image_model_name = st.text_input(
+                    tr("Image Model Name"),
+                    value=image_model_name,
+                )
+
+                def set_image_setting(suffix: str, value: str) -> None:
+                    # Persist under the image namespace and drop the legacy keys so
+                    # they cannot resurrect a cleared value. Plain "openai_*" and
+                    # "pollinations_*" keys belong to the LLM panel — never touched.
+                    _set_runtime_config(
+                        "app", f"{image_provider}_image_{suffix}", value
+                    )
+                    if image_provider not in ("openai", "pollinations"):
+                        _delete_runtime_config("app", f"{image_provider}_{suffix}")
+                    if "_" in image_provider:
+                        spaced = image_provider.replace("_", " ")
+                        _delete_runtime_config("app", f"{spaced}_image_{suffix}")
+                        _delete_runtime_config("app", f"{spaced}_{suffix}")
+
+                set_image_setting("api_key", st_image_api_key)
+                set_image_setting("base_url", st_image_base_url)
+                set_image_setting("model_name", st_image_model_name)
+
+                params.enhance_prompt = st.checkbox(
+                    tr("Enhance AI image prompts using LLM"),
+                    help=tr(
+                        "Uses the selected LLM to enhance image prompts, creating more detailed and professional descriptions based on video script context."
+                    ),
+                    value=bool(config.app.get("enhance_prompt", False)),
+                )
+                _set_runtime_config("app", "enhance_prompt", params.enhance_prompt)
+                if params.enhance_prompt:
+                    llm_provider = config.app.get("llm_provider", "").lower()
+                    st.info(
+                        tr(
+                            "Prompt enhancement will use the selected LLM ({}) and may incur additional costs depending on the provider."
+                        ).format(llm_provider)
+                    )
+                    keyless_llm_providers = ("pollinations", "ollama", "litellm")
+                    if llm_provider not in keyless_llm_providers and not config.app.get(
+                        f"{llm_provider}_api_key", ""
+                    ):
+                        st.warning(
+                            tr(
+                                "API key for {} is required for prompt enhancement. Please configure it in the Settings panel."
+                            ).format(llm_provider)
+                        )
+            else:
+                params.enhance_prompt = False
 
             # 文案顺序匹配会从关键词生成到最终合成全程保持叙事顺序，因此开启时
             # 顺序拼接是唯一符合实际执行逻辑的选项。同步控件值可避免界面仍显示
@@ -5075,6 +5208,7 @@ def _render_generation_controls(
             "coverr",
             "loomloom",
             "local",
+            "ai_image",
         ]:
             _remove_active_generation_task(task_id)
             st.error(tr("Please Select a Valid Video Source"))
@@ -5100,6 +5234,35 @@ def _render_generation_controls(
             _remove_active_generation_task(task_id)
             st.error(tr("Please Enter the Coverr API Key"))
             st.stop()
+
+        if params.video_source == "ai_image":
+            image_provider = material_service.normalize_image_provider(
+                config.app.get("image_provider", "openai")
+            )
+            requirements = material_service.image_provider_requirements(image_provider)
+            if "api_key" in requirements:
+                image_api_key = material_service.image_provider_setting(
+                    image_provider, "api_key"
+                )
+                if image_provider == "openai":
+                    # The image panel intentionally falls back to the LLM panel key.
+                    image_api_key = image_api_key or config.app.get("openai_api_keys")
+                if not image_api_key:
+                    _remove_active_generation_task(task_id)
+                    st.error(
+                        tr(
+                            _IMAGE_PROVIDER_API_KEY_ERRORS.get(
+                                image_provider, "Image API Key"
+                            )
+                        )
+                    )
+                    st.stop()
+            if "base_url" in requirements and not material_service.image_provider_setting(
+                image_provider, "base_url"
+            ):
+                _remove_active_generation_task(task_id)
+                st.error(tr("Please Enter the Image Base URL for the selected provider"))
+                st.stop()
 
         loomloom_video_request = None
         if params.video_source == "loomloom":
