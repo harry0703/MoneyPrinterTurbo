@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import os
 import re
 import shutil
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 from uuid import UUID, uuid4
 
 from loguru import logger
@@ -30,6 +31,8 @@ UI_VOICE_MODE_UPLOAD = "upload"
 UI_VOICE_MODES_WITHOUT_TTS = frozenset({UI_VOICE_MODE_NONE, UI_VOICE_MODE_UPLOAD})
 _PIPELINE_STAGES = ("script", "terms", "audio", "subtitle", "materials", "video")
 _CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
+_BATCH_FILE_MAX_BYTES = 1024 * 1024
+_BATCH_TASK_MAX_COUNT = 100
 
 
 class _CliHelpFormatter(
@@ -172,6 +175,10 @@ Examples:
   Stop after script generation:
     uv run python cli.py --video-subject "How AI is changing everyday life" --stop-at script
 
+  Run a JSON array or JSONL manifest. CLI options provide defaults and each object
+  overrides VideoParams fields for one task:
+    uv run python cli.py --batch-file ./tasks.jsonl --stop-at script
+
 Pipeline stages:
   script     Generate or return the script.
   terms      Generate material search terms; unavailable with local materials.
@@ -183,8 +190,21 @@ Pipeline stages:
 
 Output and exit status:
   Task files are written to storage/tasks/<task-id>/. A successful command prints one
-  JSON object to stdout and exits with 0. Task failures exit with 1; argument errors
-  exit with 2. Runtime logs are written to stderr.
+  JSON object to stdout and exits with 0. Batch mode prints one JSON summary after all
+  tasks finish. Task failures exit with 1; argument or manifest errors exit with 2
+  before any batch task starts. Runtime logs are written to stderr.
+
+Batch manifests:
+  --batch-file accepts a UTF-8 JSON array or JSONL file with one object per non-empty
+  line (up to 100 tasks and 1 MiB). Objects may override VideoParams fields; unknown
+  fields are rejected. Every merged task needs video_subject or video_script.
+  The manifest path is relative to the current working directory. Relative
+  custom_audio_file and local video_materials[].url values declared in a manifest are
+  relative to the manifest directory. Relative paths supplied by CLI options remain
+  relative to the current working directory. bgm_file and font_name keep their managed
+  storage/resource lookup rules. --stop-at is a batch-wide CLI option. The summary has
+  total, succeeded, failed, and tasks keys; every task entry has index, task_id,
+  status, result, failed_stage, and error.
 """,
         formatter_class=_CliHelpFormatter,
     )
@@ -485,18 +505,32 @@ Output and exit status:
     )
 
     execution_group = parser.add_argument_group("execution")
-    execution_group.add_argument(
+    execution_mode = execution_group.add_mutually_exclusive_group()
+    execution_mode.add_argument(
         "--task-id",
         type=_task_id,
         default=None,
         help="custom UUID used for storage/tasks/<task-id>; generated automatically when omitted",
     )
+    execution_mode.add_argument(
+        "--batch-file",
+        default=None,
+        metavar="PATH",
+        help=(
+            "UTF-8 JSON array or JSONL task manifest; conflicts with --task-id and "
+            "generates a UUID for every task"
+        ),
+    )
     args = parser.parse_args(argv)
 
-    if not args.video_subject.strip() and not args.video_script.strip():
+    if (
+        not args.batch_file
+        and not args.video_subject.strip()
+        and not args.video_script.strip()
+    ):
         parser.error("one of --video-subject or --video-script is required")
 
-    if args.video_source == "local" and args.stop_at == "terms":
+    if not args.batch_file and args.video_source == "local" and args.stop_at == "terms":
         parser.error(
             "--stop-at terms has no effect with --video-source local "
             "(search terms are not generated for local sources)"
@@ -504,35 +538,48 @@ Output and exit status:
 
     stage_requires_materials = args.stop_at in {"materials", "video"}
     has_video_materials = bool((args.video_materials or "").strip())
-    if args.video_source == "local" and stage_requires_materials and not has_video_materials:
+    if (
+        not args.batch_file
+        and args.video_source == "local"
+        and stage_requires_materials
+        and not has_video_materials
+    ):
         parser.error(
             "--video-materials is required with --video-source local when "
             "--stop-at is materials or video"
         )
-    if args.video_source != "local" and has_video_materials:
+    if not args.batch_file and args.video_source != "local" and has_video_materials:
         parser.error("--video-materials can only be used with --video-source local")
 
     if args.bgm_file:
         if args.bgm_type in (None, "custom"):
             args.bgm_type = "custom"
-        else:
+        elif not args.batch_file:
             parser.error("--bgm-file can only be combined with --bgm-type custom")
 
     if args.sonilo_bgm_prompt:
         if args.bgm_type in (None, "sonilo"):
             args.bgm_type = "sonilo"
-        else:
+        elif not args.batch_file:
             parser.error(
                 "--sonilo-bgm-prompt can only be combined with --bgm-type sonilo"
             )
 
-    if args.custom_position is not None and args.subtitle_position != "custom":
+    if (
+        not args.batch_file
+        and args.custom_position is not None
+        and args.subtitle_position != "custom"
+    ):
         parser.error("--custom-position requires --subtitle-position custom")
     # 只有显式的 --no-subtitle-enabled 才算冲突。默认值现在是 None，
     # 保存的关闭状态在 build_video_params 中处理，不应在这里报参数错误。
-    if args.stop_at == "subtitle" and args.subtitle_enabled is False:
+    if (
+        not args.batch_file
+        and args.stop_at == "subtitle"
+        and args.subtitle_enabled is False
+    ):
         parser.error("--stop-at subtitle cannot be combined with --no-subtitle-enabled")
-    if args.subtitle_background_enabled is False and (
+    if not args.batch_file and args.subtitle_background_enabled is False and (
         args.subtitle_background_color is not None
         or args.rounded_subtitle_background is True
     ):
@@ -750,6 +797,264 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
     return VideoParams(**params_kwargs)
 
 
+def _load_batch_manifest(raw_path: str) -> tuple[str, list[dict[str, Any]]]:
+    expanded_path = os.path.expanduser(raw_path.strip())
+    if not expanded_path:
+        raise ValueError("--batch-file path cannot be empty")
+
+    candidate = (
+        expanded_path
+        if os.path.isabs(expanded_path)
+        else os.path.join(os.getcwd(), expanded_path)
+    )
+    manifest_path = os.path.realpath(candidate)
+    if not os.path.isfile(manifest_path):
+        raise ValueError(f"batch manifest does not exist or is not a file: {raw_path}")
+
+    with open(manifest_path, "rb") as manifest_file:
+        payload = manifest_file.read(_BATCH_FILE_MAX_BYTES + 1)
+    if len(payload) > _BATCH_FILE_MAX_BYTES:
+        raise ValueError(
+            f"batch manifest exceeds the {_BATCH_FILE_MAX_BYTES}-byte limit"
+        )
+
+    try:
+        text = payload.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValueError("batch manifest must be UTF-8 encoded") from exc
+    if not text.strip():
+        raise ValueError("batch manifest must contain at least one task")
+
+    if text.lstrip().startswith("["):
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"invalid JSON array in batch manifest: {exc.msg}"
+            ) from exc
+        if not isinstance(parsed, list):
+            raise ValueError("batch manifest JSON must be an array")
+        entries = parsed
+    else:
+        entries = []
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"invalid JSONL in batch manifest at line {line_number}: {exc.msg}"
+                ) from exc
+
+    if not entries:
+        raise ValueError("batch manifest must contain at least one task")
+    if len(entries) > _BATCH_TASK_MAX_COUNT:
+        raise ValueError(
+            f"batch manifest contains {len(entries)} tasks; "
+            f"the limit is {_BATCH_TASK_MAX_COUNT}"
+        )
+
+    for index, entry in enumerate(entries, start=1):
+        if not isinstance(entry, dict):
+            raise ValueError(f"batch task {index} must be a JSON object")
+    return manifest_path, entries
+
+
+def _validate_batch_entry_fields(
+    entry: dict[str, Any],
+    *,
+    index: int,
+    allowed_fields: set[str],
+) -> None:
+    unknown_fields = sorted(set(entry) - allowed_fields)
+    if unknown_fields:
+        raise ValueError(
+            f"batch task {index} contains unknown VideoParams fields: "
+            f"{', '.join(unknown_fields)}"
+        )
+
+    materials = entry.get("video_materials")
+    if not isinstance(materials, list):
+        return
+    allowed_material_fields = {"provider", "url", "duration", "source_info"}
+    for material_index, material in enumerate(materials, start=1):
+        if not isinstance(material, dict):
+            continue
+        unknown_material_fields = sorted(set(material) - allowed_material_fields)
+        if unknown_material_fields:
+            raise ValueError(
+                f"batch task {index} material {material_index} contains unknown "
+                f"MaterialInfo fields: {', '.join(unknown_material_fields)}"
+            )
+
+
+def _manifest_relative_path(raw_path: str, manifest_directory: str) -> str:
+    expanded_path = os.path.expanduser(raw_path.strip())
+    if not expanded_path or os.path.isabs(expanded_path):
+        return expanded_path
+    return os.path.realpath(os.path.join(manifest_directory, expanded_path))
+
+
+def _resolve_batch_entry_paths(
+    params: VideoParams,
+    *,
+    override_fields: set[str],
+    manifest_directory: str,
+) -> None:
+    if "custom_audio_file" in override_fields and params.custom_audio_file:
+        params.custom_audio_file = _manifest_relative_path(
+            params.custom_audio_file,
+            manifest_directory,
+        )
+
+    if (
+        "video_materials" in override_fields
+        and params.video_source == "local"
+        and params.video_materials
+    ):
+        for material in params.video_materials:
+            material.url = _manifest_relative_path(
+                material.url,
+                manifest_directory,
+            )
+
+
+def _validate_batch_task_params(
+    params: VideoParams,
+    *,
+    stop_at: str,
+    custom_position_is_explicit: bool,
+) -> None:
+    if not params.video_subject.strip() and not params.video_script.strip():
+        raise ValueError("one of video_subject or video_script is required")
+
+    if params.video_source not in {"pexels", "pixabay", "coverr", "local"}:
+        raise ValueError(
+            "video_source must be one of: pexels, pixabay, coverr, local"
+        )
+    if params.video_source == "local" and stop_at == "terms":
+        raise ValueError(
+            "stop_at=terms has no effect with video_source=local"
+        )
+    if (
+        params.video_source == "local"
+        and stop_at in {"materials", "video"}
+        and not params.video_materials
+    ):
+        raise ValueError(
+            "video_materials is required with video_source=local when "
+            "stop_at is materials or video"
+        )
+    if params.video_source != "local" and params.video_materials:
+        raise ValueError("video_materials can only be used with video_source=local")
+
+    if stop_at == "subtitle" and not params.subtitle_enabled:
+        raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
+    if params.subtitle_position not in {"top", "center", "bottom", "custom"}:
+        raise ValueError(
+            "subtitle_position must be one of: top, center, bottom, custom"
+        )
+    if custom_position_is_explicit and params.subtitle_position != "custom":
+        raise ValueError("custom_position requires subtitle_position=custom")
+    if not math.isfinite(params.custom_position) or not 0 <= params.custom_position <= 100:
+        raise ValueError("custom_position must be a finite number between 0 and 100")
+    if params.text_background_color is False and params.rounded_subtitle_background:
+        raise ValueError(
+            "rounded_subtitle_background requires an enabled subtitle background"
+        )
+
+    color_values = {
+        "text_fore_color": params.text_fore_color,
+        "stroke_color": params.stroke_color,
+        "text_background_color": (
+            params.text_background_color
+            if isinstance(params.text_background_color, str)
+            else None
+        ),
+    }
+    for name, value in color_values.items():
+        if value is not None and not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+            raise ValueError(f"{name} must use #RRGGBB format")
+
+    numeric_constraints = (
+        ("voice_volume", params.voice_volume, 0, False),
+        ("voice_rate", params.voice_rate, 0, True),
+        ("bgm_volume", params.bgm_volume, 0, False),
+        ("stroke_width", params.stroke_width, 0, False),
+    )
+    for name, value, minimum, exclusive in numeric_constraints:
+        if value is None:
+            continue
+        if not math.isfinite(value) or (
+            value <= minimum if exclusive else value < minimum
+        ):
+            comparison = ">" if exclusive else ">="
+            raise ValueError(f"{name} must be a finite number {comparison} {minimum}")
+
+    for name, value in (
+        ("n_threads", params.n_threads),
+        ("font_size", params.font_size),
+    ):
+        if value is not None and value < 1:
+            raise ValueError(f"{name} must be >= 1")
+
+    if params.bgm_type not in {"", "random", "custom", "sonilo"}:
+        raise ValueError("bgm_type must be one of: none, random, custom, sonilo")
+    if params.bgm_file and params.bgm_type != "custom":
+        raise ValueError("bgm_file requires bgm_type=custom")
+    if params.sonilo_bgm_prompt and params.bgm_type != "sonilo":
+        raise ValueError("sonilo_bgm_prompt requires bgm_type=sonilo")
+
+
+def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
+    from app.models.schema import VideoParams
+
+    manifest_path, entries = _load_batch_manifest(args.batch_file)
+    manifest_directory = os.path.dirname(manifest_path)
+    base_params = build_video_params(args)
+    allowed_fields = set(VideoParams.model_fields)
+    base_values = {
+        field_name: getattr(base_params, field_name) for field_name in allowed_fields
+    }
+    tasks: list[VideoParams] = []
+
+    for index, entry in enumerate(entries, start=1):
+        _validate_batch_entry_fields(
+            entry,
+            index=index,
+            allowed_fields=allowed_fields,
+        )
+        try:
+            params = VideoParams.model_validate(
+                {**copy.deepcopy(base_values), **entry}
+            )
+            override_fields = set(entry)
+            _resolve_batch_entry_paths(
+                params,
+                override_fields=override_fields,
+                manifest_directory=manifest_directory,
+            )
+            _validate_batch_task_params(
+                params,
+                stop_at=args.stop_at,
+                custom_position_is_explicit=(
+                    args.custom_position is not None
+                    or "custom_position" in override_fields
+                ),
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"invalid batch task {index}: {exc}") from exc
+        tasks.append(params)
+
+    for index, params in enumerate(tasks, start=1):
+        try:
+            prepare_cli_files(params, stop_at=args.stop_at)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"invalid batch task {index}: {exc}") from exc
+    return tasks
+
+
 def _resolve_cli_file(
     raw_path: str,
     *,
@@ -939,8 +1244,88 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
         material.url = prepared_path
 
 
+def _run_batch_tasks(args: argparse.Namespace, tasks: list[VideoParams]) -> int:
+    from app.services import task as tm
+    from app.utils import utils
+
+    task_summaries: list[dict[str, Any]] = []
+    used_task_ids: set[str] = set()
+    failed_count = 0
+
+    for index, params in enumerate(tasks, start=1):
+        task_id = utils.get_uuid()
+        if task_id in used_task_ids:
+            task_id = str(uuid4())
+        used_task_ids.add(task_id)
+        logger.info(
+            f"start CLI batch task: index={index}, task_id={task_id}, "
+            f"stop_at={args.stop_at}"
+        )
+
+        result = None
+        failed_stage = None
+        error = None
+        try:
+            result = tm.start(task_id=task_id, params=params, stop_at=args.stop_at)
+        except Exception as exc:
+            failed_stage = "runtime"
+            error = str(exc)
+            logger.exception(
+                "CLI batch task failed with an unexpected error: "
+                f"index={index}, task_id={task_id}, error={exc}"
+            )
+        else:
+            if not isinstance(result, dict) or not result:
+                failed_stage = "unknown"
+                error = "empty or invalid task result"
+            elif result.get("state") == tm.const.TASK_STATE_FAILED:
+                failed_stage = result.get("failed_stage") or "unknown"
+                error = result.get("error") or "unknown task error"
+
+            if error is not None:
+                logger.error(
+                    f"CLI batch task failed: index={index}, task_id={task_id}, "
+                    f"stop_at={args.stop_at}, stage={failed_stage}, error={error}"
+                )
+
+        status = "failed" if error is not None else "succeeded"
+        if status == "failed":
+            failed_count += 1
+        task_summaries.append(
+            {
+                "index": index,
+                "task_id": task_id,
+                "status": status,
+                "result": result,
+                "failed_stage": failed_stage,
+                "error": error,
+            }
+        )
+
+    print(
+        json.dumps(
+            {
+                "total": len(task_summaries),
+                "succeeded": len(task_summaries) - failed_count,
+                "failed": failed_count,
+                "tasks": task_summaries,
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 1 if failed_count else 0
+
+
 def run_cli(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.batch_file:
+        try:
+            tasks = _build_batch_tasks(args)
+        except (ValueError, OSError) as exc:
+            logger.error(f"invalid CLI batch input: {exc}")
+            return 2
+        return _run_batch_tasks(args, tasks)
+
     try:
         params = build_video_params(args)
         prepare_cli_files(params, stop_at=args.stop_at)

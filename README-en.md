@@ -360,6 +360,29 @@ run:
 uv run python cli.py --help
 ```
 
+To run several tasks sequentially, pass a UTF-8 JSON array or JSONL manifest. CLI
+options act as defaults, and each object overrides fields from `VideoParams`:
+
+```json
+[
+  {"video_subject": "How solar panels work"},
+  {"video_subject": "How wind turbines work", "video_aspect": "16:9"}
+]
+```
+
+```shell
+uv run python cli.py --batch-file ./tasks.json --stop-at video
+```
+
+The manifest is resolved from the current working directory. Relative
+`custom_audio_file` and local `video_materials[].url` values inside it are resolved
+from the manifest's directory; file paths supplied as CLI defaults keep their normal
+current-working-directory semantics. A manifest is limited to 100 tasks and 1 MiB.
+All entries are validated before the first task starts, tasks continue after an
+individual runtime failure, and the command prints one JSON summary when finished.
+The summary contains `total`, `succeeded`, `failed`, and `tasks`; each task entry has
+`index`, `task_id`, `status`, `result`, `failed_stage`, and `error`.
+
 ## Voice Synthesis 🗣
 
 The default provider is the free **Edge TTS**, shown as **Azure TTS V1** in the WebUI. MoneyPrinterTurbo also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, **Fish Audio TTS**, and a no-voice mode.
