@@ -702,13 +702,14 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
+    line_height = sum(font.getmetrics())
 
     def get_text_size(inner_text):
         inner_text = inner_text.strip()
         if not inner_text:
-            return 0, fontsize
-        left, top, right, bottom = font.getbbox(inner_text)
-        return right - left, bottom - top
+            return 0, line_height
+        left, _, right, _ = font.getbbox(inner_text)
+        return right - left, line_height
 
     width, height = get_text_size(text)
     if width <= max_width:

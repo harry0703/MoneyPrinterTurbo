@@ -12,6 +12,7 @@ from unittest.mock import patch
 from moviepy import (
     VideoFileClip,
 )
+from PIL import ImageFont
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from app.config import config
@@ -523,6 +524,11 @@ class TestVideoService(unittest.TestCase):
             print(wrapped_text_en, text_height_en)
             # verify text is wrapped
             self.assertIn("\n", wrapped_text_en)
+            line_height = sum(ImageFont.truetype(font_path, 30).getmetrics())
+            self.assertEqual(
+                text_height_en,
+                (wrapped_text_en.count("\n") + 1) * line_height,
+            )
             
             # test chinese text wrapping
             test_text_zh = "这是一段用来测试中文长句换行的文本内容，应该会根据宽度限制进行换行处理"
@@ -535,6 +541,10 @@ class TestVideoService(unittest.TestCase):
             print(wrapped_text_zh, text_height_zh)
             # verify chinese text is wrapped
             self.assertIn("\n", wrapped_text_zh)
+            self.assertEqual(
+                text_height_zh,
+                (wrapped_text_zh.count("\n") + 1) * line_height,
+            )
         except Exception as e:
             self.fail(f"test wrap_text failed: {str(e)}")
 
