@@ -231,8 +231,9 @@ def get_fish_audio_voices() -> list[str]:
     config file.
     """
     result = [
-        "fish_audio:default:Default-Female",
-        "fish_audio:default:Default-Male",
+        "fish_audio:2324c907b9a94c64ab4afb941e5b3408:Clear Female-Female",
+        "fish_audio:7b6131ba75ba47c98a46c847db729ab6:Clear Male-Male",
+        "fish_audio:default:Default Voice",
     ]
     voices = config.fish_audio.get("voices", []) or []
     if isinstance(voices, str):
