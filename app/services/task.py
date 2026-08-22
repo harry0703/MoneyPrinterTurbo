@@ -58,6 +58,12 @@ _LOOMLOOM_STATE_RETRY_DELAY_SECONDS = 0.1
 _INTERRUPTED_CROSS_POST_ERROR = (
     "cross-posting was interrupted before the process completed"
 )
+# Map upload-post platform ids to the social platform names llm.py accepts.
+_CROSS_POST_SOCIAL_PLATFORMS = {
+    "tiktok": "tiktok",
+    "instagram": "instagram_reels",
+    "facebook": "facebook_reels",
+}
 # 视频配乐服务只需实现 ``is_enabled`` 和 ``generate_bgm``。供应商差异集中在
 # 文件扩展名、领域异常和 WebUI 警告代码；任务编排、0 音量短路及失败降级
 # 全部复用同一路径，避免后续新增供应商时维护多份相似流程。
@@ -986,25 +992,39 @@ def _run_cross_post(
             f"cross-post started, task_id: {task_id}, platforms: {', '.join(platforms)}"
         )
         youtube_extra = None
-        if any(platform.startswith("youtube") for platform in platforms):
+        post_title = video_subject or "Check out this video! #shorts #viral"
+        if platforms:
+            has_youtube = any(platform.startswith("youtube") for platform in platforms)
+            social_platform = "youtube_shorts"
+            if not has_youtube:
+                first = (platforms[0] or "").strip().lower()
+                # llm.py resolves unknown ids to its default platform.
+                social_platform = _CROSS_POST_SOCIAL_PLATFORMS.get(first, first)
             metadata = llm.generate_social_metadata(
                 video_subject=video_subject,
                 video_script=video_script,
                 language=video_language or "",
-                platform="youtube_shorts",
+                platform=social_platform,
             )
-            youtube_extra = {
-                "youtube_title": metadata.get("title", video_subject),
-                "youtube_description": metadata.get("caption", ""),
-                "tags": metadata.get("hashtags", []),
-                "privacyStatus": youtube_privacy_status,
-                "containsSyntheticMedia": True,
-            }
+            if has_youtube:
+                youtube_extra = {
+                    "youtube_title": metadata.get("title", video_subject),
+                    "youtube_description": metadata.get("caption", ""),
+                    "tags": metadata.get("hashtags", []),
+                    "privacyStatus": youtube_privacy_status,
+                    "containsSyntheticMedia": True,
+                }
+            post_title = (
+                metadata.get("caption")
+                or metadata.get("title")
+                or video_subject
+                or "Check out this video! #shorts #viral"
+            )
 
         for video_path in video_paths:
             result = upload_post.cross_post_video(
                 video_path=video_path,
-                title=video_subject or "Check out this video! #shorts #viral",
+                title=post_title,
                 platforms=list(platforms),
                 youtube_extra=youtube_extra,
             )

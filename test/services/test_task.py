@@ -1491,6 +1491,177 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_COMPLETE)
         self.assertIsNone(task["cross_post_error"])
 
+    def test_cross_post_generates_caption_for_non_youtube_platforms(self):
+        """
+        TikTok/Instagram 发布同样要生成一次社交文案，并把 caption 作为所有
+        成片共享的发布标题，而不是直接发送原始主题。
+        """
+        metadata = {
+            "title": "Coffee Hook",
+            "caption": "Watch this coffee ritual.",
+            "hashtags": ["#coffee"],
+        }
+        state = MemoryState()
+        cases = {
+            "tiktok-first": (("tiktok", "instagram"), "tiktok"),
+            "instagram-first": (("instagram", "tiktok"), "instagram_reels"),
+        }
+
+        for case_name, (platforms, expected_platform) in cases.items():
+            with self.subTest(case=case_name):
+                task_id = f"caption-{case_name}"
+                state.update_task(
+                    task_id,
+                    state=tm.const.TASK_STATE_COMPLETE,
+                    progress=100,
+                    videos=["final.mp4"],
+                    cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+                )
+                with (
+                    patch.object(tm.sm, "state", state),
+                    patch.object(
+                        tm.llm,
+                        "generate_social_metadata",
+                        return_value=metadata,
+                    ) as generate_metadata,
+                    patch.object(
+                        tm.upload_post,
+                        "cross_post_video",
+                        return_value={"success": True},
+                    ) as cross_post,
+                ):
+                    tm._run_cross_post(
+                        task_id,
+                        ("final.mp4",),
+                        "Coffee",
+                        "A short coffee story.",
+                        "en",
+                        platforms,
+                        "private",
+                    )
+
+                generate_metadata.assert_called_once_with(
+                    video_subject="Coffee",
+                    video_script="A short coffee story.",
+                    language="en",
+                    platform=expected_platform,
+                )
+                cross_post.assert_called_once()
+                call = cross_post.call_args
+                self.assertEqual(call.kwargs["title"], "Watch this coffee ritual.")
+                self.assertEqual(call.kwargs["platforms"], list(platforms))
+                self.assertIsNone(call.kwargs["youtube_extra"])
+                task = state.get_task(task_id)
+                self.assertEqual(
+                    task["cross_post_state"], tm.const.CROSS_POST_STATE_COMPLETE
+                )
+
+    def test_cross_post_shares_metadata_between_youtube_fields_and_title(self):
+        """YouTube 专属字段与共享发布标题必须来自同一次元数据调用。"""
+        metadata = {
+            "title": "Morning Coffee",
+            "caption": "A better morning.",
+            "hashtags": ["#coffee", "#shorts"],
+        }
+        state = MemoryState()
+        state.update_task(
+            "shared-youtube-metadata",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final-1.mp4", "final-2.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value=metadata,
+            ) as generate_metadata,
+            patch.object(
+                tm.upload_post,
+                "cross_post_video",
+                return_value={"success": True},
+            ) as cross_post,
+        ):
+            tm._run_cross_post(
+                "shared-youtube-metadata",
+                ("final-1.mp4", "final-2.mp4"),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                ("youtube",),
+                "unlisted",
+            )
+
+        generate_metadata.assert_called_once_with(
+            video_subject="Coffee",
+            video_script="A short coffee story.",
+            language="en",
+            platform="youtube_shorts",
+        )
+        expected_extra = {
+            "youtube_title": "Morning Coffee",
+            "youtube_description": "A better morning.",
+            "tags": ["#coffee", "#shorts"],
+            "privacyStatus": "unlisted",
+            "containsSyntheticMedia": True,
+        }
+        self.assertEqual(cross_post.call_count, 2)
+        for call in cross_post.call_args_list:
+            self.assertEqual(call.kwargs["title"], "A better morning.")
+            self.assertEqual(call.kwargs["youtube_extra"], expected_extra)
+
+    def test_cross_post_empty_metadata_degrades_to_fallback_title(self):
+        """元数据缺失或为空时逐级退回，最终保留旧的通用兜底标题。"""
+        state = MemoryState()
+        cases = {
+            "legacy-string": ({}, "", "Check out this video! #shorts #viral"),
+            "title-over-subject": (
+                {"title": "Fallback Title", "caption": ""},
+                "Coffee",
+                "Fallback Title",
+            ),
+        }
+
+        for case_name, (metadata, subject, expected_title) in cases.items():
+            with self.subTest(case=case_name):
+                task_id = f"fallback-title-{case_name}"
+                state.update_task(
+                    task_id,
+                    state=tm.const.TASK_STATE_COMPLETE,
+                    progress=100,
+                    videos=["final.mp4"],
+                    cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+                )
+                with (
+                    patch.object(tm.sm, "state", state),
+                    patch.object(
+                        tm.llm,
+                        "generate_social_metadata",
+                        return_value=metadata,
+                    ) as generate_metadata,
+                    patch.object(
+                        tm.upload_post,
+                        "cross_post_video",
+                        return_value={"success": True},
+                    ) as cross_post,
+                ):
+                    tm._run_cross_post(
+                        task_id,
+                        ("final.mp4",),
+                        subject,
+                        "",
+                        "",
+                        ("tiktok",),
+                        "private",
+                    )
+
+                generate_metadata.assert_called_once()
+                cross_post.assert_called_once()
+                self.assertEqual(cross_post.call_args.kwargs["title"], expected_title)
+
     def test_recover_interrupted_cross_posts_preserves_active_future(self):
         """启动恢复只处理遗留状态，当前进程仍持有的发布任务不能被误伤。"""
         state = MemoryState()
