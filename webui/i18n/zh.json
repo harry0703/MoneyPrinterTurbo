@@ -386,6 +386,13 @@
     "Resume LoomLoom Status Check": "继续查询状态",
     "Stop Tracking LoomLoom Run": "停止跟踪",
     "Stop Tracking LoomLoom Run Help": "只停止本地状态查询，不会取消胜算云中可能仍在执行的付费任务。",
-    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)"
+    "llm_provider_tips.litellm": "##### LiteLLM 配置说明\n- **API Key**: 无需在此处填写；请通过环境变量配置目标 Provider 的密钥\n- **Base Url**: 无需填写\n- **Model Name**: 默认 `{default_model}`；使用 `provider/model` 格式，[查看 Provider 列表](https://docs.litellm.ai/docs/providers)",
+    "Auto-Publish Settings": "自动发布设置",
+    "Automatically publish generated videos to social media using upload-post.com": "使用 upload-post.com 自动将生成的视频发布到社交媒体",
+    "Enable Auto-Publish": "启用自动发布",
+    "Platforms": "发布平台",
+    "Upload-Post API Key": "Upload-Post API Key",
+    "Upload-Post Profile Username": "Upload-Post 账号名称",
+    "YouTube Privacy Status": "YouTube 隐私状态"
   }
 }
