@@ -404,6 +404,22 @@ api_key = ""
 # Available models: "s2.1-pro-free" (free developer tier), "s2.1-pro", "s2-pro"
 model = "s2.1-pro-free"
 
+# ── Voice selection ──────────────────────────────────────────────────────────
+# By default Fish Audio uses its built-in default voice.  To use a specific
+# public or cloned voice, add entries below.  Each entry is either:
+#   "<reference_id>:<display_name>"   – a Fish Audio voice model ID with label
+#   "<reference_id>"                  – bare ID (used as both ID and label)
+#
+# Browse public voices at https://fish.audio and copy the model ID from the URL.
+# Example: voices = ["7f92f8afb8ec43bf81429cc1c9199cb1:Friendly Narrator"]
+voices = []
+
+# ── Free tier notice ─────────────────────────────────────────────────────────
+# The "s2.1-pro-free" model is free for developers but is subject to Fish
+# Audio's Fair Use Policy.  There is no SLA, and usage may be rate-limited.
+# Check https://fish.audio/pricing for current terms on commercial use and
+# data retention before using in production.
+
 # =============================================================================
 # WebUI Preferences / WebUI 偏好
 # =============================================================================

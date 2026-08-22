@@ -1165,6 +1165,8 @@ def _infer_tts_server_from_voice(voice_name):
         return "elevenlabs"
     if voice.is_chatterbox_voice(voice_name):
         return "chatterbox"
+    if voice.is_fish_audio_voice(voice_name):
+        return "fish_audio"
     if voice.is_azure_v2_voice(voice_name):
         return "azure-tts-v2"
     return "azure-tts-v1"
@@ -4873,7 +4875,8 @@ def _render_audio_settings(panel, params):
                 if voice.is_minimax_voice(v):
                     return minimax_voice_labels.get(v, v.split(":", 1)[1])
                 if voice.is_fish_audio_voice(v):
-                    return v
+                    parts = v.split(":", 2)
+                    return parts[2] if len(parts) >= 3 else v
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))

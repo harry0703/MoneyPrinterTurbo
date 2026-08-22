@@ -222,12 +222,31 @@ def get_chatterbox_voices() -> list[str]:
 
 
 def get_fish_audio_voices() -> list[str]:
-    """获取 Fish Audio 预置声音与模型列表。"""
-    return [
-        "fish_audio:s2.1-pro-free:Free-Developer",
-        "fish_audio:s2.1-pro:Pro-Voice",
-        "fish_audio:s2-pro:Pro-Voice",
-    ]
+    """Return configured Fish Audio voices.
+
+    Each entry follows the format ``fish_audio:<reference_id>:<display_name>``.
+    When ``reference_id`` is "default", Fish Audio's built-in default voice is
+    used (no ``reference_id`` is sent in the API request).  Operators can list
+    additional public or cloned voices via ``[fish_audio] voices`` in the
+    config file.
+    """
+    result = ["fish_audio:default:Default Voice"]
+    voices = config.fish_audio.get("voices", []) or []
+    if isinstance(voices, str):
+        voices = [v.strip() for v in voices.split(",") if v.strip()]
+    for entry in voices:
+        entry = str(entry).strip()
+        if not entry:
+            continue
+        if entry.startswith("fish_audio:"):
+            result.append(entry)
+        elif ":" in entry:
+            # "<reference_id>:<display_name>"
+            result.append(f"fish_audio:{entry}")
+        else:
+            # bare reference_id
+            result.append(f"fish_audio:{entry}:{entry}")
+    return result
 
 
 _AZURE_VOICES_DATA_FILE = os.path.join(
@@ -523,8 +542,10 @@ def tts(
             return None
     elif is_fish_audio_voice(voice_name):
         parts = voice_name.split(":")
-        model_name = parts[1] if len(parts) >= 2 else "s2.1-pro-free"
-        return fish_audio_tts(text, model_name, voice_file, voice_rate, voice_volume)
+        reference_id = parts[1] if len(parts) >= 2 else "default"
+        if reference_id == "default":
+            reference_id = None
+        return fish_audio_tts(text, voice_file, voice_rate, voice_volume, reference_id=reference_id)
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
@@ -1764,14 +1785,28 @@ def chatterbox_tts(
     return None
 
 
+# Fish Audio supported models.
+FISH_AUDIO_MODELS = ("s2.1-pro-free", "s2.1-pro", "s2-pro")
+FISH_AUDIO_DEFAULT_MODEL = "s2.1-pro-free"
+
+
 def fish_audio_tts(
     text: str,
-    model_name: str,
     voice_file: str,
     voice_rate: float = 1.0,
     voice_volume: float = 1.0,
+    reference_id: str | None = None,
 ) -> Union[SubMaker, None]:
-    """Generate speech using Fish Audio TTS API."""
+    """Generate speech using Fish Audio TTS API.
+
+    The model is read from ``config.fish_audio["model"]`` (single source of
+    truth).  ``reference_id`` selects a public or cloned voice; when *None*
+    Fish Audio's built-in default voice is used.
+
+    ``voice_rate`` is mapped to the ``prosody.speed`` field (0.5–2.0) and
+    ``voice_volume`` is converted from a linear multiplier to dB for the
+    ``prosody.volume`` field (-20.0–20.0 dB).
+    """
     text = (text or "").strip()
     if not text:
         logger.error("Fish Audio TTS text is empty")
@@ -1780,36 +1815,95 @@ def fish_audio_tts(
     api_key = get_fish_audio_api_key()
     if not api_key:
         logger.error(
-            "Fish Audio API key is not set. Please set it in config.toml [fish_audio] or FISH_API_KEY environment variable."
+            "Fish Audio API key is not set. Please set it in config.toml "
+            "[fish_audio] or FISH_API_KEY environment variable."
         )
         return None
+
+    model_name = str(
+        config.fish_audio.get("model", FISH_AUDIO_DEFAULT_MODEL)
+        or FISH_AUDIO_DEFAULT_MODEL
+    ).strip()
+    if model_name not in FISH_AUDIO_MODELS:
+        logger.warning(
+            f"Unknown Fish Audio model '{model_name}', falling back to "
+            f"'{FISH_AUDIO_DEFAULT_MODEL}'"
+        )
+        model_name = FISH_AUDIO_DEFAULT_MODEL
+
+    # Map voice_rate → prosody.speed (0.5–2.0)
+    try:
+        speed = max(0.5, min(2.0, float(voice_rate or 1.0)))
+    except (TypeError, ValueError):
+        speed = 1.0
+
+    # Map voice_volume (linear multiplier) → prosody.volume (dB, -20–20).
+    # A multiplier of 1.0 → 0 dB; 0.1 → -20 dB; 2.0 → +6 dB.
+    import math
+    try:
+        vol = float(voice_volume or 1.0)
+        if vol <= 0:
+            volume_db = -20.0
+        else:
+            volume_db = max(-20.0, min(20.0, 20.0 * math.log10(vol)))
+    except (TypeError, ValueError):
+        volume_db = 0.0
 
     url = "https://api.fish.audio/v1/tts"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "model": model_name or "s2.1-pro-free",
+        "model": model_name,
     }
-    payload = {
+    payload: dict = {
         "text": text,
         "format": "mp3",
+        "prosody": {
+            "speed": speed,
+            "volume": volume_db,
+        },
     }
+    if reference_id:
+        payload["reference_id"] = reference_id
 
     for i in range(3):
         try:
-            logger.info(f"start fish audio tts, model: {model_name}, try: {i + 1}")
+            logger.info(
+                f"start fish audio tts, model: {model_name}, "
+                f"ref: {reference_id or 'default'}, try: {i + 1}"
+            )
             ensure_file_path_exists(voice_file)
 
             response = requests.post(url, json=payload, headers=headers, timeout=60)
-            if response.status_code != 200:
-                if response.status_code == 402:
-                    logger.error(
-                        "Fish Audio TTS failed: Insufficient API credit (402). "
-                        "Please use model 's2.1-pro-free' or visit https://fish.audio/app/developers to add funds."
-                    )
-                    return None
+            if response.status_code == 401:
                 logger.error(
-                    f"fish audio tts failed with status {response.status_code}: {response.text[:200]}"
+                    "Fish Audio TTS failed: Invalid API key (401). "
+                    "Check config.toml [fish_audio] api_key or FISH_API_KEY."
+                )
+                return None
+            if response.status_code == 402:
+                logger.error(
+                    "Fish Audio TTS failed: Insufficient API credit (402). "
+                    "Please use model 's2.1-pro-free' or add funds at "
+                    "https://fish.audio/app/developers"
+                )
+                return None
+            if response.status_code == 429:
+                logger.warning(
+                    "Fish Audio TTS rate limited (429), retrying..."
+                )
+                continue
+            if response.status_code != 200:
+                logger.error(
+                    f"fish audio tts failed with status "
+                    f"{response.status_code}: {response.text[:200]}"
+                )
+                continue
+
+            # Validate response contains audio data
+            if not response.content or len(response.content) < 100:
+                logger.error(
+                    "Fish Audio TTS returned empty or invalid audio data"
                 )
                 continue
 

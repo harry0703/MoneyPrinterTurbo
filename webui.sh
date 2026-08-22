@@ -17,14 +17,14 @@ MPT_WEBUI_HOST="${MPT_WEBUI_HOST:-127.0.0.1}"
 MPT_WEBUI_PORT="${MPT_WEBUI_PORT:-8501}"
 
 if [ -x "$CURRENT_DIR/.venv/bin/python" ]; then
-  PORT_CHECK_EXEC="$CURRENT_DIR/.venv/bin/python"
+  PORT_CHECK_CMD="$CURRENT_DIR/.venv/bin/python"
   set -- "$CURRENT_DIR/.venv/bin/python" -m streamlit
 elif command -v uv >/dev/null 2>&1; then
-  PORT_CHECK_EXEC="uv"
+  PORT_CHECK_CMD="uv run python"
   set -- uv run streamlit
 elif command -v streamlit >/dev/null 2>&1; then
   echo "***** Warning: using streamlit from PATH. If dependencies fail, run 'uv sync --frozen' first. *****"
-  PORT_CHECK_EXEC="python3"
+  PORT_CHECK_CMD="python3"
   set -- streamlit
 else
   echo "***** Neither project Python, uv, nor streamlit was found. Please install dependencies first. *****"
@@ -32,8 +32,7 @@ else
 fi
 
 find_available_port() {
-  if [ "$1" = "uv" ]; then
-    WEBUI_HOST="$MPT_WEBUI_HOST" WEBUI_PORT="$MPT_WEBUI_PORT" uv run python - <<'PY' 2>/dev/null
+  WEBUI_HOST="$MPT_WEBUI_HOST" WEBUI_PORT="$MPT_WEBUI_PORT" "$@" - <<'PY' 2>/dev/null
 import os
 import socket
 import sys
@@ -53,32 +52,11 @@ for port in candidates:
 
 sys.exit(1)
 PY
-  else
-    WEBUI_HOST="$MPT_WEBUI_HOST" WEBUI_PORT="$MPT_WEBUI_PORT" "$1" - <<'PY' 2>/dev/null
-import os
-import socket
-import sys
-
-host = os.environ.get("WEBUI_HOST", "127.0.0.1")
-preferred = int(os.environ.get("WEBUI_PORT", "8501"))
-candidates = [preferred] + [port for port in range(8502, 8600) if port != preferred]
-
-for port in candidates:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        try:
-            sock.bind((host, port))
-        except OSError:
-            continue
-        print(port)
-        sys.exit(0)
-
-sys.exit(1)
-PY
-  fi
 }
 
 # 用 Python 做端口探测，避免依赖 lsof/nc 在不同 macOS/Linux 发行版上的差异。
-SELECTED_WEBUI_PORT=$(find_available_port "$PORT_CHECK_EXEC")
+# shellcheck disable=SC2086
+SELECTED_WEBUI_PORT=$(find_available_port $PORT_CHECK_CMD)
 
 if [ -z "$SELECTED_WEBUI_PORT" ]; then
   echo "***** No available WebUI port found in 8501-8599 for $MPT_WEBUI_HOST. *****"
