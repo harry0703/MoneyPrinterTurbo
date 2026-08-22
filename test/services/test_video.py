@@ -986,6 +986,211 @@ class TestVideoService(unittest.TestCase):
         except Exception as e:
             self.fail(f"test wrap_text failed: {str(e)}")
 
+    def test_wrap_text_uses_stable_line_metrics_for_all_bundled_fonts(self):
+        """
+        字幕高度必须来自字体自身的 ascent/descent，而不能取决于当前文字。
+
+        不含 g/j/p/q/y 的拉丁文本只有大写字母和 x-height，Pillow 的字形
+        bbox 会比字体真实行高短很多；多行时误差累积，最终会裁掉最后一行。
+        这里遍历全部内置字体，并同时覆盖含下伸部与不含下伸部的英文文本，
+        防止以后重新引入“按当前字形墨迹计算行高”的实现。
+        """
+        font_size = 60
+        max_width = 360
+        text_cases = {
+            "without_descenders": "A man survived the Hiroshima atomic bomb blast",
+            "with_descenders": "Typing quickly brings joyful progress",
+        }
+        font_paths = sorted(
+            path
+            for path in Path(utils.font_dir()).iterdir()
+            if path.suffix.lower() in {".ttf", ".ttc"}
+        )
+
+        self.assertTrue(font_paths, "expected bundled subtitle fonts")
+        for font_path in font_paths:
+            font = vd.ImageFont.truetype(str(font_path), font_size)
+            expected_line_height = sum(font.getmetrics())
+            for case_name, text in text_cases.items():
+                with self.subTest(font=font_path.name, case=case_name):
+                    wrapped_text, text_height = vd.wrap_text(
+                        text=text,
+                        max_width=max_width,
+                        font=str(font_path),
+                        fontsize=font_size,
+                    )
+                    line_count = wrapped_text.count("\n") + 1
+
+                    self.assertGreater(line_count, 1)
+                    self.assertEqual(
+                        text_height,
+                        line_count * expected_line_height,
+                    )
+
+    def test_wrap_text_counts_existing_subtitle_line_breaks(self):
+        """
+        SRT 文本可能已经包含人工换行；即使每行都不需要再次折行，高度也必须
+        按最终两行计算。否则宽画面上的短句会绕过自动换行分支并再次裁掉末行。
+        """
+        font_size = 60
+        font_path = os.path.join(utils.font_dir(), "MicrosoftYaHeiBold.ttc")
+        text = "SAFE TEXT\nMORE SAFE"
+        font = vd.ImageFont.truetype(font_path, font_size)
+
+        wrapped_text, text_height = vd.wrap_text(
+            text=text,
+            max_width=972,
+            font=font_path,
+            fontsize=font_size,
+        )
+
+        self.assertEqual(wrapped_text, text)
+        self.assertEqual(text_height, 2 * sum(font.getmetrics()))
+
+    def test_small_subtitle_with_thick_stroke_keeps_a_bottom_margin(self):
+        """
+        小字号配粗描边是最容易重新触底的比例边界。遍历全部内置字体并读取
+        MoviePy 的真实 mask，确保额外高度至少容纳向上下扩张的完整描边。
+        """
+        font_size = 24
+        stroke_width = 6
+        max_width = 240
+        text = "A man survived the Hiroshima atomic bomb blast"
+        font_paths = sorted(
+            path
+            for path in Path(utils.font_dir()).iterdir()
+            if path.suffix.lower() in {".ttf", ".ttc"}
+        )
+
+        for font_path in font_paths:
+            with self.subTest(font=font_path.name):
+                wrapped_text, text_height = vd.wrap_text(
+                    text=text,
+                    max_width=max_width,
+                    font=str(font_path),
+                    fontsize=font_size,
+                )
+                line_count = wrapped_text.count("\n") + 1
+                interline = int(font_size * 0.25)
+                vertical_padding = int(font_size * 0.35)
+                stroke_padding = stroke_width * 2 * line_count
+                clip_height = int(
+                    text_height
+                    + vertical_padding
+                    + interline * line_count
+                    + stroke_padding
+                )
+                text_clip = vd.TextClip(
+                    text=wrapped_text,
+                    font=str(font_path),
+                    font_size=font_size,
+                    color="#FFFFFF",
+                    stroke_color="#000000",
+                    stroke_width=stroke_width,
+                    interline=interline,
+                    size=(max_width, clip_height),
+                    text_align="center",
+                )
+                try:
+                    mask = text_clip.mask.get_frame(0)
+                    visible_rows, _ = vd.np.where(mask > 0.01)
+
+                    self.assertGreater(len(visible_rows), 0)
+                    self.assertLess(int(visible_rows.max()), clip_height - 1)
+                finally:
+                    text_clip.close()
+
+    def test_multilingual_textclip_last_line_keeps_a_visible_bottom_margin(self):
+        """
+        使用 MoviePy 真实绘制多语种字幕，确保最后一行没有贴到画布底边。
+
+        仅检查 wrap_text() 返回值会漏掉 Pillow/MoviePy 在 baseline、描边和
+        行间距上的组合差异，因此这里直接读取 TextClip 的透明 mask。覆盖文本
+        均由对应内置字体完整支持，包括英文、越南语、泰语、简繁中文、俄语
+        和希腊语；只要可见像素触及最后一行，就说明仍存在静默裁切风险。
+        """
+        font_size = 60
+        max_width = 360
+        interline = int(font_size * 0.25)
+        vertical_padding = int(font_size * 0.35)
+        stroke_width = 2
+        cases = (
+            (
+                "english_without_descenders",
+                "BeVietnamPro-Bold.ttf",
+                "A man survived the Hiroshima atomic bomb blast",
+            ),
+            (
+                "vietnamese",
+                "BeVietnamPro-Medium.ttf",
+                "Tôi vẫn luôn tin vào một tương lai tươi sáng",
+            ),
+            (
+                "thai",
+                "Charm-Regular.ttf",
+                "นี่คือข้อความสำหรับตรวจสอบบรรทัดสุดท้ายของคำบรรยาย",
+            ),
+            (
+                "simplified_chinese",
+                "MicrosoftYaHeiBold.ttc",
+                "这是一个用于检查字幕最后一行是否完整显示的测试句子",
+            ),
+            (
+                "traditional_chinese",
+                "STHeitiMedium.ttc",
+                "這是一個用於檢查字幕最後一行是否完整顯示的測試句子",
+            ),
+            (
+                "cyrillic",
+                "MicrosoftYaHeiNormal.ttc",
+                "Это текст для проверки последней строки субтитров",
+            ),
+            (
+                "greek",
+                "STHeitiLight.ttc",
+                "Αυτό είναι κείμενο για τον έλεγχο της τελευταίας γραμμής",
+            ),
+        )
+
+        for language, font_name, text in cases:
+            font_path = os.path.join(utils.font_dir(), font_name)
+            with self.subTest(language=language, font=font_name):
+                self.assertTrue(vd.subtitle_font_supports_text(font_path, text))
+                wrapped_text, text_height = vd.wrap_text(
+                    text=text,
+                    max_width=max_width,
+                    font=font_path,
+                    fontsize=font_size,
+                )
+                line_count = wrapped_text.count("\n") + 1
+                stroke_padding = stroke_width * 2 * line_count
+                clip_height = int(
+                    text_height
+                    + vertical_padding
+                    + interline * line_count
+                    + stroke_padding
+                )
+                text_clip = vd.TextClip(
+                    text=wrapped_text,
+                    font=font_path,
+                    font_size=font_size,
+                    color="#FFFFFF",
+                    stroke_color="#000000",
+                    stroke_width=stroke_width,
+                    interline=interline,
+                    size=(max_width, clip_height),
+                    text_align="center",
+                )
+                try:
+                    mask = text_clip.mask.get_frame(0)
+                    visible_rows, _ = vd.np.where(mask > 0.01)
+
+                    self.assertGreater(line_count, 1)
+                    self.assertGreater(len(visible_rows), 0)
+                    self.assertLess(int(visible_rows.max()), clip_height - 1)
+                finally:
+                    text_clip.close()
+
     def test_rounded_subtitle_background_clip_has_transparent_corners(self):
         """
         圆角字幕背景只在用户显式开启时使用。这里直接验证生成的 RGBA

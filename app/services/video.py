@@ -769,16 +769,34 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
+    # getbbox() 返回的是“当前字形的可见墨迹高度”，并不是字体行高。例如只含
+    # A、m、n 等无下伸部字符的英文会缺少 descent，多行时这个误差会逐行累积，
+    # 最终让 TextClip 的最后一行被画布裁掉。ascent + descent 来自字体自身，
+    # 不受具体语种和字符组合影响，也与 MoviePy 的 baseline 绘制模型一致。
+    ascent, descent = font.getmetrics()
+    line_height = int(ascent + descent)
+    if line_height <= 0:
+        # 正常 TrueType/OpenType 字体不会进入这里；保留可诊断日志和字号兜底，
+        # 避免损坏或非常规字体返回异常 metrics 后生成零高度字幕。
+        logger.warning(
+            "invalid subtitle font metrics, fallback to font size: "
+            f"ascent={ascent}, descent={descent}, fontsize={fontsize}"
+        )
+        line_height = max(1, int(fontsize))
+
     def get_text_size(inner_text):
         inner_text = inner_text.strip()
         if not inner_text:
-            return 0, fontsize
+            return 0, line_height
         left, top, right, bottom = font.getbbox(inner_text)
-        return right - left, bottom - top
+        # bbox 仍适合测量换行所需的实际宽度；高度必须始终使用稳定字体行高。
+        return right - left, line_height
 
     width, height = get_text_size(text)
     if width <= max_width:
-        return text, height
+        # SRT 条目允许作者手工换行。即使整段文本在宽度上不需要再次折行，
+        # 画布高度仍必须按现有行数计算，否则第二行及后续行会被裁掉。
+        return text, (text.count("\n") + 1) * line_height
 
     def split_long_token(token):
         # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
@@ -839,7 +857,9 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
             lines[index - 1] = lines[index - 1][:-1]
 
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
-    height = len(lines) * height
+    # 高度以最终结果为准。原文本中的显式换行可能保留在某个 token 内，
+    # 此时临时 lines 列表的长度不等于 MoviePy 实际渲染的行数。
+    height = (result.count("\n") + 1) * line_height
     return result, height
 
 
@@ -1043,6 +1063,11 @@ def generate_video(
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
         vertical_padding = int(params.font_size * 0.35)
+        # Pillow/MoviePy 会把描边向字形上下两侧扩张，并把这部分计入每一行
+        # 的行进高度。若只在整个字幕块外增加一次描边留白，粗描边多行文本
+        # 仍会逐行累积误差。这里按实际行数计入双侧描边空间，默认细描边只
+        # 增加少量高度，而“小字号 + 粗描边 + 多行”也能完整显示。
+        stroke_padding = int(params.stroke_width * 2 * line_count)
         text_clip_margin_y = max(
             int(params.font_size * 0.3), int(params.stroke_width * 2)
         )
@@ -1050,7 +1075,12 @@ def generate_video(
         # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
         # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
         # 背景框与文字本身都能完整渲染出来。
-        clip_h = int(txt_height + vertical_padding + (interline * line_count))
+        clip_h = int(
+            txt_height
+            + vertical_padding
+            + (interline * line_count)
+            + stroke_padding
+        )
 
         if rounded_bg_enabled:
             # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
