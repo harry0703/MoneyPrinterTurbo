@@ -4876,7 +4876,11 @@ def _render_audio_settings(panel, params):
                     return minimax_voice_labels.get(v, v.split(":", 1)[1])
                 if voice.is_fish_audio_voice(v):
                     parts = v.split(":", 2)
-                    return parts[2] if len(parts) >= 3 else v
+                    display_name = parts[2] if len(parts) >= 3 else v
+                    return (
+                        display_name.replace("Female", tr("Female"))
+                        .replace("Male", tr("Male"))
+                    )
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))
@@ -5060,11 +5064,24 @@ def _render_audio_settings(panel, params):
                 )
                 _set_runtime_config("elevenlabs", "model_id", elevenlabs_model)
 
-            # Fish Audio API settings section (API key is read securely server-side from config.toml, never rendered in the UI)
+            # Fish Audio API settings section
             if tts_mode_enabled and (
                 selected_tts_server == "fish_audio"
                 or (voice_name and voice.is_fish_audio_voice(voice_name))
             ):
+                saved_fish_api_key = (
+                    config.fish_audio.get("api_key", "")
+                    if hasattr(config, "fish_audio") and isinstance(config.fish_audio, dict)
+                    else ""
+                )
+                fish_audio_api_key = st.text_input(
+                    tr("Fish Audio API Key"),
+                    value=saved_fish_api_key,
+                    type="password",
+                    key="fish_audio_api_key_input",
+                )
+                _set_runtime_config("fish_audio", "api_key", fish_audio_api_key)
+
                 _fish_audio_models = [
                     "s2.1-pro-free",
                     "s2.1-pro",
@@ -5078,7 +5095,7 @@ def _render_audio_settings(panel, params):
                 if saved_fish_model not in _fish_audio_models:
                     saved_fish_model = "s2.1-pro-free"
                 fish_model = stable_selectbox(
-                    "Fish Audio Model",
+                    tr("Fish Audio Model"),
                     options=_fish_audio_models,
                     default_value=saved_fish_model,
                     key="fish_audio_model_select",

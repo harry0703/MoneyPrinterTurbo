@@ -235,6 +235,8 @@
     "MiniMax Voices Load Failed": "Sesler yüklenemedi: {error}",
     "ElevenLabs API Key": "ElevenLabs API Anahtarı ([Anahtar al](https://elevenlabs.io/app/settings/api-keys))",
     "ElevenLabs Model": "ElevenLabs Modeli",
+    "Fish Audio API Key": "Fish Audio API Anahtarı ([Anahtar al](https://fish.audio/app/developers))",
+    "Fish Audio Model": "Fish Audio Modeli",
     "Chatterbox Base URL": "Chatterbox Temel URL'si",
     "Chatterbox API Key": "Chatterbox API Anahtarı (İsteğe bağlı; [Yapılandırmayı görüntüle](https://github.com/travisvn/chatterbox-tts-api))",
     "Chatterbox Model": "Chatterbox Modeli",

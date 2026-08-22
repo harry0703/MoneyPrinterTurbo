@@ -43,13 +43,19 @@ class TestFishAudioVoiceHelpers(unittest.TestCase):
         self.assertFalse(vs.is_fish_audio_voice(None))
 
     def test_get_fish_audio_voices_default(self):
-        """With no voices configured, returns the default voice entry."""
+        """With no voices configured, returns default female and male voice entries."""
         with patch.object(vs.config, "fish_audio", {"voices": []}):
             voices = vs.get_fish_audio_voices()
-        self.assertEqual(voices, ["fish_audio:default:Default Voice"])
+        self.assertEqual(
+            voices,
+            [
+                "fish_audio:default:Default-Female",
+                "fish_audio:default:Default-Male",
+            ],
+        )
 
     def test_get_fish_audio_voices_with_configured_entries(self):
-        """User-configured voices are appended after the default."""
+        """User-configured voices are appended after the defaults."""
         with patch.object(
             vs.config,
             "fish_audio",
@@ -59,7 +65,8 @@ class TestFishAudioVoiceHelpers(unittest.TestCase):
         self.assertEqual(
             voices,
             [
-                "fish_audio:default:Default Voice",
+                "fish_audio:default:Default-Female",
+                "fish_audio:default:Default-Male",
                 "fish_audio:abc123:My Narrator",
                 "fish_audio:def456:def456",
             ],

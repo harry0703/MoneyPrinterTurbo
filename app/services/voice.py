@@ -230,7 +230,10 @@ def get_fish_audio_voices() -> list[str]:
     additional public or cloned voices via ``[fish_audio] voices`` in the
     config file.
     """
-    result = ["fish_audio:default:Default Voice"]
+    result = [
+        "fish_audio:default:Default-Female",
+        "fish_audio:default:Default-Male",
+    ]
     voices = config.fish_audio.get("voices", []) or []
     if isinstance(voices, str):
         voices = [v.strip() for v in voices.split(",") if v.strip()]
