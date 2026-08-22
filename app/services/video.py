@@ -776,9 +776,14 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         left, top, right, bottom = font.getbbox(inner_text)
         return right - left, bottom - top
 
-    width, height = get_text_size(text)
+    # Line height must come from the font's own metrics, not from the ink extent
+    # of whichever glyphs this particular phrase happens to contain. getbbox()
+    # returns cap-height only for text with no descenders (g/j/p/q/y), which
+    # under-measures every line by ~30px at fontsize 60 and clips the last line.
+    line_height = sum(font.getmetrics())  # ascent + descent
+    width, _ = get_text_size(text)
     if width <= max_width:
-        return text, height
+        return text, line_height
 
     def split_long_token(token):
         # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
@@ -839,7 +844,7 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
             lines[index - 1] = lines[index - 1][:-1]
 
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
-    height = len(lines) * height
+    height = len(lines) * line_height
     return result, height
 
 

@@ -13,6 +13,7 @@ from moviepy import (
     ImageClip,
     VideoFileClip,
 )
+from PIL import ImageFont
 
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -985,6 +986,97 @@ class TestVideoService(unittest.TestCase):
             self.assertIn("\n", wrapped_text_zh)
         except Exception as e:
             self.fail(f"test wrap_text failed: {str(e)}")
+
+    def test_wrap_text_line_height_does_not_depend_on_descenders(self):
+        """
+        Line height must come from the font metrics, not from the ink extent of
+        the glyphs a phrase happens to contain. A Latin phrase without
+        descenders (g/j/p/q/y) is measured to the baseline only, so the height
+        returned here used to be cap-height per line and the last subtitle line
+        was clipped. Two phrases wrapping to the same number of lines must
+        report the same height.
+        """
+        font_path = os.path.join(utils.font_dir(), "STHeitiMedium.ttc")
+        font_size = 30
+        expected_line_height = sum(
+            ImageFont.truetype(font_path, font_size).getmetrics()
+        )
+
+        without_descenders = "A man survived the Hiroshima atomic bomb blast"
+        with_descenders = "A laser beam shoots across the black stripes"
+        self.assertFalse(set("gjpqy") & set(without_descenders))
+        self.assertTrue(set("gjpqy") & set(with_descenders))
+
+        wrapped_plain, height_plain = vd.wrap_text(
+            text=without_descenders,
+            max_width=300,
+            font=font_path,
+            fontsize=font_size,
+        )
+        wrapped_descenders, height_descenders = vd.wrap_text(
+            text=with_descenders,
+            max_width=300,
+            font=font_path,
+            fontsize=font_size,
+        )
+
+        line_count = wrapped_plain.count("\n") + 1
+        self.assertGreater(line_count, 1)
+        self.assertEqual(line_count, wrapped_descenders.count("\n") + 1)
+
+        self.assertEqual(height_plain, line_count * expected_line_height)
+        self.assertEqual(height_plain, height_descenders)
+
+    def test_wrap_text_single_line_uses_font_metrics(self):
+        """
+        Text short enough to need no wrapping takes the early return, and must
+        be measured against the font line height there as well.
+        """
+        font_path = os.path.join(utils.font_dir(), "STHeitiMedium.ttc")
+        font_size = 30
+        expected_line_height = sum(
+            ImageFont.truetype(font_path, font_size).getmetrics()
+        )
+
+        wrapped, height = vd.wrap_text(
+            text="Bottom line",
+            max_width=3000,
+            font=font_path,
+            fontsize=font_size,
+        )
+
+        self.assertNotIn("\n", wrapped)
+        self.assertEqual(height, expected_line_height)
+
+    def test_wrap_text_cjk_wrapping_is_unchanged_and_not_clipped(self):
+        """
+        CJK glyphs have a uniform vertical extent, so they never showed the
+        clipping. Wrapping output must stay identical after moving to font
+        metrics, and the height must only grow, never shrink, so existing CJK
+        subtitle layout is left alone.
+        """
+        font_path = os.path.join(utils.font_dir(), "STHeitiMedium.ttc")
+        font_size = 30
+        font = ImageFont.truetype(font_path, font_size)
+        text = "这是一段用来测试中文长句换行的文本内容，应该会根据宽度限制进行换行处理"
+
+        wrapped, height = vd.wrap_text(
+            text=text,
+            max_width=300,
+            font=font_path,
+            fontsize=font_size,
+        )
+
+        self.assertEqual(
+            wrapped,
+            "这是一段用来测试中文\n长句换行的文本内容，\n应该会根据宽度限制进\n行换行处理",
+        )
+        line_count = wrapped.count("\n") + 1
+        self.assertEqual(height, line_count * sum(font.getmetrics()))
+
+        bbox = font.getbbox(text)
+        ink_height_per_line = bbox[3] - bbox[1]
+        self.assertGreaterEqual(height, line_count * ink_height_per_line)
 
     def test_rounded_subtitle_background_clip_has_transparent_corners(self):
         """
