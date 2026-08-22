@@ -1,0 +1,80 @@
+{
+  "content_id": "HC20260810-005",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "afternoon_reset",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "下午没精神，试试3分钟状态重启",
+  "scenario": "办公室里想休息，却把流程列得太满，迟迟没有开始。",
+  "hook": "下午卡住，重启别排满。",
+  "core_claim": "短暂停顿可能小幅改变主观感受，但三分钟只是低门槛计时，不是恢复公式。",
+  "mechanism": "微休息效果受睡眠、时段、任务与情境影响，总体表现变化并不确定。",
+  "action": "设三分钟系统计时，只做离开屏幕、换姿势或看远处中的一件。",
+  "interaction": "三分钟里，你愿意先选哪一件小事？",
+  "applicable_to": [
+    "普通办公或居家场景中短暂倦怠的成年人"
+  ],
+  "not_applicable_to": [
+    "正在驾驶、机器操作、登高或处理安全任务的人"
+  ],
+  "medical_attention": "驾驶、机器操作或登高时不做计时挑战，难以清醒就先停下。",
+  "observations": [
+    {
+      "label": "重启之前",
+      "detail": "留意正在做什么以及持续多久"
+    },
+    {
+      "label": "短暂停顿",
+      "detail": "记录自己选了哪一件轻松小事"
+    },
+    {
+      "label": "返回之后",
+      "detail": "感受清醒度是否有变化"
+    }
+  ],
+  "save_reason": "简短流程可留作下次卡住时的启动提示。",
+  "sources": [
+    {
+      "title": "Rest Breaks",
+      "publisher": "CDC/NIOSH",
+      "url": "https://www.cdc.gov/niosh/work-hour-training-for-nurses/longhours/mod5/10.html",
+      "published_at": "2020-03-31"
+    },
+    {
+      "title": "Give me a break! A systematic review and meta-analysis on micro-breaks",
+      "publisher": "PLOS ONE",
+      "url": "https://doi.org/10.1371/journal.pone.0272460",
+      "published_at": "2022-08-31"
+    }
+  ],
+  "medical_review": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "一般生活方式内容不要求外部医学审核。"
+  },
+  "quality": {
+    "topic_value": 19,
+    "medical_credibility": 19,
+    "retention": 18,
+    "visual_explanation": 15,
+    "save_value": 13,
+    "follow_conversion": 9
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 56,
+  "narration_han_characters": 169,
+  "target_cps": 3.02,
+  "public_topic": "下午没精神的小重启"
+}

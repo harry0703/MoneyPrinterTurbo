@@ -1,0 +1,11 @@
+shot,reuse_status,source_plan,candidate_min,high_risk_reason,frame_contract
+S01,new,imagegen character-reference,2,cover+food+visible hands,high-angle dining mid-shot; character pauses and looks at refilled plate
+S02,new,imagegen character-reference,2,food+hand+serving spoon,hand places serving spoon beside shared plate
+S03,deterministic-board,built-in imagegen independent still-life candidates; selected source documented in inventory,2,food objects,text-free left-right tabletop still life: empty bowl on left and same-style added meal plate on right; no chart or person
+S04,new,imagegen character-reference,2,food+visible hand,side arm close shot; reaching hand pauses before serving
+S05,new,imagegen character-reference,1,none,living-room wide; character organizes one lightweight neutral object
+S06,new,imagegen character-reference,2,food+hand+serving spoon,top-down plate; one smaller serving and spoon set down
+S07,deterministic-board,editable SVG plus deterministic PNG render; no Grok source,2,food object,text-free brand-color open C-shaped plate with clear gap plus short chopsticks and pale-peach spoon on right; no baseline ticks gauge or chart
+S08,safe-reuse,imagegen character-reference,2,food+dining continuity,dining-room doorway; character arrives and sits normally
+S09,new,imagegen character-reference,2,food+cutlery+visible hands,side full-body; cutlery down and character begins to leave
+S10,deterministic-board,deterministic render,2,food+plate,text-free deep-teal card with pale-peach plate outline

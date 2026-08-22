@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">生活节奏看得见竖屏封面模板</title>
+  <desc id="desc">暖米白背景、深青绿标题、分离核心安全层与可裁装饰层的插画替换模板。</desc>
+  <metadata>
+    Canvas 1080x1920; 8px grid; component radius 24px.
+    Critical safe area x=72..900 y=160..1500; focal core-safe x=96..852 y=240..1320.
+    Title rendered right edge must remain &lt;=504 so title-to-illustration gap at x=552 is &gt;=48px.
+    Replace artwork separately inside illustration-slot/core-safe and illustration-slot/decorative-crop.
+    Only decorative-crop may extend beyond x=900. qa-guides is hidden by default.
+  </metadata>
+  <defs>
+    <clipPath id="slot-clip"><rect x="552" y="392" width="408" height="840" rx="24" ry="24"/></clipPath>
+    <clipPath id="core-clip"><rect x="552" y="392" width="300" height="840"/></clipPath>
+    <clipPath id="decorative-clip"><rect x="852" y="392" width="108" height="840"/></clipPath>
+  </defs>
+
+  <g id="background">
+    <rect width="1080" height="1920" fill="#FFF8EC"/>
+    <circle cx="1016" cy="216" r="136" fill="#F5C79E"/>
+    <path d="M0 1632 C232 1536 408 1584 592 1720 C736 1824 896 1872 1080 1792 L1080 1920 L0 1920 Z" fill="#087F78"/>
+    <path d="M0 1744 C232 1632 448 1704 616 1824 C744 1912 912 1928 1080 1872 L1080 1920 L0 1920 Z" fill="#10BFAE"/>
+  </g>
+
+  <g id="series-marker" font-family="Microsoft YaHei, sans-serif">
+    <rect x="96" y="176" width="64" height="8" rx="4" fill="#10BFAE"/>
+    <text x="176" y="204" fill="#087F78" font-size="36" font-weight="600" letter-spacing="2">生活节奏 · 午后状态</text>
+  </g>
+
+  <g id="headline" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" fill="#24313D" font-weight="700">
+    <text x="96" y="464" font-size="80" letter-spacing="-1">找到自己的</text>
+    <text x="96" y="568" font-size="80" letter-spacing="-1">午后节奏</text>
+    <rect x="96" y="616" width="128" height="12" rx="6" fill="#10BFAE"/>
+  </g>
+
+  <g id="supporting-copy" font-family="Microsoft YaHei, sans-serif" fill="#24313D" font-size="42">
+    <text x="96" y="704">先观察，再做小尝试</text>
+  </g>
+
+  <g id="illustration-slot" clip-path="url(#slot-clip)">
+    <rect x="552" y="392" width="408" height="840" rx="24" fill="#F5C79E"/>
+    <g id="core-safe" clip-path="url(#core-clip)">
+      <circle cx="744" cy="568" r="72" fill="#FFF8EC"/>
+      <circle cx="744" cy="568" r="44" fill="#10BFAE"/>
+      <path d="M504 1184 C608 1064 656 1000 704 920 C752 840 792 792 848 752 L896 840 C840 880 816 920 776 992 C728 1080 664 1160 584 1240 Z" fill="#087F78"/>
+      <path d="M584 1208 C672 1104 712 1048 752 976 C784 920 816 880 848 856" fill="none" stroke="#FFF8EC" stroke-width="28" stroke-linecap="round"/>
+      <g id="slot-label" font-family="Microsoft YaHei, sans-serif">
+        <rect x="600" y="1096" width="208" height="64" rx="24" fill="#FFF8EC"/>
+        <text x="704" y="1138" text-anchor="middle" fill="#087F78" font-size="28" font-weight="600">插画替换区</text>
+      </g>
+    </g>
+    <g id="decorative-crop" clip-path="url(#decorative-clip)">
+      <path d="M504 1184 C608 1064 656 1000 704 920 C752 840 792 792 848 752 L896 840 C840 880 816 920 776 992 C728 1080 664 1160 584 1240 Z" fill="#087F78"/>
+      <path d="M584 1208 C672 1104 712 1048 752 976 C784 920 816 880 920 816" fill="none" stroke="#FFF8EC" stroke-width="28" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <g id="footer" font-family="Microsoft YaHei, sans-serif">
+    <text x="96" y="1456" fill="#087F78" font-size="36" font-weight="600">生活节奏看得见</text>
+  </g>
+
+  <g id="qa-guides" display="none" fill="none" pointer-events="none">
+    <rect x="72" y="160" width="828" height="1340" stroke="#24313D" stroke-width="4" stroke-dasharray="16 12"/>
+    <rect x="96" y="240" width="756" height="1080" stroke="#10BFAE" stroke-width="4" stroke-dasharray="12 12"/>
+  </g>
+</svg>

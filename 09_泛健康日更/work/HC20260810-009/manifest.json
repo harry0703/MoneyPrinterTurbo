@@ -1,0 +1,80 @@
+{
+  "content_id": "HC20260810-009",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "work_rhythm",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "下午最难的任务，什么时候做更顺",
+  "scenario": "同一段难度高的工作，在两个下午时点启动，感受并不完全一样。",
+  "hook": "下午难任务，换时点再比。",
+  "core_claim": "不存在人人相同的下午黄金时点，任务、睡眠、环境与个人偏好都会改变表现。",
+  "mechanism": "材料显示时点关系存在明显差异，因此适合用同类任务做个人重复比较。",
+  "action": "截取同类任务的一小段，分别记录两个下午时点的启动、返工与完成感。",
+  "interaction": "你下午处理难任务时，更在意启动还是返工？",
+  "applicable_to": [
+    "能在可调整范围内安排个人任务顺序的普通成年人"
+  ],
+  "not_applicable_to": [
+    "时点由流程固定或需要实时响应安全事件的人"
+  ],
+  "medical_attention": "明显困倦时不拿驾驶、机器操作或其他高风险任务做时点尝试。",
+  "observations": [
+    {
+      "label": "开始时点",
+      "detail": "记录任务开始时间与任务类型"
+    },
+    {
+      "label": "启动状态",
+      "detail": "留意开始前的清醒感"
+    },
+    {
+      "label": "完成反馈",
+      "detail": "记录启动用时、返工与完成感"
+    }
+  ],
+  "save_reason": "任务对比可留作下周排活的一条个人依据。",
+  "sources": [
+    {
+      "title": "Afternoon Dip in Wakefulness",
+      "publisher": "CDC/NIOSH",
+      "url": "https://www.cdc.gov/niosh/work-hour-training-for-nurses/longhours/mod2/21.html",
+      "published_at": "2020-03-31"
+    },
+    {
+      "title": "Chronotype and synchrony effects in human cognitive performance",
+      "publisher": "Taylor & Francis",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/40293205/",
+      "published_at": "2025-04-28"
+    }
+  ],
+  "medical_review": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "一般生活方式内容不要求外部医学审核。"
+  },
+  "quality": {
+    "topic_value": 19,
+    "medical_credibility": 19,
+    "retention": 18,
+    "visual_explanation": 15,
+    "save_value": 13,
+    "follow_conversion": 9
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 56,
+  "narration_han_characters": 168,
+  "target_cps": 3.0,
+  "public_topic": "下午难任务何时做更顺"
+}

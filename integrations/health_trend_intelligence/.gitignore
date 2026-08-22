@@ -1,0 +1,6 @@
+.venv/
+.env
+raw/
+curated/
+approved/
+*_user_data_dir/

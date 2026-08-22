@@ -1,0 +1,53 @@
+{
+  "content_id": "HCYYYYMMDD-001",
+  "batch_id": "HBYYYYMMDD",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "metabolism",
+  "audience": "35-60岁关注家庭健康的人群",
+  "topic": "",
+  "public_topic": "",
+  "scenario": "",
+  "hook": "",
+  "core_claim": "",
+  "mechanism": "",
+  "action": "",
+  "interaction": "",
+  "applicable_to": [],
+  "not_applicable_to": [],
+  "medical_attention": "",
+  "observations": [],
+  "save_reason": "",
+  "sources": [
+    {
+      "title": "",
+      "publisher": "",
+      "url": "",
+      "published_at": ""
+    }
+  ],
+  "medical_review": {
+    "status": "pending",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": ""
+  },
+  "quality": {
+    "topic_value": 0,
+    "medical_credibility": 0,
+    "retention": 0,
+    "visual_explanation": 0,
+    "save_value": 0,
+    "follow_conversion": 0
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "pending",
+    "reviewer": "",
+    "reviewed_at": ""
+  }
+}

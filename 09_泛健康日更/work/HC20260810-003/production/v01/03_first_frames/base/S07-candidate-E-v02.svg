@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <rect width="1080" height="1920" fill="#FFF8EC"/>
+  <path d="M 780 748 C 665 588 374 570 232 760 C 82 960 248 1215 510 1232 C 625 1240 724 1192 788 1100"
+        fill="none" stroke="#087F78" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Simple place-setting cues keep the open outline readable as a plate, not a loading ring. -->
+  <g fill="none" stroke="#087F78" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 878 824 L 863 1076" stroke-width="18"/>
+    <path d="M 916 826 L 901 1078" stroke-width="18"/>
+    <ellipse cx="978" cy="852" rx="34" ry="45" fill="#F6C99F" stroke-width="18"/>
+    <path d="M 978 897 L 965 1072" stroke-width="18"/>
+  </g>
+</svg>

@@ -1,0 +1,16 @@
+{
+  "schema": "health-topic-input-v1",
+  "content_profile": "general_wellness_uncredentialed",
+  "topics": [
+    {"slot": 1, "category": "afternoon_rhythm", "topic": "午饭后总想打盹，先观察3件事", "audience": "中国大陆35—60岁用户"},
+    {"slot": 2, "category": "meal_pace", "topic": "吃饭太快，下午状态有什么不同", "audience": "中国大陆35—60岁用户"},
+    {"slot": 3, "category": "meal_comfort", "topic": "午餐吃得太撑，下午怎么安排更舒服", "audience": "中国大陆35—60岁用户"},
+    {"slot": 4, "category": "after_meal_routine", "topic": "饭后一直坐和轻松走动，感受有什么不同", "audience": "中国大陆35—60岁用户"},
+    {"slot": 5, "category": "afternoon_reset", "topic": "下午没精神，试试3分钟状态重启", "audience": "中国大陆35—60岁用户"},
+    {"slot": 6, "category": "nap_rhythm", "topic": "午休后更困？先看入睡和醒来时间", "audience": "中国大陆35—60岁用户"},
+    {"slot": 7, "category": "coffee_timing", "topic": "下午总靠咖啡顶，先记录饮用时间", "audience": "中国大陆35—60岁用户"},
+    {"slot": 8, "category": "snack_trigger", "topic": "午后嘴馋，先分清饿、渴还是习惯", "audience": "中国大陆35—60岁用户"},
+    {"slot": 9, "category": "work_rhythm", "topic": "下午最难的任务，什么时候做更顺", "audience": "中国大陆35—60岁用户"},
+    {"slot": 10, "category": "weekly_pattern", "topic": "连续7天，找到自己的午后规律", "audience": "中国大陆35—60岁用户"}
+  ]
+}

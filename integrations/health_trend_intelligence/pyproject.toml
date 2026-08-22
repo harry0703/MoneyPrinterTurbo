@@ -1,0 +1,29 @@
+[project]
+name = "health-trend-intelligence"
+version = "0.1.0"
+requires-python = ">=3.11,<3.12"
+dependencies = ["pydantic>=2.13.4,<3", "typer>=0.12.3,<1"]
+
+[build-system]
+requires = ["setuptools>=78,<81"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[project.scripts]
+hti = "health_trend_intelligence.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8.4,<9", "ruff>=0.12,<1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100

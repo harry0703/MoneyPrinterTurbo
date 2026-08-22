@@ -1,0 +1,18 @@
+{
+  "schema": "health-dry-run-v1",
+  "batch_id": "HB20260810",
+  "status": "research_pending",
+  "checks": {
+    "topic_count": 10,
+    "unique_content_ids": 10,
+    "platforms": [
+      "wechat_channels",
+      "douyin",
+      "xiaohongshu",
+      "kuaishou"
+    ],
+    "automatic_publishing": false,
+    "medical_review_required": true
+  },
+  "content_profile": "general_wellness_uncredentialed"
+}

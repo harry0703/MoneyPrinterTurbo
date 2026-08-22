@@ -1,0 +1,80 @@
+{
+  "content_id": "HC20260810-002",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "meal_pace",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "吃饭太快，下午状态有什么不同",
+  "scenario": "办公室午餐结束后，同样一份饭，一次匆匆吃完，一次中途停顿。",
+  "hook": "同份午餐，快慢有何不同？",
+  "core_claim": "放慢一点能增加留意份量与饱足感的机会，但不代表下午就会更清醒。",
+  "mechanism": "进餐速度适合作为个人对比变量，现有材料不能把它写成午后状态的单一解释。",
+  "action": "午餐中途停一下，问自己还饿吗、已经够了吗，再决定是否继续。",
+  "interaction": "你通常在哪一口之后才发现自己吃快了？",
+  "applicable_to": [
+    "进餐较快并想观察个人感受的普通成年人"
+  ],
+  "not_applicable_to": [
+    "吞咽不顺、进餐不舒服或已有个人饮食安排的人"
+  ],
+  "medical_attention": "吞咽不顺或进餐时不舒服，就不做速度对比，也不用挨饿补偿。",
+  "observations": [
+    {
+      "label": "进餐时长",
+      "detail": "从第一口到放下餐具的大致时间"
+    },
+    {
+      "label": "中途感受",
+      "detail": "留意吃到一半时还饿不饿"
+    },
+    {
+      "label": "午后状态",
+      "detail": "记录清醒与专注的主观感受"
+    }
+  ],
+  "save_reason": "中途停顿可留作下顿饭的再次尝试。",
+  "sources": [
+    {
+      "title": "健康中国行动（2019—2030年）",
+      "publisher": "国家卫生健康委员会",
+      "url": "https://www.nhc.gov.cn/guihuaxxs/c100133/201907/2a6ed52f1c264203b5351bdbbadd2da8.shtml",
+      "published_at": "2019-07-15"
+    },
+    {
+      "title": "Slower eating speed lowers energy intake in normal-weight but not overweight/obese subjects",
+      "publisher": "Academy of Nutrition and Dietetics",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/24388483/",
+      "published_at": "2014-03"
+    }
+  ],
+  "medical_review": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "一般生活方式内容不要求外部医学审核。"
+  },
+  "quality": {
+    "topic_value": 19,
+    "medical_credibility": 19,
+    "retention": 18,
+    "visual_explanation": 15,
+    "save_value": 13,
+    "follow_conversion": 8
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 55,
+  "narration_han_characters": 166,
+  "target_cps": 3.02,
+  "public_topic": "吃饭快慢与下午感受"
+}

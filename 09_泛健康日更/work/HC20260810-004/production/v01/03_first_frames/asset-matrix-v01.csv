@@ -1,0 +1,11 @@
+shot,reuse_status,source_plan,candidate_min,high_risk_reason,frame_contract
+S01,deterministic-board,"deterministic render; selected base/S01-candidate-C-deterministic-selected-source.png; editable-svg=base/S01-candidate-C-deterministic-selected-source.svg; source/formal-sha256=18c8c7da776a75dacc1329f2bd40a489d95ae29ddf480fc51c0f1afe1d8c984f; svg-sha256=d0ba0ff6e50257649ff011354d8afdc44a93b6cce5e8e44b6c5dadd3364c6ab3",2,cover,"text-free seven vertical warm-daylight/brand tiles; explicit seated silhouettes with chair+bent knees on 1/3/5/7 and walking silhouettes with split legs+swinging arms on 2/4/6; readable at 25%"
+S02,new,imagegen,1,none,empty community path and bench wide establishing shot
+S03,new,imagegen character-reference,2,visible hands/two-state continuity,same character seated on bench in selected first state
+S04,safe-reuse,imagegen character-reference,2,visible hands,full-body side view seated naturally with empty hands
+S05,new,imagegen character-reference,2,visible hands+safety route,character stands at flat path entrance checking surface
+S06,new,imagegen character-reference,2,walking limbs,parallel side-follow walking pose with correct limbs
+S07,new,"imagegen character-reference; selected base/S07-candidate-C-phone-audit-selected-source.png; source-sha256=3c19c703628c46f185bcaa2fb6fe01b9a623b3afe63b30ce804889d2c1031814; formal-sha256=86f018f359ac4fb07d47a191a92ed1774f06e6803c34c31b261a0c5768d8958a",2,phone+finger+standing-action,"same locked character standing stopped at flat community-path exit; three-quarter rear-side; one near-front blank phone; complete corners; fingertip outside central 70%; screen approximately 2.17 and outer approximately 2.13-2.17 within mandatory 2.0-2.2"
+S08,deterministic-board,deterministic render,1,none,text-free two-frame comparison board
+S09,new,imagegen character-reference,2,wet path+safety movement,character stopped before wet section and oriented to dry path
+S10,deterministic-board,deterministic render,1,none,text-free seven tiles with one exception color

@@ -1,0 +1,80 @@
+{
+  "content_id": "HC20260810-007",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "coffee_timing",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "下午总靠咖啡顶，先记录饮用时间",
+  "scenario": "桌边的咖啡杯成为时点提示，而不是继续加量的信号。",
+  "hook": "桌边咖啡，先记饮用时点。",
+  "core_claim": "咖啡因影响与时点、份量和个人敏感度有关，不能设所有人的统一停饮时点。",
+  "mechanism": "固定高量小样本结果不能直接等同日常一杯，个人重复记录比统一禁令稳妥。",
+  "action": "把末次饮用时间和大致份量记进手机，晚上补一条入睡感受。",
+  "interaction": "你通常会记得下午那杯是什么时候喝的吗？",
+  "applicable_to": [
+    "日常饮用咖啡、茶或其他含咖啡因饮品的普通成年人"
+  ],
+  "not_applicable_to": [
+    "孕期、哺乳期、未成年人或已被要求限制咖啡因的人"
+  ],
+  "medical_attention": "不要不断加量来硬撑高风险操作；难以清醒时先停下并休息。",
+  "observations": [
+    {
+      "label": "饮用时间",
+      "detail": "记录当天末次含咖啡因饮品时点"
+    },
+    {
+      "label": "种类份量",
+      "detail": "保留大致杯量与饮品种类"
+    },
+    {
+      "label": "当晚感受",
+      "detail": "补充躺下与入睡的主观感受"
+    }
+  ],
+  "save_reason": "时间卡可留作下一杯与当晚感受的前后比较。",
+  "sources": [
+    {
+      "title": "Scientific Opinion on the safety of caffeine",
+      "publisher": "EFSA",
+      "url": "https://www.efsa.europa.eu/en/topics/topic/caffeine",
+      "published_at": "2015-05-27"
+    },
+    {
+      "title": "Caffeine effects on sleep taken 0, 3, or 6 hours before going to bed",
+      "publisher": "American Academy of Sleep Medicine",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3805807/",
+      "published_at": "2013-11-15"
+    }
+  ],
+  "medical_review": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "一般生活方式内容不要求外部医学审核。"
+  },
+  "quality": {
+    "topic_value": 19,
+    "medical_credibility": 19,
+    "retention": 18,
+    "visual_explanation": 14,
+    "save_value": 13,
+    "follow_conversion": 9
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 56,
+  "narration_han_characters": 169,
+  "target_cps": 3.02,
+  "public_topic": "下午喝咖啡先记时点"
+}

@@ -1,0 +1,80 @@
+{
+  "content_id": "HC20260810-001",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "afternoon_rhythm",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "午饭后总想打盹，先观察3件事",
+  "scenario": "午饭后回到座位，眼皮发沉，却说不清是昨晚、午餐还是饭后安排带来的感受。",
+  "hook": "午后犯困，先别怪午饭。",
+  "core_claim": "午后发沉受多种生活因素影响，单次感受不适合被归到一个固定原因。",
+  "mechanism": "把昨晚睡起时间、午餐过程和饭后安排并列观察，更容易避免单因归因。",
+  "action": "在手机里点选睡眠、午餐、饭后安排三项，再补一句当时感受。",
+  "interaction": "你午饭后先会回想哪一项？",
+  "applicable_to": [
+    "希望了解自己午后节奏的普通成年人"
+  ],
+  "not_applicable_to": [
+    "正在驾驶、操作机器或需要持续清醒的人"
+  ],
+  "medical_attention": "困得难以保持清醒时，先停止驾驶或机器操作，到安全处休息。",
+  "observations": [
+    {
+      "label": "昨晚睡起",
+      "detail": "回想大致入睡与起床时间"
+    },
+    {
+      "label": "午餐过程",
+      "detail": "留意速度与停下时的饱足感"
+    },
+    {
+      "label": "饭后安排",
+      "detail": "对比一直坐着与轻松活动"
+    }
+  ],
+  "save_reason": "三项观察可留作下次发沉时的查看入口。",
+  "sources": [
+    {
+      "title": "Driver Fatigue on the Job",
+      "publisher": "CDC/NIOSH",
+      "url": "https://www.cdc.gov/niosh/motor-vehicle/driver-fatigue/index.html",
+      "published_at": "2024-04-03"
+    },
+    {
+      "title": "Effects of meals on objective and subjective measures of daytime sleepiness",
+      "publisher": "American Physiological Society",
+      "url": "https://doi.org/10.1152/jappl.1998.84.2.507",
+      "published_at": "1998-02-01"
+    }
+  ],
+  "medical_review": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "一般生活方式内容不要求外部医学审核。"
+  },
+  "quality": {
+    "topic_value": 19,
+    "medical_credibility": 19,
+    "retention": 18,
+    "visual_explanation": 14,
+    "save_value": 13,
+    "follow_conversion": 9
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 54,
+  "narration_han_characters": 167,
+  "target_cps": 3.09,
+  "public_topic": "午后犯困先看三件事"
+}

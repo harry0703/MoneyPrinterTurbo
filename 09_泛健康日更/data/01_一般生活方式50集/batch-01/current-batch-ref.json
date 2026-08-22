@@ -1,0 +1,8 @@
+{
+  "schema": "health-batch-ref-v1",
+  "batch_id": "HB20260810",
+  "date": "20260810",
+  "path": "batches/20260810/active-batch.json",
+  "sha256": "a9b27cf2437e4660f1d182ad57b526338fa1ef24a7b7ea66a8574aeea2b4b780",
+  "active_sha256": "824dafccf4363c562d9ebbe14a51d7767ef51cbb4028e9c96ad93dc6a6aea575"
+}

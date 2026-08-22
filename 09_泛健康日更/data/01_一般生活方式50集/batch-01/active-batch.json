@@ -1,0 +1,120 @@
+{
+  "schema": "health-batch-v1",
+  "batch_id": "HB20260810",
+  "date": "20260810",
+  "cadence": "daily",
+  "publication_policy": "human_only_all_four",
+  "topics": [
+    {
+      "slot": 1,
+      "content_id": "HC20260810-001",
+      "category": "afternoon_rhythm",
+      "topic": "午饭后总想打盹，先观察3件事",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 2,
+      "content_id": "HC20260810-002",
+      "category": "meal_pace",
+      "topic": "吃饭太快，下午状态有什么不同",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 3,
+      "content_id": "HC20260810-003",
+      "category": "meal_comfort",
+      "topic": "午餐吃得太撑，下午怎么安排更舒服",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 4,
+      "content_id": "HC20260810-004",
+      "category": "after_meal_routine",
+      "topic": "饭后一直坐和轻松走动，感受有什么不同",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 5,
+      "content_id": "HC20260810-005",
+      "category": "afternoon_reset",
+      "topic": "下午没精神，试试3分钟状态重启",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 6,
+      "content_id": "HC20260810-006",
+      "category": "nap_rhythm",
+      "topic": "午休后更困？先看入睡和醒来时间",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 7,
+      "content_id": "HC20260810-007",
+      "category": "coffee_timing",
+      "topic": "下午总靠咖啡顶，先记录饮用时间",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 8,
+      "content_id": "HC20260810-008",
+      "category": "snack_trigger",
+      "topic": "午后嘴馋，先分清饿、渴还是习惯",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 9,
+      "content_id": "HC20260810-009",
+      "category": "work_rhythm",
+      "topic": "下午最难的任务，什么时候做更顺",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    },
+    {
+      "slot": 10,
+      "content_id": "HC20260810-010",
+      "category": "weekly_pattern",
+      "topic": "连续7天，找到自己的午后规律",
+      "audience": "中国大陆35—60岁用户",
+      "state": "production",
+      "state_history": [
+        "production"
+      ]
+    }
+  ],
+  "content_profile": "general_wellness_uncredentialed"
+}

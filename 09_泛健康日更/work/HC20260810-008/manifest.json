@@ -1,0 +1,80 @@
+{
+  "content_id": "HC20260810-008",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "snack_trigger",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "午后嘴馋，先分清饿、渴还是习惯",
+  "scenario": "社区休息区看见零食后伸手，先停一下分开感受和场景。",
+  "hook": "午后嘴馋，先记三类线索。",
+  "core_claim": "口渴与饥饿可能不同步，不能把渴变饿写成普遍规律，也不能由一次记录认定原因。",
+  "mechanism": "小样本受控条件未支持渴必然变饿，只能把饿、渴和场景当作个人观察字段。",
+  "action": "拿零食前在手机点选饿、渴、场景三类线索，再自主决定下一步。",
+  "interaction": "你午后想吃东西时，哪个场景出现得更频繁？",
+  "applicable_to": [
+    "常在固定午后场景想吃零食的普通成年人"
+  ],
+  "not_applicable_to": [
+    "已有个人饮食安排或不能自由调整饮水进餐的人"
+  ],
+  "medical_attention": "不要大量喝水压住饥饿，也不要为了验证习惯而长时间强忍。",
+  "observations": [
+    {
+      "label": "主观饥饿",
+      "detail": "留意距离上一餐多久与肚子感受"
+    },
+    {
+      "label": "主观口渴",
+      "detail": "回想近期饮水与口里感受"
+    },
+    {
+      "label": "当时场景",
+      "detail": "记录看到食物、暂停或固定时点"
+    }
+  ],
+  "save_reason": "三类线索可留作同类场景再次出现时的参照。",
+  "sources": [
+    {
+      "title": "Steps for Losing Weight",
+      "publisher": "CDC",
+      "url": "https://www.cdc.gov/healthy-weight-growth/losing-weight/index.html",
+      "published_at": "2025-01-17"
+    },
+    {
+      "title": "Hydration status affects thirst and salt preference but not energy intake",
+      "publisher": "Elsevier / Physiology & Behavior",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/31676259/",
+      "published_at": "2019-12-01"
+    }
+  ],
+  "medical_review": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "一般生活方式内容不要求外部医学审核。"
+  },
+  "quality": {
+    "topic_value": 19,
+    "medical_credibility": 19,
+    "retention": 19,
+    "visual_explanation": 15,
+    "save_value": 13,
+    "follow_conversion": 8
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 56,
+  "narration_han_characters": 169,
+  "target_cps": 3.02,
+  "public_topic": "午后嘴馋先记三类线索"
+}

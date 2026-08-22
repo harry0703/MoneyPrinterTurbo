@@ -1,0 +1,80 @@
+{
+  "content_id": "HC20260810-006",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "nap_rhythm",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "午休后更困？先看入睡和醒来时间",
+  "scenario": "客厅午休前后，闹钟时长和实际睡着时段并不相同。",
+  "hook": "午休后发懵，先看三时点。",
+  "core_claim": "醒后发懵受实际睡眠时长、醒来阶段与此前睡眠影响，不存在人人相同的午休长度。",
+  "mechanism": "只记录闹钟时长会漏掉入睡等待与醒来方式，分开记录三个时点更有信息。",
+  "action": "用手机点选躺下、估计入睡、醒来三个时点，醒后留出缓冲。",
+  "interaction": "你的闹钟时长和实际睡着时段常常一样吗？",
+  "applicable_to": [
+    "偶尔午休并想了解醒后感受的普通成年人"
+  ],
+  "not_applicable_to": [
+    "需要随时响应安全任务或醒来后马上驾驶的人"
+  ],
+  "medical_attention": "还没稳定清醒时不驾驶、不操作机器，先继续休息。",
+  "observations": [
+    {
+      "label": "躺下时间",
+      "detail": "记录准备午休的大致时点"
+    },
+    {
+      "label": "估计入睡",
+      "detail": "区分躺下与真正睡着"
+    },
+    {
+      "label": "醒来之后",
+      "detail": "记录醒来方式与清醒感"
+    }
+  ],
+  "save_reason": "三个时点可留作下一次午休的对照。",
+  "sources": [
+    {
+      "title": "Nap Duration",
+      "publisher": "CDC/NIOSH",
+      "url": "https://www.cdc.gov/niosh/work-hour-training-for-nurses/longhours/mod7/05.html",
+      "published_at": "2020-03-31"
+    },
+    {
+      "title": "A brief afternoon nap following nocturnal sleep restriction",
+      "publisher": "Oxford University Press / SLEEP",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/16796222/",
+      "published_at": "2006-06"
+    }
+  ],
+  "medical_review": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "一般生活方式内容不要求外部医学审核。"
+  },
+  "quality": {
+    "topic_value": 19,
+    "medical_credibility": 19,
+    "retention": 18,
+    "visual_explanation": 14,
+    "save_value": 13,
+    "follow_conversion": 9
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 54,
+  "narration_han_characters": 167,
+  "target_cps": 3.09,
+  "public_topic": "午休后更困先看时点"
+}

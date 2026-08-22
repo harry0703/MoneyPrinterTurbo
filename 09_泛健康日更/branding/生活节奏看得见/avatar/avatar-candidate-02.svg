@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">盘内阳光路径头像候选二</title>
+  <desc id="desc">基于 avatar-source-concept-02 的平色生产清理版：深青底、双层俯视盘沿、盘内阳光和对角单一路径。</desc>
+  <metadata>Source concept: source/avatar-source-concept-02.png. Production cleanup: deterministic SVG, five-token palette, no gradients, no shadows.</metadata>
+  <rect width="1024" height="1024" fill="#087F78"/>
+  <g id="overhead-plate">
+    <circle cx="512" cy="520" r="300" fill="#FFF8EC"/>
+    <circle cx="512" cy="520" r="258" fill="#24313D"/>
+    <circle cx="512" cy="520" r="234" fill="#FFF8EC"/>
+  </g>
+  <g id="sun" fill="#F5C79E" stroke="#F5C79E" stroke-width="22" stroke-linecap="round">
+    <circle cx="420" cy="382" r="58" stroke="none"/>
+    <path d="M420 294v28M346 320l20 20M494 320l-20 20" fill="none"/>
+  </g>
+  <path id="single-walking-path" d="M650 734 C642 654 530 638 560 560 C584 496 482 484 438 442" fill="none" stroke="#10BFAE" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

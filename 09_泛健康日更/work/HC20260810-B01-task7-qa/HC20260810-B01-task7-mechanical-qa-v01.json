@@ -1,0 +1,5482 @@
+{
+  "status": "PASS",
+  "schema": "task7-mechanical-qa-v02",
+  "summary": {
+    "checks": 979,
+    "passed": 979,
+    "failed": 0,
+    "article_pngs": 70,
+    "covers": 10,
+    "unique_article_hashes": 70,
+    "unique_cover_hashes": 10,
+    "a07_unique_text_free_geometries": 10,
+    "geometry_clone_warnings": 0,
+    "repro_evidence_checked": true
+  },
+  "failures": [],
+  "geometry_clone_warnings": [],
+  "manual_visual_review_required": [
+    "图标或场景是否像医疗物件、药片、设备、数据图表或仪表",
+    "缩略图第一语义与文章主题是否一致",
+    "人物与物件裁切、平台安全区与真实平台适配"
+  ],
+  "checks": [
+    {
+      "label": "HC20260810-001 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-001/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-001/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-001/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-001/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-001/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-001/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-001/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=午后犯困先看三项"
+    },
+    {
+      "label": "HC20260810-001 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=午后犯困先看三项, length=8"
+    },
+    {
+      "label": "HC20260810-001 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-001 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001 provenance entry count",
+      "ok": true,
+      "detail": "declared=2, local_pngs=2"
+    },
+    {
+      "label": "HC20260810-001 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-001/production/v01/03_first_frames/HC20260810-001-v01-S01-firstframe.png"
+    },
+    {
+      "label": "HC20260810-001 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=b3c852ff963fd4abbfb187b6ba1d59fab1de01d83c2101125aac671a0e681394, source=b3c852ff963fd4abbfb187b6ba1d59fab1de01d83c2101125aac671a0e681394, copy=b3c852ff963fd4abbfb187b6ba1d59fab1de01d83c2101125aac671a0e681394"
+    },
+    {
+      "label": "HC20260810-001 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-secondary.png <- 09_泛健康日更/work/HC20260810-001/production/v01/03_first_frames/HC20260810-001-v01-S05-firstframe.png"
+    },
+    {
+      "label": "HC20260810-001 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=dff77f067c2c0efa0302617c9e39ab3086f96db7819bd1c6327ebbaa7444811d, source=dff77f067c2c0efa0302617c9e39ab3086f96db7819bd1c6327ebbaa7444811d, copy=dff77f067c2c0efa0302617c9e39ab3086f96db7819bd1c6327ebbaa7444811d"
+    },
+    {
+      "label": "HC20260810-002 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-002/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-002/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-002/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-002/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-002/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-002/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-002/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=吃饭快慢留个停顿"
+    },
+    {
+      "label": "HC20260810-002 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=吃饭快慢留个停顿, length=8"
+    },
+    {
+      "label": "HC20260810-002 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-002 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002 provenance entry count",
+      "ok": true,
+      "detail": "declared=2, local_pngs=2"
+    },
+    {
+      "label": "HC20260810-002 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-002/production/v01/03_first_frames/HC20260810-002-v01-S04-firstframe.png"
+    },
+    {
+      "label": "HC20260810-002 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=262f918aa070df29b4ace913fb544b26baa7ce389d03dac8b18ee1055e082e5f, source=262f918aa070df29b4ace913fb544b26baa7ce389d03dac8b18ee1055e082e5f, copy=262f918aa070df29b4ace913fb544b26baa7ce389d03dac8b18ee1055e082e5f"
+    },
+    {
+      "label": "HC20260810-002 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-secondary.png <- 09_泛健康日更/work/HC20260810-002/production/v01/03_first_frames/HC20260810-002-v01-S03-firstframe.png"
+    },
+    {
+      "label": "HC20260810-002 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=333ddb73f1db1e5874491469ea43911994fe92919c83e69a33440eab7f44d4b5, source=333ddb73f1db1e5874491469ea43911994fe92919c83e69a33440eab7f44d4b5, copy=333ddb73f1db1e5874491469ea43911994fe92919c83e69a33440eab7f44d4b5"
+    },
+    {
+      "label": "HC20260810-003 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-003/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-003/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-003/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-003/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-003/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-003/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-003/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=吃撑以后先放稳些"
+    },
+    {
+      "label": "HC20260810-003 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=吃撑以后先放稳些, length=8"
+    },
+    {
+      "label": "HC20260810-003 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-003 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003 provenance entry count",
+      "ok": true,
+      "detail": "declared=2, local_pngs=2"
+    },
+    {
+      "label": "HC20260810-003 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-003/production/v01/03_first_frames/HC20260810-003-v01-S01-firstframe.png"
+    },
+    {
+      "label": "HC20260810-003 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=32fad8b746573df906464e3acbc66adcf5a7e4d04c5a56cd10d828bcc4b6a358, source=32fad8b746573df906464e3acbc66adcf5a7e4d04c5a56cd10d828bcc4b6a358, copy=32fad8b746573df906464e3acbc66adcf5a7e4d04c5a56cd10d828bcc4b6a358"
+    },
+    {
+      "label": "HC20260810-003 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-secondary.png <- 09_泛健康日更/work/HC20260810-003/production/v01/03_first_frames/HC20260810-003-v01-S04-firstframe.png"
+    },
+    {
+      "label": "HC20260810-003 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=06a0cca336f9c9ac43b082c507c23b0088adabd85a5cc4cbc7cfda418f2fff45, source=06a0cca336f9c9ac43b082c507c23b0088adabd85a5cc4cbc7cfda418f2fff45, copy=06a0cca336f9c9ac43b082c507c23b0088adabd85a5cc4cbc7cfda418f2fff45"
+    },
+    {
+      "label": "HC20260810-004 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-004/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-004/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-004/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-004/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-004/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-004/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-004/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=七天对比坐走感受"
+    },
+    {
+      "label": "HC20260810-004 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=七天对比坐走感受, length=8"
+    },
+    {
+      "label": "HC20260810-004 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-004 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004 provenance entry count",
+      "ok": true,
+      "detail": "declared=2, local_pngs=2"
+    },
+    {
+      "label": "HC20260810-004 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-004/production/v01/03_first_frames/HC20260810-004-v01-S03-firstframe.png"
+    },
+    {
+      "label": "HC20260810-004 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=950757e90a34ee63a3377b026dacd0d2d2bc28120f75c4adb0b31cdbc6815cee, source=950757e90a34ee63a3377b026dacd0d2d2bc28120f75c4adb0b31cdbc6815cee, copy=950757e90a34ee63a3377b026dacd0d2d2bc28120f75c4adb0b31cdbc6815cee"
+    },
+    {
+      "label": "HC20260810-004 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-secondary.png <- 09_泛健康日更/work/HC20260810-004/production/v01/03_first_frames/HC20260810-004-v01-S06-firstframe.png"
+    },
+    {
+      "label": "HC20260810-004 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=36fd7218d48a35b33f354e7c07c0ec42c3597113ad21cb27aa84006ed3dfaa96, source=36fd7218d48a35b33f354e7c07c0ec42c3597113ad21cb27aa84006ed3dfaa96, copy=36fd7218d48a35b33f354e7c07c0ec42c3597113ad21cb27aa84006ed3dfaa96"
+    },
+    {
+      "label": "HC20260810-005 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-005/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-005/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=下午卡住简短重启"
+    },
+    {
+      "label": "HC20260810-005 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=下午卡住简短重启, length=8"
+    },
+    {
+      "label": "HC20260810-005 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-005 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005 provenance entry count",
+      "ok": true,
+      "detail": "declared=1, local_pngs=1"
+    },
+    {
+      "label": "HC20260810-005 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-005/production/v01/03_first_frames/HC20260810-005-v01-S03-firstframe.png"
+    },
+    {
+      "label": "HC20260810-005 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=84ee0f278cccf95a7107f377b4570a93b17a3122e0af18f36339d235099d3dc0, source=84ee0f278cccf95a7107f377b4570a93b17a3122e0af18f36339d235099d3dc0, copy=84ee0f278cccf95a7107f377b4570a93b17a3122e0af18f36339d235099d3dc0"
+    },
+    {
+      "label": "HC20260810-006 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-006/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-006/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-006/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-006/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-006/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-006/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-006/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=午休看清三个时点"
+    },
+    {
+      "label": "HC20260810-006 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=午休看清三个时点, length=8"
+    },
+    {
+      "label": "HC20260810-006 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-006 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006 provenance entry count",
+      "ok": true,
+      "detail": "declared=2, local_pngs=2"
+    },
+    {
+      "label": "HC20260810-006 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-006/production/v01/03_first_frames/HC20260810-006-v01-S10-firstframe.png"
+    },
+    {
+      "label": "HC20260810-006 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=6da9004450024f7c3df3fffe3e0e18fdf3f1d3751327855dbb2abe78f68ddadd, source=6da9004450024f7c3df3fffe3e0e18fdf3f1d3751327855dbb2abe78f68ddadd, copy=6da9004450024f7c3df3fffe3e0e18fdf3f1d3751327855dbb2abe78f68ddadd"
+    },
+    {
+      "label": "HC20260810-006 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-secondary.png <- 09_泛健康日更/work/HC20260810-006/production/v01/03_first_frames/HC20260810-006-v01-S07-firstframe.png"
+    },
+    {
+      "label": "HC20260810-006 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=8ef36806244aa23ec5c2de5b6352ac4cdedc441ea4e5d4a0e4884703c1c3c7fd, source=8ef36806244aa23ec5c2de5b6352ac4cdedc441ea4e5d4a0e4884703c1c3c7fd, copy=8ef36806244aa23ec5c2de5b6352ac4cdedc441ea4e5d4a0e4884703c1c3c7fd"
+    },
+    {
+      "label": "HC20260810-007 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-007/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-007/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-007/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-007/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-007/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-007/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-007/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=咖啡先记饮用时点"
+    },
+    {
+      "label": "HC20260810-007 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=咖啡先记饮用时点, length=8"
+    },
+    {
+      "label": "HC20260810-007 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-007 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007 provenance entry count",
+      "ok": true,
+      "detail": "declared=2, local_pngs=2"
+    },
+    {
+      "label": "HC20260810-007 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-007/production/v01/03_first_frames/HC20260810-007-v01-S03-firstframe.png"
+    },
+    {
+      "label": "HC20260810-007 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=2708995cb40bf82de0a015a0465d0be4561e520e8d85c672eb6ffcc04967826d, source=2708995cb40bf82de0a015a0465d0be4561e520e8d85c672eb6ffcc04967826d, copy=2708995cb40bf82de0a015a0465d0be4561e520e8d85c672eb6ffcc04967826d"
+    },
+    {
+      "label": "HC20260810-007 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-secondary.png <- 09_泛健康日更/work/HC20260810-007/production/v01/03_first_frames/HC20260810-007-v01-S01-firstframe.png"
+    },
+    {
+      "label": "HC20260810-007 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=16ec5daff52082f399981e9e98d0986a5c055ecc54a3ac95af8968fedc787cf7, source=16ec5daff52082f399981e9e98d0986a5c055ecc54a3ac95af8968fedc787cf7, copy=16ec5daff52082f399981e9e98d0986a5c055ecc54a3ac95af8968fedc787cf7"
+    },
+    {
+      "label": "HC20260810-008 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-008/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-008/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-008/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-008/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-008/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-008/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-008/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=嘴馋先记三类线索"
+    },
+    {
+      "label": "HC20260810-008 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=嘴馋先记三类线索, length=8"
+    },
+    {
+      "label": "HC20260810-008 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-008 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008 provenance entry count",
+      "ok": true,
+      "detail": "declared=2, local_pngs=2"
+    },
+    {
+      "label": "HC20260810-008 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-008/production/v01/03_first_frames/HC20260810-008-v01-S03-firstframe.png"
+    },
+    {
+      "label": "HC20260810-008 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=8ecebf818b6d9971d2b59f9fae7b8f43bc09b84d74b2afe0d65fba4715bcf9f3, source=8ecebf818b6d9971d2b59f9fae7b8f43bc09b84d74b2afe0d65fba4715bcf9f3, copy=8ecebf818b6d9971d2b59f9fae7b8f43bc09b84d74b2afe0d65fba4715bcf9f3"
+    },
+    {
+      "label": "HC20260810-008 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-secondary.png <- 09_泛健康日更/work/HC20260810-008/production/v01/03_first_frames/HC20260810-008-v01-S04-firstframe.png"
+    },
+    {
+      "label": "HC20260810-008 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=6c9b2689e407458d1bc761769a300db31ab55243fd80da2588584aab3420378b, source=6c9b2689e407458d1bc761769a300db31ab55243fd80da2588584aab3420378b, copy=6c9b2689e407458d1bc761769a300db31ab55243fd80da2588584aab3420378b"
+    },
+    {
+      "label": "HC20260810-009 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-009/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=难任务换个时点比"
+    },
+    {
+      "label": "HC20260810-009 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=难任务换个时点比, length=8"
+    },
+    {
+      "label": "HC20260810-009 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-009 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009 provenance entry count",
+      "ok": true,
+      "detail": "declared=0, local_pngs=0"
+    },
+    {
+      "label": "HC20260810-010 Task5 copy parse",
+      "ok": true,
+      "detail": "titles=7, bodies=7"
+    },
+    {
+      "label": "HC20260810-010/A01 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A01 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-010/A01 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-010/A02 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A02 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-010/A02 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-secondary.png"
+    },
+    {
+      "label": "HC20260810-010/A03 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A03 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A04 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A05 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A06 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-010/A06 local illustration href",
+      "ok": true,
+      "detail": "illustrations/scene-primary.png"
+    },
+    {
+      "label": "HC20260810-010/A07 SVG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 PNG exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 PNG dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010/A07 approved title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 approved body",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 no plus/cross glyph",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07 forbidden visible term text scan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 dedicated cover exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 cover SVG canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 cover title bound to Task5",
+      "ok": true,
+      "detail": "title=七天记录午后变化"
+    },
+    {
+      "label": "HC20260810-010 cover title 8-12 characters",
+      "ok": true,
+      "detail": "title=七天记录午后变化, length=8"
+    },
+    {
+      "label": "HC20260810-010 cover dimensions",
+      "ok": true,
+      "detail": "{\"width\":1080,\"height\":1920}"
+    },
+    {
+      "label": "HC20260810-010 contact sheet exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 QA markdown exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 illustration provenance exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010 provenance entry count",
+      "ok": true,
+      "detail": "declared=2, local_pngs=2"
+    },
+    {
+      "label": "HC20260810-010 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-primary.png <- 09_泛健康日更/work/HC20260810-010/production/v01/03_first_frames/HC20260810-010-v01-S04-firstframe.png"
+    },
+    {
+      "label": "HC20260810-010 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=8eec1b6dbbaa62c6f3d9109028124f9a93fbcd4d07ace5391b900ad9cb15ff78, source=8eec1b6dbbaa62c6f3d9109028124f9a93fbcd4d07ace5391b900ad9cb15ff78, copy=8eec1b6dbbaa62c6f3d9109028124f9a93fbcd4d07ace5391b900ad9cb15ff78"
+    },
+    {
+      "label": "HC20260810-010 provenance source/copy exists",
+      "ok": true,
+      "detail": "scene-secondary.png <- 09_泛健康日更/work/HC20260810-010/production/v01/03_first_frames/HC20260810-010-v01-S05-firstframe.png"
+    },
+    {
+      "label": "HC20260810-010 provenance source/copy SHA",
+      "ok": true,
+      "detail": "declared=9d966931dde8e51774459f557e79c402888f9959826b4bc149bbd47ca1553d44, source=9d966931dde8e51774459f557e79c402888f9959826b4bc149bbd47ca1553d44, copy=9d966931dde8e51774459f557e79c402888f9959826b4bc149bbd47ca1553d44"
+    },
+    {
+      "label": "17 provenance source/copy bindings",
+      "ok": true,
+      "detail": "entries=17"
+    },
+    {
+      "label": "70 article PNGs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "10 dedicated covers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "70 unique article PNG hashes",
+      "ok": true,
+      "detail": "unique=70"
+    },
+    {
+      "label": "10 unique cover hashes",
+      "ok": true,
+      "detail": "unique=10"
+    },
+    {
+      "label": "A07 at least four text-free geometry fingerprints",
+      "ok": true,
+      "detail": "unique=10"
+    },
+    {
+      "label": "005/009 cover text-free geometry differs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-B01-article-cards-contactsheet-25pct-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-B01-cover-contactsheet-25pct-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-B01-cover-center-crop-4x5-contactsheet-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-B01-cover-center-crop-1x1-contactsheet-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010-cover-center-crop-1x1-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010-cover-center-crop-4x5-v01.png exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-001/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-002/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-003/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-004/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-005/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-006/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-007/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-008/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-009/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A02.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A03.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A04.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A05.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A06.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/A07.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/03_article_images/cover-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-010/production/v01/05_qa/article-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-article-cards-contactsheet-25pct-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-cover-contactsheet-25pct-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-cover-center-crop-4x5-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-B01-cover-center-crop-1x1-contactsheet-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-001-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-001-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-002-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-002-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-003-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-003-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-004-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-004-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-005-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-005-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-006-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-006-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-007-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-007-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-008-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-008-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-009-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-009-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-010-cover-center-crop-1x1-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "09_泛健康日更/work/HC20260810-B01-task7-qa/HC20260810-010-cover-center-crop-4x5-v01.png deterministic PNG chunks",
+      "ok": true,
+      "detail": "forbidden="
+    },
+    {
+      "label": "asset inventory exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "asset inventory has 80 rows",
+      "ok": true,
+      "detail": "rows=80"
+    },
+    {
+      "label": "HC20260810-001/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-001/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-002/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-003/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-004/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-005/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-006/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-007/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-008/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-009/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A02.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A03.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A04.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A05.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A06.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/A07.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "HC20260810-010/cover-v01.png inventory byte SHA and dimensions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "double-build reproducibility evidence exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "double-build all generated bytes match",
+      "ok": true,
+      "detail": "files=233, mismatches=0"
+    },
+    {
+      "label": "double-build coverage includes 233 generated / 126 required files",
+      "ok": true,
+      "detail": "files=233, required=126"
+    },
+    {
+      "label": "double-build inputs match",
+      "ok": true,
+      "detail": "inputs=40"
+    }
+  ],
+  "inventory": [
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A01",
+      "sha256": "325f1a73d1182fd01638801283acf9757cd8a401adc3072099a158316d58658d",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A02",
+      "sha256": "6d5b43265741c46acc85d1ee06890395c454e4e4b348ac7ca374056a79cfc020",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A03",
+      "sha256": "3a84d71dfbd7e4e0985cae5781ed054c79de31490ca9caa22444d56baba35f0d",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A04",
+      "sha256": "03aab9ecb9bbd9fda81306cb326727e50935bce669a5cbdc443a23005a27051e",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A05",
+      "sha256": "ff7e6119ef323a69248de609c14759937181832c882115e75c8370c75bed3c3e",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A06",
+      "sha256": "4242fc7a9158b2c4cc1ba4ced07c2af5d1f3f7c4cddbc2d0d07eed8608315b81",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "A07",
+      "sha256": "1d71017d673668da7b01347ad045fc0f253d211475421865283cc11048ead20a",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-001",
+      "asset": "cover-v01",
+      "sha256": "1043c5c4afc7c2fa14ca5fa1ed7064853eada84d37503a903b1f7ac78c5219e7",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A01",
+      "sha256": "709db0dfaadbf78cc5e11132227b058ab4a11a65fee6e842f89b3fc5aa89f2ff",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A02",
+      "sha256": "dbc96b95d627e2028535dbaed00a52b9184b89c3460dca92e6f62a5161677d84",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A03",
+      "sha256": "6324dce22658b90fe233257b6752478486e0f9891bdfb7591286ac91b67ac768",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A04",
+      "sha256": "52a12207ec0378af6c8ad3f5fd13bea5eb667d83bc20f66b7fd65ff3e83a1734",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A05",
+      "sha256": "2d99601aa2a874efb943cf87e51fa60c1a5034a46def472e8cd5b2a25e6e1beb",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A06",
+      "sha256": "79b6db0d05d141ede5d568f822518d4ba0ad802061c7581729371d648ef082d2",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "A07",
+      "sha256": "31d8ca0bc41c5f3953bf577d3e81a8c07ff5486d4188859e3925efd173ebd22c",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-002",
+      "asset": "cover-v01",
+      "sha256": "a17470179aa9cace360b7d7aad039b65aac8a7d314d8f0f063a95241330fdea6",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A01",
+      "sha256": "b17cd00d3f9300c695dd27a46734320ead5c1dd7f9fd3aa44fd722e69370d12b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A02",
+      "sha256": "aa4ccb6c5cd30ad17fafe3924a0583f90866acea43084cb0fac384f2d1516ba7",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A03",
+      "sha256": "ba43c2ee57913f5378e9b84bd7c7408bd0030952122c39c3ffa590d34c40a006",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A04",
+      "sha256": "7860a8adbecf090ad316e1afe9ec529637f2ae8df8cd5de281c23cbf5a410d45",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A05",
+      "sha256": "ec6d45862f68aa4693fa2d12ab298f7188c9451324bbe3534aa9bec6bb6da8d0",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A06",
+      "sha256": "b17107ff3e4b11bc64f7aebe7719c54bba2a22791efc767eb0631652a9980c74",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "A07",
+      "sha256": "2d49af2da45a87fe9a8568b6ec5c7ed5ca528ae9ffb6fa3be91fbe5a7bf97d33",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-003",
+      "asset": "cover-v01",
+      "sha256": "a2d5b4e0ad4007621c041cd4afc11f54730f4db6dd9b8a4e02e9b859f4d5e544",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A01",
+      "sha256": "56616a5570deb1966f73370e6ef43023046520ea0e02e96e583f110796aaf4a5",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A02",
+      "sha256": "5d3ff01fd83f0f498a15eefa14e1fcd810d7ddeb64202724f9df83d453d67177",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A03",
+      "sha256": "16a214c779582a7c73353ae697df18434d15e6d3efdef9b08d79669aa7d42cff",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A04",
+      "sha256": "540a64bd96738516e868ba3cd29f9afa7c4f6baace34392b28b89dc05e14771a",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A05",
+      "sha256": "1d7c04fec5b674438bd8a5b4e30a35ee8aead90f9ab2c69298714c838a257305",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A06",
+      "sha256": "88dcaa44d10e2d3c55841a26504ee65821ec62ca70b50fbd0a747e30ba1d38b9",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "A07",
+      "sha256": "23cb58451d444ad63d35221420750eec0efacfb7588206e8bf0decbdde92ab59",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-004",
+      "asset": "cover-v01",
+      "sha256": "2e2d5315fc0196d804df496259e2b59b7648b7fefb1255dfead2abcac61d6bea",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A01",
+      "sha256": "24b9a734e9be8703c672fa37761b98861bac7f1c2af15c3f5a3175caf609d0ba",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A02",
+      "sha256": "4fcc8ec18de67d0a4392bea4bf431e939a1ee9cd6f9ff7569c07eb2b68213dcf",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A03",
+      "sha256": "df60c7b528f1e838e4118cd3f829915f6e6ebbc2b5e95a965b0369ee362355d5",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A04",
+      "sha256": "6096b9c9726ae6b3f3b47221af7fd82ca90c346bb488294675e164e0747f7431",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A05",
+      "sha256": "8a7432149687666b09a71693f2f3617522a8708f57ce59e892c2bc2dad611733",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A06",
+      "sha256": "66fbe55038bda3f6519fbae08c2deba28bcce8a9b7b6614df5dc3549250c0019",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "A07",
+      "sha256": "1459cc230cb2d9b373b0b53a6fa9f2f89183362af0bc48b44f5938327bc85096",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-005",
+      "asset": "cover-v01",
+      "sha256": "6383e1c9efb6a5a12220d8b520c62ad8dcbda2390c7692cfaf09fc51a6638a61",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A01",
+      "sha256": "1929bf7fa57a61213a3efabed19e3f74ce6538ee89d22f55a6b7f516507aab3d",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A02",
+      "sha256": "cd83a2e8c56ddb62ae8ddea1f12af676af31ced7adff28b7805cac0f02ce0509",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A03",
+      "sha256": "b6bcd185f065d54b331d4eb803cd25bec9446ff5f2c68a9716bcb30c18fb46d4",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A04",
+      "sha256": "9bcd95a78457f8d51c7d43753a0634362ba61f2dcf59ae68aa34c88a55359f33",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A05",
+      "sha256": "6feae30f7337f04e18eb5920bc794093cc8199c3cd9c8744a5e0e229f0d36447",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A06",
+      "sha256": "673520d7d6a1501760cb50d0029bcd95fa608b8b6c6834377f50edb8597dac4b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "A07",
+      "sha256": "41daedb247f329a958269523d0abbae23438af922f923038408785a9c6b2aef1",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-006",
+      "asset": "cover-v01",
+      "sha256": "f94b0ef44981c749d423c15b72361603ce3d2d4d593043c881103bc1aaa8c2ce",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A01",
+      "sha256": "85bb2ed8a21e106dcac0c98f0d475076ac3f4c4c8ca2c47858c475b058f39115",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A02",
+      "sha256": "cf7d31069f292addbbb080a6a44799b76e0297897c5bfae4c57d3280390e0731",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A03",
+      "sha256": "9499456c349a2f24106653646d1624d68a99542e361a0da524ac890103178a95",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A04",
+      "sha256": "9cd161dc829c676720fc39a688575a551110db5642c3f8f2ffea7f354b3a66e1",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A05",
+      "sha256": "2cbb02a538f5d6c4941360e310d9d6d80e128b8745bce2828ca7a6de9601a491",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A06",
+      "sha256": "6534d2123493e235ee2269f26d4fe83b85f8a177f52fa6e1e90546849652e64b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "A07",
+      "sha256": "2a83c1cf56e8c702c57c4c686f0312740c45324c2c995607c8c8e23da1afea80",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-007",
+      "asset": "cover-v01",
+      "sha256": "6ddc1c75a1a4c8b6ba659db085638d6df6c4d7ac0bca6b8c20ec35ac66513f4a",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A01",
+      "sha256": "3423d29a2abc5024a0a199cbe8b7837793685c507d18f707681a2e845d782517",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A02",
+      "sha256": "fab32155f5f2e6e86c0d3be4230843181364dc13758bd407b20712f61889654d",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A03",
+      "sha256": "67d28305f7570e7941a077e3dc91c6dd3438b4da574cc4422c55c169ee1938b5",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A04",
+      "sha256": "44a781b634923ebd5fd6df5a7ddf3638956333ae31334af858a69887636ca64f",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A05",
+      "sha256": "b8c0738faacf9a26035746cd6c2d9cae49552605726bc85f9d250e7b09e9df09",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A06",
+      "sha256": "f3c9a4fd799a9f00777269af94801657456824422deead373d93cbff22a164a8",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "A07",
+      "sha256": "0b25a02fb850da08ecc1c2dfdad2357173c7d5d988e97e39bd3aa5914eafcc9c",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-008",
+      "asset": "cover-v01",
+      "sha256": "0b1d15d0ae91d57000ba1ca139375f7f95d81b448c6c77900013d84675e26724",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A01",
+      "sha256": "89a8d7826813601a52040a72064e63dab6fd799f700ee35f4f498d1553873603",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A02",
+      "sha256": "2203a82a4d5a3ca5873281584f2eda3a0584a86096b1dc51b4dbb8a86eeb6848",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A03",
+      "sha256": "6fa4aedc1e961de9171541136e8482313f30ff0a1507c05fc3c27c4f9ed30373",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A04",
+      "sha256": "debef681868a80f0db902702923dc688137579a94447b8266bd6cfaca441be84",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A05",
+      "sha256": "48d658974c4cb0841d21a28cedc75250bc0557f1b8c274ca3f01f55bdcb5cda4",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A06",
+      "sha256": "38116f69440f913ad1f35eb2b44760d235f7805525e685b5bd7c956c86dd8341",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "A07",
+      "sha256": "b73a52f4a92cb1a5b6aa07f9baa3d64d612a0a9d2fbddcaf7e346f86e402c254",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-009",
+      "asset": "cover-v01",
+      "sha256": "9162a9115c4fb4e42d8af0d304dc6752673e4c6ee88478517c3134b3c165e711",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A01",
+      "sha256": "31240301df4a978a8aa106e10b82f93edde38e4a362ddb0b35f8fcb9828ff379",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A02",
+      "sha256": "3f14660896d699176dec5644206485f8ff609ab0577723c12badc0c2f2a1c4ff",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A03",
+      "sha256": "e196ce5137412540abdb0052c829b2b0b01c9430ae6ddd4b601cf1ebd0c61d80",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A04",
+      "sha256": "60480dee0b007155fb1d6732b4ae11cf7b0e7c20cd30f531b4ee070a2f58a8f0",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A05",
+      "sha256": "f85210d31f0649f75d884b5ee897db8de37af914331ce7a838446d3111fbe551",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A06",
+      "sha256": "e88a90328c606dd4fe1151662e1f839d2d8d50ab56f11f919f893808f30e827b",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "A07",
+      "sha256": "241d2e0625fb6a876ce7a31863beeb672cd6461c72329cd316c29427d4b7b58f",
+      "width": 1080,
+      "height": 1920
+    },
+    {
+      "episode_id": "HC20260810-010",
+      "asset": "cover-v01",
+      "sha256": "43958456295fcaa1fb1a737106eae1715ba95965843695d9c74c241326113295",
+      "width": 1080,
+      "height": 1920
+    }
+  ]
+}

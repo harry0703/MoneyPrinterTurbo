@@ -1,0 +1,11 @@
+shot,reuse_status,source_plan,candidate_min,high_risk_reason,frame_contract
+S01,new,built-in imagegen independent vertical-split candidates; selected source documented in inventory,2,cover+food+visible hands,双行为钩子: 同一人物同一餐盒同一饭菜与同一种筷子，左侧匆匆动作、右侧从容动作，只改变节奏; camera=垂直分屏固定，两侧同景别; formal=HC20260810-002-v01-S01-firstframe.png
+S02,deterministic-board,deterministic review board from existing project asset,1,none,限定观察变量: 两侧画面同步停在相同剩余份量; camera=分屏静止，后期对齐构图; formal=HC20260810-002-v01-S02-firstframe.png
+S03,new,project-generated raster source; selected source documented in inventory,2,餐,观察时长: 人物从第一口开始，桌侧日光缓慢移动; camera=餐桌侧面中景固定; formal=HC20260810-002-v01-S03-firstframe.png
+S04,new,project-generated raster source; selected source documented in inventory,2,餐+餐具,中途停顿: 人物吃到中途主动放下餐具; camera=餐具近景后切人物中景; formal=HC20260810-002-v01-S04-firstframe.png
+S05,new,project-generated raster source; selected source documented in inventory,2,手+盘+键盘,回办公位后的自觉: 人物回到普通办公位坐下，双手离开键盘后短暂停顿; camera=办公位侧面中景，落座后保持固定; formal=HC20260810-002-v01-S05-firstframe.png
+S06,new,project-generated raster source; selected source documented in inventory,2,餐+盘,呈现最小尝试: 人物视线在餐盘与自己之间短暂移动; camera=眼平中近景，轻微推近; formal=HC20260810-002-v01-S06-firstframe.png
+S07,new,project-generated raster source; selected source documented in inventory,2,餐+盘+餐具,确定动作: 人物停顿后把餐具平放在盘边; camera=餐盘俯拍近景固定; formal=HC20260810-002-v01-S07-firstframe.png
+S08,new,existing project-generated asset; selected source documented in inventory,1,none,下午感受: 人物回办公位前停一步，再自然落座; camera=走廊中远景转办公位侧景; formal=HC20260810-002-v01-S08-firstframe.png
+S09,deterministic-board,deterministic review board from existing project asset,2,餐+盘,边界: 餐盘与空椅静态画面，后期边界文字进入; camera=无相机运动; formal=HC20260810-002-v01-S09-firstframe.png
+S10,deterministic-board,editable SVG plus deterministic PNG render; no Grok source,1,none,保存理由: 暖米白结束板中央为品牌深青绿双竖条暂停符号，无文字; camera=无相机运动; formal=HC20260810-002-v01-S10-firstframe.png

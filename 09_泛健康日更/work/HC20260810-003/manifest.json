@@ -1,0 +1,80 @@
+{
+  "content_id": "HC20260810-003",
+  "batch_id": "HB20260810",
+  "content_profile": "general_wellness_uncredentialed",
+  "account_name": "生活节奏看得见",
+  "account_bio": "记录睡眠、进餐和日常活动中的小习惯",
+  "category": "meal_comfort",
+  "audience": "中国大陆35—60岁用户",
+  "topic": "午餐吃得太撑，下午怎么安排更舒服",
+  "scenario": "家庭餐桌上不知不觉又添了一次，午后只想把事情放慢。",
+  "hook": "午餐吃撑，下午先放稳。",
+  "core_claim": "一次吃多后把节奏放稳、下一顿回到平常，比极端补偿更符合事实边界。",
+  "mechanism": "餐量与午后表现的材料结果并不整齐，不能把少吃包装成统一办法。",
+  "action": "下次按平常量少盛一点，吃完再决定是否添加，不设统一份量。",
+  "interaction": "你更常在哪个环节不知不觉多吃了一点？",
+  "applicable_to": [
+    "偶尔午餐吃撑并想调整下午安排的普通成年人"
+  ],
+  "not_applicable_to": [
+    "持续不舒服或已有个人饮食安排的人"
+  ],
+  "medical_attention": "不要漏掉下一餐或强迫活动来补偿；持续不舒服时停止自行调整。",
+  "observations": [
+    {
+      "label": "开始份量",
+      "detail": "回想盛了多少以及是否添加"
+    },
+    {
+      "label": "停下时机",
+      "detail": "留意何时已经觉得够"
+    },
+    {
+      "label": "下午安排",
+      "detail": "先做节奏平稳且容错较高的事"
+    }
+  ],
+  "save_reason": "稳住节奏的安排可留作吃撑后的备忘。",
+  "sources": [
+    {
+      "title": "健康中国行动（2019—2030年）",
+      "publisher": "国家卫生健康委员会",
+      "url": "https://www.nhc.gov.cn/guihuaxxs/c100133/201907/2a6ed52f1c264203b5351bdbbadd2da8.shtml",
+      "published_at": "2019-07-15"
+    },
+    {
+      "title": "Influences of meal size on post-lunch changes in performance efficiency, mood, and cardiovascular function",
+      "publisher": "Elsevier / Appetite",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/2064394/",
+      "published_at": "1991-04"
+    }
+  ],
+  "medical_review": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": "",
+    "notes": "一般生活方式内容不要求外部医学审核。"
+  },
+  "quality": {
+    "topic_value": 19,
+    "medical_credibility": 19,
+    "retention": 18,
+    "visual_explanation": 14,
+    "save_value": 13,
+    "follow_conversion": 9
+  },
+  "automated_qa": {
+    "status": "pending",
+    "checked_at": ""
+  },
+  "final_qa": {
+    "status": "not_required",
+    "reviewer": "",
+    "reviewed_at": ""
+  },
+  "production_status": "content_package_ready_for_internal_review",
+  "target_duration_seconds": 55,
+  "narration_han_characters": 166,
+  "target_cps": 3.02,
+  "public_topic": "午餐太撑后怎样安排"
+}
