@@ -233,6 +233,8 @@
     "MiniMax Voices Load Failed": "Не удалось загрузить голоса: {error}",
     "ElevenLabs API Key": "API-ключ ElevenLabs ([получить ключ](https://elevenlabs.io/app/settings/api-keys))",
     "ElevenLabs Model": "Модель ElevenLabs",
+    "Fish Audio API Key": "API-ключ Fish Audio ([получить ключ](https://fish.audio/app/developers))",
+    "Fish Audio Model": "Модель Fish Audio",
     "Chatterbox Base URL": "Базовый URL Chatterbox",
     "Chatterbox API Key": "API-ключ Chatterbox (необязательно; [настройка](https://github.com/travisvn/chatterbox-tts-api))",
     "Chatterbox Model": "Модель Chatterbox",

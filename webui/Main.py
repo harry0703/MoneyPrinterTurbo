@@ -138,6 +138,7 @@ _RUNTIME_CONFIG_SECTIONS = {
     "elevenlabs": config.elevenlabs,
     "minimax_tts": config.minimax_tts,
     "siliconflow": config.siliconflow,
+    "fish_audio": config.fish_audio,
     "ui": config.ui,
 }
 # 设置预设与密钥备份使用各自的文件标识。导入时先校验 schema 和版本，
@@ -1164,6 +1165,8 @@ def _infer_tts_server_from_voice(voice_name):
         return "elevenlabs"
     if voice.is_chatterbox_voice(voice_name):
         return "chatterbox"
+    if voice.is_fish_audio_voice(voice_name):
+        return "fish_audio"
     if voice.is_azure_v2_voice(voice_name):
         return "azure-tts-v2"
     return "azure-tts-v1"
@@ -4773,6 +4776,7 @@ def _render_audio_settings(panel, params):
                 ("minimax-tts", "MiniMax TTS"),
                 ("elevenlabs", "ElevenLabs TTS"),
                 ("chatterbox", "Chatterbox TTS"),
+                ("fish_audio", "Fish Audio TTS"),
             ]
 
             tts_server_values = [server_value for server_value, _ in tts_servers]
@@ -4842,6 +4846,8 @@ def _render_audio_settings(panel, params):
                 # 自托管 Chatterbox 服务的预置音色（来自 [chatterbox] voices 配置）
                 _sync_chatterbox_config_from_session_state()
                 filtered_voices = voice.get_chatterbox_voices()
+            elif selected_tts_server == "fish_audio":
+                filtered_voices = voice.get_fish_audio_voices()
             else:
                 # 获取Azure的声音列表
                 all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -4868,6 +4874,13 @@ def _render_audio_settings(panel, params):
                     return name.replace("-Female", "").replace("-Male", "")
                 if voice.is_minimax_voice(v):
                     return minimax_voice_labels.get(v, v.split(":", 1)[1])
+                if voice.is_fish_audio_voice(v):
+                    parts = v.split(":", 2)
+                    display_name = parts[2] if len(parts) >= 3 else v
+                    return (
+                        display_name.replace("Female", tr("Female"))
+                        .replace("Male", tr("Male"))
+                    )
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))
@@ -5050,6 +5063,44 @@ def _render_audio_settings(panel, params):
                     key="elevenlabs_model_select",
                 )
                 _set_runtime_config("elevenlabs", "model_id", elevenlabs_model)
+
+            # Fish Audio API settings section
+            if tts_mode_enabled and (
+                selected_tts_server == "fish_audio"
+                or (voice_name and voice.is_fish_audio_voice(voice_name))
+            ):
+                saved_fish_api_key = (
+                    config.fish_audio.get("api_key", "")
+                    if hasattr(config, "fish_audio") and isinstance(config.fish_audio, dict)
+                    else ""
+                )
+                fish_audio_api_key = st.text_input(
+                    tr("Fish Audio API Key"),
+                    value=saved_fish_api_key,
+                    type="password",
+                    key="fish_audio_api_key_input",
+                )
+                _set_runtime_config("fish_audio", "api_key", fish_audio_api_key)
+
+                _fish_audio_models = [
+                    "s2.1-pro-free",
+                    "s2.1-pro",
+                    "s2-pro",
+                ]
+                saved_fish_model = (
+                    config.fish_audio.get("model", "s2.1-pro-free")
+                    if hasattr(config, "fish_audio") and isinstance(config.fish_audio, dict)
+                    else "s2.1-pro-free"
+                )
+                if saved_fish_model not in _fish_audio_models:
+                    saved_fish_model = "s2.1-pro-free"
+                fish_model = stable_selectbox(
+                    tr("Fish Audio Model"),
+                    options=_fish_audio_models,
+                    default_value=saved_fish_model,
+                    key="fish_audio_model_select",
+                )
+                _set_runtime_config("fish_audio", "model", fish_model)
 
             # Chatterbox API settings section (self-hosted, OpenAI-compatible)
             if tts_mode_enabled and (

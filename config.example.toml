@@ -408,6 +408,31 @@ model_id = "chatterbox"
 # Voice names exposed by the configured Chatterbox server.
 voices = ["default-Female"]
 
+[fish_audio]
+# Fish Audio TTS service: https://fish.audio
+# API key: https://fish.audio/app/developers
+# You can also set the FISH_API_KEY environment variable.
+api_key = ""
+# Available models: "s2.1-pro-free", "s2.1-pro", "s2-pro"
+model = "s2.1-pro-free"
+
+# ── Voice selection ──────────────────────────────────────────────────────────
+# Built-in presets for clear female, male, and neutral default voices are
+# available out of the box.  To use additional public or cloned voices, add
+# entries below.  Each entry is either:
+#   "<reference_id>:<display_name>"   – a Fish Audio voice model ID with label
+#   "<reference_id>"                  – bare ID (used as both ID and label)
+#
+# Browse public voices at https://fish.audio and copy the model ID from the URL.
+# Example: voices = ["7f92f8afb8ec43bf81429cc1c9199cb1:Friendly Narrator"]
+voices = []
+
+# ── Model & Pricing Notice ───────────────────────────────────────────────────
+# The "s2.1-pro-free" model is provided under Fish Audio's developer terms and
+# is subject to Fair Use Policy, rate limits, and time-limited promotional
+# windows (e.g. through August 2026).  There is no SLA.  Please check
+# https://fish.audio/pricing for current availability and commercial terms.
+
 # =============================================================================
 # WebUI Preferences / WebUI 偏好
 # =============================================================================

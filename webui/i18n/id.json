@@ -237,6 +237,8 @@
     "MiniMax Voices Load Failed": "Gagal memuat suara: {error}",
     "ElevenLabs API Key": "Kunci API ElevenLabs ([Dapatkan kunci](https://elevenlabs.io/app/settings/api-keys))",
     "ElevenLabs Model": "Model ElevenLabs",
+    "Fish Audio API Key": "Kunci API Fish Audio ([Dapatkan kunci](https://fish.audio/app/developers))",
+    "Fish Audio Model": "Model Fish Audio",
     "Chatterbox Base URL": "URL Dasar Chatterbox",
     "Chatterbox API Key": "Kunci API Chatterbox (Opsional; [Lihat konfigurasi](https://github.com/travisvn/chatterbox-tts-api))",
     "Chatterbox Model": "Model Chatterbox",
