@@ -15,10 +15,12 @@ RUN echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources
     ( \
         for i in 1 2 3; do \
             echo "Attempt $i: Using Aliyun mirror"; \
-            apt-get update && apt-get install -y --no-install-recommends \
+            if apt-get update && apt-get install -y --no-install-recommends \
                 git \
                 imagemagick \
-                ffmpeg && break || \
+                ffmpeg; then \
+                break; \
+            fi; \
             echo "Attempt $i failed, retrying..."; \
             if [ $i -eq 3 ]; then \
                 echo "Aliyun mirror failed, switching to Tsinghua mirror"; \
@@ -31,14 +33,14 @@ RUN echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources
                         ffmpeg || \
                     ( \
                         echo "Tsinghua mirror failed, switching to default Debian mirror"; \
-                        sed -i 's/mirrors.tuna.tsinghua.edu.cn/deb.debian.org/g' /etc/apt/sources.list && \
-                        sed -i 's/mirrors.tuna.tsinghua.edu.cn\/debian-security/security.debian.org/g' /etc/apt/sources.list; \
+                        echo "deb https://deb.debian.org/debian bullseye main" > /etc/apt/sources.list; \
+                        echo "deb https://security.debian.org/debian-security bullseye-security main" >> /etc/apt/sources.list; \
                         apt-get update && apt-get install -y --no-install-recommends \
                             git \
                             imagemagick \
                             ffmpeg; \
                     ); \
-                ); \
+                ) || exit 1; \
             fi; \
             sleep 5; \
         done \
