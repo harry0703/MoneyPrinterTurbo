@@ -127,7 +127,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
       satisfactory one
 - [x] Supports setting the **duration of video clips**, facilitating adjustments to material switching frequency
 - [x] Supports **multilingual video script** generation
-- [x] Supports **Edge TTS**, **Azure Speech**, **SiliconFlow**, **Google Gemini**, **Xiaomi MiMo**, **ElevenLabs**, and **Chatterbox** speech synthesis with real-time previews
+- [x] Supports **Edge TTS**, **Azure Speech**, **SiliconFlow**, **Google Gemini**, **Xiaomi MiMo**, **ElevenLabs**, **Chatterbox**, and **Fish Audio** speech synthesis with real-time previews
 - [x] Supports **subtitle generation** with configurable fonts, position, color, size, outline, and background styles
 - [x] Supports random or custom **background music** with adjustable volume
 - [x] Supports your own **local assets** and free-to-use HD footage from **Pexels**, **Pixabay**, and **Coverr**
@@ -356,7 +356,7 @@ uv run python cli.py --help
 
 ## Voice Synthesis 🗣
 
-The default provider is the free **Edge TTS**, shown as **Azure TTS V1** in the WebUI. MoneyPrinterTurbo also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, and a no-voice mode.
+The default provider is the free **Edge TTS**, shown as **Azure TTS V1** in the WebUI. MoneyPrinterTurbo also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, **Fish Audio TTS**, and a no-voice mode.
 
 Select a provider and voice in the WebUI, then follow the on-screen instructions for any required credentials. Edge TTS does not require an API key; [Azure TTS V2](https://portal.azure.com/) and other cloud providers require credentials from their respective platforms. See the available Edge TTS voices in the [voice list](./docs/voice-list.txt).
 
