@@ -350,6 +350,19 @@ uv run python cli.py --video-subject "How AI is changing everyday life"
 uv run python cli.py --help
 ```
 
+複数のタスクを順番に実行するには、`--batch-file` で UTF-8 の JSON 配列または
+JSONL マニフェストを指定します。CLI オプションが共通の既定値となり、各オブジェクトで
+`VideoParams` フィールドを上書きできます。
+
+```shell
+uv run python cli.py --batch-file ./tasks.json --stop-at video
+```
+
+マニフェストは最大 100 タスク、1 MiB までです。最初のタスクを開始する前に全項目と
+ローカルファイルを検証し、個別タスクが失敗しても後続タスクを続行して最後に JSON
+サマリーを出力します。マニフェスト内の相対音声・ローカル素材パスはマニフェストの
+ディレクトリを基準に解決されます。
+
 ## 音声合成 🗣
 
 既定のプロバイダーは無料の **Edge TTS** で、WebUI 上では **Azure TTS V1** と表示されます。MoneyPrinterTurbo は **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**Xiaomi MiMo TTS**、**ElevenLabs TTS**、セルフホストの **Chatterbox TTS**、および音声なしモードにも対応しています。
