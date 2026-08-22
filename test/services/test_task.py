@@ -5,7 +5,7 @@ import sys
 import tempfile
 from concurrent.futures import Future
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, PropertyMock
 from uuid import uuid4
 
 # add project root to python path
@@ -1226,9 +1226,9 @@ class TestTaskService(unittest.TestCase):
                 ),
             ),
             patch.object(service, "is_configured", return_value=True),
-            patch.object(service, "auto_upload", True),
-            patch.object(service, "platforms", ["youtube"]),
-            patch.object(service, "youtube_privacy_status", "unlisted"),
+            patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
+            patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["youtube"]),
+            patch.object(type(service), "youtube_privacy_status", new_callable=PropertyMock, return_value="unlisted"),
             patch.object(
                 tm.llm,
                 "generate_social_metadata",
@@ -1314,9 +1314,9 @@ class TestTaskService(unittest.TestCase):
                 return_value=(["final.mp4"], ["combined.mp4"], []),
             ),
             patch.object(service, "is_configured", return_value=True),
-            patch.object(service, "auto_upload", True),
-            patch.object(service, "platforms", ["tiktok"]),
-            patch.object(service, "youtube_privacy_status", "private"),
+            patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
+            patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["tiktok"]),
+            patch.object(type(service), "youtube_privacy_status", new_callable=PropertyMock, return_value="private"),
             patch.object(tm.upload_post, "cross_post_video") as cross_post,
             patch.object(tm.sm, "state", state),
             patch.object(
@@ -1412,9 +1412,9 @@ class TestTaskService(unittest.TestCase):
                 return_value=(["final.mp4"], ["combined.mp4"], []),
             ),
             patch.object(service, "is_configured", return_value=True),
-            patch.object(service, "auto_upload", True),
-            patch.object(service, "platforms", ["tiktok"]),
-            patch.object(service, "youtube_privacy_status", "private"),
+            patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
+            patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["tiktok"]),
+            patch.object(type(service), "youtube_privacy_status", new_callable=PropertyMock, return_value="private"),
             patch.object(tm.sm, "state", state),
             patch.object(tm._cross_post_slots, "acquire", return_value=False),
             patch.object(tm._cross_post_executor, "submit") as submit,

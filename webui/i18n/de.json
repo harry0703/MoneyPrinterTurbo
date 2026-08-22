@@ -321,6 +321,13 @@
     "WaveSpeed Billing Notice Without Script": "Jeder generierte Clip wird von WaveSpeed einzeln berechnet. Geben Sie das Videoskript ein oder generieren Sie es, um eine geschätzte Clip-Anzahl zu sehen. Die Generierung erfolgt Segment für Segment und stoppt, sobald genügend Material vorliegt.",
     "Confirm WaveSpeed Charge": "Ich verstehe, dass die WaveSpeed-Videogenerierung ein kostenpflichtiger Dienst ist",
     "Confirm WaveSpeed Charge Help": "Clips werden bedarfsgesteuert Segment für Segment generiert; die Generierung stoppt, sobald das Material die Sprecherdauer abdeckt. Die Gebühren berechnet WaveSpeed pro generiertem Clip.",
-    "Confirm WaveSpeed Charge Required": "Bitte bestätigen Sie die WaveSpeed-Generierungskosten, bevor Sie das Video erstellen."
+    "Confirm WaveSpeed Charge Required": "Bitte bestätigen Sie die WaveSpeed-Generierungskosten, bevor Sie das Video erstellen.",
+    "Auto-Publish Settings": "Auto-Publish Settings",
+    "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
+    "Enable Auto-Publish": "Enable Auto-Publish",
+    "Platforms": "Platforms",
+    "Upload-Post API Key": "Upload-Post API Key",
+    "Upload-Post Profile Username": "Upload-Post Profile Username",
+    "YouTube Privacy Status": "YouTube Privacy Status"
   }
 }

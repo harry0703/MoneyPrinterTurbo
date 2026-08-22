@@ -321,6 +321,13 @@
     "Confirm WaveSpeed Charge Required": "Vui lòng xác nhận chi phí tạo video WaveSpeed trước khi tạo video.",
     "Video Encoder": "Bộ Mã Hóa Video",
     "Default Video Encoder": "Mặc định (Khuyên dùng)",
-    "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264."
+    "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264.",
+    "Auto-Publish Settings": "Auto-Publish Settings",
+    "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
+    "Enable Auto-Publish": "Enable Auto-Publish",
+    "Platforms": "Platforms",
+    "Upload-Post API Key": "Upload-Post API Key",
+    "Upload-Post Profile Username": "Upload-Post Profile Username",
+    "YouTube Privacy Status": "YouTube Privacy Status"
   }
 }
