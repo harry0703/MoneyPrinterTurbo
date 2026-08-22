@@ -1,5 +1,7 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
+from uuid import UUID
 
 from app.config import config
 from app.controllers import base
@@ -8,6 +10,8 @@ from app.models.exception import HttpException
 
 
 class TestControllerAuthentication(unittest.TestCase):
+    generated_task_id = UUID("00000000-0000-4000-8000-000000000001")
+
     def setUp(self):
         self.original_app_config = dict(config.app)
 
@@ -22,7 +26,41 @@ class TestControllerAuthentication(unittest.TestCase):
             url="http://localhost/api/v1/tasks",
         )
 
-    def test_get_task_id_reuses_header_or_generates_uuid(self):
+    def test_normalize_task_id_preserves_printable_values_up_to_limit(self):
+        task_ids = (
+            "request-123",
+            "trace/01HZX_abc.def:456",
+            "请求-123",
+            "x" * base.MAX_TASK_ID_LENGTH,
+        )
+
+        for task_id in task_ids:
+            with self.subTest(task_id=task_id):
+                self.assertEqual(base.normalize_task_id(task_id), task_id)
+
+    def test_normalize_task_id_replaces_unsafe_or_malformed_values(self):
+        unsafe_values = (
+            None,
+            "",
+            123,
+            b"request-123",
+            object(),
+            "line\nforged",
+            "line\rforged",
+            "column\tforged",
+            "ansi\x1b[31m",
+            "unicode\u2028separator",
+            "x" * (base.MAX_TASK_ID_LENGTH + 1),
+        )
+
+        with patch.object(base, "uuid4", return_value=self.generated_task_id):
+            for value in unsafe_values:
+                with self.subTest(value=value):
+                    self.assertEqual(
+                        base.normalize_task_id(value), str(self.generated_task_id)
+                    )
+
+    def test_get_task_id_reuses_safe_header_or_generates_uuid(self):
         """
         客户端提供 request ID 时需要原样保留，缺失时则生成可记录到日志和
         错误响应中的 UUID，保证两种入口都有可追踪标识。
@@ -32,9 +70,33 @@ class TestControllerAuthentication(unittest.TestCase):
             "request-123",
         )
 
-        generated = base.get_task_id(self._request())
-        self.assertEqual(len(generated), 36)
-        self.assertEqual(generated.count("-"), 4)
+        with patch.object(base, "uuid4", return_value=self.generated_task_id):
+            generated = base.get_task_id(self._request())
+
+        self.assertEqual(generated, str(self.generated_task_id))
+
+    def test_verify_token_never_exposes_unsafe_task_id(self):
+        config.app["api_key"] = "secret"
+        malicious_task_id = "attacker\nforged-log-entry"
+
+        with (
+            patch.object(base, "uuid4", return_value=self.generated_task_id),
+            patch("app.models.exception.logger.error") as log_error,
+        ):
+            with self.assertRaises(HttpException):
+                base.verify_token(
+                    self._request(
+                        {
+                            "x-api-key": "wrong",
+                            "x-task-id": malicious_task_id,
+                        }
+                    )
+                )
+
+        logged_error = log_error.call_args.args[0]
+        self.assertIn(str(self.generated_task_id), logged_error)
+        self.assertNotIn(malicious_task_id, logged_error)
+        self.assertNotIn("forged-log-entry", logged_error)
 
     def test_verify_token_accepts_matching_key(self):
         """配置了 API Key 时，相同请求头必须正常通过鉴权。"""
