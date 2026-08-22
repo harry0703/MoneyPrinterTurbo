@@ -1,5 +1,6 @@
-from fastapi import Request
+from fastapi import Depends, Request
 
+from app.controllers import base
 from app.controllers.v1.base import new_router
 from app.models.schema import (
     VideoScriptRequest,
@@ -12,9 +13,9 @@ from app.models.schema import (
 from app.services import llm
 from app.utils import utils
 
-# authentication dependency
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+# The dependency permits requests when app.api_key is empty and enforces the
+# header as soon as an administrator opts into API authentication.
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 
 @router.post(

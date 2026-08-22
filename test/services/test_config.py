@@ -37,6 +37,7 @@ class TestConfigPersistence:
         assert example_config["listen_host"] == "0.0.0.0"
         assert example_config["listen_port"] == 8080
         assert example_config["log_level"] == "DEBUG"
+        assert app_config["api_key"] == ""
         assert app_config["video_source"] in {
             "pexels",
             "pixabay",
