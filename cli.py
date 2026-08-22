@@ -778,7 +778,15 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     task_id = args.task_id or utils.get_uuid()
     logger.info(f"start CLI task: task_id={task_id}, stop_at={args.stop_at}")
     try:
-        result = tm.start(task_id=task_id, params=params, stop_at=args.stop_at)
+        result = tm.start(
+            task_id=task_id,
+            params=params,
+            stop_at=args.stop_at,
+            # CLI inputs come from the local operator rather than an HTTP client.
+            # Preserve support for arbitrary local audio paths without weakening the
+            # task service's secure default for API and WebUI callers.
+            allow_server_file_input=True,
+        )
     except Exception as exc:
         logger.exception(
             f"CLI task failed with an unexpected error: task_id={task_id}, error={exc}"

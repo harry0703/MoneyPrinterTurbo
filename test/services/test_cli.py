@@ -69,6 +69,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(kwargs["task_id"], "task-123")
         self.assertEqual(kwargs["stop_at"], "script")
         self.assertEqual(kwargs["params"].video_subject, "命令行测试")
+        self.assertIs(kwargs["allow_server_file_input"], True)
         print_mock.assert_called_once()
 
     def test_run_cli_returns_error_when_task_fails(self):

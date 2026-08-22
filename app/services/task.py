@@ -356,7 +356,12 @@ def save_script_data(task_id, video_script, video_terms, params):
     task_artifacts.write_script_data(task_id, script_data)
 
 
-def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> str:
+def resolve_custom_audio_file(
+    task_id: str,
+    custom_audio_file: str | None,
+    *,
+    allow_server_file_input: bool = False,
+) -> str:
     requested_file = (custom_audio_file or "").strip()
     if not requested_file:
         return ""
@@ -369,6 +374,20 @@ def resolve_custom_audio_file(task_id: str, custom_audio_file: str | None) -> st
         )
     except ValueError as exc:
         task_dir_error = exc
+
+    # A missing path that otherwise stays inside the task directory is safe to
+    # report precisely. Paths outside that boundary use the same generic error
+    # regardless of whether they exist, so callers cannot probe the host filesystem.
+    if str(task_dir_error) == "file does not exist":
+        raise task_dir_error
+
+    # HTTP requests and other untrusted callers must never turn a submitted path
+    # into a server-side file read. WebUI uploads already live in the task directory;
+    # only the local CLI explicitly opts into resolving files elsewhere on the host.
+    if not allow_server_file_input:
+        raise ValueError(
+            "custom audio file must be stored within the current task directory"
+        ) from task_dir_error
 
     server_audio_file = path.realpath(
         requested_file
@@ -455,7 +474,14 @@ def _resolve_reusable_voice_preview(
     return preview_file, math.ceil(duration), sub_maker
 
 
-def generate_audio(task_id, params, video_script, voice_preview=None):
+def generate_audio(
+    task_id,
+    params,
+    video_script,
+    voice_preview=None,
+    *,
+    allow_server_file_input: bool = False,
+):
     """
     Generate audio for the video script.
     If a custom audio file is provided, it will be used directly.
@@ -472,7 +498,9 @@ def generate_audio(task_id, params, video_script, voice_preview=None):
     requested_custom_audio_file = getattr(params, "custom_audio_file", None)
     try:
         custom_audio_file = resolve_custom_audio_file(
-            task_id, requested_custom_audio_file
+            task_id,
+            requested_custom_audio_file,
+            allow_server_file_input=allow_server_file_input,
         )
     except ValueError as exc:
         _mark_task_failed(
@@ -1188,6 +1216,7 @@ def _run_pipeline(
     stop_at: str = "video",
     voice_preview: dict | None = None,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+    allow_server_file_input: bool = False,
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
@@ -1288,6 +1317,7 @@ def _run_pipeline(
         params,
         video_script,
         voice_preview=voice_preview,
+        allow_server_file_input=allow_server_file_input,
     )
     if not audio_file:
         return _mark_task_failed(
@@ -1439,8 +1469,14 @@ def start(
     stop_at: str = "video",
     voice_preview: dict | None = None,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+    allow_server_file_input: bool = False,
 ):
-    """执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。"""
+    """
+    执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。
+
+    ``allow_server_file_input`` 只供本机 CLI 使用。HTTP API 和 WebUI 必须保持
+    默认值，让自定义音频始终受当前任务目录约束。
+    """
     try:
         return _run_pipeline(
             task_id,
@@ -1448,6 +1484,7 @@ def start(
             stop_at=stop_at,
             voice_preview=voice_preview,
             loomloom_video_request=loomloom_video_request,
+            allow_server_file_input=allow_server_file_input,
         )
     except Exception as exc:
         logger.exception(

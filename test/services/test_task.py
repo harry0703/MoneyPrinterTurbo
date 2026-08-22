@@ -713,7 +713,61 @@ class TestTaskService(unittest.TestCase):
         self.assertIsNone(sub_maker)
         tts.assert_not_called()
 
-    def test_generate_audio_accepts_server_side_custom_file(self):
+    def test_generate_audio_rejects_server_side_custom_file_by_default(self):
+        task_id = "test-custom-audio-untrusted-server-side"
+        task_dir = utils.task_dir(task_id)
+        state = MemoryState()
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3") as server_audio:
+            server_audio.write(b"fake audio")
+            server_audio.flush()
+            params = VideoParams(
+                video_subject="custom audio",
+                video_script="",
+                custom_audio_file=server_audio.name,
+                voice_name="test-voice",
+            )
+
+            try:
+                with (
+                    patch.object(tm.voice, "tts") as tts,
+                    patch.object(tm.voice, "get_audio_duration") as get_duration,
+                    patch.object(tm.sm, "state", state),
+                ):
+                    audio_file, audio_duration, result_sub_maker = tm.generate_audio(
+                        task_id, params, "script"
+                    )
+            finally:
+                shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertIsNone(audio_file)
+        self.assertIsNone(audio_duration)
+        self.assertIsNone(result_sub_maker)
+        tts.assert_not_called()
+        get_duration.assert_not_called()
+        failed_task = state.get_task(task_id)
+        self.assertEqual(failed_task["failed_stage"], "audio")
+        self.assertIn("current task directory", failed_task["error"])
+
+    def test_external_custom_audio_error_does_not_reveal_file_existence(self):
+        task_id = "test-custom-audio-existence-oracle"
+        task_dir = utils.task_dir(task_id)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3") as server_audio:
+            external_paths = [server_audio.name, f"{server_audio.name}.missing"]
+            errors = []
+            try:
+                for external_path in external_paths:
+                    with self.assertRaises(ValueError) as raised:
+                        tm.resolve_custom_audio_file(task_id, external_path)
+                    errors.append(str(raised.exception))
+            finally:
+                shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertEqual(errors[0], errors[1])
+        self.assertIn("current task directory", errors[0])
+
+    def test_generate_audio_accepts_server_side_custom_file_for_trusted_cli(self):
         task_id = "test-custom-audio-server-side"
         task_dir = utils.task_dir(task_id)
 
@@ -733,7 +787,10 @@ class TestTaskService(unittest.TestCase):
                     patch.object(tm.voice, "get_audio_duration", return_value=6),
                 ):
                     audio_file, audio_duration, result_sub_maker = tm.generate_audio(
-                        task_id, params, "script"
+                        task_id,
+                        params,
+                        "script",
+                        allow_server_file_input=True,
                     )
             finally:
                 shutil.rmtree(task_dir, ignore_errors=True)
@@ -959,6 +1016,37 @@ class TestTaskService(unittest.TestCase):
 
                 self.assertEqual(result, expected)
                 generate_final.assert_not_called()
+
+    def test_start_forwards_trusted_server_file_flag_to_audio_stage(self):
+        params = VideoParams(video_subject="CLI custom audio")
+
+        with (
+            patch.object(tm.utils, "check_ffmpeg_ready", return_value=True),
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["audio"]),
+            patch.object(tm, "save_script_data"),
+            patch.object(
+                tm,
+                "generate_audio",
+                return_value=("audio.mp3", 5, None),
+            ) as generate_audio,
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            result = tm.start(
+                "trusted-cli-audio",
+                params,
+                stop_at="audio",
+                allow_server_file_input=True,
+            )
+
+        self.assertEqual(result, {"audio_file": "audio.mp3", "audio_duration": 5})
+        generate_audio.assert_called_once_with(
+            "trusted-cli-audio",
+            params,
+            "generated script",
+            voice_preview=None,
+            allow_server_file_input=True,
+        )
 
     def test_start_completes_video_without_cross_posting(self):
         """
