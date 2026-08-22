@@ -3494,7 +3494,7 @@ def _render_script_settings(panel, params):
                 # Check if it was an auto-selected fallback.
                 def _get_first_voice(lang_prefix, is_v2=False):
                     for v in voice.get_all_azure_voices():
-                        if v.lower().startswith(lang_prefix.lower()) and voice.is_azure_v2_voice(v) == is_v2:
+                        if v.lower().startswith(lang_prefix.lower()) and bool(voice.is_azure_v2_voice(v)) == is_v2:
                             return v
                     return None
                 

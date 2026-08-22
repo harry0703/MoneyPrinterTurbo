@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch
 from pathlib import Path
 from streamlit.testing.v1 import AppTest
@@ -32,7 +31,7 @@ def test_hi_in_applies_default_hindi_voice_for_azure_v1():
         app.run()
         
         voice_widget = _widget_by_key(app.selectbox, "speech_synthesis_select_azure-tts-v1")
-        assert not voice_widget.value.lower().startswith("hi-in")
+        assert voice_widget.value.lower().startswith("hi-in")
 
 def test_hi_in_applies_default_hindi_voice_for_azure_v2():
     test_ui_config = dict(config.ui, language="en", voice_name="", tts_server="azure-tts-v2")
@@ -70,14 +69,3 @@ def test_hi_in_preserves_explicit_voice_selection():
         voice_widget = _widget_by_key(app.selectbox, "speech_synthesis_select_azure-tts-v1")
         assert voice_widget.value == explicit_voice
 
-def test_webui_runtime_config_updates_do_not_use_blocking_writes():
-    # Make sure we didn't add any blocking writes
-    import ast
-    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-    calls = {
-        getattr(node.func, "attr", getattr(node.func, "id", ""))
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and hasattr(node, "func")
-    }
-    # This is handled by the existing test_webui_task.py, but just to be sure
-    pass
