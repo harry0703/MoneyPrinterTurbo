@@ -13,6 +13,18 @@ listen_port = 8080
 
 [app]
 
+# Optional protection for API routes and generated files under /tasks.
+# Leave empty for local backward-compatible access. When configured, clients
+# must send the same value in the x-api-key request header. Keep real keys only
+# in config.toml and never commit them.
+# API 路由和 /tasks 生成文件的可选保护。留空时保持本地免认证行为；
+# 配置后客户端必须通过 x-api-key 请求头传入同一个值。
+# Task artifact requests also require this header; a browser address bar cannot
+# attach custom headers, so authenticated clients should download them via HTTP.
+# 任务产物下载同样需要该请求头；浏览器地址栏无法附加自定义请求头，启用鉴权后
+# 应由 API 客户端携带请求头下载。
+api_key = ""
+
 # -----------------------------------------------------------------------------
 # General / 通用设置
 # -----------------------------------------------------------------------------

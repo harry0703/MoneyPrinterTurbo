@@ -375,7 +375,14 @@ class TestVideoControllerDeleteHTTP(unittest.TestCase):
     """DELETE /api/v1/tasks/{task_id} 的真实 HTTP 级回归测试。"""
 
     def setUp(self):
+        self.original_app_config = dict(config.app)
+        # 这些用例只验证任务删除协议；鉴权行为由独立测试覆盖。
+        config.app["api_key"] = ""
         self.client = TestClient(asgi.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
 
     def _seed_completed_task(self, task_id: str) -> str:
         """创建一个已完成的任务，返回其存储目录路径。"""

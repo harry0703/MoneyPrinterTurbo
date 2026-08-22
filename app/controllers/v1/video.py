@@ -36,9 +36,9 @@ from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
 
-# 认证依赖项
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+# 统一在 V1 视频路由入口执行鉴权。verify_token 会在 api_key 为空时
+# 保留现有免认证行为，只有管理员显式配置后才会影响客户端。
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
