@@ -4776,7 +4776,7 @@ def _render_audio_settings(panel, params):
                 ("minimax-tts", "MiniMax TTS"),
                 ("elevenlabs", "ElevenLabs TTS"),
                 ("chatterbox", "Chatterbox TTS"),
-                ("fish_audio", "Fish Audio TTS (Free Developer)"),
+                ("fish_audio", "Fish Audio TTS"),
             ]
 
             tts_server_values = [server_value for server_value, _ in tts_servers]

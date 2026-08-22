@@ -1888,8 +1888,8 @@ def fish_audio_tts(
             if response.status_code == 402:
                 logger.error(
                     "Fish Audio TTS failed: Insufficient API credit (402). "
-                    "Please use model 's2.1-pro-free' or add funds at "
-                    "https://fish.audio/app/developers"
+                    "Please check your account balance at "
+                    "https://fish.audio/app/developers or verify your model and billing tier."
                 )
                 return None
             if response.status_code == 429:

@@ -401,12 +401,13 @@ voices = ["default-Female"]
 # API key: https://fish.audio/app/developers
 # You can also set the FISH_API_KEY environment variable.
 api_key = ""
-# Available models: "s2.1-pro-free" (free developer tier), "s2.1-pro", "s2-pro"
+# Available models: "s2.1-pro-free", "s2.1-pro", "s2-pro"
 model = "s2.1-pro-free"
 
 # ── Voice selection ──────────────────────────────────────────────────────────
-# By default Fish Audio uses its built-in default voice.  To use a specific
-# public or cloned voice, add entries below.  Each entry is either:
+# Built-in presets for clear female, male, and neutral default voices are
+# available out of the box.  To use additional public or cloned voices, add
+# entries below.  Each entry is either:
 #   "<reference_id>:<display_name>"   – a Fish Audio voice model ID with label
 #   "<reference_id>"                  – bare ID (used as both ID and label)
 #
@@ -414,11 +415,11 @@ model = "s2.1-pro-free"
 # Example: voices = ["7f92f8afb8ec43bf81429cc1c9199cb1:Friendly Narrator"]
 voices = []
 
-# ── Free tier notice ─────────────────────────────────────────────────────────
-# The "s2.1-pro-free" model is free for developers but is subject to Fish
-# Audio's Fair Use Policy.  There is no SLA, and usage may be rate-limited.
-# Check https://fish.audio/pricing for current terms on commercial use and
-# data retention before using in production.
+# ── Model & Pricing Notice ───────────────────────────────────────────────────
+# The "s2.1-pro-free" model is provided under Fish Audio's developer terms and
+# is subject to Fair Use Policy, rate limits, and time-limited promotional
+# windows (e.g. through August 2026).  There is no SLA.  Please check
+# https://fish.audio/pricing for current availability and commercial terms.
 
 # =============================================================================
 # WebUI Preferences / WebUI 偏好
