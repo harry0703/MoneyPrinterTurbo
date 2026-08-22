@@ -192,6 +192,7 @@
     "LLM Provider": "Provedor LLM",
     "Recommended": "Recomendado",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (recomendado)",
+    "llm_provider_label.orcarouter": "OrcaRouter",
     "API Key": "Chave da API (:red[Obrigatório])",
     "Base Url": "URL Base",
     "Account ID": "ID da Conta (Obter no painel do Cloudflare)",

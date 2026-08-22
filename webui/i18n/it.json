@@ -192,6 +192,7 @@
     "LLM Provider": "Provider LLM",
     "Recommended": "Consigliato",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (consigliato)",
+    "llm_provider_label.orcarouter": "OrcaRouter",
     "API Key": "Chiave API",
     "Base Url": "Base URL",
     "Account ID": "ID account",
