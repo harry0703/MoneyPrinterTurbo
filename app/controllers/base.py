@@ -5,12 +5,23 @@ from fastapi import Request
 from app.config import config
 from app.models.exception import HttpException
 
+MAX_TASK_ID_LENGTH = 128
 
-def get_task_id(request: Request):
-    task_id = request.headers.get("x-task-id")
-    if not task_id:
-        task_id = uuid4()
-    return str(task_id)
+
+def normalize_task_id(value: object) -> str:
+    """Return a log-safe request ID, replacing invalid client input with a UUID."""
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > MAX_TASK_ID_LENGTH
+        or not value.isprintable()
+    ):
+        return str(uuid4())
+    return value
+
+
+def get_task_id(request: Request) -> str:
+    return normalize_task_id(request.headers.get("x-task-id"))
 
 
 def get_api_key(request: Request):
