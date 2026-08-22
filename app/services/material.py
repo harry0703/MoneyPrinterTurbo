@@ -155,6 +155,47 @@ def _get_tls_verify() -> bool:
     return bool(tls_verify)
 
 
+def _pixabay_bypass_cloudflare_enabled() -> bool:
+    # 默认关闭：部分出口 IP / 网络环境下，Pixabay 前置的 Cloudflare 会对
+    # Python `requests`的 TLS 指纹返回 429 challenge 页面，即使 Key 和请求
+    # 本身都合法。启用该选项会改用模拟浏览器 TLS 指纹的 HTTP 客户端，这
+    # 本质上是绕过 Cloudflare 的访问限制，与 Pixabay 服务条款存在冲突，
+    # 因此只在用户确认自身环境确实受影响、并自行承担合规与账号风险的
+    # 前提下，通过 `config.toml` 显式设置
+    # `pixabay_bypass_cloudflare = true` 开启。
+    enabled = config.app.get("pixabay_bypass_cloudflare", False)
+    if isinstance(enabled, str):
+        enabled = enabled.strip().lower() in ("1", "true", "yes", "on")
+
+    if enabled:
+        logger.warning(
+            "pixabay_bypass_cloudflare=true: Pixabay search will impersonate a "
+            "browser TLS fingerprint to get past Cloudflare's access challenge. "
+            "This may conflict with Pixabay's Terms of Service -- only enable it "
+            "if you have confirmed this is necessary and acceptable for your use."
+        )
+
+    return bool(enabled)
+
+
+def _get_cf_requests():
+    """按需导入 curl_cffi，仅在用户显式开启 pixabay_bypass_cloudflare 时才需要。
+
+    curl_cffi 是可选依赖 (`uv sync --extra pixabay-bypass`)，不随默认安装
+    一起提供，因此这里延迟导入并在缺失时给出明确的安装指引，而不是让整个
+    模块在默认环境下也强制加载它。
+    """
+    try:
+        from curl_cffi import requests as cf_requests
+    except ImportError as exc:
+        raise ValueError(
+            "pixabay_bypass_cloudflare=true requires the optional 'curl_cffi' "
+            "package, which is not installed. Install it with: "
+            "`uv sync --extra pixabay-bypass` (or `pip install curl_cffi`)."
+        ) from exc
+    return cf_requests
+
+
 def get_api_key(cfg_key: str):
     api_keys = config.app.get(cfg_key)
     if not api_keys:
@@ -207,7 +248,7 @@ def _redact_request_error(error: Exception, *secrets: str) -> str:
     return safe_message
 
 
-def _is_cloudflare_challenge(response: requests.Response) -> bool:
+def _is_cloudflare_challenge(response: Any) -> bool:
     """
     识别 Cloudflare 返回的 HTML Challenge，而不是把它当成 Pixabay JSON。
 
@@ -397,10 +438,24 @@ def search_videos_pixabay(
         f"proxy_enabled={bool(config.proxy)}"
     )
 
+    # curl_cffi 是可选依赖：缺失属于配置错误，需要在 try/except 网络错误
+    # 处理之前就报出明确指引，而不是被吞掉后静默返回空列表。
+    bypass_cloudflare = _pixabay_bypass_cloudflare_enabled()
+    cf_requests = _get_cf_requests() if bypass_cloudflare else None
+
     try:
-        r = requests.get(
-            query_url, proxies=config.proxy, verify=_get_tls_verify(), timeout=(30, 60)
-        )
+        get_kwargs = {
+            "proxies": config.proxy,
+            "verify": _get_tls_verify(),
+            "timeout": (30, 60),
+        }
+        if bypass_cloudflare:
+            # 部分网络环境下 Pixabay 前置的 Cloudflare 会拦截 Python
+            # `requests` 的 TLS 指纹并返回 429 challenge 页面；这里改用
+            # curl_cffi 模拟浏览器 TLS 指纹，仅在用户显式开启该配置项时生效。
+            r = cf_requests.get(query_url, impersonate="chrome", **get_kwargs)
+        else:
+            r = requests.get(query_url, **get_kwargs)
         status_code = int(getattr(r, "status_code", 200))
         headers = getattr(r, "headers", {}) or {}
         content_type = str(headers.get("content-type", ""))

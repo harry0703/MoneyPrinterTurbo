@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import requests
 
@@ -113,6 +113,81 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
         self.assertEqual(len(results), 1)
         self.assertFalse(get.call_args.kwargs["verify"])
+
+    def test_search_pixabay_uses_plain_requests_by_default(self):
+        """
+        默认必须使用普通 requests，不做浏览器 TLS 指纹模拟：该行为等同于
+        绕过 Cloudflare 的访问限制，与 Pixabay 服务条款存在冲突，只能由
+        用户显式选择启用（见下一测试）。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {"hits": []},
+        )
+
+        with patch(
+            "app.services.material.requests.get", return_value=fake_response
+        ) as plain_get, patch("app.services.material._get_cf_requests") as get_cf_requests:
+            material.search_videos_pixabay("cat", minimum_duration=1)
+
+        plain_get.assert_called_once()
+        get_cf_requests.assert_not_called()
+
+    def test_search_pixabay_bypass_cloudflare_uses_browser_impersonation_when_enabled(
+        self,
+    ):
+        """
+        用户在 config.toml 中显式设置 pixabay_bypass_cloudflare = true 后，
+        才允许改用模拟浏览器 TLS 指纹的 curl_cffi 客户端。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.app["pixabay_bypass_cloudflare"] = True
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {"hits": []},
+        )
+
+        fake_cf_requests = SimpleNamespace(get=MagicMock(return_value=fake_response))
+
+        with patch("app.services.material.requests.get") as plain_get, patch(
+            "app.services.material._get_cf_requests", return_value=fake_cf_requests
+        ):
+            material.search_videos_pixabay("cat", minimum_duration=1)
+
+        plain_get.assert_not_called()
+        fake_cf_requests.get.assert_called_once()
+        self.assertEqual(fake_cf_requests.get.call_args.kwargs["impersonate"], "chrome")
+
+    def test_search_pixabay_bypass_cloudflare_reports_missing_optional_dependency(self):
+        """
+        curl_cffi 是可选依赖：用户开启 pixabay_bypass_cloudflare 但未安装该
+        依赖时，应给出明确的安装指引，而不是隐晦的 ModuleNotFoundError。
+        """
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        config.app["pixabay_bypass_cloudflare"] = True
+        config.proxy.clear()
+
+        with patch(
+            "app.services.material._get_cf_requests",
+            side_effect=ValueError(
+                "pixabay_bypass_cloudflare=true requires the optional 'curl_cffi' "
+                "package, which is not installed. Install it with: "
+                "`uv sync --extra pixabay-bypass` (or `pip install curl_cffi`)."
+            ),
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                material.search_videos_pixabay("cat", minimum_duration=1)
+
+        self.assertIn("pixabay-bypass", str(ctx.exception))
 
     def test_remote_searches_only_return_requested_orientation(self):
         """
