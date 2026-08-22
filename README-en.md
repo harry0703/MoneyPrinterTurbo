@@ -338,6 +338,11 @@ If you have already activated the virtual environment manually, you can still ru
 python main.py
 ```
 
+All `/api/v1` endpoints remain unauthenticated by default for backward
+compatibility. To protect them, set `api_key` under `[app]` in `config.toml`;
+clients must then send the same value in the `x-api-key` header. The `/ping`
+health endpoint remains public.
+
 #### ④ Pure CLI Mode (No Browser) ⌨️
 
 If you cannot use a browser or port forwarding, generate videos directly from the

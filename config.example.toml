@@ -17,6 +17,13 @@ listen_port = 8080
 # General / 通用设置
 # -----------------------------------------------------------------------------
 
+# Optional authentication for every /api/v1 endpoint. Leave empty to preserve
+# the existing unauthenticated behavior. When set, clients must send the same
+# value in the x-api-key header. The /ping health endpoint remains public.
+# 可选的 /api/v1 接口认证。留空时保持现有行为；配置后客户端必须通过
+# x-api-key 请求头发送相同的值。健康检查 /ping 始终公开。
+api_key = ""
+
 # Hide the basic configuration panel in the WebUI.
 # 是否隐藏 WebUI 基础配置面板。
 hide_config = false

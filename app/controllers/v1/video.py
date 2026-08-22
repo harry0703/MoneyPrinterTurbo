@@ -35,9 +35,9 @@ from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
 
-# 认证依赖项
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+# ``verify_token`` is a no-op until app.api_key is configured, so existing local
+# deployments stay open while internet-facing deployments can opt into protection.
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
