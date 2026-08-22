@@ -126,7 +126,7 @@
 - [x] **動画の一括生成**に対応。一度に複数の動画を作成し、最も満足のいくものを選べます
 - [x] **動画クリップの長さ**の設定に対応。素材の切り替え頻度を調整しやすくなります
 - [x] **多言語の動画台本**生成に対応
-- [x] **Edge TTS**、**Azure Speech**、**SiliconFlow**、**Google Gemini**、**Xiaomi MiMo**、**ElevenLabs**、**Chatterbox** による音声合成とリアルタイムプレビューに対応
+- [x] **Edge TTS**、**Azure Speech**、**SiliconFlow**、**Google Gemini**、**Xiaomi MiMo**、**ElevenLabs**、**Chatterbox**、**Fish Audio** による音声合成とリアルタイムプレビューに対応
 - [x] **字幕生成**に対応。フォント、位置、色、サイズ、縁取り、背景スタイルを設定できます
 - [x] ランダムまたはカスタムの **BGM** に対応し、音量も調整できます
 - [x] 手持ちの**ローカル素材**に加え、**Pexels**、**Pixabay**、**Coverr** の無料で使える高画質素材に対応
@@ -352,7 +352,7 @@ uv run python cli.py --help
 
 ## 音声合成 🗣
 
-既定のプロバイダーは無料の **Edge TTS** で、WebUI 上では **Azure TTS V1** と表示されます。MoneyPrinterTurbo は **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**Xiaomi MiMo TTS**、**ElevenLabs TTS**、セルフホストの **Chatterbox TTS**、および音声なしモードにも対応しています。
+既定のプロバイダーは無料の **Edge TTS** で、WebUI 上では **Azure TTS V1** と表示されます。MoneyPrinterTurbo は **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**Xiaomi MiMo TTS**、**ElevenLabs TTS**、セルフホストの **Chatterbox TTS**、**Fish Audio TTS**、および音声なしモードにも対応しています。
 
 WebUI でプロバイダーと音声を選択し、必要な認証情報については画面の案内に従ってください。Edge TTS に API キーは不要です。[Azure TTS V2](https://portal.azure.com/) やその他のクラウドプロバイダーでは、それぞれのプラットフォームで発行した認証情報が必要です。利用可能な Edge TTS の音声は[音声リスト](./docs/voice-list.txt)で確認できます。
 
