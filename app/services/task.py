@@ -571,7 +571,10 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
             return ""
 
     if subtitle_provider == "whisper":
-        subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
+        created_path = subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
+        if not created_path:
+            logger.warning("whisper subtitle generation failed, skipping subtitle correction")
+            return ""
         logger.info("\n\n## correcting subtitle")
         subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
 
