@@ -17,6 +17,7 @@ from app.controllers.v1 import video as video_controller
 from app.models import const
 from app.models.exception import HttpException
 from app.models.schema import TaskDeletionResponse, TaskListResponse, TaskQueryResponse
+from app.services import material_upload
 from app.services import state as sm
 from app.utils import utils
 
@@ -439,32 +440,54 @@ class TestVideoControllerFiles(unittest.TestCase):
 
     def test_upload_video_material_validates_complete_extension(self):
         """大写合法扩展名应接受，无点号伪扩展名应拒绝。"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            upload = SimpleNamespace(
-                filename=r"C:\videos\clip.MOV",
-                file=BytesIO(b"video"),
+        upload = SimpleNamespace(
+            filename=r"C:\videos\clip.MOV",
+            file=BytesIO(b"video"),
+        )
+        with patch.object(
+            material_upload,
+            "save_material_upload",
+            return_value="4fca18fce7344f3aa824777a40d45c8c.mov",
+        ) as save_material:
+            response = video_controller.upload_video_material_file(
+                self._request(), upload
             )
-            with patch.object(
-                video_controller.utils,
-                "storage_dir",
-                return_value=temp_dir,
-            ):
-                response = video_controller.upload_video_material_file(
-                    self._request(), upload
-                )
 
-            self.assertEqual(response["data"]["file"], "clip.MOV")
-            self.assertEqual(Path(temp_dir, "clip.MOV").read_bytes(), b"video")
+        self.assertEqual(
+            response["data"]["file"],
+            "4fca18fce7344f3aa824777a40d45c8c.mov",
+        )
+        save_material.assert_called_once_with("clip.MOV", upload.file)
 
-            invalid_upload = SimpleNamespace(
-                filename="photojpg",
-                file=BytesIO(b"not-an-image"),
-            )
+        invalid_upload = SimpleNamespace(
+            filename="photojpg",
+            file=BytesIO(b"not-an-image"),
+        )
+        with patch.object(
+            material_upload,
+            "save_material_upload",
+            side_effect=material_upload.MaterialUploadError("unsupported format"),
+        ):
             with self.assertRaises(HttpException) as raised:
                 video_controller.upload_video_material_file(
                     self._request(), invalid_upload
                 )
-            self.assertEqual(raised.exception.status_code, 400)
+        self.assertEqual(raised.exception.status_code, 400)
+
+    def test_upload_video_material_maps_service_failure_to_stable_500(self):
+        upload = SimpleNamespace(filename="clip.mp4", file=BytesIO(b"video"))
+        with patch.object(
+            material_upload,
+            "save_material_upload",
+            side_effect=material_upload.MaterialServiceError(
+                "C:\\sensitive\\storage is unavailable"
+            ),
+        ):
+            with self.assertRaises(HttpException) as raised:
+                video_controller.upload_video_material_file(self._request(), upload)
+
+        self.assertEqual(raised.exception.status_code, 500)
+        self.assertNotIn("sensitive", raised.exception.message)
 
     def test_stream_video_returns_requested_bytes(self):
         """Range 响应的正文和 Content-Range 必须与计算出的区间一致。"""

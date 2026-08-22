@@ -31,6 +31,7 @@ from app.models.schema import (
     VideoMaterialRetrieveResponse
 )
 from app.services import bgm as bgm_service
+from app.services import material_upload as material_upload_service
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
@@ -382,7 +383,10 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="Retrieve local video materials"
 )
 def get_video_materials_list(request: Request):
-    allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
+    allowed_suffixes = tuple(
+        extension.removeprefix(".")
+        for extension in material_upload_service.SUPPORTED_MATERIAL_EXTENSIONS
+    )
     local_videos_dir = utils.storage_dir("local_videos", create=True)
     files = []
     for suffix in allowed_suffixes:
@@ -413,26 +417,36 @@ def get_video_materials_list(request: Request):
 )
 def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
-    safe_filename = _sanitize_upload_filename(file.filename, request_id)
-    # check file ext
-    allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
-    suffix = pathlib.Path(safe_filename).suffix.lower().lstrip(".")
-    # 按完整扩展名校验，既兼容 .MOV 这类大写后缀，也避免 photojpg 这种没有
-    # 点号的文件名因为 endswith("jpg") 被误当成合法图片。
-    if suffix in allowed_suffixes:
-        local_videos_dir = utils.storage_dir("local_videos", create=True)
-        save_path = os.path.join(local_videos_dir, safe_filename)
-        # save file
-        with open(save_path, "wb+") as buffer:
-            # If the file already exists, it will be overwritten
-            file.file.seek(0)
-            buffer.write(file.file.read())
-        response = {"file": safe_filename}
-        return utils.get_response(200, response)
+    try:
+        # Keep accepting browser-supplied client paths, but persist an immutable
+        # UUID storage key so repeated names cannot overwrite queued task inputs.
+        safe_filename = _sanitize_upload_filename(file.filename, request_id)
+        stored_filename = material_upload_service.save_material_upload(
+            safe_filename, file.file
+        )
+    except material_upload_service.MaterialUploadError as exc:
+        logger.warning(
+            f"local material upload rejected: request_id={request_id}, "
+            f"error={str(exc)}"
+        )
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: {str(exc)}",
+        )
+    except material_upload_service.MaterialServiceError as exc:
+        logger.error(
+            f"local material upload failed: request_id={request_id}, "
+            f"error={str(exc)}"
+        )
+        raise HttpException(
+            task_id=request_id,
+            status_code=500,
+            message=f"{request_id}: local material validation is unavailable",
+        )
 
-    raise HttpException(
-        "", status_code=400, message=f"{request_id}: Only files with extensions {', '.join(allowed_suffixes)} can be uploaded"
-    )
+    response = {"file": stored_filename}
+    return utils.get_response(200, response)
 
 @router.get("/stream/{file_path:path}")
 async def stream_video(request: Request, file_path: str):
