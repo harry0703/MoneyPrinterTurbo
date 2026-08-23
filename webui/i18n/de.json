@@ -322,12 +322,12 @@
     "Confirm WaveSpeed Charge": "Ich verstehe, dass die WaveSpeed-Videogenerierung ein kostenpflichtiger Dienst ist",
     "Confirm WaveSpeed Charge Help": "Clips werden bedarfsgesteuert Segment für Segment generiert; die Generierung stoppt, sobald das Material die Sprecherdauer abdeckt. Die Gebühren berechnet WaveSpeed pro generiertem Clip.",
     "Confirm WaveSpeed Charge Required": "Bitte bestätigen Sie die WaveSpeed-Generierungskosten, bevor Sie das Video erstellen.",
-    "Auto-Publish Settings": "Auto-Publish Settings",
-    "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
-    "Enable Auto-Publish": "Enable Auto-Publish",
-    "Platforms": "Platforms",
-    "Upload-Post API Key": "Upload-Post API Key",
-    "Upload-Post Profile Username": "Upload-Post Profile Username",
-    "YouTube Privacy Status": "YouTube Privacy Status"
+    "Auto-Publish Settings": "Automatisch veröffentlichen",
+    "Automatically publish generated videos to social media using upload-post.com": "Generierte Videos automatisch mit upload-post.com in sozialen Medien veröffentlichen",
+    "Enable Auto-Publish": "Automatisches Veröffentlichen aktivieren",
+    "Platforms": "Plattformen",
+    "Upload-Post API Key": "Upload-Post API-Schlüssel",
+    "Upload-Post Profile Username": "Upload-Post Profil-Benutzername",
+    "YouTube Privacy Status": "YouTube-Datenschutzstatus"
   }
 }

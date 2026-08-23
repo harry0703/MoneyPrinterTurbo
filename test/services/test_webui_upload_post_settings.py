@@ -22,7 +22,7 @@ def test_webui_upload_post_checkbox_syncs_persisted_mismatch():
         upload_post_enabled=True,
         upload_post_auto_upload=False
     )
-    
+
     with (
         patch.object(config, "app", test_app_config),
         patch.object(config, "try_save_config", return_value=True),
@@ -31,16 +31,16 @@ def test_webui_upload_post_checkbox_syncs_persisted_mismatch():
         app.run()
         app.session_state["settings_dialog_open"] = True
         app.run()
-        
+
         # When UI runs, it sees enabled=True and auto_upload=False.
         # Checkbox should be UNCHECKED because ui_state = is_enabled and is_auto
         checkbox = _widget_by_key(app.checkbox, "upload_post_enabled_checkbox")
         assert checkbox.value is False
-        
+
         # Now user clicks it to TRUE
         checkbox.set_value(True)
         app.run()
-        
+
         # Verify it updated both
         assert config.app["upload_post_enabled"] is True
         assert config.app["upload_post_auto_upload"] is True
@@ -53,7 +53,7 @@ def test_webui_upload_post_youtube_privacy_fallback_to_public():
         upload_post_platforms=["youtube"],
         upload_post_youtube_privacy_status="draft"
     )
-    
+
     with (
         patch.object(config, "app", test_app_config),
         patch.object(config, "try_save_config", return_value=True),
@@ -62,7 +62,7 @@ def test_webui_upload_post_youtube_privacy_fallback_to_public():
         app.run()
         app.session_state["settings_dialog_open"] = True
         app.run()
-        
+
         # The selectbox should be rendered and its value should fallback to "public"
         yt_privacy_selectbox = _widget_by_key(app.selectbox, "upload_post_youtube_privacy_status_selectbox")
         assert yt_privacy_selectbox.value == "public"

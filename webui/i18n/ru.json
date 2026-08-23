@@ -322,12 +322,12 @@
     "Please enter a value between 0 and 100": "Введите значение от 0 до 100",
     "Please enter a valid number": "Введите корректное число",
     "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов",
-    "Auto-Publish Settings": "Auto-Publish Settings",
-    "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
-    "Enable Auto-Publish": "Enable Auto-Publish",
-    "Platforms": "Platforms",
-    "Upload-Post API Key": "Upload-Post API Key",
-    "Upload-Post Profile Username": "Upload-Post Profile Username",
-    "YouTube Privacy Status": "YouTube Privacy Status"
+    "Auto-Publish Settings": "Настройки автопубликации",
+    "Automatically publish generated videos to social media using upload-post.com": "Автоматически публиковать сгенерированные видео в соцсетях с помощью upload-post.com",
+    "Enable Auto-Publish": "Включить автопубликацию",
+    "Platforms": "Платформы",
+    "Upload-Post API Key": "API-ключ Upload-Post",
+    "Upload-Post Profile Username": "Имя пользователя профиля Upload-Post",
+    "YouTube Privacy Status": "Статус конфиденциальности YouTube"
   }
 }

@@ -322,12 +322,12 @@
     "Video Encoder": "Bộ Mã Hóa Video",
     "Default Video Encoder": "Mặc định (Khuyên dùng)",
     "Video Encoder Help": "Tùy chọn nâng cao. Mặc định tuân theo chính sách mã hóa ổn định của ứng dụng, hiện là libx264. Nếu bộ mã hóa phần cứng không khả dụng, ứng dụng tự động chuyển về libx264.",
-    "Auto-Publish Settings": "Auto-Publish Settings",
-    "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
-    "Enable Auto-Publish": "Enable Auto-Publish",
-    "Platforms": "Platforms",
-    "Upload-Post API Key": "Upload-Post API Key",
-    "Upload-Post Profile Username": "Upload-Post Profile Username",
-    "YouTube Privacy Status": "YouTube Privacy Status"
+    "Auto-Publish Settings": "Cài đặt tự động xuất bản",
+    "Automatically publish generated videos to social media using upload-post.com": "Tự động xuất bản các video đã tạo lên mạng xã hội bằng upload-post.com",
+    "Enable Auto-Publish": "Bật tự động xuất bản",
+    "Platforms": "Nền tảng",
+    "Upload-Post API Key": "Khóa API Upload-Post",
+    "Upload-Post Profile Username": "Tên người dùng hồ sơ Upload-Post",
+    "YouTube Privacy Status": "Trạng thái quyền riêng tư của YouTube"
   }
 }

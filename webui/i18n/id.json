@@ -322,12 +322,12 @@
     "Video Encoder": "Encoder Video",
     "Default Video Encoder": "Default (Direkomendasikan)",
     "Video Encoder Help": "Opsi lanjutan. Default mengikuti kebijakan encoder stabil aplikasi, saat ini libx264. Jika encoder perangkat keras tidak tersedia, aplikasi otomatis kembali ke libx264.",
-    "Auto-Publish Settings": "Auto-Publish Settings",
-    "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
-    "Enable Auto-Publish": "Enable Auto-Publish",
-    "Platforms": "Platforms",
-    "Upload-Post API Key": "Upload-Post API Key",
-    "Upload-Post Profile Username": "Upload-Post Profile Username",
-    "YouTube Privacy Status": "YouTube Privacy Status"
+    "Auto-Publish Settings": "Pengaturan Publikasi Otomatis",
+    "Automatically publish generated videos to social media using upload-post.com": "Publikasikan video secara otomatis ke media sosial menggunakan upload-post.com",
+    "Enable Auto-Publish": "Aktifkan Publikasi Otomatis",
+    "Platforms": "Platform",
+    "Upload-Post API Key": "Kunci API Upload-Post",
+    "Upload-Post Profile Username": "Nama Pengguna Profil Upload-Post",
+    "YouTube Privacy Status": "Status Privasi YouTube"
   }
 }

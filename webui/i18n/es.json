@@ -322,12 +322,12 @@
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Predeterminado (recomendado)",
     "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264.",
-    "Auto-Publish Settings": "Auto-Publish Settings",
-    "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
-    "Enable Auto-Publish": "Enable Auto-Publish",
-    "Platforms": "Platforms",
-    "Upload-Post API Key": "Upload-Post API Key",
-    "Upload-Post Profile Username": "Upload-Post Profile Username",
-    "YouTube Privacy Status": "YouTube Privacy Status"
+    "Auto-Publish Settings": "Configuración de publicación automática",
+    "Automatically publish generated videos to social media using upload-post.com": "Publicar automáticamente videos generados en redes sociales usando upload-post.com",
+    "Enable Auto-Publish": "Habilitar publicación automática",
+    "Platforms": "Plataformas",
+    "Upload-Post API Key": "Clave API de Upload-Post",
+    "Upload-Post Profile Username": "Nombre de usuario del perfil de Upload-Post",
+    "YouTube Privacy Status": "Estado de privacidad de YouTube"
   }
 }

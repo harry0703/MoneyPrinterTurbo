@@ -2543,11 +2543,11 @@ def _render_settings_dialog():
 
         with publish_config_panel:
             st.write(tr("Automatically publish generated videos to social media using upload-post.com"))
-            
+
             is_enabled = config.app.get("upload_post_enabled", False)
             is_auto = config.app.get("upload_post_auto_upload", False)
             ui_state = is_enabled and is_auto
-            
+
             upload_post_enabled = st.checkbox(
                 tr("Enable Auto-Publish"),
                 value=ui_state,

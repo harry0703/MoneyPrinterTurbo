@@ -322,12 +322,12 @@
     "Video Encoder": "Video Kodlayıcı",
     "Default Video Encoder": "Varsayılan (Önerilen)",
     "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner.",
-    "Auto-Publish Settings": "Auto-Publish Settings",
-    "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
-    "Enable Auto-Publish": "Enable Auto-Publish",
-    "Platforms": "Platforms",
-    "Upload-Post API Key": "Upload-Post API Key",
-    "Upload-Post Profile Username": "Upload-Post Profile Username",
-    "YouTube Privacy Status": "YouTube Privacy Status"
+    "Auto-Publish Settings": "Otomatik Yayınlama Ayarları",
+    "Automatically publish generated videos to social media using upload-post.com": "Oluşturulan videoları upload-post.com kullanarak otomatik olarak sosyal medyada yayınlayın",
+    "Enable Auto-Publish": "Otomatik Yayınlamayı Etkinleştir",
+    "Platforms": "Platformlar",
+    "Upload-Post API Key": "Upload-Post API Anahtarı",
+    "Upload-Post Profile Username": "Upload-Post Profil Kullanıcı Adı",
+    "YouTube Privacy Status": "YouTube Gizlilik Durumu"
   }
 }
