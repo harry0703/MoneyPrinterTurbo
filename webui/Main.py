@@ -860,14 +860,29 @@ def _collect_task_summaries(limit=20):
     return sorted(tasks, key=lambda item: item["mtime"], reverse=True)[:limit]
 
 
+def _is_headless_server():
+    # Docker 或无桌面的服务器部署中，WebUI 进程接触不到用户的桌面环境：
+    # xdg-open / webbrowser 只会在容器内静默失败。此时应改为浏览器内预览
+    # 视频、以路径提示代替打开目录。macOS/Windows 桌面部署不受影响。
+    if sys.platform == "darwin" or sys.platform.startswith("win"):
+        return False
+    return not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
 def _open_task_path(task_path):
     tasks_root = os.path.abspath(utils.task_dir())
     normalized_path = os.path.abspath(task_path)
     if not normalized_path.startswith(tasks_root + os.sep):
         logger.warning(f"invalid task folder path: {normalized_path}")
         return
-    if os.path.isdir(normalized_path):
-        webbrowser.open(f"file://{normalized_path}")
+    if not os.path.isdir(normalized_path):
+        return
+    if _is_headless_server():
+        # storage 目录通常以卷挂载映射回宿主机，提示相对路径即可定位文件。
+        rel_path = os.path.relpath(normalized_path, os.path.dirname(tasks_root))
+        st.toast(f"{tr('Open Task Folder')}: ./storage/{rel_path}", icon="📂")
+        return
+    webbrowser.open(f"file://{normalized_path}")
 
 
 def _open_task_video(video_file):
@@ -881,6 +896,11 @@ def _open_task_video(video_file):
         return
     if not os.path.isfile(normalized_file):
         logger.warning(f"task video does not exist: {normalized_file}")
+        return
+
+    if _is_headless_server():
+        # 无桌面环境时在任务面板内嵌播放器预览，代替调用系统播放器。
+        st.session_state["task_preview_video_file"] = normalized_file
         return
 
     try:
@@ -1095,6 +1115,37 @@ def _render_task_manager_panel(tasks=None):
                 if status_key == "all" or _task_state_filter_key(task) == status_key
             ]
             _render_task_table(filtered_tasks, status_key)
+
+    _render_task_video_preview()
+
+
+def _render_task_video_preview():
+    # 无桌面部署下“播放”按钮的浏览器内回退：在任务面板底部渲染播放器。
+    preview_file = st.session_state.get("task_preview_video_file")
+    if not preview_file:
+        return
+
+    tasks_root = os.path.abspath(utils.task_dir())
+    if not (
+        preview_file.startswith(tasks_root + os.sep) and os.path.isfile(preview_file)
+    ):
+        st.session_state.pop("task_preview_video_file", None)
+        return
+
+    st.divider()
+    preview_cols = st.columns([5, 1], vertical_alignment="center")
+    task_name = os.path.basename(os.path.dirname(preview_file))
+    preview_cols[0].caption(f"{os.path.basename(preview_file)} · {task_name}")
+    closed = preview_cols[1].button(
+        "✕",
+        key="close_task_video_preview",
+        use_container_width=True,
+        help=tr("Close"),
+    )
+    if closed:
+        st.session_state.pop("task_preview_video_file", None)
+        return
+    st.video(preview_file)
 
 
 @st.fragment(run_every="2s")
