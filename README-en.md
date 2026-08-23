@@ -233,6 +233,11 @@ Use the local setup or Docker instructions below.
 
 - Local deployment requires Python 3.11 or later
 - On Windows, avoid project paths containing non-ASCII characters, special characters, or spaces
+- Right-to-left subtitles such as Arabic need Pillow's Raqm layout engine. Without it letters are not joined and word order is reversed:
+    - Docker: already included in the images, nothing to do
+    - Linux: `apt install libraqm0`
+    - macOS: `brew install libraqm`. Homebrew's libraries are not on the default search path, so `webui.sh` adds `DYLD_LIBRARY_PATH` automatically; if you launch Streamlit yourself, export `DYLD_LIBRARY_PATH="$(brew --prefix)/lib:$DYLD_LIBRARY_PATH"` first
+    - Windows: the official Pillow wheel needs an external FriBiDi DLL on PATH, which the one-click package does not ship. Until it does, a local Windows install cannot render right-to-left subtitles correctly — use Docker instead
 
 #### ① Clone the Project
 

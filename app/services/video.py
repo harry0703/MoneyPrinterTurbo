@@ -23,7 +23,7 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, features
 
 from app.config import config
 from app.models import const
@@ -988,6 +988,30 @@ def subtitle_font_supports_text(font_path: str, text: str) -> bool:
     return _subtitle_font_supports_sample(font_path, sample)
 
 
+@lru_cache(maxsize=1)
+def text_layout_supports_shaping() -> bool:
+    """
+    判断 Pillow 是否启用了 Raqm 复杂文本排版（HarfBuzz 字形整形 + FriBiDi 双向重排）。
+
+    PyPI 的 Pillow wheel 不再内置 Raqm，但运行时会 dlopen 系统的 libraqm。
+    缺少它时 Pillow 退回 BASIC 排版：阿拉伯语等文种的字母不会连写，也不会
+    按从右到左的顺序排列，即使字体本身包含字形，字幕依然无法阅读。
+    """
+    try:
+        return bool(features.check("raqm"))
+    except Exception as e:
+        logger.warning(f"failed to detect Pillow raqm support: {e}")
+        return False
+
+
+def subtitle_text_needs_shaping(text: str) -> bool:
+    """判断文本是否包含需要整形或双向重排的从右到左文字（阿拉伯语、希伯来语等）。"""
+    return any(
+        unicodedata.bidirectional(char) in {"R", "AL", "AN"}
+        for char in str(text or "")
+    )
+
+
 def generate_video(
     video_path: str,
     audio_path: str,
@@ -1027,6 +1051,22 @@ def generate_video(
 
         logger.info(f"  ⑤ font: {font_path}")
 
+    # 缺少 Raqm 是环境级问题，但提示必须按任务给出：整个进程只提示一次会让
+    # 后续任务的日志完全看不到这条关键信息。这里用单次任务内的标志位收敛，
+    # 既不会逐条字幕刷屏，也保证每次合成都留下记录。
+    missing_shaping_warned = False
+
+    def warn_missing_text_shaping_once():
+        nonlocal missing_shaping_warned
+        if missing_shaping_warned:
+            return
+        missing_shaping_warned = True
+        logger.warning(
+            "subtitle contains right-to-left text but Pillow has no Raqm layout "
+            "engine; letters will not be joined and word order will be reversed. "
+            "install libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm)"
+        )
+
     def resolve_subtitle_background_color():
         # 兼容历史参数：API 里 `text_background_color` 既可能是布尔值，
         # 也可能是实际颜色字符串。统一在这里归一化，避免把 True/False
@@ -1039,6 +1079,8 @@ def generate_video(
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
+        if subtitle_text_needs_shaping(phrase) and not text_layout_supports_shaping():
+            warn_missing_text_shaping_once()
         max_width = video_width * 0.9
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(

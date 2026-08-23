@@ -178,6 +178,7 @@
     "Rounded Subtitle Background Help": "Standardmäßig deaktiviert. Wenn aktiviert, verwenden Untertitelhintergründe einen abgerundeten, halbtransparenten Stil, der sich besser an die Textbreite anpasst.",
     "Subtitle Colors Are Indistinguishable": "Untertiteltext und Hintergrund haben dieselbe Farbe, daher sind Untertitel möglicherweise unsichtbar.",
     "Subtitle Font Does Not Support Text": "Die gewählte Schrift unterstützt einige Zeichen nicht, daher fehlen möglicherweise Untertitel.",
+    "Subtitle Text Shaping Unavailable": "Untertitel mit Rechts-nach-links-Schriften wie Arabisch benötigen die Raqm-Textlayout-Engine, die hier fehlt. Buchstaben werden nicht verbunden und die Wortreihenfolge wird umgekehrt. Bitte libraqm installieren (Debian/Ubuntu: libraqm0, macOS: brew install libraqm).",
     "Restore Default Subtitle Settings": "Untertitel zurücksetzen",
     "Default Subtitle Settings Restored": "Untertitel-Standardeinstellungen wiederhergestellt",
     "Generate Video": "Video erstellen",

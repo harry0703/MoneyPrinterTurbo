@@ -185,6 +185,7 @@
     "Rounded Subtitle Background Help": "默认关闭。开启后字幕背景会显示为更贴合文字宽度的圆角半透明样式。",
     "Subtitle Colors Are Indistinguishable": "字幕颜色和背景颜色相同，生成后字幕可能不可见。",
     "Subtitle Font Does Not Support Text": "当前字幕字体不支持文案中的部分字符，生成后字幕可能缺失。",
+    "Subtitle Text Shaping Unavailable": "阿拉伯语等从右到左的字幕需要 Raqm 排版引擎，当前环境缺失，字母不会连写且顺序会颠倒。请安装 libraqm（Debian/Ubuntu：libraqm0，macOS：brew install libraqm）。",
     "Restore Default Subtitle Settings": "恢复默认字幕设置",
     "Default Subtitle Settings Restored": "已恢复默认字幕设置",
     "Generate Video": "生成视频",

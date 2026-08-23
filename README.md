@@ -239,6 +239,11 @@
 
 - 本地部署需要 Python 3.11 或更高版本
 - Windows 用户建议避免使用包含中文、特殊字符或空格的项目路径
+- 阿拉伯语等从右到左的字幕需要 Pillow 启用 Raqm 排版引擎，缺少时字母不会连写、词序也会颠倒：
+    - Docker：镜像已内置，无需额外操作
+    - Linux：`apt install libraqm0`
+    - macOS：`brew install libraqm`。Homebrew 的动态库不在默认搜索路径里，`webui.sh` 会自动补上 `DYLD_LIBRARY_PATH`；如果你手动启动 Streamlit，需要自行 `export DYLD_LIBRARY_PATH="$(brew --prefix)/lib:$DYLD_LIBRARY_PATH"`
+    - Windows：官方 Pillow wheel 需要额外的 FriBiDi DLL 位于 PATH 中，一键包并未内置。在补齐之前，Windows 本地部署无法正确渲染从右到左的字幕，建议改用 Docker
 
 #### ① 克隆代码
 

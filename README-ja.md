@@ -231,6 +231,11 @@ GitHub Releases から最新の Windows 用ワンクリックパッケージを�
 
 - ローカル環境へのデプロイには Python 3.11 以降が必要です
 - Windows では、プロジェクトのパスに非 ASCII 文字、特殊文字、スペースを含めないでください
+- アラビア語など右から左に書く字幕には、Pillow の Raqm 組版エンジンが必要です。無い場合は文字が連結されず語順も逆になります:
+    - Docker: イメージに同梱済みで、追加作業は不要です
+    - Linux: `apt install libraqm0`
+    - macOS: `brew install libraqm`。Homebrew のライブラリは既定の検索パスに無いため、`webui.sh` が `DYLD_LIBRARY_PATH` を自動で追加します。Streamlit を手動で起動する場合は `export DYLD_LIBRARY_PATH="$(brew --prefix)/lib:$DYLD_LIBRARY_PATH"` を先に実行してください
+    - Windows: 公式の Pillow wheel は PATH 上に別途 FriBiDi DLL を必要としますが、ワンクリックパッケージには同梱されていません。同梱されるまで Windows のローカル環境では右から左の字幕を正しく描画できないため、Docker の利用を推奨します
 
 #### ① プロジェクトをクローンする
 

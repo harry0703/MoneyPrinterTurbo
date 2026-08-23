@@ -29,7 +29,7 @@ RUN set -u; \
     }; \
     install_system_dependencies() { \
         apt-get update && \
-        apt-get install -y --no-install-recommends git ffmpeg; \
+        apt-get install -y --no-install-recommends git ffmpeg libraqm0; \
     }; \
     retry_system_dependencies() { \
         attempt=1; \

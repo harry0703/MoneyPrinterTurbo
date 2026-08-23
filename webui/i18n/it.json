@@ -175,6 +175,7 @@
     "Rounded Subtitle Background Help": "Disabilitato per impostazione predefinita. Se abilitato, lo sfondo dei sottotitoli utilizza uno stile arrotondato e traslucido che si adatta meglio alla larghezza del testo.",
     "Subtitle Colors Are Indistinguishable": "Il testo e lo sfondo dei sottotitoli usano lo stesso colore, quindi i sottotitoli potrebbero non essere visibili.",
     "Subtitle Font Does Not Support Text": "Il carattere selezionato per i sottotitoli non supporta alcuni caratteri del testo, quindi alcuni sottotitoli potrebbero mancare.",
+    "Subtitle Text Shaping Unavailable": "I sottotitoli scritti da destra a sinistra come l'arabo richiedono il motore di composizione del testo Raqm, che qui non è disponibile: le lettere non verranno unite e l'ordine delle parole risulterà invertito. Installa libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm).",
     "Restore Default Subtitle Settings": "Ripristina valori predefiniti dei sottotitoli",
     "Default Subtitle Settings Restored": "Impostazioni predefinite dei sottotitoli ripristinate",
     "Generate Video": "Genera video",
