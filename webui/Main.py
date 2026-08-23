@@ -3483,43 +3483,68 @@ def _render_script_settings(panel, params):
             params.video_language = selected_language_code
             _set_runtime_config("ui", "video_language", params.video_language)
             
-            if old_video_language != params.video_language and params.video_language == "hi-IN":
-                saved_font = config.ui.get("font_name", DEFAULT_SUBTITLE_SETTINGS["font_name"])
-                if saved_font == DEFAULT_SUBTITLE_SETTINGS["font_name"]:
-                    _set_runtime_config("ui", "font_name", "NotoSansDevanagari-Bold.ttf")
-                    _set_stable_widget_value("font_name_select", "NotoSansDevanagari-Bold.ttf")
-                
-                saved_voice = config.ui.get("voice_name", "")
-                
-                # Check if it was an auto-selected fallback.
-                def _get_first_voice(lang_prefix, is_v2=False):
-                    for v in voice.get_all_azure_voices():
-                        if v.lower().startswith(lang_prefix.lower()) and bool(voice.is_azure_v2_voice(v)) == is_v2:
-                            return v
-                    return None
-                
-                ui_lang = st.session_state.get("ui_language", "en")
-                fallback_candidates = [
-                    _get_first_voice(ui_lang, False),
-                    _get_first_voice(ui_lang, True),
-                    _get_first_voice(old_video_language, False),
-                    _get_first_voice(old_video_language, True),
-                ]
-                is_fallback = not saved_voice or voice.is_no_voice(saved_voice) or any(
-                    v and saved_voice.lower() == v.lower() for v in fallback_candidates
-                )
+            if old_video_language != params.video_language:
+                if old_video_language == "hi-IN":
+                    auto_font = config.ui.get("_hi_in_auto_font")
+                    active_font = config.ui.get("_hi_in_active_font")
+                    if auto_font and active_font and config.ui.get("font_name") == active_font:
+                        _set_runtime_config("ui", "font_name", auto_font)
+                        _set_stable_widget_value("font_name_select", auto_font)
+                    _set_runtime_config("ui", "_hi_in_auto_font", "")
+                    _set_runtime_config("ui", "_hi_in_active_font", "")
 
-                if is_fallback:
-                    all_v = voice.get_all_azure_voices()
-                    hi_v1 = [v for v in all_v if v.lower().startswith("hi-in") and not voice.is_azure_v2_voice(v)]
-                    hi_v2 = [v for v in all_v if v.lower().startswith("hi-in") and voice.is_azure_v2_voice(v)]
+                    auto_voice = config.ui.get("_hi_in_auto_voice")
+                    active_voice = config.ui.get("_hi_in_active_voice")
+                    if auto_voice and active_voice and config.ui.get("voice_name") == active_voice:
+                        _set_runtime_config("ui", "voice_name", auto_voice)
+                        is_v2 = voice.is_azure_v2_voice(auto_voice)
+                        key = "speech_synthesis_select_azure-tts-v2" if is_v2 else "speech_synthesis_select_azure-tts-v1"
+                        _set_stable_widget_value(key, auto_voice)
+                    _set_runtime_config("ui", "_hi_in_auto_voice", "")
+                    _set_runtime_config("ui", "_hi_in_active_voice", "")
+
+                if params.video_language == "hi-IN":
+                    saved_font = config.ui.get("font_name", DEFAULT_SUBTITLE_SETTINGS["font_name"])
+                    if saved_font == DEFAULT_SUBTITLE_SETTINGS["font_name"]:
+                        target_font = "NotoSansDevanagari-Bold.ttf"
+                        _set_runtime_config("ui", "_hi_in_auto_font", saved_font)
+                        _set_runtime_config("ui", "_hi_in_active_font", target_font)
+                        _set_runtime_config("ui", "font_name", target_font)
+                        _set_stable_widget_value("font_name_select", target_font)
                     
-                    if hi_v1:
-                        _set_stable_widget_value("speech_synthesis_select_azure-tts-v1", hi_v1[0])
-                        _set_runtime_config("ui", "voice_name", hi_v1[0])
-                    if hi_v2:
-                        _set_stable_widget_value("speech_synthesis_select_azure-tts-v2", hi_v2[0])
-                        # We don't write V1 voice to V2 selector. If hi_v2 is empty, it does nothing.
+                    saved_voice = config.ui.get("voice_name", "")
+                    
+                    def _get_first_voice(lang_prefix, is_v2=False):
+                        for v in voice.get_all_azure_voices():
+                            if v.lower().startswith(lang_prefix.lower()) and bool(voice.is_azure_v2_voice(v)) == is_v2:
+                                return v
+                        return None
+                    
+                    ui_lang = st.session_state.get("ui_language", "en")
+                    fallback_candidates = [
+                        _get_first_voice(ui_lang, False),
+                        _get_first_voice(ui_lang, True),
+                        _get_first_voice(old_video_language, False),
+                        _get_first_voice(old_video_language, True),
+                    ]
+                    is_fallback = not saved_voice or voice.is_no_voice(saved_voice) or any(
+                        v and saved_voice.lower() == v.lower() for v in fallback_candidates
+                    )
+    
+                    if is_fallback:
+                        all_v = voice.get_all_azure_voices()
+                        hi_v1 = [v for v in all_v if v.lower().startswith("hi-in") and not voice.is_azure_v2_voice(v)]
+                        hi_v2 = [v for v in all_v if v.lower().startswith("hi-in") and voice.is_azure_v2_voice(v)]
+                        
+                        if hi_v1:
+                            target_v1 = hi_v1[0]
+                            _set_runtime_config("ui", "_hi_in_auto_voice", saved_voice)
+                            _set_runtime_config("ui", "_hi_in_active_voice", target_v1)
+                            _set_stable_widget_value("speech_synthesis_select_azure-tts-v1", target_v1)
+                            _set_runtime_config("ui", "voice_name", target_v1)
+                        if hi_v2:
+                            _set_stable_widget_value("speech_synthesis_select_azure-tts-v2", hi_v2[0])
+                            # We don't write V1 voice to V2 selector. If hi_v2 is empty, it does nothing.
 
             # 使用带 key 的局部容器限定折叠入口样式，保持 expander 的原生交互，
             # 同时避免样式误伤页面顶部的“基础设置”等其他折叠区域。
