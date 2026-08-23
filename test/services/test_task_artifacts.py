@@ -55,6 +55,9 @@ class TestTaskArtifacts(unittest.TestCase):
         params = VideoParams(
             video_subject="test subject",
             video_terms=["city", "night"],
+            xquik_research_enabled=True,
+            xquik_search_query="current city news",
+            xquik_result_limit=4,
         )
 
         task_artifacts.write_script_data(
@@ -70,6 +73,10 @@ class TestTaskArtifacts(unittest.TestCase):
         self.assertEqual(payload["params"]["video_subject"], "test subject")
         self.assertEqual(payload["params"]["video_terms"], ["city", "night"])
         self.assertEqual(payload["params"]["video_source"], "pexels")
+        self.assertTrue(payload["params"]["xquik_research_enabled"])
+        self.assertEqual(payload["params"]["xquik_search_query"], "current city news")
+        self.assertEqual(payload["params"]["xquik_result_limit"], 4)
+        self.assertNotIn("xquik_api_key", payload["params"])
 
     def test_patch_missing_script_is_non_blocking(self):
         """独立调用素材下载时没有任务清单，应静默跳过而不是创建残缺 JSON。"""

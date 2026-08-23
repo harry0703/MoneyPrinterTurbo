@@ -60,6 +60,14 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
         assert global_base_url.disabled is True
         assert app_config["moonshot_base_url"] == "https://api.moonshot.ai/v1"
 
+        xquik_key_input = _widget_by_key(app.text_input, "xquik_api_key_input")
+        xquik_key_input.set_value("xq-test-key").run()
+        assert app_config["xquik_api_key"] == "xq-test-key"
+
+        endpoint_select = _widget_by_key(
+            app.selectbox,
+            "moonshot_service_endpoint_select",
+        )
         endpoint_select.set_value("china").run()
         china_base_url = _widget_by_key(
             app.text_input,
@@ -94,4 +102,3 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
         assert any("platform.kimi.ai" in message for message in error_messages)
         assert any("api.moonshot.ai" in message for message in error_messages)
         assert any("401 Invalid Authentication" in message for message in error_messages)
-

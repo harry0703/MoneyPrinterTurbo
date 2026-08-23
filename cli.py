@@ -54,6 +54,15 @@ def _paragraph_count(value: str) -> int:
     return parsed
 
 
+def _xquik_result_limit(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1 or parsed > 10:
+        raise argparse.ArgumentTypeError(
+            f"xquik-result-limit must be between 1 and 10, got {parsed}"
+        )
+    return parsed
+
+
 def _non_negative_float(value: str) -> float:
     parsed = float(value)
     if not math.isfinite(parsed) or parsed < 0:
@@ -206,6 +215,26 @@ Output and exit status:
         "--custom-system-prompt",
         default=None,
         help="replace the default LLM system prompt for script generation",
+    )
+    content_group.add_argument(
+        "--xquik-research",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "research recent public X posts through Xquik before script generation; "
+            "requires xquik_api_key in config.toml or XQUIK_API_KEY"
+        ),
+    )
+    content_group.add_argument(
+        "--xquik-search-query",
+        default="",
+        help="Xquik search query; defaults to --video-subject when omitted",
+    )
+    content_group.add_argument(
+        "--xquik-result-limit",
+        type=_xquik_result_limit,
+        default=5,
+        help="maximum recent X posts to add as untrusted research context",
     )
 
     material_group = parser.add_argument_group("materials and pipeline")
@@ -451,6 +480,9 @@ Output and exit status:
     if not args.video_subject.strip() and not args.video_script.strip():
         parser.error("one of --video-subject or --video-script is required")
 
+    if args.xquik_search_query.strip() and not args.xquik_research:
+        parser.error("--xquik-search-query requires --xquik-research")
+
     if args.video_source == "local" and args.stop_at == "terms":
         parser.error(
             "--stop-at terms has no effect with --video-source local "
@@ -528,6 +560,9 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_aspect": args.video_aspect,
         "voice_name": args.voice_name,
         "subtitle_enabled": args.subtitle_enabled,
+        "xquik_research_enabled": args.xquik_research,
+        "xquik_search_query": args.xquik_search_query.strip(),
+        "xquik_result_limit": args.xquik_result_limit,
     }
 
     optional_arg_names = [

@@ -18,6 +18,9 @@ class TestLlmController(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="Friendly tone",
             custom_system_prompt="Return narration only.",
+            xquik_research_enabled=True,
+            xquik_search_query='"coffee AI"',
+            xquik_result_limit=4,
         )
 
         with patch.object(
@@ -37,6 +40,9 @@ class TestLlmController(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="Friendly tone",
             custom_system_prompt="Return narration only.",
+            xquik_research_enabled=True,
+            xquik_search_query='"coffee AI"',
+            xquik_result_limit=4,
         )
 
     def test_generate_video_terms_forwards_order_matching_mode(self):

@@ -120,6 +120,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 
 - [x] Provides **AI Agent**, **WebUI**, **API**, and **CLI** workflows, with code organized by controller, service, and model responsibilities
 - [x] Supports **AI-generated video scripts** and custom scripts
+- [x] Supports optional **live X research** through Xquik before local LLM script generation
 - [x] Supports various **high-definition video** sizes
   - [x] Portrait 9:16, `1080x1920`
   - [x] Landscape 16:9, `1920x1080`
@@ -353,6 +354,46 @@ run:
 ```shell
 uv run python cli.py --help
 ```
+
+#### Optional live X research
+
+Time-sensitive scripts can use Xquik's Twitter search API to collect recent public
+X posts before the configured LLM runs. This option is off by default. Open
+**Settings**, add an Xquik API key, then enable **Use Xquik Live Research** under
+**Advanced Script Settings**. A blank search query uses the video subject.
+
+You can also set the key in `config.toml` or the `XQUIK_API_KEY` environment
+variable:
+
+```toml
+[app]
+xquik_api_key = "xq_your_api_key_here"
+```
+
+Use the same feature from the CLI:
+
+```shell
+uv run python cli.py \
+  --video-subject "Latest open-source AI agent releases" \
+  --xquik-research \
+  --xquik-search-query '"AI agent" open source' \
+  --xquik-result-limit 5 \
+  --stop-at script
+```
+
+For `POST /api/v1/scripts` or a video task request, send
+`xquik_research_enabled`, `xquik_search_query`, and `xquik_result_limit` in the
+JSON body. The result limit is 1–10. Xquik charges 1 credit per returned post.
+MoneyPrinterTurbo does not write source posts to task files. It marks them as
+untrusted research and sends them only with the script-generation prompt to your
+configured LLM. The prompt tells the LLM to ignore instructions inside posts and
+not treat a post-only claim as verified fact. If an enabled search fails, script
+generation stops with a clear error instead of silently using stale context. See the
+[Xquik Search Tweets API](https://docs.xquik.com/api-reference/x/search-tweets)
+for advanced Twitter search operators and account setup.
+
+Xquik is an independent third-party service. Not affiliated with X Corp.
+"Twitter" and "X" are trademarks of X Corp.
 
 ## Voice Synthesis 🗣
 

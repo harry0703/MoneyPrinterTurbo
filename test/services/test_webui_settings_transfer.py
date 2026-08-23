@@ -113,6 +113,7 @@ def _sample_config_sections():
         "app": {
             "pexels_api_keys": ["pexels-1", " ", "pexels-2"],
             "openai_api_key": " sk-openai ",
+            "xquik_api_key": "xq-key",
             "coverr_api_keys": [],
             "gemini_api_key": "",
             "cloudflare_api_key": "cf-key",
@@ -151,6 +152,9 @@ def test_settings_preset_round_trip_preserves_generation_settings():
         stroke_width=2.5,
         voice_volume=0.8,
         paragraph_number=3,
+        xquik_research_enabled=True,
+        xquik_search_query="open-source AI releases",
+        xquik_result_limit=4,
     ).model_dump(mode="json")
 
     restored = parse_settings_preset(
@@ -163,6 +167,9 @@ def test_settings_preset_round_trip_preserves_generation_settings():
     assert restored["stroke_width"] == 2.5
     assert restored["voice_volume"] == 0.8
     assert restored["paragraph_number"] == 3
+    assert restored["xquik_research_enabled"] is True
+    assert restored["xquik_search_query"] == "open-source AI releases"
+    assert restored["xquik_result_limit"] == 4
 
 
 def test_settings_preset_accepts_file_without_video_subject():
@@ -213,6 +220,7 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
         "app": {
             "pexels_api_keys": ["pexels-1", "pexels-2"],
             "openai_api_key": "sk-openai",
+            "xquik_api_key": "xq-key",
             "cloudflare_api_key": "cf-key",
             "cloudflare_account_id": "cf-account",
             "cloudflare_gateway_id": "cf-gateway",
@@ -220,7 +228,7 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key"},
     }
-    assert count_backup_keys(backup) == 8
+    assert count_backup_keys(backup) == 9
 
 
 def test_key_backup_carries_llm_provider_extra_fields_with_the_key():

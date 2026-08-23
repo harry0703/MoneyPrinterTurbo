@@ -74,6 +74,9 @@ class TestTaskService(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="语气轻松",
             custom_system_prompt="Only write short narration.",
+            xquik_research_enabled=True,
+            xquik_search_query="咖啡 趋势",
+            xquik_result_limit=4,
         )
 
         with patch.object(
@@ -88,6 +91,9 @@ class TestTaskService(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="语气轻松",
             custom_system_prompt="Only write short narration.",
+            xquik_research_enabled=True,
+            xquik_search_query="咖啡 趋势",
+            xquik_result_limit=4,
         )
 
     def test_generate_final_videos_forwards_clip_speed(self):

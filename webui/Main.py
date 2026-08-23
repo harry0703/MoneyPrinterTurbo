@@ -56,6 +56,7 @@ from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
 from app.services import version_checker
+from app.services import xquik as xquik_service
 from app.utils.logging_utils import configure_terminal_logger
 from app.utils import utils
 
@@ -466,6 +467,20 @@ def _initialize_session_state():
             "custom_system_prompt",
             llm.DEFAULT_SCRIPT_SYSTEM_PROMPT,
             llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
+        ),
+        "xquik_research_enabled": _saved_ui_bool(
+            "xquik_research_enabled", False
+        ),
+        "xquik_search_query": _saved_ui_text(
+            "xquik_search_query",
+            max_length=xquik_service.MAX_QUERY_LENGTH,
+        ),
+        "xquik_result_limit": _saved_ui_number(
+            "xquik_result_limit",
+            xquik_service.DEFAULT_RESULT_LIMIT,
+            xquik_service.MIN_RESULT_LIMIT,
+            xquik_service.MAX_RESULT_LIMIT,
+            int,
         ),
         "match_materials_to_script": bool(
             config.app.get("match_materials_to_script", False)
@@ -1211,6 +1226,15 @@ def _apply_restored_params(params):
     st.session_state["video_script_prompt"] = params.get("video_script_prompt") or ""
     st.session_state["custom_system_prompt"] = (
         params.get("custom_system_prompt") or llm.DEFAULT_SCRIPT_SYSTEM_PROMPT
+    )
+    st.session_state["xquik_research_enabled"] = bool(
+        params.get("xquik_research_enabled", False)
+    )
+    st.session_state["xquik_search_query"] = (
+        params.get("xquik_search_query") or ""
+    )
+    st.session_state["xquik_result_limit"] = params.get(
+        "xquik_result_limit", xquik_service.DEFAULT_RESULT_LIMIT
     )
 
     # 视频设置。素材上传控件不能由服务端写入，因此本地素材需要用户重新选择。
@@ -2796,6 +2820,15 @@ def _render_settings_dialog():
                     ),
                 )
 
+            xquik_api_key = llm_form_panel.text_input(
+                tr("Xquik API Key"),
+                value=config.app.get("xquik_api_key", ""),
+                type="password",
+                key="xquik_api_key_input",
+                help=tr("Xquik API Key Help"),
+            )
+            _set_runtime_config("app", "xquik_api_key", xquik_api_key)
+
             if llm_form_panel.button(
                 tr("Test LLM Connection"),
                 key="test_llm_connection_button",
@@ -3127,6 +3160,9 @@ def _render_local_script_generation(params):
                 paragraph_number=params.paragraph_number,
                 video_script_prompt=params.video_script_prompt,
                 custom_system_prompt=params.custom_system_prompt,
+                xquik_research_enabled=params.xquik_research_enabled,
+                xquik_search_query=params.xquik_search_query,
+                xquik_result_limit=params.xquik_result_limit,
                 app_config=app_config_snapshot,
             )
             terms = llm.generate_terms(
@@ -3524,6 +3560,43 @@ def _render_script_settings(panel, params):
                     _set_runtime_config(
                         "ui", "video_script_prompt", params.video_script_prompt
                     )
+
+                    params.xquik_research_enabled = st.checkbox(
+                        tr("Use Xquik Live Research"),
+                        key="xquik_research_enabled",
+                        disabled=script_generation_backend != "local",
+                        help=tr("Use Xquik Live Research Help"),
+                    )
+                    _set_runtime_config(
+                        "ui",
+                        "xquik_research_enabled",
+                        params.xquik_research_enabled,
+                    )
+                    params.xquik_search_query = st.text_input(
+                        tr("Xquik Search Query"),
+                        key="xquik_search_query",
+                        max_chars=xquik_service.MAX_QUERY_LENGTH,
+                        disabled=not params.xquik_research_enabled,
+                        help=tr("Xquik Search Query Help"),
+                    ).strip()
+                    _set_runtime_config(
+                        "ui", "xquik_search_query", params.xquik_search_query
+                    )
+                    params.xquik_result_limit = st.slider(
+                        tr("Xquik Result Limit"),
+                        min_value=xquik_service.MIN_RESULT_LIMIT,
+                        max_value=xquik_service.MAX_RESULT_LIMIT,
+                        key="xquik_result_limit",
+                        disabled=not params.xquik_research_enabled,
+                        help=tr("Xquik Result Limit Help"),
+                    )
+                    _set_runtime_config(
+                        "ui", "xquik_result_limit", params.xquik_result_limit
+                    )
+                    if params.xquik_research_enabled and not xquik_service.get_api_key(
+                        config.snapshot_config_with_pending(config.app)
+                    ):
+                        st.warning(tr("Xquik API Key Required"))
 
                     system_prompt = st.text_area(
                         tr("Custom System Prompt"),

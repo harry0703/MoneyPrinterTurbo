@@ -131,6 +131,7 @@
 
 - [x] 提供 **AI Agent**、**WebUI**、**API** 和 **CLI** 四种使用方式，代码按控制器、服务和模型等职责分层
 - [x] 支持 **AI 自动生成视频脚本**，也可以使用自定义脚本
+- [x] 支持在本地大模型生成文案前，通过 Xquik 获取可选的 **X 实时研究**资料
 - [x] 支持多种 **高清视频** 尺寸
   - [x] 竖屏 9:16，`1080x1920`
   - [x] 横屏 16:9，`1920x1080`
@@ -363,6 +364,42 @@ uv run python cli.py --video-subject "人工智能如何改变日常生活"
 ```shell
 uv run python cli.py --help
 ```
+
+#### 可选的 X 实时研究
+
+时效性较强的文案可以在调用已配置的大模型前，通过 Xquik 获取近期公开 X
+帖子。该功能默认关闭。请在**设置**中填写 Xquik API Key，然后在**高级脚本设置**
+中启用**使用 Xquik 实时研究**。搜索词留空时，程序会使用视频主题。
+
+也可以在 `config.toml` 或 `XQUIK_API_KEY` 环境变量中配置密钥：
+
+```toml
+[app]
+xquik_api_key = "xq_your_api_key_here"
+```
+
+命令行用法如下：
+
+```shell
+uv run python cli.py \
+  --video-subject "最新的开源 AI Agent 发布" \
+  --xquik-research \
+  --xquik-search-query '"AI Agent" 开源' \
+  --xquik-result-limit 5 \
+  --stop-at script
+```
+
+调用 `POST /api/v1/scripts` 或视频任务接口时，可在 JSON 请求体中传入
+`xquik_research_enabled`、`xquik_search_query` 和 `xquik_result_limit`。
+结果数量支持 1～10 条。Xquik 按实际返回的每条帖子收取 1 个 credit。
+MoneyPrinterTurbo 不会把来源帖子写入任务文件。程序会将帖子标记为不可信研究资料，
+并仅随文案生成提示词发送给已配置的大模型。提示词会要求大模型忽略帖子中的指令，
+也不能把仅由帖子支持的说法当作已验证事实。显式启用研究后，如果搜索失败，文案生成
+会返回明确错误，不会静默改用过时上下文。查询语法和账号配置请参阅
+[Xquik Search Tweets API](https://docs.xquik.com/api-reference/x/search-tweets)。
+
+Xquik 是独立第三方服务，与 X Corp. 无关联，也未获得其认可。"Twitter" 和 "X"
+是 X Corp. 的商标。
 
 ## 语音合成 🗣
 

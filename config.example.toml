@@ -38,6 +38,12 @@ hide_config = false
 # independently generated script candidates. The WebUI integration is optional.
 script_generation_backend = "local"
 
+# Optional live X research for local LLM script generation. Create a key at
+# https://xquik.com and enable research per task in the WebUI, CLI, or API.
+# The key can also be supplied through XQUIK_API_KEY. Each returned post costs
+# 1 Xquik credit. Research is disabled by default.
+xquik_api_key = ""
+
 # LoomLoom Public API settings. The WebUI supports the public MoneyPrinterTurbo
 # SkillBot below out of the box. Configure the key in the WebUI or a private
 # config.toml, and never commit a real key. The fixed SkillBot accepts subject,

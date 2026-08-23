@@ -37,6 +37,7 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         config.app,
         video_source="pexels",
         match_materials_to_script=False,
+        xquik_api_key="test-xquik-key",
     )
     test_ui_config = dict(
         config.ui,
@@ -76,6 +77,13 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         _widget_by_key(first_session.text_area, "custom_system_prompt").set_value(
             "Write a factual short-video script."
         )
+        _widget_by_key(
+            first_session.checkbox, "xquik_research_enabled"
+        ).set_value(True).run()
+        _widget_by_key(first_session.text_input, "xquik_search_query").set_value(
+            '"AI release" open source'
+        )
+        _widget_by_key(first_session.slider, "xquik_result_limit").set_value(4)
         _widget_by_key(first_session.selectbox, "video_concat_mode_select").set_value(
             "sequential"
         )
@@ -141,6 +149,9 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
             "paragraph_number": 3,
             "video_script_prompt": "Keep the hook concise.",
             "custom_system_prompt": "Write a factual short-video script.",
+            "xquik_research_enabled": True,
+            "xquik_search_query": '"AI release" open source',
+            "xquik_result_limit": 4,
             "video_concat_mode": "sequential",
             "video_transition_mode": "FadeIn",
             "video_aspect_pexels": "16:9",
@@ -182,6 +193,15 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         assert _widget_by_key(
             second_session.text_area, "custom_system_prompt"
         ).value == "Write a factual short-video script."
+        assert _widget_by_key(
+            second_session.checkbox, "xquik_research_enabled"
+        ).value is True
+        assert _widget_by_key(
+            second_session.text_input, "xquik_search_query"
+        ).value == '"AI release" open source'
+        assert _widget_by_key(
+            second_session.slider, "xquik_result_limit"
+        ).value == 4
         assert _widget_by_key(
             second_session.selectbox, "video_concat_mode_select"
         ).value == "sequential"

@@ -294,6 +294,9 @@ def generate_script(task_id, params):
             paragraph_number=params.paragraph_number,
             video_script_prompt=params.video_script_prompt,
             custom_system_prompt=params.custom_system_prompt,
+            xquik_research_enabled=params.xquik_research_enabled,
+            xquik_search_query=params.xquik_search_query,
+            xquik_result_limit=params.xquik_result_limit,
         )
     else:
         logger.debug(f"video script: \n{video_script}")

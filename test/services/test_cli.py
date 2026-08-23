@@ -28,6 +28,52 @@ class TestCli(unittest.TestCase):
         self.assertEqual(params.video_subject, "")
         self.assertEqual(params.video_script, "完整的视频文案")
 
+    def test_xquik_research_options_map_to_video_params(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "Current AI releases",
+                "--xquik-research",
+                "--xquik-search-query",
+                '"AI release" open source',
+                "--xquik-result-limit",
+                "4",
+            ]
+        )
+
+        params = cli.build_video_params(args)
+
+        self.assertTrue(params.xquik_research_enabled)
+        self.assertEqual(params.xquik_search_query, '"AI release" open source')
+        self.assertEqual(params.xquik_result_limit, 4)
+
+    def test_xquik_query_requires_explicit_research_opt_in(self):
+        with self.assertRaises(SystemExit) as error:
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "Current AI releases",
+                    "--xquik-search-query",
+                    "AI release",
+                ]
+            )
+
+        self.assertEqual(error.exception.code, 2)
+
+    def test_xquik_result_limit_is_bounded(self):
+        with self.assertRaises(SystemExit) as error:
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "Current AI releases",
+                    "--xquik-research",
+                    "--xquik-result-limit",
+                    "11",
+                ]
+            )
+
+        self.assertEqual(error.exception.code, 2)
+
     def test_subject_or_script_is_required(self):
         with self.assertRaises(SystemExit) as cm:
             cli.parse_args([])

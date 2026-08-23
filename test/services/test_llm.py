@@ -155,6 +155,85 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIs(captured["app_config"], app_config)
         self.assertEqual(captured["app_config"]["openai_api_key"], "snapshot-key")
 
+    def test_generate_script_adds_xquik_research_once_before_llm_request(self):
+        captured = {}
+        app_config = {"xquik_api_key": "snapshot-key"}
+
+        def fake_generate_response(prompt, app_config=None):
+            captured["prompt"] = prompt
+            captured["app_config"] = app_config
+            return "Current script"
+
+        with (
+            patch.object(
+                llm.xquik_service,
+                "research_context",
+                return_value=(
+                    "# Live X Research\n"
+                    '{"source":1,"text":"A current public post"}'
+                ),
+            ) as research,
+            patch.object(
+                llm, "_generate_response", side_effect=fake_generate_response
+            ) as generate,
+        ):
+            result = llm.generate_script(
+                video_subject="Current AI releases",
+                xquik_research_enabled=True,
+                xquik_search_query='"AI release" open source',
+                xquik_result_limit=4,
+                app_config=app_config,
+            )
+
+        self.assertEqual(result, "Current script")
+        research.assert_called_once_with(
+            "Current AI releases",
+            query='"AI release" open source',
+            limit=4,
+            app_config=app_config,
+        )
+        generate.assert_called_once()
+        self.assertIn("# Live X Research", captured["prompt"])
+        self.assertIn("A current public post", captured["prompt"])
+        self.assertIs(captured["app_config"], app_config)
+
+    def test_generate_script_stops_when_enabled_xquik_research_fails(self):
+        with (
+            patch.object(
+                llm.xquik_service,
+                "research_context",
+                side_effect=llm.xquik_service.XquikResearchError(
+                    "Xquik rate limit reached. Try again later"
+                ),
+            ),
+            patch.object(llm, "_generate_response") as generate,
+        ):
+            result = llm.generate_script(
+                video_subject="Current AI releases",
+                xquik_research_enabled=True,
+            )
+
+        self.assertEqual(result, "Error: Xquik rate limit reached. Try again later")
+        generate.assert_not_called()
+
+    def test_generate_script_does_not_search_x_when_research_is_disabled(self):
+        with (
+            patch.object(llm.xquik_service, "research_context") as research,
+            patch.object(llm, "_generate_response", return_value="Stable script"),
+        ):
+            result = llm.generate_script(video_subject="Evergreen topic")
+
+        self.assertEqual(result, "Stable script")
+        research.assert_not_called()
+
+    def test_build_script_prompt_limits_external_research_context(self):
+        prompt = llm.build_script_prompt(
+            video_subject="Current topic",
+            research_context="§" * (llm.MAX_SCRIPT_RESEARCH_CONTEXT_LENGTH + 50),
+        )
+
+        self.assertEqual(prompt.count("§"), llm.MAX_SCRIPT_RESEARCH_CONTEXT_LENGTH)
+
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
         按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，
@@ -213,6 +292,16 @@ class TestScriptPromptOptions(unittest.TestCase):
             VideoScriptRequest(
                 video_subject="咖啡",
                 video_script_prompt="x" * (llm.MAX_SCRIPT_PROMPT_LENGTH + 1),
+            )
+        with self.assertRaises(ValidationError):
+            VideoScriptRequest(
+                video_subject="咖啡",
+                xquik_search_query="x" * (llm.xquik_service.MAX_QUERY_LENGTH + 1),
+            )
+        with self.assertRaises(ValidationError):
+            VideoScriptRequest(
+                video_subject="咖啡",
+                xquik_result_limit=11,
             )
 
 

@@ -10,12 +10,14 @@ from openai.types.chat import ChatCompletion
 
 from app.config import config
 from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
+from app.services import xquik as xquik_service
 
 _max_retries = 5
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10
 MAX_SCRIPT_PROMPT_LENGTH = 2000
 MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
+MAX_SCRIPT_RESEARCH_CONTEXT_LENGTH = 16000
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
 _URL_USERINFO_RE = re.compile(
@@ -470,6 +472,7 @@ def build_script_prompt(
     paragraph_number: int = 1,
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
+    research_context: str = "",
 ) -> str:
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
@@ -477,6 +480,11 @@ def build_script_prompt(
     )
     custom_system_prompt = _limit_script_text(
         custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
+    )
+    research_context = _limit_script_text(
+        research_context,
+        MAX_SCRIPT_RESEARCH_CONTEXT_LENGTH,
+        "research_context",
     )
 
     # 将“脚本生成规则”和“运行时上下文”分开拼接。这样高级用户即使覆盖默认
@@ -496,6 +504,11 @@ def build_script_prompt(
 # Additional User Requirements:
 {video_script_prompt}
 """.rstrip()
+    if research_context:
+        prompt += f"""
+
+{research_context}
+""".rstrip()
 
     return prompt
 
@@ -506,6 +519,9 @@ def generate_script(
     paragraph_number: int = 1,
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
+    xquik_research_enabled: bool = False,
+    xquik_search_query: str = "",
+    xquik_result_limit: int = xquik_service.DEFAULT_RESULT_LIMIT,
     app_config=None,
 ) -> str:
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
@@ -515,19 +531,33 @@ def generate_script(
     custom_system_prompt = _limit_script_text(
         custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
     )
+    research_context = ""
+    if xquik_research_enabled:
+        try:
+            research_context = xquik_service.research_context(
+                video_subject,
+                query=xquik_search_query,
+                limit=xquik_result_limit,
+                app_config=app_config,
+            )
+        except xquik_service.XquikResearchError as exc:
+            logger.error(f"failed to collect Xquik research: {exc}")
+            return f"Error: {exc}"
     prompt = build_script_prompt(
         video_subject=video_subject,
         language=language,
         paragraph_number=paragraph_number,
         video_script_prompt=video_script_prompt,
         custom_system_prompt=custom_system_prompt,
+        research_context=research_context,
     )
     final_script = ""
     logger.info(
         "generating video script: "
         f"subject={video_subject}, paragraph_number={paragraph_number}, "
         f"has_custom_prompt={bool(video_script_prompt.strip())}, "
-        f"has_custom_system_prompt={bool(custom_system_prompt.strip())}"
+        f"has_custom_system_prompt={bool(custom_system_prompt.strip())}, "
+        f"has_xquik_research={bool(research_context)}"
     )
 
     def format_response(response):
