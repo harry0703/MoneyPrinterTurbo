@@ -63,6 +63,8 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          provenance: mode=max
+          sbom: true
           platforms: linux/amd64,linux/arm64
           build-args: |
             DOCKER_BUILD_MIRROR=default
