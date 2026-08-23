@@ -175,12 +175,19 @@ def _generate_response(prompt: str, app_config=None) -> str:
         adapter = provider.adapter
         api_version = ""
 
-        # Ollama 的默认地址依赖当前是否运行在容器中，无法作为静态 Registry
-        # 值保存；Registry 仍负责模型和必填规则，运行环境差异在这里解析。
+        # 本地推理服务的默认地址依赖当前是否运行在容器中，无法作为静态
+        # Registry 值保存；Registry 仍负责模型和必填规则，运行环境差异在这里
+        # 解析。两者都不校验凭证，但 OpenAI SDK 要求非空 api_key，因此填入
+        # 各自约定的占位值。
         if llm_provider == "ollama":
             api_key = "ollama"
             if not base_url:
                 base_url = config.get_default_ollama_base_url()
+
+        if llm_provider == "lmstudio":
+            api_key = api_key or "lm-studio"
+            if not base_url:
+                base_url = config.get_default_lmstudio_base_url()
 
         if adapter == "azure":
             api_version = runtime_app_config.get(

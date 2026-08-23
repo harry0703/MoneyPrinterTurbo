@@ -373,6 +373,13 @@ LLM_PROVIDER_REGISTRY = (
         show_api_key=False,
     ),
     LLMProviderSpec(
+        "lmstudio",
+        "LM Studio",
+        api_key_url="https://lmstudio.ai/docs/app/api/endpoints/openai",
+        requires_api_key=False,
+        show_api_key=False,
+    ),
+    LLMProviderSpec(
         "oneapi",
         "OneAPI",
         api_key_url="https://github.com/songquanpeng/one-api",
