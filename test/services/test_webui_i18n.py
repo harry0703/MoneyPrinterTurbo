@@ -13,13 +13,13 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
 TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
-SECONDARY_LOCALES = ("de", "es", "id", "it", "pt", "ru", "tr", "vi")
+SECONDARY_LOCALES = ("de", "es", "fr", "id", "it", "pt", "ru", "tr", "vi")
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
 )
-# Shengsuan Cloud 目前只提供中英文界面。次要语言统一回退英文，避免在七个
-# locale 中复制同一份英文后长期不同步；其它普通界面文案仍必须完整翻译。
+# Shengsuan Cloud 目前只提供中英文界面。这些特殊文案和 Provider 长说明在
+# 次要 locale 中统一回退英文，避免复制后长期不同步；普通界面文案仍必须完整翻译。
 ENGLISH_FALLBACK_KEYS = frozenset(
     {
         "AI Video Quote Required",
