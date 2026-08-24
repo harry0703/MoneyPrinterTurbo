@@ -410,7 +410,7 @@ open_task_folder_on_completion = true
 
 # The WebUI writes the remaining preferences automatically. Uncomment values
 # below only when you want to define initial defaults manually.
-# language = "zh"
+# language = "en"
 # video_language = ""
 # paragraph_number = 1
 # video_script_prompt = ""

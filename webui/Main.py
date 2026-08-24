@@ -86,8 +86,8 @@ font_dir = os.path.join(root_dir, "resource", "fonts")
 song_dir = os.path.join(root_dir, "resource", "songs")
 i18n_dir = os.path.join(root_dir, "webui", "i18n")
 config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
-# 语言列表必须在会话状态初始化前可用，首次访问时才能把浏览器 locale 映射到
-# 项目真正支持的语言；自动识别结果只进入当前会话，不修改全局配置。
+# 语言列表必须在会话状态初始化前可用。全新会话默认进入英文界面；
+# 用户手动切换的语言会写入配置，并在后续会话中继续优先使用。
 locales = utils.load_locales(i18n_dir)
 DEFAULT_CHATTERBOX_BASE_URL = "http://127.0.0.1:4123/v1"
 DEFAULT_CHATTERBOX_MODEL = "chatterbox"
@@ -1439,7 +1439,7 @@ def _render_top_bar():
                     selected_index = i
 
             selected_language_code = st.selectbox(
-                "Language / 语言",
+                tr("Language"),
                 options=language_codes,
                 index=selected_index,
                 format_func=lambda code: locales[code].get("Language", code),
@@ -1456,8 +1456,8 @@ def _render_top_bar():
                         f"selected_language={selected_language_code}"
                     )
                     st.session_state["ui_language"] = selected_language_code
-                    # 浏览器自动识别只影响当前会话；只有用户主动切换下拉框时才
-                    # 写入 config.toml，后续新会话将优先使用该明确选择。
+                    # 只有用户主动切换下拉框时才写入 config.toml，
+                    # 后续新会话将优先使用该明确选择。
                     _set_runtime_config("ui", "language", selected_language_code)
                     _save_runtime_config()
                     # 切换语言后强制刷新，避免 selectbox 继续展示旧语言文案。

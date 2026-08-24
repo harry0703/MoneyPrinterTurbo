@@ -309,11 +309,12 @@ def resolve_ui_language(
     default_language: str = "en",
 ) -> str:
     """
-    按“已保存设置、浏览器语言、默认语言”的优先级选择界面语言。
+    按“已保存设置、默认语言、浏览器语言”的优先级选择界面语言。
 
     浏览器通常返回带地区的 locale，例如 ``zh-CN``、``pt-BR``。语言文件使用
     ``zh``、``pt`` 这类基础代码，因此先尝试完整匹配，再回退到连字符前的语言
-    代码。函数保持纯逻辑，避免把浏览器上下文和配置写入耦合到工具层，便于测试。
+    代码。默认语言优先于浏览器语言，避免全新 WebUI 会话因为浏览器 locale
+    自动进入非英文界面；用户手动选择并保存的语言仍然优先。
     """
     supported = [str(language).strip() for language in supported_languages]
     supported_by_lower = {
@@ -333,13 +334,13 @@ def resolve_ui_language(
     if saved_match:
         return saved_match
 
-    browser_match = match_language(browser_locale)
-    if browser_match:
-        return browser_match
-
     default_match = match_language(default_language)
     if default_match:
         return default_match
+
+    browser_match = match_language(browser_locale)
+    if browser_match:
+        return browser_match
 
     # 正常项目始终包含英文；保留空语言集合兜底，避免损坏的语言目录让页面
     # 初始化直接抛异常，后续翻译函数会继续显示原始 key 以便诊断。

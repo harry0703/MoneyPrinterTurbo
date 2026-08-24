@@ -113,13 +113,21 @@ class TestWebuiI18n(unittest.TestCase):
 
         self.assertEqual(language, "de")
 
-    def test_browser_locale_is_normalized_to_supported_base_language(self):
+    def test_default_language_takes_priority_over_browser_locale(self):
         self.assertEqual(
             utils.resolve_ui_language("", "zh-CN", ["zh", "en"]),
+            "en",
+        )
+
+    def test_browser_locale_is_used_when_default_language_is_unavailable(self):
+        self.assertEqual(
+            utils.resolve_ui_language("", "zh-CN", ["zh"], default_language="en"),
             "zh",
         )
         self.assertEqual(
-            utils.resolve_ui_language(None, "pt_BR", ["en", "pt"]),
+            utils.resolve_ui_language(
+                None, "pt_BR", ["pt"], default_language="en"
+            ),
             "pt",
         )
 
