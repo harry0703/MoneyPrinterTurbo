@@ -13,7 +13,7 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
 TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
-SECONDARY_LOCALES = ("de", "es", "fr", "id", "it", "pt", "ru", "tr", "vi")
+SECONDARY_LOCALES = ("de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
