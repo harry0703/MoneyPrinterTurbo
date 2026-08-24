@@ -31,6 +31,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Confirm AI Video Charge Help",
         "Confirm AI Video Charge Required",
         "Custom API Endpoint",
+        "Enable Upload-Post Integration",
         "API Platform",
         "llm_provider_endpoint_selector.moonshot",
         "llm_provider_endpoint_selector_help.moonshot",
