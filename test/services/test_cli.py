@@ -993,6 +993,51 @@ class TestCliUiDefaults(unittest.TestCase):
         self.assertEqual(params.subtitle_position, "bottom")
         self.assertEqual(params.custom_position, 70.0)
 
+    def test_invalid_saved_background_color_with_saved_enable_flag(self):
+        """
+        保存的背景颜色同样要按 #RRGGBB 校验。非法值若留在 VideoParams 中，
+        渲染时会变成黑色，而同色检测比较的仍是原始非法字符串，导致黑底黑字
+        无法被发现。
+        """
+        ui_config = {
+            "subtitle_background_enabled": True,
+            "subtitle_background_color": "not-a-color",
+        }
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertIs(params.text_background_color, True)
+
+    def test_invalid_saved_background_color_with_explicit_enable_flag(self):
+        """显式开启背景时，非法的保存颜色同样回退到默认背景。"""
+        ui_config = {"subtitle_background_color": "not-a-color"}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--subtitle-background-enabled"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertIs(params.text_background_color, True)
+
+    def test_invalid_saved_background_color_without_enable_flag(self):
+        """
+        只保存了非法颜色且没有开关时，不应据此推断出需要背景，
+        因此保持 VideoParams 的默认关闭状态。
+        """
+        ui_config = {"subtitle_background_color": "not-a-color"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertFalse(params.text_background_color)
+
 
 if __name__ == "__main__":
     unittest.main()

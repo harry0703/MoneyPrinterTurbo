@@ -724,7 +724,10 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         # 用户只开启了背景而没有覆盖颜色，因此优先沿用 WebUI 保存的颜色，
         # 只有在没有可用保存值时才回退到默认背景。
         params_kwargs["text_background_color"] = (
-            _ui_config_value(ui_config, "subtitle_background_color", str) or True
+            _ui_config_value(
+                ui_config, "subtitle_background_color", str, _hex_color
+            )
+            or True
         )
     else:
         # “关闭背景”加上颜色作为命令行组合是参数错误；但作为保存的设置，
@@ -732,7 +735,9 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         ui_enabled = _ui_config_value(
             ui_config, "subtitle_background_enabled", bool
         )
-        ui_color = _ui_config_value(ui_config, "subtitle_background_color", str)
+        ui_color = _ui_config_value(
+            ui_config, "subtitle_background_color", str, _hex_color
+        )
         if ui_enabled is False:
             params_kwargs["text_background_color"] = False
             if args.rounded_subtitle_background is None:
