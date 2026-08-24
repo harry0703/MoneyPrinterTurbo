@@ -376,8 +376,11 @@ LLM_PROVIDER_REGISTRY = (
         "lmstudio",
         "LM Studio",
         api_key_url="https://lmstudio.ai/docs/app/api/endpoints/openai",
+        # LM Studio itself ignores credentials, so a key is never required.
+        # The field is still shown: once the server is exposed beyond loopback
+        # it is normally fronted by an authenticating proxy, and that token has
+        # to be reachable without hand-editing config.toml.
         requires_api_key=False,
-        show_api_key=False,
     ),
     LLMProviderSpec(
         "oneapi",

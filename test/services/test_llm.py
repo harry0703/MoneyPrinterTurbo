@@ -1503,6 +1503,66 @@ class TestLiteLLMProvider(unittest.TestCase):
                 expected_api_key="proxy-token",
             )
 
+    def test_lmstudio_offers_the_api_key_as_an_optional_field(self):
+        """
+        LM Studio ignores credentials, so a key must never be required; but an
+        instance exposed beyond loopback is normally behind an authenticating
+        proxy, and that token has to be settable without editing config.toml.
+        """
+        provider = get_llm_provider("lmstudio")
+
+        self.assertFalse(provider.requires_api_key)
+        self.assertTrue(provider.show_api_key)
+
+    def test_lmstudio_example_config_offers_the_optional_api_key(self):
+        """
+        The WebUI field and the example config have to agree; documenting one
+        without the other leaves the setting undiscoverable from whichever
+        entry point the user happens to start from.
+        """
+        config_path = Path(__file__).parent.parent.parent / "config.example.toml"
+        app_config = tomllib.loads(config_path.read_text(encoding="utf-8"))["app"]
+
+        self.assertIn("lmstudio_api_key", app_config)
+        # Empty, because a local server needs no token and a committed value
+        # would be a credential in the repository.
+        self.assertEqual(app_config["lmstudio_api_key"], "")
+
+    def test_lmstudio_tips_explain_the_default_loopback_bind(self):
+        """
+        The container-gateway URL alone is not enough: LM Studio binds
+        127.0.0.1 by default, so on native Linux Docker the gateway address
+        stays unreachable until the user changes the bind. Both maintained
+        locales must say so, or the Docker hint reads as a complete answer
+        when it is not.
+        """
+        i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
+        for language in ("zh", "en"):
+            with self.subTest(language=language):
+                translations = json.loads(
+                    (i18n_dir / f"{language}.json").read_text(encoding="utf-8")
+                )["Translation"]
+                tips = translations["llm_provider_tips.lmstudio"]
+
+                self.assertIn("127.0.0.1", tips)
+                self.assertIn("Serve on Local Network", tips)
+                self.assertIn("lms server start --bind 0.0.0.0", tips)
+
+    def test_lmstudio_docker_hint_does_not_promise_connectivity_alone(self):
+        """
+        The hint fires whenever a container is detected, so it must not imply
+        the default Base Url will simply work.
+        """
+        i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
+        for language in ("zh", "en"):
+            with self.subTest(language=language):
+                translations = json.loads(
+                    (i18n_dir / f"{language}.json").read_text(encoding="utf-8")
+                )["Translation"]
+                hint = translations["llm_provider_tips.lmstudio.docker_hint"]
+
+                self.assertIn("127.0.0.1", hint)
+
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
         MiMo 官方接口兼容 OpenAI Chat Completions 协议。这里用 fake OpenAI
