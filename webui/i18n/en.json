@@ -392,7 +392,10 @@
     "Enable Auto-Publish": "Enable Auto-Publish",
     "Platforms": "Platforms",
     "Upload-Post API Key": "Upload-Post API Key",
+    "Upload-Post API Key Help": "Create and copy an API key on the [Upload-Post API Keys page]({api_keys_url}).",
     "Upload-Post Profile Username": "Upload-Post Profile Username",
+    "Upload-Post Profile Username Help": "Enter the Username shown on [Manage Users]({manage_users_url}), not your Upload-Post account email. This publishing user must be connected to the selected platforms.",
+    "Upload-Post Setup Guide": "Before enabling auto-publish:\n1. Create an API key on [API Keys]({api_keys_url}).\n2. Create or select a publishing user on [Manage Users]({manage_users_url}), then connect the target platforms.\n\nEnter that publishing user's **Username** below, not your Upload-Post account email.",
     "YouTube Privacy Status": "YouTube Privacy Status"
   }
 }

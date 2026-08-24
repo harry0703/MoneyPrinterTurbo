@@ -327,7 +327,10 @@
     "Enable Auto-Publish": "Включить автопубликацию",
     "Platforms": "Платформы",
     "Upload-Post API Key": "API-ключ Upload-Post",
+    "Upload-Post API Key Help": "Создайте и скопируйте API-ключ на странице [Upload-Post API Keys]({api_keys_url}).",
     "Upload-Post Profile Username": "Имя пользователя профиля Upload-Post",
+    "Upload-Post Profile Username Help": "Введите имя пользователя со страницы [Manage Users]({manage_users_url}), а не адрес электронной почты аккаунта Upload-Post. Этот пользователь публикации должен быть подключён к выбранным платформам.",
+    "Upload-Post Setup Guide": "Перед включением автопубликации:\n1. Создайте API-ключ на странице [API Keys]({api_keys_url}).\n2. Создайте или выберите пользователя публикации на странице [Manage Users]({manage_users_url}) и подключите целевые платформы.\n\nНиже введите его **имя пользователя**, а не адрес электронной почты аккаунта Upload-Post.",
     "YouTube Privacy Status": "Статус конфиденциальности YouTube"
   }
 }

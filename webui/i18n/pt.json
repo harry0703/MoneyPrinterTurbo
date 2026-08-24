@@ -327,7 +327,10 @@
     "Enable Auto-Publish": "Ativar Publicação Automática",
     "Platforms": "Plataformas",
     "Upload-Post API Key": "Chave API do Upload-Post",
+    "Upload-Post API Key Help": "Crie e copie uma chave API na página [Upload-Post API Keys]({api_keys_url}).",
     "Upload-Post Profile Username": "Nome de Usuário do Perfil Upload-Post",
+    "Upload-Post Profile Username Help": "Informe o nome de usuário exibido em [Manage Users]({manage_users_url}), não o e-mail da sua conta Upload-Post. Esse usuário de publicação deve estar conectado às plataformas selecionadas.",
+    "Upload-Post Setup Guide": "Antes de ativar a publicação automática:\n1. Crie uma chave API em [API Keys]({api_keys_url}).\n2. Crie ou selecione um usuário de publicação em [Manage Users]({manage_users_url}) e conecte as plataformas de destino.\n\nInforme abaixo o **nome de usuário** de publicação, não o e-mail da sua conta Upload-Post.",
     "YouTube Privacy Status": "Status de Privacidade do YouTube"
   }
 }

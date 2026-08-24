@@ -327,7 +327,10 @@
     "Enable Auto-Publish": "Aktifkan Publikasi Otomatis",
     "Platforms": "Platform",
     "Upload-Post API Key": "Kunci API Upload-Post",
+    "Upload-Post API Key Help": "Buat dan salin kunci API di halaman [Upload-Post API Keys]({api_keys_url}).",
     "Upload-Post Profile Username": "Nama Pengguna Profil Upload-Post",
+    "Upload-Post Profile Username Help": "Masukkan Username yang ditampilkan di [Manage Users]({manage_users_url}), bukan email akun Upload-Post Anda. Pengguna penerbitan ini harus terhubung ke platform yang dipilih.",
+    "Upload-Post Setup Guide": "Sebelum mengaktifkan publikasi otomatis:\n1. Buat kunci API di [API Keys]({api_keys_url}).\n2. Buat atau pilih pengguna penerbitan di [Manage Users]({manage_users_url}), lalu hubungkan platform tujuan.\n\nMasukkan **Username** pengguna penerbitan tersebut di bawah, bukan email akun Upload-Post Anda.",
     "YouTube Privacy Status": "Status Privasi YouTube"
   }
 }

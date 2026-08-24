@@ -98,6 +98,11 @@ VOICE_MODE_TTS = "tts"
 VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
 LOOMLOOM_MAX_POLL_FAILURES = 5
+# Upload-Post 的 API Key 与发布用户分别在两个页面管理，并且发布用户名称
+# 不等于登录邮箱。集中维护入口可以避免多语言文案各自硬编码 URL 后发生偏差，
+# 也方便用户从 WebUI 直接完成首次配置和后续账号维护。
+UPLOAD_POST_API_KEYS_URL = "https://app.upload-post.com/api-keys"
+UPLOAD_POST_MANAGE_USERS_URL = "https://app.upload-post.com/manage-users"
 # “默认”是 WebUI 专用哨兵，不会写入 config.toml，也不会传给 FFmpeg。
 # 后端在 video_codec 未配置时继续采用稳定的 libx264；单独保留该哨兵可以区分
 # “跟随项目默认策略”和“用户明确固定 libx264”，便于未来安全调整默认策略。
@@ -2543,6 +2548,12 @@ def _render_settings_dialog():
 
         with publish_config_panel:
             st.write(tr("Automatically publish generated videos to social media using upload-post.com"))
+            st.info(
+                tr("Upload-Post Setup Guide").format(
+                    api_keys_url=UPLOAD_POST_API_KEYS_URL,
+                    manage_users_url=UPLOAD_POST_MANAGE_USERS_URL,
+                )
+            )
 
             is_enabled = config.app.get("upload_post_enabled", False)
             is_auto = config.app.get("upload_post_auto_upload", False)
@@ -2561,7 +2572,9 @@ def _render_settings_dialog():
                 tr("Upload-Post API Key"),
                 value=config.app.get("upload_post_api_key", ""),
                 type="password",
-                help="Get your API key from upload-post.com",
+                help=tr("Upload-Post API Key Help").format(
+                    api_keys_url=UPLOAD_POST_API_KEYS_URL
+                ),
                 key="upload_post_api_key_input"
             )
             if upload_post_api_key != config.app.get("upload_post_api_key", ""):
@@ -2570,7 +2583,9 @@ def _render_settings_dialog():
             upload_post_username = st.text_input(
                 tr("Upload-Post Profile Username"),
                 value=config.app.get("upload_post_username", ""),
-                help="Your upload-post.com publishing profile username (not your account email)",
+                help=tr("Upload-Post Profile Username Help").format(
+                    manage_users_url=UPLOAD_POST_MANAGE_USERS_URL
+                ),
                 key="upload_post_username_input"
             )
             if upload_post_username != config.app.get("upload_post_username", ""):
