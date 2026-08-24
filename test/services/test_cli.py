@@ -12,9 +12,19 @@ from uuid import uuid4
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import cli
+from app.config import config as app_config
 
 
 class TestCli(unittest.TestCase):
+    def setUp(self):
+        # ``build_video_params`` 会读取本地 config.toml 的 [ui] 段作为默认值。
+        # 不做隔离时，这些测试就依赖开发机的状态：配置里保存的字体一旦已被
+        # 删除，``prepare_cli_files`` 的字体校验就会触发，让与此无关的测试以
+        # 误导性的报错失败。
+        ui_patch = patch.dict(app_config.ui, {}, clear=True)
+        ui_patch.start()
+        self.addCleanup(ui_patch.stop)
+
     def test_default_voice_is_valid_edge_tts_voice(self):
         args = cli.parse_args(["--video-subject", "测试主题"])
         params = cli.build_video_params(args)
@@ -594,6 +604,440 @@ class TestCli(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("Generate MoneyPrinterTurbo videos", result.stdout)
         self.assertEqual(result.stderr, "")
+
+
+class TestCliUiDefaults(unittest.TestCase):
+    """
+    CLI 默认值应跟随 WebUI：显式命令行参数优先，其次是 config.toml 的 [ui]
+    保存值，最后才是内置默认值。
+    """
+
+    UI_CONFIG = {
+        "font_name": "MicrosoftYaHeiBold.ttc",
+        "text_fore_color": "#123456",
+        "font_size": 48,
+        "subtitle_background_enabled": True,
+        "subtitle_background_color": "#654321",
+        "rounded_subtitle_background": True,
+        "voice_name": "gemini:Puck-Male",
+    }
+
+    def test_ui_config_supplies_subtitle_defaults(self):
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, self.UI_CONFIG, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_name, "MicrosoftYaHeiBold.ttc")
+        self.assertEqual(params.text_fore_color, "#123456")
+        self.assertEqual(params.font_size, 48)
+        self.assertEqual(params.text_background_color, "#654321")
+        self.assertTrue(params.rounded_subtitle_background)
+
+    def test_ui_config_supplies_voice_name(self):
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, self.UI_CONFIG, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "gemini:Puck-Male")
+
+    def test_cli_flags_take_precedence_over_ui_config(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--font-name",
+                "STHeitiLight.ttc",
+                "--text-fore-color",
+                "#AABBCC",
+                "--font-size",
+                "72",
+                "--voice-name",
+                "no-voice",
+                "--no-rounded-subtitle-background",
+            ]
+        )
+
+        with patch.dict(app_config.ui, self.UI_CONFIG, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_name, "STHeitiLight.ttc")
+        self.assertEqual(params.text_fore_color, "#AABBCC")
+        self.assertEqual(params.font_size, 72)
+        self.assertEqual(params.voice_name, "no-voice")
+        self.assertFalse(params.rounded_subtitle_background)
+
+    def test_builtin_defaults_apply_when_ui_config_is_empty(self):
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, {}, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_name, "STHeitiMedium.ttc")
+        self.assertEqual(params.text_fore_color, "#FFFFFF")
+        self.assertEqual(params.font_size, 60)
+        self.assertFalse(params.text_background_color)
+        self.assertFalse(params.rounded_subtitle_background)
+
+    def test_ui_config_can_disable_subtitle_background(self):
+        """
+        自相矛盾的 [ui] 配置不应让 CLI 中断：
+        `--no-subtitle-background-enabled` 加上颜色作为命令行组合是参数错误，
+        但作为保存的设置只表示背景被禁用。
+        """
+        ui_config = dict(self.UI_CONFIG)
+        ui_config["subtitle_background_enabled"] = False
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertFalse(params.text_background_color)
+        self.assertFalse(params.rounded_subtitle_background)
+
+    def test_unusable_ui_config_values_fall_back_to_builtin_defaults(self):
+        """损坏的 config.toml 不应触发 traceback。"""
+        ui_config = {
+            "font_size": "sechzig",
+            "text_fore_color": 42,
+            "font_name": "",
+            "voice_name": None,
+        }
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.font_size, 60)
+        self.assertEqual(params.text_fore_color, "#FFFFFF")
+        self.assertEqual(params.font_name, "STHeitiMedium.ttc")
+        self.assertEqual(params.voice_name, "zh-CN-XiaoxiaoNeural-Female")
+
+    def test_saved_no_voice_mode_disables_tts(self):
+        """
+        WebUI 把无配音作为独立的 voice_mode 保存，同时保留用户上一次真正选择
+        的音色，以便切回自动配音。CLI 必须遵循该模式，否则会重新启用 TTS 并
+        可能触发付费供应商请求。
+        """
+        ui_config = {"voice_mode": "none", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "no-voice")
+
+    def test_explicit_voice_name_overrides_saved_no_voice_mode(self):
+        """命令行显式指定的音色优先级最高，保存的无配音模式不得覆盖它。"""
+        ui_config = {"voice_mode": "none", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--voice-name", "zh-CN-XiaoxiaoNeural-Female"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "zh-CN-XiaoxiaoNeural-Female")
+
+    def test_saved_tts_mode_keeps_saved_voice(self):
+        """voice_mode 为自动配音时，保存的音色仍然生效。"""
+        ui_config = {"voice_mode": "tts", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "gemini:Puck-Male")
+
+    def test_enabling_background_without_color_keeps_saved_color(self):
+        """
+        只传 --subtitle-background-enabled 时用户并未覆盖颜色，应沿用 WebUI
+        保存的颜色，而不是回退成黑色背景。
+        """
+        ui_config = {"subtitle_background_color": "#654321"}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--subtitle-background-enabled"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.text_background_color, "#654321")
+
+    def test_enabling_background_falls_back_to_default_without_saved_color(self):
+        """没有可用的保存颜色时，仅开启背景应回退为默认背景。"""
+        args = cli.parse_args(
+            ["--video-subject", "test", "--subtitle-background-enabled"]
+        )
+
+        with patch.dict(app_config.ui, {}, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertIs(params.text_background_color, True)
+
+    def test_explicit_background_color_overrides_saved_color(self):
+        """命令行显式指定的背景颜色优先于保存值。"""
+        ui_config = {"subtitle_background_color": "#654321"}
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--subtitle-background-enabled",
+                "--subtitle-background-color",
+                "#ABCDEF",
+            ]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.text_background_color, "#ABCDEF")
+
+    def test_saved_upload_mode_disables_tts(self):
+        """
+        上传自备音频的模式同样表示“不要自动配音”，而 [ui] 不保存文件路径，
+        CLI 无法复现该上传。此时沿用保存的音色会静默触发付费 TTS 请求，
+        因此与无配音一样映射为 no-voice；需要配音时显式传 --voice-name。
+        """
+        ui_config = {"voice_mode": "upload", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "no-voice")
+
+    def test_explicit_voice_name_overrides_saved_upload_mode(self):
+        """命令行显式指定的音色同样优先于保存的上传模式。"""
+        ui_config = {"voice_mode": "upload", "voice_name": "gemini:Puck-Male"}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--voice-name", "mimo:Female"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_name, "mimo:Female")
+
+    def test_saved_color_alone_enables_background(self):
+        """
+        WebUI 总是同时写入开关和颜色，只保存颜色属于手工编辑的配置。
+        此时保存的颜色本身就表明用户想要背景，因此按开启处理。
+        """
+        ui_config = {"subtitle_background_color": "#654321"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.text_background_color, "#654321")
+
+    def test_ui_config_supplies_voice_and_stroke_defaults(self):
+        """配音音量、语速、描边和字幕开关同样保存在 [ui] 中，需要一并沿用。"""
+        ui_config = {
+            "voice_volume": 0.5,
+            "voice_rate": 1.3,
+            "stroke_color": "#112233",
+            "stroke_width": 2.5,
+            "subtitle_enabled": False,
+        }
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_volume, 0.5)
+        self.assertEqual(params.voice_rate, 1.3)
+        self.assertEqual(params.stroke_color, "#112233")
+        self.assertEqual(params.stroke_width, 2.5)
+        self.assertFalse(params.subtitle_enabled)
+
+    def test_cli_flags_take_precedence_over_saved_voice_and_stroke(self):
+        """命令行显式传入的值优先于这些保存值。"""
+        ui_config = {
+            "voice_volume": 0.5,
+            "voice_rate": 1.3,
+            "stroke_color": "#112233",
+            "stroke_width": 2.5,
+            "subtitle_enabled": False,
+        }
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--voice-volume",
+                "0.9",
+                "--voice-rate",
+                "1.1",
+                "--stroke-color",
+                "#AABBCC",
+                "--stroke-width",
+                "3.5",
+                "--subtitle-enabled",
+            ]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_volume, 0.9)
+        self.assertEqual(params.voice_rate, 1.1)
+        self.assertEqual(params.stroke_color, "#AABBCC")
+        self.assertEqual(params.stroke_width, 3.5)
+        self.assertTrue(params.subtitle_enabled)
+
+    def test_saved_integers_are_accepted_for_float_fields(self):
+        """TOML 中的整数同样是合法音量和语速，应转换后使用而不是丢弃。"""
+        ui_config = {"voice_volume": 1, "voice_rate": 2, "stroke_width": 3}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_volume, 1.0)
+        self.assertEqual(params.voice_rate, 2.0)
+        self.assertEqual(params.stroke_width, 3.0)
+
+    def test_saved_values_out_of_range_fall_back_to_builtin_defaults(self):
+        """
+        保存值按与命令行相同的规则校验：音量不可为负、语速必须为正、
+        颜色必须是 #RRGGBB。不合法的值回退到内置默认值。
+        """
+        ui_config = {
+            "voice_volume": -1.0,
+            "voice_rate": 0,
+            "stroke_color": "notacolor",
+            "stroke_width": -2.0,
+            "font_size": 0,
+        }
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.voice_volume, 1.0)
+        self.assertEqual(params.voice_rate, 1.0)
+        self.assertEqual(params.stroke_color, "#000000")
+        self.assertEqual(params.stroke_width, 1.5)
+        self.assertEqual(params.font_size, 60)
+
+    def test_stop_at_subtitle_overrides_saved_subtitle_disabled(self):
+        """
+        `--stop-at subtitle` 明确要求生成字幕。保存的关闭状态不应让该阶段
+        变成空操作，也不应像显式 --no-subtitle-enabled 那样报参数错误。
+        """
+        ui_config = {"subtitle_enabled": False}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--stop-at", "subtitle"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertTrue(params.subtitle_enabled)
+
+    def test_explicit_no_subtitle_still_rejects_stop_at_subtitle(self):
+        """显式关闭字幕与 `--stop-at subtitle` 组合仍然是参数错误。"""
+        with self.assertRaises(SystemExit) as cm:
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--stop-at",
+                    "subtitle",
+                    "--no-subtitle-enabled",
+                ]
+            )
+
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_saved_subtitle_position_is_validated_and_applied(self):
+        """
+        字幕位置此前只依赖 VideoParams 的字段默认值，该默认值在模块导入时
+        求值一次，既无法校验也无法在测试中替换。现在与其它字段一样显式解析。
+        """
+        ui_config = {"subtitle_position": "custom", "custom_position": 42.5}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.subtitle_position, "custom")
+        self.assertEqual(params.custom_position, 42.5)
+
+    def test_unusable_saved_subtitle_position_falls_back(self):
+        """超出取值范围的保存位置回退到内置默认值。"""
+        ui_config = {"subtitle_position": "diagonal", "custom_position": 150.0}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertEqual(params.subtitle_position, "bottom")
+        self.assertEqual(params.custom_position, 70.0)
+
+    def test_invalid_saved_background_color_with_saved_enable_flag(self):
+        """
+        保存的背景颜色同样要按 #RRGGBB 校验。非法值若留在 VideoParams 中，
+        渲染时会变成黑色，而同色检测比较的仍是原始非法字符串，导致黑底黑字
+        无法被发现。
+        """
+        ui_config = {
+            "subtitle_background_enabled": True,
+            "subtitle_background_color": "not-a-color",
+        }
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertIs(params.text_background_color, True)
+
+    def test_invalid_saved_background_color_with_explicit_enable_flag(self):
+        """显式开启背景时，非法的保存颜色同样回退到默认背景。"""
+        ui_config = {"subtitle_background_color": "not-a-color"}
+
+        args = cli.parse_args(
+            ["--video-subject", "test", "--subtitle-background-enabled"]
+        )
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertIs(params.text_background_color, True)
+
+    def test_invalid_saved_background_color_without_enable_flag(self):
+        """
+        只保存了非法颜色且没有开关时，不应据此推断出需要背景，
+        因此保持 VideoParams 的默认关闭状态。
+        """
+        ui_config = {"subtitle_background_color": "not-a-color"}
+
+        args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, ui_config, clear=True):
+            params = cli.build_video_params(args)
+
+        self.assertFalse(params.text_background_color)
 
 
 if __name__ == "__main__":

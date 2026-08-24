@@ -347,6 +347,12 @@ command line. The simplest complete generation command is:
 uv run python cli.py --video-subject "How AI is changing everyday life"
 ```
 
+Subtitle style and voiceover options resolve in this order: **explicit CLI option >
+saved `[ui]` value in `config.toml` > built-in default**. Other generation settings,
+such as background music, video count, and paragraph count, are not inherited from
+the WebUI. If the WebUI is set to use uploaded audio, pass `--custom-audio-file`
+explicitly, since the uploaded path is not persisted.
+
 For the complete command reference, parameter descriptions, and usage instructions,
 run:
 

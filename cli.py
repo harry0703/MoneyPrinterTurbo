@@ -16,6 +16,18 @@ if TYPE_CHECKING:
 
 
 DEFAULT_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
+# 对应 webui/Main.py 的 VOICE_MODE_NONE 和 VOICE_MODE_UPLOAD。两端目前没有
+# 共享这些常量，因此在这里保留字面值并注明来源。
+UI_VOICE_MODE_NONE = "none"
+# 字幕位置的内置默认值。VideoParams 也有同名默认值，但它是 Pydantic 字段
+# 默认，只在模块导入时读取一次 config.ui：此时 config.toml 里的非法值会被
+# 直接冻结进模型，既不会校验也无法在测试中替换。CLI 因此自己保存一份，
+# 保证“非法保存值回退到默认值”对命令行始终成立。
+DEFAULT_SUBTITLE_POSITION = "bottom"
+DEFAULT_CUSTOM_POSITION = 70.0
+UI_VOICE_MODE_UPLOAD = "upload"
+# 这两种保存的配音方式都表示不要自动配音。
+UI_VOICE_MODES_WITHOUT_TTS = frozenset({UI_VOICE_MODE_NONE, UI_VOICE_MODE_UPLOAD})
 _PIPELINE_STAGES = ("script", "terms", "audio", "subtitle", "materials", "video")
 _CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 
@@ -81,6 +93,15 @@ def _hex_color(value: str) -> str:
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
         raise argparse.ArgumentTypeError(
             f"color must use #RRGGBB format, got {value!r}"
+        )
+    return value
+
+
+def _subtitle_position(value: str) -> str:
+    """校验保存的字幕位置，取值范围与命令行参数保持一致。"""
+    if value not in ("top", "center", "bottom", "custom"):
+        raise argparse.ArgumentTypeError(
+            f"subtitle-position must be one of: top, center, bottom, custom, got {value!r}"
         )
     return value
 
@@ -285,10 +306,14 @@ Output and exit status:
     audio_group = parser.add_argument_group("voiceover and background music")
     audio_group.add_argument(
         "--voice-name",
-        default=DEFAULT_VOICE_NAME,
+        default=None,
         help=(
-            "TTS voice identifier; use 'no-voice' for silent output. Provider-specific "
-            "identifiers use prefixes such as gemini:, mimo:, elevenlabs:, and chatterbox:"
+            f"TTS voice identifier. Defaults to [ui].voice_name from "
+            f"config.toml, otherwise {DEFAULT_VOICE_NAME}. A saved "
+            "[ui].voice_mode of 'none' or 'upload' resolves to no-voice "
+            "instead, unless this option is given. "
+            "Use 'no-voice' for silent output. Provider-specific identifiers "
+            "use prefixes such as gemini:, mimo:, elevenlabs:, and chatterbox:"
         ),
     )
     audio_group.add_argument(
@@ -296,7 +321,8 @@ Output and exit status:
         type=_non_negative_float,
         default=None,
         help=(
-            "final voiceover volume multiplier, a finite number >= 0 (default: 1.0)"
+            "final voiceover volume multiplier, a finite number >= 0 (default: "
+            "[ui].voice_volume from config.toml; 1.0 when unset)"
         ),
     )
     audio_group.add_argument(
@@ -304,7 +330,8 @@ Output and exit status:
         type=_positive_float,
         default=None,
         help=(
-            "speech rate multiplier, a finite number > 0 (default: 1.0)"
+            "speech rate multiplier, a finite number > 0 (default: "
+            "[ui].voice_rate from config.toml; 1.0 when unset)"
         ),
     )
     audio_group.add_argument(
@@ -354,11 +381,12 @@ Output and exit status:
     subtitle_group = parser.add_argument_group("subtitles")
     subtitle_group.add_argument(
         "--subtitle-enabled",
-        default=True,
+        default=None,
         action=argparse.BooleanOptionalAction,
         help=(
             "enable subtitles; use --no-subtitle-enabled to disable "
-            "(default: enabled)"
+            "(default: [ui].subtitle_enabled from config.toml; enabled when "
+            "unset)"
         ),
     )
     subtitle_group.add_argument(
@@ -366,7 +394,8 @@ Output and exit status:
         default=None,
         help=(
             "subtitle font filename inside resource/fonts "
-            "(default: STHeitiMedium.ttc)"
+            "(default: [ui].font_name from config.toml; "
+            "STHeitiMedium.ttc when unset)"
         ),
     )
     subtitle_group.add_argument(
@@ -394,27 +423,35 @@ Output and exit status:
         default=None,
         help=(
             "subtitle text color in #RRGGBB format; quote the value in shells "
-            "that treat # as a comment (default: #FFFFFF)"
+            "that treat # as a comment (default: [ui].text_fore_color from "
+            "config.toml; #FFFFFF when unset)"
         ),
     )
     subtitle_group.add_argument(
         "--font-size",
         type=_positive_int,
         default=None,
-        help="subtitle font size (default: 60)",
+        help=(
+            "subtitle font size (default: [ui].font_size from config.toml; "
+            "60 when unset)"
+        ),
     )
     subtitle_group.add_argument(
         "--stroke-color",
         type=_hex_color,
         default=None,
-        help="subtitle outline color in #RRGGBB format (default: #000000)",
+        help=(
+            "subtitle outline color in #RRGGBB format (default: "
+            "[ui].stroke_color from config.toml; #000000 when unset)"
+        ),
     )
     subtitle_group.add_argument(
         "--stroke-width",
         type=_non_negative_float,
         default=None,
         help=(
-            "subtitle outline width, a finite number >= 0 (default: 1.5)"
+            "subtitle outline width, a finite number >= 0 (default: "
+            "[ui].stroke_width from config.toml; 1.5 when unset)"
         ),
     )
     subtitle_group.add_argument(
@@ -423,20 +460,28 @@ Output and exit status:
         action=argparse.BooleanOptionalAction,
         help=(
             "enable subtitle background; use --no-subtitle-background-enabled to "
-            "disable (default: enabled)"
+            "disable (default: [ui].subtitle_background_enabled from "
+            "config.toml; disabled when unset)"
         ),
     )
     subtitle_group.add_argument(
         "--subtitle-background-color",
         type=_hex_color,
         default=None,
-        help="subtitle background color in #RRGGBB format (default: #000000)",
+        help=(
+            "subtitle background color in #RRGGBB format (default: "
+            "[ui].subtitle_background_color from config.toml)"
+        ),
     )
     subtitle_group.add_argument(
         "--rounded-subtitle-background",
         default=None,
         action=argparse.BooleanOptionalAction,
-        help="use a rounded subtitle background (default: disabled)",
+        help=(
+            "use a rounded subtitle background (default: "
+            "[ui].rounded_subtitle_background from config.toml; "
+            "disabled when unset)"
+        ),
     )
 
     execution_group = parser.add_argument_group("execution")
@@ -483,7 +528,9 @@ Output and exit status:
 
     if args.custom_position is not None and args.subtitle_position != "custom":
         parser.error("--custom-position requires --subtitle-position custom")
-    if args.stop_at == "subtitle" and not args.subtitle_enabled:
+    # 只有显式的 --no-subtitle-enabled 才算冲突。默认值现在是 None，
+    # 保存的关闭状态在 build_video_params 中处理，不应在这里报参数错误。
+    if args.stop_at == "subtitle" and args.subtitle_enabled is False:
         parser.error("--stop-at subtitle cannot be combined with --no-subtitle-enabled")
     if args.subtitle_background_enabled is False and (
         args.subtitle_background_color is not None
@@ -497,10 +544,82 @@ Output and exit status:
     return args
 
 
+def _ui_config_value(ui_config, key: str, expected_type, checker=None):
+    """
+    读取 ``[ui]`` 中保存的 WebUI 设置，取不到可用值时返回 ``None``。
+
+    该配置段也可能被手工编辑，因此这里直接丢弃不可用的条目，让调用方回退到
+    内置默认值，而不是把脏数据继续传下去，触发 traceback 或 ``VideoParams``
+    的校验错误。
+
+    ``checker`` 复用命令行使用的同一批类型函数（如 ``_hex_color``），因此保存
+    值和命令行参数遵循完全相同的取值规则，例如音量不能为负、颜色必须是
+    ``#RRGGBB``。
+    """
+    value = ui_config.get(key)
+    if value is None:
+        return None
+    # ``isinstance(True, int)`` 为真，所以在期望数字时必须显式排除 bool。
+    if isinstance(value, bool) != (expected_type is bool):
+        return None
+    # TOML 中的 ``1`` 是整数，但对音量、语速这类字段同样是合法取值。
+    if expected_type is float and isinstance(value, int):
+        value = float(value)
+    if not isinstance(value, expected_type):
+        return None
+    if expected_type is str and not value.strip():
+        return None
+    if checker is not None:
+        try:
+            return checker(str(value))
+        except argparse.ArgumentTypeError:
+            return None
+    return value
+
+
+def _resolve_subtitle_enabled(args: argparse.Namespace, ui_config) -> bool:
+    """
+    按优先级解析字幕开关：命令行 > WebUI 保存值 > 默认开启。
+
+    ``--stop-at subtitle`` 明确要求生成字幕，因此保存的关闭状态不能让该阶段
+    变成空操作；显式的 --no-subtitle-enabled 与该阶段的组合在参数校验中已被
+    拒绝，所以这里只需处理保存值。
+    """
+    if args.subtitle_enabled is not None:
+        return args.subtitle_enabled
+    if args.stop_at == "subtitle":
+        return True
+    saved = _ui_config_value(ui_config, "subtitle_enabled", bool)
+    return True if saved is None else saved
+
+
+def _resolve_voice_name(args: argparse.Namespace, ui_config) -> str:
+    """
+    按优先级解析音色：命令行 > WebUI 保存的配音方式和音色 > 内置默认值。
+
+    WebUI 把“无配音”保存为独立的 voice_mode，同时保留用户上一次真正选择的
+    音色，以便切回自动配音后恢复。所以这里不能只读 voice_name，否则保存的
+    无配音状态会被忽略，并可能重新触发付费供应商请求。
+    """
+    from app.services.voice import NO_VOICE_NAME
+
+    if args.voice_name:
+        return args.voice_name
+    # 无配音和上传自备音频都表示用户不想要自动配音。上传模式的文件路径不会
+    # 写入 [ui]，CLI 无法复现该上传；此时沿用保存的音色会静默触发付费 TTS
+    # 请求，因此两种模式都映射为 no-voice，需要配音时显式传 --voice-name。
+    if _ui_config_value(ui_config, "voice_mode", str) in UI_VOICE_MODES_WITHOUT_TTS:
+        return NO_VOICE_NAME
+    return _ui_config_value(ui_config, "voice_name", str) or DEFAULT_VOICE_NAME
+
+
 def build_video_params(args: argparse.Namespace) -> VideoParams:
     # 参数帮助和校验不需要加载应用配置。仅在真正构建任务参数时导入模型，
     # 避免执行 ``cli.py -h`` 时产生配置初始化日志。
+    from app.config import config
     from app.models.schema import MaterialInfo, VideoParams
+
+    ui_config = config.ui
 
     video_terms = args.video_terms
     if video_terms:
@@ -526,8 +645,8 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_materials": video_materials,
         "video_count": args.video_count,
         "video_aspect": args.video_aspect,
-        "voice_name": args.voice_name,
-        "subtitle_enabled": args.subtitle_enabled,
+        "voice_name": _resolve_voice_name(args, ui_config),
+        "subtitle_enabled": _resolve_subtitle_enabled(args, ui_config),
     }
 
     optional_arg_names = [
@@ -561,13 +680,72 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         if value is not None:
             params_kwargs[name] = value
 
+    # 没有显式传入命令行参数时，使用 WebUI 保存的值。只补充上面尚未由命令行
+    # 设置的字段；若保存值缺失，则继续沿用 VideoParams 的默认值。
+    ui_defaults = (
+        ("font_name", str, None),
+        ("text_fore_color", str, _hex_color),
+        ("font_size", int, _positive_int),
+        ("rounded_subtitle_background", bool, None),
+        ("voice_volume", float, _non_negative_float),
+        ("voice_rate", float, _positive_float),
+        ("stroke_color", str, _hex_color),
+        ("stroke_width", float, _non_negative_float),
+    )
+    for name, expected_type, checker in ui_defaults:
+        if name in params_kwargs:
+            continue
+        value = _ui_config_value(ui_config, name, expected_type, checker)
+        if value is not None:
+            params_kwargs[name] = value
+
+    # 字幕位置必须由 CLI 给出确定值，不能交给上面说明的导入期字段默认值。
+    if "subtitle_position" not in params_kwargs:
+        params_kwargs["subtitle_position"] = (
+            _ui_config_value(ui_config, "subtitle_position", str, _subtitle_position)
+            or DEFAULT_SUBTITLE_POSITION
+        )
+    if "custom_position" not in params_kwargs:
+        saved_custom_position = _ui_config_value(
+            ui_config, "custom_position", float, _percent_position
+        )
+        params_kwargs["custom_position"] = (
+            DEFAULT_CUSTOM_POSITION
+            if saved_custom_position is None
+            else saved_custom_position
+        )
+
     if args.subtitle_background_enabled is False:
         params_kwargs["text_background_color"] = False
         params_kwargs["rounded_subtitle_background"] = False
     elif args.subtitle_background_color is not None:
         params_kwargs["text_background_color"] = args.subtitle_background_color
     elif args.subtitle_background_enabled is True:
-        params_kwargs["text_background_color"] = True
+        # 用户只开启了背景而没有覆盖颜色，因此优先沿用 WebUI 保存的颜色，
+        # 只有在没有可用保存值时才回退到默认背景。
+        params_kwargs["text_background_color"] = (
+            _ui_config_value(
+                ui_config, "subtitle_background_color", str, _hex_color
+            )
+            or True
+        )
+    else:
+        # “关闭背景”加上颜色作为命令行组合是参数错误；但作为保存的设置，
+        # 同样的组合不应中断运行，只表示禁用背景。
+        ui_enabled = _ui_config_value(
+            ui_config, "subtitle_background_enabled", bool
+        )
+        ui_color = _ui_config_value(
+            ui_config, "subtitle_background_color", str, _hex_color
+        )
+        if ui_enabled is False:
+            params_kwargs["text_background_color"] = False
+            if args.rounded_subtitle_background is None:
+                params_kwargs["rounded_subtitle_background"] = False
+        elif ui_color is not None:
+            params_kwargs["text_background_color"] = ui_color
+        elif ui_enabled is True:
+            params_kwargs["text_background_color"] = True
 
     return VideoParams(**params_kwargs)
 
