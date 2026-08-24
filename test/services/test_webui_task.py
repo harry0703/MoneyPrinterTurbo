@@ -33,6 +33,14 @@ def _attribute_name(node):
     return ".".join(reversed(names))
 
 
+def _log_record(file_path, message="generation finished"):
+    """构造 ``format_log_record`` 需要的最小 loguru 记录。"""
+    return {
+        "file": SimpleNamespace(name=os.path.basename(file_path), path=file_path),
+        "message": message,
+    }
+
+
 def test_generation_controls_submit_background_task_instead_of_blocking_page():
     """
     WebUI 生成按钮不能重新直接调用同步流水线。
@@ -345,6 +353,59 @@ def test_worker_logs_are_available_without_streamlit_session_state():
         r"- unique background task log",
         records[0],
     )
+
+
+def test_log_paths_stay_posix_style_on_every_platform():
+    """
+    调用位置必须始终显示为 ``./app/services/task.py``。
+
+    Windows 的 ``os.path.relpath`` 返回反斜杠分隔的路径，直接拼接会输出
+    ``./app\\services\\task.py``，同一份日志在不同系统上格式不一致，也无法
+    和上面按正斜杠断言的后台日志回归测试对齐。
+    """
+    record = _log_record(
+        os.path.join(logging_utils.PROJECT_ROOT, "app", "services", "task.py")
+    )
+
+    logging_utils.format_log_record(record)
+
+    assert record["file"].path == "./app/services/task.py"
+
+
+def test_log_paths_on_another_mount_do_not_discard_the_record():
+    """
+    映射盘或 ``subst`` 盘启动时不能让整条日志消失。
+
+    这种部署下调用栈里的路径仍在 ``X:``，而 ``PROJECT_ROOT`` 已被 realpath
+    解析回 ``C:``，``os.path.relpath`` 会抛出 ``ValueError``。loguru 捕获
+    格式化异常后会丢弃记录，终端和 WebUI 日志面板会同时变空。
+    """
+    absolute_path = os.path.join(
+        logging_utils.PROJECT_ROOT, "app", "services", "task.py"
+    )
+    record = _log_record(absolute_path)
+
+    with patch.object(
+        logging_utils.os.path,
+        "relpath",
+        side_effect=ValueError("path is on mount 'X:', start on mount 'C:'"),
+    ):
+        log_format = logging_utils.format_log_record(record)
+
+    assert log_format == logging_utils.LOG_RECORD_FORMAT
+    assert record["file"].path == absolute_path
+
+
+def test_log_paths_outside_the_project_keep_the_absolute_path():
+    """项目目录之外的文件保持绝对路径，避免输出 ``./../..`` 这类回溯路径。"""
+    outside_path = os.path.join(
+        os.path.dirname(logging_utils.PROJECT_ROOT), "site-packages", "worker.py"
+    )
+    record = _log_record(outside_path)
+
+    logging_utils.format_log_record(record)
+
+    assert record["file"].path == outside_path
 
 
 def test_generation_log_fragment_refreshes_within_half_a_second():
