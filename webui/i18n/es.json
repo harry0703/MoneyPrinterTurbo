@@ -321,6 +321,13 @@
     "Confirm WaveSpeed Charge Required": "Por favor, confirma el coste de generación de WaveSpeed antes de generar el vídeo.",
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Predeterminado (recomendado)",
-    "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264."
+    "Video Encoder Help": "Opción avanzada. Predeterminado sigue la política estable de la aplicación, actualmente libx264. Si un codificador de hardware no está disponible, la aplicación vuelve automáticamente a libx264.",
+    "Auto-Publish Settings": "Configuración de publicación automática",
+    "Automatically publish generated videos to social media using upload-post.com": "Publicar automáticamente videos generados en redes sociales usando upload-post.com",
+    "Enable Auto-Publish": "Habilitar publicación automática",
+    "Platforms": "Plataformas",
+    "Upload-Post API Key": "Clave API de Upload-Post",
+    "Upload-Post Profile Username": "Nombre de usuario del perfil de Upload-Post",
+    "YouTube Privacy Status": "Estado de privacidad de YouTube"
   }
 }

@@ -182,6 +182,10 @@ CREDENTIAL_COMPANION_KEYS = {
         for field in provider.extra_fields
     ),
 }
+
+NON_LLM_COMPANION_KEYS = {
+    "app": ("upload_post_username",)
+}
 # 同一个密钥在不同面板可能使用各自的控件 key：音频面板直接编辑 Gemini 和
 # MiMo 的 LLM 密钥，胜算云密钥的控件没有 _input 后缀。恢复备份时必须清除
 # 每一个别名，否则遗留的旧值会在下一次 rerun 覆盖刚刚恢复的密钥。
@@ -2201,7 +2205,9 @@ def _is_backup_config_key(section_name, key):
     """凭据本身及其配套配置项都属于密钥备份范围。"""
     if _is_credential_config_key(key):
         return True
-    return key in CREDENTIAL_COMPANION_KEYS.get(section_name, ())
+    if key in CREDENTIAL_COMPANION_KEYS.get(section_name, ()):
+        return True
+    return key in NON_LLM_COMPANION_KEYS.get(section_name, ())
 
 
 def _credential_widget_state_keys(section_name, key):
@@ -2522,6 +2528,7 @@ def _render_settings_dialog():
             right_config_panel,
             key_backup_panel,
             cache_config_panel,
+            publish_config_panel,
             left_config_panel,
         ) = st.tabs(
             [
@@ -2529,9 +2536,69 @@ def _render_settings_dialog():
                 tr("Material API Tab"),
                 tr("Key Backup Tab"),
                 tr("Cache Management Tab"),
+                tr("Auto-Publish Settings"),
                 tr("Interface Settings Tab"),
             ]
         )
+
+        with publish_config_panel:
+            st.write(tr("Automatically publish generated videos to social media using upload-post.com"))
+
+            is_enabled = config.app.get("upload_post_enabled", False)
+            is_auto = config.app.get("upload_post_auto_upload", False)
+            ui_state = is_enabled and is_auto
+
+            upload_post_enabled = st.checkbox(
+                tr("Enable Auto-Publish"),
+                value=ui_state,
+                key="upload_post_enabled_checkbox"
+            )
+            if upload_post_enabled != is_enabled or upload_post_enabled != is_auto:
+                _set_runtime_config("app", "upload_post_enabled", upload_post_enabled)
+                _set_runtime_config("app", "upload_post_auto_upload", upload_post_enabled)
+
+            upload_post_api_key = st.text_input(
+                tr("Upload-Post API Key"),
+                value=config.app.get("upload_post_api_key", ""),
+                type="password",
+                help="Get your API key from upload-post.com",
+                key="upload_post_api_key_input"
+            )
+            if upload_post_api_key != config.app.get("upload_post_api_key", ""):
+                _set_runtime_config("app", "upload_post_api_key", upload_post_api_key)
+
+            upload_post_username = st.text_input(
+                tr("Upload-Post Profile Username"),
+                value=config.app.get("upload_post_username", ""),
+                help="Your upload-post.com publishing profile username (not your account email)",
+                key="upload_post_username_input"
+            )
+            if upload_post_username != config.app.get("upload_post_username", ""):
+                _set_runtime_config("app", "upload_post_username", upload_post_username)
+
+            upload_post_platforms = st.multiselect(
+                tr("Platforms"),
+                options=["tiktok", "instagram", "youtube"],
+                default=config.app.get("upload_post_platforms", ["tiktok", "instagram"]),
+                help="Select platforms to publish to",
+                key="upload_post_platforms_multiselect"
+            )
+            if upload_post_platforms != config.app.get("upload_post_platforms", ["tiktok", "instagram"]):
+                _set_runtime_config("app", "upload_post_platforms", upload_post_platforms)
+
+            if "youtube" in upload_post_platforms:
+                yt_status_options = ["public", "private", "unlisted"]
+                yt_saved = config.app.get("upload_post_youtube_privacy_status", "public")
+                if yt_saved not in yt_status_options:
+                    yt_saved = "public"
+                upload_post_youtube_privacy_status = st.selectbox(
+                    tr("YouTube Privacy Status"),
+                    options=yt_status_options,
+                    index=yt_status_options.index(yt_saved),
+                    key="upload_post_youtube_privacy_status_selectbox"
+                )
+                if upload_post_youtube_privacy_status != config.app.get("upload_post_youtube_privacy_status", "public"):
+                    _set_runtime_config("app", "upload_post_youtube_privacy_status", upload_post_youtube_privacy_status)
 
         # 左侧面板 - 日志设置
         with left_config_panel:

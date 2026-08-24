@@ -35,6 +35,7 @@ SETTINGS_TRANSFER_CONSTANTS = {
     "CREDENTIAL_KEY_SUFFIXES",
     "CREDENTIAL_COMPANION_KEYS",
     "CREDENTIAL_WIDGET_STATE_ALIASES",
+    "NON_LLM_COMPANION_KEYS",
     "KEY_BACKUP_EXCLUDED_SECTIONS",
 }
 
@@ -119,6 +120,8 @@ def _sample_config_sections():
             "cloudflare_account_id": "cf-account",
             "cloudflare_gateway_id": "cf-gateway",
             "video_language": "en-US",
+            "upload_post_api_key": "api-key-123",
+            "upload_post_username": "my-username",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key", "model_id": "eleven_v3"},
@@ -216,11 +219,13 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
             "cloudflare_api_key": "cf-key",
             "cloudflare_account_id": "cf-account",
             "cloudflare_gateway_id": "cf-gateway",
+            "upload_post_api_key": "api-key-123",
+            "upload_post_username": "my-username",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key"},
     }
-    assert count_backup_keys(backup) == 8
+    assert count_backup_keys(backup) == 10
 
 
 def test_key_backup_carries_llm_provider_extra_fields_with_the_key():
@@ -271,6 +276,9 @@ def test_key_backup_round_trip_restores_every_saved_key():
     restored = parse_key_backup(_encode(payload), sections)
 
     assert restored == collect_key_backup(sections)
+    # Explicit assertion for upload_post credentials restoration requested by reviewer
+    assert restored["app"]["upload_post_api_key"] == "api-key-123"
+    assert restored["app"]["upload_post_username"] == "my-username"
 
 
 def test_key_backup_import_ignores_unknown_sections_and_non_key_settings():

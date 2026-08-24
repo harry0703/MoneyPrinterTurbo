@@ -321,6 +321,13 @@
     "Custom Position (% from top)": "Пользовательское положение (% от верхнего края)",
     "Please enter a value between 0 and 100": "Введите значение от 0 до 100",
     "Please enter a valid number": "Введите корректное число",
-    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов"
+    "Please Select a Valid Video Source": "Выберите поддерживаемый источник материалов",
+    "Auto-Publish Settings": "Настройки автопубликации",
+    "Automatically publish generated videos to social media using upload-post.com": "Автоматически публиковать сгенерированные видео в соцсетях с помощью upload-post.com",
+    "Enable Auto-Publish": "Включить автопубликацию",
+    "Platforms": "Платформы",
+    "Upload-Post API Key": "API-ключ Upload-Post",
+    "Upload-Post Profile Username": "Имя пользователя профиля Upload-Post",
+    "YouTube Privacy Status": "Статус конфиденциальности YouTube"
   }
 }
