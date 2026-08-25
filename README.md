@@ -18,6 +18,9 @@
 
 </div>
 
+> [!NOTE]
+> **画面生成方式：** 默认情况下，MoneyPrinterTurbo 会使用本地素材，或从 Pexels、Pixabay 和 Coverr 检索现有视频素材，再根据生成的文案自动完成配音、字幕、配乐和剪辑合成。如果选择 WaveSpeed AI 作为素材来源，则会通过文生视频模型生成全新画面。
+
 ## 界面预览 🖥️
 
 <h4 align="center">WebUI</h4>

@@ -18,6 +18,9 @@ English | [简体中文](README.md) | [日本語](README-ja.md) | [Releases](htt
 
 </div>
 
+> [!NOTE]
+> **How visuals are created:** By default, MoneyPrinterTurbo uses your local assets or retrieves existing footage from Pexels, Pixabay, and Coverr, then automatically edits it with the generated script, voice-over, subtitles, and music. If you select WaveSpeed AI as the material source, its text-to-video models generate new footage instead.
+
 ## Screenshots 🖥️
 
 <h4 align="center">WebUI</h4>
