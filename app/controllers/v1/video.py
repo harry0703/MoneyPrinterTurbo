@@ -493,12 +493,10 @@ async def download_video(request: Request, file_path: str):
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     file_path = pathlib.Path(video_path)
-    filename = file_path.stem
+    filename = file_path.name
     extension = file_path.suffix
-    headers = {"Content-Disposition": f"attachment; filename={filename}{extension}"}
     return FileResponse(
         path=video_path,
-        headers=headers,
-        filename=f"{filename}{extension}",
+        filename=filename,
         media_type=f"video/{extension[1:]}",
     )
