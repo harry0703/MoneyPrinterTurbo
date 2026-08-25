@@ -535,7 +535,19 @@ def generate_audio(
                 "failed to synthesize audio; verify the selected voice and TTS connectivity",
             )
             return None, None, None
-        audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
+        # Measure the real written audio_file, not sub_maker.cues[-1].end.
+        # SubMaker duration is the last WORD BOUNDARY's end time; TTS engines
+        # commonly leave a short tail beyond that (silence/breath room), so
+        # the two differ. Using the word-boundary figure as "the" audio
+        # duration under-counts - verified with a 2-sentence test TTS call
+        # where SubMaker measured 5.39s vs 7s for the actual file, a 1.6s
+        # gap. Anything sized off the under-counted duration (e.g. video
+        # clips trimmed to match narration length) can end up shorter than
+        # the real audio, silently truncating the end of the narration.
+        file_duration = voice.get_audio_duration(audio_file)
+        audio_duration = math.ceil(
+            file_duration if file_duration > 0 else voice.get_audio_duration(sub_maker)
+        )
         if audio_duration == 0:
             _mark_task_failed(task_id, "audio", "generated audio duration is zero")
             return None, None, None
