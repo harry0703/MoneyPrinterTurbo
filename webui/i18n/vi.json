@@ -326,6 +326,7 @@
     "Auto-Publish Settings": "Cài đặt tự động xuất bản",
     "Automatically publish generated videos to social media using upload-post.com": "Tự động xuất bản các video đã tạo lên mạng xã hội bằng upload-post.com",
     "Enable Auto-Publish": "Bật tự động xuất bản",
+    "Enable Upload-Post Integration": "Bật tích hợp Upload-Post",
     "Platforms": "Nền tảng",
     "Upload-Post API Key": "Khóa API Upload-Post",
     "Upload-Post API Key Help": "Tạo và sao chép khóa API tại trang [Upload-Post API Keys]({api_keys_url}).",

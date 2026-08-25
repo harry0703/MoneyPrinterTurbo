@@ -326,6 +326,7 @@
     "Auto-Publish Settings": "Otomatik Yayınlama Ayarları",
     "Automatically publish generated videos to social media using upload-post.com": "Oluşturulan videoları upload-post.com kullanarak otomatik olarak sosyal medyada yayınlayın",
     "Enable Auto-Publish": "Otomatik Yayınlamayı Etkinleştir",
+    "Enable Upload-Post Integration": "Upload-Post Entegrasyonunu Etkinleştir",
     "Platforms": "Platformlar",
     "Upload-Post API Key": "Upload-Post API Anahtarı",
     "Upload-Post API Key Help": "[Upload-Post API Keys]({api_keys_url}) sayfasında bir API anahtarı oluşturup kopyalayın.",

@@ -391,6 +391,7 @@
     "Auto-Publish Settings": "自动发布设置",
     "Automatically publish generated videos to social media using upload-post.com": "使用 upload-post.com 自动将生成的视频发布到社交媒体",
     "Enable Auto-Publish": "启用自动发布",
+    "Enable Upload-Post Integration": "启用 Upload-Post 集成",
     "Platforms": "发布平台",
     "Upload-Post API Key": "Upload-Post API Key",
     "Upload-Post API Key Help": "在 [Upload-Post API Keys 页面]({api_keys_url})创建并复制 API Key。",

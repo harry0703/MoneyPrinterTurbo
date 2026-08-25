@@ -326,6 +326,7 @@
     "Auto-Publish Settings": "Pengaturan Publikasi Otomatis",
     "Automatically publish generated videos to social media using upload-post.com": "Publikasikan video secara otomatis ke media sosial menggunakan upload-post.com",
     "Enable Auto-Publish": "Aktifkan Publikasi Otomatis",
+    "Enable Upload-Post Integration": "Aktifkan Integrasi Upload-Post",
     "Platforms": "Platform",
     "Upload-Post API Key": "Kunci API Upload-Post",
     "Upload-Post API Key Help": "Buat dan salin kunci API di halaman [Upload-Post API Keys]({api_keys_url}).",

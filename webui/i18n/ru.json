@@ -326,6 +326,7 @@
     "Auto-Publish Settings": "Настройки автопубликации",
     "Automatically publish generated videos to social media using upload-post.com": "Автоматически публиковать сгенерированные видео в соцсетях с помощью upload-post.com",
     "Enable Auto-Publish": "Включить автопубликацию",
+    "Enable Upload-Post Integration": "Включить интеграцию Upload-Post",
     "Platforms": "Платформы",
     "Upload-Post API Key": "API-ключ Upload-Post",
     "Upload-Post API Key Help": "Создайте и скопируйте API-ключ на странице [Upload-Post API Keys]({api_keys_url}).",

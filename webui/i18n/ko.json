@@ -326,6 +326,7 @@
     "Auto-Publish Settings": "자동 게시 설정",
     "Automatically publish generated videos to social media using upload-post.com": "upload-post.com을 사용하여 생성된 동영상을 소셜 미디어에 자동으로 게시합니다",
     "Enable Auto-Publish": "자동 게시 활성화",
+    "Enable Upload-Post Integration": "Upload-Post 연동 활성화",
     "Platforms": "게시 플랫폼",
     "Upload-Post API Key": "Upload-Post API 키",
     "Upload-Post API Key Help": "[Upload-Post API 키 페이지]({api_keys_url})에서 API 키를 생성하고 복사하세요.",
