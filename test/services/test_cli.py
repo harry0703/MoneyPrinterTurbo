@@ -645,6 +645,8 @@ class TestCli(unittest.TestCase):
         )
         self.assertEqual(first_call.kwargs["params"].voice_name, "global-voice")
         self.assertEqual(second_call.kwargs["params"].voice_name, "global-voice")
+        self.assertIs(first_call.kwargs["allow_server_file_input"], True)
+        self.assertIs(second_call.kwargs["allow_server_file_input"], True)
         summary = json.loads(output.getvalue())
         self.assertEqual(
             {key: summary[key] for key in ("total", "succeeded", "failed")},
@@ -733,27 +735,142 @@ class TestCli(unittest.TestCase):
         self.assertIn("unknown VideoParams fields", str(log_error.call_args))
 
     def test_missing_file_in_later_batch_task_prevents_every_task_from_starting(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            tempfile.TemporaryDirectory() as managed_dir,
+        ):
+            source_file = Path(temp_dir) / "valid.mp4"
+            source_file.write_bytes(b"valid video")
             manifest = Path(temp_dir) / "tasks.json"
             manifest.write_text(
                 json.dumps(
                     [
-                        {"video_subject": "valid"},
                         {
-                            "video_subject": "missing audio",
-                            "custom_audio_file": "missing.mp3",
+                            "video_subject": "valid local material",
+                            "video_source": "local",
+                            "video_materials": [
+                                {"provider": "local", "url": "valid.mp4"}
+                            ],
+                        },
+                        {
+                            "video_subject": "missing local material",
+                            "video_source": "local",
+                            "video_materials": [
+                                {"provider": "local", "url": "missing.mp4"}
+                            ],
                         },
                     ]
                 ),
                 encoding="utf-8",
             )
-            with patch("app.services.task.start") as start:
+            with (
+                patch("app.services.task.start") as start,
+                patch("app.utils.utils.storage_dir", return_value=managed_dir),
+            ):
                 code = cli.run_cli(
-                    ["--batch-file", str(manifest), "--stop-at", "audio"]
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
                 )
 
-        self.assertEqual(code, 2)
-        start.assert_not_called()
+            self.assertEqual(code, 2)
+            start.assert_not_called()
+            self.assertEqual(os.listdir(managed_dir), [])
+
+    def test_batch_reuses_one_managed_copy_for_repeated_local_material(self):
+        with (
+            tempfile.TemporaryDirectory() as manifest_dir,
+            tempfile.TemporaryDirectory() as managed_dir,
+        ):
+            source_file = Path(manifest_dir) / "shared.mp4"
+            source_file.write_bytes(b"shared video")
+            manifest = Path(manifest_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": subject,
+                            "video_source": "local",
+                            "video_materials": [
+                                {"provider": "local", "url": "shared.mp4"}
+                            ],
+                        }
+                        for subject in ("first", "second")
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch(
+                    "app.services.task.start",
+                    side_effect=[
+                        {"state": 1, "materials": ["first"]},
+                        {"state": 1, "materials": ["second"]},
+                    ],
+                ) as start,
+                patch(
+                    "app.utils.utils.get_uuid",
+                    side_effect=["task-one", "task-two"],
+                ),
+                patch("app.utils.utils.storage_dir", return_value=managed_dir),
+                redirect_stdout(io.StringIO()),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+
+            first_path = start.call_args_list[0].kwargs["params"].video_materials[0].url
+            second_path = start.call_args_list[1].kwargs["params"].video_materials[0].url
+            managed_files = os.listdir(managed_dir)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(first_path, second_path)
+        self.assertEqual(len(managed_files), 1)
+        self.assertTrue(managed_files[0].startswith("cli-material-"))
+
+    def test_batch_copy_failure_removes_all_managed_materials(self):
+        with (
+            tempfile.TemporaryDirectory() as manifest_dir,
+            tempfile.TemporaryDirectory() as managed_dir,
+        ):
+            first_source = Path(manifest_dir) / "first.mp4"
+            second_source = Path(manifest_dir) / "second.mp4"
+            first_source.write_bytes(b"first video")
+            second_source.write_bytes(b"second video")
+            manifest = Path(manifest_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": name,
+                            "video_source": "local",
+                            "video_materials": [
+                                {"provider": "local", "url": f"{name}.mp4"}
+                            ],
+                        }
+                        for name in ("first", "second")
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            real_copy = cli.shutil.copy2
+
+            def fail_second_copy(source, target):
+                if os.path.basename(source) == "second.mp4":
+                    Path(target).write_bytes(b"partial copy")
+                    raise OSError("simulated copy failure")
+                return real_copy(source, target)
+
+            with (
+                patch("app.services.task.start") as start,
+                patch("app.utils.utils.storage_dir", return_value=managed_dir),
+                patch.object(cli.shutil, "copy2", side_effect=fail_second_copy),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+
+            self.assertEqual(code, 2)
+            start.assert_not_called()
+            self.assertEqual(os.listdir(managed_dir), [])
 
     def test_batch_rejects_non_object_and_unknown_material_fields(self):
         invalid_manifests = (
@@ -804,6 +921,28 @@ class TestCli(unittest.TestCase):
                         {
                             "video_subject": "invalid color",
                             "text_fore_color": "white",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "script"]
+                )
+
+        self.assertEqual(code, 2)
+        start.assert_not_called()
+
+    def test_batch_rejects_invalid_video_clip_speed_before_start(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "invalid speed",
+                            "video_clip_speed": -1,
                         }
                     ]
                 ),

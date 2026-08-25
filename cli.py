@@ -959,6 +959,11 @@ def _validate_batch_task_params(
         raise ValueError("custom_position requires subtitle_position=custom")
     if not math.isfinite(params.custom_position) or not 0 <= params.custom_position <= 100:
         raise ValueError("custom_position must be a finite number between 0 and 100")
+    if params.video_clip_speed is not None and (
+        not math.isfinite(params.video_clip_speed)
+        or not 0.5 <= params.video_clip_speed <= 2.0
+    ):
+        raise ValueError("video_clip_speed must be a finite number between 0.5 and 2.0")
     if params.text_background_color is False and params.rounded_subtitle_background:
         raise ValueError(
             "rounded_subtitle_background requires an enabled subtitle background"
@@ -1047,11 +1052,31 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc
         tasks.append(params)
 
+    validation_plans = []
     for index, params in enumerate(tasks, start=1):
         try:
-            prepare_cli_files(params, stop_at=args.stop_at)
+            validation_plans.append(_validate_cli_files(params, stop_at=args.stop_at))
         except (OSError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc
+
+    prepared_paths: dict[str, str] = {}
+    created_paths: list[str] = []
+    try:
+        for index, (local_videos_dir, resolved_materials) in enumerate(
+            validation_plans, start=1
+        ):
+            try:
+                _prepare_cli_materials(
+                    local_videos_dir,
+                    resolved_materials,
+                    prepared_paths=prepared_paths,
+                    created_paths=created_paths,
+                )
+            except OSError as exc:
+                raise ValueError(f"invalid batch task {index}: {exc}") from exc
+    except Exception:
+        _remove_cli_material_copies(created_paths)
+        raise
     return tasks
 
 
@@ -1126,13 +1151,15 @@ def _resolve_managed_resource_file(
     )
 
 
-def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
+def _validate_cli_files(
+    params: VideoParams, stop_at: str
+) -> tuple[str, list[tuple[MaterialInfo, str, str]]]:
     """
-    在调用 LLM/TTS 前准备 CLI 文件，避免长流程运行到后期才报告路径错误。
+    无副作用地解析并校验 CLI 文件，避免批量预检留下素材副本。
 
-    服务层为了保护 API 请求，只允许读取 ``storage/local_videos`` 内的素材。
-    CLI 是本地入口，接受当前目录相对路径和绝对路径。目录外素材会
-    复制到受控目录，再把参数替换为服务层可安全使用的绝对路径。
+    自定义音频、BGM 和字体会被规范化为服务层可使用的路径或名称；本地素材
+    仅解析来源和扩展名，实际复制由 ``_prepare_cli_materials`` 在所有批量条目
+    校验通过后统一完成。
     """
     from app.models import const
     from app.services import bgm as bgm_service
@@ -1202,9 +1229,9 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
         params.font_name = os.path.basename(font_path)
 
     if params.video_source != "local" or stop_at not in {"materials", "video"}:
-        return
+        return "", []
 
-    local_videos_dir = utils.storage_dir("local_videos", create=True)
+    local_videos_dir = utils.storage_dir("local_videos")
     resolved_materials: list[tuple[MaterialInfo, str, str]] = []
     for material in params.video_materials or []:
         source_path = _resolve_cli_file(
@@ -1221,9 +1248,39 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
             )
         resolved_materials.append((material, source_path, extension))
 
-    # 所有输入检查通过后再复制，避免第二个文件无效时留下第一个文件的
-    # 孤儿副本。
-    prepared_paths: dict[str, str] = {}
+    return local_videos_dir, resolved_materials
+
+
+def _remove_cli_material_copies(created_paths: Sequence[str]) -> None:
+    """Best-effort cleanup for managed copies created by one CLI preparation."""
+    for file_path in reversed(created_paths):
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        except OSError as exc:
+            logger.warning(
+                f"failed to remove prepared CLI material: path={file_path}, "
+                f"error={exc}"
+            )
+
+
+def _prepare_cli_materials(
+    local_videos_dir: str,
+    resolved_materials: Sequence[tuple[MaterialInfo, str, str]],
+    *,
+    prepared_paths: dict[str, str] | None = None,
+    created_paths: list[str] | None = None,
+) -> None:
+    """Copy validated local materials once and update every matching reference."""
+    if not resolved_materials:
+        return
+
+    os.makedirs(local_videos_dir, exist_ok=True)
+    if prepared_paths is None:
+        prepared_paths = {}
+    if created_paths is None:
+        created_paths = []
+
     for material, source_path, extension in resolved_materials:
         prepared_path = prepared_paths.get(source_path)
         if prepared_path is None:
@@ -1234,7 +1291,16 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
                     local_videos_dir,
                     f"cli-material-{uuid4().hex}{extension}",
                 )
-                shutil.copy2(source_path, prepared_path)
+                try:
+                    shutil.copy2(source_path, prepared_path)
+                except OSError:
+                    try:
+                        if os.path.exists(prepared_path):
+                            os.remove(prepared_path)
+                    except OSError:
+                        pass
+                    raise
+                created_paths.append(prepared_path)
                 logger.info(
                     "copied CLI local material into managed storage: "
                     f"source={source_path}, target={prepared_path}"
@@ -1242,6 +1308,21 @@ def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
             prepared_paths[source_path] = prepared_path
 
         material.url = prepared_path
+
+
+def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
+    """Validate and prepare files for one trusted local CLI task."""
+    local_videos_dir, resolved_materials = _validate_cli_files(params, stop_at)
+    created_paths: list[str] = []
+    try:
+        _prepare_cli_materials(
+            local_videos_dir,
+            resolved_materials,
+            created_paths=created_paths,
+        )
+    except Exception:
+        _remove_cli_material_copies(created_paths)
+        raise
 
 
 def _run_batch_tasks(args: argparse.Namespace, tasks: list[VideoParams]) -> int:
@@ -1266,7 +1347,12 @@ def _run_batch_tasks(args: argparse.Namespace, tasks: list[VideoParams]) -> int:
         failed_stage = None
         error = None
         try:
-            result = tm.start(task_id=task_id, params=params, stop_at=args.stop_at)
+            result = tm.start(
+                task_id=task_id,
+                params=params,
+                stop_at=args.stop_at,
+                allow_server_file_input=True,
+            )
         except Exception as exc:
             failed_stage = "runtime"
             error = str(exc)
