@@ -62,15 +62,15 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai" height="56"></a><br>
-      <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai</strong></a>
+      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai" height="56"></a><br>
+      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai</strong></a>
     </td>
     <td align="left">
-      本プロジェクトをスポンサードしてくださっている <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai</a> に感謝します！<br>
+      本プロジェクトをスポンサードしてくださっている <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai</a> に感謝します！<br>
       ⚡ 低コストで信頼性の高いアクセス: 価格は公式レートのわずか 10% から。モデル倍率は透明で、詳細な利用履歴も確認できます。複数プロバイダーへの動的ルーティングにより、レート制限や予期しないサービス中断を回避できます。<br>
       🧠 台本作成に最適な最先端 LLM: OpenAI、Claude、Google Gemini、DeepSeek、Qwen などの主要モデルを OpenAI 互換 API 経由で利用できます。Infistar.ai は MoneyPrinterTurbo の台本生成と素材キーワード抽出のワークフローに、低レイテンシかつ高並列なサポートを提供します。<br>
       🎨 最先端のマルチモーダルエコシステム: FLUX、Midjourney、Seedance、Kling、Sora、Luma といった主要な画像・動画生成モデルを利用でき、次世代の AI 動画制作にすぐ活用できます。<br>
-      🎁 MoneyPrinterTurbo ユーザー限定特典: <a href="https://infistar.ai/register?aff=6T4EYXP2&amp;ref_source=link">専用の紹介リンク</a>から登録すると、[限定ボーナスクレジット / 初回チャージ特典] を受け取ってすぐに制作を始められます！
+      🎁 MoneyPrinterTurbo ユーザー限定特典: <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">専用の紹介リンク</a>から登録すると、[限定ボーナスクレジット / 初回チャージ特典] を受け取ってすぐに制作を始められます！
     </td>
   </tr>
   <tr>
@@ -178,11 +178,11 @@
 - ローカル環境へのデプロイには Python 3.11 以降が必要です。Python 3.11 を推奨します
 - GPU は必須ではありませんが、ローカルでの文字起こしや動画処理を高速化したい場合、一括生成をより快適に行いたい場合には推奨されます
 
-| 項目 | 最低         | 推奨         | 最適           |
-| ---- | ------------ | ------------ | -------------- |
-| CPU  | 4 コア       | 6〜8 コア    | 8 コア以上     |
-| メモリ | 4 GB       | 8 GB         | 16 GB 以上     |
-| GPU  | 不要         | VRAM 4 GB 以上 | VRAM 8 GB 以上 |
+| 項目   | 最低   | 推奨           | 最適           |
+| ------ | ------ | -------------- | -------------- |
+| CPU    | 4 コア | 6〜8 コア      | 8 コア以上     |
+| メモリ | 4 GB   | 8 GB           | 16 GB 以上     |
+| GPU    | 不要   | VRAM 4 GB 以上 | VRAM 8 GB 以上 |
 
 - 主にクラウド LLM、クラウド TTS、オンライン素材ソースを利用する場合は、GPU よりも CPU とメモリのほうが重要です
 - `faster-whisper`、一括生成、負荷の高いローカル処理を利用する場合は、GPU によってスループットが目に見えて向上します
