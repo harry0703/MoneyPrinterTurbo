@@ -956,6 +956,36 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 2)
         start.assert_not_called()
 
+    def test_later_null_runtime_field_prevents_every_batch_task_from_starting(self):
+        for field_name in ("video_aspect", "video_concat_mode"):
+            with self.subTest(field_name=field_name), tempfile.TemporaryDirectory() as temp_dir:
+                manifest = Path(temp_dir) / "tasks.json"
+                manifest.write_text(
+                    json.dumps(
+                        [
+                            {"video_subject": "valid first task"},
+                            {
+                                "video_subject": "invalid later task",
+                                field_name: None,
+                            },
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+                with patch("app.services.task.start") as start:
+                    code = cli.run_cli(
+                        [
+                            "--batch-file",
+                            str(manifest),
+                            "--stop-at",
+                            "video",
+                            "--no-subtitle-enabled",
+                        ]
+                    )
+
+                self.assertEqual(code, 2)
+                start.assert_not_called()
+
     def test_batch_manifest_limits_size_and_task_count(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             oversized = Path(temp_dir) / "oversized.jsonl"

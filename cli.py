@@ -933,6 +933,15 @@ def _validate_batch_task_params(
         raise ValueError(
             "video_source must be one of: pexels, pixabay, coverr, local"
         )
+    for field_name, value in (
+        ("video_aspect", params.video_aspect),
+        ("video_concat_mode", params.video_concat_mode),
+    ):
+        # These schema fields remain Optional for compatibility with historical
+        # API payloads, but the video pipeline always dereferences their enum
+        # values. A manifest's explicit null must fail before any batch task starts.
+        if value is None:
+            raise ValueError(f"{field_name} cannot be null")
     if params.video_source == "local" and stop_at == "terms":
         raise ValueError(
             "stop_at=terms has no effect with video_source=local"
