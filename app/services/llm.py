@@ -64,7 +64,11 @@ def _normalize_text_response(content, llm_provider: str) -> str:
     if not content:
         raise ValueError(f"[{llm_provider}] returned empty text content")
 
-    return content.replace("\n", "")
+    # Keep newlines: paragraph breaks are meaningful in video scripts (the
+    # WebUI textarea and the business layer both render them), and the
+    # downstream consumers (keyword JSON, metadata) tolerate whitespace.
+    # Flattening here destroyed paragraph_number structure irrecoverably.
+    return content
 
 
 def _sanitize_error_message(error: object) -> str:
