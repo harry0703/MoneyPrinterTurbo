@@ -2608,16 +2608,25 @@ def _render_settings_dialog():
 
             is_enabled = config.app.get("upload_post_enabled", False)
             is_auto = config.app.get("upload_post_auto_upload", False)
-            ui_state = is_enabled and is_auto
 
+            # 两个键各自独立:enabled 允许外部流程调用 Upload-Post,
+            # auto_upload 才决定渲染完成后是否自动发布。合并成一个复选框会在
+            # 两键不一致的配置下,仅打开设置对话框就把 enabled 改写为 False。
             upload_post_enabled = st.checkbox(
-                tr("Enable Auto-Publish"),
-                value=ui_state,
+                tr("Enable Upload-Post Integration"),
+                value=is_enabled,
                 key="upload_post_enabled_checkbox"
             )
-            if upload_post_enabled != is_enabled or upload_post_enabled != is_auto:
+            if upload_post_enabled != is_enabled:
                 _set_runtime_config("app", "upload_post_enabled", upload_post_enabled)
-                _set_runtime_config("app", "upload_post_auto_upload", upload_post_enabled)
+
+            upload_post_auto_upload = st.checkbox(
+                tr("Enable Auto-Publish"),
+                value=is_auto,
+                key="upload_post_auto_upload_checkbox"
+            )
+            if upload_post_auto_upload != is_auto:
+                _set_runtime_config("app", "upload_post_auto_upload", upload_post_auto_upload)
 
             upload_post_api_key = st.text_input(
                 tr("Upload-Post API Key"),

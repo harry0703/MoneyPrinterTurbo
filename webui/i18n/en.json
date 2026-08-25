@@ -391,6 +391,7 @@
     "Auto-Publish Settings": "Auto-Publish Settings",
     "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
     "Enable Auto-Publish": "Enable Auto-Publish",
+    "Enable Upload-Post Integration": "Enable Upload-Post Integration",
     "Platforms": "Platforms",
     "Upload-Post API Key": "Upload-Post API Key",
     "Upload-Post API Key Help": "Create and copy an API key on the [Upload-Post API Keys page]({api_keys_url}).",
