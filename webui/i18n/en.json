@@ -390,6 +390,7 @@
     "llm_provider_tips.litellm": "##### LiteLLM Configuration\n- **API Key**: not entered here; configure the target Provider key through environment variables\n- **Base Url**: not required\n- **Model Name**: defaults to `{default_model}`; use the `provider/model` format and see the [Provider list](https://docs.litellm.ai/docs/providers)",
     "Auto-Publish Settings": "Auto-Publish Settings",
     "Automatically publish generated videos to social media using upload-post.com": "Automatically publish generated videos to social media using upload-post.com",
+    "Enable Upload-Post Integration": "Enable Upload-Post Integration",
     "Enable Auto-Publish": "Enable Auto-Publish",
     "Platforms": "Platforms",
     "Upload-Post API Key": "Upload-Post API Key",
