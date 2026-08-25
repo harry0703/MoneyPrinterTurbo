@@ -369,6 +369,17 @@ uv run python cli.py --video-subject "人工智能如何改变日常生活"
 uv run python cli.py --help
 ```
 
+如需顺序执行多个任务，可通过 `--batch-file` 提供 UTF-8 JSON 数组或 JSONL
+清单。CLI 参数作为全局默认值，每个对象可覆盖 `VideoParams` 字段：
+
+```shell
+uv run python cli.py --batch-file ./tasks.json --stop-at video
+```
+
+清单最多包含 100 个任务且不超过 1 MiB。所有条目会在第一个任务启动前完成
+参数与本地文件预检；单个任务运行失败不会阻止后续条目，结束后会输出统一的
+JSON 汇总。清单中的相对自定义音频与本地素材路径以清单目录为基准。
+
 ## 语音合成 🗣
 
 默认使用免费的 **Edge TTS**，在 WebUI 中显示为 **Azure TTS V1**。项目同时支持 **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**小米 MiMo TTS**、**ElevenLabs TTS**、自托管 **Chatterbox TTS**、**Fish Audio TTS**，以及无配音模式。

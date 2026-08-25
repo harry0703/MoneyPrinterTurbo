@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import subprocess
 import sys
@@ -578,6 +579,580 @@ class TestCli(unittest.TestCase):
 
             self.assertEqual(params.custom_audio_file, str(audio_file.resolve()))
 
+    def test_batch_file_does_not_require_global_subject_and_conflicts_with_task_id(self):
+        args = cli.parse_args(["--batch-file", "tasks.jsonl"])
+        self.assertEqual(args.batch_file, "tasks.jsonl")
+
+        with self.assertRaises(SystemExit) as cm:
+            cli.parse_args(
+                [
+                    "--batch-file",
+                    "tasks.jsonl",
+                    "--task-id",
+                    str(uuid4()),
+                ]
+            )
+
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_batch_json_array_merges_cli_defaults_and_prints_summary(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {"video_subject": "first subject"},
+                        {"video_script": "prepared second script"},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with (
+                patch(
+                    "app.services.task.start",
+                    side_effect=[
+                        {"state": 1, "script": "first"},
+                        {"state": 1, "script": "second"},
+                    ],
+                ) as start,
+                patch(
+                    "app.utils.utils.get_uuid",
+                    side_effect=["task-one", "task-two"],
+                ),
+                redirect_stdout(output),
+            ):
+                code = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "script",
+                        "--voice-name",
+                        "global-voice",
+                    ]
+                )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(start.call_count, 2)
+        first_call, second_call = start.call_args_list
+        self.assertEqual(first_call.kwargs["task_id"], "task-one")
+        self.assertEqual(second_call.kwargs["task_id"], "task-two")
+        self.assertEqual(first_call.kwargs["params"].video_subject, "first subject")
+        self.assertEqual(
+            second_call.kwargs["params"].video_script,
+            "prepared second script",
+        )
+        self.assertEqual(first_call.kwargs["params"].voice_name, "global-voice")
+        self.assertEqual(second_call.kwargs["params"].voice_name, "global-voice")
+        self.assertIs(first_call.kwargs["allow_server_file_input"], True)
+        self.assertIs(second_call.kwargs["allow_server_file_input"], True)
+        summary = json.loads(output.getvalue())
+        self.assertEqual(
+            {key: summary[key] for key in ("total", "succeeded", "failed")},
+            {"total": 2, "succeeded": 2, "failed": 0},
+        )
+        self.assertEqual(
+            [task["status"] for task in summary["tasks"]],
+            ["succeeded", "succeeded"],
+        )
+        self.assertEqual(
+            set(summary["tasks"][0]),
+            {"index", "task_id", "status", "result", "failed_stage", "error"},
+        )
+
+    def test_batch_jsonl_continues_after_runtime_and_structured_failures(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.jsonl"
+            manifest.write_text(
+                "\n".join(
+                    json.dumps({"video_subject": subject})
+                    for subject in ("one", "two", "three")
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with (
+                patch(
+                    "app.services.task.start",
+                    side_effect=[
+                        {"state": 1, "script": "ok"},
+                        RuntimeError("provider unavailable"),
+                        {
+                            "state": -1,
+                            "failed_stage": "audio",
+                            "error": "TTS failed",
+                        },
+                    ],
+                ) as start,
+                patch(
+                    "app.utils.utils.get_uuid",
+                    side_effect=["task-one", "task-two", "task-three"],
+                ),
+                patch.object(cli.logger, "exception"),
+                patch.object(cli.logger, "error"),
+                redirect_stdout(output),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "script"]
+                )
+
+        self.assertEqual(code, 1)
+        self.assertEqual(start.call_count, 3)
+        summary = json.loads(output.getvalue())
+        self.assertEqual(summary["succeeded"], 1)
+        self.assertEqual(summary["failed"], 2)
+        self.assertEqual(
+            [task["status"] for task in summary["tasks"]],
+            ["succeeded", "failed", "failed"],
+        )
+        self.assertEqual(summary["tasks"][1]["failed_stage"], "runtime")
+        self.assertEqual(summary["tasks"][1]["error"], "provider unavailable")
+        self.assertEqual(summary["tasks"][2]["failed_stage"], "audio")
+
+    def test_invalid_later_batch_task_prevents_every_task_from_starting(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {"video_subject": "valid"},
+                        {"video_subject": "invalid", "unknown_option": True},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch("app.services.task.start") as start,
+                patch.object(cli.logger, "error") as log_error,
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "script"]
+                )
+
+        self.assertEqual(code, 2)
+        start.assert_not_called()
+        self.assertIn("unknown VideoParams fields", str(log_error.call_args))
+
+    def test_missing_file_in_later_batch_task_prevents_every_task_from_starting(self):
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            tempfile.TemporaryDirectory() as managed_dir,
+        ):
+            source_file = Path(temp_dir) / "valid.mp4"
+            source_file.write_bytes(b"valid video")
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "valid local material",
+                            "video_source": "local",
+                            "video_materials": [
+                                {"provider": "local", "url": "valid.mp4"}
+                            ],
+                        },
+                        {
+                            "video_subject": "missing local material",
+                            "video_source": "local",
+                            "video_materials": [
+                                {"provider": "local", "url": "missing.mp4"}
+                            ],
+                        },
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch("app.services.task.start") as start,
+                patch("app.utils.utils.storage_dir", return_value=managed_dir),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+
+            self.assertEqual(code, 2)
+            start.assert_not_called()
+            self.assertEqual(os.listdir(managed_dir), [])
+
+    def test_batch_reuses_one_managed_copy_for_repeated_local_material(self):
+        with (
+            tempfile.TemporaryDirectory() as manifest_dir,
+            tempfile.TemporaryDirectory() as managed_dir,
+        ):
+            source_file = Path(manifest_dir) / "shared.mp4"
+            source_file.write_bytes(b"shared video")
+            manifest = Path(manifest_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": subject,
+                            "video_source": "local",
+                            "video_materials": [
+                                {"provider": "local", "url": "shared.mp4"}
+                            ],
+                        }
+                        for subject in ("first", "second")
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch(
+                    "app.services.task.start",
+                    side_effect=[
+                        {"state": 1, "materials": ["first"]},
+                        {"state": 1, "materials": ["second"]},
+                    ],
+                ) as start,
+                patch(
+                    "app.utils.utils.get_uuid",
+                    side_effect=["task-one", "task-two"],
+                ),
+                patch("app.utils.utils.storage_dir", return_value=managed_dir),
+                redirect_stdout(io.StringIO()),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+
+            first_path = start.call_args_list[0].kwargs["params"].video_materials[0].url
+            second_path = start.call_args_list[1].kwargs["params"].video_materials[0].url
+            managed_files = os.listdir(managed_dir)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(first_path, second_path)
+        self.assertEqual(len(managed_files), 1)
+        self.assertTrue(managed_files[0].startswith("cli-material-"))
+
+    def test_batch_copy_failure_removes_all_managed_materials(self):
+        with (
+            tempfile.TemporaryDirectory() as manifest_dir,
+            tempfile.TemporaryDirectory() as managed_dir,
+        ):
+            first_source = Path(manifest_dir) / "first.mp4"
+            second_source = Path(manifest_dir) / "second.mp4"
+            first_source.write_bytes(b"first video")
+            second_source.write_bytes(b"second video")
+            manifest = Path(manifest_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": name,
+                            "video_source": "local",
+                            "video_materials": [
+                                {"provider": "local", "url": f"{name}.mp4"}
+                            ],
+                        }
+                        for name in ("first", "second")
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            real_copy = cli.shutil.copy2
+
+            def fail_second_copy(source, target):
+                if os.path.basename(source) == "second.mp4":
+                    Path(target).write_bytes(b"partial copy")
+                    raise OSError("simulated copy failure")
+                return real_copy(source, target)
+
+            with (
+                patch("app.services.task.start") as start,
+                patch("app.utils.utils.storage_dir", return_value=managed_dir),
+                patch.object(cli.shutil, "copy2", side_effect=fail_second_copy),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+
+            self.assertEqual(code, 2)
+            start.assert_not_called()
+            self.assertEqual(os.listdir(managed_dir), [])
+
+    def test_batch_rejects_non_object_and_unknown_material_fields(self):
+        invalid_manifests = (
+            ["not an object"],
+            [
+                {
+                    "video_subject": "invalid material",
+                    "video_source": "local",
+                    "video_materials": [
+                        {"provider": "local", "url": "clip.mp4", "secret": "x"}
+                    ],
+                }
+            ],
+        )
+        for payload in invalid_manifests:
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as temp_dir:
+                manifest = Path(temp_dir) / "tasks.json"
+                manifest.write_text(json.dumps(payload), encoding="utf-8")
+                with patch("app.services.task.start") as start:
+                    code = cli.run_cli(
+                        ["--batch-file", str(manifest), "--stop-at", "script"]
+                    )
+
+                self.assertEqual(code, 2)
+                start.assert_not_called()
+
+    def test_batch_validates_every_task_has_subject_or_script_before_start(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps([{"video_subject": "valid"}, {}]),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "script"]
+                )
+
+        self.assertEqual(code, 2)
+        start.assert_not_called()
+
+    def test_batch_rejects_invalid_subtitle_color_before_start(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "invalid color",
+                            "text_fore_color": "white",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "script"]
+                )
+
+        self.assertEqual(code, 2)
+        start.assert_not_called()
+
+    def test_batch_rejects_invalid_video_clip_speed_before_start(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "invalid speed",
+                            "video_clip_speed": -1,
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "script"]
+                )
+
+        self.assertEqual(code, 2)
+        start.assert_not_called()
+
+    def test_later_null_runtime_field_prevents_every_batch_task_from_starting(self):
+        for field_name in ("video_aspect", "video_concat_mode"):
+            with self.subTest(field_name=field_name), tempfile.TemporaryDirectory() as temp_dir:
+                manifest = Path(temp_dir) / "tasks.json"
+                manifest.write_text(
+                    json.dumps(
+                        [
+                            {"video_subject": "valid first task"},
+                            {
+                                "video_subject": "invalid later task",
+                                field_name: None,
+                            },
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+                with patch("app.services.task.start") as start:
+                    code = cli.run_cli(
+                        [
+                            "--batch-file",
+                            str(manifest),
+                            "--stop-at",
+                            "video",
+                            "--no-subtitle-enabled",
+                        ]
+                    )
+
+                self.assertEqual(code, 2)
+                start.assert_not_called()
+
+    def test_batch_manifest_limits_size_and_task_count(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            oversized = Path(temp_dir) / "oversized.jsonl"
+            oversized.write_bytes(b"x" * (cli._BATCH_FILE_MAX_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "byte limit"):
+                cli._load_batch_manifest(str(oversized))
+
+            too_many = Path(temp_dir) / "too-many.json"
+            too_many.write_text(
+                json.dumps(
+                    [
+                        {"video_subject": f"task {index}"}
+                        for index in range(cli._BATCH_TASK_MAX_COUNT + 1)
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "the limit is"):
+                cli._load_batch_manifest(str(too_many))
+
+    def test_batch_jsonl_error_reports_source_line(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "invalid.jsonl"
+            manifest.write_text(
+                '{"video_subject": "valid"}\n{invalid json}\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "line 2"):
+                cli._load_batch_manifest(str(manifest))
+
+    def test_manifest_relative_custom_audio_uses_manifest_directory(self):
+        with (
+            tempfile.TemporaryDirectory() as manifest_dir,
+            tempfile.TemporaryDirectory() as working_dir,
+        ):
+            audio_file = Path(manifest_dir) / "voice.mp3"
+            audio_file.write_bytes(b"audio")
+            manifest = Path(manifest_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "manifest audio",
+                            "custom_audio_file": "voice.mp3",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(working_dir)
+                with (
+                    patch(
+                        "app.services.task.start",
+                        return_value={"state": 1, "audio_file": "ok"},
+                    ) as start,
+                    patch("app.utils.utils.get_uuid", return_value="task-one"),
+                    redirect_stdout(io.StringIO()),
+                ):
+                    code = cli.run_cli(
+                        ["--batch-file", str(manifest), "--stop-at", "audio"]
+                    )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            start.call_args.kwargs["params"].custom_audio_file,
+            str(audio_file.resolve()),
+        )
+
+    def test_manifest_relative_local_material_uses_manifest_directory(self):
+        with (
+            tempfile.TemporaryDirectory() as manifest_dir,
+            tempfile.TemporaryDirectory() as working_dir,
+            tempfile.TemporaryDirectory() as managed_dir,
+        ):
+            source_file = Path(manifest_dir) / "clip.mp4"
+            source_file.write_bytes(b"manifest video")
+            manifest = Path(manifest_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "manifest material",
+                            "video_source": "local",
+                            "video_materials": [
+                                {
+                                    "provider": "local",
+                                    "url": "clip.mp4",
+                                    "duration": 0,
+                                }
+                            ],
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(working_dir)
+                with (
+                    patch(
+                        "app.services.task.start",
+                        return_value={"state": 1, "materials": ["ok"]},
+                    ) as start,
+                    patch("app.utils.utils.get_uuid", return_value="task-one"),
+                    patch("app.utils.utils.storage_dir", return_value=managed_dir),
+                    redirect_stdout(io.StringIO()),
+                ):
+                    code = cli.run_cli(
+                        ["--batch-file", str(manifest), "--stop-at", "materials"]
+                    )
+            finally:
+                os.chdir(old_cwd)
+
+            prepared_file = Path(
+                start.call_args.kwargs["params"].video_materials[0].url
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(prepared_file.parent, Path(managed_dir))
+            self.assertEqual(prepared_file.read_bytes(), b"manifest video")
+
+    def test_global_relative_custom_audio_keeps_current_working_directory(self):
+        with (
+            tempfile.TemporaryDirectory() as manifest_dir,
+            tempfile.TemporaryDirectory() as working_dir,
+        ):
+            audio_file = Path(working_dir) / "voice.mp3"
+            audio_file.write_bytes(b"audio")
+            manifest = Path(manifest_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps([{"video_subject": "global audio"}]),
+                encoding="utf-8",
+            )
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(working_dir)
+                with (
+                    patch(
+                        "app.services.task.start",
+                        return_value={"state": 1, "audio_file": "ok"},
+                    ) as start,
+                    patch("app.utils.utils.get_uuid", return_value="task-one"),
+                    redirect_stdout(io.StringIO()),
+                ):
+                    code = cli.run_cli(
+                        [
+                            "--batch-file",
+                            str(manifest),
+                            "--custom-audio-file",
+                            "voice.mp3",
+                            "--stop-at",
+                            "audio",
+                        ]
+                    )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            start.call_args.kwargs["params"].custom_audio_file,
+            str(audio_file.resolve()),
+        )
+
     def test_help_documents_defaults_paths_stages_and_exit_codes(self):
         output = io.StringIO()
         with redirect_stdout(output), self.assertRaises(SystemExit) as cm:
@@ -588,6 +1163,8 @@ class TestCli(unittest.TestCase):
         self.assertIn("zh-CN-XiaoxiaoNeural-Female", help_text)
         self.assertIn("current working directory", help_text)
         self.assertIn("Pipeline stages:", help_text)
+        self.assertIn("Batch manifests:", help_text)
+        self.assertIn("JSONL", help_text)
         self.assertIn("exit with 2", help_text)
 
     def test_help_does_not_initialize_application_or_write_logs(self):
