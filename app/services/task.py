@@ -535,7 +535,17 @@ def generate_audio(
                 "failed to synthesize audio; verify the selected voice and TTS connectivity",
             )
             return None, None, None
-        audio_duration = math.ceil(voice.get_audio_duration(sub_maker))
+        # Measure the real written audio_file, not sub_maker.cues[-1].end:
+        # the latter is the last WORD BOUNDARY, and TTS leaves a fixed tail
+        # past it (Edge TTS: ~0.88s at any length - 19% of a 7-word clip but
+        # 1.4% of a 153-word one, so short scripts suffer most). The
+        # under-count sizes paid generate_bgm() calls, is reported as
+        # audio_duration to the API/WebUI, and under-sources
+        # download_videos() material, scaled by video_count.
+        file_duration = voice.get_audio_duration(audio_file)
+        audio_duration = math.ceil(
+            file_duration if file_duration > 0 else voice.get_audio_duration(sub_maker)
+        )
         if audio_duration == 0:
             _mark_task_failed(task_id, "audio", "generated audio duration is zero")
             return None, None, None
