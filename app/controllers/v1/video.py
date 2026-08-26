@@ -48,7 +48,13 @@ _redis_password = config.app.get("redis_password", None)
 _max_concurrent_tasks = config.app.get("max_concurrent_tasks", 5)
 _max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
-redis_url = f"redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}"
+
+def _build_redis_url(host: str, port: int, db: int, password: str | None) -> str:
+    auth = f":{password}@" if password else ""
+    return f"redis://{auth}{host}:{port}/{db}"
+
+
+redis_url = _build_redis_url(_redis_host, _redis_port, _redis_db, _redis_password)
 # 根据配置选择合适的任务管理器
 if _enable_redis:
     task_manager = RedisTaskManager(

@@ -581,5 +581,28 @@ class TestVideoControllerFiles(unittest.TestCase):
                         )
 
 
+class TestBuildRedisUrl(unittest.TestCase):
+    def test_no_password_omits_auth_segment(self):
+        """None and empty-string passwords must not embed a literal 'None' or ':@'."""
+        from app.controllers.v1.video import _build_redis_url
+
+        self.assertEqual(
+            _build_redis_url("localhost", 6379, 0, None),
+            "redis://localhost:6379/0",
+        )
+        self.assertEqual(
+            _build_redis_url("localhost", 6379, 0, ""),
+            "redis://localhost:6379/0",
+        )
+
+    def test_password_is_included_in_url(self):
+        from app.controllers.v1.video import _build_redis_url
+
+        self.assertEqual(
+            _build_redis_url("redis-host", 6380, 1, "s3cr3t"),
+            "redis://:s3cr3t@redis-host:6380/1",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
