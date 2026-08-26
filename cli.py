@@ -814,9 +814,7 @@ def _load_batch_manifest(raw_path: str) -> tuple[str, list[dict[str, Any]]]:
     with open(manifest_path, "rb") as manifest_file:
         payload = manifest_file.read(_BATCH_FILE_MAX_BYTES + 1)
     if len(payload) > _BATCH_FILE_MAX_BYTES:
-        raise ValueError(
-            f"batch manifest exceeds the 1 MiB limit"
-        )
+        raise ValueError("batch manifest exceeds the 1 MiB limit")
 
     try:
         text = payload.decode("utf-8-sig")
