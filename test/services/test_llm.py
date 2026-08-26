@@ -1736,5 +1736,55 @@ class TestLiteLLMLiveIntegration(unittest.TestCase):
         self.assertIn("4", result)
 
 
+class TestRetryWarningBoundary(unittest.TestCase):
+    """'trying again' must not be logged on the last retry attempt."""
+
+    def _trying_again_count(self, mock_logger: object, fragment: str) -> int:
+        return sum(
+            1
+            for call in mock_logger.warning.call_args_list
+            if fragment in str(call)
+        )
+
+    def test_generate_script_no_spurious_warning_on_last_attempt(self):
+        with (
+            patch.object(
+                llm,
+                "_generate_response",
+                side_effect=RuntimeError("provider unavailable"),
+            ),
+            patch.object(llm, "logger") as mock_logger,
+        ):
+            llm.generate_script(video_subject="test subject")
+
+        count = self._trying_again_count(mock_logger, "trying again")
+        self.assertEqual(
+            count,
+            llm._max_retries - 1,
+            "Warning must not fire on the final attempt — no further retry will occur",
+        )
+
+    def test_generate_terms_no_spurious_warning_on_last_attempt(self):
+        with (
+            patch.object(
+                llm,
+                "_generate_response",
+                side_effect=RuntimeError("provider unavailable"),
+            ),
+            patch.object(llm, "logger") as mock_logger,
+        ):
+            llm.generate_terms(
+                video_subject="test subject",
+                video_script="some script text",
+            )
+
+        count = self._trying_again_count(mock_logger, "trying again")
+        self.assertEqual(
+            count,
+            llm._max_retries - 1,
+            "Warning must not fire on the final attempt — no further retry will occur",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
