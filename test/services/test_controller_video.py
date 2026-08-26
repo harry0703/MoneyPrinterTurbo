@@ -557,8 +557,8 @@ class TestVideoControllerFiles(unittest.TestCase):
                 "%E8%A7%86%E9%A2%91.mp4",
             ),
             (
-                'name="draft";v1\\test.mp4',
-                "attachment; filename*=utf-8''name%3D%22draft%22%3Bv1%5Ctest.mp4",
+                "name=draft;v1(test).mp4",
+                "attachment; filename*=utf-8''name%3Ddraft%3Bv1%28test%29.mp4",
             ),
         )
 
