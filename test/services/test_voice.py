@@ -953,6 +953,109 @@ class TestVoiceService(unittest.TestCase):
         self.assertIsNone(result)
         self.assertEqual(post.call_count, 3)
 
+    def _make_broken_clip_class(self, close_calls: list):
+        """Return a clip class whose .duration raises and whose .close() records calls."""
+
+        class _BrokenClip:
+            @property
+            def duration(self):
+                raise RuntimeError("FFmpeg probe failed")
+
+            def close(self):
+                close_calls.append(True)
+
+        return _BrokenClip
+
+    def test_elevenlabs_tts_audio_clip_closed_on_duration_error(self):
+        """AudioFileClip.close() must be called even when reading .duration raises."""
+        close_calls: list = []
+        BrokenClip = self._make_broken_clip_class(close_calls)
+
+        class _OkResponse:
+            status_code = 200
+            content = b"fake-mp3"
+            text = ""
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            out = f.name
+        try:
+            with (
+                patch.object(
+                    vs.config,
+                    "elevenlabs",
+                    {"api_key": "test-key", "model_id": "eleven_multilingual_v2"},
+                ),
+                patch.object(vs.requests, "post", return_value=_OkResponse()),
+                patch.object(vs, "AudioFileClip", side_effect=lambda _: BrokenClip()),
+            ):
+                result = vs.elevenlabs_tts("Hello world.", "voice-id", out)
+        finally:
+            if os.path.exists(out):
+                os.remove(out)
+
+        self.assertIsNone(result)
+        self.assertTrue(close_calls, "AudioFileClip.close() was never called")
+
+    def test_chatterbox_tts_audio_clip_closed_on_duration_error(self):
+        """AudioFileClip.close() must be called even when reading .duration raises."""
+        close_calls: list = []
+        BrokenClip = self._make_broken_clip_class(close_calls)
+
+        class _OkResponse:
+            status_code = 200
+            content = b"fake-mp3"
+            text = ""
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            out = f.name
+        try:
+            with (
+                patch.object(
+                    vs.config,
+                    "chatterbox",
+                    {"base_url": "http://localhost:4123", "api_key": "", "model_id": "chatterbox"},
+                ),
+                patch.object(vs.requests, "post", return_value=_OkResponse()),
+                patch.object(vs, "AudioFileClip", side_effect=lambda _: BrokenClip()),
+            ):
+                result = vs.chatterbox_tts("Hello world.", "default", out)
+        finally:
+            if os.path.exists(out):
+                os.remove(out)
+
+        self.assertIsNone(result)
+        self.assertTrue(close_calls, "AudioFileClip.close() was never called")
+
+    def test_fish_audio_tts_audio_clip_closed_on_duration_error(self):
+        """AudioFileClip.close() must be called even when reading .duration raises."""
+        close_calls: list = []
+        BrokenClip = self._make_broken_clip_class(close_calls)
+
+        class _OkResponse:
+            status_code = 200
+            content = b"x" * 200
+            text = ""
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            out = f.name
+        try:
+            with (
+                patch.object(
+                    vs.config,
+                    "fish_audio",
+                    {"api_key": "test-key", "model": "s2.1-pro-free"},
+                ),
+                patch.object(vs.requests, "post", return_value=_OkResponse()),
+                patch.object(vs, "AudioFileClip", side_effect=lambda _: BrokenClip()),
+            ):
+                result = vs.fish_audio_tts("Hello world.", out)
+        finally:
+            if os.path.exists(out):
+                os.remove(out)
+
+        self.assertIsNone(result)
+        self.assertTrue(close_calls, "AudioFileClip.close() was never called")
+
     def test_generate_subtitle_keeps_edge_provider_for_gemini_legacy_submaker(self):
         """
         验证 Gemini TTS 返回的 legacy 字幕结构在 edge provider 下可以直接产出
