@@ -535,15 +535,13 @@ def generate_audio(
                 "failed to synthesize audio; verify the selected voice and TTS connectivity",
             )
             return None, None, None
-        # Measure the real written audio_file, not sub_maker.cues[-1].end.
-        # SubMaker duration is the last WORD BOUNDARY's end time; TTS engines
-        # commonly leave a short tail beyond that (silence/breath room), so
-        # the two differ. Using the word-boundary figure as "the" audio
-        # duration under-counts - verified with a 2-sentence test TTS call
-        # where SubMaker measured 5.39s vs 7s for the actual file, a 1.6s
-        # gap. Anything sized off the under-counted duration (e.g. video
-        # clips trimmed to match narration length) can end up shorter than
-        # the real audio, silently truncating the end of the narration.
+        # Measure the real written audio_file, not sub_maker.cues[-1].end:
+        # the latter is the last WORD BOUNDARY, and TTS leaves a fixed tail
+        # past it (Edge TTS: ~0.88s at any length - 19% of a 7-word clip but
+        # 1.4% of a 153-word one, so short scripts suffer most). The
+        # under-count sizes paid generate_bgm() calls, is reported as
+        # audio_duration to the API/WebUI, and under-sources
+        # download_videos() material, scaled by video_count.
         file_duration = voice.get_audio_duration(audio_file)
         audio_duration = math.ceil(
             file_duration if file_duration > 0 else voice.get_audio_duration(sub_maker)
