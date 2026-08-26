@@ -155,6 +155,41 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIs(captured["app_config"], app_config)
         self.assertEqual(captured["app_config"]["openai_api_key"], "snapshot-key")
 
+    def test_generate_script_strips_each_bracket_group_independently(self):
+        """
+        format_response must remove each [bracket] and (paren) group in
+        isolation.  The greedy form [.*] matches from the first opener to
+        the *last* closer on the line, silently deleting all text in between.
+
+        Example – greedy bug:
+            "[Intro] Great content [end]"  →  "."     (all inner text lost)
+        Expected with non-greedy fix:
+            "[Intro] Great content [end]"  →  " Great content "
+        """
+
+        def fake_generate_response(prompt):
+            # Two bracket groups and two paren groups on the same line.
+            return (
+                "[Scene: Beach] A beautiful day at the [location: ocean].\n\n"
+                "Save (at least) 10% of your income (monthly)."
+            )
+
+        with patch.object(
+            llm, "_generate_response", side_effect=fake_generate_response
+        ):
+            result = llm.generate_script(
+                video_subject="savings tips", language="en-US"
+            )
+
+        # Each bracket / paren group should be gone, but the surrounding words
+        # must survive.
+        self.assertNotIn("[", result)
+        self.assertNotIn("]", result)
+        self.assertNotIn("(", result)
+        self.assertNotIn(")", result)
+        self.assertIn("A beautiful day at the", result)
+        self.assertIn("10% of your income", result)
+
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
         按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，

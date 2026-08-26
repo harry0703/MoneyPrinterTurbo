@@ -536,9 +536,11 @@ def generate_script(
         response = response.replace("*", "")
         response = response.replace("#", "")
 
-        # Remove markdown syntax
-        response = re.sub(r"\[.*\]", "", response)
-        response = re.sub(r"\(.*\)", "", response)
+        # Remove markdown syntax.  Use non-greedy .*? so each bracket/paren
+        # group is removed independently; the greedy form would eat all text
+        # between the first opener and the last closer on the same line.
+        response = re.sub(r"\[.*?\]", "", response)
+        response = re.sub(r"\(.*?\)", "", response)
 
         # Split the script into paragraphs
         paragraphs = response.split("\n\n")
