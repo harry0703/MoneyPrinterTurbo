@@ -253,8 +253,19 @@ Batch manifests:
     material_group.add_argument(
         "--video-source",
         default="pexels",
-        choices=["pexels", "pixabay", "coverr", "local"],
-        help="video material provider; online providers require matching API keys in config.toml",
+        choices=["pexels", "pixabay", "coverr", "pexels_pixabay", "local"],
+        help="legacy material source; stock strategies can select multiple providers",
+    )
+    material_group.add_argument(
+        "--material-provider-mode",
+        choices=["locked", "fallback", "fan_out"],
+        default=None,
+        help="stock strategy: locked, fallback, or fan_out (default preserves --video-source)",
+    )
+    material_group.add_argument(
+        "--material-providers",
+        default=None,
+        help="ordered comma-separated stock providers: pexels,pixabay,coverr",
     )
     material_group.add_argument(
         "--video-materials",
@@ -695,6 +706,12 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "voice_name": _resolve_voice_name(args, ui_config),
         "subtitle_enabled": _resolve_subtitle_enabled(args, ui_config),
     }
+    if args.material_provider_mode is not None:
+        params_kwargs["material_provider_mode"] = args.material_provider_mode
+    if args.material_providers:
+        params_kwargs["material_providers"] = [
+            item.strip() for item in args.material_providers.split(",") if item.strip()
+        ]
 
     optional_arg_names = [
         "video_language",

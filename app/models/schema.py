@@ -90,6 +90,11 @@ class VideoParams(BaseModel):
     video_count: int = Field(default=1, ge=1)
 
     video_source: Optional[str] = "pexels"
+    # Stock providers are deliberately separate from ``video_source``.  The
+    # latter remains the compatibility field used by old API clients and task
+    # files; local and LoomLoom are still distinct material backends.
+    material_provider_mode: Optional[Literal["locked", "fallback", "fan_out"]] = None
+    material_providers: Optional[List[Literal["pexels", "pixabay", "coverr"]]] = None
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
     )
@@ -127,6 +132,35 @@ class VideoParams(BaseModel):
     paragraph_number: int = Field(default=1, ge=1, le=10)
     video_script_prompt: str = Field(default="", max_length=2000)
     custom_system_prompt: str = Field(default="", max_length=8000)
+
+    @pydantic.model_validator(mode="after")
+    def normalize_material_providers(self):
+        legacy_source = str(self.video_source or "pexels").strip().lower()
+        stock_source = legacy_source in {"pexels", "pixabay", "coverr", "pexels_pixabay"}
+
+        if self.material_providers is None:
+            normalized_providers = (
+                ["pexels", "pixabay"]
+                if legacy_source == "pexels_pixabay"
+                else [legacy_source]
+                if legacy_source in {"pexels", "pixabay", "coverr"}
+                else ["pexels"]
+            )
+            object.__setattr__(self, "material_providers", normalized_providers)
+        else:
+            # Preserve user priority while making repeated values harmless for
+            # API/CLI callers. Pydantic has already enforced the allow-list.
+            object.__setattr__(
+                self, "material_providers", list(dict.fromkeys(self.material_providers))
+            )
+
+        if self.material_provider_mode is None:
+            object.__setattr__(self, "material_provider_mode", (
+                "fan_out" if legacy_source == "pexels_pixabay" else "locked"
+            ))
+        if stock_source and not self.material_providers:
+            raise ValueError("material_providers must contain at least one provider")
+        return self
 
 
 class SubtitleRequest(BaseModel):

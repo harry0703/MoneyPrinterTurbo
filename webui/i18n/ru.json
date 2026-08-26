@@ -333,6 +333,7 @@
     "Upload-Post Profile Username": "Имя пользователя профиля Upload-Post",
     "Upload-Post Profile Username Help": "Введите имя пользователя со страницы [Manage Users]({manage_users_url}), а не адрес электронной почты аккаунта Upload-Post. Этот пользователь публикации должен быть подключён к выбранным платформам.",
     "Upload-Post Setup Guide": "Перед включением автопубликации:\n1. Создайте API-ключ на странице [API Keys]({api_keys_url}).\n2. Создайте или выберите пользователя публикации на странице [Manage Users]({manage_users_url}) и подключите целевые платформы.\n\nНиже введите его **имя пользователя**, а не адрес электронной почты аккаунта Upload-Post.",
-    "YouTube Privacy Status": "Статус конфиденциальности YouTube"
+    "YouTube Privacy Status": "Статус конфиденциальности YouTube",
+    "Material Provider Mode": "Stock Provider Strategy", "Locked Provider": "Locked (one provider)", "Fallback Providers": "Fallback (in order)", "Fan-out Providers": "Fan-out (all selected)", "Material Provider Mode Help": "Locked uses only the first provider.", "Material Providers": "Stock Providers", "Material Providers Help": "Choose providers and order them by priority.", "Select at Least One Material Provider": "Select at least one stock provider.", "Fan-out Quota Warning": "Fan-out searches every selected provider for every keyword.", "API Key Missing": "Нет API-ключа", "Material Provider Results": "Результаты поставщиков материалов", "Material Provider Result": "{provider}: {status} · {category} · {count} результатов · {duration} сек.", "Material Provider Other": "Другое", "Material Provider Unknown": "Неизвестно", "Selected Material Provider Keys Missing": "Нет API-ключей для: {providers}"
   }
 }

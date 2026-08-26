@@ -333,6 +333,7 @@
     "Upload-Post Profile Username": "Nome de Usuário do Perfil Upload-Post",
     "Upload-Post Profile Username Help": "Informe o nome de usuário exibido em [Manage Users]({manage_users_url}), não o e-mail da sua conta Upload-Post. Esse usuário de publicação deve estar conectado às plataformas selecionadas.",
     "Upload-Post Setup Guide": "Antes de ativar a publicação automática:\n1. Crie uma chave API em [API Keys]({api_keys_url}).\n2. Crie ou selecione um usuário de publicação em [Manage Users]({manage_users_url}) e conecte as plataformas de destino.\n\nInforme abaixo o **nome de usuário** de publicação, não o e-mail da sua conta Upload-Post.",
-    "YouTube Privacy Status": "Status de Privacidade do YouTube"
+    "YouTube Privacy Status": "Status de Privacidade do YouTube",
+    "Material Provider Mode": "Stock Provider Strategy", "Locked Provider": "Locked (one provider)", "Fallback Providers": "Fallback (in order)", "Fan-out Providers": "Fan-out (all selected)", "Material Provider Mode Help": "Locked uses only the first provider.", "Material Providers": "Stock Providers", "Material Providers Help": "Choose providers and order them by priority.", "Select at Least One Material Provider": "Select at least one stock provider.", "Fan-out Quota Warning": "Fan-out searches every selected provider for every keyword.", "API Key Missing": "Chave API ausente", "Material Provider Results": "Resultados dos provedores de materiais", "Material Provider Result": "{provider}: {status} · {category} · {count} resultados · {duration} s", "Material Provider Other": "Outro", "Material Provider Unknown": "Desconhecido", "Selected Material Provider Keys Missing": "Faltam chaves API para: {providers}"
   }
 }

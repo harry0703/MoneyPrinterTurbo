@@ -321,6 +321,7 @@ def test_key_backup_import_tolerates_utf8_bom_written_by_windows_editors():
 def test_credential_widget_state_keys_match_settings_inputs():
     assert credential_widget_state_keys("app", "pexels_api_keys") == (
         "pexels_api_keys_input",
+        "selected_pexels_api_keys_input",
     )
     assert credential_widget_state_keys("app", "openai_api_key") == (
         "openai_api_key_input",

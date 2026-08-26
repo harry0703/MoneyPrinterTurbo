@@ -333,6 +333,21 @@
     "Upload-Post Profile Username": "Nome utente del profilo Upload-Post",
     "Upload-Post Profile Username Help": "Inserisci il nome utente mostrato in [Manage Users]({manage_users_url}), non l'email del tuo account Upload-Post. Questo utente di pubblicazione deve essere collegato alle piattaforme selezionate.",
     "Upload-Post Setup Guide": "Prima di abilitare la pubblicazione automatica:\n1. Crea una chiave API in [API Keys]({api_keys_url}).\n2. Crea o seleziona un utente di pubblicazione in [Manage Users]({manage_users_url}), quindi collega le piattaforme di destinazione.\n\nInserisci qui sotto il suo **nome utente**, non l'email del tuo account Upload-Post.",
-    "YouTube Privacy Status": "Stato di privacy di YouTube"
+    "YouTube Privacy Status": "Stato di privacy di YouTube",
+    "Material Provider Mode": "Strategia dei provider di filmati stock",
+    "Locked Provider": "Bloccato (un provider)",
+    "Fallback Providers": "Fallback (in ordine)",
+    "Fan-out Providers": "Parallelo (tutti i provider selezionati)",
+    "Material Provider Mode Help": "La modalità bloccata usa solo il provider selezionato. Il fallback prova il successivo dopo errori, risultati vuoti o durata insufficiente.",
+    "Material Providers": "Provider di filmati stock",
+    "Material Providers Help": "Seleziona i provider e ordinali per priorità.",
+    "Select at Least One Material Provider": "Seleziona almeno un provider di filmati stock.",
+    "Fan-out Quota Warning": "La modalità parallela interroga ogni provider selezionato per ogni parola chiave e può consumare più quote.",
+    "API Key Missing": "Chiave API mancante",
+    "Material Provider Results": "Risultati dei provider di filmati stock",
+    "Material Provider Result": "{provider}: {status} · {category} · {count} risultati · {duration} s",
+    "Material Provider Other": "Altro",
+    "Material Provider Unknown": "Sconosciuto",
+    "Selected Material Provider Keys Missing": "Mancano le chiavi API per i provider selezionati: {providers}"
   }
 }
