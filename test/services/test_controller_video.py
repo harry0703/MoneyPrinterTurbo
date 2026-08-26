@@ -540,6 +540,46 @@ class TestVideoControllerFiles(unittest.TestCase):
         self.assertEqual(response.filename, "final-1.mp4")
         self.assertEqual(response.media_type, "video/mp4")
 
+    def test_download_video_encodes_content_disposition_filename(self):
+        """
+        下载文件名必须按 HTTP 标准编码。
+
+        普通 ASCII 文件名继续使用兼容性更好的 filename 参数；只要名称包含
+        空格、中文或响应头敏感符号，就应改用 UTF-8 filename*，避免浏览器下载
+        失败、文件名乱码，或特殊字符破坏 Content-Disposition 响应头结构。
+        """
+        cases = (
+            ("final-1.mp4", 'attachment; filename="final-1.mp4"'),
+            ("video name.mp4", "attachment; filename*=utf-8''video%20name.mp4"),
+            (
+                "中文 视频.mp4",
+                "attachment; filename*=utf-8''%E4%B8%AD%E6%96%87%20"
+                "%E8%A7%86%E9%A2%91.mp4",
+            ),
+            (
+                'name="draft";v1\\test.mp4',
+                "attachment; filename*=utf-8''name%3D%22draft%22%3Bv1%5Ctest.mp4",
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                video_controller.utils,
+                "task_dir",
+                return_value=temp_dir,
+            ):
+                for filename, expected_header in cases:
+                    with self.subTest(filename=filename):
+                        Path(temp_dir, filename).write_bytes(b"video")
+                        response = asyncio.run(
+                            video_controller.download_video(self._request(), filename)
+                        )
+
+                        self.assertEqual(
+                            response.headers["content-disposition"],
+                            expected_header,
+                        )
+
 
 if __name__ == "__main__":
     unittest.main()
