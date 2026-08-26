@@ -815,7 +815,7 @@ def _load_batch_manifest(raw_path: str) -> tuple[str, list[dict[str, Any]]]:
         payload = manifest_file.read(_BATCH_FILE_MAX_BYTES + 1)
     if len(payload) > _BATCH_FILE_MAX_BYTES:
         raise ValueError(
-            f"batch manifest exceeds the {_BATCH_FILE_MAX_BYTES}-byte limit"
+            f"batch manifest exceeds the 1 MiB limit"
         )
 
     try:

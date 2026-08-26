@@ -990,7 +990,7 @@ class TestCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             oversized = Path(temp_dir) / "oversized.jsonl"
             oversized.write_bytes(b"x" * (cli._BATCH_FILE_MAX_BYTES + 1))
-            with self.assertRaisesRegex(ValueError, "byte limit"):
+            with self.assertRaisesRegex(ValueError, "1 MiB limit"):
                 cli._load_batch_manifest(str(oversized))
 
             too_many = Path(temp_dir) / "too-many.json"
