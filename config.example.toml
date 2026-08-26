@@ -237,6 +237,25 @@ evolink_model_name = ""
 ollama_base_url = ""
 ollama_model_name = ""
 
+# LM Studio. Load a model in LM Studio and switch Developer > Status to Running
+# before generating. Leave base_url empty to use the environment-aware local
+# default (http://localhost:1234/v1, or the Docker host gateway in a container).
+# Set model_name to the model ID shown in the Developer tab.
+#
+# LM Studio binds to 127.0.0.1 by default, which a container cannot reach even
+# through the host gateway. To use it from Docker, enable "Serve on Local
+# Network" in the Developer tab or start the server with:
+#     lms server start --bind 0.0.0.0
+#
+# lmstudio_api_key is optional and unused by LM Studio itself, which does not
+# check credentials. Set it only when the server is exposed beyond loopback and
+# fronted by a proxy or gateway that requires a token; the value is sent as the
+# bearer token. Leave it empty for a local-only server.
+# API reference: https://lmstudio.ai/docs/app/api/endpoints/openai
+lmstudio_api_key = ""
+lmstudio_base_url = ""
+lmstudio_model_name = ""
+
 # OneAPI. Use the token, Base URL, and model ID from your OneAPI deployment.
 # Project: https://github.com/songquanpeng/one-api
 oneapi_api_key = ""

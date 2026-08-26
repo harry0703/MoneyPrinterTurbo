@@ -2818,14 +2818,19 @@ def _render_settings_dialog():
                     # 成自定义值。输入为空时配置不会持久化，下一次仍回到兼容默认。
                     llm_base_url = str(configured_llm_base_url or "").strip()
 
-            if llm_provider == "ollama":
-                llm_default_base_url = config.get_default_ollama_base_url()
+            # 本地推理服务的默认地址取决于运行环境，Registry 无法静态保存。
+            local_service_base_url_resolvers = {
+                "ollama": config.get_default_ollama_base_url,
+                "lmstudio": config.get_default_lmstudio_base_url,
+            }
+            if llm_provider in local_service_base_url_resolvers:
+                llm_default_base_url = local_service_base_url_resolvers[llm_provider]()
                 if not llm_base_url:
                     llm_base_url = llm_default_base_url
                 docker_hint = ""
                 if config.is_running_in_container():
                     docker_hint = tr_optional(
-                        "llm_provider_tips.ollama.docker_hint",
+                        f"llm_provider_tips.{llm_provider}.docker_hint",
                         fallback_language="en",
                     )
                 provider_tip_context["docker_hint"] = docker_hint

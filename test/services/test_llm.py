@@ -332,6 +332,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "aimlapi",
                 "evolink",
                 "ollama",
+                "lmstudio",
                 "oneapi",
                 "litellm",
                 "groq",
@@ -1371,6 +1372,196 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         with patch.object(config, "is_running_in_container", return_value=True):
             self._assert_ollama_base_url("http://ollama:11434/v1")
+
+    def _use_lmstudio_provider(self, base_url="", api_key=""):
+        config.app["llm_provider"] = "lmstudio"
+        config.app["lmstudio_api_key"] = api_key
+        config.app["lmstudio_base_url"] = base_url
+        config.app["lmstudio_model_name"] = "qwen2.5-7b-instruct"
+
+    def _assert_lmstudio_request(
+        self,
+        expected_base_url: str,
+        expected_api_key: str = "lm-studio",
+    ):
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nlmstudio")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key=expected_api_key,
+            base_url=expected_base_url,
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "qwen2.5-7b-instruct",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nlmstudio")
+
+    def test_lmstudio_default_base_url_uses_localhost_outside_container(self):
+        """
+        LM Studio 本地服务器默认监听 1234
+        端口并暴露 /v1。本机运行时
+        直接指向 localhost，用户无需手
+        写 Base Url。
+        """
+        self._use_lmstudio_provider()
+
+        with patch.object(config, "is_running_in_container", return_value=False):
+            self._assert_lmstudio_request("http://localhost:1234/v1")
+
+    def test_lmstudio_default_base_url_uses_host_gateway_inside_container(self):
+        """
+        容器内 localhost 指向容器自身。
+        LM Studio 运行在宿主机上，因此
+        复用与 Ollama 相同的 host.docker.internal
+        解析结果。
+        """
+        self._use_lmstudio_provider()
+
+        with (
+            patch.object(config, "is_running_in_container", return_value=True),
+            patch.object(config, "_can_resolve_hostname", return_value=True),
+        ):
+            self._assert_lmstudio_request("http://host.docker.internal:1234/v1")
+
+    def test_lmstudio_default_base_url_falls_back_to_container_gateway(self):
+        """
+        原生 Linux Docker 不一定能解析
+        host.docker.internal，此时回退到容器
+        默认网关，端口仍必须是
+        LM Studio 的 1234。
+        """
+        self._use_lmstudio_provider()
+
+        with (
+            patch.object(config, "is_running_in_container", return_value=True),
+            patch.object(config, "_can_resolve_hostname", return_value=False),
+            patch.object(
+                config, "get_container_default_gateway_ip", return_value="172.17.0.1"
+            ),
+        ):
+            self._assert_lmstudio_request("http://172.17.0.1:1234/v1")
+
+    def test_lmstudio_explicit_base_url_takes_precedence(self):
+        """
+        用户手动配置的 lmstudio_base_url
+        优先级最高，便于连接局
+        域网内另一台机器上的 LM
+        Studio，不受容器检测影响。
+        """
+        self._use_lmstudio_provider(base_url="http://192.168.1.10:1234/v1")
+
+        with patch.object(config, "is_running_in_container", return_value=True):
+            self._assert_lmstudio_request("http://192.168.1.10:1234/v1")
+
+    def test_lmstudio_uses_placeholder_api_key_when_unset(self):
+        """
+        LM Studio 不校验凭证，但 OpenAI SDK
+        拒绝空 api_key。未配置时必须
+        填入占位值，否则本地推
+        理会在客户端构造阶段直
+        接失败。
+        """
+        self._use_lmstudio_provider()
+
+        with patch.object(config, "is_running_in_container", return_value=False):
+            self._assert_lmstudio_request(
+                "http://localhost:1234/v1",
+                expected_api_key="lm-studio",
+            )
+
+    def test_lmstudio_honours_configured_api_key(self):
+        """
+        LM Studio 支持在反向代理后启用
+        鉴权。用户填写了 api_key 时
+        必须原样透传，不能被占
+        位值覆盖。
+        """
+        self._use_lmstudio_provider(api_key="proxy-token")
+
+        with patch.object(config, "is_running_in_container", return_value=False):
+            self._assert_lmstudio_request(
+                "http://localhost:1234/v1",
+                expected_api_key="proxy-token",
+            )
+
+    def test_lmstudio_offers_the_api_key_as_an_optional_field(self):
+        """
+        LM Studio ignores credentials, so a key must never be required; but an
+        instance exposed beyond loopback is normally behind an authenticating
+        proxy, and that token has to be settable without editing config.toml.
+        """
+        provider = get_llm_provider("lmstudio")
+
+        self.assertFalse(provider.requires_api_key)
+        self.assertTrue(provider.show_api_key)
+
+    def test_lmstudio_example_config_offers_the_optional_api_key(self):
+        """
+        The WebUI field and the example config have to agree; documenting one
+        without the other leaves the setting undiscoverable from whichever
+        entry point the user happens to start from.
+        """
+        config_path = Path(__file__).parent.parent.parent / "config.example.toml"
+        app_config = tomllib.loads(config_path.read_text(encoding="utf-8"))["app"]
+
+        self.assertIn("lmstudio_api_key", app_config)
+        # Empty, because a local server needs no token and a committed value
+        # would be a credential in the repository.
+        self.assertEqual(app_config["lmstudio_api_key"], "")
+
+    def test_lmstudio_tips_explain_the_default_loopback_bind(self):
+        """
+        The container-gateway URL alone is not enough: LM Studio binds
+        127.0.0.1 by default, so on native Linux Docker the gateway address
+        stays unreachable until the user changes the bind. Both maintained
+        locales must say so, or the Docker hint reads as a complete answer
+        when it is not.
+        """
+        i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
+        for language in ("zh", "en"):
+            with self.subTest(language=language):
+                translations = json.loads(
+                    (i18n_dir / f"{language}.json").read_text(encoding="utf-8")
+                )["Translation"]
+                tips = translations["llm_provider_tips.lmstudio"]
+
+                self.assertIn("127.0.0.1", tips)
+                self.assertIn("Serve on Local Network", tips)
+                self.assertIn("lms server start --bind 0.0.0.0", tips)
+
+    def test_lmstudio_docker_hint_does_not_promise_connectivity_alone(self):
+        """
+        The hint fires whenever a container is detected, so it must not imply
+        the default Base Url will simply work.
+        """
+        i18n_dir = Path(__file__).parent.parent.parent / "webui" / "i18n"
+        for language in ("zh", "en"):
+            with self.subTest(language=language):
+                translations = json.loads(
+                    (i18n_dir / f"{language}.json").read_text(encoding="utf-8")
+                )["Translation"]
+                hint = translations["llm_provider_tips.lmstudio.docker_hint"]
+
+                self.assertIn("127.0.0.1", hint)
 
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
