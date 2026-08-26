@@ -1318,7 +1318,57 @@ class TestElevenLabsVoice(unittest.TestCase):
                     )
 
 
+    def test_siliconflow_subtitle_spans_full_audio_duration(self):
+        """Last subtitle entry must end at the actual audio end, not truncated early.
+
+        The old ad-hoc loop applied integer division independently to every
+        sentence, so accumulated truncation meant the final subtitle always
+        ended a few units before the real audio end. Every other TTS provider
+        already delegates to populate_legacy_submaker_with_full_text, which
+        anchors the last entry to the full duration; this test verifies
+        siliconflow_tts now does the same.
+        """
+        audio_duration_seconds = 7.3
+        expected_end_100ns = int(audio_duration_seconds * 10_000_000)
+
+        fake_response = SimpleNamespace(status_code=200, content=b"fake-mp3")
+        fake_clip = SimpleNamespace(
+            duration=audio_duration_seconds, close=lambda: None
+        )
+
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(vs.requests, "post", return_value=fake_response),
+            patch.object(vs, "AudioFileClip", return_value=fake_clip),
+            patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+        ):
+            voice_file = str(Path(tmp_dir) / "test.mp3")
+            sub_maker = vs.siliconflow_tts(
+                text=(
+                    "First sentence. Second sentence. "
+                    "Third sentence. Fourth sentence."
+                ),
+                model="FunAudioLLM/CosyVoice2-0.5B",
+                voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                voice_rate=1.0,
+                voice_file=voice_file,
+            )
+
+        self.assertIsNotNone(sub_maker)
+        offsets = getattr(sub_maker, "offset", [])
+        self.assertGreater(
+            len(offsets), 1, "multi-sentence text must produce multiple subtitles"
+        )
+        last_end = offsets[-1][1]
+        self.assertEqual(
+            last_end,
+            expected_end_100ns,
+            f"last subtitle end ({last_end}) must equal the full audio duration "
+            f"({expected_end_100ns} units = {audio_duration_seconds}s)",
+        )
+
+
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v2
-    unittest.main() 
+    unittest.main()
