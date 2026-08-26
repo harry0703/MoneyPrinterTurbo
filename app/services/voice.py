@@ -948,74 +948,24 @@ def siliconflow_tts(
                 with open(voice_file, "wb") as f:
                     f.write(response.content)
 
-                # 这里仍然沿用项目原有的字幕结构，因此需要补齐旧字段。
                 sub_maker = ensure_legacy_submaker_fields(SubMaker())
 
-                # 获取音频文件的实际长度
                 try:
-                    # 尝试使用moviepy获取音频长度
-                    from moviepy import AudioFileClip
-
                     audio_clip = AudioFileClip(voice_file)
-                    audio_duration = audio_clip.duration
-                    audio_clip.close()
-
-                    # 将音频长度转换为100纳秒单位（与edge_tts兼容）
-                    audio_duration_100ns = int(audio_duration * 10000000)
-
-                    # 使用文本分割来创建更准确的字幕
-                    # 将文本按标点符号分割成句子
-                    sentences = utils.split_string_by_punctuations(text)
-
-                    if sentences:
-                        # 计算每个句子的大致时长（按字符数比例分配）
-                        total_chars = sum(len(s) for s in sentences)
-                        char_duration = (
-                            audio_duration_100ns / total_chars if total_chars > 0 else 0
-                        )
-
-                        current_offset = 0
-                        for sentence in sentences:
-                            if not sentence.strip():
-                                continue
-
-                            # 计算当前句子的时长
-                            sentence_chars = len(sentence)
-                            sentence_duration = int(sentence_chars * char_duration)
-
-                            # 添加到SubMaker
-                            sub_maker.subs.append(sentence)
-                            sub_maker.offset.append(
-                                (current_offset, current_offset + sentence_duration)
-                            )
-
-                            # 更新偏移量
-                            current_offset += sentence_duration
-                    else:
-                        # 如果无法分割，则使用整个文本作为一个字幕
-                        sub_maker.subs = [text]
-                        sub_maker.offset = [(0, audio_duration_100ns)]
-
+                    try:
+                        audio_duration = audio_clip.duration
+                    finally:
+                        audio_clip.close()
                 except Exception as e:
-                    logger.warning(f"Failed to create accurate subtitles: {str(e)}")
-                    # 回退到简单的字幕
-                    sub_maker.subs = [text]
-                    # 使用音频文件的实际长度，如果无法获取，则假设为10秒
-                    sub_maker.offset = [
-                        (
-                            0,
-                            audio_duration_100ns
-                            if "audio_duration_100ns" in locals()
-                            else 10000000,
-                        )
-                    ]
+                    logger.warning(f"Failed to read audio duration: {str(e)}")
+                    audio_duration = 10.0
 
                 logger.success(f"siliconflow tts succeeded: {voice_file}")
-                logger.debug(
-                    "siliconflow subtitle timeline generated, "
-                    f"subs: {len(sub_maker.subs)}, offsets: {len(sub_maker.offset)}"
+                return populate_legacy_submaker_with_full_text(
+                    sub_maker=sub_maker,
+                    text=text,
+                    audio_duration_seconds=audio_duration,
                 )
-                return sub_maker
             else:
                 logger.error(
                     f"siliconflow tts failed with status code {response.status_code}: {response.text}"
