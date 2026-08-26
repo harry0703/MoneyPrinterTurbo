@@ -326,6 +326,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "minimax",
                 "mimo",
                 "shengsuanyun",
+                "apimart",
                 "cloudflare",
                 "modelscope",
                 "aihubmix",
@@ -355,6 +356,13 @@ class TestLiteLLMProvider(unittest.TestCase):
             shengsuanyun.default_model,
             "deepseek/deepseek-v4-flash",
         )
+        apimart = get_llm_provider("apimart")
+        self.assertEqual(
+            apimart.api_key_url,
+            "https://go.apimart.ai/gh-moneyprinterturbo",
+        )
+        self.assertEqual(apimart.default_model, "gpt-5.6-terra")
+        self.assertEqual(apimart.default_base_url, "https://api.apimart.ai/v1")
 
     def test_provider_registry_uses_conventional_locale_and_config_keys(self):
         """统一命名规则可避免 WebUI 为每个 Provider 增加硬编码映射。"""
@@ -1068,6 +1076,48 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("Error:", result)
         self.assertIn("returned empty choices", result)
         self.assertNotIn("NoneType", result)
+
+    def test_apimart_provider_uses_unwrapped_openai_compatible_endpoint(self):
+        """
+        APIMart 文档同时展示 `/api/v1` 和 `/v1` 两组入口。前者的示例响应
+        带有 code/data 外层包装，OpenAI SDK 无法直接从顶层读取 choices；
+        LLM Provider 必须使用标准 `/v1` 地址，才能复用现有响应解析链路。
+        """
+        config.app["llm_provider"] = "apimart"
+        config.app["apimart_api_key"] = "apimart-key"
+        config.app["apimart_base_url"] = ""
+        config.app["apimart_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\napimart")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="apimart-key",
+            base_url="https://api.apimart.ai/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "gpt-5.6-terra",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\napimart")
 
     def test_aihubmix_provider_uses_openai_compatible_client(self):
         """

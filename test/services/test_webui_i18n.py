@@ -18,8 +18,8 @@ PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
 )
-# Shengsuan Cloud 目前只提供中英文界面。这些特殊文案和 Provider 长说明在
-# 次要 locale 中统一回退英文，避免复制后长期不同步；普通界面文案仍必须完整翻译。
+# 合作 Provider 的品牌名和长说明只维护中英文。次要 locale 统一回退英文，
+# 避免把完全相同的品牌名复制十份，也避免长说明后续只更新部分语言。
 ENGLISH_FALLBACK_KEYS = frozenset(
     {
         "AI Video Quote Required",
@@ -38,6 +38,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_endpoint.moonshot.global",
         "llm_provider_authentication_error.moonshot",
         "Local LLM Script Generation",
+        "llm_provider_label.apimart",
         "llm_provider_label.shengsuanyun",
         "LoomLoom Poll Retry Pending",
         "LoomLoom Poll Retry Warning",

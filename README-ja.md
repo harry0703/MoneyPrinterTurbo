@@ -62,6 +62,14 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://go.apimart.ai/gh-moneyprinterturbo"><img src="docs/sponsors/apimart-logo.png" alt="APIMart" width="100"></a>
+    </td>
+    <td align="left">
+      本プロジェクトをスポンサードしてくださっている <a href="https://go.apimart.ai/gh-moneyprinterturbo">APIMart</a> に感謝します！ APIMart は、AI 画像・動画生成に特化した低価格 API プラットフォームです。<strong>GPT-Image-2 は 1 枚あたり 0.006 米ドルから利用でき、1 米ドルで 160 枚以上の画像を生成できます</strong>。<strong>画像と動画を 1 つの非同期 API で扱い、コードを変更せずにモデルを切り替えられます</strong>。タスクを送信して ID を受け取った後、ポーリングまたはコールバックで結果を取得でき、数万枚規模のバッチ処理にも対応します。月額料金のない従量課金制で、<a href="https://go.apimart.ai/gh-moneyprinterturbo">こちらの登録リンク</a>からすぐに利用を開始できます。
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai" height="56"></a><br>
       <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai</strong></a>
     </td>

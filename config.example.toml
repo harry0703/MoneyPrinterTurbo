@@ -140,6 +140,13 @@ shengsuanyun_api_key = ""
 shengsuanyun_base_url = ""
 shengsuanyun_model_name = ""
 
+# APIMart, OpenAI-compatible multi-model API.
+# Sign up: https://go.apimart.ai/gh-moneyprinterturbo
+# API docs: https://docs.apimart.ai/cn
+apimart_api_key = ""
+apimart_base_url = ""
+apimart_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
