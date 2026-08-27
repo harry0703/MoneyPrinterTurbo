@@ -57,6 +57,17 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Shengsuan Cloud Batch Script Generation",
         "Stop Tracking LoomLoom Run",
         "Stop Tracking LoomLoom Run Help",
+        "Volcano Engine Ark API Key",
+        "Volcano Engine Ark Base URL",
+        "Volcano Engine Seedance",
+        "Volcano Engine Seedance Billing Notice",
+        "Volcano Engine Seedance Billing Notice Without Script",
+        "Volcano Engine Seedance Help",
+        "Volcano Engine Seedance Model",
+        "Please Enter the Volcano Engine Ark API Key",
+        "Confirm Volcano Engine Seedance Charge",
+        "Confirm Volcano Engine Seedance Charge Help",
+        "Confirm Volcano Engine Seedance Charge Required",
     }
 )
 FORMAT_PLACEHOLDER_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")

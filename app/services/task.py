@@ -25,6 +25,7 @@ from app.services import (
     task_artifacts,
     twelvelabs,
     video,
+    volcengine_seedance,
     voice,
 )
 from app.services import upload_post
@@ -706,20 +707,35 @@ def get_video_materials(
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
         # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
-        downloaded_videos = material.download_videos(
-            task_id=task_id,
-            search_terms=video_terms,
-            source=params.video_source,
-            video_aspect=params.video_aspect,
-            video_concat_mode=(
-                VideoConcatMode.sequential
-                if params.match_materials_to_script
-                else params.video_concat_mode
-            ),
-            audio_duration=audio_duration * params.video_count,
-            max_clip_duration=params.video_clip_duration,
-            match_script_order=params.match_materials_to_script,
-        )
+        try:
+            downloaded_videos = material.download_videos(
+                task_id=task_id,
+                search_terms=video_terms,
+                source=params.video_source,
+                video_aspect=params.video_aspect,
+                video_concat_mode=(
+                    VideoConcatMode.sequential
+                    if params.match_materials_to_script
+                    else params.video_concat_mode
+                ),
+                audio_duration=audio_duration * params.video_count,
+                max_clip_duration=params.video_clip_duration,
+                match_script_order=params.match_materials_to_script,
+            )
+        except volcengine_seedance.VolcEngineSeedanceError as exc:
+            details = None
+            if isinstance(
+                exc,
+                volcengine_seedance.VolcEngineSeedanceUnconfirmedTaskError,
+            ):
+                details = {"volcengine_seedance_task_id": exc.task_id or None}
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
         if not downloaded_videos:
             _mark_task_failed(
                 task_id,
@@ -1230,6 +1246,17 @@ def _run_pipeline(
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "volcengine_seedance"
+        and not volcengine_seedance.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "Volcano Engine Seedance requires an Ark API key",
+        )
 
     # 只有完整成片流程需要视频配乐供应商。尽早阻止缺少 Key 的完整任务，避免
     # 先消耗 LLM、TTS 和素材服务额度；中间产物接口仍可独立使用。

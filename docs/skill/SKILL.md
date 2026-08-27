@@ -99,7 +99,7 @@ Summary: Chinese portrait video with voice-over, subtitles, and background music
 
 ### Exit code 10: request credentials once
 
-`MPT_NEEDS_INPUT` includes only the required fields, recommended LLM providers and signup links, custom OpenAI-compatible requirements, and the Pexels signup link. Ask only for the listed values and do not request credentials already found in `config.toml`.
+`MPT_NEEDS_INPUT` includes only the required fields, recommended LLM providers and signup links, custom OpenAI-compatible requirements, and material-provider signup links. Ask only for the listed values and do not request credentials already found in `config.toml`.
 
 After the user responds, rerun the same foreground command with only the required environment variables:
 
@@ -109,7 +109,12 @@ MPT_LLM_API_KEY
 MPT_LLM_BASE_URL
 MPT_LLM_MODEL_NAME
 MPT_PEXELS_API_KEY
+MPT_VOLCENGINE_ARK_API_KEY
 ```
+
+When `SEEDANCE_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
+generated Seedance clip creates a paid Ark task. Only after the user explicitly
+confirms, rerun with `--confirm-seedance-charge`; never add this flag silently.
 
 ### Exit code 1: repair or report
 

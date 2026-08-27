@@ -12,7 +12,7 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
-from app.services import material_cache, task_artifacts
+from app.services import material_cache, task_artifacts, volcengine_seedance
 from app.utils import utils
 
 # Thread-safe counter for API key rotation
@@ -950,7 +950,9 @@ def _wait_for_wavespeed_prediction(
         time.sleep(WAVESPEED_POLL_INTERVAL_SECONDS)
 
 
-def _save_wavespeed_video_with_retry(video_url: str, save_dir: str) -> str:
+def _save_generated_video_with_retry(
+    video_url: str, save_dir: str, provider: str
+) -> str:
     """
     下载已经付费生成的产物，失败时优先重试同一个地址。
 
@@ -973,13 +975,15 @@ def _save_wavespeed_video_with_retry(video_url: str, save_dir: str) -> str:
         delay = WAVESPEED_RETRY_BASE_SECONDS * (attempt + 1)
         logger.warning(
             "failed to download generated video, retry the same url: "
+            f"provider={provider}, "
             f"attempt={attempt + 1}/{WAVESPEED_MAX_DOWNLOAD_RETRIES}, "
             f"{failure_detail}, retry_in={delay:.1f}s"
         )
         time.sleep(delay)
     logger.error(
         "failed to download generated video after "
-        f"{WAVESPEED_MAX_DOWNLOAD_RETRIES + 1} attempts: {failure_detail}"
+        f"{WAVESPEED_MAX_DOWNLOAD_RETRIES + 1} attempts: "
+        f"provider={provider}, {failure_detail}"
     )
     return ""
 
@@ -1188,6 +1192,17 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
+    if source == "volcengine_seedance":
+        # Like WaveSpeed, the official Ark API creates paid asynchronous tasks.
+        # Generate only as many clips as the current voiceover actually needs.
+        return _download_videos_seedance_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
 
     if match_script_order:
         return _download_videos_by_script_order(
@@ -1309,8 +1324,8 @@ def _download_videos_wavespeed_on_demand(
             )
             break
         for item in video_items:
-            saved_video_path = _save_wavespeed_video_with_retry(
-                item.url, material_directory
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "wavespeed"
             )
             if not saved_video_path:
                 continue
@@ -1339,6 +1354,83 @@ def _download_videos_wavespeed_on_demand(
             )
             break
     logger.success(f"generated and downloaded {len(video_paths)} videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_seedance_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """Generate official Ark Seedance clips sequentially and stop when sufficient."""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+    total_duration = 0.0
+    stop_after_download_failure = False
+    for search_term in search_terms:
+        try:
+            video_items = volcengine_seedance.generate_videos(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+        except volcengine_seedance.VolcEngineSeedanceUnconfirmedTaskError as exc:
+            # The paid remote task can still succeed. Stop placing further orders
+            # and preserve its ID in logs so the user can recover it in Ark.
+            logger.error(
+                "stop submitting new Seedance tasks because the last paid task "
+                f"is unconfirmed: task_id={exc.task_id or 'unknown'}, detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except volcengine_seedance.VolcEngineSeedanceError as exc:
+            logger.error(f"Seedance generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        for item in video_items:
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "volcengine_seedance"
+            )
+            if not saved_video_path:
+                # The paid task succeeded. A local download failure must not place
+                # another paid order for a later term and hide the recoverable URL.
+                stop_after_download_failure = True
+                break
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=volcengine_seedance, "
+                    f"error={type(source_error).__name__}, detail={source_error}"
+                )
+            total_duration += min(max_clip_duration, item.duration)
+            if total_duration >= audio_duration:
+                break
+        if stop_after_download_failure:
+            logger.error(
+                "stop submitting Seedance tasks after generated video download failure"
+            )
+            break
+        if total_duration >= audio_duration:
+            logger.info(
+                "generated Seedance materials cover the required duration; stop "
+                f"submitting paid tasks: generated={total_duration:.1f}s, "
+                f"required={audio_duration:.1f}s"
+            )
+            break
+
+    logger.success(
+        f"generated and downloaded {len(video_paths)} Volcano Engine Seedance videos"
+    )
     _persist_material_sources(task_id, material_sources)
     return video_paths
 
