@@ -239,6 +239,13 @@ evolink_api_key = ""
 evolink_base_url = ""
 evolink_model_name = ""
 
+# OpenRouter, an OpenAI-compatible multi-model gateway.
+# API key: https://openrouter.ai/settings/keys
+# Free models: https://openrouter.ai/models?variant=free
+openrouter_api_key = ""
+openrouter_base_url = ""
+openrouter_model_name = ""
+
 # Ollama. Leave base_url empty to use the environment-aware local default.
 # Set model_name to a model installed by `ollama pull` or shown by `ollama list`.
 ollama_base_url = ""
