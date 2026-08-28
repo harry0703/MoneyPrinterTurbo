@@ -1,3 +1,19 @@
+# Release compose file (pre-built image from GHCR).
+#
+# Host port mappings are parameterised so they can be overridden in Coolify
+# (or any environment) when the defaults clash with something else on the host.
+# Set these as environment variables / build variables in Coolify:
+#
+#   WEBUI_PORT        host port for the Streamlit WebUI   (default 8501)
+#   API_PORT          host port for the FastAPI service   (default 8080)
+#   WEBUI_BIND_HOST   host interface for the WebUI        (default 127.0.0.1)
+#   API_BIND_HOST     host interface for the API          (default 127.0.0.1)
+#
+# The container-side ports stay fixed: the API reads its port from
+# config.toml (`listen_port`, default 8080) and the WebUI is started with
+# `--server.port=8501` below, so only the host side is remapped.
+# Use 0.0.0.0 for *_BIND_HOST to expose a service beyond localhost.
+
 x-common-volumes: &common-volumes
   - ./config.toml:/MoneyPrinterTurbo/config.toml
   - ./storage:/MoneyPrinterTurbo/storage
@@ -7,7 +23,7 @@ services:
     image: ghcr.io/harry0703/moneyprinterturbo:latest
     container_name: "moneyprinterturbo-webui"
     ports:
-      - "127.0.0.1:8501:8501"
+      - "${WEBUI_BIND_HOST:-127.0.0.1}:${WEBUI_PORT:-8501}:8501"
     command: [ "streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.serverAddress=127.0.0.1", "--server.enableCORS=True", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal", "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False" ]
     volumes: *common-volumes
     restart: always
@@ -15,7 +31,7 @@ services:
     image: ghcr.io/harry0703/moneyprinterturbo:latest
     container_name: "moneyprinterturbo-api"
     ports:
-      - "127.0.0.1:8080:8080"
+      - "${API_BIND_HOST:-127.0.0.1}:${API_PORT:-8080}:8080"
     command: [ "python3", "main.py" ]
     volumes: *common-volumes
     restart: always
