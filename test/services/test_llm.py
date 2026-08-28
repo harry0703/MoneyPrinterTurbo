@@ -312,6 +312,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             get_llm_provider("gemini").default_model, "gemini-3.1-pro-preview"
         )
+        openrouter = get_llm_provider("openrouter")
+        self.assertEqual(openrouter.default_model, "minimax/minimax-m3:free")
+        self.assertEqual(openrouter.default_base_url, "https://openrouter.ai/api/v1")
+        self.assertEqual(openrouter.adapter, "openai_compatible")
+        self.assertTrue(openrouter.requires_api_key)
         pollinations = get_llm_provider("pollinations")
         self.assertEqual(pollinations.default_model, "openai-fast")
         self.assertEqual(
@@ -367,6 +372,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "aihubmix",
                 "aimlapi",
                 "evolink",
+                "openrouter",
                 "ollama",
                 "oneapi",
                 "litellm",
@@ -398,6 +404,13 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
         self.assertEqual(apimart.default_model, "gpt-5.6-terra")
         self.assertEqual(apimart.default_base_url, "https://api.apimart.ai/v1")
+        openrouter = get_llm_provider("openrouter")
+        self.assertEqual(
+            openrouter.api_key_url,
+            "https://openrouter.ai/settings/keys",
+        )
+        self.assertEqual(openrouter.default_model, "minimax/minimax-m3:free")
+        self.assertEqual(openrouter.default_base_url, "https://openrouter.ai/api/v1")
 
     def test_provider_registry_uses_conventional_locale_and_config_keys(self):
         """统一命名规则可避免 WebUI 为每个 Provider 增加硬编码映射。"""
@@ -1274,6 +1287,48 @@ class TestLiteLLMProvider(unittest.TestCase):
             },
         )
         self.assertEqual(result, "hello\nevolink")
+
+    def test_openrouter_provider_uses_openai_compatible_client(self):
+        """
+        OpenRouter exposes OpenAI-compatible Chat Completions through one
+        unified endpoint. The default model stays on a currently free text model
+        suitable for script and keyword generation.
+        """
+        config.app["llm_provider"] = "openrouter"
+        config.app["openrouter_api_key"] = "openrouter-key"
+        config.app["openrouter_base_url"] = ""
+        config.app["openrouter_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nopenrouter")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="openrouter-key",
+            base_url="https://openrouter.ai/api/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "minimax/minimax-m3:free",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nopenrouter")
 
     def test_volcengine_provider_uses_openai_compatible_client(self):
         """
