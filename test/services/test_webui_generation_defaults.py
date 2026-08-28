@@ -334,6 +334,33 @@ def test_invalid_saved_generation_settings_fall_back_without_breaking_webui():
     assert app.session_state["loomloom_video_scene_count"] == 1
 
 
+def test_seedance_source_shows_unchecked_paid_task_confirmation():
+    test_app_config = dict(
+        config.app,
+        video_source="volcengine_seedance",
+        volcengine_seedance_api_key="",
+    )
+    test_ui_config = dict(
+        config.ui,
+        language="en",
+        voice_mode="none",
+    )
+
+    with (
+        patch.object(config, "app", test_app_config),
+        patch.object(config, "ui", test_ui_config),
+        patch.object(config, "save_config"),
+    ):
+        app = _new_app()
+
+    assert _widget_by_key(app.selectbox, "video_source_select").value == (
+        "volcengine_seedance"
+    )
+    assert _widget_by_key(
+        app.checkbox, "volcengine_seedance_confirm_charge"
+    ).value is False
+
+
 def test_loomloom_tuning_survives_restart_without_persisting_payment_state():
     """Paid-provider tuning is reusable; quotes and confirmations are not."""
     test_app_config = dict(

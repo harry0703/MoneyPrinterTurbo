@@ -253,7 +253,7 @@ Batch manifests:
     material_group.add_argument(
         "--video-source",
         default="pexels",
-        choices=["pexels", "pixabay", "coverr", "local"],
+        choices=["pexels", "pixabay", "coverr", "volcengine_seedance", "local"],
         help="video material provider; online providers require matching API keys in config.toml",
     )
     material_group.add_argument(
@@ -271,6 +271,14 @@ Batch manifests:
         default="video",
         choices=_PIPELINE_STAGES,
         help="stop after this pipeline stage; see the stage order below",
+    )
+    material_group.add_argument(
+        "--confirm-seedance-charge",
+        action="store_true",
+        help=(
+            "confirm that Volcano Engine Seedance creates paid Ark tasks; required "
+            "with --video-source volcengine_seedance for materials or video output"
+        ),
     )
 
     video_group = parser.add_argument_group("video output")
@@ -550,6 +558,16 @@ Batch manifests:
         )
     if not args.batch_file and args.video_source != "local" and has_video_materials:
         parser.error("--video-materials can only be used with --video-source local")
+    if (
+        not args.batch_file
+        and args.video_source == "volcengine_seedance"
+        and stage_requires_materials
+        and not args.confirm_seedance_charge
+    ):
+        parser.error(
+            "--confirm-seedance-charge is required with "
+            "--video-source volcengine_seedance"
+        )
 
     if args.bgm_file:
         if args.bgm_type in (None, "custom"):
@@ -923,13 +941,21 @@ def _validate_batch_task_params(
     *,
     stop_at: str,
     custom_position_is_explicit: bool,
+    seedance_charge_confirmed: bool,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
 
-    if params.video_source not in {"pexels", "pixabay", "coverr", "local"}:
+    if params.video_source not in {
+        "pexels",
+        "pixabay",
+        "coverr",
+        "volcengine_seedance",
+        "local",
+    }:
         raise ValueError(
-            "video_source must be one of: pexels, pixabay, coverr, local"
+            "video_source must be one of: pexels, pixabay, coverr, "
+            "volcengine_seedance, local"
         )
     for field_name, value in (
         ("video_aspect", params.video_aspect),
@@ -955,6 +981,14 @@ def _validate_batch_task_params(
         )
     if params.video_source != "local" and params.video_materials:
         raise ValueError("video_materials can only be used with video_source=local")
+    if (
+        params.video_source == "volcengine_seedance"
+        and stop_at in {"materials", "video"}
+        and not seedance_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-seedance-charge is required for Volcano Engine Seedance"
+        )
 
     if stop_at == "subtitle" and not params.subtitle_enabled:
         raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
@@ -1054,6 +1088,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                     args.custom_position is not None
                     or "custom_position" in override_fields
                 ),
+                seedance_charge_confirmed=args.confirm_seedance_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc

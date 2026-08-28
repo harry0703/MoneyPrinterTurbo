@@ -138,6 +138,7 @@
 - [x] **字幕生成**に対応。フォント、位置、色、サイズ、縁取り、背景スタイルを設定できます
 - [x] ランダムまたはカスタムの **BGM** に対応し、音量も調整できます
 - [x] 手持ちの**ローカル素材**に加え、**Pexels**、**Pixabay**、**Coverr** の無料で使える高画質素材に対応
+- [x] ネイティブの **Volcano Engine Ark Seedance** テキスト動画生成に対応し、モデル／Endpoint ID、制限付きポーリング、有料タスク確認を設定できます
 - [x] **Kimi / Moonshot AI**、**OpenAI**、**Google Gemini**、**DeepSeek**、**Alibaba Cloud Qwen**、**Microsoft Azure OpenAI**、**ByteDance VolcEngine Ark**、**xAI Grok**、**MiniMax**、**Xiaomi MiMo** といった主要なモデルプロバイダーに加え、**Cloudflare AI Gateway**、**Alibaba ModelScope**、**AIHubMix**、**AIML API**、**EvoLink**、**Ollama**、**OneAPI**、**LiteLLM**、**Groq**、**Pollinations AI** などの統合ゲートウェイ、アグリゲーター、ローカルランタイムに対応
 - [x] 動画生成後、**TikTok**、**Instagram**、**YouTube Shorts** へワンクリックで**クロスプラットフォーム投稿**が可能
 - [x] 生成設定をプリセットファイルとして**エクスポート／インポート**でき、設定画面から **API キー**のバックアップと復元も可能
@@ -437,6 +438,24 @@ upload_post_youtube_privacy_status = "public"
 ```
 
 保存後にアプリを再起動してください。以降、生成された動画は設定したプラットフォームへ自動的に投稿されます。YouTube の公開範囲は `public`、`unlisted`、`private` から設定できます。
+
+</details>
+
+<details>
+<summary>Volcano Engine Ark の公式 Seedance 素材ソースを使うには？</summary>
+
+[Ark API キー](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey)を作成し、`[app]` に次を設定します:
+
+```toml
+[app]
+volcengine_seedance_api_key = "your-ark-api-key"
+volcengine_seedance_model = "doubao-seedance-1-0-pro-250528"
+volcengine_seedance_base_url = "https://ark.cn-beijing.volces.com/api/v3"
+```
+
+Seedance 専用設定が空の場合は、`VOLCENGINE_ARK_API_KEY` 環境変数、既存の LLM 用 `volcengine_api_key` 設定の順に使用します。動画ソースで **Volcano Engine Seedance** を選び、生成前に有料タスクを明示的に確認してください。CLI では `--confirm-seedance-charge` も必要です。
+
+初期実装はテキスト動画生成のみです。各クリップは有料の非同期 Ark タスクとして送信され、同じタスク ID だけをポーリングします。状態が不明な場合は追加送信を停止し、ナレーションを満たす分だけ生成します。
 
 </details>
 

@@ -28,6 +28,7 @@ deepseek_api_key = ""
 pexels_api_keys = []
 pixabay_api_keys = []
 coverr_api_keys = []
+volcengine_seedance_api_key = ""
 oneapi_api_key = ""
 oneapi_base_url = ""
 oneapi_model_name = ""
@@ -98,6 +99,7 @@ class TestMptAgentSkill(unittest.TestCase):
             output = io.StringIO()
             llm_key = "secret-llm-key"
             pexels_key = "secret-pexels-key"
+            seedance_key = "secret-ark-key"
 
             with patch.dict(
                 os.environ,
@@ -105,6 +107,7 @@ class TestMptAgentSkill(unittest.TestCase):
                     "MPT_LLM_PROVIDER": "deepseek",
                     "MPT_LLM_API_KEY": llm_key,
                     "MPT_PEXELS_API_KEY": pexels_key,
+                    "MPT_VOLCENGINE_ARK_API_KEY": seedance_key,
                 },
                 clear=True,
             ), redirect_stdout(output):
@@ -114,8 +117,12 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertIn('llm_provider = "deepseek"', config)
             self.assertIn(f'deepseek_api_key = "{llm_key}"', config)
             self.assertIn(f'pexels_api_keys = ["{pexels_key}"]', config)
+            self.assertIn(
+                f'volcengine_seedance_api_key = "{seedance_key}"', config
+            )
             self.assertNotIn(llm_key, output.getvalue())
             self.assertNotIn(pexels_key, output.getvalue())
+            self.assertNotIn(seedance_key, output.getvalue())
 
     def test_material_key_check_matches_selected_source(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -134,6 +141,67 @@ class TestMptAgentSkill(unittest.TestCase):
 
             self.assertEqual(default_missing, ["pexels_api_keys"])
             self.assertEqual(pixabay_missing, [])
+
+    def test_seedance_source_requires_key_and_explicit_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            _, missing = mpt_agent.missing_config(
+                config_path, ["--video-source", "volcengine_seedance"]
+            )
+            self.assertEqual(
+                missing,
+                ["volcengine_seedance_api_key", "confirm_seedance_charge"],
+            )
+
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'volcengine_seedance_api_key = ""',
+                    'volcengine_seedance_api_key = "configured"',
+                ),
+                encoding="utf-8",
+            )
+            _, confirmed_missing = mpt_agent.missing_config(
+                config_path,
+                [
+                    "--video-source",
+                    "volcengine_seedance",
+                    "--confirm-seedance-charge",
+                ],
+            )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_seedance_source_accepts_the_official_specific_environment_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ,
+                {"VOLCENGINE_ARK_API_KEY": "environment-ark-key"},
+                clear=True,
+            ):
+                _, missing = mpt_agent.missing_config(
+                    config_path,
+                    [
+                        "--video-source",
+                        "volcengine_seedance",
+                        "--confirm-seedance-charge",
+                    ],
+                )
+
+            self.assertEqual(missing, [])
 
     def test_existing_provider_key_is_reused_without_asking_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -170,6 +238,26 @@ class TestMptAgentSkill(unittest.TestCase):
         text = output.getvalue()
         self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
         self.assertIn(f"PEXELS_API_KEY_URL={mpt_agent.PEXELS_API_KEY_URL}", text)
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_missing_seedance_inputs_report_ark_signup_and_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "deepseek",
+                ["volcengine_seedance_api_key", "confirm_seedance_charge"],
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(
+            f"VOLCENGINE_ARK_API_KEY_URL={mpt_agent.VOLCENGINE_ARK_API_KEY_URL}",
+            text,
+        )
+        self.assertIn(
+            "SEEDANCE_CHARGE_CONFIRMATION_REQUIRED=--confirm-seedance-charge",
+            text,
+        )
         self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
 
     def test_custom_openai_compatible_provider_requires_connection_details(self):
