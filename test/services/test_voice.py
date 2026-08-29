@@ -587,6 +587,126 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"])
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
 
+    def test_mimo_inline_voiceclone_detection(self):
+        """验证 is_mimo_inline_voiceclone_voice 能正确识别前缀。"""
+        self.assertTrue(
+            vs.is_mimo_inline_voiceclone_voice(
+                "xiaomi_mimo_inline_voiceclone_provider:some-uuid"
+            )
+        )
+        self.assertFalse(vs.is_mimo_inline_voiceclone_voice("mimo:冰糖"))
+        self.assertFalse(vs.is_mimo_inline_voiceclone_voice(""))
+        self.assertFalse(vs.is_mimo_inline_voiceclone_voice(None))
+
+    def test_mimo_voiceclone_tts_requires_sample_audio_base64(self):
+        """缺少 sample_audio_base64 时，tts() 分发必须返回 None 而不是调用 API。"""
+        with patch.object(vs, "mimo_voiceclone_tts") as mock_vc:
+            result = vs.tts(
+                text="test",
+                voice_name="xiaomi_mimo_inline_voiceclone_provider:some-uuid",
+                voice_rate=1.0,
+                voice_file="/tmp/test.mp3",
+                sample_audio_base64=None,
+            )
+        self.assertIsNone(result)
+        mock_vc.assert_not_called()
+
+    def test_mimo_voiceclone_tts_dispatches_with_sample(self):
+        """提供 sample_audio_base64 时，tts() 必须把样本传递给 mimo_voiceclone_tts。"""
+        sentinel = object()
+        with patch.object(
+            vs, "mimo_voiceclone_tts", return_value=sentinel
+        ) as mock_vc:
+            result = vs.tts(
+                text="你好世界",
+                voice_name="xiaomi_mimo_inline_voiceclone_provider:abc-123",
+                voice_rate=1.0,
+                voice_file="/tmp/test.mp3",
+                voice_volume=1.2,
+                sample_audio_base64="base64encodeddata",
+            )
+        self.assertIs(result, sentinel)
+        mock_vc.assert_called_once_with(
+            "你好世界", "base64encodeddata", 1.0, "/tmp/test.mp3", 1.2
+        )
+
+    def test_mimo_voiceclone_tts_uses_voiceclone_model(self):
+        """
+        验证 mimo_voiceclone_tts 使用 mimo-v2.5-tts-voiceclone 模型，
+        并将 sample_audio_base64 放入 audio.voice 字段。
+        """
+
+        class _FakeAudio:
+            def __init__(self):
+                self.data = base64.b64encode(b"RIFF-fake-wav-vc").decode("utf-8")
+
+        class _FakeMessage:
+            def __init__(self):
+                self.audio = _FakeAudio()
+
+        class _FakeChoice:
+            def __init__(self):
+                self.message = _FakeMessage()
+
+        class _FakeCompletion:
+            def __init__(self):
+                self.choices = [_FakeChoice()]
+
+        class _FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                return _FakeCompletion()
+
+        class _FakeAudioSegment:
+            def __len__(self):
+                return 1800
+
+            def export(self, output_file, format):
+                Path(output_file).write_bytes(b"fake-mp3-vc")
+
+        fake_completions = _FakeCompletions()
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=fake_completions)
+        )
+        sample_b64 = base64.b64encode(b"sample-audio-data").decode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs,
+            "OpenAI",
+            return_value=fake_client,
+        ) as openai_client, patch(
+            "pydub.AudioSegment.from_file",
+            return_value=_FakeAudioSegment(),
+        ), patch.object(
+            vs.config,
+            "app",
+            dict(
+                vs.config.app,
+                mimo_api_key="mimo-key",
+                mimo_base_url="https://api.xiaomimimo.com/v1",
+            ),
+        ):
+            voice_file = str(Path(tmp_dir) / "mimo-vc.mp3")
+            sub_maker = vs.mimo_voiceclone_tts(
+                text="语音克隆测试。",
+                sample_base64=sample_b64,
+                voice_rate=1.0,
+                voice_file=voice_file,
+                voice_volume=1.0,
+            )
+
+        openai_client.assert_called_once_with(
+            api_key="mimo-key",
+            base_url="https://api.xiaomimimo.com/v1",
+        )
+        self.assertEqual(fake_completions.kwargs["model"], "mimo-v2.5-tts-voiceclone")
+        self.assertEqual(
+            fake_completions.kwargs["audio"]["voice"],
+            f"data:audio/mp3;base64,{sample_b64}",
+        )
+        self.assertIsNotNone(sub_maker)
+        self.assertTrue(getattr(sub_maker, "subs", []))
+
     def test_chatterbox_voice_helpers(self):
         """is_chatterbox_voice / get_chatterbox_voices basics and normalisation."""
         self.assertTrue(vs.is_chatterbox_voice("chatterbox:default-Female"))

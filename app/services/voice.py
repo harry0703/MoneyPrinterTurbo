@@ -248,6 +248,11 @@ def is_mimo_voice(voice_name: str):
     return voice_name.startswith("mimo:")
 
 
+def is_mimo_inline_voiceclone_voice(voice_name: str) -> bool:
+    """检查是否是 Xiaomi MiMo inline voiceclone 的声音（需要 sample_audio_base64）"""
+    return (voice_name or "").startswith("xiaomi_mimo_inline_voiceclone_provider:")
+
+
 def is_elevenlabs_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("elevenlabs:")
 
@@ -372,6 +377,7 @@ def tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    sample_audio_base64: str | None = None,
 ) -> Union[SubMaker, None]:
     if is_no_voice(voice_name):
         duration_seconds = estimate_no_voice_duration(text)
@@ -421,6 +427,17 @@ def tts(
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
             return None
+    elif is_mimo_inline_voiceclone_voice(voice_name):
+        # 格式: xiaomi_mimo_inline_voiceclone_provider:{uuid}
+        # 需要 sample_audio_base64 参数提供参考音频
+        if not sample_audio_base64:
+            logger.error(
+                "xiaomi_mimo_inline_voiceclone_provider requires sample_audio_base64"
+            )
+            return None
+        return mimo_voiceclone_tts(
+            text, sample_audio_base64, voice_rate, voice_file, voice_volume
+        )
     elif is_mimo_voice(voice_name):
         # 从voice_name中提取声音名称
         # 格式: mimo:voice-Gender；如果调用方已执行 parse_voice_name，
@@ -1283,6 +1300,109 @@ def mimo_tts(
             )
         except Exception as e:
             logger.error(f"mimo tts failed: {str(e)}")
+
+    return None
+
+
+def mimo_voiceclone_tts(
+    text: str,
+    sample_base64: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """
+    使用 Xiaomi MiMo V2.5 TTS voiceclone 模型生成语音。
+
+    与 mimo_tts 不同，voiceclone 需要在每次调用时内联传入参考音频样本
+    （base64 编码），无需持久化的 voice ID。模型会克隆样本音频的音色来
+    合成新文本。
+
+    voice_name 格式: xiaomi_mimo_inline_voiceclone_provider:{uuid}
+    """
+    from pydub import AudioSegment
+
+    text = (text or "").strip()
+    if not text:
+        logger.error("MiMo voiceclone TTS text is empty")
+        return None
+
+    if not sample_base64:
+        logger.error("MiMo voiceclone TTS sample_audio_base64 is empty")
+        return None
+
+    api_key = config.app.get("mimo_api_key", "")
+    if not api_key:
+        logger.error("MiMo API key is not set")
+        return None
+
+    base_url = config.app.get("mimo_base_url", "") or _MIMO_DEFAULT_BASE_URL
+    model_name = "mimo-v2.5-tts-voiceclone"
+    style_prompt = config.app.get(
+        "mimo_tts_style_prompt",
+        "请用自然、清晰、适合短视频旁白的语气朗读。",
+    )
+
+    _configure_pydub_ffmpeg(AudioSegment)
+
+    for i in range(3):
+        try:
+            logger.info(
+                f"start mimo voiceclone tts, model: {model_name}, try: {i + 1}"
+            )
+            ensure_file_path_exists(voice_file)
+
+            client = OpenAI(api_key=api_key, base_url=base_url)
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "user", "content": style_prompt},
+                    {"role": "assistant", "content": text},
+                ],
+                audio={
+                    "format": "wav",
+                    "voice": f"data:audio/mp3;base64,{sample_base64}",
+                },
+            )
+
+            if not completion or not getattr(completion, "choices", None):
+                raise ValueError("MiMo voiceclone TTS returned empty response")
+
+            message = completion.choices[0].message
+            audio = getattr(message, "audio", None)
+            audio_data = None
+            if isinstance(audio, dict):
+                audio_data = audio.get("data")
+            elif audio is not None:
+                audio_data = getattr(audio, "data", None)
+
+            if not audio_data:
+                raise ValueError("MiMo voiceclone TTS returned empty audio data")
+
+            audio_bytes = base64.b64decode(audio_data)
+            audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
+
+            output_format = utils.parse_extension(voice_file) or "mp3"
+            if output_format == "wav":
+                with open(voice_file, "wb") as f:
+                    f.write(audio_bytes)
+            else:
+                audio_segment.export(voice_file, format=output_format)
+
+            audio_duration = len(audio_segment) / 1000.0
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            logger.success(f"mimo voiceclone tts succeeded: {voice_file}")
+            logger.debug(
+                "mimo voiceclone subtitle timeline generated, "
+                f"duration: {audio_duration:.3f}s, output_format: {output_format}"
+            )
+            return populate_legacy_submaker_with_full_text(
+                sub_maker=sub_maker,
+                text=text,
+                audio_duration_seconds=audio_duration,
+            )
+        except Exception as e:
+            logger.error(f"mimo voiceclone tts failed: {str(e)}")
 
     return None
 

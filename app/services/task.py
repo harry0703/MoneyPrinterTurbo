@@ -480,6 +480,8 @@ def generate_audio(task_id, params, video_script, voice_preview=None):
             voice_name=voice.parse_voice_name(params.voice_name),
             voice_rate=params.voice_rate,
             voice_file=audio_file,
+            voice_volume=params.voice_volume,
+            sample_audio_base64=params.sample_audio_base64,
         )
         if sub_maker is None:
             _mark_task_failed(
