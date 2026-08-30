@@ -39,6 +39,7 @@ from app.models.schema import (
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
+    VideoFitMode,
     VideoParams,
     VideoTransitionMode,
 )
@@ -1288,6 +1289,10 @@ def _apply_restored_params(params):
     _set_stable_widget_value(
         f"video_aspect_for_{video_source}",
         params.get("video_aspect") or VideoAspect.portrait.value,
+    )
+    _set_stable_widget_value(
+        "video_fit_mode_select",
+        params.get("video_fit_mode") or VideoFitMode.cover.value,
     )
     _set_stable_widget_value(
         "video_clip_duration_select", params.get("video_clip_duration", 3)
@@ -3949,6 +3954,29 @@ def _render_video_settings(panel, params):
             params.video_aspect = VideoAspect(selected_aspect_ratio)
             _set_runtime_config(
                 "ui", video_aspect_config_key, params.video_aspect.value
+            )
+
+            video_fit_modes = [
+                (tr("Fill and Crop"), VideoFitMode.cover.value),
+                (tr("Fit with Black Bars"), VideoFitMode.contain.value),
+            ]
+            selected_fit_mode = stable_selectbox(
+                tr("Video Fit Mode"),
+                options=[value for _, value in video_fit_modes],
+                default_value=_saved_ui_choice(
+                    "video_fit_mode",
+                    [value for _, value in video_fit_modes],
+                    VideoFitMode.cover.value,
+                ),
+                key="video_fit_mode_select",
+                format_func=lambda value: dict(
+                    (v, label) for label, v in video_fit_modes
+                )[value],
+                help=tr("Video Fit Mode Help"),
+            )
+            params.video_fit_mode = VideoFitMode(selected_fit_mode)
+            _set_runtime_config(
+                "ui", "video_fit_mode", params.video_fit_mode.value
             )
 
             video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]

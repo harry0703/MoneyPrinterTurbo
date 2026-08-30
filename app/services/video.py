@@ -1,5 +1,6 @@
 import itertools
 import io
+import math
 import os
 import random
 import gc
@@ -31,6 +32,7 @@ from app.models.schema import (
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
+    VideoFitMode,
     VideoParams,
     VideoTransitionMode,
 )
@@ -535,6 +537,67 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     return ""
 
 
+def _fit_clip_to_canvas(
+    clip,
+    *,
+    target_width: int,
+    target_height: int,
+    fit_mode: VideoFitMode | str = VideoFitMode.cover,
+):
+    """Resize a clip to an exact canvas using cover/crop or contain/letterbox."""
+    source_width, source_height = (int(value) for value in clip.size)
+    target_width = int(target_width)
+    target_height = int(target_height)
+    if min(source_width, source_height, target_width, target_height) <= 0:
+        raise ValueError(
+            "video dimensions must be positive: "
+            f"source={source_width}x{source_height}, "
+            f"target={target_width}x{target_height}"
+        )
+
+    mode = VideoFitMode(fit_mode)
+    if (source_width, source_height) == (target_width, target_height):
+        return clip
+
+    # Exact aspect-ratio matches do not need either a crop or a background.
+    if source_width * target_height == source_height * target_width:
+        return clip.resized(new_size=(target_width, target_height))
+
+    width_scale = target_width / source_width
+    height_scale = target_height / source_height
+
+    if mode == VideoFitMode.cover:
+        # ceil guarantees the resized clip covers the complete canvas despite
+        # floating-point rounding. Any excess is removed symmetrically.
+        scale_factor = max(width_scale, height_scale)
+        resized_width = max(target_width, math.ceil(source_width * scale_factor))
+        resized_height = max(target_height, math.ceil(source_height * scale_factor))
+        resized_clip = clip.resized(new_size=(resized_width, resized_height))
+        crop_x = max(0, (resized_width - target_width) // 2)
+        crop_y = max(0, (resized_height - target_height) // 2)
+        return resized_clip.cropped(
+            x1=crop_x,
+            y1=crop_y,
+            width=target_width,
+            height=target_height,
+        )
+
+    # contain preserves the legacy behavior: show the complete source frame,
+    # centered over a black canvas when the aspect ratios differ.
+    scale_factor = min(width_scale, height_scale)
+    resized_width = max(1, min(target_width, int(source_width * scale_factor)))
+    resized_height = max(1, min(target_height, int(source_height * scale_factor)))
+    background = ColorClip(
+        size=(target_width, target_height), color=(0, 0, 0)
+    ).with_duration(clip.duration)
+    resized_clip = clip.resized(
+        new_size=(resized_width, resized_height)
+    ).with_position("center")
+    return CompositeVideoClip(
+        [background, resized_clip], size=(target_width, target_height)
+    ).with_duration(clip.duration)
+
+
 def combine_videos(
     combined_video_path: str,
     video_paths: List[str],
@@ -545,6 +608,7 @@ def combine_videos(
     max_clip_duration: int = 5,
     threads: int = 2,
     clip_speed: float = 1.0,
+    video_fit_mode: VideoFitMode = VideoFitMode.cover,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -577,6 +641,7 @@ def combine_videos(
     output_dir = os.path.dirname(combined_video_path)
 
     aspect = VideoAspect(video_aspect)
+    fit_mode = VideoFitMode(video_fit_mode)
     video_width, video_height = aspect.to_resolution()
 
     processed_clips = []
@@ -640,29 +705,26 @@ def combine_videos(
             # 浮点误差或异常素材时长的安全兜底，保证最终片段不突破配置上限。
             if normalized_clip_speed != 1.0:
                 clip = clip.with_speed_scaled(normalized_clip_speed)
-            clip_duration = clip.duration
-            # Not all videos are same size, so we need to resize them
+            # Normalize every source clip before transitions are applied. In cover mode
+            # the clip fills the canvas and the excess edges are cropped; contain keeps
+            # the complete source frame and uses black bars for the unused area.
             clip_w, clip_h = clip.size
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
-                
-                if clip_ratio == video_ratio:
-                    clip = clip.resized(new_size=(video_width, video_height))
-                else:
-                    if clip_ratio > video_ratio:
-                        scale_factor = video_width / clip_w
-                    else:
-                        scale_factor = video_height / clip_h
+                logger.debug(
+                    "resizing clip, "
+                    f"source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, "
+                    f"target: {video_width}x{video_height}, ratio: {video_ratio:.2f}, "
+                    f"fit_mode: {fit_mode.value}"
+                )
+                clip = _fit_clip_to_canvas(
+                    clip,
+                    target_width=video_width,
+                    target_height=video_height,
+                    fit_mode=fit_mode,
+                )
 
-                    new_width = int(clip_w * scale_factor)
-                    new_height = int(clip_h * scale_factor)
-
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
-                    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
-                    clip = CompositeVideoClip([background, clip_resized])
-                    
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip

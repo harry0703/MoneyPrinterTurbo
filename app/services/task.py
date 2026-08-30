@@ -825,6 +825,7 @@ def generate_final_videos(
             video_paths=downloaded_videos,
             audio_file=audio_file,
             video_aspect=params.video_aspect,
+            video_fit_mode=params.video_fit_mode,
             video_concat_mode=video_concat_mode,
             video_transition_mode=video_transition_mode,
             max_clip_duration=params.video_clip_duration,
