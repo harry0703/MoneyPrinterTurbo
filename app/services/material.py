@@ -1,3 +1,9 @@
+"""在线素材检索、下载与本地素材预处理。
+
+支持 Pexels、Pixabay、Coverr 以及可选的 WaveSpeed 文生视频；
+按画幅筛选分辨率，并在任务目录中缓存已下载片段。
+"""
+
 import os
 import random
 import threading
@@ -15,7 +21,7 @@ from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import material_cache, task_artifacts
 from app.utils import utils
 
-# Thread-safe counter for API key rotation
+# 线程安全的 API Key 轮询计数器：多 Key 配置时依次使用，避免单 Key 限流。
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
 
@@ -156,6 +162,7 @@ def _get_tls_verify() -> bool:
 
 
 def get_api_key(cfg_key: str):
+    """轮询返回配置中的下一个 API Key，多 Key 时分散限流。"""
     api_keys = config.app.get(cfg_key)
     if not api_keys:
         raise ValueError(
@@ -297,6 +304,7 @@ def search_videos_pexels(
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
 ) -> List[MaterialInfo]:
+    """在 Pexels 搜索满足时长和画幅的视频素材。"""
     aspect = VideoAspect(video_aspect)
     video_orientation = aspect.name
     video_width, video_height = aspect.to_resolution()
@@ -305,7 +313,7 @@ def search_videos_pexels(
         "Authorization": api_key,
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     }
-    # Build URL
+    # 按关键词、画幅方向请求 Pexels 视频搜索
     params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
     query_url = f"https://api.pexels.com/v1/videos/search?{urlencode(params)}"
     logger.info(f"searching videos on pexels: term={search_term!r}")
@@ -379,12 +387,13 @@ def search_videos_pixabay(
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
 ) -> List[MaterialInfo]:
+    """在 Pixabay 搜索满足时长和画幅的视频素材。"""
     aspect = VideoAspect(video_aspect)
 
     video_width, video_height = aspect.to_resolution()
 
     api_key = get_api_key("pixabay_api_keys")
-    # Build URL
+    # 按关键词请求 Pixabay 视频搜索
     params = {
         "q": search_term,
         "video_type": "all",  # Accepted values: "all", "film", "animation"
@@ -505,11 +514,11 @@ def search_videos_coverr(
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
 ) -> List[MaterialInfo]:
-    """
-    Coverr (https://coverr.co) - free HD/4K stock videos,
-    subject to Coverr license terms (https://coverr.co/license).
+    """在 Coverr 搜索免费高清库存视频，须遵守 Coverr 许可条款。
 
-    Coverr API notes (based on official docs at api.coverr.co/docs/):
+    Coverr（https://coverr.co）提供免费 HD/4K 素材，许可见 https://coverr.co/license。
+
+    Coverr API 要点（依据 api.coverr.co/docs/）：
       - 鉴权: Authorization: Bearer <api_key>
       - 搜索端点: GET /videos?query=...,响应结构 {"hits": [...], ...}
       - 加 ?urls=true 在搜索响应里直接返回 mp4 直链
@@ -1147,6 +1156,7 @@ def download_videos(
     max_clip_duration: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
+    """按关键词检索并下载素材，直到覆盖配音时长；返回本地文件路径列表。"""
     provider = "pexels"
     remote_search_videos = search_videos_pexels
     if source == "pixabay":

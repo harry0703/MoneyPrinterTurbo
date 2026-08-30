@@ -1,3 +1,5 @@
+"""视频生成任务、素材/BGM 上传和成片下载接口。"""
+
 import glob
 import os
 import pathlib
@@ -172,21 +174,21 @@ def _parse_byte_range(
     return start, end
 
 
-@router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
+@router.post("/videos", response_model=TaskResponse, summary="提交短视频生成任务")
 def create_video(
     background_tasks: BackgroundTasks, request: Request, body: TaskVideoRequest
 ):
     return create_task(request, body, stop_at="video")
 
 
-@router.post("/subtitle", response_model=TaskResponse, summary="Generate subtitle only")
+@router.post("/subtitle", response_model=TaskResponse, summary="仅生成字幕")
 def create_subtitle(
     background_tasks: BackgroundTasks, request: Request, body: SubtitleRequest
 ):
     return create_task(request, body, stop_at="subtitle")
 
 
-@router.post("/audio", response_model=TaskResponse, summary="Generate audio only")
+@router.post("/audio", response_model=TaskResponse, summary="仅生成配音")
 def create_audio(
     background_tasks: BackgroundTasks, request: Request, body: AudioRequest
 ):
@@ -198,6 +200,7 @@ def create_task(
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
     stop_at: str,
 ):
+    """创建后台任务：写入初始状态后交给任务管理器调度，调度失败则回滚状态。"""
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
     try:
@@ -231,7 +234,7 @@ def create_task(
             task_id=task_id, status_code=400, message=f"{request_id}: {str(e)}"
         )
 
-@router.get("/tasks", response_model=TaskListResponse, summary="Get all tasks")
+@router.get("/tasks", response_model=TaskListResponse, summary="分页查询全部任务")
 def get_all_tasks(
     request: Request,
     page: int = Query(1, ge=1),
@@ -250,11 +253,11 @@ def get_all_tasks(
 
 
 @router.get(
-    "/tasks/{task_id}", response_model=TaskQueryResponse, summary="Query task status"
+    "/tasks/{task_id}", response_model=TaskQueryResponse,     summary="查询单个任务状态"
 )
 def get_task(
     request: Request,
-    task_id: str = Path(..., description="Task ID"),
+    task_id: str = Path(..., description="任务 ID"),
     query: TaskQueryRequest = Depends(),
 ):
     request_id = base.get_task_id(request)
@@ -284,9 +287,9 @@ def get_task(
 @router.delete(
     "/tasks/{task_id}",
     response_model=TaskDeletionResponse,
-    summary="Delete a generated short video task",
+    summary="删除已完成的短视频任务及其产物",
 )
-def delete_video(request: Request, task_id: str = Path(..., description="Task ID")):
+def delete_video(request: Request, task_id: str = Path(..., description="任务 ID")):
     request_id = base.get_task_id(request)
     task = sm.state.get_task(task_id)
     if task:
@@ -317,7 +320,7 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
 
 
 @router.get(
-    "/musics", response_model=BgmRetrieveResponse, summary="Retrieve local BGM files"
+    "/musics", response_model=BgmRetrieveResponse, summary="列出本地背景音乐文件"
 )
 def get_bgm_list(request: Request):
     bgm_list = []
@@ -339,14 +342,14 @@ def get_bgm_list(request: Request):
 @router.post(
     "/musics",
     response_model=BgmUploadResponse,
-    summary="Upload a background music file",
+    summary="上传背景音乐文件",
     description=(
-        "Validate an MP3, M4A, AAC, WAV, FLAC, OGG, OPUS, or WMA file up to "
-        "30 MB and store it under an immutable UUID filename in storage/bgm."
+        "校验不超过 30 MB 的 MP3、M4A、AAC、WAV、FLAC、OGG、OPUS 或 WMA 文件，"
+        "并以不可变的 UUID 文件名写入 storage/bgm。"
     ),
     responses={
-        400: {"description": "The filename, format, size, or audio stream is invalid"},
-        500: {"description": "FFmpeg validation or persistent storage is unavailable"},
+        400: {"description": "文件名、格式、大小或音频流无效"},
+        500: {"description": "FFmpeg 校验或持久化存储不可用"},
     },
 )
 def upload_bgm_file(request: Request, file: UploadFile = File(...)):
@@ -380,7 +383,7 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     return utils.get_response(200, response)
 
 @router.get(
-    "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="Retrieve local video materials"
+    "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="列出本地视频/图片素材"
 )
 def get_video_materials_list(request: Request):
     allowed_suffixes = tuple(
@@ -413,13 +416,13 @@ def get_video_materials_list(request: Request):
 @router.post(
     "/video_materials",
     response_model=VideoMaterialUploadResponse,
-    summary="Upload the video material file to the local videos directory",
+    summary="上传本地视频或图片素材",
 )
 def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
     try:
-        # Keep accepting browser-supplied client paths, but persist an immutable
-        # UUID storage key so repeated names cannot overwrite queued task inputs.
+        # 仍接受浏览器传来的客户端路径，但落盘时改用不可变 UUID 文件名，
+        # 避免同名上传覆盖队列中尚未处理的任务素材。
         safe_filename = _sanitize_upload_filename(file.filename, request_id)
         stored_filename = material_upload_service.save_material_upload(
             safe_filename, file.file
@@ -450,6 +453,7 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
 
 @router.get("/stream/{file_path:path}")
 async def stream_video(request: Request, file_path: str):
+    """按 HTTP Range 流式播放任务目录内的成片，供播放器拖动进度。"""
     request_id = base.get_task_id(request)
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
@@ -483,12 +487,7 @@ async def stream_video(request: Request, file_path: str):
 
 @router.get("/download/{file_path:path}")
 async def download_video(request: Request, file_path: str):
-    """
-    download video
-    :param request: Request request
-    :param file_path: video file path, eg: /cd1727ed-3473-42a2-a7da-4faafafec72b/final-1.mp4
-    :return: video file
-    """
+    """下载任务目录内的成片，路径必须落在 ``storage/tasks`` 白名单内。"""
     request_id = base.get_task_id(request)
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)

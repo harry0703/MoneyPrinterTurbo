@@ -1,20 +1,26 @@
+"""素材片段之间的转场效果：淡入淡出、滑入滑出和缩放。
+
+MoviePy 内置 SlideIn/SlideOut 在全屏素材上不稳定，因此滑动转场改为
+显式黑底加位移动画。缩放使用亚像素中心采样，避免整数裁剪导致画面抖动。
+"""
+
 import numpy as np
 from moviepy import Clip, ColorClip, CompositeVideoClip, vfx
 from PIL import Image
 
 
-# FadeIn
 def fadein_transition(clip: Clip, t: float) -> Clip:
+    """片段开头在 ``t`` 秒内从黑场淡入。"""
     return clip.with_effects([vfx.FadeIn(t)])
 
 
-# FadeOut
 def fadeout_transition(clip: Clip, t: float) -> Clip:
+    """片段结尾在 ``t`` 秒内淡出到黑场。"""
     return clip.with_effects([vfx.FadeOut(t)])
 
 
-# SlideIn
 def slidein_transition(clip: Clip, t: float, side: str) -> Clip:
+    """片段开头在 ``t`` 秒内从指定方向滑入画面。"""
     width, height = clip.size
 
     # MoviePy 内置 SlideIn 在当前这条处理链里对全屏素材不稳定，
@@ -42,8 +48,8 @@ def slidein_transition(clip: Clip, t: float, side: str) -> Clip:
     )
 
 
-# SlideOut
 def slideout_transition(clip: Clip, t: float, side: str) -> Clip:
+    """片段结尾在 ``t`` 秒内向指定方向滑出画面。"""
     width, height = clip.size
     transition_start = max(clip.duration - t, 0)
 

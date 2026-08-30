@@ -1,3 +1,9 @@
+"""本地视频/图片素材的上传校验与落盘。
+
+浏览器和 API 共用同一套大小、扩展名和媒体流检查；落盘文件名使用 UUID，
+避免同名覆盖队列中尚未处理的素材。
+"""
+
 import os
 import subprocess
 import tempfile
@@ -12,8 +18,8 @@ from PIL import Image, UnidentifiedImageError
 from app.utils import utils
 
 
-# Local materials are usually short clips. This matches Streamlit's default upload
-# limit while still placing an explicit server-side bound on direct API clients.
+# 本地素材通常是短片段。上限与 Streamlit 默认上传限制对齐，
+# 同时给直接调用 API 的客户端加上明确的服务端边界。
 MAX_VIDEO_MATERIAL_UPLOAD_BYTES = 200 * 1024 * 1024
 MAX_IMAGE_MATERIAL_UPLOAD_BYTES = 20 * 1024 * 1024
 MATERIAL_VALIDATION_TIMEOUT_SECONDS = 120
@@ -35,11 +41,11 @@ _IMAGE_FORMATS_BY_EXTENSION = {
 
 
 class MaterialUploadError(ValueError):
-    """The uploaded material does not satisfy the file or media requirements."""
+    """上传素材不满足文件或媒体格式要求。"""
 
 
 class MaterialServiceError(RuntimeError):
-    """The server could not stage, validate, or persist an uploaded material."""
+    """服务端无法暂存、校验或持久化上传的素材。"""
 
 
 def uploaded_material_dir(create: bool = True) -> str:
@@ -74,7 +80,7 @@ def _material_kind(filename: str) -> Literal["video", "image"]:
 
 
 def sanitize_material_filename(filename: str) -> str:
-    """Return a display-safe basename and reject malformed or unsupported names."""
+    """只保留可展示的纯文件名，拒绝畸形或不受支持的名称。"""
     safe_name = (filename or "").replace("\\", "/").split("/")[-1].strip()
     if (
         not safe_name
@@ -90,9 +96,8 @@ def sanitize_material_filename(filename: str) -> str:
 
 def _validate_image(file_path: str, extension: str) -> None:
     try:
-        # Pillow protects against excessively large pixel dimensions. Treat its
-        # warning threshold as an upload error too, rather than only rejecting at
-        # the higher DecompressionBombError threshold.
+        # Pillow 会拦截过大像素尺寸。这里把警告阈值也当作上传错误，
+        # 而不是等到更高的 DecompressionBombError 才拒绝。
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(file_path) as image:
@@ -233,7 +238,7 @@ def _stage_material_upload(
 
 
 def save_material_upload(filename: str, source: BinaryIO) -> str:
-    """Validate and atomically persist an uploaded local video or image."""
+    """校验并原子写入本地视频或图片素材，返回不可变存储文件名。"""
     safe_name, material_kind, temp_path, total_bytes = _stage_material_upload(
         filename, source
     )

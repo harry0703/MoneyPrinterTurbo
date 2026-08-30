@@ -1,4 +1,8 @@
-"""Application implementation - ASGI."""
+"""MoneyPrinterTurbo 的 FastAPI ASGI 应用。
+
+负责组装路由、异常处理、CORS、任务产物静态目录，以及启动时恢复中断的跨平台发布。
+``/tasks`` 由 StaticFiles 独立挂载，鉴权在 HTTP 中间件中补齐。
+"""
 
 import os
 from contextlib import asynccontextmanager
@@ -47,6 +51,7 @@ async def application_lifespan(_: FastAPI):
 
 
 def exception_handler(request: Request, e: HttpException):
+    """把业务异常转成统一的 JSON 响应。"""
     return JSONResponse(
         status_code=e.status_code,
         content=utils.get_response(e.status_code, e.data, e.message),
@@ -54,6 +59,7 @@ def exception_handler(request: Request, e: HttpException):
 
 
 def validation_exception_handler(request: Request, e: RequestValidationError):
+    """请求体校验失败时返回 400，并附带字段错误列表。"""
     return JSONResponse(
         status_code=400,
         content=utils.get_response(
@@ -63,12 +69,7 @@ def validation_exception_handler(request: Request, e: RequestValidationError):
 
 
 def get_application() -> FastAPI:
-    """Initialize FastAPI application.
-
-    Returns:
-       FastAPI: Application object instance.
-
-    """
+    """创建并注册路由、异常处理器的 FastAPI 实例。"""
     instance = FastAPI(
         title=config.project_name,
         description=config.project_description,
@@ -105,7 +106,7 @@ async def protect_generated_task_files(request: Request, call_next):
     return await call_next(request)
 
 
-# Configures the CORS middleware for the FastAPI app
+# CORS 允许来源可通过环境变量覆盖；未设置时默认允许任意来源，便于本地调试。
 cors_allowed_origins_str = os.getenv("CORS_ALLOWED_ORIGINS", "")
 origins = cors_allowed_origins_str.split(",") if cors_allowed_origins_str else ["*"]
 app.add_middleware(

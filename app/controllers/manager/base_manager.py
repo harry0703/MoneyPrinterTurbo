@@ -1,3 +1,9 @@
+"""后台任务并发调度的抽象基类。
+
+并发名额在线程启动前预占，避免连续请求同时看到 current_tasks=0 而突破上限。
+队列满时拒绝新任务，防止匿名接口无限堆积请求对象。
+"""
+
 import threading
 from typing import Any, Callable, Dict
 
@@ -5,10 +11,12 @@ from loguru import logger
 
 
 class TaskQueueFullError(ValueError):
-    pass
+    """并发已满且等待队列也已达到上限。"""
 
 
 class TaskManager:
+    """按最大并发数执行任务，超出部分进入有上限的等待队列。"""
+
     def __init__(self, max_concurrent_tasks: int, max_queued_tasks: int = 100):
         self.max_concurrent_tasks = max_concurrent_tasks
         self.max_queued_tasks = max_queued_tasks
@@ -17,9 +25,11 @@ class TaskManager:
         self.queue = self.create_queue()
 
     def create_queue(self):
+        """由子类创建内存队列或 Redis 队列标识。"""
         raise NotImplementedError()
 
     def add_task(self, func: Callable, *args: Any, **kwargs: Any):
+        """立即执行或入队；队列已满时抛出 ``TaskQueueFullError``。"""
         with self.lock:
             if self.current_tasks < self.max_concurrent_tasks:
                 logger.info(
@@ -59,7 +69,7 @@ class TaskManager:
 
     def run_task(self, func: Callable, *args: Any, **kwargs: Any):
         try:
-            func(*args, **kwargs)  # call the function here, passing *args and **kwargs.
+            func(*args, **kwargs)
         finally:
             self.task_done()
 
@@ -71,10 +81,9 @@ class TaskManager:
             ):
                 task_info = self.dequeue()
                 if task_info is None:
-                    # dequeue() may skip and discard queue entries that no longer
-                    # pass current validation (see RedisTaskManager.dequeue) and
-                    # return None once nothing usable is left, even though
-                    # is_queue_empty() was False a moment earlier.
+                    # dequeue() 可能跳过并丢弃已不再通过当前校验的队列项
+                    #（见 RedisTaskManager.dequeue）。即使刚才 is_queue_empty()
+                    # 为 False，弹出后也可能已经没有可用任务。
                     return
                 func = task_info["func"]
                 args = task_info.get("args", ())

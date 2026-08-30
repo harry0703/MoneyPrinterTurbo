@@ -1,3 +1,5 @@
+"""HTTP 请求鉴权与任务 ID 规范化。"""
+
 import secrets
 from typing import Annotated
 from uuid import uuid4
@@ -11,7 +13,10 @@ MAX_TASK_ID_LENGTH = 128
 
 
 def normalize_task_id(value: object) -> str:
-    """Return a log-safe request ID, replacing invalid client input with a UUID."""
+    """将客户端传入的任务 ID 规范为可安全写入日志的字符串。
+
+    非法、过长或含不可打印字符的值会被替换为新的 UUID，避免日志注入。
+    """
     if (
         not isinstance(value, str)
         or not value
@@ -23,10 +28,12 @@ def normalize_task_id(value: object) -> str:
 
 
 def get_task_id(request: Request) -> str:
+    """从 ``x-task-id`` 请求头读取并规范化任务 ID。"""
     return normalize_task_id(request.headers.get("x-task-id"))
 
 
 def get_api_key(request: Request):
+    """读取第一个 ``x-api-key`` 请求头，重复 Header 的校验见 ``get_api_key_values``。"""
     api_key = request.headers.get("x-api-key")
     return api_key
 

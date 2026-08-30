@@ -1,3 +1,5 @@
+"""Sonilo 视频配乐：按成片或提示词生成背景音乐。"""
+
 import base64
 import binascii
 import json

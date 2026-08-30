@@ -1,3 +1,9 @@
+"""运行期配置的加载、保存与并发保护。
+
+``config.toml`` 是单用户全局配置。视频生成会持有写锁，避免中途切换 Provider
+或密钥；WebUI 控件变化走非阻塞更新，锁繁忙时先入队，任务结束后再落盘。
+"""
+
 import copy
 import errno
 import os
@@ -458,7 +464,8 @@ def _load_toml_config(config_path: str):
 
 
 def load_config():
-    # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurbo/config.toml'
+    """读取 ``config.toml``；缺失时从示例文件复制一份。"""
+    # 个别部署会把 config.toml 误建成目录，导致后续 toml.load 报 IsADirectoryError。
     if os.path.isdir(config_file):
         shutil.rmtree(config_file)
 

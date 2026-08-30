@@ -1,3 +1,5 @@
+"""视频生成任务、素材和 API 请求/响应的 Pydantic 模型。"""
+
 import warnings
 from enum import Enum
 from typing import Any, List, Literal, Optional, Union
@@ -16,11 +18,15 @@ warnings.filterwarnings(
 
 
 class VideoConcatMode(str, Enum):
+    """素材拼接顺序：随机或按检索顺序。"""
+
     random = "random"
     sequential = "sequential"
 
 
 class VideoTransitionMode(str, Enum):
+    """相邻素材片段之间的转场效果。"""
+
     none = None
     shuffle = "Shuffle"
     fade_in = "FadeIn"
@@ -32,11 +38,14 @@ class VideoTransitionMode(str, Enum):
 
 
 class VideoAspect(str, Enum):
+    """成片画幅：横屏、竖屏或方形。"""
+
     landscape = "16:9"
     portrait = "9:16"
     square = "1:1"
 
     def to_resolution(self):
+        """将画幅枚举转换为像素宽高。"""
         if self == VideoAspect.landscape:
             return 1920, 1080
         elif self == VideoAspect.portrait:
@@ -48,12 +57,13 @@ class VideoAspect(str, Enum):
 
 _Config = ConfigDict(
     arbitrary_types_allowed=True,
-    # Note: ensure your key names match renamed V2 parameters if needed
 )
 
 
 @pydantic.dataclasses.dataclass(config=_Config)
 class MaterialInfo:
+    """单条视频/图片素材的来源、地址和时长。"""
+
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
@@ -64,40 +74,32 @@ class MaterialInfo:
 
 
 class VideoParams(BaseModel):
-    """
-    {
-      "video_subject": "",
-      "video_aspect": "横屏 16:9（西瓜视频）",
-      "voice_name": "女生-晓晓",
-      "bgm_name": "random",
-      "font_name": "STHeitiMedium 黑体-中",
-      "text_color": "#FFFFFF",
-      "font_size": 60,
-      "stroke_color": "#000000",
-      "stroke_width": 1.5
-    }
+    """一次视频生成任务的全部参数。
+
+    API、CLI 和 WebUI 共用本模型。主题或完整文案至少提供一项；
+    其余字段控制画幅、配音、字幕、背景音乐和素材来源。
     """
 
-    video_subject: str
-    video_script: str = ""  # Script used to generate the video
-    video_terms: Optional[str | list] = None  # Keywords used to generate the video
+    video_subject: str  # 视频主题；未提供完整文案时由 LLM 据此生成脚本
+    video_script: str = ""  # 完整视频文案；有值时跳过 LLM 脚本生成
+    video_terms: Optional[str | list] = None  # 素材搜索关键词；为空时由 LLM 生成
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
-    video_clip_duration: int = Field(default=5, ge=1)
-    video_clip_speed: Optional[float] = 1.0
-    match_materials_to_script: bool = False
-    video_count: int = Field(default=1, ge=1)
+    video_clip_duration: int = Field(default=5, ge=1)  # 单段素材最长秒数
+    video_clip_speed: Optional[float] = 1.0  # 素材播放倍速，通常在 0.5～2.0
+    match_materials_to_script: bool = False  # 按文案关键词顺序挑选并拼接素材
+    video_count: int = Field(default=1, ge=1)  # 一次任务输出的成片数量
 
-    video_source: Optional[str] = "pexels"
+    video_source: Optional[str] = "pexels"  # pexels / pixabay / coverr / local
     video_materials: Optional[List[MaterialInfo]] = (
-        None  # Materials used to generate the video
+        None  # 本地素材列表；仅 video_source=local 时使用
     )
 
     custom_audio_file: Optional[str] = (
-        None  # Custom audio file path, will ignore TTS and can still use Whisper subtitles
+        None  # 自备配音文件路径；有值时跳过 TTS，仍可用 Whisper 生成字幕
     )
-    video_language: Optional[str] = ""  # auto detect
+    video_language: Optional[str] = ""  # 文案语言，空则自动检测
 
     voice_name: Optional[str] = ""
     voice_volume: Optional[float] = 1.0
@@ -113,7 +115,7 @@ class VideoParams(BaseModel):
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get(
         "subtitle_position", "bottom"
-    )  # top, bottom, center, custom
+    )  # 字幕垂直位置：top / bottom / center / custom
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
@@ -130,6 +132,8 @@ class VideoParams(BaseModel):
 
 
 class SubtitleRequest(BaseModel):
+    """仅生成字幕任务的请求体。"""
+
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
@@ -151,6 +155,8 @@ class SubtitleRequest(BaseModel):
 
 
 class AudioRequest(BaseModel):
+    """仅生成配音任务的请求体。"""
+
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
@@ -234,17 +240,17 @@ class VideoSocialMetadataRequest(VideoSocialMetadataParams, BaseModel):
     pass
 
 
-# ---------------------------
-# ----- RESPONSE MODELS -----
-# ---------------------------
+# ----- 响应模型 -----
 class BaseResponse(BaseModel):
+    """所有 API 响应的统一外壳：状态码、提示文案和业务数据。"""
     status: int = 200
     message: Optional[str] = "success"
     data: Any = None
 
 
-# ---- DATA MODELS ----
 class TaskResponseData(BaseModel):
+    """创建任务成功后返回的任务标识。"""
+
     task_id: str
 
 
@@ -277,20 +283,28 @@ class TaskListData(BaseModel):
 
 
 class VideoScriptData(BaseModel):
+    """文案生成接口返回的脚本正文。"""
+
     video_script: str
 
 
 class VideoTermsData(BaseModel):
+    """素材关键词列表。"""
+
     video_terms: List[str]
 
 
 class VideoSocialMetadataData(BaseModel):
+    """社交发布用的标题、简介和话题标签。"""
+
     title: str
     caption: str
     hashtags: List[str]
 
 
 class FileData(BaseModel):
+    """文件列表项：展示名、大小和可回传的文件标识。"""
+
     name: str
     size: int
     file: str

@@ -1,3 +1,5 @@
+"""API 与文件访问相关的业务异常。"""
+
 import traceback
 from typing import Any
 
@@ -5,13 +7,15 @@ from loguru import logger
 
 
 class HttpException(Exception):
+    """带任务 ID 和 HTTP 状态码的接口异常，构造时同步写入日志。"""
+
     def __init__(
         self, task_id: str, status_code: int, message: str = "", data: Any = None
     ):
         self.message = message
         self.status_code = status_code
         self.data = data
-        # Retrieve the exception stack trace information.
+        # 取出当前调用栈，便于在日志中定位抛出位置。
         tb_str = traceback.format_exc().strip()
         if not tb_str or tb_str == "NoneType: None":
             msg = f"HttpException: {status_code}, {task_id}, {message}"
@@ -28,4 +32,4 @@ class HttpException(Exception):
 
 
 class FileNotFoundException(Exception):
-    pass
+    """请求的任务产物或资源文件不存在。"""

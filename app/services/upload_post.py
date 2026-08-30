@@ -1,7 +1,6 @@
-"""
-Upload-Post API integration for cross-posting videos to TikTok, Instagram and YouTube Shorts.
+"""Upload-Post 跨平台发布：把成片同步到 TikTok、Instagram 和 YouTube Shorts。
 
-Docs: https://docs.upload-post.com
+文档：https://docs.upload-post.com
 """
 import os
 from typing import Optional
@@ -12,6 +11,8 @@ from app.config import config
 
 
 class UploadPostService:
+    """读取 config.toml 中的 Upload-Post 配置并调用发布 API。"""
+
     API_BASE = "https://api.upload-post.com"
 
     @property
@@ -139,7 +140,7 @@ class UploadPostService:
             return {"success": False, "error": str(e)}
 
 
-# Singleton instance
+# 进程内单例，供任务流水线在成片完成后调用
 upload_post_service = UploadPostService()
 
 

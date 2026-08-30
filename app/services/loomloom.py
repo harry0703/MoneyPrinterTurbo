@@ -1,8 +1,7 @@
-"""LoomLoom Market clients for MoneyPrinterTurbo batch generation.
+"""LoomLoom Market 客户端：批量生成文案候选和视频素材。
 
-This module deliberately lives outside ``llm_provider``. LoomLoom executes a
-versioned Market SkillBot with quote, confirmation, run lifecycle, and result
-rows; it is not a chat-completions provider.
+本模块刻意放在 ``llm_provider`` 之外。LoomLoom 执行的是带报价、确认、
+运行生命周期和结果行的 Market SkillBot，不是聊天补全供应商。
 """
 
 from __future__ import annotations
@@ -38,15 +37,15 @@ TERMINAL_RUN_STATUSES = frozenset({"completed", "failed", "cancelled", "canceled
 
 
 class LoomLoomError(RuntimeError):
-    """Base error for the LoomLoom integration."""
+    """LoomLoom 集成的基础异常。"""
 
 
 class LoomLoomConfigurationError(LoomLoomError):
-    """Raised when the integration is enabled without complete settings."""
+    """功能已启用但配置不完整。"""
 
 
 class LoomLoomAPIError(LoomLoomError):
-    """Raised when the Public API rejects a request or returns invalid JSON."""
+    """公开 API 拒绝请求或返回无效 JSON。"""
 
     def __init__(
         self,
@@ -61,7 +60,7 @@ class LoomLoomAPIError(LoomLoomError):
 
 
 class LoomLoomRunError(LoomLoomError):
-    """Raised when a submitted run fails or exceeds its wait timeout."""
+    """已提交的运行失败或超过等待超时。"""
 
 
 def resolve_api_token(values: Mapping[str, Any]) -> str:
@@ -259,7 +258,7 @@ def video_settings_from_mapping(values: Mapping[str, Any]) -> LoomLoomSettings:
 
 
 class LoomLoomScriptBackend:
-    """Execute one configured LoomLoom Market Listing for script candidates."""
+    """调用已配置的 LoomLoom Market Listing，生成文案候选。"""
 
     def __init__(
         self,

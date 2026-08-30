@@ -1,3 +1,10 @@
+"""MoneyPrinterTurbo 的 Streamlit Web 界面。
+
+用户在浏览器中配置主题、文案、音色、素材和字幕后提交生成任务。
+页面每次交互都会整页 rerun，后台任务与日志由 ``app.services.webui_task`` 管理。
+界面文案来自 ``webui/i18n``，业务逻辑仍调用 ``app.services`` 中的共享流水线。
+"""
+
 import hashlib
 import html
 import json

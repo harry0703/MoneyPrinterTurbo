@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Cross-platform installation and video generation for the MoneyPrinterTurbo Skill."""
+"""MoneyPrinterTurbo Skill 的跨平台安装与视频生成脚本。
+
+供 Agent/Skill 调用：下载项目、检查依赖，并走 CLI 同一套任务流水线生成视频。
+"""
 
 from __future__ import annotations
 

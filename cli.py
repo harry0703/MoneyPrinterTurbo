@@ -1,3 +1,9 @@
+"""MoneyPrinterTurbo 命令行入口。
+
+不启动 WebUI，直接按 ``config.toml`` 中的供应商配置生成视频。
+支持单任务和 JSON/JSONL 批量清单；相对路径按当前工作目录解析。
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -678,7 +684,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
     materials_arg = args.video_materials or ""
     if materials_arg.strip():
         video_materials = [
-            # Actual duration will be detected during video processing; use 0 as placeholder.
+            # 真实时长在视频处理阶段探测，这里先用 0 占位。
             MaterialInfo(provider="local", url=item.strip(), duration=0)
             for item in materials_arg.split(",")
             if item.strip()
@@ -937,9 +943,8 @@ def _validate_batch_task_params(
         ("video_aspect", params.video_aspect),
         ("video_concat_mode", params.video_concat_mode),
     ):
-        # These schema fields remain Optional for compatibility with historical
-        # API payloads, but the video pipeline always dereferences their enum
-        # values. A manifest's explicit null must fail before any batch task starts.
+        # 这些字段为兼容历史 API 仍标成 Optional，但流水线会直接解引用枚举值。
+        # 清单里显式写 null 必须在任何批量任务启动前就失败。
         if value is None:
             raise ValueError(f"{field_name} cannot be null")
     if params.video_source == "local" and stop_at == "terms":
@@ -1261,7 +1266,7 @@ def _validate_cli_files(
 
 
 def _remove_cli_material_copies(created_paths: Sequence[str]) -> None:
-    """Best-effort cleanup for managed copies created by one CLI preparation."""
+    """尽力删除本次 CLI 准备阶段复制到管理目录的素材副本。"""
     for file_path in reversed(created_paths):
         try:
             if os.path.isfile(file_path):
@@ -1280,7 +1285,7 @@ def _prepare_cli_materials(
     prepared_paths: dict[str, str] | None = None,
     created_paths: list[str] | None = None,
 ) -> None:
-    """Copy validated local materials once and update every matching reference."""
+    """把已校验的本地素材复制一次，并更新所有指向该文件的引用。"""
     if not resolved_materials:
         return
 
@@ -1320,7 +1325,7 @@ def _prepare_cli_materials(
 
 
 def prepare_cli_files(params: VideoParams, stop_at: str) -> None:
-    """Validate and prepare files for one trusted local CLI task."""
+    """校验并准备单次本机 CLI 任务所需的文件。"""
     local_videos_dir, resolved_materials = _validate_cli_files(params, stop_at)
     created_paths: list[str] = []
     try:
@@ -1440,9 +1445,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             task_id=task_id,
             params=params,
             stop_at=args.stop_at,
-            # CLI inputs come from the local operator rather than an HTTP client.
-            # Preserve support for arbitrary local audio paths without weakening the
-            # task service's secure default for API and WebUI callers.
+            # CLI 输入来自本机操作者而非 HTTP 客户端。允许任意本地音频路径，
+            # 但不放宽任务服务对 API/WebUI 的默认安全约束。
             allow_server_file_input=True,
         )
     except Exception as exc:

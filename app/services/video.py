@@ -1,3 +1,9 @@
+"""视频合成：素材裁剪、转场、字幕烧录、配音与 BGM 混音。
+
+依赖 MoviePy/FFmpeg。片段先按画幅缩放和速度调整，再叠加字幕与音轨，
+最后写出成片。图片素材会先转成带缓慢缩放的短视频再进入拼接。
+"""
+
 import itertools
 import io
 import os
@@ -619,7 +625,7 @@ def combine_videos(
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
-    # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
+    # 循环使用已下载片段，直到覆盖配音总时长
     for i, subclipped_item in enumerate(subclipped_items):
         if video_duration >= required_video_duration:
             break
@@ -641,7 +647,7 @@ def combine_videos(
             if normalized_clip_speed != 1.0:
                 clip = clip.with_speed_scaled(normalized_clip_speed)
             clip_duration = clip.duration
-            # Not all videos are same size, so we need to resize them
+            # 素材分辨率与成片画幅不一致时，按比例缩放并居中裁切
             clip_w, clip_h = clip.size
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
@@ -693,7 +699,7 @@ def combine_videos(
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
                 
-            # wirte clip to temp file
+            # 写出临时片段，供后续拼接复用
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
             _write_videofile_with_codec_fallback(
                 clip,
@@ -703,7 +709,7 @@ def combine_videos(
                 fps=fps,
             )
 
-            # Store clip duration before closing
+            # close 后 duration 可能不可用，先保存再关闭
             clip_duration_saved = clip.duration
             close_clip(clip)
 
@@ -1012,9 +1018,8 @@ def generate_video(
     logger.info(f"  ③ subtitle: {subtitle_path}")
     logger.info(f"  ④ output: {output_file}")
 
-    # https://github.com/harry0703/MoneyPrinterTurbo/issues/217
-    # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'final-1.mp4.tempTEMP_MPY_wvf_snd.mp3'
-    # write into the same directory as the output file
+    # Windows 上 MoviePy 临时音轨若写到其它目录，成片收尾时可能仍被占用
+    #（WinError 32）。临时文件与成片放在同一目录，便于同一进程内及时释放。
     output_dir = os.path.dirname(output_file)
 
     font_path = ""
@@ -1182,14 +1187,12 @@ def generate_video(
         elif params.subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
         elif params.subtitle_position == "custom":
-            # Ensure the subtitle is fully within the screen bounds
-            margin = 10  # Additional margin, in pixels
+            # 保证字幕完整落在画面内，上下各留 10 像素边距
+            margin = 10
             max_y = video_height - _clip.h - margin
             min_y = margin
             custom_y = (video_height - _clip.h) * (params.custom_position / 100)
-            custom_y = max(
-                min_y, min(custom_y, max_y)
-            )  # Constrain the y value within the valid range
+            custom_y = max(min_y, min(custom_y, max_y))
             _clip = _clip.with_position(("center", custom_y))
         else:  # center
             _clip = _clip.with_position(("center", "center"))
@@ -1361,26 +1364,17 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 logger.info(f"processing image: {material_source_path}")
                 # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
                 close_clip(clip)
-                # Create an image clip and set its duration to 3 seconds
+                # 把静图做成短视频：时长与片段上限一致，并加缓慢放大避免画面完全静止
                 clip = (
                     ImageClip(material_source_path)
                     .with_duration(clip_duration)
                     .with_position("center")
                 )
-                # Apply a zoom effect using the resize method.
-                # A lambda function is used to make the zoom effect dynamic over time.
-                # The zoom effect starts from the original size and gradually scales up to 120%.
-                # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-                # Note: 1 represents 100% size, so 1.2 represents 120% size.
+                # t 为当前秒；1 表示 100% 尺寸，随时间逐渐放大
                 zoom_clip = clip.resized(
                     lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
                 )
-
-                # Optionally, create a composite video clip containing the zoomed clip.
-                # This is useful when you want to add other elements to the video.
                 final_clip = CompositeVideoClip([zoom_clip])
-
-                # Output the video to a file.
                 video_file = f"{material_source_path}.mp4"
                 final_clip.write_videofile(video_file, fps=30, logger=None)
                 close_clip(clip)
@@ -1390,8 +1384,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             else:
                 # 普通视频素材只需要读取尺寸做校验，校验完成后立即释放句柄即可。
                 close_clip(clip)
-                # Update url to the resolved absolute path so that downstream
-                # stages (combine_videos) can open the file without re-resolving.
+                # 把 url 更新为已解析的绝对路径，后续拼接无需再次解析。
                 material.url = material_source_path
         except Exception:
             close_clip(clip)

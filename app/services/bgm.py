@@ -1,3 +1,5 @@
+"""背景音乐：随机/自定义文件解析、上传校验，以及与配乐供应商的衔接。"""
+
 import math
 import os
 import subprocess

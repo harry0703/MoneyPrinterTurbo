@@ -1,3 +1,9 @@
+"""MoneyPrinterTurbo API 服务入口。
+
+启动 FastAPI（ASGI）进程，对外提供视频生成、字幕、素材和任务查询接口。
+FFmpeg 探测已下沉到共享任务流水线，本文件只负责读配置并拉起 uvicorn。
+"""
+
 import uvicorn
 from loguru import logger
 

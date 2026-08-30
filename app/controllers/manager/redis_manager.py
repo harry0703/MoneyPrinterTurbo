@@ -1,3 +1,9 @@
+"""基于 Redis List 的跨进程任务队列。
+
+入队时把 VideoParams 和函数对象序列化；出队时重建参数。
+若历史任务已不满足当前校验规则，会标记失败并继续取下一条，避免卡死队列。
+"""
+
 import json
 from typing import Dict
 

@@ -1,3 +1,9 @@
+"""WebUI 专用的后台任务调度与日志收集。
+
+Streamlit 无法由后台线程直接刷新组件，因此任务在独立线程中执行，
+页面通过 Fragment 轮询本模块缓存的日志和任务状态。
+"""
+
 import threading
 from collections import deque
 

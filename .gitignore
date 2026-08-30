@@ -27,6 +27,7 @@ node_modules
 
 venv/
 .venv
+/go/bin/
 
 # Debug and test files
 CLAUDE.md

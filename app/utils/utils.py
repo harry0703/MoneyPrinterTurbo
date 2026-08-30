@@ -1,3 +1,5 @@
+"""通用工具：API 响应、路径、UUID、文案清洗和 FFmpeg 探测。"""
+
 import json
 import math
 import os
@@ -16,6 +18,7 @@ from app.models import const
 
 
 def get_response(status: int, data: Any = None, message: str = ""):
+    """构造统一的 JSON 响应字典。"""
     obj = {
         "status": status,
     }
@@ -28,31 +31,22 @@ def get_response(status: int, data: Any = None, message: str = ""):
 
 def to_json(obj):
     try:
-        # Define a helper function to handle different types of objects
+        # 递归把常见类型转成 JSON 可序列化的结构，避免日志里直接 dump 对象失败。
         def serialize(o):
-            # If the object is a serializable type, return it directly
             if isinstance(o, (int, float, bool, str)) or o is None:
                 return o
-            # If the object is binary data, convert it to a base64-encoded string
             elif isinstance(o, bytes):
                 return "*** binary data ***"
-            # If the object is a dictionary, recursively process each key-value pair
             elif isinstance(o, dict):
                 return {k: serialize(v) for k, v in o.items()}
-            # If the object is a list or tuple, recursively process each element
             elif isinstance(o, (list, tuple)):
                 return [serialize(item) for item in o]
-            # If the object is a custom type, attempt to return its __dict__ attribute
             elif hasattr(o, "__dict__"):
                 return serialize(o.__dict__)
-            # Return None for other cases (or choose to raise an exception)
             else:
                 return None
 
-        # Use the serialize function to process the input object
         serialized_obj = serialize(obj)
-
-        # Serialize the processed object into a JSON string
         return json.dumps(serialized_obj, ensure_ascii=False, indent=4)
     except Exception as e:
         logger.error(f"failed to serialize object to json: {str(e)}")
@@ -60,6 +54,7 @@ def to_json(obj):
 
 
 def get_uuid(remove_hyphen: bool = False):
+    """生成 UUID 字符串；``remove_hyphen`` 为真时去掉连字符。"""
     u = str(uuid4())
     if remove_hyphen:
         u = u.replace("-", "")
@@ -87,10 +82,12 @@ def normalize_clip_speed(value, default: float = 1.0) -> float:
 
 
 def root_dir():
+    """返回项目根目录（包含 ``app``、``storage``、``resource`` 的那一层）。"""
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 
 def storage_dir(sub_dir: str = "", create: bool = False):
+    """返回 ``storage`` 或其子目录；``create=True`` 时自动创建。"""
     d = os.path.join(root_dir(), "storage")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -101,6 +98,7 @@ def storage_dir(sub_dir: str = "", create: bool = False):
 
 
 def resource_dir(sub_dir: str = ""):
+    """返回 ``resource`` 或其子目录（字体、内置歌曲、静态页等）。"""
     d = os.path.join(root_dir(), "resource")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -108,6 +106,7 @@ def resource_dir(sub_dir: str = ""):
 
 
 def task_dir(sub_dir: str = ""):
+    """返回任务产物目录 ``storage/tasks``，不存在时自动创建。"""
     d = os.path.join(storage_dir(), "tasks")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -117,6 +116,7 @@ def task_dir(sub_dir: str = ""):
 
 
 def font_dir(sub_dir: str = ""):
+    """返回字幕字体目录 ``resource/fonts``。"""
     d = resource_dir("fonts")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -126,6 +126,7 @@ def font_dir(sub_dir: str = ""):
 
 
 def song_dir(sub_dir: str = ""):
+    """返回内置背景音乐目录 ``resource/songs``。"""
     d = resource_dir("songs")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -135,6 +136,7 @@ def song_dir(sub_dir: str = ""):
 
 
 def public_dir(sub_dir: str = ""):
+    """返回 API 静态页目录 ``resource/public``。"""
     d = resource_dir("public")
     if sub_dir:
         d = os.path.join(d, sub_dir)
@@ -236,6 +238,7 @@ def check_ffmpeg_ready(timeout: int = 10) -> bool:
 
 
 def run_in_background(func, *args, **kwargs):
+    """在非守护线程中执行函数，异常只记日志、不向上抛出。"""
     def run():
         try:
             func(*args, **kwargs)
@@ -248,6 +251,7 @@ def run_in_background(func, *args, **kwargs):
 
 
 def time_convert_seconds_to_hmsm(seconds) -> str:
+    """把秒数格式化为 SRT 时间轴 ``HH:MM:SS,mmm``。"""
     hours = int(seconds // 3600)
     seconds = seconds % 3600
     minutes = int(seconds // 60)
@@ -257,6 +261,7 @@ def time_convert_seconds_to_hmsm(seconds) -> str:
 
 
 def text_to_srt(idx: int, msg: str, start_time: float, end_time: float) -> str:
+    """生成一条 SRT 字幕块。"""
     start_time = time_convert_seconds_to_hmsm(start_time)
     end_time = time_convert_seconds_to_hmsm(end_time)
     srt = """%d
@@ -272,6 +277,7 @@ def text_to_srt(idx: int, msg: str, start_time: float, end_time: float) -> str:
 
 
 def str_contains_punctuation(word):
+    """判断字符串是否包含项目定义的断句标点。"""
     for p in const.PUNCTUATIONS:
         if p in word:
             return True
@@ -279,6 +285,7 @@ def str_contains_punctuation(word):
 
 
 def split_string_by_punctuations(s):
+    """按标点和换行拆分文案；小数点和千分位逗号不作为断句点。"""
     result = []
     txt = ""
 
@@ -297,7 +304,7 @@ def split_string_by_punctuations(s):
             next_char = s[i + 1]
 
         if char == "." and previous_char.isdigit() and next_char.isdigit():
-            # # In the case of "withdraw 10,000, charged at 2.5% fee", the dot in "2.5" should not be treated as a line break marker
+            # 小数点不是断句符，例如 "charged at 2.5% fee" 中的 "2.5"。
             txt += char
             continue
 
@@ -315,7 +322,7 @@ def split_string_by_punctuations(s):
             result.append(txt.strip())
             txt = ""
     result.append(txt.strip())
-    # filter empty string
+    # 去掉因连续标点产生的空行
     result = list(filter(None, result))
     return result
 
@@ -354,6 +361,7 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
 
 
 def md5(text):
+    """计算 UTF-8 文本的 MD5 十六进制摘要。"""
     import hashlib
 
     return hashlib.md5(text.encode("utf-8")).hexdigest()
@@ -418,4 +426,5 @@ def load_locales(i18n_dir):
 
 
 def parse_extension(filename):
+    """返回小写且不含点的文件扩展名。"""
     return Path(filename).suffix.lower().lstrip('.')

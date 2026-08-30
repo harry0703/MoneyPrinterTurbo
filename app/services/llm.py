@@ -1,3 +1,9 @@
+"""大语言模型调用：生成视频文案、素材关键词和社交发布元数据。
+
+按 Registry 中的 adapter 适配 OpenAI 兼容、Gemini、Azure、通义等接口。
+系统提示词面向模型，保持英文，便于各供应商稳定理解角色约束。
+"""
+
 import json
 import logging
 import re
@@ -508,6 +514,7 @@ def generate_script(
     custom_system_prompt: str = "",
     app_config=None,
 ) -> str:
+    """根据主题调用当前 LLM 生成视频文案；失败时在有限次数内重试。"""
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
         video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
@@ -531,22 +538,12 @@ def generate_script(
     )
 
     def format_response(response):
-        # Clean the script
-        # Remove asterisks, hashes
+        # 去掉 Markdown 强调和链接语法，避免成片字幕里出现 *、#、[]()
         response = response.replace("*", "")
         response = response.replace("#", "")
-
-        # Remove markdown syntax
         response = re.sub(r"\[.*\]", "", response)
         response = re.sub(r"\(.*\)", "", response)
-
-        # Split the script into paragraphs
         paragraphs = response.split("\n\n")
-
-        # Select the specified number of paragraphs
-        # selected_paragraphs = paragraphs[:paragraph_number]
-
-        # Join the selected paragraphs into a single string
         return "\n\n".join(paragraphs)
 
     for i in range(_max_retries):
@@ -560,7 +557,7 @@ def generate_script(
             else:
                 logging.error("gpt returned an empty response")
 
-            # Some upstream providers may return quota errors as plain text.
+            # 部分上游会把额度耗尽以纯文本返回，而不是标准错误码。
             if final_script and "当日额度已消耗完" in final_script:
                 raise ValueError(final_script)
 
@@ -579,13 +576,11 @@ def generate_script(
 
 
 def _strip_code_fence(text: str) -> str:
-    """Strip a surrounding markdown code fence from an LLM response.
+    """去掉 LLM 回复外层的 Markdown 代码围栏。
 
-    Non-OpenAI providers (Claude, Gemini, …) frequently wrap JSON output in a
-    ```json … ``` fence even when asked to return raw JSON. Removing it lets the
-    first json.loads() succeed instead of falling through to the regex recovery
-    path (and spuriously logging a warning). Mirrors the DOTALL handling already
-    used in _parse_social_metadata().
+    Claude、Gemini 等供应商即使被要求返回原始 JSON，也常包一层
+    ```json ... ```。先剥掉围栏，第一次 json.loads 就能成功，不必落到
+    正则补救路径并误报警告。处理方式与 ``_parse_social_metadata`` 一致。
     """
     t = (text or "").strip()
     if t.startswith("```"):
@@ -601,6 +596,7 @@ def generate_terms(
     match_script_order: bool = False,
     app_config=None,
 ) -> List[str]:
+    """从主题和文案提炼素材搜索关键词；可按叙事顺序排列。"""
     if match_script_order:
         goal = (
             f"Generate {amount} chronological stock-video search terms that follow "

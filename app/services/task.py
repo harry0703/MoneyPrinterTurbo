@@ -1,3 +1,9 @@
+"""视频生成任务流水线：脚本、关键词、配音、字幕、素材与成片。
+
+API、CLI 和 WebUI 都调用 ``start()``，因此 FFmpeg 探测、阶段失败回写和
+跨平台发布都集中在本模块，避免三条入口各自实现一套流程。
+"""
+
 import math
 import os
 import re
@@ -58,7 +64,7 @@ _LOOMLOOM_STATE_RETRY_DELAY_SECONDS = 0.1
 _INTERRUPTED_CROSS_POST_ERROR = (
     "cross-posting was interrupted before the process completed"
 )
-# Map upload-post platform ids to the social platform names llm.py accepts.
+# upload-post 的平台 ID 映射到 llm.py 社交文案接口使用的平台名。
 _CROSS_POST_SOCIAL_PLATFORMS = {
     "tiktok": "tiktok",
     "instagram": "instagram_reels",
@@ -285,6 +291,7 @@ def _mark_task_failed(
 
 
 def generate_script(task_id, params):
+    """生成或回用视频文案，并写入任务目录的 script.json。"""
     logger.info("\n\n## generating video script")
     video_script = params.video_script.strip()
     if not video_script:
@@ -306,6 +313,7 @@ def generate_script(task_id, params):
 
 
 def generate_terms(task_id, params, video_script):
+    """生成或回用素材搜索关键词。本地素材源跳过本阶段。"""
     logger.info("\n\n## generating video terms")
     video_terms = params.video_terms
     if not video_terms:
@@ -482,15 +490,9 @@ def generate_audio(
     *,
     allow_server_file_input: bool = False,
 ):
-    """
-    Generate audio for the video script.
-    If a custom audio file is provided, it will be used directly.
-    There will be no subtitle maker object returned in this case.
-    Otherwise, TTS will be used to generate the audio.
-    Returns:
-        - audio_file: path to the generated or provided audio file
-        - audio_duration: duration of the audio in seconds
-        - sub_maker: subtitle maker object if TTS is used, None otherwise
+    """生成配音：优先使用自备音频，否则走 TTS 或静音轨。
+
+    返回音频路径、时长，以及 TTS 成功时的字幕时间轴对象（自备音频则为 None）。
     """
     logger.info("\n\n## generating audio")
     # /audio 和 /subtitle 请求模型不包含 custom_audio_file，
@@ -554,13 +556,7 @@ def generate_audio(
 
 
 def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
-    """
-    Generate subtitle for the video script.
-    If subtitle generation is disabled or no subtitle maker is provided, it will return an empty string.
-    Otherwise, it will generate the subtitle using the specified provider.
-    Returns:
-        - subtitle_path: path to the generated subtitle file
-    """
+    """按配置的供应商生成字幕；关闭字幕或缺少时间轴时返回空路径。"""
     logger.info("\n\n## generating subtitle")
     if not params.subtitle_enabled:
         return ""
@@ -766,6 +762,7 @@ def _record_loomloom_run_reference(
 def generate_final_videos(
     task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
 ):
+    """拼接素材、混音并输出成片；可按配置继续跨平台发布。"""
     final_video_paths = []
     combined_video_paths = []
     warnings = []

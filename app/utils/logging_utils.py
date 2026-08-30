@@ -1,3 +1,5 @@
+"""终端与 WebUI 共用的 loguru 格式化与 handler 替换。"""
+
 import os
 import threading
 

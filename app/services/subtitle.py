@@ -1,3 +1,5 @@
+"""字幕生成与校正：Whisper 识别、SRT 解析，以及按文案对齐时间轴。"""
+
 import json
 import os.path
 import re
@@ -20,6 +22,7 @@ model = None
 
 
 def create(audio_file, subtitle_file: str = ""):
+    """用 faster-whisper 从音频识别字幕并写入 SRT。"""
     global model
     if WhisperModel is None:
         logger.warning("faster_whisper not available, skipping whisper subtitle generation")
@@ -96,11 +99,11 @@ def create(audio_file, subtitle_file: str = ""):
                     is_segmented = True
 
                 seg_end = word.end
-                # If it contains punctuation, then break the sentence.
+                # 遇到标点则结束当前字幕句，避免一句过长。
                 seg_text += word.word
 
                 if utils.str_contains_punctuation(word.word):
-                    # remove last char
+                    # 去掉句末标点，字幕正文不保留断句符号
                     seg_text = seg_text[:-1]
                     if not seg_text:
                         continue
@@ -164,9 +167,8 @@ def file_to_subtitles(filename):
             elif current_times:
                 current_text += line
 
-    # Flush the final block. SRT files whose last subtitle is not followed by a
-    # trailing blank line never hit the blank-line branch above, so without this
-    # the last subtitle would be silently dropped.
+    # 刷新最后一块。末尾没有空行的 SRT 不会进入上面的空行分支，
+    # 若不单独处理，最后一条字幕会被静默丢弃。
     if current_times:
         index += 1
         times_texts.append((index, current_times.strip(), current_text.strip()))
@@ -262,7 +264,7 @@ def correct(subtitle_file, video_script):
             script_index += 1
             subtitle_index = next_subtitle_index
 
-    # Process the remaining lines of the script.
+    # 处理脚本中尚未匹配到字幕时间轴的剩余行。
     while script_index < len(script_lines):
         logger.warning(f"Extra script line: {script_lines[script_index]}")
         if subtitle_index < len(subtitle_items):

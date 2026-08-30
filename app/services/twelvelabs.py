@@ -1,32 +1,13 @@
-"""
-TwelveLabs (https://twelvelabs.io) integration — optional, opt-in helpers.
+"""TwelveLabs 可选集成：按语义重排素材关键词，并对成片做画面理解。
 
-This module wraps two TwelveLabs models so MoneyPrinterTurbo can make better
-use of the stock/B-roll footage it downloads:
+封装两个 TwelveLabs 模型，帮助更好利用已下载的库存/B-roll 素材：
 
-  * Marengo (multimodal embeddings, 512-dim) — used to *semantically reorder*
-    the LLM-generated search terms against the video subject, so that when the
-    timeline budget runs out the most on-topic footage is the footage that made
-    it in (instead of whatever the LLM happened to list first).
+  * Marengo（多模态向量，512 维）：按视频主题对 LLM 生成的搜索词做语义重排，
+    时间轴不够时优先保留最贴题的片段，而不是 LLM 碰巧排在前面的词。
+  * Pegasus（视频理解）：根据公开 URL 描述或质检片段，确认下载内容与文案相符。
 
-  * Pegasus (video understanding) — used to QA / describe a generated clip from
-    a public URL, e.g. to sanity-check that a downloaded clip actually matches
-    the script before it ships.
-
-The integration is fully opt-in and non-breaking:
-  * If `twelvelabs_api_keys` is not configured, every public function here is a
-    no-op that returns its input unchanged (or None), so default behavior is
-    identical to a build without TwelveLabs.
-  * The `twelvelabs` SDK is imported lazily, so the dependency is only required
-    when the feature is actually used.
-
-Config (config.toml, [app] section):
-    twelvelabs_api_keys = ["tlk_xxx"]   # required to enable
-    twelvelabs_rerank_terms = true      # opt-in: reorder search terms by relevance
-    twelvelabs_marengo_model = "marengo3.0"   # optional override
-    twelvelabs_pegasus_model = "pegasus1.5"   # optional override
-
-Configure a TwelveLabs API key from the TwelveLabs dashboard (https://twelvelabs.io) to enable this optional integration.
+未配置 ``twelvelabs_api_keys`` 时，本模块公开函数均为空操作，行为与未集成时一致。
+SDK 延迟导入，只有真正启用该功能时才需要安装依赖。
 """
 
 import math
@@ -40,19 +21,18 @@ from app.services import material
 
 DEFAULT_MARENGO_MODEL = "marengo3.0"
 DEFAULT_PEGASUS_MODEL = "pegasus1.5"
-# Pegasus requires max_tokens in [512, 98304]; 512 is plenty for a one-line QA.
+# Pegasus 要求 max_tokens 在 [512, 98304]；一行质检用 512 足够。
 _PEGASUS_MIN_MAX_TOKENS = 512
 
 
 def is_enabled() -> bool:
-    """True only when at least one TwelveLabs API key is configured."""
+    """至少配置了一个 TwelveLabs API Key 时返回 True。"""
     keys = config.app.get("twelvelabs_api_keys")
     return bool(keys)
 
 
 def _client():
-    # Lazy import + rotated key reuse mirrors the other providers in
-    # material.py (get_api_key rotates across configured keys).
+    # 延迟导入，并复用 material.py 的 Key 轮询，与其它供应商保持一致。
     from twelvelabs import TwelveLabs
 
     api_key = material.get_api_key("twelvelabs_api_keys")
@@ -120,7 +100,7 @@ def rerank_terms_by_subject(
     for term in search_terms:
         vec = embed_text(term, model)
         if vec is None:
-            # If any term can't be embedded, don't risk a partial reorder.
+            # 任一关键词无法向量化时不冒险做部分重排，直接返回原文顺序。
             return search_terms
         scored.append((term, _cosine(subject_vec, vec)))
 
@@ -138,14 +118,10 @@ def analyze_clip(
     model: Optional[str] = None,
     max_tokens: int = _PEGASUS_MIN_MAX_TOKENS,
 ) -> Optional[str]:
-    """
-    QA / describe a clip from a public URL with Pegasus, returning the model's
-    text answer (or None when disabled / on failure).
+    """用 Pegasus 根据公开 URL 描述或质检片段，失败或未启用时返回 None。
 
-    Notes (TwelveLabs API constraints):
-      * Pegasus needs a publicly reachable URL (or an uploaded asset), not a
-        bare local path; the analyzed window must be >= 4s.
-      * max_tokens must be >= 512 for this model.
+    TwelveLabs 约束：Pegasus 需要可公网访问的 URL（或已上传资源），不能是
+    本地路径；分析窗口至少 4 秒；该模型的 max_tokens 必须 >= 512。
     """
     if not is_enabled() or not video_url:
         return None

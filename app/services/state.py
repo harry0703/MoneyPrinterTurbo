@@ -1,3 +1,9 @@
+"""任务状态存储：内存实现或 Redis 实现。
+
+默认使用进程内字典；开启 ``enable_redis`` 后可跨进程共享任务进度。
+Redis 应视为应用私有存储，反序列化假定写入方可信。
+"""
+
 import ast
 import copy
 import threading
@@ -20,8 +26,8 @@ return 1
 """
 
 
-# Base class for state management
 class BaseState(ABC):
+    """任务状态后端的抽象接口。"""
     @abstractmethod
     def update_task(self, task_id: str, state: int, progress: int = 0, **kwargs):
         pass
@@ -40,8 +46,8 @@ class BaseState(ABC):
         pass
 
 
-# Memory state management
 class MemoryState(BaseState):
+    """单进程内存状态：适合本地 WebUI / 未启用 Redis 的部署。"""
     def __init__(self):
         self._tasks = {}
         self._lock = threading.RLock()
@@ -94,16 +100,12 @@ class MemoryState(BaseState):
             self._tasks.pop(task_id, None)
 
 
-# Redis state management
 class RedisState(BaseState):
-    """
-    Redis-backed task state.
+    """基于 Redis Hash 的任务状态。
 
-    Trust boundary: Redis is expected to be private to this application. Task
-    values are written by MoneyPrinterTurbo and converted back from strings for
-    compatibility with existing state records. Do not expose this Redis database
-    to untrusted writers without replacing deserialization with a stricter
-    schema-based format.
+    信任边界：Redis 应仅对本应用开放。任务字段由 MoneyPrinterTurbo 写入，
+    读回时按字符串做兼容转换。若 Redis 可被不可信客户端写入，应改为严格的
+    JSON/schema 解析，而不是开放的字面量转换。
     """
 
     def __init__(self, host="localhost", port=6379, db=0, password=None):
@@ -206,29 +208,25 @@ class RedisState(BaseState):
 
     @staticmethod
     def _convert_to_original_type(value):
-        """
-        Convert values written by this application back to common Python types.
+        """把本应用写入 Redis 的字符串还原为常见 Python 类型。
 
-        This compatibility parser assumes Redis is inside the application's
-        trust boundary. If Redis can be written by untrusted clients, task state
-        should move to a strict JSON/schema parser instead of open-ended literal
-        conversion.
+        该兼容解析假定 Redis 位于应用信任边界内。若 Redis 可被不可信客户端
+        写入，应改用严格的 JSON/schema 解析，而不是开放的字面量转换。
         """
         value_str = value.decode("utf-8")
 
         try:
-            # try to convert byte string array to list
+            # 列表、字典等由 str() 写入的结构，尝试还原为 Python 字面量
             return ast.literal_eval(value_str)
         except (ValueError, SyntaxError):
             pass
 
         if value_str.isdigit():
             return int(value_str)
-        # Add more conversions here if needed
         return value_str
 
 
-# Global state
+# 进程级全局状态后端：按配置选择内存或 Redis
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
 _redis_port = config.app.get("redis_port", 6379)

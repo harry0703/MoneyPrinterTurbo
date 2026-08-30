@@ -1,10 +1,6 @@
-"""Application configuration - root APIRouter
+"""根 APIRouter：汇总健康检查与 v1 业务接口。
 
-Defines all FastAPI application endpoints.
-
-Resources:
-    1. https://fastapi.tiangolo.com/tutorial/bigger-applications
-
+新增 HTTP 端点时应在对应控制器中声明，再于此处挂载，避免路由分散。
 """
 
 from fastapi import APIRouter

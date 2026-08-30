@@ -1,3 +1,5 @@
+"""ElevenLabs Music：按视频内容或提示词生成背景配乐。"""
+
 import math
 import os
 import subprocess

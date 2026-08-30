@@ -1,3 +1,9 @@
+"""配音服务：Edge TTS、Azure、Gemini、MiniMax、ElevenLabs、Fish Audio 等。
+
+按音色 ID 前缀分发到对应供应商；无配音或自备音频时跳过 TTS。
+部分供应商拿不到逐词时间轴时，会回退到 Whisper 或按文案估算字幕。
+"""
+
 import asyncio
 import base64
 import io
@@ -199,12 +205,11 @@ def get_elevenlabs_voices(api_key: str) -> list[str]:
 
 
 def get_chatterbox_voices() -> list[str]:
-    """Return the configured Chatterbox voices.
+    """返回已配置的 Chatterbox 音色。
 
-    Chatterbox is self-hosted, so there is no global voice catalog. Operators
-    list the voice names exposed by their server via ``[chatterbox] voices``
-    (a TOML array, or a comma-separated string). Each entry is normalised to
-    the ``chatterbox:<name>`` format used by the TTS dispatcher.
+    Chatterbox 为自托管，没有全局音色目录。运维通过 ``[chatterbox] voices``
+    （TOML 数组或逗号分隔字符串）列出服务器暴露的音色名，并规范化为分发器
+    使用的 ``chatterbox:<name>`` 格式。
     """
     voices = config.chatterbox.get("voices", []) or []
     if isinstance(voices, str):
@@ -216,19 +221,17 @@ def get_chatterbox_voices() -> list[str]:
             continue
         result.append(v if v.startswith("chatterbox:") else f"chatterbox:{v}")
     if not result:
-        # keep the dropdown usable even before any voice is configured
+        # 尚未配置音色时仍给出默认项，避免下拉框为空
         result = ["chatterbox:default-Female"]
     return result
 
 
 def get_fish_audio_voices() -> list[str]:
-    """Return configured Fish Audio voices.
+    """返回已配置的 Fish Audio 音色。
 
-    Each entry follows the format ``fish_audio:<reference_id>:<display_name>``.
-    When ``reference_id`` is "default", Fish Audio's built-in default voice is
-    used (no ``reference_id`` is sent in the API request).  Operators can list
-    additional public or cloned voices via ``[fish_audio] voices`` in the
-    config file.
+    每项格式为 ``fish_audio:<reference_id>:<display_name>``。
+    ``reference_id`` 为 ``default`` 时使用内置默认音色，请求中不传 reference_id。
+    其它公开或克隆音色可通过 ``[fish_audio] voices`` 配置。
     """
     result = [
         "fish_audio:2324c907b9a94c64ab4afb941e5b3408:Clear Female-Female",
@@ -554,10 +557,9 @@ def tts(
 
 
 def convert_rate_to_percent(rate: float) -> str:
-    # edge-tts requires a sign-prefixed percentage (e.g. "+0%", "-20%").
-    # Rounding can yield 0 for rates near but not equal to 1.0 (e.g. 1.004,
-    # 0.997); those must still be returned as "+0%", not the unsigned "0%"
-    # which edge-tts rejects with ValueError: Invalid rate '0%'.
+    # edge-tts 要求带正负号的百分比（如 "+0%"、"-20%"）。
+    # 接近 1.0 的语速（如 1.004、0.997）四舍五入后可能变成 0，
+    # 仍须返回 "+0%"，不能写成无符号 "0%"，否则 edge-tts 会报 Invalid rate。
     # API 或批处理调用可能传入 0、0.0、None 或无法转换的空值；这些值不代表
     # 合法语速，直接计算会变成 -100% 或抛异常。这里统一回退到正常语速，
     # 避免生成极慢音频或让 TTS 流程在边界输入下失败。
@@ -1104,7 +1106,7 @@ def azure_tts_v2(
                 sub_maker.subs.append(evt.text)
                 sub_maker.offset.append((offset, offset + duration))
 
-            # Creates an instance of a speech config with specified subscription key and service region.
+            # 用订阅密钥和服务区域创建 Azure 语音配置。
             speech_key = config.azure.get("speech_key", "")
             service_region = config.azure.get("speech_region", "")
             if not speech_key or not service_region:
@@ -1548,7 +1550,7 @@ def _write_validated_minimax_audio(audio_bytes: bytes, voice_file: str) -> float
 
 
 def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, voice_volume: float = 1.0) -> Union[SubMaker, None]:
-    """Generate speech with the synchronous MiniMax T2A HTTP API."""
+    """通过 MiniMax 同步 T2A HTTP API 生成语音。"""
     text, voice_id = (text or "").strip(), (voice_id or "").strip()
     if not text or not voice_id:
         logger.error("MiniMax TTS requires text and a voice ID")
@@ -1650,7 +1652,7 @@ def elevenlabs_tts(
         },
     }
 
-    # Errors where retrying will never help (auth/access/validation failures).
+    # 鉴权、权限或参数错误重试无效，直接放弃。
     _NON_RETRYABLE_CODES = {401, 403, 422}
     _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized"}
 
@@ -1710,18 +1712,15 @@ def chatterbox_tts(
     voice_volume: float = 1.0,
     model_id: str = "",
 ) -> Union[SubMaker, None]:
-    """Generate speech with a self-hosted Chatterbox TTS server.
+    """通过自托管 Chatterbox TTS 服务器生成语音。
 
-    Chatterbox (Resemble AI, MIT) is an open-source, locally hosted TTS model
-    with zero-shot voice cloning — a self-hostable alternative to ElevenLabs.
-    This talks to an OpenAI-compatible ``/audio/speech`` endpoint, so it works
-    with the common community servers (e.g. devnen/Chatterbox-TTS-Server,
-    travisvn/chatterbox-tts-api). Configure ``[chatterbox] base_url`` (and an
-    optional ``api_key``).
+    Chatterbox（Resemble AI，MIT）是开源本地 TTS，支持零样本声音克隆，
+    可作为 ElevenLabs 的自托管替代。本实现调用 OpenAI 兼容的
+    ``/audio/speech`` 接口，兼容常见社区服务。请在 ``[chatterbox] base_url``
+    中配置地址，可选 ``api_key``。
 
-    Like ElevenLabs, Chatterbox does not return word-level timestamps, so the
-    subtitle path falls back to the full-text SubMaker. For tighter subtitle
-    sync set ``subtitle_provider = "whisper"``.
+    Chatterbox 不返回逐词时间戳，字幕会回退到整段 SubMaker；
+    需要更准的字幕同步时请设置 ``subtitle_provider = "whisper"``。
     """
     text = (text or "").strip()
     if not text:
@@ -1748,14 +1747,11 @@ def chatterbox_tts(
         "input": text,
         "voice": voice,
         "response_format": "mp3",
-        # OpenAI speech API accepts speed 0.25-4.0; MoneyPrinterTurbo's rate is a
-        # 1.0-centred multiplier, so it maps directly (clamped to the valid range).
+        # OpenAI speech API 的 speed 范围为 0.25–4.0；项目语速以 1.0 为基准，直接映射并夹紧。
         "speed": max(0.25, min(4.0, float(voice_rate or 1.0))),
     }
-    # voice_volume is accepted for parity with the other TTS providers but is
-    # intentionally not sent: the OpenAI /audio/speech contract has no volume
-    # field, so Chatterbox servers ignore it. Adjust loudness via voice_rate
-    # (speed) or in post-processing instead.
+    # 为与其它 TTS 接口签名一致而接受 voice_volume，但 OpenAI /audio/speech
+    # 没有音量字段，Chatterbox 服务端会忽略。响度请用语速或后期混音调整。
 
     for i in range(3):
         try:
@@ -1789,7 +1785,7 @@ def chatterbox_tts(
     return None
 
 
-# Fish Audio supported models.
+# Fish Audio 支持的模型列表。
 FISH_AUDIO_MODELS = ("s2.1-pro-free", "s2.1-pro", "s2-pro")
 FISH_AUDIO_DEFAULT_MODEL = "s2.1-pro-free"
 
@@ -1801,15 +1797,13 @@ def fish_audio_tts(
     voice_volume: float = 1.0,
     reference_id: str | None = None,
 ) -> Union[SubMaker, None]:
-    """Generate speech using Fish Audio TTS API.
+    """通过 Fish Audio TTS API 生成语音。
 
-    The model is read from ``config.fish_audio["model"]`` (single source of
-    truth).  ``reference_id`` selects a public or cloned voice; when *None*
-    Fish Audio's built-in default voice is used.
+    模型从 ``config.fish_audio["model"]`` 读取。``reference_id`` 选择公开或
+    克隆音色；为 ``None`` 时使用内置默认音色。
 
-    ``voice_rate`` is mapped to the ``prosody.speed`` field (0.5–2.0) and
-    ``voice_volume`` is converted from a linear multiplier to dB for the
-    ``prosody.volume`` field (-20.0–20.0 dB).
+    ``voice_rate`` 映射到 ``prosody.speed``（0.5–2.0），
+    ``voice_volume`` 从线性倍率转换为 ``prosody.volume`` 的分贝值（-20～20 dB）。
     """
     text = (text or "").strip()
     if not text:
@@ -1835,14 +1829,13 @@ def fish_audio_tts(
         )
         model_name = FISH_AUDIO_DEFAULT_MODEL
 
-    # Map voice_rate → prosody.speed (0.5–2.0)
+    # 把语速倍率映射到 Fish Audio 的 prosody.speed（0.5–2.0）
     try:
         speed = max(0.5, min(2.0, float(voice_rate or 1.0)))
     except (TypeError, ValueError):
         speed = 1.0
 
-    # Map voice_volume (linear multiplier) → prosody.volume (dB, -20–20).
-    # A multiplier of 1.0 → 0 dB; 0.1 → -20 dB; 2.0 → +6 dB.
+    # 线性音量倍率转分贝：1.0 → 0 dB，0.1 → -20 dB，2.0 → +6 dB。
     import math
     try:
         vol = float(voice_volume or 1.0)
@@ -1904,7 +1897,7 @@ def fish_audio_tts(
                 )
                 continue
 
-            # Validate response contains audio data
+            # 校验响应体确实包含音频数据
             if not response.content or len(response.content) < 100:
                 logger.error(
                     "Fish Audio TTS returned empty or invalid audio data"
@@ -2205,7 +2198,7 @@ def _get_audio_duration_from_file(audio_file: str) -> float:
         return 0.0
 
     try:
-        # Use moviepy (ffmpeg) to read the duration of any supported audio format
+        # 用 MoviePy（FFmpeg）读取任意受支持音频格式的时长
         with AudioFileClip(audio_file) as audio:
             return audio.duration  # Duration in seconds
     except Exception as e:

@@ -1,3 +1,8 @@
+"""加载运行期配置并初始化终端日志。
+
+导入 ``app.config`` 时会读取 ``config.toml``，并把 loguru 接到标准输出。
+"""
+
 import sys
 
 from app.config import config
@@ -5,6 +10,7 @@ from app.utils.logging_utils import configure_terminal_logger
 
 
 def __init_logger():
+    """按 config.toml 的日志级别初始化终端输出。"""
     # _log_file = utils.storage_dir("logs/server.log")
     _lvl = config.log_level
 
