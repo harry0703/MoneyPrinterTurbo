@@ -540,6 +540,69 @@ class TestVideoControllerFiles(unittest.TestCase):
         self.assertEqual(response.filename, "final-1.mp4")
         self.assertEqual(response.media_type, "video/mp4")
 
+    def test_download_video_encodes_content_disposition_filename(self):
+        """
+        下载文件名必须按 HTTP 标准编码。
+
+        普通 ASCII 文件名继续使用兼容性更好的 filename 参数；只要名称包含
+        空格、中文或响应头敏感符号，就应改用 UTF-8 filename*，避免浏览器下载
+        失败、文件名乱码，或特殊字符破坏 Content-Disposition 响应头结构。
+        """
+        cases = (
+            ("final-1.mp4", 'attachment; filename="final-1.mp4"'),
+            ("video name.mp4", "attachment; filename*=utf-8''video%20name.mp4"),
+            (
+                "中文 视频.mp4",
+                "attachment; filename*=utf-8''%E4%B8%AD%E6%96%87%20"
+                "%E8%A7%86%E9%A2%91.mp4",
+            ),
+            (
+                "name=draft;v1(test).mp4",
+                "attachment; filename*=utf-8''name%3Ddraft%3Bv1%28test%29.mp4",
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                video_controller.utils,
+                "task_dir",
+                return_value=temp_dir,
+            ):
+                for filename, expected_header in cases:
+                    with self.subTest(filename=filename):
+                        Path(temp_dir, filename).write_bytes(b"video")
+                        response = asyncio.run(
+                            video_controller.download_video(self._request(), filename)
+                        )
+
+                        self.assertEqual(
+                            response.headers["content-disposition"],
+                            expected_header,
+                        )
+
+
+class TestBuildRedisUrl(unittest.TestCase):
+    def test_no_password_omits_auth_segment(self):
+        """None and empty-string passwords must not embed a literal 'None' or ':@'."""
+        from app.controllers.v1.video import _build_redis_url
+
+        self.assertEqual(
+            _build_redis_url("localhost", 6379, 0, None),
+            "redis://localhost:6379/0",
+        )
+        self.assertEqual(
+            _build_redis_url("localhost", 6379, 0, ""),
+            "redis://localhost:6379/0",
+        )
+
+    def test_password_is_included_in_url(self):
+        from app.controllers.v1.video import _build_redis_url
+
+        self.assertEqual(
+            _build_redis_url("redis-host", 6380, 1, "s3cr3t"),
+            "redis://:s3cr3t@redis-host:6380/1",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

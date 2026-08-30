@@ -62,8 +62,8 @@ tls_verify = true
 # Video Materials / 视频素材
 # -----------------------------------------------------------------------------
 
-# Available values: "pexels", "pixabay", "coverr", "wavespeed", "loomloom",
-# "local".
+# Available values: "pexels", "pixabay", "coverr", "wavespeed",
+# "volcengine_seedance", "loomloom", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
 # "loomloom" is a paid Shengsuan Cloud source and requires explicit
@@ -95,6 +95,25 @@ wavespeed_api_keys = []
 # chosen model supports a different range.
 # wavespeed_min_duration = 4
 # wavespeed_max_duration = 15
+
+# Volcano Engine Ark Seedance uses the official asynchronous video-generation API.
+# Create an Ark API key at:
+# https://console.volcengine.com/ark/region:ark+cn-beijing/apikey
+# When empty, VOLCENGINE_ARK_API_KEY is used, followed by the existing
+# volcengine_api_key LLM setting. A single provider-specific environment variable
+# avoids ambiguity with unrelated SDKs that may also use generic Ark names.
+# Generation is billed per submitted clip.
+volcengine_seedance_api_key = ""
+volcengine_seedance_base_url = "https://ark.cn-beijing.volces.com/api/v3"
+# This stable official model supports text-to-video, 2-12 second clips and 1080p.
+# You may replace it with an enabled model or Endpoint ID from your Ark account.
+volcengine_seedance_model = "doubao-seedance-1-0-pro-250528"
+volcengine_seedance_resolution = "1080p" # "480p", "720p", or "1080p"
+volcengine_seedance_min_duration = 2
+volcengine_seedance_max_duration = 12
+volcengine_seedance_poll_interval = 5
+volcengine_seedance_run_timeout = 1800
+volcengine_seedance_watermark = false
 
 # Optional TwelveLabs integration for semantic material ranking and video QA.
 # Install the optional dependency with: uv sync --extra twelvelabs
@@ -139,6 +158,13 @@ moonshot_model_name = ""
 shengsuanyun_api_key = ""
 shengsuanyun_base_url = ""
 shengsuanyun_model_name = ""
+
+# APIMart, OpenAI-compatible multi-model API.
+# Sign up: https://go.apimart.ai/gh-moneyprinterturbo
+# API docs: https://docs.apimart.ai/cn
+apimart_api_key = ""
+apimart_base_url = ""
+apimart_model_name = ""
 
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
@@ -231,6 +257,13 @@ aimlapi_model_name = ""
 evolink_api_key = ""
 evolink_base_url = ""
 evolink_model_name = ""
+
+# OpenRouter, an OpenAI-compatible multi-model gateway.
+# API key: https://openrouter.ai/settings/keys
+# Free models: https://openrouter.ai/models?variant=free
+openrouter_api_key = ""
+openrouter_base_url = ""
+openrouter_model_name = ""
 
 # Ollama. Leave base_url empty to use the environment-aware local default.
 # Set model_name to a model installed by `ollama pull` or shown by `ollama list`.

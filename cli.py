@@ -13,6 +13,7 @@ import math
 import os
 import re
 import shutil
+import sys
 from typing import TYPE_CHECKING, Any, Sequence
 from uuid import UUID, uuid4
 
@@ -259,7 +260,7 @@ Batch manifests:
     material_group.add_argument(
         "--video-source",
         default="pexels",
-        choices=["pexels", "pixabay", "coverr", "local"],
+        choices=["pexels", "pixabay", "coverr", "volcengine_seedance", "local"],
         help="video material provider; online providers require matching API keys in config.toml",
     )
     material_group.add_argument(
@@ -277,6 +278,14 @@ Batch manifests:
         default="video",
         choices=_PIPELINE_STAGES,
         help="stop after this pipeline stage; see the stage order below",
+    )
+    material_group.add_argument(
+        "--confirm-seedance-charge",
+        action="store_true",
+        help=(
+            "confirm that Volcano Engine Seedance creates paid Ark tasks; required "
+            "with --video-source volcengine_seedance for materials or video output"
+        ),
     )
 
     video_group = parser.add_argument_group("video output")
@@ -556,6 +565,16 @@ Batch manifests:
         )
     if not args.batch_file and args.video_source != "local" and has_video_materials:
         parser.error("--video-materials can only be used with --video-source local")
+    if (
+        not args.batch_file
+        and args.video_source == "volcengine_seedance"
+        and stage_requires_materials
+        and not args.confirm_seedance_charge
+    ):
+        parser.error(
+            "--confirm-seedance-charge is required with "
+            "--video-source volcengine_seedance"
+        )
 
     if args.bgm_file:
         if args.bgm_type in (None, "custom"):
@@ -820,9 +839,7 @@ def _load_batch_manifest(raw_path: str) -> tuple[str, list[dict[str, Any]]]:
     with open(manifest_path, "rb") as manifest_file:
         payload = manifest_file.read(_BATCH_FILE_MAX_BYTES + 1)
     if len(payload) > _BATCH_FILE_MAX_BYTES:
-        raise ValueError(
-            f"batch manifest exceeds the {_BATCH_FILE_MAX_BYTES}-byte limit"
-        )
+        raise ValueError("batch manifest exceeds the 1 MiB limit")
 
     try:
         text = payload.decode("utf-8-sig")
@@ -931,13 +948,21 @@ def _validate_batch_task_params(
     *,
     stop_at: str,
     custom_position_is_explicit: bool,
+    seedance_charge_confirmed: bool,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
 
-    if params.video_source not in {"pexels", "pixabay", "coverr", "local"}:
+    if params.video_source not in {
+        "pexels",
+        "pixabay",
+        "coverr",
+        "volcengine_seedance",
+        "local",
+    }:
         raise ValueError(
-            "video_source must be one of: pexels, pixabay, coverr, local"
+            "video_source must be one of: pexels, pixabay, coverr, "
+            "volcengine_seedance, local"
         )
     for field_name, value in (
         ("video_aspect", params.video_aspect),
@@ -962,6 +987,14 @@ def _validate_batch_task_params(
         )
     if params.video_source != "local" and params.video_materials:
         raise ValueError("video_materials can only be used with video_source=local")
+    if (
+        params.video_source == "volcengine_seedance"
+        and stop_at in {"materials", "video"}
+        and not seedance_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-seedance-charge is required for Volcano Engine Seedance"
+        )
 
     if stop_at == "subtitle" and not params.subtitle_enabled:
         raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
@@ -1061,6 +1094,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                     args.custom_position is not None
                     or "custom_position" in override_fields
                 ),
+                seedance_charge_confirmed=args.confirm_seedance_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc
@@ -1467,5 +1501,26 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def _force_utf8_console() -> None:
+    """Make stdout/stderr UTF-8 before anything is printed.
+
+    Windows consoles default to a legacy code page (cp1252 in Western
+    Europe). Generating a French video produces U+202F, the narrow no-break
+    space French typography puts before ':' and '!', and Loguru's own progress
+    lines carry circled digits. Either one raises UnicodeEncodeError, which
+    kills the process *after* the video was written successfully -- so the run
+    reports failure and never prints where the file is.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            continue
+
+
 if __name__ == "__main__":
+    _force_utf8_console()
     raise SystemExit(run_cli())

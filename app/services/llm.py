@@ -541,8 +541,14 @@ def generate_script(
         # 去掉 Markdown 强调和链接语法，避免成片字幕里出现 *、#、[]()
         response = response.replace("*", "")
         response = response.replace("#", "")
-        response = re.sub(r"\[.*\]", "", response)
-        response = re.sub(r"\(.*\)", "", response)
+
+        # Remove markdown syntax.  Use non-greedy .*? so each bracket/paren
+        # group is removed independently; the greedy form would eat all text
+        # between the first opener and the last closer on the same line.
+        response = re.sub(r"\[.*?\]", "", response)
+        response = re.sub(r"\(.*?\)", "", response)
+
+        # Split the script into paragraphs
         paragraphs = response.split("\n\n")
         return "\n\n".join(paragraphs)
 
@@ -566,7 +572,7 @@ def generate_script(
         except Exception as e:
             logger.error(f"failed to generate script: {e}")
 
-        if i < _max_retries:
+        if i < _max_retries - 1:
             logger.warning(f"failed to generate video script, trying again... {i + 1}")
     if "Error: " in final_script:
         logger.error(f"failed to generate video script: {final_script}")
@@ -691,7 +697,7 @@ Please note that you must use English for generating video search terms; Chinese
 
         if search_terms and len(search_terms) > 0:
             break
-        if i < _max_retries:
+        if i < _max_retries - 1:
             logger.warning(f"failed to generate video terms, trying again... {i + 1}")
 
     logger.success(f"completed: \n{search_terms}")

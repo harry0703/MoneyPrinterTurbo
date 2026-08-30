@@ -324,6 +324,16 @@ LLM_PROVIDER_REGISTRY = (
         default_model="deepseek/deepseek-v4-flash",
         default_base_url="https://router.shengsuanyun.com/api/v1",
     ),
+    # APIMart 同时提供 `/api/v1` 业务接口和 `/v1` OpenAI 兼容接口。
+    # 当前 LLM 服务层依赖 OpenAI SDK 直接读取 choices，因此必须使用不带
+    # code/data 外层包装的 `/v1` 入口，不能照搬异步业务接口的地址。
+    LLMProviderSpec(
+        "apimart",
+        "APIMart",
+        api_key_url="https://go.apimart.ai/gh-moneyprinterturbo",
+        default_model="gpt-5.6-terra",
+        default_base_url="https://api.apimart.ai/v1",
+    ),
     LLMProviderSpec(
         "cloudflare",
         "Cloudflare AI Gateway",
@@ -370,6 +380,13 @@ LLM_PROVIDER_REGISTRY = (
         api_key_url="https://evolink.ai/dashboard/keys",
         default_model="gpt-5.5",
         default_base_url="https://direct.evolink.ai/v1",
+    ),
+    LLMProviderSpec(
+        "openrouter",
+        "OpenRouter",
+        api_key_url="https://openrouter.ai/settings/keys",
+        default_model="minimax/minimax-m3:free",
+        default_base_url="https://openrouter.ai/api/v1",
     ),
     # 本地部署与通用网关
     LLMProviderSpec(

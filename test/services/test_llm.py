@@ -155,6 +155,41 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIs(captured["app_config"], app_config)
         self.assertEqual(captured["app_config"]["openai_api_key"], "snapshot-key")
 
+    def test_generate_script_strips_each_bracket_group_independently(self):
+        """
+        format_response must remove each [bracket] and (paren) group in
+        isolation.  The greedy form [.*] matches from the first opener to
+        the *last* closer on the line, silently deleting all text in between.
+
+        Example – greedy bug:
+            "[Intro] Great content [end]"  →  "."     (all inner text lost)
+        Expected with non-greedy fix:
+            "[Intro] Great content [end]"  →  " Great content "
+        """
+
+        def fake_generate_response(prompt):
+            # Two bracket groups and two paren groups on the same line.
+            return (
+                "[Scene: Beach] A beautiful day at the [location: ocean].\n\n"
+                "Save (at least) 10% of your income (monthly)."
+            )
+
+        with patch.object(
+            llm, "_generate_response", side_effect=fake_generate_response
+        ):
+            result = llm.generate_script(
+                video_subject="savings tips", language="en-US"
+            )
+
+        # Each bracket / paren group should be gone, but the surrounding words
+        # must survive.
+        self.assertNotIn("[", result)
+        self.assertNotIn("]", result)
+        self.assertNotIn("(", result)
+        self.assertNotIn(")", result)
+        self.assertIn("A beautiful day at the", result)
+        self.assertIn("10% of your income", result)
+
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
         按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，
@@ -277,6 +312,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             get_llm_provider("gemini").default_model, "gemini-3.1-pro-preview"
         )
+        openrouter = get_llm_provider("openrouter")
+        self.assertEqual(openrouter.default_model, "minimax/minimax-m3:free")
+        self.assertEqual(openrouter.default_base_url, "https://openrouter.ai/api/v1")
+        self.assertEqual(openrouter.adapter, "openai_compatible")
+        self.assertTrue(openrouter.requires_api_key)
         pollinations = get_llm_provider("pollinations")
         self.assertEqual(pollinations.default_model, "openai-fast")
         self.assertEqual(
@@ -326,11 +366,13 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "minimax",
                 "mimo",
                 "shengsuanyun",
+                "apimart",
                 "cloudflare",
                 "modelscope",
                 "aihubmix",
                 "aimlapi",
                 "evolink",
+                "openrouter",
                 "ollama",
                 "oneapi",
                 "litellm",
@@ -355,6 +397,20 @@ class TestLiteLLMProvider(unittest.TestCase):
             shengsuanyun.default_model,
             "deepseek/deepseek-v4-flash",
         )
+        apimart = get_llm_provider("apimart")
+        self.assertEqual(
+            apimart.api_key_url,
+            "https://go.apimart.ai/gh-moneyprinterturbo",
+        )
+        self.assertEqual(apimart.default_model, "gpt-5.6-terra")
+        self.assertEqual(apimart.default_base_url, "https://api.apimart.ai/v1")
+        openrouter = get_llm_provider("openrouter")
+        self.assertEqual(
+            openrouter.api_key_url,
+            "https://openrouter.ai/settings/keys",
+        )
+        self.assertEqual(openrouter.default_model, "minimax/minimax-m3:free")
+        self.assertEqual(openrouter.default_base_url, "https://openrouter.ai/api/v1")
 
     def test_provider_registry_uses_conventional_locale_and_config_keys(self):
         """统一命名规则可避免 WebUI 为每个 Provider 增加硬编码映射。"""
@@ -1069,6 +1125,48 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("returned empty choices", result)
         self.assertNotIn("NoneType", result)
 
+    def test_apimart_provider_uses_unwrapped_openai_compatible_endpoint(self):
+        """
+        APIMart 文档同时展示 `/api/v1` 和 `/v1` 两组入口。前者的示例响应
+        带有 code/data 外层包装，OpenAI SDK 无法直接从顶层读取 choices；
+        LLM Provider 必须使用标准 `/v1` 地址，才能复用现有响应解析链路。
+        """
+        config.app["llm_provider"] = "apimart"
+        config.app["apimart_api_key"] = "apimart-key"
+        config.app["apimart_base_url"] = ""
+        config.app["apimart_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\napimart")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="apimart-key",
+            base_url="https://api.apimart.ai/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "gpt-5.6-terra",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\napimart")
+
     def test_aihubmix_provider_uses_openai_compatible_client(self):
         """
         AIHubMix 是 OpenAI-compatible 网关。这里用 fake OpenAI client
@@ -1189,6 +1287,48 @@ class TestLiteLLMProvider(unittest.TestCase):
             },
         )
         self.assertEqual(result, "hello\nevolink")
+
+    def test_openrouter_provider_uses_openai_compatible_client(self):
+        """
+        OpenRouter exposes OpenAI-compatible Chat Completions through one
+        unified endpoint. The default model stays on a currently free text model
+        suitable for script and keyword generation.
+        """
+        config.app["llm_provider"] = "openrouter"
+        config.app["openrouter_api_key"] = "openrouter-key"
+        config.app["openrouter_base_url"] = ""
+        config.app["openrouter_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nopenrouter")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="openrouter-key",
+            base_url="https://openrouter.ai/api/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "minimax/minimax-m3:free",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nopenrouter")
 
     def test_volcengine_provider_uses_openai_compatible_client(self):
         """
@@ -1734,6 +1874,56 @@ class TestLiteLLMLiveIntegration(unittest.TestCase):
 
         self.assertNotIn("Error:", result)
         self.assertIn("4", result)
+
+
+class TestRetryWarningBoundary(unittest.TestCase):
+    """'trying again' must not be logged on the last retry attempt."""
+
+    def _trying_again_count(self, mock_logger: object, fragment: str) -> int:
+        return sum(
+            1
+            for call in mock_logger.warning.call_args_list
+            if fragment in str(call)
+        )
+
+    def test_generate_script_no_spurious_warning_on_last_attempt(self):
+        with (
+            patch.object(
+                llm,
+                "_generate_response",
+                side_effect=RuntimeError("provider unavailable"),
+            ),
+            patch.object(llm, "logger") as mock_logger,
+        ):
+            llm.generate_script(video_subject="test subject")
+
+        count = self._trying_again_count(mock_logger, "trying again")
+        self.assertEqual(
+            count,
+            llm._max_retries - 1,
+            "Warning must not fire on the final attempt — no further retry will occur",
+        )
+
+    def test_generate_terms_no_spurious_warning_on_last_attempt(self):
+        with (
+            patch.object(
+                llm,
+                "_generate_response",
+                side_effect=RuntimeError("provider unavailable"),
+            ),
+            patch.object(llm, "logger") as mock_logger,
+        ):
+            llm.generate_terms(
+                video_subject="test subject",
+                video_script="some script text",
+            )
+
+        count = self._trying_again_count(mock_logger, "trying again")
+        self.assertEqual(
+            count,
+            llm._max_retries - 1,
+            "Warning must not fire on the final attempt — no further retry will occur",
+        )
 
 
 if __name__ == "__main__":

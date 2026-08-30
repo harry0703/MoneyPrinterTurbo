@@ -50,7 +50,13 @@ _redis_password = config.app.get("redis_password", None)
 _max_concurrent_tasks = config.app.get("max_concurrent_tasks", 5)
 _max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
-redis_url = f"redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}"
+
+def _build_redis_url(host: str, port: int, db: int, password: str | None) -> str:
+    auth = f":{password}@" if password else ""
+    return f"redis://{auth}{host}:{port}/{db}"
+
+
+redis_url = _build_redis_url(_redis_host, _redis_port, _redis_db, _redis_password)
 # 根据配置选择合适的任务管理器
 if _enable_redis:
     task_manager = RedisTaskManager(
@@ -492,12 +498,10 @@ async def download_video(request: Request, file_path: str):
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     file_path = pathlib.Path(video_path)
-    filename = file_path.stem
+    filename = file_path.name
     extension = file_path.suffix
-    headers = {"Content-Disposition": f"attachment; filename={filename}{extension}"}
     return FileResponse(
         path=video_path,
-        headers=headers,
-        filename=f"{filename}{extension}",
+        filename=filename,
         media_type=f"video/{extension[1:]}",
     )
