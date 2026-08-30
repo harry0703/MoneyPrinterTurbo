@@ -7,6 +7,7 @@ import math
 import os
 import re
 import shutil
+import sys
 from typing import TYPE_CHECKING, Any, Sequence
 from uuid import UUID, uuid4
 
@@ -1496,5 +1497,26 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def _force_utf8_console() -> None:
+    """Make stdout/stderr UTF-8 before anything is printed.
+
+    Windows consoles default to a legacy code page (cp1252 in Western
+    Europe). Generating a French video produces U+202F, the narrow no-break
+    space French typography puts before ':' and '!', and Loguru's own progress
+    lines carry circled digits. Either one raises UnicodeEncodeError, which
+    kills the process *after* the video was written successfully -- so the run
+    reports failure and never prints where the file is.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            continue
+
+
 if __name__ == "__main__":
+    _force_utf8_console()
     raise SystemExit(run_cli())
