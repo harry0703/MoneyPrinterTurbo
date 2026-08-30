@@ -437,6 +437,10 @@ Background music for videos is located in the project's `resource/songs` directo
 > The current project includes some default music from YouTube videos. If there are copyright issues, please delete
 > them.
 
+MoneyPrinterTurbo can also generate original background music matched to your video with **Sonilo**. Select "Sonilo
+Background Music" in the WebUI, or pass `--bgm-type sonilo` on the CLI, and provide a Sonilo API key via
+`sonilo_api_key` in `config.toml` or the `SONILO_API_KEY` environment variable.
+
 ## Subtitle Fonts 🅰
 
 Fonts for rendering video subtitles are located in the project's `resource/fonts` directory, and you can also add your
