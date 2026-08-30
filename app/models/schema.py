@@ -93,6 +93,7 @@ class VideoParams(BaseModel):
     )
     
     custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore TTS and can still use Whisper subtitles
+    sample_audio_base64: Optional[str] = None  # base64-encoded audio sample for MiMo inline voiceclone TTS
     video_language: Optional[str] = ""  # auto detect
 
     voice_name: Optional[str] = ""
@@ -150,6 +151,7 @@ class AudioRequest(BaseModel):
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
     voice_volume: Optional[float] = 1.0
     voice_rate: Optional[float] = 1.2
+    sample_audio_base64: Optional[str] = None  # base64-encoded audio sample for MiMo inline voiceclone TTS
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2

@@ -5,6 +5,7 @@ import os
 import pathlib
 import shutil
 import time
+from copy import deepcopy
 from typing import Union
 from uuid import UUID, uuid4
 
@@ -12,6 +13,21 @@ from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
 from fastapi.responses import FileResponse, StreamingResponse
 from loguru import logger
+
+
+def _sanitize_for_log(task: dict) -> dict:
+    """Return a copy of task with large base64 fields truncated for logging."""
+    sanitized = deepcopy(task)
+    params = sanitized.get("params")
+    if isinstance(params, dict) and "sample_audio_base64" in params:
+        val = params["sample_audio_base64"]
+        if isinstance(val, str) and len(val) > 100:
+            params["sample_audio_base64"] = val[:60] + f"...[{len(val)} chars]"
+    elif hasattr(params, "sample_audio_base64"):
+        val = params.sample_audio_base64
+        if isinstance(val, str) and len(val) > 100:
+            params.sample_audio_base64 = val[:60] + f"...[{len(val)} chars]"
+    return sanitized
 
 from app.config import config
 from app.controllers import base
@@ -319,7 +335,7 @@ def _submit_claimed_task(
 
     # submit_idempotent 只返回 QUEUE_FULL / STALE / ACCEPTED；前两者已在
     # 上面处理，走到这里即 ACCEPTED。
-    logger.success(f"Task created: {utils.to_json(task)}")
+    logger.success(f"Task created: {utils.to_json(_sanitize_for_log(task))}")
     return utils.get_response(200, task)
 
 
@@ -372,7 +388,7 @@ def create_task(
             task_id, state=const.TASK_STATE_QUEUED, request_id=request_id
         )
         task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
-        logger.success(f"Task created: {utils.to_json(task)}")
+        logger.success(f"Task created: {utils.to_json(_sanitize_for_log(task))}")
         return utils.get_response(200, task)
     except TaskQueueFullError as e:
         sm.state.delete_task(task_id)

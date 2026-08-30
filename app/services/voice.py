@@ -248,6 +248,11 @@ def is_mimo_voice(voice_name: str):
     return voice_name.startswith("mimo:")
 
 
+def is_mimo_inline_voiceclone_voice(voice_name: str) -> bool:
+    """检查是否是 Xiaomi MiMo inline voiceclone 的声音（需要 sample_audio_base64）"""
+    return (voice_name or "").startswith("xiaomi_mimo_inline_voiceclone_provider:")
+
+
 def is_elevenlabs_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("elevenlabs:")
 
@@ -372,6 +377,7 @@ def tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    sample_audio_base64: str | None = None,
 ) -> Union[SubMaker, None]:
     if is_no_voice(voice_name):
         duration_seconds = estimate_no_voice_duration(text)
@@ -421,6 +427,17 @@ def tts(
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
             return None
+    elif is_mimo_inline_voiceclone_voice(voice_name):
+        # 格式: xiaomi_mimo_inline_voiceclone_provider:{uuid}
+        # 需要 sample_audio_base64 参数提供参考音频
+        if not sample_audio_base64:
+            logger.error(
+                "xiaomi_mimo_inline_voiceclone_provider requires sample_audio_base64"
+            )
+            return None
+        return mimo_voiceclone_tts(
+            text, sample_audio_base64, voice_rate, voice_file, voice_volume
+        )
     elif is_mimo_voice(voice_name):
         # 从voice_name中提取声音名称
         # 格式: mimo:voice-Gender；如果调用方已执行 parse_voice_name，
@@ -1187,48 +1204,41 @@ def gemini_tts(
         return None
 
 
-def mimo_tts(
-    text: str,
-    voice_name: str,
-    voice_rate: float,
-    voice_file: str,
-    voice_volume: float = 1.0,
-) -> Union[SubMaker, None]:
-    """
-    使用 Xiaomi MiMo V2.5 TTS 生成语音。
-
-    官方接口兼容 OpenAI Chat Completions，但 TTS 有两个关键差异：
-    1. 待合成文本必须放在 `assistant` 消息里；
-    2. 音频以 `message.audio.data` 的 base64 字符串返回。
-
-    MiMo 当前没有返回逐词时间轴，因此这里复用项目已有的 legacy
-    SubMaker 兜底方案：根据最终音频时长和脚本文本断句生成字幕时间轴。
-    """
-    from pydub import AudioSegment
-
-    text = (text or "").strip()
-    if not text:
-        logger.error("MiMo TTS text is empty")
-        return None
-
+def _resolve_mimo_config() -> tuple[str, str, str]:
+    """返回 (api_key, base_url, style_prompt)，统一读取 MiMo 配置。"""
     api_key = config.app.get("mimo_api_key", "")
-    if not api_key:
-        logger.error("MiMo API key is not set")
-        return None
-
     base_url = config.app.get("mimo_base_url", "") or _MIMO_DEFAULT_BASE_URL
-    model_name = config.app.get("mimo_tts_model_name", "") or _MIMO_DEFAULT_TTS_MODEL
     style_prompt = config.app.get(
         "mimo_tts_style_prompt",
         "请用自然、清晰、适合短视频旁白的语气朗读。",
     )
+    return api_key, base_url, style_prompt
+
+
+def _mimo_completion_and_export(
+    text: str,
+    model_name: str,
+    voice_value: str,
+    voice_file: str,
+    api_key: str,
+    base_url: str,
+    style_prompt: str,
+    log_label: str,
+) -> Union[SubMaker, None]:
+    """
+    执行 MiMo OpenAI-compatible TTS 请求，解码音频并写入 voice_file。
+
+    voice_value 是传给 audio.voice 字段的值——对 preset TTS 是音色名称，
+    对 voiceclone 是 data URI。两个调用方共享除此以外的所有逻辑。
+    """
+    from pydub import AudioSegment
 
     _configure_pydub_ffmpeg(AudioSegment)
 
     for i in range(3):
         try:
             logger.info(
-                f"start mimo tts, model: {model_name}, voice: {voice_name}, try: {i + 1}"
+                f"start mimo {log_label} tts, model: {model_name}, try: {i + 1}"
             )
             ensure_file_path_exists(voice_file)
 
@@ -1241,12 +1251,12 @@ def mimo_tts(
                 ],
                 audio={
                     "format": "wav",
-                    "voice": voice_name,
+                    "voice": voice_value,
                 },
             )
 
             if not completion or not getattr(completion, "choices", None):
-                raise ValueError("MiMo TTS returned empty response")
+                raise ValueError(f"MiMo {log_label} TTS returned empty response")
 
             message = completion.choices[0].message
             audio = getattr(message, "audio", None)
@@ -1257,7 +1267,7 @@ def mimo_tts(
                 audio_data = getattr(audio, "data", None)
 
             if not audio_data:
-                raise ValueError("MiMo TTS returned empty audio data")
+                raise ValueError(f"MiMo {log_label} TTS returned empty audio data")
 
             audio_bytes = base64.b64decode(audio_data)
             audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
@@ -1271,9 +1281,9 @@ def mimo_tts(
 
             audio_duration = len(audio_segment) / 1000.0
             sub_maker = ensure_legacy_submaker_fields(SubMaker())
-            logger.success(f"mimo tts succeeded: {voice_file}")
+            logger.success(f"mimo {log_label} tts succeeded: {voice_file}")
             logger.debug(
-                "mimo subtitle timeline generated, "
+                f"mimo {log_label} subtitle timeline generated, "
                 f"duration: {audio_duration:.3f}s, output_format: {output_format}"
             )
             return populate_legacy_submaker_with_full_text(
@@ -1282,9 +1292,94 @@ def mimo_tts(
                 audio_duration_seconds=audio_duration,
             )
         except Exception as e:
-            logger.error(f"mimo tts failed: {str(e)}")
+            logger.error(f"mimo {log_label} tts failed: {str(e)}")
 
     return None
+
+
+def mimo_tts(
+    text: str,
+    voice_name: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """
+    使用 Xiaomi MiMo V2.5 TTS 生成语音（preset 音色模式）。
+
+    官方接口兼容 OpenAI Chat Completions，但 TTS 有两个关键差异：
+    1. 待合成文本必须放在 `assistant` 消息里；
+    2. 音频以 `message.audio.data` 的 base64 字符串返回。
+
+    MiMo 当前没有返回逐词时间轴，因此这里复用项目已有的 legacy
+    SubMaker 兜底方案：根据最终音频时长和脚本文本断句生成字幕时间轴。
+    """
+    text = (text or "").strip()
+    if not text:
+        logger.error("MiMo TTS text is empty")
+        return None
+
+    api_key, base_url, style_prompt = _resolve_mimo_config()
+    if not api_key:
+        logger.error("MiMo API key is not set")
+        return None
+
+    model_name = config.app.get("mimo_tts_model_name", "") or _MIMO_DEFAULT_TTS_MODEL
+
+    return _mimo_completion_and_export(
+        text=text,
+        model_name=model_name,
+        voice_value=voice_name,
+        voice_file=voice_file,
+        api_key=api_key,
+        base_url=base_url,
+        style_prompt=style_prompt,
+        log_label="preset",
+    )
+
+
+def mimo_voiceclone_tts(
+    text: str,
+    sample_base64: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """
+    使用 Xiaomi MiMo V2.5 TTS voiceclone 模型生成语音。
+
+    与 mimo_tts 不同，voiceclone 需要在每次调用时内联传入参考音频样本
+    （base64 编码），无需持久化的 voice ID。模型会克隆样本音频的音色来
+    合成新文本。
+
+    voice_name 格式: xiaomi_mimo_inline_voiceclone_provider:{uuid}
+    """
+    text = (text or "").strip()
+    if not text:
+        logger.error("MiMo voiceclone TTS text is empty")
+        return None
+
+    if not sample_base64:
+        logger.error("MiMo voiceclone TTS sample_audio_base64 is empty")
+        return None
+
+    api_key, base_url, style_prompt = _resolve_mimo_config()
+    if not api_key:
+        logger.error("MiMo API key is not set")
+        return None
+
+    voice_value = f"data:audio/mp3;base64,{sample_base64}"
+
+    return _mimo_completion_and_export(
+        text=text,
+        model_name="mimo-v2.5-tts-voiceclone",
+        voice_value=voice_value,
+        voice_file=voice_file,
+        api_key=api_key,
+        base_url=base_url,
+        style_prompt=style_prompt,
+        log_label="voiceclone",
+    )
 
 
 def elevenlabs_tts(
