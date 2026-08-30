@@ -1,4 +1,4 @@
-<div align="center">
+puedes hacer infografias? <div align="center">
 
 # MoneyPrinterTurbo 💸
 
