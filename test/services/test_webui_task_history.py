@@ -16,6 +16,7 @@ TASK_HISTORY_HELPERS = {
 TASK_HISTORY_CONSTANTS = {
     "_FINAL_VIDEO_PATTERN",
     "_DOWNLOAD_FILENAME_INVALID_PATTERN",
+    "_WINDOWS_RESERVED_FILENAMES",
     "VOICE_MODE_TTS",
     "VOICE_MODE_UPLOAD",
     "VOICE_MODE_NONE",
@@ -88,6 +89,12 @@ def test_build_video_download_name_uses_subject_and_output_index():
 def test_build_video_download_name_handles_empty_and_long_subjects():
     assert build_video_download_name("  ...  ", 1, 1) == "video.mp4"
     assert len(build_video_download_name("a" * 100, 1, 1)) == 84
+
+
+def test_build_video_download_name_avoids_windows_reserved_names():
+    assert build_video_download_name("CON", 1, 1) == "_CON.mp4"
+    assert build_video_download_name("aux.extra", 1, 1) == "_aux.extra.mp4"
+    assert build_video_download_name("lpt1", 1, 1) == "_lpt1.mp4"
 
 
 def test_restore_requirements_block_missing_uploaded_files():
