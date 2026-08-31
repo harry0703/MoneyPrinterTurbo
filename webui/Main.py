@@ -138,6 +138,11 @@ _FINAL_VIDEO_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _DOWNLOAD_FILENAME_INVALID_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_WINDOWS_RESERVED_FILENAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{number}" for number in range(1, 10)}
+    | {f"LPT{number}" for number in range(1, 10)}
+)
 _RUNTIME_CONFIG_SECTIONS = {
     "app": config.app,
     "azure": config.azure,
@@ -990,6 +995,8 @@ def _build_video_download_name(subject, index, total):
     safe_subject = re.sub(r"\s+", " ", safe_subject).strip(" .")[:80].rstrip(" .")
     if not safe_subject:
         safe_subject = "video"
+    if safe_subject.split(".", 1)[0].upper() in _WINDOWS_RESERVED_FILENAMES:
+        safe_subject = f"_{safe_subject}"
 
     suffix = f"-{index}" if total > 1 else ""
     return f"{safe_subject}{suffix}.mp4"

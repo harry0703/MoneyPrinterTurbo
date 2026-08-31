@@ -156,6 +156,7 @@ def test_completed_task_renders_subject_named_video_download(
     selected_nodes = []
     target_names = {
         "_DOWNLOAD_FILENAME_INVALID_PATTERN",
+        "_WINDOWS_RESERVED_FILENAMES",
         "_build_video_download_name",
         "_normalize_task_state",
         "_render_generation_task_snapshot",
