@@ -104,22 +104,22 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 ## Another Open-Source Project from the Creator: MangoDisk ⭐
 
 <p align="center">
-  <a href="https://github.com/harry0703/MangoDisk">
+  <a href="https://mangodisk.app">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/readme/en-dark.jpg">
-      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/readme/en-light.jpg">
-      <img src="https://assets.mangodisk.app/images/readme/en-light.jpg" width="900" alt="MangoDisk open-source disk cleaner and disk space analyzer">
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/en/dark-01-deep-cleanup.jpg">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg">
+      <img src="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg" width="900" alt="MangoDisk Deep Cleanup interface">
     </picture>
   </a>
 </p>
 
 <p align="center">
-  <strong>A safety-first, open-source disk cleaner and disk space analyzer for macOS and Windows</strong><br>
-  Find large and duplicate files, clean caches and app leftovers, and reclaim disk space safely.
+  <strong>An open-source disk cleaner, storage analyzer, and system optimizer for macOS and Windows</strong><br>
+  Clean caches, large files, duplicates, and app leftovers; analyze disk usage; manage apps and startup items; and maintain your system.
 </p>
 
 <p align="center">
-  <a href="https://github.com/harry0703/MangoDisk">View the Open-Source Project</a>
+  <a href="https://mangodisk.app">Visit the MangoDisk Website</a> · <a href="https://github.com/harry0703/MangoDisk">View on GitHub</a>
 </p>
 
 ---
