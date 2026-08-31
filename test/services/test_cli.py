@@ -32,6 +32,24 @@ class TestCli(unittest.TestCase):
 
         self.assertEqual(params.voice_name, "zh-CN-XiaoxiaoNeural-Female")
 
+    def test_video_fit_mode_defaults_to_cover_and_accepts_contain(self):
+        default_params = cli.build_video_params(
+            cli.parse_args(["--video-subject", "test"])
+        )
+        contain_params = cli.build_video_params(
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--video-fit-mode",
+                    "contain",
+                ]
+            )
+        )
+
+        self.assertEqual(default_params.video_fit_mode.value, "cover")
+        self.assertEqual(contain_params.video_fit_mode.value, "contain")
+
     def test_complete_script_can_replace_video_subject(self):
         args = cli.parse_args(["--video-script", "完整的视频文案"])
         params = cli.build_video_params(args)

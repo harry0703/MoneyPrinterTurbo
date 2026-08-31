@@ -63,6 +63,48 @@ class TestVideoService(unittest.TestCase):
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
 
+    def test_fit_clip_cover_fills_portrait_canvas_without_black_bars(self):
+        source_color = [17, 34, 51]
+        source = ImageClip(
+            vd.np.full((90, 160, 3), source_color, dtype=vd.np.uint8)
+        ).with_duration(1)
+        fitted = vd._fit_clip_to_canvas(
+            source,
+            target_width=90,
+            target_height=160,
+            fit_mode=vd.VideoFitMode.cover,
+        )
+
+        try:
+            self.assertEqual(tuple(fitted.size), (90, 160))
+            frame = fitted.get_frame(0)
+            self.assertEqual(frame[0, 45].tolist(), source_color)
+            self.assertEqual(frame[-1, 45].tolist(), source_color)
+        finally:
+            vd.close_clip(fitted)
+            vd.close_clip(source)
+
+    def test_fit_clip_contain_preserves_legacy_black_bars(self):
+        source_color = [17, 34, 51]
+        source = ImageClip(
+            vd.np.full((90, 160, 3), source_color, dtype=vd.np.uint8)
+        ).with_duration(1)
+        fitted = vd._fit_clip_to_canvas(
+            source,
+            target_width=90,
+            target_height=160,
+            fit_mode=vd.VideoFitMode.contain,
+        )
+
+        try:
+            self.assertEqual(tuple(fitted.size), (90, 160))
+            frame = fitted.get_frame(0)
+            self.assertEqual(frame[0, 45].tolist(), [0, 0, 0])
+            self.assertEqual(frame[80, 45].tolist(), source_color)
+        finally:
+            vd.close_clip(fitted)
+            vd.close_clip(source)
+
     def test_delete_files_deduplicates_paths_and_ignores_missing_files(self):
         """
         循环片段会让同一路径在拼接列表中重复出现，清理时每个路径只能删除一次。

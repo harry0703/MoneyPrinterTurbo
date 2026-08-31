@@ -140,6 +140,15 @@ def _transition_mode(value: str) -> str | None:
     return _TRANSITION_MODE_VALUES[normalized]
 
 
+def _video_fit_mode(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in {"cover", "contain"}:
+        raise argparse.ArgumentTypeError(
+            "video-fit-mode must be one of: cover, contain"
+        )
+    return normalized
+
+
 def _bgm_type(value: str) -> str:
     normalized = value.strip().lower()
     if normalized == "none":
@@ -294,6 +303,16 @@ Batch manifests:
         choices=["9:16", "16:9", "1:1"],
         default="9:16",
         help="output aspect ratio: portrait, landscape, or square",
+    )
+    video_group.add_argument(
+        "--video-fit-mode",
+        type=_video_fit_mode,
+        choices=["cover", "contain"],
+        default=None,
+        help=(
+            "fit mismatched source clips by filling and center-cropping (cover) "
+            "or preserving the full frame with black bars (contain); default: cover"
+        ),
     )
     video_group.add_argument(
         "--video-concat-mode",
@@ -720,6 +739,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "paragraph_number",
         "video_script_prompt",
         "custom_system_prompt",
+        "video_fit_mode",
         "video_concat_mode",
         "video_transition_mode",
         "video_clip_duration",
@@ -749,6 +769,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
     # 没有显式传入命令行参数时，使用 WebUI 保存的值。只补充上面尚未由命令行
     # 设置的字段；若保存值缺失，则继续沿用 VideoParams 的默认值。
     ui_defaults = (
+        ("video_fit_mode", str, _video_fit_mode),
         ("font_name", str, None),
         ("text_fore_color", str, _hex_color),
         ("font_size", int, _positive_int),

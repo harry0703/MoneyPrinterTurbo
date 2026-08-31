@@ -85,6 +85,9 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         _widget_by_key(first_session.selectbox, "video_aspect_for_pexels").set_value(
             "16:9"
         )
+        _widget_by_key(first_session.selectbox, "video_fit_mode_select").set_value(
+            "contain"
+        )
         _widget_by_key(first_session.selectbox, "video_clip_duration_select").set_value(
             7
         )
@@ -145,6 +148,7 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
             "video_transition_mode": "FadeIn",
             "video_aspect_pexels": "16:9",
             "video_aspect_coverr": "9:16",
+            "video_fit_mode": "contain",
             "video_clip_duration": 7,
             "video_clip_speed": 1.5,
             "video_count": 3,
@@ -191,6 +195,9 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         assert _widget_by_key(
             second_session.selectbox, "video_aspect_for_pexels"
         ).value == "16:9"
+        assert _widget_by_key(
+            second_session.selectbox, "video_fit_mode_select"
+        ).value == "contain"
         _widget_by_key(second_session.selectbox, "video_source_select").set_value(
             "coverr"
         ).run()
@@ -283,6 +290,7 @@ def test_invalid_saved_generation_settings_fall_back_without_breaking_webui():
         video_concat_mode="not-a-mode",
         video_transition_mode="not-a-transition",
         video_aspect_pexels="4:3",
+        video_fit_mode="stretch",
         video_clip_duration=999,
         video_clip_speed="nan",
         video_count=True,
@@ -317,6 +325,7 @@ def test_invalid_saved_generation_settings_fall_back_without_breaking_webui():
         "None"
     )
     assert _widget_by_key(app.selectbox, "video_aspect_for_pexels").value == "9:16"
+    assert _widget_by_key(app.selectbox, "video_fit_mode_select").value == "cover"
     assert _widget_by_key(app.selectbox, "video_clip_duration_select").value == 3
     assert _widget_by_key(app.slider, "video_clip_speed_slider").value == 1.0
     assert _widget_by_key(app.selectbox, "video_count_select").value == 1

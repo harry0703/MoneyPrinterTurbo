@@ -90,12 +90,13 @@ class TestTaskService(unittest.TestCase):
             custom_system_prompt="Only write short narration.",
         )
 
-    def test_generate_final_videos_forwards_clip_speed(self):
-        """任务编排层必须把用户选择的画面速度传给视频合成服务。"""
+    def test_generate_final_videos_forwards_clip_speed_and_fit_mode(self):
+        """任务编排层必须把画面速度和适配模式传给视频合成服务。"""
         params = VideoParams(
             video_subject="test",
             video_count=1,
             video_clip_speed=1.25,
+            video_fit_mode="contain",
         )
 
         with (
@@ -113,6 +114,10 @@ class TestTaskService(unittest.TestCase):
             )
 
         self.assertEqual(combine_videos.call_args.kwargs["clip_speed"], 1.25)
+        self.assertEqual(
+            combine_videos.call_args.kwargs["video_fit_mode"],
+            params.video_fit_mode,
+        )
 
     def test_generate_final_videos_uses_generated_sonilo_music(self):
         """Sonilo 必须针对每条拼接后的视频生成配乐，并传给最终混音。"""

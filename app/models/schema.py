@@ -46,6 +46,13 @@ class VideoAspect(str, Enum):
         raise ValueError(f"unsupported video aspect: {self}")
 
 
+class VideoFitMode(str, Enum):
+    """How source clips with a different aspect ratio fill the output canvas."""
+
+    cover = "cover"
+    contain = "contain"
+
+
 _Config = ConfigDict(
     arbitrary_types_allowed=True,
     # Note: ensure your key names match renamed V2 parameters if needed
@@ -82,6 +89,7 @@ class VideoParams(BaseModel):
     video_script: str = ""  # Script used to generate the video
     video_terms: Optional[str | list] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
+    video_fit_mode: VideoFitMode = VideoFitMode.cover
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
     video_clip_duration: int = Field(default=5, ge=1)
