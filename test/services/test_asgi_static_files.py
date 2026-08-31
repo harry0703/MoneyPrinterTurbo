@@ -68,8 +68,8 @@ class TestTaskStaticFiles(unittest.TestCase):
         self.assertEqual(self.client.get("/ping").status_code, 200)
         self.assertEqual(self.client.get("/docs").status_code, 200)
 
-    def test_options_request_is_left_to_cors_middleware(self):
-        """受保护文件的 CORS 预检不应被 API Key 校验提前拒绝。"""
+    def test_unconfigured_cors_rejects_task_file_preflight(self):
+        """默认同源模式必须拒绝第三方网页对任务文件发起预检。"""
 
         config.app["api_key"] = "task-file-secret"
 
@@ -82,7 +82,8 @@ class TestTaskStaticFiles(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("access-control-allow-origin", response.headers)
 
     def test_does_not_serve_symlink_to_file_outside_tasks(self):
         with (

@@ -2,6 +2,7 @@
 
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -62,6 +63,107 @@ def validation_exception_handler(request: Request, e: RequestValidationError):
     )
 
 
+def parse_cors_allowed_origins(raw_origins: str | None) -> list[str]:
+    """解析浏览器跨域来源白名单。
+
+    CORS 只约束浏览器中的跨域 JavaScript，不影响 curl、Postman、n8n
+    或服务端 SDK。未配置时返回空列表，表示默认不开放跨域访问；用户确实
+    部署了独立网页前端时，再通过 ``CORS_ALLOWED_ORIGINS`` 显式开启。
+    """
+
+    if not raw_origins:
+        return []
+
+    # 去除逗号分隔项两侧的空白，并忽略空项，避免常见的环境变量格式
+    # ``https://a.example, https://b.example,`` 产生永远无法匹配的来源。
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+
+def configure_cors(instance: FastAPI, allowed_origins: list[str]) -> None:
+    """按显式白名单配置 CORS；空白名单保持默认同源策略。"""
+
+    if not allowed_origins:
+        logger.info(
+            "browser cross-origin API access is disabled; set "
+            "CORS_ALLOWED_ORIGINS to enable trusted origins"
+        )
+        return
+
+    allow_all_origins = "*" in allowed_origins
+    configured_api_key = config.app.get("api_key", "")
+    if allow_all_origins and configured_api_key in (None, ""):
+        # ``*`` 是用户显式选择的兼容模式，因此不强制拒绝启动；但在免认证
+        # 状态下它会允许任意网页读取和调用 API，必须留下可定位的安全告警。
+        logger.warning(
+            "CORS allows every browser origin while API key authentication is "
+            "disabled; configure app.api_key or restrict CORS_ALLOWED_ORIGINS"
+        )
+
+    instance.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        # Starlette 在 ``*`` 与 credentials 同时启用时会反射任意 Origin。
+        # 通配符模式不需要 Cookie 认证，因此主动关闭 credentials；显式来源
+        # 仍保留旧行为，避免影响已有独立网页前端的 credentials 请求模式。
+        allow_credentials=not allow_all_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        # 远程 HTTPS 前端访问本机或局域网 API 时，现代浏览器会额外发送
+        # Private Network Access 预检。只有精确白名单来源可以获得许可；
+        # 通配符模式继续拒绝，避免任意网站探测用户的私有网络服务。
+        allow_private_network=not allow_all_origins,
+    )
+
+
+def is_browser_origin_allowed(
+    request: Request, allowed_origins: list[str]
+) -> bool:
+    """判断浏览器请求来源是否为同源或显式白名单来源。"""
+
+    origin = request.headers.get("origin")
+    if not origin:
+        # curl、Postman、n8n 和服务端 SDK 通常不发送 Origin。保留这类请求，
+        # 避免安全修复错误地改变现有 API 客户端的调用契约。
+        return True
+    if "*" in allowed_origins or origin in allowed_origins:
+        return True
+
+    # 浏览器对同源 POST 也可能发送 Origin。仅比较 scheme + authority，忽略
+    # 路径和查询参数；反向代理部署若未正确转发公网 scheme/host，可通过显式
+    # CORS_ALLOWED_ORIGINS 声明外部来源，避免依赖不可信的转发 Header。
+    request_url = urlsplit(str(request.url))
+    request_origin = f"{request_url.scheme}://{request_url.netloc}"
+    return origin == request_origin
+
+
+def configure_browser_access(instance: FastAPI, allowed_origins: list[str]) -> None:
+    """同时配置服务端 Origin 防护与浏览器 CORS 响应策略。"""
+
+    @instance.middleware("http")
+    async def reject_untrusted_browser_origin(request: Request, call_next):
+        """主动拒绝不可信浏览器来源，覆盖无需 CORS 预检的简单请求。"""
+
+        if not is_browser_origin_allowed(request, allowed_origins):
+            origin = request.headers.get("origin", "")
+            logger.warning(
+                f"blocked untrusted browser origin: method={request.method}, "
+                f"path={request.url.path}, origin={origin}"
+            )
+            return JSONResponse(
+                status_code=403,
+                content=utils.get_response(
+                    status=403,
+                    message="cross-origin browser request is not allowed",
+                ),
+            )
+
+        return await call_next(request)
+
+    # CORS 中间件最后注册后位于 Origin 防护外层：可信预检可直接成功，
+    # 非可信预检由 CORS 拒绝；无需预检的实际请求仍会进入上面的 403 防护。
+    configure_cors(instance, allowed_origins)
+
+
 def get_application() -> FastAPI:
     """Initialize FastAPI application.
 
@@ -105,16 +207,11 @@ async def protect_generated_task_files(request: Request, call_next):
     return await call_next(request)
 
 
-# Configures the CORS middleware for the FastAPI app
-cors_allowed_origins_str = os.getenv("CORS_ALLOWED_ORIGINS", "")
-origins = cors_allowed_origins_str.split(",") if cors_allowed_origins_str else ["*"]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+# 默认遵循浏览器同源策略；仅在用户显式配置可信网页来源时开放跨域。
+cors_allowed_origins = parse_cors_allowed_origins(
+    os.getenv("CORS_ALLOWED_ORIGINS", "")
 )
+configure_browser_access(app, cors_allowed_origins)
 
 task_dir = utils.task_dir()
 app.mount("/tasks", StaticFiles(directory=task_dir, html=True), name="")

@@ -278,6 +278,8 @@ docker compose -f docker-compose.release.yml up
 
 ブラウザーで http://127.0.0.1:8080/docs または http://127.0.0.1:8080/redoc を開きます
 
+> API はデフォルトで同一オリジンのブラウザーアクセスのみを許可します。別のブラウザーフロントエンドから API を直接呼び出す場合に限り、環境変数 `CORS_ALLOWED_ORIGINS` へ信頼するオリジンを設定してください（例: `http://localhost:3000,https://frontend.example.com`）。curl、Postman、n8n、その他のサーバー側クライアントは CORS の影響を受けません。
+
 ### 手動でデプロイ 📦
 
 #### ① Python の仮想環境を作成する
