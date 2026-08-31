@@ -140,8 +140,18 @@ _FINAL_VIDEO_PATTERN = re.compile(
 _DOWNLOAD_FILENAME_INVALID_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _WINDOWS_RESERVED_FILENAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
-    | {f"COM{number}" for number in range(1, 10)}
-    | {f"LPT{number}" for number in range(1, 10)}
+    | {
+        f"{prefix}{number}"
+        for prefix in ("COM", "LPT")
+        for number in range(1, 10)
+    }
+    # Win32 还会把 Latin-1 上标数字 ¹、²、³ 识别为设备编号。虽然这类主题
+    # 很少见，但仍会导致 Windows 下载失败，因此与普通数字保留名统一处理。
+    | {
+        f"{prefix}{number}"
+        for prefix in ("COM", "LPT")
+        for number in ("¹", "²", "³")
+    }
 )
 _RUNTIME_CONFIG_SECTIONS = {
     "app": config.app,
@@ -995,7 +1005,10 @@ def _build_video_download_name(subject, index, total):
     safe_subject = re.sub(r"\s+", " ", safe_subject).strip(" .")[:80].rstrip(" .")
     if not safe_subject:
         safe_subject = "video"
-    if safe_subject.split(".", 1)[0].upper() in _WINDOWS_RESERVED_FILENAMES:
+    # Win32 在识别设备名时会忽略扩展名前的尾随空格和句点。与背景音乐上传
+    # 的现有规则保持一致，避免 ``CON .topic`` 绕过保留名保护。
+    windows_basename = safe_subject.split(".", 1)[0].rstrip(" .").upper()
+    if windows_basename in _WINDOWS_RESERVED_FILENAMES:
         safe_subject = f"_{safe_subject}"
 
     suffix = f"-{index}" if total > 1 else ""
