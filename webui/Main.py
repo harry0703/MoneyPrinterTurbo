@@ -50,6 +50,7 @@ from app.services import (
     loomloom,
     material,
     video,
+    ofox,
     volcengine_seedance,
     voice,
     webui_task,
@@ -106,7 +107,7 @@ LOOMLOOM_MAX_POLL_FAILURES = 5
 # config.toml、历史任务和 API 请求中的字段语义，旧用户升级后无需迁移配置。
 VIDEO_SOURCE_GROUPS = {
     "stock_video": ("pexels", "pixabay", "coverr"),
-    "ai_video": ("wavespeed", "volcengine_seedance", "loomloom"),
+    "ai_video": ("wavespeed", "volcengine_seedance", "ofox", "loomloom"),
     "ai_image": ("openai_image",),
     "local": ("local",),
 }
@@ -560,6 +561,7 @@ def _initialize_session_state():
         "loomloom_video_confirm_charge": False,
         "wavespeed_confirm_charge": False,
         "volcengine_seedance_confirm_charge": False,
+        "ofox_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -3385,6 +3387,48 @@ def _render_settings_dialog():
                     seedance_base_url.strip() or volcengine_seedance.DEFAULT_BASE_URL,
                 )
 
+                st.markdown("**OFox**")
+                ofox_api_key = st.text_input(
+                    tr("OFox API Key"),
+                    value=str(config.app.get("ofox_api_key", "") or ""),
+                    type="password",
+                    key="ofox_api_key_input",
+                )
+                _set_runtime_config("app", "ofox_api_key", ofox_api_key.strip())
+                ofox_model = st.text_input(
+                    tr("OFox Text-to-Video Model"),
+                    value=str(
+                        config.app.get(
+                            "ofox_text_to_video_model",
+                            ofox.DEFAULT_MODEL_ID,
+                        )
+                        or ofox.DEFAULT_MODEL_ID
+                    ),
+                    key="ofox_text_to_video_model_input",
+                )
+                _set_runtime_config(
+                    "app", "ofox_text_to_video_model", ofox_model.strip()
+                )
+                configured_ofox_base_url = str(
+                    config.app.get("ofox_base_url", ofox.DEFAULT_BASE_URL)
+                    or ofox.DEFAULT_BASE_URL
+                ).strip()
+                ofox_base_url = st.text_input(
+                    tr("OFox Base URL"),
+                    value=(
+                        ""
+                        if configured_ofox_base_url == ofox.DEFAULT_BASE_URL
+                        else configured_ofox_base_url
+                    ),
+                    placeholder=ofox.DEFAULT_BASE_URL,
+                    key="ofox_base_url_input",
+                )
+                _set_runtime_config(
+                    "app",
+                    "ofox_base_url",
+                    ofox_base_url.strip() or ofox.DEFAULT_BASE_URL,
+                )
+
             with st.container(border=True):
                 st.markdown(f"#### {tr('AI Image Generation APIs')}")
                 st.caption(tr("AI Image Generation APIs Help"))
@@ -4243,6 +4287,7 @@ def _render_video_settings(panel, params):
                 "coverr": tr("Coverr"),
                 "wavespeed": tr("WaveSpeed AI Video"),
                 "volcengine_seedance": tr("Volcano Engine Seedance"),
+                "ofox": tr("OFox AI Video"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
                 "local": tr("Local file"),
@@ -4270,6 +4315,8 @@ def _render_video_settings(panel, params):
                 st.caption(tr("WaveSpeed AI Video Help"))
             if params.video_source == "volcengine_seedance":
                 st.caption(tr("Volcano Engine Seedance Help"))
+            if params.video_source == "ofox":
+                st.caption(tr("OFox AI Video Help"))
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
                 local_file_types = sorted(
@@ -4491,6 +4538,8 @@ def _render_video_settings(panel, params):
                 _render_wavespeed_video_settings(params)
             if params.video_source == "volcengine_seedance":
                 _render_seedance_video_settings(params)
+            if params.video_source == "ofox":
+                _render_ofox_video_settings(params)
     return uploaded_files
 
 
@@ -4549,6 +4598,30 @@ def _render_seedance_video_settings(params):
         tr("Confirm Volcano Engine Seedance Charge"),
         key="volcengine_seedance_confirm_charge",
         help=tr("Confirm Volcano Engine Seedance Charge Help"),
+    )
+
+
+def _render_ofox_video_settings(params):
+    """展示预计付费任务数量，并要求用户明确确认 OFox 生成费用。"""
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    estimated_range = _estimate_voiceover_duration_range(
+        str(params.video_script or ""), params.voice_rate
+    )
+    if estimated_range:
+        min_clips = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        max_clips = max(
+            math.ceil(estimated_range[1] * video_count / clip_duration), min_clips
+        )
+        st.warning(
+            tr("OFox Billing Notice").format(min=min_clips, max=max_clips)
+        )
+    else:
+        st.warning(tr("OFox Billing Notice Without Script"))
+    st.checkbox(
+        tr("Confirm OFox Charge"),
+        key="ofox_confirm_charge",
+        help=tr("Confirm OFox Charge Help"),
     )
 
 
@@ -6224,6 +6297,7 @@ def _render_generation_controls(
             "coverr",
             "wavespeed",
             "volcengine_seedance",
+            "ofox",
             "loomloom",
             "openai_image",
             "local",
@@ -6281,6 +6355,20 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm Volcano Engine Seedance Charge Required"))
+            st.stop()
+
+        if params.video_source == "ofox" and not (
+            ofox.is_enabled(config.snapshot_config_with_pending(config.app))
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the OFox API Key"))
+            st.stop()
+
+        if params.video_source == "ofox" and not st.session_state.get(
+            "ofox_confirm_charge", False
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm OFox Charge Required"))
             st.stop()
 
         if params.video_source == "openai_image" and not material.is_openai_image_enabled(

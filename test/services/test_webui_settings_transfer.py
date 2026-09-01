@@ -123,6 +123,7 @@ def _sample_config_sections():
             "upload_post_api_key": "api-key-123",
             "upload_post_username": "my-username",
             "volcengine_seedance_api_key": "ark-seedance-key",
+            "ofox_api_key": "ofox-backup-key",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key", "model_id": "eleven_v3"},
@@ -225,11 +226,12 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
             "upload_post_api_key": "api-key-123",
             "upload_post_username": "my-username",
             "volcengine_seedance_api_key": "ark-seedance-key",
+            "ofox_api_key": "ofox-backup-key",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key"},
     }
-    assert count_backup_keys(backup) == 11
+    assert count_backup_keys(backup) == 12
 
 
 def test_key_backup_carries_llm_provider_extra_fields_with_the_key():
@@ -284,6 +286,7 @@ def test_key_backup_round_trip_restores_every_saved_key():
     assert restored["app"]["upload_post_api_key"] == "api-key-123"
     assert restored["app"]["upload_post_username"] == "my-username"
     assert restored["app"]["volcengine_seedance_api_key"] == "ark-seedance-key"
+    assert restored["app"]["ofox_api_key"] == "ofox-backup-key"
 
 
 def test_key_backup_import_ignores_unknown_sections_and_non_key_settings():
@@ -332,6 +335,9 @@ def test_credential_widget_state_keys_match_settings_inputs():
     )
     assert credential_widget_state_keys("app", "volcengine_seedance_api_key") == (
         "volcengine_seedance_api_key_input",
+    )
+    assert credential_widget_state_keys("app", "ofox_api_key") == (
+        "ofox_api_key_input",
     )
     assert credential_widget_state_keys("azure", "speech_key") == (
         "azure_speech_key_input",

@@ -139,6 +139,7 @@
 - [x] ランダムまたはカスタムの **BGM** に対応し、音量も調整できます
 - [x] 手持ちの**ローカル素材**に加え、**Pexels**、**Pixabay**、**Coverr** の無料で使える高画質素材に対応
 - [x] ネイティブの **Volcano Engine Ark Seedance** テキスト動画生成に対応し、モデル／Endpoint ID、制限付きポーリング、有料タスク確認を設定できます
+- [x] ネイティブの **OFox** マルチモデルテキスト動画生成に対応（1 つの API キーで Seedance や Wan などを利用可能）。制限付きポーリングと有料タスク確認も同様に提供します
 - [x] **Kimi / Moonshot AI**、**OpenAI**、**Google Gemini**、**DeepSeek**、**Alibaba Cloud Qwen**、**Microsoft Azure OpenAI**、**ByteDance VolcEngine Ark**、**xAI Grok**、**MiniMax**、**Xiaomi MiMo** といった主要なモデルプロバイダーに加え、**Cloudflare AI Gateway**、**Alibaba ModelScope**、**AIHubMix**、**AIML API**、**EvoLink**、**Ollama**、**OneAPI**、**LiteLLM**、**Groq**、**Pollinations AI** などの統合ゲートウェイ、アグリゲーター、ローカルランタイムに対応
 - [x] 動画生成後、**TikTok**、**Instagram**、**YouTube Shorts** へワンクリックで**クロスプラットフォーム投稿**が可能
 - [x] 生成設定をプリセットファイルとして**エクスポート／インポート**でき、設定画面から **API キー**のバックアップと復元も可能
@@ -458,6 +459,24 @@ volcengine_seedance_base_url = "https://ark.cn-beijing.volces.com/api/v3"
 Seedance 専用設定が空の場合は、`VOLCENGINE_ARK_API_KEY` 環境変数、既存の LLM 用 `volcengine_api_key` 設定の順に使用します。動画ソースで **Volcano Engine Seedance** を選び、生成前に有料タスクを明示的に確認してください。CLI では `--confirm-seedance-charge` も必要です。
 
 初期実装はテキスト動画生成のみです。各クリップは有料の非同期 Ark タスクとして送信され、同じタスク ID だけをポーリングします。状態が不明な場合は追加送信を停止し、ナレーションを満たす分だけ生成します。
+
+</details>
+
+<details>
+<summary>OFox のマルチモデルテキスト動画素材ソースを使うには？</summary>
+
+[OFox API キー](https://ofox.ai)を作成し、`[app]` 配下に設定します：
+
+```toml
+[app]
+ofox_api_key = "your-ofox-api-key"
+ofox_text_to_video_model = "bytedance/seedance-2.0-fast"
+ofox_base_url = "https://api.ofox.ai/v1"
+```
+
+専用設定が空の場合は、`OFOX_API_KEY` 環境変数を使用します。動画ソースで **OFox AI Video** を選び、生成前に有料タスクを明示的に確認してください。CLI では `--confirm-ofox-charge` も必要です。モデルは OFox カタログ（`GET /v1/models`）の任意のテキスト動画モデル（例：`alibaba/wan-2.7`）に変更できます。モデルごとに対応する動画長と解像度が異なり、範囲外の値はタスク作成前に API が明確なエラーで拒否します。
+
+初版はテキスト動画のみ対応です。各クリップは非同期の有料タスクを 1 つ作成します。プログラムは同じタスク ID のみをポーリングし、状態が不明な場合は新規タスクの送信を停止し、ナレーションの長さを満たす分だけ生成します。
 
 </details>
 

@@ -141,6 +141,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 - [x] Supports your own **local assets** and free-to-use HD footage from **Pexels**, **Pixabay**, and **Coverr**
 - [x] Supports **AI-generated footage**: [WaveSpeed AI](https://wavespeed.ai) text-to-video models (Seedance by default) create brand-new visuals from your script keywords instead of relying on stock libraries
 - [x] Supports native **Volcano Engine Ark Seedance** text-to-video generation with configurable model/Endpoint ID, bounded polling, and paid-task confirmation
+- [x] Supports native **OFox** multi-model text-to-video generation (Seedance, Wan, and more behind one API key) with bounded polling and paid-task confirmation
 - [x] Supports leading model providers including **Kimi / Moonshot AI**, **OpenAI**, **Anthropic Claude**, **Google Gemini**, **DeepSeek**, **Alibaba Cloud Qwen**, **Microsoft Azure OpenAI**, **ByteDance VolcEngine Ark**, **xAI Grok**, **MiniMax**, and **Xiaomi MiMo**, plus unified gateways, aggregators, and local runtimes such as **Cloudflare AI Gateway**, **Alibaba ModelScope**, **AIHubMix**, **AIML API**, **EvoLink**, **Ollama**, **OneAPI**, **LiteLLM**, **Groq**, and **Pollinations AI**
 - [x] Supports one-click **cross-platform publishing** to **TikTok**, **Instagram**, and **YouTube Shorts** after video generation
 - [x] Supports **exporting and importing generation settings** as a preset file, and backing up and restoring every **API key** from the settings dialog
@@ -480,6 +481,24 @@ volcengine_seedance_base_url = "https://ark.cn-beijing.volces.com/api/v3"
 When the dedicated config value is empty, `VOLCENGINE_ARK_API_KEY` is used, followed by the existing `volcengine_api_key` LLM setting. Select **Volcano Engine Seedance** as the video source and explicitly confirm paid generation before starting. CLI users must add `--confirm-seedance-charge`.
 
 The first integration supports text-to-video only. Every submitted clip is a paid asynchronous Ark task; the app polls the same task ID, stops submitting after an unknown state, and downloads only enough clips to cover the voiceover.
+
+</details>
+
+<details>
+<summary>How do I use the OFox multi-model text-to-video provider?</summary>
+
+Create an [OFox API key](https://ofox.ai), then configure under `[app]`:
+
+```toml
+[app]
+ofox_api_key = "your-ofox-api-key"
+ofox_text_to_video_model = "bytedance/seedance-2.0-fast"
+ofox_base_url = "https://api.ofox.ai/v1"
+```
+
+When the dedicated config value is empty, the `OFOX_API_KEY` environment variable is used. Select **OFox AI Video** as the video source and explicitly confirm paid generation before starting. CLI users must add `--confirm-ofox-charge`. The model can be any text-to-video model from the OFox catalog (`GET /v1/models`), e.g. `alibaba/wan-2.7`; each model has its own supported duration range and resolutions, and out-of-range values are rejected by the API with a clear error before any task is created.
+
+The first version supports text-to-video only. Each clip creates one asynchronous paid task; the program only polls the same task id, stops submitting new tasks whenever a paid task state is unknown, and generates just enough footage to cover the voiceover duration.
 
 </details>
 
