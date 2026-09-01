@@ -103,3 +103,44 @@ def test_successful_login_resets_failed_attempts(db_path):
 def test_ensure_account_rejects_blank_email(db_path):
     with pytest.raises(ValueError):
         auth_store.ensure_account("   ", db_path)
+
+
+def test_verify_login_accepts_override_password_instead_of_generated_one(db_path):
+    auth_store.ensure_account(TEST_EMAIL, db_path)
+
+    assert (
+        auth_store.verify_login(
+            TEST_EMAIL, "fixed-pass", db_path, override_password="fixed-pass"
+        )
+        is True
+    )
+
+
+def test_verify_login_rejects_generated_password_when_override_set(db_path):
+    generated_password = auth_store.ensure_account(TEST_EMAIL, db_path)
+
+    assert (
+        auth_store.verify_login(
+            TEST_EMAIL, generated_password, db_path, override_password="fixed-pass"
+        )
+        is False
+    )
+
+
+def test_verify_login_still_locks_out_with_override_password(db_path):
+    auth_store.ensure_account(TEST_EMAIL, db_path)
+
+    for _ in range(auth_store.LOCKOUT_THRESHOLD):
+        assert (
+            auth_store.verify_login(
+                TEST_EMAIL, "wrong", db_path, override_password="fixed-pass"
+            )
+            is False
+        )
+
+    assert (
+        auth_store.verify_login(
+            TEST_EMAIL, "fixed-pass", db_path, override_password="fixed-pass"
+        )
+        is False
+    )

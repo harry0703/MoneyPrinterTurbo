@@ -34,6 +34,12 @@ api_key = ""
 # config.toml，不要提交到版本库。
 login_email = ""
 
+# Optional fixed login password. When set, it overrides the random password
+# normally generated (and logged once) on first start; the account keeps
+# using its own lockout after repeated failures. Keep the real value only in
+# config.toml, never commit it.
+login_senha = ""
+
 # -----------------------------------------------------------------------------
 # General / 通用设置
 # -----------------------------------------------------------------------------

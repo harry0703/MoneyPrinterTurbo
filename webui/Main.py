@@ -6341,7 +6341,10 @@ def _render_login_gate() -> bool:
                 submitted = st.form_submit_button("Entrar", width="stretch")
 
             if submitted:
-                if auth_store.verify_login(email, password):
+                login_senha = str(config.app.get("login_senha", "")).strip()
+                if auth_store.verify_login(
+                    email, password, override_password=login_senha or None
+                ):
                     st.session_state["authenticated"] = True
                     st.rerun()
                 else:

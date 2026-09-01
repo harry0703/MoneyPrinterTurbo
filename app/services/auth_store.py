@@ -94,8 +94,20 @@ def ensure_account(email: str, db_path: str | None = None) -> str | None:
         return password
 
 
-def verify_login(email: str, password: str, db_path: str | None = None) -> bool:
-    """Check credentials against the single stored account, honoring lockout."""
+def verify_login(
+    email: str,
+    password: str,
+    db_path: str | None = None,
+    override_password: str | None = None,
+) -> bool:
+    """Check credentials against the single stored account, honoring lockout.
+
+    ``override_password`` lets the caller pin the login password to a fixed
+    value from config.toml (app.login_senha) instead of the random one
+    generated on first run. The stored hash and lockout bookkeeping are left
+    untouched either way, so switching the override on/off never needs a
+    database migration.
+    """
     with closing(_connect(db_path)) as conn:
         row = conn.execute(
             "SELECT email, password_hash, salt, iterations, failed_attempts, locked_until "
@@ -116,15 +128,20 @@ def verify_login(email: str, password: str, db_path: str | None = None) -> bool:
         if now < locked_until:
             return False
 
-        # Hash is computed unconditionally so a wrong email doesn't short-circuit
-        # the response time and leak which field was wrong.
-        candidate_hash = _hash_password(password, bytes.fromhex(salt_hex), iterations)
         email_matches = secrets.compare_digest(
             email.strip().lower().encode("utf-8"), stored_email.encode("utf-8")
         )
-        password_matches = secrets.compare_digest(
-            candidate_hash.encode("utf-8"), password_hash.encode("utf-8")
-        )
+        if override_password:
+            password_matches = secrets.compare_digest(
+                password.encode("utf-8"), override_password.encode("utf-8")
+            )
+        else:
+            # Hash is computed unconditionally so a wrong email doesn't short-circuit
+            # the response time and leak which field was wrong.
+            candidate_hash = _hash_password(password, bytes.fromhex(salt_hex), iterations)
+            password_matches = secrets.compare_digest(
+                candidate_hash.encode("utf-8"), password_hash.encode("utf-8")
+            )
 
         if email_matches and password_matches:
             conn.execute(
