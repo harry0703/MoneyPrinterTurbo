@@ -86,6 +86,37 @@ def test_verify_login_unlocks_after_lockout_window_passes(db_path, monkeypatch):
     assert auth_store.verify_login(TEST_EMAIL, password, db_path) is True
 
 
+def test_verify_login_wrong_email_does_not_count_toward_lockout(db_path):
+    password = auth_store.ensure_account(TEST_EMAIL, db_path)
+
+    # Way more than LOCKOUT_THRESHOLD failed attempts, all against an email
+    # that doesn't match the account: the real account must stay unlocked.
+    for _ in range(auth_store.LOCKOUT_THRESHOLD * 3):
+        auth_store.verify_login("someone-else@example.com", "wrong", db_path)
+
+    assert auth_store.verify_login(TEST_EMAIL, password, db_path) is True
+
+
+def test_verify_login_backoff_grows_and_caps_at_max_seconds(db_path, monkeypatch):
+    password = auth_store.ensure_account(TEST_EMAIL, db_path)
+
+    fake_now = [1_000_000.0]
+    monkeypatch.setattr(auth_store.time, "time", lambda: fake_now[0])
+
+    # First lockout: exactly LOCKOUT_THRESHOLD failures -> base window.
+    for _ in range(auth_store.LOCKOUT_THRESHOLD):
+        auth_store.verify_login(TEST_EMAIL, "wrong-password", db_path)
+
+    fake_now[0] += auth_store.LOCKOUT_SECONDS + 1
+    # One more failure right after unlocking should escalate the window,
+    # but never past LOCKOUT_MAX_SECONDS.
+    auth_store.verify_login(TEST_EMAIL, "wrong-password", db_path)
+    assert auth_store.verify_login(TEST_EMAIL, password, db_path) is False
+
+    fake_now[0] += auth_store.LOCKOUT_MAX_SECONDS + 1
+    assert auth_store.verify_login(TEST_EMAIL, password, db_path) is True
+
+
 def test_successful_login_resets_failed_attempts(db_path):
     password = auth_store.ensure_account(TEST_EMAIL, db_path)
 
