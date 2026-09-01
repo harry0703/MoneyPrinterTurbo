@@ -107,15 +107,13 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
 
         # Aspect is a per-source preference: Coverr's common landscape default
         # must not replace an explicit portrait choice or the Pexels preference.
-        _widget_by_key(first_session.selectbox, "video_source_select").set_value(
-            "coverr"
-        ).run()
+        first_session.session_state["video_source_select_en"] = "coverr"
+        first_session.run()
         _widget_by_key(first_session.selectbox, "video_aspect_for_coverr").set_value(
             "9:16"
         ).run()
-        _widget_by_key(first_session.selectbox, "video_source_select").set_value(
-            "pexels"
-        ).run()
+        first_session.session_state["video_source_select_en"] = "pexels"
+        first_session.run()
 
         _widget_by_key(first_session.selectbox, "bgm_volume_select").set_value(0.4)
         _widget_by_key(first_session.text_input, "custom_bgm_file_input").set_value(
@@ -198,15 +196,13 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         assert _widget_by_key(
             second_session.selectbox, "video_fit_mode_select"
         ).value == "contain"
-        _widget_by_key(second_session.selectbox, "video_source_select").set_value(
-            "coverr"
-        ).run()
+        second_session.session_state["video_source_select_en"] = "coverr"
+        second_session.run()
         assert _widget_by_key(
             second_session.selectbox, "video_aspect_for_coverr"
         ).value == "9:16"
-        _widget_by_key(second_session.selectbox, "video_source_select").set_value(
-            "pexels"
-        ).run()
+        second_session.session_state["video_source_select_en"] = "pexels"
+        second_session.run()
         assert _widget_by_key(
             second_session.selectbox, "video_clip_duration_select"
         ).value == 7
@@ -362,9 +358,7 @@ def test_seedance_source_shows_unchecked_paid_task_confirmation():
     ):
         app = _new_app()
 
-    assert _widget_by_key(app.selectbox, "video_source_select").value == (
-        "volcengine_seedance"
-    )
+    assert app.session_state["video_source_select_en"] == "volcengine_seedance"
     assert _widget_by_key(
         app.checkbox, "volcengine_seedance_confirm_charge"
     ).value is False

@@ -93,5 +93,37 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
         error_messages = [str(item.value) for item in app.error]
         assert any("platform.kimi.ai" in message for message in error_messages)
         assert any("api.moonshot.ai" in message for message in error_messages)
-        assert any("401 Invalid Authentication" in message for message in error_messages)
+        assert any(
+            "401 Invalid Authentication" in message for message in error_messages
+        )
 
+
+def test_configure_llm_link_opens_settings_on_llm_tab():
+    """视频主题旁的快捷入口应一次点击就打开并定位大模型设置。"""
+    with patch.object(config, "try_save_config", return_value=True):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
+        app.session_state["ui_language"] = "en"
+        app.run()
+
+        _widget_by_key(app.button, "open_llm_settings_from_subject").click().run()
+
+        assert [str(item.value) for item in app.exception] == []
+        assert app.session_state["settings_dialog_open"] is True
+        assert app.session_state["settings_dialog_tabs_en"] == "LLM Settings"
+        # 业务目标只用于一次定向打开。渲染后立即消费，避免普通“设置”入口
+        # 在之后被历史目标强制切回大模型标签页。
+        assert "settings_dialog_target_tab" not in app.session_state
+
+
+def test_material_settings_target_uses_localized_tab_state_and_is_consumed():
+    """素材快捷入口保存稳定业务 ID，渲染时再解析当前语言标签。"""
+    with patch.object(config, "try_save_config", return_value=True):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
+        app.session_state["ui_language"] = "zh"
+        app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "material"
+        app.run()
+
+        assert [str(item.value) for item in app.exception] == []
+        assert app.session_state["settings_dialog_tabs_zh"] == "素材来源设置"
+        assert "settings_dialog_target_tab" not in app.session_state

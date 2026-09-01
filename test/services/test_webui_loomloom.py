@@ -247,7 +247,8 @@ def test_loomloom_video_source_quotes_then_passes_secret_in_confirmed_request():
         _widget_by_key(app.text_area, "video_terms").set_value(
             "office worker, AI assistant, productive team"
         ).run()
-        _widget_by_key(app.selectbox, "video_source_select_en").select("loomloom").run()
+        app.session_state["video_source_select_en"] = "loomloom"
+        app.run()
         _widget_by_key(app.text_input, "loomloom_user_api_token").set_value(
             "session-user-token"
         ).run()
