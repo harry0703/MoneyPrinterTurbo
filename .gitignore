@@ -42,3 +42,4 @@ htmlcov/
 .codegraph
 /docs/superpowers
 .understand-anything
+/.worktrees/
