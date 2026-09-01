@@ -1359,6 +1359,40 @@ def generate_video(
         return bgm_mix_succeeded
 
 
+def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
+    """
+    将单张本地图片渲染为带缓慢放大效果的 mp4 片段，返回输出文件路径。
+
+    local 素材预处理和 OpenAI 兼容文生图素材共用这段"图片 → 片段"渲染
+    逻辑：ImageClip 按 clip_duration 固定时长播放，并叠加每秒约 3% 的
+    动态放大，避免静态画面在成片中显得呆板。渲染异常由调用方按各自
+    素材源的失败约定处理。
+    """
+    clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
+    try:
+        # Apply a zoom effect using the resize method.
+        # A lambda function is used to make the zoom effect dynamic over time.
+        # The zoom effect starts from the original size and gradually scales up to 120%.
+        # t represents the current time, and clip.duration is the total duration of the clip.
+        # Note: 1 represents 100% size, so 1.2 represents 120%.
+        zoom_clip = clip.resized(
+            lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+        )
+
+        # Optionally, create a composite video clip containing the zoomed clip.
+        # This is useful if you want to add other elements to the video.
+        final_clip = CompositeVideoClip([zoom_clip])
+        try:
+            # Output the video to a file.
+            video_file = f"{image_path}.mp4"
+            final_clip.write_videofile(video_file, fps=30, logger=None)
+            return video_file
+        finally:
+            close_clip(final_clip)
+    finally:
+        close_clip(clip)
+
+
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
     # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
     if not materials:
@@ -1421,32 +1455,12 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
 
             if ext in const.FILE_TYPE_IMAGES:
                 logger.info(f"processing image: {material_source_path}")
-                # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
+                # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再渲染
+                # 用于导出的图片片段。
                 close_clip(clip)
-                # Create an image clip and set its duration to 3 seconds
-                clip = (
-                    ImageClip(material_source_path)
-                    .with_duration(clip_duration)
-                    .with_position("center")
+                video_file = render_image_zoom_video(
+                    material_source_path, clip_duration
                 )
-                # Apply a zoom effect using the resize method.
-                # A lambda function is used to make the zoom effect dynamic over time.
-                # The zoom effect starts from the original size and gradually scales up to 120%.
-                # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-                # Note: 1 represents 100% size, so 1.2 represents 120% size.
-                zoom_clip = clip.resized(
-                    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-                )
-
-                # Optionally, create a composite video clip containing the zoomed clip.
-                # This is useful when you want to add other elements to the video.
-                final_clip = CompositeVideoClip([zoom_clip])
-
-                # Output the video to a file.
-                video_file = f"{material_source_path}.mp4"
-                final_clip.write_videofile(video_file, fps=30, logger=None)
-                close_clip(clip)
-                close_clip(final_clip)
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
             else:
