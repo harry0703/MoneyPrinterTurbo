@@ -284,6 +284,26 @@ Batch manifests:
         ),
     )
     material_group.add_argument(
+        "--scenes",
+        default=None,
+        metavar="JSON",
+        help=(
+            "JSON array of scene definitions for scene-based video generation. "
+            "Each scene can have: script, search_terms, materials, duration, "
+            "transition, clip_transition. "
+            'Example: \'[{"script":"Scene 1","search_terms":["term1"],"duration":5},...]\''
+        ),
+    )
+    material_group.add_argument(
+        "--scenes-file",
+        default=None,
+        metavar="PATH",
+        help=(
+            "path to JSON file containing scene definitions; same format as --scenes. "
+            "Relative paths use the current working directory"
+        ),
+    )
+    material_group.add_argument(
         "--stop-at",
         default="video",
         choices=_PIPELINE_STAGES,
@@ -333,6 +353,27 @@ Batch manifests:
         default=None,
         metavar="{none,shuffle,fade-in,fade-out,slide-in,slide-out}",
         help="transition applied between source clips (default: none)",
+    )
+    video_group.add_argument(
+        "--scene-transition",
+        type=_transition_mode,
+        default=None,
+        metavar="{none,shuffle,fade-in,fade-out,slide-in,slide-out}",
+        help=(
+            "transition applied between scenes at scene boundaries. "
+            "Applied to the first clip of each scene (except the first). "
+            "(default: none)"
+        ),
+    )
+    video_group.add_argument(
+        "--clip-transition",
+        type=_transition_mode,
+        default=None,
+        metavar="{none,shuffle,fade-in,fade-out,slide-in,slide-out}",
+        help=(
+            "transition applied between clips WITHIN each scene. "
+            "Independent from --scene-transition. (default: none)"
+        ),
     )
     video_group.add_argument(
         "--video-clip-duration",
@@ -633,6 +674,19 @@ Batch manifests:
             "--no-subtitle-background-enabled"
         )
 
+    # Validate scenes arguments
+    if getattr(args, "scenes", None) and getattr(args, "scenes_file", None):
+        parser.error("--scenes and --scenes-file are mutually exclusive")
+
+    if (
+        (getattr(args, "scenes", None) or getattr(args, "scenes_file", None))
+        and args.video_source == "local"
+    ):
+        parser.error(
+            "--scenes/--scenes-file cannot be used with --video-source local; "
+            "use --video-materials for local materials"
+        )
+
     return args
 
 
@@ -705,6 +759,55 @@ def _resolve_voice_name(args: argparse.Namespace, ui_config) -> str:
     return _ui_config_value(ui_config, "voice_name", str) or DEFAULT_VOICE_NAME
 
 
+def _parse_scenes_json(raw_json: str) -> list:
+    """Parse JSON string into a list of SceneConfig objects."""
+    from app.models.schema import SceneConfig
+
+    try:
+        parsed = json.loads(raw_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON in --scenes: {exc.msg}") from exc
+
+    if not isinstance(parsed, list):
+        raise ValueError("--scenes must be a JSON array")
+
+    scenes = []
+    for index, entry in enumerate(parsed, start=1):
+        if not isinstance(entry, dict):
+            raise ValueError(f"scene {index} must be a JSON object")
+        try:
+            scene = SceneConfig(**entry)
+            # Auto-assign scene_id if not provided
+            if scene.scene_id == 0:
+                scene.scene_id = index
+            scenes.append(scene)
+        except Exception as exc:
+            raise ValueError(f"invalid scene {index}: {exc}") from exc
+
+    return scenes
+
+
+def _load_scenes_file(file_path: str) -> list:
+    """Load scenes from a JSON file."""
+    expanded_path = os.path.expanduser(file_path.strip())
+    if not expanded_path:
+        raise ValueError("--scenes-file path cannot be empty")
+
+    candidate = (
+        expanded_path
+        if os.path.isabs(expanded_path)
+        else os.path.join(os.getcwd(), expanded_path)
+    )
+    resolved_path = os.path.realpath(candidate)
+    if not os.path.isfile(resolved_path):
+        raise ValueError(f"scenes file does not exist: {file_path}")
+
+    with open(resolved_path, "r", encoding="utf-8") as f:
+        raw_json = f.read()
+
+    return _parse_scenes_json(raw_json)
+
+
 def build_video_params(args: argparse.Namespace) -> VideoParams:
     # 参数帮助和校验不需要加载应用配置。仅在真正构建任务参数时导入模型，
     # 避免执行 ``cli.py -h`` 时产生配置初始化日志。
@@ -729,6 +832,13 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
             if item.strip()
         ]
 
+    # Parse scenes from --scenes or --scenes-file
+    scenes = None
+    if getattr(args, "scenes_file", None):
+        scenes = _load_scenes_file(args.scenes_file)
+    elif getattr(args, "scenes", None):
+        scenes = _parse_scenes_json(args.scenes)
+
     params_kwargs = {
         "video_subject": args.video_subject.strip(),
         "video_script": args.video_script,
@@ -739,6 +849,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_aspect": args.video_aspect,
         "voice_name": _resolve_voice_name(args, ui_config),
         "subtitle_enabled": _resolve_subtitle_enabled(args, ui_config),
+        "scenes": scenes,
     }
 
     optional_arg_names = [
@@ -751,6 +862,8 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_transition_mode",
         "video_clip_duration",
         "match_materials_to_script",
+        "scene_transition",
+        "clip_transition",
         "n_threads",
         "voice_volume",
         "voice_rate",
@@ -964,6 +1077,17 @@ def _resolve_batch_entry_paths(
                 manifest_directory,
             )
 
+    # Resolve local material paths within scenes
+    if "scenes" in override_fields and params.scenes:
+        for scene in params.scenes:
+            if scene.materials:
+                for material in scene.materials:
+                    if material.url:
+                        material.url = _manifest_relative_path(
+                            material.url,
+                            manifest_directory,
+                        )
+
 
 def _validate_batch_task_params(
     params: VideoParams,
@@ -1018,6 +1142,19 @@ def _validate_batch_task_params(
         raise ValueError(
             "--confirm-seedance-charge is required for Volcano Engine Seedance"
         )
+
+    # Validate scenes
+    if params.scenes:
+        if params.video_source == "local":
+            raise ValueError(
+                "scenes cannot be used with video_source=local; "
+                "use video_materials for local materials"
+            )
+        for scene in params.scenes:
+            if scene.duration is not None and scene.duration < 0.5:
+                raise ValueError(
+                    f"scene {scene.scene_id} duration must be >= 0.5 seconds"
+                )
 
     if stop_at == "subtitle" and not params.subtitle_enabled:
         raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
