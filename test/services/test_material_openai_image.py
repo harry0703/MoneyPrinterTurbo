@@ -8,6 +8,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import requests
 from PIL import Image
 
 from app.config import config
@@ -44,9 +45,10 @@ class TestOpenAIImageProvider(unittest.TestCase):
         config.app["openai_image_base_url"] = "https://img.example.com/v1"
         config.app["openai_image_api_keys"] = ["sk-test-key"]
         config.app["openai_image_model"] = "test-image-model"
-        # 提示词模板默认关闭,需要模板的用例自行配置,避免开发者本地
-        # config.toml 里的模板设置影响无模板场景的断言。
+        # 提示词模板和自定义尺寸默认关闭,需要覆盖的用例自行配置,避免开发者
+        # 本地 config.toml 里的设置影响默认行为场景的断言。
         config.app.pop("openai_image_prompt_template", None)
+        config.app.pop("openai_image_size", None)
         config.app.pop("tls_verify", None)
         config.proxy.clear()
 
@@ -97,7 +99,7 @@ class TestOpenAIImageProvider(unittest.TestCase):
         item = results[0]
         self.assertEqual(item.provider, "openai_image")
         self.assertEqual(item.duration, 5)
-        # 请求按目标宽高比生成 size 参数
+        # 请求 size 按画幅取 OpenAI 官方兼容尺寸,不直接用视频分辨率
         self.assertEqual(
             post.call_args.args[0],
             "https://img.example.com/v1/images/generations",
@@ -108,7 +110,7 @@ class TestOpenAIImageProvider(unittest.TestCase):
                 "model": "test-image-model",
                 "prompt": "sunrise over mountains",
                 "n": 1,
-                "size": "1080x1920",
+                "size": "1024x1536",
             },
         )
         self.assertEqual(
@@ -335,19 +337,129 @@ class TestOpenAIImageProvider(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_is_openai_image_enabled_requires_full_configuration(self):
-        """base_url、key、model 三项缺一不可,预检据此拦截任务。"""
+        """
+        base_url 和 model 缺一不可;API key 允许为空——完全本地的
+        ComfyUI/SD 网关通常不需要鉴权。
+        """
         self.assertTrue(material.is_openai_image_enabled())
 
         config.app["openai_image_base_url"] = ""
         self.assertFalse(material.is_openai_image_enabled())
         config.app["openai_image_base_url"] = "https://img.example.com/v1"
 
+        # 本地免认证网关:没有 key 也算已启用
         config.app["openai_image_api_keys"] = []
-        self.assertFalse(material.is_openai_image_enabled())
+        self.assertTrue(material.is_openai_image_enabled())
         config.app["openai_image_api_keys"] = ["sk-test-key"]
 
         config.app["openai_image_model"] = ""
         self.assertFalse(material.is_openai_image_enabled())
+
+    def test_generate_images_openai_sends_no_authorization_without_key(self):
+        """
+        未配置 API key 时必须照常生成,且请求不带 Authorization 头,
+        供免认证的本地 ComfyUI/SD 网关使用。
+        """
+        config.app["openai_image_api_keys"] = []
+        response = _image_response(
+            {"data": [{"b64_json": base64.b64encode(_png_bytes()).decode("ascii")}]}
+        )
+
+        with (
+            patch("app.services.material.requests.post", return_value=response) as post,
+        ):
+            results = material.generate_images_openai(
+                "local gateway", minimum_duration=5, save_dir=self.save_dir
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertNotIn("Authorization", post.call_args.kwargs["headers"])
+
+    def test_generate_images_openai_retries_connect_timeout(self):
+        """
+        连接阶段超时说明请求没有送达服务端,不可能已创建计费任务,
+        允许退避重试。
+        """
+        image_data = _png_bytes()
+        responses = [
+            requests.exceptions.ConnectTimeout("connect timed out"),
+            _image_response(
+                {"data": [{"b64_json": base64.b64encode(image_data).decode("ascii")}]}
+            ),
+        ]
+
+        with (
+            patch("app.services.material.requests.post", side_effect=responses) as post,
+            patch("app.services.material.time.sleep"),
+        ):
+            results = material.generate_images_openai(
+                "connect timeout term", minimum_duration=5, save_dir=self.save_dir
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(post.call_count, 2)
+
+    def test_generate_images_openai_does_not_retry_unconfirmed_errors(self):
+        """
+        读超时/连接中断属于"未确认"状态:服务端可能已经生成并扣费,只是
+        响应没有返回。自动重新提交会造成重复生成和重复计费,必须直接
+        失败交由上层跳过该关键词。
+        """
+        for error in (
+            requests.exceptions.ReadTimeout("read timed out"),
+            requests.exceptions.ConnectionError("connection dropped"),
+        ):
+            with self.subTest(error=type(error).__name__):
+                with (
+                    patch(
+                        "app.services.material.requests.post", side_effect=error
+                    ) as post,
+                    patch("app.services.material.time.sleep") as sleep,
+                ):
+                    results = material.generate_images_openai(
+                        "unconfirmed term", minimum_duration=5, save_dir=self.save_dir
+                    )
+
+                self.assertEqual(results, [])
+                self.assertEqual(post.call_count, 1)
+                sleep.assert_not_called()
+
+    def test_generate_images_openai_size_defaults_and_override(self):
+        """
+        默认按画幅取 OpenAI 官方兼容尺寸(portrait 1024x1536 /
+        landscape 1536x1024);配置 openai_image_size 后完全覆盖,
+        供支持任意分辨率的本地网关使用。
+        """
+        response = _image_response(
+            {"data": [{"b64_json": base64.b64encode(_png_bytes()).decode("ascii")}]}
+        )
+
+        with patch(
+            "app.services.material.requests.post", return_value=response
+        ) as default_post:
+            material.generate_images_openai(
+                "landscape term",
+                minimum_duration=5,
+                video_aspect=material.VideoAspect.landscape,
+                save_dir=self.save_dir,
+            )
+        # 横屏默认取 OpenAI 官方兼容尺寸
+        self.assertEqual(default_post.call_args.kwargs["json"]["size"], "1536x1024")
+
+        config.app["openai_image_size"] = "1080x1920"
+        self.addCleanup(config.app.pop, "openai_image_size", None)
+
+        with patch(
+            "app.services.material.requests.post", return_value=response
+        ) as post:
+            material.generate_images_openai(
+                "custom size term", minimum_duration=5, save_dir=self.save_dir
+            )
+
+        self.assertEqual(
+            post.call_args.kwargs["json"]["size"],
+            "1080x1920",
+        )
 
     def test_generate_images_openai_raises_without_base_url(self):
         """直接调用且未配置 base_url 时,必须抛出带配置指引的错误。"""

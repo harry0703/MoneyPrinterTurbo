@@ -1058,6 +1058,13 @@ def save_video(video_url: str, save_dir: str = "") -> str:
 # 服务。生成的图片立即渲染成与 local 素材同款"缓慢放大"mp4 片段，对下游
 # 剪辑流程完全透明。
 OPENAI_IMAGE_ENDPOINT_PATH = "images/generations"
+# OpenAI 官方图片接口只接受模型规定的尺寸，不能直接传视频分辨率（如 1080x1920）。
+# 留空 openai_image_size 时按画幅取以下兼容默认值；本地网关可显式配置覆盖。
+OPENAI_IMAGE_DEFAULT_SIZES = {
+    VideoAspect.portrait: "1024x1536",
+    VideoAspect.landscape: "1536x1024",
+    VideoAspect.square: "1024x1024",
+}
 # 与 WaveSpeed 保持同一重试口径：429 与 5xx 属于临时故障，做有限次退避重试。
 OPENAI_IMAGE_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 # 401/403 是当前 key 被明确拒绝。get_api_key 每次调用轮换 key，配置了多个
@@ -1077,13 +1084,14 @@ def is_openai_image_enabled(app_config: dict | None = None) -> bool:
     """
     判断 OpenAI 兼容文生图素材源是否已完成最小配置。
 
-    供任务预检和 WebUI 在消耗 LLM、TTS 额度前拦截缺失配置的任务。
+    API Key 允许为空：完全本地的 ComfyUI/SD 网关通常不需要鉴权，为空时
+    请求不带 Authorization 头。供任务预检和 WebUI 在消耗 LLM、TTS 额度
+    前拦截缺失配置的任务。
     """
     app_config = config.app if app_config is None else app_config
     return bool(
         str(app_config.get("openai_image_base_url", "") or "").strip()
         and str(app_config.get("openai_image_model", "") or "").strip()
-        and app_config.get("openai_image_api_keys")
     )
 
 
@@ -1106,6 +1114,20 @@ def _openai_image_endpoint() -> tuple[str, str]:
             f"Please set it in the config.toml file: {config.config_file}\n"
         )
     return f"{base_url}/{OPENAI_IMAGE_ENDPOINT_PATH}", model
+
+
+def _openai_image_size(video_aspect: VideoAspect) -> str:
+    """
+    解析请求的图片 size。
+
+    OpenAI 官方接口只接受模型规定的尺寸（如 1024x1536），直接传视频分辨率
+    （如 1080x1920）会返回 400。默认按画幅取兼容尺寸；``openai_image_size``
+    可显式配置覆盖，供支持任意分辨率的本地网关（如 SD WebUI）使用。
+    """
+    configured = str(config.app.get("openai_image_size", "") or "").strip()
+    if configured:
+        return configured
+    return OPENAI_IMAGE_DEFAULT_SIZES.get(VideoAspect(video_aspect), "1024x1024")
 
 
 def _openai_image_prompt(search_term: str) -> str:
@@ -1244,43 +1266,62 @@ def _request_openai_image(endpoint: str, payload: dict) -> tuple[bytes | None, s
     """
     调用 OpenAI 兼容 /images/generations 接口，带退避重试与 key 轮换。
 
-    429/5xx 与网络异常按临时故障退避重试；401/403 只有在配置了多个 key 时
-    才重试（借助 get_api_key 的轮换机制换 key）；其余 4xx 是明确拒绝，
-    快速失败交给上层跳过该关键词。
+    429/5xx 按临时故障退避重试；401/403 只有在配置了多个 key 时才重试
+    （借助 get_api_key 的轮换机制换 key）；其余 4xx 是明确拒绝，快速失败
+    交给上层跳过该关键词。
+
+    计费安全：POST 的读超时与连接中断视为"未确认"状态——服务端可能已经
+    生成并扣费，只是响应没有返回，自动重新提交可能造成重复生成和重复
+    计费，因此不做重试。只有连接阶段超时（ConnectTimeout，请求确定没有
+    送达服务端）才确认没有创建生成任务，可以安全重试。
+
+    API Key 允许为空：完全本地的 ComfyUI/SD 网关通常不需要鉴权，为空时
+    不发送 Authorization 头。
     """
     api_keys = config.app.get("openai_image_api_keys")
     if isinstance(api_keys, (list, tuple)):
-        key_count = len(api_keys)
+        configured_keys = [k for k in api_keys if str(k or "").strip()]
+    elif str(api_keys or "").strip():
+        configured_keys = [api_keys]
     else:
-        key_count = 1 if str(api_keys or "").strip() else 0
+        configured_keys = []
 
     failure_detail = "no request attempt was made"
     for attempt in range(1, OPENAI_IMAGE_MAX_ATTEMPTS + 1):
-        api_key = get_api_key("openai_image_api_keys")
+        api_key = get_api_key("openai_image_api_keys") if configured_keys else ""
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         retryable = False
         try:
             response = requests.post(
                 endpoint,
                 json=payload,
-                headers={"Authorization": f"Bearer {api_key}"},
+                headers=headers,
                 proxies=config.proxy,
                 verify=_get_tls_verify(),
                 timeout=OPENAI_IMAGE_REQUEST_TIMEOUT,
             )
-        except Exception as e:
-            # 网络异常拿不到任何产物；同步接口没有可找回的远端任务 ID，
-            # 重试是唯一的推进手段。
+        except requests.exceptions.ConnectTimeout as e:
+            # 连接阶段超时：请求确定没有送达服务端，没有创建生成任务，
+            # 可以安全重试。
             failure_detail = (
-                f"request error: {type(e).__name__}, "
-                f"detail={_redact_request_error(e, api_key)}"
+                f"connect timeout: detail={_redact_request_error(e, api_key)}"
             )
             retryable = True
+        except Exception as e:
+            # 读超时/连接中断等属于"未确认"状态：服务端可能已经受理并扣费，
+            # 自动重新提交可能重复生成、重复计费，交由上层跳过该关键词。
+            failure_detail = (
+                f"unconfirmed request error (no retry to avoid double billing): "
+                f"{type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+            )
         else:
             status = int(getattr(response, "status_code", 200) or 200)
             if status in OPENAI_IMAGE_KEY_ERROR_STATUS_CODES:
                 failure_detail = _openai_image_http_failure(response, status, api_key)
                 # 只有多 key 配置下，重试才可能轮换到可用 key。
-                retryable = key_count > 1
+                retryable = len(configured_keys) > 1
             elif status in OPENAI_IMAGE_RETRYABLE_STATUS_CODES:
                 failure_detail = _openai_image_http_failure(response, status, api_key)
                 retryable = True
@@ -1353,16 +1394,16 @@ def generate_images_openai(
     aspect = VideoAspect(video_aspect)
     clip_duration = max(int(minimum_duration), 1)
     endpoint, model = _openai_image_endpoint()
-    image_width, image_height = aspect.to_resolution()
+    image_size = _openai_image_size(aspect)
     payload = {
         "model": model,
         "prompt": _openai_image_prompt(search_term),
         "n": 1,
-        "size": f"{image_width}x{image_height}",
+        "size": image_size,
     }
     logger.info(
         f"generating image via openai-compatible endpoint: model={model}, "
-        f"term={search_term!r}, size={image_width}x{image_height}"
+        f"term={search_term!r}, size={image_size}"
     )
     image_bytes, failure_detail = _request_openai_image(endpoint, payload)
     if image_bytes is None:

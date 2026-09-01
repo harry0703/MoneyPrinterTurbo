@@ -1272,8 +1272,9 @@ def _run_pipeline(
         return _mark_task_failed(
             task_id,
             "preflight",
-            "OpenAI image source requires openai_image_base_url, "
-            "openai_image_api_keys and openai_image_model in config.toml",
+            "OpenAI image source requires openai_image_base_url and "
+            "openai_image_model in config.toml (openai_image_api_keys is "
+            "optional for local gateways that need no auth)",
         )
 
     # 只有完整成片流程需要视频配乐供应商。尽早阻止缺少 Key 的完整任务，避免

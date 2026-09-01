@@ -340,7 +340,7 @@
     "OpenAI Image Base URL": "OpenAI Uyumlu Görüntü Temel URL'si",
     "OpenAI Image API Key": "OpenAI Uyumlu Görüntü API Anahtarı",
     "OpenAI Image Model": "OpenAI Uyumlu Görüntü Modeli",
-    "Please Configure the OpenAI Image Source": "OpenAI uyumlu görüntü kaynağı için **Temel URL**, **API Anahtarı** ve **Model** ayarlarını yapılandırın",
+    "Please Configure the OpenAI Image Source": "OpenAI uyumlu görüntü kaynağı için **Temel URL** ve **Model** ayarlarını yapılandırın (yerel ağ geçitleri için **API Anahtarı** isteğe bağlıdır)",
     "Video Encoder": "Video Kodlayıcı",
     "Default Video Encoder": "Varsayılan (Önerilen)",
     "Video Encoder Help": "Gelişmiş seçenek. Varsayılan, uygulamanın kararlı kodlayıcı politikasını izler; şu anda libx264 kullanılır. Donanım kodlayıcı kullanılamıyorsa uygulama otomatik olarak libx264'e döner.",

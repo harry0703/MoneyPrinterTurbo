@@ -340,7 +340,7 @@
     "OpenAI Image Base URL": "OpenAI 호환 이미지 Base URL",
     "OpenAI Image API Key": "OpenAI 호환 이미지 API 키",
     "OpenAI Image Model": "OpenAI 호환 이미지 모델",
-    "Please Configure the OpenAI Image Source": "OpenAI 호환 이미지 소스의 **Base URL**, **API 키**, **모델**을 구성해 주세요",
+    "Please Configure the OpenAI Image Source": "OpenAI 호환 이미지 소스의 **Base URL**과 **모델**을 구성해 주세요 (로컬 게이트웨이는 **API 키** 선택 사항)",
     "Video Encoder": "영상 인코더",
     "Default Video Encoder": "기본값 (권장)",
     "Video Encoder Help": "고급 옵션입니다. 기본값은 앱의 안정적인 인코더 정책(현재 libx264)을 따릅니다. 선택한 하드웨어 인코더를 사용할 수 없으면 자동으로 libx264로 대체됩니다.",

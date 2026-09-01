@@ -125,10 +125,18 @@ volcengine_seedance_watermark = false
 # your provider) and rendered into short zoom-effect video clips.
 # Example: "https://api.openai.com/v1" or "http://127.0.0.1:8080/v1"
 openai_image_base_url = ""
+# Optional for local gateways that need no auth. Leave empty to send requests
+# without an Authorization header; provide one or more keys for cloud relays.
 openai_image_api_keys = []
 # Any image model id your endpoint accepts, for example a local SD checkpoint
 # alias or a provider model name.
 openai_image_model = ""
+# Optional image size sent to the endpoint. The official OpenAI image API only
+# accepts model-defined sizes (e.g. 1024x1024, 1024x1536, 1536x1024 or "auto"),
+# so the default picks a compatible size per video aspect (portrait 1024x1536,
+# landscape 1536x1024, square 1024x1024). Set a custom value (e.g. "1080x1920")
+# for local gateways that accept arbitrary resolutions.
+openai_image_size = ""
 # Optional prompt template applied to every search term. Use the "{term}"
 # placeholder to inject the keyword; leave empty to send terms as-is.
 # Example: "cinematic photo of {term}, photorealistic, high detail"

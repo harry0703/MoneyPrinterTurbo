@@ -340,7 +340,7 @@
     "OpenAI Image Base URL": "URL base de imagem compatível com OpenAI",
     "OpenAI Image API Key": "Chave de API de imagem compatível com OpenAI",
     "OpenAI Image Model": "Modelo de imagem compatível com OpenAI",
-    "Please Configure the OpenAI Image Source": "Configure a **URL base**, a **chave de API** e o **modelo** da fonte de imagens compatível com OpenAI",
+    "Please Configure the OpenAI Image Source": "Configure a **URL base** e o **modelo** da fonte de imagens compatível com OpenAI (**chave de API** opcional para gateways locais)",
     "Video Encoder": "Codificador de vídeo",
     "Default Video Encoder": "Padrão (recomendado)",
     "Video Encoder Help": "Opção avançada. Padrão segue a política estável do aplicativo, atualmente libx264. Se um codificador de hardware não estiver disponível, o aplicativo retorna automaticamente para libx264.",
