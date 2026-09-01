@@ -581,6 +581,20 @@ app["redis_host"] = os.getenv(
     os.getenv("REDIS_HOST", app.get("redis_host", "localhost")),
 )
 
+# Secrets can be injected via env var (Docker secret, CI, etc.) instead of
+# sitting in plaintext in config.toml. Env var wins when set; config.toml
+# value is kept as fallback so existing setups keep working unchanged.
+app["login_senha"] = os.getenv("MPT_LOGIN_SENHA", app.get("login_senha", ""))
+app["youtube_client_id"] = os.getenv(
+    "MPT_YOUTUBE_CLIENT_ID", app.get("youtube_client_id", "")
+)
+app["youtube_client_secret"] = os.getenv(
+    "MPT_YOUTUBE_CLIENT_SECRET", app.get("youtube_client_secret", "")
+)
+app["youtube_refresh_token"] = os.getenv(
+    "MPT_YOUTUBE_REFRESH_TOKEN", app.get("youtube_refresh_token", "")
+)
+
 ffmpeg_path = app.get("ffmpeg_path", "")
 if ffmpeg_path and os.path.isfile(ffmpeg_path):
     os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path

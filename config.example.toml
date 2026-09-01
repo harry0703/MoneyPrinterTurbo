@@ -37,7 +37,9 @@ login_email = ""
 # Optional fixed login password. When set, it overrides the random password
 # normally generated (and logged once) on first start; the account keeps
 # using its own lockout after repeated failures. Keep the real value only in
-# config.toml, never commit it.
+# config.toml, never commit it. Prefer setting it via the MPT_LOGIN_SENHA
+# env var instead (Docker secret, CI, etc.) so it never touches disk here;
+# the env var wins over this value when both are set.
 login_senha = ""
 
 # -----------------------------------------------------------------------------
@@ -383,6 +385,11 @@ max_queued_tasks = 100
 #
 # The refresh token is renewed automatically, so no browser is needed at
 # runtime. The official client library ships with the project dependencies.
+#
+# These three are OAuth credentials with full channel access; prefer setting
+# them via MPT_YOUTUBE_CLIENT_ID / MPT_YOUTUBE_CLIENT_SECRET /
+# MPT_YOUTUBE_REFRESH_TOKEN env vars instead of leaving them on disk here.
+# Env vars win over these values when both are set.
 youtube_enabled = false
 youtube_client_id = ""
 youtube_client_secret = ""
