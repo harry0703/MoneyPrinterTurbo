@@ -52,6 +52,7 @@ from app.services import (
     volcengine_seedance,
     voice,
     webui_task,
+    youtube_upload,
 )
 from app.services import elevenlabs_music as elevenlabs_music_service
 from app.services import sonilo as sonilo_service
@@ -105,6 +106,18 @@ LOOMLOOM_MAX_POLL_FAILURES = 5
 # 也方便用户从 WebUI 直接完成首次配置和后续账号维护。
 UPLOAD_POST_API_KEYS_URL = "https://app.upload-post.com/api-keys"
 UPLOAD_POST_MANAGE_USERS_URL = "https://app.upload-post.com/manage-users"
+# YouTube 通过官方 Data API v3 直接发布。启用接口、创建 OAuth 客户端和换取
+# 刷新令牌分属三个页面，集中维护入口可以避免多语言文案各自硬编码后发生偏差。
+YOUTUBE_API_CONSOLE_URL = (
+    "https://console.cloud.google.com/apis/library/youtube.googleapis.com"
+)
+YOUTUBE_OAUTH_PLAYGROUND_URL = "https://developers.google.com/oauthplayground"
+YOUTUBE_CATEGORIES_URL = (
+    "https://developers.google.com/youtube/v3/docs/videoCategories/list"
+)
+# Upload-Post 只保留 YouTube 之外的平台，避免同一个成片被发布两次。
+UPLOAD_POST_PLATFORM_OPTIONS = ["tiktok", "instagram"]
+YOUTUBE_PRIVACY_STATUS_OPTIONS = ["public", "unlisted", "private"]
 # “默认”是 WebUI 专用哨兵，不会写入 config.toml，也不会传给 FFmpeg。
 # 后端在 video_codec 未配置时继续采用稳定的 libx264；单独保留该哨兵可以区分
 # “跟随项目默认策略”和“用户明确固定 libx264”，便于未来安全调整默认策略。
@@ -189,6 +202,9 @@ CREDENTIAL_KEY_SUFFIXES = (
     "access_key",
     "secret_key",
     "speech_key",
+    # YouTube 官方接口使用 OAuth2 凭据，没有 API Key 形态的字段。
+    "client_secret",
+    "refresh_token",
 )
 # 只恢复密钥而不恢复配套配置项时，凭据仍然不可用。这些配套项与密钥一起备份。
 CREDENTIAL_COMPANION_KEYS = {
@@ -206,7 +222,9 @@ CREDENTIAL_COMPANION_KEYS = {
 }
 
 NON_LLM_COMPANION_KEYS = {
-    "app": ("upload_post_username",)
+    # 只恢复 Upload-Post 的 API Key 而丢掉发布用户名，或只恢复 YouTube 的
+    # client secret / refresh token 而丢掉 client id，凭据同样无法使用。
+    "app": ("upload_post_username", "youtube_client_id")
 }
 # 同一个密钥在不同面板可能使用各自的控件 key：音频面板直接编辑 Gemini 和
 # MiMo 的 LLM 密钥，胜算云密钥的控件没有 _input 后缀。恢复备份时必须清除
@@ -2625,6 +2643,140 @@ def _render_settings_dialog():
         )
 
         with publish_config_panel:
+            st.subheader(tr("YouTube Direct Upload"))
+            st.write(tr("Publish generated videos straight to YouTube with the official YouTube Data API v3"))
+            st.info(
+                tr("YouTube OAuth Setup Guide").format(
+                    console_url=YOUTUBE_API_CONSOLE_URL,
+                    playground_url=YOUTUBE_OAUTH_PLAYGROUND_URL,
+                )
+            )
+
+            youtube_is_enabled = config.app.get("youtube_enabled", False)
+            youtube_is_auto = config.app.get("youtube_auto_upload", False)
+
+            # 与 Upload-Post 保持同样的拆分:enabled 只表示凭据可用,
+            # auto_upload 才决定渲染完成后是否自动发布。
+            youtube_enabled = st.checkbox(
+                tr("Enable YouTube Integration"),
+                value=youtube_is_enabled,
+                key="youtube_enabled_checkbox",
+            )
+            if youtube_enabled != youtube_is_enabled:
+                _set_runtime_config("app", "youtube_enabled", youtube_enabled)
+
+            youtube_auto_upload = st.checkbox(
+                tr("Enable YouTube Auto-Publish"),
+                value=youtube_is_auto,
+                key="youtube_auto_upload_checkbox",
+            )
+            if youtube_auto_upload != youtube_is_auto:
+                _set_runtime_config("app", "youtube_auto_upload", youtube_auto_upload)
+
+            youtube_client_id = st.text_input(
+                tr("YouTube Client ID"),
+                value=config.app.get("youtube_client_id", ""),
+                help=tr("YouTube OAuth Credentials Help").format(
+                    console_url=YOUTUBE_API_CONSOLE_URL
+                ),
+                key="youtube_client_id_input",
+            )
+            if youtube_client_id != config.app.get("youtube_client_id", ""):
+                _set_runtime_config("app", "youtube_client_id", youtube_client_id)
+
+            youtube_client_secret = st.text_input(
+                tr("YouTube Client Secret"),
+                value=config.app.get("youtube_client_secret", ""),
+                type="password",
+                help=tr("YouTube OAuth Credentials Help").format(
+                    console_url=YOUTUBE_API_CONSOLE_URL
+                ),
+                key="youtube_client_secret_input",
+            )
+            if youtube_client_secret != config.app.get("youtube_client_secret", ""):
+                _set_runtime_config(
+                    "app", "youtube_client_secret", youtube_client_secret
+                )
+
+            youtube_refresh_token = st.text_input(
+                tr("YouTube Refresh Token"),
+                value=config.app.get("youtube_refresh_token", ""),
+                type="password",
+                help=tr("YouTube Refresh Token Help").format(
+                    playground_url=YOUTUBE_OAUTH_PLAYGROUND_URL
+                ),
+                key="youtube_refresh_token_input",
+            )
+            if youtube_refresh_token != config.app.get("youtube_refresh_token", ""):
+                _set_runtime_config(
+                    "app", "youtube_refresh_token", youtube_refresh_token
+                )
+
+            # 配置里可能残留 Upload-Post 时代的隐私值或手工写入的非法值,
+            # 这里统一回退到 public,避免设置面板直接报错打不开。
+            youtube_saved_privacy = youtube_upload.normalize_privacy_status(
+                config.app.get(
+                    "youtube_privacy_status",
+                    config.app.get("upload_post_youtube_privacy_status", "public"),
+                )
+            )
+            youtube_privacy_status = st.selectbox(
+                tr("YouTube Privacy Status"),
+                options=YOUTUBE_PRIVACY_STATUS_OPTIONS,
+                index=YOUTUBE_PRIVACY_STATUS_OPTIONS.index(youtube_saved_privacy),
+                key="youtube_privacy_status_selectbox",
+            )
+            if youtube_privacy_status != config.app.get("youtube_privacy_status"):
+                _set_runtime_config(
+                    "app", "youtube_privacy_status", youtube_privacy_status
+                )
+
+            youtube_saved_category = str(
+                config.app.get(
+                    "youtube_category_id", youtube_upload.DEFAULT_CATEGORY_ID
+                )
+            )
+            youtube_category_id = st.text_input(
+                tr("YouTube Category ID"),
+                value=youtube_saved_category,
+                help=tr("YouTube Category ID Help").format(
+                    categories_url=YOUTUBE_CATEGORIES_URL
+                ),
+                key="youtube_category_id_input",
+            )
+            if youtube_category_id != youtube_saved_category:
+                _set_runtime_config("app", "youtube_category_id", youtube_category_id)
+
+            youtube_saved_made_for_kids = config.app.get("youtube_made_for_kids", False)
+            youtube_made_for_kids = st.checkbox(
+                tr("YouTube Made For Kids"),
+                value=youtube_saved_made_for_kids,
+                help=tr("YouTube Made For Kids Help"),
+                key="youtube_made_for_kids_checkbox",
+            )
+            if youtube_made_for_kids != youtube_saved_made_for_kids:
+                _set_runtime_config(
+                    "app", "youtube_made_for_kids", youtube_made_for_kids
+                )
+
+            youtube_saved_synthetic = config.app.get(
+                "youtube_contains_synthetic_media", True
+            )
+            youtube_contains_synthetic_media = st.checkbox(
+                tr("YouTube Synthetic Media Disclosure"),
+                value=youtube_saved_synthetic,
+                help=tr("YouTube Synthetic Media Disclosure Help"),
+                key="youtube_contains_synthetic_media_checkbox",
+            )
+            if youtube_contains_synthetic_media != youtube_saved_synthetic:
+                _set_runtime_config(
+                    "app",
+                    "youtube_contains_synthetic_media",
+                    youtube_contains_synthetic_media,
+                )
+
+            st.divider()
+            st.subheader(tr("Upload-Post Cross-Posting"))
             st.write(tr("Automatically publish generated videos to social media using upload-post.com"))
             st.info(
                 tr("Upload-Post Setup Guide").format(
@@ -2678,29 +2830,25 @@ def _render_settings_dialog():
             if upload_post_username != config.app.get("upload_post_username", ""):
                 _set_runtime_config("app", "upload_post_username", upload_post_username)
 
+            saved_upload_post_platforms = config.app.get(
+                "upload_post_platforms", UPLOAD_POST_PLATFORM_OPTIONS
+            )
+            # 旧配置里的 "youtube" 现在由官方接口负责。保留它会让 multiselect
+            # 收到不在选项里的默认值而直接报错，也会导致成片被发布两次。
+            selectable_platforms = [
+                platform
+                for platform in saved_upload_post_platforms
+                if platform in UPLOAD_POST_PLATFORM_OPTIONS
+            ]
             upload_post_platforms = st.multiselect(
                 tr("Platforms"),
-                options=["tiktok", "instagram", "youtube"],
-                default=config.app.get("upload_post_platforms", ["tiktok", "instagram"]),
-                help="Select platforms to publish to",
+                options=UPLOAD_POST_PLATFORM_OPTIONS,
+                default=selectable_platforms,
+                help=tr("Upload-Post Platforms Help"),
                 key="upload_post_platforms_multiselect"
             )
-            if upload_post_platforms != config.app.get("upload_post_platforms", ["tiktok", "instagram"]):
+            if upload_post_platforms != saved_upload_post_platforms:
                 _set_runtime_config("app", "upload_post_platforms", upload_post_platforms)
-
-            if "youtube" in upload_post_platforms:
-                yt_status_options = ["public", "private", "unlisted"]
-                yt_saved = config.app.get("upload_post_youtube_privacy_status", "public")
-                if yt_saved not in yt_status_options:
-                    yt_saved = "public"
-                upload_post_youtube_privacy_status = st.selectbox(
-                    tr("YouTube Privacy Status"),
-                    options=yt_status_options,
-                    index=yt_status_options.index(yt_saved),
-                    key="upload_post_youtube_privacy_status_selectbox"
-                )
-                if upload_post_youtube_privacy_status != config.app.get("upload_post_youtube_privacy_status", "public"):
-                    _set_runtime_config("app", "upload_post_youtube_privacy_status", upload_post_youtube_privacy_status)
 
         # 左侧面板 - 日志设置
         with left_config_panel:

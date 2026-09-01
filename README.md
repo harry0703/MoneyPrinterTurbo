@@ -442,21 +442,52 @@ MoneyPrinterTurbo
 ## 常见问题 🤔
 
 <details>
-<summary>如何发布到 TikTok、Instagram 或 YouTube Shorts？</summary>
+<summary>如何发布到 YouTube？</summary>
 
-注册 [Upload-Post](https://upload-post.com/) 账号并获取 API Key，然后在 `config.toml` 的 `[app]` 下添加以下配置：
+YouTube 使用官方 YouTube Data API v3（`google-api-python-client` + OAuth2）直接上传，视频不会经过任何第三方服务。
+
+一次性配置：
+
+1. 在 [Google Cloud Console](https://console.cloud.google.com/) 创建项目，并启用 **YouTube Data API v3**。
+2. 配置 OAuth 同意屏幕，创建类型为 **桌面应用** 的 OAuth 客户端，复制 Client ID 和 Client Secret。
+3. 为 `https://www.googleapis.com/auth/youtube.upload` 权限换取刷新令牌。推荐使用 [OAuth Playground](https://developers.google.com/oauthplayground)：勾选 *Use your own OAuth credentials*，填入第 2 步的客户端凭据，授权该权限后换取 token。
+
+把结果写入 `config.toml` 的 `[app]` 下：
+
+```toml
+[app]
+youtube_enabled = true
+youtube_client_id = "your-client-id"
+youtube_client_secret = "your-client-secret"
+youtube_refresh_token = "your-refresh-token"
+youtube_auto_upload = true
+youtube_privacy_status = "public"     # public、unlisted 或 private
+youtube_category_id = "22"            # 22 = 人物和博客
+youtube_made_for_kids = false
+youtube_contains_synthetic_media = true
+```
+
+保存配置并重启项目。之后每个成片都会带着 LLM 生成的标题、简介和标签自动上传。刷新令牌会自动续期，发布过程不需要打开浏览器，因此在 Docker 和无桌面服务器上同样可用。
+
+WebUI 中的入口在 **设置 → 自动发布设置**。
+
+</details>
+
+<details>
+<summary>如何发布到 TikTok 或 Instagram？</summary>
+
+这两个平台仍然通过 [Upload-Post](https://upload-post.com/) 转发。注册账号并获取 API Key，然后在 `config.toml` 的 `[app]` 下添加：
 
 ```toml
 [app]
 upload_post_enabled = true
 upload_post_api_key = "your-api-key"
 upload_post_username = "your-username"
-upload_post_platforms = ["tiktok", "instagram", "youtube"]
+upload_post_platforms = ["tiktok", "instagram"]
 upload_post_auto_upload = true
-upload_post_youtube_privacy_status = "public"
 ```
 
-保存配置并重启项目。视频生成完成后，程序会自动发布到已配置的平台。YouTube 可见性可设置为 `public`、`unlisted` 或 `private`。
+两套集成互相独立，可以同时开启。`upload_post_platforms` 中残留的 `youtube` 会被忽略，同一个成片不会被发布两次。
 
 </details>
 

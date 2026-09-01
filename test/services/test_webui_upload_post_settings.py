@@ -69,14 +69,10 @@ def test_webui_upload_post_checkboxes_stay_decoupled():
         assert config.app["upload_post_enabled"] is True
         assert config.app["upload_post_auto_upload"] is True
 
-def test_webui_upload_post_youtube_privacy_fallback_to_public():
+def test_webui_youtube_privacy_fallback_to_public():
     # If the config somehow contains an invalid YouTube privacy value (e.g. "draft"),
     # it should not crash the UI and should silently fallback to "public".
-    test_app_config = dict(
-        config.app,
-        upload_post_platforms=["youtube"],
-        upload_post_youtube_privacy_status="draft"
-    )
+    test_app_config = dict(config.app, youtube_privacy_status="draft")
 
     with (
         patch.object(config, "app", test_app_config),
@@ -88,5 +84,46 @@ def test_webui_upload_post_youtube_privacy_fallback_to_public():
         app.run()
 
         # The selectbox should be rendered and its value should fallback to "public"
-        yt_privacy_selectbox = _widget_by_key(app.selectbox, "upload_post_youtube_privacy_status_selectbox")
+        yt_privacy_selectbox = _widget_by_key(app.selectbox, "youtube_privacy_status_selectbox")
         assert yt_privacy_selectbox.value == "public"
+
+
+def test_webui_youtube_privacy_reuses_legacy_upload_post_value():
+    # 升级前的 YouTube 隐私设置保存在 Upload-Post 的配置项里。官方集成必须
+    # 沿用它，否则用户会在不知情的情况下把原本 unlisted 的视频发成 public。
+    test_app_config = dict(config.app, upload_post_youtube_privacy_status="unlisted")
+    test_app_config.pop("youtube_privacy_status", None)
+
+    with (
+        patch.object(config, "app", test_app_config),
+        patch.object(config, "try_save_config", return_value=True),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
+        app.run()
+        app.session_state["settings_dialog_open"] = True
+        app.run()
+
+        yt_privacy_selectbox = _widget_by_key(app.selectbox, "youtube_privacy_status_selectbox")
+        assert yt_privacy_selectbox.value == "unlisted"
+
+
+def test_webui_platform_multiselect_drops_legacy_youtube_entry():
+    # multiselect 的 default 必须是 options 的子集，否则 Streamlit 直接报错，
+    # 旧配置里的 "youtube" 会让整个设置面板打不开。
+    test_app_config = dict(
+        config.app,
+        upload_post_platforms=["tiktok", "youtube"],
+    )
+
+    with (
+        patch.object(config, "app", test_app_config),
+        patch.object(config, "try_save_config", return_value=True),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
+        app.run()
+        app.session_state["settings_dialog_open"] = True
+        app.run()
+
+        platforms = _widget_by_key(app.multiselect, "upload_post_platforms_multiselect")
+        assert platforms.value == ["tiktok"]
+        assert "youtube" not in platforms.options

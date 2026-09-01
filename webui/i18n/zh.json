@@ -417,6 +417,24 @@
     "Upload-Post Profile Username": "Upload-Post 发布用户名称",
     "Upload-Post Profile Username Help": "填写 [Manage Users]({manage_users_url}) 页面显示的 Username，而不是 Upload-Post 登录邮箱；该发布用户需要已经连接所选平台。",
     "Upload-Post Setup Guide": "启用自动发布前，请先：\n1. 在 [API Keys]({api_keys_url}) 页面创建 API Key。\n2. 在 [Manage Users]({manage_users_url}) 页面创建或选择发布用户，并连接目标平台。\n\n下方请填写该发布用户的 **Username**，而不是 Upload-Post 登录邮箱。",
-    "YouTube Privacy Status": "YouTube 隐私状态"
+    "YouTube Privacy Status": "YouTube 隐私状态",
+    "YouTube Direct Upload": "YouTube 直接发布",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "使用官方 YouTube Data API v3 把成片直接发布到 YouTube",
+    "YouTube OAuth Setup Guide": "启用 YouTube 自动发布前，请先：\n1. 在 Google Cloud 项目中启用 [YouTube Data API v3]({console_url})。\n2. 创建类型为 **桌面应用** 的 OAuth 客户端，并复制 Client ID 和 Client Secret。\n3. 为 `youtube.upload` 权限换取刷新令牌，例如使用 [OAuth Playground]({playground_url})。\n\n刷新令牌会自动续期，发布过程不需要打开浏览器。",
+    "Enable YouTube Integration": "启用 YouTube 集成",
+    "Enable YouTube Auto-Publish": "启用 YouTube 自动发布",
+    "YouTube Client ID": "YouTube Client ID",
+    "YouTube Client Secret": "YouTube Client Secret",
+    "YouTube OAuth Credentials Help": "来自 Google Cloud 项目的 OAuth 客户端凭据，在 [API 和服务]({console_url}) 页面创建。",
+    "YouTube Refresh Token": "YouTube 刷新令牌",
+    "YouTube Refresh Token Help": "对应 youtube.upload 权限的长期令牌。使用自己的客户端凭据，在 [OAuth Playground]({playground_url}) 换取一次即可。",
+    "YouTube Category ID": "YouTube 分类 ID",
+    "YouTube Category ID Help": "视频所属的数字分类。22 = 人物和博客，24 = 娱乐，27 = 教育。完整取值见 [分类列表]({categories_url})。",
+    "YouTube Made For Kids": "面向儿童",
+    "YouTube Made For Kids Help": "每次上传都会附带的 COPPA 声明。只有面向儿童的视频才需要开启。",
+    "YouTube Synthetic Media Disclosure": "声明包含合成或改动内容",
+    "YouTube Synthetic Media Disclosure Help": "向 YouTube 声明视频包含 AI 生成内容。成片使用合成配音，建议保持开启。",
+    "Upload-Post Cross-Posting": "Upload-Post 跨平台转发",
+    "Upload-Post Platforms Help": "由 Upload-Post 转发的目标平台。YouTube 已改由上方的官方集成发布。"
   }
 }

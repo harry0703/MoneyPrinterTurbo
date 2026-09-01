@@ -425,21 +425,52 @@ MoneyPrinterTurbo
 ## よくある質問 🤔
 
 <details>
-<summary>TikTok、Instagram、YouTube Shorts へ投稿するには？</summary>
+<summary>YouTube へ投稿するには？</summary>
 
-[Upload-Post](https://upload-post.com/) のアカウントと API キーを作成し、`config.toml` の `[app]` 以下に次の設定を追加します:
+YouTube への投稿は公式の YouTube Data API v3（`google-api-python-client` + OAuth2）を直接利用するため、動画が第三者のサービスを経由することはありません。
+
+初回のみ必要な設定:
+
+1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成し、**YouTube Data API v3** を有効化します。
+2. OAuth 同意画面を設定し、**デスクトップ アプリ** 型の OAuth クライアントを作成して Client ID と Client Secret を控えます。
+3. `https://www.googleapis.com/auth/youtube.upload` スコープのリフレッシュ トークンを取得します。[OAuth Playground](https://developers.google.com/oauthplayground) が便利です: *Use your own OAuth credentials* を有効にし、手順 2 の資格情報を入力して認可後にトークンと交換します。
+
+取得した値を `config.toml` の `[app]` 以下に追加します:
+
+```toml
+[app]
+youtube_enabled = true
+youtube_client_id = "your-client-id"
+youtube_client_secret = "your-client-secret"
+youtube_refresh_token = "your-refresh-token"
+youtube_auto_upload = true
+youtube_privacy_status = "public"     # public、unlisted、private
+youtube_category_id = "22"            # 22 = People & Blogs
+youtube_made_for_kids = false
+youtube_contains_synthetic_media = true
+```
+
+保存後にアプリを再起動してください。以降、生成された動画は LLM が作成したタイトル・説明・タグ付きで自動的にアップロードされます。リフレッシュ トークンは自動更新されるため投稿時にブラウザーは開かず、Docker やヘッドレス サーバーでも動作します。
+
+WebUI では **設定 → 自動投稿設定** から同じ項目を編集できます。
+
+</details>
+
+<details>
+<summary>TikTok や Instagram へ投稿するには？</summary>
+
+これらのプラットフォームは引き続き [Upload-Post](https://upload-post.com/) 経由で投稿します。アカウントと API キーを作成し、`config.toml` の `[app]` 以下に次を追加します:
 
 ```toml
 [app]
 upload_post_enabled = true
 upload_post_api_key = "your-api-key"
 upload_post_username = "your-username"
-upload_post_platforms = ["tiktok", "instagram", "youtube"]
+upload_post_platforms = ["tiktok", "instagram"]
 upload_post_auto_upload = true
-upload_post_youtube_privacy_status = "public"
 ```
 
-保存後にアプリを再起動してください。以降、生成された動画は設定したプラットフォームへ自動的に投稿されます。YouTube の公開範囲は `public`、`unlisted`、`private` から設定できます。
+2 つの連携は独立しており、同時に有効化できます。`upload_post_platforms` に `youtube` が残っていても無視されるため、同じ動画が二重に投稿されることはありません。
 
 </details>
 

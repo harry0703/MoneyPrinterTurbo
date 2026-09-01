@@ -348,6 +348,24 @@
     "Upload-Post Profile Username": "Upload-Post Profil Kullanıcı Adı",
     "Upload-Post Profile Username Help": "Upload-Post hesap e-postanız yerine [Manage Users]({manage_users_url}) sayfasında gösterilen kullanıcı adını girin. Bu yayın kullanıcısı seçilen platformlara bağlı olmalıdır.",
     "Upload-Post Setup Guide": "Otomatik yayınlamayı etkinleştirmeden önce:\n1. [API Keys]({api_keys_url}) sayfasında bir API anahtarı oluşturun.\n2. [Manage Users]({manage_users_url}) sayfasında bir yayın kullanıcısı oluşturun veya seçin ve hedef platformları bağlayın.\n\nAşağıya Upload-Post hesap e-postanızı değil, bu yayın kullanıcısının **kullanıcı adını** girin.",
-    "YouTube Privacy Status": "YouTube Gizlilik Durumu"
+    "YouTube Privacy Status": "YouTube Gizlilik Durumu",
+    "YouTube Direct Upload": "Doğrudan YouTube Yükleme",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Üretilen videoları resmi YouTube Data API v3 ile doğrudan YouTube'da yayınlayın",
+    "YouTube OAuth Setup Guide": "YouTube otomatik yayınlamayı etkinleştirmeden önce:\n1. Bir Google Cloud projesinde [YouTube Data API v3]({console_url}) hizmetini etkinleştirin.\n2. **Masaüstü uygulaması** türünde bir OAuth istemcisi oluşturup Client ID ve Client Secret değerlerini kopyalayın.\n3. `youtube.upload` kapsamı için bir yenileme jetonu üretin; örneğin [OAuth Playground]({playground_url}) ile.\n\nYenileme jetonu kendini tazeler, bu yüzden yayınlama sırasında tarayıcı açılmaz.",
+    "Enable YouTube Integration": "YouTube entegrasyonunu etkinleştir",
+    "Enable YouTube Auto-Publish": "YouTube otomatik yayınlamayı etkinleştir",
+    "YouTube Client ID": "YouTube Client ID",
+    "YouTube Client Secret": "YouTube Client Secret",
+    "YouTube OAuth Credentials Help": "Google Cloud projenizdeki OAuth istemci kimlik bilgileri. [API'ler ve Hizmetler]({console_url}) bölümünden oluşturun.",
+    "YouTube Refresh Token": "YouTube yenileme jetonu",
+    "YouTube Refresh Token Help": "youtube.upload kapsamı için uzun ömürlü jeton. Kendi istemci bilgilerinizle [OAuth Playground]({playground_url}) üzerinden bir kez üretin.",
+    "YouTube Category ID": "YouTube kategori kimliği",
+    "YouTube Category ID Help": "Videoya atanan sayısal kategori. 22 = İnsanlar ve Bloglar, 24 = Eğlence, 27 = Eğitim. [Kategori listesine]({categories_url}) bakın.",
+    "YouTube Made For Kids": "Çocuklara yönelik",
+    "YouTube Made For Kids Help": "Her yüklemede gönderilen COPPA beyanı. Yalnızca video çocuklara yönelikse etkinleştirin.",
+    "YouTube Synthetic Media Disclosure": "Sentetik veya değiştirilmiş içeriği beyan et",
+    "YouTube Synthetic Media Disclosure Help": "YouTube'a videonun yapay zekâ üretimi içerik barındırdığını bildirir. Videolar sentetik seslendirme kullandığı için açık bırakın.",
+    "Upload-Post Cross-Posting": "Upload-Post ile çapraz paylaşım",
+    "Upload-Post Platforms Help": "Upload-Post'un yayın yaptığı platformlar. YouTube artık yukarıdaki yerel entegrasyonla yönetiliyor."
   }
 }

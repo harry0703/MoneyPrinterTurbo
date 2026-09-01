@@ -348,6 +348,24 @@
     "Upload-Post Profile Username": "Nom d'utilisateur du profil Upload-Post",
     "Upload-Post Profile Username Help": "Saisissez le nom d'utilisateur affiché dans [Manage Users]({manage_users_url}), et non l'adresse e-mail de votre compte Upload-Post. Cet utilisateur de publication doit être connecté aux plateformes sélectionnées.",
     "Upload-Post Setup Guide": "Avant d'activer la publication automatique :\n1. Créez une clé API dans [API Keys]({api_keys_url}).\n2. Créez ou sélectionnez un utilisateur de publication dans [Manage Users]({manage_users_url}), puis connectez les plateformes cibles.\n\nSaisissez ci-dessous son **nom d'utilisateur**, et non l'adresse e-mail de votre compte Upload-Post.",
-    "YouTube Privacy Status": "Statut de confidentialité YouTube"
+    "YouTube Privacy Status": "Statut de confidentialité YouTube",
+    "YouTube Direct Upload": "Publication directe sur YouTube",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Publiez les vidéos générées directement sur YouTube avec l'API officielle YouTube Data API v3",
+    "YouTube OAuth Setup Guide": "Avant d'activer la publication automatique sur YouTube :\n1. Activez l'[API YouTube Data v3]({console_url}) dans un projet Google Cloud.\n2. Créez un client OAuth de type **Application de bureau** et copiez son Client ID et son Client Secret.\n3. Générez un refresh token pour la portée `youtube.upload`, par exemple avec l'[OAuth Playground]({playground_url}).\n\nLe refresh token se renouvelle seul : la publication n'ouvre jamais de navigateur.",
+    "Enable YouTube Integration": "Activer l'intégration YouTube",
+    "Enable YouTube Auto-Publish": "Activer la publication automatique sur YouTube",
+    "YouTube Client ID": "Client ID YouTube",
+    "YouTube Client Secret": "Client Secret YouTube",
+    "YouTube OAuth Credentials Help": "Identifiants du client OAuth de votre projet Google Cloud. Créez-les dans [API et services]({console_url}).",
+    "YouTube Refresh Token": "Refresh token YouTube",
+    "YouTube Refresh Token Help": "Jeton longue durée pour la portée youtube.upload. Générez-le une fois avec l'[OAuth Playground]({playground_url}) en utilisant vos propres identifiants client.",
+    "YouTube Category ID": "ID de catégorie YouTube",
+    "YouTube Category ID Help": "Catégorie numérique attribuée à la vidéo. 22 = Personnes et blogs, 24 = Divertissement, 27 = Éducation. Voir la [liste des catégories]({categories_url}).",
+    "YouTube Made For Kids": "Conçu pour les enfants",
+    "YouTube Made For Kids Help": "Déclaration COPPA envoyée à chaque mise en ligne. À activer uniquement si la vidéo s'adresse aux enfants.",
+    "YouTube Synthetic Media Disclosure": "Déclarer un contenu synthétique ou modifié",
+    "YouTube Synthetic Media Disclosure Help": "Indique à YouTube que la vidéo contient du contenu généré par IA. Les vidéos utilisent une narration synthétique : gardez cette option activée.",
+    "Upload-Post Cross-Posting": "Publication croisée Upload-Post",
+    "Upload-Post Platforms Help": "Plateformes sur lesquelles Upload-Post publie. YouTube passe désormais par l'intégration native ci-dessus."
   }
 }

@@ -417,6 +417,24 @@
     "Upload-Post Profile Username": "Upload-Post Profile Username",
     "Upload-Post Profile Username Help": "Enter the Username shown on [Manage Users]({manage_users_url}), not your Upload-Post account email. This publishing user must be connected to the selected platforms.",
     "Upload-Post Setup Guide": "Before enabling auto-publish:\n1. Create an API key on [API Keys]({api_keys_url}).\n2. Create or select a publishing user on [Manage Users]({manage_users_url}), then connect the target platforms.\n\nEnter that publishing user's **Username** below, not your Upload-Post account email.",
-    "YouTube Privacy Status": "YouTube Privacy Status"
+    "YouTube Privacy Status": "YouTube Privacy Status",
+    "YouTube Direct Upload": "YouTube Direct Upload",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Publish generated videos straight to YouTube with the official YouTube Data API v3",
+    "YouTube OAuth Setup Guide": "Before enabling YouTube auto-publish:\n1. Enable [YouTube Data API v3]({console_url}) in a Google Cloud project.\n2. Create an OAuth client of type **Desktop app** and copy its Client ID and Client Secret.\n3. Generate a refresh token for the `youtube.upload` scope, for example with the [OAuth Playground]({playground_url}).\n\nThe refresh token renews itself, so publishing never opens a browser.",
+    "Enable YouTube Integration": "Enable YouTube Integration",
+    "Enable YouTube Auto-Publish": "Enable YouTube Auto-Publish",
+    "YouTube Client ID": "YouTube Client ID",
+    "YouTube Client Secret": "YouTube Client Secret",
+    "YouTube OAuth Credentials Help": "OAuth client credentials from your Google Cloud project. Create them under [APIs & Services]({console_url}).",
+    "YouTube Refresh Token": "YouTube Refresh Token",
+    "YouTube Refresh Token Help": "Long-lived token for the youtube.upload scope. Generate it once with the [OAuth Playground]({playground_url}) using your own client credentials.",
+    "YouTube Category ID": "YouTube Category ID",
+    "YouTube Category ID Help": "Numeric category assigned to the video. 22 = People & Blogs, 24 = Entertainment, 27 = Education. See the [category list]({categories_url}).",
+    "YouTube Made For Kids": "Made for Kids",
+    "YouTube Made For Kids Help": "COPPA declaration sent with every upload. Enable it only when the video targets children.",
+    "YouTube Synthetic Media Disclosure": "Disclose synthetic or altered media",
+    "YouTube Synthetic Media Disclosure Help": "Tells YouTube the video contains AI-generated content. Generated videos use synthetic narration, so keep this enabled.",
+    "Upload-Post Cross-Posting": "Upload-Post Cross-Posting",
+    "Upload-Post Platforms Help": "Platforms Upload-Post publishes to. YouTube is handled by the native integration above."
   }
 }

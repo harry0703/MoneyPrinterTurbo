@@ -348,6 +348,24 @@
     "Upload-Post Profile Username": "Nama Pengguna Profil Upload-Post",
     "Upload-Post Profile Username Help": "Masukkan Username yang ditampilkan di [Manage Users]({manage_users_url}), bukan email akun Upload-Post Anda. Pengguna penerbitan ini harus terhubung ke platform yang dipilih.",
     "Upload-Post Setup Guide": "Sebelum mengaktifkan publikasi otomatis:\n1. Buat kunci API di [API Keys]({api_keys_url}).\n2. Buat atau pilih pengguna penerbitan di [Manage Users]({manage_users_url}), lalu hubungkan platform tujuan.\n\nMasukkan **Username** pengguna penerbitan tersebut di bawah, bukan email akun Upload-Post Anda.",
-    "YouTube Privacy Status": "Status Privasi YouTube"
+    "YouTube Privacy Status": "Status Privasi YouTube",
+    "YouTube Direct Upload": "Unggah Langsung ke YouTube",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Publikasikan video hasil generasi langsung ke YouTube dengan YouTube Data API v3 resmi",
+    "YouTube OAuth Setup Guide": "Sebelum mengaktifkan publikasi otomatis ke YouTube:\n1. Aktifkan [YouTube Data API v3]({console_url}) pada proyek Google Cloud.\n2. Buat klien OAuth bertipe **Desktop app** lalu salin Client ID dan Client Secret-nya.\n3. Buat refresh token untuk cakupan `youtube.upload`, misalnya lewat [OAuth Playground]({playground_url}).\n\nRefresh token diperbarui otomatis, jadi proses publikasi tidak pernah membuka browser.",
+    "Enable YouTube Integration": "Aktifkan Integrasi YouTube",
+    "Enable YouTube Auto-Publish": "Aktifkan Publikasi Otomatis YouTube",
+    "YouTube Client ID": "Client ID YouTube",
+    "YouTube Client Secret": "Client Secret YouTube",
+    "YouTube OAuth Credentials Help": "Kredensial klien OAuth dari proyek Google Cloud Anda. Buat di [APIs & Services]({console_url}).",
+    "YouTube Refresh Token": "Refresh Token YouTube",
+    "YouTube Refresh Token Help": "Token berumur panjang untuk cakupan youtube.upload. Buat sekali saja melalui [OAuth Playground]({playground_url}) memakai kredensial klien Anda sendiri.",
+    "YouTube Category ID": "ID Kategori YouTube",
+    "YouTube Category ID Help": "Kategori numerik untuk video. 22 = People & Blogs, 24 = Entertainment, 27 = Education. Lihat [daftar kategori]({categories_url}).",
+    "YouTube Made For Kids": "Dibuat untuk Anak-anak",
+    "YouTube Made For Kids Help": "Deklarasi COPPA yang dikirim pada setiap unggahan. Aktifkan hanya jika video ditujukan untuk anak-anak.",
+    "YouTube Synthetic Media Disclosure": "Nyatakan media sintetis atau hasil modifikasi",
+    "YouTube Synthetic Media Disclosure Help": "Memberi tahu YouTube bahwa video berisi konten buatan AI. Video hasil generasi memakai narasi sintetis, jadi biarkan tetap aktif.",
+    "Upload-Post Cross-Posting": "Cross-Posting Upload-Post",
+    "Upload-Post Platforms Help": "Platform tujuan publikasi Upload-Post. YouTube kini ditangani integrasi native di atas."
   }
 }
