@@ -16,6 +16,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services import voice as vs
+from app.services import voice_fish_audio as vs_fish_audio
 
 
 class _FakeClip:
@@ -155,7 +156,7 @@ class TestFishAudioTTSRequest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir, \
              patch.object(vs.config, "fish_audio", {"api_key": "test-key", "model": model}), \
              patch.object(vs.requests, "post", side_effect=_fake_post), \
-             patch.object(vs, "AudioFileClip", return_value=_FakeClip()):
+             patch.object(vs_fish_audio, "AudioFileClip", return_value=_FakeClip()):
             voice_file = str(Path(tmp_dir) / "fish.mp3")
             result = vs.fish_audio_tts(
                 "Test sentence.",
@@ -227,7 +228,7 @@ class TestFishAudioErrorHandling(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir, \
              patch.object(vs.config, "fish_audio", {"api_key": "test-key", "model": "s2.1-pro-free"}), \
              patch.object(vs.requests, "post", return_value=resp), \
-             patch.object(vs, "AudioFileClip", return_value=_FakeClip()):
+             patch.object(vs_fish_audio, "AudioFileClip", return_value=_FakeClip()):
             voice_file = str(Path(tmp_dir) / "fish.mp3")
             result = vs.fish_audio_tts("Test.", voice_file)
         return result

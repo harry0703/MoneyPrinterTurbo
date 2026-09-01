@@ -16,6 +16,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.utils import utils
 from app.services import voice as vs
+from app.services import voice_azure_v2 as vs_azure_v2
+from app.services import voice_mimo as vs_mimo
+from app.services import voice_siliconflow as vs_siliconflow
+from app.services import voice_minimax as vs_minimax
+from app.services import voice_elevenlabs as vs_elevenlabs
+from app.services import voice_chatterbox as vs_chatterbox
+from app.services import voice_fish_audio as vs_fish_audio
 from app.services import task as task_service
 from pydub import AudioSegment
 
@@ -396,7 +403,7 @@ class TestVoiceService(unittest.TestCase):
 
     def test_azure_tts_v2_ssml_applies_rate_and_escapes_text(self):
         """Azure V2 必须通过 SSML 应用语速，并避免用户文案破坏 XML。"""
-        ssml = vs._build_azure_v2_ssml(
+        ssml = vs_azure_v2._build_azure_v2_ssml(
             text='A < B & "quoted"',
             voice_name="zh-CN-XiaoxiaoMultilingualNeural",
             voice_rate=1.8,
@@ -588,7 +595,7 @@ class TestVoiceService(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
-            vs,
+            vs_mimo,
             "OpenAI",
             return_value=fake_client,
         ) as openai_client, patch(
@@ -664,7 +671,7 @@ class TestVoiceService(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
             vs.config, "minimax_tts", settings
         ), patch.object(vs.requests, "post", side_effect=_post), patch.object(
-            vs, "AudioFileClip", return_value=_Clip()
+            vs_minimax, "AudioFileClip", return_value=_Clip()
         ):
             voice_file = str(Path(tmp_dir) / "minimax.mp3")
             result = vs.minimax_tts("Speech test.", "male-qn-qingse", 1.2, voice_file, 1.5)
@@ -711,7 +718,7 @@ class TestVoiceService(unittest.TestCase):
             vs.config, "minimax_tts", settings
         ), patch.object(vs.config, "app", app_settings), patch.object(
             vs.requests, "post", side_effect=_post
-        ), patch.object(vs, "AudioFileClip", return_value=_Clip()):
+        ), patch.object(vs_minimax, "AudioFileClip", return_value=_Clip()):
             voice_file = str(Path(tmp_dir) / "minimax.mp3")
             result = vs.minimax_tts("测试。", "male-qn-qingse", 1.0, voice_file)
 
@@ -811,7 +818,7 @@ class TestVoiceService(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
             vs.config, "minimax_tts", settings
         ), patch.object(vs.requests, "post", return_value=_Response()), patch.object(
-            vs, "AudioFileClip", side_effect=OSError("invalid audio")
+            vs_minimax, "AudioFileClip", side_effect=OSError("invalid audio")
         ):
             voice_path = Path(tmp_dir) / "minimax.mp3"
             voice_path.write_bytes(b"existing-audio")
@@ -895,7 +902,7 @@ class TestVoiceService(unittest.TestCase):
         ), patch.object(
             vs.requests, "post", side_effect=_fake_post
         ) as post, patch.object(
-            vs, "AudioFileClip", return_value=_FakeClip()
+            vs_chatterbox, "AudioFileClip", return_value=_FakeClip()
         ):
             voice_file = str(Path(tmp_dir) / "chatterbox.mp3")
             sub_maker = vs.chatterbox_tts(
@@ -986,7 +993,7 @@ class TestVoiceService(unittest.TestCase):
                     {"api_key": "test-key", "model_id": "eleven_multilingual_v2"},
                 ),
                 patch.object(vs.requests, "post", return_value=_OkResponse()),
-                patch.object(vs, "AudioFileClip", side_effect=lambda _: BrokenClip()),
+                patch.object(vs_elevenlabs, "AudioFileClip", side_effect=lambda _: BrokenClip()),
             ):
                 result = vs.elevenlabs_tts("Hello world.", "voice-id", out)
         finally:
@@ -1016,7 +1023,7 @@ class TestVoiceService(unittest.TestCase):
                     {"base_url": "http://localhost:4123", "api_key": "", "model_id": "chatterbox"},
                 ),
                 patch.object(vs.requests, "post", return_value=_OkResponse()),
-                patch.object(vs, "AudioFileClip", side_effect=lambda _: BrokenClip()),
+                patch.object(vs_chatterbox, "AudioFileClip", side_effect=lambda _: BrokenClip()),
             ):
                 result = vs.chatterbox_tts("Hello world.", "default", out)
         finally:
@@ -1046,7 +1053,7 @@ class TestVoiceService(unittest.TestCase):
                     {"api_key": "test-key", "model": "s2.1-pro-free"},
                 ),
                 patch.object(vs.requests, "post", return_value=_OkResponse()),
-                patch.object(vs, "AudioFileClip", side_effect=lambda _: BrokenClip()),
+                patch.object(vs_fish_audio, "AudioFileClip", side_effect=lambda _: BrokenClip()),
             ):
                 result = vs.fish_audio_tts("Hello world.", out)
         finally:
@@ -1347,9 +1354,9 @@ class TestElevenLabsVoice(unittest.TestCase):
         result = vs.get_elevenlabs_voices("fake-key")
         self.assertEqual(result, [])
 
-    @patch("app.services.voice.requests.post")
-    @patch("app.services.voice.AudioFileClip")
-    @patch("app.services.voice.config")
+    @patch("app.services.voice_elevenlabs.requests.post")
+    @patch("app.services.voice_elevenlabs.AudioFileClip")
+    @patch("app.services.voice_elevenlabs.config")
     def test_elevenlabs_tts_success(self, mock_config, mock_clip_cls, mock_post):
         mock_config.elevenlabs.get.return_value = "fake-api-key"
         mock_post.return_value.status_code = 200
@@ -1369,7 +1376,7 @@ class TestElevenLabsVoice(unittest.TestCase):
             if os.path.exists(out_path):
                 os.remove(out_path)
 
-    @patch("app.services.voice.config")
+    @patch("app.services.voice_elevenlabs.config")
     def test_elevenlabs_tts_no_api_key(self, mock_config):
         mock_config.elevenlabs.get.return_value = ""
         # Key 解析包含环境变量回退，测试必须显式清空宿主环境，避免开发机或 CI
@@ -1378,7 +1385,7 @@ class TestElevenLabsVoice(unittest.TestCase):
             result = vs.elevenlabs_tts("Hello", "abc123", "/tmp/test.mp3")
         self.assertIsNone(result)
 
-    @patch("app.services.voice.config")
+    @patch("app.services.voice_elevenlabs.config")
     def test_elevenlabs_tts_empty_text(self, mock_config):
         mock_config.elevenlabs.get.return_value = "fake-key"
         result = vs.elevenlabs_tts("  ", "abc123", "/tmp/test.mp3")
@@ -1442,7 +1449,7 @@ class TestElevenLabsVoice(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as tmp_dir,
             patch.object(vs.requests, "post", return_value=fake_response),
-            patch.object(vs, "AudioFileClip", return_value=fake_clip),
+            patch.object(vs_siliconflow, "AudioFileClip", return_value=fake_clip),
             patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
         ):
             voice_file = str(Path(tmp_dir) / "test.mp3")
