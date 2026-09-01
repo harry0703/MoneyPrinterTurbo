@@ -25,6 +25,15 @@ listen_port = 8080
 # 应由 API 客户端携带请求头下载。
 api_key = ""
 
+# Email for the single WebUI login account. Required to unlock the login
+# gate; leave empty to keep the WebUI blocked until configured. On first
+# start with this set, a strong password is generated and printed once to
+# the server log. Keep the real value only in config.toml, never commit it.
+# WebUI 唯一登录账号的邮箱。留空则登录页始终无法通过，需要先配置才能使用；
+# 首次启动配置好后会生成一个强密码，仅在服务端日志打印一次。真实值只保存在
+# config.toml，不要提交到版本库。
+login_email = ""
+
 # -----------------------------------------------------------------------------
 # General / 通用设置
 # -----------------------------------------------------------------------------

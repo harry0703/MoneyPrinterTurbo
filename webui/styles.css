@@ -353,6 +353,82 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
     }
 }
 
+/* 登录页是未认证会话渲染的唯一内容，把主容器变成 flex 让卡片在视口内垂直
+   居中；:has() 把作用范围限定在 login_gate 存在的这一次渲染，已登录页面
+   的正常内容不受影响。 */
+div[data-testid="stMainBlockContainer"]:has(div[class*="st-key-login_gate"]) {
+    display: flex !important;
+    min-height: 100dvh !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+div[class*="st-key-login_gate"] {
+    width: 100%;
+}
+
+div[class*="st-key-login_gate"] > div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 18px !important;
+    box-shadow:
+        0 24px 48px -20px rgba(0, 0, 0, 0.35),
+        0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+div[class*="st-key-login_gate"] div[data-testid="stVerticalBlockBorderWrapper"] > div {
+    padding: 0.5rem 0.25rem;
+}
+
+.login-gate__title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+
+.login-gate__subtitle {
+    font-size: 0.9rem;
+    opacity: 0.65;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+div[class*="st-key-login_gate"] div[data-testid="stForm"] {
+    border: 0 !important;
+    padding: 0 !important;
+}
+
+div[class*="st-key-login_gate"] button[kind="formSubmit"] {
+    margin-top: 0.5rem;
+    font-weight: 600;
+}
+
+/* Botão de sair no topo é só um ícone circular discreto: sem texto visível,
+   sem cor de destaque, do mesmo tamanho que os outros ícones da barra. */
+div[class*="st-key-logout_button"] button {
+    min-width: 2.25rem !important;
+    height: 2.25rem !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+}
+
+div[class*="st-key-logout_button"] button span[data-has-shortcut] {
+    gap: 0 !important;
+    justify-content: center !important;
+}
+
+div[class*="st-key-logout_button"] button p {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+}
+
 /* 移动端隐藏桌面表头，并将任务行重排为“主题 + 元信息 + 操作”紧凑结构。 */
 @media (max-width: 700px) {
     div[class*="st-key-task_table_header_"] {

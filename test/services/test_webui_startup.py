@@ -30,6 +30,9 @@ class TestWebuiStartup(unittest.TestCase):
                 for part in (str(conflicting_root), existing_pythonpath)
                 if part
             )
+            # Sem isolar aqui, ensure_account() cria um storage/auth.db real
+            # no repo do desenvolvedor a cada execução deste teste.
+            env["MPT_AUTH_DB_PATH"] = str(temp_path / "isolated-auth.db")
             script = textwrap.dedent(
                 f"""
                 from pathlib import Path

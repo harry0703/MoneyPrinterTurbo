@@ -43,6 +43,7 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
+from app.services import auth_store
 from app.services import bgm as bgm_service
 from app.services import (
     cache_manager,
@@ -60,6 +61,22 @@ from app.services import task as tm
 from app.services import version_checker
 from app.utils.logging_utils import configure_terminal_logger
 from app.utils import utils
+
+# 登录邮箱只存在 config.toml（本地文件，不进版本库），源码里不写死任何账号
+# 信息。首次启动创建唯一账号，密码只在这一次日志里出现一次；账号已存在时
+# ensure_account 直接返回 None，不会重复打印。
+_login_email = str(config.app.get("login_email", "")).strip()
+if not _login_email:
+    logger.error(
+        "WebUI login is not configured: set app.login_email in config.toml"
+    )
+else:
+    _generated_login_password = auth_store.ensure_account(_login_email)
+    if _generated_login_password:
+        logger.warning(
+            f"WebUI login account created: email={_login_email} "
+            f"password={_generated_login_password} (shown once, save it now)"
+        )
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -1552,6 +1569,16 @@ def _render_top_bar():
                     _save_runtime_config()
                     # 切换语言后强制刷新，避免 selectbox 继续展示旧语言文案。
                     st.rerun()
+
+            if st.button(
+                "Sair",
+                key="logout_button",
+                type="secondary",
+                icon=":material/logout:",
+                width="content",
+            ):
+                st.session_state["authenticated"] = False
+                st.rerun()
 
 
 support_locales = [
@@ -6140,4 +6167,42 @@ def _render_application():
         _save_runtime_config()
 
 
-_render_application()
+def _render_login_gate() -> bool:
+    """Bloqueia o app inteiro atrás de login. True libera o resto da UI.
+
+    O botão de sair não mora aqui: quando autenticado, ele é renderizado
+    dentro de _render_top_bar (canto superior direito), junto dos outros
+    ícones de ação.
+    """
+    if st.session_state.get("authenticated"):
+        return True
+
+    _, mid_col, _ = st.columns([1, 1.1, 1])
+    with mid_col:
+        with st.container(key="login_gate", border=True):
+            st.markdown(
+                "<div class='login-gate__title'>MoneyPrinterTurbo</div>"
+                "<div class='login-gate__subtitle'>Entre para continuar</div>",
+                unsafe_allow_html=True,
+            )
+            with st.form("login_form", border=False):
+                email = st.text_input("Email", key="login_email_input")
+                password = st.text_input(
+                    "Senha", type="password", key="login_password_input"
+                )
+                submitted = st.form_submit_button("Entrar", width="stretch")
+
+            if submitted:
+                if auth_store.verify_login(email, password):
+                    st.session_state["authenticated"] = True
+                    st.rerun()
+                else:
+                    st.error(
+                        "Email ou senha inválidos, ou conta bloqueada temporariamente."
+                    )
+
+    return False
+
+
+if _render_login_gate():
+    _render_application()
