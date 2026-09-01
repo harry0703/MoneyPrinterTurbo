@@ -25,6 +25,20 @@ RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() 
 
 
 class TestTaskService(unittest.TestCase):
+    def test_generate_final_videos_forwards_selected_duration_limit(self):
+        params = VideoParams(video_subject="test", video_duration=75)
+
+        with (
+            patch.object(tm.video, "combine_videos") as combine_videos,
+            patch.object(tm.video, "generate_video"),
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            tm.generate_final_videos(
+                "task-id", params, ["clip.mp4"], "audio.mp3", "", 120
+            )
+
+        self.assertEqual(combine_videos.call_args.kwargs["max_video_duration"], 75)
+
     def setUp(self):
         # 发布 Future 注册表是进程级状态。测试间清理可以避免某个模拟 Future
         # 影响后续恢复测试，同时不会触碰真正线程池中的生产任务。
@@ -74,6 +88,7 @@ class TestTaskService(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="语气轻松",
             custom_system_prompt="Only write short narration.",
+            video_duration=75,
         )
 
         with patch.object(
@@ -88,6 +103,7 @@ class TestTaskService(unittest.TestCase):
             paragraph_number=2,
             video_script_prompt="语气轻松",
             custom_system_prompt="Only write short narration.",
+            video_duration=75,
         )
 
     def test_generate_final_videos_forwards_clip_speed(self):

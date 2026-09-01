@@ -459,6 +459,7 @@ open_task_folder_on_completion = true
 # video_transition_mode = "None"     # "None", "Shuffle", "FadeIn", etc.
 # video_aspect_pexels = "9:16"       # Stored separately for each video source.
 # video_clip_duration = 3
+# video_duration = 15              # Total target duration in seconds (15-300).
 # video_clip_speed = 1.0
 # video_count = 1
 # tts_server = "azure-tts-v1"

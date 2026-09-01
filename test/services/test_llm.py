@@ -32,6 +32,11 @@ RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() 
 
 
 class TestScriptPromptOptions(unittest.TestCase):
+    def test_build_script_prompt_sets_requested_duration(self):
+        prompt = llm.build_script_prompt("Coffee", video_duration=75)
+
+        self.assertIn("approximately 75 seconds", prompt)
+
     def test_normalize_text_response_preserves_internal_newlines(self):
         """
         归一化只清理首尾空白，不能删除正文内部的换行。双换行用于区分脚本

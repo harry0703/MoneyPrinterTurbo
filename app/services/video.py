@@ -91,7 +91,9 @@ _SUPPORTED_VIDEO_CODECS = (
 _runtime_disabled_video_codecs = set()
 
 
-def _get_required_video_duration(audio_duration: float) -> float:
+def _get_required_video_duration(
+    audio_duration: float, max_video_duration: int | None = None
+) -> float:
     """
     返回视频素材拼接的目标时长。
 
@@ -99,7 +101,8 @@ def _get_required_video_duration(audio_duration: float) -> float:
     音频时长时，FFmpeg 可能因为帧率舍入让最终视频略短，因此统一加一个
     轻量余量。函数独立出来，便于测试和后续按实际反馈调整余量大小。
     """
-    return max(0.0, float(audio_duration) + _VIDEO_DURATION_SAFETY_MARGIN)
+    duration = max(0.0, float(audio_duration) + _VIDEO_DURATION_SAFETY_MARGIN)
+    return min(duration, max_video_duration) if max_video_duration else duration
 
 
 def is_material_resolution_acceptable(width: int, height: int) -> bool:
@@ -545,6 +548,7 @@ def combine_videos(
     max_clip_duration: int = 5,
     threads: int = 2,
     clip_speed: float = 1.0,
+    max_video_duration: int | None = None,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -555,7 +559,9 @@ def combine_videos(
         close_clip(audio_clip)
     logger.info(f"audio duration: {audio_duration} seconds")
     logger.info(f"maximum clip duration: {max_clip_duration} seconds")
-    required_video_duration = _get_required_video_duration(audio_duration)
+    required_video_duration = _get_required_video_duration(
+        audio_duration, max_video_duration
+    )
     logger.info(
         f"required video duration: {required_video_duration:.2f} seconds "
         f"(audio duration + {_VIDEO_DURATION_SAFETY_MARGIN:.2f}s safety margin)"

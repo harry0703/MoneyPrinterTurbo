@@ -21,6 +21,16 @@ class TestVideoAspect(unittest.TestCase):
 
 
 class TestVideoParams(unittest.TestCase):
+    def test_video_duration_defaults_to_15_and_accepts_only_15_to_300_seconds(self):
+        self.assertEqual(VideoParams(video_subject="Coffee").video_duration, 15)
+        self.assertEqual(
+            VideoParams(video_subject="Coffee", video_duration=300).video_duration, 300
+        )
+
+        for value in (14, 301):
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                VideoParams(video_subject="Coffee", video_duration=value)
+
     def test_rejects_non_positive_generation_counts(self):
         for field_name in ("video_clip_duration", "video_count"):
             for value in (0, -1, None):

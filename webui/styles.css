@@ -1,4 +1,60 @@
+/* 侧边栏及主布局容器样式 */
+section[data-testid="stSidebar"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background-color: #f8fafc !important;
+    border-right: 1px solid #e2e8f0 !important;
+    z-index: 99990 !important;
+}
+
+section[data-testid="stSidebar"] > div {
+    padding-top: 1.5rem !important;
+}
+
+/* 侧边栏展开/折叠按钮在白底主题下醒目可见 */
 header[data-testid="stHeader"],
+.stAppHeader {
+    background: transparent !important;
+    height: 3rem !important;
+    pointer-events: none !important;
+    z-index: 999990 !important;
+}
+
+header[data-testid="stHeader"] button,
+.stAppHeader button,
+button[data-testid="stSidebarCollapseButton"],
+button[data-testid="stSidebarHeaderButton"],
+button[data-testid="stBaseButton-header"],
+button[data-testid="stExpandButton"],
+button[data-testid="baseButton-header"],
+button[aria-label="Expand sidebar"],
+button[aria-label="Close sidebar"],
+div[data-testid="stSidebarCollapseButton"],
+div[data-testid="stSidebarHeaderButton"] {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    z-index: 999999 !important;
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+    padding: 0.35rem 0.6rem !important;
+}
+
+button[aria-label="Expand sidebar"]:hover,
+button[aria-label="Close sidebar"]:hover,
+button[data-testid="stSidebarCollapseButton"]:hover {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    border-color: #94a3b8 !important;
+}
+
+/* 隐藏无关的平台工具和技能提示 */
 div[data-testid="stToolbar"],
 div[data-testid="stDecoration"],
 div[data-testid="stStatusWidget"],
@@ -8,7 +64,8 @@ div[data-testid="stSkillsNudge"] {
 }
 
 div[data-testid="stMainBlockContainer"] {
-    padding-top: 0.5rem !important;
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
 }
 
 h1 {
@@ -437,3 +494,333 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
         min-width: 1.75rem !important;
     }
 }
+
+/* =============================================================================
+   Sidebar & Dashboard Styling
+   ============================================================================= */
+
+/* =============================================================================
+   Sidebar & Dashboard Styling
+   ============================================================================= */
+
+/* 侧边栏品牌区 */
+.mpt-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.mpt-sidebar-brand__logo {
+    font-size: 2.2rem;
+    line-height: 1;
+}
+
+.mpt-sidebar-brand__info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.mpt-sidebar-brand__title {
+    font-size: 1.15rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2 !important;
+}
+
+.mpt-sidebar-brand__version {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    font-weight: 600;
+}
+
+.mpt-sidebar-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 0.75rem 0;
+}
+
+.mpt-sidebar-spacer {
+    margin-top: 1.5rem;
+}
+
+/* 侧边栏导航单选按钮定制 */
+div[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] {
+    gap: 0.4rem;
+}
+
+div[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] > label {
+    padding: 0.65rem 0.85rem !important;
+    border-radius: 8px !important;
+    transition: all 0.15s ease-in-out;
+    cursor: pointer;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+div[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] > label:hover {
+    background-color: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+}
+
+/* 侧边栏活跃状态提示 */
+.mpt-sidebar-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    margin-top: 0.5rem;
+}
+
+.mpt-sidebar-status.active {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.mpt-sidebar-status.idle {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+}
+
+.mpt-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #94a3b8;
+    display: inline-block;
+}
+
+.mpt-status-dot.pulse {
+    background-color: #ef4444;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    animation: mpt-pulse 1.6s infinite;
+}
+
+@keyframes mpt-pulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+/* =============================================================================
+   Dashboard Premium Design Tokens & Cards
+   ============================================================================= */
+
+.mpt-dashboard-header {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.mpt-dashboard-header__title h2 {
+    font-size: 1.75rem !important;
+    font-weight: 800 !important;
+    color: #0f172a;
+    margin: 0 0 0.25rem 0 !important;
+}
+
+.mpt-dashboard-header__subtitle {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin: 0;
+}
+
+/* 指标卡片 */
+.mpt-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mpt-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+
+.mpt-stat-card__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    flex-shrink: 0;
+}
+
+.mpt-stat-card__value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #0f172a;
+}
+
+.mpt-stat-card__label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 0.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* 剧集卡片 */
+.mpt-series-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem 0.85rem 1.25rem;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease-in-out;
+}
+
+.mpt-series-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+}
+
+.mpt-series-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.mpt-series-card__title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mpt-series-card__count {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 20px;
+    flex-shrink: 0;
+}
+
+.mpt-series-card__desc {
+    font-size: 0.84rem;
+    color: #64748b;
+    line-height: 1.45;
+    min-height: 2.5rem;
+    margin: 0 0 0.75rem 0;
+}
+
+.mpt-series-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.5rem;
+    border-top: 1px solid #f8fafc;
+}
+
+.mpt-series-card__date {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+/* 剧集详情头部 */
+.mpt-series-detail-header {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.mpt-series-detail-header__main h3 {
+    margin: 0 0 0.35rem 0 !important;
+    font-size: 1.35rem !important;
+    font-weight: 800 !important;
+    color: #0f172a;
+}
+
+.mpt-series-detail-header__desc {
+    color: #475569;
+    font-size: 0.88rem;
+    margin: 0;
+}
+
+.mpt-series-detail-header__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+    color: #64748b;
+    text-align: right;
+}
+
+/* Studio 活跃剧集条目样式 */
+.mpt-active-series-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 0.65rem 1.15rem;
+    margin-bottom: 0.85rem;
+}
+
+.mpt-active-series-bar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.mpt-active-series-bar__tag {
+    background: #16a34a;
+    color: #ffffff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    letter-spacing: 0.05em;
+}
+
+.mpt-active-series-bar__name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #15803d;
+}
+
+

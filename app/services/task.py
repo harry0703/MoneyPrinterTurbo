@@ -294,6 +294,7 @@ def generate_script(task_id, params):
             paragraph_number=params.paragraph_number,
             video_script_prompt=params.video_script_prompt,
             custom_system_prompt=params.custom_system_prompt,
+            video_duration=params.video_duration,
         )
     else:
         logger.debug(f"video script: \n{video_script}")
@@ -801,6 +802,7 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             clip_speed=params.video_clip_speed,
+            max_video_duration=params.video_duration,
         )
 
         _progress += 50 / params.video_count / 2

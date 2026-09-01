@@ -51,6 +51,9 @@ class _FakeMoviePyClip:
 
 
 class TestVideoService(unittest.TestCase):
+    def test_required_video_duration_respects_output_limit(self):
+        self.assertEqual(vd._get_required_video_duration(120, 60), 60)
+
     def setUp(self):
         self.original_app_config = dict(config.app)
         self.test_img_path = os.path.join(resources_dir, "1.png")

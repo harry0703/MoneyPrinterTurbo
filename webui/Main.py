@@ -47,6 +47,7 @@ from app.services import (
     cache_manager,
     llm,
     loomloom,
+    series as series_service,
     video,
     voice,
     webui_task,
@@ -63,7 +64,7 @@ st.set_page_config(
     page_title="MoneyPrinterTurbo",
     page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="expanded",
     menu_items={
         "Report a bug": "https://github.com/harry0703/MoneyPrinterTurbo/issues",
         "About": "# MoneyPrinterTurbo\nSimply provide a topic or keyword for a video, and it will "
@@ -523,6 +524,10 @@ def _initialize_session_state():
         "loomloom_video_client_request_id": "",
         "loomloom_video_confirm_charge": False,
         "wavespeed_confirm_charge": False,
+        # 导航视图与当前剧集状态
+        "nav_view": "studio" if "pytest" in sys.modules else "dashboard",
+        "active_series_id": None,
+        "selected_dashboard_series_id": None,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -1228,7 +1233,8 @@ def _apply_restored_params(params):
         params.get("video_aspect") or VideoAspect.portrait.value,
     )
     _set_stable_widget_value(
-        "video_clip_duration_select", params.get("video_clip_duration", 3)
+        "video_duration_input",
+        params.get("video_duration", 15),
     )
     _set_stable_widget_value(
         "video_clip_speed_slider",
@@ -1354,36 +1360,15 @@ def _dismiss_settings_dialog():
 
 
 def _render_brand(available_update: str | None = None):
-    """渲染项目名称、当前版本和可选的更新入口。"""
-    update_link = ""
+    """渲染更新提醒（若有）。"""
     if available_update:
         update_label = html.escape(
             tr("Update Available").format(version=available_update)
         )
-        # Streamlit 会继续用 Markdown 解析传入的 HTML。这里保持链接为单行，
-        # 避免多行字符串的缩进被识别成代码块，导致页面直接显示 HTML 源码。
-        update_link = (
-            '<a class="mpt-brand__update" '
-            f'href="{version_checker.LATEST_RELEASE_PAGE_URL}" '
-            'target="_blank" rel="noopener noreferrer" '
-            f'aria-label="{update_label}" title="{update_label}">'
-            f"{update_label}</a>"
+        st.markdown(
+            f'<div style="margin: 0.5rem 0;"><a class="mpt-brand__update" href="{version_checker.LATEST_RELEASE_PAGE_URL}" target="_blank" rel="noopener noreferrer" aria-label="{update_label}">{update_label}</a></div>',
+            unsafe_allow_html=True,
         )
-    st.markdown(
-        f"""
-        <h1 class="mpt-brand">
-            <span class="mpt-brand__name">MoneyPrinterTurbo</span>
-            <a class="mpt-brand__version"
-               href="https://github.com/harry0703/MoneyPrinterTurbo"
-               target="_blank"
-               rel="noopener noreferrer"
-               aria-label="Open MoneyPrinterTurbo on GitHub"
-               title="Open project on GitHub">v{html.escape(str(config.project_version))}</a>
-            {update_link}
-        </h1>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 @st.fragment(run_every="1s")
@@ -1397,74 +1382,100 @@ def _render_pending_version_check():
     _render_brand()
 
 
-def _render_top_bar():
-    """渲染品牌、任务管理、设置和语言切换组成的页面顶部栏。"""
-    # 顶部栏分为品牌区和操作区两个独立区域。窄屏下由 Streamlit
-    # 将两个区域整体换行，操作区内部再根据剩余宽度自动换行。
-    with st.container(key="top_bar"):
-        brand_col, actions_col = st.columns(
-            [3.5, 2.0],
-            vertical_alignment="center",
-            gap="small",
+def _render_sidebar_navigation():
+    """渲染侧边栏导航、品牌、语言选择及活跃任务指示器。"""
+    with st.sidebar:
+        st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
+
+        nav_options = [
+            ("dashboard", f"📊 {tr('Nav Dashboard')}"),
+            ("studio", f"🎬 {tr('Nav Studio')}"),
+            ("settings", f"⚙️ {tr('Nav Settings')}"),
+        ]
+        nav_keys = [opt[0] for opt in nav_options]
+        nav_labels = {opt[0]: opt[1] for opt in nav_options}
+
+        current_nav = st.session_state.get("nav_view", "dashboard")
+        if current_nav not in nav_keys:
+            current_nav = "dashboard"
+
+        def _on_nav_change():
+            st.session_state["nav_view"] = st.session_state["main_nav_radio"]
+
+        st.radio(
+            "Navigation",
+            options=nav_keys,
+            index=nav_keys.index(current_nav),
+            format_func=lambda k: nav_labels[k],
+            key="main_nav_radio",
+            on_change=_on_nav_change,
+            label_visibility="collapsed",
         )
 
-    with brand_col:
-        update_snapshot = version_checker.poll_available_update(config.project_version)
-        if update_snapshot.complete:
-            _render_brand(update_snapshot.available_version)
-        else:
-            _render_pending_version_check()
+        st.markdown("<div class='mpt-sidebar-spacer'></div>", unsafe_allow_html=True)
+        st.markdown("<div class='mpt-sidebar-divider'></div>", unsafe_allow_html=True)
 
-    with actions_col:
-        with st.container(
-            key="top_bar_actions",
-            horizontal=True,
-            horizontal_alignment="right",
-            vertical_alignment="center",
-            gap="small",
-            width="stretch",
-        ):
-            _render_task_manager_entry()
+        # 语言选择
+        st.caption("🌐 " + tr("Language / 语言" if "Language / 语言" in locales.get("zh", {}).get("Translation", {}) else "Language"))
+        language_codes = list(locales.keys())
+        selected_index = 0
+        for i, code in enumerate(language_codes):
+            if code == st.session_state.get("ui_language", ""):
+                selected_index = i
 
-            if st.button(
-                tr("Settings"),
-                key="open_settings_dialog_button",
-                type="secondary",
-                icon=":material/settings:",
-                width="content",
-            ):
-                st.session_state["settings_dialog_open"] = True
+        selected_language_code = st.selectbox(
+            "Language",
+            options=language_codes,
+            index=selected_index,
+            format_func=lambda code: locales[code].get("Language", code),
+            key="sidebar_language_code_selector",
+            label_visibility="collapsed",
+        )
+        if selected_language_code:
+            previous_language = st.session_state.get("ui_language", "")
+            if selected_language_code != previous_language:
+                logger.info(
+                    "UI language changed by user: "
+                    f"previous_language={previous_language or '<empty>'}, "
+                    f"selected_language={selected_language_code}"
+                )
+                st.session_state["ui_language"] = selected_language_code
+                _set_runtime_config("ui", "language", selected_language_code)
+                _save_runtime_config()
+                st.rerun()
 
-            language_codes = list(locales.keys())
-            selected_index = 0
-            for i, code in enumerate(language_codes):
-                if code == st.session_state.get("ui_language", ""):
-                    selected_index = i
-
-            selected_language_code = st.selectbox(
-                "Language / 语言",
-                options=language_codes,
-                index=selected_index,
-                format_func=lambda code: locales[code].get("Language", code),
-                key="top_language_code_selector",
-                label_visibility="collapsed",
-                width=180,
+        # 活跃任务数量指示器与任务管理器入口
+        active_count = len(_active_generation_tasks())
+        if active_count > 0:
+            st.markdown(
+                f"""
+                <div class="mpt-sidebar-status active">
+                    <span class="mpt-status-dot pulse"></span>
+                    <span>{tr('Task Status Processing')}: {active_count}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            if selected_language_code:
-                previous_language = st.session_state.get("ui_language", "")
-                if selected_language_code != previous_language:
-                    logger.info(
-                        "UI language changed by user: "
-                        f"previous_language={previous_language or '<empty>'}, "
-                        f"selected_language={selected_language_code}"
-                    )
-                    st.session_state["ui_language"] = selected_language_code
-                    # 浏览器自动识别只影响当前会话；只有用户主动切换下拉框时才
-                    # 写入 config.toml，后续新会话将优先使用该明确选择。
-                    _set_runtime_config("ui", "language", selected_language_code)
-                    _save_runtime_config()
-                    # 切换语言后强制刷新，避免 selectbox 继续展示旧语言文案。
-                    st.rerun()
+        else:
+            st.markdown(
+                """
+                <div class="mpt-sidebar-status idle">
+                    <span class="mpt-status-dot"></span>
+                    <span>MoneyPrinterTurbo Ready</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
+        _render_task_manager_entry()
+
+
+def _render_top_bar():
+    """渲染页面顶部轻量状态栏（仅保留新版本提醒，避免与侧边栏控件重复）。"""
+    update_snapshot = version_checker.poll_available_update(config.project_version)
+    if update_snapshot.complete and update_snapshot.available_version:
+        _render_brand(update_snapshot.available_version)
 
 
 support_locales = [
@@ -2503,16 +2514,8 @@ def _render_key_backup_settings(panel):
 # -----------------------------------------------------------------------------
 
 
-# 设置属于低频操作，使用中等尺寸 Dialog 避免长期占用主页面纵向空间，
-# 同时控制阅读行宽，避免弹窗在宽屏设备上显得过于松散。
-# Dialog 继承 fragment 行为，内部控件交互只重绘弹窗；函数末尾单独保存配置，
-# 关闭时通过回调触发整页同步，确保生成流程读取最新 Provider 和界面设置。
-@st.dialog(
-    tr("Settings"),
-    width="medium",
-    on_dismiss=_dismiss_settings_dialog,
-)
-def _render_settings_dialog():
+def _render_settings_content():
+    """渲染设置选项卡内容（LLM、素材 API、密钥备份、缓存管理、界面设置）。"""
     with st.container():
         # 历史 hide_config 只用于隐藏旧基础设置面板。改为固定设置入口后，该值
         # 不再有用户可见意义，统一迁移为 false，避免旧配置影响后续版本。
@@ -2873,6 +2876,22 @@ def _render_settings_dialog():
     _save_runtime_config()
 
 
+@st.dialog(
+    tr("Settings"),
+    width="medium",
+    on_dismiss=_dismiss_settings_dialog,
+)
+def _render_settings_dialog():
+    _render_settings_content()
+
+
+def _render_settings_view():
+    """渲染全页面的系统设置视图。"""
+    st.title(f"⚙️ {tr('Nav Settings')}")
+    _render_settings_content()
+
+
+
 # -----------------------------------------------------------------------------
 # 主生成表单：文案、视频、音频与字幕面板
 # -----------------------------------------------------------------------------
@@ -3127,6 +3146,7 @@ def _render_local_script_generation(params):
                 paragraph_number=params.paragraph_number,
                 video_script_prompt=params.video_script_prompt,
                 custom_system_prompt=params.custom_system_prompt,
+                video_duration=params.video_duration,
                 app_config=app_config_snapshot,
             )
             terms = llm.generate_terms(
@@ -3562,9 +3582,10 @@ def _render_script_settings(panel, params):
                                 video_subject=params.video_subject,
                                 language=params.video_language,
                                 paragraph_number=params.paragraph_number,
-                                video_script_prompt=params.video_script_prompt,
-                                custom_system_prompt=params.custom_system_prompt,
-                            )
+                        video_script_prompt=params.video_script_prompt,
+                        custom_system_prompt=params.custom_system_prompt,
+                        video_duration=params.video_duration,
+                    )
                         )
 
             if _effective_script_generation_backend() == "loomloom":
@@ -3766,19 +3787,16 @@ def _render_video_settings(panel, params):
                 "ui", video_aspect_config_key, params.video_aspect.value
             )
 
-            video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]
-            params.video_clip_duration = stable_selectbox(
-                tr("Clip Duration"),
-                options=video_clip_durations,
-                default_value=_saved_ui_choice(
-                    "video_clip_duration", video_clip_durations, 3
-                ),
-                key="video_clip_duration_select",
-                help=tr("Clip Duration Help"),
+            params.video_duration = st.number_input(
+                tr("Video Duration Seconds"),
+                min_value=15,
+                max_value=300,
+                step=1,
+                key="video_duration_input",
+                help=tr("Video Duration Seconds Help"),
             )
-            _set_runtime_config(
-                "ui", "video_clip_duration", params.video_clip_duration
-            )
+            _set_runtime_config("ui", "video_duration", params.video_duration)
+
             clip_speed_key = localized_widget_key("video_clip_speed_slider")
             # session_state 可能来自旧任务、API 参数或旧版页面状态。控件创建前
             # 统一归一化，既保留合法选择，也确保 slider 始终收到 0.5～2.0
@@ -5804,18 +5822,349 @@ def _render_generation_controls(
             st.stop()
 
         st.session_state["current_generation_task_id"] = task_id
+        active_series_id = st.session_state.get("active_series_id")
+        if active_series_id:
+            try:
+                task_title = params.video_subject or params.video_script or task_id
+                series_service.add_task_to_series(active_series_id, task_id, title=task_title)
+                logger.info(f"Associated task {task_id} with series {active_series_id}")
+            except Exception as se:
+                logger.warning(f"Failed to associate task with series: {se}")
         logger.info(f"WebUI generation task submitted: task_id={task_id}")
 
     _render_current_generation_task()
     return start_button
 
 
-def _render_application():
-    """按固定顺序渲染顶部栏、弹窗、生成表单和任务结果。"""
-    _render_top_bar()
+def _render_dashboard_view():
+    """渲染现代化控制台总览与剧集管理视图。"""
+    all_series = series_service.list_series()
+    all_tasks = _collect_task_summaries(limit=100)
+    processing_count = _count_processing_tasks(all_tasks)
+    completed_count = sum(1 for t in all_tasks if t.get("video_file"))
 
-    if st.session_state.get("settings_dialog_open", False):
-        _render_settings_dialog()
+    # 1. 现代化指标卡片
+    st.markdown(
+        f"""
+        <div class="mpt-dashboard-header">
+            <div class="mpt-dashboard-header__title">
+                <h2>📊 {tr('Nav Dashboard')}</h2>
+                <p class="mpt-dashboard-header__subtitle">Manage your video series, monitor generation status, and start new productions.</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    with stat_col1:
+        st.markdown(
+            f"""
+            <div class="mpt-stat-card">
+                <div class="mpt-stat-card__icon" style="background: #eff6ff; color: #2563eb;">📁</div>
+                <div class="mpt-stat-card__content">
+                    <div class="mpt-stat-card__value">{len(all_series)}</div>
+                    <div class="mpt-stat-card__label">{tr('Total Series')}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with stat_col2:
+        st.markdown(
+            f"""
+            <div class="mpt-stat-card">
+                <div class="mpt-stat-card__icon" style="background: #f5f3ff; color: #7c3aed;">🎬</div>
+                <div class="mpt-stat-card__content">
+                    <div class="mpt-stat-card__value">{len(all_tasks)}</div>
+                    <div class="mpt-stat-card__label">{tr('Total Projects')}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with stat_col3:
+        st.markdown(
+            f"""
+            <div class="mpt-stat-card">
+                <div class="mpt-stat-card__icon" style="background: #f0fdf4; color: #16a34a;">✅</div>
+                <div class="mpt-stat-card__content">
+                    <div class="mpt-stat-card__value">{completed_count}</div>
+                    <div class="mpt-stat-card__label">{tr('Task Status Complete')}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with stat_col4:
+        st.markdown(
+            f"""
+            <div class="mpt-stat-card">
+                <div class="mpt-stat-card__icon" style="background: {'#fef2f2' if processing_count > 0 else '#f8fafc'}; color: {'#dc2626' if processing_count > 0 else '#64748b'};">⚡</div>
+                <div class="mpt-stat-card__content">
+                    <div class="mpt-stat-card__value">{processing_count}</div>
+                    <div class="mpt-stat-card__label">{tr('Active Generations')}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
+
+    selected_series_id = st.session_state.get("selected_dashboard_series_id")
+    selected_series = series_service.get_series(selected_series_id) if selected_series_id else None
+
+    # 如果选中的剧集被删除了，清除选择
+    if selected_series_id and not selected_series:
+        st.session_state["selected_dashboard_series_id"] = None
+        selected_series_id = None
+
+    if selected_series:
+        # -------------------------------------------------------------
+        # 剧集详情视图
+        # -------------------------------------------------------------
+        top_back_col, top_action_col = st.columns([4, 2], vertical_alignment="center")
+        with top_back_col:
+            if st.button(tr("Back to Series List"), key="back_to_series_list_btn", icon=":material/arrow_back:"):
+                st.session_state["selected_dashboard_series_id"] = None
+                st.rerun()
+
+        with top_action_col:
+            del_confirm_nonce = st.session_state.get("series_del_confirm_nonce", 0)
+            if st.button(tr("Delete Series"), key=f"delete_series_{selected_series['id']}_{del_confirm_nonce}", type="secondary", icon=":material/delete:"):
+                series_service.delete_series(selected_series["id"])
+                if st.session_state.get("active_series_id") == selected_series["id"]:
+                    st.session_state["active_series_id"] = None
+                st.session_state["selected_dashboard_series_id"] = None
+                st.toast(tr("Series Deleted"))
+                st.rerun()
+
+        created_str = datetime.fromtimestamp(selected_series.get("created_at", time.time())).strftime("%Y-%m-%d %H:%M")
+        desc_text = selected_series.get("description") or "No description provided."
+
+        st.markdown(
+            f"""
+            <div class="mpt-series-detail-header">
+                <div class="mpt-series-detail-header__main">
+                    <h3>📁 {html.escape(selected_series.get('name', ''))}</h3>
+                    <p class="mpt-series-detail-header__desc">{html.escape(desc_text)}</p>
+                </div>
+                <div class="mpt-series-detail-header__meta">
+                    <span>📅 <b>Created</b>: {created_str}</span>
+                    <span>🎬 <b>Projects</b>: {len(selected_series.get('tasks', []))}</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        c_btn1, _ = st.columns([2, 4])
+        with c_btn1:
+            if st.button(f"➕ {tr('Create Project in Series')}", type="primary", key=f"create_in_series_{selected_series['id']}", use_container_width=True):
+                st.session_state["active_series_id"] = selected_series["id"]
+                st.session_state["nav_view"] = "studio"
+                st.rerun()
+
+        st.markdown(f"#### 🎬 {tr('Projects in Series')}")
+        series_tasks = selected_series.get("tasks", [])
+        if not series_tasks:
+            st.info(tr("No Tasks Yet"))
+        else:
+            with st.container(key="series_task_table_header"):
+                header_cols = st.columns([1.1, 1.7, 3.0, 0.8, 1.6], vertical_alignment="center")
+                header_cols[0].caption(tr("Task Status"))
+                header_cols[1].caption(tr("Task Updated At"))
+                header_cols[2].caption(tr("Task Subject"))
+                header_cols[3].caption(tr("Task Progress"))
+                header_cols[4].caption(tr("Task Actions"))
+
+            all_tasks_dict = {t["task_id"]: t for t in all_tasks}
+
+            for t_item in reversed(series_tasks):
+                task_id = t_item.get("task_id")
+                task_title = t_item.get("title")
+                full_task = all_tasks_dict.get(task_id)
+
+                if full_task:
+                    subject = full_task.get("subject") or task_title or task_id
+                    state = full_task.get("state")
+                    progress = full_task.get("progress", 0)
+                    mtime = full_task.get("mtime", t_item.get("added_at", time.time()))
+                    video_file = full_task.get("video_file")
+                    task_path = full_task.get("task_path")
+                else:
+                    task_path = os.path.join(utils.task_dir(), task_id)
+                    video_file = _find_final_task_video(task_path) if os.path.isdir(task_path) else ""
+                    subject = task_title or task_id
+                    state = const.TASK_STATE_COMPLETE if video_file else None
+                    progress = 100 if video_file else 0
+                    mtime = t_item.get("added_at", time.time())
+                    full_task = {
+                        "task_id": task_id,
+                        "subject": subject,
+                        "state": state,
+                        "progress": progress,
+                        "mtime": mtime,
+                        "task_path": task_path,
+                        "video_file": video_file,
+                        "source": "series",
+                    }
+
+                has_video = bool(video_file and os.path.isfile(video_file))
+                is_processing = _task_state_filter_key(full_task) == "processing"
+                has_restore_data = os.path.isfile(os.path.join(task_path, "script.json")) if os.path.isdir(task_path) else False
+                safe_task_key = "".join(ch if ch.isalnum() else "_" for ch in task_id)[:40]
+
+                with st.container(key=f"series_task_row_{safe_task_key}", border=True):
+                    row_cols = st.columns([1.1, 1.7, 3.0, 0.8, 1.6], vertical_alignment="center")
+                    row_cols[0].write(_task_state_label(state, has_video))
+                    row_cols[1].write(_format_task_time(mtime))
+                    row_cols[2].write(_format_task_subject(subject))
+                    row_cols[3].write(f"{progress}%")
+
+                    action_cols = row_cols[4].columns(4, vertical_alignment="center", gap="small")
+                    with action_cols[0]:
+                        play_label = tr("Play")
+                        if st.button(
+                            play_label,
+                            key=f"play_series_task_{safe_task_key}",
+                            use_container_width=True,
+                            icon=":material/play_arrow:",
+                            help=play_label,
+                            disabled=not has_video,
+                        ):
+                            _open_task_video(video_file)
+
+                    with action_cols[1]:
+                        open_label = tr("Open Task Folder")
+                        if st.button(
+                            open_label,
+                            key=f"open_series_task_{safe_task_key}",
+                            use_container_width=True,
+                            icon=":material/folder_open:",
+                            help=open_label,
+                            disabled=not os.path.isdir(task_path),
+                        ):
+                            _open_task_path(task_path)
+
+                    with action_cols[2]:
+                        restore_label = tr("Regenerate Task")
+                        if st.button(
+                            restore_label,
+                            key=f"restore_series_task_{safe_task_key}",
+                            use_container_width=True,
+                            icon=":material/replay:",
+                            help=restore_label,
+                            disabled=is_processing or not has_restore_data,
+                        ):
+                            _queue_task_restore(task_id)
+
+                    with action_cols[3]:
+                        unlink_label = tr("Remove from Series")
+                        if st.button(
+                            unlink_label,
+                            key=f"unlink_series_task_{safe_task_key}",
+                            use_container_width=True,
+                            icon=":material/link_off:",
+                            help=unlink_label,
+                        ):
+                            series_service.remove_task_from_series(selected_series["id"], task_id)
+                            st.toast(tr("Removed from Series"))
+                            st.rerun()
+
+    else:
+        # -------------------------------------------------------------
+        # 所有剧集概览与创建
+        # -------------------------------------------------------------
+        header_col, action_col = st.columns([3, 1], vertical_alignment="center")
+        with header_col:
+            st.markdown(f"### 📂 {tr('Series Management')}")
+        with action_col:
+            show_create = st.toggle("➕ " + tr("Create Series"), key="toggle_create_series")
+
+        if show_create:
+            with st.container(border=True):
+                with st.form("create_series_form", clear_on_submit=True):
+                    new_name = st.text_input(tr("Series Name"), placeholder="e.g. AI Tech Stories 2026").strip()
+                    new_desc = st.text_area(tr("Series Description"), placeholder="Brief background, style, or themes for this video series...").strip()
+                    submitted = st.form_submit_button(tr("Create Series"), type="primary", use_container_width=True)
+                    if submitted:
+                        if not new_name:
+                            st.error(tr("Please enter a valid series name"))
+                        else:
+                            created = series_service.create_series(name=new_name, description=new_desc)
+                            st.toast(tr("Series Created"))
+                            st.session_state["selected_dashboard_series_id"] = created["id"]
+                            st.rerun()
+
+        if not all_series:
+            st.info(tr("No Series Yet"))
+        else:
+            cols_per_row = 3
+            for i in range(0, len(all_series), cols_per_row):
+                row_items = all_series[i : i + cols_per_row]
+                card_cols = st.columns(cols_per_row)
+                for c_idx, s_data in enumerate(row_items):
+                    with card_cols[c_idx]:
+                        task_cnt = len(s_data.get("tasks", []))
+                        c_date = datetime.fromtimestamp(s_data.get("created_at", time.time())).strftime("%b %d, %Y")
+                        desc_preview = s_data.get("description") or "No description"
+                        if len(desc_preview) > 90:
+                            desc_preview = desc_preview[:90] + "..."
+
+                        st.markdown(
+                            f"""
+                            <div class="mpt-series-card">
+                                <div class="mpt-series-card__header">
+                                    <span class="mpt-series-card__title">📁 {html.escape(s_data.get('name', tr('Untitled Series')))}</span>
+                                    <span class="mpt-series-card__count">{task_cnt} projects</span>
+                                </div>
+                                <p class="mpt-series-card__desc">{html.escape(desc_preview)}</p>
+                                <div class="mpt-series-card__footer">
+                                    <span class="mpt-series-card__date">📅 {c_date}</span>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+                        btn_c1, btn_c2 = st.columns(2)
+                        with btn_c1:
+                            if st.button(tr("Select Series"), key=f"open_series_card_{s_data['id']}", use_container_width=True):
+                                st.session_state["selected_dashboard_series_id"] = s_data["id"]
+                                st.rerun()
+                        with btn_c2:
+                            if st.button(f"🎬 {tr('Nav Studio')}", key=f"quick_studio_series_{s_data['id']}", use_container_width=True, type="primary"):
+                                st.session_state["active_series_id"] = s_data["id"]
+                                st.session_state["nav_view"] = "studio"
+                                st.rerun()
+
+
+def _render_studio_view():
+    """渲染视频创作工坊主界面（四列面板网格、任务提交及任务结果）。"""
+    active_series_id = st.session_state.get("active_series_id")
+    if active_series_id:
+        active_series = series_service.get_series(active_series_id)
+        if active_series:
+            st.markdown(
+                f"""
+                <div class="mpt-active-series-bar">
+                    <div class="mpt-active-series-bar__left">
+                        <span class="mpt-active-series-bar__tag">ACTIVE SERIES</span>
+                        <span class="mpt-active-series-bar__name">📁 {html.escape(str(active_series.get('name', '')))}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            col_space, col_btn = st.columns([5, 1])
+            with col_btn:
+                if st.button(f"✕ {tr('Unlink Series')}", key="unlink_active_series_btn", use_container_width=True, type="secondary"):
+                    st.session_state["active_series_id"] = None
+                    st.rerun()
+        else:
+            st.session_state["active_series_id"] = None
 
     if _apply_pending_settings_preset():
         st.success(tr("Settings Preset Imported"))
@@ -5836,6 +6185,10 @@ def _render_application():
     right_panel = panel[3]
 
     params = VideoParams(video_subject="")
+    params.video_duration = _saved_ui_number(
+        "video_duration", 15, 15, 300, number_type=int
+    )
+    st.session_state.setdefault("video_duration_input", params.video_duration)
     params.match_materials_to_script = bool(
         st.session_state.get("match_materials_to_script", False)
     )
@@ -5847,7 +6200,31 @@ def _render_application():
     )
 
     _render_subtitle_settings(right_panel, params)
+    return params, uploaded_files, uploaded_audio_file, uploaded_bgm_file, voice_mode
 
+
+def _render_application():
+    """按固定顺序渲染顶部栏、弹窗、导航路由和视图内容。"""
+    _render_sidebar_navigation()
+    _render_top_bar()
+
+    if st.session_state.get("settings_dialog_open", False):
+        _render_settings_dialog()
+
+    current_nav = st.session_state.get("nav_view", "dashboard")
+
+    if current_nav == "dashboard":
+        _render_dashboard_view()
+        _save_runtime_config()
+        return
+    elif current_nav == "settings":
+        _render_settings_view()
+        _save_runtime_config()
+        return
+
+    params, uploaded_files, uploaded_audio_file, uploaded_bgm_file, voice_mode = (
+        _render_studio_view()
+    )
     generation_submitted = _render_generation_controls(
         params,
         uploaded_files,
